@@ -40,9 +40,7 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type snapExecSuite struct {
-	restore func()
-}
+type snapExecSuite struct{}
 
 var _ = Suite(&snapExecSuite{})
 
@@ -50,12 +48,10 @@ func (s *snapExecSuite) SetUpTest(c *C) {
 	// clean previous parse runs
 	snapExec.SetOptsCommand("")
 	snapExec.SetOptsHook("")
-	s.restore = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 }
 
 func (s *snapExecSuite) TearDown(c *C) {
 	dirs.SetRootDir("/")
-	s.restore()
 }
 
 var mockYaml = []byte(`name: snapname

@@ -1,0 +1,17 @@
+summary: Check that core refresh will create the userd dbus serivce file
+
+# only run on systems that re-exec
+systems: [ubuntu-16*, ubuntu-17*]
+
+execute: |
+    snap list | awk "/^core / {print(\$3)}" > prevBoot
+
+    echo "Ensure service file is created if missing (e.g. on re-exec)"
+    mv /usr/share/dbus-1/services/io.snapcraft.Launcher.service /usr/share/dbus-1/services/io.snapcraft.Launcher.service.orig
+
+    echo "Install new core"
+    snap install --dangerous /var/lib/snapd/snaps/core_$(cat prevBoot).snap
+
+    echo "Ensure the dbus service file got created"
+    test -f /usr/share/dbus-1/services/io.snapcraft.Launcher.service
+    diff -u /usr/share/dbus-1/services/io.snapcraft.Launcher.service.orig /usr/share/dbus-1/services/io.snapcraft.Launcher.service

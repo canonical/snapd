@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -121,7 +120,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	})
 
 	s.state.Lock()
-	storestate.ReplaceStore(s.state, s.fakeStore)
+	snapstate.ReplaceStore(s.state, s.fakeStore)
 	s.user, err = auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	c.Assert(err, IsNil)
 
@@ -147,10 +146,25 @@ func (s *snapmgrTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 }
 
+func (s *snapmgrTestSuite) TestStore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	sto := &store.Store{}
+	snapstate.ReplaceStore(s.state, sto)
+	store1 := snapstate.Store(s.state)
+	c.Check(store1, Equals, sto)
+
+	// cached
+	store2 := snapstate.Store(s.state)
+	c.Check(store2, Equals, sto)
+}
+
 const (
 	unlinkBefore = 1 << iota
 	cleanupAfter
 	maybeCore
+	runCoreConfigure
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -209,9 +223,15 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 			"cleanup",
 		)
 	}
-	expected = append(expected,
-		"run-hook[configure]",
-	)
+	if opts&runCoreConfigure != 0 {
+		expected = append(expected,
+			"configure-snapd",
+		)
+	} else {
+		expected = append(expected,
+			"run-hook[configure]",
+		)
+	}
 
 	c.Assert(kinds, DeepEquals, expected)
 }
@@ -725,11 +745,12 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
 	})
 
 	validateCalled := false
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, userID int) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
 		validateCalled = true
 		c.Check(refreshes, HasLen, 1)
 		c.Check(refreshes[0].SnapID, Equals, "some-snap-id")
 		c.Check(refreshes[0].Revision, Equals, snap.R(11))
+		c.Check(ignoreValidation, HasLen, 0)
 		return refreshes, nil
 	}
 	// hook it up
@@ -757,10 +778,11 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshesUnhappy(c *C) {
 	})
 
 	validateErr := errors.New("refresh control error")
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, userID int) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
 		c.Check(refreshes, HasLen, 1)
 		c.Check(refreshes[0].SnapID, Equals, "some-snap-id")
 		c.Check(refreshes[0].Revision, Equals, snap.R(11))
+		c.Check(ignoreValidation, HasLen, 0)
 		return nil, validateErr
 	}
 	// hook it up
@@ -1018,7 +1040,7 @@ func (s *snapmgrTestSuite) TestInstallStateConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	storestate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
+	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
 
 	_, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" state changed during install preparations`)
@@ -1084,7 +1106,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	})
 
 	validateCalled := false
-	happyValidateRefreshes := func(st *state.State, refreshes []*snap.Info, userID int) ([]*snap.Info, error) {
+	happyValidateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
 		validateCalled = true
 		return refreshes, nil
 	}
@@ -1628,7 +1650,6 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				Channel:  "some-channel",
 				SnapID:   "services-snap-id",
 				Revision: snap.R(7),
-				Epoch:    "0",
 			},
 			revno: snap.R(11),
 		},
@@ -1807,7 +1828,6 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 				Channel:  "some-channel",
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
-				Epoch:    "",
 			},
 			revno: snap.R(11),
 		},
@@ -1967,7 +1987,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 				Channel:  "some-channel",
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
-				Epoch:    "",
 			},
 			revno: snap.R(11),
 		},
@@ -2173,7 +2192,6 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 				Channel:  "channel-for-7",
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
-				Epoch:    "",
 			},
 		},
 	}
@@ -2230,10 +2248,11 @@ func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNo(c *C) {
 	})
 
 	validateErr := errors.New("refresh control error")
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, userID int) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
 		c.Check(refreshes, HasLen, 1)
 		c.Check(refreshes[0].SnapID, Equals, "some-snap-id")
 		c.Check(refreshes[0].Revision, Equals, snap.R(11))
+		c.Check(ignoreValidation, HasLen, 0)
 		return nil, validateErr
 	}
 	// hook it up
@@ -2261,7 +2280,7 @@ func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNoButIgnoreValidationI
 	})
 
 	validateErr := errors.New("refresh control error")
-	validateRefreshes := func(st *state.State, refreshes []*snap.Info, userID int) ([]*snap.Info, error) {
+	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
 		return nil, validateErr
 	}
 	// hook it up
@@ -2275,6 +2294,140 @@ func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNoButIgnoreValidationI
 	err = ts.Tasks()[0].Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Check(snapsup.Flags, DeepEquals, flags.ForSnapSetup())
+}
+
+func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	validateErr := errors.New("refresh control error")
+	validateRefreshesFail := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
+		c.Check(refreshes, HasLen, 1)
+		if len(ignoreValidation) == 0 {
+			return nil, validateErr
+		}
+		c.Check(ignoreValidation, DeepEquals, map[string]bool{
+			"some-snap-id": true,
+		})
+		return refreshes, nil
+	}
+	// hook it up
+	snapstate.ValidateRefreshes = validateRefreshesFail
+
+	flags := snapstate.Flags{IgnoreValidation: true}
+	ts, err := snapstate.Update(s.state, "some-snap", "stable", snap.R(0), s.user.ID, flags)
+	c.Assert(err, IsNil)
+
+	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
+		op:    "storesvc-list-refresh",
+		revno: snap.R(11),
+		cand: store.RefreshCandidate{
+			SnapID:           "some-snap-id",
+			Revision:         snap.R(7),
+			Channel:          "stable",
+			IgnoreValidation: true,
+		},
+	})
+
+	chg := s.state.NewChange("refresh", "refresh snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// verify snap has IgnoreValidation set
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.IgnoreValidation, Equals, true)
+	c.Check(snapst.Current, Equals, snap.R(11))
+
+	s.fakeBackend.ops = nil
+	s.fakeStore.refreshRevnos = map[string]snap.Revision{
+		"some-snap-id": snap.R(12),
+	}
+	_, tts, err := snapstate.UpdateMany(s.state, []string{"some-snap"}, s.user.ID)
+	c.Assert(err, IsNil)
+	c.Check(tts, HasLen, 1)
+
+	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
+		op:    "storesvc-list-refresh",
+		revno: snap.R(12),
+		cand: store.RefreshCandidate{
+			SnapID:           "some-snap-id",
+			Revision:         snap.R(11),
+			Channel:          "stable",
+			IgnoreValidation: true,
+		},
+	})
+
+	chg = s.state.NewChange("refresh", "refresh snaps")
+	chg.AddAll(tts[0])
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	snapst = snapstate.SnapState{}
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.IgnoreValidation, Equals, true)
+	c.Check(snapst.Current, Equals, snap.R(12))
+
+	// reset ignore validation
+	s.fakeBackend.ops = nil
+	s.fakeStore.refreshRevnos = map[string]snap.Revision{
+		"some-snap-id": snap.R(11),
+	}
+	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) ([]*snap.Info, error) {
+		return refreshes, nil
+	}
+	// hook it up
+	snapstate.ValidateRefreshes = validateRefreshes
+	flags = snapstate.Flags{}
+	ts, err = snapstate.Update(s.state, "some-snap", "stable", snap.R(0), s.user.ID, flags)
+	c.Assert(err, IsNil)
+
+	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
+		op:    "storesvc-list-refresh",
+		revno: snap.R(11),
+		cand: store.RefreshCandidate{
+			SnapID:           "some-snap-id",
+			Revision:         snap.R(12),
+			Channel:          "stable",
+			IgnoreValidation: false,
+		},
+	})
+
+	chg = s.state.NewChange("refresh", "refresh snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	snapst = snapstate.SnapState{}
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.IgnoreValidation, Equals, false)
+	c.Check(snapst.Current, Equals, snap.R(11))
 }
 
 func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
@@ -2310,7 +2463,6 @@ func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 		cand: store.RefreshCandidate{
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
-			Epoch:    "",
 			Channel:  "some-channel",
 		},
 	})
@@ -6345,7 +6497,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 
 	c.Assert(tsl, HasLen, 3)
 	// 1. install core
-	verifyInstallTasks(c, maybeCore, 0, tsl[0], s.state)
+	verifyInstallTasks(c, runCoreConfigure|maybeCore, 0, tsl[0], s.state)
 	// 2 transition-connections
 	verifyTransitionConnectionsTasks(c, tsl[1])
 	// 3 remove-ubuntu-core
@@ -7375,7 +7527,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	restore := snapstate.MockPrerequisitesRetryTimeout(10 * time.Millisecond)
 	defer restore()
 
-	storestate.ReplaceStore(s.state, behindYourBackStore{fakeStore: s.fakeStore, state: s.state})
+	snapstate.ReplaceStore(s.state, behindYourBackStore{fakeStore: s.fakeStore, state: s.state})
 
 	// pretend we don't have core
 	snapstate.Set(s.state, "core", nil)

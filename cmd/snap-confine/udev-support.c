@@ -39,23 +39,25 @@ _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
 	int status = 0;
 	pid_t pid = fork();
 	if (pid < 0) {
-		die("could not fork");
+		die("cannot fork support process for device cgroup assignment");
 	}
 	if (pid == 0) {
 		uid_t real_uid, effective_uid, saved_uid;
 		if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
-			die("could not find user IDs");
+			die("cannot get real, effective and saved user IDs");
 		// can't update the cgroup unless the real_uid is 0, euid as
 		// 0 is not enough
 		if (real_uid != 0 && effective_uid == 0)
 			if (setuid(0) != 0)
-				die("setuid failed");
-		char buf[64];
+				die("cannot set user ID to zero");
+		char buf[64] = { 0 };
 		// pass snappy-add-dev an empty environment so the
 		// user-controlled environment can't be used to subvert
 		// snappy-add-dev
 		char *env[] = { NULL };
 		sc_must_snprintf(buf, sizeof(buf), "%u:%u", major, minor);
+		debug("running snappy-app-dev add %s %s %s", udev_s->tagname,
+		      path, buf);
 		execle("/lib/udev/snappy-app-dev", "/lib/udev/snappy-app-dev",
 		       "add", udev_s->tagname, path, buf, NULL, env);
 		die("execl failed");
@@ -85,7 +87,7 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 	struct udev_device *d =
 	    udev_device_new_from_syspath(udev_s->udev, path);
 	if (d == NULL)
-		die("can not find %s", path);
+		die("cannot find device from syspath %s", path);
 	dev_t devnum = udev_device_get_devnum(d);
 	udev_device_unref(d);
 
@@ -175,20 +177,20 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 		die("snappy_udev->tagname has invalid length");
 
 	// create devices cgroup controller
-	char cgroup_dir[PATH_MAX];
+	char cgroup_dir[PATH_MAX] = { 0 };
 
 	sc_must_snprintf(cgroup_dir, sizeof(cgroup_dir),
 			 "/sys/fs/cgroup/devices/%s/", security_tag);
 
 	if (mkdir(cgroup_dir, 0755) < 0 && errno != EEXIST)
-		die("mkdir failed");
+		die("cannot create cgroup hierarchy %s", cgroup_dir);
 
 	// move ourselves into it
-	char cgroup_file[PATH_MAX];
+	char cgroup_file[PATH_MAX] = { 0 };
 	sc_must_snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir,
 			 "tasks");
 
-	char buf[128];
+	char buf[128] = { 0 };
 	sc_must_snprintf(buf, sizeof(buf), "%i", getpid());
 	write_string_to_file(cgroup_file, buf);
 
@@ -214,12 +216,10 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	// currently isn't listed):
 	// https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
 	char nv_path[15] = { 0 };	// /dev/nvidiaXXX
-	const unsigned nv_major = 195;
 	const char *nvctl_path = "/dev/nvidiactl";
-	const unsigned nvctl_minor = 255;
 	const char *nvuvm_path = "/dev/nvidia-uvm";
-	const unsigned nvuvm_major = 247;
-	const unsigned nvuvm_minor = 0;
+	const char *nvidia_modeset_path = "/dev/nvidia-modeset";
+
 	struct stat sbuf;
 
 	// /dev/nvidia0 through /dev/nvidia254
@@ -233,19 +233,28 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 		if (stat(nv_path, &sbuf) != 0) {
 			break;
 		}
-		_run_snappy_app_dev_add_majmin(udev_s, nv_path, nv_major,
-					       nv_minor);
+		_run_snappy_app_dev_add_majmin(udev_s, nv_path,
+					       MAJOR(sbuf.st_rdev),
+					       MINOR(sbuf.st_rdev));
 	}
 
 	// /dev/nvidiactl
 	if (stat(nvctl_path, &sbuf) == 0) {
 		_run_snappy_app_dev_add_majmin(udev_s, nvctl_path,
-					       nv_major, nvctl_minor);
+					       MAJOR(sbuf.st_rdev),
+					       MINOR(sbuf.st_rdev));
 	}
 	// /dev/nvidia-uvm
 	if (stat(nvuvm_path, &sbuf) == 0) {
 		_run_snappy_app_dev_add_majmin(udev_s, nvuvm_path,
-					       nvuvm_major, nvuvm_minor);
+					       MAJOR(sbuf.st_rdev),
+					       MINOR(sbuf.st_rdev));
+	}
+	// /dev/nvidia-modeset
+	if (stat(nvidia_modeset_path, &sbuf) == 0) {
+		_run_snappy_app_dev_add_majmin(udev_s, nvidia_modeset_path,
+					       MAJOR(sbuf.st_rdev),
+					       MINOR(sbuf.st_rdev));
 	}
 	// add the assigned devices
 	while (udev_s->assigned != NULL) {

@@ -18,6 +18,7 @@ environment:
     MODIFY_CORE_SNAP_FOR_REEXEC: "$(HOST: echo ${SPREAD_MODIFY_CORE_SNAP_FOR_REEXEC:-1})"
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
+    SPREAD_DEBUG_EACH: "$(HOST: echo ${SPREAD_DEBUG_EACH:-1})"
     LANG: "$(echo ${LANG:-C.UTF-8})"
     LANGUAGE: "$(echo ${LANGUAGE:-en})"
     # important to ensure adhoc and linode/qemu behave the same
@@ -71,7 +72,6 @@ backends:
             - fedora-25-64:
                 workers: 3
             - opensuse-42.2-64:
-                manual: true
                 workers: 2
     qemu:
         systems:
@@ -98,6 +98,9 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-17.10-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-64:
                 username: ubuntu
                 password: ubuntu
             - debian-9-64:
@@ -176,6 +179,19 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-17.10-armhf:
+                username: ubuntu
+                password: ubuntu
+            # Bionic
+            - ubuntu-18.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-armhf:
                 username: ubuntu
                 password: ubuntu
     external:
@@ -258,14 +274,16 @@ prepare-each: |
     dmesg -c > /dev/null
 
 debug-each: |
-    echo '# journal messages for snapd'
-    journalctl -u snapd
-    echo '# apparmor denials '
-    dmesg --ctime | grep DENIED || true
-    echo '# seccomp denials (kills) '
-    dmesg --ctime | grep type=1326 || true
-    echo '# snap interfaces'
-    snap interfaces || true
+    if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+        echo '# journal messages for snapd'
+        journalctl -u snapd
+        echo '# apparmor denials '
+        dmesg --ctime | grep DENIED || true
+        echo '# seccomp denials (kills) '
+        dmesg --ctime | grep type=1326 || true
+        echo '# snap interfaces'
+        snap interfaces || true
+    fi
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit
@@ -366,6 +384,12 @@ restore: |
 
     rm -f $SPREAD_PATH/snapd-state.tar.gz
     rm -rf ${GOPATH%%:*}/*
+
+restore-each: |
+    if grep "invalid .*snap.*.rules" /var/log/syslog; then
+        echo "Invalid udev file detected, test most likely broke it"
+        exit 1
+    fi
 
 suites:
     tests/main/:

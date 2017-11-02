@@ -320,7 +320,7 @@ var (
 // auxiliary assertions. If revision>=0 the request will include an
 // If-None-Match header with an ETag for the revision, and
 // ErrRepairNotModified is returned if the revision is still current.
-func (run *Runner) Fetch(brandID string, repairID int, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
+func (run *Runner) Fetch(brandID string, repairID int, revision int) (*asserts.Repair, []asserts.Assertion, error) {
 	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%d", brandID, repairID))
 	if err != nil {
 		return nil, nil, err
@@ -386,7 +386,7 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (repair *as
 		return nil, nil, fmt.Errorf("cannot fetch repair, unexpected status %d", resp.StatusCode)
 	}
 
-	repair, aux, err = checkStream(brandID, repairID, r)
+	repair, aux, err := checkStream(brandID, repairID, r)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot fetch repair, %v", err)
 	}
@@ -398,7 +398,7 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (repair *as
 		return nil, nil, ErrRepairNotModified
 	}
 
-	return
+	return repair, aux, err
 }
 
 func checkStream(brandID string, repairID int, r []asserts.Assertion) (repair *asserts.Repair, aux []asserts.Assertion, err error) {

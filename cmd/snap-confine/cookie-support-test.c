@@ -47,7 +47,7 @@ static void set_fake_cookie_dir()
 static void create_dumy_cookie_file(const char *snap_name,
 				    const char *dummy_cookie)
 {
-	char path[PATH_MAX];
+	char path[PATH_MAX] = { 0 };
 	FILE *f;
 	int n;
 
