@@ -784,3 +784,13 @@ layout:
 		Symlink: "/link/target",
 	})
 }
+
+func (s *infoSuite) TestPlugInfoString(c *C) {
+	plug := &snap.PlugInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug"}
+	c.Assert(plug.String(), Equals, "snap:plug")
+}
+
+func (s *infoSuite) TestSlotInfoString(c *C) {
+	slot := &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "slot"}
+	c.Assert(slot.String(), Equals, "snap:slot")
+}
