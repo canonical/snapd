@@ -71,6 +71,10 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 	m.runner.AddHandler("run-hook", func(task *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
+	m.runner.AddHandler("configure-snapd", func(t *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}, nil)
+
 }
 
 // AddAdhocTaskHandlers registers handlers for ad hoc test handler
