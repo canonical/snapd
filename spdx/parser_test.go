@@ -42,7 +42,7 @@ func (s *spdxSuite) TestParseHappy(c *C) {
 		"GPL-2.0 WITH GCC-exception-3.1",
 		"(GPL-2.0 AND BSD-2-Clause)",
 		"GPL-2.0 AND (BSD-2-Clause OR 0BSD)",
-		"GPL-2.0 AND (BSD-2-Clause OR 0BSD) WITH GCC-exception-3.1",
+		"(BSD-2-Clause OR 0BSD) AND GPL-2.0 WITH GCC-exception-3.1",
 		"((GPL-2.0 AND (BSD-2-Clause OR 0BSD)) OR GPL-3.0) ",
 	} {
 		err := spdx.ValidateLicense(t)
@@ -69,6 +69,7 @@ func (s *spdxSuite) TestParseError(c *C) {
 		{"GPL-2.0 OR", "missing license after OR"},
 		{"GPL-2.0 WITH BAR", "unknown license exception: BAR"},
 		{"GPL-2.0 WITH (foo)", `"\(" not allowed after WITH`},
+		{"(BSD-2-Clause OR 0BSD) WITH GCC-exception-3.1", `expected license name before WITH`},
 	} {
 		err := spdx.ValidateLicense(t.inp)
 		c.Check(err, ErrorMatches, t.errStr, Commentf("input: %q", t.inp))

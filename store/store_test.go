@@ -69,7 +69,7 @@ func (suite *configTestSuite) TestSetBaseURL(c *C) {
 
 	u, err := url.Parse("http://example.com/path/prefix/")
 	c.Assert(err, IsNil)
-	err = cfg.SetBaseURL(u)
+	err = cfg.setBaseURL(u)
 	c.Assert(err, IsNil)
 
 	c.Check(cfg.StoreBaseURL.String(), Equals, "http://example.com/path/prefix/")
@@ -78,13 +78,13 @@ func (suite *configTestSuite) TestSetBaseURL(c *C) {
 
 func (suite *configTestSuite) TestSetBaseURLStoreOverrides(c *C) {
 	cfg := DefaultConfig()
-	c.Assert(cfg.SetBaseURL(apiURL()), IsNil)
+	c.Assert(cfg.setBaseURL(apiURL()), IsNil)
 	c.Check(cfg.StoreBaseURL, Matches, apiURL().String()+".*")
 
 	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "https://force-api.local/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
 	cfg = DefaultConfig()
-	c.Assert(cfg.SetBaseURL(apiURL()), IsNil)
+	c.Assert(cfg.setBaseURL(apiURL()), IsNil)
 	c.Check(cfg.StoreBaseURL.String(), Equals, "https://force-api.local/")
 	c.Check(cfg.AssertionsBaseURL.String(), Equals, "https://force-api.local/api/v1/snaps")
 }
@@ -94,19 +94,19 @@ func (suite *configTestSuite) TestSetBaseURLStoreURLBadEnviron(c *C) {
 	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
 
 	cfg := DefaultConfig()
-	err := cfg.SetBaseURL(apiURL())
+	err := cfg.setBaseURL(apiURL())
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://example.com: missing protocol scheme")
 }
 
 func (suite *configTestSuite) TestSetBaseURLAssertsOverrides(c *C) {
 	cfg := DefaultConfig()
-	c.Assert(cfg.SetBaseURL(apiURL()), IsNil)
+	c.Assert(cfg.setBaseURL(apiURL()), IsNil)
 	c.Check(cfg.AssertionsBaseURL, Matches, apiURL().String()+".*")
 
 	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "https://force-sas.local/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
 	cfg = DefaultConfig()
-	c.Assert(cfg.SetBaseURL(apiURL()), IsNil)
+	c.Assert(cfg.setBaseURL(apiURL()), IsNil)
 	c.Check(cfg.AssertionsBaseURL, Matches, "https://force-sas.local/.*")
 }
 
@@ -115,7 +115,7 @@ func (suite *configTestSuite) TestSetBaseURLAssertsURLBadEnviron(c *C) {
 	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
 
 	cfg := DefaultConfig()
-	err := cfg.SetBaseURL(apiURL())
+	err := cfg.setBaseURL(apiURL())
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse ://example.com: missing protocol scheme")
 }
 
@@ -1536,6 +1536,42 @@ func (t *remoteRepoTestSuite) TestDoRequestRefreshesAuth(c *C) {
 	c.Check(refreshDischargeEndpointHit, Equals, true)
 }
 
+func (t *remoteRepoTestSuite) TestDoRequestForwardsRefreshAuthFailure(c *C) {
+	// mock refresh response
+	refreshDischargeEndpointHit := false
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(mockStoreInvalidLoginCode)
+		io.WriteString(w, mockStoreInvalidLogin)
+		refreshDischargeEndpointHit = true
+	}))
+	defer mockSSOServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+
+	// mock store response (requiring auth refresh)
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
+		w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
+		w.WriteHeader(401)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	repo := New(&Config{}, authContext)
+	c.Assert(repo, NotNil)
+
+	endpoint, _ := url.Parse(mockServer.URL)
+	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
+
+	response, err := repo.doRequest(context.TODO(), repo.client, reqOptions, t.user)
+	c.Assert(err, Equals, ErrInvalidCredentials)
+	c.Check(response, IsNil)
+	c.Check(refreshDischargeEndpointHit, Equals, true)
+}
+
 func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	deviceSessionRequested := false
 	refreshSessionRequested := false
@@ -2852,6 +2888,25 @@ func (t *remoteRepoTestSuite) TestCurrentSnap(c *C) {
 	c.Check(cs.Channel, Equals, cand.Channel)
 	c.Check(cs.Epoch, DeepEquals, cand.Epoch)
 	c.Check(cs.Revision, Equals, cand.Revision.N)
+	c.Check(cs.IgnoreValidation, Equals, cand.IgnoreValidation)
+	c.Check(t.logbuf.String(), Equals, "")
+}
+
+func (t *remoteRepoTestSuite) TestCurrentSnapIgnoreValidation(c *C) {
+	cand := &RefreshCandidate{
+		SnapID:           helloWorldSnapID,
+		Channel:          "stable",
+		Revision:         snap.R(1),
+		Epoch:            *snap.E("1"),
+		IgnoreValidation: true,
+	}
+	cs := currentSnap(cand)
+	c.Assert(cs, NotNil)
+	c.Check(cs.SnapID, Equals, cand.SnapID)
+	c.Check(cs.Channel, Equals, cand.Channel)
+	c.Check(cs.Epoch, DeepEquals, cand.Epoch)
+	c.Check(cs.Revision, Equals, cand.Revision.N)
+	c.Check(cs.IgnoreValidation, Equals, cand.IgnoreValidation)
 	c.Check(t.logbuf.String(), Equals, "")
 }
 
@@ -3085,6 +3140,40 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefresh(c *C) {
 	c.Assert(result.Deltas, HasLen, 0)
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshIgnoreValidation(c *C) {
+	defer mockRFC(func(_ *Store, currentSnaps []*currentSnapJSON, _ *auth.UserState) ([]*snapDetails, error) {
+		c.Check(currentSnaps, DeepEquals, []*currentSnapJSON{{
+			SnapID:           helloWorldSnapID,
+			Channel:          "stable",
+			Revision:         1,
+			Epoch:            *snap.E("0"),
+			IgnoreValidation: true,
+		}})
+		return []*snapDetails{{
+			Name:        "hello-world",
+			Revision:    26,
+			Version:     "6.1",
+			SnapID:      helloWorldSnapID,
+			DeveloperID: helloWorldDeveloperID,
+		}}, nil
+	})()
+
+	repo := New(nil, &testAuthContext{c: c, device: t.device})
+	c.Assert(repo, NotNil)
+
+	result, err := repo.LookupRefresh(&RefreshCandidate{
+		SnapID:           helloWorldSnapID,
+		Channel:          "stable",
+		Revision:         snap.R(1),
+		Epoch:            *snap.E("0"),
+		IgnoreValidation: true,
+	}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(result.Name(), Equals, "hello-world")
+	c.Assert(result.Revision, Equals, snap.R(26))
+	c.Assert(result.SnapID, Equals, helloWorldSnapID)
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshLocalSnap(c *C) {
 	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState) ([]*snapDetails, error) {
 		panic("unexpected call to refreshForCandidates")
@@ -3207,6 +3296,62 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
 	c.Assert(results[0].PublisherID, Equals, helloWorldDeveloperID)
 	c.Assert(results[0].Deltas, HasLen, 0)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshIgnoreValidation(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", metadataPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var resp struct {
+			Snaps  []map[string]interface{} `json:"snaps"`
+			Fields []string                 `json:"fields"`
+		}
+
+		err = json.Unmarshal(jsonReq, &resp)
+		c.Assert(err, IsNil)
+
+		c.Assert(resp.Snaps, HasLen, 1)
+		c.Assert(resp.Snaps[0], DeepEquals, map[string]interface{}{
+			"snap_id":           helloWorldSnapID,
+			"channel":           "stable",
+			"revision":          float64(1),
+			"epoch":             "0",
+			"confinement":       "",
+			"ignore_validation": true,
+		})
+		c.Assert(resp.Fields, DeepEquals, detailFields)
+
+		io.WriteString(w, MockUpdatesJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := Config{
+		StoreBaseURL: mockServerURL,
+	}
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	results, err := repo.ListRefresh([]*RefreshCandidate{
+		{
+			SnapID:           helloWorldSnapID,
+			Channel:          "stable",
+			Revision:         snap.R(1),
+			IgnoreValidation: true,
+		},
+	}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].Name(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshDefaultChannelIsStable(c *C) {
@@ -3963,11 +4108,6 @@ func (t *remoteRepoTestSuite) TestNew(c *C) {
 	aStore := New(nil, nil)
 	// check for fields
 	c.Check(aStore.detailFields, DeepEquals, detailFields)
-	c.Check(aStore.searchURI.Query(), DeepEquals, url.Values{})
-	c.Check(aStore.detailsURI.Query(), DeepEquals, url.Values{})
-	c.Check(aStore.bulkURI.Query(), DeepEquals, url.Values{})
-	c.Check(aStore.sectionsURI.Query(), DeepEquals, url.Values{})
-	c.Check(aStore.assertionsURI.Query(), DeepEquals, url.Values{})
 }
 
 var testAssertion = `type: snap-declaration

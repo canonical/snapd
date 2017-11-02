@@ -154,7 +154,7 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	validate_bpfpath_is_safe(profile_path);
 
 	// load bpf
-	unsigned char bpf[MAX_BPF_SIZE + 1] = { 0 };	// account for EOF
+	char bpf[MAX_BPF_SIZE + 1] = { 0 };	// account for EOF
 	FILE *fp = fopen(profile_path, "rb");
 	if (fp == NULL) {
 		die("cannot read %s", profile_path);
@@ -169,6 +169,10 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	}
 	fclose(fp);
 	debug("read %zu bytes from %s", num_read, profile_path);
+
+	if (sc_streq(bpf, "@unrestricted\n")) {
+		return 0;
+	}
 
 	uid_t real_uid, effective_uid, saved_uid;
 	if (getresuid(&real_uid, &effective_uid, &saved_uid) < 0) {

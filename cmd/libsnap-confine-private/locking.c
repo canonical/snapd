@@ -60,7 +60,7 @@ void sc_enable_sanity_timeout()
 	if (sigaction(SIGALRM, &act, NULL) < 0) {
 		die("cannot install signal handler for SIGALRM");
 	}
-	alarm(3);
+	alarm(6);
 	debug("sanity timeout initialized and set for three seconds");
 }
 

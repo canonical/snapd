@@ -62,8 +62,8 @@ HandlePowerKey=%s
 	return osutil.AtomicWriteFile(powerBtnCfg(), []byte(content), 0644, 0)
 }
 
-func handlePowerButtonConfiguration() error {
-	output, err := snapctlGet("system.power-key-action")
+func handlePowerButtonConfiguration(tr Conf) error {
+	output, err := coreCfg(tr, "system.power-key-action")
 	if err != nil {
 		return err
 	}

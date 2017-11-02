@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type proxySuite struct {
@@ -56,27 +55,24 @@ func (s *proxySuite) TestConfigureProxy(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	for _, action := range []string{"http", "https", "ftp"} {
-		mockSnapctl := testutil.MockCommand(c, "snapctl", fmt.Sprintf(`
-if [ "$1" = "get" ] && [ "$2" = "proxy.%[1]s" ]; then
-    echo "%[1]s://example.com"
-fi
-`, action))
-		defer mockSnapctl.Restore()
-
+	for _, proto := range []string{"http", "https", "ftp"} {
 		// populate with content
 		err := ioutil.WriteFile(s.mockEtcEnvironment, []byte(`
 PATH="/usr/bin"
 `), 0644)
 		c.Assert(err, IsNil)
 
-		err = corecfg.Run()
+		err = corecfg.Run(&mockConf{
+			conf: map[string]interface{}{
+				fmt.Sprintf("proxy.%s", proto): fmt.Sprintf("%s://example.com", proto),
+			},
+		})
 		c.Assert(err, IsNil)
 
 		content, err := ioutil.ReadFile(s.mockEtcEnvironment)
 		c.Assert(err, IsNil)
 		c.Check(string(content), Equals, fmt.Sprintf(`
 PATH="/usr/bin"
-%[1]s_proxy=%[1]s://example.com`, action))
+%[1]s_proxy=%[1]s://example.com`, proto))
 	}
 }

@@ -56,9 +56,9 @@ func init() {
 			"known":         i18n.G("Use known assertions for user creation"),
 			"force-managed": i18n.G("Force adding the user, even if the device is already managed"),
 		}, []argDesc{{
-			// TRANSLATORS: noun
+			// TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
 			name: i18n.G("<email>"),
-			// TRANSLATORS: note users on login.ubuntu.com can have multiple email addresses
+			// TRANSLATORS: This should probably not start with a lowercase letter. Also, note users on login.ubuntu.com can have multiple email addresses.
 			desc: i18n.G("An email of a user on login.ubuntu.com"),
 		}})
 	cmd.hidden = true
