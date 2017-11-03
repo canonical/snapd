@@ -110,9 +110,13 @@ func (s *entrySuite) TestXSnapdGid(c *C) {
 	// Group is parsed from the x-snapd-group= option.
 	var nogroup string
 	var nogroupGid uint64
+	// try to find a suitable 'nogroup' like group
 	for _, grp := range []string{"nogroup", "nobody"} {
-		nogroup = grp
-		nogroupGid, _ = osutil.FindGid(nogroup)
+		if gid, err := osutil.FindGid(grp); err == nil {
+			nogroup = grp
+			nogroupGid = gid
+			break
+		}
 	}
 	c.Assert([]string{"nogroup", "nobody"}, testutil.Contains, nogroup)
 
