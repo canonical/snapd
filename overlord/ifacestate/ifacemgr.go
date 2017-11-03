@@ -51,9 +51,15 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces
 		runner: runner,
 		repo:   interfaces.NewRepository(),
 	}
+
 	if err := m.initialize(extraInterfaces, extraBackends); err != nil {
 		return nil, err
 	}
+
+	// cache once initialized
+	s.Lock()
+	s.Cache("ifacestate-repo", m.repo)
+	s.Unlock()
 
 	// interface tasks might touch more than the immediate task target snap, serialize them
 	runner.SetBlocked(func(_ *state.Task, running []*state.Task) bool {
