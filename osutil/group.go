@@ -72,10 +72,10 @@ func lookupGroup(groupname string) (*Group, error) {
 			&result))
 	})
 	if err != nil {
-		return nil, fmt.Errorf("group: lookup groupname %s: %v", groupname, err)
+		return nil, fmt.Errorf("group: cannot lookup groupname %s: %v", groupname, err)
 	}
 	if result == nil {
-		return nil, fmt.Errorf("group: unknown group %s", groupname)
+		return nil, fmt.Errorf("group: cannot find group %s", groupname)
 	}
 	return buildGroup(&grp), nil
 }
@@ -97,10 +97,10 @@ func lookupGroupByGid(gid uint64) (*Group, error) {
 
 	})
 	if err != nil {
-		return nil, fmt.Errorf("group: lookup groupid %d: %v", gid, err)
+		return nil, fmt.Errorf("group: cannot lookup groupid %d: %v", gid, err)
 	}
 	if result == nil {
-		return nil, fmt.Errorf("group: unknown group %d", gid)
+		return nil, fmt.Errorf("group: cannot find group %d", gid)
 	}
 	return buildGroup(&grp), nil
 }
