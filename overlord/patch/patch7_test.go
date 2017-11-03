@@ -28,11 +28,14 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-type patch7Suite struct{}
+type patch7Suite struct {
+	cookieFile string
+}
 
 var _ = Suite(&patch7Suite{})
 
@@ -57,8 +60,10 @@ func (s *patch7Suite) SetUpTest(c *C) {
 	err = ioutil.WriteFile(dirs.SnapStateFile, statePatch7JSON, 0644)
 	c.Assert(err, IsNil)
 
+	s.cookieFile = fmt.Sprintf("%s/snap.foo", dirs.SnapCookieDir)
 	c.Assert(os.MkdirAll(dirs.SnapCookieDir, 0700), IsNil)
-	c.Assert(ioutil.WriteFile(fmt.Sprintf("%s/snap.foo", dirs.SnapCookieDir), []byte{}, 0644), IsNil)
+	c.Assert(ioutil.WriteFile(s.cookieFile, []byte{}, 0644), IsNil)
+	c.Assert(osutil.FileExists(s.cookieFile), Equals, true)
 }
 
 func (s *patch7Suite) TestPatch7(c *C) {
@@ -82,5 +87,5 @@ func (s *patch7Suite) TestPatch7(c *C) {
 	c.Assert(st.Get("snap-cookies", &cookies), IsNil)
 	c.Assert(cookies, HasLen, 0)
 
-	//TODO: files removed
+	c.Assert(osutil.FileExists(s.cookieFile), Equals, false)
 }
