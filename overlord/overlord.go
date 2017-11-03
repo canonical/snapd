@@ -105,12 +105,6 @@ func New() (*Overlord, error) {
 	}
 	o.addManager(hookMgr)
 
-	snapMgr, err := snapstate.Manager(s)
-	if err != nil {
-		return nil, err
-	}
-	o.addManager(snapMgr)
-
 	assertMgr, err := assertstate.Manager(s)
 	if err != nil {
 		return nil, err
@@ -122,6 +116,12 @@ func New() (*Overlord, error) {
 		return nil, err
 	}
 	o.addManager(ifaceMgr)
+
+	snapMgr, err := snapstate.Manager(s)
+	if err != nil {
+		return nil, err
+	}
+	o.addManager(snapMgr)
 
 	// TODO: this is a bit weird, not actually a StateManager
 	configMgr, err := configstate.Manager(s, hookMgr)

@@ -426,14 +426,27 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 	return nil
 }
 
+func plugConnected(repo *interfaces.Repository, snapName, plugName string) bool {
+	plug := repo.Plug(snapName, plugName)
+	if plug != nil {
+		conns := plug.Connections
+		return len(conns) > 0
+	}
+	return false
+}
+
 // defaultContentPlugProviders takes a snap.Info and returns what
 // default providers there are.
-func defaultContentPlugProviders(info *snap.Info) []string {
-	// FIXME: only return default providers that are not already
-	//        satisfied by something else
+func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
+	repo, ok := st.Cached("ifacestate-repo").(*interfaces.Repository)
+	if !ok {
+		// FIXME: panic here?
+		return nil
+	}
+
 	out := []string{}
 	for _, plug := range info.Plugs {
-		if plug.Interface == "content" {
+		if plug.Interface == "content" && !plugConnected(repo, info.Name(), plug.Name) {
 			dprovider, ok := plug.Attrs["default-provider"].(string)
 			if !ok || dprovider == "" {
 				continue
@@ -483,7 +496,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 
 	snapsup := &SnapSetup{
 		Base:     info.Base,
-		Prereq:   defaultContentPlugProviders(info),
+		Prereq:   defaultContentPlugProviders(st, info),
 		SideInfo: si,
 		SnapPath: path,
 		Channel:  channel,
@@ -529,7 +542,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 	snapsup := &SnapSetup{
 		Channel:      channel,
 		Base:         info.Base,
-		Prereq:       defaultContentPlugProviders(info),
+		Prereq:       defaultContentPlugProviders(st, info),
 		UserID:       userID,
 		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
