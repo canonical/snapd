@@ -19,7 +19,7 @@
 
 package builtin
 
-const gnomeOnlineAccountsServiceSummary = `allows operating as the GNOME Online Accounts service`
+const gnomeOnlineAccountsServiceSummary = `allows communication with the GNOME Online Accounts service`
 
 const gnomeOnlineAccountsServiceBaseDeclarationSlots = `
   gnome-online-accounts-service:
@@ -68,7 +68,6 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "gnome-online-accounts-service",
 		summary:               gnomeOnlineAccountsServiceSummary,
-		implicitOnCore:        false,
 		implicitOnClassic:     true,
 		reservedForOS:         true,
 		baseDeclarationSlots:  gnomeOnlineAccountsServiceBaseDeclarationSlots,
