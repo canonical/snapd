@@ -25,7 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type specSuite struct {
@@ -55,21 +55,22 @@ var _ = Suite(&specSuite{
 			return nil
 		},
 	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "snap1"},
-			Name:      "name",
-			Interface: "test",
-		},
-	},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "snap2"},
-			Name:      "name",
-			Interface: "test",
-		},
-	},
 })
+
+func (s *specSuite) SetUpSuite(c *C) {
+	info1 := snaptest.MockInfo(c, `name: snap1
+plugs:
+    name:
+        interface: test
+`, nil)
+	info2 := snaptest.MockInfo(c, `name: snap2
+slots:
+    name:
+        interface: test
+`, nil)
+	s.plug = &interfaces.Plug{PlugInfo: info1.Plugs["name"]}
+	s.slot = &interfaces.Slot{SlotInfo: info2.Slots["name"]}
+}
 
 func (s *specSuite) SetUpTest(c *C) {
 	s.spec = &udev.Specification{}
