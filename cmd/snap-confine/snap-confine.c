@@ -208,7 +208,8 @@ int main(int argc, char **argv)
 			debug("initializing mount namespace: %s", snap_name);
 			struct sc_ns_group *group = NULL;
 			group = sc_open_ns_group(snap_name, 0);
-			sc_create_or_join_ns_group(group, &apparmor);
+			sc_create_or_join_ns_group(group, &apparmor,
+						   base_snap_name, snap_name);
 			if (sc_should_populate_ns_group(group)) {
 				sc_populate_mount_ns(base_snap_name, snap_name);
 				sc_preserve_populated_ns_group(group);
