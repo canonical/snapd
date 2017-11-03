@@ -83,7 +83,7 @@ func (c *Change) Perform() error {
 // lists are processed and a "diff" of mount changes is produced. The mount
 // changes, when applied in order, transform the current profile into the
 // desired profile.
-func NeededChanges(currentProfile, desiredProfile *mount.Profile) []Change {
+func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 	// Copy both profiles as we will want to mutate them.
 	current := make([]mount.Entry, len(currentProfile.Entries))
 	copy(current, currentProfile.Entries)
@@ -131,21 +131,21 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []Change {
 	}
 
 	// We are now ready to compute the necessary mount changes.
-	var changes []Change
+	var changes []*Change
 
 	// Unmount entries not reused in reverse to handle children before their parent.
 	for i := len(current) - 1; i >= 0; i-- {
 		if reuse[current[i].Dir] {
-			changes = append(changes, Change{Action: Keep, Entry: current[i]})
+			changes = append(changes, &Change{Action: Keep, Entry: current[i]})
 		} else {
-			changes = append(changes, Change{Action: Unmount, Entry: current[i]})
+			changes = append(changes, &Change{Action: Unmount, Entry: current[i]})
 		}
 	}
 
 	// Mount desired entries not reused.
 	for i := range desired {
 		if !reuse[desired[i].Dir] {
-			changes = append(changes, Change{Action: Mount, Entry: desired[i]})
+			changes = append(changes, &Change{Action: Mount, Entry: desired[i]})
 		}
 	}
 
