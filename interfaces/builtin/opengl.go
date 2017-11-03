@@ -83,10 +83,10 @@ const openglConnectedPlugAppArmor = `
 
 // The nvidia modules don't use sysfs (therefore they can't be udev tagged) and
 // will be added by snap-confine.
-const openglConnectedPlugUDev = `
-SUBSYSTEM=="drm", KERNEL=="card[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="vchiq",   TAG+="###CONNECTED_SECURITY_TAGS###"
-`
+var openglConnectedPlugUDev = []string{
+	`SUBSYSTEM=="drm", KERNEL=="card[0-9]*"`,
+	`KERNEL=="vchiq"`,
+}
 
 func init() {
 	registerIface(&commonInterface{
