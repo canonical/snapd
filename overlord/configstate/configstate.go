@@ -58,10 +58,10 @@ func Configure(st *state.State, snapName string, patch map[string]interface{}, f
 			t.Set("use-defaults", true)
 		}
 		if flags&snapstate.IgnoreHookError != 0 {
-			t.Set("ignore-hook-error", true)
+			t.Set("ignore-error", true)
 		}
 		if flags&snapstate.TrackHookError != 0 {
-			t.Set("track-hook-error", true)
+			t.Set("track-error", true)
 		}
 		return state.NewTaskSet(t)
 	}

@@ -35,7 +35,7 @@ import (
 )
 
 type mockConf struct {
-	v map[string]string
+	v map[string]interface{}
 }
 
 func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
@@ -82,7 +82,7 @@ func (s *configmgrSuite) TestConfigureGeneratesConfigureSnapdTask(c *C) {
 	c.Check(ts.Tasks()[0].Kind(), Equals, "configure-snapd")
 }
 
-func (s *configmgrSuite) TestDoRunCoreCofigureIntegration(c *C) {
+func (s *configmgrSuite) TestDoRunCoreConfigureIntegration(c *C) {
 	coreCfgRunCalled := false
 	restore := configstate.MockCorecfgRun(func(tr corecfg.Conf) error {
 		var v string
@@ -112,7 +112,7 @@ func (s *configmgrSuite) TestDoRunCoreCofigureIntegration(c *C) {
 	c.Check(chg.Err(), IsNil)
 }
 
-func (s *configmgrSuite) TestDoRunCoreCofigureWithError(c *C) {
+func (s *configmgrSuite) TestDoRunCoreConfigureWithError(c *C) {
 	coreCfgRunCalled := false
 	restore := configstate.MockCorecfgRun(func(tr corecfg.Conf) error {
 		coreCfgRunCalled = true
@@ -135,7 +135,7 @@ func (s *configmgrSuite) TestDoRunCoreCofigureWithError(c *C) {
 	c.Check(chg.Err(), ErrorMatches, `(?sm)cannot perform the following tasks:.*runCoreCfg fail.*`)
 }
 
-func (s *configmgrSuite) TestDoRunCoreCofigureWithIgnoreError(c *C) {
+func (s *configmgrSuite) TestDoRunCoreConfigureWithIgnoreError(c *C) {
 	coreCfgRunCalled := false
 	restore := configstate.MockCorecfgRun(func(tr corecfg.Conf) error {
 		coreCfgRunCalled = true

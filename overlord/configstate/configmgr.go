@@ -108,10 +108,10 @@ func (m *ConfigManager) doRunCoreConfigure(t *state.Task, tomb *tomb.Tomb) error
 		}
 	}
 
-	if err := t.Get("ignore-hook-error", &ignoreErrors); err != nil && err != state.ErrNoState {
+	if err := t.Get("ignore-error", &ignoreErrors); err != nil && err != state.ErrNoState {
 		return err
 	}
-	if err := t.Get("track-hook-error", &trackErrors); err != nil && err != state.ErrNoState {
+	if err := t.Get("track-error", &trackErrors); err != nil && err != state.ErrNoState {
 		return err
 	}
 
