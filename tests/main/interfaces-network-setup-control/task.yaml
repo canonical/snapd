@@ -9,12 +9,12 @@ details: |
 
 prepare: |
     echo "Given the test-snapd-check-fs-access snap is installed"
-    cp -rf $TESTSLIB/snaps/test-snapd-check-fs-access /tmp/test-snapd-check-fs-access
-    sed 's/\[\]/\[network-setup-control\]/g' -i /tmp/test-snapd-check-fs-access/meta/snap.yaml
-    snap try /tmp/test-snapd-check-fs-access
+    cp $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig
+    sed 's/\[\]/\[network-setup-control\]/g' -i $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml
+    snap try $TESTSLIB/snaps/test-snapd-check-fs-access
 
 restore: |
-    rm -rf /tmp/test-snapd-check-fs-access
+    cp $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml
 
 execute: |
     CONNECTED_PATTERN=":network-setup-control +test-snapd-check-fs-access"
