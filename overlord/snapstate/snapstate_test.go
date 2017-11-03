@@ -308,7 +308,7 @@ func (s *snapmgrTestSuite) TestGenerateCookies(c *C) {
 		"other-snap": nil})
 
 	// some-snap doesn't have cookie
-	contexts := map[string]string{"other-snap": "123456"}
+	contexts := map[string]string{"123456": "other-snap"}
 	s.state.Set("snap-cookies", contexts)
 
 	s.snapmgr.GenerateCookies(s.state)
