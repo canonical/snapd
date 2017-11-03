@@ -92,7 +92,7 @@ capability sys_time,
 /sbin/hwclock ixr,
 `
 
-const timeControlConnectedPlugUDev = `SUBSYSTEM=="rtc", TAG+="###CONNECTED_SECURITY_TAGS###"`
+var timeControlConnectedPlugUDev = []string{`SUBSYSTEM=="rtc"`}
 
 func init() {
 	registerIface(&commonInterface{

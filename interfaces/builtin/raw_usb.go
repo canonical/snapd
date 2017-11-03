@@ -45,7 +45,7 @@ const rawusbConnectedPlugAppArmor = `
 /run/udev/data/+usb:* r,
 `
 
-const rawusbConnectedPlugUDev = `SUBSYSTEMS=="usb", TAG+="###CONNECTED_SECURITY_TAGS###"`
+var rawusbConnectedPlugUDev = []string{`SUBSYSTEMS=="usb"`}
 
 func init() {
 	registerIface(&commonInterface{
