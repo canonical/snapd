@@ -140,7 +140,7 @@ func run() error {
 			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			continue
 		}
-		changesMade = append(changesMade, &change)
+		changesMade = append(changesMade, change)
 	}
 
 	// Compute the new current profile so that it contains only changes that were made
