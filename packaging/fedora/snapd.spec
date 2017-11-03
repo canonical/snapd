@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.29
+Version:        2.29.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -659,6 +659,23 @@ fi
 
 
 %changelog
+* Fri Nov 03 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.29.1
+ - interfaces: fix incorrect signature of ofono DBusPermanentSlot
+ - interfaces/serial-port: udev tag plugged slots that have just
+   'path' via KERNEL
+ - interfaces/hidraw: udev tag plugged slots that have just 'path'
+   via KERNEL
+ - interfaces/uhid: unconditionally add existing uhid device to the
+   device cgroup
+ - cmd/snap-update-ns: fix mount rules for font sharing
+ - tests: disable refresh-undo test on trusty for now
+ - tests: use `snap change --last=install` in snapd-reexec test
+ - Revert " wrappers: fail install if exec-line cannot be re-written
+ - interfaces: don't udev tag devmode or classic snaps
+ - many: make ignore-validation sticky and send the flag with refresh
+   requests
+
 * Mon Oct 30 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.29
  - interfaces/many: miscellaneous updates based on feedback from the
