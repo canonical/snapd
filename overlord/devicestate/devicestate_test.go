@@ -50,7 +50,6 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -77,6 +76,7 @@ type deviceMgrSuite struct {
 
 	restoreOnClassic         func()
 	restoreGenericClassicMod func()
+	restoreSanitize          func()
 }
 
 var _ = Suite(&deviceMgrSuite{})
@@ -105,6 +105,8 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 func (s *deviceMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapRunDir, 0755)
+
+	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 
 	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
 	partition.ForceBootloader(s.bootloader)
@@ -146,7 +148,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.o.AddManager(s.mgr)
 
 	s.state.Lock()
-	storestate.ReplaceStore(s.state, &fakeStore{
+	snapstate.ReplaceStore(s.state, &fakeStore{
 		state: s.state,
 		db:    s.storeSigning,
 	})
@@ -161,6 +163,7 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	s.restoreGenericClassicMod()
 	s.restoreOnClassic()
+	s.restoreSanitize()
 }
 
 var settleTimeout = 15 * time.Second

@@ -318,3 +318,11 @@ func (s *transactionSuite) TestNoConfiguration(c *C) {
 	c.Assert(config.IsNoOption(err), Equals, true)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has no configuration`)
 }
+
+func (s *transactionSuite) TestState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Check(tr.State(), DeepEquals, s.state)
+}

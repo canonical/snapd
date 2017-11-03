@@ -91,7 +91,7 @@ static void test_sc_enable_sanity_timeout()
 	if (g_test_subprocess()) {
 		sc_enable_sanity_timeout();
 		debug("waiting...");
-		usleep(4 * G_USEC_PER_SEC);
+		usleep(7 * G_USEC_PER_SEC);
 		debug("woke up");
 		sc_disable_sanity_timeout();
 		return;
