@@ -41,7 +41,8 @@ The stop command stops the given services of the snap. If executed from the
 )
 
 func init() {
-	addCommand("stop", shortStopHelp, longStopHelp, func() command { return &stopCommand{} })
+	// FIXME: uncomment once the feature is fixed to work on install/refresh
+	// addCommand("stop", shortStopHelp, longStopHelp, func() command { return &stopCommand{} })
 }
 
 func (c *stopCommand) Execute(args []string) error {
