@@ -89,9 +89,6 @@ func lookupGroupByGid(gid uint64) (*Group, error) {
 	buf := alloc(groupBuffer)
 	defer buf.free()
 	err := retryWithBuffer(buf, func() syscall.Errno {
-		// mygetgrgid_r is a wrapper around getgrgid_r to
-		// to avoid using gid_t because C.gid_t(gid) for
-		// unknown reasons doesn't work on linux.
 		return syscall.Errno(C.getgrgid_r(C.__gid_t(gid),
 			&grp,
 			(*C.char)(buf.ptr),
