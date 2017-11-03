@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store/storetest"
@@ -108,7 +107,7 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	s.o.AddManager(s.mgr)
 
 	s.state.Lock()
-	storestate.ReplaceStore(s.state, &fakeStore{
+	snapstate.ReplaceStore(s.state, &fakeStore{
 		state: s.state,
 		db:    s.storeSigning,
 	})

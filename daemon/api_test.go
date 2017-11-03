@@ -64,7 +64,6 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -279,7 +278,7 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	storestate.ReplaceStore(st, s)
+	snapstate.ReplaceStore(st, s)
 	// mark as already seeded
 	st.Set("seeded", true)
 	// registered
@@ -314,7 +313,7 @@ func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *Daemon {
 	assertstate.Manager(st)
 	st.Lock()
 	defer st.Unlock()
-	storestate.ReplaceStore(st, s)
+	snapstate.ReplaceStore(st, s)
 
 	s.d = d
 	return d
@@ -3538,12 +3537,9 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	plug := repo.Plug("consumer", "plug")
-	slot := repo.Slot("producer", "slot")
-	c.Assert(plug.Connections, check.HasLen, 1)
-	c.Assert(slot.Connections, check.HasLen, 1)
-	c.Check(plug.Connections[0], check.DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
-	c.Check(slot.Connections[0], check.DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, check.HasLen, 1)
+	c.Check(ifaces.Connections, check.DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 }
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
@@ -3579,10 +3575,8 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 		"type":        "error",
 	})
 	repo := d.overlord.InterfaceManager().Repository()
-	plug := repo.Plug("consumer", "plug")
-	slot := repo.Slot("producer", "slot")
-	c.Assert(plug.Connections, check.HasLen, 0)
-	c.Assert(slot.Connections, check.HasLen, 0)
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
@@ -3620,8 +3614,8 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	})
 
 	repo := d.overlord.InterfaceManager().Repository()
-	slot := repo.Slot("producer", "slot")
-	c.Assert(slot.Connections, check.HasLen, 0)
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
@@ -3659,8 +3653,8 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	})
 
 	repo := d.overlord.InterfaceManager().Repository()
-	plug := repo.Plug("consumer", "plug")
-	c.Assert(plug.Connections, check.HasLen, 0)
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slotName string) {
@@ -3711,10 +3705,8 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
-	plug := repo.Plug("consumer", "plug")
-	slot := repo.Slot("producer", "slot")
-	c.Assert(plug.Connections, check.HasLen, 0)
-	c.Assert(slot.Connections, check.HasLen, 0)
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
