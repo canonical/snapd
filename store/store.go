@@ -190,7 +190,8 @@ func (cfg *Config) setBaseURL(u *url.URL) error {
 	if err != nil {
 		return err
 	}
-	assertsBaseURI, err := assertsURL(storeBaseURI)
+
+	assertsBaseURI, err := assertsURL()
 	if err != nil {
 		return err
 	}
@@ -317,6 +318,19 @@ func storeURL(api *url.URL) (*url.URL, error) {
 	return api, nil
 }
 
+func assertsURL() (*url.URL, error) {
+	if s := os.Getenv("SNAPPY_FORCE_SAS_URL"); s != "" {
+		u, err := url.Parse(s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid SNAPPY_FORCE_SAS_URL: %s", err)
+		}
+		return u, nil
+	}
+
+	// nil means fallback to store base url
+	return nil, nil
+}
+
 func authLocation() string {
 	if useStaging() {
 		return "login.staging.ubuntu.com"
@@ -329,19 +343,6 @@ func authURL() string {
 		return u
 	}
 	return "https://" + authLocation() + "/api/v2"
-}
-
-func assertsURL(storeBaseURI *url.URL) (*url.URL, error) {
-	if s := os.Getenv("SNAPPY_FORCE_SAS_URL"); s != "" {
-		u, err := url.Parse(s)
-		if err != nil {
-			return nil, fmt.Errorf("invalid SNAPPY_FORCE_SAS_URL: %s", err)
-		}
-		return u, nil
-	}
-	// XXX: This will eventually become endpointURL(storeBaseURI, "v2/", nil)
-	// once new bulk-friendly APIs are designed and implemented.
-	return endpointURL(storeBaseURI, "api/v1/snaps", nil), nil
 }
 
 func myappsURL() string {
@@ -466,7 +467,7 @@ const (
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
 
-	assertionsPath = "assertions"
+	assertionsPath = "api/v1/snaps/assertions"
 )
 
 func (s *Store) defaultSnapQuery() url.Values {
@@ -477,12 +478,32 @@ func (s *Store) defaultSnapQuery() url.Values {
 	return q
 }
 
+func (s *Store) baseURL(defaultURL *url.URL) *url.URL {
+	u := defaultURL
+	if s.authContext != nil {
+		var err error
+		_, u, err = s.authContext.ProxyStoreParams(defaultURL)
+		if err != nil {
+			logger.Debugf("cannot get proxy store parameters from state: %v", err)
+		}
+	}
+	if u != nil {
+		return u
+	}
+	return defaultURL
+}
+
 func (s *Store) endpointURL(p string, query url.Values) *url.URL {
-	return endpointURL(s.cfg.StoreBaseURL, p, query)
+	return endpointURL(s.baseURL(s.cfg.StoreBaseURL), p, query)
 }
 
 func (s *Store) assertionsEndpointURL(p string, query url.Values) *url.URL {
-	return endpointURL(s.cfg.AssertionsBaseURL, path.Join(assertionsPath, p), query)
+	defBaseURL := s.cfg.StoreBaseURL
+	// can be overridden separately!
+	if s.cfg.AssertionsBaseURL != nil {
+		defBaseURL = s.cfg.AssertionsBaseURL
+	}
+	return endpointURL(s.baseURL(defBaseURL), path.Join(assertionsPath, p), query)
 }
 
 // LoginUser logs user in the store and returns the authentication macaroons.
@@ -1200,15 +1221,18 @@ type RefreshCandidate struct {
 
 	// the desired channel
 	Channel string
+	// whether validation should be ignored
+	IgnoreValidation bool
 }
 
 // the exact bits that we need to send to the store
 type currentSnapJSON struct {
-	SnapID      string     `json:"snap_id"`
-	Channel     string     `json:"channel"`
-	Revision    int        `json:"revision,omitempty"`
-	Epoch       snap.Epoch `json:"epoch"`
-	Confinement string     `json:"confinement"`
+	SnapID           string     `json:"snap_id"`
+	Channel          string     `json:"channel"`
+	Revision         int        `json:"revision,omitempty"`
+	Epoch            snap.Epoch `json:"epoch"`
+	Confinement      string     `json:"confinement"`
+	IgnoreValidation bool       `json:"ignore_validation,omitempty"`
 }
 
 type metadataWrapper struct {
@@ -1236,10 +1260,11 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 	}
 
 	return &currentSnapJSON{
-		SnapID:   cs.SnapID,
-		Channel:  channel,
-		Epoch:    cs.Epoch,
-		Revision: cs.Revision.N,
+		SnapID:           cs.SnapID,
+		Channel:          channel,
+		Epoch:            cs.Epoch,
+		Revision:         cs.Revision.N,
+		IgnoreValidation: cs.IgnoreValidation,
 		// confinement purposely left empty
 	}
 }

@@ -339,16 +339,17 @@ func mapLocal(about aboutSnap) *client.Snap {
 		Version:         localSnap.Version,
 		Channel:         localSnap.Channel,
 		TrackingChannel: snapst.Channel,
-		Confinement:     string(localSnap.Confinement),
-		DevMode:         snapst.DevMode,
-		TryMode:         snapst.TryMode,
-		JailMode:        snapst.JailMode,
-		Private:         localSnap.Private,
-		Apps:            apps,
-		Broken:          localSnap.Broken,
-		Contact:         localSnap.Contact,
-		Title:           localSnap.Title(),
-		License:         localSnap.License,
+		// TODO: send ignore-validation
+		Confinement: string(localSnap.Confinement),
+		DevMode:     snapst.DevMode,
+		TryMode:     snapst.TryMode,
+		JailMode:    snapst.JailMode,
+		Private:     localSnap.Private,
+		Apps:        apps,
+		Broken:      localSnap.Broken,
+		Contact:     localSnap.Contact,
+		Title:       localSnap.Title(),
+		License:     localSnap.License,
 	}
 
 	return result

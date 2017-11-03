@@ -1,3 +1,23 @@
+snapd (2.29.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - interfaces: fix incorrect signature of ofono DBusPermanentSlot
+    - interfaces/serial-port: udev tag plugged slots that have just
+      'path' via KERNEL
+    - interfaces/hidraw: udev tag plugged slots that have just 'path'
+      via KERNEL
+    - interfaces/uhid: unconditionally add existing uhid device to the
+      device cgroup
+    - cmd/snap-update-ns: fix mount rules for font sharing
+    - tests: disable refresh-undo test on trusty for now
+    - tests: use `snap change --last=install` in snapd-reexec test
+    - Revert " wrappers: fail install if exec-line cannot be re-written
+    - interfaces: don't udev tag devmode or classic snaps
+    - many: make ignore-validation sticky and send the flag with refresh
+      requests
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 03 Nov 2017 07:25:17 +0100
+
 snapd (2.29~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1726258
