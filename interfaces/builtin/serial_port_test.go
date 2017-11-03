@@ -338,7 +338,7 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}==
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-2-ports"`
 	c.Assert(snippet, Equals, expectedSnippet3)
 
-  // add plug for the first slot with product and vendor ids and usb interface number
+	// add plug for the first slot with product and vendor ids and usb interface number
 	spec = &udev.Specification{}
 	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, nil, s.testUDev3, nil)
 	c.Assert(err, IsNil)
