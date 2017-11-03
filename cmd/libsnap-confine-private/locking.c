@@ -60,7 +60,7 @@ void sc_enable_sanity_timeout()
 	if (sigaction(SIGALRM, &act, NULL) < 0) {
 		die("cannot install signal handler for SIGALRM");
 	}
-	alarm(3);
+	alarm(6);
 	debug("sanity timeout initialized and set for three seconds");
 }
 
@@ -99,7 +99,7 @@ int sc_lock(const char *scope)
 		die("cannot open lock directory");
 	}
 	// Construct the name of the lock file.
-	char lock_fname[PATH_MAX];
+	char lock_fname[PATH_MAX] = { 0 };
 	sc_must_snprintf(lock_fname, sizeof lock_fname, "%s/%s.lock",
 			 sc_lock_dir, scope ? : "");
 

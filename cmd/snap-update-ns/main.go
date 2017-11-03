@@ -43,6 +43,7 @@ var opts struct {
 // snap-confine.
 
 func main() {
+	logger.SimpleSetup()
 	if err := run(); err != nil {
 		fmt.Printf("cannot update snap namespace: %s\n", err)
 		os.Exit(1)
@@ -89,7 +90,7 @@ func run() error {
 	defer lock.Close()
 
 	if opts.FromSnapConfine {
-		// When --from-snap-conifne is passed then we just ensure that the
+		// When --from-snap-confine is passed then we just ensure that the
 		// namespace is locked. This is used by snap-confine to use
 		// snap-update-ns to apply mount profiles.
 		if err := lock.TryLock(); err != osutil.ErrAlreadyLocked {
@@ -100,6 +101,16 @@ func run() error {
 			return fmt.Errorf("cannot lock mount namespace of snap %q: %s", snapName, err)
 		}
 	}
+
+	// Freeze the mount namespace and unfreeze it later. This lets us perform
+	// modifications without snap processes attempting to construct
+	// symlinks or perform other malicious activity (such as attempting to
+	// introduce a symlink that would cause us to mount something other
+	// than what we expected).
+	if err := freezeSnapProcesses(opts.Positionals.SnapName); err != nil {
+		return err
+	}
+	defer thawSnapProcesses(opts.Positionals.SnapName)
 
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
@@ -119,17 +130,17 @@ func run() error {
 	// Compute the needed changes and perform each change if needed, collecting
 	// those that we managed to perform or that were performed already.
 	changesNeeded := NeededChanges(currentBefore, desired)
-	var changesMade []Change
+	var changesMade []*Change
 	for _, change := range changesNeeded {
-		if change.Action == Keep {
-			changesMade = append(changesMade, change)
-			continue
-		}
-		if err := change.Perform(); err != nil {
+		synthesised, err := change.Perform()
+		// NOTE: we may have done something even if Perform itself has failed.
+		// We need to collect synthesized changes and store them.
+		changesMade = append(changesMade, synthesised...)
+		if err != nil {
 			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			continue
 		}
-		changesMade = append(changesMade, change)
+		changesMade = append(changesMade, &change)
 	}
 
 	// Compute the new current profile so that it contains only changes that were made

@@ -8,7 +8,7 @@
     #
     # Those are discussed on https://forum.snapcraft.io/t/snapd-vs-upstream-kernel-vs-apparmor
     # and https://forum.snapcraft.io/t/snaps-and-nfs-home/
-    include "/var/lib/snapd/apparmor/snap-confine.d"
+    include "/var/lib/snapd/apparmor/snap-confine"
 
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
@@ -60,7 +60,7 @@
 
     # querying udev
     /etc/udev/udev.conf r,
-    /sys/devices/**/uevent r,
+    /sys/**/uevent r,
     /lib/udev/snappy-app-dev ixr, # drop
     /run/udev/** rw,
     /{,usr/}bin/tr ixr,
@@ -171,8 +171,8 @@
     mount options=(rw rbind) /run/ -> /tmp/snap.rootfs_*/run/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/run/,
 
-    mount options=(rw rbind) {/usr,}/lib/modules/ -> /tmp/snap.rootfs_*{/usr,}/lib/modules/,
-    mount options=(rw rslave) -> /tmp/snap.rootfs_*{/usr,}/lib/modules/,
+    mount options=(rw rbind) {,/usr}/lib{,32,64,x32}/modules/ -> /tmp/snap.rootfs_*{,/usr}/lib/modules/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*{,/usr}/lib/modules/,
 
     mount options=(rw rbind) /var/log/ -> /tmp/snap.rootfs_*/var/log/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/log/,
@@ -248,6 +248,9 @@
     /dev/nvidia-uvm r,
     /usr/** r,
     mount options=(rw bind) /usr/lib/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl/,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/* w,
+    mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/,
+    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/,
 
     # for chroot on steroids, we use pivot_root as a better chroot that makes
     # apparmor rules behave the same on classic and outside of classic.
@@ -481,6 +484,9 @@
         # Needed to perform mount/unmounts.
         capability sys_admin,
 
+        # Allow freezing and thawing the per-snap cgroup freezers
+        /sys/fs/cgroup/freezer/snap.*/freezer.state rw,
+
         # Support mount profiles via the content interface. This should correspond
         # to permutations of $SNAP -> $SNAP for reading and $SNAP_{DATA,COMMON} ->
         # $SNAP_{DATA,COMMON} for both reading and writing.
@@ -497,6 +503,16 @@
         mount options=(ro bind) /snap/*/** -> /var/snap/*/**,
         mount options=(rw bind) /var/snap/*/** -> /var/snap/*/**,
         mount options=(ro bind) /var/snap/*/** -> /var/snap/*/**,
+
+        # Allow creating missing mount directories under $SNAP_DATA.
+        #
+        # The "tree" of permissions is needed for SecureMkdirAll that uses
+        # open(..., O_NOFOLLOW) and mkdirat() using the resulting file
+        # descriptor.
+        / r,
+        /var/ r,
+        /var/snap/{,*/} r,
+        /var/snap/*/**/ rw,
 
         # Allow the content interface to bind fonts from the host filesystem
         mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/*/*/**,

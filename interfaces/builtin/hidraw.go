@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -141,7 +141,7 @@ func (iface *hidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 		return nil
 	}
 
-	// Path to fixed device node (no udev tagging)
+	// Path to fixed device node
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil
@@ -153,17 +153,33 @@ func (iface *hidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 }
 
 func (iface *hidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	hasOnlyPath := true
+	if iface.hasUsbAttrs(slot) {
+		hasOnlyPath = false
+	}
+
 	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-	if !vOk {
+	if !vOk && !hasOnlyPath {
 		return nil
 	}
 	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-	if !pOk {
+	if !pOk && !hasOnlyPath {
 		return nil
 	}
+
+	path, pathOk := slot.Attrs["path"].(string)
+	if !pathOk && hasOnlyPath {
+		return nil
+	}
+
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, -1, "TAG", tag))
+		if hasOnlyPath {
+			spec.AddSnippet(fmt.Sprintf("SUBSYSTEM==\"hidraw\", KERNEL==\"%s\", TAG+=\"%s\"", strings.TrimPrefix(path, "/dev/"), tag))
+
+		} else {
+			spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, -1, "TAG", tag))
+		}
 	}
 	return nil
 }
