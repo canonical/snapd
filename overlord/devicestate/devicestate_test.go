@@ -1288,6 +1288,7 @@ func (s *deviceMgrSuite) TestDeviceAssertionsProxyStore(c *C) {
 	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "foo",
 		"operator-id": operatorAcct.AccountID(),
+		"timestamp":   time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 	s.state.Lock()
