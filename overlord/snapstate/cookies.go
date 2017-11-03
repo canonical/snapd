@@ -100,22 +100,26 @@ func (m *SnapManager) createSnapCookie(st *state.State, snapName string) error {
 }
 
 func (m *SnapManager) removeSnapCookie(st *state.State, snapName string) error {
-	var contexts map[string]string
-	err := st.Get("snap-cookies", &contexts)
+	var snapCookies map[string]string
+	err := st.Get("snap-cookies", &snapCookies)
 	if err != nil {
 		if err != state.ErrNoState {
 			return fmt.Errorf("cannot get snap cookies: %v", err)
 		}
-		contexts = make(map[string]string)
+		// no cookies in the state
+		if err := os.Remove(filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", snapName))); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
 	}
 
-	for cookieID, snap := range contexts {
+	for cookieID, snap := range snapCookies {
 		if snapName == snap {
 			if err := os.Remove(filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", snapName))); err != nil && !os.IsNotExist(err) {
 				return err
 			}
-			delete(contexts, cookieID)
-			st.Set("snap-cookies", contexts)
+			delete(snapCookies, cookieID)
+			st.Set("snap-cookies", snapCookies)
 			return nil
 		}
 	}
