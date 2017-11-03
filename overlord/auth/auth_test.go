@@ -600,6 +600,7 @@ authority-id: canonical
 store: foo
 operator-id: foo-operator
 url: http://foo.internal
+timestamp: 2017-11-01T10:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw=`
