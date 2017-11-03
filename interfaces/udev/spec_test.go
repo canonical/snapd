@@ -62,6 +62,11 @@ func (s *specSuite) SetUpSuite(c *C) {
 plugs:
     name:
         interface: test
+apps:
+    foo:
+        command: bin/foo
+hooks:
+    configure:
 `, nil)
 	info2 := snaptest.MockInfo(c, `name: snap2
 slots:
@@ -79,6 +84,24 @@ func (s *specSuite) SetUpTest(c *C) {
 func (s *specSuite) TestAddSnippte(c *C) {
 	s.spec.AddSnippet("foo")
 	c.Assert(s.spec.Snippets(), DeepEquals, []string{"foo"})
+}
+
+func (s *specSuite) TestTagDevice(c *C) {
+	// TagDevice acts in the scope of the plug/slot (as appropriate) and
+	// affects all of the apps and hooks related to the given plug or slot
+	// (with the exception that slots cannot have hooks).
+	iface := &ifacetest.TestInterface{
+		InterfaceName: "test",
+		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+			spec.TagDevice(`kernel="voodoo"`)
+			return nil
+		},
+	}
+	c.Assert(s.spec.AddConnectedPlug(iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(s.spec.Snippets(), DeepEquals, []string{
+		`kernel="voodoo", TAG+="snap_snap1_foo"`,
+		`kernel="voodoo", TAG+="snap_snap1_hook_configure"`,
+	})
 }
 
 // The spec.Specification can be used through the interfaces.Specification interface
