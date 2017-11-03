@@ -120,7 +120,7 @@ func run() error {
 	// Compute the needed changes and perform each change if needed, collecting
 	// those that we managed to perform or that were performed already.
 	changesNeeded := NeededChanges(currentBefore, desired)
-	var changesMade []Change
+	var changesMade []*Change
 	for _, change := range changesNeeded {
 		if change.Action == Keep {
 			changesMade = append(changesMade, change)
