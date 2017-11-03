@@ -65,6 +65,7 @@ type SerialPortInterfaceSuite struct {
 	// Consuming Snap
 	testPlugPort1 *interfaces.Plug
 	testPlugPort2 *interfaces.Plug
+	testPlugPort3 *interfaces.Plug
 }
 
 var _ = Suite(&SerialPortInterfaceSuite{
@@ -193,6 +194,8 @@ plugs:
         interface: serial-port
     plug-for-port-2:
         interface: serial-port
+    plug-for-port-3:
+        interface: serial-port
 
 apps:
     app-accessing-1-port:
@@ -201,9 +204,13 @@ apps:
     app-accessing-2-ports:
         command: bar
         plugs: [plug-for-port-1, plug-for-port-2]
+    app-accessing-3rd-port:
+        command: foo
+        plugs: [plug-for-port-3]
 `, nil)
 	s.testPlugPort1 = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-port-1"]}
 	s.testPlugPort2 = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-port-2"]}
+	s.testPlugPort3 = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-port-3"]}
 }
 
 func (s *SerialPortInterfaceSuite) TestName(c *C) {
@@ -264,27 +271,34 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 }
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
+	// add the plug for the slot with just path
 	spec := &udev.Specification{}
 	err := spec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testSlot1, nil)
 	c.Assert(err, IsNil)
-	c.Assert(spec.Snippets(), HasLen, 0)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	snippet := spec.Snippets()[0]
+	expectedSnippet1 := `SUBSYSTEM=="tty", KERNEL=="ttyS0", TAG+="snap_client-snap_app-accessing-2-ports"`
+	c.Assert(snippet, Equals, expectedSnippet1)
 
-	expectedSnippet1 := `IMPORT{builtin}="usb_id"
-SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-2-ports"`
+	// add plug for the first slot with product and vendor ids
+	spec = &udev.Specification{}
 	err = spec.AddConnectedPlug(s.iface, s.testPlugPort1, nil, s.testUDev1, nil)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	snippet := spec.Snippets()[0]
-	c.Assert(snippet, Equals, expectedSnippet1)
+	snippet = spec.Snippets()[0]
+	expectedSnippet2 := `IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-2-ports"`
+	c.Assert(snippet, Equals, expectedSnippet2)
 
+	// add plug for the first slot with product and vendor ids
 	spec = &udev.Specification{}
 	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, nil, s.testUDev2, nil)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]
-	expectedSnippet2 := `IMPORT{builtin}="usb_id"
+	expectedSnippet3 := `IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-2-ports"`
-	c.Assert(snippet, Equals, expectedSnippet2)
+	c.Assert(snippet, Equals, expectedSnippet3)
 }
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
@@ -323,6 +337,49 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 
 	expectedSnippet9 := `/dev/tty[A-Z]*[0-9] rw,`
 	checkConnectedPlugSnippet(s.testPlugPort2, s.testUDev2, expectedSnippet9)
+}
+
+func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippetsForPath(c *C) {
+	checkConnectedPlugSnippet := func(plug *interfaces.Plug, slot *interfaces.Slot, expectedSnippet string) {
+		udevSpec := &udev.Specification{}
+		err := udevSpec.AddConnectedPlug(s.iface, plug, nil, slot, nil)
+		c.Assert(err, IsNil)
+
+		c.Assert(udevSpec.Snippets(), HasLen, 1)
+		snippet := udevSpec.Snippets()[0]
+		c.Assert(snippet, DeepEquals, expectedSnippet, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet, snippet))
+	}
+
+	// these have only path
+	expectedSnippet1 := `SUBSYSTEM=="tty", KERNEL=="ttyS0", TAG+="snap_client-snap_app-accessing-3rd-port"`
+	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot1, expectedSnippet1)
+
+	expectedSnippet2 := `SUBSYSTEM=="tty", KERNEL=="ttyUSB927", TAG+="snap_client-snap_app-accessing-3rd-port"`
+	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot2, expectedSnippet2)
+
+	expectedSnippet3 := `SUBSYSTEM=="tty", KERNEL=="ttyS42", TAG+="snap_client-snap_app-accessing-3rd-port"`
+	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot3, expectedSnippet3)
+
+	expectedSnippet4 := `SUBSYSTEM=="tty", KERNEL=="ttyO0", TAG+="snap_client-snap_app-accessing-3rd-port"`
+	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot4, expectedSnippet4)
+
+	expectedSnippet5 := `SUBSYSTEM=="tty", KERNEL=="ttyACM0", TAG+="snap_client-snap_app-accessing-3rd-port"`
+	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot5, expectedSnippet5)
+
+	expectedSnippet6 := `SUBSYSTEM=="tty", KERNEL=="ttyAMA0", TAG+="snap_client-snap_app-accessing-3rd-port"`
+	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot6, expectedSnippet6)
+
+	expectedSnippet7 := `SUBSYSTEM=="tty", KERNEL=="ttyXRUSB0", TAG+="snap_client-snap_app-accessing-3rd-port"`
+	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot7, expectedSnippet7)
+
+	// these have product and vendor ids
+	expectedSnippet8 := `IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-3rd-port"`
+	checkConnectedPlugSnippet(s.testPlugPort3, s.testUDev1, expectedSnippet8)
+
+	expectedSnippet9 := `IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-3rd-port"`
+	checkConnectedPlugSnippet(s.testPlugPort3, s.testUDev2, expectedSnippet9)
 }
 
 func (s *SerialPortInterfaceSuite) TestInterfaces(c *C) {
