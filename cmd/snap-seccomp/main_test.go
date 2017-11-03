@@ -28,7 +28,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -351,20 +350,9 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 //    {"read >=2", "read;native;1", main.SeccompRetKill},
 //    {"read >=2", "read;native;0", main.SeccompRetKill},
 func (s *snapSeccompSuite) TestCompile(c *C) {
-	// The 'shadow' group is different in different distributions, if group
-	// does not exist, instead of guessing gid based on group name, look at
-	// /etc/shadow and use the gid that owns it
-	var shadowGid uint64
-	if gid, err := osutil.FindGid("shadow"); err != nil {
-		var stat syscall.Stat_t
-		err := syscall.Stat("/etc/shadow", &stat)
-		c.Assert(err, IsNil)
-		shadowGid = uint64(stat.Gid)
-	} else {
-		shadowGid = gid
-	}
-
-	shadowGroup, err := osutil.FindGroup(shadowGid)
+	// The 'shadow' group is different in different distributions, instead
+	// of second guessing group name, look at the owner of /etc/shadow
+	shadowGid, shadowGroup, err := osutil.FindGroupOwning("/etc/shadow")
 	c.Assert(err, IsNil)
 
 	for _, t := range []struct {
