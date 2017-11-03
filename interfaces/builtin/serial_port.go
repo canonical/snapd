@@ -190,8 +190,8 @@ func (iface *serialPortInterface) UDevConnectedPlug(spec *udev.Specification, pl
 	if !pathOk && hasOnlyPath {
 		return nil
 	}
-    
-  usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
+
+	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
 	if !ok {
 		// Set usbInterfaceNumber < 0 causes udevUsbDeviceSnippet to not add
 		// ENV{ID_USB_INTERFACE_NUM} to the udev rule
