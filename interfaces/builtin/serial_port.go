@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -159,7 +159,7 @@ func (iface *serialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 		return nil
 	}
 
-	// Path to fixed device node (no udev tagging)
+	// Path to fixed device node
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil
@@ -170,23 +170,41 @@ func (iface *serialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 }
 
 func (iface *serialPortInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	// For connected plugs, we use vendor and product ids if available,
+	// otherwise add the kernel device
+	hasOnlyPath := true
+	if iface.hasUsbAttrs(slot) {
+		hasOnlyPath = false
+	}
+
 	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-	if !vOk {
+	if !vOk && !hasOnlyPath {
 		return nil
 	}
 	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-	if !pOk {
+	if !pOk && !hasOnlyPath {
 		return nil
 	}
-	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
+
+	path, pathOk := slot.Attrs["path"].(string)
+	if !pathOk && hasOnlyPath {
+		return nil
+	}
+    
+  usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
 	if !ok {
 		// Set usbInterfaceNumber < 0 causes udevUsbDeviceSnippet to not add
 		// ENV{ID_USB_INTERFACE_NUM} to the udev rule
 		usbInterfaceNumber = -1
 	}
+
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, usbInterfaceNumber, "TAG", tag))
+		if hasOnlyPath {
+			spec.AddSnippet(fmt.Sprintf("SUBSYSTEM==\"tty\", KERNEL==\"%s\", TAG+=\"%s\"", strings.TrimPrefix(path, "/dev/"), tag))
+		} else {
+			spec.AddSnippet(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, usbInterfaceNumber, "TAG", tag))
+		}
 	}
 	return nil
 }
