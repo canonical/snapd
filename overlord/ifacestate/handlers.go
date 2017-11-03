@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/repo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -292,7 +293,7 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 	if err != nil {
 		return err
 	}
-	removed := make(map[string]connState)
+	removed := make(map[string]repo.ConnState)
 	for id := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
@@ -313,7 +314,7 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 	st.Lock()
 	defer st.Unlock()
 
-	var removed map[string]connState
+	var removed map[string]repo.ConnState
 	err := task.Get("removed", &removed)
 	if err != nil && err != state.ErrNoState {
 		return err
@@ -423,7 +424,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	conns[connRef.ID()] = connState{Interface: plug.Interface}
+	conns[connRef.ID()] = repo.ConnState{Interface: plug.Interface}
 	setConns(st, conns)
 
 	return nil

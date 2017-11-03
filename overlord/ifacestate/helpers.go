@@ -25,85 +25,21 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/backends"
-	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/repo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
-func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) error {
+func (m *InterfaceManager) initialize() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if err := m.addInterfaces(extraInterfaces); err != nil {
-		return err
-	}
-	if err := m.addBackends(extraBackends); err != nil {
-		return err
-	}
-	if err := m.addSnaps(); err != nil {
-		return err
-	}
-	if err := m.renameCorePlugConnection(); err != nil {
-		return err
-	}
-	if err := m.reloadConnections(""); err != nil {
-		return err
-	}
 	if err := m.regenerateAllSecurityProfiles(); err != nil {
 		return err
-	}
-	return nil
-}
-
-func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
-	for _, iface := range builtin.Interfaces() {
-		if err := m.repo.AddInterface(iface); err != nil {
-			return err
-		}
-	}
-	for _, iface := range extra {
-		if err := m.repo.AddInterface(iface); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error {
-	for _, backend := range backends.All {
-		if err := backend.Initialize(); err != nil {
-			return err
-		}
-		if err := m.repo.AddBackend(backend); err != nil {
-			return err
-		}
-	}
-	for _, backend := range extra {
-		if err := backend.Initialize(); err != nil {
-			return err
-		}
-		if err := m.repo.AddBackend(backend); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (m *InterfaceManager) addSnaps() error {
-	snaps, err := snapstate.ActiveInfos(m.state)
-	if err != nil {
-		return err
-	}
-	for _, snapInfo := range snaps {
-		addImplicitSlots(snapInfo)
-		if err := m.repo.AddSnap(snapInfo); err != nil {
-			logger.Noticef("%s", err)
-		}
 	}
 	return nil
 }
@@ -159,56 +95,11 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	return nil
 }
 
-// renameCorePlugConnection renames one connection from "core-support" plug to
-// slot so that the plug name is "core-support-plug" while the slot is
-// unchanged. This matches a change introduced in 2.24, where the core snap no
-// longer has the "core-support" plug as that was clashing with the slot with
-// the same name.
-func (m *InterfaceManager) renameCorePlugConnection() error {
-	conns, err := getConns(m.state)
-	if err != nil {
-		return err
-	}
-	const oldPlugName = "core-support"
-	const newPlugName = "core-support-plug"
-	// old connection, note that slotRef is the same in both
-	slotRef := interfaces.SlotRef{Snap: "core", Name: oldPlugName}
-	oldPlugRef := interfaces.PlugRef{Snap: "core", Name: oldPlugName}
-	oldConnRef := interfaces.ConnRef{PlugRef: oldPlugRef, SlotRef: slotRef}
-	oldID := oldConnRef.ID()
-	// if the old connection is saved, replace it with the new connection
-	if cState, ok := conns[oldID]; ok {
-		newPlugRef := interfaces.PlugRef{Snap: "core", Name: newPlugName}
-		newConnRef := interfaces.ConnRef{PlugRef: newPlugRef, SlotRef: slotRef}
-		newID := newConnRef.ID()
-		delete(conns, oldID)
-		conns[newID] = cState
-		setConns(m.state, conns)
-	}
-	return nil
-}
-
 // reloadConnections reloads connections stored in the state in the repository.
 // Using non-empty snapName the operation can be scoped to connections
 // affecting a given snap.
 func (m *InterfaceManager) reloadConnections(snapName string) error {
-	conns, err := getConns(m.state)
-	if err != nil {
-		return err
-	}
-	for id := range conns {
-		connRef, err := interfaces.ParseConnRef(id)
-		if err != nil {
-			return err
-		}
-		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
-			continue
-		}
-		if err := m.repo.Connect(connRef); err != nil {
-			logger.Noticef("%s", err)
-		}
-	}
-	return nil
+	return repo.ReloadConnections(m.state, m.repo, snapName)
 }
 
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
@@ -239,11 +130,6 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string)
 		}
 	}
 	return nil
-}
-
-type connState struct {
-	Auto      bool   `json:"auto,omitempty"`
-	Interface string `json:"interface,omitempty"`
 }
 
 type autoConnectChecker struct {
@@ -314,14 +200,14 @@ func (c *autoConnectChecker) check(plug *interfaces.Plug, slot *interfaces.Slot)
 // of connected snap names.  The blacklist can prevent auto-connection to
 // specific interfaces (blacklist entries are plug or slot names).
 func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blacklist map[string]bool) ([]string, error) {
-	var conns map[string]connState
+	var conns map[string]repo.ConnState
 	var affectedSnapNames []string
 	err := task.State().Get("conns", &conns)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 	if conns == nil {
-		conns = make(map[string]connState)
+		conns = make(map[string]repo.ConnState)
 	}
 
 	autochecker, err := newAutoConnectChecker(task.State())
@@ -372,7 +258,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 		}
 		affectedSnapNames = append(affectedSnapNames, connRef.PlugRef.Snap)
 		affectedSnapNames = append(affectedSnapNames, connRef.SlotRef.Snap)
-		conns[key] = connState{Interface: plug.Interface, Auto: true}
+		conns[key] = repo.ConnState{Interface: plug.Interface, Auto: true}
 	}
 	// Auto-connect all the slots
 	for _, slot := range m.repo.Slots(snapName) {
@@ -412,7 +298,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 			}
 			affectedSnapNames = append(affectedSnapNames, connRef.PlugRef.Snap)
 			affectedSnapNames = append(affectedSnapNames, connRef.SlotRef.Snap)
-			conns[key] = connState{Interface: plug.Interface, Auto: true}
+			conns[key] = repo.ConnState{Interface: plug.Interface, Auto: true}
 		}
 	}
 
@@ -432,19 +318,10 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 	return plugRef, slotRef, nil
 }
 
-func getConns(st *state.State) (map[string]connState, error) {
-	// Get information about connections from the state
-	var conns map[string]connState
-	err := st.Get("conns", &conns)
-	if err != nil && err != state.ErrNoState {
-		return nil, fmt.Errorf("cannot obtain data about existing connections: %s", err)
-	}
-	if conns == nil {
-		conns = make(map[string]connState)
-	}
-	return conns, nil
+func getConns(st *state.State) (map[string]repo.ConnState, error) {
+	return repo.GetConns(st)
 }
 
-func setConns(st *state.State, conns map[string]connState) {
-	st.Set("conns", conns)
+func setConns(st *state.State, conns map[string]repo.ConnState) {
+	repo.SetConns(st, conns)
 }

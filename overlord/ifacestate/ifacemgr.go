@@ -23,6 +23,8 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/repo"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -45,14 +47,27 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces
 		setupHooks(hookManager)
 	}
 
+	s.Lock()
+	snaps, err := snapstate.ActiveInfos(s)
+	s.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	s.Lock()
+	repo, err := repo.New(s, snaps, extraInterfaces, extraBackends)
+	s.Unlock()
+	if err != nil {
+		return nil, err
+	}
+
 	runner := state.NewTaskRunner(s)
 	m := &InterfaceManager{
 		state:  s,
 		runner: runner,
-		repo:   interfaces.NewRepository(),
+		repo:   repo,
 	}
 
-	if err := m.initialize(extraInterfaces, extraBackends); err != nil {
+	if err := m.initialize(); err != nil {
 		return nil, err
 	}
 
