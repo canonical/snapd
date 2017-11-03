@@ -193,3 +193,19 @@ func FindGroup(gid uint64) (string, error) {
 	}
 	return group, nil
 }
+
+// FindGroupOwning obtains UNIX group ID and name owning file `path`.
+func FindGroupOwning(path string) (uint64, string, error) {
+	var stat syscall.Stat_t
+	if err := syscall.Stat(path, &stat); err != nil {
+		return 0, "", err
+	}
+
+	gid := uint64(stat.Gid)
+	group, err := FindGroup(gid)
+	if err != nil {
+		return 0, "", err
+	}
+
+	return gid, group, nil
+}
