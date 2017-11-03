@@ -1,0 +1,14 @@
+name: test-strict-cgroup
+version: 1.0
+summary: Basic strict cgroup tester
+description: A basic snap declaring a plug to a udev tagged interface
+ (framebuffer)
+confinement: strict
+
+apps:
+  read-fb:
+    command: bin/read-fb
+    plugs: [framebuffer]
+  read-kmsg:
+    command: bin/read-kmsg
+    plugs: [framebuffer]
