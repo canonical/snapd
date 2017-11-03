@@ -23,9 +23,9 @@ import (
 	"fmt"
 	. "gopkg.in/check.v1"
 
-	//"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	//"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -76,6 +76,8 @@ func mockServiceChangeFunc(testServiceControlInputs func(appInfos []*snap.AppInf
 }
 
 func (s *servicectlSuite) SetUpTest(c *C) {
+	c.Skip("disabled until snapctl start/stop/restart commands are restored")
+
 	s.BaseTest.SetUpTest(c)
 	oldRoot := dirs.GlobalRootDir
 	dirs.SetRootDir(c.MkDir())
@@ -135,8 +137,6 @@ func (s *servicectlSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-// FIXME: uncomment once the feature is fixed to work on install/refresh
-/*
 func (s *servicectlSuite) TestStopCommand(c *C) {
 	var serviceChangeFuncCalled bool
 	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
@@ -256,4 +256,4 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 	c.Check(allTasks[1].Summary(), Equals, "stop of [test-snap.test-service]")
 	c.Check(allTasks[2].Summary(), Equals, "start of [test-snap.test-service]")
 	c.Check(allTasks[3].Summary(), Equals, "restart of [test-snap.test-service]")
-}*/
+}
