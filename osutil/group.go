@@ -33,12 +33,29 @@ import (
 	"unsafe"
 )
 
+// Group represents a grouping of users.
+// Based on: https://golang.org/src/os/user/user.go
+//
+// On POSIX systems Gid contains a decimal number representing the group ID.
+type Group struct {
+	Gid  string // group ID
+	Name string // group name
+}
+
+func buildGroup(grp *C.struct_group) *Group {
+	g := &Group{
+		Gid:  strconv.Itoa(int(grp.gr_gid)),
+		Name: C.GoString(grp.gr_name),
+	}
+	return g
+}
+
 // hrm, user.LookupGroup() doesn't exist yet:
 // https://github.com/golang/go/issues/2617
 //
 // Use implementation from upcoming releases:
 // https://golang.org/src/os/user/lookup_unix.go
-func lookupGroup(groupname string) (string, error) {
+func lookupGroup(groupname string) (*Group, error) {
 	var grp C.struct_group
 	var result *C.struct_group
 
@@ -55,17 +72,17 @@ func lookupGroup(groupname string) (string, error) {
 			&result))
 	})
 	if err != nil {
-		return "", fmt.Errorf("group: lookup groupname %s: %v", groupname, err)
+		return nil, fmt.Errorf("group: lookup groupname %s: %v", groupname, err)
 	}
 	if result == nil {
-		return "", fmt.Errorf("group: unknown group %s", groupname)
+		return nil, fmt.Errorf("group: unknown group %s", groupname)
 	}
-	return strconv.Itoa(int(grp.gr_gid)), nil
+	return buildGroup(&grp), nil
 }
 
 // Use implementation from:
 // https://golang.org/src/os/user/cgo_lookup_unix.go
-func lookupGroupByGid(gid uint64) (string, error) {
+func lookupGroupByGid(gid uint64) (*Group, error) {
 	var grp C.struct_group
 	var result *C.struct_group
 
@@ -83,12 +100,12 @@ func lookupGroupByGid(gid uint64) (string, error) {
 
 	})
 	if err != nil {
-		return "", fmt.Errorf("group: lookup groupid %d: %v", gid, err)
+		return nil, fmt.Errorf("group: lookup groupid %d: %v", gid, err)
 	}
 	if result == nil {
-		return "", fmt.Errorf("group: unknown group %d", gid)
+		return nil, fmt.Errorf("group: unknown group %d", gid)
 	}
-	return C.GoString(grp.gr_name), nil
+	return buildGroup(&grp), nil
 }
 
 type bufferKind C.int
@@ -172,40 +189,35 @@ func FindUid(username string) (uint64, error) {
 }
 
 // FindGid returns the identifier of the given UNIX group name.
-func FindGid(group string) (uint64, error) {
+func FindGid(groupName string) (uint64, error) {
 	// In golang 1.8 we can use the built-in function like this:
 	//group, err := user.LookupGroup(group)
-	group, err := lookupGroup(group)
+	group, err := lookupGroup(groupName)
 	if err != nil {
 		return 0, err
 	}
 
 	// In golang 1.8 we can parse the group.Gid string instead.
 	//return strconv.ParseUint(group.Gid, 10, 64)
-	return strconv.ParseUint(group, 10, 64)
+	return strconv.ParseUint(group.Gid, 10, 64)
 }
 
-// FindGid returns the identifier of the given UNIX group name.
+// FindGroup returns the identifier of the given UNIX group name.
 func FindGroup(gid uint64) (string, error) {
 	group, err := lookupGroupByGid(gid)
 	if err != nil {
 		return "", err
 	}
-	return group, nil
+	return group.Name, nil
 }
 
-// FindGroupOwning obtains UNIX group ID and name owning file `path`.
-func FindGroupOwning(path string) (uint64, string, error) {
+// FindGroupOwning obtains UNIX group owning file `path`.
+func FindGroupOwning(path string) (*Group, error) {
 	var stat syscall.Stat_t
 	if err := syscall.Stat(path, &stat); err != nil {
-		return 0, "", err
+		return nil, err
 	}
 
 	gid := uint64(stat.Gid)
-	group, err := FindGroup(gid)
-	if err != nil {
-		return 0, "", err
-	}
-
-	return gid, group, nil
+	return lookupGroupByGid(gid)
 }

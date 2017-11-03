@@ -81,13 +81,13 @@ type accountControlInterface struct {
 }
 
 func makeAccountControlSecCompSnippet() (string, error) {
-	_, group, err := osutil.FindGroupOwning("/etc/shadow")
+	group, err := osutil.FindGroupOwning("/etc/shadow")
 	if err != nil {
 		return "", err
 	}
 
 	snippet := strings.Replace(accountControlConnectedPlugSecCompTemplate,
-		"{{group}}", group, -1)
+		"{{group}}", group.Name, -1)
 
 	return snippet, nil
 }

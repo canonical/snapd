@@ -352,7 +352,7 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 func (s *snapSeccompSuite) TestCompile(c *C) {
 	// The 'shadow' group is different in different distributions, instead
 	// of second guessing group name, look at the owner of /etc/shadow
-	shadowGid, shadowGroup, err := osutil.FindGroupOwning("/etc/shadow")
+	group, err := osutil.FindGroupOwning("/etc/shadow")
 	c.Assert(err, IsNil)
 
 	for _, t := range []struct {
@@ -448,11 +448,16 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
 
-		// u:root g:shadow
-		{fmt.Sprintf("fchown - u:root g:%s", shadowGroup), fmt.Sprintf("fchown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
-		{fmt.Sprintf("fchown - u:root g:%s", shadowGroup), fmt.Sprintf("fchown;native;-,99,%d", shadowGid), main.SeccompRetKill},
-		{fmt.Sprintf("chown - u:root g:%s", shadowGroup), fmt.Sprintf("chown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
-		{fmt.Sprintf("chown - u:root g:%s", shadowGroup), fmt.Sprintf("chown;native;-,99,%d", shadowGid), main.SeccompRetKill},
+		// u:root g:shadow - group used here depends on the actual owner
+		// of /etc/shadow
+		{fmt.Sprintf("fchown - u:root g:%s", group.Name),
+			fmt.Sprintf("fchown;native;-,0,%v", group.Gid), main.SeccompRetAllow},
+		{fmt.Sprintf("fchown - u:root g:%s", group.Name),
+			fmt.Sprintf("fchown;native;-,99,%v", group.Gid), main.SeccompRetKill},
+		{fmt.Sprintf("chown - u:root g:%s", group.Name),
+			fmt.Sprintf("chown;native;-,0,%v", group.Gid), main.SeccompRetAllow},
+		{fmt.Sprintf("chown - u:root g:%s", group.Name),
+			fmt.Sprintf("chown;native;-,99,%v", group.Gid), main.SeccompRetKill},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}

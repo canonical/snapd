@@ -102,11 +102,11 @@ func (s *AccountControlSuite) TestUsedSecuritySystems(c *C) {
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	_, group, err := osutil.FindGroupOwning("/etc/shadow")
+	group, err := osutil.FindGroupOwning("/etc/shadow")
 	c.Assert(err, IsNil)
-	c.Assert([]string{"shadow", "root"}, testutil.Contains, group)
+	c.Assert([]string{"shadow", "root"}, testutil.Contains, group.Name)
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains,
-		fmt.Sprintf("\nfchown - u:root g:%s\n", group))
+		fmt.Sprintf("\nfchown - u:root g:%s\n", group.Name))
 }
 
 func (s *AccountControlSuite) TestInterfaces(c *C) {
