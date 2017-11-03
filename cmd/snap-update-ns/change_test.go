@@ -68,7 +68,7 @@ func (s *changeSuite) TestNeededChangesNoChange(c *C) {
 	current := &mount.Profile{Entries: []mount.Entry{{Dir: "/common/stuf"}}}
 	desired := &mount.Profile{Entries: []mount.Entry{{Dir: "/common/stuf"}}}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: mount.Entry{Dir: "/common/stuf"}, Action: update.Keep},
 	})
 }
@@ -78,7 +78,7 @@ func (s *changeSuite) TestNeededChangesTrivialMount(c *C) {
 	current := &mount.Profile{}
 	desired := &mount.Profile{Entries: []mount.Entry{{Dir: "/common/stuf"}}}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: desired.Entries[0], Action: update.Mount},
 	})
 }
@@ -88,7 +88,7 @@ func (s *changeSuite) TestNeededChangesTrivialUnmount(c *C) {
 	current := &mount.Profile{Entries: []mount.Entry{{Dir: "/common/stuf"}}}
 	desired := &mount.Profile{}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: current.Entries[0], Action: update.Unmount},
 	})
 }
@@ -101,7 +101,7 @@ func (s *changeSuite) TestNeededChangesUnmountOrder(c *C) {
 	}}
 	desired := &mount.Profile{}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: mount.Entry{Dir: "/common/stuf/extra"}, Action: update.Unmount},
 		{Entry: mount.Entry{Dir: "/common/stuf"}, Action: update.Unmount},
 	})
@@ -115,7 +115,7 @@ func (s *changeSuite) TestNeededChangesMountOrder(c *C) {
 		{Dir: "/common/stuf"},
 	}}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: mount.Entry{Dir: "/common/stuf"}, Action: update.Mount},
 		{Entry: mount.Entry{Dir: "/common/stuf/extra"}, Action: update.Mount},
 	})
@@ -134,7 +134,7 @@ func (s *changeSuite) TestNeededChangesChangedParentSameChild(c *C) {
 		{Dir: "/common/unrelated"},
 	}}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: mount.Entry{Dir: "/common/unrelated"}, Action: update.Keep},
 		{Entry: mount.Entry{Dir: "/common/stuf/extra"}, Action: update.Unmount},
 		{Entry: mount.Entry{Dir: "/common/stuf", Name: "/dev/sda1"}, Action: update.Unmount},
@@ -156,7 +156,7 @@ func (s *changeSuite) TestNeededChangesSameParentChangedChild(c *C) {
 		{Dir: "/common/unrelated"},
 	}}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: mount.Entry{Dir: "/common/unrelated"}, Action: update.Keep},
 		{Entry: mount.Entry{Dir: "/common/stuf/extra", Name: "/dev/sda1"}, Action: update.Unmount},
 		{Entry: mount.Entry{Dir: "/common/stuf"}, Action: update.Keep},
@@ -182,7 +182,7 @@ func (s *changeSuite) TestNeededChangesSmartEntryComparison(c *C) {
 		{Dir: "/a/b/c"},
 	}}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: mount.Entry{Dir: "/a/b/c"}, Action: update.Unmount},
 		{Entry: mount.Entry{Dir: "/a/b", Name: "/dev/sda1"}, Action: update.Unmount},
 		{Entry: mount.Entry{Dir: "/a/b-1/3"}, Action: update.Unmount},
