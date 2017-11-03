@@ -20,7 +20,9 @@
 package udev
 
 import (
+	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 )
@@ -28,7 +30,8 @@ import (
 // Specification assists in collecting udev snippets associated with an interface.
 type Specification struct {
 	// Snippets are stored in a map for de-duplication
-	snippets map[string]bool
+	snippets     map[string]bool
+	securityTags []string
 }
 
 // AddSnippet adds a new udev snippet.
@@ -37,6 +40,17 @@ func (spec *Specification) AddSnippet(snippet string) {
 		spec.snippets = make(map[string]bool)
 	}
 	spec.snippets[snippet] = true
+}
+
+func udevTag(securityTag string) string {
+	return strings.Replace(securityTag, ".", "_", -1)
+}
+
+// TagDevice adds an app/hook specific udev tag to devices described by the snippet.
+func (spec *Specification) TagDevice(snippet string) {
+	for _, securityTag := range spec.securityTags {
+		spec.AddSnippet(fmt.Sprintf(`%s, TAG+="%s"`, snippet, udevTag(securityTag)))
+	}
 }
 
 // Snippets returns a copy of all the snippets added so far.
@@ -56,6 +70,8 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 		UDevConnectedPlug(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 	}
 	if iface, ok := iface.(definer); ok {
+		spec.securityTags = plug.SecurityTags()
+		defer func() { spec.securityTags = nil }()
 		return iface.UDevConnectedPlug(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
@@ -67,6 +83,8 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 		UDevConnectedSlot(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
 	}
 	if iface, ok := iface.(definer); ok {
+		spec.securityTags = slot.SecurityTags()
+		defer func() { spec.securityTags = nil }()
 		return iface.UDevConnectedSlot(spec, plug, plugAttrs, slot, slotAttrs)
 	}
 	return nil
@@ -78,6 +96,8 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *in
 		UDevPermanentPlug(spec *Specification, plug *interfaces.Plug) error
 	}
 	if iface, ok := iface.(definer); ok {
+		spec.securityTags = plug.SecurityTags()
+		defer func() { spec.securityTags = nil }()
 		return iface.UDevPermanentPlug(spec, plug)
 	}
 	return nil
@@ -89,6 +109,8 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *in
 		UDevPermanentSlot(spec *Specification, slot *interfaces.Slot) error
 	}
 	if iface, ok := iface.(definer); ok {
+		spec.securityTags = slot.SecurityTags()
+		defer func() { spec.securityTags = nil }()
 		return iface.UDevPermanentSlot(spec, slot)
 	}
 	return nil
