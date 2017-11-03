@@ -115,7 +115,11 @@ func (s *entrySuite) TestXSnapdGID(c *C) {
 	// 'nobody'
 	for _, grp := range []string{"nogroup", "nobody"} {
 		nogroup = grp
-		nogroupGID, _ = osutil.FindGid(nogroup)
+		if gid, err := osutil.FindGid(grp); err == nil {
+			nogroup = grp
+			nogroupGID = gid
+			break
+		}
 	}
 	c.Assert([]string{"nogroup", "nobody"}, testutil.Contains, nogroup)
 
