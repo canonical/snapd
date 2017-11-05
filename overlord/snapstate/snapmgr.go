@@ -685,21 +685,6 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	return nil
 }
 
-func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-	snapst.Channel = snapsup.Channel
-
-	Set(st, snapsup.Name(), snapst)
-	return nil
-}
-
 // GenerateCookies creates snap cookies for snaps that are missing them (may be the case for snaps installed
 // before the feature of running snapctl outside of hooks was introduced, leading to a warning
 // from snap-confine).
