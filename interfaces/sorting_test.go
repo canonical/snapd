@@ -33,6 +33,10 @@ type SortingSuite struct{}
 
 var _ = Suite(&SortingSuite{})
 
+func newConnRef(plugSnap, plug, slotSnap, slot string) *interfaces.ConnRef {
+	return &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plug}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slot}}
+}
+
 func (s *SortingSuite) TestSortBySlotRef(c *C) {
 	list := []interfaces.SlotRef{
 		{
@@ -150,5 +154,24 @@ func (s *SortingSuite) TestBySlotInfo(c *C) {
 		{Snap: &snap.Info{SuggestedName: "name-1"}, Name: "plug-2"},
 		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-1"},
 		{Snap: &snap.Info{SuggestedName: "name-2"}, Name: "plug-2"},
+	})
+}
+
+func (s *SortingSuite) TestByConnRef(c *C) {
+	list := []*interfaces.ConnRef{
+		newConnRef("name-1", "plug-3", "name-2", "slot-1"),
+		newConnRef("name-1", "plug-1", "name-2", "slot-3"),
+		newConnRef("name-1", "plug-2", "name-2", "slot-2"),
+		newConnRef("name-1", "plug-1", "name-2", "slot-4"),
+		newConnRef("name-1", "plug-1", "name-2", "slot-1"),
+	}
+	sort.Sort(interfaces.ByConnRef(list))
+
+	c.Assert(list, DeepEquals, []*interfaces.ConnRef{
+		newConnRef("name-1", "plug-1", "name-2", "slot-1"),
+		newConnRef("name-1", "plug-1", "name-2", "slot-3"),
+		newConnRef("name-1", "plug-1", "name-2", "slot-4"),
+		newConnRef("name-1", "plug-2", "name-2", "slot-2"),
+		newConnRef("name-1", "plug-3", "name-2", "slot-1"),
 	})
 }
