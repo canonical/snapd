@@ -102,6 +102,14 @@ PATH="/usr/bin"
 }
 
 func (s *proxySuite) TestConfigureProxyStore(c *C) {
+	// set to ""
+	err := corecfg.Run(&mockConf{
+		conf: map[string]interface{}{
+			"proxy.store": "",
+		},
+	})
+	c.Check(err, IsNil)
+
 	// no assertion
 	conf := &mockConf{
 		state: s.state,
@@ -110,7 +118,7 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 		},
 	}
 
-	err := corecfg.Run(conf)
+	err = corecfg.Run(conf)
 	c.Check(err, ErrorMatches, `cannot set proxy.store to "foo" without a matching store assertion`)
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
