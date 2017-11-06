@@ -20,15 +20,18 @@
 
 #include <glib.h>
 
+static int called = 0;
+
+void cleanup_fn(int *ptr)
+{
+	called = 1;
+}
+
 // Test that cleanup functions are applied as expected
 static void test_cleanup_sanity()
 {
-	int called = 0;
-	void fn(int *ptr) {
-		called = 1;
-	}
 	{
-		int test SC_CLEANUP(fn);
+		int test SC_CLEANUP(cleanup_fn);
 		test = 0;
 		test++;
 	}
