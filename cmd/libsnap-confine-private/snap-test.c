@@ -144,7 +144,7 @@ static void test_sc_snap_name_validate()
 		"a0", "a-0", "a-0a",
 		"01game", "1-or-2"
 	};
-	for (int i = 0; i < sizeof valid_names / sizeof *valid_names; ++i) {
+	for (size_t i = 0; i < sizeof valid_names / sizeof *valid_names; ++i) {
 		g_test_message("checking valid snap name: %s", valid_names[i]);
 		sc_snap_name_validate(valid_names[i], &err);
 		g_assert_null(err);
@@ -165,7 +165,8 @@ static void test_sc_snap_name_validate()
 		// identifier must be plain ASCII
 		"日本語", "한글", "ру́сский язы́к",
 	};
-	for (int i = 0; i < sizeof invalid_names / sizeof *invalid_names; ++i) {
+	for (size_t i = 0; i < sizeof invalid_names / sizeof *invalid_names;
+	     ++i) {
 		g_test_message("checking invalid snap name: >%s<",
 			       invalid_names[i]);
 		sc_snap_name_validate(invalid_names[i], &err);
