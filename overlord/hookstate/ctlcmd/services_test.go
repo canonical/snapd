@@ -76,6 +76,8 @@ func mockServiceChangeFunc(testServiceControlInputs func(appInfos []*snap.AppInf
 }
 
 func (s *servicectlSuite) SetUpTest(c *C) {
+	c.Skip("disabled until snapctl start/stop/restart commands are restored")
+
 	s.BaseTest.SetUpTest(c)
 	oldRoot := dirs.GlobalRootDir
 	dirs.SetRootDir(c.MkDir())

@@ -320,6 +320,19 @@ func Publisher(s *state.State, snapID string) (*asserts.Account, error) {
 	return a.(*asserts.Account), nil
 }
 
+// Store returns the store assertion with the given name/id if it is
+// present in the system assertion database.
+func Store(s *state.State, store string) (*asserts.Store, error) {
+	db := DB(s)
+	a, err := db.Find(asserts.StoreType, map[string]string{
+		"store": store,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return a.(*asserts.Store), nil
+}
+
 // AutoAliases returns the explicit automatic aliases alias=>app mapping for the given installed snap.
 func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 	if info.SnapID == "" {
