@@ -119,13 +119,13 @@ static bool getenv_bool(const char *name, bool default_value)
 	return value;
 }
 
-bool sc_is_debug_enabled()
+bool sc_is_debug_enabled(void)
 {
 	return getenv_bool("SNAP_CONFINE_DEBUG", false)
 	    || getenv_bool("SNAPD_DEBUG", false);
 }
 
-bool sc_is_reexec_enabled()
+bool sc_is_reexec_enabled(void)
 {
 	return getenv_bool("SNAP_REEXEC", true);
 }

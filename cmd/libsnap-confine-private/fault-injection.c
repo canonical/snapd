@@ -57,7 +57,7 @@ void sc_break(const char *name, sc_fault_fn fn)
 	sc_faults = fault;
 }
 
-void sc_reset_faults()
+void sc_reset_faults(void)
 {
 	struct sc_fault *next_fault;
 	for (struct sc_fault * fault = sc_faults; fault != NULL;

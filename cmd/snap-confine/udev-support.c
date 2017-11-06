@@ -32,7 +32,7 @@
 #include "../libsnap-confine-private/utils.h"
 #include "udev-support.h"
 
-void
+static void
 _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
 			       const char *path, unsigned major, unsigned minor)
 {

@@ -154,7 +154,7 @@ static struct sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 		goto fail;
 	offset += offset_delta;
 
-	void show_buffers() {
+	void show_buffers(void) {
 #ifdef MOUNTINFO_DEBUG
 		fprintf(stderr, "Input buffer (first), with offset arrow\n");
 		fprintf(stderr, "Output buffer (second)\n");
@@ -185,7 +185,7 @@ static struct sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 
 	show_buffers();
 
-	char *parse_next_string_field() {
+	char *parse_next_string_field(void) {
 		char *field = &entry->line_buf[0] + offset;
 		int nscanned =
 		    sscanf(line + offset, "%s %n", field, &offset_delta);

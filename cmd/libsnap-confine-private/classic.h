@@ -22,6 +22,6 @@
 // Location of the host filesystem directory in the core snap.
 #define SC_HOSTFS_DIR "/var/lib/snapd/hostfs"
 
-bool is_running_on_classic_distribution();
+bool is_running_on_classic_distribution(void);
 
 #endif
