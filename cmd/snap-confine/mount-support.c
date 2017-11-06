@@ -489,7 +489,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 static char * __attribute__ ((used))
     get_nextpath(char *path, size_t * offsetp, size_t fulllen)
 {
-	int offset = *offsetp;
+	size_t offset = *offsetp;
 
 	if (offset >= fulllen)
 		return NULL;
