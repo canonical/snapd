@@ -81,18 +81,16 @@ func handleProxyStore(tr Conf) error {
 		return err
 	}
 
-	if proxyStore != "" {
-		st := tr.State()
-		st.Lock()
-		defer st.Unlock()
-		_, err := assertstate.Store(st, proxyStore)
-		if asserts.IsNotFound(err) {
-			return fmt.Errorf("cannot set proxy.store to %q without a matching store assertion", proxyStore)
-		}
-		if err != nil {
-			return err
-		}
+	if proxyStore == "" {
+		return nil
 	}
 
-	return nil
+	st := tr.State()
+	st.Lock()
+	defer st.Unlock()
+	_, err = assertstate.Store(st, proxyStore)
+	if asserts.IsNotFound(err) {
+		return fmt.Errorf("cannot set proxy.store to %q without a matching store assertion", proxyStore)
+	}
+	return err
 }
