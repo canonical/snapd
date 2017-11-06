@@ -206,7 +206,7 @@ func (s *ValidateSuite) TestValidateAppSocketsValidListenStreamAddresses(c *C) {
 	for _, validAddress := range validListenAddresses {
 		socket.ListenStream = validAddress
 		err := ValidateApp(app)
-		c.Assert(err, IsNil)
+		c.Check(err, IsNil, Commentf(validAddress))
 	}
 }
 
@@ -221,8 +221,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPath(c *C) {
 	for _, invalidAddress := range invalidListenAddresses {
 		socket.ListenStream = invalidAddress
 		err := ValidateApp(app)
-		c.Assert(
-			err, ErrorMatches, `socket "sock" has invalid "listen-stream": only.*are allowed`)
+		c.Assert(err, ErrorMatches, `socket "sock" has invalid "listen-stream": only.*are allowed`)
 	}
 }
 
@@ -232,7 +231,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathContainsDot
 	err := ValidateApp(app)
 	c.Assert(
 		err, ErrorMatches,
-		`socket "sock" has invalid "listen-stream": paths must not include "." or ".."`)
+		`socket "sock" has invalid "listen-stream": "\$SNAP/../some.path" should be written as "some.path"`)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathRelative(c *C) {
@@ -256,6 +255,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAbstractSocket(
 	invalidListenAddresses := []string{
 		"@snap.notmysnap.my.socket",
 		"@some.other.name",
+		"@snap.myappiswrong.foo",
 	}
 	socket := app.Sockets["sock"]
 	for _, invalidAddress := range invalidListenAddresses {

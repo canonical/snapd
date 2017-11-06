@@ -30,7 +30,9 @@ import (
 	"github.com/snapcore/snapd/spdx"
 )
 
-// Regular expression describing correct identifiers.
+// Regular expressions describing correct identifiers.
+//
+// validSnapName is also used to validate socket identifiers.
 var validSnapName = regexp.MustCompile("^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$")
 var validHookName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
@@ -100,9 +102,8 @@ func ValidateAppSocketListenAddress(socket *SocketInfo, fieldName string, addres
 }
 
 func validateAppSocketListenAddressPath(socket *SocketInfo, fieldName string, path string) error {
-	if path != filepath.Clean(path) {
-		return fmt.Errorf(
-			`socket %q has invalid %q: paths must not include "." or ".."`, socket.Name, fieldName)
+	if clean := filepath.Clean(path); clean != path {
+		return fmt.Errorf("socket %q has invalid %q: %q should be written as %q", socket.Name, fieldName, path, clean)
 	}
 
 	if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/")) {
@@ -114,7 +115,7 @@ func validateAppSocketListenAddressPath(socket *SocketInfo, fieldName string, pa
 }
 
 func validateAppSocketListenAddressAbstractSocket(socket *SocketInfo, fieldName string, path string) error {
-	prefix := "@snap." + socket.App.Snap.Name()
+	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.Name())
 	if !strings.HasPrefix(path, prefix) {
 		return fmt.Errorf("socket %q path for %q must be prefixed with %q", socket.Name, fieldName, prefix)
 	}
@@ -280,7 +281,7 @@ func ValidateApp(app *AppInfo) error {
 		}
 	}
 
-	// Socket activatin requires the "network-bind" plug
+	// Socket activation requires the "network-bind" plug
 	if len(app.Sockets) > 0 {
 		if _, ok := app.Plugs["network-bind"]; !ok {
 			return fmt.Errorf(`"network-bind" interface plug is required when sockets are used`)
