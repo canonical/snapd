@@ -33,7 +33,13 @@ const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags)
 {
 	unsigned long used = 0;
 	sc_string_init(buf, buf_size);
-#define F(FLAG, TEXT) do if (flags & (FLAG)) { sc_string_append(buf, buf_size, #TEXT ","); flags ^= (FLAG); } while (0)
+
+#define F(FLAG, TEXT) do {                                         \
+    if (flags & (FLAG)) {                                          \
+      sc_string_append(buf, buf_size, #TEXT ","); flags ^= (FLAG); \
+    }                                                              \
+  } while (0)
+
 	F(MS_RDONLY, ro);
 	F(MS_NOSUID, nosuid);
 	F(MS_NODEV, nodev);
