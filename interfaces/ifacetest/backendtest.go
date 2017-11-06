@@ -174,13 +174,11 @@ func (s *BackendSuite) RemoveSnap(c *C, snapInfo *snap.Info) {
 
 func (s *BackendSuite) addPlugsSlots(c *C, snapInfo *snap.Info) {
 	for _, plugInfo := range snapInfo.Plugs {
-		plug := &interfaces.Plug{PlugInfo: plugInfo}
-		err := s.Repo.AddPlug(plug)
+		err := s.Repo.AddPlug(plugInfo)
 		c.Assert(err, IsNil)
 	}
 	for _, slotInfo := range snapInfo.Slots {
-		slot := &interfaces.Slot{SlotInfo: slotInfo}
-		err := s.Repo.AddSlot(slot)
+		err := s.Repo.AddSlot(slotInfo)
 		c.Assert(err, IsNil)
 	}
 }

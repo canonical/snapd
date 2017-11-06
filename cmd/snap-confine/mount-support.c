@@ -165,7 +165,10 @@ static void sc_setup_mount_profiles(int snap_update_ns_fd,
 			"snap-update-ns", "--from-snap-confine", snap_name_copy,
 			NULL
 		};
-		char *envp[] = { NULL };
+		char *envp[3] = { NULL };
+		if (sc_is_debug_enabled()) {
+			envp[0] = "SNAPD_DEBUG=1";
+		}
 		debug("fexecv(%d (snap-update-ns), %s %s %s,)",
 		      snap_update_ns_fd, argv[0], argv[1], argv[2]);
 		fexecve(snap_update_ns_fd, argv, envp);

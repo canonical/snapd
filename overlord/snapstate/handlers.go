@@ -643,6 +643,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if snapsup.Channel != "" {
 		snapst.Channel = snapsup.Channel
 	}
+	oldIgnoreValidation := snapst.IgnoreValidation
+	snapst.IgnoreValidation = snapsup.IgnoreValidation
 	oldTryMode := snapst.TryMode
 	snapst.TryMode = snapsup.TryMode
 	oldDevMode := snapst.DevMode
@@ -694,6 +696,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-devmode", oldDevMode)
 	t.Set("old-jailmode", oldJailMode)
 	t.Set("old-classic", oldClassic)
+	t.Set("old-ignore-validation", oldIgnoreValidation)
 	t.Set("old-channel", oldChannel)
 	t.Set("old-current", oldCurrent)
 	t.Set("old-candidate-index", oldCandidateIndex)
@@ -736,6 +739,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	var oldChannel string
 	err = t.Get("old-channel", &oldChannel)
 	if err != nil {
+		return err
+	}
+	var oldIgnoreValidation bool
+	err = t.Get("old-ignore-validation", &oldIgnoreValidation)
+	if err != nil && err != state.ErrNoState {
 		return err
 	}
 	var oldTryMode bool
@@ -792,6 +800,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Current = oldCurrent
 	snapst.Active = false
 	snapst.Channel = oldChannel
+	snapst.IgnoreValidation = oldIgnoreValidation
 	snapst.TryMode = oldTryMode
 	snapst.DevMode = oldDevMode
 	snapst.JailMode = oldJailMode
@@ -848,6 +857,21 @@ func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
 	if snapsup.SideInfo.Channel != "" {
 		snapst.CurrentSideInfo().Channel = snapsup.Channel
 	}
+
+	Set(st, snapsup.Name(), snapst)
+	return nil
+}
+
+func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapst.Channel = snapsup.Channel
 
 	Set(st, snapsup.Name(), snapst)
 	return nil
