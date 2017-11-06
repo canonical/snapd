@@ -105,25 +105,26 @@ func New() (*Overlord, error) {
 	}
 	o.addManager(hookMgr)
 
-	snapMgr, err := snapstate.Manager(s)
-	if err != nil {
-		return nil, err
-	}
-	o.addManager(snapMgr)
-
 	assertMgr, err := assertstate.Manager(s)
 	if err != nil {
 		return nil, err
 	}
 	o.addManager(assertMgr)
 
+	// init ifaceMgr before snapMgr as the later uses the
+	// repository database via the state cache
 	ifaceMgr, err := ifacestate.Manager(s, hookMgr, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 	o.addManager(ifaceMgr)
 
-	// TODO: this is a bit weird, not actually a StateManager
+	snapMgr, err := snapstate.Manager(s)
+	if err != nil {
+		return nil, err
+	}
+	o.addManager(snapMgr)
+
 	configMgr, err := configstate.Manager(s, hookMgr)
 	if err != nil {
 		return nil, err
