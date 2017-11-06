@@ -61,16 +61,15 @@ func (s *configmgrSuite) SetUpTest(c *C) {
 
 	hookmgr, err := hookstate.Manager(s.state)
 	c.Assert(err, IsNil)
+	s.o.AddManager(hookmgr)
 
 	s.mgr, err = configstate.Manager(s.state, hookmgr)
 	c.Assert(err, IsNil)
+	s.o.AddManager(s.mgr)
 }
 
 func (s *configmgrSuite) settle() {
-	for i := 0; i < 10; i++ {
-		s.mgr.Ensure()
-		time.Sleep(10 * time.Millisecond)
-	}
+	s.o.Settle(5 * time.Second)
 }
 
 func (s *configmgrSuite) TestConfigureGeneratesConfigureSnapdTask(c *C) {
