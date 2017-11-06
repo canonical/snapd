@@ -92,6 +92,7 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/string-utils.h \
 	libsnap-confine-private/utils.c \
 	libsnap-confine-private/utils.h
+libsnap_confine_private_a_CFLAGS = $(CHECK_CFLAGS)
 
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += libsnap-confine-private/unit-tests
@@ -113,7 +114,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
 	libsnap-confine-private/utils-test.c
-libsnap_confine_private_unit_tests_CFLAGS = $(GLIB_CFLAGS)
+libsnap_confine_private_unit_tests_CFLAGS = $(CHECK_CFLAGS) $(GLIB_CFLAGS)
 libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS)
 libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION
 libsnap_confine_private_unit_tests_STATIC =
