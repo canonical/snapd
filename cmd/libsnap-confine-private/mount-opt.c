@@ -252,7 +252,7 @@ void sc_do_mount(const char *source, const char *target,
 	char buf[10000] = { 0 };
 	const char *mount_cmd = NULL;
 
-	void ensure_mount_cmd() {
+	void ensure_mount_cmd(void) {
 		if (mount_cmd != NULL) {
 			return;
 		}
@@ -291,7 +291,7 @@ void sc_do_umount(const char *target, int flags)
 	char buf[10000] = { 0 };
 	const char *umount_cmd = NULL;
 
-	void ensure_umount_cmd() {
+	void ensure_umount_cmd(void) {
 		if (umount_cmd != NULL) {
 			return;
 		}

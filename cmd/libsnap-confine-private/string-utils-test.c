@@ -20,7 +20,7 @@
 
 #include <glib.h>
 
-static void test_sc_streq()
+static void test_sc_streq(void)
 {
 	g_assert_false(sc_streq(NULL, NULL));
 	g_assert_false(sc_streq(NULL, "text"));
@@ -32,7 +32,7 @@ static void test_sc_streq()
 	g_assert_true(sc_streq("", ""));
 }
 
-static void test_sc_endswith()
+static void test_sc_endswith(void)
 {
 	// NULL doesn't end with anything, nothing ends with NULL
 	g_assert_false(sc_endswith("", NULL));
@@ -53,14 +53,14 @@ static void test_sc_endswith()
 	g_assert_false(sc_endswith("ba", "bar"));
 }
 
-static void test_sc_must_snprintf()
+static void test_sc_must_snprintf(void)
 {
 	char buf[5] = { 0 };
 	sc_must_snprintf(buf, sizeof buf, "1234");
 	g_assert_cmpstr(buf, ==, "1234");
 }
 
-static void test_sc_must_snprintf__fail()
+static void test_sc_must_snprintf__fail(void)
 {
 	if (g_test_subprocess()) {
 		char buf[5];
@@ -75,7 +75,7 @@ static void test_sc_must_snprintf__fail()
 }
 
 // Check that appending to a buffer works OK.
-static void test_sc_string_append()
+static void test_sc_string_append(void)
 {
 	union {
 		char bigbuf[6];
@@ -106,7 +106,7 @@ static void test_sc_string_append()
 }
 
 // Check that appending an empty string to a full buffer is valid.
-static void test_sc_string_append__empty_to_full()
+static void test_sc_string_append__empty_to_full(void)
 {
 	union {
 		char bigbuf[6];
@@ -137,7 +137,7 @@ static void test_sc_string_append__empty_to_full()
 }
 
 // Check that the overflow detection works.
-static void test_sc_string_append__overflow()
+static void test_sc_string_append__overflow(void)
 {
 	if (g_test_subprocess()) {
 		char buf[4] = { 0 };
@@ -156,7 +156,7 @@ static void test_sc_string_append__overflow()
 }
 
 // Check that the uninitialized buffer detection works.
-static void test_sc_string_append__uninitialized_buf()
+static void test_sc_string_append__uninitialized_buf(void)
 {
 	if (g_test_subprocess()) {
 		char buf[4] = { 0xFF, 0xFF, 0xFF, 0xFF };
@@ -175,7 +175,7 @@ static void test_sc_string_append__uninitialized_buf()
 }
 
 // Check that `buf' cannot be NULL.
-static void test_sc_string_append__NULL_buf()
+static void test_sc_string_append__NULL_buf(void)
 {
 	if (g_test_subprocess()) {
 		char buf[4];
@@ -192,7 +192,7 @@ static void test_sc_string_append__NULL_buf()
 }
 
 // Check that `src' cannot be NULL.
-static void test_sc_string_append__NULL_str()
+static void test_sc_string_append__NULL_str(void)
 {
 	if (g_test_subprocess()) {
 		char buf[4];
@@ -208,7 +208,7 @@ static void test_sc_string_append__NULL_str()
 	g_test_trap_assert_stderr("cannot append string: string is NULL\n");
 }
 
-static void test_sc_string_init__normal()
+static void test_sc_string_init__normal(void)
 {
 	char buf[1] = { 0xFF };
 
@@ -216,7 +216,7 @@ static void test_sc_string_init__normal()
 	g_assert_cmpint(buf[0], ==, 0);
 }
 
-static void test_sc_string_init__empty_buf()
+static void test_sc_string_init__empty_buf(void)
 {
 	if (g_test_subprocess()) {
 		char buf[1] = { 0xFF };
@@ -233,7 +233,7 @@ static void test_sc_string_init__empty_buf()
 	    ("cannot initialize string, buffer is too small\n");
 }
 
-static void test_sc_string_init__NULL_buf()
+static void test_sc_string_init__NULL_buf(void)
 {
 	if (g_test_subprocess()) {
 		sc_string_init(NULL, 1);
@@ -247,7 +247,7 @@ static void test_sc_string_init__NULL_buf()
 	g_test_trap_assert_stderr("cannot initialize string, buffer is NULL\n");
 }
 
-static void test_sc_string_append_char__uninitialized_buf()
+static void test_sc_string_append_char__uninitialized_buf(void)
 {
 	if (g_test_subprocess()) {
 		char buf[2] = { 0xFF, 0xFF };
@@ -263,7 +263,7 @@ static void test_sc_string_append_char__uninitialized_buf()
 	    ("cannot append character: dst is unterminated\n");
 }
 
-static void test_sc_string_append_char__NULL_buf()
+static void test_sc_string_append_char__NULL_buf(void)
 {
 	if (g_test_subprocess()) {
 		sc_string_append_char(NULL, 2, 'a');
@@ -277,7 +277,7 @@ static void test_sc_string_append_char__NULL_buf()
 	g_test_trap_assert_stderr("cannot append character: buffer is NULL\n");
 }
 
-static void test_sc_string_append_char__overflow()
+static void test_sc_string_append_char__overflow(void)
 {
 	if (g_test_subprocess()) {
 		char buf[1] = { 0 };
@@ -293,7 +293,7 @@ static void test_sc_string_append_char__overflow()
 	    ("cannot append character: not enough space\n");
 }
 
-static void test_sc_string_append_char__invalid_zero()
+static void test_sc_string_append_char__invalid_zero(void)
 {
 	if (g_test_subprocess()) {
 		char buf[2] = { 0 };
@@ -309,7 +309,7 @@ static void test_sc_string_append_char__invalid_zero()
 	    ("cannot append character: cannot append string terminator\n");
 }
 
-static void test_sc_string_append_char__normal()
+static void test_sc_string_append_char__normal(void)
 {
 	char buf[16];
 	size_t len;
@@ -332,7 +332,7 @@ static void test_sc_string_append_char__normal()
 	g_assert_cmpint(len, ==, 5);
 }
 
-static void test_sc_string_append_char_pair__uninitialized_buf()
+static void test_sc_string_append_char_pair__uninitialized_buf(void)
 {
 	if (g_test_subprocess()) {
 		char buf[3] = { 0xFF, 0xFF, 0xFF };
@@ -349,7 +349,7 @@ static void test_sc_string_append_char_pair__uninitialized_buf()
 	    ("cannot append character pair: dst is unterminated\n");
 }
 
-static void test_sc_string_append_char_pair__NULL_buf()
+static void test_sc_string_append_char_pair__NULL_buf(void)
 {
 	if (g_test_subprocess()) {
 		sc_string_append_char_pair(NULL, 3, 'a', 'b');
@@ -365,7 +365,7 @@ static void test_sc_string_append_char_pair__NULL_buf()
 	    ("cannot append character pair: buffer is NULL\n");
 }
 
-static void test_sc_string_append_char_pair__overflow()
+static void test_sc_string_append_char_pair__overflow(void)
 {
 	if (g_test_subprocess()) {
 		char buf[2] = { 0 };
@@ -382,7 +382,7 @@ static void test_sc_string_append_char_pair__overflow()
 	    ("cannot append character pair: not enough space\n");
 }
 
-static void test_sc_string_append_char_pair__invalid_zero_c1()
+static void test_sc_string_append_char_pair__invalid_zero_c1(void)
 {
 	if (g_test_subprocess()) {
 		char buf[3] = { 0 };
@@ -399,7 +399,7 @@ static void test_sc_string_append_char_pair__invalid_zero_c1()
 	    ("cannot append character pair: cannot append string terminator\n");
 }
 
-static void test_sc_string_append_char_pair__invalid_zero_c2()
+static void test_sc_string_append_char_pair__invalid_zero_c2(void)
 {
 	if (g_test_subprocess()) {
 		char buf[3] = { 0 };
@@ -416,7 +416,7 @@ static void test_sc_string_append_char_pair__invalid_zero_c2()
 	    ("cannot append character pair: cannot append string terminator\n");
 }
 
-static void test_sc_string_append_char_pair__normal()
+static void test_sc_string_append_char_pair__normal(void)
 {
 	char buf[16];
 	size_t len;
@@ -433,7 +433,7 @@ static void test_sc_string_append_char_pair__normal()
 	g_assert_cmpint(len, ==, 6);
 }
 
-static void test_sc_string_quote_NULL_str()
+static void test_sc_string_quote_NULL_str(void)
 {
 	if (g_test_subprocess()) {
 		char buf[16] = { 0 };
@@ -448,7 +448,7 @@ static void test_sc_string_quote_NULL_str()
 	g_test_trap_assert_stderr("cannot quote string: string is NULL\n");
 }
 
-static void test_sc_string_quote()
+static void test_sc_string_quote(void)
 {
 #define DQ "\""
 	char buf[16];
@@ -777,7 +777,7 @@ static void test_sc_string_quote()
 #undef DQ
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/string-utils/sc_streq", test_sc_streq);
 	g_test_add_func("/string-utils/sc_endswith", test_sc_endswith);
