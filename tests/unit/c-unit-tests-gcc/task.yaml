@@ -1,4 +1,4 @@
-summary: Run the test suite for C code
+summary: Build the test suite for C code using gcc and run it
 prepare: |
     # Sanity check, the core snap is installed
     snap info core | MATCH "installed:"
