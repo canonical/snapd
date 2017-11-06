@@ -205,13 +205,15 @@ static void test_sc_umount_cmd(void)
 			"umount --force --lazy --expire --no-follow /mnt/foo");
 }
 
+static bool broken_mount(struct sc_fault_state *state, void *ptr)
+{
+	errno = EACCES;
+	return true;
+}
+
 static void test_sc_do_mount(void)
 {
 	if (g_test_subprocess()) {
-		bool broken_mount(struct sc_fault_state *state, void *ptr) {
-			errno = EACCES;
-			return true;
-		}
 		sc_break("mount", broken_mount);
 		sc_do_mount("/foo", "/bar", "ext4", MS_RDONLY, NULL);
 
@@ -226,13 +228,15 @@ static void test_sc_do_mount(void)
 	    ("cannot perform operation: mount -t ext4 -o ro /foo /bar: Permission denied\n");
 }
 
+static bool broken_umount(struct sc_fault_state *state, void *ptr)
+{
+	errno = EACCES;
+	return true;
+}
+
 static void test_sc_do_umount(void)
 {
 	if (g_test_subprocess()) {
-		bool broken_umount(struct sc_fault_state *state, void *ptr) {
-			errno = EACCES;
-			return true;
-		}
 		sc_break("umount", broken_umount);
 		sc_do_umount("/foo", MNT_DETACH);
 
