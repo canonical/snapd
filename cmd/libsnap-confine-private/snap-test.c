@@ -20,7 +20,7 @@
 
 #include <glib.h>
 
-static void test_verify_security_tag()
+static void test_verify_security_tag(void)
 {
 	// First, test the names we know are good
 	g_assert_true(verify_security_tag("snap.name.app", "name"));
@@ -77,7 +77,7 @@ static void test_verify_security_tag()
 
 }
 
-static void test_sc_snap_name_validate()
+static void test_sc_snap_name_validate(void)
 {
 	struct sc_error *err = NULL;
 
@@ -183,7 +183,7 @@ static void test_sc_snap_name_validate()
 
 }
 
-static void test_sc_snap_name_validate__respects_error_protocol()
+static void test_sc_snap_name_validate__respects_error_protocol(void)
 {
 	if (g_test_subprocess()) {
 		sc_snap_name_validate("hello world", NULL);
@@ -197,7 +197,7 @@ static void test_sc_snap_name_validate__respects_error_protocol()
 	    ("snap name must use lower case letters, digits or dashes\n");
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/snap/verify_security_tag", test_verify_security_tag);
 	g_test_add_func("/snap/sc_snap_name_validate",
