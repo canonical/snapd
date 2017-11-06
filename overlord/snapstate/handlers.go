@@ -731,7 +731,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	if len(snapst.Sequence) == 1 {
 		if err := m.removeSnapCookie(st, snapsup.Name()); err != nil {
-			return fmt.Errorf("cannot remove snap context: %v", err)
+			return fmt.Errorf("cannot remove snap cookie: %v", err)
 		}
 	}
 
@@ -979,7 +979,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			return &state.Retry{After: 3 * time.Minute}
 		}
 		if err := m.removeSnapCookie(st, snapsup.Name()); err != nil {
-			return fmt.Errorf("cannot remove snap context: %v", err)
+			return fmt.Errorf("cannot remove snap cookie: %v", err)
 		}
 	}
 	if err = config.DiscardRevisionConfig(st, snapsup.Name(), snapsup.Revision()); err != nil {
