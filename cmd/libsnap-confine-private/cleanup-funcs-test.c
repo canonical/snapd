@@ -22,13 +22,13 @@
 
 static int called = 0;
 
-void cleanup_fn(int *ptr)
+static void cleanup_fn(int *ptr)
 {
 	called = 1;
 }
 
 // Test that cleanup functions are applied as expected
-static void test_cleanup_sanity()
+static void test_cleanup_sanity(void)
 {
 	{
 		int test SC_CLEANUP(cleanup_fn);
@@ -38,7 +38,7 @@ static void test_cleanup_sanity()
 	g_assert_cmpint(called, ==, 1);
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/cleanup/sanity", test_cleanup_sanity);
 }
