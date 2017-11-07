@@ -41,7 +41,7 @@ func (s *entrySuite) TestXSnapdMode(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(mode, Equals, os.FileMode(0755))
 
-	// Mode is parsed from the x-snapd-mode= option.
+	// Mode is parsed from the x-snapd.mode= option.
 	e = &mount.Entry{Options: []string{"x-snapd.mode=0700"}}
 	mode, err = update.XSnapdMode(e)
 	c.Assert(err, IsNil)
@@ -71,7 +71,7 @@ func (s *entrySuite) TestXSnapdUID(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(uid, Equals, uint64(0))
 
-	// User is parsed from the x-snapd-user= option.
+	// User is parsed from the x-snapd.uid = option.
 	nobodyUID, err := osutil.FindUid("nobody")
 	c.Assert(err, IsNil)
 	e = &mount.Entry{Options: []string{"x-snapd.uid=nobody"}}
@@ -105,7 +105,7 @@ func (s *entrySuite) TestXSnapdGID(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(gid, Equals, uint64(0))
 
-	// Group is parsed from the x-snapd-group= option.
+	// Group is parsed from the x-snapd.gid = option.
 	nogroupGID, err := osutil.FindGid("nogroup")
 	c.Assert(err, IsNil)
 	e = &mount.Entry{Options: []string{"x-snapd.gid=nogroup"}}
