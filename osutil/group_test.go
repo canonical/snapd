@@ -1,5 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
+// +build cgo
+
 /*
  * Copyright (C) 2017 Canonical Ltd
  *
@@ -61,9 +63,9 @@ func (s *groupSuite) TestSelfOwnedFile(c *C) {
 	defer os.Remove(name)
 
 	group, err := FindGroupOwning(name)
-	c.Check(err, IsNil)
-
-	c.Check(group.Gid, Equals, self.Gid)
+	if c.Check(err, IsNil) {
+		c.Check(group.Gid, Equals, self.Gid)
+	}
 }
 
 func (s *groupSuite) TestNoOwnedFile(c *C) {
