@@ -141,3 +141,13 @@ func (s *entrySuite) TestXSnapdEntryID(c *C) {
 	e = &mount.Entry{Options: []string{"x-snapd.id=foo"}}
 	c.Assert(update.XSnapdEntryID(e), Equals, "foo")
 }
+
+func (s *entrySuite) TestXSnapdParentID(c *C) {
+	// Parent entry ID is optional.
+	e := &mount.Entry{}
+	c.Assert(update.XSnapdParentID(e), Equals, "")
+
+	// Parent entry ID is parsed from the x-snapd.parent-id= option.
+	e = &mount.Entry{Options: []string{"x-snap.id=foo", "x-snapd.parent-id=bar"}}
+	c.Assert(update.XSnapdParentID(e), Equals, "bar")
+}
