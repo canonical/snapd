@@ -33,8 +33,7 @@ The start command starts the given services of the snap. If executed from the
 )
 
 func init() {
-	// FIXME: uncomment once the feature is fixed to work on install/refresh
-	// addCommand("start", shortStartHelp, longStartHelp, func() command { return &startCommand{} })
+	addCommand("start", shortStartHelp, longStartHelp, func() command { return &startCommand{} })
 }
 
 type startCommand struct {

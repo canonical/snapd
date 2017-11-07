@@ -96,7 +96,19 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 		return err
 	}
 
-	ts, err := servicestateControl(st, appInfos, inst)
+	isSameChange := func(otherTask *state.Task) bool {
+		if context.IsEphemeral() {
+			return false
+		}
+		task, ok := context.Task()
+		if ok && task.Change() != nil && otherTask.Change() != nil &&
+			task.Change().ID() == otherTask.Change().ID() {
+			return false
+		}
+		return true
+	}
+
+	ts, err := servicestateControl(st, appInfos, inst, isSameChange)
 	if err != nil {
 		return err
 	}

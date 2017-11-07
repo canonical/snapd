@@ -33,8 +33,7 @@ The restart command restarts the given services of the snap. If executed from th
 )
 
 func init() {
-	// FIXME: uncomment once the feature is fixed to work on install/refresh
-	// addCommand("restart", shortRestartHelp, longRestartHelp, func() command { return &restartCommand{} })
+	addCommand("restart", shortRestartHelp, longRestartHelp, func() command { return &restartCommand{} })
 }
 
 type restartCommand struct {

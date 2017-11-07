@@ -69,15 +69,13 @@ apps:
 `
 
 func mockServiceChangeFunc(testServiceControlInputs func(appInfos []*snap.AppInfo, inst *servicestate.Instruction)) func() {
-	return ctlcmd.MockServicestateControlFunc(func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction) (*state.TaskSet, error) {
+	return ctlcmd.MockServicestateControlFunc(func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, checkConflict func(*state.Task) bool) (*state.TaskSet, error) {
 		testServiceControlInputs(appInfos, inst)
 		return nil, fmt.Errorf("forced error")
 	})
 }
 
 func (s *servicectlSuite) SetUpTest(c *C) {
-	c.Skip("disabled until snapctl start/stop/restart commands are restored")
-
 	s.BaseTest.SetUpTest(c)
 	oldRoot := dirs.GlobalRootDir
 	dirs.SetRootDir(c.MkDir())
