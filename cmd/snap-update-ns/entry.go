@@ -55,10 +55,10 @@ func XSnapdMode(e *mount.Entry) (os.FileMode, error) {
 	return 0755, nil
 }
 
-// XSnapdUid returns the user associated with x-snapd-user mount option.  If
+// XSnapdUID returns the user associated with x-snapd-user mount option.  If
 // the mode is not specified explicitly then a default "root" use is
 // returned.
-func XSnapdUid(e *mount.Entry) (uid uint64, err error) {
+func XSnapdUID(e *mount.Entry) (uid uint64, err error) {
 	for _, opt := range e.Options {
 		if strings.HasPrefix(opt, "x-snapd.uid=") {
 			kv := strings.SplitN(opt, "=", 2)
@@ -80,10 +80,10 @@ func XSnapdUid(e *mount.Entry) (uid uint64, err error) {
 	return 0, nil
 }
 
-// XSnapdGid returns the user associated with x-snapd-user mount option.  If
+// XSnapdGID returns the user associated with x-snapd-user mount option.  If
 // the mode is not specified explicitly then a default "root" use is
 // returned.
-func XSnapdGid(e *mount.Entry) (gid uint64, err error) {
+func XSnapdGID(e *mount.Entry) (gid uint64, err error) {
 	for _, opt := range e.Options {
 		if strings.HasPrefix(opt, "x-snapd.gid=") {
 			kv := strings.SplitN(opt, "=", 2)
