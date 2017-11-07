@@ -477,10 +477,6 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := m.createSnapCookie(st, snapsup.Name()); err != nil {
-		return fmt.Errorf("cannot create snap cookie: %v", err)
-	}
-
 	snapst.Active = true
 	err = m.backend.LinkSnap(oldInfo)
 	if err != nil {
