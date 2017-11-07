@@ -36,7 +36,7 @@ func init() {
 	snapstate.Configure = Configure
 }
 
-func configureHookTimeout() time.Duration {
+func ConfigureHookTimeout() time.Duration {
 	timeout := 5 * time.Minute
 	if s := os.Getenv("SNAPD_CONFIGURE_HOOK_TIMEOUT"); s != "" {
 		if to, err := time.ParseDuration(s); err == nil {
@@ -47,7 +47,7 @@ func configureHookTimeout() time.Duration {
 }
 
 // Configure returns a taskset to apply the given configuration patch.
-func Configure(s *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+func Configure(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
 	hooksup := &hookstate.HookSetup{
 		Snap:        snapName,
 		Hook:        "configure",
@@ -55,7 +55,7 @@ func Configure(s *state.State, snapName string, patch map[string]interface{}, fl
 		IgnoreError: flags&snapstate.IgnoreHookError != 0,
 		TrackError:  flags&snapstate.TrackHookError != 0,
 		// all configure hooks must finish within this timeout
-		Timeout: configureHookTimeout(),
+		Timeout: ConfigureHookTimeout(),
 	}
 	var contextData map[string]interface{}
 	if flags&snapstate.UseConfigDefaults != 0 {
@@ -69,6 +69,18 @@ func Configure(s *state.State, snapName string, patch map[string]interface{}, fl
 	} else {
 		summary = fmt.Sprintf(i18n.G("Run configure hook of %q snap"), snapName)
 	}
-	task := hookstate.HookTask(s, summary, hooksup, contextData)
+
+	// configuration of "core" is handled differently
+	if snapName == "core" {
+		// TODO: respect IgnoreHookError and TrackHookError ?
+		t := st.NewTask("configure-snapd", summary)
+		t.Set("patch", patch)
+		if v, ok := contextData["use-defaults"].(bool); v && ok {
+			t.Set("use-defaults", true)
+		}
+		return state.NewTaskSet(t)
+	}
+
+	task := hookstate.HookTask(st, summary, hooksup, contextData)
 	return state.NewTaskSet(task)
 }

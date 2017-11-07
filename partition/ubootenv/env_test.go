@@ -172,7 +172,7 @@ func (u *uenvTestSuite) TestErrorOnMalformedData(c *C) {
 
 // ensure that the malformed data is not causing us to panic.
 func (u *uenvTestSuite) TestOpenBestEffort(c *C) {
-	mockData := []byte{
+	testCases := map[string][]byte{"noise": {
 		// key1=value1
 		0x6b, 0x65, 0x79, 0x31, 0x3d, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x31, 0x00,
 		// foo
@@ -181,12 +181,27 @@ func (u *uenvTestSuite) TestOpenBestEffort(c *C) {
 		0x6b, 0x65, 0x79, 0x32, 0x3d, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x32, 0x00,
 		// eof
 		0x00, 0x00,
-	}
-	u.makeUbootEnvFromData(c, mockData)
+	}, "no-eof": {
+		// key1=value1
+		0x6b, 0x65, 0x79, 0x31, 0x3d, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x31, 0x00,
+		// key2=value2
+		0x6b, 0x65, 0x79, 0x32, 0x3d, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x32, 0x00,
+		// NO EOF!
+	}, "noise-eof": {
+		// key1=value1
+		0x6b, 0x65, 0x79, 0x31, 0x3d, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x31, 0x00,
+		// key2=value2
+		0x6b, 0x65, 0x79, 0x32, 0x3d, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x32, 0x00,
+		// foo
+		0x66, 0x6f, 0x6f, 0x00,
+	}}
+	for testName, mockData := range testCases {
+		u.makeUbootEnvFromData(c, mockData)
 
-	env, err := ubootenv.OpenWithFlags(u.envFile, ubootenv.OpenBestEffort)
-	c.Assert(err, IsNil)
-	c.Assert(env.String(), Equals, "key1=value1\nkey2=value2\n")
+		env, err := ubootenv.OpenWithFlags(u.envFile, ubootenv.OpenBestEffort)
+		c.Assert(err, IsNil, Commentf(testName))
+		c.Check(env.String(), Equals, "key1=value1\nkey2=value2\n", Commentf(testName))
+	}
 }
 
 func (u *uenvTestSuite) TestErrorOnMissingKeyInKeyValuePair(c *C) {

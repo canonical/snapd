@@ -121,7 +121,8 @@ static bool getenv_bool(const char *name, bool default_value)
 
 bool sc_is_debug_enabled()
 {
-	return getenv_bool("SNAP_CONFINE_DEBUG", false);
+	return getenv_bool("SNAP_CONFINE_DEBUG", false)
+	    || getenv_bool("SNAPD_DEBUG", false);
 }
 
 bool sc_is_reexec_enabled()
@@ -163,7 +164,7 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode)
 	}
 	// We're going to use strtok_r, which needs to modify the path, so we'll
 	// make a copy of it.
-	char *path_copy __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *path_copy SC_CLEANUP(sc_cleanup_string) = NULL;
 	path_copy = strdup(path);
 	if (path_copy == NULL) {
 		return -1;
@@ -178,7 +179,7 @@ int sc_nonfatal_mkpath(const char *const path, mode_t mode)
 	// of mkdir calls, to avoid following symlinks and placing the user data
 	// directory somewhere we never intended for it to go. The first step is to
 	// get an initial file descriptor.
-	int fd __attribute__ ((cleanup(sc_cleanup_close))) = AT_FDCWD;
+	int fd SC_CLEANUP(sc_cleanup_close) = AT_FDCWD;
 	if (path_copy[0] == '/') {
 		fd = open("/", open_flags);
 		if (fd < 0) {

@@ -112,7 +112,7 @@ func (r *Repair) Run() error {
 	}
 
 	// ensure the script can use "repair done"
-	repairToolsDir := filepath.Join(dirs.SnapRunDir, "repair/tools")
+	repairToolsDir := filepath.Join(dirs.SnapRunRepairDir, "tools")
 	if err := makeRepairSymlink(repairToolsDir); err != nil {
 		return err
 	}
@@ -142,6 +142,8 @@ func (r *Repair) Run() error {
 	}
 	defer statusR.Close()
 	defer statusW.Close()
+
+	logger.Debugf("executing %s", script)
 
 	// run the script
 	env := os.Environ()
@@ -207,7 +209,7 @@ func (r *Repair) Run() error {
 	// if the script had an error exit status still honor what we
 	// read from the status-pipe, however report the error
 	if scriptErr != nil {
-		scriptErr = fmt.Errorf("%q failed: %s", r.Ref(), scriptErr)
+		scriptErr = fmt.Errorf("repair %s revision %d failed: %s", r, r.Revision(), scriptErr)
 		if err := r.errtrackerReport(scriptErr, status, logPath); err != nil {
 			logger.Noticef("cannot report error to errtracker: %s", err)
 		}
@@ -229,6 +231,7 @@ func readStatus(r io.Reader) RepairStatus {
 		switch strings.TrimSpace(scanner.Text()) {
 		case "done":
 			status = DoneStatus
+		// TODO: support having a script skip over many and up to a given repair-id #
 		case "skip":
 			status = SkipStatus
 		}
@@ -317,7 +320,7 @@ var (
 // auxiliary assertions. If revision>=0 the request will include an
 // If-None-Match header with an ETag for the revision, and
 // ErrRepairNotModified is returned if the revision is still current.
-func (run *Runner) Fetch(brandID string, repairID int, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {
+func (run *Runner) Fetch(brandID string, repairID int, revision int) (*asserts.Repair, []asserts.Assertion, error) {
 	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%d", brandID, repairID))
 	if err != nil {
 		return nil, nil, err
@@ -336,6 +339,7 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (repair *as
 		return run.cli.Do(req)
 	}, func(resp *http.Response) error {
 		if resp.StatusCode == 200 {
+			logger.Debugf("fetching repair %s-%d", brandID, repairID)
 			// decode assertions
 			dec := asserts.NewDecoderWithTypeMaxBodySize(resp.Body, map[*asserts.AssertionType]int{
 				asserts.RepairType: maxRepairScriptSize,
@@ -382,7 +386,7 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (repair *as
 		return nil, nil, fmt.Errorf("cannot fetch repair, unexpected status %d", resp.StatusCode)
 	}
 
-	repair, aux, err = checkStream(brandID, repairID, r)
+	repair, aux, err := checkStream(brandID, repairID, r)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot fetch repair, %v", err)
 	}
@@ -394,7 +398,7 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (repair *as
 		return nil, nil, ErrRepairNotModified
 	}
 
-	return
+	return repair, aux, err
 }
 
 func checkStream(brandID string, repairID int, r []asserts.Assertion) (repair *asserts.Repair, aux []asserts.Assertion, err error) {

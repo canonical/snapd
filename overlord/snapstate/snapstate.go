@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -184,7 +183,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// run refresh hook when updating existing snap, otherwise run install hook
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
-		refreshHook := SetupAfterRefreshHook(st, snapsup.Name())
+		refreshHook := SetupPostRefreshHook(st, snapsup.Name())
 		addTask(refreshHook)
 		prev = refreshHook
 	}
@@ -290,8 +289,8 @@ var SetupInstallHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupInstallHook is unset")
 }
 
-var SetupAfterRefreshHook = func(st *state.State, snapName string) *state.Task {
-	panic("internal error: snapstate.SetupAfterRefreshHook is unset")
+var SetupPostRefreshHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.SetupPostRefreshHook is unset")
 }
 
 var SetupRemoveHook = func(st *state.State, snapName string) *state.Task {
@@ -301,16 +300,18 @@ var SetupRemoveHook = func(st *state.State, snapName string) *state.Task {
 // snapTopicalTasks are tasks that characterize changes on a snap that
 // cannot be run concurrently and should conflict with each other.
 var snapTopicalTasks = map[string]bool{
-	"link-snap":          true,
-	"unlink-snap":        true,
-	"refresh-aliases":    true,
-	"prune-auto-aliases": true,
-	"alias":              true,
-	"unalias":            true,
-	"disable-aliases":    true,
-	"prefer-aliases":     true,
-	"connect":            true,
-	"disconnect":         true,
+	"link-snap":           true,
+	"unlink-snap":         true,
+	"switch-snap":         true,
+	"switch-snap-channel": true,
+	"refresh-aliases":     true,
+	"prune-auto-aliases":  true,
+	"alias":               true,
+	"unalias":             true,
+	"disable-aliases":     true,
+	"prefer-aliases":      true,
+	"connect":             true,
+	"disconnect":          true,
 }
 
 func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
@@ -576,20 +577,21 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 // RefreshCandidates gets a list of candidates for update
 // Note that the state must be locked by the caller.
 func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, error) {
-	updates, _, err := refreshCandidates(st, nil, user)
+	updates, _, _, err := refreshCandidates(st, nil, user)
 	return updates, err
 }
 
-func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([]*snap.Info, map[string]*SnapState, error) {
+func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
 	snapStates, err := All(st)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	sort.Strings(names)
 
 	stateByID := make(map[string]*SnapState, len(snapStates))
 	candidatesInfo := make([]*store.RefreshCandidate, 0, len(snapStates))
+	ignoreValidation := make(map[string]bool)
 	for _, snapst := range snapStates {
 		if len(names) == 0 && (snapst.TryMode || snapst.DevMode) {
 			// no auto-refresh for trymode nor devmode
@@ -622,10 +624,11 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 		// get confinement preference from the snapstate
 		candidateInfo := &store.RefreshCandidate{
 			// the desired channel (not info.Channel!)
-			Channel:  snapst.Channel,
-			SnapID:   snapInfo.SnapID,
-			Revision: snapInfo.Revision,
-			Epoch:    snapInfo.Epoch,
+			Channel:          snapst.Channel,
+			SnapID:           snapInfo.SnapID,
+			Revision:         snapInfo.Revision,
+			Epoch:            snapInfo.Epoch,
+			IgnoreValidation: snapst.IgnoreValidation,
 		}
 
 		if len(names) == 0 {
@@ -633,22 +636,25 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 		}
 
 		candidatesInfo = append(candidatesInfo, candidateInfo)
+		if snapst.IgnoreValidation {
+			ignoreValidation[snapInfo.SnapID] = true
+		}
 	}
 
-	theStore := storestate.Store(st)
+	theStore := Store(st)
 
 	st.Unlock()
 	updates, err := theStore.ListRefresh(candidatesInfo, user)
 	st.Lock()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return updates, stateByID, nil
+	return updates, stateByID, ignoreValidation, nil
 }
 
 // ValidateRefreshes allows to hook validation into the handling of refresh candidates.
-var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, userID int) (validated []*snap.Info, err error)
+var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) (validated []*snap.Info, err error)
 
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
@@ -659,13 +665,13 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 		return nil, nil, err
 	}
 
-	updates, stateByID, err := refreshCandidates(st, names, user)
+	updates, stateByID, ignoreValidation, err := refreshCandidates(st, names, user)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if ValidateRefreshes != nil && len(updates) != 0 {
-		updates, err = ValidateRefreshes(st, updates, userID)
+		updates, err = ValidateRefreshes(st, updates, ignoreValidation, userID)
 		if err != nil {
 			// not doing "refresh all" report the error
 			if len(names) != 0 {
@@ -903,6 +909,10 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
+	if err := CheckChangeConflict(st, name, nil, nil); err != nil {
+		return nil, err
+	}
+
 	snapsup := &SnapSetup{
 		SideInfo: snapst.CurrentSideInfo(),
 		Channel:  channel,
@@ -936,6 +946,8 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		channel = snapst.Channel
 	}
 
+	// TODO: make flags be per revision to avoid this logic (that
+	//       leaves corner cases all over the place)
 	if !(flags.JailMode || flags.DevMode) {
 		flags.Classic = flags.Classic || snapst.Flags.Classic
 	}
@@ -962,6 +974,11 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 
 	// see if we need to update the channel
 	if infoErr == store.ErrNoUpdateAvailable && snapst.Channel != channel {
+		// TODO: do we want to treat ignore-validation similarly?
+		if err := CheckChangeConflict(st, name, nil, nil); err != nil {
+			return nil, err
+		}
+
 		snapsup := &SnapSetup{
 			SideInfo: snapst.CurrentSideInfo(),
 			// update the tracked channel
@@ -995,7 +1012,7 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
 	if revision.Unset() {
 		// good ol' refresh
-		info, err := updateInfo(st, snapst, channel, userID)
+		info, err := updateInfo(st, snapst, channel, flags.IgnoreValidation, userID)
 		if err != nil {
 			return nil, err
 		}
@@ -1003,7 +1020,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 			return nil, err
 		}
 		if ValidateRefreshes != nil && !flags.IgnoreValidation {
-			_, err := ValidateRefreshes(st, []*snap.Info{info}, userID)
+			_, err := ValidateRefreshes(st, []*snap.Info{info}, nil, userID)
 			if err != nil {
 				return nil, err
 			}
@@ -1415,6 +1432,19 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		return nil, err
 	}
 	flags.Revert = true
+	// TODO: make flags be per revision to avoid this logic (that
+	//       leaves corner cases all over the place)
+	if !(flags.JailMode || flags.DevMode || flags.Classic) {
+		if snapst.Flags.DevMode {
+			flags.DevMode = true
+		}
+		if snapst.Flags.JailMode {
+			flags.JailMode = true
+		}
+		if snapst.Flags.Classic {
+			flags.Classic = true
+		}
+	}
 	snapsup := &SnapSetup{
 		SideInfo: snapst.Sequence[i],
 		Flags:    flags.ForSnapSetup(),
@@ -1743,7 +1773,7 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 	return defaults, nil
 }
 
-func refreshCatalogs(st *state.State, theStore storestate.StoreService) error {
+func refreshCatalogs(st *state.State, theStore StoreService) error {
 	st.Unlock()
 	defer st.Lock()
 

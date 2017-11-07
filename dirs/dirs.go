@@ -39,10 +39,11 @@ var (
 	SnapBlobDir               string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
+	SnapDownloadCacheDir      string
 	SnapAppArmorDir           string
 	AppArmorCacheDir          string
 	SnapAppArmorAdditionalDir string
-	SnapAppArmorConfineDir    string
+	SnapConfineAppArmorDir    string
 	SnapSeccompDir            string
 	SnapMountPolicyDir        string
 	SnapUdevRulesDir          string
@@ -69,6 +70,7 @@ var (
 	SnapRepairStateFile  string
 	SnapRepairRunDir     string
 	SnapRepairAssertsDir string
+	SnapRunRepairDir     string
 
 	SnapCacheDir     string
 	SnapNamesFile    string
@@ -165,19 +167,19 @@ func SetRootDir(rootdir string) {
 	}
 	GlobalRootDir = rootdir
 
-	switch release.ReleaseInfo.ID {
-	case "fedora", "centos", "rhel", "arch", "manjaro", "lirios":
+	if release.DistroLike("fedora", "arch") {
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
-	default:
+	} else {
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
 	}
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/snap/")
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
+	SnapConfineAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine")
 	AppArmorCacheDir = filepath.Join(rootdir, "/var/cache/apparmor")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
-	SnapAppArmorConfineDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine.d")
+	SnapDownloadCacheDir = filepath.Join(rootdir, snappyDir, "cache")
 	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
@@ -208,6 +210,7 @@ func SetRootDir(rootdir string) {
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")
 	SnapRepairRunDir = filepath.Join(SnapRepairDir, "run")
 	SnapRepairAssertsDir = filepath.Join(SnapRepairDir, "assertions")
+	SnapRunRepairDir = filepath.Join(SnapRunDir, "repair")
 
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")

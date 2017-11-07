@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -56,9 +57,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces
 		return nil, err
 	}
 
-	// cache once initialized
 	s.Lock()
-	s.Cache("ifacestate-repo", m.repo)
+	ifacerepo.Replace(s, m.repo)
 	s.Unlock()
 
 	// interface tasks might touch more than the immediate task target snap, serialize them
