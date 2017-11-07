@@ -42,11 +42,11 @@ func cookies(st *state.State) (map[string]string, error) {
 	return snapCookies, nil
 }
 
-// GenerateCookies creates snap cookies for snaps that are missing them (may be the case for snaps installed
+// SyncCookies creates snap cookies for snaps that are missing them (may be the case for snaps installed
 // before the feature of running snapctl outside of hooks was introduced, leading to a warning
 // from snap-confine).
 // It is the caller's responsibility to lock state before calling this function.
-func (m *SnapManager) GenerateCookies(st *state.State) error {
+func (m *SnapManager) SyncCookies(st *state.State) error {
 	var snapNames map[string]*json.RawMessage
 	if err := st.Get("snaps", &snapNames); err != nil && err != state.ErrNoState {
 		return err
@@ -57,22 +57,37 @@ func (m *SnapManager) GenerateCookies(st *state.State) error {
 		return err
 	}
 
-	snapWithCookies := make(map[string]bool)
+	snapsWithCookies := make(map[string]bool)
 	for _, snap := range snapCookies {
-		snapWithCookies[snap] = true
+		if _, ok := snapNames[snap]; !ok || snapsWithCookies[snap] {
+			// there is no point in checking all cookies if we found a bad one - recreate them all
+			snapCookies = make(map[string]string)
+			snapsWithCookies = make(map[string]bool)
+			break
+		}
+		snapsWithCookies[snap] = true
 	}
 
 	var changed bool
-	for snap := range snapNames {
-		if _, ok := snapWithCookies[snap]; !ok {
-			cookieID, err := createCookieFile(snap)
-			if err != nil {
-				return err
-			}
 
-			snapCookies[cookieID] = snap
+	// make sure every snap has a cookie, generate one if necessary
+	for snap := range snapNames {
+		if _, ok := snapsWithCookies[snap]; !ok {
+			cookie := makeCookie()
+			snapCookies[cookie] = snap
 			changed = true
 		}
+	}
+
+	content := make(map[string]*osutil.FileState)
+	for cookie, snap := range snapCookies {
+		content[fmt.Sprintf("snap.%s", snap)] = &osutil.FileState{
+			Content: []byte(cookie),
+			Mode:    0600,
+		}
+	}
+	if _, _, err := osutil.EnsureDirState(dirs.SnapCookieDir, "snap.*", content); err != nil {
+		return fmt.Errorf("Failed to synchronize snap cookies: %s", err)
 	}
 
 	if changed {
@@ -112,7 +127,7 @@ func (m *SnapManager) removeSnapCookie(st *state.State, snapName string) error {
 			return fmt.Errorf("cannot get snap cookies: %v", err)
 		}
 		// no cookies in the state
-		if err := os.Remove(filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", snapName))); err != nil && !os.IsNotExist(err) {
+		if err := removeCookieFile(snapName); err != nil {
 			return err
 		}
 		return nil
@@ -120,7 +135,7 @@ func (m *SnapManager) removeSnapCookie(st *state.State, snapName string) error {
 
 	for cookieID, snap := range snapCookies {
 		if snapName == snap {
-			if err := os.Remove(filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", snapName))); err != nil && !os.IsNotExist(err) {
+			if err := removeCookieFile(snapName); err != nil {
 				return err
 			}
 			delete(snapCookies, cookieID)
@@ -131,12 +146,24 @@ func (m *SnapManager) removeSnapCookie(st *state.State, snapName string) error {
 	return nil
 }
 
+func makeCookie() string {
+	return strutil.MakeRandomString(44)
+}
+
 func createCookieFile(snapName string) (cookieID string, err error) {
-	cookieID = strutil.MakeRandomString(44)
+	cookieID = makeCookie()
 	path := filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", snapName))
 	err = osutil.AtomicWriteFile(path, []byte(cookieID), 0600, 0)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("Failed to create cookie file %q: %s", path, err)
 	}
 	return cookieID, nil
+}
+
+func removeCookieFile(snapName string) error {
+	path := filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", snapName))
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("Failed to remove cookie file %q: %s", path, err)
+	}
+	return nil
 }
