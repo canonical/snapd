@@ -40,11 +40,8 @@ func LoadModule(module string) error {
 // and the other security backends)
 func loadModules(modules []string) error {
 	for _, mod := range modules {
-		if err := LoadModule(mod); err != nil {
-			// LoadModule() already logs via syslog, so just
-			// continue
-			continue
-		}
+		LoadModule(mod) // ignore errors which are logged by
+				// LoadModule() via syslog
 	}
 	return nil
 }
