@@ -96,7 +96,7 @@ func configureHook(st *state.State, snapName string, patch map[string]interface{
 
 // Configure returns a taskset to apply the given configuration patch.
 func Configure(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
-	// configuration hook for "core" is handled internally
+	// configuration for "core" is handled internally
 	if snapName == "core" {
 		return configureSnapd(st, snapName, patch, flags)
 	}
