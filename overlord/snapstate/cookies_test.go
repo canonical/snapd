@@ -73,31 +73,51 @@ func checkCookie(c *C, st *state.State, snapName string) {
 	c.Assert(cookieID, HasLen, 44)
 }
 
-func (s *cookiesSuite) TestGenerateCookies(c *C) {
+func (s *cookiesSuite) TestSyncCookies(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	// verify that GenerateCookies creates a cookie for a snap that's missing it.
+	// verify that SyncCookies creates a cookie for a snap that's missing it and removes stale/invalid cookies
 	s.st.Set("snaps", map[string]*json.RawMessage{
 		"some-snap":  nil,
 		"other-snap": nil})
+	staleCookieFile := filepath.Join(dirs.SnapCookieDir, "snap.stale-cookie-snap")
+	c.Assert(ioutil.WriteFile(staleCookieFile, nil, 0644), IsNil)
+	c.Assert(osutil.FileExists(staleCookieFile), Equals, true)
 
 	// some-snap doesn't have cookie
-	cookies := map[string]string{"123456": "other-snap"}
+	cookies := map[string]string{
+		"123456": "other-snap",
+		"809809": "other-snap",
+		"999999": "unknown-snap",
+		"199989": "unknown-snap",
+	}
 	s.st.Set("snap-cookies", cookies)
 
-	s.snapmgr.GenerateCookies(s.st)
+	for i := 0; i < 2; i++ {
+		s.snapmgr.SyncCookies(s.st)
 
-	err := s.st.Get("snap-cookies", &cookies)
-	c.Assert(err, IsNil)
-	c.Assert(cookies, HasLen, 2)
+		c.Assert(osutil.FileExists(staleCookieFile), Equals, false)
 
-	cookieFile := filepath.Join(dirs.SnapCookieDir, "snap.some-snap")
-	c.Assert(osutil.FileExists(cookieFile), Equals, true)
-	data, err := ioutil.ReadFile(cookieFile)
-	c.Assert(err, IsNil)
-	c.Assert(cookies[string(data)], NotNil)
-	c.Assert(cookies[string(data)], Equals, "some-snap")
+		var newCookies map[string]string
+		err := s.st.Get("snap-cookies", &newCookies)
+		c.Assert(err, IsNil)
+		c.Assert(newCookies, HasLen, 2)
+
+		cookieFile := filepath.Join(dirs.SnapCookieDir, "snap.some-snap")
+		c.Assert(osutil.FileExists(cookieFile), Equals, true)
+		data, err := ioutil.ReadFile(cookieFile)
+		c.Assert(err, IsNil)
+		c.Assert(newCookies[string(data)], NotNil)
+		c.Assert(newCookies[string(data)], Equals, "some-snap")
+
+		cookieFile = filepath.Join(dirs.SnapCookieDir, "snap.other-snap")
+		c.Assert(osutil.FileExists(cookieFile), Equals, true)
+		data, err = ioutil.ReadFile(cookieFile)
+		c.Assert(err, IsNil)
+		c.Assert(newCookies[string(data)], NotNil)
+		c.Assert(newCookies[string(data)], Equals, "other-snap")
+	}
 }
 
 func (s *cookiesSuite) TestCreateSnapCookie(c *C) {
