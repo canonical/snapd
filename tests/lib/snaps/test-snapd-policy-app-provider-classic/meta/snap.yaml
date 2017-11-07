@@ -1,13 +1,10 @@
-name: test-policy-app-provider-core
+name: test-snapd-policy-app-provider-classic
 version: 1.0
 summary: Test policy app for providing slot interface policy from snapd
-description: Test policy app for non-implicitOnCore slots
+description: Test policy app for non-implicitOnClassic slots
 confinement: strict
 
 slots:
-  avahi-control: null
-  avahi-observe: null
-  bluez: null
   content-read:
     interface: content
     content: test-content
@@ -21,39 +18,24 @@ slots:
     interface: dbus
     bus: system
     name: test.system
-  docker: null
-  fwupd: null
   location-control: null
   location-observe: null
   lxd: null
   maliit: null
   media-hub: null
   mir: null
-  modem-manager: null
-  network-manager: null
+  mpris:
+    name: test-policy-app-provider-classic
   network-status: null
-  ofono: null
   online-accounts-service: null
-  pulseaudio: null
   storage-framework-service: null
   thumbnailer-service: null
   ubuntu-download-manager: null
-  udisks2: null
   unity8: null
   unity8-calendar: null
   unity8-contacts: null
-  upower-observe: null
 
 apps:
-  avahi-control:
-    command: bin/run
-    slots: [ avahi-control ]
-  avahi-observe:
-    command: bin/run
-    slots: [ avahi-observe ]
-  bluez:
-    command: bin/run
-    slots: [ bluez ]
   content-read:
     command: bin/run
     slots: [ content-read ]
@@ -66,9 +48,6 @@ apps:
   docker:
     command: bin/run
     slots: [ docker ]
-  fwupd:
-    command: bin/run
-    slots: [ fwupd ]
   location-control:
     command: bin/run
     slots: [ location-control ]
@@ -87,24 +66,15 @@ apps:
   mir:
     command: bin/run
     slots: [ mir ]
-  modem-manager:
+  mpris:
     command: bin/run
-    slots: [ modem-manager ]
-  network-manager:
-    command: bin/run
-    slots: [ network-manager ]
+    slots: [ mpris ]
   network-status:
     command: bin/run
     slots: [ network-status ]
-  ofono:
-    command: bin/run
-    slots: [ ofono ]
   online-accounts-service:
     command: bin/run
     slots: [ online-accounts-service ]
-  pulseaudio:
-    command: bin/run
-    slots: [ pulseaudio ]
   storage-framework-service:
     command: bin/run
     slots: [ storage-framework-service ]
@@ -114,9 +84,6 @@ apps:
   ubuntu-download-manager:
     command: bin/run
     slots: [ ubuntu-download-manager ]
-  udisks2:
-    command: bin/run
-    slots: [ udisks2 ]
   unity8:
     command: bin/run
     slots: [ unity8 ]
@@ -126,6 +93,3 @@ apps:
   unity8-contacts:
     command: bin/run
     slots: [ unity8-contacts ]
-  upower-observe:
-    command: bin/run
-    slots: [ upower-observe ]
