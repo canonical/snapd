@@ -1,0 +1,19 @@
+name: test-snapd-network-status-consumer
+version: 1.0
+summary: Basic network status consumer snap
+description: A basic snap declaring an network status plug
+confinement: strict
+grade: stable
+
+apps:
+    consumer:
+        command: wrapper
+        plugs: [network-status]
+
+parts:
+    deps:
+        plugin: python
+        stage-packages: [python3-dbus]
+    copy:
+        plugin: dump
+        source: .
