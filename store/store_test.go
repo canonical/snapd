@@ -73,7 +73,7 @@ func (suite *configTestSuite) TestSetBaseURL(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(cfg.StoreBaseURL.String(), Equals, "http://example.com/path/prefix/")
-	c.Check(cfg.AssertionsBaseURL.String(), Equals, "http://example.com/path/prefix/api/v1/snaps")
+	c.Check(cfg.AssertionsBaseURL, IsNil)
 }
 
 func (suite *configTestSuite) TestSetBaseURLStoreOverrides(c *C) {
@@ -86,7 +86,7 @@ func (suite *configTestSuite) TestSetBaseURLStoreOverrides(c *C) {
 	cfg = DefaultConfig()
 	c.Assert(cfg.setBaseURL(apiURL()), IsNil)
 	c.Check(cfg.StoreBaseURL.String(), Equals, "https://force-api.local/")
-	c.Check(cfg.AssertionsBaseURL.String(), Equals, "https://force-api.local/api/v1/snaps")
+	c.Check(cfg.AssertionsBaseURL, IsNil)
 }
 
 func (suite *configTestSuite) TestSetBaseURLStoreURLBadEnviron(c *C) {
@@ -101,7 +101,7 @@ func (suite *configTestSuite) TestSetBaseURLStoreURLBadEnviron(c *C) {
 func (suite *configTestSuite) TestSetBaseURLAssertsOverrides(c *C) {
 	cfg := DefaultConfig()
 	c.Assert(cfg.setBaseURL(apiURL()), IsNil)
-	c.Check(cfg.AssertionsBaseURL, Matches, apiURL().String()+".*")
+	c.Check(cfg.AssertionsBaseURL, IsNil)
 
 	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "https://force-sas.local/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
@@ -142,7 +142,7 @@ func detailsPath(snapName string) string {
 func assertRequest(c *C, r *http.Request, method, pathPattern string) {
 	pathMatch, err := regexp.MatchString("^"+pathPattern+"$", r.URL.Path)
 	c.Assert(err, IsNil)
-	if r.Method != method && pathMatch {
+	if r.Method != method || !pathMatch {
 		c.Fatalf("request didn't match (expected %s %s, got %s %s)", method, pathPattern, r.Method, r.URL.Path)
 	}
 }
@@ -216,6 +216,9 @@ type testAuthContext struct {
 	device *auth.DeviceState
 	user   *auth.UserState
 
+	proxyStoreID  string
+	proxyStoreURL *url.URL
+
 	storeID string
 }
 
@@ -270,6 +273,13 @@ func (ac *testAuthContext) DeviceSessionRequestParams(nonce string) (*auth.Devic
 		Serial:  serial.(*asserts.Serial),
 		Model:   model.(*asserts.Model),
 	}, nil
+}
+
+func (ac *testAuthContext) ProxyStoreParams(defaultURL *url.URL) (string, *url.URL, error) {
+	if ac.proxyStoreID != "" {
+		return ac.proxyStoreID, ac.proxyStoreURL, nil
+	}
+	return "", defaultURL, nil
 }
 
 func makeTestMacaroon() (*macaroon.Macaroon, error) {
@@ -2284,6 +2294,75 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c 
 	c.Check(result.Name(), Equals, "hello-world")
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryProxyStoreFromAuthContext(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", detailsPathPattern)
+
+		w.WriteHeader(200)
+		io.WriteString(w, MockDetailsJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	nowhereURL, err := url.Parse("http://nowhere.nowhere")
+	c.Assert(err, IsNil)
+	cfg := DefaultConfig()
+	cfg.StoreBaseURL = nowhereURL
+	repo := New(cfg, &testAuthContext{
+		c:             c,
+		device:        t.device,
+		proxyStoreID:  "foo",
+		proxyStoreURL: mockServerURL,
+	})
+	c.Assert(repo, NotNil)
+
+	// the actual test
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "edge",
+		Revision: snap.R(0),
+	}
+	result, err := repo.SnapInfo(spec, nil)
+	c.Assert(err, IsNil)
+	c.Check(result.Name(), Equals, "hello-world")
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryProxyStoreFromAuthContextURLFallback(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", detailsPathPattern)
+
+		w.WriteHeader(200)
+		io.WriteString(w, MockDetailsJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := DefaultConfig()
+	cfg.StoreBaseURL = mockServerURL
+	repo := New(cfg, &testAuthContext{
+		c:      c,
+		device: t.device,
+		// mock an assertion that has id but no url
+		proxyStoreID:  "foo",
+		proxyStoreURL: nil,
+	})
+	c.Assert(repo, NotNil)
+
+	// the actual test
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "edge",
+		Revision: snap.R(0),
+	}
+	result, err := repo.SnapInfo(spec, nil)
+	c.Assert(err, IsNil)
+	c.Check(result.Name(), Equals, "hello-world")
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -4062,32 +4141,6 @@ func (t *remoteRepoTestSuite) TestStoreURLBadEnvironCPI(c *C) {
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_CPI_URL: parse ://force-cpi.local/: missing protocol scheme")
 }
 
-func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
-	// This also depends on the store API, but that's tested separately (see
-	// TestStoreURLDependsOnEnviron).
-	apiBaseURI := apiURL()
-
-	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", ""), IsNil)
-	before, err := assertsURL(apiBaseURI)
-	c.Assert(err, IsNil)
-
-	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "https://assertions.example.org/v1/"), IsNil)
-	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
-	after, err := assertsURL(apiBaseURI)
-	c.Assert(err, IsNil)
-
-	c.Check(before.String(), Not(Equals), after.String())
-	c.Check(after.String(), Equals, "https://assertions.example.org/v1/")
-}
-
-func (t *remoteRepoTestSuite) TestAssertsURLBadEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_FORCE_SAS_URL", "://example.com"), IsNil)
-	defer os.Setenv("SNAPPY_FORCE_SAS_URL", "")
-
-	_, err := assertsURL(apiURL())
-	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_SAS_URL: parse ://example.com: missing protocol scheme")
-}
-
 func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := myappsURL()
@@ -4101,7 +4154,7 @@ func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
 
 func (t *remoteRepoTestSuite) TestDefaultConfig(c *C) {
 	c.Check(defaultConfig.StoreBaseURL.String(), Equals, "https://api.snapcraft.io/")
-	c.Check(defaultConfig.AssertionsBaseURL.String(), Equals, "https://api.snapcraft.io/api/v1/snaps")
+	c.Check(defaultConfig.AssertionsBaseURL, IsNil)
 }
 
 func (t *remoteRepoTestSuite) TestNew(c *C) {
@@ -4130,7 +4183,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
 	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 88)
 	defer restore()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "GET", "/assertions/.*")
+		assertRequest(c, r, "GET", "/api/v1/snaps/assertions/.*")
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -4145,7 +4198,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
 	cfg := Config{
-		AssertionsBaseURL: mockServerURL,
+		StoreBaseURL: mockServerURL,
 	}
 	authContext := &testAuthContext{c: c, device: t.device}
 	repo := New(&cfg, authContext)
@@ -4156,9 +4209,46 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionProxyStoreFromAuthContext(c *C) {
+	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 88)
+	defer restore()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", "/api/v1/snaps/assertions/.*")
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+		c.Check(r.URL.Path, Matches, ".*/snap-declaration/16/snapidfoo")
+		c.Check(r.URL.Query().Get("max-format"), Equals, "88")
+		io.WriteString(w, testAssertion)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	nowhereURL, err := url.Parse("http://nowhere.nowhere")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		AssertionsBaseURL: nowhereURL,
+	}
+	authContext := &testAuthContext{
+		c:             c,
+		device:        t.device,
+		proxyStoreID:  "foo",
+		proxyStoreURL: mockServerURL,
+	}
+	repo := New(&cfg, authContext)
+
+	a, err := repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
+	c.Assert(err, IsNil)
+	c.Check(a, NotNil)
+	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionNotFound(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "GET", "/assertions/.*")
+		assertRequest(c, r, "GET", "/api/v1/snaps/assertions/.*")
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
 		c.Check(r.URL.Path, Matches, ".*/snap-declaration/16/snapidfoo")
 		w.Header().Set("Content-Type", "application/problem+json")
@@ -4189,7 +4279,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionNotFound(c *C) {
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion500(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "GET", "/assertions/.*")
+		assertRequest(c, r, "GET", "/api/v1/snaps/assertions/.*")
 		n++
 		w.WriteHeader(500)
 	}))

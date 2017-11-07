@@ -1130,3 +1130,29 @@ func (s *assertMgrSuite) TestPublisher(c *C) {
 	c.Check(acct.AccountID(), Equals, s.dev1Acct.AccountID())
 	c.Check(acct.Username(), Equals, "developer1")
 }
+
+func (s *assertMgrSuite) TestStore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	storeHeaders := map[string]interface{}{
+		"store":       "foo",
+		"operator-id": s.dev1Acct.AccountID(),
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}
+	fooStore, err := s.storeSigning.Sign(asserts.StoreType, storeHeaders, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, fooStore)
+	c.Assert(err, IsNil)
+
+	_, err = assertstate.Store(s.state, "bar")
+	c.Check(asserts.IsNotFound(err), Equals, true)
+
+	store, err := assertstate.Store(s.state, "foo")
+	c.Assert(err, IsNil)
+	c.Check(store.Store(), Equals, "foo")
+}
