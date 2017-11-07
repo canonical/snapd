@@ -54,18 +54,17 @@ func (s *groupSuite) TestBogusGroup(c *C) {
 
 func (s *groupSuite) TestSelfOwnedFile(c *C) {
 	self, err := RealUser()
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 
 	f, err := ioutil.TempFile("", "testownedfile")
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 	name := f.Name()
 	defer f.Close()
 	defer os.Remove(name)
 
 	group, err := FindGroupOwning(name)
-	if c.Check(err, IsNil) {
-		c.Check(group.Gid, Equals, self.Gid)
-	}
+	c.Assert(err, IsNil)
+	c.Check(group.Gid, Equals, self.Gid)
 }
 
 func (s *groupSuite) TestNoOwnedFile(c *C) {
