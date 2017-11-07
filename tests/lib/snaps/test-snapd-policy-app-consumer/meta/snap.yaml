@@ -1,4 +1,4 @@
-name: test-policy-app-consumer
+name: test-snapd-policy-app-consumer
 version: 1.0
 summary: Test policy app for obtaining implicit interface policy from snapd
 description: Test policy app matching snapd version

@@ -9,17 +9,17 @@ details: |
 execute: |
     . $TESTSLIB/dirs.sh
 
-    PROVIDER_SNAP="test-policy-app-provider-classic"
+    PROVIDER_SNAP="test-snapd-policy-app-provider-classic"
     # quick test to see if on a core system or not
     if snap list | MATCH gadget ; then
-        PROVIDER_SNAP="test-policy-app-provider-core"
+        PROVIDER_SNAP="test-snapd-policy-app-provider-core"
     fi
 
     echo "Given a snap is installed"
     . $TESTSLIB/snaps.sh
     install_local "$PROVIDER_SNAP"
 
-    CONSUMER_SNAP="test-policy-app-consumer"
+    CONSUMER_SNAP="test-snapd-policy-app-consumer"
     install_local "$CONSUMER_SNAP"
 
     echo "For each snap-provided slot from $PROVIDER_SNAP"
