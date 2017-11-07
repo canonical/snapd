@@ -338,7 +338,7 @@ slots:
 EOF
 
         # build new core snap for the image
-        snapbuild "$UNPACKD" "$IMAGE_HOME"
+        snap pack "$UNPACKD" "$IMAGE_HOME"
 
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/pc-${REMOTE_STORE}.model" "$IMAGE_HOME/pc.model"

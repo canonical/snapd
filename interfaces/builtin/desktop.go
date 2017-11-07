@@ -71,7 +71,10 @@ owner @{HOME}/.config/gtk-3.0/bookmarks r,
 
 # subset of freedesktop.org
 owner @{HOME}/.local/share/mime/**   r,
-owner @{HOME}/.config/user-dirs.dirs r,
+owner @{HOME}/.config/user-dirs.* r,
+
+/etc/xdg/user-dirs.conf r,
+/etc/xdg/user-dirs.defaults r,
 
 # gmenu
 dbus (send)
@@ -128,10 +131,6 @@ dbus (send)
     interface=io.snapcraft.Launcher
     member=OpenURL
     peer=(label=unconfined),
-
-# Lttng tracing is very noisy and should not be allowed by confined apps. Can
-# safely deny. LP: #1260491
-deny /{dev,run,var/run}/shm/lttng-ust-* rw,
 `
 
 type desktopInterface struct{}

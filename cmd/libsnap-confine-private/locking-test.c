@@ -65,12 +65,12 @@ static void test_sc_lock_unlock()
 	const char *lock_dir = sc_test_use_fake_lock_dir();
 	int fd = sc_lock("foo");
 	// Construct the name of the lock file
-	char *lock_file __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *lock_file SC_CLEANUP(sc_cleanup_string) = NULL;
 	lock_file = g_strdup_printf("%s/foo.lock", lock_dir);
 	// Open the lock file again to obtain a separate file descriptor.
 	// According to flock(2) locks are associated with an open file table entry
 	// so this descriptor will be separate and can compete for the same lock.
-	int lock_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	int lock_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	lock_fd = open(lock_file, O_RDWR | O_CLOEXEC | O_NOFOLLOW);
 	g_assert_cmpint(lock_fd, !=, -1);
 	// The non-blocking lock operation should fail with EWOULDBLOCK as the lock
@@ -91,7 +91,7 @@ static void test_sc_enable_sanity_timeout()
 	if (g_test_subprocess()) {
 		sc_enable_sanity_timeout();
 		debug("waiting...");
-		usleep(4 * G_USEC_PER_SEC);
+		usleep(7 * G_USEC_PER_SEC);
 		debug("woke up");
 		sc_disable_sanity_timeout();
 		return;

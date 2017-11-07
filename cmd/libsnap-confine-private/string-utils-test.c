@@ -55,7 +55,7 @@ static void test_sc_endswith()
 
 static void test_sc_must_snprintf()
 {
-	char buf[5];
+	char buf[5] = { 0 };
 	sc_must_snprintf(buf, sizeof buf, "1234");
 	g_assert_cmpstr(buf, ==, "1234");
 }
@@ -140,7 +140,7 @@ static void test_sc_string_append__empty_to_full()
 static void test_sc_string_append__overflow()
 {
 	if (g_test_subprocess()) {
-		char buf[4] = { 0, };
+		char buf[4] = { 0 };
 
 		// Try to append a string that's one character too long.
 		sc_string_append(buf, sizeof buf, "1234");
@@ -829,5 +829,8 @@ static void __attribute__ ((constructor)) init()
 			test_sc_string_append_char_pair__normal);
 	g_test_add_func("/string-utils/sc_string_quote__NULL_buf",
 			test_sc_string_quote_NULL_str);
+	g_test_add_func
+	    ("/string-utils/sc_string_append_char_pair__uninitialized_buf",
+	     test_sc_string_append_char_pair__uninitialized_buf);
 	g_test_add_func("/string-utils/sc_string_quote", test_sc_string_quote);
 }
