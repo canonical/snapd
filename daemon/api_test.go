@@ -455,7 +455,7 @@ version: %s
 		snapst.Active = active
 		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
 		snapst.Current = snapInfo.SideInfo.Revision
-		snapst.Channel = "beta"
+		snapst.Channel = "stable"
 
 		snapstate.Set(st, name, &snapst)
 	}
@@ -533,6 +533,20 @@ UnitFileState=potatoes
 `),
 	}
 
+	var snapst snapstate.SnapState
+	st := s.d.overlord.State()
+	st.Lock()
+	err := snapstate.Get(st, "foo", &snapst)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	// modify state
+	snapst.Channel = "beta"
+	snapst.IgnoreValidation = true
+	st.Lock()
+	snapstate.Set(st, "foo", &snapst)
+	st.Unlock()
+
 	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
 	c.Assert(err, check.IsNil)
 	rsp, ok := getSnapInfo(snapCmd, req, nil).(*resp)
@@ -554,24 +568,25 @@ UnitFileState=potatoes
 		Type:   ResponseTypeSync,
 		Status: 200,
 		Result: &client.Snap{
-			ID:              "foo-id",
-			Name:            "foo",
-			Revision:        snap.R(10),
-			Version:         "v1",
-			Channel:         "stable",
-			TrackingChannel: "beta",
-			Title:           "title",
-			Summary:         "summary",
-			Description:     "description",
-			Developer:       "bar",
-			Status:          "active",
-			Icon:            "/v2/icons/foo/icon",
-			Type:            string(snap.TypeApp),
-			Private:         false,
-			DevMode:         false,
-			JailMode:        false,
-			Confinement:     string(snap.StrictConfinement),
-			TryMode:         false,
+			ID:               "foo-id",
+			Name:             "foo",
+			Revision:         snap.R(10),
+			Version:          "v1",
+			Channel:          "stable",
+			TrackingChannel:  "beta",
+			IgnoreValidation: true,
+			Title:            "title",
+			Summary:          "summary",
+			Description:      "description",
+			Developer:        "bar",
+			Status:           "active",
+			Icon:             "/v2/icons/foo/icon",
+			Type:             string(snap.TypeApp),
+			Private:          false,
+			DevMode:          false,
+			JailMode:         false,
+			Confinement:      string(snap.StrictConfinement),
+			TryMode:          false,
 			Apps: []client.AppInfo{
 				{
 					Snap: "foo", Name: "cmd",

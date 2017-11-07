@@ -121,7 +121,8 @@ static bool getenv_bool(const char *name, bool default_value)
 
 bool sc_is_debug_enabled()
 {
-	return getenv_bool("SNAP_CONFINE_DEBUG", false);
+	return getenv_bool("SNAP_CONFINE_DEBUG", false)
+	    || getenv_bool("SNAPD_DEBUG", false);
 }
 
 bool sc_is_reexec_enabled()
