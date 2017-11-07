@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -427,27 +428,18 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 	return nil
 }
 
-func plugConnected(repo *interfaces.Repository, snapName, plugName string) bool {
-	plug := repo.Plug(snapName, plugName)
-	if plug != nil {
-		conns := plug.Connections
-		return len(conns) > 0
-	}
-	return false
+func plugConnected(st *state.State, snapName, plugName string) bool {
+	repo := ifacerepo.Get(st)
+	conns, err := repo.Connected(snapName, plugName)
+	return err == nil && len(conns) > 0
 }
 
 // defaultContentPlugProviders takes a snap.Info and returns what
 // default providers there are.
 func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
-	repo, ok := st.Cached("ifacestate-repo").(*interfaces.Repository)
-	if !ok {
-		// FIXME: panic here?
-		return nil
-	}
-
 	out := []string{}
 	for _, plug := range info.Plugs {
-		if plug.Interface == "content" && !plugConnected(repo, info.Name(), plug.Name) {
+		if plug.Interface == "content" && !plugConnected(st, info.Name(), plug.Name) {
 			dprovider, ok := plug.Attrs["default-provider"].(string)
 			if !ok || dprovider == "" {
 				continue
