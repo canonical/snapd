@@ -47,6 +47,15 @@ var (
 	sysFchown  = syscall.Fchown
 )
 
+// ReadOnlyFsError is an error encapsulating encountered EROFS.
+type ReadOnlyFsError struct {
+	Path string
+}
+
+func (e *ReadOnlyFsError) Error() string {
+	return fmt.Sprintf("cannot operate on read-only filesystem at %s", e.Path)
+}
+
 // Create directories for all but the last segments and return the file
 // descriptor to the leaf directory. This function is a base for secure
 // variants of mkdir, touch and symlink.
@@ -102,6 +111,12 @@ func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid, gid in
 		switch err {
 		case syscall.EEXIST:
 			made = false
+		case syscall.EROFS:
+			// Treat EROFS specially: this is a hint that we have to poke a
+			// hole using tmpfs. The path below is the location where we
+			// need to poke the hole.
+			p := "/" + strings.Join(segments[:i], "/")
+			return -1, &ReadOnlyFsError{Path: p}
 		default:
 			return -1, fmt.Errorf("cannot mkdir path segment %q: %v", segment, err)
 		}
