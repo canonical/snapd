@@ -21,7 +21,7 @@
 #include <glib.h>
 
 // Test that dropping permissions really works
-static void test_sc_privs_drop()
+static void test_sc_privs_drop(void)
 {
 	if (geteuid() != 0 || getuid() == 0) {
 		g_test_skip("run this test after chown root.root; chmod u+s");
@@ -61,7 +61,7 @@ static void test_sc_privs_drop()
 	g_test_trap_assert_passed();
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/privs/sc_privs_drop", test_sc_privs_drop);
 }

@@ -22,6 +22,7 @@ package asserts_test
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -31,16 +32,21 @@ import (
 var _ = Suite(&storeSuite{})
 
 type storeSuite struct {
+	ts           time.Time
+	tsLine       string
 	validExample string
 }
 
 func (s *storeSuite) SetUpSuite(c *C) {
+	s.ts = time.Now().Truncate(time.Second).UTC()
+	s.tsLine = "timestamp: " + s.ts.Format(time.RFC3339) + "\n"
 	s.validExample = "type: store\n" +
 		"authority-id: canonical\n" +
 		"store: store1\n" +
 		"operator-id: op-id1\n" +
 		"url: https://store.example.com\n" +
 		"location: upstairs\n" +
+		s.tsLine +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n" +
 		"\n" +
 		"AXNpZw=="
@@ -56,6 +62,7 @@ func (s *storeSuite) TestDecodeOK(c *C) {
 	c.Check(store.Store(), Equals, "store1")
 	c.Check(store.URL().String(), Equals, "https://store.example.com")
 	c.Check(store.Location(), Equals, "upstairs")
+	c.Check(store.Timestamp().Equal(s.ts), Equals, true)
 }
 
 var storeErrPrefix = "assertion store: "
@@ -68,6 +75,9 @@ func (s *storeSuite) TestDecodeInvalidHeaders(c *C) {
 		{"operator-id: op-id1\n", "operator-id: \n", `"operator-id" header should not be empty`},
 		{"url: https://store.example.com\n", "url:\n  - foo\n", `"url" header must be a string`},
 		{"location: upstairs\n", "location:\n  - foo\n", `"location" header must be a string`},
+		{s.tsLine, "", `"timestamp" header is mandatory`},
+		{s.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
+		{s.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 
 	for _, test := range tests {
@@ -159,6 +169,7 @@ func (s *storeSuite) TestCheckAuthority(c *C) {
 	storeHeaders := map[string]interface{}{
 		"store":       "store1",
 		"operator-id": operator.HeaderString("account-id"),
+		"timestamp":   time.Now().Format(time.RFC3339),
 	}
 
 	// store signed by some other account fails.
@@ -181,6 +192,7 @@ func (s *storeSuite) TestCheckOperatorAccount(c *C) {
 	store, err := storeDB.Sign(asserts.StoreType, map[string]interface{}{
 		"store":       "store1",
 		"operator-id": "op-id1",
+		"timestamp":   time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 

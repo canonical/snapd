@@ -31,31 +31,32 @@ import (
 
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
-	ID              string        `json:"id"`
-	Title           string        `json:"title,omitempty"`
-	Summary         string        `json:"summary"`
-	Description     string        `json:"description"`
-	DownloadSize    int64         `json:"download-size"`
-	Icon            string        `json:"icon"`
-	InstalledSize   int64         `json:"installed-size"`
-	InstallDate     time.Time     `json:"install-date"`
-	Name            string        `json:"name"`
-	Developer       string        `json:"developer"`
-	Status          string        `json:"status"`
-	Type            string        `json:"type"`
-	Version         string        `json:"version"`
-	Channel         string        `json:"channel"`
-	TrackingChannel string        `json:"tracking-channel"`
-	Revision        snap.Revision `json:"revision"`
-	Confinement     string        `json:"confinement"`
-	Private         bool          `json:"private"`
-	DevMode         bool          `json:"devmode"`
-	JailMode        bool          `json:"jailmode"`
-	TryMode         bool          `json:"trymode"`
-	Apps            []AppInfo     `json:"apps"`
-	Broken          string        `json:"broken"`
-	Contact         string        `json:"contact"`
-	License         string        `json:"license,omitempty"`
+	ID               string        `json:"id"`
+	Title            string        `json:"title,omitempty"`
+	Summary          string        `json:"summary"`
+	Description      string        `json:"description"`
+	DownloadSize     int64         `json:"download-size"`
+	Icon             string        `json:"icon"`
+	InstalledSize    int64         `json:"installed-size"`
+	InstallDate      time.Time     `json:"install-date"`
+	Name             string        `json:"name"`
+	Developer        string        `json:"developer"`
+	Status           string        `json:"status"`
+	Type             string        `json:"type"`
+	Version          string        `json:"version"`
+	Channel          string        `json:"channel"`
+	TrackingChannel  string        `json:"tracking-channel"`
+	IgnoreValidation bool          `json:"ignore-validation"`
+	Revision         snap.Revision `json:"revision"`
+	Confinement      string        `json:"confinement"`
+	Private          bool          `json:"private"`
+	DevMode          bool          `json:"devmode"`
+	JailMode         bool          `json:"jailmode"`
+	TryMode          bool          `json:"trymode"`
+	Apps             []AppInfo     `json:"apps"`
+	Broken           string        `json:"broken"`
+	Contact          string        `json:"contact"`
+	License          string        `json:"license,omitempty"`
 
 	Prices      map[string]float64 `json:"prices"`
 	Screenshots []Screenshot       `json:"screenshots"`

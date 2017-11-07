@@ -123,7 +123,6 @@ func New() (*Overlord, error) {
 	}
 	o.addManager(ifaceMgr)
 
-	// TODO: this is a bit weird, not actually a StateManager
 	configMgr, err := configstate.Manager(s, hookMgr)
 	if err != nil {
 		return nil, err
