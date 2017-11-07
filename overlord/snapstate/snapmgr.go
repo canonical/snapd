@@ -684,21 +684,6 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	return nil
 }
 
-func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-	snapst.Channel = snapsup.Channel
-
-	Set(st, snapsup.Name(), snapst)
-	return nil
-}
-
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	// do not exit right away on error
