@@ -119,3 +119,18 @@ func XSnapdEntryID(e *mount.Entry) string {
 	}
 	return ""
 }
+
+// XSnapdParentID returns the identifier of the parent mount entry.
+//
+// Parent identifiers are kept in the x-snapd.parent-id mount option. The value
+// is a string that identifies a mount entry and is stable across invocations
+// of snapd (it is a hash of some sort).
+func XSnapdParentID(e *mount.Entry) string {
+	for _, opt := range e.Options {
+		if strings.HasPrefix(opt, "x-snapd.parent-id=") {
+			kv := strings.SplitN(opt, "=", 2)
+			return kv[1]
+		}
+	}
+	return ""
+}
