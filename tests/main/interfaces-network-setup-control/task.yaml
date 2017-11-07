@@ -7,6 +7,8 @@ details: |
     The test uses the test-snapd-check-fs-access snap to checks files and dirs
     are accessible through the interface.
 
+systems: [-ubuntu-core-*]
+
 prepare: |
     echo "Given the test-snapd-check-fs-access snap is installed"
     cp $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig
