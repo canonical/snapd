@@ -21,17 +21,23 @@ package configstate_test
 
 import (
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"reflect"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/corecfg"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type mockConf struct {
@@ -146,6 +152,76 @@ func (s *configmgrSuite) TestDoRunCoreConfigureWithIgnoreError(c *C) {
 	defer s.state.Unlock()
 
 	ts := configstate.Configure(s.state, "core", nil, snapstate.IgnoreHookError)
+	chg := s.state.NewChange("corecfg", "configure core")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	s.settle()
+	s.state.Lock()
+	c.Check(coreCfgRunCalled, Equals, true)
+	c.Check(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+}
+
+func (s *configmgrSuite) TestDoRunCoreConfigureWithConfigDeftauls(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+
+	const mockGadgetSnapYaml = `
+name: canonical-pc
+type: gadget
+`
+	var mockGadgetYaml = []byte(`
+defaults:
+  core-snap-id:
+      key: default-value
+
+volumes:
+    volume-id:
+        bootloader: grub
+`)
+
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, "no-content", &snap.SideInfo{Revision: snap.R(1)})
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	snapstate.Set(s.state, "canonical-pc", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "canonical-pc", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(11), SnapID: "core-snap-id"},
+		},
+		Current:  snap.R(11),
+		SnapType: "os",
+	})
+
+	s.state.Unlock()
+
+	coreCfgRunCalled := false
+	restore := configstate.MockCorecfgRun(func(tr corecfg.Conf) error {
+		coreCfgRunCalled = true
+
+		var v interface{}
+		tr.Get("core", "key", &v)
+		c.Check(v, Equals, "default-value")
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts := configstate.Configure(s.state, "core", nil, snapstate.UseConfigDefaults)
 	chg := s.state.NewChange("corecfg", "configure core")
 	chg.AddAll(ts)
 
