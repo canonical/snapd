@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/cmdstate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -39,7 +40,7 @@ type Instruction struct {
 
 type ServiceActionConflictError struct{ error }
 
-func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conflictCheck func(*state.Task) bool) (*state.TaskSet, error) {
+func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, context *hookstate.Context) (*state.TaskSet, error) {
 	// the argv to call systemctl will need at most one entry per appInfo,
 	// plus one for "systemctl", one for the action, and sometimes one for
 	// an option. That's a maximum of 3+len(appInfos).
@@ -83,7 +84,21 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, confl
 
 	st.Lock()
 	defer st.Unlock()
-	if err := snapstate.CheckChangeConflictMany(st, snapNames, conflictCheck); err != nil {
+
+	var checkConflict func(otherTask *state.Task) bool
+	if context != nil && !context.IsEphemeral() {
+		if task, ok := context.Task(); ok {
+			checkConflict = func(otherTask *state.Task) bool {
+				if task.Change() != nil && otherTask.Change() != nil {
+					// if same change, then return false (no conflict)
+					return task.Change().ID() != otherTask.Change().ID()
+				}
+				return true
+			}
+		}
+	}
+
+	if err := snapstate.CheckChangeConflictMany(st, snapNames, checkConflict); err != nil {
 		return nil, &ServiceActionConflictError{err}
 	}
 
