@@ -78,7 +78,7 @@ execute: |
 
         echo "When slot $slot_iface is connected"
         if snap interfaces | MATCH "$DISCONNECTED_PATTERN" ; then
-            if [ "$slot_iface" = ":broadcom-asic-control" ]; then
+            if [ "$slot_iface" = ":broadcom-asic-control" ] || [ "$slot_iface" = ":firewall-control" ]; then
                 # TODO: when the kmod backend no longer fails on missing
                 # modules, we can remove this
                 snap connect "$plug_iface" "$slot_iface" || true
