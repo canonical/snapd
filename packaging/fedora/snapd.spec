@@ -48,7 +48,7 @@
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
 Name:           snapd
-Version:        2.29.1
+Version:        2.29.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -659,6 +659,11 @@ fi
 
 
 %changelog
+* Fri Nov 03 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.29.2
+  - snapctl: disable stop/start/restart (2.29)
+  - cmd/snap-update-ns: fix collection of changes made
+
 * Fri Nov 03 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.29.1
  - interfaces: fix incorrect signature of ofono DBusPermanentSlot

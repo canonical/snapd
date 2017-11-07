@@ -42,6 +42,9 @@ var (
 	// utils
 	SecureMkdirAll   = secureMkdirAll
 	EnsureMountPoint = ensureMountPoint
+
+	// main
+	ComputeAndSaveChanges = computeAndSaveChanges
 )
 
 // fakeFileInfo implements os.FileInfo for one of the tests.
@@ -294,4 +297,12 @@ func MockFreezerCgroupDir(c *C) (restore func()) {
 
 func FreezerCgroupDir() string {
 	return freezerCgroupDir
+}
+
+func MockChangePerform(f func(chg *Change) ([]*Change, error)) func() {
+	origChangePerform := changePerform
+	changePerform = f
+	return func() {
+		changePerform = origChangePerform
+	}
 }

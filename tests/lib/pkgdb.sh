@@ -370,6 +370,7 @@ pkg_dependencies_ubuntu_classic(){
         python3-yaml
         upower
         weston
+        xdg-user-dirs
         xdg-utils
         "
 
@@ -427,6 +428,7 @@ pkg_dependencies_fedora(){
         mock
         redhat-lsb-core
         rpm-build
+        xdg-user-dirs
         "
 }
 
@@ -442,6 +444,7 @@ pkg_dependencies_opensuse(){
         osc
         rng-tools
         xdg-utils
+        xdg-user-dirs
         "
 }
 
