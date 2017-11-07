@@ -129,7 +129,6 @@ func New() (*Overlord, error) {
 		return nil, err
 	}
 	o.addManager(configMgr)
-	o.configMgr = configMgr
 
 	deviceMgr, err := devicestate.Manager(s, hookMgr)
 	if err != nil {
@@ -168,6 +167,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.deviceMgr = x
 	case *cmdstate.CommandManager:
 		o.cmdMgr = x
+	case *configstate.ConfigManager:
+		o.configMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
@@ -381,6 +382,11 @@ func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
 // CommandManager returns the manager responsible for running odd jobs
 func (o *Overlord) CommandManager() *cmdstate.CommandManager {
 	return o.cmdMgr
+}
+
+// ConfigManager returns the manager responsible for doing configuration
+func (o *Overlord) ConfigManager() *configstate.ConfigManager {
+	return o.configMgr
 }
 
 // Mock creates an Overlord without any managers and with a backend
