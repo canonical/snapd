@@ -1,4 +1,4 @@
-name: test-devpts
+name: test-snapd-devpts
 version: 1.0
 apps:
     openpty:
