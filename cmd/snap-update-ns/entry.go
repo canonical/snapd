@@ -134,3 +134,18 @@ func XSnapdParentID(e *mount.Entry) string {
 	}
 	return ""
 }
+
+// XSnapdSynthetic returns true of a given mount entry is synthetic.
+//
+// Synthetic mount entries are created by snap-update-ns itself, separately
+// from what snapd instructed. Such entries are needed to make other things
+// possible.  They are identified by having the "x-snapd.synthetic" mount
+// option.
+func XSnapdSynthetic(e *mount.Entry) bool {
+	for _, opt := range e.Options {
+		if opt == "x-snapd.synthetic" {
+			return true
+		}
+	}
+	return false
+}

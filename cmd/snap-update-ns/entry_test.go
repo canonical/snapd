@@ -151,3 +151,13 @@ func (s *entrySuite) TestXSnapdParentID(c *C) {
 	e = &mount.Entry{Options: []string{"x-snap.id=foo", "x-snapd.parent-id=bar"}}
 	c.Assert(update.XSnapdParentID(e), Equals, "bar")
 }
+
+func (s *entrySuite) TestXSnapdSynthetic(c *C) {
+	// Entries are not synthetic unless tagged as such.
+	e := &mount.Entry{}
+	c.Assert(update.XSnapdSynthetic(e), Equals, false)
+
+	// Tagging is done with x-snapd.synthetic option.
+	e = &mount.Entry{Options: []string{"x-snapd.synthetic"}}
+	c.Assert(update.XSnapdSynthetic(e), Equals, true)
+}
