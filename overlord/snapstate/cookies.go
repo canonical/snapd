@@ -31,6 +31,17 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+func cookies(st *state.State) (map[string]string, error) {
+	var snapCookies map[string]string
+	if err := st.Get("snap-cookies", &snapCookies); err != nil {
+		if err != state.ErrNoState {
+			return nil, fmt.Errorf("cannot get snap cookies: %v", err)
+		}
+		snapCookies = make(map[string]string)
+	}
+	return snapCookies, nil
+}
+
 // GenerateCookies creates snap cookies for snaps that are missing them (may be the case for snaps installed
 // before the feature of running snapctl outside of hooks was introduced, leading to a warning
 // from snap-confine).
@@ -41,12 +52,9 @@ func (m *SnapManager) GenerateCookies(st *state.State) error {
 		return err
 	}
 
-	var snapCookies map[string]string
-	if err := st.Get("snap-cookies", &snapCookies); err != nil {
-		if err != state.ErrNoState {
-			return fmt.Errorf("cannot get snap cookies: %v", err)
-		}
-		snapCookies = make(map[string]string)
+	snapCookies, err := cookies(st)
+	if err != nil {
+		return err
 	}
 
 	snapWithCookies := make(map[string]bool)
@@ -74,12 +82,9 @@ func (m *SnapManager) GenerateCookies(st *state.State) error {
 }
 
 func (m *SnapManager) createSnapCookie(st *state.State, snapName string) error {
-	var snapCookies map[string]string
-	if err := st.Get("snap-cookies", &snapCookies); err != nil {
-		if err != state.ErrNoState {
-			return fmt.Errorf("cannot get snap cookies: %v", err)
-		}
-		snapCookies = make(map[string]string)
+	snapCookies, err := cookies(st)
+	if err != nil {
+		return err
 	}
 
 	// make sure we don't create cookie if it already exists
