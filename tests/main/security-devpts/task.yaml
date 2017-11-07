@@ -7,29 +7,29 @@ execute: |
 
     echo "Given a basic snap is installed"
     . $TESTSLIB/snaps.sh
-    install_local test-devpts
+    install_local test-snapd-devpts
 
-    CONNECTED_PATTERN=":physical-memory-observe +test-devpts"
-    DISCONNECTED_PATTERN="\- +test-devpts:physical-memory-observe"
+    CONNECTED_PATTERN=":physical-memory-observe +test-snapd-devpts"
+    DISCONNECTED_PATTERN="\- +test-snapd-devpts:physical-memory-observe"
 
     echo "When no plugs are not connected"
     if snap interfaces | MATCH "$CONNECTED_PATTERN" ; then
-        snap disconnect test-devpts:physical-memory-observe
+        snap disconnect test-snapd-devpts:physical-memory-observe
         snap interfaces | MATCH "$DISCONNECTED_PATTERN"
     fi
 
     echo "Then can openpty"
-    test-devpts.openpty | MATCH PASS
+    test-snapd-devpts.openpty | MATCH PASS
 
     echo "Then can access slave PTY"
-    test-devpts.useptmx | MATCH PASS
+    test-snapd-devpts.useptmx | MATCH PASS
 
     echo "When a udev tagging plug is connected"
-    snap connect test-devpts:physical-memory-observe
+    snap connect test-snapd-devpts:physical-memory-observe
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then can openpty"
-    test-devpts.openpty | MATCH PASS
+    test-snapd-devpts.openpty | MATCH PASS
 
     echo "Then can access slave PTY"
-    test-devpts.useptmx | MATCH PASS
+    test-snapd-devpts.useptmx | MATCH PASS
