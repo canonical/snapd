@@ -109,7 +109,7 @@ static void setup_private_mount(const char *snap_name)
 }
 
 // TODO: fold this into bootstrap
-static void setup_private_pts()
+static void setup_private_pts(void)
 {
 	// See https://www.kernel.org/doc/Documentation/filesystems/devpts.txt
 	//
@@ -489,7 +489,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 static char * __attribute__ ((used))
     get_nextpath(char *path, size_t * offsetp, size_t fulllen)
 {
-	int offset = *offsetp;
+	size_t offset = *offsetp;
 
 	if (offset >= fulllen)
 		return NULL;
@@ -535,7 +535,7 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-static int sc_open_snap_update_ns()
+static int sc_open_snap_update_ns(void)
 {
 	// +1 is for the case where the link is exactly PATH_MAX long but we also
 	// want to store the terminating '\0'. The readlink system call doesn't add
@@ -703,7 +703,7 @@ static bool is_mounted_with_shared_option(const char *dir)
 	return false;
 }
 
-void sc_ensure_shared_snap_mount()
+void sc_ensure_shared_snap_mount(void)
 {
 	if (!is_mounted_with_shared_option("/")
 	    && !is_mounted_with_shared_option(SNAP_MOUNT_DIR)) {
