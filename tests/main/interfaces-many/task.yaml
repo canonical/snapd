@@ -6,6 +6,16 @@ details: |
     itself). This will help catch things like AppArmor policy syntax errors,
     seccomp policy parsing, udev querying bugs, etc.
 
+# Ideally we would run this everywhere, but on systems with full security
+# support, it takes a while, which leads to travis timeouts. Limit to:
+# - Ubuntu Core 16 amd64
+# - Ubuntu classic 14.04 i386 VM
+# - Ubuntu classic 16.04 amd64 VM
+# - Ubuntu classic 18.04 amd64 VM
+# - All Ubuntu autopkgtests
+# - All Fedora systems (for classic-only)
+systems: [ubuntu-core-16-64, ubuntu-14.04-32, ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-*-amd64, ubuntu-*-armhf, ubuntu-*-arm64, ubuntu-*-i386, ubuntu-*-ppc64el, fedora-*-64]
+
 execute: |
     . $TESTSLIB/dirs.sh
 
