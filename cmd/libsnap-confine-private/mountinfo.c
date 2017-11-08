@@ -147,10 +147,22 @@ static char *parse_next_string_field(struct sc_mountinfo_entry *entry,
 				     int *offset_delta)
 {
 	char *field = &entry->line_buf[0] + *offset;
-	int nscanned = sscanf(line + *offset, "%s %n", field, offset_delta);
-	if (nscanned != 1)
-		return NULL;
-	*offset += *offset_delta;
+	if (line[*offset] == ' ') {
+		// Special case for empty fields which cannot be parsed with %s.
+		*field = '\0';
+		*offset += 1;
+		*offset_delta += 1;
+	} else {
+		int nscanned =
+		    sscanf(line + *offset, "%s%n", field, offset_delta);
+		if (nscanned != 1)
+			return NULL;
+		*offset += *offset_delta;
+		if (line[*offset] == ' ') {
+			*offset += 1;
+			*offset_delta += 1;
+		}
+	}
 	show_buffers(line, *offset, entry);
 	return field;
 }
