@@ -41,7 +41,7 @@ func (s *entrySuite) TestXSnapdMode(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(mode, Equals, os.FileMode(0755))
 
-	// Mode is parsed from the x-snapd-mode= option.
+	// Mode is parsed from the x-snapd.mode= option.
 	e = &mount.Entry{Options: []string{"x-snapd.mode=0700"}}
 	mode, err = update.XSnapdMode(e)
 	c.Assert(err, IsNil)
@@ -64,70 +64,70 @@ func (s *entrySuite) TestXSnapdMode(c *C) {
 	c.Assert(mode, Equals, os.FileMode(0))
 }
 
-func (s *entrySuite) TestXSnapdUid(c *C) {
+func (s *entrySuite) TestXSnapdUID(c *C) {
 	// User has a default value.
 	e := &mount.Entry{}
-	uid, err := update.XSnapdUid(e)
+	uid, err := update.XSnapdUID(e)
 	c.Assert(err, IsNil)
 	c.Assert(uid, Equals, uint64(0))
 
-	// User is parsed from the x-snapd-user= option.
-	nobodyUid, err := osutil.FindUid("nobody")
+	// User is parsed from the x-snapd.uid = option.
+	nobodyUID, err := osutil.FindUid("nobody")
 	c.Assert(err, IsNil)
 	e = &mount.Entry{Options: []string{"x-snapd.uid=nobody"}}
-	uid, err = update.XSnapdUid(e)
+	uid, err = update.XSnapdUID(e)
 	c.Assert(err, IsNil)
-	c.Assert(uid, Equals, nobodyUid)
+	c.Assert(uid, Equals, nobodyUID)
 
 	// Numeric names are used as-is.
 	e = &mount.Entry{Options: []string{"x-snapd.uid=123"}}
-	uid, err = update.XSnapdUid(e)
+	uid, err = update.XSnapdUID(e)
 	c.Assert(err, IsNil)
 	c.Assert(uid, Equals, uint64(123))
 
 	// Unknown user names are invalid.
 	e = &mount.Entry{Options: []string{"x-snapd.uid=bogus"}}
-	uid, err = update.XSnapdUid(e)
+	uid, err = update.XSnapdUID(e)
 	c.Assert(err, ErrorMatches, `cannot resolve user name "bogus"`)
 	c.Assert(uid, Equals, uint64(math.MaxUint64))
 
 	// And even valid values with trailing garbage.
 	e = &mount.Entry{Options: []string{"x-snapd.uid=0bogus"}}
-	uid, err = update.XSnapdUid(e)
+	uid, err = update.XSnapdUID(e)
 	c.Assert(err, ErrorMatches, `cannot parse user name "0bogus"`)
 	c.Assert(uid, Equals, uint64(math.MaxUint64))
 }
 
-func (s *entrySuite) TestXSnapdGid(c *C) {
+func (s *entrySuite) TestXSnapdGID(c *C) {
 	// Group has a default value.
 	e := &mount.Entry{}
-	gid, err := update.XSnapdGid(e)
+	gid, err := update.XSnapdGID(e)
 	c.Assert(err, IsNil)
 	c.Assert(gid, Equals, uint64(0))
 
-	// Group is parsed from the x-snapd-group= option.
-	nogroupGid, err := osutil.FindGid("nogroup")
+	// Group is parsed from the x-snapd.gid = option.
+	nogroupGID, err := osutil.FindGid("nogroup")
 	c.Assert(err, IsNil)
 	e = &mount.Entry{Options: []string{"x-snapd.gid=nogroup"}}
-	gid, err = update.XSnapdGid(e)
+	gid, err = update.XSnapdGID(e)
 	c.Assert(err, IsNil)
-	c.Assert(gid, Equals, nogroupGid)
+	c.Assert(gid, Equals, nogroupGID)
 
 	// Numeric names are used as-is.
 	e = &mount.Entry{Options: []string{"x-snapd.gid=456"}}
-	gid, err = update.XSnapdGid(e)
+	gid, err = update.XSnapdGID(e)
 	c.Assert(err, IsNil)
 	c.Assert(gid, Equals, uint64(456))
 
 	// Unknown group names are invalid.
 	e = &mount.Entry{Options: []string{"x-snapd.gid=bogus"}}
-	gid, err = update.XSnapdGid(e)
+	gid, err = update.XSnapdGID(e)
 	c.Assert(err, ErrorMatches, `cannot resolve group name "bogus"`)
 	c.Assert(gid, Equals, uint64(math.MaxUint64))
 
 	// And even valid values with trailing garbage.
 	e = &mount.Entry{Options: []string{"x-snapd.gid=0bogus"}}
-	gid, err = update.XSnapdGid(e)
+	gid, err = update.XSnapdGID(e)
 	c.Assert(err, ErrorMatches, `cannot parse group name "0bogus"`)
 	c.Assert(gid, Equals, uint64(math.MaxUint64))
 }
