@@ -73,10 +73,13 @@ func init() {
 		}, []argDesc{
 			{
 				name: "<snap>",
+				// TRANSLATORS: This should probably not start with a lowercase letter.
 				desc: i18n.G("The snap whose conf is being requested"),
 			},
 			{
+				// TRANSLATORS: This needs to be wrapped in <>s.
 				name: i18n.G("<key>"),
+				// TRANSLATORS: This should probably not start with a lowercase letter.
 				desc: i18n.G("Key of interest within the configuration"),
 			},
 		})

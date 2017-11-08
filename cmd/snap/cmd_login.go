@@ -55,8 +55,9 @@ func init() {
 		func() flags.Commander {
 			return &cmdLogin{}
 		}, nil, []argDesc{{
-			// TRANSLATORS: noun
+			// TRANSLATORS: This is a noun, and it needs to be wrapped in <>s.
 			name: i18n.G("<email>"),
+			// TRANSLATORS: This should probably not start with a lowercase letter.
 			desc: i18n.G("The login.ubuntu.com email to login as"),
 		}})
 }

@@ -35,7 +35,7 @@
 
 #define SC_NVIDIA_DRIVER_VERSION_FILE "/sys/module/nvidia/version"
 
-#ifdef NVIDIA_ARCH
+#ifdef NVIDIA_BIARCH
 
 // List of globs that describe nvidia userspace libraries.
 // This list was compiled from the following packages.
@@ -111,8 +111,8 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 	}
 	// Symlink each file found
 	for (size_t i = 0; i < glob_res.gl_pathc; ++i) {
-		char symlink_name[512];
-		char symlink_target[512];
+		char symlink_name[512] = { 0 };
+		char symlink_target[512] = { 0 };
 		const char *pathname = glob_res.gl_pathv[i];
 		char *pathname_copy
 		    SC_CLEANUP(sc_cleanup_string) = strdup(pathname);
@@ -167,10 +167,10 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 	}
 }
 
-static void sc_mount_nvidia_driver_arch(const char *rootfs_dir)
+static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 {
 	// Bind mount a tmpfs on $rootfs_dir/var/lib/snapd/lib/gl
-	char buf[512];
+	char buf[512] = { 0 };
 	sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir,
 			 "/var/lib/snapd/lib/gl");
 	const char *libgl_dir = buf;
@@ -188,9 +188,9 @@ static void sc_mount_nvidia_driver_arch(const char *rootfs_dir)
 	}
 }
 
-#endif				// ifdef NVIDIA_ARCH
+#endif				// ifdef NVIDIA_BIARCH
 
-#ifdef NVIDIA_UBUNTU
+#ifdef NVIDIA_MULTIARCH
 
 struct sc_nvidia_driver {
 	int major_version;
@@ -224,7 +224,7 @@ static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
 	      driver->minor_version);
 }
 
-static void sc_mount_nvidia_driver_ubuntu(const char *rootfs_dir)
+static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 {
 	struct sc_nvidia_driver driver;
 
@@ -237,7 +237,8 @@ static void sc_mount_nvidia_driver_ubuntu(const char *rootfs_dir)
 	}
 	// Construct the paths for the driver userspace libraries
 	// and for the gl directory.
-	char src[PATH_MAX], dst[PATH_MAX];
+	char src[PATH_MAX] = { 0 };
+	char dst[PATH_MAX] = { 0 };
 	sc_must_snprintf(src, sizeof src, "/usr/lib/nvidia-%d",
 			 driver.major_version);
 	sc_must_snprintf(dst, sizeof dst, "%s%s", rootfs_dir, SC_LIBGL_DIR);
@@ -256,7 +257,7 @@ static void sc_mount_nvidia_driver_ubuntu(const char *rootfs_dir)
 		die("cannot bind mount nvidia driver %s -> %s", src, dst);
 	}
 }
-#endif				// ifdef NVIDIA_UBUNTU
+#endif				// ifdef NVIDIA_MULTIARCH
 
 void sc_mount_nvidia_driver(const char *rootfs_dir)
 {
@@ -264,10 +265,10 @@ void sc_mount_nvidia_driver(const char *rootfs_dir)
 	if (access(SC_NVIDIA_DRIVER_VERSION_FILE, F_OK) != 0) {
 		return;
 	}
-#ifdef NVIDIA_UBUNTU
-	sc_mount_nvidia_driver_ubuntu(rootfs_dir);
-#endif				// ifdef NVIDIA_UBUNTU
-#ifdef NVIDIA_ARCH
-	sc_mount_nvidia_driver_arch(rootfs_dir);
-#endif				// ifdef NVIDIA_ARCH
+#ifdef NVIDIA_MULTIARCH
+	sc_mount_nvidia_driver_multiarch(rootfs_dir);
+#endif				// ifdef NVIDIA_MULTIARCH
+#ifdef NVIDIA_BIARCH
+	sc_mount_nvidia_driver_biarch(rootfs_dir);
+#endif				// ifdef NVIDIA_BIARCH
 }

@@ -629,7 +629,7 @@ func compile(content []byte, out string) error {
 	unrestricted, complain := preprocess(content)
 	switch {
 	case unrestricted:
-		secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
+		return osutil.AtomicWrite(out, bytes.NewBufferString("@unrestricted\n"), 0644, 0)
 	case complain:
 		secFilter, err = seccomp.NewFilter(seccomp.ActLog)
 		if err != nil {

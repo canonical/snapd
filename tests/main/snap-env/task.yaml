@@ -1,6 +1,6 @@
 summary: inspect all the set environment variables prefixed with SNAP_ and XDG_
 prepare: |
-    snapbuild $TESTSLIB/snaps/test-snapd-tools .
+    snap pack $TESTSLIB/snaps/test-snapd-tools
     snap install --dangerous test-snapd-tools_1.0_all.snap
 restore: |
     rm -f *.snap
@@ -43,6 +43,9 @@ execute: |
     MATCH '^EXTRA_LOCAL_NESTED=extra-global-nested'                < extra-vars.txt
     MATCH "^EXTRA_CACHE_DIR=$HOME/snap/test-snapd-tools/x1/.cache" < extra-vars.txt
     test $(wc -l < extra-vars.txt) -eq 4
+
+    echo "Ensure that TMPDIR is not passed through to a confined snap"
+    TMPDIR=/foobar test-snapd-tools.env | grep -qv ^TMPDIR=
 
     echo "Ensure that SNAP, PATH and HOME are what we expect"
     MATCH "^SNAP=/snap/test-snapd-tools/x1$"                                                                < misc-vars.txt

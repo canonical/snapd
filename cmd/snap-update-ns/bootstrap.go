@@ -114,5 +114,6 @@ func processArguments(cmdline []byte) (snapName string, shouldSetNs bool) {
 		snapName = C.GoString(snapNameOut)
 	}
 	shouldSetNs = bool(shouldSetNsOut)
-	return
+
+	return snapName, shouldSetNs
 }

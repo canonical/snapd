@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/pack"
 )
 
 // MockSnap puts a snap.yaml file on disk so to mock an installed snap, based on the provided arguments.
@@ -134,7 +135,7 @@ func MakeTestSnapWithFiles(c *check.C, snapYamlContent string, files [][]string)
 
 	err = osutil.ChDir(snapSource, func() error {
 		var err error
-		snapFilePath, err = BuildSquashfsSnap(snapSource, "")
+		snapFilePath, err = pack.Snap(snapSource, "")
 		return err
 	})
 	if err != nil {

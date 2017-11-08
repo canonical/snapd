@@ -151,12 +151,6 @@
 			"revisionTime": "2016-12-08T18:13:25Z"
 		},
 		{
-			"checksumSHA1": "qZxtczIIW7+bjlZ7QbfUJg7RI+s=",
-			"path": "gopkg.in/cheggaaa/pb.v1",
-			"revision": "6e9d17711bb763b26b68b3931d47f24c1323abab",
-			"revisionTime": "2016-08-12T10:57:48Z"
-		},
-		{
 			"checksumSHA1": "mWrTCVjXPLevlqKUqpzSoEM3tu8=",
 			"path": "gopkg.in/macaroon.v1",
 			"revision": "ab3940c6c16510a850e1c2dd628b919f0f3f1464",
