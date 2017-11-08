@@ -368,23 +368,26 @@ func (o *Overlord) InterfaceManager() *ifacestate.InterfaceManager {
 	return o.ifaceMgr
 }
 
-// HookManager returns the hook manager responsible for running hooks under the
-// overlord.
+// HookManager returns the hook manager responsible for running hooks
+// under the overlord.
 func (o *Overlord) HookManager() *hookstate.HookManager {
 	return o.hookMgr
 }
 
-// DeviceManager returns the device manager responsible for the device identity and policies
+// DeviceManager returns the device manager responsible for the device
+// identity and policies.
 func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
 	return o.deviceMgr
 }
 
-// CommandManager returns the manager responsible for running odd jobs
+// CommandManager returns the manager responsible for running odd
+// jobs.
 func (o *Overlord) CommandManager() *cmdstate.CommandManager {
 	return o.cmdMgr
 }
 
-// ConfigManager returns the manager responsible for doing configuration
+// ConfigManager returns the manager responsible for doing
+// configuration.
 func (o *Overlord) ConfigManager() *configstate.ConfigManager {
 	return o.configMgr
 }
