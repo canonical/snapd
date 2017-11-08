@@ -141,11 +141,13 @@ func (iface *serialPortInterface) UDevPermanentSlot(spec *udev.Specification, sl
 		return nil
 	}
 	if usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64); ok {
-		spec.AddSnippet(fmt.Sprintf(`IMPORT{builtin}="usb_id"
-SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", ENV{ID_USB_INTERFACE_NUM}=="%02x", SYMLINK+="%s" # serial-port`, usbVendor, usbProduct, usbInterfaceNumber, strings.TrimPrefix(path, "/dev/")))
+		spec.AddSnippet(fmt.Sprintf(`# serial-port
+IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", ENV{ID_USB_INTERFACE_NUM}=="%02x", SYMLINK+="%s"`, usbVendor, usbProduct, usbInterfaceNumber, strings.TrimPrefix(path, "/dev/")))
 	} else {
-		spec.AddSnippet(fmt.Sprintf(`IMPORT{builtin}="usb_id"
-SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", SYMLINK+="%s" # serial-port`, usbVendor, usbProduct, strings.TrimPrefix(path, "/dev/")))
+		spec.AddSnippet(fmt.Sprintf(`# serial-port
+IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", SYMLINK+="%s"`, usbVendor, usbProduct, strings.TrimPrefix(path, "/dev/")))
 	}
 	return nil
 }

@@ -109,10 +109,14 @@ func (s *specSuite) TestTagDevice(c *C) {
 	c.Assert(s.spec.AddConnectedPlug(iface, s.plug, nil, s.slot, nil), IsNil)
 
 	c.Assert(s.spec.Snippets(), DeepEquals, []string{
-		`kernel="hoodoo", TAG+="snap_snap1_foo" # iface-2`,
-		`kernel="voodoo", TAG+="snap_snap1_foo" # iface-1`,
-		`kernel="hoodoo", TAG+="snap_snap1_hook_configure" # iface-2`,
-		`kernel="voodoo", TAG+="snap_snap1_hook_configure" # iface-1`,
+		`# iface-1
+kernel="voodoo", TAG+="snap_snap1_foo"`,
+		`# iface-2
+kernel="hoodoo", TAG+="snap_snap1_foo"`,
+		`# iface-1
+kernel="voodoo", TAG+="snap_snap1_hook_configure"`,
+		`# iface-2
+kernel="hoodoo", TAG+="snap_snap1_hook_configure"`,
 	})
 }
 
