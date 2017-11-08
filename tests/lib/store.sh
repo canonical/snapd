@@ -23,7 +23,7 @@ setup_staging_store(){
 }
 
 teardown_staging_store(){
-    systemctl stop snapd.socket
+    systemctl stop snapd.service snapd.socket
     rm -rf "$STORE_CONFIG"
     systemctl daemon-reload
     systemctl start snapd.socket
@@ -74,7 +74,7 @@ teardown_fake_store(){
     if [ "$REMOTE_STORE" = "staging" ]; then
         setup_staging_store
     else
-        systemctl stop snapd.socket
+        systemctl stop snapd.service snapd.socket
         rm -rf "$STORE_CONFIG" "$top_dir"
         systemctl daemon-reload
         systemctl start snapd.socket
