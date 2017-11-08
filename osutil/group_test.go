@@ -19,41 +19,42 @@
  *
  */
 
-package osutil
+package osutil_test
 
 import (
 	"io/ioutil"
 	"os"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
-type groupSuite struct {
-}
+type groupSuite struct{}
 
 var _ = Suite(&groupSuite{})
 
 func (s *groupSuite) TestKnownGroup(c *C) {
-	group, err := FindGroup(0)
+	group, err := osutil.FindGroup(0)
 	c.Check(err, IsNil)
 	c.Check(group, Equals, "root")
 
-	gid, err := FindGid("root")
+	gid, err := osutil.FindGid("root")
 	c.Check(err, IsNil)
 	c.Check(gid, Equals, uint64(0))
 }
 
 func (s *groupSuite) TestBogusGroup(c *C) {
-	group, err := FindGroup(99999)
+	group, err := osutil.FindGroup(99999)
 	c.Check(err, Not(IsNil))
 	c.Check(group, Equals, "")
 
-	_, err = FindGid("nosuchgroup")
+	_, err = osutil.FindGid("nosuchgroup")
 	c.Check(err, Not(IsNil))
 }
 
 func (s *groupSuite) TestSelfOwnedFile(c *C) {
-	self, err := RealUser()
+	self, err := osutil.RealUser()
 	c.Assert(err, IsNil)
 
 	f, err := ioutil.TempFile("", "testownedfile")
@@ -62,13 +63,13 @@ func (s *groupSuite) TestSelfOwnedFile(c *C) {
 	defer f.Close()
 	defer os.Remove(name)
 
-	group, err := FindGroupOwning(name)
+	group, err := osutil.FindGroupOwning(name)
 	c.Assert(err, IsNil)
 	c.Check(group.Gid, Equals, self.Gid)
 }
 
 func (s *groupSuite) TestNoOwnedFile(c *C) {
-	group, err := FindGroupOwning("/tmp/filedoesnotexistbutwhy")
+	group, err := osutil.FindGroupOwning("/tmp/filedoesnotexistbutwhy")
 	c.Check(err, Not(IsNil))
 	c.Check(group, IsNil)
 }

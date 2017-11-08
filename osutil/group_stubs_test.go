@@ -19,24 +19,25 @@
  *
  */
 
-package osutil
+package osutil_test
 
 import (
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
-type groupStubsSuite struct {
-}
+type groupStubsSuite struct{}
 
 var _ = Suite(&groupStubsSuite{})
 
 func (s *groupStubsSuite) TestFindGroupStubs(c *C) {
-	_, err := FindGroup(0)
+	_, err := osutil.FindGroup(0)
 	c.Check(err, ErrorMatches, "lookupGroupByGid not implemented for non cgo builds")
 
-	_, err = FindGid("root")
+	_, err = osutil.FindGid("root")
 	c.Check(err, ErrorMatches, "lookupGroup not implemented for non cgo builds")
 
-	_, err = FindGroupOwning("/etc/passwd")
+	_, err = osutil.FindGroupOwning("/etc/passwd")
 	c.Check(err, ErrorMatches, "lookupGroupByGid not implemented for non cgo builds")
 }
