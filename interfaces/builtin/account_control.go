@@ -19,6 +19,14 @@
 
 package builtin
 
+import (
+	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/osutil"
+)
+
 const accountControlSummary = `allows managing non-system user accounts`
 
 const accountControlBaseDeclarationSlots = `
@@ -56,26 +64,55 @@ capability fsetid,
 /var/log/faillog rwk,
 `
 
-// Needed because useradd uses a netlink socket
-const accountControlConnectedPlugSecComp = `
-# useradd requires chowning to 'shadow'
-fchown - u:root g:shadow
-fchown32 - u:root g:shadow
+// Needed because useradd uses a netlink socket, {{group}} is used as a
+// placeholder argument for the actual name of a group owning /etc/shadow
+const accountControlConnectedPlugSecCompTemplate = `
+# useradd requires chowning to '{{group}}'
+fchown - u:root g:{{group}}
+fchown32 - u:root g:{{group}}
 
 # from libaudit1
 bind
 socket AF_NETLINK - NETLINK_AUDIT
 `
 
+type accountControlInterface struct {
+	commonInterface
+}
+
+func makeAccountControlSecCompSnippet() (string, error) {
+	group, err := osutil.FindGroupOwning("/etc/shadow")
+	if err != nil {
+		return "", err
+	}
+
+	snippet := strings.Replace(accountControlConnectedPlugSecCompTemplate,
+		"{{group}}", group.Name, -1)
+
+	return snippet, nil
+}
+
+func (iface *accountControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, Attrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+	snippet, err := makeAccountControlSecCompSnippet()
+	if err != nil {
+		return err
+	}
+	spec.AddSnippet(snippet)
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "account-control",
-		summary:               accountControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  accountControlBaseDeclarationSlots,
-		connectedPlugAppArmor: accountControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  accountControlConnectedPlugSecComp,
-		reservedForOS:         true,
+	registerIface(&accountControlInterface{
+		commonInterface: commonInterface{
+			name:                  "account-control",
+			summary:               accountControlSummary,
+			implicitOnCore:        true,
+			implicitOnClassic:     true,
+			baseDeclarationSlots:  accountControlBaseDeclarationSlots,
+			connectedPlugAppArmor: accountControlConnectedPlugAppArmor,
+			// handled by SecCompConnectedPlug
+			connectedPlugSecComp: "",
+			reservedForOS:        true,
+		},
 	})
 }

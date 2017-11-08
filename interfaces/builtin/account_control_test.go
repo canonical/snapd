@@ -20,12 +20,15 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -99,7 +102,11 @@ func (s *AccountControlSuite) TestUsedSecuritySystems(c *C) {
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "\nfchown - u:root g:shadow\n")
+	group, err := osutil.FindGroupOwning("/etc/shadow")
+	c.Assert(err, IsNil)
+	c.Assert([]string{"shadow", "root"}, testutil.Contains, group.Name)
+	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains,
+		fmt.Sprintf("\nfchown - u:root g:%s\n", group.Name))
 }
 
 func (s *AccountControlSuite) TestInterfaces(c *C) {
