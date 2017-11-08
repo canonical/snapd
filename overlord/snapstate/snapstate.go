@@ -536,6 +536,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			return nil, nil, err
 		}
 		installed = append(installed, name)
+		ts.JoinLane(st.NewLane())
 		tasksets = append(tasksets, ts)
 	}
 
