@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store/storetest"
@@ -108,7 +107,7 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	s.o.AddManager(s.mgr)
 
 	s.state.Lock()
-	storestate.ReplaceStore(s.state, &fakeStore{
+	snapstate.ReplaceStore(s.state, &fakeStore{
 		state: s.state,
 		db:    s.storeSigning,
 	})
@@ -709,7 +708,7 @@ func (s *assertMgrSuite) TestValidateRefreshesNothing(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	validated, err := assertstate.ValidateRefreshes(s.state, nil, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, nil, nil, 0)
 	c.Assert(err, IsNil)
 	c.Check(validated, HasLen, 0)
 }
@@ -736,7 +735,7 @@ func (s *assertMgrSuite) TestValidateRefreshesNoControl(c *C) {
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0)
 	c.Assert(err, IsNil)
 	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh})
 }
@@ -765,9 +764,38 @@ func (s *assertMgrSuite) TestValidateRefreshesMissingValidation(c *C) {
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0)
 	c.Assert(err, ErrorMatches, `cannot refresh "foo" to revision 9: no validation by "bar"`)
 	c.Check(validated, HasLen, 0)
+}
+
+func (s *assertMgrSuite) TestValidateRefreshesMissingValidationButIgnore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
+		"refresh-control": []interface{}{"foo-id"},
+	})
+	s.stateFromDecl(snapDeclFoo, snap.R(7))
+	s.stateFromDecl(snapDeclBar, snap.R(3))
+
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclBar)
+	c.Assert(err, IsNil)
+
+	fooRefresh := &snap.Info{
+		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
+	}
+
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, map[string]bool{"foo-id": true}, 0)
+	c.Assert(err, IsNil)
+	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh})
 }
 
 func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
@@ -833,7 +861,7 @@ func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0)
 	c.Assert(err, IsNil)
 	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh})
 }
@@ -902,7 +930,7 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0)
 	c.Assert(err, ErrorMatches, `(?s).*cannot refresh "foo" to revision 9: validation by "baz" \(id "baz-id"\) revoked.*`)
 	c.Check(validated, HasLen, 0)
 }
@@ -1101,4 +1129,30 @@ func (s *assertMgrSuite) TestPublisher(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(acct.AccountID(), Equals, s.dev1Acct.AccountID())
 	c.Check(acct.Username(), Equals, "developer1")
+}
+
+func (s *assertMgrSuite) TestStore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	storeHeaders := map[string]interface{}{
+		"store":       "foo",
+		"operator-id": s.dev1Acct.AccountID(),
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}
+	fooStore, err := s.storeSigning.Sign(asserts.StoreType, storeHeaders, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, fooStore)
+	c.Assert(err, IsNil)
+
+	_, err = assertstate.Store(s.state, "bar")
+	c.Check(asserts.IsNotFound(err), Equals, true)
+
+	store, err := assertstate.Store(s.state, "foo")
+	c.Assert(err, IsNil)
+	c.Check(store.Store(), Equals, "foo")
 }

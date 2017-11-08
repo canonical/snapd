@@ -65,7 +65,7 @@ int sc_must_snprintf(char *str, size_t size, const char *format, ...)
 	n = vsnprintf(str, size, format, va);
 	va_end(va);
 
-	if (n < 0 || n >= size)
+	if (n < 0 || (size_t) n >= size)
 		die("cannot format string: %s", str);
 
 	return n;
