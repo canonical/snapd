@@ -140,7 +140,7 @@ func (s *MirInterfaceSuite) TestUDevSpec(c *C) {
 	udevSpec := &udev.Specification{}
 	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 5)
-	c.Assert(udevSpec.Snippets(), testutil.Contains, `KERNEL=="event[0-9]*", TAG+="snap_mir-server_mir"`)
+	c.Assert(udevSpec.Snippets(), testutil.Contains, `KERNEL=="event[0-9]*", TAG+="snap_mir-server_mir" # mir`)
 }
 
 func (s *MirInterfaceSuite) TestInterfaces(c *C) {

@@ -95,7 +95,7 @@ func (s *NetworkControlInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
-	c.Assert(spec.Snippets(), testutil.Contains, `KERNEL=="tun", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `KERNEL=="tun", TAG+="snap_consumer_app" # network-control`)
 }
 
 func (s *NetworkControlInterfaceSuite) TestStaticInfo(c *C) {

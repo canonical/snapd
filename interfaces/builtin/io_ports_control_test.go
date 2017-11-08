@@ -95,7 +95,7 @@ func (s *ioPortsControlInterfaceSuite) TestUDevSpec(c *C) {
 	udevSpec := &udev.Specification{}
 	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 1)
-	c.Assert(udevSpec.Snippets()[0], Equals, `KERNEL=="port", TAG+="snap_consumer_app"`)
+	c.Assert(udevSpec.Snippets()[0], Equals, `KERNEL=="port", TAG+="snap_consumer_app" # io-ports-control`)
 }
 
 func (s *ioPortsControlInterfaceSuite) TestStaticInfo(c *C) {
