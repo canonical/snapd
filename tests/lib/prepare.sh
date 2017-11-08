@@ -199,12 +199,6 @@ EOF
         update_core_snap_for_classic_reexec
         systemctl start snapd.{service,socket}
 
-        # ensure no auto-refresh happens during the tests
-        if [ -e /snap/core/current/meta/hooks/configure ]; then
-            snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
-            snap set core refresh.disabled=true
-        fi
-
         GRUB_EDITENV=grub-editenv
         case "$SPREAD_SYSTEM" in
             fedora-*|opensuse-*)
@@ -474,12 +468,6 @@ prepare_all_snap() {
             exit 1
         fi
     done
-
-    # ensure no auto-refresh happens during the tests
-    if [ -e /snap/core/current/meta/hooks/configure ]; then
-        snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
-        snap set core refresh.disabled=true
-    fi
 
     # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f "$SPREAD_PATH/snapd-state.tar.gz" ]; then
