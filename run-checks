@@ -85,9 +85,9 @@ append_coverage() (
 )
 
 missing_interface_spread_test() {
-    snap_yaml="tests/lib/snaps/test-policy-app-consumer/meta/snap.yaml"
-    core_snap_yaml="tests/lib/snaps/test-policy-app-provider-core/meta/snap.yaml"
-    classic_snap_yaml="tests/lib/snaps/test-policy-app-provider-classic/meta/snap.yaml"
+    snap_yaml="tests/lib/snaps/test-snapd-policy-app-consumer/meta/snap.yaml"
+    core_snap_yaml="tests/lib/snaps/test-snapd-policy-app-provider-core/meta/snap.yaml"
+    classic_snap_yaml="tests/lib/snaps/test-snapd-policy-app-provider-classic/meta/snap.yaml"
     for iface in `ls -1 ./interfaces/builtin/ | grep -Ev '_test\.go' | sed -e 's/\.go$//' -e 's/_/-/g'` ; do
         search="plugs: \[ $iface \]"
         case "$iface" in
