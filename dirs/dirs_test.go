@@ -20,6 +20,7 @@
 package dirs_test
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -78,6 +79,9 @@ func (s *DirsTestSuite) TestClassicConfinementSymlinkWorkaround(c *C) {
 }
 
 func (s *DirsTestSuite) TestClassicConfinementSupportOnSpecificDistributions(c *C) {
+	// the test changes RootDir, restore correct one when retuning
+	defer dirs.SetRootDir("/")
+
 	for _, t := range []struct {
 		ID       string
 		IDLike   []string
@@ -93,7 +97,15 @@ func (s *DirsTestSuite) TestClassicConfinementSupportOnSpecificDistributions(c *
 	} {
 		reset := release.MockReleaseInfo(&release.OS{ID: t.ID, IDLike: t.IDLike})
 		defer reset()
-		dirs.SetRootDir("/")
+
+		// make a new root directory each time to isolate the test from
+		// local filesystem state and any previous test runs
+		altRoot, err := ioutil.TempDir("",
+			"TestClassicConfinementSupportOnSpecificDistributions")
+		c.Assert(err, IsNil)
+		defer os.RemoveAll(altRoot)
+
+		dirs.SetRootDir(altRoot)
 		c.Check(dirs.SupportsClassicConfinement(), Equals, t.Expected, Commentf("unexpected result for %v", t.ID))
 	}
 }
