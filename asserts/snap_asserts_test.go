@@ -635,7 +635,23 @@ func (sbs *snapBuildSuite) TestSnapBuildCheck(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 	devDB := setup3rdPartySigning(c, "devel1", storeDB, db)
 
+	prereqDevAccount(c, storeDB, db)
+	prereqSnapDecl(c, storeDB, db)
+
 	headers := map[string]interface{}{
+		"snap-sha3-384": blobSHA3_384,
+		"snap-id":       "snap-id-1",
+		"developer-id":  "devel1",
+		"snap-size":     "1025",
+		"snap-revision": "22",
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapRev)
+	c.Assert(err, IsNil)
+
+	headers = map[string]interface{}{
 		"authority-id":  "devel1",
 		"snap-sha3-384": blobSHA3_384,
 		"snap-id":       "snap-id-1",
@@ -666,6 +682,94 @@ func (sbs *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 
 	err = db.Check(snapBuild)
 	c.Assert(err, ErrorMatches, `snap-build assertion timestamp outside of signing key validity \(key valid since.*\)`)
+}
+
+func (sbs *snapBuildSuite) TestSnapBuildCheckMissingSnapRevision(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+	devDB := setup3rdPartySigning(c, "devel1", storeDB, db)
+
+	headers := map[string]interface{}{
+		"authority-id":  "devel1",
+		"snap-sha3-384": blobSHA3_384,
+		"snap-id":       "snap-id-1",
+		"grade":         "devel",
+		"snap-size":     "1025",
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapBuild, err := devDB.Sign(asserts.SnapBuildType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapBuild)
+	c.Check(err, ErrorMatches, `snap-build \(.*\) does not have a matching snap-revision assertion`)
+}
+
+func (sbs *snapBuildSuite) TestSnapBuildCheckSnapIDMismatch(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+	devDB := setup3rdPartySigning(c, "devel1", storeDB, db)
+
+	prereqDevAccount(c, storeDB, db)
+	prereqSnapDecl(c, storeDB, db)
+
+	headers := map[string]interface{}{
+		"snap-sha3-384": blobSHA3_384,
+		"snap-id":       "snap-id-1",
+		"developer-id":  "devel1",
+		"snap-size":     "1025",
+		"snap-revision": "22",
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapRev)
+	c.Assert(err, IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id":  "devel1",
+		"snap-sha3-384": blobSHA3_384,
+		"snap-id":       "snap-id-other",
+		"grade":         "devel",
+		"snap-size":     "1025",
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapBuild, err := devDB.Sign(asserts.SnapBuildType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapBuild)
+	c.Check(err, ErrorMatches, `snap-build \(.*\) and the matching snap-revision assertion do not have a matching snap-id`)
+}
+
+func (sbs *snapBuildSuite) TestSnapBuildCheckDeveloperIDMismatch(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	prereqDevAccount(c, storeDB, db)
+	prereqSnapDecl(c, storeDB, db)
+
+	headers := map[string]interface{}{
+		"snap-sha3-384": blobSHA3_384,
+		"snap-id":       "snap-id-1",
+		"developer-id":  "dev-id1",
+		"snap-size":     "1025",
+		"snap-revision": "22",
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapRev)
+	c.Assert(err, IsNil)
+
+	devDB2 := setup3rdPartySigning(c, "devel2", storeDB, db)
+	headers = map[string]interface{}{
+		"snap-sha3-384": blobSHA3_384,
+		"snap-id":       "snap-id-1",
+		"grade":         "devel",
+		"snap-size":     "1025",
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapBuild, err := devDB2.Sign(asserts.SnapBuildType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapBuild)
+	c.Check(err, ErrorMatches, `snap-build \(.*\) and the matching snap-revision assertion do not have matching developer id`)
 }
 
 type snapRevSuite struct {

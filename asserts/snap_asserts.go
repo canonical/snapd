@@ -353,6 +353,29 @@ func (snapbld *SnapBuild) Timestamp() time.Time {
 	return snapbld.timestamp
 }
 
+func (snapbld *SnapBuild) checkConsistency(db RODatabase, acck *AccountKey) error {
+	a, err := db.Find(SnapRevisionType, map[string]string{
+		"snap-sha3-384": snapbld.SnapSHA3_384(),
+	})
+	if IsNotFound(err) {
+		return fmt.Errorf("%v does not have a matching snap-revision assertion", snapbld.Ref())
+	}
+	if err != nil {
+		return err
+	}
+	snapRev := a.(*SnapRevision)
+	if snapRev.SnapID() != snapbld.SnapID() {
+		return fmt.Errorf("%v and the matching snap-revision assertion do not have a matching snap-id", snapbld.Ref())
+	}
+	if snapRev.DeveloperID() != snapbld.AuthorityID() {
+		return fmt.Errorf("%v and the matching snap-revision assertion do not have matching developer id", snapbld.Ref())
+	}
+	return nil
+}
+
+// sanity
+var _ consistencyChecker = (*SnapBuild)(nil)
+
 func assembleSnapBuild(assert assertionBase) (Assertion, error) {
 	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
 	if err != nil {
