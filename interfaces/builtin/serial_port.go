@@ -112,6 +112,11 @@ func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		if (usbProduct < 0x0) || (usbProduct > 0xFFFF) {
 			return fmt.Errorf("serial-port usb-product attribute not valid: %d", usbProduct)
 		}
+
+		usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
+		if ok && (usbInterfaceNumber < 0 || usbInterfaceNumber >= UsbMaxInterfaces) {
+			return fmt.Errorf("serial-port usb-interface-number attribute cannot be negative or larger than %d", UsbMaxInterfaces-1)
+		}
 	} else {
 		// Just a path attribute - must be a valid usb device node
 		// Check the path attribute is in the allowable pattern
@@ -131,11 +136,17 @@ func (iface *serialPortInterface) UDevPermanentSlot(spec *udev.Specification, sl
 	if !pOk {
 		return nil
 	}
+	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
+	if !ok {
+		// Set usbInterfaceNumber < 0 causes udevUsbDeviceSnippet to not add
+		// ENV{ID_USB_INTERFACE_NUM} to the udev rule
+		usbInterfaceNumber = -1
+	}
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
 		return nil
 	}
-	spec.AddSnippet(string(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/"))))
+	spec.AddSnippet(string(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, usbInterfaceNumber, "SYMLINK", strings.TrimPrefix(path, "/dev/"))))
 	return nil
 }
 
@@ -180,12 +191,19 @@ func (iface *serialPortInterface) UDevConnectedPlug(spec *udev.Specification, pl
 		return nil
 	}
 
+	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
+	if !ok {
+		// Set usbInterfaceNumber < 0 causes udevUsbDeviceSnippet to not add
+		// ENV{ID_USB_INTERFACE_NUM} to the udev rule
+		usbInterfaceNumber = -1
+	}
+
 	for appName := range plug.Apps {
 		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
 		if hasOnlyPath {
 			spec.AddSnippet(fmt.Sprintf("SUBSYSTEM==\"tty\", KERNEL==\"%s\", TAG+=\"%s\"", strings.TrimPrefix(path, "/dev/"), tag))
 		} else {
-			spec.AddSnippet(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "TAG", tag))
+			spec.AddSnippet(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, usbInterfaceNumber, "TAG", tag))
 		}
 	}
 	return nil
@@ -201,6 +219,9 @@ func (iface *serialPortInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 		return true
 	}
 	if _, ok := slot.Attrs["usb-product"]; ok {
+		return true
+	}
+	if _, ok := slot.Attrs["usb-interface-number"]; ok {
 		return true
 	}
 	return false
