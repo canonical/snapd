@@ -38,7 +38,7 @@ execute: |
         snap install pc-kernel --${KERNEL_CHANNEL}
         REBOOT
     elif [ "$SPREAD_REBOOT" = 1 ]; then
-       # from our good starting place we refresh
+        # from our good starting place we refresh
         wait_core_post_boot
         
         # save current core revision
@@ -69,8 +69,8 @@ execute: |
         cat /proc/version_signature > nextKernelSignature
 
         if diff -u prevKernelSignature nextKernelSignature; then
-            echo "kernel in edge / stable are the same"
-            exit 1
+            echo "SKIPPING: kernel in edge / stable are the same"
+            exit 0
         fi
         
         # test-snapd-tools works
