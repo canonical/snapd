@@ -222,7 +222,7 @@ func (s *realSystemSuite) TestSecureMkdirAllForReal(c *C) {
 	c.Check(fi.IsDir(), Equals, true)
 	c.Check(fi.Mode().Perm(), Equals, os.FileMode(0705))
 
-	// Create d2, which is a deeper subdirectory, with anohter distinct mode
+	// Create d2, which is a deeper subdirectory, with another distinct mode
 	// and check that it was applied.
 	d2 := filepath.Join(d, "subdir/subdir/subdir")
 	c.Assert(update.SecureMkdirAll(d2, 0750, -1, -1), IsNil)
