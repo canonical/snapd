@@ -94,11 +94,11 @@ func makeAccountControlSecCompSnippet() (string, error) {
 }
 
 func (iface *accountControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, Attrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	if snippet, err := makeAccountControlSecCompSnippet(); err != nil {
+	snippet, err := makeAccountControlSecCompSnippet()
+	if err != nil {
 		return err
-	} else {
-		spec.AddSnippet(snippet)
 	}
+	spec.AddSnippet(snippet)
 	return nil
 }
 
