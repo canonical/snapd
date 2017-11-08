@@ -69,20 +69,36 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 
 var servicestateControl = servicestate.Control
 
-func queueCommand(context *hookstate.Context, ts *state.TaskSet) {
-	// queue command task after all existing tasks of the hook's change
+func queueCommand(context *hookstate.Context, ts *state.TaskSet) error {
 	st := context.State()
-	st.Lock()
-	defer st.Unlock()
+	context.Lock()
+	defer context.Unlock()
 
-	task, ok := context.Task()
+	hookTask, ok := context.Task()
 	if !ok {
-		panic("attempted to queue command with ephemeral context")
+		return fmt.Errorf("attempted to queue command with ephemeral context")
 	}
-	change := task.Change()
-	tasks := change.Tasks()
-	ts.WaitAll(state.NewTaskSet(tasks...))
+
+	var id string
+	if err := context.Get("last-queued-task", &id); err != nil && err != state.ErrNoState {
+		return fmt.Errorf("failed to queue command: %s", err)
+	}
+
+	// queue command task after configure hook or previously queued command
+	if id == "" {
+		ts.WaitFor(hookTask)
+	} else {
+		prevTask := st.Task(id)
+		ts.WaitFor(prevTask)
+	}
+
+	tasks := ts.Tasks()
+	context.Set("last-queued-task", tasks[len(tasks)-1].ID())
+
+	change := hookTask.Change()
 	change.AddAll(ts)
+
+	return nil
 }
 
 func runServiceCommand(context *hookstate.Context, inst *servicestate.Instruction, serviceNames []string) error {
@@ -102,8 +118,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 	}
 
 	if !context.IsEphemeral() && context.HookName() == "configure" {
-		queueCommand(context, ts)
-		return nil
+		return queueCommand(context, ts)
 	}
 
 	st.Lock()
