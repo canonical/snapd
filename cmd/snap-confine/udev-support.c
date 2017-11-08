@@ -58,7 +58,8 @@ _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
 		if (minor == UINT_MAX) {
 			sc_must_snprintf(buf, sizeof(buf), "%u:*", major);
 		} else {
-			sc_must_snprintf(buf, sizeof(buf), "%u:%u", major, minor);
+			sc_must_snprintf(buf, sizeof(buf), "%u:%u", major,
+					 minor);
 		}
 		debug("running snappy-app-dev add %s %s %s", udev_s->tagname,
 		      path, buf);
