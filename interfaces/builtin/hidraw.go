@@ -129,8 +129,9 @@ func (iface *hidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *
 	if !ok || path == "" {
 		return nil
 	}
-	spec.AddSnippet(fmt.Sprintf(`IMPORT{builtin}="usb_id"
-SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", SYMLINK+="%s" # hidraw`,
+	spec.AddSnippet(fmt.Sprintf(`# hidraw
+IMPORT{builtin}="usb_id"
+SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", SYMLINK+="%s"`,
 		usbVendor, usbProduct, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }

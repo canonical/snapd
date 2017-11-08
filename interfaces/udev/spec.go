@@ -71,7 +71,7 @@ func udevTag(securityTag string) string {
 func (spec *Specification) TagDevice(snippet string) {
 	for _, securityTag := range spec.securityTags {
 		tag := udevTag(securityTag)
-		spec.addEntry(fmt.Sprintf(`%s, TAG+="%s" # %s`, snippet, tag, spec.iface), tag)
+		spec.addEntry(fmt.Sprintf("# %s\n%s, TAG+=\"%s\"", spec.iface, snippet, tag), tag)
 	}
 }
 

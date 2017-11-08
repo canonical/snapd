@@ -116,7 +116,8 @@ func (s *PulseAudioInterfaceSuite) TestUDev(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 3)
-	c.Assert(spec.Snippets(), testutil.Contains, `KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="snap_pulseaudio_app1" # pulseaudio`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# pulseaudio
+KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="snap_pulseaudio_app1"`)
 }
 
 func (s *PulseAudioInterfaceSuite) TestInterfaces(c *C) {
