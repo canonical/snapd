@@ -53,6 +53,9 @@ func Run(tr Conf) error {
 	if err := handleProxyStore(tr); err != nil {
 		return err
 	}
+	if err := validateRefreshSchedule(tr); err != nil {
+		return err
+	}
 
 	// see if it makes sense to run at all
 	if release.OnClassic {
