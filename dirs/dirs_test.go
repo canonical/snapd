@@ -20,7 +20,6 @@
 package dirs_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -100,12 +99,7 @@ func (s *DirsTestSuite) TestClassicConfinementSupportOnSpecificDistributions(c *
 
 		// make a new root directory each time to isolate the test from
 		// local filesystem state and any previous test runs
-		altRoot, err := ioutil.TempDir("",
-			"TestClassicConfinementSupportOnSpecificDistributions")
-		c.Assert(err, IsNil)
-		defer os.RemoveAll(altRoot)
-
-		dirs.SetRootDir(altRoot)
+		dirs.SetRootDir(c.MkDir())
 		c.Check(dirs.SupportsClassicConfinement(), Equals, t.Expected, Commentf("unexpected result for %v", t.ID))
 	}
 }
