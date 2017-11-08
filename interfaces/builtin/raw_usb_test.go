@@ -87,7 +87,7 @@ func (s *RawUsbInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], testutil.Contains, `SUBSYSTEMS=="usb", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `SUBSYSTEM=="usb", TAG+="snap_consumer_app" # raw-usb`)
 }
 
 func (s *RawUsbInterfaceSuite) TestStaticInfo(c *C) {
