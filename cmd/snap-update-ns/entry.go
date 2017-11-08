@@ -51,10 +51,10 @@ func XSnapdMode(e *mount.Entry) (os.FileMode, error) {
 	return 0755, nil
 }
 
-// XSnapdUid returns the user associated with x-snapd-user mount option.  If
+// XSnapdUID returns the user associated with x-snapd-user mount option.  If
 // the mode is not specified explicitly then a default "root" use is
 // returned.
-func XSnapdUid(e *mount.Entry) (uid uint64, err error) {
+func XSnapdUID(e *mount.Entry) (uid uint64, err error) {
 	if opt, ok := e.OptStr("x-snapd.uid"); ok {
 		if !validUserGroupRe.MatchString(opt) {
 			return math.MaxUint64, fmt.Errorf("cannot parse user name %q", opt)
@@ -73,10 +73,10 @@ func XSnapdUid(e *mount.Entry) (uid uint64, err error) {
 	return 0, nil
 }
 
-// XSnapdGid returns the user associated with x-snapd-user mount option.  If
+// XSnapdGID returns the user associated with x-snapd-user mount option.  If
 // the mode is not specified explicitly then a default "root" use is
 // returned.
-func XSnapdGid(e *mount.Entry) (gid uint64, err error) {
+func XSnapdGID(e *mount.Entry) (gid uint64, err error) {
 	if opt, ok := e.OptStr("x-snapd.gid"); ok {
 		if !validUserGroupRe.MatchString(opt) {
 			return math.MaxUint64, fmt.Errorf("cannot parse group name %q", opt)
