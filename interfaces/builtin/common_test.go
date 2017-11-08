@@ -54,9 +54,9 @@ slots:
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(iface, plug, nil, slot, nil), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{
-		`KERNEL=="foo", TAG+="snap_consumer_app-a"`,
+		`KERNEL=="foo", TAG+="snap_consumer_app-a" # common`,
 		// NOTE: app-b is unaffected as it doesn't have a plug reference.
-		`KERNEL=="foo", TAG+="snap_consumer_app-c"`,
+		`KERNEL=="foo", TAG+="snap_consumer_app-c" # common`,
 	})
 
 	// connected plug udev rules are optional

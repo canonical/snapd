@@ -89,7 +89,7 @@ func (s *FramebufferInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], Equals, `KERNEL=="fb[0-9]*", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets()[0], Equals, `KERNEL=="fb[0-9]*", TAG+="snap_consumer_app" # framebuffer`)
 }
 
 func (s *FramebufferInterfaceSuite) TestStaticInfo(c *C) {

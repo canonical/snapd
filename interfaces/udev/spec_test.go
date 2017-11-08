@@ -91,16 +91,28 @@ func (s *specSuite) TestTagDevice(c *C) {
 	// affects all of the apps and hooks related to the given plug or slot
 	// (with the exception that slots cannot have hooks).
 	iface := &ifacetest.TestInterface{
-		InterfaceName: "test",
+		InterfaceName: "iface-1",
 		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 			spec.TagDevice(`kernel="voodoo"`)
 			return nil
 		},
 	}
 	c.Assert(s.spec.AddConnectedPlug(iface, s.plug, nil, s.slot, nil), IsNil)
+
+	iface = &ifacetest.TestInterface{
+		InterfaceName: "iface-2",
+		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+			spec.TagDevice(`kernel="hoodoo"`)
+			return nil
+		},
+	}
+	c.Assert(s.spec.AddConnectedPlug(iface, s.plug, nil, s.slot, nil), IsNil)
+
 	c.Assert(s.spec.Snippets(), DeepEquals, []string{
-		`kernel="voodoo", TAG+="snap_snap1_foo"`,
-		`kernel="voodoo", TAG+="snap_snap1_hook_configure"`,
+		`kernel="hoodoo", TAG+="snap_snap1_foo" # iface-2`,
+		`kernel="voodoo", TAG+="snap_snap1_foo" # iface-1`,
+		`kernel="hoodoo", TAG+="snap_snap1_hook_configure" # iface-2`,
+		`kernel="voodoo", TAG+="snap_snap1_hook_configure" # iface-1`,
 	})
 }
 

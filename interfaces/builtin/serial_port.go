@@ -128,25 +128,25 @@ func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 func (iface *serialPortInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-	if !vOk {
-		return nil
-	}
-	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-	if !pOk {
-		return nil
-	}
-	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
+	usbVendor, ok := slot.Attrs["usb-vendor"].(int64)
 	if !ok {
-		// Set usbInterfaceNumber < 0 causes udevUsbDeviceSnippet to not add
-		// ENV{ID_USB_INTERFACE_NUM} to the udev rule
-		usbInterfaceNumber = -1
+		return nil
+	}
+	usbProduct, ok := slot.Attrs["usb-product"].(int64)
+	if !ok {
+		return nil
 	}
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
 		return nil
 	}
-	spec.AddSnippet(string(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, usbInterfaceNumber, "SYMLINK", strings.TrimPrefix(path, "/dev/"))))
+	if usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64); ok {
+		spec.AddSnippet(fmt.Sprintf(`IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", ENV{ID_USB_INTERFACE_NUM}=="%02x", SYMLINK+="%s" # serial-port`, usbVendor, usbProduct, usbInterfaceNumber, strings.TrimPrefix(path, "/dev/")))
+	} else {
+		spec.AddSnippet(fmt.Sprintf(`IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", SYMLINK+="%s" # serial-port`, usbVendor, usbProduct, strings.TrimPrefix(path, "/dev/")))
+	}
 	return nil
 }
 
