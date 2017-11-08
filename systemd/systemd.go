@@ -428,6 +428,7 @@ func (s *systemd) WriteMountUnitFile(name, what, where, fstype string) (string, 
 
 	c := fmt.Sprintf(`[Unit]
 Description=Mount unit for %s
+Before=snapd.service
 
 [Mount]
 What=%s

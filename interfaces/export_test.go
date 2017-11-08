@@ -19,6 +19,12 @@
 
 package interfaces
 
+type ByConnRef byConnRef
+
+func (c ByConnRef) Len() int           { return byConnRef(c).Len() }
+func (c ByConnRef) Swap(i, j int)      { byConnRef(c).Swap(i, j) }
+func (c ByConnRef) Less(i, j int) bool { return byConnRef(c).Less(i, j) }
+
 type BySlotRef bySlotRef
 
 func (c BySlotRef) Len() int           { return bySlotRef(c).Len() }

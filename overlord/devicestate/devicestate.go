@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -196,4 +197,29 @@ func delayedCrossMgrInit() {
 		snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
 	})
 	snapstate.CanAutoRefresh = canAutoRefresh
+}
+
+// ProxyStore returns the store assertion for the proxy store if one is set.
+func ProxyStore(st *state.State) (*asserts.Store, error) {
+	tr := config.NewTransaction(st)
+	var proxyStore string
+	err := tr.GetMaybe("core", "proxy.store", &proxyStore)
+	if err != nil {
+		return nil, err
+	}
+	if proxyStore == "" {
+		return nil, state.ErrNoState
+	}
+
+	a, err := assertstate.DB(st).Find(asserts.StoreType, map[string]string{
+		"store": proxyStore,
+	})
+	if asserts.IsNotFound(err) {
+		return nil, state.ErrNoState
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return a.(*asserts.Store), nil
 }

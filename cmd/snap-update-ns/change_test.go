@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"errors"
+	"os"
 
 	. "gopkg.in/check.v1"
 
@@ -47,6 +48,12 @@ func (s *changeSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
 }
 
+func (s *changeSuite) TestFakeFileInfo(c *C) {
+	c.Assert(update.FileInfoDir.IsDir(), Equals, true)
+	c.Assert(update.FileInfoFile.IsDir(), Equals, false)
+	c.Assert(update.FileInfoSymlink.IsDir(), Equals, false)
+}
+
 func (s *changeSuite) TestString(c *C) {
 	change := update.Change{
 		Entry:  mount.Entry{Dir: "/a/b", Name: "/dev/sda1"},
@@ -68,7 +75,7 @@ func (s *changeSuite) TestNeededChangesNoChange(c *C) {
 	current := &mount.Profile{Entries: []mount.Entry{{Dir: "/common/stuf"}}}
 	desired := &mount.Profile{Entries: []mount.Entry{{Dir: "/common/stuf"}}}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: mount.Entry{Dir: "/common/stuf"}, Action: update.Keep},
 	})
 }
@@ -78,7 +85,7 @@ func (s *changeSuite) TestNeededChangesTrivialMount(c *C) {
 	current := &mount.Profile{}
 	desired := &mount.Profile{Entries: []mount.Entry{{Dir: "/common/stuf"}}}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: desired.Entries[0], Action: update.Mount},
 	})
 }
@@ -88,7 +95,7 @@ func (s *changeSuite) TestNeededChangesTrivialUnmount(c *C) {
 	current := &mount.Profile{Entries: []mount.Entry{{Dir: "/common/stuf"}}}
 	desired := &mount.Profile{}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: current.Entries[0], Action: update.Unmount},
 	})
 }
@@ -101,7 +108,7 @@ func (s *changeSuite) TestNeededChangesUnmountOrder(c *C) {
 	}}
 	desired := &mount.Profile{}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: mount.Entry{Dir: "/common/stuf/extra"}, Action: update.Unmount},
 		{Entry: mount.Entry{Dir: "/common/stuf"}, Action: update.Unmount},
 	})
@@ -115,7 +122,7 @@ func (s *changeSuite) TestNeededChangesMountOrder(c *C) {
 		{Dir: "/common/stuf"},
 	}}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: mount.Entry{Dir: "/common/stuf"}, Action: update.Mount},
 		{Entry: mount.Entry{Dir: "/common/stuf/extra"}, Action: update.Mount},
 	})
@@ -134,7 +141,7 @@ func (s *changeSuite) TestNeededChangesChangedParentSameChild(c *C) {
 		{Dir: "/common/unrelated"},
 	}}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: mount.Entry{Dir: "/common/unrelated"}, Action: update.Keep},
 		{Entry: mount.Entry{Dir: "/common/stuf/extra"}, Action: update.Unmount},
 		{Entry: mount.Entry{Dir: "/common/stuf", Name: "/dev/sda1"}, Action: update.Unmount},
@@ -156,7 +163,7 @@ func (s *changeSuite) TestNeededChangesSameParentChangedChild(c *C) {
 		{Dir: "/common/unrelated"},
 	}}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: mount.Entry{Dir: "/common/unrelated"}, Action: update.Keep},
 		{Entry: mount.Entry{Dir: "/common/stuf/extra", Name: "/dev/sda1"}, Action: update.Unmount},
 		{Entry: mount.Entry{Dir: "/common/stuf"}, Action: update.Keep},
@@ -182,7 +189,7 @@ func (s *changeSuite) TestNeededChangesSmartEntryComparison(c *C) {
 		{Dir: "/a/b/c"},
 	}}
 	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []update.Change{
+	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: mount.Entry{Dir: "/a/b/c"}, Action: update.Unmount},
 		{Entry: mount.Entry{Dir: "/a/b", Name: "/dev/sda1"}, Action: update.Unmount},
 		{Entry: mount.Entry{Dir: "/a/b-1/3"}, Action: update.Unmount},
@@ -195,45 +202,188 @@ func (s *changeSuite) TestNeededChangesSmartEntryComparison(c *C) {
 
 // Change.Perform calls the mount system call.
 func (s *changeSuite) TestPerformMount(c *C) {
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
-	c.Assert(chg.Perform(), IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{`mount "source" "target" "type" 0 ""`})
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
+	synth, err := chg.Perform()
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+		`mount "/source" "/target" "type" 0 ""`,
+	})
+}
+
+// Change.Perform calls the mount system call (for bind mounts).
+func (s *changeSuite) TestPerformBindMount(c *C) {
+	s.sys.InsertLstatResult(`lstat "/source"`, update.FileInfoDir)
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind"}}}
+	synth, err := chg.Perform()
+	c.Check(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+		`lstat "/source"`,
+		`mount "/source" "/target" "type" MS_BIND ""`,
+	})
+}
+
+// Change.Perform creates the missing mount target.
+func (s *changeSuite) TestPerformMountAutomaticMkdirTarget(c *C) {
+	s.sys.InsertFault(`lstat "/target"`, os.ErrNotExist)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
+	synth, err := chg.Perform()
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 3 "target" 0755`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`fchown 4 0 0`,
+		`close 4`,
+		`close 3`,
+		`mount "/source" "/target" "type" 0 ""`,
+	})
+}
+
+// Change.Perform creates the missing bind-mount source.
+func (s *changeSuite) TestPerformMountAutomaticMkdirSource(c *C) {
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
+	s.sys.InsertFault(`lstat "/source"`, os.ErrNotExist)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind"}}}
+	synth, err := chg.Perform()
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+		`lstat "/source"`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 3 "source" 0755`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`fchown 4 0 0`,
+		`close 4`,
+		`close 3`,
+		`mount "/source" "/target" "type" MS_BIND ""`,
+	})
+}
+
+// Change.Perform rejects mount target if it is a symlink.
+func (s *changeSuite) TestPerformMountRejectsTargetSymlink(c *C) {
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoSymlink)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
+	synth, err := chg.Perform()
+	c.Assert(err, ErrorMatches, `cannot use "/target" for mounting, not a directory`)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+	})
+}
+
+// Change.Perform rejects bind-mount target if it is a symlink.
+func (s *changeSuite) TestPerformBindMountRejectsTargetSymlink(c *C) {
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoSymlink)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind"}}}
+	synth, err := chg.Perform()
+	c.Assert(err, ErrorMatches, `cannot use "/target" for mounting, not a directory`)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+	})
+}
+
+// Change.Perform rejects bind-mount source if it is a symlink.
+func (s *changeSuite) TestPerformBindMountRejectsSourceSymlink(c *C) {
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
+	s.sys.InsertLstatResult(`lstat "/source"`, update.FileInfoSymlink)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind"}}}
+	synth, err := chg.Perform()
+	c.Assert(err, ErrorMatches, `cannot use "/source" for mounting, not a directory`)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+		`lstat "/source"`,
+	})
+}
+
+// Change.Perform returns errors from os.Lstat (apart from ErrNotExist)
+func (s *changeSuite) TestPerformMountLstatError(c *C) {
+	s.sys.InsertFault(`lstat "/target"`, errTesting)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
+	synth, err := chg.Perform()
+	c.Assert(err, ErrorMatches, `cannot inspect "/target": testing`)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`lstat "/target"`})
+}
+
+// Change.Perform returns errors from os.MkdirAll
+func (s *changeSuite) TestPerformMountMkdirAllError(c *C) {
+	s.sys.InsertFault(`lstat "/target"`, os.ErrNotExist)
+	s.sys.InsertFault(`mkdirat 3 "target" 0755`, errTesting)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
+	synth, err := chg.Perform()
+	c.Assert(err, ErrorMatches, `cannot mkdir path segment "target": testing`)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 3 "target" 0755`,
+		`close 3`,
+	})
 }
 
 // Change.Perform returns errors from mount system call
 func (s *changeSuite) TestPerformMountError(c *C) {
-	s.sys.InsertFault(`mount "source" "target" "type" 0 ""`, errTesting)
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
-	c.Assert(chg.Perform(), Equals, errTesting)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{`mount "source" "target" "type" 0 ""`})
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
+	s.sys.InsertFault(`mount "/source" "/target" "type" 0 ""`, errTesting)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
+	synth, err := chg.Perform()
+	c.Assert(err, Equals, errTesting)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+		`mount "/source" "/target" "type" 0 ""`,
+	})
 }
 
-// Change.Perform returns errors from bad flags
-func (s *changeSuite) TestPerformMountOptionError(c *C) {
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type", Options: []string{"bogus"}}}
-	c.Assert(chg.Perform(), ErrorMatches, `unsupported mount option: "bogus"`)
-	c.Assert(s.sys.Calls(), HasLen, 0)
+// Change.Perform passes unrecognized options to mount.
+func (s *changeSuite) TestPerformMountOptions(c *C) {
+	s.sys.InsertLstatResult(`lstat "target"`, update.FileInfoDir)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type", Options: []string{"funky"}}}
+	synth, err := chg.Perform()
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "target"`,
+		`mount "source" "target" "type" 0 "funky"`,
+	})
 }
 
 // Change.Perform calls the unmount system call.
 func (s *changeSuite) TestPerformUnmount(c *C) {
 	chg := &update.Change{Action: update.Unmount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
-	c.Assert(chg.Perform(), IsNil)
+	synth, err := chg.Perform()
+	c.Assert(err, IsNil)
 	// The flag 8 is UMOUNT_NOFOLLOW
 	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" UMOUNT_NOFOLLOW`})
+	c.Assert(synth, HasLen, 0)
 }
 
 // Change.Perform returns errors from unmount system call
 func (s *changeSuite) TestPerformUnountError(c *C) {
 	s.sys.InsertFault(`unmount "target" UMOUNT_NOFOLLOW`, errTesting)
 	chg := &update.Change{Action: update.Unmount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
-	c.Assert(chg.Perform(), Equals, errTesting)
+	synth, err := chg.Perform()
+	c.Assert(err, Equals, errTesting)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" UMOUNT_NOFOLLOW`})
+	c.Assert(synth, HasLen, 0)
 }
 
 // Change.Perform handles unknown actions.
 func (s *changeSuite) TestPerformUnknownAction(c *C) {
 	chg := &update.Change{Action: update.Action(42)}
-	c.Assert(chg.Perform(), ErrorMatches, `cannot process mount change, unknown action: .*`)
+	synth, err := chg.Perform()
+	c.Assert(err, ErrorMatches, `cannot process mount change, unknown action: .*`)
+	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), HasLen, 0)
 }
