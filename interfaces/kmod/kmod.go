@@ -41,7 +41,7 @@ func LoadModule(module string) error {
 func loadModules(modules []string) error {
 	for _, mod := range modules {
 		LoadModule(mod) // ignore errors which are logged by
-				// LoadModule() via syslog
+		// LoadModule() via syslog
 	}
 	return nil
 }
