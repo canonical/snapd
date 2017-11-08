@@ -22,6 +22,7 @@ package main_test
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"syscall"
 
 	. "gopkg.in/check.v1"
@@ -190,4 +191,43 @@ func (s *utilsSuite) TestSecureMkdirAllOpenError(c *C) {
 		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> err
 		`close 3`,
 	})
+}
+
+// realSystemSuite is not isolated / mocked from the system.
+type realSystemSuite struct{}
+
+var _ = Suite(&realSystemSuite{})
+
+// Check that we can actually create directories.
+// This doesn't test the chown logic as that requires root.
+func (s *realSystemSuite) TestSecureMkdirAllForReal(c *C) {
+	d := c.MkDir()
+
+	// Create d (which already exists) with mode 0777 (but c.MkDir() used 0700
+	// internally and since we are not creating the directory we should not be
+	// changing that.
+	c.Assert(update.SecureMkdirAll(d, 0777, -1, -1), IsNil)
+	fi, err := os.Stat(d)
+	c.Assert(err, IsNil)
+	c.Check(fi.IsDir(), Equals, true)
+	c.Check(fi.Mode().Perm(), Equals, os.FileMode(0700))
+
+	// Create d1, which is a simple subdirectory, with a distinct mode and
+	// check that it was applied. Note that default umask 022 is subtracted so
+	// effective directory has different permissions.
+	d1 := filepath.Join(d, "subdir")
+	c.Assert(update.SecureMkdirAll(d1, 0707, -1, -1), IsNil)
+	fi, err = os.Stat(d1)
+	c.Assert(err, IsNil)
+	c.Check(fi.IsDir(), Equals, true)
+	c.Check(fi.Mode().Perm(), Equals, os.FileMode(0705))
+
+	// Create d2, which is a deeper subdirectory, with anohter distinct mode
+	// and check that it was applied.
+	d2 := filepath.Join(d, "subdir/subdir/subdir")
+	c.Assert(update.SecureMkdirAll(d2, 0750, -1, -1), IsNil)
+	fi, err = os.Stat(d2)
+	c.Assert(err, IsNil)
+	c.Check(fi.IsDir(), Equals, true)
+	c.Check(fi.Mode().Perm(), Equals, os.FileMode(0750))
 }
