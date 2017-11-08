@@ -110,6 +110,9 @@ func (s *entrySuite) TestXSnapdGID(c *C) {
 	// Group is parsed from the x-snapd-group= option.
 	var nogroup string
 	var nogroupGID uint64
+	// try to cover differences between distributions and find a suitable
+	// 'nogroup' like group, eg. Ubuntu uses 'nogroup' while Arch uses
+	// 'nobody'
 	for _, grp := range []string{"nogroup", "nobody"} {
 		nogroup = grp
 		nogroupGID, _ = osutil.FindGid(nogroup)
