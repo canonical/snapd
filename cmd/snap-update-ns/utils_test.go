@@ -60,6 +60,15 @@ func (s *utilsSuite) TestSecureMkdirAllRelative(c *C) {
 	c.Assert(s.sys.Calls(), HasLen, 0)
 }
 
+// Ensure that we can "create the root directory.
+func (s *utilsSuite) TestSecureMkdirAllLevel0(c *C) {
+	c.Assert(update.SecureMkdirAll("/", 0755, 123, 456), IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`close 3`,
+	})
+}
+
 // Ensure that we can create a directory in the top-level directory.
 func (s *utilsSuite) TestSecureMkdirAllLevel1(c *C) {
 	os.Setenv("SNAPD_DEBUG", "1")

@@ -69,15 +69,17 @@ func secureMkPrefix(segments []string, perm os.FileMode, uid, gid int) (int, err
 		defer sysClose(fd)
 	}
 
-	// Process all but the last segment.
-	for i := range segments[:len(segments)-1] {
-		fd, err = secureMkDir(fd, segments, i, perm, uid, gid)
-		if err != nil {
-			return -1, err
-		}
-		// Keep the final FD open (caller needs to close it).
-		if i < len(segments)-2 {
-			defer sysClose(fd)
+	if len(segments) > 0 {
+		// Process all but the last segment.
+		for i := range segments[:len(segments)-1] {
+			fd, err = secureMkDir(fd, segments, i, perm, uid, gid)
+			if err != nil {
+				return -1, err
+			}
+			// Keep the final FD open (caller needs to close it).
+			if i < len(segments)-2 {
+				defer sysClose(fd)
+			}
 		}
 	}
 
@@ -154,12 +156,14 @@ func secureMkdirAll(name string, perm os.FileMode, uid, gid int) error {
 	}
 	defer sysClose(fd)
 
-	// Create the final segment as a directory.
-	fd, err = secureMkDir(fd, segments, len(segments)-1, perm, uid, gid)
-	if err != nil {
-		return err
+	if len(segments) > 0 {
+		// Create the final segment as a directory.
+		fd, err = secureMkDir(fd, segments, len(segments)-1, perm, uid, gid)
+		if err != nil {
+			return err
+		}
+		defer sysClose(fd)
 	}
-	defer sysClose(fd)
 
 	return nil
 }
