@@ -38,7 +38,7 @@ const joystickConnectedPlugAppArmor = `
 /run/udev/data/c13:{[0-9],[12][0-9],3[01]} r,
 `
 
-const joystickConnectedPlugUDev = `KERNEL=="js[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"`
+var joystickConnectedPlugUDev = []string{`KERNEL=="js[0-9]*"`}
 
 func init() {
 	registerIface(&commonInterface{
