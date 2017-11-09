@@ -15,9 +15,8 @@ prepare: |
     . "$TESTSLIB/dirs.sh"
 
     echo "Given a snap declaring a plug on the network-status interface is installed"
-    #snap try $TESTSLIB/snaps/test-snapd-network-status
-    snap install $TESTSLIB/snaps/test-snapd-network-status-provider/test-snapd-network-status-provider_1.0_amd64.snap --dangerous
-    snap install $TESTSLIB/snaps/test-snapd-network-status-consumer/test-snapd-network-status-consumer_1.0_amd64.snap --dangerous    
+    snap install test-snapd-network-status-provider
+    snap install test-snapd-network-status-consumer
 
     echo "And the provider dbus loop is started"
     start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-network-status-provider.provider
