@@ -482,9 +482,6 @@ func (c *Change) Tasks() []*Task {
 func (c *Change) LaneTasks(lanes ...int) []*Task {
 	laneLookup := make(map[int]bool)
 	for _, l := range lanes {
-		if l == 0 {
-			return c.Tasks()
-		}
 		laneLookup[l] = true
 	}
 
@@ -492,6 +489,10 @@ func (c *Change) LaneTasks(lanes ...int) []*Task {
 	var tasks []*Task
 	for _, tid := range c.taskIDs {
 		t := c.state.tasks[tid]
+		if len(t.lanes) == 0 && laneLookup[0] {
+			tasks = append(tasks, t)
+			break
+		}
 		for _, l := range t.lanes {
 			if laneLookup[l] {
 				tasks = append(tasks, t)
