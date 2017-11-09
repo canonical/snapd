@@ -164,6 +164,8 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	// Rename specific plugs on the core snap.
 	snap.renameClashingCorePlugs()
 
+	snap.BadInterfaces = make(map[string]string)
+
 	// FIXME: validation of the fields
 	return snap, nil
 }

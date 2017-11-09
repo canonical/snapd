@@ -99,8 +99,9 @@ func (ref SlotRef) String() string {
 
 // Interfaces holds information about a list of plugs, slots and their connections.
 type Interfaces struct {
-	Plugs []*Plug `json:"plugs"`
-	Slots []*Slot `json:"slots"`
+	Plugs       []*snap.PlugInfo
+	Slots       []*snap.SlotInfo
+	Connections []*ConnRef
 }
 
 // Info holds information about a given interface and its instances.
@@ -125,6 +126,14 @@ type Connection struct {
 
 func (conn *Connection) Interface() string {
 	return conn.plugInfo.Interface
+}
+
+// NewConnRef creates a connection reference for given plug and slot
+func NewConnRef(plug *snap.PlugInfo, slot *snap.SlotInfo) *ConnRef {
+	return &ConnRef{
+		PlugRef: PlugRef{Snap: plug.Snap.Name(), Name: plug.Name},
+		SlotRef: SlotRef{Snap: slot.Snap.Name(), Name: slot.Name},
+	}
 }
 
 // ID returns a string identifying a given connection.
