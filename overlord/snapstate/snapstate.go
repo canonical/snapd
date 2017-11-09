@@ -300,16 +300,19 @@ var SetupRemoveHook = func(st *state.State, snapName string) *state.Task {
 // snapTopicalTasks are tasks that characterize changes on a snap that
 // cannot be run concurrently and should conflict with each other.
 var snapTopicalTasks = map[string]bool{
-	"link-snap":          true,
-	"unlink-snap":        true,
-	"refresh-aliases":    true,
-	"prune-auto-aliases": true,
-	"alias":              true,
-	"unalias":            true,
-	"disable-aliases":    true,
-	"prefer-aliases":     true,
-	"connect":            true,
-	"disconnect":         true,
+	"link-snap":           true,
+	"unlink-snap":         true,
+	"switch-snap":         true,
+	"switch-snap-channel": true,
+	"toggle-snap-flags":   true,
+	"refresh-aliases":     true,
+	"prune-auto-aliases":  true,
+	"alias":               true,
+	"unalias":             true,
+	"disable-aliases":     true,
+	"prefer-aliases":      true,
+	"connect":             true,
+	"disconnect":          true,
 }
 
 func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
@@ -874,6 +877,10 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
+	if err := CheckChangeConflict(st, name, nil, nil); err != nil {
+		return nil, err
+	}
+
 	snapsup := &SnapSetup{
 		SideInfo: snapst.CurrentSideInfo(),
 		Channel:  channel,
@@ -933,26 +940,46 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		return nil, err
 	}
 
-	// see if we need to update the channel
-	if infoErr == store.ErrNoUpdateAvailable && snapst.Channel != channel {
-		// TODO: do we want to treat ignore-validation similarly?
+	// see if we need to update the channel or toggle ignore-validation
+	if infoErr == store.ErrNoUpdateAvailable && (snapst.Channel != channel || snapst.IgnoreValidation != flags.IgnoreValidation) {
+		if err := CheckChangeConflict(st, name, nil, nil); err != nil {
+			return nil, err
+		}
+
 		snapsup := &SnapSetup{
 			SideInfo: snapst.CurrentSideInfo(),
+			Flags:    snapst.Flags.ForSnapSetup(),
+		}
+
+		if snapst.Channel != channel {
 			// update the tracked channel
-			Channel: channel,
-		}
-		// Update the current snap channel as well. This ensures that
-		// the UI displays the right values.
-		snapsup.SideInfo.Channel = channel
+			snapsup.Channel = channel
+			// Update the current snap channel as well. This ensures that
+			// the UI displays the right values.
+			snapsup.SideInfo.Channel = channel
 
-		switchSnap := st.NewTask("switch-snap-channel", fmt.Sprintf(i18n.G("Switch snap %q from %s to %s"), snapsup.Name(), snapst.Channel, channel))
-		switchSnap.Set("snap-setup", &snapsup)
+			switchSnap := st.NewTask("switch-snap-channel", fmt.Sprintf(i18n.G("Switch snap %q from %s to %s"), snapsup.Name(), snapst.Channel, channel))
+			switchSnap.Set("snap-setup", &snapsup)
 
-		switchSnapTs := state.NewTaskSet(switchSnap)
-		for _, ts := range tts {
-			switchSnapTs.WaitAll(ts)
+			switchSnapTs := state.NewTaskSet(switchSnap)
+			for _, ts := range tts {
+				switchSnapTs.WaitAll(ts)
+			}
+			tts = append(tts, switchSnapTs)
 		}
-		tts = append(tts, switchSnapTs)
+
+		if snapst.IgnoreValidation != flags.IgnoreValidation {
+			// toggle ignore validation
+			snapsup.IgnoreValidation = flags.IgnoreValidation
+			toggle := st.NewTask("toggle-snap-flags", fmt.Sprintf(i18n.G("Toggle snap %q flags"), snapsup.Name()))
+			toggle.Set("snap-setup", &snapsup)
+
+			toggleTs := state.NewTaskSet(toggle)
+			for _, ts := range tts {
+				toggleTs.WaitAll(ts)
+			}
+			tts = append(tts, toggleTs)
+		}
 	}
 
 	if len(tts) == 0 && len(updates) == 0 {

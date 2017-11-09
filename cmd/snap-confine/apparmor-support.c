@@ -56,6 +56,7 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 		case ENOENT:
 			debug
 			    ("apparmor is available but the interface but the interface is not available");
+			break;
 		case EPERM:
 			// NOTE: fall-through
 		case EACCES:
