@@ -6,9 +6,12 @@ details: |
     snap is installed and removed.
 
 execute: |
-    CONNECTED_PATTERN=":core-support +core:core-support-plug"
+    # install test-snapd-tools and reboot
+    snap install test-snapd-tools
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        REBOOT
+    fi
 
     # Check interfaces are shown after install a snap and reboot
-    snap install test-snapd-tools
-    REBOOT
+    CONNECTED_PATTERN=":core-support +core:core-support-plug"
     snap interfaces | MATCH "$CONNECTED_PATTERN"
