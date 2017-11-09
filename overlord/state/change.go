@@ -477,7 +477,7 @@ func (c *Change) Tasks() []*Task {
 	return c.state.tasksIn(c.taskIDs)
 }
 
-// LaneTasks returns all tasks from given lanes ths state change depends on.
+// LaneTasks returns all tasks from given lanes the state change depends on.
 // All tasks are returned if any of the lanes is 0 (the default lane).
 func (c *Change) LaneTasks(lanes []int) []*Task {
 	laneLookup := make(map[int]bool)
