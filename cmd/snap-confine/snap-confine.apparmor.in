@@ -120,6 +120,8 @@
     # LP: #1668659
     mount options=(rw rbind) /snap/ -> /snap/,
     mount options=(rw rshared) -> /snap/,
+    /etc/systemd/system/ r,
+    /bin/systemctl Ux,
 
     # boostrapping the mount namespace
     mount options=(rw rshared) -> /,
