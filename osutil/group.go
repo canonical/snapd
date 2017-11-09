@@ -156,3 +156,14 @@ func FindGid(group string) (uint64, error) {
 	//return strconv.ParseUint(group.Gid, 10, 64)
 	return strconv.ParseUint(group, 10, 64)
 }
+
+// FindGidOwning obtains UNIX group ID and name owning file `path`.
+func FindGidOwning(path string) (uint64, error) {
+	var stat syscall.Stat_t
+	if err := syscall.Stat(path, &stat); err != nil {
+		return 0, err
+	}
+
+	gid := uint64(stat.Gid)
+	return gid, nil
+}

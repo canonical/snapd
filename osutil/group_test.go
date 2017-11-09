@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,20 +17,38 @@
  *
  */
 
-package kmod
+package osutil
 
 import (
-	"os/exec"
+	"io/ioutil"
+	"os"
+	"strconv"
+
+	. "gopkg.in/check.v1"
 )
 
-// loadModules loads given list of modules via modprobe.
-// Since different kernels may not have the requested module, we treat any
-// error from modprobe as non-fatal and subsequent module loads are attempted
-// (otherwise failure to load a module means failure to connect the interface
-// and the other security backends)
-func loadModules(modules []string) {
-	for _, mod := range modules {
-		// ignore errors which are logged by loadModule() via syslog
-		_ = exec.Command("modprobe", "--syslog", mod).Run()
-	}
+type groupSuite struct {
+}
+
+var _ = Suite(&groupSuite{})
+
+func (s *groupSuite) TestSelfOwnedFile(c *C) {
+	self, err := RealUser()
+	c.Assert(err, IsNil)
+
+	f, err := ioutil.TempFile("", "testownedfile")
+	c.Assert(err, IsNil)
+	name := f.Name()
+	defer f.Close()
+	defer os.Remove(name)
+
+	gid, err := FindGidOwning(name)
+	c.Check(err, IsNil)
+
+	c.Check(strconv.FormatUint(gid, 10), Equals, self.Gid)
+}
+
+func (s *groupSuite) TestNoOwnedFile(c *C) {
+	_, err := FindGidOwning("/tmp/filedoesnotexistbutwhy")
+	c.Assert(err, Not(IsNil))
 }
