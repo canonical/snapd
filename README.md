@@ -3,35 +3,54 @@
 Simple udev implementation in Golang developped from scratch.
 This library allow to listen and manage Linux-kernel (since version 2.6.10) Netlink messages to user space (ie: NETLINK_KOBJECT_UEVENT).
 
-Like [`udev`](https://en.wikipedia.org/wiki/Udev) you will be able to monitor and manage devices plug to the system.
+Like [`udev`](https://en.wikipedia.org/wiki/Udev) you will be able to monitor, display and manage devices plug to the system.
 
 ## How to
 
-### Basics
+### Get sources
 
-- Get sources: `go get github.com/pilebones/go-udev` or `git clone https://github.com/pilebones/go-udev.git`
-- Execute unit-test: `go test`
-- Monitor hot-(un)plug devices:
+```
+go get github.com/pilebones/go-udev
+```
+
+### Unit test
+
+```
+go test ./...
+```
+
+### Compile
+
 ```
 go build
-./go-udev
 ```
 
-To implement your own monitoring system, please see `main.go` as a simple example.
-
-### Advanced usage
-
-Is it possible to filter events with a Matcher.
-
-A Matcher is a list of your own rules to match only relevant uevent kernel message (see: `matcher.sample`).
-
-You could pass this file using:
-```
-./go-udev -file  matcher.sample
+### Usage
 
 ```
+./go-udev -<mode> [-file=<absolute_path>]
+```
 
-## Examples
+Allowed mode: `info` or `monitor`
+File should contains matcher rules (see: "Advanced usage" section)
+
+### Info Mode
+
+Crawl /sys/devices uevent struct to detect plugged devices:
+
+```
+./go-udev -info
+```
+
+### Monitor Mode
+
+Handle all kernel message to detect change about plugged or unplugged devices:
+
+```
+./go-udev -monitor
+```
+
+#### Examples
 
 Example of output when a USB storage is plugged:
 ```
@@ -72,6 +91,20 @@ Example of output when a USB storage is unplugged:
     KObj:   "/devices/pci0000:00/0000:00:14.0/usb1/1-1",
     Env:    {"PRODUCT":"58f/6387/10b", "TYPE":"0/0/0", "DEVNUM":"005", "SEQNUM":"2549", "ACTION":"remove", "DEVPATH":"/devices/pci0000:00/0000:00:14.0/usb1/1-1", "SUBSYSTEM":"usb", "MAJOR":"189", "MINOR":"4", "DEVNAME":"bus/usb/001/005", "DEVTYPE":"usb_device", "BUSNUM":"001"},
 }
+```
+
+Note: To implement your own monitoring system, please see `main.go` as a simple example.
+
+### Advanced usage
+
+Is it possible to filter uevents/devices with a Matcher.
+
+A Matcher is a list of your own rules to match only relevant uevent kernel message (see: `matcher.sample`).
+
+You could pass this file using for both mode:
+```
+./go-udev -file  matcher.sample [...]
+
 ```
 
 ## Throubleshooting

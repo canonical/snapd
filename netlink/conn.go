@@ -1,7 +1,7 @@
 package netlink
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"syscall"
 )
@@ -87,13 +87,13 @@ func (c *UEventConn) ReadUEvent() (*UEvent, error) {
 // Monitor run in background a worker to read netlink msg in loop and notify
 // when msg receive inside a queue using channel.
 // To be notified with only relevant message, use Matcher.
-func (c *UEventConn) Monitor(queue chan UEvent, matcher Matcher) chan bool {
-	quit := make(chan bool, 1)
+func (c *UEventConn) Monitor(queue chan UEvent, errors chan error, matcher Matcher) chan struct{} {
+	quit := make(chan struct{}, 1)
 
 	if matcher != nil {
 		if err := matcher.Compile(); err != nil {
-			log.Println("Wrong matcher, err:", err)
-			quit <- true
+			errors <- fmt.Errorf("Wrong matcher, err: %v", err)
+			quit <- struct{}{}
 			return quit
 		}
 	}
@@ -108,7 +108,7 @@ func (c *UEventConn) Monitor(queue chan UEvent, matcher Matcher) chan bool {
 			default:
 				uevent, err := c.ReadUEvent()
 				if err != nil {
-					log.Printf("Unable to parse uevent, err: %s\n", err.Error())
+					errors <- fmt.Errorf("Unable to parse uevent, err: %v", err)
 					continue
 				}
 

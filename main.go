@@ -10,20 +10,21 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/pilebones/go-udev/crawler"
 	"github.com/pilebones/go-udev/netlink"
 
 	"github.com/kr/pretty"
 )
 
 var (
-	filePath      *string
-	monitor, info *bool
+	filePath              *string
+	monitorMode, infoMode *bool
 )
 
 func init() {
 	filePath = flag.String("file", "", "Optionnal input file path with matcher-rules (default: no matcher)")
-	monitor = flag.Bool("monitor", false, "Enable monitor mode")
-	info = flag.Bool("info", false, "Enable monitor mode")
+	monitorMode = flag.Bool("monitor", false, "Enable monitor mode")
+	infoMode = flag.Bool("info", false, "Enable monitor mode")
 }
 
 func main() {
@@ -34,47 +35,86 @@ func main() {
 		log.Fatalln(err.Error())
 	}
 
-	if monitor == nil && info == nil {
+	if monitorMode == nil && infoMode == nil {
 		log.Fatalln("You should use only one mode:", os.Args[0], "-monitor|-info")
 	}
 
-	if (monitor != nil && *monitor) && (info != nil && *info) {
+	if (monitorMode != nil && *monitorMode) && (infoMode != nil && *infoMode) {
 		log.Fatalln("Unable to enable both mode : monitor & info")
 	}
 
-	if *monitor {
-		log.Println("Monitoring UEvent kernel message to user-space...")
-		conn := new(netlink.UEventConn)
-		if err = conn.Connect(); err != nil {
-			log.Fatalln("Unable to connect to Netlink Kobject UEvent socket")
+	if *monitorMode {
+		monitor(matcher)
+	}
+
+	if *infoMode {
+		info(matcher)
+	}
+}
+
+// info run info mode
+func info(matcher netlink.Matcher) {
+	log.Println("Get existing devices...")
+
+	queue := make(chan crawler.Device)
+	errors := make(chan error)
+	quit := crawler.ExistingDevices(queue, errors, matcher)
+
+	// Signal handler to quit properly monitor mode
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	go func() {
+		<-signals
+		log.Println("Exiting info mode...")
+		quit <- struct{}{}
+		os.Exit(0)
+	}()
+
+	// Handling message from queue
+	for {
+		select {
+		case device := <-queue:
+			log.Printf("Detect device at %s with env %v\n", device.KObj, device.Env)
+		case err := <-errors:
+			log.Printf("ERROR: %v", err)
 		}
-		defer conn.Close()
+	}
+}
 
-		queue := make(chan netlink.UEvent)
-		quit := conn.Monitor(queue, matcher)
+// monitor run monitor mode
+func monitor(matcher netlink.Matcher) {
+	log.Println("Monitoring UEvent kernel message to user-space...")
 
-		// Signal handler to quit properly monitor mode
-		signals := make(chan os.Signal, 1)
-		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-		go func() {
-			<-signals
-			log.Println("Exiting monitor mode...")
-			quit <- true
-			os.Exit(0)
-		}()
+	conn := new(netlink.UEventConn)
+	if err := conn.Connect(); err != nil {
+		log.Fatalln("Unable to connect to Netlink Kobject UEvent socket")
+	}
+	defer conn.Close()
 
-		// Handling message from queue
-		for {
-			select {
-			case uevent := <-queue:
-				log.Printf("Handle %s\n", pretty.Sprint(uevent))
-			}
+	queue := make(chan netlink.UEvent)
+	errors := make(chan error)
+	quit := conn.Monitor(queue, errors, matcher)
+
+	// Signal handler to quit properly monitor mode
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	go func() {
+		<-signals
+		log.Println("Exiting monitor mode...")
+		quit <- struct{}{}
+		os.Exit(0)
+	}()
+
+	// Handling message from queue
+	for {
+		select {
+		case uevent := <-queue:
+			log.Printf("Handle %s\n", pretty.Sprint(uevent))
+		case err := <-errors:
+			log.Printf("ERROR: %v", err)
 		}
 	}
 
-	if *info {
-
-	}
 }
 
 // getOptionnalMatcher Parse and load config file which contains rules for matching
