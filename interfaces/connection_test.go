@@ -139,6 +139,18 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 	})
 }
 
+func (s *connSuite) TestDynamicPlugAttrsNotInitialized(c *C) {
+	slot, _ := NewConnectedPlug(s.plug, nil)
+	c.Assert(slot, NotNil)
+
+	_, err := slot.Attr("foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `attribute "foo" not found`)
+
+	_, err = slot.Attrs()
+	c.Assert(err, ErrorMatches, `dynamic attributes not initialized`)
+}
+
 func (s *connSuite) TestOverwriteStaticAttrError(c *C) {
 	attrs := map[string]interface{}{}
 
@@ -164,12 +176,8 @@ func (s *connSuite) TestDynamicSlotAttrsNotInitialized(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "foo" not found`)
 
-	attrs, err := slot.Attrs()
-	c.Assert(err, IsNil)
-	c.Assert(attrs, DeepEquals, map[string]interface{}{
-		"attr": "value",
-	})
-
+	_, err = slot.Attrs()
+	c.Assert(err, ErrorMatches, `dynamic attributes not initialized`)
 }
 
 func (s *connSuite) TestCopyAttributes(c *C) {

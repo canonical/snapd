@@ -102,7 +102,7 @@ func (plug *ConnectedPlug) Attrs() (map[string]interface{}, error) {
 	if plug.dynamicAttrs != nil {
 		return plug.dynamicAttrs, nil
 	}
-	return plug.StaticAttrs()
+	return nil, fmt.Errorf("dynamic attributes not initialized")
 }
 
 func (plug *ConnectedPlug) SetAttr(key string, value interface{}) error {
@@ -160,7 +160,7 @@ func (slot *ConnectedSlot) Attrs() (map[string]interface{}, error) {
 	if slot.dynamicAttrs != nil {
 		return slot.dynamicAttrs, nil
 	}
-	return slot.StaticAttrs()
+	return nil, fmt.Errorf("dynamic attributes not initialized")
 }
 
 func (slot *ConnectedSlot) SetAttr(key string, value interface{}) error {
