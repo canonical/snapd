@@ -34,12 +34,14 @@ func LoadModule(module string) error {
 }
 
 // loadModules loads given list of modules via modprobe.
-// Any error from modprobe interrupts loading of subsequent modules and returns the error.
+// Since different kernels may not have the requested module, we treat any
+// error from modprobe as non-fatal and subsequent module loads are attempted
+// (otherwise failure to load a module means failure to connect the interface
+// and the other security backends)
 func loadModules(modules []string) error {
 	for _, mod := range modules {
-		if err := LoadModule(mod); err != nil {
-			return err
-		}
+		LoadModule(mod) // ignore errors which are logged by
+		// LoadModule() via syslog
 	}
 	return nil
 }
