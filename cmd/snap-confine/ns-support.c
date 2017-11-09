@@ -77,7 +77,7 @@ static const char *sc_ns_dir = SC_NS_DIR;
  * We do this because /run/snapd/ns cannot be shared with any other peers as per:
  * https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
  **/
-static bool sc_is_ns_group_dir_private()
+static bool sc_is_ns_group_dir_private(void)
 {
 	struct sc_mountinfo *info SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 	info = sc_parse_mountinfo(NULL);
@@ -99,7 +99,7 @@ static bool sc_is_ns_group_dir_private()
 	return false;
 }
 
-void sc_reassociate_with_pid1_mount_ns()
+void sc_reassociate_with_pid1_mount_ns(void)
 {
 	int init_mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	int self_mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
@@ -155,7 +155,7 @@ void sc_reassociate_with_pid1_mount_ns()
 	}
 }
 
-void sc_initialize_ns_groups()
+void sc_initialize_ns_groups(void)
 {
 	debug("creating namespace group directory %s", sc_ns_dir);
 	if (sc_nonfatal_mkpath(sc_ns_dir, 0755) < 0) {
@@ -195,7 +195,7 @@ struct sc_ns_group {
 	bool should_populate;
 };
 
-static struct sc_ns_group *sc_alloc_ns_group()
+static struct sc_ns_group *sc_alloc_ns_group(void)
 {
 	struct sc_ns_group *group = calloc(1, sizeof *group);
 	if (group == NULL) {

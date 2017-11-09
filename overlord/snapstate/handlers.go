@@ -862,6 +862,38 @@ func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapst.Channel = snapsup.Channel
+
+	Set(st, snapsup.Name(), snapst)
+	return nil
+}
+
+func (m *SnapManager) doToggleSnapFlags(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	// for now we support toggling only ignore-validation
+	snapst.IgnoreValidation = snapsup.IgnoreValidation
+
+	Set(st, snapsup.Name(), snapst)
+	return nil
+}
+
 func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()

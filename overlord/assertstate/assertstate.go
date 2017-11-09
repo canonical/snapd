@@ -175,7 +175,12 @@ func (e *refreshControlError) Error() string {
 	return fmt.Sprintf("refresh control errors:%s", strings.Join(l, "\n - "))
 }
 
-// ValidateRefreshes validates the refresh candidate revisions represented by the snapInfos, looking for the needed refresh control validation assertions, it returns a validated subset in validated and a summary error if not all candidates validated. ignoreValidation is a set of snap-ids that should not be gated.
+// ValidateRefreshes validates the refresh candidate revisions
+// represented by the snapInfos, looking for the needed refresh
+// control validation assertions, it returns a validated subset in
+// validated and a summary error if not all candidates
+// validated. ignoreValidation is a set of snap-ids that should not be
+// gated.
 func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation map[string]bool, userID int) (validated []*snap.Info, err error) {
 	// maps gated snap-ids to gating snap-ids
 	controlled := make(map[string][]string)
@@ -318,6 +323,19 @@ func Publisher(s *state.State, snapID string) (*asserts.Account, error) {
 		return nil, fmt.Errorf("internal error: cannot find account assertion for the publisher of snap %q: %v", snapDecl.SnapName(), err)
 	}
 	return a.(*asserts.Account), nil
+}
+
+// Store returns the store assertion with the given name/id if it is
+// present in the system assertion database.
+func Store(s *state.State, store string) (*asserts.Store, error) {
+	db := DB(s)
+	a, err := db.Find(asserts.StoreType, map[string]string{
+		"store": store,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return a.(*asserts.Store), nil
 }
 
 // AutoAliases returns the explicit automatic aliases alias=>app mapping for the given installed snap.
