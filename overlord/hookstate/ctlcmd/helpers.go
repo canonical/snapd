@@ -79,7 +79,7 @@ func queueCommand(context *hookstate.Context, ts *state.TaskSet) error {
 	}
 
 	change := hookTask.Change()
-	tasks := change.LaneTasks(hookTask.Lanes())
+	tasks := change.LaneTasks(hookTask.Lanes()...)
 	ts.WaitAll(state.NewTaskSet(tasks...))
 	change.AddAll(ts)
 
