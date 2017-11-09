@@ -252,6 +252,8 @@
     /usr/** r,
     mount options=(rw bind) /usr/lib/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl/,
     /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/* w,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/32/ rw,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/32/* w,
     mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/,
     mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/,
 
