@@ -201,5 +201,5 @@ func (s *connSuite) TestCopyAttributes(c *C) {
 	var x unsupported
 	_, err = CopyAttributes(map[string]interface{}{"x": x})
 	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, "unsupported attribute type 'interfaces.unsupported', value '{}'")
+	c.Check(err, ErrorMatches, `unsupported attribute type interfaces.unsupported, value {}`)
 }

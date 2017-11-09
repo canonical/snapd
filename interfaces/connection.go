@@ -217,6 +217,6 @@ func copyRecursive(value interface{}) (interface{}, error) {
 		}
 		return mp, nil
 	default:
-		return nil, fmt.Errorf("unsupported attribute type '%T', value '%v'", value, value)
+		return nil, fmt.Errorf("unsupported attribute type %T, value %q", value, value)
 	}
 }
