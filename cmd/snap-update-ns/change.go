@@ -28,6 +28,7 @@ import (
 	"syscall"
 
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/logger"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
@@ -86,9 +87,13 @@ func (c *Change) lowLevelPerform() error {
 	switch c.Action {
 	case Mount:
 		flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
-		return sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+		err := sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+		logger.Debugf("mount %q %q %q %d %q -> %s", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
+		return err
 	case Unmount:
-		return sysUnmount(c.Entry.Dir, UMOUNT_NOFOLLOW)
+		err := sysUnmount(c.Entry.Dir, umountNoFollow)
+		logger.Debugf("umount %q -> %v", c.Entry.Dir, err)
+		return err
 	case Keep:
 		return nil
 	}
