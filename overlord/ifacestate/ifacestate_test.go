@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -137,6 +138,14 @@ func (s *interfaceManagerSuite) TestSmoke(c *C) {
 	mgr := s.manager(c)
 	mgr.Ensure()
 	mgr.Wait()
+}
+
+func (s *interfaceManagerSuite) TestRepoAvailable(c *C) {
+	_ = s.manager(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+	repo := ifacerepo.Get(s.state)
+	c.Check(repo, FitsTypeOf, &interfaces.Repository{})
 }
 
 func (s *interfaceManagerSuite) TestConnectTask(c *C) {

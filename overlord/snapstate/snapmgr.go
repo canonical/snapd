@@ -329,6 +329,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
 	runner.AddHandler("switch-snap-channel", m.doSwitchSnapChannel, nil)
+	runner.AddHandler("toggle-snap-flags", m.doToggleSnapFlags, nil)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -682,21 +683,6 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 		chg.AddAll(ts)
 	}
 
-	return nil
-}
-
-func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-	snapst.Channel = snapsup.Channel
-
-	Set(st, snapsup.Name(), snapst)
 	return nil
 }
 
