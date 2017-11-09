@@ -5991,6 +5991,24 @@ func (s *appSuite) TestAppInfosForMissingSnap(c *check.C) {
 	c.Assert(appInfos, check.IsNil)
 }
 
+func (s *apiSuite) TestLogsNoServices(c *check.C) {
+	// NOTE this is *apiSuite, not *appSuite, so there are no
+	// installed snaps with services
+
+	cmd := testutil.MockCommand(c, "systemctl", "").Also("journalctl", "")
+	defer cmd.Restore()
+	s.daemon(c)
+	s.d.overlord.Loop()
+	defer s.d.overlord.Stop()
+
+	req, err := http.NewRequest("GET", "/v2/logs", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getLogs(logsCmd, req, nil).(*resp)
+	c.Assert(rsp.Status, check.Equals, 404)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+}
+
 func (s *appSuite) TestLogs(c *check.C) {
 	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(`
 {"MESSAGE": "hello1", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "42"}
