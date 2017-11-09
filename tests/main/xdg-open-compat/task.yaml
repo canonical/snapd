@@ -11,6 +11,10 @@ description: |
 # we must have snapd-xdg-open available
 systems: [ubuntu-16.04-*]
 
+# disabled because the "old" snapd-xdg-open is no longer available in the
+# archive
+manual: true
+
 environment:
     DISPLAY: :0
     XDG_OPEN_OUTPUT: /tmp/xdg-open-output
