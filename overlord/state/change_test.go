@@ -194,18 +194,18 @@ func (cs *changeSuite) TestLaneTasks(c *C) {
 		c.Assert(tasks1, DeepEquals, tasks2)
 	}
 
-	c.Assert(chg.LaneTasks([]int{}), HasLen, 0)
+	c.Assert(chg.LaneTasks(), HasLen, 0)
 
-	tasks := chg.LaneTasks([]int{0})
+	tasks := chg.LaneTasks(0)
 	checkTasks(tasks, []*state.Task{t1, t2, t3, t4, t5})
 
-	tasks = chg.LaneTasks([]int{lane1})
+	tasks = chg.LaneTasks(lane1)
 	checkTasks(tasks, []*state.Task{t1, t2, t4})
 
-	tasks = chg.LaneTasks([]int{lane2})
+	tasks = chg.LaneTasks(lane2)
 	checkTasks(tasks, []*state.Task{t3, t4})
 
-	tasks = chg.LaneTasks([]int{lane1, lane2})
+	tasks = chg.LaneTasks(lane1, lane2)
 	checkTasks(tasks, []*state.Task{t1, t2, t3, t4})
 }
 

@@ -479,7 +479,7 @@ func (c *Change) Tasks() []*Task {
 
 // LaneTasks returns all tasks from given lanes the state change depends on.
 // All tasks are returned if any of the lanes is 0 (the default lane).
-func (c *Change) LaneTasks(lanes []int) []*Task {
+func (c *Change) LaneTasks(lanes ...int) []*Task {
 	laneLookup := make(map[int]bool)
 	for _, l := range lanes {
 		if l == 0 {
@@ -493,7 +493,7 @@ func (c *Change) LaneTasks(lanes []int) []*Task {
 	for _, tid := range c.taskIDs {
 		t := c.state.tasks[tid]
 		for _, l := range t.lanes {
-			if _, ok := laneLookup[l]; ok {
+			if laneLookup[l] {
 				tasks = append(tasks, t)
 				break
 			}
