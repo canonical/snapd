@@ -7,9 +7,12 @@ details: |
     to check the the values defined by the user can be accessed and changed
     by using the gsettings interface.
 
-prepare:
+prepare: |
     echo "Given the gsettings snap is installed"
     snap install test-snapd-gsettings
+
+restore: |
+    rm -f call.error
 
 execute: |
     CONNECTED_PATTERN=":gsettings +test-snapd-gsettings"
