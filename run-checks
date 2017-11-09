@@ -88,13 +88,9 @@ missing_interface_spread_test() {
     snap_yaml="tests/lib/snaps/test-snapd-policy-app-consumer/meta/snap.yaml"
     core_snap_yaml="tests/lib/snaps/test-snapd-policy-app-provider-core/meta/snap.yaml"
     classic_snap_yaml="tests/lib/snaps/test-snapd-policy-app-provider-classic/meta/snap.yaml"
-    for iface in `ls -1 ./interfaces/builtin/ | grep -Ev '_test\.go' | sed -e 's/\.go$//' -e 's/_/-/g'` ; do
+    for iface in `go run ./tests/lib/list-interfaces.go` ; do
         search="plugs: \[ $iface \]"
         case "$iface" in
-            all|common|unity8-pim-common|utils)
-                # skip non-interfaces
-                continue
-                ;;
             bool-file|gpio|hidraw|i2c|iio|serial-port|spi)
                 # skip gadget provided interfaces for now
                 continue
