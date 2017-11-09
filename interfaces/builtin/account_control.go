@@ -68,7 +68,7 @@ capability fsetid,
 // Needed because useradd uses a netlink socket, {{group}} is used as a
 // placeholder argument for the actual ID of a group owning /etc/shadow
 const accountControlConnectedPlugSecCompTemplate = `
-# useradd requires chowning to '{{group}}'
+# useradd requires chowning to 0:'{{group}}'
 fchown - u:root {{group}}
 fchown32 - u:root {{group}}
 
