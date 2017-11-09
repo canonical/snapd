@@ -106,12 +106,11 @@ func (s *entrySuite) TestXSnapdGID(c *C) {
 	c.Assert(gid, Equals, uint64(0))
 
 	// Group is parsed from the x-snapd.gid = option.
-	nogroupGID, err := osutil.FindGid("nogroup")
-	c.Assert(err, IsNil)
-	e = &mount.Entry{Options: []string{"x-snapd.gid=nogroup"}}
+	// Use group 'root' with well know GID 0
+	e = &mount.Entry{Options: []string{"x-snapd.gid=root"}}
 	gid, err = update.XSnapdGID(e)
 	c.Assert(err, IsNil)
-	c.Assert(gid, Equals, nogroupGID)
+	c.Assert(gid, Equals, uint64(0))
 
 	// Numeric names are used as-is.
 	e = &mount.Entry{Options: []string{"x-snapd.gid=456"}}
