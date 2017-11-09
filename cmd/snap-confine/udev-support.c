@@ -32,24 +32,24 @@
 #include "../libsnap-confine-private/utils.h"
 #include "udev-support.h"
 
-void
+static void
 _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
 			       const char *path, unsigned major, unsigned minor)
 {
 	int status = 0;
 	pid_t pid = fork();
 	if (pid < 0) {
-		die("could not fork");
+		die("cannot fork support process for device cgroup assignment");
 	}
 	if (pid == 0) {
 		uid_t real_uid, effective_uid, saved_uid;
 		if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
-			die("could not find user IDs");
+			die("cannot get real, effective and saved user IDs");
 		// can't update the cgroup unless the real_uid is 0, euid as
 		// 0 is not enough
 		if (real_uid != 0 && effective_uid == 0)
 			if (setuid(0) != 0)
-				die("setuid failed");
+				die("cannot set user ID to zero");
 		char buf[64] = { 0 };
 		// pass snappy-add-dev an empty environment so the
 		// user-controlled environment can't be used to subvert
@@ -92,7 +92,7 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 	struct udev_device *d =
 	    udev_device_new_from_syspath(udev_s->udev, path);
 	if (d == NULL)
-		die("can not find %s", path);
+		die("cannot find device from syspath %s", path);
 	dev_t devnum = udev_device_get_devnum(d);
 	udev_device_unref(d);
 
@@ -116,7 +116,7 @@ int snappy_udev_init(const char *security_tag, struct snappy_udev *udev_s)
 	// TAG+="snap_<security tag>" (udev doesn't like '.' in the tag name)
 	udev_s->tagname_len = sc_must_snprintf(udev_s->tagname, MAX_BUF,
 					       "%s", security_tag);
-	for (int i = 0; i < udev_s->tagname_len; i++)
+	for (size_t i = 0; i < udev_s->tagname_len; i++)
 		if (udev_s->tagname[i] == '.')
 			udev_s->tagname[i] = '_';
 
@@ -188,7 +188,7 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 			 "/sys/fs/cgroup/devices/%s/", security_tag);
 
 	if (mkdir(cgroup_dir, 0755) < 0 && errno != EEXIST)
-		die("mkdir failed");
+		die("cannot create cgroup hierarchy %s", cgroup_dir);
 
 	// move ourselves into it
 	char cgroup_file[PATH_MAX] = { 0 };

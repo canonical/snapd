@@ -22,7 +22,6 @@ package snapstate
 import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -57,7 +56,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, ignoreValida
 		IgnoreValidation: ignoreValidation,
 	}
 
-	theStore := storestate.Store(st)
+	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
 	res, err := theStore.LookupRefresh(refreshCand, user)
 	st.Lock()
@@ -69,7 +68,7 @@ func snapInfo(st *state.State, name, channel string, revision snap.Revision, use
 	if err != nil {
 		return nil, err
 	}
-	theStore := storestate.Store(st)
+	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
 	spec := store.SnapSpec{
 		Name:     name,

@@ -129,7 +129,7 @@ func (iface *hidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *
 	if !ok || path == "" {
 		return nil
 	}
-	spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/")))
+	spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, -1, "SYMLINK", strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 

@@ -42,7 +42,7 @@ execute: |
     cp $TESTSLIB/assertions/developer1.account $STORE_DIR/asserts
     cp $TESTSLIB/assertions/developer1.account-key $STORE_DIR/asserts
     # have snap use the fakestore for assertions (but nothing else)
-    export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR/api/v1/snaps/
+    export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
     echo Running prepare-image
     su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc.model $ROOT" test
