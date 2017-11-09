@@ -155,9 +155,9 @@ var (
 	}
 
 	logsCmd = &Command{
-		Path:   "/v2/logs",
-		UserOK: true,
-		GET:    getLogs,
+		Path:     "/v2/logs",
+		PolkitOK: "io.snapcraft.snapd.manage",
+		GET:      getLogs,
 	}
 
 	snapConfCmd = &Command{
