@@ -29,7 +29,7 @@ execute: |
     snap connect test-snapd-check-fs-access:network-setup-observe
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
-    echo "Then the snap is able to write in the network and netplan directories"
+    echo "Then the snap is able to read the network and netplan directories"
     for dir in $dirs; do
         if [ -d $dir ]; then
             test-snapd-check-fs-access.read-dir $dir
@@ -43,7 +43,7 @@ execute: |
     echo "When the plug is disconnected"
     snap disconnect test-snapd-check-fs-access:network-setup-observe
 
-    echo "Then the snap is not able to access the networking configuration dirs"
+    echo "Then the snap is not able to read the network and netplan directories"
     for dir in $dirs; do
         if [ -d $dir ]; then
             if test-snapd-check-fs-access.read-dir $dir 2>${PWD}/call.error; then

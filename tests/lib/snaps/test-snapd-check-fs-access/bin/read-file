@@ -5,10 +5,10 @@ if [ "$#" -ne 1 ]; then
     exit 1
 fi
 
-file=$1
-if [ ! -f $file ]; then
+file="$1"
+if [ ! -f "$file" ]; then
     echo "File does not exist"
     exit 1
 fi
 
-cat $file
+cat "$file"
