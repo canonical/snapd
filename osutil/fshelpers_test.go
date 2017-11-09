@@ -27,12 +27,11 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-type groupSuite struct {
-}
+type groupFindGidOwningSuite struct{}
 
-var _ = Suite(&groupSuite{})
+var _ = Suite(&groupFindGidOwningSuite{})
 
-func (s *groupSuite) TestSelfOwnedFile(c *C) {
+func (s *groupFindGidOwningSuite) TestSelfOwnedFile(c *C) {
 	self, err := RealUser()
 	c.Assert(err, IsNil)
 
@@ -48,7 +47,7 @@ func (s *groupSuite) TestSelfOwnedFile(c *C) {
 	c.Check(strconv.FormatUint(gid, 10), Equals, self.Gid)
 }
 
-func (s *groupSuite) TestNoOwnedFile(c *C) {
+func (s *groupFindGidOwningSuite) TestNoOwnedFile(c *C) {
 	_, err := FindGidOwning("/tmp/filedoesnotexistbutwhy")
 	c.Assert(err, Not(IsNil))
 }
