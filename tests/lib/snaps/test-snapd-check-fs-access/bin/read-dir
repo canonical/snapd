@@ -5,10 +5,10 @@ if [ "$#" -ne 1 ]; then
     exit 1
 fi
 
-dir=$1
-if [ ! -d $dir ]; then
+dir="$1"
+if [ ! -d "$dir" ]; then
     echo "Directory does not exist"
     exit 1
 fi
 
-ls $dir
+ls "$dir"

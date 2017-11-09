@@ -5,8 +5,8 @@ if [ "$#" -ne 1 ]; then
     exit 1
 fi
 
-dir=$1
-if [ ! -d $dir ]; then
+dir="$1"
+if [ ! -d "$dir" ]; then
     echo "Directory does not exist"
     exit 1
 fi
@@ -14,7 +14,7 @@ fi
 filename=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13 ; echo '')
 file="$(echo $dir/$filename | sed 's/\/\//\//g')"
 
-touch $file || exit 1
+touch "$file" || exit 1
 
 echo "File created $file, now deleting..."
-rm -f $file
+rm -f "$file"
