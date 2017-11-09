@@ -22,13 +22,13 @@ package osutil_test
 import (
 	"io/ioutil"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strconv"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/testutil"
 )
 
