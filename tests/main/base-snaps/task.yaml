@@ -11,15 +11,10 @@ execute: |
         exit 1
     fi
 
-    echo "Ensure a base snap can be installed"
-    snap pack $TESTSLIB/snaps/test-snapd-base
-    install_local test-snapd-base
-    snap list | MATCH test-snapd-base
-
-    echo "With test-snapd-base installed we now can install test-snapd-requires-base"
-    install_local test-snapd-requires-base
+    echo "Install test-snapd-requires-base which will pull in test-snapd-base"
+    snap install --edge test-snapd-requires-base
     snap list | MATCH test-snapd-requires-base
-
+    snap list | MATCH test-snapd-base
 
     echo "Ensure the bare base works"
 
