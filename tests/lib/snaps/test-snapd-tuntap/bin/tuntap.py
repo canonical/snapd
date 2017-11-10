@@ -6,7 +6,7 @@ import fcntl
 import re
 import struct
 import sys
-import time
+from typing import Iterable
 
 
 def if_open(dev: str) -> int:
@@ -20,8 +20,6 @@ def if_open(dev: str) -> int:
         fd = os.open("/dev/net/tun", os.O_RDWR)
     except PermissionError as e:
         raise SystemExit(e)
-    except Exception:
-        raise
 
     if_flags = None
     if dev.startswith('tun'):
@@ -29,8 +27,7 @@ def if_open(dev: str) -> int:
     elif dev.startswith('tap'):
         if_flags = IFF_TAP | IFF_NO_PI
 
-    iface = fcntl.ioctl(fd, TUNSETIFF,
-                        struct.pack("16sH", str.encode(dev), if_flags))
+    fcntl.ioctl(fd, TUNSETIFF, struct.pack("16sH", str.encode(dev), if_flags))
 
     # for setting to owner
     # fcntl.ioctl(fd, TUNSETOWNER, 1000)
@@ -38,11 +35,11 @@ def if_open(dev: str) -> int:
     return fd
 
 
-def device_exists(dev: str) -> None:
+def device_exists(dev: str) -> bool:
     return os.path.exists("/sys/devices/virtual/net/%s" % dev)
 
 
-def valid_device_name(dev):
+def valid_device_name(dev: str) -> None:
     if not re.search(r'^t(ap|un)[0-9]+$', dev):
         raise ValueError("device should be of form tun0-tun255 or tap0-tap255")
 
@@ -52,7 +49,7 @@ def valid_device_name(dev):
 
 
 @contextlib.contextmanager
-def closing_fd(fd):
+def closing_fd(fd: int) -> Iterable[int]:
     try:
         yield fd
     finally:
