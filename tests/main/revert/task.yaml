@@ -92,8 +92,10 @@ execute: |
     fi
 
     echo "And a refresh doesn't update the snap"
-    snap refresh
-    snap list | MATCH "test-snapd-tools +[0-9]+\.[0-9]+ "
+    if snap refresh --list 2>&1 | MATCH "All snaps up to date"; then
+        snap refresh
+        snap list | MATCH "test-snapd-tools +[0-9]+\.[0-9]+ "
+    fi
 
     echo "Unless the snap is asked for explicitly"
     snap refresh --edge test-snapd-tools
