@@ -1,3 +1,51 @@
+snapd (2.29.3) xenial; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - daemon: cherry-picked /v2/logs fixes
+    - cmd/snap-confine: Respect biarch nature of libdirs
+    - cmd/snap-confine: Ensure snap-confine is allowed to access os-
+      release
+    - interfaces: fix udev tagging for hooks
+    - cmd: fix re-exec bug with classic confinement for host snapd
+    - tests: disable xdg-open-compat test
+    - cmd/snap-confine: add slave PTYs and let devpts newinstance
+      perform mediation
+    - interfaces/many: misc policy updates for browser-support, cups-
+      control and network-status
+    - interfaces/raw-usb: match on SUBSYSTEM, not SUBSYSTEMS
+    - tests: fix security-device-cgroup* tests on devices with
+      framebuffer
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 09 Nov 2017 19:16:29 +0100
+
+snapd (2.29.2) xenial; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - snapctl: disable stop/start/restart (2.29)
+    - cmd/snap-update-ns: fix collection of changes made
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 03 Nov 2017 17:17:14 +0100
+
+snapd (2.29.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - interfaces: fix incorrect signature of ofono DBusPermanentSlot
+    - interfaces/serial-port: udev tag plugged slots that have just
+      'path' via KERNEL
+    - interfaces/hidraw: udev tag plugged slots that have just 'path'
+      via KERNEL
+    - interfaces/uhid: unconditionally add existing uhid device to the
+      device cgroup
+    - cmd/snap-update-ns: fix mount rules for font sharing
+    - tests: disable refresh-undo test on trusty for now
+    - tests: use `snap change --last=install` in snapd-reexec test
+    - Revert " wrappers: fail install if exec-line cannot be re-written
+    - interfaces: don't udev tag devmode or classic snaps
+    - many: make ignore-validation sticky and send the flag with refresh
+      requests
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 03 Nov 2017 07:25:17 +0100
+
 snapd (2.29) xenial; urgency=medium
 
   * New upstream release, LP: #1726258

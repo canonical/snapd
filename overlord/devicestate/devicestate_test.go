@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
@@ -174,10 +175,8 @@ func (s *deviceMgrSuite) settle(c *C) {
 }
 
 const (
-	// will become "/api/v1/snaps/auth/request-id"
-	requestIDURLPath = "/identity/api/v1/request-id"
-	// will become "/api/v1/snaps/auth/serial"
-	serialURLPath = "/identity/api/v1/devices"
+	requestIDURLPath = "/api/v1/snaps/auth/request-id"
+	serialURLPath    = "/api/v1/snaps/auth/devices"
 )
 
 // seeding avoids triggering a real full seeding, it simulates having it in process instead
@@ -1255,6 +1254,55 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequestParams(c *C) {
 	c.Check(sessReq.Model(), Equals, "pc")
 	c.Check(sessReq.Serial(), Equals, "8989")
 	c.Check(sessReq.Nonce(), Equals, "NONCE-1")
+}
+
+func (s *deviceMgrSuite) TestDeviceAssertionsProxyStore(c *C) {
+	// nothing in the state
+	s.state.Lock()
+	_, err := devicestate.ProxyStore(s.state)
+	s.state.Unlock()
+	c.Check(err, Equals, state.ErrNoState)
+
+	_, err = s.mgr.ProxyStore()
+	c.Check(err, Equals, state.ErrNoState)
+
+	// have a store referenced
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	err = tr.Set("core", "proxy.store", "foo")
+	tr.Commit()
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	_, err = s.mgr.ProxyStore()
+	c.Check(err, Equals, state.ErrNoState)
+
+	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
+	s.state.Lock()
+	err = assertstate.Add(s.state, operatorAcct)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
+	// have a store assertion.
+	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":       "foo",
+		"operator-id": operatorAcct.AccountID(),
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.state.Lock()
+	err = assertstate.Add(s.state, stoAs)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
+	sto, err := s.mgr.ProxyStore()
+	c.Assert(err, IsNil)
+	c.Assert(sto.Store(), Equals, "foo")
+
+	s.state.Lock()
+	sto, err = devicestate.ProxyStore(s.state)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	c.Assert(sto.Store(), Equals, "foo")
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlreadySeeded(c *C) {

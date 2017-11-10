@@ -28,6 +28,7 @@ import (
 	"syscall"
 
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/logger"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
@@ -86,9 +87,13 @@ func (c *Change) lowLevelPerform() error {
 	switch c.Action {
 	case Mount:
 		flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
-		return sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+		err := sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+		logger.Debugf("mount %q %q %q %d %q -> %s", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
+		return err
 	case Unmount:
-		return sysUnmount(c.Entry.Dir, UMOUNT_NOFOLLOW)
+		err := sysUnmount(c.Entry.Dir, umountNoFollow)
+		logger.Debugf("umount %q -> %v", c.Entry.Dir, err)
+		return err
 	case Keep:
 		return nil
 	}
@@ -101,7 +106,7 @@ func (c *Change) lowLevelPerform() error {
 // lists are processed and a "diff" of mount changes is produced. The mount
 // changes, when applied in order, transform the current profile into the
 // desired profile.
-func NeededChanges(currentProfile, desiredProfile *mount.Profile) []Change {
+func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 	// Copy both profiles as we will want to mutate them.
 	current := make([]mount.Entry, len(currentProfile.Entries))
 	copy(current, currentProfile.Entries)
@@ -149,21 +154,21 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []Change {
 	}
 
 	// We are now ready to compute the necessary mount changes.
-	var changes []Change
+	var changes []*Change
 
 	// Unmount entries not reused in reverse to handle children before their parent.
 	for i := len(current) - 1; i >= 0; i-- {
 		if reuse[current[i].Dir] {
-			changes = append(changes, Change{Action: Keep, Entry: current[i]})
+			changes = append(changes, &Change{Action: Keep, Entry: current[i]})
 		} else {
-			changes = append(changes, Change{Action: Unmount, Entry: current[i]})
+			changes = append(changes, &Change{Action: Unmount, Entry: current[i]})
 		}
 	}
 
 	// Mount desired entries not reused.
 	for i := range desired {
 		if !reuse[desired[i].Dir] {
-			changes = append(changes, Change{Action: Mount, Entry: desired[i]})
+			changes = append(changes, &Change{Action: Mount, Entry: desired[i]})
 		}
 	}
 

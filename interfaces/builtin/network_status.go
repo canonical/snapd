@@ -54,6 +54,13 @@ dbus (send)
 dbus (bind)
    bus=system
    name="com.ubuntu.connectivity1.NetworkingStatus",
+
+# allow queries from unconfined
+dbus (receive)
+    bus=system
+    path=/com/ubuntu/connectivity1/NetworkingStatus{,/**}
+    interface=org.freedesktop.DBus.*
+    peer=(label=unconfined),
 `
 
 const networkStatusConnectedSlotAppArmor = `

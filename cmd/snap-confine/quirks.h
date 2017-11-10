@@ -25,6 +25,6 @@
  * because of requirement to stay compatible with certain snaps
  * that were tested with pre-chroot layout.
  **/
-void sc_setup_quirks();
+void sc_setup_quirks(void);
 
 #endif

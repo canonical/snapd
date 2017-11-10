@@ -882,12 +882,33 @@ func (s *snapmgrTestSuite) TestSwitchTasks(c *C) {
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{"switch-snap"})
 }
 
+func (s *snapmgrTestSuite) TestSwitchConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  false,
+	})
+
+	ts, err := snapstate.Switch(s.state, "some-snap", "some-channel")
+	c.Assert(err, IsNil)
+	// need a change to make the tasks visible
+	s.state.NewChange("switch-snap", "...").AddAll(ts)
+
+	_, err = snapstate.Switch(s.state, "some-snap", "other-channel")
+	c.Check(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
 func (s *snapmgrTestSuite) TestSwitchUnhappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	_, err := snapstate.Switch(s.state, "non-existing-snap", "some-channel")
-	c.Assert(err, ErrorMatches, `cannot find snap "non-existing-snap"`)
+	c.Assert(err, ErrorMatches, `snap "non-existing-snap" is not installed`)
 }
 
 func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
@@ -2154,6 +2175,32 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchesChannel(c *C) {
 	c.Check(ts.Tasks()[0].Kind(), Equals, "switch-snap-channel")
 }
 
+func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchesChannelConflict(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Channel:  "other-channel",
+		Current:  si.Revision,
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	// make it visible
+	s.state.NewChange("refresh", "refresh a snap").AddAll(ts)
+
+	_, err = snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Check(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
 func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
@@ -2229,6 +2276,119 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 		Channel:  "channel-for-7",
 		Revision: snap.R(7),
 	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateSameRevisionToggleIgnoreValidation(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Channel:  "channel-for-7",
+		Current:  si.Revision,
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{IgnoreValidation: true})
+	c.Assert(err, IsNil)
+	c.Check(ts.Tasks(), HasLen, 1)
+	c.Check(ts.Tasks()[0].Kind(), Equals, "toggle-snap-flags")
+}
+
+func (s *snapmgrTestSuite) TestUpdateSameRevisionToggleIgnoreValidationConflict(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Channel:  "channel-for-7",
+		Current:  si.Revision,
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{IgnoreValidation: true})
+	c.Assert(err, IsNil)
+	// make it visible
+	s.state.NewChange("refresh", "refresh a snap").AddAll(ts)
+
+	_, err = snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{IgnoreValidation: true})
+	c.Check(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+
+}
+
+func (s *snapmgrTestSuite) TestUpdateSameRevisionToggleIgnoreValidationRunThrough(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+		Channel:  "channel-for-7",
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Channel:  "channel-for-7",
+		Current:  si.Revision,
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{IgnoreValidation: true})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// verify snapSetup info
+	var snapsup snapstate.SnapSetup
+	task := ts.Tasks()[0]
+	err = task.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup, DeepEquals, snapstate.SnapSetup{
+		SideInfo: snapsup.SideInfo,
+		Flags: snapstate.Flags{
+			IgnoreValidation: true,
+		},
+	})
+	c.Check(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+		Channel:  "channel-for-7",
+	})
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Channel:  "channel-for-7",
+		Revision: snap.R(7),
+	})
+	c.Check(snapst.IgnoreValidation, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNo(c *C) {
@@ -5256,7 +5416,7 @@ func (s *snapmgrQuerySuite) TestCurrentInfoAbsent(c *C) {
 	defer st.Unlock()
 
 	_, err := snapstate.CurrentInfo(st, "absent")
-	c.Assert(err, ErrorMatches, `cannot find snap "absent"`)
+	c.Assert(err, ErrorMatches, `snap "absent" is not installed`)
 }
 
 func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {

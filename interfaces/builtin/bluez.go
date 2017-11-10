@@ -198,8 +198,6 @@ const bluezPermanentSlotDBus = `
 </policy>
 `
 
-const bluezConnectedPlugUDev = `KERNEL=="rfkill", TAG+="###CONNECTED_SECURITY_TAGS###"`
-
 type bluezInterface struct{}
 
 func (iface *bluezInterface) Name() string {
@@ -245,12 +243,7 @@ func (iface *bluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 }
 
 func (iface *bluezInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	old := "###CONNECTED_SECURITY_TAGS###"
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		snippet := strings.Replace(bluezConnectedPlugUDev, old, tag, -1)
-		spec.AddSnippet(snippet)
-	}
+	spec.TagDevice(`KERNEL=="rfkill"`)
 	return nil
 }
 

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-snapctl set service-option=$(snapctl get service-option-source)
+snapctl set service-option="$(snapctl get service-option-source)"
 
 COMMAND=$(snapctl get command)
 if [ "$COMMAND" != "" ]; then
