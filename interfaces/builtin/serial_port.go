@@ -194,8 +194,13 @@ func (iface *serialPortInterface) UDevConnectedPlug(spec *udev.Specification, pl
 	if hasOnlyPath {
 		spec.TagDevice(fmt.Sprintf(`SUBSYSTEM=="tty", KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
 	} else {
-		spec.TagDevice(fmt.Sprintf(`IMPORT{builtin}="usb_id"
+		if usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64); ok {
+			spec.TagDevice(fmt.Sprintf(`IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", ENV{ID_USB_INTERFACE_NUM}=="%02x"`, usbVendor, usbProduct, usbInterfaceNumber))
+		} else {
+			spec.TagDevice(fmt.Sprintf(`IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`, usbVendor, usbProduct))
+		}
 	}
 	return nil
 }
