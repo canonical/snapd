@@ -144,3 +144,33 @@ func (s *entrySuite) TestXSnapdGID(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse group name "0bogus"`)
 	c.Assert(gid, Equals, uint64(math.MaxUint64))
 }
+
+func (s *entrySuite) TestXSnapdEntryID(c *C) {
+	// Entry ID is optional.
+	e := &mount.Entry{}
+	c.Assert(update.XSnapdEntryID(e), Equals, "")
+
+	// Entry ID is parsed from the x-snapd.id= option.
+	e = &mount.Entry{Options: []string{"x-snapd.id=foo"}}
+	c.Assert(update.XSnapdEntryID(e), Equals, "foo")
+}
+
+func (s *entrySuite) TestXSnapdParentID(c *C) {
+	// Parent entry ID is optional.
+	e := &mount.Entry{}
+	c.Assert(update.XSnapdParentID(e), Equals, "")
+
+	// Parent entry ID is parsed from the x-snapd.parent-id= option.
+	e = &mount.Entry{Options: []string{"x-snap.id=foo", "x-snapd.parent-id=bar"}}
+	c.Assert(update.XSnapdParentID(e), Equals, "bar")
+}
+
+func (s *entrySuite) TestXSnapdSynthetic(c *C) {
+	// Entries are not synthetic unless tagged as such.
+	e := &mount.Entry{}
+	c.Assert(update.XSnapdSynthetic(e), Equals, false)
+
+	// Tagging is done with x-snapd.synthetic option.
+	e = &mount.Entry{Options: []string{"x-snapd.synthetic"}}
+	c.Assert(update.XSnapdSynthetic(e), Equals, true)
+}
