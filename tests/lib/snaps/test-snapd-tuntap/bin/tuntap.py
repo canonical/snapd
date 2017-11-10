@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import contextlib
 import os
 import fcntl
 import re
@@ -8,7 +9,7 @@ import sys
 import time
 
 
-def if_open(dev):
+def if_open(dev: str) -> int:
     TUNSETIFF = 0x400454ca
     TUNSETOWNER = TUNSETIFF + 2
     IFF_TUN = 0x0001
@@ -18,8 +19,7 @@ def if_open(dev):
     try:
         fd = os.open("/dev/net/tun", os.O_RDWR)
     except PermissionError as e:
-        print("%s" % e)
-        sys.exit(1)
+        raise SystemExit(e)
     except Exception:
         raise
 
@@ -38,41 +38,45 @@ def if_open(dev):
     return fd
 
 
-def device_exists(dev):
+def device_exists(dev: str) -> None:
     return os.path.exists("/sys/devices/virtual/net/%s" % dev)
 
 
 def valid_device_name(dev):
     if not re.search(r'^t(ap|un)[0-9]+$', dev):
-        raise Exception("device should be of form tun0-tun255 or tap0-tap255")
+        raise ValueError("device should be of form tun0-tun255 or tap0-tap255")
 
     if_num = int(dev[3:])
     if if_num > 255:
-        raise Exception("device should be of form tun0-tun255 or tap0-tap255")
+        raise ValueError("device should be of form tun0-tun255 or tap0-tap255")
+
+
+@contextlib.contextmanager
+def closing_fd(fd):
+    try:
+        yield fd
+    finally:
+        os.close(fd)
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("need to specify a tun/tap device (eg tun1 or tap2)")
-        sys.exit(1)
+        raise SystemExit("need to specify a tun/tap device (eg tun1 or tap2)")
 
     d = sys.argv[1]
     valid_device_name(d)
 
     if device_exists(d):
-        print("ERROR: device '%s' already exists" % d)
+        raise SystemExit("ERROR: device '%s' already exists" % d)
         sys.exit(1)
 
-    fd = if_open(d)
-
     found = False
-    if device_exists(d):
-        found = True
-        print("PASS")
-    else:
-        print("FAIL")
-
-    os.close(fd)
+    with closing_fd(if_open(d)) as fd:
+        if device_exists(d):
+            found = True
+            print("PASS")
+        else:
+            print("FAIL")
 
     if not found:
         sys.exit(1)
