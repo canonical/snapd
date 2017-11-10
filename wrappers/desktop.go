@@ -128,7 +128,9 @@ func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 	desktopFileApp := strings.TrimSuffix(df, filepath.Ext(df))
 	app, ok := s.Apps[desktopFileApp]
 	if ok {
-		return fmt.Sprintf("Exec=%s%s", env, app.WrapperPath()), nil
+		newExec := fmt.Sprintf("Exec=%s%s", env, app.WrapperPath())
+		logger.Noticef("rewriting desktop file %q to %q", desktopFile, newExec)
+		return newExec, nil
 	}
 
 	return "", fmt.Errorf("invalid exec command: %q", cmd)
