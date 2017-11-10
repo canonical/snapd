@@ -23,11 +23,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/snapcore/snapd/osutil/user"
 )
 
 var userLookup = user.Lookup
