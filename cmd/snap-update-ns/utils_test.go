@@ -102,7 +102,7 @@ func (s *utilsSuite) TestSecureMkdirAllCloseOnError(c *C) {
 	})
 }
 
-func (s *utilsSuite) TestDesignWritableMimic(c *C) {
+func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
 		c.Assert(dir, Equals, "/foo")
 		return []os.FileInfo{
@@ -132,7 +132,7 @@ func (s *utilsSuite) TestDesignWritableMimic(c *C) {
 	})
 	defer restore()
 
-	changes, err := update.DesignWritableMimic("/foo")
+	changes, err := update.PlanWritableMimic("/foo")
 	c.Assert(err, IsNil)
 	c.Assert(changes, DeepEquals, []*update.Change{
 		// Store /foo in /tmp.snap/foo while we set things up
@@ -149,7 +149,7 @@ func (s *utilsSuite) TestDesignWritableMimic(c *C) {
 	})
 }
 
-func (s *utilsSuite) TestDesignWritableMimicErrors(c *C) {
+func (s *utilsSuite) TestPlanWritableMimicErrors(c *C) {
 	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
 		c.Assert(dir, Equals, "/foo")
 		return nil, errTesting
@@ -160,7 +160,7 @@ func (s *utilsSuite) TestDesignWritableMimicErrors(c *C) {
 	})
 	defer restore()
 
-	changes, err := update.DesignWritableMimic("/foo")
+	changes, err := update.PlanWritableMimic("/foo")
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(changes, HasLen, 0)
 }

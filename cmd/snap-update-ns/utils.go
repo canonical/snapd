@@ -115,7 +115,7 @@ func secureMkdirAll(name string, perm os.FileMode, uid, gid int) error {
 	return nil
 }
 
-func designWritableMimic(dir string) ([]*Change, error) {
+func planWritableMimic(dir string) ([]*Change, error) {
 	// We need a place for "safe keeping" of what is present in the original
 	// directory as we are about to attach a tmpfs there, which will hide
 	// everything inside.
