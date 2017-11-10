@@ -33,7 +33,7 @@ import (
 
 // not available through syscall
 const (
-	UMOUNT_NOFOLLOW = 8
+	umountNoFollow = 8
 )
 
 // For mocking everything during testing.

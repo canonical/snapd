@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"strings"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -129,12 +127,6 @@ setgroups32
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
-const pulseaudioPermanentSlotUdev = `
-KERNEL=="controlC[0-9]*",        TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="timer",                 TAG+="###CONNECTED_SECURITY_TAGS###"
-`
-
 type pulseAudioInterface struct{}
 
 func (iface *pulseAudioInterface) Name() string {
@@ -158,12 +150,9 @@ func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 }
 
 func (iface *pulseAudioInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	old := "###CONNECTED_SECURITY_TAGS###"
-	for appName := range slot.Apps {
-		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
-		udevRule := strings.Replace(pulseaudioPermanentSlotUdev, old, tag, -1)
-		spec.AddSnippet(udevRule)
-	}
+	spec.TagDevice(`KERNEL=="controlC[0-9]*"`)
+	spec.TagDevice(`KERNEL=="pcmC[0-9]*D[0-9]*[cp]"`)
+	spec.TagDevice(`KERNEL=="timer"`)
 	return nil
 }
 

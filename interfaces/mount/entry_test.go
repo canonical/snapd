@@ -168,3 +168,23 @@ func (s *entrySuite) TestOptsToFlags(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(flags, Equals, 0)
 }
+
+func (s *entrySuite) TestOptStr(c *C) {
+	e := &mount.Entry{Options: []string{"key=value"}}
+	val, ok := e.OptStr("key")
+	c.Assert(ok, Equals, true)
+	c.Assert(val, Equals, "value")
+
+	val, ok = e.OptStr("missing")
+	c.Assert(ok, Equals, false)
+	c.Assert(val, Equals, "")
+}
+
+func (s *entrySuite) TestOptBool(c *C) {
+	e := &mount.Entry{Options: []string{"key"}}
+	val := e.OptBool("key")
+	c.Assert(val, Equals, true)
+
+	val = e.OptBool("missing")
+	c.Assert(val, Equals, false)
+}
