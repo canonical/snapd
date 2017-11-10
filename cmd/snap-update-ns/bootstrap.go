@@ -28,9 +28,7 @@ package main
 #include <stdlib.h>
 #include "bootstrap.h"
 
-__attribute__((constructor)) static void init(void) {
-	bootstrap();
-}
+__attribute__((section(".preinit_array"), used)) static typeof(&bootstrap) init = &bootstrap;
 
 // NOTE: do not add anything before the following `import "C"'
 */
@@ -69,14 +67,26 @@ func BootstrapError() error {
 
 // END IMPORTANT
 
-// readCmdline is a wrapper around the C function read_cmdline.
-func readCmdline(buf []byte) C.ssize_t {
-	return C.read_cmdline((*C.char)(unsafe.Pointer(&buf[0])), C.size_t(cap(buf)))
+func makeArgv(args []string) []*C.char {
+	argv := make([]*C.char, len(args)+1)
+	for i, arg := range args {
+		argv[i] = C.CString(arg)
+	}
+	return argv
+}
+
+func freeArgv(argv []*C.char) {
+	for _, arg := range argv {
+		C.free(unsafe.Pointer(arg))
+	}
 }
 
 // findSnapName parses the argv-like array and finds the 1st argument.
-func findSnapName(buf []byte) *string {
-	if ptr := C.find_snap_name((*C.char)(unsafe.Pointer(&buf[0]))); ptr != nil {
+func findSnapName(args []string) *string {
+	argv := makeArgv(args)
+	defer freeArgv(argv)
+
+	if ptr := C.find_snap_name(C.int(len(args)), &argv[0]); ptr != nil {
 		str := C.GoString(ptr)
 		return &str
 	}
@@ -84,32 +94,34 @@ func findSnapName(buf []byte) *string {
 }
 
 // findFirstOption returns the first "-option" string in argv-like array.
-func findFirstOption(buf []byte) *string {
-	if ptr := C.find_1st_option((*C.char)(unsafe.Pointer(&buf[0]))); ptr != nil {
-		str := C.GoString(ptr)
-		return &str
-	}
-	return nil
+func hasOption(args []string, opt string) bool {
+	argv := makeArgv(args)
+	defer freeArgv(argv)
+	cOpt := C.CString(opt)
+	defer C.free(unsafe.Pointer(cOpt))
+
+	found := C.has_option(C.int(len(args)), &argv[0], cOpt)
+	return bool(found)
 }
 
 // validateSnapName checks if snap name is valid.
 // This also sets bootstrap_msg on failure.
 func validateSnapName(snapName string) int {
 	cStr := C.CString(snapName)
+	defer C.free(unsafe.Pointer(cStr))
 	return int(C.validate_snap_name(cStr))
 }
 
 // processArguments parses commnad line arguments.
 // The argument cmdline is a string with embedded
 // NUL bytes, separating particular arguments.
-func processArguments(cmdline []byte) (snapName string, shouldSetNs bool) {
+func processArguments(args []string) (snapName string, shouldSetNs bool) {
+	argv := makeArgv(args)
+	defer freeArgv(argv)
+
 	var snapNameOut *C.char
 	var shouldSetNsOut C.bool
-	var buf *C.char
-	if len(cmdline) > 0 {
-		buf = (*C.char)(unsafe.Pointer(&cmdline[0]))
-	}
-	C.process_arguments(buf, &snapNameOut, &shouldSetNsOut)
+	C.process_arguments(C.int(len(args)), &argv[0], &snapNameOut, &shouldSetNsOut)
 	if snapNameOut != nil {
 		snapName = C.GoString(snapNameOut)
 	}

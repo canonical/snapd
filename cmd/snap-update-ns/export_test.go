@@ -31,9 +31,8 @@ import (
 
 var (
 	// change
-	ReadCmdline      = readCmdline
 	FindSnapName     = findSnapName
-	FindFirstOption  = findFirstOption
+	HasOption        = hasOption
 	ValidateSnapName = validateSnapName
 	ProcessArguments = processArguments
 	// freezer
