@@ -27,6 +27,7 @@ const gnomeOnlineAccountsServiceBaseDeclarationSlots = `
       slot-snap-type:
         - core
     deny-connection: true
+    deny-auto-connection: true
 `
 
 const gnomeOnlineAccountsServiceConnectedPlugAppArmor = `
