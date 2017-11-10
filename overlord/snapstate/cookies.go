@@ -59,6 +59,7 @@ func (m *SnapManager) SyncCookies(st *state.State) error {
 
 	snapsWithCookies := make(map[string]bool)
 	for _, snap := range snapCookies {
+		// check if we have a cookie for non-installed snap or if we have a duplicated cookie
 		if _, ok := snapNames[snap]; !ok || snapsWithCookies[snap] {
 			// there is no point in checking all cookies if we found a bad one - recreate them all
 			snapCookies = make(map[string]string)
@@ -120,6 +121,10 @@ func (m *SnapManager) createSnapCookie(st *state.State, snapName string) error {
 }
 
 func (m *SnapManager) removeSnapCookie(st *state.State, snapName string) error {
+	if err := removeCookieFile(snapName); err != nil {
+		return err
+	}
+
 	var snapCookies map[string]string
 	err := st.Get("snap-cookies", &snapCookies)
 	if err != nil {
@@ -127,17 +132,11 @@ func (m *SnapManager) removeSnapCookie(st *state.State, snapName string) error {
 			return fmt.Errorf("cannot get snap cookies: %v", err)
 		}
 		// no cookies in the state
-		if err := removeCookieFile(snapName); err != nil {
-			return err
-		}
 		return nil
 	}
 
 	for cookieID, snap := range snapCookies {
 		if snapName == snap {
-			if err := removeCookieFile(snapName); err != nil {
-				return err
-			}
 			delete(snapCookies, cookieID)
 			st.Set("snap-cookies", snapCookies)
 			return nil
