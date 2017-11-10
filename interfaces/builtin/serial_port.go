@@ -191,19 +191,15 @@ func (iface *serialPortInterface) UDevConnectedPlug(spec *udev.Specification, pl
 		return nil
 	}
 
-	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
-	if !ok {
-		// Set usbInterfaceNumber < 0 causes udevUsbDeviceSnippet to not add
-		// ENV{ID_USB_INTERFACE_NUM} to the udev rule
-		usbInterfaceNumber = -1
-	}
-
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		if hasOnlyPath {
-			spec.AddSnippet(fmt.Sprintf("SUBSYSTEM==\"tty\", KERNEL==\"%s\", TAG+=\"%s\"", strings.TrimPrefix(path, "/dev/"), tag))
+	if hasOnlyPath {
+		spec.TagDevice(fmt.Sprintf(`SUBSYSTEM=="tty", KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
+	} else {
+		if usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64); ok {
+			spec.TagDevice(fmt.Sprintf(`IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", ENV{ID_USB_INTERFACE_NUM}=="%02x"`, usbVendor, usbProduct, usbInterfaceNumber))
 		} else {
-			spec.AddSnippet(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, usbInterfaceNumber, "TAG", tag))
+			spec.TagDevice(fmt.Sprintf(`IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`, usbVendor, usbProduct))
 		}
 	}
 	return nil
