@@ -174,22 +174,17 @@ func (iface *serialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 func (iface *serialPortInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 	// For connected plugs, we use vendor and product ids if available,
 	// otherwise add the kernel device
-	hasOnlyPath := true
-	if iface.hasUsbAttrs(slot) {
-		hasOnlyPath = false
-	}
-
-	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-	if !vOk && !hasOnlyPath {
+	hasOnlyPath := !iface.hasUsbAttrs(slot)
+	usbVendor, ok := slot.Attrs["usb-vendor"].(int64)
+	if !ok && !hasOnlyPath {
 		return nil
 	}
-	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-	if !pOk && !hasOnlyPath {
+	usbProduct, ok := slot.Attrs["usb-product"].(int64)
+	if !ok && !hasOnlyPath {
 		return nil
 	}
-
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk && hasOnlyPath {
+	path, ok := slot.Attrs["path"].(string)
+	if !ok && hasOnlyPath {
 		return nil
 	}
 
