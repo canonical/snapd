@@ -36,7 +36,6 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -350,9 +349,6 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 //    {"read >=2", "read;native;1", main.SeccompRetKill},
 //    {"read >=2", "read;native;0", main.SeccompRetKill},
 func (s *snapSeccompSuite) TestCompile(c *C) {
-	// The 'shadow' group is different in different distributions
-	shadowGid, err := osutil.FindGid("shadow")
-	c.Assert(err, IsNil)
 
 	for _, t := range []struct {
 		seccompWhitelist string
@@ -447,11 +443,11 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
 
-		// u:root g:shadow
-		{"fchown - u:root g:shadow", fmt.Sprintf("fchown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
-		{"fchown - u:root g:shadow", fmt.Sprintf("fchown;native;-,99,%d", shadowGid), main.SeccompRetKill},
-		{"chown - u:root g:shadow", fmt.Sprintf("chown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
-		{"chown - u:root g:shadow", fmt.Sprintf("chown;native;-,99,%d", shadowGid), main.SeccompRetKill},
+		// u:root g:root
+		{"fchown - u:root g:root", "fchown;native;-,0,0", main.SeccompRetAllow},
+		{"fchown - u:root g:root", "fchown;native;-,99,0", main.SeccompRetKill},
+		{"chown - u:root g:root", "chown;native;-,0,0", main.SeccompRetAllow},
+		{"chown - u:root g:root", "chown;native;-,99,0", main.SeccompRetKill},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
