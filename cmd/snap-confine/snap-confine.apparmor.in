@@ -213,6 +213,9 @@
     umount /var/lib/snapd/hostfs/proc/,
     mount options=(rw rslave) -> /var/lib/snapd/hostfs/,
 
+    # Allow reading the os-release file (possibly a symlink to /usr/lib).
+    /{etc/,usr/lib/}os-release r,
+
     # set up snap-specific private /tmp dir
     capability chown,
     /tmp/ w,
@@ -440,8 +443,8 @@
     profile snap_update_ns (attach_disconnected) {
         # The next four rules mirror those above. We want to be able to read
         # and map snap-update-ns into memory but it may come from a variety of places.
-        /usr/lib{,exec}/snapd/snap-update-ns mr,
-        /var/lib/snapd/hostfs/usr/lib{,exec}/snapd/snap-update-ns mr,
+        /usr/lib{,exec,64}/snapd/snap-update-ns mr,
+        /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-update-ns mr,
         /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
         /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
 
