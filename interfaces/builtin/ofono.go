@@ -337,7 +337,6 @@ func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *s
 	*/
 	spec.TagDevice(`KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*"`)
 	spec.TagDevice(`KERNEL=="tun"`)
-	spec.TagDevice(`KERNEL=="tun[0-9]*"`)
 	spec.TagDevice(`KERNEL=="dsp"`)
 	return nil
 }
