@@ -91,7 +91,7 @@ func (c *Change) lowLevelPerform() error {
 		logger.Debugf("mount %q %q %q %d %q -> %s", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
 		return err
 	case Unmount:
-		err := sysUnmount(c.Entry.Dir, UMOUNT_NOFOLLOW)
+		err := sysUnmount(c.Entry.Dir, umountNoFollow)
 		logger.Debugf("umount %q -> %v", c.Entry.Dir, err)
 		return err
 	case Keep:
