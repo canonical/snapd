@@ -38,9 +38,9 @@ type Specification struct {
 	// Snippets are stored in a map for de-duplication
 	snippets map[string]bool
 	entries  []entry
+	iface    string
 
 	securityTags []string
-	iface        string
 }
 
 func (spec *Specification) addEntry(snippet, tag string) {

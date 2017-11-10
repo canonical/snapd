@@ -1,3 +1,23 @@
+snapd (2.29.3) xenial; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - daemon: cherry-picked /v2/logs fixes
+    - cmd/snap-confine: Respect biarch nature of libdirs
+    - cmd/snap-confine: Ensure snap-confine is allowed to access os-
+      release
+    - interfaces: fix udev tagging for hooks
+    - cmd: fix re-exec bug with classic confinement for host snapd
+    - tests: disable xdg-open-compat test
+    - cmd/snap-confine: add slave PTYs and let devpts newinstance
+      perform mediation
+    - interfaces/many: misc policy updates for browser-support, cups-
+      control and network-status
+    - interfaces/raw-usb: match on SUBSYSTEM, not SUBSYSTEMS
+    - tests: fix security-device-cgroup* tests on devices with
+      framebuffer
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 09 Nov 2017 19:16:29 +0100
+
 snapd (2.29.2) xenial; urgency=medium
 
   * New upstream release, LP: #1726258
