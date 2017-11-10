@@ -88,10 +88,11 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 	var checkConflict func(otherTask *state.Task) bool
 	if context != nil && !context.IsEphemeral() {
 		if task, ok := context.Task(); ok {
+			chg := task.Change()
 			checkConflict = func(otherTask *state.Task) bool {
-				if task.Change() != nil && otherTask.Change() != nil {
+				if chg != nil && otherTask.Change() != nil {
 					// if same change, then return false (no conflict)
-					return task.Change().ID() != otherTask.Change().ID()
+					return chg.ID() != otherTask.Change().ID()
 				}
 				return true
 			}

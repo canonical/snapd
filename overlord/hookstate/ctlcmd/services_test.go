@@ -25,7 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -34,12 +34,30 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
 )
+
+type fakeStore struct {
+	storetest.Store
+}
+
+func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+	return &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: spec.Name,
+			Revision: snap.R(2),
+		},
+		Publisher:     "foo",
+		Architectures: []string{"all"},
+	}, nil
+}
 
 type servicectlSuite struct {
 	testutil.BaseTest
 	st          *state.State
+	fakeStore   fakeStore
 	mockContext *hookstate.Context
 	mockHandler *hooktest.MockHandler
 }
@@ -92,6 +110,8 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	s.st = state.New(nil)
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	snapstate.ReplaceStore(s.st, &s.fakeStore)
 
 	// mock installed snaps
 	info1 := snaptest.MockSnap(c, string(testSnapYaml), "", &snap.SideInfo{
@@ -228,30 +248,46 @@ func (s *servicectlSuite) TestRestartCommand(c *C) {
 
 func (s *servicectlSuite) TestQueuedCommands(c *C) {
 	s.st.Lock()
-	ts := configstate.Configure(s.st, "test-snap", nil, 0)
-	chg := s.st.NewChange("configure change", "configure change")
-	chg.AddAll(ts)
+
+	chg := s.st.NewChange("install change", "install change")
+	installed, tts, err := snapstate.InstallMany(s.st, []string{"one", "two"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(installed, DeepEquals, []string{"one", "two"})
+	c.Assert(tts, HasLen, 2)
+	c.Assert(tts[0].Tasks(), HasLen, 12)
+	c.Assert(tts[1].Tasks(), HasLen, 12)
+	chg.AddAll(tts[0])
+	chg.AddAll(tts[1])
+
 	s.st.Unlock()
 
-	task := ts.Tasks()[0]
-	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "configure"}
-	context, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
-	c.Assert(err, IsNil)
+	for i := 0; i < 2; i++ {
+		ts := tts[i]
+		tsTasks := ts.Tasks()
+		// assumes configure task is last
+		task := tsTasks[len(tsTasks)-1]
+		c.Assert(task.Kind(), Equals, "run-hook")
+		setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "configure"}
+		context, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+		c.Assert(err, IsNil)
 
-	_, _, err = ctlcmd.Run(context, []string{"stop", "test-snap.test-service"})
-	c.Check(err, IsNil)
-	_, _, err = ctlcmd.Run(context, []string{"start", "test-snap.test-service"})
-	c.Check(err, IsNil)
-	_, _, err = ctlcmd.Run(context, []string{"restart", "test-snap.test-service"})
-	c.Check(err, IsNil)
+		_, _, err = ctlcmd.Run(context, []string{"stop", "test-snap.test-service"})
+		c.Check(err, IsNil)
+		_, _, err = ctlcmd.Run(context, []string{"start", "test-snap.test-service"})
+		c.Check(err, IsNil)
+		_, _, err = ctlcmd.Run(context, []string{"restart", "test-snap.test-service"})
+		c.Check(err, IsNil)
+	}
 
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	allTasks := chg.Tasks()
-	c.Assert(allTasks, HasLen, 4)
-	c.Check(allTasks[0].Summary(), Equals, `Run configure hook of "test-snap" snap if present`)
-	c.Check(allTasks[1].Summary(), Equals, "stop of [test-snap.test-service]")
-	c.Check(allTasks[2].Summary(), Equals, "start of [test-snap.test-service]")
-	c.Check(allTasks[3].Summary(), Equals, "restart of [test-snap.test-service]")
+	for i := 1; i < 3; i++ {
+		laneTasks := chg.LaneTasks(i)
+		c.Assert(laneTasks, HasLen, 15)
+		c.Check(laneTasks[11].Summary(), Matches, `Run configure hook of .* snap if present`)
+		c.Check(laneTasks[12].Summary(), Equals, "stop of [test-snap.test-service]")
+		c.Check(laneTasks[13].Summary(), Equals, "start of [test-snap.test-service]")
+		c.Check(laneTasks[14].Summary(), Equals, "restart of [test-snap.test-service]")
+	}
 }

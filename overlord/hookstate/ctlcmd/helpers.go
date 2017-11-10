@@ -70,16 +70,21 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 var servicestateControl = servicestate.Control
 
 func queueCommand(context *hookstate.Context, ts *state.TaskSet) error {
-	context.Lock()
-	defer context.Unlock()
-
 	hookTask, ok := context.Task()
 	if !ok {
 		return fmt.Errorf("attempted to queue command with ephemeral context")
 	}
 
+	st := context.State()
+	st.Lock()
+	defer st.Unlock()
+
 	change := hookTask.Change()
-	tasks := change.LaneTasks(hookTask.Lanes()...)
+	hookTaskLanes := hookTask.Lanes()
+	tasks := change.LaneTasks(hookTaskLanes...)
+	if hookTaskLanes[0] != 0 {
+		ts.JoinLane(hookTaskLanes[0])
+	}
 	ts.WaitAll(state.NewTaskSet(tasks...))
 	change.AddAll(ts)
 
