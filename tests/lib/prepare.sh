@@ -18,6 +18,18 @@ disable_kernel_rate_limiting() {
     #sysctl -w kernel.printk_ratelimit=0
 }
 
+disable_refreshes() {
+    echo "Modify state to make it look like the last refresh just happend"
+    systemctl stop snapd.socket snapd.service
+    jq ".data[\"last-refresh\"] = \"$(date --iso-8601=second)\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+    systemctl start snapd.socket snapd.service
+
+    echo "Minimize risk of hitting refresh schedule"
+    snap set core refresh.schedule=00:00-23:59
+    snap refresh --time|MATCH "last: 2[0-9]{3}"
+}
+
 update_core_snap_for_classic_reexec() {
     # it is possible to disable this to test that snapd (the deb) works
     # fine with whatever is in the core snap
@@ -198,6 +210,8 @@ EOF
         systemctl stop snapd.{service,socket}
         update_core_snap_for_classic_reexec
         systemctl start snapd.{service,socket}
+
+        disable_refreshes
 
         GRUB_EDITENV=grub-editenv
         case "$SPREAD_SYSTEM" in
@@ -468,6 +482,8 @@ prepare_all_snap() {
             exit 1
         fi
     done
+
+    disable_refreshes
 
     # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f "$SPREAD_PATH/snapd-state.tar.gz" ]; then
