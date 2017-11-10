@@ -908,7 +908,7 @@ func (s *snapmgrTestSuite) TestSwitchUnhappy(c *C) {
 	defer s.state.Unlock()
 
 	_, err := snapstate.Switch(s.state, "non-existing-snap", "some-channel")
-	c.Assert(err, ErrorMatches, `cannot find snap "non-existing-snap"`)
+	c.Assert(err, ErrorMatches, `snap "non-existing-snap" is not installed`)
 }
 
 func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
@@ -5416,7 +5416,7 @@ func (s *snapmgrQuerySuite) TestCurrentInfoAbsent(c *C) {
 	defer st.Unlock()
 
 	_, err := snapstate.CurrentInfo(st, "absent")
-	c.Assert(err, ErrorMatches, `cannot find snap "absent"`)
+	c.Assert(err, ErrorMatches, `snap "absent" is not installed`)
 }
 
 func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
