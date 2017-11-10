@@ -196,7 +196,8 @@ func (s *NetworkManagerInterfaceSuite) TestUDevPermanentSlot(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], Equals, `KERNEL=="rfkill", TAG+="snap_network-manager_nm"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# network-manager
+KERNEL=="rfkill", TAG+="snap_network-manager_nm"`)
 }
 
 func (s *NetworkManagerInterfaceSuite) TestInterfaces(c *C) {
