@@ -168,6 +168,8 @@ func (s *UDisks2InterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 3)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `LABEL="udisks_probe_end"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# udisks2
+SUBSYSTEM=="block", TAG+="snap_producer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# udisks2
 SUBSYSTEM=="usb", TAG+="snap_producer_app"`)
 }
 
