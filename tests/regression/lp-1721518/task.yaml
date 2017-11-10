@@ -7,8 +7,8 @@ details: |
 
 execute: |
     # install test-snapd-tools and reboot
-    snap install test-snapd-tools
     if [ "$SPREAD_REBOOT" = 0 ]; then
+        snap install test-snapd-tools
         REBOOT
     fi
 
