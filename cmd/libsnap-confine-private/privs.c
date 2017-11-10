@@ -55,7 +55,7 @@ static bool sc_has_capability(const char *cap_name)
 	return cap_flags_value == CAP_SET;
 }
 
-void sc_privs_drop()
+void sc_privs_drop(void)
 {
 	gid_t gid = getgid();
 	uid_t uid = getuid();
