@@ -208,7 +208,7 @@ EOF
         fi
 
         echo "Ensure that the grub-editenv list output does not contain any of the snap_* variables on classic"
-        output="$(bootenv list)"
+        output="$(bootenv)"
         if echo "$output" | MATCH snap_ ; then
             echo "Expected grub environment without snap_*, got:"
             echo "$output"
