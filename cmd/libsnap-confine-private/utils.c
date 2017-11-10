@@ -84,7 +84,8 @@ static int parse_bool(const char *text, bool * value, bool default_value)
 		*value = default_value;
 		return 0;
 	}
-	for (int i = 0; i < sizeof sc_bool_names / sizeof *sc_bool_names; ++i) {
+	for (size_t i = 0; i < sizeof sc_bool_names / sizeof *sc_bool_names;
+	     ++i) {
 		if (strcmp(text, sc_bool_names[i].text) == 0) {
 			*value = sc_bool_names[i].value;
 			return 0;
@@ -119,12 +120,13 @@ static bool getenv_bool(const char *name, bool default_value)
 	return value;
 }
 
-bool sc_is_debug_enabled()
+bool sc_is_debug_enabled(void)
 {
-	return getenv_bool("SNAP_CONFINE_DEBUG", false);
+	return getenv_bool("SNAP_CONFINE_DEBUG", false)
+	    || getenv_bool("SNAPD_DEBUG", false);
 }
 
-bool sc_is_reexec_enabled()
+bool sc_is_reexec_enabled(void)
 {
 	return getenv_bool("SNAP_REEXEC", true);
 }

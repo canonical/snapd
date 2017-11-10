@@ -58,6 +58,12 @@ owner /var/tmp/etilqs_* rw,
 owner /{dev,run}/shm/{,.}org.chromium.* mrw,
 owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
 
+# Chrome's Singleton API sometimes causes an ouid/fsuid mismatch denial, so
+# for now, allow non-owner read on the singleton socket (LP: #1731012). See
+# https://forum.snapcraft.io/t/electron-snap-killed-when-using-app-makesingleinstance-api/2667/20
+/run/user/[0-9]*/snap.@{SNAP_NAME}/{,.}org.chromium.*/SS r,
+/run/user/[0-9]*/snap.@{SNAP_NAME}/{,.}com.google.Chrome.*/SS r,
+
 # Allow reading platform files
 /run/udev/data/+platform:* r,
 
