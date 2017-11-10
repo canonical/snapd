@@ -36,7 +36,6 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
 
