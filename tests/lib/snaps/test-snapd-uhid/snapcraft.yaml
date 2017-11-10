@@ -6,6 +6,12 @@ grade: stable
 confinement: strict
 
 apps:
-    uhidtool:
-        command: bin/test-uhid
+    test-device:
+        command: uhid-test
         plugs: [uhid]
+
+parts:
+    test:
+        source: .
+        plugin: make
+        artifacts: [uhid-test]
