@@ -23,7 +23,7 @@
 
 #include "../libsnap-confine-private/utils.h"
 
-void setup_user_data()
+void setup_user_data(void)
 {
 	const char *user_data = getenv("SNAP_USER_DATA");
 
@@ -41,7 +41,7 @@ void setup_user_data()
 	};
 }
 
-void setup_user_xdg_runtime_dir()
+void setup_user_xdg_runtime_dir(void)
 {
 	const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
 

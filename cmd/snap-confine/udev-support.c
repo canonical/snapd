@@ -32,7 +32,7 @@
 #include "../libsnap-confine-private/utils.h"
 #include "udev-support.h"
 
-void
+static void
 _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
 			       const char *path, unsigned major, unsigned minor)
 {
@@ -111,7 +111,7 @@ int snappy_udev_init(const char *security_tag, struct snappy_udev *udev_s)
 	// TAG+="snap_<security tag>" (udev doesn't like '.' in the tag name)
 	udev_s->tagname_len = sc_must_snprintf(udev_s->tagname, MAX_BUF,
 					       "%s", security_tag);
-	for (int i = 0; i < udev_s->tagname_len; i++)
+	for (size_t i = 0; i < udev_s->tagname_len; i++)
 		if (udev_s->tagname[i] == '.')
 			udev_s->tagname[i] = '_';
 
