@@ -180,7 +180,7 @@ package_snapd-git() {
           "$GOPATH/src/${_gourl}/data/completion/etelpmoc.sh"
 
   # Symlink /var/lib/snapd/snap to /snap so that --classic snaps work
-  ln -s /var/lib/snapd/snap "$pkgdir/snap"
+  ln -s var/lib/snapd/snap "$pkgdir/snap"
   # and make sure that target exists so that we don't have dangling symlinks
   # after installing the package
   install -d -m 755 "$pkgdir/var/lib/snapd/snap"
