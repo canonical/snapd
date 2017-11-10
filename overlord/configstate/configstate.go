@@ -47,8 +47,9 @@ func ConfigureHookTimeout() time.Duration {
 }
 
 // configureSnapd returns the taskset to configure snapd itself
-func configureSnapd(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
-	summary := fmt.Sprintf(i18n.G("Run configuration of %q snap"), snapName)
+func configureSnapd(st *state.State, patch map[string]interface{}, flags int) *state.TaskSet {
+	// reuse i18n string here
+	summary := fmt.Sprintf(i18n.G("Run configuration of %q snap"), "core")
 
 	t := st.NewTask("configure-snapd", summary)
 	t.Set("patch", patch)
@@ -98,7 +99,7 @@ func configureHook(st *state.State, snapName string, patch map[string]interface{
 func Configure(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
 	// configuration for "core" is handled internally
 	if snapName == "core" {
-		return configureSnapd(st, "core" patch, flags)
+		return configureSnapd(st, patch, flags)
 	}
 	return configureHook(st, snapName, patch, flags)
 }
