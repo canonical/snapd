@@ -19,9 +19,9 @@ disable_kernel_rate_limiting() {
 }
 
 disable_refreshes() {
-    echo "Modify state to make it look like the last refresh just happend"
+    echo "Modify state to make it look like the last refresh just happened"
     systemctl stop snapd.socket snapd.service
-    jq ".data[\"last-refresh\"] = \"$(date --iso-8601=second)\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    jq ".data[\"last-refresh\"] = \"$(date +%Y-%m-%dT%H:%M:%S%:z)\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
     systemctl start snapd.socket snapd.service
 
