@@ -155,9 +155,9 @@ var (
 	}
 
 	logsCmd = &Command{
-		Path:   "/v2/logs",
-		UserOK: true,
-		GET:    getLogs,
+		Path:     "/v2/logs",
+		PolkitOK: "io.snapcraft.snapd.manage",
+		GET:      getLogs,
 	}
 
 	snapConfCmd = &Command{
@@ -2641,6 +2641,9 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 	appInfos, rsp := appInfosFor(c.d.overlord.State(), splitQS(query.Get("names")), opts)
 	if rsp != nil {
 		return rsp
+	}
+	if len(appInfos) == 0 {
+		return AppNotFound("no matching services")
 	}
 
 	serviceNames := make([]string, len(appInfos))

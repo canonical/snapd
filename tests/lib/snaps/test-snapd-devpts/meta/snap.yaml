@@ -1,0 +1,9 @@
+name: test-snapd-devpts
+version: 1.0
+apps:
+    openpty:
+        command: bin/openpty
+        plugs: [ physical-memory-observe ]
+    useptmx:
+        command: bin/useptmx
+        plugs: [ physical-memory-observe ]
