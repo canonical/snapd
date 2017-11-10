@@ -88,7 +88,7 @@ func makeAccountControlSecCompSnippet() (string, error) {
 	}
 
 	snippet := strings.Replace(accountControlConnectedPlugSecCompTemplate,
-		"{{group}}", strconv.FormatUint(gid, 16), -1)
+		"{{group}}", strconv.FormatUint(gid, 10), -1)
 
 	return snippet, nil
 }
