@@ -329,6 +329,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
 	runner.AddHandler("switch-snap-channel", m.doSwitchSnapChannel, nil)
+	runner.AddHandler("toggle-snap-flags", m.doToggleSnapFlags, nil)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
