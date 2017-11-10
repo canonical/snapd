@@ -208,7 +208,8 @@ EOF
         fi
 
         echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
-        output="$(bootenv)"
+        # shellcheck disable=SC2119
+        output=$(bootenv)
         if echo "$output" | MATCH snap_ ; then
             echo "Expected bootloader environment without snap_*, got:"
             echo "$output"
