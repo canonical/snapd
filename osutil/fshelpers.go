@@ -19,6 +19,7 @@
 package osutil
 
 import (
+	"os"
 	"syscall"
 )
 
@@ -26,6 +27,9 @@ import (
 func FindGidOwning(path string) (uint64, error) {
 	var stat syscall.Stat_t
 	if err := syscall.Stat(path, &stat); err != nil {
+		if err == syscall.ENOENT {
+			return 0, os.ErrNotExist
+		}
 		return 0, err
 	}
 
