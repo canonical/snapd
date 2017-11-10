@@ -5,8 +5,6 @@ environment:
     SNAP_VERSION_PATTERN: \d+\.\d+\+fake1
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
-systems: [-ubuntu-core-16-*]
-
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
