@@ -49,5 +49,5 @@ func (s *groupFindGidOwningSuite) TestSelfOwnedFile(c *C) {
 
 func (s *groupFindGidOwningSuite) TestNoOwnedFile(c *C) {
 	_, err := FindGidOwning("/tmp/filedoesnotexistbutwhy")
-	c.Assert(err, Not(IsNil))
+	c.Assert(err, DeepEquals, os.ErrNotExist)
 }
