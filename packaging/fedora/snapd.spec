@@ -65,7 +65,7 @@
 %endif
 
 Name:           snapd
-Version:        2.29.2
+Version:        2.29.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -696,6 +696,23 @@ fi
 
 
 %changelog
+* Thu Nov 09 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.29.3
+ - daemon: cherry-picked /v2/logs fixes
+ - cmd/snap-confine: Respect biarch nature of libdirs
+ - cmd/snap-confine: Ensure snap-confine is allowed to access os-
+   release
+ - interfaces: fix udev tagging for hooks
+ - cmd: fix re-exec bug with classic confinement for host snapd
+ - tests: disable xdg-open-compat test
+ - cmd/snap-confine: add slave PTYs and let devpts newinstance
+   perform mediation
+ - interfaces/many: misc policy updates for browser-support, cups-
+   control and network-status
+ - interfaces/raw-usb: match on SUBSYSTEM, not SUBSYSTEMS
+ - tests: fix security-device-cgroup* tests on devices with
+   framebuffer
+
 * Fri Nov 03 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.29.2
   - snapctl: disable stop/start/restart (2.29)
