@@ -79,6 +79,7 @@ socket AF_NETLINK - NETLINK_AUDIT
 
 type accountControlInterface struct {
 	commonInterface
+	secCompSnippet string
 }
 
 func makeAccountControlSecCompSnippet() (string, error) {
@@ -94,11 +95,14 @@ func makeAccountControlSecCompSnippet() (string, error) {
 }
 
 func (iface *accountControlInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, Attrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	snippet, err := makeAccountControlSecCompSnippet()
-	if err != nil {
-		return err
+	if iface.secCompSnippet == "" {
+		snippet, err := makeAccountControlSecCompSnippet()
+		if err != nil {
+			return err
+		}
+		iface.secCompSnippet = snippet
 	}
-	spec.AddSnippet(snippet)
+	spec.AddSnippet(iface.secCompSnippet)
 	return nil
 }
 
