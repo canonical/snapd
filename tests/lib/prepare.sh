@@ -207,10 +207,10 @@ EOF
             snap set core refresh.disabled=true
         fi
 
-        echo "Ensure that the grub-editenv list output does not contain any of the snap_* variables on classic"
+        echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
         output="$(bootenv)"
         if echo "$output" | MATCH snap_ ; then
-            echo "Expected grub environment without snap_*, got:"
+            echo "Expected bootloader environment without snap_*, got:"
             echo "$output"
             exit 1
         fi
