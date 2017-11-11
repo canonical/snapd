@@ -31,8 +31,6 @@ import (
 
 var (
 	// change
-	FindSnapName     = findSnapName
-	HasOption        = hasOption
 	ValidateSnapName = validateSnapName
 	ProcessArguments = processArguments
 	// freezer

@@ -41,40 +41,6 @@ int bootstrap_errno = 0;
 // bootstrap_msg contains a static string if something fails.
 const char* bootstrap_msg = NULL;
 
-// find_snap_name scans the command line and looks for the 1st argument.
-// if the 1st argument exists but is empty NULL is returned.
-const char*
-find_snap_name(int argc, char *const *argv)
-{
-    // Skip the zeroth argument as well as any options. We know buf is NUL
-    // padded and terminated from read_cmdline().
-    int i;
-    for (i = 1; i < argc; i++) {
-        const char *arg = argv[i];
-        if (arg[0] == '-') {
-            continue;
-        }
-        if (strlen(arg) == 0) {
-            return NULL;
-        }
-        return arg;
-    }
-    return NULL;
-}
-
-bool
-has_option(int argc, char *const *argv, const char *option)
-{
-    int i;
-    // Skip the zeroth argument.
-    for (i = 1; i < argc; i++) {
-        if (!strcmp(argv[i], option)) {
-            return true;
-        }
-    }
-    return false;
-}
-
 // setns_into_snap switches mount namespace into that of a given snap.
 static int
 setns_into_snap(const char* snap_name)
@@ -219,13 +185,38 @@ void process_arguments(int argc, char *const *argv, const char** snap_name_out, 
         return;
     }
 
-    // When we are running under "--from-snap-confine" option skip the setns
-    // call as snap-confine has already placed us in the right namespace.
-    bool should_setns = !has_option(argc, argv, "--from-snap-confine");
+    bool should_setns = true;
+    const char* snap_name = NULL;
 
-    // Find the name of the snap by scanning the cmdline.  If there's no snap
-    // name given, just bail out. The go parts will scan this too.
-    const char* snap_name = find_snap_name(argc, argv);
+    // Sanity check the command line arguments.  The go parts will
+    // scan this too.
+    int i;
+    for (i = 1; i < argc; i++) {
+        const char *arg = argv[i];
+        if (arg[0] == '-') {
+            /* We have an option */
+            if (!strcmp(arg, "--from-snap-confine")) {
+                // When we are running under "--from-snap-confine"
+                // option skip the setns call as snap-confine has
+                // already placed us in the right namespace.
+                should_setns = false;
+            } else {
+                bootstrap_errno = 0;
+                bootstrap_msg = "unsupported option";
+                return;
+            }
+        } else {
+            // We expect a single positional argument: the snap name
+            if (snap_name != NULL) {
+                bootstrap_errno = 0;
+                bootstrap_msg = "too many positional arguments";
+                return;
+            }
+            snap_name = arg;
+        }
+    }
+
+    // If there's no snap name given, just bail out.
     if (snap_name == NULL) {
         bootstrap_errno = 0;
         bootstrap_msg = "snap name not provided";
