@@ -116,6 +116,9 @@ static const char *nvidia_globs32[] = {
 static const size_t nvidia_globs_len =
     sizeof nvidia_globs / sizeof *nvidia_globs;
 
+static const size_t nvidia_globs32_len =
+    sizeof nvidia_globs32 / sizeof *nvidia_globs32;
+
 // Populate libgl_dir with a symlink farm to files matching glob_list.
 //
 // The symbolic links are made in one of two ways. If the library found is a
@@ -220,7 +223,7 @@ static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 	sc_populate_libgl_with_hostfs_symlinks(libgl_dir, nvidia_globs,
 					       nvidia_globs_len);
 	sc_populate_libgl_with_hostfs_symlinks(buf32, nvidia_globs32,
-					       nvidia_globs_len);
+					       nvidia_globs32_len);
 	// Remount .../lib/gl read only
 	debug("remounting tmpfs as read-only %s", libgl_dir);
 	if (mount(NULL, buf, NULL, MS_REMOUNT | MS_RDONLY, NULL) != 0) {
