@@ -81,29 +81,6 @@ func freeArgv(argv []*C.char) {
 	}
 }
 
-// findSnapName parses the argv-like array and finds the 1st argument.
-func findSnapName(args []string) *string {
-	argv := makeArgv(args)
-	defer freeArgv(argv)
-
-	if ptr := C.find_snap_name(C.int(len(args)), &argv[0]); ptr != nil {
-		str := C.GoString(ptr)
-		return &str
-	}
-	return nil
-}
-
-// findFirstOption returns the first "-option" string in argv-like array.
-func hasOption(args []string, opt string) bool {
-	argv := makeArgv(args)
-	defer freeArgv(argv)
-	cOpt := C.CString(opt)
-	defer C.free(unsafe.Pointer(cOpt))
-
-	found := C.has_option(C.int(len(args)), &argv[0], cOpt)
-	return bool(found)
-}
-
 // validateSnapName checks if snap name is valid.
 // This also sets bootstrap_msg on failure.
 func validateSnapName(snapName string) int {
