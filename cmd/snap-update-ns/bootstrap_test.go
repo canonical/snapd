@@ -70,9 +70,9 @@ func (s *bootstrapSuite) TestFindSnapName7(c *C) {
 // Check that if there are no options we just return false
 func (s *bootstrapSuite) TestHasOption1(c *C) {
 	for _, args := range [][]string{
-		[]string{""},
-		[]string{"arg0"},
-		[]string{"arg0", "arg1", "--other-opt"},
+		{""},
+		{"arg0"},
+		{"arg0", "arg1", "--other-opt"},
 	} {
 		c.Assert(update.HasOption(args, "-o1"), Equals, false)
 	}
@@ -81,11 +81,11 @@ func (s *bootstrapSuite) TestHasOption1(c *C) {
 // Check that if there are are options we return the first one.
 func (s *bootstrapSuite) TestHasOption2(c *C) {
 	for _, args := range [][]string{
-		[]string{"", "-o1"},
-		[]string{"arg0", "-o1"},
-		[]string{"arg0", "-o1", "arg1"},
-		[]string{"arg0", "-o1", "-o2"},
-		[]string{"arg0", "-o1", "-o2", "arg1"},
+		{"", "-o1"},
+		{"arg0", "-o1"},
+		{"arg0", "-o1", "arg1"},
+		{"arg0", "-o1", "-o2"},
+		{"arg0", "-o1", "-o2", "arg1"},
 	} {
 		c.Assert(update.HasOption(args, "-o1"), Equals, true)
 	}
