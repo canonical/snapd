@@ -79,6 +79,7 @@ static const char *nvidia_globs[] = {
 	"/usr/lib/libnvidia-ml.so*",
 	"/usr/lib/libnvidia-ptxjitcompiler.so*",
 	"/usr/lib/libnvidia-tls.so*",
+	"/usr/share/vulkan/icd.d/10_nvidia*.json",
 };
 
 static const size_t nvidia_globs_len =
