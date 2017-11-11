@@ -81,8 +81,43 @@ static const char *nvidia_globs[] = {
 	"/usr/lib/libnvidia-tls.so*",
 };
 
+static const char *nvidia_globs32[] = {
+	"/usr/lib32/libEGL.so*",
+	"/usr/lib32/libEGL_nvidia.so*",
+	"/usr/lib32/libGL.so*",
+	"/usr/lib32/libOpenGL.so*",
+	"/usr/lib32/libGLESv1_CM.so*",
+	"/usr/lib32/libGLESv1_CM_nvidia.so*",
+	"/usr/lib32/libGLESv2.so*",
+	"/usr/lib32/libGLESv2_nvidia.so*",
+	"/usr/lib32/libGLX_indirect.so*",
+	"/usr/lib32/libGLX_nvidia.so*",
+	"/usr/lib32/libGLX.so*",
+	"/usr/lib32/libGLdispatch.so*",
+	"/usr/lib32/libGLU.so*",
+	"/usr/lib32/libXvMCNVIDIA.so*",
+	"/usr/lib32/libXvMCNVIDIA_dynamic.so*",
+	"/usr/lib32/libcuda.so*",
+	"/usr/lib32/libnvcuvid.so*",
+	"/usr/lib32/libnvidia-cfg.so*",
+	"/usr/lib32/libnvidia-compiler.so*",
+	"/usr/lib32/libnvidia-eglcore.so*",
+	"/usr/lib32/libnvidia-encode.so*",
+	"/usr/lib32/libnvidia-fatbinaryloader.so*",
+	"/usr/lib32/libnvidia-fbc.so*",
+	"/usr/lib32/libnvidia-glcore.so*",
+	"/usr/lib32/libnvidia-glsi.so*",
+	"/usr/lib32/libnvidia-ifr.so*",
+	"/usr/lib32/libnvidia-ml.so*",
+	"/usr/lib32/libnvidia-ptxjitcompiler.so*",
+	"/usr/lib32/libnvidia-tls.so*",
+};
+
 static const size_t nvidia_globs_len =
     sizeof nvidia_globs / sizeof *nvidia_globs;
+
+static const size_t nvidia_globs32_len =
+    sizeof nvidia_globs32 / sizeof *nvidia_globs32;
 
 // Populate libgl_dir with a symlink farm to files matching glob_list.
 //
@@ -171,16 +206,24 @@ static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 {
 	// Bind mount a tmpfs on $rootfs_dir/var/lib/snapd/lib/gl
 	char buf[512] = { 0 };
+	char buf32[512] = { 0 };
 	sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir,
 			 "/var/lib/snapd/lib/gl");
+	sc_must_snprintf(buf32, sizeof(buf32), "%s%s", rootfs_dir,
+			 "/var/lib/snapd/lib/gl/32");
 	const char *libgl_dir = buf;
 	debug("mounting tmpfs at %s", libgl_dir);
 	if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
 		die("cannot mount tmpfs at %s", libgl_dir);
 	};
+	if (mkdir(buf32, 00755) < 0) {
+		die("cannot create 32-bit subdirectory at %s", buf32);
+	}
 	// Populate libgl_dir with symlinks to libraries from hostfs
 	sc_populate_libgl_with_hostfs_symlinks(libgl_dir, nvidia_globs,
 					       nvidia_globs_len);
+	sc_populate_libgl_with_hostfs_symlinks(buf32, nvidia_globs32,
+					       nvidia_globs32_len);
 	// Remount .../lib/gl read only
 	debug("remounting tmpfs as read-only %s", libgl_dir);
 	if (mount(NULL, buf, NULL, MS_REMOUNT | MS_RDONLY, NULL) != 0) {
