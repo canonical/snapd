@@ -542,7 +542,7 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 	c.Check(ValidateLayout(&Layout{Path: "$SNAP/data", Symlink: "$SNAP_DATA"}), IsNil)
 }
 
-func (s *ValidateSuite) TestValidateAppSocketName(c *C) {
+func (s *ValidateSuite) TestValidateSocketName(c *C) {
 	validNames := []string{
 		"a", "aa", "aaa", "aaaa",
 		"a-a", "aa-a", "a-aa", "a-b-c",
@@ -550,7 +550,7 @@ func (s *ValidateSuite) TestValidateAppSocketName(c *C) {
 		"01game", "1-or-2",
 	}
 	for _, name := range validNames {
-		err := ValidateAppSocketName(name)
+		err := ValidateSocketName(name)
 		c.Assert(err, IsNil)
 	}
 	invalidNames := []string{
@@ -570,7 +570,7 @@ func (s *ValidateSuite) TestValidateAppSocketName(c *C) {
 		"日本語", "한글", "ру́сский язы́к",
 	}
 	for _, name := range invalidNames {
-		err := ValidateAppSocketName(name)
+		err := ValidateSocketName(name)
 		c.Assert(err, ErrorMatches, `invalid socket name: ".*"`)
 	}
 }

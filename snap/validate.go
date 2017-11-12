@@ -75,9 +75,9 @@ func ValidateAlias(alias string) error {
 	return nil
 }
 
-// ValidateAppSocketName checks if a string ca be used as a name for a socket
-// (for socket activation).
-func ValidateAppSocketName(name string) error {
+// validateSocketName checks if a string ca be used as a name for a socket (for
+// socket activation).
+func validateSocketName(name string) error {
 	valid := validSnapName.MatchString(name)
 	if !valid {
 		return fmt.Errorf("invalid socket name: %q", name)
@@ -85,23 +85,23 @@ func ValidateAppSocketName(name string) error {
 	return nil
 }
 
-// ValidateAppSocketListenAddress checks that the value of socket addresses.
-func ValidateAppSocketListenAddress(socket *SocketInfo, fieldName string, address string) error {
+// validateSocketAddr checks that the value of socket addresses.
+func validateSocketAddr(socket *SocketInfo, fieldName string, address string) error {
 	if address == "" {
 		return fmt.Errorf("socket %q must define %q", socket.Name, fieldName)
 	}
 
 	switch address[0] {
 	case '/', '$':
-		return validateAppSocketListenAddressPath(socket, fieldName, address)
+		return validateSocketAddrPath(socket, fieldName, address)
 	case '@':
-		return validateAppSocketListenAddressAbstractSocket(socket, fieldName, address)
+		return validateSocketAddrAbstract(socket, fieldName, address)
 	default:
-		return validateAppSocketListenAddressNetAddress(socket, fieldName, address)
+		return validateSocketAddrNet(socket, fieldName, address)
 	}
 }
 
-func validateAppSocketListenAddressPath(socket *SocketInfo, fieldName string, path string) error {
+func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) error {
 	if clean := filepath.Clean(path); clean != path {
 		return fmt.Errorf("socket %q has invalid %q: %q should be written as %q", socket.Name, fieldName, path, clean)
 	}
@@ -114,7 +114,7 @@ func validateAppSocketListenAddressPath(socket *SocketInfo, fieldName string, pa
 	return nil
 }
 
-func validateAppSocketListenAddressAbstractSocket(socket *SocketInfo, fieldName string, path string) error {
+func validateSocketAddrAbstract(socket *SocketInfo, fieldName string, path string) error {
 	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.Name())
 	if !strings.HasPrefix(path, prefix) {
 		return fmt.Errorf("socket %q path for %q must be prefixed with %q", socket.Name, fieldName, prefix)
@@ -122,27 +122,27 @@ func validateAppSocketListenAddressAbstractSocket(socket *SocketInfo, fieldName 
 	return nil
 }
 
-func validateAppSocketListenAddressNetAddress(socket *SocketInfo, fieldName string, address string) error {
+func validateSocketAddrNet(socket *SocketInfo, fieldName string, address string) error {
 	lastIndex := strings.LastIndex(address, ":")
 	if lastIndex >= 0 {
-		if err := validateAppSocketListenAddressNetAddressAddress(socket, fieldName, address[:lastIndex]); err != nil {
+		if err := validateSocketAddrNetHost(socket, fieldName, address[:lastIndex]); err != nil {
 			return err
 		}
-		if err := validateAppSocketListenAddressNetAddressPort(socket, fieldName, address[lastIndex+1:]); err != nil {
+		if err := validateSocketAddrNetPort(socket, fieldName, address[lastIndex+1:]); err != nil {
 			return err
 		}
 		return nil
 	}
 
 	// Address only contains a port
-	if err := validateAppSocketListenAddressNetAddressPort(socket, fieldName, address); err != nil {
+	if err := validateSocketAddrNetPort(socket, fieldName, address); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func validateAppSocketListenAddressNetAddressAddress(socket *SocketInfo, fieldName string, address string) error {
+func validateSocketAddrNetHost(socket *SocketInfo, fieldName string, address string) error {
 	for _, validAddress := range []string{"127.0.0.1", "[::1]", "[::]"} {
 		if address == validAddress {
 			return nil
@@ -152,7 +152,7 @@ func validateAppSocketListenAddressNetAddressAddress(socket *SocketInfo, fieldNa
 	return fmt.Errorf("socket %q has invalid %q address %q", socket.Name, fieldName, address)
 }
 
-func validateAppSocketListenAddressNetAddressPort(socket *SocketInfo, fieldName string, port string) error {
+func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string) error {
 	if _, err := strconv.ParseUint(port, 10, 16); err != nil {
 		return fmt.Errorf("socket %q has invalid %q port number %q", socket.Name, fieldName, port)
 	}
@@ -239,11 +239,11 @@ func validateField(name, cont string, whitelist *regexp.Regexp) error {
 }
 
 func validateAppSocket(socket *SocketInfo) error {
-	if err := ValidateAppSocketName(socket.Name); err != nil {
+	if err := validateSocketName(socket.Name); err != nil {
 		return err
 	}
 
-	return ValidateAppSocketListenAddress(socket, "listen-stream", socket.ListenStream)
+	return validateSocketAddr(socket, "listen-stream", socket.ListenStream)
 }
 
 // appContentWhitelist is the whitelist of legal chars in the "apps"
