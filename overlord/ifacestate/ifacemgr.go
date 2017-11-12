@@ -38,6 +38,8 @@ type InterfaceManager struct {
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
 func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) (*InterfaceManager, error) {
+	delayedCrossMgrInit()
+
 	// NOTE: hookManager is nil only when testing.
 	if hookManager != nil {
 		setupHooks(hookManager)
@@ -49,6 +51,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces
 		runner: runner,
 		repo:   interfaces.NewRepository(),
 	}
+
 	if err := m.initialize(extraInterfaces, extraBackends); err != nil {
 		return nil, err
 	}

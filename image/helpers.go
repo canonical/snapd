@@ -25,7 +25,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -142,10 +144,23 @@ func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts
 	baseName := filepath.Base(snap.MountFile())
 	targetFn = filepath.Join(targetDir, baseName)
 
-	pb := progress.NewTextProgress()
+	pb := progress.MakeProgressBar()
+	defer pb.Finished()
+
+	// Intercept sigint
+	c := make(chan os.Signal, 3)
+	signal.Notify(c, syscall.SIGINT)
+	go func() {
+		<-c
+		pb.Finished()
+		os.Exit(1)
+	}()
+
 	if err = sto.Download(context.TODO(), name, targetFn, &snap.DownloadInfo, pb, tsto.user); err != nil {
 		return "", nil, err
 	}
+
+	signal.Reset(syscall.SIGINT)
 
 	return targetFn, snap, nil
 }
@@ -198,18 +213,9 @@ func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fet
 
 // Find provides the snapsserts.Finder interface for snapasserts.DerviceSideInfo
 func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]string) (asserts.Assertion, error) {
-	pk := make([]string, len(at.PrimaryKey))
-	for i, k := range at.PrimaryKey {
-		pk[i] = headers[k]
-	}
-	as, err := tsto.sto.Assertion(at, pk, tsto.user)
+	pk, err := asserts.PrimaryKeyFromHeaders(at, headers)
 	if err != nil {
-		// convert store error to something that the asserts would
-		// return
-		if _, ok := err.(*store.AssertionNotFoundError); ok {
-			return nil, asserts.ErrNotFound
-		}
 		return nil, err
 	}
-	return as, nil
+	return tsto.sto.Assertion(at, pk, tsto.user)
 }

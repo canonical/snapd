@@ -22,6 +22,7 @@ package snapstate_test
 import (
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 
@@ -93,6 +94,7 @@ type fakeStore struct {
 	storetest.Store
 
 	downloads           []fakeDownload
+	refreshRevnos       map[string]snap.Revision
 	fakeBackend         *fakeSnappyBackend
 	fakeCurrentProgress int
 	fakeTotalProgress   int
@@ -176,6 +178,9 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 	}
 
 	revno := snap.R(11)
+	if r := f.refreshRevnos[cand.SnapID]; !r.Unset() {
+		revno = r
+	}
 	confinement := snap.StrictConfinement
 	switch cand.Channel {
 	case "channel-for-7":
@@ -267,6 +272,24 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	pb.Set(float64(f.fakeCurrentProgress))
 
 	return nil
+}
+
+func (f *fakeStore) WriteCatalogs(io.Writer) error {
+	f.pokeStateLock()
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+		op: "x-commands",
+	})
+
+	return nil
+}
+
+func (f *fakeStore) Sections(*auth.UserState) ([]string, error) {
+	f.pokeStateLock()
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+		op: "x-sections",
+	})
+
+	return nil, nil
 }
 
 type fakeSnappyBackend struct {

@@ -22,6 +22,7 @@ package snapstate
 import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -33,7 +34,7 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	return auth.User(st, userID)
 }
 
-func updateInfo(st *state.State, snapst *SnapState, channel string, userID int) (*snap.Info, error) {
+func updateInfo(st *state.State, snapst *SnapState, channel string, ignoreValidation bool, userID int) (*snap.Info, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
@@ -49,13 +50,14 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int) 
 
 	refreshCand := &store.RefreshCandidate{
 		// the desired channel
-		Channel:  channel,
-		SnapID:   curInfo.SnapID,
-		Revision: curInfo.Revision,
-		Epoch:    curInfo.Epoch,
+		Channel:          channel,
+		SnapID:           curInfo.SnapID,
+		Revision:         curInfo.Revision,
+		Epoch:            curInfo.Epoch,
+		IgnoreValidation: ignoreValidation,
 	}
 
-	theStore := Store(st)
+	theStore := storestate.Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
 	res, err := theStore.LookupRefresh(refreshCand, user)
 	st.Lock()
@@ -67,7 +69,7 @@ func snapInfo(st *state.State, name, channel string, revision snap.Revision, use
 	if err != nil {
 		return nil, err
 	}
-	theStore := Store(st)
+	theStore := storestate.Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
 	spec := store.SnapSpec{
 		Name:     name,

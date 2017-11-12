@@ -50,12 +50,17 @@ _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
 		if (real_uid != 0 && effective_uid == 0)
 			if (setuid(0) != 0)
 				die("setuid failed");
-		char buf[64];
+		char buf[64] = { 0 };
 		// pass snappy-add-dev an empty environment so the
 		// user-controlled environment can't be used to subvert
 		// snappy-add-dev
 		char *env[] = { NULL };
-		sc_must_snprintf(buf, sizeof(buf), "%u:%u", major, minor);
+		if (minor == UINT_MAX) {
+			sc_must_snprintf(buf, sizeof(buf), "%u:*", major);
+		} else {
+			sc_must_snprintf(buf, sizeof(buf), "%u:%u", major,
+					 minor);
+		}
 		debug("running snappy-app-dev add %s %s %s", udev_s->tagname,
 		      path, buf);
 		execle("/lib/udev/snappy-app-dev", "/lib/udev/snappy-app-dev",
@@ -177,7 +182,7 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 		die("snappy_udev->tagname has invalid length");
 
 	// create devices cgroup controller
-	char cgroup_dir[PATH_MAX];
+	char cgroup_dir[PATH_MAX] = { 0 };
 
 	sc_must_snprintf(cgroup_dir, sizeof(cgroup_dir),
 			 "/sys/fs/cgroup/devices/%s/", security_tag);
@@ -186,11 +191,11 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 		die("mkdir failed");
 
 	// move ourselves into it
-	char cgroup_file[PATH_MAX];
+	char cgroup_file[PATH_MAX] = { 0 };
 	sc_must_snprintf(cgroup_file, sizeof(cgroup_file), "%s%s", cgroup_dir,
 			 "tasks");
 
-	char buf[128];
+	char buf[128] = { 0 };
 	sc_must_snprintf(buf, sizeof(buf), "%i", getpid());
 	write_string_to_file(cgroup_file, buf);
 
@@ -205,6 +210,19 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	// add the common devices
 	for (int i = 0; static_devices[i] != NULL; i++)
 		run_snappy_app_dev_add(udev_s, static_devices[i]);
+
+	// add glob for current and future PTY slaves. We unconditionally add
+	// them since we use a devpts newinstance. Unix98 PTY slaves major
+	// are 136-143.
+	// https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
+	for (unsigned pty_major = 136; pty_major <= 143; pty_major++) {
+		// '/dev/pts/slaves' is only used for debugging and by
+		// /lib/udev/snappy-app-dev to determine if it is a block
+		// device, so just use something to indicate what the
+		// addition is for
+		_run_snappy_app_dev_add_majmin(udev_s, "/dev/pts/slaves",
+					       pty_major, UINT_MAX);
+	}
 
 	// nvidia modules are proprietary and therefore aren't in sysfs and
 	// can't be udev tagged. For now, just add existing nvidia devices to
@@ -253,6 +271,13 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	// /dev/nvidia-modeset
 	if (stat(nvidia_modeset_path, &sbuf) == 0) {
 		_run_snappy_app_dev_add_majmin(udev_s, nvidia_modeset_path,
+					       MAJOR(sbuf.st_rdev),
+					       MINOR(sbuf.st_rdev));
+	}
+	// /dev/uhid isn't represented in sysfs, so add it to the device cgroup
+	// if it exists and let AppArmor handle the mediation
+	if (stat("/dev/uhid", &sbuf) == 0) {
+		_run_snappy_app_dev_add_majmin(udev_s, "/dev/uhid",
 					       MAJOR(sbuf.st_rdev),
 					       MINOR(sbuf.st_rdev));
 	}

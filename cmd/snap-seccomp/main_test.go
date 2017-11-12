@@ -36,6 +36,8 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -164,11 +166,28 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	s.seccompSyscallRunner = filepath.Join(c.MkDir(), "seccomp_syscall_runner")
 	err = ioutil.WriteFile(s.seccompSyscallRunner+".c", seccompSyscallRunnerContent, 0644)
 	c.Assert(err, IsNil)
+
 	cmd = exec.Command("gcc", "-std=c99", "-Werror", "-Wall", "-static", s.seccompSyscallRunner+".c", "-o", s.seccompSyscallRunner, "-Wl,-static", "-static-libgcc")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	c.Assert(err, IsNil)
+
+	// Build 32bit runner on amd64 to test non-native syscall handling.
+	// Ideally we would build for ppc64el->powerpc and arm64->armhf but
+	// it seems tricky to find the right gcc-multilib for this.
+	if arch.UbuntuArchitecture() == "amd64" {
+		cmd = exec.Command(cmd.Args[0], cmd.Args[1:]...)
+		cmd.Args = append(cmd.Args, "-m32")
+		for i, k := range cmd.Args {
+			if k == s.seccompSyscallRunner {
+				cmd.Args[i] = s.seccompSyscallRunner + ".m32"
+			}
+		}
+		if output, err := cmd.CombinedOutput(); err != nil {
+			fmt.Printf("cannot build multi-lib syscall runner: %v\n%s", err, output)
+		}
+	}
 }
 
 // Runs the policy through the kernel:
@@ -190,10 +209,6 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 //   sync_file_range, and truncate64.
 // Once we start using those. See `man syscall`
 func (s *snapSeccompSuite) runBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
-	outPath := filepath.Join(c.MkDir(), "bpf")
-	err := main.Compile([]byte(seccompWhitelist), outPath)
-	c.Assert(err, IsNil)
-
 	// Common syscalls we need to allow for a minimal statically linked
 	// c program.
 	//
@@ -217,26 +232,63 @@ set_tls
 # arm64
 readlinkat
 faccessat
+# i386 from amd64
+restart_syscall
 `
 	bpfPath := filepath.Join(c.MkDir(), "bpf")
-	err = main.Compile([]byte(common+seccompWhitelist), bpfPath)
+	err := main.Compile([]byte(common+seccompWhitelist), bpfPath)
 	c.Assert(err, IsNil)
+
+	// default syscall runner
+	syscallRunner := s.seccompSyscallRunner
 
 	// syscallName;arch;arg1,arg2...
 	l := strings.Split(bpfInput, ";")
-	if len(l) > 1 && l[1] != "native" {
-		c.Logf("cannot use non-native in runBpfInKernel")
+	syscallName := l[0]
+	syscallArch := "native"
+	if len(l) > 1 {
+		syscallArch = l[1]
+	}
+
+	syscallNr, err := seccomp.GetSyscallFromName(syscallName)
+	c.Assert(err, IsNil)
+
+	// Check if we want to test non-native architecture
+	// handling. Doing this via the in-kernel tests is tricky as
+	// we need a kernel that can run the architecture and a
+	// compiler that can produce the required binaries. Currently
+	// we only test amd64 running i386 here.
+	if syscallArch != "native" {
+		syscallNr, err = seccomp.GetSyscallFromNameByArch(syscallName, main.UbuntuArchToScmpArch(syscallArch))
+		c.Assert(err, IsNil)
+
+		switch syscallArch {
+		case "amd64":
+			// default syscallRunner
+		case "i386":
+			syscallRunner = s.seccompSyscallRunner + ".m32"
+		default:
+			c.Errorf("unexpected non-native arch: %s", syscallArch)
+		}
+	}
+	switch {
+	case syscallNr == -101:
+		// "socket"
+		// see libseccomp: _s390x_sock_demux(), _x86_sock_demux()
+		// the -101 is translated to 359 (socket)
+		syscallNr = 359
+	case syscallNr == -10165:
+		// "mknod" on arm64 is not available at all on arm64
+		// only "mknodat" but libseccomp will not generate a
+		// "mknodat" whitelist, it geneates a whitelist with
+		// syscall -10165 (!?!) so we cannot test this.
+		c.Skip("skipping mknod tests on arm64")
+	case syscallNr < 0:
+		c.Errorf("failed to resolve %v: %v", l[0], syscallNr)
 		return
 	}
 
 	var syscallRunnerArgs [7]string
-	syscallNr, err := seccomp.GetSyscallFromName(l[0])
-	c.Assert(err, IsNil)
-	if syscallNr < 0 {
-		c.Skip(fmt.Sprintf("skipping %v because it resolves to negative %v", l[0], syscallNr))
-		return
-	}
-
 	syscallRunnerArgs[0] = strconv.FormatInt(int64(syscallNr), 10)
 	if len(l) > 2 {
 		args := strings.Split(l[2], ",")
@@ -253,7 +305,7 @@ faccessat
 		}
 	}
 
-	cmd := exec.Command(s.seccompBpfLoader, bpfPath, s.seccompSyscallRunner, syscallRunnerArgs[0], syscallRunnerArgs[1], syscallRunnerArgs[2], syscallRunnerArgs[3], syscallRunnerArgs[4], syscallRunnerArgs[5], syscallRunnerArgs[6])
+	cmd := exec.Command(s.seccompBpfLoader, bpfPath, syscallRunner, syscallRunnerArgs[0], syscallRunnerArgs[1], syscallRunnerArgs[2], syscallRunnerArgs[3], syscallRunnerArgs[4], syscallRunnerArgs[5], syscallRunnerArgs[6])
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -272,6 +324,18 @@ faccessat
 	}
 }
 
+func (s *snapSeccompSuite) TestUnrestricted(c *C) {
+	inp := "@unrestricted\n"
+	outPath := filepath.Join(c.MkDir(), "bpf")
+	err := main.Compile([]byte(inp), outPath)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(outPath)
+	c.Assert(err, IsNil)
+	c.Check(content, DeepEquals, []byte(inp))
+
+}
+
 // TestCompile iterates over a range of textual seccomp whitelist rules and
 // mocked kernel syscall input. For each rule, the test consists of compiling
 // the rule into a bpf program and then running that program on a virtual bpf
@@ -287,7 +351,7 @@ faccessat
 //    {"read >=2", "read;native;0", main.SeccompRetKill},
 func (s *snapSeccompSuite) TestCompile(c *C) {
 	// The 'shadow' group is different in different distributions
-	shadowGid, err := main.FindGid("shadow")
+	shadowGid, err := osutil.FindGid("shadow")
 	c.Assert(err, IsNil)
 
 	for _, t := range []struct {
@@ -296,7 +360,6 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		expected         int
 	}{
 		// special
-		{"@unrestricted", "execve", main.SeccompRetAllow},
 		{"@complain", "execve", main.SeccompRetAllow},
 
 		// trivial allow
@@ -400,6 +463,10 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 // Some architectures (i386, s390x) use the "socketcall" syscall instead
 // of "socket". This is the case on Ubuntu 14.04, 17.04, 17.10
 func (s *snapSeccompSuite) TestCompileSocket(c *C) {
+	if release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
+		c.Skip("14.04/i386 uses socketcall which cannot be tested here")
+	}
+
 	for _, t := range []struct {
 		seccompWhitelist string
 		bpfInput         string
@@ -512,6 +579,10 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 
 // ported from test_restrictions_working_args_socket
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSocket(c *C) {
+	if release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
+		c.Skip("14.04/i386 uses socketcall which cannot be tested here")
+	}
+
 	for _, pre := range []string{"AF", "PF"} {
 		for _, i := range []string{"UNIX", "LOCAL", "INET", "INET6", "IPX", "NETLINK", "X25", "AX25", "ATMPVC", "APPLETALK", "PACKET", "ALG", "CAN", "BRIDGE", "NETROM", "ROSE", "NETBEUI", "SECURITY", "KEY", "ASH", "ECONET", "SNA", "IRDA", "PPPOX", "WANPIPE", "BLUETOOTH", "RDS", "LLC", "TIPC", "IUCV", "RXRPC", "ISDN", "PHONET", "IEEE802154", "CAIF", "NFC", "VSOCK", "MPLS", "IB"} {
 			seccompWhitelist := fmt.Sprintf("socket %s_%s", pre, i)
@@ -701,12 +772,6 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 		// on amd64 we add compat i386
 		{"amd64", "read", "read;i386", main.SeccompRetAllow},
 		{"amd64", "read", "read;amd64", main.SeccompRetAllow},
-		// on arm64 we add compat armhf
-		{"arm64", "read", "read;armhf", main.SeccompRetAllow},
-		{"arm64", "read", "read;arm64", main.SeccompRetAllow},
-		// on ppc64 we add compat powerpc
-		{"ppc64", "read", "read;powerpc", main.SeccompRetAllow},
-		{"ppc64", "read", "read;ppc64", main.SeccompRetAllow},
 	} {
 		// It is tricky to mock the architecture here because
 		// seccomp is always adding the native arch to the seccomp

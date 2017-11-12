@@ -38,7 +38,7 @@
 static const char *filter_profile_dir = "/var/lib/snapd/seccomp/bpf/";
 
 // MAX_BPF_SIZE is an arbitrary limit.
-const int MAX_BPF_SIZE = 32 * 1024;
+#define MAX_BPF_SIZE (32 * 1024)
 
 typedef struct sock_filter bpf_instr;
 
@@ -66,7 +66,7 @@ static void validate_bpfpath_is_safe(const char *path)
 		die("valid_bpfpath_is_safe needs an absolute path as input");
 	}
 	// strtok_r() modifies its first argument, so work on a copy
-	char *tokenized __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *tokenized SC_CLEANUP(sc_cleanup_string) = NULL;
 	tokenized = strdup(path);
 	if (tokenized == NULL) {
 		die("cannot allocate memory for copy of path");
@@ -74,7 +74,7 @@ static void validate_bpfpath_is_safe(const char *path)
 	// allocate a string large enough to hold path, and initialize it to
 	// '/'
 	size_t checked_path_size = strlen(path) + 1;
-	char *checked_path __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *checked_path SC_CLEANUP(sc_cleanup_string) = NULL;
 	checked_path = calloc(checked_path_size, 1);
 	if (checked_path == NULL) {
 		die("cannot allocate memory for checked_path");
@@ -93,7 +93,7 @@ static void validate_bpfpath_is_safe(const char *path)
 	// reconstruct the path from '/' down to profile_name
 	char *buf_token = strtok_r(tokenized, "/", &buf_saveptr);
 	while (buf_token != NULL) {
-		char *prev __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+		char *prev SC_CLEANUP(sc_cleanup_string) = NULL;
 		prev = strdup(checked_path);	// needed by vsnprintf in sc_must_snprintf
 		if (prev == NULL) {
 			die("cannot allocate memory for copy of checked_path");
@@ -116,7 +116,7 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 {
 	debug("loading bpf program for security tag %s", filter_profile);
 
-	char profile_path[PATH_MAX];
+	char profile_path[PATH_MAX] = { 0 };
 	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bin",
 			 filter_profile_dir, filter_profile);
 
@@ -154,7 +154,7 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	validate_bpfpath_is_safe(profile_path);
 
 	// load bpf
-	unsigned char bpf[MAX_BPF_SIZE + 1];	// account for EOF
+	char bpf[MAX_BPF_SIZE + 1] = { 0 };	// account for EOF
 	FILE *fp = fopen(profile_path, "rb");
 	if (fp == NULL) {
 		die("cannot read %s", profile_path);
@@ -169,6 +169,10 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	}
 	fclose(fp);
 	debug("read %zu bytes from %s", num_read, profile_path);
+
+	if (sc_streq(bpf, "@unrestricted\n")) {
+		return 0;
+	}
 
 	uid_t real_uid, effective_uid, saved_uid;
 	if (getresuid(&real_uid, &effective_uid, &saved_uid) < 0) {

@@ -35,6 +35,19 @@ const openglConnectedPlugAppArmor = `
   /var/lib/snapd/lib/gl/ r,
   /var/lib/snapd/lib/gl/** rm,
 
+  # Supports linux-driver-management from Solus (staged symlink trees into libdirs)
+  /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}glx-provider/**.so{,.*}  rm,
+
+  # Bi-arch distribution nvidia support
+  /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcuda*.so{,.*} rm,
+  /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvidia*.so{,.*} rm,
+  /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvcuvid.so{,.*} rm,
+  /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,EGL}*nvidia.so{,.*} rm,
+  /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libGLdispatch.so{,.*} rm,
+
+  # Main bi-arch GL libraries
+  /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,EGL}.so{,.*} rm,
+
   /dev/dri/ r,
   /dev/dri/card0 rw,
   # nvidia
@@ -70,10 +83,10 @@ const openglConnectedPlugAppArmor = `
 
 // The nvidia modules don't use sysfs (therefore they can't be udev tagged) and
 // will be added by snap-confine.
-const openglConnectedPlugUDev = `
-SUBSYSTEM=="drm", KERNEL=="card[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="vchiq",   TAG+="###CONNECTED_SECURITY_TAGS###"
-`
+var openglConnectedPlugUDev = []string{
+	`SUBSYSTEM=="drm", KERNEL=="card[0-9]*"`,
+	`KERNEL=="vchiq"`,
+}
 
 func init() {
 	registerIface(&commonInterface{

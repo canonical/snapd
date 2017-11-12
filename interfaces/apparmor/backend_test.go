@@ -293,6 +293,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 }
 
 func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
+	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	defer restore()
+
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
 	// NOTE: we don't call apparmor.MockTemplate()
 	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
@@ -366,6 +369,9 @@ snippet
 }}
 
 func (s *backendSuite) TestCombineSnippets(c *C) {
+	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	defer restore()
+
 	// NOTE: replace the real template with a shorter variant
 	restoreTemplate := apparmor.MockTemplate("\n" +
 		"###VAR###\n" +
@@ -485,4 +491,36 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 		{"apparmor_parser", "--replace", "--write-cache", newAA[0], "--cache-loc", dirs.SystemApparmorCacheDir},
 	})
 
+	// snap-confine.d was created
+	_, err = os.Stat(dirs.SnapAppArmorConfineDir)
+	c.Check(err, IsNil)
+
+}
+
+func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
+	restorer := release.MockOnClassic(false)
+	defer restorer()
+
+	err := os.MkdirAll(dirs.SystemApparmorCacheDir, 0755)
+	c.Assert(err, IsNil)
+	// the canary file in the cache will be removed
+	canaryPath := filepath.Join(dirs.SystemApparmorCacheDir, "meep")
+	err = ioutil.WriteFile(canaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	// but non-regular entries in the cache dir are kept
+	dirsAreKept := filepath.Join(dirs.SystemApparmorCacheDir, "dir")
+	err = os.MkdirAll(dirsAreKept, 0755)
+	c.Assert(err, IsNil)
+	symlinksAreKept := filepath.Join(dirs.SystemApparmorCacheDir, "symlink")
+	err = os.Symlink("some-sylink-target", symlinksAreKept)
+	c.Assert(err, IsNil)
+
+	// install the new core snap on classic triggers a new snap-confine
+	// for this snap-confine on core
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, coreYaml, 111)
+
+	l, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*"))
+	c.Assert(err, IsNil)
+	// canary is gone, extra stuff is kept
+	c.Check(l, DeepEquals, []string{dirsAreKept, symlinksAreKept})
 }

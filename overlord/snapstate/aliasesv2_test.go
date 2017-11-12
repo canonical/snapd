@@ -229,6 +229,7 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
 	c.Check(dropped, HasLen, 0)
 
 	c.Check(seen, DeepEquals, map[string]bool{
+		"core":       true,
 		"alias-snap": true,
 		"other-snap": true,
 	})
@@ -552,7 +553,7 @@ func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -667,7 +668,7 @@ func (s *snapmgrTestSuite) TestAliasOverAutoRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -815,7 +816,7 @@ func (s *snapmgrTestSuite) TestDisableAllAliasesRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -903,7 +904,7 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -955,7 +956,7 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasOverAutoRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -1123,7 +1124,7 @@ func (s *snapmgrTestSuite) TestPreferRunThrough(c *C) {
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))

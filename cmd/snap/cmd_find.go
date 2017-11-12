@@ -27,6 +27,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -68,6 +69,10 @@ func getPrice(prices map[string]float64, currency string) (float64, string, erro
 type SectionName string
 
 func (s SectionName) Complete(match string) []flags.Completion {
+	if ret, err := completeFromSortedFile(dirs.SnapSectionsFile, match); err == nil {
+		return ret
+	}
+
 	cli := Client()
 	sections, err := cli.Sections()
 	if err != nil {
@@ -96,7 +101,10 @@ func init() {
 	}, map[string]string{
 		"private": i18n.G("Search private snaps"),
 		"section": i18n.G("Restrict the search to a given section"),
-	}, []argDesc{{name: i18n.G("<query>")}}).alias = "search"
+	}, []argDesc{{
+		// TRANSLATORS: This needs to be wrapped in <>s.
+		name: i18n.G("<query>"),
+	}}).alias = "search"
 }
 
 func (x *cmdFind) Execute(args []string) error {

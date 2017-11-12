@@ -91,11 +91,12 @@ const bluezPermanentSlotAppArmor = `
       bus=system
       name="org.bluez.obex",
 
-  # Allow traffic to/from our path and interface with any method for unconfined
-  # cliens to talk to our bluez services.
+  # Allow traffic to/from our interface with any method for unconfined clients
+  # to talk to our bluez services. For the org.bluez interface we don't specify
+  # an Object Path since according to the bluez specification these can be
+  # anything (https://git.kernel.org/pub/scm/bluetooth/bluez.git/tree/doc).
   dbus (receive, send)
       bus=system
-      path=/org/bluez{,/**}
       interface=org.bluez.*
       peer=(label=unconfined),
   dbus (receive, send)
@@ -196,8 +197,6 @@ const bluezPermanentSlotDBus = `
 </policy>
 `
 
-const bluezConnectedPlugUDev = `KERNEL=="rfkill", TAG+="###CONNECTED_SECURITY_TAGS###"`
-
 type bluezInterface struct{}
 
 func (iface *bluezInterface) Name() string {
@@ -243,12 +242,7 @@ func (iface *bluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 }
 
 func (iface *bluezInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	old := "###CONNECTED_SECURITY_TAGS###"
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		snippet := strings.Replace(bluezConnectedPlugUDev, old, tag, -1)
-		spec.AddSnippet(snippet)
-	}
+	spec.TagDevice(`KERNEL=="rfkill"`)
 	return nil
 }
 

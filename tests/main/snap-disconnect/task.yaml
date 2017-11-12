@@ -7,7 +7,7 @@ environment:
 
 prepare: |
     echo "Install a test snap"
-    snapbuild $TESTSLIB/snaps/home-consumer .
+    snap pack $TESTSLIB/snaps/home-consumer
     snap install --dangerous $SNAP_FILE
 
 restore: |

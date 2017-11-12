@@ -20,7 +20,10 @@
 package asserts
 
 import (
+	"fmt"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -33,6 +36,8 @@ type Repair struct {
 	architectures []string
 	models        []string
 
+	id int
+
 	disabled  bool
 	timestamp time.Time
 }
@@ -42,12 +47,17 @@ func (r *Repair) BrandID() string {
 	return r.HeaderString("brand-id")
 }
 
-// RepairID returns the "id" of the repair. It should be a short string
-// that follows a convention like "REPAIR-123". Similar to a CVE there
-// should be a public place to look up details about the repair-id
+// RepairID returns the sequential id of the repair. There
+// should be a public place to look up details about the repair
+// by brand-id and repair-id.
 // (e.g. the snapcraft forum).
-func (r *Repair) RepairID() string {
-	return r.HeaderString("repair-id")
+func (r *Repair) RepairID() int {
+	return r.id
+}
+
+// Summary returns the mandatory summary description of the repair.
+func (r *Repair) Summary() string {
+	return r.HeaderString("summary")
 }
 
 // Architectures returns the architectures that this assertions applies to.
@@ -96,8 +106,22 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	if _, err = checkStringMatchesWhat(assert.headers, "repair-id", "header", validRepairID); err != nil {
+	repairID, err := checkStringMatches(assert.headers, "repair-id", validRepairID)
+	if err != nil {
 		return nil, err
+	}
+	id, err := strconv.Atoi(repairID)
+	if err != nil {
+		// given it matched it can likely only be too large
+		return nil, fmt.Errorf("repair-id too large: %s", repairID)
+	}
+
+	summary, err := checkNotEmptyString(assert.headers, "summary")
+	if err != nil {
+		return nil, err
+	}
+	if strings.ContainsAny(summary, "\n\r") {
+		return nil, fmt.Errorf(`"summary" header cannot have newlines`)
 	}
 
 	series, err := checkStringList(assert.headers, "series")
@@ -128,6 +152,7 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 		series:        series,
 		architectures: architectures,
 		models:        models,
+		id:            id,
 		disabled:      disabled,
 		timestamp:     timestamp,
 	}, nil
