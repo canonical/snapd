@@ -293,7 +293,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			app.Slots = make(map[string]*SlotInfo)
 		}
 		if len(yApp.Sockets) > 0 {
-			app.Sockets = make(map[string]*SocketInfo)
+			app.Sockets = make(map[string]*SocketInfo, len(yApp.Sockets))
 		}
 
 		snap.Apps[appName] = app
