@@ -264,7 +264,7 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 -}
 --- a/tests/main/i18n/task.yaml
 +++ /dev/null
-@@ -1,16 +0,0 @@
+@@ -1,26 +0,0 @@
 -summary: Test that i18n works
 -
 -execute: |
@@ -280,4 +280,14 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 -    fi
 -
 -    echo "Ensure that i18n works"
--    LANG=de_DE.UTF-8 snap changes everything | MATCH "Ja, ja, allerdings."
+-    LANG=de snap changes everything | MATCH "Ja, ja, allerdings."
+-
+-    echo "Basic smoke test to ensure no locale causes crashes nor warnings"
+-    for p in /usr/share/locale/*; do
+-        out=$( LANG=$(basename $p) snap 2>&1 >/dev/null )
+-        if [ -n "$out" ]; then
+-            echo "$p"
+-            echo "$out"
+-            exit 1
+-        fi
+-    done
