@@ -91,6 +91,7 @@ func queueCommand(context *hookstate.Context, ts *state.TaskSet) error {
 	}
 	ts.WaitAll(state.NewTaskSet(tasks...))
 	change.AddAll(ts)
+	// as this can be run from what was originally the last task of a change, make sure the tasks added to the change are considered immediately.
 	st.EnsureBefore(0)
 
 	return nil
