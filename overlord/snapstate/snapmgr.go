@@ -498,6 +498,8 @@ func (m *SnapManager) NextRefresh() time.Time {
 // RefreshSchedule returns the current refresh schedule.
 // The caller should be holding the state lock.
 func (m *SnapManager) RefreshSchedule() string {
+	// This call ensures "m.currentRefreshSchedule" is up-to-date
+	// with the latest configuration settings.
 	m.checkRefreshSchedule()
 	return m.currentRefreshSchedule
 }
@@ -539,10 +541,12 @@ func (m *SnapManager) refreshScheduleManaged() bool {
 		if err != nil {
 			continue
 		}
-		// the snap must come from the store
-		// FIXME: should we use
+		// The snap must come from the store.
+		// FIXME: we should use something like
 		//   assertstate.SnapDeclaration(info.SideInfo.SnapID)
-		// here?
+		// here. However right now we cannot import assertstate
+		// here (circular imports) so go with the weaker check for
+		// now.
 		if info.SideInfo.SnapID == "" {
 			continue
 		}
