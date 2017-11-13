@@ -1,4 +1,4 @@
-name: test-snapd-content-slot
+name: test-snapd-content-slot2
 version: 1.0
 slots:
     shared-content-slot:
