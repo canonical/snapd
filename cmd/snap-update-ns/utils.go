@@ -214,7 +214,6 @@ func planWritableMimic(dir string) ([]*Change, error) {
 		return nil, err
 	}
 	for _, fi := range entries {
-		// Skip non-directory elements as we cannot handle those yet.
 		ch := &Change{Action: Mount, Entry: mount.Entry{
 			Name: filepath.Join(safeKeepingDir, fi.Name()),
 			Dir:  filepath.Join(dir, fi.Name()),
