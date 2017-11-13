@@ -22,6 +22,7 @@ package osutil
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	. "gopkg.in/check.v1"
@@ -32,22 +33,19 @@ type groupFindGidOwningSuite struct{}
 var _ = Suite(&groupFindGidOwningSuite{})
 
 func (s *groupFindGidOwningSuite) TestSelfOwnedFile(c *C) {
-	self, err := RealUser()
+	name := filepath.Join(c.MkDir(), "testownedfile")
+	err := ioutil.WriteFile(name, nil, 0644)
 	c.Assert(err, IsNil)
-
-	f, err := ioutil.TempFile("", "testownedfile")
-	c.Assert(err, IsNil)
-	name := f.Name()
-	defer f.Close()
-	defer os.Remove(name)
 
 	gid, err := FindGidOwning(name)
 	c.Check(err, IsNil)
 
+	self, err := RealUser()
+	c.Assert(err, IsNil)
 	c.Check(strconv.FormatUint(gid, 10), Equals, self.Gid)
 }
 
 func (s *groupFindGidOwningSuite) TestNoOwnedFile(c *C) {
 	_, err := FindGidOwning("/tmp/filedoesnotexistbutwhy")
-	c.Assert(err, Not(IsNil))
+	c.Assert(err, DeepEquals, os.ErrNotExist)
 }
