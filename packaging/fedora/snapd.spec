@@ -521,8 +521,9 @@ echo 'SNAP_REEXEC=0' > %{buildroot}%{_sysconfdir}/sysconfig/snapd
 # Install snap management script
 install -pm 0755 packaging/fedora/snap-mgmt.sh %{buildroot}%{_libexecdir}/snapd/snap-mgmt
 
-# Create state.json file to be ghosted
+# Create state.json and the README file to be ghosted
 touch %{buildroot}%{_sharedstatedir}/snapd/state.json
+touch %{buildroot}%{_sharedstatedir}/snapd/snap/README
 
 # source codes for building projects
 %if 0%{?with_devel}
@@ -613,6 +614,7 @@ popd
 %dir %{_localstatedir}/cache/snapd
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
+%ghost %{_sharedstatedir}/snapd/snap/README
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
