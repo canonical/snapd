@@ -335,7 +335,7 @@ func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
 	genericModelsKey := NewAccountKey(rootSigning, genericAcct, map[string]interface{}{
 		"name":  "models",
 		"since": ts,
-	}, genericModelsPrivKey.PublicKey(), "")
+	}, keys.GenericModels.PublicKey(), "")
 	generic := []asserts.Assertion{genericAcct, genericModelsKey}
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{

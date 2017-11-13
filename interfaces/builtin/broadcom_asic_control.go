@@ -49,10 +49,10 @@ const broadcomAsicControlConnectedPlugAppArmor = `
 /run/udev/data/+pci:[0-9]* r,
 `
 
-const broadcomAsicControlConnectedPlugUDev = `
-SUBSYSTEM=="pci", DRIVER=="linux-kernel-bde", TAG+="###CONNECTED_SECURITY_TAGS###"
-SUBSYSTEM=="net", KERNEL=="bcm[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
-`
+var broadcomAsicControlConnectedPlugUDev = []string{
+	`SUBSYSTEM=="pci", DRIVER=="linux-kernel-bde"`,
+	`SUBSYSTEM=="net", KERNEL=="bcm[0-9]*"`,
+}
 
 // The upstream linux kernel doesn't come with support for the
 // necessary kernel modules we need to drive a Broadcom ASIC.

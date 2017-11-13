@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -34,6 +35,7 @@ var (
 
 type Conf interface {
 	Get(snapName, key string, result interface{}) error
+	State() *state.State
 }
 
 func coreCfg(tr Conf, key string) (result string, err error) {
@@ -48,6 +50,13 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 }
 
 func Run(tr Conf) error {
+	if err := validateProxyStore(tr); err != nil {
+		return err
+	}
+	if err := validateRefreshSchedule(tr); err != nil {
+		return err
+	}
+
 	// see if it makes sense to run at all
 	if release.OnClassic {
 		// nothing to do
