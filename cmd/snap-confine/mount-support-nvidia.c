@@ -37,6 +37,15 @@
 
 #define SC_LIBGL_DIR   "/var/lib/snapd/lib/gl"
 #define SC_LIBGL32_DIR "/var/lib/snapd/lib/gl32"
+#define SC_VULKAN_DIR  "/var/lib/snapd/lib/vulkan"
+
+// Location for NVIDIA vulkan files (including _wayland)
+static const char *vulkan_globs[] = {
+	"/usr/share/vulkan/icd.d/10_nvidia*.json",
+};
+
+static const size_t vulkan_globs_len =
+    sizeof vulkan_globs / sizeof *vulkan_globs;
 
 #ifdef NVIDIA_BIARCH
 
@@ -122,6 +131,8 @@ static const char *nvidia_globs32[] = {
 
 static const size_t nvidia_globs32_len =
     sizeof nvidia_globs32 / sizeof *nvidia_globs32;
+
+#endif				// ifdef NVIDIA_BIARCH
 
 // Populate libgl_dir with a symlink farm to files matching glob_list.
 //
@@ -230,6 +241,8 @@ static void sc_mount_and_glob_files(const char *rootfs_dir,
 	}
 }
 
+#ifdef NVIDIA_BIARCH
+
 static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 {
 	sc_mount_and_glob_files(rootfs_dir, SC_LIBGL_DIR,
@@ -327,4 +340,8 @@ void sc_mount_nvidia_driver(const char *rootfs_dir)
 #ifdef NVIDIA_BIARCH
 	sc_mount_nvidia_driver_biarch(rootfs_dir);
 #endif				// ifdef NVIDIA_BIARCH
+
+	// Common for both driver mechanisms
+	sc_mount_and_glob_files(rootfs_dir, SC_VULKAN_DIR,
+				vulkan_globs, vulkan_globs_len);
 }
