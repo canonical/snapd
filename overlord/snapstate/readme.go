@@ -27,11 +27,22 @@ import (
 )
 
 const snapREADME = `
-This directory is used by snapd to present installed snap packages. While the
-files inside may seem large almost no space is consumed here. The actual space
-is used by heavily-compressed .snap files stored in /var/lib/snapd/snap
+This directory presents installed snap packages.
 
-For more information please visit: https://forum.snapcraft.io/t/the-snap-directory/
+It has the following structure:
+
+/snap/bin                   - Symlinks to snap applications.
+/snap/<snapname>/<revision> - Mountpoint for snap content.
+/snap/<snapname>/current    - Symlink to current revision, if enabled.
+
+DISK SPACE USAGE
+
+The disk space consumed by the content under this directory is
+minimal as the real snap content never leaves the .snap file.
+Snaps are *mounted* rather than unpacked.
+
+For further details please visit
+https://forum.snapcraft.io/t/the-snap-directory/2817
 `
 
 func writeSnapReadme() error {

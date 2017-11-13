@@ -7,4 +7,4 @@ details: >
 execute: |
     snap version # To ensure that snapd is awake
     . $TESTSLIB/dirs.sh
-    MATCH "For more information please visit: https://forum.snapcraft.io/t/the-snap-directory/" "$SNAP_MOUNT_DIR/README"
+    MATCH "https://forum.snapcraft.io/t/the-snap-directory/2817" "$SNAP_MOUNT_DIR/README"
