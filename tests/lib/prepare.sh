@@ -8,6 +8,8 @@ set -eux
 . "$TESTSLIB/snaps.sh"
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
+# shellcheck source=tests/lib/boot.sh
+. "$TESTSLIB/boot.sh"
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -205,17 +207,11 @@ EOF
             snap set core refresh.disabled=true
         fi
 
-        GRUB_EDITENV=grub-editenv
-        case "$SPREAD_SYSTEM" in
-            fedora-*|opensuse-*)
-                GRUB_EDITENV=grub2-editenv
-                ;;
-        esac
-
-        echo "Ensure that the grub-editenv list output does not contain any of the snap_* variables on classic"
-        output=$($GRUB_EDITENV list)
+        echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
+        # shellcheck disable=SC2119
+        output=$(bootenv)
         if echo "$output" | MATCH snap_ ; then
-            echo "Expected grub environment without snap_*, got:"
+            echo "Expected bootloader environment without snap_*, got:"
             echo "$output"
             exit 1
         fi
