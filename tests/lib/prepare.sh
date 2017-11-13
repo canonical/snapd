@@ -19,6 +19,11 @@ disable_kernel_rate_limiting() {
 }
 
 disable_refreshes() {
+    echo "Ensure jq is available"
+    if ! which jq; then
+        snap install --devmode jq
+    fi
+
     echo "Modify state to make it look like the last refresh just happened"
     systemctl stop snapd.socket snapd.service
     jq ".data[\"last-refresh\"] = \"$(date +%Y-%m-%dT%H:%M:%S%:z)\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
@@ -28,6 +33,9 @@ disable_refreshes() {
     echo "Minimize risk of hitting refresh schedule"
     snap set core refresh.schedule=00:00-23:59
     snap refresh --time|MATCH "last: 2[0-9]{3}"
+
+    echo "Ensure jq is gone"
+    snap remove jq
 }
 
 update_core_snap_for_classic_reexec() {
