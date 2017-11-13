@@ -1,4 +1,4 @@
-name: time-control-consumer
+name: test-snapd-time-control-consumer
 version: 1.0
 summary: Basic time-control consumer snap
 description: A basic snap declaring a plug on a time-control slot
