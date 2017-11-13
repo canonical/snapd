@@ -25,6 +25,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/corecfg"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -85,7 +86,7 @@ func MockCorecfgRun(f func(tr corecfg.Conf) error) (restore func()) {
 
 func (m *ConfigManager) doRunCoreConfigure(t *state.Task, tomb *tomb.Tomb) error {
 	var patch map[string]interface{}
-	var useDefaults bool
+	var useDefaults, ignoreErrors, trackErrors bool
 
 	st := t.State()
 	st.Lock()
@@ -107,6 +108,13 @@ func (m *ConfigManager) doRunCoreConfigure(t *state.Task, tomb *tomb.Tomb) error
 		}
 	}
 
+	if err := t.Get("ignore-error", &ignoreErrors); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if err := t.Get("track-error", &trackErrors); err != nil && err != state.ErrNoState {
+		return err
+	}
+
 	tr := config.NewTransaction(st)
 	st.Unlock()
 	defer st.Lock()
@@ -117,7 +125,12 @@ func (m *ConfigManager) doRunCoreConfigure(t *state.Task, tomb *tomb.Tomb) error
 	}
 
 	if err := corecfgRun(tr); err != nil {
-		return err
+		// FIXME: support trackErrors
+		if ignoreErrors {
+			logger.Noticef("cannot apply core configuration: %s", err)
+		} else {
+			return err
+		}
 	}
 
 	st.Lock()
