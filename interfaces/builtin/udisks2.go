@@ -353,12 +353,6 @@ KERNEL=="sr*", ENV{ID_VENDOR}=="SanDisk", ENV{ID_MODEL}=="Cruzer", ENV{ID_FS_LAB
 ENV{ID_PART_TABLE_TYPE}=="dos", ENV{ID_PART_ENTRY_TYPE}=="0x0", ENV{ID_PART_ENTRY_NUMBER}=="1", ENV{ID_FS_TYPE}=="iso9660|udf", ENV{UDISKS_IGNORE}="0"
 `
 
-const udisks2PermanentSlotUDevTag = `
-SUBSYSTEM=="block", TAG+="###CONNECTED_SECURITY_TAGS###"
-# This tags all USB devices, so we'll use AppArmor to mediate specific access (eg, /dev/sd* and /dev/mmcblk*)
-SUBSYSTEM=="usb", TAG+="###CONNECTED_SECURITY_TAGS###"
-`
-
 type udisks2Interface struct{}
 
 func (iface *udisks2Interface) Name() string {
@@ -396,13 +390,10 @@ func (iface *udisks2Interface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 }
 
 func (iface *udisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	old := "###CONNECTED_SECURITY_TAGS###"
-	udevRule := udisks2PermanentSlotUDev
-	for appName := range slot.Apps {
-		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
-		udevRule += strings.Replace(udisks2PermanentSlotUDevTag, old, tag, -1)
-	}
-	spec.AddSnippet(udevRule)
+	spec.AddSnippet(udisks2PermanentSlotUDev)
+	spec.TagDevice(`SUBSYSTEM=="block"`)
+	// # This tags all USB devices, so we'll use AppArmor to mediate specific access (eg, /dev/sd* and /dev/mmcblk*)
+	spec.TagDevice(`SUBSYSTEM=="usb"`)
 	return nil
 }
 
