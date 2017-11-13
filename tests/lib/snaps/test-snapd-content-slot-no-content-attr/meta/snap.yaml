@@ -1,4 +1,4 @@
-name: test-snapd-content-slot-empty-content-attr
+name: test-snapd-content-slot-no-content-attr
 version: 1.0
 slots:
     shared-content:
