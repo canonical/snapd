@@ -1,0 +1,64 @@
+summary: Check that timeserver interface works
+
+details: |
+    This test makes sure that a snap using the timeserver-control interface
+    can access timeserver information and update it.
+
+prepare: |
+    # Install the snap to check file system access
+    cp $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig
+    sed 's/\[\]/\[timeserver-control\]/g' -i $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml
+    snap try $TESTSLIB/snaps/test-snapd-check-fs-access
+
+    # Install a snap declaring a plug on timeserver-control
+    cp $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml.orig
+    sed 's/\[\]/\[timeserver-control\]/g' -i $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml
+    snap try $TESTSLIB/snaps/test-snapd-timedate-control-consumer
+
+    # Save the default timeserver to be restored at the end
+    echo $(timedatectl status | grep 'Network time on:' | sed 's/.*Network time on: \(.*\)$/\1/') > timeserver.txt
+
+restore: |
+    # Restore the check-fs-access snap.yaml
+    cp $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml
+
+    # Restore the timedate-control-consumer snap.yaml
+    cp $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml.orig $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml
+
+    # Restore the initial timeserver
+    timedatectl set-ntp "$(cat timeserver.txt)"
+    rm -f timeserver.txt
+
+execute: |
+    CONNECTED_PATTERN=":timeserver-control +test-snapd-timedate-control-consumer"
+    DISCONNECTED_PATTERN="\- +test-snapd-timedate-control-consumer:timeserver-control"
+
+    . $TESTSLIB/dirs.sh
+
+    # Check the interface is disconnected by detault
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    # Connect the interfaces for both snaps
+    snap connect test-snapd-timedate-control-consumer:timeserver-control
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+    snap connect test-snapd-check-fs-access:timeserver-control
+
+    # Write access to /usr/share/zoneinfo should be possible
+    test-snapd-check-fs-access.write-file /etc/systemd/timesyncd.conf
+
+    # Set the ntp value and check the status
+    test-snapd-timedate-control-consumer.timedatectl set-ntp yes
+    [ "$(timedatectl status | grep 'Network time on:' | sed 's/.*Network time on: \(.*\)$/\1/')" = "yes" ]
+
+    # Set the ntp value and check the status
+    test-snapd-timedate-control-consumer.timedatectl set-ntp no
+    [ "$(timedatectl status | grep 'Network time on:' | sed 's/.*Network time on: \(.*\)$/\1/')" = "no" ]
+    [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep 'Time zone:' | sed 's/.*Time zone: \(.*\) (.*)/\1/')" = "no" ]
+
+    # Disconnect the interface and check access to timedatectl status
+    snap disconnect test-snapd-timedate-control-consumer:timeserver-control
+    if test-snapd-timedate-control-consumer.timedatectl status 2>${PWD}/call.error; then
+        echo "Expected permission error calling timedatectl status with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
