@@ -2,43 +2,70 @@ summary: Check that timezone interface works
 
 details: |
     This test makes sure that a snap using the timezone-control interface
-    can access timezone information and change it.
+    can access timezone information and update it.
 
 prepare: |
-    echo "Given a snap declaring a plug on timezone-control is installed"
+    # Install the snap to check file system access
+    cp $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig
+    sed 's/\[\]/\[timezone-control\]/g' -i $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml
+    snap try $TESTSLIB/snaps/test-snapd-check-fs-access
+
+    # Install a snap declaring a plug on timezone-control
+    cp $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml.orig
+    sed 's/\[\]/\[timezone-control\]/g' -i $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml
+    snap try $TESTSLIB/snaps/test-snapd-timedate-control-consumer
+
+    # Install a snap declaring a plug on timezone-control
     snap try $TESTSLIB/snaps/test-snapd-timezone-control-consumer/
 
-    echo "Then the default timezone is saved to be restored"
-    timezone=$(timedatectl status | grep 'Time zone:' | sed 's/.*Time zone: \(.*\) (.*)/\1/')
-    timedatectl list-timezones | MATCH "^$timezone$"
-    echo $timezone > timezone.txt
-
-
+    # Save the default timezone to be restored at the end
+    echo $(timedatectl status | grep 'Time zone:' | sed 's/.*Time zone: \(.*\) (.*)/\1/') > timezone.txt
 
 restore: |
-    echo "Finnally restore the initial timezone"
+    # Restore the check-fs-access snap.yaml
+    cp $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml
+
+    # Restore the timedate-control-consumer snap.yaml
+    cp $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml.orig $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml
+
+    # Restore the initial timezone
     timedatectl set-timezone "$(cat timezone.txt)"
     rm -f timezone.txt
 
 execute: |
+    CONNECTED_PATTERN=":timezone-control +test-snapd-timedate-control-consumer"
+    DISCONNECTED_PATTERN="\- +test-snapd-timedate-control-consumer:timezone-control"
+
     . $TESTSLIB/dirs.sh
 
-    # Read/write access should be possible
-    test -n "`$SNAP_MOUNT_DIR/bin/test-snapd-timezone-control-consumer.read`"
-    $SNAP_MOUNT_DIR/bin/test-snapd-timezone-control-consumer.write
-    
-    timezone1=$($SNAP_MOUNT_DIR/bin/test-snapd-timezone-control-consumer.timedatectl list-timezones | sed -n 1p)
-    timezone2=$($SNAP_MOUNT_DIR/bin/test-snapd-timezone-control-consumer.timedatectl list-timezones | sed -n 2p)
+    # Check the interface is disconnected by detault
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
-    echo "Set the timezone1 as timezone and check the status"
-    $SNAP_MOUNT_DIR/bin/test-snapd-timezone-control-consumer.timedatectl set-timezone $timezone1
-    [ $(timedatectl status | grep 'Time zone:' | sed 's/.*Time zone: \(.*\) (.*)/\1/') = $timezone1 ]
+    # Connect the interfaces for both snaps
+    snap connect test-snapd-timedate-control-consumer:timezone-control
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+    snap connect test-snapd-check-fs-access:timezone-control
 
-    echo "Set the timezone2 as timezone and check the status"
-    $SNAP_MOUNT_DIR/bin/test-snapd-timezone-control-consumer.timedatectl set-timezone $timezone2
-    [ $(timedatectl status | grep 'Time zone:' | sed 's/.*Time zone: \(.*\) (.*)/\1/') = $timezone2 ]
-    [ $($SNAP_MOUNT_DIR/bin/test-snapd-timezone-control-consumer.timedatectl status | grep 'Time zone:' | sed 's/.*Time zone: \(.*\) (.*)/\1/') = $timezone2 ]
+    # Read access to /usr/share/zoneinfo should be possible
+    test-snapd-check-fs-access.read-dir /usr/share/zoneinfo
 
-    # Read/write access should be possible
-    test -n "`$SNAP_MOUNT_DIR/bin/test-snapd-timezone-control-consumer.timedatectl status`"
-    $SNAP_MOUNT_DIR/bin/test-snapd-timezone-control-consumer.timedatectl set-local-rtc no
+    # Read timezones information should be allowed
+    timezone1=$(test-snapd-timedate-control-consumer.timedatectl list-timezones | sed -n 1p)
+    timezone2=$(test-snapd-timedate-control-consumer.timedatectl list-timezones | sed -n 2p)
+
+    # Set the timezone1 as timezone and check the status
+    test-snapd-timedate-control-consumer.timedatectl set-timezone $timezone1
+    [ "$(timedatectl status | grep 'Time zone:' | sed 's/.*Time zone: \(.*\) (.*)/\1/')" = "$timezone1" ]
+
+    # Set the timezone2 as timezone and check the status
+    test-snapd-timedate-control-consumer.timedatectl set-timezone $timezone2
+    [ "$(timedatectl status | grep 'Time zone:' | sed 's/.*Time zone: \(.*\) (.*)/\1/')" = "$timezone2" ]
+    [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep 'Time zone:' | sed 's/.*Time zone: \(.*\) (.*)/\1/')" = "$timezone2" ]
+
+    # Disconnect the interface and check access to timedatectl status
+    snap disconnect test-snapd-timedate-control-consumer:timezone-control
+    if test-snapd-timedate-control-consumer.timedatectl status 2>${PWD}/call.error; then
+        echo "Expected permission error calling timedatectl status with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error

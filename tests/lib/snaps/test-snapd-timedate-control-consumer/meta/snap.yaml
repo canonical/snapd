@@ -1,0 +1,10 @@
+name: test-snapd-timedate-control-consumer
+version: 1.0
+summary: Basic timedate-control consumer generic snap
+description: A basic generic snap that can be used to plug a timedate slot
+
+apps:
+    timedatectl:
+        command: bin/timedatectl
+        plugs: [] #timedate
+
