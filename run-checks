@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 if [ "$TRAVIS_BUILD_NUMBER" ]; then
     echo travis_fold:start:env
