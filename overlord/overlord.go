@@ -128,7 +128,6 @@ func New() (*Overlord, error) {
 		return nil, err
 	}
 	o.addManager(configMgr)
-	o.configMgr = configMgr
 
 	deviceMgr, err := devicestate.Manager(s, hookMgr)
 	if err != nil {
@@ -146,7 +145,7 @@ func New() (*Overlord, error) {
 
 	snapstate.ReplaceStore(s, sto)
 
-	if err := o.snapMgr.GenerateCookies(s); err != nil {
+	if err := o.snapMgr.SyncCookies(s); err != nil {
 		return nil, fmt.Errorf("failed to generate cookies: %q", err)
 	}
 
@@ -167,6 +166,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.deviceMgr = x
 	case *cmdstate.CommandManager:
 		o.cmdMgr = x
+	case *configstate.ConfigManager:
+		o.configMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
@@ -366,20 +367,28 @@ func (o *Overlord) InterfaceManager() *ifacestate.InterfaceManager {
 	return o.ifaceMgr
 }
 
-// HookManager returns the hook manager responsible for running hooks under the
-// overlord.
+// HookManager returns the hook manager responsible for running hooks
+// under the overlord.
 func (o *Overlord) HookManager() *hookstate.HookManager {
 	return o.hookMgr
 }
 
-// DeviceManager returns the device manager responsible for the device identity and policies
+// DeviceManager returns the device manager responsible for the device
+// identity and policies.
 func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
 	return o.deviceMgr
 }
 
-// CommandManager returns the manager responsible for running odd jobs
+// CommandManager returns the manager responsible for running odd
+// jobs.
 func (o *Overlord) CommandManager() *cmdstate.CommandManager {
 	return o.cmdMgr
+}
+
+// ConfigManager returns the manager responsible for doing
+// configuration.
+func (o *Overlord) ConfigManager() *configstate.ConfigManager {
+	return o.configMgr
 }
 
 // Mock creates an Overlord without any managers and with a backend

@@ -293,6 +293,7 @@ func (s *cmdSuite) TestExecInCoreSnapNoDouble(c *C) {
 	selfExe := filepath.Join(s.fakeroot, "proc/self/exe")
 	err := os.Symlink(filepath.Join(s.fakeroot, "/snap/core/42/usr/lib/snapd"), selfExe)
 	c.Assert(err, IsNil)
+	cmd.MockSelfExe(selfExe)
 
 	cmd.ExecInCoreSnap()
 	c.Check(s.execCalled, Equals, 0)
@@ -306,4 +307,18 @@ func (s *cmdSuite) TestExecInCoreSnapDisabled(c *C) {
 
 	cmd.ExecInCoreSnap()
 	c.Check(s.execCalled, Equals, 0)
+}
+
+func (s *cmdSuite) TestExecInCoreSnapUnsetsDidReexec(c *C) {
+	os.Setenv("SNAP_DID_REEXEC", "1")
+	defer os.Unsetenv("SNAP_DID_REEXEC")
+
+	selfExe := filepath.Join(s.fakeroot, "proc/self/exe")
+	err := os.Symlink(filepath.Join(s.fakeroot, "/snap/core/42/usr/lib/snapd"), selfExe)
+	c.Assert(err, IsNil)
+	cmd.MockSelfExe(selfExe)
+
+	cmd.ExecInCoreSnap()
+	c.Check(s.execCalled, Equals, 0)
+	c.Check(os.Getenv("SNAP_DID_REEXEC"), Equals, "")
 }

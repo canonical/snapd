@@ -159,7 +159,8 @@ func (s *spiInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug1, nil, s.slotGadget1, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], Equals, `KERNEL=="spidev0.0", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# spi
+KERNEL=="spidev0.0", TAG+="snap_consumer_app"`)
 }
 
 func (s *spiInterfaceSuite) TestAppArmorSpec(c *C) {
