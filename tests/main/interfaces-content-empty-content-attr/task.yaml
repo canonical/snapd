@@ -2,14 +2,14 @@ summary: Ensure that the content sharing interface with defaults work.
 
 prepare: |
     echo "Given a snap declaring a content sharing slot is installed"
-    snap install --edge test-snapd-content-slot-empty-content-attr
+    snap install --edge test-snapd-content-slot-no-content-attr
 
     echo "And a snap declaring a content sharing plug is installed"
-    snap install --edge test-snapd-content-plug-empty-content-attr
+    snap install --edge test-snapd-content-plug-no-content-attr
 
 execute: |
-    CONNECTED_PATTERN="test-snapd-content-slot-empty-content-attr:shared-content +test-snapd-content-plug-empty-content-attr"
-    DISCONNECTED_PATTERN="(?s).*?test-snapd-content-slot-empty-content-attr:shared-content +-.*?- +test-snapd-content-plug-empty-content-attr"
+    CONNECTED_PATTERN="test-snapd-content-slot-no-content-attr:shared-content +test-snapd-content-plug-no-content-attr"
+    DISCONNECTED_PATTERN="(?s).*?test-snapd-content-slot-no-content-attr:shared-content +-.*?- +test-snapd-content-plug-no-content-attr"
 
     echo "Then the snap is listed as connected"
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
@@ -18,7 +18,7 @@ execute: |
     [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
 
     echo "And we can use the shared content"
-    test-snapd-content-plug-empty-content-attr.content-plug | grep "Some shared content"
+    test-snapd-content-plug-no-content-attr.content-plug | grep "Some shared content"
 
     if [ "$(snap debug confinement)" = partial ]; then
         exit 0
@@ -27,14 +27,14 @@ execute: |
     echo "============================================"
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-content-plug-empty-content-attr:shared-content test-snapd-content-slot-empty-content-attr:shared-content
+    snap disconnect test-snapd-content-plug-no-content-attr:shared-content test-snapd-content-slot-no-content-attr:shared-content
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the fstab files are removed"
     [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -eq 0 ]
 
     echo "When the plug is reconnected"
-    snap connect test-snapd-content-plug-empty-content-attr:shared-content test-snapd-content-slot-empty-content-attr:shared-content
+    snap connect test-snapd-content-plug-no-content-attr:shared-content test-snapd-content-slot-no-content-attr:shared-content
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the fstab files are recreated"
