@@ -196,6 +196,27 @@ Name=foo
 `)
 }
 
+func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecRewriteFromDesktop(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+`))
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=snap.app.evil.evil
+`)
+
+	e := wrappers.SanitizeDesktopFile(snap, "app.desktop", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Entry]
+Name=foo
+Exec=env BAMF_DESKTOP_FILE_HINT=app.desktop /snap/bin/snap.app
+`)
+}
+
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecOk(c *C) {
 	snap, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
