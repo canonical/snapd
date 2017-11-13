@@ -96,8 +96,9 @@ func (s *PppInterfaceSuite) TestKModSpec(c *C) {
 func (s *PppInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="ppp", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), testutil.Contains, `# ppp
+KERNEL=="ppp", TAG+="snap_consumer_app"`)
 }
 
 func (s *PppInterfaceSuite) TestStaticInfo(c *C) {
