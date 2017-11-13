@@ -15,11 +15,11 @@ prepare: |
 
     echo "Given a snap declaring a plug on time-control is installed"
     . $TESTSLIB/snaps.sh
-    install_local time-control-consumer
+    install_local test-snapd-time-control-consumer
 
     echo "And the time-control plug is connected"
     . $TESTSLIB/names.sh
-    snap connect time-control-consumer:time-control :time-control
+    snap connect test-snapd-time-control-consumer:time-control :time-control
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -30,9 +30,9 @@ execute: |
     . $TESTSLIB/dirs.sh
 
     # Read/write access should be possible
-    test -n "`$SNAP_MOUNT_DIR/bin/time-control-consumer.read`"
-    $SNAP_MOUNT_DIR/bin/time-control-consumer.write
+    test -n "`$SNAP_MOUNT_DIR/bin/test-snapd-time-control-consumer.read`"
+    $SNAP_MOUNT_DIR/bin/test-snapd-time-control-consumer.write
 
     # Read/write access should be possible
-    test -n "`$SNAP_MOUNT_DIR/bin/time-control-consumer.timedatectl status`"
-    $SNAP_MOUNT_DIR/bin/time-control-consumer.timedatectl set-local-rtc no
+    test -n "`$SNAP_MOUNT_DIR/bin/test-snapd-time-control-consumer.timedatectl status`"
+    $SNAP_MOUNT_DIR/bin/test-snapd-time-control-consumer.timedatectl set-local-rtc no
