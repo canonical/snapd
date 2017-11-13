@@ -20,11 +20,10 @@
 package snapstate
 
 import (
-	"io/ioutil"
 	"os"
-	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 const snapREADME = `
@@ -36,9 +35,15 @@ For more information please visit: https://forum.snapcraft.io/t/the-snap-directo
 `
 
 func writeSnapReadme() error {
-	f := filepath.Join(dirs.SnapMountDir, "README")
+	const fname = "README"
+	content := map[string]*osutil.FileState{
+		fname: {Content: []byte(snapREADME), Mode: 0644},
+	}
 	if err := os.MkdirAll(dirs.SnapMountDir, 0755); err != nil {
 		return err
 	}
-	return ioutil.WriteFile(f, []byte(snapREADME), 0644)
+	// NOTE: We are using EnsureDirState to not unconditionally write to flash
+	// and thus prolong life of the device.
+	_, _, err := osutil.EnsureDirState(dirs.SnapMountDir, fname, content)
+	return err
 }

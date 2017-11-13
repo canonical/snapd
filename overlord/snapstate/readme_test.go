@@ -43,9 +43,19 @@ func (s *readmeSuite) TearDownTest(c *C) {
 }
 
 func (s *readmeSuite) TestSnapREADME(c *C) {
-	c.Assert(snapstate.WriteSnapReadme(), IsNil)
 	f := filepath.Join(dirs.SnapMountDir, "README")
+
+	// Missing file is created.
+	c.Assert(snapstate.WriteSnapReadme(), IsNil)
 	data, err := ioutil.ReadFile(f)
+	c.Assert(err, IsNil)
+	c.Check(string(data), testutil.Contains, "For more information please visit: https://forum.snapcraft.io/t/the-snap-directory/")
+
+	// Corrupted file is cured.
+	err = ioutil.WriteFile(f, []byte("corrupted"), 0644)
+	c.Assert(err, IsNil)
+	c.Assert(snapstate.WriteSnapReadme(), IsNil)
+	data, err = ioutil.ReadFile(f)
 	c.Assert(err, IsNil)
 	c.Check(string(data), testutil.Contains, "For more information please visit: https://forum.snapcraft.io/t/the-snap-directory/")
 }
