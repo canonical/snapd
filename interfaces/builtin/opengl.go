@@ -32,8 +32,8 @@ const openglConnectedPlugAppArmor = `
 # Description: Can access opengl.
 
   # specific gl libs
-  /var/lib/snapd/lib/gl/ r,
-  /var/lib/snapd/lib/gl/** rm,
+  /var/lib/snapd/lib/gl{,32}/ r,
+  /var/lib/snapd/lib/gl{,32}/** rm,
 
   # Supports linux-driver-management from Solus (staged symlink trees into libdirs)
   /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}glx-provider/**.so{,.*}  rm,
