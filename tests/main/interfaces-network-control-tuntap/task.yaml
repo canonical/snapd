@@ -28,7 +28,7 @@ execute: |
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "And cannot allocate the $DEV device"
-        test-snapd-tuntap.tuntap $DEV | MATCH "Permission denied"
+        test-snapd-tuntap.tuntap $DEV 2>&1 | MATCH "Permission denied"
     fi
 
     echo "When the plug is connected"
