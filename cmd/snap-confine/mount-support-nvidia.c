@@ -220,7 +220,6 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 	}
 }
 
-
 static void sc_mount_and_glob_files(const char *rootfs_dir,
 				    const char *tgt_dir,
 				    const char *glob_list[],
@@ -288,7 +287,8 @@ static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
 	      driver->minor_version);
 }
 
-static void sc_mount_and_bind(const char *rootfs_dir, const char *src_dir, const char *tgt_dir)
+static void sc_mount_and_bind(const char *rootfs_dir, const char *src_dir,
+			      const char *tgt_dir)
 {
 	struct sc_nvidia_driver driver;
 
@@ -324,9 +324,9 @@ static void sc_mount_and_bind(const char *rootfs_dir, const char *src_dir, const
 
 static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 {
-        // Attempt mount of both the native and 32-bit variants of the driver if they exist
-        sc_mount_and_bind(rootfs_dir, "/usr/lib/nvidia", SC_LIBGL_DIR);
-        sc_mount_and_bind(rootfs_dir, "/usr/lib32/nvidia", SC_LIBGL32_DIR);
+	// Attempt mount of both the native and 32-bit variants of the driver if they exist
+	sc_mount_and_bind(rootfs_dir, "/usr/lib/nvidia", SC_LIBGL_DIR);
+	sc_mount_and_bind(rootfs_dir, "/usr/lib32/nvidia", SC_LIBGL32_DIR);
 }
 
 #endif				// ifdef NVIDIA_MULTIARCH
