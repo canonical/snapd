@@ -25,6 +25,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 // not available through syscall
@@ -45,6 +47,87 @@ var (
 	sysFchown  = syscall.Fchown
 )
 
+// Create directories for all but the last segments and return the file
+// descriptor to the leaf directory. This function is a base for secure
+// variants of mkdir, touch and symlink.
+func secureMkPrefix(segments []string, perm os.FileMode, uid, gid int) (int, error) {
+	logger.Debugf("secure-mk-prefix %q %v %d %d -> ...", segments, perm, uid, gid)
+
+	// Declare var and don't assign-declare below to ensure we don't swallow
+	// any errors by mistake.
+	var err error
+	var fd int
+
+	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
+
+	// Open the root directory and start there.
+	fd, err = sysOpen("/", openFlags, 0)
+	if err != nil {
+		return -1, fmt.Errorf("cannot open root directory: %v", err)
+	}
+	if len(segments) > 1 {
+		defer sysClose(fd)
+	}
+
+	if len(segments) > 0 {
+		// Process all but the last segment.
+		for i := range segments[:len(segments)-1] {
+			fd, err = secureMkDir(fd, segments, i, perm, uid, gid)
+			if err != nil {
+				return -1, err
+			}
+			// Keep the final FD open (caller needs to close it).
+			if i < len(segments)-2 {
+				defer sysClose(fd)
+			}
+		}
+	}
+
+	logger.Debugf("secure-mk-prefix %q %v %d %d -> %d", segments, perm, uid, gid, fd)
+	return fd, nil
+}
+
+// secureMkdir creates a directory at i-th entry of absolute path represented
+// by segments. This function can be used to construct subsequent elements of
+// the constructed path. The return value contains the newly created file
+// descriptor or -1 on error.
+func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid, gid int) (int, error) {
+	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> ...", fd, segments, i, perm, uid, gid)
+
+	segment := segments[i]
+	made := true
+	var err error
+	var newFd int
+
+	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
+
+	if err = sysMkdirat(fd, segment, uint32(perm)); err != nil {
+		switch err {
+		case syscall.EEXIST:
+			made = false
+		default:
+			return -1, fmt.Errorf("cannot mkdir path segment %q: %v", segment, err)
+		}
+	}
+	newFd, err = sysOpenat(fd, segment, openFlags, 0)
+	if err != nil {
+		return -1, fmt.Errorf("cannot open path segment %q (got up to %q): %v", segment,
+			"/"+strings.Join(segments[:i], "/"), err)
+	}
+	if made {
+		// Chown each segment that we made.
+		if err := sysFchown(newFd, uid, gid); err != nil {
+			// Close the FD we opened if we fail here since the caller will get
+			// an error and won't assume responsibility for the FD.
+			sysClose(newFd)
+			return -1, fmt.Errorf("cannot chown path segment %q to %d.%d (got up to %q): %v", segment, uid, gid,
+				"/"+strings.Join(segments[:i], "/"), err)
+		}
+	}
+	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> %d", fd, segments, i, perm, uid, gid, newFd)
+	return newFd, err
+}
+
 // secureMkdirAll is the secure variant of os.MkdirAll.
 //
 // Unlike the regular version this implementation does not follow any symbolic
@@ -58,53 +141,31 @@ var (
 // after each segment is created and opened. The special value -1 may be used
 // to request that ownership is not changed.
 func secureMkdirAll(name string, perm os.FileMode, uid, gid int) error {
-	// Declare var and don't assign-declare below to ensure we don't swallow
-	// any errors by mistake.
-	var err error
-	var fd int
-
-	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
+	logger.Debugf("secure-mkdir-all %q %v %d %d", name, perm, uid, gid)
 
 	// Only support absolute paths to avoid bugs in snap-confine when
 	// called from anywhere.
 	if !filepath.IsAbs(name) {
 		return fmt.Errorf("cannot create directory with relative path: %q", name)
 	}
-	// Open the root directory and start there.
-	fd, err = sysOpen("/", openFlags, 0)
+	segments := strings.FieldsFunc(filepath.Clean(name), func(c rune) bool { return c == '/' })
+
+	// Create the prefix.
+	fd, err := secureMkPrefix(segments, perm, uid, gid)
 	if err != nil {
-		return fmt.Errorf("cannot open root directory: %v", err)
+		return err
 	}
 	defer sysClose(fd)
 
-	// Split the path by entries and create each element using mkdirat() using
-	// the parent directory as reference. Each time we open the newly created
-	// segment using the O_NOFOLLOW and O_DIRECTORY flag so that symlink
-	// attacks are impossible to carry out.
-	segments := strings.FieldsFunc(filepath.Clean(name), func(c rune) bool { return c == '/' })
-	for _, segment := range segments {
-		made := true
-		if err = sysMkdirat(fd, segment, uint32(perm)); err != nil {
-			switch err {
-			case syscall.EEXIST:
-				made = false
-			default:
-				return fmt.Errorf("cannot mkdir path segment %q: %v", segment, err)
-			}
-		}
-		fd, err = sysOpenat(fd, segment, openFlags, 0)
+	if len(segments) > 0 {
+		// Create the final segment as a directory.
+		fd, err = secureMkDir(fd, segments, len(segments)-1, perm, uid, gid)
 		if err != nil {
-			return fmt.Errorf("cannot open path segment %q: %v", segment, err)
+			return err
 		}
 		defer sysClose(fd)
-		if made {
-			// Chown each segment that we made.
-			if err := sysFchown(fd, uid, gid); err != nil {
-				return fmt.Errorf("cannot chown path segment %q to %d.%d: %v", segment, uid, gid, err)
-			}
-		}
-
 	}
+
 	return nil
 }
 
