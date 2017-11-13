@@ -12,7 +12,7 @@ if [ ! -d "$dir" ]; then
 fi
 
 filename=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 13 ; echo '')
-file="$(echo $dir/$filename | sed 's/\/\//\//g')"
+file=$(echo "$dir/$filename" | sed 's/\/\//\//g')
 
 touch "$file" || exit 1
 
