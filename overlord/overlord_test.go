@@ -73,6 +73,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.HookManager(), NotNil)
 	c.Check(o.DeviceManager(), NotNil)
 	c.Check(o.CommandManager(), NotNil)
+	c.Check(o.ConfigManager(), NotNil)
 
 	s := o.State()
 	c.Check(s, NotNil)
