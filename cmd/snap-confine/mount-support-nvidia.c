@@ -82,6 +82,7 @@ static const char *nvidia_globs[] = {
 	"/usr/lib/libnvidia-cfg.so*",
 	"/usr/lib/libnvidia-compiler.so*",
 	"/usr/lib/libnvidia-eglcore.so*",
+	"/usr/lib/libnvidia-egl-wayland*",
 	"/usr/lib/libnvidia-encode.so*",
 	"/usr/lib/libnvidia-fatbinaryloader.so*",
 	"/usr/lib/libnvidia-fbc.so*",
@@ -91,6 +92,7 @@ static const char *nvidia_globs[] = {
 	"/usr/lib/libnvidia-ml.so*",
 	"/usr/lib/libnvidia-ptxjitcompiler.so*",
 	"/usr/lib/libnvidia-tls.so*",
+	"/usr/lib/vdpau/libvdpau_nvidia.so*",
 };
 
 static const size_t nvidia_globs_len =
@@ -127,6 +129,7 @@ static const char *nvidia_globs32[] = {
 	"/usr/lib32/libnvidia-ml.so*",
 	"/usr/lib32/libnvidia-ptxjitcompiler.so*",
 	"/usr/lib32/libnvidia-tls.so*",
+	"/usr/lib32/vdpau/libvdpau_nvidia.so*",
 };
 
 static const size_t nvidia_globs32_len =
