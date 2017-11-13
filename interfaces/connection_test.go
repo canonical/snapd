@@ -58,30 +58,28 @@ slots:
 }
 
 func (s *connSuite) TestStaticSlotAttrs(c *C) {
-	attrData, _ := NewConnectedSlot(s.slot, nil)
+	attrData := NewConnectedSlot(s.slot, nil)
 	c.Assert(attrData, NotNil)
 
 	_, err := attrData.StaticAttr("unknown")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
 
-	attrs, err := attrData.StaticAttrs()
-	c.Assert(err, IsNil)
+	attrs := attrData.StaticAttrs()
 	c.Assert(attrs, DeepEquals, map[string]interface{}{
 		"attr": "value",
 	})
 }
 
 func (s *connSuite) TestStaticPlugAttrs(c *C) {
-	attrData, _ := NewConnectedPlug(s.plug, nil)
+	attrData := NewConnectedPlug(s.plug, nil)
 	c.Assert(attrData, NotNil)
 
 	_, err := attrData.StaticAttr("unknown")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
 
-	attrs, err := attrData.StaticAttrs()
-	c.Assert(err, IsNil)
+	attrs := attrData.StaticAttrs()
 	c.Assert(attrs, DeepEquals, map[string]interface{}{
 		"attr": "value",
 	})
@@ -91,7 +89,7 @@ func (s *connSuite) TestDynamicSlotAttrs(c *C) {
 	attrs := map[string]interface{}{
 		"foo": "bar",
 	}
-	attrData, _ := NewConnectedSlot(s.slot, attrs)
+	attrData := NewConnectedSlot(s.slot, attrs)
 	c.Assert(attrData, NotNil)
 
 	val, err := attrData.Attr("foo")
@@ -106,8 +104,7 @@ func (s *connSuite) TestDynamicSlotAttrs(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
 
-	attrs, err = attrData.Attrs()
-	c.Assert(err, IsNil)
+	attrs = attrData.Attrs()
 	c.Assert(attrs, DeepEquals, map[string]interface{}{
 		"foo": "bar",
 	})
@@ -117,7 +114,7 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 	attrs := map[string]interface{}{
 		"foo": "bar",
 	}
-	plug, _ := NewConnectedPlug(s.plug, attrs)
+	plug := NewConnectedPlug(s.plug, attrs)
 	c.Assert(plug, NotNil)
 
 	val, err := plug.Attr("foo")
@@ -132,52 +129,27 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
 
-	attrs, err = plug.Attrs()
-	c.Assert(err, IsNil)
+	attrs = plug.Attrs()
 	c.Assert(attrs, DeepEquals, map[string]interface{}{
 		"foo": "bar",
 	})
 }
 
-func (s *connSuite) TestDynamicPlugAttrsNotInitialized(c *C) {
-	slot, _ := NewConnectedPlug(s.plug, nil)
-	c.Assert(slot, NotNil)
-
-	_, err := slot.Attr("foo")
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `attribute "foo" not found`)
-
-	_, err = slot.Attrs()
-	c.Assert(err, ErrorMatches, `dynamic attributes not initialized`)
-}
-
 func (s *connSuite) TestOverwriteStaticAttrError(c *C) {
 	attrs := map[string]interface{}{}
 
-	plug, _ := NewConnectedPlug(s.plug, attrs)
+	plug := NewConnectedPlug(s.plug, attrs)
 	c.Assert(plug, NotNil)
-	slot, _ := NewConnectedSlot(s.slot, attrs)
+	slot := NewConnectedSlot(s.slot, attrs)
 	c.Assert(slot, NotNil)
 
 	err := plug.SetAttr("attr", "overwrite")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `attribute "attr" cannot be overwritten`)
+	c.Assert(err, ErrorMatches, `cannot change attribute "attr" as it was statically specified in the snap details`)
 
 	err = slot.SetAttr("attr", "overwrite")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `attribute "attr" cannot be overwritten`)
-}
-
-func (s *connSuite) TestDynamicSlotAttrsNotInitialized(c *C) {
-	slot, _ := NewConnectedSlot(s.slot, nil)
-	c.Assert(slot, NotNil)
-
-	_, err := slot.Attr("foo")
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `attribute "foo" not found`)
-
-	_, err = slot.Attrs()
-	c.Assert(err, ErrorMatches, `dynamic attributes not initialized`)
+	c.Assert(err, ErrorMatches, `cannot change attribute "attr" as it was statically specified in the snap details`)
 }
 
 func (s *connSuite) TestCopyAttributes(c *C) {
@@ -186,13 +158,10 @@ func (s *connSuite) TestCopyAttributes(c *C) {
 		"b": true,
 		"c": int(100),
 		"d": []interface{}{"x", "y", true},
-		"e": map[string]interface{}{
-			"e1": "E1",
-		},
+		"e": map[string]interface{}{"e1": "E1"},
 	}
 
-	cpy, err := CopyAttributes(orig)
-	c.Assert(err, IsNil)
+	cpy := CopyAttributes(orig)
 	// verify that int is converted into int64
 	c.Check(reflect.TypeOf(cpy["c"]).Kind(), Equals, reflect.Int64)
 	c.Check(reflect.TypeOf(orig["c"]).Kind(), Equals, reflect.Int)
@@ -204,10 +173,4 @@ func (s *connSuite) TestCopyAttributes(c *C) {
 	c.Check(orig["d"].([]interface{})[0], Equals, "x")
 	cpy["e"].(map[string]interface{})["e1"] = "x"
 	c.Check(orig["e"].(map[string]interface{})["e1"], Equals, "E1")
-
-	type unsupported struct{}
-	var x unsupported
-	_, err = CopyAttributes(map[string]interface{}{"x": x})
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `unsupported attribute type interfaces.unsupported, value {}`)
 }
