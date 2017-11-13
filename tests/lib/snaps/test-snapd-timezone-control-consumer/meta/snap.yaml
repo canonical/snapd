@@ -1,0 +1,9 @@
+name: test-snapd-timezone-control-consumer
+version: 1.0
+summary: Basic timezone-control consumer snap
+description: A basic snap declaring a plug on a timezone-control slot
+
+apps:
+  timedatectl:
+    command: bin/timedatectl
+    plugs: [timezone-control]
