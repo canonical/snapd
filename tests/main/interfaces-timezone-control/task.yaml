@@ -61,6 +61,10 @@ execute: |
     [ "$(timedatectl status | grep 'Time zone:' | sed 's/.*Time zone: \(.*\) (.*)/\1/')" = "$timezone2" ]
     [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep 'Time zone:' | sed 's/.*Time zone: \(.*\) (.*)/\1/')" = "$timezone2" ]
 
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
     # Disconnect the interface and check access to timedatectl status
     snap disconnect test-snapd-timedate-control-consumer:timezone-control
     if test-snapd-timedate-control-consumer.timedatectl status 2>${PWD}/call.error; then
