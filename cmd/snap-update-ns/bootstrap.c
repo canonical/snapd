@@ -298,10 +298,14 @@ void bootstrap(void)
     // We may have been started via a setuid-root snap-confine. In order to
     // prevent environment-based attacks we start by erasing all environment
     // variables.
+    char *snapd_debug = getenv("SNAPD_DEBUG");
     if (clearenv() != 0) {
         bootstrap_errno = 0;
         bootstrap_msg = "bootstrap could not clear the environment";
         return;
+    }
+    if (snapd_debug != NULL) {
+        setenv("SNAPD_DEBUG", snapd_debug, 0);
     }
     // We don't have argc/argv so let's imitate that by reading cmdline
     // NOTE: use explicit initialization to avoid optimizing-out memset.

@@ -29,10 +29,10 @@ import (
 var AttributesTask = attributesTask
 var CopyAttributes = copyAttributes
 
-func MockServiceChangeFunc(f func(*state.State, []*snap.AppInfo, *servicestate.Instruction) (*state.Change, error)) (restore func()) {
-	old := servicechangeImpl
-	servicechangeImpl = f
-	return func() { servicechangeImpl = old }
+func MockServicestateControlFunc(f func(*state.State, []*snap.AppInfo, *servicestate.Instruction) (*state.TaskSet, error)) (restore func()) {
+	old := servicestateControl
+	servicestateControl = f
+	return func() { servicestateControl = old }
 }
 
 func AddMockCommand(name string) *MockCommand {
