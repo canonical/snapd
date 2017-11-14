@@ -874,7 +874,7 @@ func Switch(st *state.State, name, channel string) (*state.TaskSet, error) {
 		return nil, err
 	}
 	if !snapst.IsInstalled() {
-		return nil, fmt.Errorf("cannot find snap %q", name)
+		return nil, &snap.NotInstalledError{Snap: name}
 	}
 
 	if err := CheckChangeConflict(st, name, nil, nil); err != nil {
@@ -901,7 +901,7 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 		return nil, err
 	}
 	if !snapst.IsInstalled() {
-		return nil, fmt.Errorf("cannot find snap %q", name)
+		return nil, &snap.NotInstalledError{Snap: name}
 	}
 
 	// FIXME: snaps that are not active are skipped for now
@@ -1051,7 +1051,7 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
 	if err == state.ErrNoState {
-		return nil, fmt.Errorf("cannot find snap %q", name)
+		return nil, &snap.NotInstalledError{Snap: name}
 	}
 	if err != nil {
 		return nil, err
@@ -1098,7 +1098,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
 	if err == state.ErrNoState {
-		return nil, fmt.Errorf("cannot find snap %q", name)
+		return nil, &snap.NotInstalledError{Snap: name}
 	}
 	if err != nil {
 		return nil, err
@@ -1528,7 +1528,7 @@ func Info(st *state.State, name string, revision snap.Revision) (*snap.Info, err
 	var snapst SnapState
 	err := Get(st, name, &snapst)
 	if err == state.ErrNoState {
-		return nil, fmt.Errorf("cannot find snap %q", name)
+		return nil, &snap.NotInstalledError{Snap: name}
 	}
 	if err != nil {
 		return nil, err
@@ -1552,7 +1552,7 @@ func CurrentInfo(st *state.State, name string) (*snap.Info, error) {
 	}
 	info, err := snapst.CurrentInfo()
 	if err == ErrNoCurrent {
-		return nil, fmt.Errorf("cannot find snap %q", name)
+		return nil, &snap.NotInstalledError{Snap: name}
 	}
 	return info, err
 }
