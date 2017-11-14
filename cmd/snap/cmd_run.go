@@ -121,28 +121,41 @@ func antialias(snapApp string, args []string) (string, []string) {
 
 	compPoint, err := strconv.Atoi(args[2])
 	if err != nil {
-		// args[2] is not COMP_POINT?
+		// args[2] is not COMP_POINT
+		return snapApp, args
+	}
+
+	if compPoint <= len(snapApp) {
+		// COMP_POINT is inside $0
+		return snapApp, args
+	}
+
+	if compPoint > len(args[5]) {
+		// COMP_POINT is bigger than $#
 		return snapApp, args
 	}
 
 	if args[6] != snapApp {
-		// args[6] is not COMP_WORDS[0]?
+		// args[6] is not COMP_WORDS[0]
 		return snapApp, args
 	}
 
-	re := regexp.MustCompile(`^` + regexp.QuoteMeta(snapApp) + `\b`)
-	if !re.MatchString(args[5]) {
-		// args[5] is not COMP_LINE?
+	// it _should_ be COMP_LINE followed by one of
+	// COMP_WORDBREAKS, but that's hard to do
+	re, err := regexp.Compile(`^` + regexp.QuoteMeta(snapApp) + `\b`)
+	if err != nil || !re.MatchString(args[5]) {
+		// (weird regexp error, or) args[5] is not COMP_LINE
 		return snapApp, args
 	}
 
-	// note that up to here args is unmodified
+	argsOut := make([]string, len(args))
+	copy(argsOut, args)
 
-	args[2] = strconv.Itoa(compPoint - len(snapApp) + len(actualApp))
-	args[5] = re.ReplaceAllLiteralString(args[5], actualApp)
-	args[6] = actualApp
+	argsOut[2] = strconv.Itoa(compPoint - len(snapApp) + len(actualApp))
+	argsOut[5] = re.ReplaceAllLiteralString(args[5], actualApp)
+	argsOut[6] = actualApp
 
-	return actualApp, args
+	return actualApp, argsOut
 }
 
 func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
