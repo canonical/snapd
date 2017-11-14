@@ -33,7 +33,7 @@ This directory presents installed snap packages.
 It has the following structure:
 
 @SNAP_MOUNT_DIR@/bin                   - Symlinks to snap applications.
-@SNAP_MOUNT_DIR@/<snapname>/<revision>- Mountpoint for snap content.
+@SNAP_MOUNT_DIR@/<snapname>/<revision> - Mountpoint for snap content.
 @SNAP_MOUNT_DIR@/<snapname>/current    - Symlink to current revision, if enabled.
 
 DISK SPACE USAGE
