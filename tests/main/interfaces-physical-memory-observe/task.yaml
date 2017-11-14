@@ -18,6 +18,12 @@ restore: |
     rm -f call.error
 
 execute: |
+    config="/boot/config-$(uname -r)"
+    if [ -f $config ] && MATCH "CONFIG_STRICT_DEVMEM=y" < $config; then
+        echo "Kernel option CONFIG_STRICT_DEVMEM=y, it is not possible to write in /dev/mem, exiting..."
+        exit 0
+    fi
+
     CONNECTED_PATTERN=":physical-memory-observe +test-snapd-physical-memory-observe"
     DISCONNECTED_PATTERN="\- +test-snapd-physical-memory-observe:physical-memory-observe"
 
