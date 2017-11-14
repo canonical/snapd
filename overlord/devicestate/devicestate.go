@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -197,6 +198,7 @@ func delayedCrossMgrInit() {
 		snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
 	})
 	snapstate.CanAutoRefresh = canAutoRefresh
+	snapstate.RefreshScheduleManaged = refreshScheduleManaged
 }
 
 // ProxyStore returns the store assertion for the proxy store if one is set.
@@ -222,4 +224,56 @@ func ProxyStore(st *state.State) (*asserts.Store, error) {
 	}
 
 	return a.(*asserts.Store), nil
+}
+
+func plugConnected(st *state.State, snapName, plugName string) bool {
+	conns, err := ifacerepo.Get(st).Connected(snapName, plugName)
+	return err == nil && len(conns) > 0
+}
+
+// refreshScheduleManaged returns true if the refresh schedule of the
+// device is managed by an external snap
+func refreshScheduleManaged(st *state.State) bool {
+	var refreshScheduleStr string
+
+	tr := config.NewTransaction(st)
+	err := tr.Get("core", "refresh.schedule", &refreshScheduleStr)
+	if err != nil {
+		return false
+	}
+	if refreshScheduleStr != "managed" {
+		return false
+	}
+
+	snapStates, err := snapstate.All(st)
+	if err != nil {
+		return false
+	}
+	for _, snapst := range snapStates {
+		if !snapst.Active {
+			continue
+		}
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			continue
+		}
+		// The snap must come from the store.
+		// FIXME: we should use something like
+		//   assertstate.SnapDeclaration(info.SideInfo.SnapID)
+		// here.
+		if info.SideInfo.SnapID == "" {
+			continue
+		}
+		for _, plugInfo := range info.Plugs {
+			if plugInfo.Interface == "snapd-control" && plugInfo.Attrs["refresh-schedule"] == "managed" {
+				snapName := info.Name()
+				plugName := plugInfo.Name
+				if plugConnected(st, snapName, plugName) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
 }

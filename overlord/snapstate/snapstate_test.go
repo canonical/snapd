@@ -34,14 +34,12 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -5200,6 +5198,15 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesDisabledViaSnapdControl(c *C) {
 
 	makeTestRefreshConfig(st)
 
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
 	// snapstate.AutoRefresh is called from AutoRefresh()
 	autoRefreshAssertionsCalled := 0
 	restore := mockAutoRefreshAssertions(func(st *state.State, userID int) error {
@@ -5208,65 +5215,12 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesDisabledViaSnapdControl(c *C) {
 	})
 	defer restore()
 
-	// set to managed refresh schedule
-	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.schedule", "managed")
-	tr.Commit()
-
-	// using the real ReadInfo as we have things on disk in the fake
-	// /snap directory
-	snapstate.MockReadInfo(snap.ReadInfo)
-
-	sideInfo11 := &snap.SideInfo{RealName: "snap-with-snapd-control", Revision: snap.R(11), SnapID: "ididid-snap-with-snapd-control"}
-	snapstate.Set(st, "snap-with-snapd-control", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo11},
-		Current:  sideInfo11.Revision,
-		SnapType: "app",
-	})
-	info11 := snaptest.MockSnap(c, `
-name: snap-with-snapd-control
-version: 1.0
-plugs:
- snapd-control:
-  refresh-schedule: managed
-`, "", sideInfo11)
-	c.Assert(info11.Plugs, HasLen, 1)
-
-	sideInfoCore11 := &snap.SideInfo{RealName: "core", Revision: snap.R(11)}
-	snapstate.Set(st, "core", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfoCore11},
-		Current:  sideInfoCore11.Revision,
-		SnapType: "os",
-	})
-	core11 := snaptest.MockSnap(c, `
-name: core
-version: 1.0
-slots:
- snapd-control:
-`, "", sideInfoCore11)
-	c.Assert(core11.Slots, HasLen, 1)
-
-	// create the matching repo
-	repo := interfaces.NewRepository()
-	for _, iface := range builtin.Interfaces() {
-		err := repo.AddInterface(iface)
-		c.Assert(err, IsNil)
+	// pretend the device is refresh-control: managed
+	oldRefreshScheduleManaged := snapstate.RefreshScheduleManaged
+	snapstate.RefreshScheduleManaged = func(*state.State) bool {
+		return true
 	}
-	err := repo.AddSnap(info11)
-	c.Assert(err, IsNil)
-	err = repo.AddSnap(core11)
-	c.Assert(err, IsNil)
-	err = repo.Connect(interfaces.ConnRef{
-		interfaces.PlugRef{"snap-with-snapd-control", "snapd-control"},
-		interfaces.SlotRef{"core", "snapd-control"},
-	})
-	c.Assert(err, IsNil)
-	conns, err := repo.Connected("snap-with-snapd-control", "snapd-control")
-	c.Assert(err, IsNil)
-	c.Assert(conns, HasLen, 1)
-	ifacerepo.Replace(st, repo)
+	defer func() { snapstate.RefreshScheduleManaged = oldRefreshScheduleManaged }()
 
 	// Ensure() also runs ensureRefreshes()
 	st.Unlock()

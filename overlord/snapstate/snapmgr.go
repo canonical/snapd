@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -380,6 +379,8 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 
 var CanAutoRefresh func(st *state.State) (bool, error)
 
+var RefreshScheduleManaged func(st *state.State) bool
+
 func refreshScheduleNoWeekdays(rs []*timeutil.Schedule) error {
 	for _, s := range rs {
 		if s.Weekday != "" {
@@ -390,12 +391,14 @@ func refreshScheduleNoWeekdays(rs []*timeutil.Schedule) error {
 }
 
 func (m *SnapManager) checkRefreshSchedule() ([]*timeutil.Schedule, error) {
-	if m.refreshScheduleManaged() {
-		if m.currentRefreshSchedule != "managed" {
-			logger.Noticef("refresh.schedule is managed via the snapd-control interface")
-			m.currentRefreshSchedule = "managed"
+	if RefreshScheduleManaged != nil {
+		if RefreshScheduleManaged(m.state) {
+			if m.currentRefreshSchedule != "managed" {
+				logger.Noticef("refresh.schedule is managed via the snapd-control interface")
+				m.currentRefreshSchedule = "managed"
+			}
+			return nil, nil
 		}
-		return nil, nil
 	}
 
 	refreshScheduleStr := defaultRefreshSchedule
@@ -509,59 +512,6 @@ func (m *SnapManager) RefreshSchedule() string {
 // The caller should be holding the state lock.
 func (m *SnapManager) NextCatalogRefresh() time.Time {
 	return m.nextCatalogRefresh
-}
-
-func plugConnected(st *state.State, snapName, plugName string) bool {
-	conns, err := ifacerepo.Get(st).Connected(snapName, plugName)
-	return err == nil && len(conns) > 0
-}
-
-// refreshScheduleManaged returns true if the refresh schedule of the
-// device is managed by an external snap
-func (m *SnapManager) refreshScheduleManaged() bool {
-	var refreshScheduleStr string
-
-	tr := config.NewTransaction(m.state)
-	err := tr.Get("core", "refresh.schedule", &refreshScheduleStr)
-	if err != nil {
-		return false
-	}
-	if refreshScheduleStr != "managed" {
-		return false
-	}
-	snapStates, err := All(m.state)
-	if err != nil {
-		return false
-	}
-	for _, snapst := range snapStates {
-		if !snapst.Active {
-			continue
-		}
-		info, err := snapst.CurrentInfo()
-		if err != nil {
-			continue
-		}
-		// The snap must come from the store.
-		// FIXME: we should use something like
-		//   assertstate.SnapDeclaration(info.SideInfo.SnapID)
-		// here. However right now we cannot import assertstate
-		// here (circular imports) so go with the weaker check for
-		// now.
-		if info.SideInfo.SnapID == "" {
-			continue
-		}
-		for _, plugInfo := range info.Plugs {
-			if plugInfo.Interface == "snapd-control" && plugInfo.Attrs["refresh-schedule"] == "managed" {
-				snapName := info.Name()
-				plugName := plugInfo.Name
-				if plugConnected(m.state, snapName, plugName) {
-					return true
-				}
-			}
-		}
-	}
-
-	return false
 }
 
 // ensureRefreshes ensures that we refresh all installed snaps periodically

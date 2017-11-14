@@ -42,6 +42,8 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -49,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -1928,4 +1931,68 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnClassic(c *C) {
 	// not seeded, model, serial -> no auto-refresh
 	s.state.Set("seeded", false)
 	c.Check(canAutoRefresh(), Equals, false)
+}
+
+func (s *deviceMgrSuite) TestRefreshControlManaged(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// set to managed refresh schedule
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.schedule", "managed")
+	tr.Commit()
+
+	sideInfo11 := &snap.SideInfo{RealName: "snap-with-snapd-control", Revision: snap.R(11), SnapID: "snap-with-snapd-control-id"}
+	snapstate.Set(st, "snap-with-snapd-control", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo11},
+		Current:  sideInfo11.Revision,
+		SnapType: "app",
+	})
+	info11 := snaptest.MockSnap(c, `
+name: snap-with-snapd-control
+version: 1.0
+plugs:
+ snapd-control:
+  refresh-schedule: managed
+`, "", sideInfo11)
+	c.Assert(info11.Plugs, HasLen, 1)
+
+	sideInfoCore11 := &snap.SideInfo{RealName: "core", Revision: snap.R(11)}
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfoCore11},
+		Current:  sideInfoCore11.Revision,
+		SnapType: "os",
+	})
+	core11 := snaptest.MockSnap(c, `
+name: core
+version: 1.0
+slots:
+ snapd-control:
+`, "", sideInfoCore11)
+	c.Assert(core11.Slots, HasLen, 1)
+
+	// create the matching repo
+	repo := interfaces.NewRepository()
+	for _, iface := range builtin.Interfaces() {
+		err := repo.AddInterface(iface)
+		c.Assert(err, IsNil)
+	}
+	err := repo.AddSnap(info11)
+	c.Assert(err, IsNil)
+	err = repo.AddSnap(core11)
+	c.Assert(err, IsNil)
+	err = repo.Connect(interfaces.ConnRef{
+		interfaces.PlugRef{"snap-with-snapd-control", "snapd-control"},
+		interfaces.SlotRef{"core", "snapd-control"},
+	})
+	c.Assert(err, IsNil)
+	conns, err := repo.Connected("snap-with-snapd-control", "snapd-control")
+	c.Assert(err, IsNil)
+	c.Assert(conns, HasLen, 1)
+	ifacerepo.Replace(st, repo)
+
+	c.Check(devicestate.RefreshScheduleManaged(st), Equals, true)
 }

@@ -115,4 +115,6 @@ var (
 
 	IncEnsureOperationalAttempts = incEnsureOperationalAttempts
 	EnsureOperationalAttempts    = ensureOperationalAttempts
+
+	RefreshScheduleManaged = refreshScheduleManaged
 )
