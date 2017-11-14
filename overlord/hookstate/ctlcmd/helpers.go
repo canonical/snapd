@@ -82,16 +82,16 @@ func queueCommand(context *hookstate.Context, ts *state.TaskSet) error {
 	change := hookTask.Change()
 	hookTaskLanes := hookTask.Lanes()
 	tasks := change.LaneTasks(hookTaskLanes...)
-	if len(hookTaskLanes) == 1 && hookTaskLanes[0] != 0 {
-		ts.JoinLane(hookTaskLanes[0])
-	} else {
-		for _, l := range hookTaskLanes {
-			ts.JoinLane(l)
-		}
+	if len(hookTaskLanes) == 1 && hookTaskLanes[0] == 0 {
+		hookTaskLanes = nil
+	}
+	for _, l := range hookTaskLanes {
+		ts.JoinLane(l)
 	}
 	ts.WaitAll(state.NewTaskSet(tasks...))
 	change.AddAll(ts)
-	// as this can be run from what was originally the last task of a change, make sure the tasks added to the change are considered immediately.
+	// As this can be run from what was originally the last task of a change,
+	// make sure the tasks added to the change are considered immediately.
 	st.EnsureBefore(0)
 
 	return nil
