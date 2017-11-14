@@ -22,13 +22,17 @@ package snap
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/spdx"
 )
 
-// Regular expression describing correct identifiers.
+// Regular expressions describing correct identifiers.
+//
+// validSnapName is also used to validate socket identifiers.
 var validSnapName = regexp.MustCompile("^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$")
 var validHookName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
@@ -68,6 +72,91 @@ func ValidateAlias(alias string) error {
 	if !valid {
 		return fmt.Errorf("invalid alias name: %q", alias)
 	}
+	return nil
+}
+
+// validateSocketName checks if a string ca be used as a name for a socket (for
+// socket activation).
+func validateSocketName(name string) error {
+	valid := validSnapName.MatchString(name)
+	if !valid {
+		return fmt.Errorf("invalid socket name: %q", name)
+	}
+	return nil
+}
+
+// validateSocketAddr checks that the value of socket addresses.
+func validateSocketAddr(socket *SocketInfo, fieldName string, address string) error {
+	if address == "" {
+		return fmt.Errorf("socket %q must define %q", socket.Name, fieldName)
+	}
+
+	switch address[0] {
+	case '/', '$':
+		return validateSocketAddrPath(socket, fieldName, address)
+	case '@':
+		return validateSocketAddrAbstract(socket, fieldName, address)
+	default:
+		return validateSocketAddrNet(socket, fieldName, address)
+	}
+}
+
+func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) error {
+	if clean := filepath.Clean(path); clean != path {
+		return fmt.Errorf("socket %q has invalid %q: %q should be written as %q", socket.Name, fieldName, path, clean)
+	}
+
+	if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/")) {
+		return fmt.Errorf(
+			"socket %q has invalid %q: only $SNAP_DATA and $SNAP_COMMON prefixes are allowed", socket.Name, fieldName)
+	}
+
+	return nil
+}
+
+func validateSocketAddrAbstract(socket *SocketInfo, fieldName string, path string) error {
+	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.Name())
+	if !strings.HasPrefix(path, prefix) {
+		return fmt.Errorf("socket %q path for %q must be prefixed with %q", socket.Name, fieldName, prefix)
+	}
+	return nil
+}
+
+func validateSocketAddrNet(socket *SocketInfo, fieldName string, address string) error {
+	lastIndex := strings.LastIndex(address, ":")
+	if lastIndex >= 0 {
+		if err := validateSocketAddrNetHost(socket, fieldName, address[:lastIndex]); err != nil {
+			return err
+		}
+		if err := validateSocketAddrNetPort(socket, fieldName, address[lastIndex+1:]); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// Address only contains a port
+	if err := validateSocketAddrNetPort(socket, fieldName, address); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateSocketAddrNetHost(socket *SocketInfo, fieldName string, address string) error {
+	for _, validAddress := range []string{"127.0.0.1", "[::1]", "[::]"} {
+		if address == validAddress {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("socket %q has invalid %q address %q", socket.Name, fieldName, address)
+}
+
+func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string) error {
+	if _, err := strconv.ParseUint(port, 10, 16); err != nil {
+		return fmt.Errorf("socket %q has invalid %q port number %q", socket.Name, fieldName, port)
+	}
+
 	return nil
 }
 
@@ -149,6 +238,14 @@ func validateField(name, cont string, whitelist *regexp.Regexp) error {
 	return nil
 }
 
+func validateAppSocket(socket *SocketInfo) error {
+	if err := validateSocketName(socket.Name); err != nil {
+		return err
+	}
+
+	return validateSocketAddr(socket, "listen-stream", socket.ListenStream)
+}
+
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused.
@@ -183,6 +280,21 @@ func ValidateApp(app *AppInfo) error {
 			return err
 		}
 	}
+
+	// Socket activation requires the "network-bind" plug
+	if len(app.Sockets) > 0 {
+		if _, ok := app.Plugs["network-bind"]; !ok {
+			return fmt.Errorf(`"network-bind" interface plug is required when sockets are used`)
+		}
+	}
+
+	for _, socket := range app.Sockets {
+		err := validateAppSocket(socket)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
