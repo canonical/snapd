@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/snap"
 )
 
 const boolFileSummary = `allows access to specific file with bool semantics`
@@ -84,7 +85,7 @@ func (iface *boolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return fmt.Errorf("bool-file can only point at LED brightness or GPIO value")
 }
 
-func (iface *boolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *boolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	gpioSnippet := `
 /sys/class/gpio/export rw,
 /sys/class/gpio/unexport rw,
@@ -122,7 +123,7 @@ func (iface *boolFileInterface) dereferencedPath(slot *interfaces.Slot) (string,
 }
 
 // isGPIO checks if a given bool-file slot refers to a GPIO pin.
-func (iface *boolFileInterface) isGPIO(slot *interfaces.Slot) bool {
+func (iface *boolFileInterface) isGPIO(slot *snap.SlotInfo) bool {
 	if path, ok := slot.Attrs["path"].(string); ok {
 		path = filepath.Clean(path)
 		return boolFileGPIOValuePattern.MatchString(path)

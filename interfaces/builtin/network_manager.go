@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const networkManagerSummary = `allows operating as the NetworkManager service`
@@ -451,22 +452,22 @@ func (iface *networkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Speci
 	return nil
 }
 
-func (iface *networkManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(networkManagerPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *networkManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(networkManagerPermanentSlotDBus)
 	return nil
 }
 
-func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(networkManagerPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *networkManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *networkManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	spec.TagDevice(`KERNEL=="rfkill"`)
 	return nil
 }
