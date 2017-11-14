@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,15 +36,30 @@ type readmeSuite struct{}
 
 var _ = Suite(&readmeSuite{})
 
-func (s *readmeSuite) SetUpTest(c *C) {
+func (s *readmeSuite) TestSnapReadmeFedora(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "fedora"})
+	defer restore()
+
+	dirs.SetRootDir("/")
+	defer dirs.SetRootDir("/")
+
+	c.Assert(snapstate.SnapReadme(), testutil.Contains, "/var/lib/snapd/snap/bin                   - Symlinks to snap applications.\n")
+}
+
+func (s *readmeSuite) TestSnapReadmeUbuntu(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+
+	dirs.SetRootDir("/")
+	defer dirs.SetRootDir("/")
+
+	c.Assert(snapstate.SnapReadme(), testutil.Contains, "/snap/bin                   - Symlinks to snap applications.\n")
+}
+
+func (s *readmeSuite) TestWriteSnapREADME(c *C) {
 	dirs.SetRootDir(c.MkDir())
-}
+	defer dirs.SetRootDir("")
 
-func (s *readmeSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
-}
-
-func (s *readmeSuite) TestSnapREADME(c *C) {
 	f := filepath.Join(dirs.SnapMountDir, "README")
 
 	// Missing file is created.
