@@ -246,6 +246,26 @@ func (s *servicectlSuite) TestRestartCommand(c *C) {
 	c.Assert(serviceChangeFuncCalled, Equals, true)
 }
 
+func (s *servicectlSuite) TestConflictingChange(c *C) {
+	s.st.Lock()
+	task := s.st.NewTask("link-snap", "conflicting task")
+	snapsup := snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "test-snap",
+			SnapID:   "test-snap-id-1",
+			Revision: snap.R(1),
+		},
+	}
+	task.Set("snap-setup", snapsup)
+	chg := s.st.NewChange("conflicting change", "install change")
+	chg.AddTask(task)
+	s.st.Unlock()
+
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"start", "test-snap.test-service"})
+	c.Check(err, NotNil)
+	c.Check(err, ErrorMatches, `snap "test-snap" has changes in progress`)
+}
+
 func (s *servicectlSuite) TestQueuedCommands(c *C) {
 	s.st.Lock()
 
