@@ -108,17 +108,15 @@ func (iface *accountControlInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 }
 
 func init() {
-	registerIface(&accountControlInterface{
-		commonInterface: commonInterface{
-			name:                  "account-control",
-			summary:               accountControlSummary,
-			implicitOnCore:        true,
-			implicitOnClassic:     true,
-			baseDeclarationSlots:  accountControlBaseDeclarationSlots,
-			connectedPlugAppArmor: accountControlConnectedPlugAppArmor,
-			// handled by SecCompConnectedPlug
-			connectedPlugSecComp: "",
-			reservedForOS:        true,
-		},
-	})
+	registerIface(&accountControlInterface{commonInterface: commonInterface{
+		name:                  "account-control",
+		summary:               accountControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  accountControlBaseDeclarationSlots,
+		connectedPlugAppArmor: accountControlConnectedPlugAppArmor,
+		// handled by SecCompConnectedPlug
+		connectedPlugSecComp: "",
+		reservedForOS:        true,
+	}})
 }
