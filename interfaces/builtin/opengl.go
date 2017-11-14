@@ -48,7 +48,7 @@ const openglConnectedPlugAppArmor = `
   # Support reading the Vulkan ICD files
   /var/lib/snapd/lib/vulkan/ r,
   /var/lib/snapd/lib/vulkan/** r,
-  /var/lib/snapd/hostfs/usr/share/vulkan/icd.d/10_nvidia*.json r,
+  /var/lib/snapd/hostfs/usr/share/vulkan/icd.d/*nvidia*.json r,
 
   # Main bi-arch GL libraries
   /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,EGL}.so{,.*} rm,
