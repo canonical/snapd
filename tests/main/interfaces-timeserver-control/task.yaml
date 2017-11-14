@@ -56,6 +56,10 @@ execute: |
     [ "$(timedatectl status | grep 'Network time on:' | sed 's/.*Network time on: \(.*\)$/\1/')" = "no" ]
     [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep 'Network time on:' | sed 's/.*Network time on: \(.*\)$/\1/')" = "no" ]
 
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
     # Disconnect the interface and check access to timedatectl status
     snap disconnect test-snapd-timedate-control-consumer:timeserver-control
     if test-snapd-timedate-control-consumer.timedatectl status 2>${PWD}/call.error; then

@@ -50,6 +50,10 @@ execute: |
     [ "$(timedatectl status | grep 'RTC in local TZ:' | sed 's/.*RTC in local TZ: \(.*\)$/\1/')" = "no" ]
     [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep 'RTC in local TZ:' | sed 's/.*RTC in local TZ: \(.*\)$/\1/')" = "no" ]
 
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
     # Disconnect the interface and check access to timedatectl status
     snap disconnect test-snapd-timedate-control-consumer:time-control
     if test-snapd-timedate-control-consumer.timedatectl status 2>${PWD}/call.error; then
