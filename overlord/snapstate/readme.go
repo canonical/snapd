@@ -48,7 +48,7 @@ https://forum.snapcraft.io/t/the-snap-directory/2817
 func writeSnapReadme() error {
 	const fname = "README"
 	content := map[string]*osutil.FileState{
-		fname: {Content: []byte(snapREADME), Mode: 0644},
+		fname: {Content: []byte(snapREADME), Mode: 0444},
 	}
 	if err := os.MkdirAll(dirs.SnapMountDir, 0755); err != nil {
 		return err
