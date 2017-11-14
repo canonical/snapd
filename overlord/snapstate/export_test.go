@@ -131,4 +131,5 @@ var (
 // readme files
 var (
 	WriteSnapReadme = writeSnapReadme
+	SnapReadme      = snapReadme
 )

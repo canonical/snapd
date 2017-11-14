@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"os"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -31,9 +32,9 @@ This directory presents installed snap packages.
 
 It has the following structure:
 
-/snap/bin                   - Symlinks to snap applications.
-/snap/<snapname>/<revision> - Mountpoint for snap content.
-/snap/<snapname>/current    - Symlink to current revision, if enabled.
+@SNAP_MOUNT_DIR@/bin                   - Symlinks to snap applications.
+@SNAP_MOUNT_DIR@/<snapname>/<revision>- Mountpoint for snap content.
+@SNAP_MOUNT_DIR@/<snapname>/current    - Symlink to current revision, if enabled.
 
 DISK SPACE USAGE
 
@@ -45,10 +46,14 @@ For further details please visit
 https://forum.snapcraft.io/t/the-snap-directory/2817
 `
 
+func snapReadme() string {
+	return strings.Replace(snapREADME, "@SNAP_MOUNT_DIR@", dirs.SnapMountDir, -1)
+}
+
 func writeSnapReadme() error {
 	const fname = "README"
 	content := map[string]*osutil.FileState{
-		fname: {Content: []byte(snapREADME), Mode: 0444},
+		fname: {Content: []byte(snapReadme()), Mode: 0444},
 	}
 	if err := os.MkdirAll(dirs.SnapMountDir, 0755); err != nil {
 		return err
