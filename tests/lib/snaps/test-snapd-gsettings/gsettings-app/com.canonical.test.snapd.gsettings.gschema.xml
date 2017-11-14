@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+   
+<schemalist>
+   
+  <schema path="/com/canonical/test/snapd/gsettings/" id="com.canonical.test.snapd.gsettings">
+   
+    <key name='is-running' type='b'>
+      <default>true</default>
+      <summary>Indicate if the setting is accessed</summary>
+      <description>
+           Built for testing
+      </description>
+    </key>
+   
+  </schema>
+   
+</schemalist>

@@ -1,0 +1,17 @@
+To manually build and install this program:
+
+./autogen.sh --prefix=/usr
+make install
+
+----------------
+
+To uninstall, type:
+
+make uninstall
+
+----------------
+To create a tarball type:
+
+make distcheck
+
+This will create hello-world-1.0.tar.xz

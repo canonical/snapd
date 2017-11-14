@@ -1,0 +1,5 @@
+#!/bin/sh
+
+export GI_TYPELIB_PATH=$SNAP/usr/lib/girepository-1.0:$(ls -d $SNAP/usr/lib/*/girepository-1.0)
+
+$SNAP/usr/bin/python $SNAP/test.py "$@"

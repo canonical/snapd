@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Encoding=UTF-8
+Name=Hello World
+Comment=Say Hello
+Exec=test-snapd-gsettings.check-schema
+Icon=application-default-icon
+Terminal=true
+Type=Application
+StartupNotify=true
+Categories=GNOME;GTK;Utility;
