@@ -52,10 +52,6 @@ type snapControlInterface struct {
 }
 
 func (iface *snapControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if err := iface.commonInterface.SanitizePlug(plug); err != nil {
-		return err
-	}
-
 	refreshSchedule, ok := plug.Attrs["refresh-schedule"].(string)
 	if ok {
 		if refreshSchedule != "" && refreshSchedule != "managed" {
