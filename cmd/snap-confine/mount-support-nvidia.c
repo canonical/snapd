@@ -41,7 +41,7 @@
 
 // Location for NVIDIA vulkan files (including _wayland)
 static const char *vulkan_globs[] = {
-	"/usr/share/vulkan/icd.d/10_nvidia*.json",
+	"/usr/share/vulkan/icd.d/*nvidia*.json",
 };
 
 static const size_t vulkan_globs_len =
