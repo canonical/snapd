@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/capability.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -73,6 +74,48 @@ setns_into_snap(const char* snap_name)
 
     close(fd);
     return err;
+}
+
+static int
+switch_to_privileged_user()
+{
+    uid_t real_uid;
+
+    real_uid = getuid();
+    if (real_uid == 0) {
+        // We're running as root: no need to switch IDs
+        return 0;
+    }
+
+    struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
+    struct __user_cap_data_struct data[2] = { { 0 } };
+
+    data[0].effective = CAP_TO_MASK (CAP_SYS_ADMIN);;
+    data[0].permitted = data[0].effective;
+    data[0].inheritable = 0;
+    data[1].effective = 0;
+    data[1].permitted = 0;
+    data[1].inheritable = 0;
+
+    if (capset(&hdr, data) != 0) {
+        bootstrap_errno = errno;
+        bootstrap_msg = "cannot set permitted capabilities mask";
+        return -1;
+    }
+
+    if (seteuid(real_uid) != 0) {
+        bootstrap_errno = errno;
+        bootstrap_msg = "cannot switch to real user ID";
+        return -1;
+    }
+
+    if (capset(&hdr, data) != 0) {
+        bootstrap_errno = errno;
+        bootstrap_msg = "cannot enable capabilities after switching to real user";
+        return -1;
+    }
+
+    return 0;
 }
 
 // TODO: reuse the code from snap-confine, if possible.
@@ -174,7 +217,7 @@ int validate_snap_name(const char* snap_name)
 
 // process_arguments parses given a command line
 // argc and argv are defined as for the main() function
-void process_arguments(int argc, char *const *argv, const char** snap_name_out, bool* should_setns_out)
+void process_arguments(int argc, char *const *argv, const char** snap_name_out, bool* should_setns_out, bool* process_user_fstab)
 {
     // Find the name of the called program. If it is ending with ".test" then do nothing.
     // NOTE: This lets us use cgo/go to write tests without running the bulk
@@ -194,6 +237,7 @@ void process_arguments(int argc, char *const *argv, const char** snap_name_out, 
     }
 
     bool should_setns = true;
+    bool user_fstab = false;
     const char* snap_name = NULL;
 
     // Sanity check the command line arguments.  The go parts will
@@ -208,6 +252,8 @@ void process_arguments(int argc, char *const *argv, const char** snap_name_out, 
                 // option skip the setns call as snap-confine has
                 // already placed us in the right namespace.
                 should_setns = false;
+            } else if (!strcmp(arg, "--user-fstab")) {
+                user_fstab = true;
             } else {
                 bootstrap_errno = 0;
                 bootstrap_msg = "unsupported option";
@@ -245,6 +291,9 @@ void process_arguments(int argc, char *const *argv, const char** snap_name_out, 
     if (should_setns_out != NULL) {
         *should_setns_out = should_setns;
     }
+    if (process_user_fstab != NULL) {
+        *process_user_fstab = user_fstab;
+    }
     bootstrap_errno = 0;
     bootstrap_msg = NULL;
 }
@@ -271,9 +320,13 @@ void bootstrap(int argc, char **argv, char **envp)
     // This is spread out for easier testability.
     const char* snap_name = NULL;
     bool should_setns = false;
-    process_arguments(argc, argv, &snap_name, &should_setns);
+    bool process_user_fstab = false;
+    process_arguments(argc, argv, &snap_name, &should_setns, &process_user_fstab);
     if (snap_name != NULL && should_setns) {
         setns_into_snap(snap_name);
         // setns_into_snap sets bootstrap_{errno,msg}
+    } else if (process_user_fstab) {
+        switch_to_privileged_user();
+        // switch_to_privileged_user sets bootstrap_{errno,msg}
     }
 }
