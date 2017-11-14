@@ -129,7 +129,7 @@ func (s *apiBaseSuite) LookupRefresh(snap *store.RefreshCandidate, user *auth.Us
 	return s.rsnaps[0], s.err
 }
 
-func (s *apiBaseSuite) ListRefresh(snaps []*store.RefreshCandidate, user *auth.UserState) ([]*snap.Info, error) {
+func (s *apiBaseSuite) ListRefresh(snaps []*store.RefreshCandidate, user *auth.UserState, flags store.RefreshFlags) ([]*snap.Info, error) {
 	s.refreshCandidates = snaps
 	s.user = user
 
