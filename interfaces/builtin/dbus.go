@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const dbusSummary = `allows owning a specifc name on DBus`
@@ -329,7 +330,7 @@ func (iface *dbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 	return nil
 }
 
-func (iface *dbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *dbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	bus, name, err := iface.getAttribs(slot.Attrs)
 	if err != nil {
 		return err
@@ -346,7 +347,7 @@ func (iface *dbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *in
 	return nil
 }
 
-func (iface *dbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *dbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	bus, name, err := iface.getAttribs(slot.Attrs)
 	if err != nil {
 		return err
