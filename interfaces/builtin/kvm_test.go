@@ -92,7 +92,8 @@ func (s *kvmInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], Equals, `KERNEL=="kvm", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets()[0], Equals, `# kvm
+KERNEL=="kvm", TAG+="snap_consumer_app"`)
 }
 
 func (s *kvmInterfaceSuite) TestStaticInfo(c *C) {

@@ -8,6 +8,8 @@ set -eux
 . "$TESTSLIB/snaps.sh"
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
+# shellcheck source=tests/lib/boot.sh
+. "$TESTSLIB/boot.sh"
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -16,6 +18,26 @@ disable_kernel_rate_limiting() {
     # debug output is robust, but we currently can't :(
     echo "SKIPPED: see https://forum.snapcraft.io/t/snapd-spread-tests-should-be-able-to-run-with-kernel-rate-limiting-disabled/424"
     #sysctl -w kernel.printk_ratelimit=0
+}
+
+disable_refreshes() {
+    echo "Ensure jq is available"
+    if ! which jq; then
+        snap install --devmode jq
+    fi
+
+    echo "Modify state to make it look like the last refresh just happened"
+    systemctl stop snapd.socket snapd.service
+    jq ".data[\"last-refresh\"] = \"$(date +%Y-%m-%dT%H:%M:%S%:z)\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+    systemctl start snapd.socket snapd.service
+
+    echo "Minimize risk of hitting refresh schedule"
+    snap set core refresh.schedule=00:00-23:59
+    snap refresh --time|MATCH "last: 2[0-9]{3}"
+
+    echo "Ensure jq is gone"
+    snap remove jq
 }
 
 update_core_snap_for_classic_reexec() {
@@ -199,23 +221,13 @@ EOF
         update_core_snap_for_classic_reexec
         systemctl start snapd.{service,socket}
 
-        # ensure no auto-refresh happens during the tests
-        if [ -e /snap/core/current/meta/hooks/configure ]; then
-            snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
-            snap set core refresh.disabled=true
-        fi
+        disable_refreshes
 
-        GRUB_EDITENV=grub-editenv
-        case "$SPREAD_SYSTEM" in
-            fedora-*|opensuse-*)
-                GRUB_EDITENV=grub2-editenv
-                ;;
-        esac
-
-        echo "Ensure that the grub-editenv list output does not contain any of the snap_* variables on classic"
-        output=$($GRUB_EDITENV list)
+        echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
+        # shellcheck disable=SC2119
+        output=$(bootenv)
         if echo "$output" | MATCH snap_ ; then
-            echo "Expected grub environment without snap_*, got:"
+            echo "Expected bootloader environment without snap_*, got:"
             echo "$output"
             exit 1
         fi
@@ -507,11 +519,7 @@ prepare_all_snap() {
         fi
     done
 
-    # ensure no auto-refresh happens during the tests
-    if [ -e /snap/core/current/meta/hooks/configure ]; then
-        snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
-        snap set core refresh.disabled=true
-    fi
+    disable_refreshes
 
     # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f "$SPREAD_PATH/snapd-state.tar.gz" ]; then
