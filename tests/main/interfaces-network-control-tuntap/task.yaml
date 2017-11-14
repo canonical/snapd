@@ -1,5 +1,7 @@
 summary: Ensure that the network-control interface works with TUN/TAP.
 
+systems: [-debian-unstable-64]
+
 details: |
     The network-control interface allows a snap to configure networking of
     TUN/TAP devices.
