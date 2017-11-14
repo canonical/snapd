@@ -1959,7 +1959,7 @@ plugs:
 `, "", sideInfo11)
 	c.Assert(info11.Plugs, HasLen, 1)
 
-	sideInfoCore11 := &snap.SideInfo{RealName: "core", Revision: snap.R(11)}
+	sideInfoCore11 := &snap.SideInfo{RealName: "core", Revision: snap.R(11), SnapID: "core-id"}
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfoCore11},
@@ -1993,6 +1993,17 @@ slots:
 	c.Assert(err, IsNil)
 	c.Assert(conns, HasLen, 1)
 	ifacerepo.Replace(st, repo)
+
+	snapdWithSnapControlDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "snap-with-snapd-control",
+		"snap-id":      "snap-with-snapd-control-id",
+		"publisher-id": "canonical",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapdWithSnapControlDecl)
+	c.Assert(err, IsNil)
 
 	c.Check(devicestate.RefreshScheduleManaged(st), Equals, true)
 }

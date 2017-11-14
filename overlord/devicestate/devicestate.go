@@ -257,13 +257,12 @@ func refreshScheduleManaged(st *state.State) bool {
 		if err != nil {
 			continue
 		}
-		// The snap must come from the store.
-		// FIXME: we should use something like
-		//   assertstate.SnapDeclaration(info.SideInfo.SnapID)
-		// here.
-		if info.SideInfo.SnapID == "" {
+		// The snap must have a snap declaration (implies that
+		// its from the store)
+		if _, err := assertstate.SnapDeclaration(st, info.SideInfo.SnapID); err != nil {
 			continue
 		}
+
 		for _, plugInfo := range info.Plugs {
 			if plugInfo.Interface == "snapd-control" && plugInfo.Attrs["refresh-schedule"] == "managed" {
 				snapName := info.Name()
