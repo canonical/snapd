@@ -5213,7 +5213,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesDisabledViaSnapdControl(c *C) {
 	tr.Set("core", "refresh.schedule", "managed")
 	tr.Commit()
 
-	// using MockSnap, we want to read the bits on disk
+	// using the real ReadInfo as we have things on disk in the fake
+	// /snap directory
 	snapstate.MockReadInfo(snap.ReadInfo)
 
 	sideInfo11 := &snap.SideInfo{RealName: "snap-with-snapd-control", Revision: snap.R(11), SnapID: "ididid-snap-with-snapd-control"}

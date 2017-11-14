@@ -52,8 +52,7 @@ type snapControlInterface struct {
 }
 
 func (iface *snapControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	refreshSchedule, ok := plug.Attrs["refresh-schedule"].(string)
-	if ok {
+	if refreshSchedule, ok := plug.Attrs["refresh-schedule"].(string); ok {
 		if refreshSchedule != "managed" {
 			return fmt.Errorf("unsupported refresh-schedule value: %q", refreshSchedule)
 		}
