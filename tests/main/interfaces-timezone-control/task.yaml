@@ -15,9 +15,6 @@ prepare: |
     sed 's/\[\]/\[timezone-control\]/g' -i $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml
     snap try $TESTSLIB/snaps/test-snapd-timedate-control-consumer
 
-    # Install a snap declaring a plug on timezone-control
-    snap try $TESTSLIB/snaps/test-snapd-timezone-control-consumer/
-
     # Save the default timezone to be restored at the end
     echo $(timedatectl status | grep 'Time zone:' | sed 's/.*Time zone: \(.*\) (.*)/\1/') > timezone.txt
 
@@ -54,11 +51,13 @@ execute: |
     timezone2=$(test-snapd-timedate-control-consumer.timedatectl list-timezones | sed -n 2p)
 
     # Set the timezone1 as timezone and check the status
-    test-snapd-timedate-control-consumer.timedatectl set-timezone $timezone1
+    # The set-timezone command works but fails in some images (lp: #1650688)
+    test-snapd-timedate-control-consumer.timedatectl set-timezone $timezone1 || true
     [ "$(timedatectl status | grep 'Time zone:' | sed 's/.*Time zone: \(.*\) (.*)/\1/')" = "$timezone1" ]
 
     # Set the timezone2 as timezone and check the status
-    test-snapd-timedate-control-consumer.timedatectl set-timezone $timezone2
+    # The set-timezone command works but fails in some images (lp: #1650688)
+    test-snapd-timedate-control-consumer.timedatectl set-timezone $timezone2 || true
     [ "$(timedatectl status | grep 'Time zone:' | sed 's/.*Time zone: \(.*\) (.*)/\1/')" = "$timezone2" ]
     [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep 'Time zone:' | sed 's/.*Time zone: \(.*\) (.*)/\1/')" = "$timezone2" ]
 
