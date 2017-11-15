@@ -37,9 +37,10 @@ var (
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
 	// utils
-	EnsureMountPoint = ensureMountPoint
-	SecureMkdirAll   = secureMkdirAll
-	SecureMkfileAll  = secureMkfileAll
+	EnsureMountPoint  = ensureMountPoint
+	SecureMkdirAll    = secureMkdirAll
+	SecureMkfileAll   = secureMkfileAll
+	SplitIntoSegments = splitIntoSegments
 
 	// main
 	ComputeAndSaveChanges = computeAndSaveChanges
