@@ -5,21 +5,23 @@ details: |
     can access the /dev/rtc device node exposed by a slot on the OS
     snap properly.
 
+systems: [-opensuse-*,-fedora-*,-ubuntu-core-*]
+
 prepare: |
     # Install a snap declaring a plug on time-control
     cp $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml.orig
     sed 's/\[\]/\[time-control\]/g' -i $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml
     snap try $TESTSLIB/snaps/test-snapd-timedate-control-consumer
 
-    echo $(timedatectl status | grep 'RTC in local TZ:' | sed 's/.*RTC in local TZ: \(.*\)$/\1/') > rtc.txt
-
 restore: |
     # Restore the timedate-control-consumer snap.yaml
     cp $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml.orig $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml
 
     # Restore the initial rtc configuration
-    timedatectl set-local-rtc "$(cat rtc.txt)"
-    rm -f rtc.txt
+    if [ -f rtc.txt ]; then
+        timedatectl set-local-rtc "$(cat rtc.txt)"
+        rm -f rtc.txt
+    fi
 
 execute: |
     CONNECTED_PATTERN=":time-control +test-snapd-timedate-control-consumer"
@@ -41,13 +43,15 @@ execute: |
     # Read access should be possible
     test-snapd-timedate-control-consumer.timedatectl status | MATCH "RTC in local TZ:"
 
+    # Save the RTC initial value
+    echo $(test-snapd-timedate-control-consumer.timedatectl status | grep 'RTC in local TZ:' | sed 's/.*RTC in local TZ: \(.*\)$/\1/') > rtc.txt
+
     # Set the local rtc and check the status
     test-snapd-timedate-control-consumer.timedatectl set-local-rtc yes
-    [ "$(timedatectl status | grep 'RTC in local TZ:' | sed 's/.*RTC in local TZ: \(.*\)$/\1/')" = "yes" ]
+    [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep 'RTC in local TZ:' | sed 's/.*RTC in local TZ: \(.*\)$/\1/')" = "yes" ]
 
     # Re-set the local rtc and check the status
     test-snapd-timedate-control-consumer.timedatectl set-local-rtc no
-    [ "$(timedatectl status | grep 'RTC in local TZ:' | sed 's/.*RTC in local TZ: \(.*\)$/\1/')" = "no" ]
     [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep 'RTC in local TZ:' | sed 's/.*RTC in local TZ: \(.*\)$/\1/')" = "no" ]
 
     if [ "$(snap debug confinement)" = partial ] ; then
