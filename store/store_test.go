@@ -1787,6 +1787,7 @@ const MockDetailsJSON = `{
     "architecture": [
         "all"
     ],
+    "base": "bare-base",
     "binary_filesize": 20480,
     "channel": "edge",
     "confinement": "strict",
@@ -2008,6 +2009,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	})
 	c.Check(result.MustBuy, Equals, true)
 	c.Check(result.Contact, Equals, "mailto:snappy-devel@lists.ubuntu.com")
+	c.Check(result.Base, Equals, "bare-base")
 
 	// Make sure the epoch (currently not sent by the store) defaults to "0"
 	c.Check(result.Epoch.String(), Equals, "0")
