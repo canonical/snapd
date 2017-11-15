@@ -96,7 +96,7 @@ func secureMkPrefix(segments []string, perm os.FileMode, uid, gid int) (int, err
 	return fd, nil
 }
 
-// secureMkdir creates a directory at i-th entry of absolute path represented
+// secureMkDir creates a directory at i-th entry of absolute path represented
 // by segments. This function can be used to construct subsequent elements of
 // the constructed path. The return value contains the newly created file
 // descriptor or -1 on error.
