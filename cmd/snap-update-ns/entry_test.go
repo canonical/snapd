@@ -73,7 +73,7 @@ func (s *entrySuite) TestXSnapdUID(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(uid, Equals, uint64(0))
 
-	// User is parsed from the x-snapd.uid = option.
+	// User is parsed from the x-snapd.uid= option.
 	nobodyUID, err := osutil.FindUid("nobody")
 	c.Assert(err, IsNil)
 	e = &mount.Entry{Options: []string{"x-snapd.uid=nobody"}}
