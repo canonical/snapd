@@ -167,6 +167,12 @@ func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid, gid i
 				return fmt.Errorf("cannot open file %q: %v", segment, err)
 			}
 			made = false
+		case syscall.EROFS:
+			// Treat EROFS specially: this is a hint that we have to poke a
+			// hole using tmpfs. The path below is the location where we
+			// need to poke the hole.
+			p := "/" + strings.Join(segments[:i], "/")
+			return &ReadOnlyFsError{Path: p}
 		default:
 			return fmt.Errorf("cannot open file %q: %v", segment, err)
 		}
