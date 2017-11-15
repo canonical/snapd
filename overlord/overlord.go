@@ -145,7 +145,7 @@ func New() (*Overlord, error) {
 
 	snapstate.ReplaceStore(s, sto)
 
-	if err := o.snapMgr.GenerateCookies(s); err != nil {
+	if err := o.snapMgr.SyncCookies(s); err != nil {
 		return nil, fmt.Errorf("failed to generate cookies: %q", err)
 	}
 
