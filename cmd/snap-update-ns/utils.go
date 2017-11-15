@@ -161,7 +161,7 @@ func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid, gid i
 	if err != nil {
 		switch err {
 		case syscall.EEXIST:
-			// If the file exists then just open it without O_EXCL
+			// If the file exists then just open it without O_CREAT and O_EXCL
 			newFd, err = sysOpenat(fd, segment, openFlags, 0)
 			if err != nil {
 				return fmt.Errorf("cannot open file %q: %v", segment, err)
