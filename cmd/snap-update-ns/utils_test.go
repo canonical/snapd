@@ -260,7 +260,7 @@ func (s *utilsSuite) TestSecureMkfileAllRelative(c *C) {
 	c.Assert(s.sys.Calls(), HasLen, 0)
 }
 
-// Ensure that we can "create" the root directory.
+// Ensure that we refuse creating the root directory as a file.
 func (s *utilsSuite) TestSecureMkfileAllLevel0(c *C) {
 	err := update.SecureMkfileAll("/", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot create non-file path: "/"`)
