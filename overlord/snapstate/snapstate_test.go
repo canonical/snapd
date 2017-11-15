@@ -599,6 +599,11 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 
 	ts := tts[0]
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts, s.state)
+
+	// check that the tasks are in non-default lane
+	for _, t := range ts.Tasks() {
+		c.Assert(t.Lanes(), DeepEquals, []int{1})
+	}
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
