@@ -1545,6 +1545,23 @@ func (s *AddRemoveSuite) TestAddSnapErrorsOnExistingSnapSlots(c *C) {
 	c.Assert(err, ErrorMatches, `cannot register interfaces for snap "producer" more than once`)
 }
 
+func (s *AddRemoveSuite) TestAddSnapSkipsUnknownInterfaces(c *C) {
+	info, err := s.addSnap(c, `
+name: bogus
+plugs:
+  bogus-plug:
+slots:
+  bogus-slot:
+`)
+	c.Assert(err, IsNil)
+	// the snap knowns about the bogus plug and slot
+	c.Assert(info.Plugs["bogus-plug"], NotNil)
+	c.Assert(info.Slots["bogus-slot"], NotNil)
+	// but the repository ignores them
+	c.Assert(s.repo.Plug("bogus", "bogus-plug"), IsNil)
+	c.Assert(s.repo.Slot("bogus", "bogus-slot"), IsNil)
+}
+
 func (s AddRemoveSuite) TestRemoveRemovesPlugs(c *C) {
 	_, err := s.addSnap(c, testConsumerYaml)
 	c.Assert(err, IsNil)

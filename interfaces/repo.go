@@ -822,6 +822,9 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 	}
 
 	for plugName, plugInfo := range snapInfo.Plugs {
+		if _, ok := r.ifaces[plugInfo.Interface]; !ok {
+			continue
+		}
 		if r.plugs[snapName] == nil {
 			r.plugs[snapName] = make(map[string]*snap.PlugInfo)
 		}
@@ -829,6 +832,9 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 	}
 
 	for slotName, slotInfo := range snapInfo.Slots {
+		if _, ok := r.ifaces[slotInfo.Interface]; !ok {
+			continue
+		}
 		if r.slots[snapName] == nil {
 			r.slots[snapName] = make(map[string]*snap.SlotInfo)
 		}
