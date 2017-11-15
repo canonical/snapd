@@ -54,6 +54,25 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	}, nil
 }
 
+func (f *fakeStore) ListRefresh(cand []*store.RefreshCandidate, user *auth.UserState) ([]*snap.Info, error) {
+	return []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			RealName: "test-snap",
+			Revision: snap.R(2),
+			SnapID:   "test-snap-id",
+		},
+		Publisher:     "foo",
+		Architectures: []string{"all"},
+	}, {SideInfo: snap.SideInfo{
+		RealName: "other-snap",
+		Revision: snap.R(2),
+		SnapID:   "other-snap-id",
+	},
+		Publisher:     "foo",
+		Architectures: []string{"all"},
+	}}, nil
+}
+
 type servicectlSuite struct {
 	testutil.BaseTest
 	st          *state.State
@@ -309,6 +328,58 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 		c.Check(laneTasks[12].Summary(), Equals, "stop of [test-snap.test-service]")
 		c.Check(laneTasks[13].Summary(), Equals, "start of [test-snap.test-service]")
 		c.Check(laneTasks[14].Summary(), Equals, "restart of [test-snap.test-service]")
+	}
+}
+
+func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
+	oldAutoAliases := snapstate.AutoAliases
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
+	defer func() { snapstate.AutoAliases = oldAutoAliases }()
+
+	s.st.Lock()
+
+	chg := s.st.NewChange("update many change", "update change")
+	installed, tts, err := snapstate.UpdateMany(s.st, []string{"test-snap", "other-snap"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(installed, DeepEquals, []string{"test-snap", "other-snap"})
+	c.Assert(tts, HasLen, 2)
+	c.Assert(tts[0].Tasks(), HasLen, 16)
+	c.Assert(tts[1].Tasks(), HasLen, 16)
+	chg.AddAll(tts[0])
+	chg.AddAll(tts[1])
+
+	s.st.Unlock()
+
+	for i := 0; i < 2; i++ {
+		ts := tts[i]
+		tsTasks := ts.Tasks()
+		// assumes configure task is last
+		task := tsTasks[len(tsTasks)-1]
+		c.Assert(task.Kind(), Equals, "run-hook")
+		setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "configure"}
+		context, err := hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+		c.Assert(err, IsNil)
+
+		_, _, err = ctlcmd.Run(context, []string{"stop", "test-snap.test-service"})
+		c.Check(err, IsNil)
+		_, _, err = ctlcmd.Run(context, []string{"start", "test-snap.test-service"})
+		c.Check(err, IsNil)
+		_, _, err = ctlcmd.Run(context, []string{"restart", "test-snap.test-service"})
+		c.Check(err, IsNil)
+	}
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	for i := 1; i < 3; i++ {
+		laneTasks := chg.LaneTasks(i)
+		c.Assert(laneTasks, HasLen, 19)
+		c.Check(laneTasks[15].Summary(), Matches, `Run configure hook of .* snap if present`)
+		c.Check(laneTasks[16].Summary(), Equals, "stop of [test-snap.test-service]")
+		c.Check(laneTasks[17].Summary(), Equals, "start of [test-snap.test-service]")
+		c.Check(laneTasks[18].Summary(), Equals, "restart of [test-snap.test-service]")
 	}
 }
 
