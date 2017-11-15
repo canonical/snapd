@@ -28,16 +28,12 @@ type cmdMakeRefreshable struct {
 }
 
 func (x *cmdMakeRefreshable) Execute(args []string) error {
-	return runManage(x.TopDir, args)
+	// setup fake new revisions of snaps for refresh
+	return refresh.MakeFakeRefreshForSnaps(args, x.TopDir)
 }
 
 var shortMakeRefreshableHelp = "List of snaps with new versions"
 
 func init() {
 	parser.AddCommand("make-refreshable", shortMakeRefreshableHelp, "", &cmdMakeRefreshable{})
-}
-
-func runManage(topDir string, snaps []string) error {
-	// setup fake new revisions of snaps for refresh
-	return refresh.MakeFakeRefreshForSnaps(snaps, topDir)
 }

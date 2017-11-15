@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/tests/lib/fakestore/store"
 )
 
-type cmdStart struct {
+type cmdRun struct {
 	TopDir         string `long:"dir" description:"Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions"`
 	Addr           string `long:"addr" default:"localhost:11028" description:"Store address"`
 	AssertFallback bool   `long:"assert-fallback" description:"Fallback to the main online store for missing assertions"`
@@ -36,9 +36,9 @@ type cmdStart struct {
 	HttpsProxy string `long:"https-proxy" description:"HTTPS proxy address"`
 }
 
-var shortStartHelp = "Start the store service"
+var shortRunHelp = "Run the store service"
 
-func (x *cmdStart) Execute(args []string) error {
+func (x *cmdRun) Execute(args []string) error {
 	if x.HttpsProxy != "" {
 		os.Setenv("https_proxy", x.HttpsProxy)
 	}
@@ -50,7 +50,7 @@ func (x *cmdStart) Execute(args []string) error {
 }
 
 func init() {
-	if _, err := parser.AddCommand("start", shortStartHelp, "", &cmdStart{}); err != nil {
+	if _, err := parser.AddCommand("run", shortRunHelp, "", &cmdRun{}); err != nil {
 		panic(err)
 	}
 }
