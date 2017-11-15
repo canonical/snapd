@@ -192,6 +192,14 @@ func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid, gid i
 	return nil
 }
 
+func splitIntoSegments(name string) ([]string, error) {
+	if name != filepath.Clean(name) {
+		return nil, fmt.Errorf("cannot split unclean path %q", name)
+	}
+	segments := strings.FieldsFunc(filepath.Clean(name), func(c rune) bool { return c == '/' })
+	return segments, nil
+}
+
 // SecureMkdirAll is the secure variant of os.MkdirAll.
 //
 // Unlike the regular version this implementation does not follow any symbolic
@@ -212,7 +220,12 @@ func secureMkdirAll(name string, perm os.FileMode, uid, gid int) error {
 	if !filepath.IsAbs(name) {
 		return fmt.Errorf("cannot create directory with relative path: %q", name)
 	}
-	segments := strings.FieldsFunc(filepath.Clean(name), func(c rune) bool { return c == '/' })
+
+	// Split the path into segments.
+	segments, err := splitIntoSegments(name)
+	if err != nil {
+		return err
+	}
 
 	// Create the prefix.
 	fd, err := secureMkPrefix(segments, perm, uid, gid)
@@ -246,10 +259,16 @@ func secureMkfileAll(name string, perm os.FileMode, uid, gid int) error {
 	if !filepath.IsAbs(name) {
 		return fmt.Errorf("cannot create file with relative path: %q", name)
 	}
+	// Only support file names, not directory names.
 	if strings.HasSuffix(name, "/") {
 		return fmt.Errorf("cannot create non-file path: %q", name)
 	}
-	segments := strings.FieldsFunc(filepath.Clean(name), func(c rune) bool { return c == '/' })
+
+	// Split the path into segments.
+	segments, err := splitIntoSegments(name)
+	if err != nil {
+		return err
+	}
 
 	// Create the prefix.
 	fd, err := secureMkPrefix(segments, perm, uid, gid)

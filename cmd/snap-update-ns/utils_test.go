@@ -56,6 +56,13 @@ func (s *utilsSuite) TearDownTest(c *C) {
 
 // secure-mkdir-all
 
+// Ensure that we reject unclean paths.
+func (s *utilsSuite) TestSecureMkdirAllUnclean(c *C) {
+	err := update.SecureMkdirAll("/unclean//path", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, `cannot split unclean path .*`)
+	c.Assert(s.sys.Calls(), HasLen, 0)
+}
+
 // Ensure that we refuse to create a directory with an relative path.
 func (s *utilsSuite) TestSecureMkdirAllRelative(c *C) {
 	err := update.SecureMkdirAll("rel/path", 0755, 123, 456)
@@ -253,6 +260,13 @@ func (s *realSystemSuite) TestSecureMkdirAllForReal(c *C) {
 
 // secure-mkfile-all
 
+// Ensure that we reject unclean paths.
+func (s *utilsSuite) TestSecureMkfileAllUnclean(c *C) {
+	err := update.SecureMkfileAll("/unclean//path", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, `cannot split unclean path .*`)
+	c.Assert(s.sys.Calls(), HasLen, 0)
+}
+
 // Ensure that we refuse to create a file with an relative path.
 func (s *utilsSuite) TestSecureMkfileAllRelative(c *C) {
 	err := update.SecureMkfileAll("rel/path", 0755, 123, 456)
@@ -445,4 +459,14 @@ func (s *utilsSuite) TestCleanTrailingSlash(c *C) {
 	c.Assert(filepath.Clean("path/."), Equals, "path")
 	c.Assert(filepath.Clean("path/.."), Equals, ".")
 	c.Assert(filepath.Clean("other/path/.."), Equals, "other")
+}
+
+func (s *utilsSuite) TestSplitIntoSegments(c *C) {
+	sg, err := update.SplitIntoSegments("/foo/bar/froz")
+	c.Assert(err, IsNil)
+	c.Assert(sg, DeepEquals, []string{"foo", "bar", "froz"})
+
+	sg, err = update.SplitIntoSegments("/foo//fii/../.")
+	c.Assert(err, ErrorMatches, `cannot split unclean path ".+"`)
+	c.Assert(sg, HasLen, 0)
 }
