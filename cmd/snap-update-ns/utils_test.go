@@ -437,3 +437,12 @@ func (s *realSystemSuite) TestSecureMkfileAllForReal(c *C) {
 	c.Check(fi.Mode().IsRegular(), Equals, true)
 	c.Check(fi.Mode().Perm(), Equals, os.FileMode(0750))
 }
+
+func (s *utilsSuite) TestCleanTrailingSlash(c *C) {
+	// This is a sanity test for the use of filepath.Clean in secureMk{dir,file}All
+	c.Assert(filepath.Clean("/path/"), Equals, "/path")
+	c.Assert(filepath.Clean("path/"), Equals, "path")
+	c.Assert(filepath.Clean("path/."), Equals, "path")
+	c.Assert(filepath.Clean("path/.."), Equals, ".")
+	c.Assert(filepath.Clean("other/path/.."), Equals, "other")
+}
