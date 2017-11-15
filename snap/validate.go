@@ -85,6 +85,15 @@ func validateSocketName(name string) error {
 	return nil
 }
 
+// validateSocketmode checks that the socket mode is a valid file mode.
+func validateSocketMode(mode os.FileMode) error {
+	if mode > 0777 {
+		return fmt.Errorf("invalid socket mode: %04o", mode)
+	}
+
+	return nil
+}
+
 // validateSocketAddr checks that the value of socket addresses.
 func validateSocketAddr(socket *SocketInfo, fieldName string, address string) error {
 	if address == "" {
@@ -242,7 +251,10 @@ func validateAppSocket(socket *SocketInfo) error {
 	if err := validateSocketName(socket.Name); err != nil {
 		return err
 	}
-
+	
+	if err := validateSocketMode(socket.SocketMode); err != nil {
+		return err
+	}
 	return validateSocketAddr(socket, "listen-stream", socket.ListenStream)
 }
 
