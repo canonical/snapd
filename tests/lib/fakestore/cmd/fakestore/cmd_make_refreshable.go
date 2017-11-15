@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,32 +20,20 @@
 package main
 
 import (
-	"fmt"
-	"os"
-
-	"github.com/jessevdk/go-flags"
-
-	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/tests/lib/fakestore/refresh"
 )
 
-type Options struct{}
-
-var parser = flags.NewParser(&Options{}, flags.Default)
-
-func main() {
-	if err := logger.SimpleSetup(); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to activate logging: %v\n", err)
-		os.Exit(1)
-	}
-	logger.Debugf("fakestore starting")
-
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
+type cmdMakeRefreshable struct {
+	TopDir string `long:"dir" description:"Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions"`
 }
 
-func run() error {
-	_, err := parser.Parse()
-	return err
+func (x *cmdMakeRefreshable) Execute(args []string) error {
+	// setup fake new revisions of snaps for refresh
+	return refresh.MakeFakeRefreshForSnaps(args, x.TopDir)
+}
+
+var shortMakeRefreshableHelp = "Makes new versions of the given snaps"
+
+func init() {
+	parser.AddCommand("make-refreshable", shortMakeRefreshableHelp, "", &cmdMakeRefreshable{})
 }
