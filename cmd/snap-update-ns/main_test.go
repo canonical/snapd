@@ -63,7 +63,7 @@ func (s *mainSuite) TestComputeAndSaveChanges(c *C) {
 	err = ioutil.WriteFile(currentProfilePath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = update.ComputeAndSaveChanges("foo")
+	err = update.ComputeAndSaveChanges(snapName)
 	c.Assert(err, IsNil)
 
 	content, err := ioutil.ReadFile(currentProfilePath)
