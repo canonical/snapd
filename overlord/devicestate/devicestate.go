@@ -245,6 +245,10 @@ func refreshScheduleManaged(st *state.State) bool {
 		return false
 	}
 
+	return CanSetRefreshScheduleManaged(st)
+}
+
+func CanSetRefreshScheduleManaged(st *state.State) bool {
 	snapStates, err := snapstate.All(st)
 	if err != nil {
 		return false

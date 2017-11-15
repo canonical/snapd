@@ -1,16 +1,56 @@
 summary: Ensure that the snapd-control "refresh-schedule" attribute works.
 
+environment:
+  BLOB_DIR: $(pwd)/fake-store-blobdir
+
 prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
+
+    . $TESTSLIB/store.sh
+    setup_fake_store $BLOB_DIR
+
     . $TESTSLIB/snaps.sh
-    install_local test-snapd-control-consumer
-    
-    # now pretend test-snapd-control-consumer comes from the store (fugly HACK)
-    systemctl stop snapd.{service,socket}
-    jq '.data.snaps["test-snapd-control-consumer"].sequence[0]["snap-id"] = "99T7MUlRhtI3U0QFgl5mXXESAiSwt776"' /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
-    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
-    systemctl start snapd.{service,socket}
+    snap_path=$(make_snap test-snapd-control-consumer)
+    make_snap_installable $BLOB_DIR ${snap_path}
+    cat > snap-decl.json <<'EOF'
+    {
+      "format": "1",
+      "revision": "2",
+      "snap-name": "test-snapd-control-consumer",
+      "snap-id": "test-snapd-control-consumer-id",
+      "plugs":
+      {
+        "snapd-control": {
+          "allow-installation": "true",
+          "allow-auto-connection": "true"
+        }
+      }
+    }
+    EOF
+    fakestore new-snap-declaration --dir "${BLOB_DIR}" --snap-decl-json snap-decl.json
+    snap ack ${BLOB_DIR}/asserts/*.snap-declaration
+
+restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    . $TESTSLIB/store.sh
+    teardown_fake_store $BLOB_DIR
     
 execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    snap install test-snapd-control-consumer
+    snap interfaces
+
     echo "When the snapd-control-with-manage plug is connected"
     snap connect test-snapd-control-consumer:snapd-control-with-manage
     snap set core refresh.schedule=managed
@@ -26,5 +66,8 @@ execute: |
     snap disconnect test-snapd-control-consumer:snapd-control-with-manage
 
     echo "Then the snap refresh schedule cannot be set to managed"
-    snap set core refresh.schedule=managed
-    journalctl -u snapd |MATCH 'cannot parse "managed"'
+    if snap set core refresh.schedule=managed; then
+       echo "refresh.schedule=managed was not rejected as it should be"
+       exit 1
+    fi
+
