@@ -1,0 +1,12 @@
+name: test-snapd-framebuffer
+version: 1.0
+summary: Basic snap to check access to file system
+description: A basic snap to check access to file system
+
+apps:
+    read:
+        command: bin/read
+        plugs: [framebuffer]
+    write:
+        command: bin/write
+        plugs: [framebuffer]
