@@ -46,7 +46,7 @@ static void sc_SIGALRM_handler(int signum)
 	sanity_timeout_expired = 1;
 }
 
-void sc_enable_sanity_timeout()
+void sc_enable_sanity_timeout(void)
 {
 	sanity_timeout_expired = 0;
 	struct sigaction act = {.sa_handler = sc_SIGALRM_handler };
@@ -60,11 +60,11 @@ void sc_enable_sanity_timeout()
 	if (sigaction(SIGALRM, &act, NULL) < 0) {
 		die("cannot install signal handler for SIGALRM");
 	}
-	alarm(3);
+	alarm(6);
 	debug("sanity timeout initialized and set for three seconds");
 }
 
-void sc_disable_sanity_timeout()
+void sc_disable_sanity_timeout(void)
 {
 	if (sanity_timeout_expired) {
 		die("sanity timeout expired");
@@ -134,7 +134,7 @@ void sc_unlock(const char *scope, int lock_fd)
 	close(lock_fd);
 }
 
-int sc_lock_global()
+int sc_lock_global(void)
 {
 	return sc_lock(NULL);
 }

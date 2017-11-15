@@ -71,6 +71,10 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 	m.runner.AddHandler("run-hook", func(task *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
+	m.runner.AddHandler("configure-snapd", func(t *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}, nil)
+
 }
 
 // AddAdhocTaskHandlers registers handlers for ad hoc test handler
@@ -106,6 +110,7 @@ var (
 	CheckSnap              = checkSnap
 	CanRemove              = canRemove
 	CanDisable             = canDisable
+	CachedStore            = cachedStore
 	DefaultRefreshSchedule = defaultRefreshSchedule
 	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
 )
@@ -121,4 +126,10 @@ var (
 	RefreshAliases        = refreshAliases
 	CheckAliasesConflicts = checkAliasesConflicts
 	DisableAliases        = disableAliases
+)
+
+// readme files
+var (
+	WriteSnapReadme = writeSnapReadme
+	SnapReadme      = snapReadme
 )

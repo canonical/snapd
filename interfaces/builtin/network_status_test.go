@@ -84,7 +84,7 @@ func (s *NetworkStatusSuite) TestAppArmorConnectedSlot(c *C) {
 
 func (s *NetworkStatusSuite) TestAppArmorPermanentSlot(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "dbus (bind)")
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `name="com.ubuntu.connectivity1.NetworkingStatus"`)
@@ -92,7 +92,7 @@ func (s *NetworkStatusSuite) TestAppArmorPermanentSlot(c *C) {
 
 func (s *NetworkStatusSuite) TestDBusPermanentSlot(c *C) {
 	spec := &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `<policy user="root">`)
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `<allow send_destination="com.ubuntu.connectivity1.NetworkingStatus"/>`)

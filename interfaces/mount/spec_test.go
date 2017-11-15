@@ -44,10 +44,10 @@ var _ = Suite(&specSuite{
 		MountConnectedSlotCallback: func(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 			return spec.AddMountEntry(mount.Entry{Dir: "dir-b", Name: "connected-slot"})
 		},
-		MountPermanentPlugCallback: func(spec *mount.Specification, plug *interfaces.Plug) error {
+		MountPermanentPlugCallback: func(spec *mount.Specification, plug *snap.PlugInfo) error {
 			return spec.AddMountEntry(mount.Entry{Dir: "dir-c", Name: "permanent-plug"})
 		},
-		MountPermanentSlotCallback: func(spec *mount.Specification, slot *interfaces.Slot) error {
+		MountPermanentSlotCallback: func(spec *mount.Specification, slot *snap.SlotInfo) error {
 			return spec.AddMountEntry(mount.Entry{Dir: "dir-d", Name: "permanent-slot"})
 		},
 	},
@@ -85,8 +85,8 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(r.AddPermanentPlug(s.iface, s.plug.PlugInfo), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []mount.Entry{
 		{Dir: "dir-a", Name: "connected-plug"},
 		{Dir: "dir-b", Name: "connected-slot"},

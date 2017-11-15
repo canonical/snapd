@@ -21,19 +21,43 @@ package corecfg_test
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/corecfg"
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/systemd"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
+type mockConf struct {
+	state *state.State
+	conf  map[string]interface{}
+	err   error
+}
+
+func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
+	if snapName != "core" {
+		return fmt.Errorf("mockConf only knows about core")
+	}
+	if cfg.conf[key] != nil {
+		v1 := reflect.ValueOf(result)
+		v2 := reflect.Indirect(v1)
+		v2.Set(reflect.ValueOf(cfg.conf[key]))
+	}
+	return cfg.err
+}
+
+func (cfg *mockConf) State() *state.State {
+	return cfg.state
+}
+
 // coreCfgSuite is the base for all the corecfg tests
 type coreCfgSuite struct {
+	state *state.State
+
 	systemctlArgs     [][]string
 	systemctlRestorer func()
 }
@@ -52,30 +76,11 @@ func (s *coreCfgSuite) TearDownSuite(c *C) {
 	s.systemctlRestorer()
 }
 
+func (s *coreCfgSuite) SetUpTest(c *C) {
+	s.state = state.New(nil)
+}
+
 // runCfgSuite tests corecfg.Run()
 type runCfgSuite struct {
 	coreCfgSuite
-}
-
-var _ = Suite(&runCfgSuite{})
-
-func (s *runCfgSuite) TestConfigureErrorsOnClassic(c *C) {
-	restore := release.MockOnClassic(true)
-	defer restore()
-
-	err := corecfg.Run()
-	c.Check(err, ErrorMatches, "cannot run core-configure on classic distribution")
-}
-
-func (s *runCfgSuite) TestConfigureErrorOnMissingCoreSupport(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
-		return nil, fmt.Errorf("simulate missing core-support")
-	})
-	defer r()
-
-	err := corecfg.Run()
-	c.Check(err, ErrorMatches, `(?m)cannot run systemctl - core-support interface seems disconnected: simulate missing core-support`)
 }
