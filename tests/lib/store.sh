@@ -30,10 +30,21 @@ teardown_staging_store(){
 }
 
 init_fake_refreshes(){
-    local dir=$1
+    local dir="$1"
     shift
 
     fakestore make-refreshable --dir "$dir" "$@" 
+}
+
+make_snap_installable(){
+    local dir="$1"
+    local snap_path="$2"
+
+    cp -a "$snap_path" "$dir"
+    fakestore new-snap-declaration --dir "$dir" "${snap_path}"
+    snap ack $dir/asserts/*.snap-declaration
+    fakestore new-snap-revision --dir "$dir" "${snap_path}"
+    snap ack $dir/asserts/*.snap-revision
 }
 
 setup_fake_store(){
