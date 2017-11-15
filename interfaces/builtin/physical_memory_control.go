@@ -41,7 +41,7 @@ capability sys_rawio,
 /dev/mem rw,
 `
 
-const physicalMemoryControlConnectedPlugUDev = `KERNEL=="mem", TAG+="###CONNECTED_SECURITY_TAGS###"`
+var physicalMemoryControlConnectedPlugUDev = []string{`KERNEL=="mem"`}
 
 func init() {
 	registerIface(&commonInterface{

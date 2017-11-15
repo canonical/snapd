@@ -87,7 +87,8 @@ func (s *TpmInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="tpm[0-9]*", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# tpm
+KERNEL=="tpm[0-9]*", TAG+="snap_consumer_app"`)
 }
 
 func (s *TpmInterfaceSuite) TestStaticInfo(c *C) {

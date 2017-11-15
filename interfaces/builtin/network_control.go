@@ -255,10 +255,10 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
  * We only need to tag /dev/net/tun since the tap[0-9]* and tun[0-9]* devices
  * are virtual and don't show up in /dev
  */
-const networkControlConnectedPlugUDev = `
-KERNEL=="rfkill", TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="tun",    TAG+="###CONNECTED_SECURITY_TAGS###"
-`
+var networkControlConnectedPlugUDev = []string{
+	`KERNEL=="rfkill"`,
+	`KERNEL=="tun"`,
+}
 
 func init() {
 	registerIface(&commonInterface{
