@@ -34,11 +34,11 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-type snapUpdateNsSuite struct{}
+type mainSuite struct{}
 
-var _ = Suite(&snapUpdateNsSuite{})
+var _ = Suite(&mainSuite{})
 
-func (s *snapUpdateNsSuite) TestComputeAndSaveChanges(c *C) {
+func (s *mainSuite) TestComputeAndSaveChanges(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 
