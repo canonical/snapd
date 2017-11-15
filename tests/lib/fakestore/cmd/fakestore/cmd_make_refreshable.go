@@ -32,7 +32,7 @@ func (x *cmdMakeRefreshable) Execute(args []string) error {
 	return refresh.MakeFakeRefreshForSnaps(args, x.TopDir)
 }
 
-var shortMakeRefreshableHelp = "List of snaps with new versions"
+var shortMakeRefreshableHelp = "Makes new versions of the given snaps"
 
 func init() {
 	parser.AddCommand("make-refreshable", shortMakeRefreshableHelp, "", &cmdMakeRefreshable{})
