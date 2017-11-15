@@ -1,4 +1,4 @@
-# go-udev
+# go-udev [![Go Report Card](https://goreportcard.com/badge/github.com/pilebones/go-udev)](https://goreportcard.com/report/github.com/pilebones/go-udev) [![GoDoc](https://godoc.org/github.com/pilebones/go-udev?status.svg)](https://godoc.org/github.com/pilebones/go-udev) [![Build Status](https://travis-ci.org/pilebones/go-udev.svg?branch=master)](https://travis-ci.org/pilebones/go-udev)
 
 Simple udev implementation in Golang developped from scratch.
 This library allow to listen and manage Linux-kernel (since version 2.6.10) Netlink messages to user space (ie: NETLINK_KOBJECT_UEVENT).
@@ -117,3 +117,10 @@ Don't hesitate to notice if you detect a problem with this tool or library.
 - Linux source code about: 
   * Struct sockaddr_netlink: http://elixir.free-electrons.com/linux/v3.12/source/lib/kobject_uevent.c#L45
   * KObject action: http://elixir.free-electrons.com/linux/v3.12/source/lib/kobject_uevent.c#L45
+
+## Documentation
+- [GoDoc Reference](http://godoc.org/github.com/pilebones/go-udev).
+
+## License
+
+go-udev is available under the [GNU GPL v3 - Clause License](https://opensource.org/licenses/GPL-3.0).
