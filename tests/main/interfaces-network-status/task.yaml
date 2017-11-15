@@ -36,7 +36,8 @@ execute: |
         echo $(dbus-send --system --print-reply --dest=com.ubuntu.connectivity1.NetworkingStatus /com/ubuntu/connectivity1/NetworkingStatus com.ubuntu.connectivity1.NetworkingStatus.${method})
     }
 
-    echo "The plug is connected by default"
+    echo "Connect the interface"
+    snap connect test-snapd-network-status-consumer:network-status test-snapd-network-status-provider:network-status-test
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     for i in $(seq 10); do
@@ -62,7 +63,7 @@ execute: |
     fi
     MATCH "Permission denied" < getstate.error
 
-    echo "When the plug is connected"
+    echo "When the plug is re-connected the interfaces show the connection"
     snap connect test-snapd-network-status-consumer:network-status test-snapd-network-status-provider:network-status-test
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
