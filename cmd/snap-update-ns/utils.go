@@ -143,7 +143,10 @@ func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid, gid in
 	return newFd, err
 }
 
-// secureMkdirAll is the secure variant of os.MkdirAll.
+// secureMkFile creates a file at i-th entry of absolute path represented by
+// segments. This function is meant to be used to create the leaf file as a
+// preparation for a mount point. Existing files are reused without errors.
+// Newly created files have the specified mode and ownership.
 func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid, gid int) error {
 	logger.Debugf("secure-mk-file %d %q %d %v %d %d", fd, segments, i, perm, uid, gid)
 	segment := segments[i]
