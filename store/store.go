@@ -103,6 +103,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.Confinement = snap.ConfinementType(d.Confinement)
 	info.Contact = d.Contact
 	info.License = d.License
+	info.Base = d.Base
 
 	deltas := make([]snap.DeltaInfo, len(d.Deltas))
 	for i, d := range d.Deltas {
