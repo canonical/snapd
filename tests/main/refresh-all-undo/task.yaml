@@ -45,9 +45,9 @@ execute: |
     echo "When the store is configured to make them refreshable"
     . $TESTSLIB/files.sh
     . $TESTSLIB/store.sh
-    init_fake_refreshes "$GOOD_SNAP" "$BLOB_DIR"
+    init_fake_refreshes "$BLOB_DIR" "$GOOD_SNAP"
     wait_for_file "$BLOB_DIR"/"${GOOD_SNAP}"*fake1*.snap 4 .5
-    init_fake_refreshes "$BAD_SNAP" "$BLOB_DIR"
+    init_fake_refreshes "$BLOB_DIR" "$BAD_SNAP"
     wait_for_file "$BLOB_DIR"/"${BAD_SNAP}"*fake1*.snap 4 .5
 
     echo "When a snap is broken"
