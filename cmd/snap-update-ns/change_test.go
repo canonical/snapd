@@ -171,6 +171,103 @@ func (s *changeSuite) TestNeededChangesSameParentChangedChild(c *C) {
 	})
 }
 
+// Unused bind mount farms are unmounted.
+func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
+	current := &mount.Profile{Entries: []mount.Entry{{
+		// The tmpfs that lets us write into immutable squashfs.
+		Name:    "none",
+		Dir:     "/snap/name/42/subdir",
+		Type:    "tmpfs",
+		Options: []string{"x-snapd.id=s1", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+	}, {
+		// A bind mount to preserve a directory hidden by the tmpfs.
+		Name:    "/var/lib/snapd/hostfs/snap/name/42/subdir/existing",
+		Dir:     "/snap/name/42/subdir/existing",
+		Options: []string{"bind", "ro", "x-snapd.id=s2", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+	}, {
+		// A bind mount to put some content from another snap. The bind mount
+		// is nothing special but the fact that it is possible is the reason
+		// the two entries above exist.
+		Name:    "/snap/other/123/libs",
+		Dir:     "/snap/name/42/subdir/created",
+		Options: []string{"bind", "ro", "x-snapd.id=e1"},
+	}}}
+
+	desired := &mount.Profile{}
+
+	changes := update.NeededChanges(current, desired)
+
+	c.Assert(changes, DeepEquals, []*update.Change{
+		{Entry: mount.Entry{
+			Name:    "/var/lib/snapd/hostfs/snap/name/42/subdir/existing",
+			Dir:     "/snap/name/42/subdir/existing",
+			Options: []string{"bind", "ro", "x-snapd.id=s2", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+		}, Action: update.Unmount},
+		{Entry: mount.Entry{
+			Name:    "/snap/other/123/libs",
+			Dir:     "/snap/name/42/subdir/created",
+			Options: []string{"bind", "ro", "x-snapd.id=e1"},
+		}, Action: update.Unmount},
+		{Entry: mount.Entry{
+			Name:    "none",
+			Dir:     "/snap/name/42/subdir",
+			Type:    "tmpfs",
+			Options: []string{"x-snapd.id=s1", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+		}, Action: update.Unmount},
+	})
+}
+
+func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUsed(c *C) {
+	current := &mount.Profile{Entries: []mount.Entry{{
+		// The tmpfs that lets us write into immutable squashfs.
+		Name:    "none",
+		Dir:     "/snap/name/42/subdir",
+		Type:    "tmpfs",
+		Options: []string{"x-snapd.id=s1", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+	}, {
+		// A bind mount to preserve a directory hidden by the tmpfs.
+		Name:    "/var/lib/snapd/hostfs/snap/name/42/subdir/existing",
+		Dir:     "/snap/name/42/subdir/existing",
+		Options: []string{"bind", "ro", "x-snapd.id=s2", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+	}, {
+		// A bind mount to put some content from another snap. The bind mount
+		// is nothing special but the fact that it is possible is the reason
+		// the two entries above exist.
+		Name:    "/snap/other/123/libs",
+		Dir:     "/snap/name/42/subdir/created",
+		Options: []string{"bind", "ro", "x-snapd.id=e1"},
+	}}}
+
+	desired := &mount.Profile{Entries: []mount.Entry{{
+		// This is the only entry that we explicitly want but in order to
+		// support it we need to keep the remaining implicit entries.
+		Name:    "/snap/other/123/libs",
+		Dir:     "/snap/name/42/subdir/created",
+		Options: []string{"bind", "ro", "x-snapd.id=e1"},
+	}}}
+
+	changes := update.NeededChanges(current, desired)
+
+	c.Assert(changes, DeepEquals, []*update.Change{
+		{Entry: mount.Entry{
+			Name:    "/var/lib/snapd/hostfs/snap/name/42/subdir/existing",
+			Dir:     "/snap/name/42/subdir/existing",
+			Options: []string{"bind", "ro", "x-snapd.id=s2", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+		}, Action: update.Keep},
+		{Entry: mount.Entry{
+			Name:    "/snap/other/123/libs",
+			Dir:     "/snap/name/42/subdir/created",
+			Options: []string{"bind", "ro", "x-snapd.id=e1"},
+		}, Action: update.Keep},
+		{Entry: mount.Entry{
+			Name:    "none",
+			Dir:     "/snap/name/42/subdir",
+			Type:    "tmpfs",
+			Options: []string{"x-snapd.id=s1", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+		}, Action: update.Keep},
+	})
+}
+
 // cur = ['/a/b', '/a/b-1', '/a/b-1/3', '/a/b/c']
 // des = ['/a/b', '/a/b-1', '/a/b/c'
 //
