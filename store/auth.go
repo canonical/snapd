@@ -192,6 +192,8 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 			return "", ErrAuthenticationNeeds2fa
 		case "TWOFACTOR_FAILURE":
 			return "", Err2faFailed
+		case "INVALID_CREDENTIALS":
+			return "", ErrInvalidCredentials
 		case "INVALID_DATA":
 			return "", InvalidAuthDataError(msg.Extra)
 		case "PASSWORD_POLICY_ERROR":

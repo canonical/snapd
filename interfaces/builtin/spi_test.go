@@ -169,7 +169,7 @@ func (s *spiInterfaceSuite) TestSanitizeSlot(c *C) {
 	err = interfaces.SanitizeSlot(s.iface, s.slotGadgetBad5Info)
 	c.Assert(err, ErrorMatches, `"/dev/spi-foo" is not a valid SPI device`)
 	err = interfaces.SanitizeSlot(s.iface, s.slotGadgetBad6Info)
-	c.Assert(err, ErrorMatches, `slot "gadget:bad-spi-6" must have a path attribute`)
+	c.Assert(err, ErrorMatches, `spi slot must have a path attribute`)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "spi",
@@ -183,7 +183,8 @@ func (s *spiInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug1, s.slotGadget1), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], Equals, `KERNEL=="spidev0.0", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# spi
+KERNEL=="spidev0.0", TAG+="snap_consumer_app"`)
 }
 
 func (s *spiInterfaceSuite) TestAppArmorSpec(c *C) {

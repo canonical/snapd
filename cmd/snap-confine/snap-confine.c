@@ -18,6 +18,7 @@
 #include "config.h"
 #endif
 
+#include <glob.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -47,7 +48,7 @@
 // sc_maybe_fixup_permissions fixes incorrect permissions
 // inside the mount namespace for /var/lib. Before 1ccce4
 // this directory was created with permissions 1777.
-void sc_maybe_fixup_permissions()
+static void sc_maybe_fixup_permissions(void)
 {
 	struct stat buf;
 	if (stat("/var/lib", &buf) != 0) {
@@ -60,6 +61,34 @@ void sc_maybe_fixup_permissions()
 		if (chown("/var/lib", 0, 0) != 0) {
 			die("cannot chown /var/lib");
 		}
+	}
+}
+
+// sc_maybe_fixup_udev will remove incorrectly created udev tags
+// that cause libudev on 16.04 to fail with "udev_enumerate_scan failed".
+// See also:
+// https://forum.snapcraft.io/t/weird-udev-enumerate-error/2360/17
+static void sc_maybe_fixup_udev(void)
+{
+	glob_t glob_res SC_CLEANUP(globfree) = {
+	.gl_pathv = NULL,.gl_pathc = 0,.gl_offs = 0,};
+	const char *glob_pattern = "/run/udev/tags/snap_*/*nvidia*";
+	int err = glob(glob_pattern, 0, NULL, &glob_res);
+	if (err == GLOB_NOMATCH) {
+		return;
+	}
+	if (err != 0) {
+		die("cannot search using glob pattern %s: %d",
+		    glob_pattern, err);
+	}
+	// kill bogus udev tags for nvidia. They confuse udev, this
+	// undoes the damage from github.com/snapcore/snapd/pull/3671.
+	//
+	// The udev tagging of nvidia got reverted in:
+	// https://github.com/snapcore/snapd/pull/4022
+	// but leftover files need to get removed or apps won't start
+	for (size_t i = 0; i < glob_res.gl_pathc; ++i) {
+		unlink(glob_res.gl_pathv[i]);
 	}
 }
 
@@ -179,7 +208,8 @@ int main(int argc, char **argv)
 			debug("initializing mount namespace: %s", snap_name);
 			struct sc_ns_group *group = NULL;
 			group = sc_open_ns_group(snap_name, 0);
-			sc_create_or_join_ns_group(group, &apparmor);
+			sc_create_or_join_ns_group(group, &apparmor,
+						   base_snap_name, snap_name);
 			if (sc_should_populate_ns_group(group)) {
 				sc_populate_mount_ns(base_snap_name, snap_name);
 				sc_preserve_populated_ns_group(group);
@@ -190,6 +220,8 @@ int main(int argc, char **argv)
 			// for systems that had their NS created with an
 			// old version
 			sc_maybe_fixup_permissions();
+			sc_maybe_fixup_udev();
+
 			// Associate each snap process with a dedicated snap freezer
 			// control group. This simplifies testing if any processes
 			// belonging to a given snap are still alive.

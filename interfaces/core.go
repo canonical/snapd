@@ -35,18 +35,14 @@ type Plug struct {
 
 // Ref returns reference to a plug
 func (plug *Plug) Ref() PlugRef {
-	return NewPlugRef(plug.PlugInfo)
-}
-
-func NewPlugRef(plugInfo *snap.PlugInfo) PlugRef {
-	return PlugRef{Snap: plugInfo.Snap.Name(), Name: plugInfo.Name}
+	return PlugRef{Snap: plug.Snap.Name(), Name: plug.Name}
 }
 
 // Sanitize plug with a given snapd interface.
 func SanitizePlug(iface Interface, plugInfo *snap.PlugInfo) error {
 	if iface.Name() != plugInfo.Interface {
 		return fmt.Errorf("cannot sanitize plug %q (interface %q) using interface %q",
-			NewPlugRef(plugInfo), plugInfo.Interface, iface.Name())
+			PlugRef{Snap: plugInfo.Snap.Name(), Name: plugInfo.Name}, plugInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(PlugSanitizer); ok {
@@ -74,18 +70,14 @@ type Slot struct {
 
 // Ref returns reference to a slot
 func (slot *Slot) Ref() SlotRef {
-	return NewSlotRef(slot.SlotInfo)
-}
-
-func NewSlotRef(slotInfo *snap.SlotInfo) SlotRef {
-	return SlotRef{Snap: slotInfo.Snap.Name(), Name: slotInfo.Name}
+	return SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}
 }
 
 // Sanitize slot with a given snapd interface.
 func SanitizeSlot(iface Interface, slotInfo *snap.SlotInfo) error {
 	if iface.Name() != slotInfo.Interface {
 		return fmt.Errorf("cannot sanitize slot %q (interface %q) using interface %q",
-			NewSlotRef(slotInfo), slotInfo.Interface, iface.Name())
+			SlotRef{Snap: slotInfo.Snap.Name(), Name: slotInfo.Name}, slotInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(SlotSanitizer); ok {
@@ -125,6 +117,14 @@ type Info struct {
 type ConnRef struct {
 	PlugRef PlugRef
 	SlotRef SlotRef
+}
+
+// NewConnRef creates a connection reference for given plug and slot
+func NewConnRef(plug *snap.PlugInfo, slot *snap.SlotInfo) *ConnRef {
+	return &ConnRef{
+		PlugRef: PlugRef{Snap: plug.Snap.Name(), Name: plug.Name},
+		SlotRef: SlotRef{Snap: slot.Snap.Name(), Name: slot.Name},
+	}
 }
 
 // ID returns a string identifying a given connection.

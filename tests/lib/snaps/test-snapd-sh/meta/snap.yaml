@@ -4,3 +4,6 @@ version: 1.0
 apps:
     test-snapd-sh:
         command: ../../../bin/sh
+    with-home-plug:
+        command: ../../../bin/sh
+        plugs: [home]

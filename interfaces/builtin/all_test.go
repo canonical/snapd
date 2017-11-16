@@ -20,7 +20,9 @@
 package builtin_test
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -67,7 +69,7 @@ type dbusDefiner2 interface {
 	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
 type dbusDefiner3 interface {
-	DBusPermanestPlug(spec *dbus.Specification, plug *interfaces.Plug) error
+	DBusPermanestPlug(spec *dbus.Specification, plug *snap.PlugInfo) error
 }
 type dbusDefiner4 interface {
 	DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error
@@ -339,7 +341,7 @@ func (s *AllSuite) TestSanitizeErrorsOnInvalidSlotNames(c *C) {
 	snapInfo := snaptest.MockInfo(c, testConsumerInvalidSlotNameYaml, nil)
 	snap.SanitizePlugsSlots(snapInfo)
 	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
-	c.Check(snapInfo.BadInterfacesInfoString(), Matches, `snap "consumer" has bad plugs or slots: ttyS5 \(invalid interface name: "ttyS5"\)`)
+	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "consumer" has bad plugs or slots: ttyS5 \(invalid interface name: "ttyS5"\)`)
 }
 
 func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugNames(c *C) {
@@ -351,5 +353,71 @@ func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugNames(c *C) {
 	snapInfo := snaptest.MockInfo(c, testConsumerInvalidPlugNameYaml, nil)
 	snap.SanitizePlugsSlots(snapInfo)
 	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
-	c.Check(snapInfo.BadInterfacesInfoString(), Matches, `snap "consumer" has bad plugs or slots: ttyS3 \(invalid interface name: "ttyS3"\)`)
+	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "consumer" has bad plugs or slots: ttyS3 \(invalid interface name: "ttyS3"\)`)
+}
+
+func (s *AllSuite) TestUnexpectedSpecSignatures(c *C) {
+	type funcSig struct {
+		name string
+		in   []string
+		out  []string
+	}
+	var sigs []funcSig
+
+	// All the valid signatures from all the specification definers from all the backends.
+	for _, backend := range []string{"AppArmor", "SecComp", "UDev", "DBus", "Systemd", "KMod"} {
+		backendLower := strings.ToLower(backend)
+		sigs = append(sigs, []funcSig{{
+			name: fmt.Sprintf("%sPermanentPlug", backend),
+			in: []string{
+				fmt.Sprintf("*%s.Specification", backendLower),
+				"*snap.PlugInfo",
+			},
+			out: []string{"error"},
+		}, {
+			name: fmt.Sprintf("%sPermanentSlot", backend),
+			in: []string{
+				fmt.Sprintf("*%s.Specification", backendLower),
+				"*snap.SlotInfo",
+			},
+			out: []string{"error"},
+		}, {
+			name: fmt.Sprintf("%sConnectedPlug", backend),
+			in: []string{
+				fmt.Sprintf("*%s.Specification", backendLower),
+				"*interfaces.ConnectedPlug",
+				"*interfaces.ConnectedSlot",
+			},
+			out: []string{"error"},
+		}, {
+			name: fmt.Sprintf("%sConnectedSlot", backend),
+			in: []string{
+				fmt.Sprintf("*%s.Specification", backendLower),
+				"*interfaces.ConnectedPlug",
+				"*interfaces.ConnectedSlot",
+			},
+			out: []string{"error"},
+		}}...)
+	}
+	for _, iface := range builtin.Interfaces() {
+		ifaceVal := reflect.ValueOf(iface)
+		ifaceType := ifaceVal.Type()
+		for _, sig := range sigs {
+			meth, ok := ifaceType.MethodByName(sig.name)
+			if !ok {
+				// all specificiation methods are optional.
+				continue
+			}
+			methType := meth.Type
+			// Check that the signature matches our expectation. The -1 and +1 below is for the receiver type.
+			c.Assert(methType.NumIn()-1, Equals, len(sig.in), Commentf("expected %s's %s method to take %d arguments", ifaceType, meth.Name, len(sig.in)))
+			for i, expected := range sig.in {
+				c.Assert(methType.In(i+1).String(), Equals, expected, Commentf("expected %s's %s method %dth argument type to be different", ifaceType, meth.Name, i))
+			}
+			c.Assert(methType.NumOut(), Equals, len(sig.out), Commentf("expected %s's %s method to return %d values", ifaceType, meth.Name, len(sig.out)))
+			for i, expected := range sig.out {
+				c.Assert(methType.Out(i).String(), Equals, expected, Commentf("expected %s's %s method %dth return value type to be different", ifaceType, meth.Name, i))
+			}
+		}
+	}
 }

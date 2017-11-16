@@ -161,4 +161,30 @@ func (s *entrySuite) TestOptsToFlags(c *C) {
 	c.Assert(flags, Equals, syscall.MS_RDONLY|syscall.MS_NODEV|syscall.MS_NOSUID)
 	_, err = mount.OptsToFlags([]string{"bogus"})
 	c.Assert(err, ErrorMatches, `unsupported mount option: "bogus"`)
+	// The x-snapd-prefix is reserved for non-kernel parameters that do not
+	// translate to kernel level mount flags. This is similar to systemd or
+	// udisks that use fstab options to convey additional data.
+	flags, err = mount.OptsToFlags([]string{"x-snapd.foo"})
+	c.Assert(err, IsNil)
+	c.Assert(flags, Equals, 0)
+}
+
+func (s *entrySuite) TestOptStr(c *C) {
+	e := &mount.Entry{Options: []string{"key=value"}}
+	val, ok := e.OptStr("key")
+	c.Assert(ok, Equals, true)
+	c.Assert(val, Equals, "value")
+
+	val, ok = e.OptStr("missing")
+	c.Assert(ok, Equals, false)
+	c.Assert(val, Equals, "")
+}
+
+func (s *entrySuite) TestOptBool(c *C) {
+	e := &mount.Entry{Options: []string{"key"}}
+	val := e.OptBool("key")
+	c.Assert(val, Equals, true)
+
+	val = e.OptBool("missing")
+	c.Assert(val, Equals, false)
 }

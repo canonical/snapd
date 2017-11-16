@@ -89,6 +89,7 @@ purge() {
     # opportunistic as those might not be actually mounted
     for mnt in /run/snapd/ns/*.mnt; do
         umount -l "$mnt" || true
+        rm -f "$mnt"
     done
     for fstab in /run/snapd/ns/*.fstab; do
         rm -f "$fstab"

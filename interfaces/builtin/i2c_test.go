@@ -186,7 +186,8 @@ func (s *I2cInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# i2c
+KERNEL=="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"`)
 }
 
 func (s *I2cInterfaceSuite) TestAppArmorSpec(c *C) {

@@ -165,11 +165,11 @@ capability setuid,
 
 /etc/rpc r,
 
-# TUN/TAP
+# TUN/TAP - https://www.kernel.org/doc/Documentation/networking/tuntap.txt
+#
+# We only need to tag /dev/net/tun since the tap[0-9]* and tun[0-9]* devices
+# are virtual and don't show up in /dev
 /dev/net/tun rw,
-# These are dynamically created via ioctl() on /dev/net/tun
-/dev/tun[0-9]{,[0-9]*} rw,
-/dev/tap[0-9]{,[0-9]*} rw,
 
 # access to bridge sysfs interfaces for bridge settings
 /sys/devices/virtual/net/*/bridge/* rw,
@@ -250,12 +250,15 @@ socket AF_NETLINK - NETLINK_GENERIC
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
-const networkControlConnectedPlugUDev = `
-KERNEL=="rfkill",    TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="tap[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="tun",       TAG+="###CONNECTED_SECURITY_TAGS###",
-KERNEL=="tun[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
-`
+/* https://www.kernel.org/doc/Documentation/networking/tuntap.txt
+ *
+ * We only need to tag /dev/net/tun since the tap[0-9]* and tun[0-9]* devices
+ * are virtual and don't show up in /dev
+ */
+var networkControlConnectedPlugUDev = []string{
+	`KERNEL=="rfkill"`,
+	`KERNEL=="tun"`,
+}
 
 func init() {
 	registerIface(&commonInterface{
