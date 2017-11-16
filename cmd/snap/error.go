@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"go/doc"
 	"os"
-	"os/user"
 	"strings"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -33,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 )
 
 var errorPrefix = i18n.G("error: %v\n")
@@ -141,8 +141,7 @@ If you understand and want to proceed repeat the command including --classic.
 `)
 	case client.ErrorKindLoginRequired:
 		usesSnapName = false
-		u, _ := user.Current()
-		if u != nil && u.Username == "root" {
+		if user.Geteuid() == 0 {
 			// TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 			msg = fmt.Sprintf(i18n.G(`%s (see "snap login --help")`), err.Message)
 		} else {

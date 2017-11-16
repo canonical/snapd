@@ -71,7 +71,7 @@ func (s *entrySuite) TestXSnapdUID(c *C) {
 	e := &mount.Entry{}
 	uid, err := update.XSnapdUID(e)
 	c.Assert(err, IsNil)
-	c.Assert(uid, Equals, uint64(0))
+	c.Assert(uid, Equals, uint32(0))
 
 	// User is parsed from the x-snapd.uid= option.
 	nobodyUID, err := osutil.FindUid("nobody")
@@ -85,19 +85,19 @@ func (s *entrySuite) TestXSnapdUID(c *C) {
 	e = &mount.Entry{Options: []string{"x-snapd.uid=123"}}
 	uid, err = update.XSnapdUID(e)
 	c.Assert(err, IsNil)
-	c.Assert(uid, Equals, uint64(123))
+	c.Assert(uid, Equals, uint32(123))
 
 	// Unknown user names are invalid.
 	e = &mount.Entry{Options: []string{"x-snapd.uid=bogus"}}
 	uid, err = update.XSnapdUID(e)
 	c.Assert(err, ErrorMatches, `cannot resolve user name "bogus"`)
-	c.Assert(uid, Equals, uint64(math.MaxUint64))
+	c.Assert(uid, Equals, uint32(math.MaxUint32))
 
 	// And even valid values with trailing garbage.
 	e = &mount.Entry{Options: []string{"x-snapd.uid=0bogus"}}
 	uid, err = update.XSnapdUID(e)
 	c.Assert(err, ErrorMatches, `cannot parse user name "0bogus"`)
-	c.Assert(uid, Equals, uint64(math.MaxUint64))
+	c.Assert(uid, Equals, uint32(math.MaxUint32))
 }
 
 func (s *entrySuite) TestXSnapdGID(c *C) {
@@ -105,11 +105,11 @@ func (s *entrySuite) TestXSnapdGID(c *C) {
 	e := &mount.Entry{}
 	gid, err := update.XSnapdGID(e)
 	c.Assert(err, IsNil)
-	c.Assert(gid, Equals, uint64(0))
+	c.Assert(gid, Equals, uint32(0))
 
 	// Group is parsed from the x-snapd-group= option.
 	var nogroup string
-	var nogroupGID uint64
+	var nogroupGID uint32
 	// try to cover differences between distributions and find a suitable
 	// 'nogroup' like group, eg. Ubuntu uses 'nogroup' while Arch uses
 	// 'nobody'
@@ -134,19 +134,19 @@ func (s *entrySuite) TestXSnapdGID(c *C) {
 	e = &mount.Entry{Options: []string{"x-snapd.gid=456"}}
 	gid, err = update.XSnapdGID(e)
 	c.Assert(err, IsNil)
-	c.Assert(gid, Equals, uint64(456))
+	c.Assert(gid, Equals, uint32(456))
 
 	// Unknown group names are invalid.
 	e = &mount.Entry{Options: []string{"x-snapd.gid=bogus"}}
 	gid, err = update.XSnapdGID(e)
 	c.Assert(err, ErrorMatches, `cannot resolve group name "bogus"`)
-	c.Assert(gid, Equals, uint64(math.MaxUint64))
+	c.Assert(gid, Equals, uint32(math.MaxUint32))
 
 	// And even valid values with trailing garbage.
 	e = &mount.Entry{Options: []string{"x-snapd.gid=0bogus"}}
 	gid, err = update.XSnapdGID(e)
 	c.Assert(err, ErrorMatches, `cannot parse group name "0bogus"`)
-	c.Assert(gid, Equals, uint64(math.MaxUint64))
+	c.Assert(gid, Equals, uint32(math.MaxUint32))
 }
 
 func (s *entrySuite) TestXSnapdEntryID(c *C) {

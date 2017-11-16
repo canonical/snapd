@@ -54,10 +54,11 @@ func XSnapdMode(e *mount.Entry) (os.FileMode, error) {
 // XSnapdUID returns the user associated with x-snapd-user mount option.  If
 // the mode is not specified explicitly then a default "root" use is
 // returned.
-func XSnapdUID(e *mount.Entry) (uid uint64, err error) {
+func XSnapdUID(e *mount.Entry) (uid uint32, err error) {
 	if opt, ok := e.OptStr("x-snapd.uid"); ok {
 		if !validUserGroupRe.MatchString(opt) {
-			return math.MaxUint64, fmt.Errorf("cannot parse user name %q", opt)
+			// math.MaxUint32 is user.FlagID
+			return math.MaxUint32, fmt.Errorf("cannot parse user name %q", opt)
 		}
 		// Try to parse a numeric ID first.
 		if n, err := fmt.Sscanf(opt, "%d", &uid); n == 1 && err == nil {
@@ -66,7 +67,7 @@ func XSnapdUID(e *mount.Entry) (uid uint64, err error) {
 		// Fall-back to system name lookup.
 		if uid, err = osutil.FindUid(opt); err != nil {
 			// The error message from FindUid is not very useful so just skip it.
-			return math.MaxUint64, fmt.Errorf("cannot resolve user name %q", opt)
+			return math.MaxUint32, fmt.Errorf("cannot resolve user name %q", opt)
 		}
 		return uid, nil
 	}
@@ -76,10 +77,10 @@ func XSnapdUID(e *mount.Entry) (uid uint64, err error) {
 // XSnapdGID returns the user associated with x-snapd-user mount option.  If
 // the mode is not specified explicitly then a default "root" use is
 // returned.
-func XSnapdGID(e *mount.Entry) (gid uint64, err error) {
+func XSnapdGID(e *mount.Entry) (gid uint32, err error) {
 	if opt, ok := e.OptStr("x-snapd.gid"); ok {
 		if !validUserGroupRe.MatchString(opt) {
-			return math.MaxUint64, fmt.Errorf("cannot parse group name %q", opt)
+			return math.MaxUint32, fmt.Errorf("cannot parse group name %q", opt)
 		}
 		// Try to parse a numeric ID first.
 		if n, err := fmt.Sscanf(opt, "%d", &gid); n == 1 && err == nil {
@@ -88,7 +89,7 @@ func XSnapdGID(e *mount.Entry) (gid uint64, err error) {
 		// Fall-back to system name lookup.
 		if gid, err = osutil.FindGid(opt); err != nil {
 			// The error message from FindGid is not very useful so just skip it.
-			return math.MaxUint64, fmt.Errorf("cannot resolve group name %q", opt)
+			return math.MaxUint32, fmt.Errorf("cannot resolve group name %q", opt)
 		}
 		return gid, nil
 	}

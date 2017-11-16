@@ -22,12 +22,12 @@ package snapenv
 import (
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -75,7 +75,7 @@ func snapEnv(info *snap.Info) map[string]string {
 
 	usr, err := user.Current()
 	if err == nil {
-		home = usr.HomeDir
+		home = usr.Home()
 	}
 
 	env := basicEnv(info)
@@ -119,7 +119,7 @@ func userEnv(info *snap.Info, home string) map[string]string {
 	result := map[string]string{
 		"SNAP_USER_COMMON": info.UserCommonDataDir(home),
 		"SNAP_USER_DATA":   info.UserDataDir(home),
-		"XDG_RUNTIME_DIR":  info.UserXdgRuntimeDir(os.Geteuid()),
+		"XDG_RUNTIME_DIR":  info.UserXdgRuntimeDir(user.Geteuid()),
 	}
 	// For non-classic snaps, we set HOME but on classic allow snaps to see real HOME
 	if !info.NeedsClassic() {

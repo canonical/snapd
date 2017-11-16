@@ -22,13 +22,12 @@ package osutil_test
 import (
 	"io/ioutil"
 	"os"
-	"os/user"
 	"path/filepath"
-	"strconv"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -46,16 +45,12 @@ var _ = check.Suite(&createUserSuite{})
 
 func (s *createUserSuite) SetUpTest(c *check.C) {
 	s.mockHome = c.MkDir()
-	s.restorer = osutil.MockUserLookup(func(string) (*user.User, error) {
+	s.restorer = osutil.MockUserLookup(func(username string) (*user.User, error) {
 		current, err := user.Current()
 		if err != nil {
 			c.Fatalf("user.Current() failed with %s", err)
 		}
-		return &user.User{
-			HomeDir: s.mockHome,
-			Gid:     current.Gid,
-			Uid:     current.Uid,
-		}, nil
+		return user.Fake(username, s.mockHome, current.UID(), current.GID()), nil
 	})
 	s.mockAddUser = testutil.MockCommand(c, "adduser", "")
 	s.mockUserMod = testutil.MockCommand(c, "usermod", "")
@@ -157,33 +152,36 @@ func (s *createUserSuite) TestAddUserWithPassword(c *check.C) {
 }
 
 func (s *createUserSuite) TestRealUser(c *check.C) {
-	oldUser := os.Getenv("SUDO_USER")
-	defer func() { os.Setenv("SUDO_USER", oldUser) }()
+	if oldUser, ok := os.LookupEnv("SUDO_USER"); ok {
+		defer func() { os.Setenv("SUDO_USER", oldUser) }()
+	}
+
+	curUser := os.Getenv("USER")
+	if curUser == "" {
+		c.Fatalf("$USER not set?!")
+	}
 
 	for _, t := range []struct {
 		SudoUsername    string
 		CurrentUsername string
-		CurrentUid      int
+		CurrentUid      uint32
 	}{
 		// simulate regular "root", no SUDO_USER set
-		{"", os.Getenv("USER"), 0},
+		{"", curUser, 0},
 		// simulate a normal sudo invocation
 		{"guy", "guy", 0},
 		// simulate running "sudo -u some-user -i" as root
 		// (LP: #1638656)
-		{"root", os.Getenv("USER"), 1000},
+		{"root", curUser, 1000},
 	} {
 		restore := osutil.MockUserCurrent(func() (*user.User, error) {
-			return &user.User{
-				Username: t.CurrentUsername,
-				Uid:      strconv.Itoa(t.CurrentUid),
-			}, nil
+			return user.Fake(t.CurrentUsername, "/home/"+t.CurrentUsername, t.CurrentUid, t.CurrentUid), nil
 		})
 		defer restore()
 
 		os.Setenv("SUDO_USER", t.SudoUsername)
 		cur, err := osutil.RealUser()
 		c.Assert(err, check.IsNil)
-		c.Check(cur.Username, check.Equals, t.CurrentUsername)
+		c.Check(cur.Name(), check.Equals, t.CurrentUsername)
 	}
 }

@@ -22,8 +22,8 @@ package main_test
 import (
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"gopkg.in/check.v1"
@@ -31,6 +31,7 @@ import (
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -202,16 +203,19 @@ func (s *SnapSuite) TestSnapRunCreateDataDirs(c *check.C) {
 	c.Assert(err, check.IsNil)
 	info.SideInfo.Revision = snap.R(42)
 
-	fakeHome := c.MkDir()
+	cur, err := user.Current()
+	c.Assert(err, check.IsNil)
+
+	fakeHome := "/fakehome/lala"
 	restorer := snaprun.MockUserCurrent(func() (*user.User, error) {
-		return &user.User{HomeDir: fakeHome}, nil
+		return user.Fake("lala", fakeHome, cur.UID(), cur.GID()), nil
 	})
 	defer restorer()
 
 	err = snaprun.CreateUserDataDirs(info)
 	c.Assert(err, check.IsNil)
-	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname/42")), check.Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname/common")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, fakeHome, "/snap/snapname/42")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, fakeHome, "/snap/snapname/common")), check.Equals, true)
 }
 
 func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
@@ -484,7 +488,7 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Ensure XDG_RUNTIME_DIR exists for the user we're testing with
-	err = os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, u.Uid), 0700)
+	err = os.MkdirAll(filepath.Join(dirs.XdgRuntimeDirBase, strconv.FormatUint(uint64(u.UID()), 10)), 0700)
 	c.Assert(err, check.IsNil)
 
 	// mock installed snap; happily this also gives us a directory
@@ -529,7 +533,7 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"snapname.app"})
 
-	expectedXauthPath := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid, ".Xauthority")
+	expectedXauthPath := filepath.Join(dirs.XdgRuntimeDirBase, strconv.FormatUint(uint64(u.UID()), 10), ".Xauthority")
 	c.Check(execEnv, testutil.Contains, fmt.Sprintf("XAUTHORITY=%s", expectedXauthPath))
 
 	info, err := os.Stat(expectedXauthPath)

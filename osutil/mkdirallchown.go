@@ -23,11 +23,13 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+
+	"github.com/snapcore/snapd/osutil/user"
 )
 
 // MkdirAllChown is like os.MkdirAll but it calls os.Chown on any
 // directories it creates.
-func MkdirAllChown(path string, perm os.FileMode, uid, gid int) error {
+func MkdirAllChown(path string, perm os.FileMode, uid, gid uint32) error {
 	if s, err := os.Stat(path); err == nil {
 		if s.IsDir() {
 			return nil
@@ -54,7 +56,7 @@ func MkdirAllChown(path string, perm os.FileMode, uid, gid int) error {
 		return err
 	}
 
-	if err := os.Chown(cand, uid, gid); err != nil {
+	if err := user.ChownPath(cand, uid, gid); err != nil {
 		return err
 	}
 

@@ -36,7 +36,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"os/user"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -57,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -4655,7 +4655,7 @@ func (s *postCreateUserSuite) TearDownTest(c *check.C) {
 	s.apiBaseSuite.TearDownTest(c)
 
 	postCreateUserUcrednetGet = ucrednetGet
-	userLookup = user.Lookup
+	userLookup = user.FromName
 	osutilAddUser = osutil.AddUser
 	storeUserInfo = store.UserInfo
 }
@@ -4663,9 +4663,7 @@ func (s *postCreateUserSuite) TearDownTest(c *check.C) {
 func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
 	return func(username string) (*user.User, error) {
 		cur, err := user.Current()
-		cur.Username = username
-		cur.HomeDir = userHomeDir
-		return cur, err
+		return user.Fake(username, userHomeDir, cur.UID(), cur.GID()), err
 	}
 }
 
