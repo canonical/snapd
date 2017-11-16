@@ -1,2 +1,5 @@
-all:
-	gcc -o uhid-test uhid-test.c
+CFLAGS += -Wall -Werror
+.PHONY: all
+all: uhid-test
+
+uhid-test: uhid-test.c
