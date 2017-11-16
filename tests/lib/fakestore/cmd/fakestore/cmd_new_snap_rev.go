@@ -50,7 +50,7 @@ func (x *cmdNewSnapRevision) Execute(args []string) error {
 	return refresh.NewSnapRevision(x.TopDir, x.Positional.Snap, headers)
 }
 
-var shortNewSnapRevisionHelp = "make new snap revision"
+var shortNewSnapRevisionHelp = "Make new snap revision"
 
 func init() {
 	parser.AddCommand("new-snap-revision", shortNewSnapRevisionHelp, "", &cmdNewSnapRevision{})

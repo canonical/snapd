@@ -45,17 +45,18 @@ func NewSnapRevision(targetDir string, snap string, headers map[string]interface
 		return err
 	}
 
+	fallbacks := map[string]interface{}{
+		"developer-id":  "testrootorg",
+		"snap-id":       snapNameFromPath(snap) + "-id",
+		"snap-revision": "1",
+	}
+	for k, v := range fallbacks {
+		if _, ok := headers[k]; !ok {
+			headers[k] = v
+		}
+	}
 	headers["authority-id"] = "testrootorg"
 	headers["snap-sha3-384"] = digest
-	if _, ok := headers["developer-id"]; !ok {
-		headers["developer-id"] = "testrootorg"
-	}
-	if _, ok := headers["snap-id"]; !ok {
-		headers["snap-id"] = snapNameFromPath(snap) + "-id"
-	}
-	if _, ok := headers["snap-revision"]; !ok {
-		headers["snap-revision"] = "42"
-	}
 	headers["snap-size"] = fmt.Sprintf("%d", size)
 	headers["timestamp"] = time.Now().Format(time.RFC3339)
 
@@ -72,21 +73,18 @@ func NewSnapDeclaration(targetDir string, snap string, headers map[string]interf
 		return err
 	}
 
-	if _, ok := headers["snap-name"]; !ok {
-		headers["snap-name"] = snapNameFromPath(snap)
+	fallbacks := map[string]interface{}{
+		"snap-id":      snapNameFromPath(snap) + "-id",
+		"snap-name":    snapNameFromPath(snap),
+		"publisher-id": "testrootorg",
 	}
-
+	for k, v := range fallbacks {
+		if _, ok := headers[k]; !ok {
+			headers[k] = v
+		}
+	}
 	headers["authority-id"] = "testrootorg"
 	headers["series"] = "16"
-	if _, ok := headers["snap-id"]; !ok {
-		headers["snap-id"] = snapNameFromPath(snap) + "-id"
-	}
-	if _, ok := headers["publisher-id"]; !ok {
-		headers["publisher-id"] = "testrootorg"
-	}
-	if _, ok := headers["snap-name"]; !ok {
-		headers["snap-name"] = snapNameFromPath(snap)
-	}
 	headers["timestamp"] = time.Now().Format(time.RFC3339)
 
 	a, err := db.Sign(asserts.SnapDeclarationType, headers, nil, systestkeys.TestStoreKeyID)
