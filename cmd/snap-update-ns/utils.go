@@ -154,7 +154,9 @@ func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid, gid i
 	var newFd int
 	var err error
 
-	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_RDWR
+	// NOTE: Tests don't show O_RDONLY as has a value of 0 and is not
+	// translated to textual form. It is added here for explicitness.
+	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_RDONLY
 
 	// Open the final path segment as a file. Try to create the file (so that
 	// we know if we need to chown it) but fall back to just opening an

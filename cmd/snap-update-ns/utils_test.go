@@ -285,8 +285,8 @@ func (s *utilsSuite) TestSecureMkfileAllLevel0(c *C) {
 func (s *utilsSuite) TestSecureMkfileAllLevel1(c *C) {
 	c.Assert(update.SecureMkfileAll("/path", 0755, 123, 456), IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,                     // -> 3
-		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_RDWR|O_CREAT|O_EXCL 0755`, // -> 4
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,              // -> 3
+		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> 4
 		`fchown 4 123 456`,
 		`close 4`,
 		`close 3`,
@@ -302,7 +302,7 @@ func (s *utilsSuite) TestSecureMkfileAllLevel2(c *C) {
 		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
 		`fchown 4 123 456`,
 		`close 3`,
-		`openat 4 "to" O_NOFOLLOW|O_CLOEXEC|O_RDWR|O_CREAT|O_EXCL 0755`, // -> 3
+		`openat 4 "to" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> 3
 		`fchown 3 123 456`,
 		`close 3`,
 		`close 4`,
@@ -322,7 +322,7 @@ func (s *utilsSuite) TestSecureMkfileAllLevel3(c *C) {
 		`fchown 5 123 456`,
 		`close 4`,
 		`close 3`,
-		`openat 5 "something" O_NOFOLLOW|O_CLOEXEC|O_RDWR|O_CREAT|O_EXCL 0755`, // -> 3
+		`openat 5 "something" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> 3
 		`fchown 3 123 456`,
 		`close 3`,
 		`close 5`,
@@ -332,7 +332,7 @@ func (s *utilsSuite) TestSecureMkfileAllLevel3(c *C) {
 // Ensure that we can detect read only filesystems.
 func (s *utilsSuite) TestSecureMkfileAllROFS(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST) // just realistic
-	s.sys.InsertFault(`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_RDWR|O_CREAT|O_EXCL 0755`, syscall.EROFS)
+	s.sys.InsertFault(`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, syscall.EROFS)
 	err := update.SecureMkfileAll("/rofs/path", 0755, 123, 456)
 	c.Check(err, ErrorMatches, `cannot operate on read-only filesystem at /rofs`)
 	c.Assert(err.(*update.ReadOnlyFsError).Path, Equals, "/rofs")
@@ -341,7 +341,7 @@ func (s *utilsSuite) TestSecureMkfileAllROFS(c *C) {
 		`mkdirat 3 "rofs" 0755`,                              // -> EEXIST
 		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
 		`close 3`,
-		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_RDWR|O_CREAT|O_EXCL 0755`, // -> EROFS
+		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> EROFS
 		`close 4`,
 	})
 }
@@ -349,7 +349,7 @@ func (s *utilsSuite) TestSecureMkfileAllROFS(c *C) {
 // Ensure that we don't chown existing files or directories.
 func (s *utilsSuite) TestSecureMkfileAllExistingDirsDontChown(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, syscall.EEXIST)
-	s.sys.InsertFault(`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_RDWR|O_CREAT|O_EXCL 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, syscall.EEXIST)
 	err := update.SecureMkfileAll("/abs/path", 0755, 123, 456)
 	c.Check(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
@@ -357,8 +357,8 @@ func (s *utilsSuite) TestSecureMkfileAllExistingDirsDontChown(c *C) {
 		`mkdirat 3 "abs" 0755`,
 		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
 		`close 3`,
-		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_RDWR|O_CREAT|O_EXCL 0755`, // -> EEXIST
-		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_RDWR 0`,                   // -> 3
+		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> EEXIST
+		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC 0`,                   // -> 3
 		`close 3`,
 		`close 4`,
 	})
@@ -366,26 +366,26 @@ func (s *utilsSuite) TestSecureMkfileAllExistingDirsDontChown(c *C) {
 
 // Ensure that we we close everything when openat fails.
 func (s *utilsSuite) TestSecureMkfileAllOpenat2ndError(c *C) {
-	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_RDWR|O_CREAT|O_EXCL 0755`, syscall.EEXIST)
-	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_RDWR 0`, errTesting)
+	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC 0`, errTesting)
 	err := update.SecureMkfileAll("/abs", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot open file "abs": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,                    // -> 3
-		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_RDWR|O_CREAT|O_EXCL 0755`, // -> EEXIST
-		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_RDWR 0`,                   // -> err
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,             // -> 3
+		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> EEXIST
+		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC 0`,                   // -> err
 		`close 3`,
 	})
 }
 
 // Ensure that we we close everything when openat (non-exclusive) fails.
 func (s *utilsSuite) TestSecureMkfileAllOpenatError(c *C) {
-	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_RDWR|O_CREAT|O_EXCL 0755`, errTesting)
+	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, errTesting)
 	err := update.SecureMkfileAll("/abs", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot open file "abs": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,                    // -> 3
-		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_RDWR|O_CREAT|O_EXCL 0755`, // -> err
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,             // -> 3
+		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> err
 		`close 3`,
 	})
 }
@@ -396,8 +396,8 @@ func (s *utilsSuite) TestSecureMkfileAllFchownError(c *C) {
 	err := update.SecureMkfileAll("/path", 0755, 123, 456)
 	c.Assert(err, ErrorMatches, `cannot chown file "path" to 123.456: testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,                     // -> 3
-		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_RDWR|O_CREAT|O_EXCL 0755`, // -> 4
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,              // -> 3
+		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> 4
 		`fchown 4 123 456`,
 		`close 4`,
 		`close 3`,
