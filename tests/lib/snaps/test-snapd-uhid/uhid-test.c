@@ -130,11 +130,10 @@ static int uhid_write(int fd, const struct uhid_event* ev)
         return -1;
     } else if (ret != sizeof(*ev)) {
         fprintf(stderr, "Wrong size written to uhid: %ld != %lu\n",
-            ret, sizeof(ev));
+            ret, sizeof(*ev));
         return -1;
-    } else {
-        return 0;
     }
+    return 0;
 }
 
 static int create(int fd)
@@ -171,21 +170,21 @@ int main(int argc, char** argv)
     const char* path = "/dev/uhid";
     int ret;
 
-    fprintf(stdout, "Open uhid-cdev %s\n", path);
+    printf("Open uhid-cdev %s\n", path);
     fd = open(path, O_RDWR | O_CLOEXEC);
     if (fd < 0) {
         fprintf(stderr, "Cannot open uhid-cdev %s: %m\n", path);
         return EXIT_FAILURE;
     }
 
-    fprintf(stdout, "Create uhid device\n");
+    printf("Create uhid device\n");
     ret = create(fd);
-    if (ret) {
+    if (ret != 0) {
         close(fd);
         return EXIT_FAILURE;
     }
 
-    fprintf(stdout, "Destroy uhid device\n");
+    printf("Destroy uhid device\n");
     destroy(fd);
     return EXIT_SUCCESS;
 }
