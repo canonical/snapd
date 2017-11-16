@@ -162,10 +162,15 @@ func validateSocketAddrNetHost(socket *SocketInfo, fieldName string, address str
 }
 
 func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string) error {
-	if _, err := strconv.ParseUint(port, 10, 16); err != nil {
-		return fmt.Errorf("socket %q has invalid %q port number %q", socket.Name, fieldName, port)
+	var val uint64
+	var err error
+	retErr := fmt.Errorf("socket %q has invalid %q port number %q", socket.Name, fieldName, port)
+	if val, err = strconv.ParseUint(port, 10, 16); err != nil {
+		return retErr
 	}
-
+	if val < 1 || val > 65535 {
+		return retErr
+	}
 	return nil
 }
 
@@ -251,7 +256,7 @@ func validateAppSocket(socket *SocketInfo) error {
 	if err := validateSocketName(socket.Name); err != nil {
 		return err
 	}
-	
+
 	if err := validateSocketMode(socket.SocketMode); err != nil {
 		return err
 	}
