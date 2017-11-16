@@ -415,7 +415,9 @@ func (slot *SlotInfo) SecurityTags() []string {
 	for _, app := range slot.Apps {
 		tags = append(tags, app.SecurityTag())
 	}
-	// NOTE: hooks cannot have slots
+	for _, hook := range slot.Hooks {
+		tags = append(tags, hook.SecurityTag())
+	}
 	sort.Strings(tags)
 	return tags
 }
@@ -429,6 +431,7 @@ type SlotInfo struct {
 	Attrs     map[string]interface{}
 	Label     string
 	Apps      map[string]*AppInfo
+	Hooks     map[string]*HookInfo
 }
 
 // AppInfo provides information about a app.
@@ -471,6 +474,7 @@ type HookInfo struct {
 
 	Name  string
 	Plugs map[string]*PlugInfo
+	Slots map[string]*SlotInfo
 }
 
 // SecurityTag returns application-specific security tag.

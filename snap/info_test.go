@@ -115,7 +115,7 @@ slots:
 	c.Assert(info.Plugs["plug"].SecurityTags(), DeepEquals, []string{
 		"snap.name.app1", "snap.name.app2", "snap.name.hook.hook1"})
 	c.Assert(info.Slots["slot"].SecurityTags(), DeepEquals, []string{
-		"snap.name.app1", "snap.name.app2"})
+		"snap.name.app1", "snap.name.app2", "snap.name.hook.hook1"})
 }
 
 func (s *infoSuite) TestAppInfoWrapperPath(c *C) {
