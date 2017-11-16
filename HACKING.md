@@ -84,7 +84,7 @@ To build, once the sources are available and `GOPATH` is set, you can just run
 to get the `snap` binary in /tmp (or without -o to get it in the current
 working directory). Alternatively:
 
-    go install github.com/snapcore/snapd/...
+    go install github.com/snapcore/snapd/cmd/snap/...
 
 to have it available in `$GOPATH/bin`
 
