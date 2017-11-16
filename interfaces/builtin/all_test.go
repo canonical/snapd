@@ -335,15 +335,27 @@ apps:
 const testInvalidSlotInterfaceYaml = `
 name: testsnap
 slots:
- foo:
+ iface:
   interface: iface
+apps:
+    app:
+        slots: [iface]
+hooks:
+    install:
+        slots: [iface]
 `
 
 const testInvalidPlugInterfaceYaml = `
 name: testsnap
 plugs:
- bar:
+ iface:
   interface: iface
+apps:
+    app:
+        plugs: [iface]
+hooks:
+    install:
+        plugs: [iface]
 `
 
 func (s *AllSuite) TestSanitizeErrorsOnInvalidSlotNames(c *C) {
@@ -372,16 +384,30 @@ func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugNames(c *C) {
 
 func (s *AllSuite) TestSanitizeErrorsOnInvalidSlotInterface(c *C) {
 	snapInfo := snaptest.MockInfo(c, testInvalidSlotInterfaceYaml, nil)
+	c.Check(snapInfo.Apps["app"].Slots, HasLen, 1)
+	c.Check(snapInfo.Hooks["install"].Slots, HasLen, 1)
+	c.Check(snapInfo.Slots, HasLen, 1)
 	snap.SanitizePlugsSlots(snapInfo)
+	c.Check(snapInfo.Apps["app"].Slots, HasLen, 0)
+	c.Check(snapInfo.Hooks["install"].Slots, HasLen, 0)
 	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
-	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "testsnap" has bad plugs or slots: foo \(unknown interface "iface"\)`)
+	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "testsnap" has bad plugs or slots: iface \(unknown interface "iface"\)`)
+	c.Assert(snapInfo.Plugs, HasLen, 0)
+	c.Assert(snapInfo.Slots, HasLen, 0)
 }
 
 func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugInterface(c *C) {
 	snapInfo := snaptest.MockInfo(c, testInvalidPlugInterfaceYaml, nil)
+	c.Check(snapInfo.Apps["app"].Plugs, HasLen, 1)
+	c.Check(snapInfo.Hooks["install"].Plugs, HasLen, 1)
+	c.Assert(snapInfo.Plugs, HasLen, 1)
 	snap.SanitizePlugsSlots(snapInfo)
+	c.Assert(snapInfo.Apps["app"].Plugs, HasLen, 0)
+	c.Check(snapInfo.Hooks["install"].Plugs, HasLen, 0)
 	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
-	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "testsnap" has bad plugs or slots: bar \(unknown interface "iface"\)`)
+	c.Assert(snap.BadInterfacesSummary(snapInfo), Matches, `snap "testsnap" has bad plugs or slots: iface \(unknown interface "iface"\)`)
+	c.Assert(snapInfo.Plugs, HasLen, 0)
+	c.Assert(snapInfo.Slots, HasLen, 0)
 }
 
 func (s *AllSuite) TestUnexpectedSpecSignatures(c *C) {
