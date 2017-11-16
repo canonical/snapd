@@ -152,7 +152,7 @@ func makeFakeRefreshForSnap(snap, targetDir string, db *asserts.Database, f asse
 	}
 
 	// new test-signed snap-revision
-	_, err = makeNewSnapRevision(origInfo, newInfo, targetDir, db)
+	err = makeNewSnapRevision(origInfo, newInfo, targetDir, db)
 	if err != nil {
 		return fmt.Errorf("cannot make new snap-revision: %v", err)
 	}
@@ -230,12 +230,12 @@ func copySnapAsserts(info *info, f asserts.Fetcher) error {
 	return snapasserts.FetchSnapAssertions(f, info.digest)
 }
 
-func makeNewSnapRevision(orig, new *info, targetDir string, db *asserts.Database) (string, error) {
+func makeNewSnapRevision(orig, new *info, targetDir string, db *asserts.Database) error {
 	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": orig.digest,
 	})
 	if err != nil {
-		return "", err
+		return err
 	}
 	origSnapRev := a.(*asserts.SnapRevision)
 
@@ -250,8 +250,9 @@ func makeNewSnapRevision(orig, new *info, targetDir string, db *asserts.Database
 	}
 	a, err = db.Sign(asserts.SnapRevisionType, headers, nil, systestkeys.TestStoreKeyID)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	return writeAssert(a, targetDir)
+	_, err = writeAssert(a, targetDir)
+	return err
 }
