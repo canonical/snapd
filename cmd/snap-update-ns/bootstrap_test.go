@@ -68,7 +68,7 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		{[]string{"argv0", "--from-snap-confine", "snapname"}, "snapname", false, false, ""},
 		{[]string{"argv0", "snapname", "--from-snap-confine"}, "snapname", false, false, ""},
 		// The option --user-fstab switches to the real uid
-		{[]string{"argv0", "--from-snap-confine", "--user-fstab", "snapname"}, "snapname", false, true, ""},
+		{[]string{"argv0", "--user-fstab", "snapname"}, "snapname", false, true, ""},
 		// Unknown options are reported.
 		{[]string{"argv0", "-invalid"}, "", false, false, "unsupported option"},
 		{[]string{"argv0", "--option"}, "", false, false, "unsupported option"},
@@ -84,8 +84,8 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		} else {
 			c.Assert(err, IsNil, comment)
 		}
-		c.Check(snapName, Equals, tc.snapName)
-		c.Check(shouldSetNs, Equals, tc.shouldSetNs)
-		c.Check(userFstab, Equals, tc.userFstab)
+		c.Check(snapName, Equals, tc.snapName, comment)
+		c.Check(shouldSetNs, Equals, tc.shouldSetNs, comment)
+		c.Check(userFstab, Equals, tc.userFstab, comment)
 	}
 }

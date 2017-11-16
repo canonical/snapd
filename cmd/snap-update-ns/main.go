@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -33,6 +34,7 @@ import (
 
 var opts struct {
 	FromSnapConfine bool `long:"from-snap-confine"`
+	UserFstab       bool `long:"user-fstab"`
 	Positionals     struct {
 		SnapName string `positional-arg-name:"SNAP_NAME" required:"yes"`
 	} `positional-args:"true"`
@@ -80,8 +82,14 @@ func run() error {
 		return err
 	}
 
-	snapName := opts.Positionals.SnapName
+	if opts.UserFstab {
+		return applyUserFstab(opts.Positionals.SnapName)
+	} else {
+		return applyFstab(opts.Positionals.SnapName, opts.FromSnapConfine)
+	}
+}
 
+func applyFstab(snapName string, fromSnapConfine bool) error {
 	// Lock the mount namespace so that any concurrently attempted invocations
 	// of snap-confine are synchronized and will see consistent state.
 	lock, err := mount.OpenLock(snapName)
@@ -94,7 +102,7 @@ func run() error {
 	}()
 
 	logger.Debugf("locking mount namespace of snap %q", snapName)
-	if opts.FromSnapConfine {
+	if fromSnapConfine {
 		// When --from-snap-confine is passed then we just ensure that the
 		// namespace is locked. This is used by snap-confine to use
 		// snap-update-ns to apply mount profiles.
@@ -212,4 +220,52 @@ func debugShowChanges(changes []*Change, header string) {
 	} else {
 		logger.Debugf("%s: (none)", header)
 	}
+}
+
+func applyUserFstab(snapName string) error {
+	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
+	desired, err := mount.LoadProfile(desiredProfilePath)
+	if err != nil {
+		return fmt.Errorf("cannot load desired user mount profile of snap %q: %s", snapName, err)
+	}
+
+	// Replace XDG_RUNTIME_DIR in mount profile
+	xdgRuntimeDir, ok := os.LookupEnv("XDG_RUNTIME_DIR")
+	if !ok {
+		return fmt.Errorf("XDG_RUNTIME_DIR is not set")
+	}
+	for i := range desired.Entries {
+		if strings.HasPrefix(desired.Entries[i].Name, "$XDG_RUNTIME_DIR/") {
+			desired.Entries[i].Name = strings.Replace(desired.Entries[i].Name, "$XDG_RUNTIME_DIR", xdgRuntimeDir, 1)
+		}
+		if strings.HasPrefix(desired.Entries[i].Dir, "$XDG_RUNTIME_DIR/") {
+			desired.Entries[i].Dir = strings.Replace(desired.Entries[i].Dir, "$XDG_RUNTIME_DIR", xdgRuntimeDir, 1)
+		}
+	}
+
+	debugShowProfile(desired, "desired mount profile")
+
+	// Since the user mount namespace is ephemeral, we use an
+	// empty profile as the starting point.
+	changesNeeded := NeededChanges(&mount.Profile{}, desired)
+	debugShowChanges(changesNeeded, "mount changes needed")
+
+	logger.Debugf("performing mount changes:")
+	for _, change := range changesNeeded {
+		logger.Debugf("\t * %s", change)
+		synthesised, err := changePerform(change)
+		// NOTE: we may have done something even if Perform itself has failed.
+		// We need to collect synthesized changes and store them.
+		if len(synthesised) > 0 {
+			logger.Debugf("\tsynthesised additional mount changes:")
+			for _, synth := range synthesised {
+				logger.Debugf(" * \t\t%s", synth)
+			}
+		}
+		if err != nil {
+			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
+			continue
+		}
+	}
+	return nil
 }

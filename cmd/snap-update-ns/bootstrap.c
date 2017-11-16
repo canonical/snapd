@@ -254,6 +254,9 @@ void process_arguments(int argc, char *const *argv, const char** snap_name_out, 
                 should_setns = false;
             } else if (!strcmp(arg, "--user-fstab")) {
                 user_fstab = true;
+                // Processing the user-fstab file implies we're being
+                // called from snap-confine.
+                should_setns = false;
             } else {
                 bootstrap_errno = 0;
                 bootstrap_msg = "unsupported option";
@@ -322,11 +325,11 @@ void bootstrap(int argc, char **argv, char **envp)
     bool should_setns = false;
     bool process_user_fstab = false;
     process_arguments(argc, argv, &snap_name, &should_setns, &process_user_fstab);
-    if (snap_name != NULL && should_setns) {
-        setns_into_snap(snap_name);
-        // setns_into_snap sets bootstrap_{errno,msg}
-    } else if (process_user_fstab) {
+    if (process_user_fstab) {
         switch_to_privileged_user();
         // switch_to_privileged_user sets bootstrap_{errno,msg}
+    } else if (snap_name != NULL && should_setns) {
+        setns_into_snap(snap_name);
+        // setns_into_snap sets bootstrap_{errno,msg}
     }
 }
