@@ -332,6 +332,20 @@ apps:
         plugs: [iface]
 `
 
+const testInvalidSlotInterfaceYaml = `
+name: testsnap
+slots:
+ foo:
+  interface: iface
+`
+
+const testInvalidPlugInterfaceYaml = `
+name: testsnap
+plugs:
+ bar:
+  interface: iface
+`
+
 func (s *AllSuite) TestSanitizeErrorsOnInvalidSlotNames(c *C) {
 	restore := builtin.MockInterfaces(map[string]interfaces.Interface{
 		"iface": &ifacetest.TestInterface{InterfaceName: "iface"},
@@ -354,6 +368,20 @@ func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugNames(c *C) {
 	snap.SanitizePlugsSlots(snapInfo)
 	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
 	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "consumer" has bad plugs or slots: ttyS3 \(invalid interface name: "ttyS3"\)`)
+}
+
+func (s *AllSuite) TestSanitizeErrorsOnInvalidSlotInterface(c *C) {
+	snapInfo := snaptest.MockInfo(c, testInvalidSlotInterfaceYaml, nil)
+	snap.SanitizePlugsSlots(snapInfo)
+	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
+	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "testsnap" has bad plugs or slots: foo \(unknown interface "iface"\)`)
+}
+
+func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugInterface(c *C) {
+	snapInfo := snaptest.MockInfo(c, testInvalidPlugInterfaceYaml, nil)
+	snap.SanitizePlugsSlots(snapInfo)
+	c.Assert(snapInfo.BadInterfaces, HasLen, 1)
+	c.Check(snap.BadInterfacesSummary(snapInfo), Matches, `snap "testsnap" has bad plugs or slots: bar \(unknown interface "iface"\)`)
 }
 
 func (s *AllSuite) TestUnexpectedSpecSignatures(c *C) {
