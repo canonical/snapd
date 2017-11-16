@@ -335,7 +335,7 @@ func (s *utilsSuite) TestSecureMkfileAllROFS(c *C) {
 	s.sys.InsertFault(`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_RDWR|O_CREAT|O_EXCL 0755`, syscall.EROFS)
 	err := update.SecureMkfileAll("/rofs/path", 0755, 123, 456)
 	c.Check(err, ErrorMatches, `cannot operate on read-only filesystem at /rofs`)
-	// c.Assert(err.(*update.ReadOnlyFsError).Path, Equals, "/rofs")
+	c.Assert(err.(*update.ReadOnlyFsError).Path, Equals, "/rofs")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,        // -> 3
 		`mkdirat 3 "rofs" 0755`,                              // -> EEXIST
