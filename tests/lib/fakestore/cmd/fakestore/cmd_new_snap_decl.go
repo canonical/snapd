@@ -50,7 +50,7 @@ func (x *cmdNewSnapDeclaration) Execute(args []string) error {
 	return refresh.NewSnapDeclaration(x.TopDir, x.Positional.Snap, headers)
 }
 
-var shortNewSnapDeclarationHelp = "make new snap declaration"
+var shortNewSnapDeclarationHelp = "Make new snap declaration"
 
 func init() {
 	parser.AddCommand("new-snap-declaration", shortNewSnapDeclarationHelp, "", &cmdNewSnapDeclaration{})
