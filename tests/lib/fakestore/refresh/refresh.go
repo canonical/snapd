@@ -88,7 +88,8 @@ func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
 				return err
 			}
 		}
-		return writeAssert(a, blobDir)
+		_, err = writeAssert(a, blobDir)
+		return err
 	}
 
 	f := asserts.NewFetcher(db, retrieve, save)
@@ -101,14 +102,15 @@ func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
 	return nil
 }
 
-func writeAssert(a asserts.Assertion, targetDir string) error {
+func writeAssert(a asserts.Assertion, targetDir string) (string, error) {
 	ref := a.Ref()
 	fn := fmt.Sprintf("%s.%s", strings.Join(ref.PrimaryKey, ","), ref.Type.Name)
 	p := filepath.Join(targetDir, "asserts", fn)
 	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
-		return err
+		return "", err
 	}
-	return ioutil.WriteFile(p, asserts.Encode(a), 0644)
+	err := ioutil.WriteFile(p, asserts.Encode(a), 0644)
+	return p, err
 }
 
 func makeFakeRefreshForSnap(snap, targetDir string, db *asserts.Database, f asserts.Fetcher) error {
@@ -150,7 +152,7 @@ func makeFakeRefreshForSnap(snap, targetDir string, db *asserts.Database, f asse
 	}
 
 	// new test-signed snap-revision
-	err = makeNewSnapRevision(origInfo, newInfo, targetDir, db)
+	_, err = makeNewSnapRevision(origInfo, newInfo, targetDir, db)
 	if err != nil {
 		return fmt.Errorf("cannot make new snap-revision: %v", err)
 	}
@@ -228,12 +230,12 @@ func copySnapAsserts(info *info, f asserts.Fetcher) error {
 	return snapasserts.FetchSnapAssertions(f, info.digest)
 }
 
-func makeNewSnapRevision(orig, new *info, targetDir string, db *asserts.Database) error {
+func makeNewSnapRevision(orig, new *info, targetDir string, db *asserts.Database) (string, error) {
 	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": orig.digest,
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 	origSnapRev := a.(*asserts.SnapRevision)
 
@@ -248,7 +250,7 @@ func makeNewSnapRevision(orig, new *info, targetDir string, db *asserts.Database
 	}
 	a, err = db.Sign(asserts.SnapRevisionType, headers, nil, systestkeys.TestStoreKeyID)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	return writeAssert(a, targetDir)

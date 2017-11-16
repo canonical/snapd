@@ -35,14 +35,14 @@ func snapNameFromPath(snapPath string) string {
 
 // TODO: also support reading/copying form a store snap
 
-func NewSnapRevision(targetDir string, snap string, headers map[string]interface{}) error {
+func NewSnapRevision(targetDir string, snap string, headers map[string]interface{}) (string, error) {
 	db, err := newAssertsDB()
 	if err != nil {
-		return err
+		return "", err
 	}
 	digest, size, err := asserts.SnapFileSHA3_384(snap)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	fallbacks := map[string]interface{}{
@@ -62,15 +62,15 @@ func NewSnapRevision(targetDir string, snap string, headers map[string]interface
 
 	a, err := db.Sign(asserts.SnapRevisionType, headers, nil, systestkeys.TestStoreKeyID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	return writeAssert(a, targetDir)
 }
 
-func NewSnapDeclaration(targetDir string, snap string, headers map[string]interface{}) error {
+func NewSnapDeclaration(targetDir string, snap string, headers map[string]interface{}) (string, error) {
 	db, err := newAssertsDB()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	fallbacks := map[string]interface{}{
@@ -89,7 +89,7 @@ func NewSnapDeclaration(targetDir string, snap string, headers map[string]interf
 
 	a, err := db.Sign(asserts.SnapDeclarationType, headers, nil, systestkeys.TestStoreKeyID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	return writeAssert(a, targetDir)
 }
