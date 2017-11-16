@@ -28,10 +28,12 @@ import (
 )
 
 type SpecificationSuite struct {
-	iface *ifacetest.TestInterface
-	spec  *ifacetest.Specification
-	plug  *interfaces.Plug
-	slot  *interfaces.Slot
+	iface    *ifacetest.TestInterface
+	spec     *ifacetest.Specification
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&SpecificationSuite{
@@ -54,24 +56,22 @@ var _ = Suite(&SpecificationSuite{
 			return nil
 		},
 	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "snap"},
-			Name:      "name",
-			Interface: "test",
-		},
+	plugInfo: &snap.PlugInfo{
+		Snap:      &snap.Info{SuggestedName: "snap"},
+		Name:      "name",
+		Interface: "test",
 	},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "snap"},
-			Name:      "name",
-			Interface: "test",
-		},
+	slotInfo: &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "snap"},
+		Name:      "name",
+		Interface: "test",
 	},
 })
 
 func (s *SpecificationSuite) SetUpTest(c *C) {
 	s.spec = &ifacetest.Specification{}
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 }
 
 // AddSnippet is not broken
@@ -86,8 +86,8 @@ func (s *SpecificationSuite) SpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.AddPermanentPlug(s.iface, s.plug.PlugInfo), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
+	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(s.spec.Snippets, DeepEquals, []string{
 		"connected-plug", "connected-slot", "permanent-plug", "permanent-slot"})
 }

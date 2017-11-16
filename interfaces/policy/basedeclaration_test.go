@@ -545,8 +545,7 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 				c.Check(err, NotNil, comm)
 			}
 			if compareWithSanitize {
-				slot := &interfaces.Slot{SlotInfo: slotInfo}
-				sanitizeErr := slot.Sanitize(iface)
+				sanitizeErr := interfaces.SanitizeSlot(iface, slotInfo)
 				if err == nil {
 					c.Check(sanitizeErr, IsNil, comm)
 				} else {
