@@ -261,3 +261,32 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
+
+func (s *mainSuite) TestApplyUserFstab(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+
+	var changes []update.Change
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
+		changes = append(changes, *chg)
+		return nil, nil
+	})
+	defer restore()
+
+	snapName := "foo"
+	desiredProfileContent := `$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0`
+
+	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
+	err := os.MkdirAll(filepath.Dir(desiredProfilePath), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644)
+	c.Assert(err, IsNil)
+
+	err = update.ApplyUserFstab("foo")
+	c.Assert(err, IsNil)
+
+	c.Assert(changes, HasLen, 1)
+	c.Assert(changes[0].Action, Equals, update.Mount)
+	c.Assert(changes[0].Entry.Name, Matches, `.*/doc/by-app/snap\.foo`)
+	c.Assert(changes[0].Entry.Dir, Matches, `.*/doc`)
+}
