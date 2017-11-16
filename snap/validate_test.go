@@ -41,7 +41,7 @@ func createSampleApp() *AppInfo {
 		Snap: &Info{
 			SideInfo: SideInfo{
 				RealName: "mysnap",
-				Revision: Revision{20},
+				Revision: R(20),
 			},
 		},
 		Name:  "foo",
