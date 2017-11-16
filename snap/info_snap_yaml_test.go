@@ -1410,7 +1410,8 @@ apps:
        socket-mode: asdfasdf
 `)
 	_, err := snap.InfoFromSnapYaml(y)
-	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "info failed to parse: yaml: unmarshal errors:\n"+
+		"  line 9: cannot unmarshal !!str `asdfasdf` into os.FileMode")
 }
 
 func (s *YamlSuite) TestSnapYamlGlobalEnvironment(c *C) {
