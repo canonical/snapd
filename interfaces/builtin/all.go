@@ -57,23 +57,26 @@ func registerIface(iface interfaces.Interface) {
 }
 
 func SanitizePlugsSlots(snapInfo *snap.Info) {
+	var badPlugs []string
+	var badSlots []string
+
 	for plugName, plugInfo := range snapInfo.Plugs {
 		iface, ok := allInterfaces[plugInfo.Interface]
 		if !ok {
 			snapInfo.BadInterfaces[plugName] = fmt.Sprintf("unknown interface %q", plugInfo.Interface)
-			delete(snapInfo.Plugs, plugName)
+			badPlugs = append(badPlugs, plugName)
 			continue
 		}
 		// Reject plug with invalid name
 		if err := interfaces.ValidateName(plugName); err != nil {
 			snapInfo.BadInterfaces[plugName] = err.Error()
-			delete(snapInfo.Plugs, plugName)
+			badPlugs = append(badPlugs, plugName)
 			continue
 		}
 		plug := &interfaces.Plug{PlugInfo: plugInfo}
 		if err := plug.Sanitize(iface); err != nil {
 			snapInfo.BadInterfaces[plugName] = err.Error()
-			delete(snapInfo.Plugs, plugName)
+			badPlugs = append(badPlugs, plugName)
 			continue
 		}
 	}
@@ -82,20 +85,40 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 		iface, ok := allInterfaces[slotInfo.Interface]
 		if !ok {
 			snapInfo.BadInterfaces[slotName] = fmt.Sprintf("unknown interface %q", slotInfo.Interface)
-			delete(snapInfo.Slots, slotName)
+			badSlots = append(badSlots, slotName)
 			continue
 		}
 		// Reject slot with invalid name
 		if err := interfaces.ValidateName(slotName); err != nil {
 			snapInfo.BadInterfaces[slotName] = err.Error()
-			delete(snapInfo.Slots, slotName)
+			badSlots = append(badSlots, slotName)
 			continue
 		}
 		slot := &interfaces.Slot{SlotInfo: slotInfo}
 		if err := slot.Sanitize(iface); err != nil {
 			snapInfo.BadInterfaces[slotName] = err.Error()
-			delete(snapInfo.Slots, slotName)
+			badSlots = append(badSlots, slotName)
 			continue
+		}
+	}
+
+	// remove any bad plugs and slots
+	for _, plugName := range badPlugs {
+		delete(snapInfo.Plugs, plugName)
+		for _, app := range snapInfo.Apps {
+			delete(app.Plugs, plugName)
+		}
+		for _, hook := range snapInfo.Hooks {
+			delete(hook.Plugs, plugName)
+		}
+	}
+	for _, slotName := range badSlots {
+		delete(snapInfo.Slots, slotName)
+		for _, app := range snapInfo.Apps {
+			delete(app.Slots, slotName)
+		}
+		for _, hook := range snapInfo.Hooks {
+			delete(hook.Slots, slotName)
 		}
 	}
 }
