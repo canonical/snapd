@@ -248,6 +248,8 @@ func refreshScheduleManaged(st *state.State) bool {
 	return CanSetRefreshScheduleManaged(st)
 }
 
+// CanSetRefreshScheduleManaged returns true if the device can be
+// switched to the "core.refresh.schedule=managed" mode.
 func CanSetRefreshScheduleManaged(st *state.State) bool {
 	snapStates, err := snapstate.All(st)
 	if err != nil {
