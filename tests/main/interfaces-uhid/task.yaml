@@ -12,6 +12,9 @@ prepare: |
     echo "Given the uhid snap is installed"
     snap install test-snapd-uhid
 
+restore: |
+    rm -f call.error
+
 execute: |
     CONNECTED_PATTERN=":uhid +test-snapd-uhid"
     DISCONNECTED_PATTERN="\- +test-snapd-uhid:uhid"
