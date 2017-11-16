@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -3333,9 +3334,9 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 // Tests for GET /v2/interfaces
 
 func (s *apiSuite) TestInterfaces(c *check.C) {
+	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	d := s.daemon(c)
 
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -3511,9 +3512,9 @@ func (s *apiSuite) TestInterfaceDetail404(c *check.C) {
 // Test for POST /v2/interfaces
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
+	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	d := s.daemon(c)
 
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -3673,9 +3674,9 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slotName string) {
+	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	d := s.daemon(c)
 
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -3737,9 +3738,9 @@ func (s *apiSuite) TestDisconnectPlugSuccessWithEmptySlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
+	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	s.daemon(c)
 
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	// there is no consumer, no plug defined
 	s.mockSnap(c, producerYaml)
 
@@ -3770,9 +3771,9 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
+	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	s.daemon(c)
 
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	// there is no producer, no slot defined
 
@@ -3804,9 +3805,9 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
+	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	s.daemon(c)
 
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 

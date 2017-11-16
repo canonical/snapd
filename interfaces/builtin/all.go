@@ -61,16 +61,19 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 		iface, ok := allInterfaces[plugInfo.Interface]
 		if !ok {
 			snapInfo.BadInterfaces[plugName] = fmt.Sprintf("unknown interface %q", plugInfo.Interface)
+			delete(snapInfo.Plugs, plugName)
 			continue
 		}
 		// Reject plug with invalid name
 		if err := interfaces.ValidateName(plugName); err != nil {
 			snapInfo.BadInterfaces[plugName] = err.Error()
+			delete(snapInfo.Plugs, plugName)
 			continue
 		}
 		plug := &interfaces.Plug{PlugInfo: plugInfo}
 		if err := plug.Sanitize(iface); err != nil {
 			snapInfo.BadInterfaces[plugName] = err.Error()
+			delete(snapInfo.Plugs, plugName)
 			continue
 		}
 	}
@@ -79,19 +82,26 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 		iface, ok := allInterfaces[slotInfo.Interface]
 		if !ok {
 			snapInfo.BadInterfaces[slotName] = fmt.Sprintf("unknown interface %q", slotInfo.Interface)
+			delete(snapInfo.Slots, slotName)
 			continue
 		}
 		// Reject slot with invalid name
 		if err := interfaces.ValidateName(slotName); err != nil {
 			snapInfo.BadInterfaces[slotName] = err.Error()
+			delete(snapInfo.Slots, slotName)
 			continue
 		}
 		slot := &interfaces.Slot{SlotInfo: slotInfo}
 		if err := slot.Sanitize(iface); err != nil {
 			snapInfo.BadInterfaces[slotName] = err.Error()
+			delete(snapInfo.Slots, slotName)
 			continue
 		}
 	}
+}
+
+func MockInterface(iface interfaces.Interface) {
+	allInterfaces[iface.Name()] = iface
 }
 
 type byIfaceName []interfaces.Interface
