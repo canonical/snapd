@@ -131,8 +131,28 @@ int main(int argc, char **argv)
 	debug("base snap:    %s", base_snap_name);
 
 	// Who are we?
-	uid_t real_uid = getuid();
-	gid_t real_gid = getgid();
+	uid_t ruid, euid, suid;
+	gid_t rgid, egid, sgid;
+	getresuid(&ruid, &euid, &suid);
+	getresgid(&rgid, &egid, &sgid);
+	debug("ruid: %d, euid: %d, suid: %d", ruid, euid, suid);
+	debug("rgid: %d, egid: %d, sgid: %d", rgid, egid, sgid);
+
+	// If we are running as group root but the real group id is not zero then
+	// the setgid root permission is in effect.  To limit the scope of the
+	// change this is causing for the code temporairly set the effective group
+	// id to the real group id. We will change that again below when we
+	// manipulate the freezer cgroup.
+	// Because LXD uses particular permissions for cgroups we need to be
+	// group-root for that operation to succeed.
+	if (euid == 0 && ruid != 0) {
+		if (setegid(ruid) != 0) {
+			die("cannot set effective group id to %d", ruid);
+		}
+	}
+
+	uid_t real_uid = ruid;
+	gid_t real_gid = rgid;
 
 #ifndef CAPS_OVER_SETUID
 	// this code always needs to run as root for the cgroup/udev setup,
@@ -226,7 +246,14 @@ int main(int argc, char **argv)
 			// control group. This simplifies testing if any processes
 			// belonging to a given snap are still alive.
 			// See the documentation of the function for details.
+			if (setegid(0) != 0) {
+				die("cannot set effective group id to root");
+			}
 			sc_cgroup_freezer_join(snap_name, getpid());
+			if (setegid(rgid) != 0) {
+				die("cannot set effective group id to %d",
+				    rgid);
+			}
 			sc_unlock(snap_name, snap_lock_fd);
 
 			// Reset path as we cannot rely on the path from the host OS to
