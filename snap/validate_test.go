@@ -205,7 +205,10 @@ func (s *ValidateSuite) TestValidateAppSocketsValidListenStreamAddresses(c *C) {
 		// abstract sockets
 		"@snap.mysnap.my.socket",
 		// addresses and ports
-		"8080",
+		"1",
+		"1023",
+		"1024",
+		"65535",
 		"127.0.0.1:8080",
 		"[::]:8080",
 		"[::1]:8080",
@@ -294,6 +297,8 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
 func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
 	app := createSampleApp()
 	invalidPorts := []string{
+		"0",
+		"66536",
 		"-8080",
 		"12312345345",
 		"[::]:-123",
