@@ -169,8 +169,7 @@ func (s *ValidateSuite) TestValidateAppSocketsWrongPerms(c *C) {
 	app := createSampleApp()
 	app.Sockets["sock"].SocketMode = 1234
 	err := ValidateApp(app)
-	c.Assert(
-		err, ErrorMatches, `invalid socket mode: 2322`)
+	c.Assert(err, ErrorMatches, `cannot use socket mode: 2322`)
 }
 
 func (s *ValidateSuite) TestValidateAppSocketsMissingNetworkBindPlug(c *C) {
