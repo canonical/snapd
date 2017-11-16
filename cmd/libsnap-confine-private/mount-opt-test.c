@@ -23,9 +23,9 @@
 
 #include <glib.h>
 
-static void test_sc_mount_opt2str()
+static void test_sc_mount_opt2str(void)
 {
-	char buf[1000];
+	char buf[1000] = { 0 };
 	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, 0), ==, "");
 	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_RDONLY), ==, "ro");
 	g_assert_cmpstr(sc_mount_opt2str(buf, sizeof buf, MS_NOSUID), ==,
@@ -91,9 +91,9 @@ static void test_sc_mount_opt2str()
 			"ro,noexec,bind");
 }
 
-static void test_sc_mount_cmd()
+static void test_sc_mount_cmd(void)
 {
-	char cmd[10000];
+	char cmd[10000] = { 0 };
 
 	// Typical mount
 	sc_mount_cmd(cmd, sizeof cmd, "/dev/sda3", "/mnt", "ext4", MS_RDONLY,
@@ -146,8 +146,8 @@ static void test_sc_mount_cmd()
 	g_assert_cmpstr(cmd, ==, "mount --move /from /to");
 
 	// Monster (invalid but let's format it)
-	char from[PATH_MAX];
-	char to[PATH_MAX];
+	char from[PATH_MAX] = { 0 };
+	char to[PATH_MAX] = { 0 };
 	for (int i = 1; i < PATH_MAX - 1; ++i) {
 		from[i] = 'a';
 		to[i] = 'b';
@@ -174,9 +174,9 @@ static void test_sc_mount_cmd()
 	g_assert_cmpstr(cmd, ==, expected);
 }
 
-static void test_sc_umount_cmd()
+static void test_sc_umount_cmd(void)
 {
-	char cmd[1000];
+	char cmd[1000] = { 0 };
 
 	// Typical umount
 	sc_umount_cmd(cmd, sizeof cmd, "/mnt/foo", 0);
@@ -205,13 +205,15 @@ static void test_sc_umount_cmd()
 			"umount --force --lazy --expire --no-follow /mnt/foo");
 }
 
-static void test_sc_do_mount()
+static bool broken_mount(struct sc_fault_state *state, void *ptr)
+{
+	errno = EACCES;
+	return true;
+}
+
+static void test_sc_do_mount(void)
 {
 	if (g_test_subprocess()) {
-		bool broken_mount(struct sc_fault_state *state, void *ptr) {
-			errno = EACCES;
-			return true;
-		}
 		sc_break("mount", broken_mount);
 		sc_do_mount("/foo", "/bar", "ext4", MS_RDONLY, NULL);
 
@@ -226,13 +228,15 @@ static void test_sc_do_mount()
 	    ("cannot perform operation: mount -t ext4 -o ro /foo /bar: Permission denied\n");
 }
 
-static void test_sc_do_umount()
+static bool broken_umount(struct sc_fault_state *state, void *ptr)
+{
+	errno = EACCES;
+	return true;
+}
+
+static void test_sc_do_umount(void)
 {
 	if (g_test_subprocess()) {
-		bool broken_umount(struct sc_fault_state *state, void *ptr) {
-			errno = EACCES;
-			return true;
-		}
 		sc_break("umount", broken_umount);
 		sc_do_umount("/foo", MNT_DETACH);
 
@@ -247,7 +251,7 @@ static void test_sc_do_umount()
 	    ("cannot perform operation: umount --lazy /foo: Permission denied\n");
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/mount/sc_mount_opt2str", test_sc_mount_opt2str);
 	g_test_add_func("/mount/sc_mount_cmd", test_sc_mount_cmd);

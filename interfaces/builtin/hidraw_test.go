@@ -68,6 +68,8 @@ type HidrawInterfaceSuite struct {
 	testPlugPort1Info *snap.PlugInfo
 	testPlugPort2     *interfaces.ConnectedPlug
 	testPlugPort2Info *snap.PlugInfo
+	testPlugPort3     *interfaces.ConnectedPlug
+	testPlugPort3Info *snap.PlugInfo
 }
 
 var _ = Suite(&HidrawInterfaceSuite{
@@ -160,6 +162,8 @@ plugs:
         interface: hidraw
     plug-for-device-2:
         interface: hidraw
+    plug-for-device-3:
+        interface: hidraw
 
 apps:
     app-accessing-1-device:
@@ -168,11 +172,16 @@ apps:
     app-accessing-2-devices:
         command: bar
         plugs: [plug-for-device-1, plug-for-device-2]
+    app-accessing-3rd-device:
+        command: baz
+        plugs: [plug-for-device-3]
 `, nil)
 	s.testPlugPort1Info = consumingSnapInfo.Plugs["plug-for-device-1"]
 	s.testPlugPort1 = interfaces.NewConnectedPlug(s.testPlugPort1Info, nil)
 	s.testPlugPort2Info = consumingSnapInfo.Plugs["plug-for-device-2"]
 	s.testPlugPort2 = interfaces.NewConnectedPlug(s.testPlugPort2Info, nil)
+	s.testPlugPort3Info = consumingSnapInfo.Plugs["plug-for-device-3"]
+	s.testPlugPort3 = interfaces.NewConnectedPlug(s.testPlugPort3Info, nil)
 }
 
 func (s *HidrawInterfaceSuite) TestName(c *C) {
@@ -214,41 +223,53 @@ func (s *HidrawInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {
 		c.Assert(spec.Snippets(), HasLen, 0)
 	}
 
-	expectedSnippet1 := `IMPORT{builtin}="usb_id"
+	expectedSnippet1 := `# hidraw
+IMPORT{builtin}="usb_id"
 SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", SYMLINK+="hidraw-canbus"`
 	c.Assert(spec.AddPermanentSlot(s.iface, s.testUDev1Info), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
-	c.Assert(snippet, Equals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+	c.Assert(snippet, Equals, expectedSnippet1)
 
-	expectedSnippet2 := `IMPORT{builtin}="usb_id"
+	expectedSnippet2 := `# hidraw
+IMPORT{builtin}="usb_id"
 SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", SYMLINK+="hidraw-mydevice"`
 	spec = &udev.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.testUDev2Info), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]
-	c.Assert(snippet, Equals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
+	c.Assert(snippet, Equals, expectedSnippet2)
 }
 
 func (s *HidrawInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
+	// add the plug for the slot with just path
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 0)
-
-	expectedSnippet1 := `IMPORT{builtin}="usb_id"
-SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-2-devices"`
-	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
+	expectedSnippet1 := `# hidraw
+SUBSYSTEM=="hidraw", KERNEL=="hidraw0", TAG+="snap_client-snap_app-accessing-2-devices"`
 	c.Assert(snippet, Equals, expectedSnippet1)
 
-	expectedSnippet2 := `IMPORT{builtin}="usb_id"
-SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-2-devices"`
+	// add the plug for the first slot with vendor and product ids
+	spec = &udev.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 1)
+	snippet = spec.Snippets()[0]
+	expectedSnippet2 := `# hidraw
+IMPORT{builtin}="usb_id"
+SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-2-devices"`
+	c.Assert(snippet, Equals, expectedSnippet2)
+
+	// add the plug for the second slot with vendor and product ids
 	spec = &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]
-	c.Assert(snippet, Equals, expectedSnippet2)
+	expectedSnippet3 := `# hidraw
+IMPORT{builtin}="usb_id"
+SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-2-devices"`
+	c.Assert(snippet, Equals, expectedSnippet3)
 }
 
 func (s *HidrawInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
@@ -258,7 +279,7 @@ func (s *HidrawInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-2-devices"})
 	snippet := apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-2-devices")
-	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+	c.Assert(snippet, DeepEquals, expectedSnippet1)
 
 	expectedSnippet2 := `/dev/hidraw[0-9]{,[0-9],[0-9][0-9]} rw,`
 	apparmorSpec = &apparmor.Specification{}
@@ -266,7 +287,7 @@ func (s *HidrawInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-2-devices"})
 	snippet = apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-2-devices")
-	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
+	c.Assert(snippet, DeepEquals, expectedSnippet2)
 
 	expectedSnippet3 := `/dev/hidraw[0-9]{,[0-9],[0-9][0-9]} rw,`
 	apparmorSpec = &apparmor.Specification{}
@@ -274,7 +295,38 @@ func (s *HidrawInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-2-devices"})
 	snippet = apparmorSpec.SnippetForTag("snap.client-snap.app-accessing-2-devices")
-	c.Assert(snippet, DeepEquals, expectedSnippet3, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet3, snippet))
+	c.Assert(snippet, DeepEquals, expectedSnippet3)
+}
+
+func (s *HidrawInterfaceSuite) TestConnectedPlugUDevSnippetsForPath(c *C) {
+	expectedSnippet1 := `# hidraw
+SUBSYSTEM=="hidraw", KERNEL=="hidraw0", TAG+="snap_client-snap_app-accessing-2-devices"`
+	udevSpec := &udev.Specification{}
+	err := udevSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1)
+	c.Assert(err, IsNil)
+	c.Assert(udevSpec.Snippets(), HasLen, 1)
+	snippet := udevSpec.Snippets()[0]
+	c.Assert(snippet, Equals, expectedSnippet1)
+
+	expectedSnippet2 := `# hidraw
+IMPORT{builtin}="usb_id"
+SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-2-devices"`
+	udevSpec = &udev.Specification{}
+	err = udevSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
+	c.Assert(err, IsNil)
+	c.Assert(udevSpec.Snippets(), HasLen, 1)
+	snippet = udevSpec.Snippets()[0]
+	c.Assert(snippet, Equals, expectedSnippet2)
+
+	expectedSnippet3 := `# hidraw
+IMPORT{builtin}="usb_id"
+SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-2-devices"`
+	udevSpec = &udev.Specification{}
+	err = udevSpec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2)
+	c.Assert(err, IsNil)
+	c.Assert(udevSpec.Snippets(), HasLen, 1)
+	snippet = udevSpec.Snippets()[0]
+	c.Assert(snippet, Equals, expectedSnippet3)
 }
 
 func (s *HidrawInterfaceSuite) TestInterfaces(c *C) {

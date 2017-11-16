@@ -1,0 +1,10 @@
+summary: the /snap directory has a magic README file
+details: >
+    We found that some users are genuinely confused and concerned about the
+    /snap directory or the disk space it appears to be using. Snapd now
+    maintains a README file with some useful hints about what is going on that
+    will, hopefully, help people understand this better.
+execute: |
+    snap version # To ensure that snapd is awake
+    . $TESTSLIB/dirs.sh
+    MATCH "https://forum.snapcraft.io/t/the-snap-directory/2817" "$SNAP_MOUNT_DIR/README"

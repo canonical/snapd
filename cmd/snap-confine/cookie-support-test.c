@@ -31,7 +31,7 @@ static void set_cookie_dir(const char *dir)
 	sc_cookie_dir = dir;
 }
 
-static void set_fake_cookie_dir()
+static void set_fake_cookie_dir(void)
 {
 	char *ctx_dir = NULL;
 	ctx_dir = g_dir_make_tmp(NULL, NULL);
@@ -47,7 +47,7 @@ static void set_fake_cookie_dir()
 static void create_dumy_cookie_file(const char *snap_name,
 				    const char *dummy_cookie)
 {
-	char path[PATH_MAX];
+	char path[PATH_MAX] = { 0 };
 	FILE *f;
 	int n;
 
@@ -62,7 +62,7 @@ static void create_dumy_cookie_file(const char *snap_name,
 	fclose(f);
 }
 
-static void test_cookie_get_from_snapd__successful()
+static void test_cookie_get_from_snapd__successful(void)
 {
 	struct sc_error *err = NULL;
 	char *cookie;
@@ -79,7 +79,7 @@ static void test_cookie_get_from_snapd__successful()
 	g_assert_cmpstr(cookie, ==, dummy);
 }
 
-static void test_cookie_get_from_snapd__nofile()
+static void test_cookie_get_from_snapd__nofile(void)
 {
 	struct sc_error *err = NULL;
 	char *cookie;
@@ -93,7 +93,7 @@ static void test_cookie_get_from_snapd__nofile()
 	g_assert_null(cookie);
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/snap-cookie/cookie_get_from_snapd/successful",
 			test_cookie_get_from_snapd__successful);

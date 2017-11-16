@@ -102,7 +102,7 @@ func (s *connSuite) TestDynamicSlotAttrs(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
 
-	attrs, err = attrData.Attrs()
+	attrs, err = attrData.DynamicAttrs()
 	c.Assert(err, IsNil)
 	c.Assert(attrs, DeepEquals, map[string]interface{}{
 		"foo": "bar",
@@ -128,7 +128,7 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
 
-	attrs, err = attrData.Attrs()
+	attrs, err = attrData.DynamicAttrs()
 	c.Assert(err, IsNil)
 	c.Assert(attrs, DeepEquals, map[string]interface{}{
 		"foo": "bar",
@@ -160,7 +160,7 @@ func (s *connSuite) TestDynamicSlotAttrsNotInitialized(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "foo" not found`)
 
-	_, err = attrData.Attrs()
+	_, err = attrData.DynamicAttrs()
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `dynamic attributes not initialized`)
 }

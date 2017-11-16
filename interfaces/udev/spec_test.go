@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type specSuite struct {
@@ -55,21 +56,27 @@ var _ = Suite(&specSuite{
 			return nil
 		},
 	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "snap1"},
-			Name:      "name",
-			Interface: "test",
-		},
-	},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "snap2"},
-			Name:      "name",
-			Interface: "test",
-		},
-	},
 })
+
+func (s *specSuite) SetUpSuite(c *C) {
+	info1 := snaptest.MockInfo(c, `name: snap1
+plugs:
+    name:
+        interface: test
+apps:
+    foo:
+        command: bin/foo
+hooks:
+    configure:
+`, nil)
+	info2 := snaptest.MockInfo(c, `name: snap2
+slots:
+    name:
+        interface: test
+`, nil)
+	s.plug = &interfaces.Plug{PlugInfo: info1.Plugs["name"]}
+	s.slot = &interfaces.Slot{SlotInfo: info2.Slots["name"]}
+}
 
 func (s *specSuite) SetUpTest(c *C) {
 	s.spec = &udev.Specification{}
@@ -78,6 +85,40 @@ func (s *specSuite) SetUpTest(c *C) {
 func (s *specSuite) TestAddSnippte(c *C) {
 	s.spec.AddSnippet("foo")
 	c.Assert(s.spec.Snippets(), DeepEquals, []string{"foo"})
+}
+
+func (s *specSuite) TestTagDevice(c *C) {
+	// TagDevice acts in the scope of the plug/slot (as appropriate) and
+	// affects all of the apps and hooks related to the given plug or slot
+	// (with the exception that slots cannot have hooks).
+	iface := &ifacetest.TestInterface{
+		InterfaceName: "iface-1",
+		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+			spec.TagDevice(`kernel="voodoo"`)
+			return nil
+		},
+	}
+	c.Assert(s.spec.AddConnectedPlug(iface, s.plug, nil, s.slot, nil), IsNil)
+
+	iface = &ifacetest.TestInterface{
+		InterfaceName: "iface-2",
+		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+			spec.TagDevice(`kernel="hoodoo"`)
+			return nil
+		},
+	}
+	c.Assert(s.spec.AddConnectedPlug(iface, s.plug, nil, s.slot, nil), IsNil)
+
+	c.Assert(s.spec.Snippets(), DeepEquals, []string{
+		`# iface-1
+kernel="voodoo", TAG+="snap_snap1_foo"`,
+		`# iface-2
+kernel="hoodoo", TAG+="snap_snap1_foo"`,
+		`# iface-1
+kernel="voodoo", TAG+="snap_snap1_hook_configure"`,
+		`# iface-2
+kernel="hoodoo", TAG+="snap_snap1_hook_configure"`,
+	})
 }
 
 // The spec.Specification can be used through the interfaces.Specification interface

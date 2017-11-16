@@ -64,7 +64,6 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -279,7 +278,7 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	storestate.ReplaceStore(st, s)
+	snapstate.ReplaceStore(st, s)
 	// mark as already seeded
 	st.Set("seeded", true)
 	// registered
@@ -314,7 +313,7 @@ func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *Daemon {
 	assertstate.Manager(st)
 	st.Lock()
 	defer st.Unlock()
-	storestate.ReplaceStore(st, s)
+	snapstate.ReplaceStore(st, s)
 
 	s.d = d
 	return d
@@ -456,7 +455,7 @@ version: %s
 		snapst.Active = active
 		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
 		snapst.Current = snapInfo.SideInfo.Revision
-		snapst.Channel = "beta"
+		snapst.Channel = "stable"
 
 		snapstate.Set(st, name, &snapst)
 	}
@@ -534,6 +533,20 @@ UnitFileState=potatoes
 `),
 	}
 
+	var snapst snapstate.SnapState
+	st := s.d.overlord.State()
+	st.Lock()
+	err := snapstate.Get(st, "foo", &snapst)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	// modify state
+	snapst.Channel = "beta"
+	snapst.IgnoreValidation = true
+	st.Lock()
+	snapstate.Set(st, "foo", &snapst)
+	st.Unlock()
+
 	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
 	c.Assert(err, check.IsNil)
 	rsp, ok := getSnapInfo(snapCmd, req, nil).(*resp)
@@ -555,24 +568,25 @@ UnitFileState=potatoes
 		Type:   ResponseTypeSync,
 		Status: 200,
 		Result: &client.Snap{
-			ID:              "foo-id",
-			Name:            "foo",
-			Revision:        snap.R(10),
-			Version:         "v1",
-			Channel:         "stable",
-			TrackingChannel: "beta",
-			Title:           "title",
-			Summary:         "summary",
-			Description:     "description",
-			Developer:       "bar",
-			Status:          "active",
-			Icon:            "/v2/icons/foo/icon",
-			Type:            string(snap.TypeApp),
-			Private:         false,
-			DevMode:         false,
-			JailMode:        false,
-			Confinement:     string(snap.StrictConfinement),
-			TryMode:         false,
+			ID:               "foo-id",
+			Name:             "foo",
+			Revision:         snap.R(10),
+			Version:          "v1",
+			Channel:          "stable",
+			TrackingChannel:  "beta",
+			IgnoreValidation: true,
+			Title:            "title",
+			Summary:          "summary",
+			Description:      "description",
+			Developer:        "bar",
+			Status:           "active",
+			Icon:             "/v2/icons/foo/icon",
+			Type:             string(snap.TypeApp),
+			Private:          false,
+			DevMode:          false,
+			JailMode:         false,
+			Confinement:      string(snap.StrictConfinement),
+			TryMode:          false,
 			Apps: []client.AppInfo{
 				{
 					Snap: "foo", Name: "cmd",
@@ -1166,7 +1180,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 401)
-	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot authenticate to snap store")
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "invalid credentials")
 }
 
 func (s *apiSuite) TestUserFromRequestNoHeader(c *check.C) {
@@ -5183,7 +5197,7 @@ func (s *apiSuite) TestAliasErrors(c *check.C) {
 	}{
 		{func(a *aliasAction) { a.Action = "" }, `unsupported alias action: ""`},
 		{func(a *aliasAction) { a.Action = "what" }, `unsupported alias action: "what"`},
-		{func(a *aliasAction) { a.Snap = "lalala" }, `cannot find snap "lalala"`},
+		{func(a *aliasAction) { a.Snap = "lalala" }, `snap "lalala" is not installed`},
 		{func(a *aliasAction) { a.Alias = ".foo" }, `invalid alias name: ".foo"`},
 		{func(a *aliasAction) { a.Aliases = []string{"baz"} }, `cannot interpret request, snaps can no longer be expected to declare their aliases`},
 	}
@@ -5984,6 +5998,24 @@ func (s *appSuite) TestAppInfosForMissingSnap(c *check.C) {
 	c.Assert(appInfos, check.IsNil)
 }
 
+func (s *apiSuite) TestLogsNoServices(c *check.C) {
+	// NOTE this is *apiSuite, not *appSuite, so there are no
+	// installed snaps with services
+
+	cmd := testutil.MockCommand(c, "systemctl", "").Also("journalctl", "")
+	defer cmd.Restore()
+	s.daemon(c)
+	s.d.overlord.Loop()
+	defer s.d.overlord.Stop()
+
+	req, err := http.NewRequest("GET", "/v2/logs", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getLogs(logsCmd, req, nil).(*resp)
+	c.Assert(rsp.Status, check.Equals, 404)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+}
+
 func (s *appSuite) TestLogs(c *check.C) {
 	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(`
 {"MESSAGE": "hello1", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "42"}
@@ -6137,8 +6169,11 @@ func (s *appSuite) TestPostAppsStartTwo(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a"}}
 	expected := []string{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service"}
 	chg := s.testPostApps(c, inst, expected)
+	chg.State().Lock()
+	defer chg.State().Unlock()
 	// check the summary expands the snap into actual apps
-	c.Check(chg.Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2]")
+	c.Check(chg.Summary(), check.Equals, "Running service command")
+	c.Check(chg.Tasks()[0].Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2]")
 }
 
 func (s *appSuite) TestPostAppsStartThree(c *check.C) {
@@ -6146,7 +6181,10 @@ func (s *appSuite) TestPostAppsStartThree(c *check.C) {
 	expected := []string{"systemctl", "start", "snap.snap-a.svc1.service", "snap.snap-a.svc2.service", "snap.snap-b.svc3.service"}
 	chg := s.testPostApps(c, inst, expected)
 	// check the summary expands the snap into actual apps
-	c.Check(chg.Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2 snap-b.svc3]")
+	c.Check(chg.Summary(), check.Equals, "Running service command")
+	chg.State().Lock()
+	defer chg.State().Unlock()
+	c.Check(chg.Tasks()[0].Summary(), check.Equals, "start of [snap-a.svc1 snap-a.svc2 snap-b.svc3]")
 }
 
 func (s *appSuite) TestPosetAppsStop(c *check.C) {
