@@ -159,6 +159,11 @@ func (slot *ConnectedSlot) Apps() map[string]*snap.AppInfo {
 	return slot.slotInfo.Apps
 }
 
+// Hooks returns all the hooks associated with this slot.
+func (slot *ConnectedSlot) Hooks() map[string]*snap.HookInfo {
+	return slot.slotInfo.Hooks
+}
+
 // SecurityTags returns the security tags for this slot.
 func (slot *ConnectedSlot) SecurityTags() []string {
 	return slot.slotInfo.SecurityTags()
