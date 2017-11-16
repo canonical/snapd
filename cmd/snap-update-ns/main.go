@@ -124,10 +124,6 @@ func run() error {
 	return computeAndSaveChanges(snapName)
 }
 
-var changePerform = func(chg *Change) ([]*Change, error) {
-	return chg.Perform()
-}
-
 func computeAndSaveChanges(snapName string) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount

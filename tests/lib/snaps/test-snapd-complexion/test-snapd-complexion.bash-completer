@@ -28,3 +28,4 @@ _complete_test-snapd-complexion() {
 }
 
 complete -F _complete_test-snapd-complexion test-snapd-complexion
+complete -F _complete_test-snapd-complexion test-snapd-complexion.two
