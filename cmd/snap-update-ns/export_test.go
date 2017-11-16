@@ -42,6 +42,7 @@ var (
 
 	// main
 	ComputeAndSaveChanges = computeAndSaveChanges
+	ApplyUserFstab        = applyUserFstab
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
