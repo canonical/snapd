@@ -63,16 +63,14 @@ func (iface *snapControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 }
 
 func init() {
-	registerIface(&snapControlInterface{
-		commonInterface{
-			name:                  "snapd-control",
-			summary:               snapdControlSummary,
-			implicitOnCore:        true,
-			implicitOnClassic:     true,
-			baseDeclarationPlugs:  snapdControlBaseDeclarationPlugs,
-			baseDeclarationSlots:  snapdControlBaseDeclarationSlots,
-			connectedPlugAppArmor: snapdControlConnectedPlugAppArmor,
-			reservedForOS:         true,
-		},
-	})
+	registerIface(&snapControlInterface{commonInterface{
+		name:                  "snapd-control",
+		summary:               snapdControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationPlugs:  snapdControlBaseDeclarationPlugs,
+		baseDeclarationSlots:  snapdControlBaseDeclarationSlots,
+		connectedPlugAppArmor: snapdControlConnectedPlugAppArmor,
+		reservedForOS:         true,
+	}})
 }
