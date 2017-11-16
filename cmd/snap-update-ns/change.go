@@ -56,9 +56,7 @@ func (c Change) String() string {
 }
 
 // changePerform is Change.Perform that can be mocked for testing.
-var changePerform = func(chg *Change) ([]*Change, error) {
-	return chg.Perform()
-}
+var changePerform = (*Change).Perform
 
 // Perform executes the desired mount or unmount change using system calls.
 // Filesystems that depend on helper programs or multiple independent calls to
