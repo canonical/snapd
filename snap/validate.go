@@ -88,7 +88,7 @@ func validateSocketName(name string) error {
 // validateSocketmode checks that the socket mode is a valid file mode.
 func validateSocketMode(mode os.FileMode) error {
 	if mode > 0777 {
-		return fmt.Errorf("invalid socket mode: %04o", mode)
+		return fmt.Errorf("cannot use socket mode: %04o", mode)
 	}
 
 	return nil
