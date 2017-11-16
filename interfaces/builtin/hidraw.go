@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const hidrawSummary = `allows access to specific hidraw device`
@@ -116,7 +117,7 @@ func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *hidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *hidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	usbVendor, ok := slot.Attrs["usb-vendor"].(int64)
 	if !ok {
 		return nil

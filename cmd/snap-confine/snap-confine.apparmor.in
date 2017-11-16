@@ -252,10 +252,16 @@
     /dev/nvidiactl r,
     /dev/nvidia-uvm r,
     /usr/** r,
-    mount options=(rw bind) /usr/lib/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl/,
-    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/* w,
-    mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/,
-    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/,
+    mount options=(rw bind) /usr/lib{,32}/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl{,32}/,
+    mount options=(rw bind) /usr/lib{,32}/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl{,32}/,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/* w,
+    mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
+    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
+
+    # Vulkan support
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/* w,
+    mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
+    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
 
     # for chroot on steroids, we use pivot_root as a better chroot that makes
     # apparmor rules behave the same on classic and outside of classic.
