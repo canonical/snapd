@@ -36,7 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -208,10 +208,6 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 //   sync_file_range, and truncate64.
 // Once we start using those. See `man syscall`
 func (s *snapSeccompSuite) runBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
-	outPath := filepath.Join(c.MkDir(), "bpf")
-	err := main.Compile([]byte(seccompWhitelist), outPath)
-	c.Assert(err, IsNil)
-
 	// Common syscalls we need to allow for a minimal statically linked
 	// c program.
 	//
@@ -239,7 +235,7 @@ faccessat
 restart_syscall
 `
 	bpfPath := filepath.Join(c.MkDir(), "bpf")
-	err = main.Compile([]byte(common+seccompWhitelist), bpfPath)
+	err := main.Compile([]byte(common+seccompWhitelist), bpfPath)
 	c.Assert(err, IsNil)
 
 	// default syscall runner
@@ -327,6 +323,18 @@ restart_syscall
 	}
 }
 
+func (s *snapSeccompSuite) TestUnrestricted(c *C) {
+	inp := "@unrestricted\n"
+	outPath := filepath.Join(c.MkDir(), "bpf")
+	err := main.Compile([]byte(inp), outPath)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(outPath)
+	c.Assert(err, IsNil)
+	c.Check(content, DeepEquals, []byte(inp))
+
+}
+
 // TestCompile iterates over a range of textual seccomp whitelist rules and
 // mocked kernel syscall input. For each rule, the test consists of compiling
 // the rule into a bpf program and then running that program on a virtual bpf
@@ -341,9 +349,6 @@ restart_syscall
 //    {"read >=2", "read;native;1", main.SeccompRetKill},
 //    {"read >=2", "read;native;0", main.SeccompRetKill},
 func (s *snapSeccompSuite) TestCompile(c *C) {
-	// The 'shadow' group is different in different distributions
-	shadowGid, err := osutil.FindGid("shadow")
-	c.Assert(err, IsNil)
 
 	for _, t := range []struct {
 		seccompWhitelist string
@@ -351,7 +356,6 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		expected         int
 	}{
 		// special
-		{"@unrestricted", "execve", main.SeccompRetAllow},
 		{"@complain", "execve", main.SeccompRetAllow},
 
 		// trivial allow
@@ -439,11 +443,11 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
 
-		// u:root g:shadow
-		{"fchown - u:root g:shadow", fmt.Sprintf("fchown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
-		{"fchown - u:root g:shadow", fmt.Sprintf("fchown;native;-,99,%d", shadowGid), main.SeccompRetKill},
-		{"chown - u:root g:shadow", fmt.Sprintf("chown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
-		{"chown - u:root g:shadow", fmt.Sprintf("chown;native;-,99,%d", shadowGid), main.SeccompRetKill},
+		// u:root g:root
+		{"fchown - u:root g:root", "fchown;native;-,0,0", main.SeccompRetAllow},
+		{"fchown - u:root g:root", "fchown;native;-,99,0", main.SeccompRetKill},
+		{"chown - u:root g:root", "chown;native;-,0,0", main.SeccompRetAllow},
+		{"chown - u:root g:root", "chown;native;-,99,0", main.SeccompRetKill},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
@@ -455,6 +459,10 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 // Some architectures (i386, s390x) use the "socketcall" syscall instead
 // of "socket". This is the case on Ubuntu 14.04, 17.04, 17.10
 func (s *snapSeccompSuite) TestCompileSocket(c *C) {
+	if release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
+		c.Skip("14.04/i386 uses socketcall which cannot be tested here")
+	}
+
 	for _, t := range []struct {
 		seccompWhitelist string
 		bpfInput         string
@@ -567,6 +575,10 @@ func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 
 // ported from test_restrictions_working_args_socket
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSocket(c *C) {
+	if release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
+		c.Skip("14.04/i386 uses socketcall which cannot be tested here")
+	}
+
 	for _, pre := range []string{"AF", "PF"} {
 		for _, i := range []string{"UNIX", "LOCAL", "INET", "INET6", "IPX", "NETLINK", "X25", "AX25", "ATMPVC", "APPLETALK", "PACKET", "ALG", "CAN", "BRIDGE", "NETROM", "ROSE", "NETBEUI", "SECURITY", "KEY", "ASH", "ECONET", "SNA", "IRDA", "PPPOX", "WANPIPE", "BLUETOOTH", "RDS", "LLC", "TIPC", "IUCV", "RXRPC", "ISDN", "PHONET", "IEEE802154", "CAIF", "NFC", "VSOCK", "MPLS", "IB"} {
 			seccompWhitelist := fmt.Sprintf("socket %s_%s", pre, i)

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -30,11 +31,14 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
-type HTestSuite struct{}
+type HTestSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&HTestSuite{})
 
@@ -71,7 +75,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 		"SNAP_ARCH":         arch.UbuntuArchitecture(),
 		"SNAP_COMMON":       "/var/snap/foo/common",
 		"SNAP_DATA":         "/var/snap/foo/17",
-		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/void",
+		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 		"SNAP_NAME":         "foo",
 		"SNAP_REEXEC":       "",
 		"SNAP_REVISION":     "17",
@@ -125,7 +129,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"SNAP_ARCH":         arch.UbuntuArchitecture(),
 			"SNAP_COMMON":       "/var/snap/snapname/common",
 			"SNAP_DATA":         "/var/snap/snapname/42",
-			"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/void",
+			"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 			"SNAP_NAME":         "snapname",
 			"SNAP_REEXEC":       "",
 			"SNAP_REVISION":     "42",
@@ -137,18 +141,58 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 	}
 }
 
+func envValue(env []string, key string) (bool, string) {
+	for _, item := range env {
+		if strings.HasPrefix(item, key+"=") {
+			return true, strings.SplitN(item, "=", 2)[1]
+		}
+	}
+	return false, ""
+}
+
 func (s *HTestSuite) TestExtraEnvForExecEnv(c *C) {
 	info, err := snap.InfoFromSnapYaml(mockYaml)
 	c.Assert(err, IsNil)
 	info.SideInfo.Revision = snap.R(42)
 
 	env := ExecEnv(info, map[string]string{"FOO": "BAR"})
-	found := false
-	for _, item := range env {
-		if item == "FOO=BAR" {
-			found = true
-			break
-		}
-	}
+	found, val := envValue(env, "FOO")
 	c.Assert(found, Equals, true)
+	c.Assert(val, Equals, "BAR")
+}
+
+func setenvWithReset(s *HTestSuite, key string, val string) {
+	tmpdirEnv, tmpdirFound := os.LookupEnv("TMPDIR")
+	os.Setenv("TMPDIR", "/var/tmp")
+	if tmpdirFound {
+		s.AddCleanup(func() { os.Setenv("TMPDIR", tmpdirEnv) })
+	} else {
+		s.AddCleanup(func() { os.Unsetenv("TMPDIR") })
+	}
+}
+
+func (s *HTestSuite) TestExecEnvNoRenameTMPDIRForNonClassic(c *C) {
+	setenvWithReset(s, "TMPDIR", "/var/tmp")
+
+	env := ExecEnv(mockSnapInfo, map[string]string{})
+
+	found, val := envValue(env, "TMPDIR")
+	c.Assert(found, Equals, true)
+	c.Assert(val, Equals, "/var/tmp")
+
+	found, _ = envValue(env, PreservedUnsafePrefix+"TMPDIR")
+	c.Assert(found, Equals, false)
+}
+
+func (s *HTestSuite) TestExecEnvRenameTMPDIRForClassic(c *C) {
+	setenvWithReset(s, "TMPDIR", "/var/tmp")
+
+	env := ExecEnv(mockClassicSnapInfo, map[string]string{})
+
+	found, _ := envValue(env, "TMPDIR")
+	c.Assert(found, Equals, false)
+
+	found, val := envValue(env, PreservedUnsafePrefix+"TMPDIR")
+	c.Assert(found, Equals, true)
+	c.Assert(val, Equals, "/var/tmp")
 }

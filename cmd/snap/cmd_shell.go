@@ -45,7 +45,9 @@ func init() {
 		func() flags.Commander {
 			return &cmdShell{}
 		}, nil, []argDesc{{
+			// TRANSLATORS: This needs to be wrapped in <>s.
 			name: i18n.G("<shell-type>"),
+			// TRANSLATORS: This should probably not start with a lowercase letter.
 			desc: i18n.G("The type of shell you want"),
 		}})
 }

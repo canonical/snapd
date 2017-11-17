@@ -72,7 +72,6 @@ backends:
             - fedora-25-64:
                 workers: 3
             - opensuse-42.2-64:
-                manual: true
                 workers: 2
     qemu:
         systems:
@@ -99,6 +98,9 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-17.10-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-64:
                 username: ubuntu
                 password: ubuntu
             - debian-9-64:
@@ -177,6 +179,19 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-17.10-armhf:
+                username: ubuntu
+                password: ubuntu
+            # Bionic
+            - ubuntu-18.04-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-armhf:
                 username: ubuntu
                 password: ubuntu
     external:
@@ -369,6 +384,12 @@ restore: |
 
     rm -f $SPREAD_PATH/snapd-state.tar.gz
     rm -rf ${GOPATH%%:*}/*
+
+restore-each: |
+    if grep "invalid .*snap.*.rules" /var/log/syslog; then
+        echo "Invalid udev file detected, test most likely broke it"
+        exit 1
+    fi
 
 suites:
     tests/main/:

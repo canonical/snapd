@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	snapdsnap "github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -74,6 +75,8 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	snap.ReadPassword = s.readPassword
 	s.AuthFile = filepath.Join(c.MkDir(), "json")
 	os.Setenv(TestAuthFileEnvKey, s.AuthFile)
+
+	snapdsnap.MockSanitizePlugsSlots(func(snapInfo *snapdsnap.Info) {})
 }
 
 func (s *BaseSnapSuite) TearDownTest(c *C) {

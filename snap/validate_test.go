@@ -32,6 +32,28 @@ type ValidateSuite struct{}
 
 var _ = Suite(&ValidateSuite{})
 
+func createSampleApp() *AppInfo {
+	socket := &SocketInfo{
+		Name:         "sock",
+		ListenStream: "$SNAP_COMMON/socket",
+	}
+	app := &AppInfo{
+		Snap: &Info{
+			SideInfo: SideInfo{
+				RealName: "mysnap",
+				Revision: R(20),
+			},
+		},
+		Name:  "foo",
+		Plugs: map[string]*PlugInfo{"network-bind": {}},
+		Sockets: map[string]*SocketInfo{
+			"sock": socket,
+		},
+	}
+	socket.App = app
+	return app
+}
+
 func (s *ValidateSuite) TestValidateName(c *C) {
 	validNames := []string{
 		"a", "aa", "aaa", "aaaa",
@@ -62,23 +84,6 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 	for _, name := range invalidNames {
 		err := ValidateName(name)
 		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
-	}
-}
-
-func (s *ValidateSuite) TestValidateEpoch(c *C) {
-	validEpochs := []string{
-		"0", "1*", "1", "400*", "1234",
-	}
-	for _, epoch := range validEpochs {
-		err := ValidateEpoch(epoch)
-		c.Assert(err, IsNil)
-	}
-	invalidEpochs := []string{
-		"0*", "_", "1-", "1+", "-1", "+1", "-1*", "a", "1a", "1**",
-	}
-	for _, epoch := range invalidEpochs {
-		err := ValidateEpoch(epoch)
-		c.Assert(err, ErrorMatches, `invalid snap epoch: ".*"`)
 	}
 }
 
@@ -146,6 +151,165 @@ func (s *ValidateSuite) TestValidateAppName(c *C) {
 	for _, name := range invalidAppNames {
 		err := ValidateApp(&AppInfo{Name: name})
 		c.Assert(err, ErrorMatches, `cannot have ".*" as app name.*`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppSockets(c *C) {
+	app := createSampleApp()
+	app.Sockets["sock"].SocketMode = 0600
+	c.Check(ValidateApp(app), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsEmptyPermsOk(c *C) {
+	app := createSampleApp()
+	c.Check(ValidateApp(app), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsWrongPerms(c *C) {
+	app := createSampleApp()
+	app.Sockets["sock"].SocketMode = 1234
+	err := ValidateApp(app)
+	c.Assert(err, ErrorMatches, `cannot use socket mode: 2322`)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsMissingNetworkBindPlug(c *C) {
+	app := createSampleApp()
+	delete(app.Plugs, "network-bind")
+	err := ValidateApp(app)
+	c.Assert(
+		err, ErrorMatches,
+		`"network-bind" interface plug is required when sockets are used`)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsEmptyListenStream(c *C) {
+	app := createSampleApp()
+	app.Sockets["sock"].ListenStream = ""
+	err := ValidateApp(app)
+	c.Assert(err, ErrorMatches, `socket "sock" must define "listen-stream"`)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsInvalidName(c *C) {
+	app := createSampleApp()
+	app.Sockets["sock"].Name = "invalid name"
+	err := ValidateApp(app)
+	c.Assert(err, ErrorMatches, `invalid socket name: "invalid name"`)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsValidListenStreamAddresses(c *C) {
+	app := createSampleApp()
+	validListenAddresses := []string{
+		// socket paths using variables as prefix
+		"$SNAP_DATA/my.socket",
+		"$SNAP_COMMON/my.socket",
+		// abstract sockets
+		"@snap.mysnap.my.socket",
+		// addresses and ports
+		"1",
+		"1023",
+		"1024",
+		"65535",
+		"127.0.0.1:8080",
+		"[::]:8080",
+		"[::1]:8080",
+	}
+	socket := app.Sockets["sock"]
+	for _, validAddress := range validListenAddresses {
+		socket.ListenStream = validAddress
+		err := ValidateApp(app)
+		c.Check(err, IsNil, Commentf(validAddress))
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPath(c *C) {
+	app := createSampleApp()
+	invalidListenAddresses := []string{
+		// socket paths out of the snap dirs
+		"/some/path/my.socket",
+		"/var/snap/mysnap/20/my.socket", // path is correct but has hardcoded prefix
+	}
+	socket := app.Sockets["sock"]
+	for _, invalidAddress := range invalidListenAddresses {
+		socket.ListenStream = invalidAddress
+		err := ValidateApp(app)
+		c.Assert(err, ErrorMatches, `socket "sock" has invalid "listen-stream": only.*are allowed`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathContainsDots(c *C) {
+	app := createSampleApp()
+	app.Sockets["sock"].ListenStream = "$SNAP/../some.path"
+	err := ValidateApp(app)
+	c.Assert(
+		err, ErrorMatches,
+		`socket "sock" has invalid "listen-stream": "\$SNAP/../some.path" should be written as "some.path"`)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathPrefix(c *C) {
+	app := createSampleApp()
+	invalidListenAddresses := []string{
+		"$SNAP/my.socket", // snap dir is not writable
+		"$SOMEVAR/my.socket",
+	}
+	socket := app.Sockets["sock"]
+	for _, invalidAddress := range invalidListenAddresses {
+		socket.ListenStream = invalidAddress
+		err := ValidateApp(app)
+		c.Assert(
+			err, ErrorMatches,
+			`socket "sock" has invalid "listen-stream": only \$SNAP_DATA and \$SNAP_COMMON prefixes are allowed`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAbstractSocket(c *C) {
+	app := createSampleApp()
+	invalidListenAddresses := []string{
+		"@snap.mysnap",
+		"@snap.mysnap\000.foo",
+		"@snap.notmysnap.my.socket",
+		"@some.other.name",
+		"@snap.myappiswrong.foo",
+	}
+	socket := app.Sockets["sock"]
+	for _, invalidAddress := range invalidListenAddresses {
+		socket.ListenStream = invalidAddress
+		err := ValidateApp(app)
+		c.Assert(err, ErrorMatches, `socket "sock" path for "listen-stream" must be prefixed with.*`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
+	app := createSampleApp()
+	invalidListenAddresses := []string{
+		"10.0.1.1:8080",
+		"[fafa::baba]:8080",
+		"127.0.0.1\000:8080",
+		"127.0.0.1::8080",
+	}
+	socket := app.Sockets["sock"]
+	for _, invalidAddress := range invalidListenAddresses {
+		socket.ListenStream = invalidAddress
+		err := ValidateApp(app)
+		c.Assert(err, ErrorMatches, `socket "sock" has invalid "listen-stream" address.*`)
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
+	app := createSampleApp()
+	invalidPorts := []string{
+		"0",
+		"66536",
+		"-8080",
+		"12312345345",
+		"[::]:-123",
+		"[::1]:3452345234",
+		"invalid",
+		"[::]:invalid",
+	}
+	socket := app.Sockets["sock"]
+	for _, invalidPort := range invalidPorts {
+		socket.ListenStream = invalidPort
+		err := ValidateApp(app)
+		c.Assert(err, ErrorMatches, `socket "sock" has invalid "listen-stream" port number.*`)
 	}
 }
 
@@ -249,14 +413,11 @@ version: 1.0
 }
 
 func (s *ValidateSuite) TestIllegalSnapEpoch(c *C) {
-	info, err := InfoFromSnapYaml([]byte(`name: foo
+	_, err := InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 epoch: 0*
 `))
-	c.Assert(err, IsNil)
-
-	err = Validate(info)
-	c.Check(err, ErrorMatches, `invalid snap epoch: "0\*"`)
+	c.Assert(err, ErrorMatches, `.*invalid epoch.*`)
 }
 
 func (s *ValidateSuite) TestMissingSnapEpochIsOkay(c *C) {
@@ -395,4 +556,39 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 	c.Check(ValidateLayout(&Layout{Path: "/var", Symlink: "$SNAP_DATA/var"}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "/var", Symlink: "$SNAP_COMMON/var"}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "$SNAP/data", Symlink: "$SNAP_DATA"}), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateSocketName(c *C) {
+	validNames := []string{
+		"a", "aa", "aaa", "aaaa",
+		"a-a", "aa-a", "a-aa", "a-b-c",
+		"a0", "a-0", "a-0a",
+		"01game", "1-or-2",
+	}
+	for _, name := range validNames {
+		err := ValidateSocketName(name)
+		c.Assert(err, IsNil)
+	}
+	invalidNames := []string{
+		// name cannot be empty
+		"",
+		// dashes alone are not a name
+		"-", "--",
+		// double dashes in a name are not allowed
+		"a--a",
+		// name should not end with a dash
+		"a-",
+		// name cannot have any spaces in it
+		"a ", " a", "a a",
+		// a number alone is not a name
+		"0", "123",
+		// identifier must be plain ASCII
+		"日本語", "한글", "ру́сский язы́к",
+		// no null chars in the string are allowed
+		"aa-a\000-b",
+	}
+	for _, name := range invalidNames {
+		err := ValidateSocketName(name)
+		c.Assert(err, ErrorMatches, `invalid socket name: ".*"`)
+	}
 }
