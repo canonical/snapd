@@ -74,6 +74,7 @@ backends:
             - opensuse-42.2-64:
                 manual: true
                 workers: 2
+                manual: true
     qemu:
         systems:
             - ubuntu-14.04-32:
