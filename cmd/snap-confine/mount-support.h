@@ -63,6 +63,6 @@ void sc_ensure_shared_snap_mount(void);
  * - reconfigure all existing mounts to slave mode
  * - perform all user mounts
  */
-void sc_setup_user_mounts(const char *snap_name);
+void sc_setup_user_mounts(int snap_update_ns_fd, const char *snap_name);
 
 #endif
