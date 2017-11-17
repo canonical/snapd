@@ -35,7 +35,7 @@ execute: |
         test-snapd-tools.echo hello | MATCH hello
 
         # go to known good starting place
-        snap install pc-kernel --${KERNEL_CHANNEL}
+        snap refresh pc-kernel --${KERNEL_CHANNEL}
         REBOOT
     elif [ "$SPREAD_REBOOT" = 1 ]; then
         # from our good starting place we refresh
