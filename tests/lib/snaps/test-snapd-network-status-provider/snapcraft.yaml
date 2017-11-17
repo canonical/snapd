@@ -8,11 +8,8 @@ grade: stable
 apps:
     provider:
         command: wrapper
-        slots: [network-status-test]
-
-slots:
-    network-status-test:
-        interface: network-status
+        slots: [network-status]
+        plugs: [mount-observe]
 
 parts:
     deps:
