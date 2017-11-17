@@ -399,6 +399,18 @@ func (m *SnapManager) checkRefreshSchedule() ([]*timeutil.Schedule, error) {
 				logger.Noticef("refresh.schedule is managed via the snapd-control interface")
 				m.currentRefreshSchedule = "managed"
 			}
+			// check for refresh hints from the store every 24h
+			// to be able to warn in the future
+			var lastRefreshHints time.Time
+			if err := m.state.Get("last-refresh-hints", &lastRefreshHints); err != nil && err != state.ErrNoState {
+				return nil, err
+			}
+			if lastRefreshHints.Before(time.Now().Add(-time.Duration(24 * time.Hour))) {
+				if _, _, _, err := refreshCandidates(m.state, nil, nil, &store.RefreshOptions{RefreshManaged: true}); err != nil {
+					return nil, err
+				}
+				m.state.Set("last-refresh-hints", time.Now())
+			}
 			return nil, nil
 		}
 	}

@@ -545,11 +545,11 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 // RefreshCandidates gets a list of candidates for update
 // Note that the state must be locked by the caller.
 func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, error) {
-	updates, _, _, err := refreshCandidates(st, nil, user)
+	updates, _, _, err := refreshCandidates(st, nil, user, nil)
 	return updates, err
 }
 
-func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
+func refreshCandidates(st *state.State, names []string, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
 	snapStates, err := All(st)
 	if err != nil {
 		return nil, nil, nil, err
@@ -633,7 +633,7 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 		return nil, nil, err
 	}
 
-	updates, stateByID, ignoreValidation, err := refreshCandidates(st, names, user)
+	updates, stateByID, ignoreValidation, err := refreshCandidates(st, names, user, nil)
 	if err != nil {
 		return nil, nil, err
 	}

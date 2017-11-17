@@ -71,3 +71,4 @@ execute: |
        exit 1
     fi
 
+    cat /var/lib/snapd/state.json | jq '.data["last-refresh-hints"]' | grep $(date +%Y)

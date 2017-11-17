@@ -5319,6 +5319,11 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesDisabledViaSnapdControl(c *C) {
 
 	// AutoRefresh was not called
 	c.Check(autoRefreshAssertionsCalled, Equals, 0)
+
+	// The last refresh hints got updated
+	var lastRefreshHints time.Time
+	st.Get("last-refresh-hints", &lastRefreshHints)
+	c.Check(lastRefreshHints.Year(), Equals, time.Now().Year())
 }
 
 func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
