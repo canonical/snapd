@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -267,7 +268,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 	restore = seccomp.MockTemplate([]byte("default\n"))
 	defer restore()
 	for _, scenario := range combineSnippetsScenarios {
-		s.Iface.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *interfaces.Slot) error {
+		s.Iface.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 			if scenario.snippet != "" {
 				spec.AddSnippet(scenario.snippet)
 			}
@@ -307,11 +308,11 @@ func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 	iface2 := &ifacetest.TestInterface{InterfaceName: "iface2"}
 	s.Repo.AddInterface(iface2)
 
-	s.Iface.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	s.Iface.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("zzz")
 		return nil
 	}
-	iface2.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *interfaces.Slot) error {
+	iface2.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("aaa")
 		return nil
 	}

@@ -88,7 +88,8 @@ func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
 				return err
 			}
 		}
-		return writeAssert(a, blobDir)
+		_, err = writeAssert(a, blobDir)
+		return err
 	}
 
 	f := asserts.NewFetcher(db, retrieve, save)
@@ -101,14 +102,15 @@ func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
 	return nil
 }
 
-func writeAssert(a asserts.Assertion, targetDir string) error {
+func writeAssert(a asserts.Assertion, targetDir string) (string, error) {
 	ref := a.Ref()
 	fn := fmt.Sprintf("%s.%s", strings.Join(ref.PrimaryKey, ","), ref.Type.Name)
 	p := filepath.Join(targetDir, "asserts", fn)
 	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
-		return err
+		return "", err
 	}
-	return ioutil.WriteFile(p, asserts.Encode(a), 0644)
+	err := ioutil.WriteFile(p, asserts.Encode(a), 0644)
+	return p, err
 }
 
 func makeFakeRefreshForSnap(snap, targetDir string, db *asserts.Database, f asserts.Fetcher) error {
@@ -251,5 +253,6 @@ func makeNewSnapRevision(orig, new *info, targetDir string, db *asserts.Database
 		return err
 	}
 
-	return writeAssert(a, targetDir)
+	_, err = writeAssert(a, targetDir)
+	return err
 }

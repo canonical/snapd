@@ -31,17 +31,16 @@ import (
 
 var (
 	// change
-	ReadCmdline      = readCmdline
-	FindSnapName     = findSnapName
-	FindFirstOption  = findFirstOption
 	ValidateSnapName = validateSnapName
 	ProcessArguments = processArguments
 	// freezer
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
 	// utils
-	SecureMkdirAll   = secureMkdirAll
-	EnsureMountPoint = ensureMountPoint
+	EnsureMountPoint  = ensureMountPoint
+	SecureMkdirAll    = secureMkdirAll
+	SecureMkfileAll   = secureMkfileAll
+	SplitIntoSegments = splitIntoSegments
 
 	// main
 	ComputeAndSaveChanges = computeAndSaveChanges
@@ -81,6 +80,18 @@ func formatOpenFlags(flags int) string {
 	if flags&syscall.O_DIRECTORY != 0 {
 		flags ^= syscall.O_DIRECTORY
 		fl = append(fl, "O_DIRECTORY")
+	}
+	if flags&syscall.O_RDWR != 0 {
+		flags ^= syscall.O_RDWR
+		fl = append(fl, "O_RDWR")
+	}
+	if flags&syscall.O_CREAT != 0 {
+		flags ^= syscall.O_CREAT
+		fl = append(fl, "O_CREAT")
+	}
+	if flags&syscall.O_EXCL != 0 {
+		flags ^= syscall.O_EXCL
+		fl = append(fl, "O_EXCL")
 	}
 	if flags != 0 {
 		panic(fmt.Errorf("unrecognized open flags %d", flags))

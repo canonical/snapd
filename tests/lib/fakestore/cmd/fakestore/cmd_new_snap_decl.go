@@ -21,6 +21,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 
 	"github.com/snapcore/snapd/tests/lib/fakestore/refresh"
@@ -47,10 +48,15 @@ func (x *cmdNewSnapDeclaration) Execute(args []string) error {
 		}
 	}
 
-	return refresh.NewSnapDeclaration(x.TopDir, x.Positional.Snap, headers)
+	p, err := refresh.NewSnapDeclaration(x.TopDir, x.Positional.Snap, headers)
+	if err != nil {
+		return err
+	}
+	fmt.Println(p)
+	return nil
 }
 
-var shortNewSnapDeclarationHelp = "make new snap declaration"
+var shortNewSnapDeclarationHelp = "Make new snap declaration"
 
 func init() {
 	parser.AddCommand("new-snap-declaration", shortNewSnapDeclarationHelp, "", &cmdNewSnapDeclaration{})

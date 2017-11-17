@@ -359,6 +359,8 @@ func Manager(st *state.State) (*SnapManager, error) {
 	// control serialisation
 	runner.SetBlocked(m.blockedTask)
 
+	writeSnapReadme()
+
 	return m, nil
 }
 

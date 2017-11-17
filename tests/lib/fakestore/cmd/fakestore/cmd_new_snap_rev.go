@@ -21,6 +21,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 
 	"github.com/snapcore/snapd/tests/lib/fakestore/refresh"
@@ -47,10 +48,15 @@ func (x *cmdNewSnapRevision) Execute(args []string) error {
 		}
 	}
 
-	return refresh.NewSnapRevision(x.TopDir, x.Positional.Snap, headers)
+	p, err := refresh.NewSnapRevision(x.TopDir, x.Positional.Snap, headers)
+	if err != nil {
+		return err
+	}
+	fmt.Println(p)
+	return nil
 }
 
-var shortNewSnapRevisionHelp = "make new snap revision"
+var shortNewSnapRevisionHelp = "Make new snap revision"
 
 func init() {
 	parser.AddCommand("new-snap-revision", shortNewSnapRevisionHelp, "", &cmdNewSnapRevision{})

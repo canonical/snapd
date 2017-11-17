@@ -229,7 +229,7 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 	return nil, store.ErrNoUpdateAvailable
 }
 
-func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserState) ([]*snap.Info, error) {
+func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
 	f.pokeStateLock()
 
 	if len(cands) == 0 {
