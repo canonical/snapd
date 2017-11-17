@@ -50,7 +50,10 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 }
 
 func Run(tr Conf) error {
-	if err := handleProxyStore(tr); err != nil {
+	if err := validateProxyStore(tr); err != nil {
+		return err
+	}
+	if err := validateRefreshSchedule(tr); err != nil {
 		return err
 	}
 
