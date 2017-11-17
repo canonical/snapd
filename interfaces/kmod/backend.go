@@ -88,7 +88,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	}
 
 	if len(changed) > 0 {
-		return loadModules(modules)
+		loadModules(modules)
 	}
 	return nil
 }

@@ -20,12 +20,15 @@
 package corecfg
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/assertstate"
 )
 
 var proxyConfigKeys = map[string]bool{
@@ -70,4 +73,24 @@ func handleProxyConfiguration(tr Conf) error {
 	}
 
 	return nil
+}
+
+func validateProxyStore(tr Conf) error {
+	proxyStore, err := coreCfg(tr, "proxy.store")
+	if err != nil {
+		return err
+	}
+
+	if proxyStore == "" {
+		return nil
+	}
+
+	st := tr.State()
+	st.Lock()
+	defer st.Unlock()
+	_, err = assertstate.Store(st, proxyStore)
+	if asserts.IsNotFound(err) {
+		return fmt.Errorf("cannot set proxy.store to %q without a matching store assertion", proxyStore)
+	}
+	return err
 }

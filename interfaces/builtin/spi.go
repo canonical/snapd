@@ -91,10 +91,7 @@ func (iface *spiInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 	if err != nil {
 		return nil
 	}
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(`KERNEL=="%s", TAG+="%s"`, strings.TrimPrefix(path, "/dev/"), tag))
-	}
+	spec.TagDevice(fmt.Sprintf(`KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 

@@ -218,9 +218,9 @@ func StaticInfoOf(iface Interface) (si StaticInfo) {
 // Specification describes interactions between backends and interfaces.
 type Specification interface {
 	// AddPermanentSlot records side-effects of having a slot.
-	AddPermanentSlot(iface Interface, slot *Slot) error
+	AddPermanentSlot(iface Interface, slot *snap.SlotInfo) error
 	// AddPermanentPlug records side-effects of having a plug.
-	AddPermanentPlug(iface Interface, plug *Plug) error
+	AddPermanentPlug(iface Interface, plug *snap.PlugInfo) error
 	// AddConnectedSlot records side-effects of having a connected slot.
 	AddConnectedSlot(iface Interface, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error
 	// AddConnectedPlug records side-effects of having a connected plug.
