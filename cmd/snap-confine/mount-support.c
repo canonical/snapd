@@ -756,7 +756,7 @@ static void sc_make_slave_mount_ns(void)
 	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
 }
 
-void sc_setup_user_mounts(const char *snap_name)
+void sc_setup_user_mounts(int snap_update_ns_fd, const char *snap_name)
 {
 	debug("%s: %s", __FUNCTION__, snap_name);
 
@@ -771,11 +771,6 @@ void sc_setup_user_mounts(const char *snap_name)
 	}
 
 	sc_make_slave_mount_ns();
-
-	// Find and open snap-update-ns from the same path as where we
-	// (snap-confine) were called.
-	int snap_update_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	snap_update_ns_fd = sc_open_snap_update_ns();
 
 	debug("calling snap-update-ns to initialize user mounts");
 	pid_t child = fork();
@@ -794,9 +789,19 @@ void sc_setup_user_mounts(const char *snap_name)
 			NULL
 		};
 		char *envp[3] = { NULL };
+		int last_env = 0;
 		if (sc_is_debug_enabled()) {
-			envp[0] = "SNAPD_DEBUG=1";
+			envp[last_env++] = "SNAPD_DEBUG=1";
 		}
+		const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
+		char xdg_runtime_dir_env[PATH_MAX];
+		if (xdg_runtime_dir != NULL) {
+			sc_must_snprintf(xdg_runtime_dir_env,
+					 sizeof(xdg_runtime_dir_env),
+					 "XDG_RUNTIME_DIR=%s", xdg_runtime_dir);
+			envp[last_env++] = xdg_runtime_dir_env;
+		}
+
 		debug("fexecv(%d (snap-update-ns), %s %s %s,)",
 		      snap_update_ns_fd, argv[0], argv[1], argv[2]);
 		fexecve(snap_update_ns_fd, argv, envp);
