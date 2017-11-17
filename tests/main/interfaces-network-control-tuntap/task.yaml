@@ -1,0 +1,43 @@
+summary: Ensure that the network-control interface works with TUN/TAP.
+
+details: |
+    The network-control interface allows a snap to configure networking of
+    TUN/TAP devices.
+
+    A snap declaring a plug on this interface must be able to allocate TUN/TAP
+    virtual network devices.
+
+    https://github.com/torvalds/linux/blob/master/Documentation/networking/tuntap.txt
+
+# This test is randomly failing when running with the full suite.
+# It may be a race or a sequence problem with an earlier test.
+manual: true
+
+environment:
+    DEV/tun: tun255
+    DEV/tap: tap255
+
+execute: |
+    echo "Given a snap declaring a plug on the network-control interface is installed"
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tuntap
+
+    . "$TESTSLIB/network.sh"
+
+    CONNECTED_PATTERN=":network-control +test-snapd-tuntap"
+    DISCONNECTED_PATTERN="^- +test-snapd-tuntap:network-control$"
+
+    echo "Then the plug disconnected by default"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    if [ "$(snap debug confinement)" = strict ] ; then
+        echo "And cannot allocate the $DEV device"
+        test-snapd-tuntap.tuntap $DEV 2>&1 | MATCH "Permission denied"
+    fi
+
+    echo "When the plug is connected"
+    snap connect test-snapd-tuntap:network-control
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    echo "Then the snap command can allocate the $DEV device"
+    test-snapd-tuntap.tuntap $DEV | MATCH "PASS"

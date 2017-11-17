@@ -1,6 +1,13 @@
 #!/bin/sh
 # Welcome to the Happy Maintainer's Utility Script
+#
+# Set BUILD_DIR to the directory where the build will happen, otherwise $PWD
+# will be used
 set -eux
+
+BUILD_DIR=${BUILD_DIR:-.}
+selfdir=$(dirname "$0")
+SRC_DIR=$(readlink -f "$selfdir")
 
 # We need the VERSION file to configure
 if [ ! -e VERSION ]; then
@@ -46,6 +53,7 @@ case "$ID" in
 		;;
 esac
 
-echo "Configuring with: $extra_opts"
+echo "Configuring in build directory $BUILD_DIR with: $extra_opts"
+mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
 # shellcheck disable=SC2086
-./configure --enable-maintainer-mode --prefix=/usr $extra_opts
+"${SRC_DIR}/configure" --enable-maintainer-mode --prefix=/usr $extra_opts

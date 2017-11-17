@@ -164,7 +164,7 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 
-	err := apparmorSpec.AddPermanentSlot(s.iface, s.slot)
+	err := apparmorSpec.AddPermanentSlot(s.iface, s.slot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.media-hub.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.media-hub.app"), Not(IsNil))
@@ -187,7 +187,7 @@ func (s *MediaHubInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 
 func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	spec := &seccomp.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
 	c.Assert(spec.SnippetForTag("snap.media-hub.app"), testutil.Contains, "bind\n")
 }
 

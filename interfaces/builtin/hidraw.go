@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const hidrawSummary = `allows access to specific hidraw device`
@@ -116,20 +117,23 @@ func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *hidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-	if !vOk {
+func (iface *hidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+	usbVendor, ok := slot.Attrs["usb-vendor"].(int64)
+	if !ok {
 		return nil
 	}
-	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-	if !pOk {
+	usbProduct, ok := slot.Attrs["usb-product"].(int64)
+	if !ok {
 		return nil
 	}
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
 		return nil
 	}
-	spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/")))
+	spec.AddSnippet(fmt.Sprintf(`# hidraw
+IMPORT{builtin}="usb_id"
+SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", SYMLINK+="%s"`,
+		usbVendor, usbProduct, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 
@@ -172,14 +176,11 @@ func (iface *hidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *
 		return nil
 	}
 
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		if hasOnlyPath {
-			spec.AddSnippet(fmt.Sprintf("SUBSYSTEM==\"hidraw\", KERNEL==\"%s\", TAG+=\"%s\"", strings.TrimPrefix(path, "/dev/"), tag))
-
-		} else {
-			spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "TAG", tag))
-		}
+	if hasOnlyPath {
+		spec.TagDevice(fmt.Sprintf(`SUBSYSTEM=="hidraw", KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
+	} else {
+		spec.TagDevice(fmt.Sprintf(`IMPORT{builtin}="usb_id"
+SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`, usbVendor, usbProduct))
 	}
 	return nil
 }

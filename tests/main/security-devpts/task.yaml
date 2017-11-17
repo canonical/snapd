@@ -1,18 +1,35 @@
 summary: Ensure that the basic devpts security rules are in place.
 
-# ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
-
-prepare: |
-    echo "Given a basic snap is installed"
-    . $TESTSLIB/snaps.sh
-    install_local test-snapd-tools
-
 execute: |
     if [ "$(snap debug confinement)" = none ] ; then
         exit 0
     fi
 
-    echo "Then the pts device follows confinement rules"
-    . $TESTSLIB/dirs.sh
-    expect -d -f pts.exp
+    echo "Given a basic snap is installed"
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-devpts
+
+    CONNECTED_PATTERN=":physical-memory-observe +test-snapd-devpts"
+    DISCONNECTED_PATTERN="\- +test-snapd-devpts:physical-memory-observe"
+
+    echo "When no plugs are not connected"
+    if snap interfaces | MATCH "$CONNECTED_PATTERN" ; then
+        snap disconnect test-snapd-devpts:physical-memory-observe
+        snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    fi
+
+    echo "Then can openpty"
+    test-snapd-devpts.openpty | MATCH PASS
+
+    echo "Then can access slave PTY"
+    test-snapd-devpts.useptmx | MATCH PASS
+
+    echo "When a udev tagging plug is connected"
+    snap connect test-snapd-devpts:physical-memory-observe
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    echo "Then can openpty"
+    test-snapd-devpts.openpty | MATCH PASS
+
+    echo "Then can access slave PTY"
+    test-snapd-devpts.useptmx | MATCH PASS

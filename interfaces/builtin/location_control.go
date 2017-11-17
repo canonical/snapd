@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/snap"
 )
 
 const locationControlSummary = `allows operating as the location service`
@@ -227,12 +228,12 @@ func (iface *locationControlInterface) DBusConnectedPlug(spec *dbus.Specificatio
 	return nil
 }
 
-func (iface *locationControlInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *locationControlInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(locationControlPermanentSlotDBus)
 	return nil
 }
 
-func (iface *locationControlInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *locationControlInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(locationControlPermanentSlotAppArmor)
 	return nil
 }

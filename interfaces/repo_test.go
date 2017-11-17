@@ -1241,7 +1241,7 @@ const testSecurity SecuritySystem = "test"
 
 var testInterface = &ifacetest.TestInterface{
 	InterfaceName: "interface",
-	TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *Plug) error {
+	TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *snap.PlugInfo) error {
 		spec.AddSnippet("static plug snippet")
 		return nil
 	},
@@ -1249,7 +1249,7 @@ var testInterface = &ifacetest.TestInterface{
 		spec.AddSnippet("connection-specific plug snippet")
 		return nil
 	},
-	TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *Slot) error {
+	TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("static slot snippet")
 		return nil
 	},
@@ -1331,10 +1331,10 @@ func (s *RepositorySuite) TestSnapSpecificationFailureWithPermanentSnippets(c *C
 	var testSecurity SecuritySystem = "security"
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
-		TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *Slot) error {
+		TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *snap.SlotInfo) error {
 			return fmt.Errorf("cannot compute snippet for provider")
 		},
-		TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *Plug) error {
+		TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *snap.PlugInfo) error {
 			return fmt.Errorf("cannot compute snippet for consumer")
 		},
 	}
@@ -1543,6 +1543,23 @@ func (s *AddRemoveSuite) TestAddSnapErrorsOnExistingSnapSlots(c *C) {
 	c.Assert(err, IsNil)
 	_, err = s.addSnap(c, testProducerYaml)
 	c.Assert(err, ErrorMatches, `cannot register interfaces for snap "producer" more than once`)
+}
+
+func (s *AddRemoveSuite) TestAddSnapSkipsUnknownInterfaces(c *C) {
+	info, err := s.addSnap(c, `
+name: bogus
+plugs:
+  bogus-plug:
+slots:
+  bogus-slot:
+`)
+	c.Assert(err, IsNil)
+	// the snap knowns about the bogus plug and slot
+	c.Assert(info.Plugs["bogus-plug"], NotNil)
+	c.Assert(info.Slots["bogus-slot"], NotNil)
+	// but the repository ignores them
+	c.Assert(s.repo.Plug("bogus", "bogus-plug"), IsNil)
+	c.Assert(s.repo.Slot("bogus", "bogus-slot"), IsNil)
 }
 
 func (s AddRemoveSuite) TestRemoveRemovesPlugs(c *C) {

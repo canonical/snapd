@@ -17,8 +17,10 @@
     # libc, you are funny
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libreadline{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libncursesw{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
@@ -213,6 +215,9 @@
     umount /var/lib/snapd/hostfs/proc/,
     mount options=(rw rslave) -> /var/lib/snapd/hostfs/,
 
+    # Allow reading the os-release file (possibly a symlink to /usr/lib).
+    /{etc/,usr/lib/}os-release r,
+
     # set up snap-specific private /tmp dir
     capability chown,
     /tmp/ w,
@@ -247,10 +252,16 @@
     /dev/nvidiactl r,
     /dev/nvidia-uvm r,
     /usr/** r,
-    mount options=(rw bind) /usr/lib/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl/,
-    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/* w,
-    mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/,
-    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl/,
+    mount options=(rw bind) /usr/lib{,32}/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl{,32}/,
+    mount options=(rw bind) /usr/lib{,32}/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl{,32}/,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/* w,
+    mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
+    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
+
+    # Vulkan support
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/* w,
+    mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
+    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
 
     # for chroot on steroids, we use pivot_root as a better chroot that makes
     # apparmor rules behave the same on classic and outside of classic.
@@ -350,8 +361,10 @@
         # libc, you are funny
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libreadline{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libncursesw{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
@@ -440,8 +453,8 @@
     profile snap_update_ns (attach_disconnected) {
         # The next four rules mirror those above. We want to be able to read
         # and map snap-update-ns into memory but it may come from a variety of places.
-        /usr/lib{,exec}/snapd/snap-update-ns mr,
-        /var/lib/snapd/hostfs/usr/lib{,exec}/snapd/snap-update-ns mr,
+        /usr/lib{,exec,64}/snapd/snap-update-ns mr,
+        /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-update-ns mr,
         /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
         /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
 

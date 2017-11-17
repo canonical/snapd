@@ -175,10 +175,8 @@ func (s *deviceMgrSuite) settle(c *C) {
 }
 
 const (
-	// will become "/api/v1/snaps/auth/request-id"
-	requestIDURLPath = "/identity/api/v1/request-id"
-	// will become "/api/v1/snaps/auth/serial"
-	serialURLPath = "/identity/api/v1/devices"
+	requestIDURLPath = "/api/v1/snaps/auth/request-id"
+	serialURLPath    = "/api/v1/snaps/auth/devices"
 )
 
 // seeding avoids triggering a real full seeding, it simulates having it in process instead

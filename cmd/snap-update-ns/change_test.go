@@ -364,7 +364,6 @@ func (s *changeSuite) TestPerformUnmount(c *C) {
 	chg := &update.Change{Action: update.Unmount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
 	synth, err := chg.Perform()
 	c.Assert(err, IsNil)
-	// The flag 8 is UMOUNT_NOFOLLOW
 	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" UMOUNT_NOFOLLOW`})
 	c.Assert(synth, HasLen, 0)
 }
