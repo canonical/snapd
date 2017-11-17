@@ -20,22 +20,25 @@
 
 #include <glib.h>
 
-// Test that cleanup functions are applied as expected
-static void test_cleanup_sanity()
+static int called = 0;
+
+static void cleanup_fn(int *ptr)
 {
-	int called = 0;
-	void fn(int *ptr) {
-		called = 1;
-	}
+	called = 1;
+}
+
+// Test that cleanup functions are applied as expected
+static void test_cleanup_sanity(void)
+{
 	{
-		int test __attribute__ ((cleanup(fn)));
+		int test SC_CLEANUP(cleanup_fn);
 		test = 0;
 		test++;
 	}
 	g_assert_cmpint(called, ==, 1);
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/cleanup/sanity", test_cleanup_sanity);
 }

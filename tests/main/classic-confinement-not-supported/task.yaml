@@ -7,7 +7,7 @@ systems: [ubuntu-core-*, fedora-*]
 
 prepare: |
     . $TESTSLIB/snaps.sh
-    snapbuild "$TESTSLIB/snaps/$CLASSIC_SNAP/" .
+    snap pack "$TESTSLIB/snaps/$CLASSIC_SNAP/"
 
 execute: |
     . $TESTSLIB/strings.sh

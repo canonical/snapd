@@ -41,7 +41,6 @@ import (
 
 type setupSuite struct {
 	be                backend.Backend
-	nullProgress      progress.NullProgress
 	umount            *testutil.MockCmd
 	systemctlRestorer func()
 }
@@ -76,7 +75,7 @@ func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
 		Revision: snap.R(14),
 	}
 
-	err := s.be.SetupSnap(snapPath, &si, &s.nullProgress)
+	err := s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, IsNil)
 
 	// after setup the snap file is in the right dir
@@ -94,7 +93,7 @@ func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
 
 	// undo undoes the mount unit and the instdir creation
-	err = s.be.UndoSetupSnap(minInfo, "app", &s.nullProgress)
+	err = s.be.UndoSetupSnap(minInfo, "app", progress.Null)
 	c.Assert(err, IsNil)
 
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
@@ -129,7 +128,7 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	err := s.be.SetupSnap(snapPath, &si, &s.nullProgress)
+	err := s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, IsNil)
 	l, _ := filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
 	c.Assert(l, HasLen, 1)
@@ -137,7 +136,7 @@ type: kernel
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
 
 	// undo deletes the kernel assets again
-	err = s.be.UndoSetupSnap(minInfo, "kernel", &s.nullProgress)
+	err = s.be.UndoSetupSnap(minInfo, "kernel", progress.Null)
 	c.Assert(err, IsNil)
 
 	l, _ = filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
@@ -173,11 +172,11 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	err := s.be.SetupSnap(snapPath, &si, &s.nullProgress)
+	err := s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, IsNil)
 
 	// retry run
-	err = s.be.SetupSnap(snapPath, &si, &s.nullProgress)
+	err = s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, IsNil)
 
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
@@ -222,16 +221,16 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	err := s.be.SetupSnap(snapPath, &si, &s.nullProgress)
+	err := s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, IsNil)
 
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
 
-	err = s.be.UndoSetupSnap(minInfo, "kernel", &s.nullProgress)
+	err = s.be.UndoSetupSnap(minInfo, "kernel", progress.Null)
 	c.Assert(err, IsNil)
 
 	// retry run
-	err = s.be.UndoSetupSnap(minInfo, "kernel", &s.nullProgress)
+	err = s.be.UndoSetupSnap(minInfo, "kernel", progress.Null)
 	c.Assert(err, IsNil)
 
 	// sanity checks

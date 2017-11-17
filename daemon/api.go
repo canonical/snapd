@@ -51,15 +51,14 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -156,9 +155,9 @@ var (
 	}
 
 	logsCmd = &Command{
-		Path:   "/v2/logs",
-		UserOK: true,
-		GET:    getLogs,
+		Path:     "/v2/logs",
+		PolkitOK: "io.snapcraft.snapd.manage",
+		GET:      getLogs,
 	}
 
 	snapConfCmd = &Command{
@@ -189,10 +188,11 @@ var (
 	}
 
 	stateChangeCmd = &Command{
-		Path:   "/v2/changes/{id}",
-		UserOK: true,
-		GET:    getChange,
-		POST:   abortChange,
+		Path:     "/v2/changes/{id}",
+		UserOK:   true,
+		PolkitOK: "io.snapcraft.snapd.manage",
+		GET:      getChange,
+		POST:     abortChange,
 	}
 
 	stateChangesCmd = &Command{
@@ -523,12 +523,12 @@ func webify(result *client.Snap, resource string) *client.Snap {
 	return result
 }
 
-func getStore(c *Command) storestate.StoreService {
+func getStore(c *Command) snapstate.StoreService {
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	return storestate.Store(st)
+	return snapstate.Store(st)
 }
 
 func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -545,7 +545,7 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 		// pass
 	case store.ErrEmptyQuery, store.ErrBadQuery:
 		return BadRequest("%v", err)
-	case store.ErrUnauthenticated:
+	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized("%v", err)
 	default:
 		return InternalError("%v", err)
@@ -606,7 +606,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		// pass
 	case store.ErrEmptyQuery, store.ErrBadQuery:
 		return BadRequest("%v", err)
-	case store.ErrUnauthenticated:
+	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
 	default:
 		return InternalError("%v", err)
@@ -631,10 +631,14 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 		AnyChannel: true,
 	}
 	snapInfo, err := theStore.SnapInfo(spec, user)
-	if err != nil {
-		if err == store.ErrSnapNotFound {
-			return SnapNotFound(name, err)
-		}
+	switch err {
+	case nil:
+		// pass
+	case store.ErrInvalidCredentials:
+		return Unauthorized("%v", err)
+	case store.ErrSnapNotFound:
+		return SnapNotFound(name, err)
+	default:
 		return InternalError("%v", err)
 	}
 
@@ -796,7 +800,7 @@ func (*licenseData) Error() string {
 }
 
 type snapInstruction struct {
-	progress.NullProgress
+	progress.NullMeter
 	Action           string        `json:"action"`
 	Channel          string        `json:"channel"`
 	Revision         snap.Revision `json:"revision"`
@@ -1613,7 +1617,55 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
 	repo := c.d.overlord.InterfaceManager().Repository()
-	return SyncResponse(repo.Interfaces(), nil)
+	ifaces := repo.Interfaces()
+
+	var ifjson interfacesJSON
+
+	plugConns := map[string][]interfaces.SlotRef{}
+	slotConns := map[string][]interfaces.PlugRef{}
+
+	for _, conn := range ifaces.Connections {
+		plugRef := conn.PlugRef.String()
+		slotRef := conn.SlotRef.String()
+		plugConns[plugRef] = append(plugConns[plugRef], conn.SlotRef)
+		slotConns[slotRef] = append(slotConns[slotRef], conn.PlugRef)
+	}
+
+	for _, plug := range ifaces.Plugs {
+		var apps []string
+		for _, app := range plug.Apps {
+			apps = append(apps, app.Name)
+		}
+		pj := plugJSON{
+			Snap:        plug.Snap.Name(),
+			Name:        plug.Name,
+			Interface:   plug.Interface,
+			Attrs:       plug.Attrs,
+			Apps:        apps,
+			Label:       plug.Label,
+			Connections: plugConns[plug.String()],
+		}
+		ifjson.Plugs = append(ifjson.Plugs, pj)
+	}
+	for _, slot := range ifaces.Slots {
+		var apps []string
+		for _, app := range slot.Apps {
+			apps = append(apps, app.Name)
+		}
+
+		sj := slotJSON{
+			Snap:        slot.Snap.Name(),
+			Name:        slot.Name,
+			Interface:   slot.Interface,
+			Attrs:       slot.Attrs,
+			Apps:        apps,
+			Label:       slot.Label,
+			Connections: slotConns[slot.String()],
+		}
+		ifjson.Slots = append(ifjson.Slots, sj)
+	}
+
+	return SyncResponse(ifjson, nil)
 }
 
 // plugJSON aids in marshaling Plug into JSON.
@@ -1636,6 +1688,12 @@ type slotJSON struct {
 	Apps        []string               `json:"apps,omitempty"`
 	Label       string                 `json:"label"`
 	Connections []interfaces.PlugRef   `json:"connections,omitempty"`
+}
+
+// interfacesJSON aids in marshaling plugs, slots and their connections into JSON.
+type interfacesJSON struct {
+	Plugs []plugJSON `json:"plugs,omitempty"`
+	Slots []slotJSON `json:"slots,omitempty"`
 }
 
 // interfaceAction is an action performed on the interface system.
@@ -2477,10 +2535,7 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 		summary = fmt.Sprintf(i18n.G("Prefer aliases of snap %q"), a.Snap)
 	}
 
-	change := st.NewChange(a.Action, summary)
-	change.Set("snap-names", []string{a.Snap})
-	change.AddAll(taskset)
-
+	change := newChange(st, a.Action, summary, []*state.TaskSet{taskset}, []string{a.Snap})
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
@@ -2587,13 +2642,16 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 	if rsp != nil {
 		return rsp
 	}
+	if len(appInfos) == 0 {
+		return AppNotFound("no matching services")
+	}
 
 	serviceNames := make([]string, len(appInfos))
 	for i, appInfo := range appInfos {
 		serviceNames[i] = appInfo.ServiceName()
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, &progress.NullProgress{})
+	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
 	reader, err := sysd.LogReader(serviceNames, n, follow)
 	if err != nil {
 		return InternalError("cannot get logs: %v", err)
@@ -2605,16 +2663,8 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 }
 
-type appInstruction struct {
-	Action string   `json:"action"`
-	Names  []string `json:"names"`
-	client.StartOptions
-	client.StopOptions
-	client.RestartOptions
-}
-
 func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
-	var inst appInstruction
+	var inst servicestate.Instruction
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&inst); err != nil {
 		return BadRequest("cannot decode request body into service operation: %v", err)
@@ -2635,56 +2685,16 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
-	// the argv to call systemctl will need at most one entry per appInfo,
-	// plus one for "systemctl", one for the action, and sometimes one for
-	// an option. That's a maximum of 3+len(appInfos).
-	argv := make([]string, 2, 3+len(appInfos))
-	argv[0] = "systemctl"
-
-	argv[1] = inst.Action
-	switch inst.Action {
-	case "start":
-		if inst.Enable {
-			argv[1] = "enable"
-			argv = append(argv, "--now")
+	ts, err := servicestate.Control(st, appInfos, &inst)
+	if err != nil {
+		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
+			return Conflict(err.Error())
 		}
-	case "stop":
-		if inst.Disable {
-			argv[1] = "disable"
-			argv = append(argv, "--now")
-		}
-	case "restart":
-		if inst.Reload {
-			argv[1] = "reload-or-restart"
-		}
-	default:
-		return BadRequest("unknown action %q", inst.Action)
+		return BadRequest(err.Error())
 	}
-
-	snapNames := make([]string, 0, len(appInfos))
-	lastName := ""
-	names := make([]string, len(appInfos))
-	for i, svc := range appInfos {
-		argv = append(argv, svc.ServiceName())
-		snapName := svc.Snap.Name()
-		names[i] = snapName + "." + svc.Name
-		if snapName != lastName {
-			snapNames = append(snapNames, snapName)
-			lastName = snapName
-		}
-	}
-
-	desc := fmt.Sprintf("%s of %v", inst.Action, names)
-
 	st.Lock()
 	defer st.Unlock()
-	if err := snapstate.CheckChangeConflictMany(st, snapNames, nil); err != nil {
-		return InternalError(err.Error())
-	}
-
-	ts := cmdstate.Exec(st, desc, argv)
-	chg := st.NewChange("service-control", desc)
-	chg.AddAll(ts)
+	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), []*state.TaskSet{ts}, inst.Names)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }

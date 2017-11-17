@@ -84,7 +84,7 @@ To build, once the sources are available and `GOPATH` is set, you can just run
 to get the `snap` binary in /tmp (or without -o to get it in the current
 working directory). Alternatively:
 
-    go install github.com/snapcore/snapd/...
+    go install github.com/snapcore/snapd/cmd/snap/...
 
 to have it available in `$GOPATH/bin`
 
@@ -170,6 +170,11 @@ transfer it to the snappy system and then run:
 
 To debug interaction with the snap store, you can set `SNAP_DEBUG_HTTP`.
 It is a bitfield: dump requests: 1, dump responses: 2, dump bodies: 4.
+
+(make hack: In case you get some security profiles errors when trying to install or refresh a snap, 
+maybe you need to replace system installed snap-seccomp with the one aligned to the snapd that 
+you are testing. To do this, simply backup /usr/lib/snapd/snap-seccomp and overwrite it with 
+the testing one. Don't forget to rollback to the original when finish testing)
 
 # Quick intro to hacking on snap-confine
 

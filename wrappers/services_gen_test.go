@@ -56,8 +56,10 @@ ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
 TimeoutStopSec=10
 Type=%s
 
+
 [Install]
 WantedBy=multi-user.target
+
 `
 
 var (
@@ -91,7 +93,7 @@ TimeoutStopSec=30
 Type=%s
 %s
 `
-	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, mountUnitPrefix, mountUnitPrefix, "forking", "\n\n\n[Install]\nWantedBy=multi-user.target")
+	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, mountUnitPrefix, mountUnitPrefix, "forking", "\n\n\n\n[Install]\nWantedBy=multi-user.target\n")
 )
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFile(c *C) {
@@ -234,4 +236,30 @@ apps:
 	c.Assert(err, IsNil)
 
 	c.Assert(string(generatedWrapper), Equals, expectedOneshotService)
+}
+
+func (s *servicesWrapperGenSuite) TestGenerateSnapServiceWithSockets(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "xkcd-webserver",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:    "xkcd-webserver",
+		Command: "bin/foo start",
+		Daemon:  "simple",
+		Plugs:   map[string]*snap.PlugInfo{"network-bind": {}},
+		Sockets: map[string]*snap.SocketInfo{
+			"sock1": {
+				Name:         "sock1",
+				ListenStream: "$SNAP_DATA/sock1.socket",
+				SocketMode:   0666,
+			},
+		},
+	}
+
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(generatedWrapper), "[Install]"), Equals, false)
+	c.Assert(strings.Contains(string(generatedWrapper), "WantedBy=multi-user.target"), Equals, false)
 }

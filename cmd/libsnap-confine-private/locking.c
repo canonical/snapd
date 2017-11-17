@@ -46,7 +46,7 @@ static void sc_SIGALRM_handler(int signum)
 	sanity_timeout_expired = 1;
 }
 
-void sc_enable_sanity_timeout()
+void sc_enable_sanity_timeout(void)
 {
 	sanity_timeout_expired = 0;
 	struct sigaction act = {.sa_handler = sc_SIGALRM_handler };
@@ -60,11 +60,11 @@ void sc_enable_sanity_timeout()
 	if (sigaction(SIGALRM, &act, NULL) < 0) {
 		die("cannot install signal handler for SIGALRM");
 	}
-	alarm(3);
+	alarm(6);
 	debug("sanity timeout initialized and set for three seconds");
 }
 
-void sc_disable_sanity_timeout()
+void sc_disable_sanity_timeout(void)
 {
 	if (sanity_timeout_expired) {
 		die("sanity timeout expired");
@@ -92,14 +92,14 @@ int sc_lock(const char *scope)
 		die("cannot create lock directory %s", sc_lock_dir);
 	}
 	debug("opening lock directory %s", sc_lock_dir);
-	int dir_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	int dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	dir_fd =
 	    open(sc_lock_dir, O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
 	if (dir_fd < 0) {
 		die("cannot open lock directory");
 	}
 	// Construct the name of the lock file.
-	char lock_fname[PATH_MAX];
+	char lock_fname[PATH_MAX] = { 0 };
 	sc_must_snprintf(lock_fname, sizeof lock_fname, "%s/%s.lock",
 			 sc_lock_dir, scope ? : "");
 
@@ -134,7 +134,7 @@ void sc_unlock(const char *scope, int lock_fd)
 	close(lock_fd);
 }
 
-int sc_lock_global()
+int sc_lock_global(void)
 {
 	return sc_lock(NULL);
 }

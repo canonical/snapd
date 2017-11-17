@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -46,22 +47,23 @@ import (
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
 
 type interfaceManagerSuite struct {
-	o               *overlord.Overlord
-	state           *state.State
-	db              *asserts.Database
-	privateMgr      *ifacestate.InterfaceManager
-	privateHookMgr  *hookstate.HookManager
-	extraIfaces     []interfaces.Interface
-	extraBackends   []interfaces.SecurityBackend
-	secBackend      *ifacetest.TestSecurityBackend
-	restoreBackends func()
-	mockSnapCmd     *testutil.MockCmd
-	storeSigning    *assertstest.StoreStack
+	testutil.BaseTest
+	o              *overlord.Overlord
+	state          *state.State
+	db             *asserts.Database
+	privateMgr     *ifacestate.InterfaceManager
+	privateHookMgr *hookstate.HookManager
+	extraIfaces    []interfaces.Interface
+	extraBackends  []interfaces.SecurityBackend
+	secBackend     *ifacetest.TestSecurityBackend
+	mockSnapCmd    *testutil.MockCmd
+	storeSigning   *assertstest.StoreStack
 }
 
 var _ = Suite(&interfaceManagerSuite{})
 
 func (s *interfaceManagerSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 
 	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
@@ -78,6 +80,8 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	err = db.Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
 	s.state.Lock()
 	assertstate.ReplaceDB(s.state, s.db)
 	s.state.Unlock()
@@ -90,17 +94,18 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	// TODO: transition this so that we don't load real backends and instead
 	// just load the test backend here and this is nicely integrated with
 	// extraBackends above.
-	s.restoreBackends = ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend})
+	s.BaseTest.AddCleanup(ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend}))
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+
 	s.mockSnapCmd.Restore()
 
 	if s.privateMgr != nil {
 		s.privateMgr.Stop()
 	}
 	dirs.SetRootDir("")
-	s.restoreBackends()
 }
 
 func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
@@ -135,8 +140,16 @@ func (s *interfaceManagerSuite) TestSmoke(c *C) {
 	mgr.Wait()
 }
 
+func (s *interfaceManagerSuite) TestRepoAvailable(c *C) {
+	_ = s.manager(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+	repo := ifacerepo.Get(s.state)
+	c.Check(repo, FitsTypeOf, &interfaces.Repository{})
+}
+
 func (s *interfaceManagerSuite) TestConnectTask(c *C) {
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 	_ = s.manager(c)
@@ -262,7 +275,7 @@ func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 	_ = s.manager(c)
@@ -303,17 +316,13 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	repo := s.manager(c).Repository()
-	plug := repo.Plug("consumer", "plug")
-	slot := repo.Slot("producer", "slot")
-	c.Assert(plug.Connections, HasLen, 1)
-	c.Assert(slot.Connections, HasLen, 1)
-	c.Check(plug.Connections[0], DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
-	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 1)
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test2"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 	_ = s.manager(c)
@@ -346,7 +355,7 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskNoSuchSlot(c *C) {
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 	_ = s.manager(c)
@@ -358,7 +367,7 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchSlot(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 	_ = s.manager(c)
@@ -380,10 +389,8 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowed(c *C) {
 		c.Check(change.Status(), Equals, state.ErrorStatus)
 
 		repo := s.manager(c).Repository()
-		plug := repo.Plug("consumer", "plug")
-		slot := repo.Slot("producer", "slot")
-		c.Check(plug.Connections, HasLen, 0)
-		c.Check(slot.Connections, HasLen, 0)
+		ifaces := repo.Interfaces()
+		c.Check(ifaces.Connections, HasLen, 0)
 	})
 }
 
@@ -396,11 +403,9 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowedButNoDecl(c *C) {
 		c.Check(change.Status(), Equals, state.DoneStatus)
 
 		repo := s.manager(c).Repository()
-		plug := repo.Plug("consumer", "plug")
-		slot := repo.Slot("producer", "slot")
-		c.Assert(plug.Connections, HasLen, 1)
-		c.Check(plug.Connections[0], DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
-		c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+		ifaces := repo.Interfaces()
+		c.Assert(ifaces.Connections, HasLen, 1)
+		c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 	})
 }
 
@@ -415,11 +420,9 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckAllowed(c *C) {
 		c.Check(change.Status(), Equals, state.DoneStatus)
 
 		repo := s.manager(c).Repository()
-		plug := repo.Plug("consumer", "plug")
-		slot := repo.Slot("producer", "slot")
-		c.Assert(plug.Connections, HasLen, 1)
-		c.Check(plug.Connections[0], DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
-		c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+		ifaces := repo.Interfaces()
+		c.Assert(ifaces.Connections, HasLen, 1)
+		c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 	})
 }
 
@@ -435,7 +438,7 @@ slots:
         - $SLOT_PUBLISHER_ID
 `))
 	defer restore()
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 
 	setup()
 	_ = s.manager(c)
@@ -491,7 +494,7 @@ func (s *interfaceManagerSuite) TestDisconnectFull(c *C) {
 func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSnap, slotName string) {
 	// Put two snaps in place They consumer has an plug that can be connected
 	// to slot on the producer.
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -541,10 +544,8 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 
 	// Ensure that the connection has been removed from the repository
 	repo := mgr.Repository()
-	plug := repo.Plug("consumer", "plug")
-	slot := repo.Slot("producer", "slot")
-	c.Assert(plug.Connections, HasLen, 0)
-	c.Assert(slot.Connections, HasLen, 0)
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 0)
 
 	// Ensure that the backend was used to setup security of both snaps
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
@@ -558,6 +559,10 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 
 func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
 	s.extraIfaces = append(s.extraIfaces, iface)
+}
+
+func (s *interfaceManagerSuite) mockIfaces(c *C, ifaces ...interfaces.Interface) {
+	s.extraIfaces = append(s.extraIfaces, ifaces...)
 }
 
 func (s *interfaceManagerSuite) mockSnapDecl(c *C, name, publisher string, extraHeaders map[string]interface{}) {
@@ -792,7 +797,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
 	repo := mgr.Repository()
 	plug := repo.Plug("snap", "network")
 	c.Assert(plug, Not(IsNil))
-	c.Check(plug.Connections, HasLen, 0)
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 0)
 }
 
 // The setup-profiles task will auto-connect plugs with viable candidates.
@@ -837,13 +843,14 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 	repo := mgr.Repository()
 	plug := repo.Plug("snap", "network")
 	c.Assert(plug, Not(IsNil))
-	c.Check(plug.Connections, HasLen, 1)
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 1) //FIXME add deep eq
 }
 
 // The setup-profiles task will auto-connect slots with viable candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 	// Mock the interface that will be used by the test
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	// Add an OS snap.
 	s.mockSnap(c, ubuntuCoreSnapYaml)
 	// Add a consumer snap with unconnect plug (interface "test")
@@ -886,13 +893,15 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 	repo := mgr.Repository()
 	slot := repo.Slot("producer", "slot")
 	c.Assert(slot, Not(IsNil))
-	c.Check(slot.Connections, HasLen, 1)
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 1)
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 }
 
 // The setup-profiles task will auto-connect slots with viable multiple candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiplePlugs(c *C) {
 	// Mock the interface that will be used by the test
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	// Add an OS snap.
 	s.mockSnap(c, ubuntuCoreSnapYaml)
 	// Add a consumer snap with unconnect plug (interface "test")
@@ -940,7 +949,12 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiple
 	repo := mgr.Repository()
 	slot := repo.Slot("producer", "slot")
 	c.Assert(slot, Not(IsNil))
-	c.Check(slot.Connections, HasLen, 2)
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 2)
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{
+		{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}},
+		{interfaces.PlugRef{Snap: "consumer2", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}},
+	})
 }
 
 // The setup-profiles task will not auto-connect slots if viable alternative slots are present.
@@ -987,26 +1001,26 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlter
 
 // The setup-profiles task will auto-connect plugs with viable candidates also condidering snap declarations.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBased(c *C) {
-	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, true, func(conns map[string]interface{}, plug *interfaces.Plug) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, true, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
 		// Ensure that "test" plug is now saved in the state as auto-connected.
 		c.Check(conns, DeepEquals, map[string]interface{}{
 			"consumer:plug producer:slot": map[string]interface{}{"auto": true, "interface": "test"},
 		})
 		// Ensure that "test" is really connected.
-		c.Check(plug.Connections, HasLen, 1)
+		c.Check(repoConns, HasLen, 1)
 	})
 }
 
 // The setup-profiles task will *not* auto-connect plugs with viable candidates when snap declarations are missing.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedWhenMissingDecl(c *C) {
-	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, false, func(conns map[string]interface{}, plug *interfaces.Plug) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBased(c, false, func(conns map[string]interface{}, repoConns []*interfaces.ConnRef) {
 		// Ensure nothing is connected.
 		c.Check(conns, HasLen, 0)
-		c.Check(plug.Connections, HasLen, 0)
+		c.Check(repoConns, HasLen, 0)
 	})
 }
 
-func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBased(c *C, withDecl bool, check func(map[string]interface{}, *interfaces.Plug)) {
+func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBased(c *C, withDecl bool, check func(map[string]interface{}, []*interfaces.ConnRef)) {
 	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
 authority-id: canonical
@@ -1019,7 +1033,7 @@ slots:
 `))
 	defer restore()
 	// Add the producer snap
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnapDecl(c, "producer", "one-publisher", nil)
 	s.mockSnap(c, producerYaml)
 
@@ -1058,7 +1072,7 @@ slots:
 	plug := repo.Plug("consumer", "plug")
 	c.Assert(plug, Not(IsNil))
 
-	check(conns, plug)
+	check(conns, repo.Interfaces().Connections)
 }
 
 // The setup-profiles task will only touch connection state for the task it
@@ -1150,20 +1164,20 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOnPlugSide(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	snapInfo := s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 	s.testDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOn(c, snapInfo.Name(), snapInfo.Revision)
 }
 
 func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOnSlotSide(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	snapInfo := s.mockSnap(c, producerYaml)
 	s.testDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOn(c, snapInfo.Name(), snapInfo.Revision)
 }
 
 func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOn(c *C, snapName string, revision snap.Revision) {
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
-
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
@@ -1191,12 +1205,9 @@ func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 	repo := mgr.Repository()
 
 	// Repository shows the connection
-	plug := repo.Plug("consumer", "plug")
-	slot := repo.Slot("producer", "slot")
-	c.Assert(plug.Connections, HasLen, 1)
-	c.Assert(slot.Connections, HasLen, 1)
-	c.Check(plug.Connections[0], DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
-	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 1)
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 }
 
 // The setup-profiles task will honor snapstate.DevMode flag by storing it
@@ -1437,7 +1448,7 @@ func (s *interfaceManagerSuite) testUndoDicardConns(c *C, snapName string) {
 }
 
 func (s *interfaceManagerSuite) TestDoRemove(c *C) {
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -1482,7 +1493,7 @@ func (s *interfaceManagerSuite) TestDoRemove(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -1521,10 +1532,10 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
-
 	_ = s.manager(c)
 
 	s.state.Lock()
@@ -1558,7 +1569,7 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -1603,7 +1614,7 @@ func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 	s.state.Lock()
@@ -1643,7 +1654,7 @@ func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -1656,12 +1667,9 @@ func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 	mgr := s.manager(c)
 	repo := mgr.Repository()
 
-	plug := repo.Plug("consumer", "plug")
-	slot := repo.Slot("producer", "slot")
-	c.Assert(plug.Connections, HasLen, 1)
-	c.Assert(slot.Connections, HasLen, 1)
-	c.Check(plug.Connections[0], DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
-	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 1)
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 }
 
 func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
@@ -1675,20 +1683,21 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 		InterfaceName: "test",
 	})
 	c.Assert(err, IsNil)
-	err = repo.AddSlot(&interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      siC,
-			Name:      "slot",
-			Interface: "test",
-		},
+	err = repo.AddInterface(&ifacetest.TestInterface{
+		InterfaceName: "test2",
 	})
 	c.Assert(err, IsNil)
-	err = repo.AddPlug(&interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      siP,
-			Name:      "plug",
-			Interface: "test",
-		},
+
+	err = repo.AddSlot(&snap.SlotInfo{
+		Snap:      siC,
+		Name:      "slot",
+		Interface: "test",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddPlug(&snap.PlugInfo{
+		Snap:      siP,
+		Name:      "plug",
+		Interface: "test",
 	})
 	c.Assert(err, IsNil)
 	connRef := interfaces.ConnRef{
@@ -2073,5 +2082,7 @@ func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
 	repo := mgr.Repository()
 	plug := repo.Plug("snap", "network")
 	c.Assert(plug, Not(IsNil))
-	c.Check(plug.Connections, HasLen, 1)
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 1)
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "snap", Name: "network"}, interfaces.SlotRef{Snap: "core", Name: "network"}}})
 }

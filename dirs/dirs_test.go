@@ -78,20 +78,28 @@ func (s *DirsTestSuite) TestClassicConfinementSymlinkWorkaround(c *C) {
 }
 
 func (s *DirsTestSuite) TestClassicConfinementSupportOnSpecificDistributions(c *C) {
-	for _, current := range []struct {
-		Name     string
+	// the test changes RootDir, restore correct one when retuning
+	defer dirs.SetRootDir("/")
+
+	for _, t := range []struct {
+		ID       string
+		IDLike   []string
 		Expected bool
 	}{
-		{"fedora", false},
-		{"rhel", false},
-		{"centos", false},
-		{"ubuntu", true},
-		{"debian", true},
-		{"suse", true},
-		{"yocto", true}} {
-		reset := release.MockReleaseInfo(&release.OS{ID: current.Name})
+		{"fedora", nil, false},
+		{"rhel", []string{"fedora"}, false},
+		{"centos", []string{"fedora"}, false},
+		{"ubuntu", []string{"debian"}, true},
+		{"debian", nil, true},
+		{"suse", nil, true},
+		{"yocto", nil, true},
+	} {
+		reset := release.MockReleaseInfo(&release.OS{ID: t.ID, IDLike: t.IDLike})
 		defer reset()
-		dirs.SetRootDir("/")
-		c.Assert(dirs.SupportsClassicConfinement(), Equals, current.Expected)
+
+		// make a new root directory each time to isolate the test from
+		// local filesystem state and any previous test runs
+		dirs.SetRootDir(c.MkDir())
+		c.Check(dirs.SupportsClassicConfinement(), Equals, t.Expected, Commentf("unexpected result for %v", t.ID))
 	}
 }

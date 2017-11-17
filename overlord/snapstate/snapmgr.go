@@ -20,7 +20,6 @@
 package snapstate
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -35,9 +34,9 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -270,6 +269,32 @@ func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
 	return false
 }
 
+type cachedStoreKey struct{}
+
+// ReplaceStore replaces the store used by the manager.
+func ReplaceStore(state *state.State, store StoreService) {
+	state.Cache(cachedStoreKey{}, store)
+}
+
+func cachedStore(st *state.State) StoreService {
+	ubuntuStore := st.Cached(cachedStoreKey{})
+	if ubuntuStore == nil {
+		return nil
+	}
+	return ubuntuStore.(StoreService)
+}
+
+// the store implementation has the interface consumed here
+var _ StoreService = (*store.Store)(nil)
+
+// Store returns the store service used by the snapstate package.
+func Store(st *state.State) StoreService {
+	if cachedStore := cachedStore(st); cachedStore != nil {
+		return cachedStore
+	}
+	panic("internal error: needing the store before managers have initialized it")
+}
+
 // Manager returns a new snap manager.
 func Manager(st *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(st)
@@ -303,6 +328,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
 	runner.AddHandler("switch-snap-channel", m.doSwitchSnapChannel, nil)
+	runner.AddHandler("toggle-snap-flags", m.doToggleSnapFlags, nil)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -332,6 +358,8 @@ func Manager(st *state.State) (*SnapManager, error) {
 
 	// control serialisation
 	runner.SetBlocked(m.blockedTask)
+
+	writeSnapReadme()
 
 	return m, nil
 }
@@ -545,7 +573,7 @@ func (m *SnapManager) ensureCatalogRefresh() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	theStore := storestate.Store(m.state)
+	theStore := Store(m.state)
 	now := time.Now()
 	needsRefresh := m.nextCatalogRefresh.IsZero() || m.nextCatalogRefresh.Before(now)
 
@@ -654,50 +682,6 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	chg := m.state.NewChange("transition-ubuntu-core", msg)
 	for _, ts := range tss {
 		chg.AddAll(ts)
-	}
-
-	return nil
-}
-
-func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-	snapst.Channel = snapsup.Channel
-
-	Set(st, snapsup.Name(), snapst)
-	return nil
-}
-
-// GenerateCookies creates snap cookies for snaps that are missing them (may be the case for snaps installed
-// before the feature of running snapctl outside of hooks was introduced, leading to a warning
-// from snap-confine).
-// It is the caller's responsibility to lock state before calling this function.
-func (m *SnapManager) GenerateCookies(st *state.State) error {
-	var snapNames map[string]*json.RawMessage
-	if err := st.Get("snaps", &snapNames); err != nil && err != state.ErrNoState {
-		return err
-	}
-
-	var contexts map[string]string
-	if err := st.Get("snap-cookies", &contexts); err != nil {
-		if err != state.ErrNoState {
-			return fmt.Errorf("cannot get snap cookies: %v", err)
-		}
-		contexts = make(map[string]string)
-	}
-
-	for snap := range snapNames {
-		if _, ok := contexts[snap]; !ok {
-			if err := m.createSnapCookie(st, snap); err != nil {
-				return err
-			}
-		}
 	}
 
 	return nil

@@ -20,6 +20,7 @@
 package snap
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -48,9 +49,6 @@ type PlaceInfo interface {
 
 	// DataDir returns the data directory of the snap.
 	DataDir() string
-
-	// HomeDirBase returns the user-specific home directory base of the snap.
-	HomeDirBase(home string) string
 
 	// UserDataDir returns the per user data directory of the snap.
 	UserDataDir(home string) string
@@ -156,7 +154,7 @@ type Info struct {
 	LicenseAgreement string
 	LicenseVersion   string
 	License          string
-	Epoch            string
+	Epoch            Epoch
 	Base             string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
@@ -164,6 +162,9 @@ type Info struct {
 	Hooks            map[string]*HookInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
+
+	// Plugs or slots with issues (they are not included in Plugs or Slots)
+	BadInterfaces map[string]string // slot or plug => message
 
 	// The information in all the remaining fields is not sourced from the snap blob itself.
 	SideInfo
@@ -212,7 +213,7 @@ type ChannelSnapInfo struct {
 	Confinement ConfinementType `json:"confinement"`
 	Version     string          `json:"version"`
 	Channel     string          `json:"channel"`
-	Epoch       string          `json:"epoch"`
+	Epoch       Epoch           `json:"epoch"`
 	Size        int64           `json:"size"`
 }
 
@@ -273,11 +274,6 @@ func (s *Info) UserDataDir(home string) string {
 	return filepath.Join(home, "snap", s.Name(), s.Revision.String())
 }
 
-// HomeDirBase returns the user-specific home directory base of the snap.
-func (s *Info) HomeDirBase(home string) string {
-	return filepath.Join(home, "snap", s.Name())
-}
-
 // UserCommonDataDir returns the user-specific data directory common across revision of the snap.
 func (s *Info) UserCommonDataDir(home string) string {
 	return filepath.Join(home, "snap", s.Name(), "common")
@@ -329,6 +325,32 @@ func (s *Info) Services() []*AppInfo {
 	}
 
 	return svcs
+}
+
+func BadInterfacesSummary(snapInfo *Info) string {
+	inverted := make(map[string][]string)
+	for name, reason := range snapInfo.BadInterfaces {
+		inverted[reason] = append(inverted[reason], name)
+	}
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "snap %q has bad plugs or slots: ", snapInfo.Name())
+	reasons := make([]string, 0, len(inverted))
+	for reason := range inverted {
+		reasons = append(reasons, reason)
+	}
+	sort.Strings(reasons)
+	for _, reason := range reasons {
+		names := inverted[reason]
+		sort.Strings(names)
+		for i, name := range names {
+			if i > 0 {
+				buf.WriteString(", ")
+			}
+			buf.WriteString(name)
+		}
+		fmt.Fprintf(&buf, " (%s); ", reason)
+	}
+	return strings.TrimSuffix(buf.String(), "; ")
 }
 
 // DownloadInfo contains the information to download a snap.
@@ -387,15 +409,27 @@ func (plug *PlugInfo) SecurityTags() []string {
 	return tags
 }
 
+// String returns the representation of the plug as snap:plug string.
+func (plug *PlugInfo) String() string {
+	return fmt.Sprintf("%s:%s", plug.Snap.Name(), plug.Name)
+}
+
 // SecurityTags returns security tags associated with a given slot.
 func (slot *SlotInfo) SecurityTags() []string {
 	tags := make([]string, 0, len(slot.Apps))
 	for _, app := range slot.Apps {
 		tags = append(tags, app.SecurityTag())
 	}
-	// NOTE: hooks cannot have slots
+	for _, hook := range slot.Hooks {
+		tags = append(tags, hook.SecurityTag())
+	}
 	sort.Strings(tags)
 	return tags
+}
+
+// String returns the representation of the slot as snap:slot string.
+func (slot *SlotInfo) String() string {
+	return fmt.Sprintf("%s:%s", slot.Snap.Name(), slot.Name)
 }
 
 // SlotInfo provides information about a slot.
@@ -407,6 +441,16 @@ type SlotInfo struct {
 	Attrs     map[string]interface{}
 	Label     string
 	Apps      map[string]*AppInfo
+	Hooks     map[string]*HookInfo
+}
+
+// SocketInfo provides information on application sockets.
+type SocketInfo struct {
+	App *AppInfo
+
+	Name         string
+	ListenStream string
+	SocketMode   os.FileMode
 }
 
 // AppInfo provides information about a app.
@@ -430,8 +474,9 @@ type AppInfo struct {
 	// https://github.com/snapcore/snapd/pull/794#discussion_r58688496
 	BusName string
 
-	Plugs map[string]*PlugInfo
-	Slots map[string]*SlotInfo
+	Plugs   map[string]*PlugInfo
+	Slots   map[string]*SlotInfo
+	Sockets map[string]*SocketInfo
 
 	Environment strutil.OrderedMap
 }
@@ -449,6 +494,12 @@ type HookInfo struct {
 
 	Name  string
 	Plugs map[string]*PlugInfo
+	Slots map[string]*SlotInfo
+}
+
+// File returns the path to the file
+func (socket *SocketInfo) File() string {
+	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
 }
 
 // SecurityTag returns application-specific security tag.
@@ -465,26 +516,12 @@ func (app *AppInfo) DesktopFile() string {
 
 // WrapperPath returns the path to wrapper invoking the app binary.
 func (app *AppInfo) WrapperPath() string {
-	var binName string
-	if app.Name == app.Snap.Name() {
-		binName = filepath.Base(app.Name)
-	} else {
-		binName = fmt.Sprintf("%s.%s", app.Snap.Name(), filepath.Base(app.Name))
-	}
-
-	return filepath.Join(dirs.SnapBinariesDir, binName)
+	return filepath.Join(dirs.SnapBinariesDir, JoinSnapApp(app.Snap.Name(), app.Name))
 }
 
 // CompleterPath returns the path to the completer snippet for the app binary.
 func (app *AppInfo) CompleterPath() string {
-	var binName string
-	if app.Name == app.Snap.Name() {
-		binName = filepath.Base(app.Name)
-	} else {
-		binName = fmt.Sprintf("%s.%s", app.Snap.Name(), filepath.Base(app.Name))
-	}
-
-	return filepath.Join(dirs.CompletersDir, binName)
+	return filepath.Join(dirs.CompletersDir, JoinSnapApp(app.Snap.Name(), app.Name))
 }
 
 func (app *AppInfo) launcherCommand(command string) string {
@@ -494,7 +531,7 @@ func (app *AppInfo) launcherCommand(command string) string {
 	if app.Name == app.Snap.Name() {
 		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Name)
 	}
-	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.Name(), filepath.Base(app.Name))
+	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.Name(), app.Name)
 }
 
 // LauncherCommand returns the launcher command line to use when invoking the app binary.
@@ -525,11 +562,6 @@ func (app *AppInfo) ServiceName() string {
 // ServiceFile returns the systemd service file path for the daemon app.
 func (app *AppInfo) ServiceFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.ServiceName())
-}
-
-// ServiceSocketFile returns the systemd socket file path for the daemon app.
-func (app *AppInfo) ServiceSocketFile() string {
-	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".socket")
 }
 
 // Env returns the app specific environment overrides
@@ -590,6 +622,16 @@ func (e NotFoundError) Error() string {
 	return fmt.Sprintf("cannot find installed snap %q at revision %s", e.Snap, e.Revision)
 }
 
+func MockSanitizePlugsSlots(f func(snapInfo *Info)) (restore func()) {
+	old := SanitizePlugsSlots
+	SanitizePlugsSlots = f
+	return func() { SanitizePlugsSlots = old }
+}
+
+var SanitizePlugsSlots = func(snapInfo *Info) {
+	panic("SanitizePlugsSlots function not set")
+}
+
 // ReadInfo reads the snap information for the installed snap with the given name and given side-info.
 func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
@@ -616,6 +658,8 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	SanitizePlugsSlots(info)
 
 	return info, nil
 }
