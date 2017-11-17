@@ -8,8 +8,19 @@ grade: stable
 apps:
     provider:
         command: wrapper
-        slots: [network-status]
         plugs: [mount-observe]
+        slots: [network-status-test]
+    consumer:
+        command: consumer
+        plugs: [network-status]
+
+slots:
+    network-status-test:
+      interface: network-status
+    network-status-dbus:
+        interface: dbus
+        bus: system
+        name: com.ubuntu.connectivity1.NetworkingStatus
 
 parts:
     deps:

@@ -7,8 +7,7 @@ details: |
     The plug must not be autoconnected on install and, as usual, must be able to be
     reconnected.
 
-    A snap declaring a plug on this interface must be able to monitor the network configuration
-    and ask for its status.
+    The snap is also declaring a plug on this interface must be able to ask for its status.
 
 prepare: |
     . "$TESTSLIB/dbus.sh"
@@ -16,31 +15,30 @@ prepare: |
 
     echo "Given a snap declaring a plug on the network-status interface is installed"
     snap install test-snapd-network-status-provider
-    snap install test-snapd-network-status-consumer
+    snap connect test-snapd-network-status-provider:mount-observe
 
     echo "And the provider dbus loop is started"
     start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-network-status-provider.provider
 
 restore: |
-    rm -f net-query.output
+    rm -f getstate.error
 
     . "$TESTSLIB/dbus.sh"
     stop_dbus_unit
 
 execute: |
-    CONNECTED_PATTERN="^test-snapd-network-status-provider:network-status-test +test-snapd-network-status-consumer"
-    DISCONNECTED_PATTERN="^- +test-snapd-network-status-consumer:network-status-test$"
+    CONNECTED_PATTERN="^test-snapd-network-status-provider:network-status-test +test-snapd-network-status-provider:network-status"
+    DISCONNECTED_PATTERN="^- +test-snapd-network-status-provider:network-status$"
 
     dbus_send(){
         local method="$1"
         echo $(dbus-send --system --print-reply --dest=com.ubuntu.connectivity1.NetworkingStatus /com/ubuntu/connectivity1/NetworkingStatus com.ubuntu.connectivity1.NetworkingStatus.${method})
     }
 
-    echo "Connect the interface"
-    snap connect test-snapd-network-status-consumer:network-status test-snapd-network-status-provider:network-status-test
+    echo "The interface is connected by default"
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
-    for i in $(seq 10); do
+    for i in $(seq 5); do
         if ! dbus_send GetVersion | MATCH "my-ap-version"; then
             sleep 1
         else
@@ -48,22 +46,25 @@ execute: |
         fi
     done
 
+    echo "Check the network-status is working from the consumer app in the snap and running dbus-send"
+    dbus_send GetVersion | MATCH "my-ap-version"
+    test-snapd-network-status-provider.consumer GetState | MATCH "my-ap-state"
+
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-network-status-consumer:network-status test-snapd-network-status-provider:network-status-test
+    snap disconnect test-snapd-network-status-provider:network-status test-snapd-network-status-provider:network-status-test
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "And the snap state cannot be accessed"
-    if $SNAP_MOUNT_DIR/bin/test-snapd-network-status-consumer.consumer GetState 2>${PWD}/getstate.error; then
+    if test-snapd-network-status-provider.consumer GetState 2>${PWD}/getstate.error; then
         echo "Expected permission error trying to introspect state with disconnected plug"
         exit 1
     fi
     MATCH "Permission denied" < getstate.error
 
     echo "When the plug is re-connected the interfaces show the connection"
-    snap connect test-snapd-network-status-consumer:network-status test-snapd-network-status-provider:network-status-test
+    snap connect test-snapd-network-status-provider:network-status test-snapd-network-status-provider:network-status-test
     snap interfaces | MATCH "$CONNECTED_PATTERN"
-
