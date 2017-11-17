@@ -314,7 +314,7 @@ func (s *cmdSuite) TestExecInCoreSnapUnsetsDidReexec(c *C) {
 	defer os.Unsetenv("SNAP_DID_REEXEC")
 
 	selfExe := filepath.Join(s.fakeroot, "proc/self/exe")
-	err := os.Symlink(filepath.Join(s.fakeroot, "/snap/core/42/usr/lib/snapd"), selfExe)
+	err := os.Symlink(filepath.Join(dirs.SnapMountDir, "/snap/core/42/usr/lib/snapd"), selfExe)
 	c.Assert(err, IsNil)
 	cmd.MockSelfExe(selfExe)
 
