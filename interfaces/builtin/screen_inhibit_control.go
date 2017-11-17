@@ -58,16 +58,16 @@ dbus (send)
 # freedesktop.org ScreenSaver
 dbus (send)
     bus=session
-    path=/{,org/freedesktop/,org.gnome/}Screensaver
-    interface=org.freedesktop.ScreenSaver
-    member=org.freedesktop.ScreenSaver.{Inhibit,UnInhibit,SimulateUserActivity}
+    path=/{,org/freedesktop/,org.gnome/}Screen{s,S}aver
+    interface=org.freedesktop.Screen{s,S}aver
+    member=org.freedesktop.Screen{s,S}aver.{Inhibit,UnInhibit,SimulateUserActivity}
     peer=(label=unconfined),
 
 # gnome, kde and cinnamon screensaver
 dbus (send)
     bus=session
-    path=/{,ScreenSaver}
-    interface=org.{gnome.ScreenSaver,kde.screensaver,cinnamon.ScreenSaver}
+    path=/{,Screensaver,ScreenSaver}
+    interface=org.{gnome.Screensaver,gnome.ScreenSaver,kde.screensaver,cinnamon.ScreenSaver}
     member=SimulateUserActivity
     peer=(label=unconfined),
 `
