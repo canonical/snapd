@@ -13,6 +13,9 @@ restore: |
     rm -f state.json.new
 
 debug: |
+    snap list || true
+    snap info core || true
+    snap info ubuntu-core || true
     snap changes
     . "$TESTSLIB/changes.sh"
     snap change "$(change_id 'Transition ubuntu-core to core')" || true
