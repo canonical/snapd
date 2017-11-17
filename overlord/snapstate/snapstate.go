@@ -612,7 +612,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 	theStore := Store(st)
 
 	st.Unlock()
-	updates, err := theStore.ListRefresh(candidatesInfo, user)
+	updates, err := theStore.ListRefresh(candidatesInfo, user, nil)
 	st.Lock()
 	if err != nil {
 		return nil, nil, nil, err

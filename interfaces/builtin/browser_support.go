@@ -57,6 +57,7 @@ owner /var/tmp/etilqs_* rw,
 # packaging adjusted to use LD_PRELOAD technique from LP: #1577514
 owner /{dev,run}/shm/{,.}org.chromium.* mrw,
 owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
+owner /{dev,run}/shm/.io.nwjs.* mrw,
 
 # Chrome's Singleton API sometimes causes an ouid/fsuid mismatch denial, so
 # for now, allow non-owner read on the singleton socket (LP: #1731012). See
