@@ -136,3 +136,5 @@ func MockIsTerminal(t bool) (restore func()) {
 		isTerminal = oldIsTerminal
 	}
 }
+
+var Antialias = antialias

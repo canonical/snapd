@@ -94,6 +94,7 @@ type fakeStore struct {
 	storetest.Store
 
 	downloads           []fakeDownload
+	refreshRevnos       map[string]snap.Revision
 	fakeBackend         *fakeSnappyBackend
 	fakeCurrentProgress int
 	fakeTotalProgress   int
@@ -177,6 +178,9 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 	}
 
 	revno := snap.R(11)
+	if r := f.refreshRevnos[cand.SnapID]; !r.Unset() {
+		revno = r
+	}
 	confinement := snap.StrictConfinement
 	switch cand.Channel {
 	case "channel-for-7":
@@ -223,7 +227,7 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 	return nil, store.ErrNoUpdateAvailable
 }
 
-func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserState) ([]*snap.Info, error) {
+func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
 	f.pokeStateLock()
 
 	if len(cands) == 0 {
