@@ -313,13 +313,6 @@ func (s *cmdSuite) TestExecInCoreSnapUnsetsDidReexec(c *C) {
 	os.Setenv("SNAP_DID_REEXEC", "1")
 	defer os.Unsetenv("SNAP_DID_REEXEC")
 
-	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	defer func() {
-		restore()
-		dirs.SetRootDir(s.fakeroot)
-	}()
-	dirs.SetRootDir(s.fakeroot)
-
 	selfExe := filepath.Join(s.fakeroot, "proc/self/exe")
 	err := os.Symlink(filepath.Join(s.fakeroot, "/snap/core/42/usr/lib/snapd"), selfExe)
 	c.Assert(err, IsNil)
