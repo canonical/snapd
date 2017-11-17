@@ -30,10 +30,21 @@ teardown_staging_store(){
 }
 
 init_fake_refreshes(){
-    local refreshable_snaps=$1
-    local dir=$2
+    local dir="$1"
+    shift
 
-    fakestore -make-refreshable "$refreshable_snaps" -dir "$dir"
+    fakestore make-refreshable --dir "$dir" "$@" 
+}
+
+make_snap_installable(){
+    local dir="$1"
+    local snap_path="$2"
+
+    cp -a "$snap_path" "$dir"
+    p=$(fakestore new-snap-declaration --dir "$dir" "${snap_path}")
+    snap ack $p
+    p=$(fakestore new-snap-revision --dir "$dir" "${snap_path}")
+    snap ack $p
 }
 
 setup_fake_store(){
@@ -47,7 +58,7 @@ setup_fake_store(){
     https_proxy=${https_proxy:-}
     http_proxy=${http_proxy:-}
 
-    systemd_create_and_start_unit fakestore "$(which fakestore) -start -dir $top_dir -addr localhost:11028 -https-proxy=${https_proxy} -http-proxy=${http_proxy} -assert-fallback" "SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
+    systemd_create_and_start_unit fakestore "$(which fakestore) run --dir $top_dir --addr localhost:11028 --https-proxy=${https_proxy} --http-proxy=${http_proxy} --assert-fallback" "SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
 
     echo "And snapd is configured to use the controlled store"
     _configure_store_backends "SNAPPY_FORCE_API_URL=http://localhost:11028" "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"

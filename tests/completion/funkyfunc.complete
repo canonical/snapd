@@ -8,4 +8,5 @@ which one" "${COMP_WORDS[$COMP_CWORD]}" ))
 }
 
 complete -F _complete test-snapd-complexion
+complete -F _complete test-snapd-complexion.two
 

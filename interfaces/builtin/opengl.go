@@ -32,8 +32,8 @@ const openglConnectedPlugAppArmor = `
 # Description: Can access opengl.
 
   # specific gl libs
-  /var/lib/snapd/lib/gl/ r,
-  /var/lib/snapd/lib/gl/** rm,
+  /var/lib/snapd/lib/gl{,32}/ r,
+  /var/lib/snapd/lib/gl{,32}/** rm,
 
   # Supports linux-driver-management from Solus (staged symlink trees into libdirs)
   /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}glx-provider/**.so{,.*}  rm,
@@ -44,6 +44,11 @@ const openglConnectedPlugAppArmor = `
   /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvcuvid.so{,.*} rm,
   /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,EGL}*nvidia.so{,.*} rm,
   /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libGLdispatch.so{,.*} rm,
+
+  # Support reading the Vulkan ICD files
+  /var/lib/snapd/lib/vulkan/ r,
+  /var/lib/snapd/lib/vulkan/** r,
+  /var/lib/snapd/hostfs/usr/share/vulkan/icd.d/*nvidia*.json r,
 
   # Main bi-arch GL libraries
   /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,EGL}.so{,.*} rm,

@@ -64,6 +64,7 @@ Depends: adduser,
          openssh-client,
          squashfs-tools,
          systemd,
+         udev,
          ${misc:Depends},
          ${shlibs:Depends}
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0)
