@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -161,6 +162,11 @@ func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *aut
 
 	resp, err := client.Do(req)
 	if err != nil {
+		if netErr, ok := err.(net.Error); ok && !netErr.Temporary() {
+			// a non temporary net error, like a DNS no
+			// host, error out and do full retries
+			return "", fmt.Errorf("cannot retrieve request-id for making a request for a serial: %v", err)
+		}
 		return "", retryErr(t, "cannot retrieve request-id for making a request for a serial: %v", err)
 	}
 	defer resp.Body.Close()

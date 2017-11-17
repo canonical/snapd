@@ -756,6 +756,51 @@ version: gadget
 	c.Check(device.Serial, Equals, "9999")
 }
 
+func (s *deviceMgrSuite) TestDoRequestSerialErrorsOnNoHost(c *C) {
+	privKey, _ := assertstest.GenerateKey(testKeyLength)
+
+	nowhere := "http://nowhere.nowhere"
+
+	mockRequestIDURL := nowhere + requestIDURLPath
+	restore := devicestate.MockRequestIDURL(mockRequestIDURL)
+	defer restore()
+
+	mockSerialRequestURL := nowhere + serialURLPath
+	restore = devicestate.MockSerialRequestURL(mockSerialRequestURL)
+	defer restore()
+
+	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+`, "")
+
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+		KeyID: privKey.PublicKey().ID(),
+	})
+	s.mgr.KeypairManager().Put(privKey)
+
+	t := s.state.NewTask("request-serial", "test")
+	chg := s.state.NewChange("become-operational", "...")
+	chg.AddTask(t)
+
+	// avoid full seeding
+	s.seeding()
+
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+}
+
 func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	r1 := devicestate.MockKeyLength(testKeyLength)
 	defer r1()
