@@ -249,7 +249,7 @@ int main(int argc, char **argv)
 				}
 			}
 			sc_cgroup_freezer_join(snap_name, getpid());
-			if (geteuid() == 0) {
+			if (geteuid() == 0 && real_gid != 0) {
 				if (setegid(real_gid) != 0) {
 					die("cannot set effective group id to %d", real_gid);
 				}
