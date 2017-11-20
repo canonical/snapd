@@ -337,8 +337,8 @@ func (r *TaskRunner) Ensure() {
 			continue
 		}
 
-		// Must have wait for dependencies, as further tasks may have handlers again.
-		// Cannot undo..
+		// We may have to wait for dependencies, as further tasks might have handlers again.
+		// Cannot undo.
 		if mustWait(t) {
 			// Dependencies still unhandled.
 			continue
