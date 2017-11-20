@@ -1,3 +1,35 @@
+snapd (2.29.4~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - snap-confine: fix snap-confine under lxd
+    - tests: disable classic-ubuntu-core-transition on i386 temporarily
+    - many: reject bad plugs/slots
+    - interfaces,tests: skip unknown plug/slot interfaces
+    - store: enable "base" field from the store
+    - packaging/fedora: Merge changes from Fedora Dist-Git
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 17 Nov 2017 22:55:09 +0100
+
+snapd (2.29.3~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - daemon: cherry-picked /v2/logs fixes
+    - cmd/snap-confine: Respect biarch nature of libdirs
+    - cmd/snap-confine: Ensure snap-confine is allowed to access os-
+      release
+    - interfaces: fix udev tagging for hooks
+    - cmd: fix re-exec bug with classic confinement for host snapd
+    - tests: disable xdg-open-compat test
+    - cmd/snap-confine: add slave PTYs and let devpts newinstance
+      perform mediation
+    - interfaces/many: misc policy updates for browser-support, cups-
+      control and network-status
+    - interfaces/raw-usb: match on SUBSYSTEM, not SUBSYSTEMS
+    - tests: fix security-device-cgroup* tests on devices with
+      framebuffer
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 09 Nov 2017 19:16:24 +0100
+
 snapd (2.29.2~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1726258

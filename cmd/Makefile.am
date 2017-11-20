@@ -7,6 +7,14 @@ dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
 
+CHECK_CFLAGS = -Wall -Wextra -Wmissing-prototypes -Wstrict-prototypes \
+	-Wno-missing-field-initializers -Wno-unused-parameter
+
+# Make all warnings errors when building for unit tests
+if WITH_UNIT_TESTS
+CHECK_CFLAGS += -Werror
+endif
+
 subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private
 
 # Run check-syntax when checking
@@ -44,7 +52,7 @@ fmt: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
 hack: snap-confine/snap-confine snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp
-	sudo install -D -m 4755 snap-confine/snap-confine $(DESTDIR)$(libexecdir)/snap-confine
+	sudo install -D -m 6755 snap-confine/snap-confine $(DESTDIR)$(libexecdir)/snap-confine
 	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real
 	sudo install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
 	sudo apparmor_parser -r snap-confine/snap-confine.apparmor
@@ -90,6 +98,7 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/string-utils.h \
 	libsnap-confine-private/utils.c \
 	libsnap-confine-private/utils.h
+libsnap_confine_private_a_CFLAGS = $(CHECK_CFLAGS)
 
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += libsnap-confine-private/unit-tests
@@ -111,7 +120,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
 	libsnap-confine-private/utils-test.c
-libsnap_confine_private_unit_tests_CFLAGS = $(GLIB_CFLAGS)
+libsnap_confine_private_unit_tests_CFLAGS = $(CHECK_CFLAGS) $(GLIB_CFLAGS)
 libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS)
 libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION
 libsnap_confine_private_unit_tests_STATIC =
@@ -190,7 +199,7 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/user-support.c \
 	snap-confine/user-support.h
 
-snap_confine_snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\"
+snap_confine_snap_confine_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\"
 snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
 snap_confine_snap_confine_LDADD = libsnap-confine-private.a
 snap_confine_snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
@@ -312,8 +321,8 @@ if CAPS_OVER_SETUID
 # Ensure that snap-confine has CAP_SYS_ADMIN capability
 	setcap cap_sys_admin=pe $(DESTDIR)$(libexecdir)/snap-confine
 else
-# Ensure that snap-confine is +s (setuid)
-	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine
+# Ensure that snap-confine is u+s,g+s (setuid and setgid)
+	chmod 6755 $(DESTDIR)$(libexecdir)/snap-confine
 endif
 
 ##
@@ -362,7 +371,7 @@ snap_discard_ns_snap_discard_ns_SOURCES = \
 	snap-confine/apparmor-support.c \
 	snap-confine/apparmor-support.h \
 	snap-discard-ns/snap-discard-ns.c
-snap_discard_ns_snap_discard_ns_CFLAGS = -Wall -Werror $(AM_CFLAGS)
+snap_discard_ns_snap_discard_ns_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS)
 snap_discard_ns_snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
 snap_discard_ns_snap_discard_ns_LDADD = libsnap-confine-private.a
 snap_discard_ns_snap_discard_ns_STATIC =
@@ -406,7 +415,7 @@ system_shutdown_system_shutdown_SOURCES = \
 	system-shutdown/system-shutdown-utils.h \
 	system-shutdown/system-shutdown.c
 system_shutdown_system_shutdown_LDADD = libsnap-confine-private.a
-system_shutdown_system_shutdown_CFLAGS = $(filter-out -fPIE -pie,$(CFLAGS)) -static
+system_shutdown_system_shutdown_CFLAGS = $(CHECK_CFLAGS) $(filter-out -fPIE -pie,$(CFLAGS)) -static
 system_shutdown_system_shutdown_LDFLAGS = $(filter-out -fPIE -pie,$(LDFLAGS)) -static
 
 if WITH_UNIT_TESTS
