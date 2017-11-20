@@ -50,7 +50,7 @@ void sc_unlock(const char *scope, int lock_fd);
  * This function is exactly like sc_lock(NULL), that is the acquired lock is
  * not specific to any snap but global.
  **/
-int sc_lock_global();
+int sc_lock_global(void);
 
 /**
  * Release a flock-based, globally scoped, lock
@@ -71,7 +71,7 @@ void sc_unlock_global(int lock_fd);
  * disables the alarm and acts on the flag, aborting the process if the timeout
  * gets exceeded.
  **/
-void sc_enable_sanity_timeout();
+void sc_enable_sanity_timeout(void);
 
 /**
  * Disable sanity-check timeout and abort the process if it expired.
@@ -79,6 +79,6 @@ void sc_enable_sanity_timeout();
  * This call has to be paired with sc_enable_sanity_timeout(), see the function
  * description for more details.
  **/
-void sc_disable_sanity_timeout();
+void sc_disable_sanity_timeout(void);
 
 #endif				// SNAP_CONFINE_LOCKING_H

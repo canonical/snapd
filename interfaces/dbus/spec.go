@@ -24,6 +24,7 @@ import (
 	"sort"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
 
 // Specification keeps all the dbus snippets.
@@ -105,9 +106,9 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 }
 
 // AddPermanentPlug records dbus-specific side-effects of having a plug.
-func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
+func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
 	type definer interface {
-		DBusPermanentPlug(spec *Specification, plug *interfaces.Plug) error
+		DBusPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
@@ -118,9 +119,9 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *in
 }
 
 // AddPermanentSlot records dbus-specific side-effects of having a slot.
-func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
+func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *snap.SlotInfo) error {
 	type definer interface {
-		DBusPermanentSlot(spec *Specification, slot *interfaces.Slot) error
+		DBusPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()
