@@ -406,6 +406,9 @@ pkg_dependencies_ubuntu_classic(){
                 "
             ;;
         debian-*)
+            echo "
+                net-tools
+                "
             ;;
     esac
 }
