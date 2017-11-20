@@ -350,6 +350,10 @@
     signal (send, receive) set=(alrm, exists) peer=@LIBEXECDIR@/snap-confine,
     signal (receive) set=(exists) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
 
+    # workaround for linux 4.13/upstream, see
+    # https://forum.snapcraft.io/t/snapd-2-27-6-2-in-debian-sid-blocked-on-apparmor-in-kernel-4-13-0-1/2813/3
+    ptrace (trace, tracedby) peer=@LIBEXECDIR@/snapd/snap-confine,
+
     # For aa_change_hat() to go into ^mount-namespace-capture-helper
     @{PROC}/[0-9]*/attr/current w,
 
