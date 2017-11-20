@@ -699,7 +699,7 @@ fi
 * Fri Nov 17 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.29.4
  - snap-confine: fix snap-confine under lxd
- - tests: disable classic-ubuntu-core-transition on i386 temporarly
+ - tests: disable classic-ubuntu-core-transition on i386 temporarily
  - many: reject bad plugs/slots
  - interfaces,tests: skip unknown plug/slot interfaces
  - store: enable "base" field from the store
