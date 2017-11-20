@@ -58,7 +58,7 @@ dbus (send)
 # freedesktop.org ScreenSaver
 dbus (send)
     bus=session
-    path=/{,org/freedesktop/,org.gnome/}Screensaver
+    path=/Screensaver
     interface=org.freedesktop.ScreenSaver
     member=org.freedesktop.ScreenSaver.{Inhibit,UnInhibit,SimulateUserActivity}
     peer=(label=unconfined),
