@@ -45,6 +45,7 @@ type snapDetails struct {
 	ScreenshotURLs   []string           `json:"screenshot_urls,omitempty"`
 	SnapID           string             `json:"snap_id"`
 	License          string             `json:"license,omitempty"`
+	Base             string             `json:"base,omitempty"`
 
 	// FIXME: the store should send "contact" here, once it does we
 	//        can remove support_url
