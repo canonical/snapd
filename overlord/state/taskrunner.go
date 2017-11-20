@@ -336,17 +336,20 @@ func (r *TaskRunner) Ensure() {
 			}
 			continue
 		}
+
+		// Must have wait for dependencies, as further tasks may have handlers again.
+		// Cannot undo..
+		if mustWait(t) {
+			// Dependencies still unhandled.
+			continue
+		}
+
 		if status == UndoStatus && handlers.undo == nil {
 			// Cannot undo. Revert to done status.
 			t.SetStatus(DoneStatus)
 			if len(t.WaitTasks()) > 0 {
 				r.state.EnsureBefore(0)
 			}
-			continue
-		}
-
-		if mustWait(t) {
-			// Dependencies still unhandled.
 			continue
 		}
 
