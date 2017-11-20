@@ -65,7 +65,7 @@
 %endif
 
 Name:           snapd
-Version:        2.29.3
+Version:        2.29.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -698,6 +698,15 @@ fi
 
 
 %changelog
+* Fri Nov 17 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.29.4
+ - snap-confine: fix snap-confine under lxd
+ - tests: disable classic-ubuntu-core-transition on i386 temporarily
+ - many: reject bad plugs/slots
+ - interfaces,tests: skip unknown plug/slot interfaces
+ - store: enable "base" field from the store
+ - packaging/fedora: Merge changes from Fedora Dist-Git
+
 * Thu Nov 09 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.29.3
  - daemon: cherry-picked /v2/logs fixes

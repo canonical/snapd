@@ -1,3 +1,15 @@
+snapd (2.29.4~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - snap-confine: fix snap-confine under lxd
+    - tests: disable classic-ubuntu-core-transition on i386 temporarily
+    - many: reject bad plugs/slots
+    - interfaces,tests: skip unknown plug/slot interfaces
+    - store: enable "base" field from the store
+    - packaging/fedora: Merge changes from Fedora Dist-Git
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 17 Nov 2017 22:55:09 +0100
+
 snapd (2.29.3~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1726258
