@@ -150,12 +150,12 @@ func (s *entrySuite) TestXSnapdGID(c *C) {
 }
 
 func (s *entrySuite) TestXSnapdEntryID(c *C) {
-	// Entry ID is optional.
-	e := &mount.Entry{}
-	c.Assert(update.XSnapdEntryID(e), Equals, "")
+	// Entry ID is optional and defaults to the mount point.
+	e := &mount.Entry{Dir: "/foo"}
+	c.Assert(update.XSnapdEntryID(e), Equals, "/foo")
 
 	// Entry ID is parsed from the x-snapd.id= option.
-	e = &mount.Entry{Options: []string{"x-snapd.id=foo"}}
+	e = &mount.Entry{Dir: "/foo", Options: []string{"x-snapd.id=foo"}}
 	c.Assert(update.XSnapdEntryID(e), Equals, "foo")
 }
 
