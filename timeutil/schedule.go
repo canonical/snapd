@@ -57,6 +57,12 @@ func (t TimeOfDay) Add(dur time.Duration) TimeOfDay {
 	return nt
 }
 
+// isValidWeekday returns true if given s looks like a valid weekday
+func isValidWeekday(s string) bool {
+	_, ok := weekdayMap[s]
+	return ok
+}
+
 // ParseTime parses a string that contains hour:minute and returns
 // an TimeOfDay type or an error
 func ParseTime(s string) (t TimeOfDay, err error) {
@@ -190,8 +196,7 @@ func parseWeekday(s string) (weekday, rest string, err error) {
 	s = strings.ToLower(s)
 	l := strings.SplitN(s, "@", 2)
 	weekday = l[0]
-	_, ok := weekdayMap[weekday]
-	if !ok {
+	if !isValidWeekday(weekday) {
 		return "", "", fmt.Errorf(`cannot parse %q, want "mon", "tue", etc`, l[0])
 	}
 	rest = l[1]
