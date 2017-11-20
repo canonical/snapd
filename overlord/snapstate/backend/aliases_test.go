@@ -20,6 +20,7 @@
 package backend_test
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -40,57 +41,68 @@ func (s *aliasesSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
 	c.Assert(err, IsNil)
+	c.Assert(os.MkdirAll(dirs.CompletersDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteSh), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.CompleteSh, nil, 0644), IsNil)
 }
 
 func (s *aliasesSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-func missingAliases(aliases []*backend.Alias) ([]*backend.Alias, error) {
-	var res []*backend.Alias
+func missingAliases(aliases []*backend.Alias) (missingAs, missingCs []*backend.Alias, err error) {
 	for _, cand := range aliases {
-		_, err := os.Lstat(filepath.Join(dirs.SnapBinariesDir, cand.Name))
+		_, err = os.Lstat(filepath.Join(dirs.SnapBinariesDir, cand.Name))
 		if err != nil {
 			if !os.IsNotExist(err) {
-				return nil, err
+				return nil, nil, err
 			}
-			res = append(res, cand)
+			missingAs = append(missingAs, cand)
+		}
+
+		_, err = os.Lstat(filepath.Join(dirs.CompletersDir, cand.Name))
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return nil, nil, err
+			}
+			missingCs = append(missingCs, cand)
 		}
 	}
-	return res, nil
+	return missingAs, missingCs, nil
 }
 
 func (s *aliasesSuite) TestMissingAliases(c *C) {
 	err := os.Symlink("x.foo", filepath.Join(dirs.SnapBinariesDir, "foo"))
 	c.Assert(err, IsNil)
+	c.Assert(os.Symlink("x.a", filepath.Join(dirs.CompletersDir, "a")), IsNil)
 
-	aliases, err := missingAliases([]*backend.Alias{{"a", "a"}, {"foo", "foo"}})
+	missingAs, missingCs, err := missingAliases([]*backend.Alias{{"a", "x.a"}, {"foo", "x.foo"}})
 	c.Assert(err, IsNil)
-	c.Check(aliases, DeepEquals, []*backend.Alias{{"a", "a"}})
+	c.Check(missingAs, DeepEquals, []*backend.Alias{{"a", "x.a"}})
+	c.Check(missingCs, DeepEquals, []*backend.Alias{{"foo", "x.foo"}})
 }
 
-func matchingAliases(aliases []*backend.Alias) ([]*backend.Alias, error) {
-	var res []*backend.Alias
+func matchingAliases(aliases []*backend.Alias) (matchingAs, matchingCs []*backend.Alias, err error) {
 	for _, cand := range aliases {
-		fn := filepath.Join(dirs.SnapBinariesDir, cand.Name)
-		fileInfo, err := os.Lstat(fn)
-		if err != nil {
-			if !os.IsNotExist(err) {
-				return nil, err
-			}
-			continue
-		}
-		if (fileInfo.Mode() & os.ModeSymlink) != 0 {
-			target, err := os.Readlink(fn)
-			if err != nil {
-				return nil, err
-			}
+		target, err := os.Readlink(filepath.Join(dirs.SnapBinariesDir, cand.Name))
+		if err == nil {
 			if target == cand.Target {
-				res = append(res, cand)
+				matchingAs = append(matchingAs, cand)
 			}
+		} else if !os.IsNotExist(err) {
+			return nil, nil, err
+		}
+
+		target, err = os.Readlink(filepath.Join(dirs.CompletersDir, cand.Name))
+		if err == nil {
+			if target == cand.Target {
+				matchingCs = append(matchingCs, cand)
+			}
+		} else if !os.IsNotExist(err) {
+			return nil, nil, err
 		}
 	}
-	return res, nil
+	return matchingAs, matchingCs, nil
 }
 
 func (s *aliasesSuite) TestMatchingAliases(c *C) {
@@ -98,10 +110,13 @@ func (s *aliasesSuite) TestMatchingAliases(c *C) {
 	c.Assert(err, IsNil)
 	err = os.Symlink("y.bar", filepath.Join(dirs.SnapBinariesDir, "bar"))
 	c.Assert(err, IsNil)
+	c.Assert(os.Symlink("y.foo", filepath.Join(dirs.CompletersDir, "foo")), IsNil)
+	c.Assert(os.Symlink("x.bar", filepath.Join(dirs.CompletersDir, "bar")), IsNil)
 
-	aliases, err := matchingAliases([]*backend.Alias{{"a", "a"}, {"foo", "x.foo"}, {"bar", "x.bar"}})
+	matchingAs, matchingCs, err := matchingAliases([]*backend.Alias{{"a", "x.a"}, {"foo", "x.foo"}, {"bar", "x.bar"}})
 	c.Assert(err, IsNil)
-	c.Check(aliases, DeepEquals, []*backend.Alias{{"foo", "x.foo"}})
+	c.Check(matchingAs, DeepEquals, []*backend.Alias{{"foo", "x.foo"}})
+	c.Check(matchingCs, DeepEquals, []*backend.Alias{{"bar", "x.bar"}})
 }
 
 func (s *aliasesSuite) TestUpdateAliasesAdd(c *C) {
@@ -110,9 +125,29 @@ func (s *aliasesSuite) TestUpdateAliasesAdd(c *C) {
 	err := s.be.UpdateAliases(aliases, nil)
 	c.Assert(err, IsNil)
 
-	match, err := matchingAliases(aliases)
+	matchingAs, matchingCs, err := matchingAliases(aliases)
 	c.Assert(err, IsNil)
-	c.Check(match, HasLen, len(aliases))
+	c.Check(matchingAs, DeepEquals, aliases)
+	c.Check(matchingCs, HasLen, 0)
+}
+
+func mkCompleters(c *C, apps ...string) {
+	for _, app := range apps {
+		c.Assert(os.Symlink(dirs.CompleteSh, filepath.Join(dirs.CompletersDir, app)), IsNil)
+	}
+}
+
+func (s *aliasesSuite) TestUpdateAliasesAddWithCompleter(c *C) {
+	mkCompleters(c, "x.bar", "x.foo")
+	aliases := []*backend.Alias{{"foo", "x.foo"}, {"bar", "x.bar"}}
+
+	err := s.be.UpdateAliases(aliases, nil)
+	c.Assert(err, IsNil)
+
+	matchingAs, matchingCs, err := matchingAliases(aliases)
+	c.Assert(err, IsNil)
+	c.Check(matchingAs, DeepEquals, aliases)
+	c.Check(matchingCs, DeepEquals, aliases)
 }
 
 func (s *aliasesSuite) TestUpdateAliasesAddIdempot(c *C) {
@@ -124,9 +159,26 @@ func (s *aliasesSuite) TestUpdateAliasesAddIdempot(c *C) {
 	err = s.be.UpdateAliases(aliases, nil)
 	c.Assert(err, IsNil)
 
-	match, err := matchingAliases(aliases)
+	matchingAs, matchingCs, err := matchingAliases(aliases)
 	c.Assert(err, IsNil)
-	c.Check(match, HasLen, len(aliases))
+	c.Check(matchingAs, DeepEquals, aliases)
+	c.Check(matchingCs, HasLen, 0)
+}
+
+func (s *aliasesSuite) TestUpdateAliasesAddWithCompleterIdempot(c *C) {
+	mkCompleters(c, "x.foo", "x.bar")
+	aliases := []*backend.Alias{{"foo", "x.foo"}, {"bar", "x.bar"}}
+
+	err := s.be.UpdateAliases(aliases, nil)
+	c.Assert(err, IsNil)
+
+	err = s.be.UpdateAliases(aliases, nil)
+	c.Assert(err, IsNil)
+
+	matchingAs, matchingCs, err := matchingAliases(aliases)
+	c.Assert(err, IsNil)
+	c.Check(matchingAs, DeepEquals, aliases)
+	c.Check(matchingCs, DeepEquals, aliases)
 }
 
 func (s *aliasesSuite) TestUpdateAliasesRemove(c *C) {
@@ -135,20 +187,49 @@ func (s *aliasesSuite) TestUpdateAliasesRemove(c *C) {
 	err := s.be.UpdateAliases(aliases, nil)
 	c.Assert(err, IsNil)
 
-	match, err := matchingAliases(aliases)
+	matchingAs, matchingCs, err := matchingAliases(aliases)
 	c.Assert(err, IsNil)
-	c.Check(match, HasLen, len(aliases))
+	c.Check(matchingAs, DeepEquals, aliases)
+	c.Check(matchingCs, HasLen, 0)
 
 	err = s.be.UpdateAliases(nil, aliases)
 	c.Assert(err, IsNil)
 
-	missing, err := missingAliases(aliases)
+	missingAs, missingCs, err := missingAliases(aliases)
 	c.Assert(err, IsNil)
-	c.Check(missing, HasLen, len(aliases))
+	c.Check(missingAs, DeepEquals, aliases)
+	c.Check(missingCs, DeepEquals, aliases)
 
-	match, err = matchingAliases(aliases)
+	matchingAs, matchingCs, err = matchingAliases(aliases)
 	c.Assert(err, IsNil)
-	c.Check(match, HasLen, 0)
+	c.Check(matchingAs, HasLen, 0)
+	c.Check(matchingCs, HasLen, 0)
+}
+
+func (s *aliasesSuite) TestUpdateAliasesWithCompleterRemove(c *C) {
+	mkCompleters(c, "x.foo", "x.bar")
+	aliases := []*backend.Alias{{"foo", "x.foo"}, {"bar", "x.bar"}}
+
+	err := s.be.UpdateAliases(aliases, nil)
+	c.Assert(err, IsNil)
+
+	matchingAs, matchingCs, err := matchingAliases(aliases)
+	c.Assert(err, IsNil)
+	c.Check(matchingAs, HasLen, len(aliases))
+	c.Check(matchingCs, HasLen, len(aliases))
+
+	err = s.be.UpdateAliases(nil, aliases)
+	c.Assert(err, IsNil)
+
+	missingAs, missingCs, err := missingAliases(aliases)
+	c.Assert(err, IsNil)
+	c.Check(missingAs, DeepEquals, aliases)
+	c.Check(missingCs, DeepEquals, aliases)
+
+	matchingAs, matchingCs, err = matchingAliases(aliases)
+	c.Assert(err, IsNil)
+	c.Check(matchingAs, HasLen, 0)
+	c.Check(matchingCs, HasLen, 0)
 }
 
 func (s *aliasesSuite) TestUpdateAliasesRemoveIdempot(c *C) {
@@ -163,13 +244,39 @@ func (s *aliasesSuite) TestUpdateAliasesRemoveIdempot(c *C) {
 	err = s.be.UpdateAliases(nil, aliases)
 	c.Assert(err, IsNil)
 
-	missing, err := missingAliases(aliases)
+	missingAs, missingCs, err := missingAliases(aliases)
 	c.Assert(err, IsNil)
-	c.Check(missing, HasLen, len(aliases))
+	c.Check(missingAs, DeepEquals, aliases)
+	c.Check(missingCs, DeepEquals, aliases)
 
-	match, err := matchingAliases(aliases)
+	matchingAs, matchingCs, err := matchingAliases(aliases)
 	c.Assert(err, IsNil)
-	c.Check(match, HasLen, 0)
+	c.Check(matchingAs, HasLen, 0)
+	c.Check(matchingCs, HasLen, 0)
+}
+
+func (s *aliasesSuite) TestUpdateAliasesWithCompleterRemoveIdempot(c *C) {
+	mkCompleters(c, "x.foo", "x.bar")
+	aliases := []*backend.Alias{{"foo", "x.foo"}, {"bar", "x.bar"}}
+
+	err := s.be.UpdateAliases(aliases, nil)
+	c.Assert(err, IsNil)
+
+	err = s.be.UpdateAliases(nil, aliases)
+	c.Assert(err, IsNil)
+
+	err = s.be.UpdateAliases(nil, aliases)
+	c.Assert(err, IsNil)
+
+	missingAs, missingCs, err := missingAliases(aliases)
+	c.Assert(err, IsNil)
+	c.Check(missingAs, DeepEquals, aliases)
+	c.Check(missingCs, DeepEquals, aliases)
+
+	matchingAs, matchingCs, err := matchingAliases(aliases)
+	c.Assert(err, IsNil)
+	c.Check(matchingAs, HasLen, 0)
+	c.Check(matchingCs, HasLen, 0)
 }
 
 func (s *aliasesSuite) TestUpdateAliasesAddRemoveOverlap(c *C) {
@@ -182,16 +289,39 @@ func (s *aliasesSuite) TestUpdateAliasesAddRemoveOverlap(c *C) {
 	err = s.be.UpdateAliases(after, before)
 	c.Assert(err, IsNil)
 
-	match, err := matchingAliases(before)
+	matchingAs, matchingCs, err := matchingAliases(before)
 	c.Assert(err, IsNil)
-	c.Check(match, HasLen, 0)
-	match, err = matchingAliases(after)
+	c.Check(matchingAs, HasLen, 0)
+	c.Check(matchingCs, HasLen, 0)
+	matchingAs, matchingCs, err = matchingAliases(after)
 	c.Assert(err, IsNil)
-	c.Check(match, HasLen, len(after))
+	c.Check(matchingAs, DeepEquals, after)
+	c.Check(matchingCs, HasLen, 0)
+}
+
+func (s *aliasesSuite) TestUpdateAliasesWithCompleterAddRemoveOverlap(c *C) {
+	mkCompleters(c, "x.baz", "x.bar")
+	before := []*backend.Alias{{"bar", "x.bar"}}
+	after := []*backend.Alias{{"bar", "x.baz"}}
+
+	err := s.be.UpdateAliases(before, nil)
+	c.Assert(err, IsNil)
+
+	err = s.be.UpdateAliases(after, before)
+	c.Assert(err, IsNil)
+
+	matchingAs, matchingCs, err := matchingAliases(before)
+	c.Assert(err, IsNil)
+	c.Check(matchingAs, HasLen, 0)
+	c.Check(matchingCs, HasLen, 0)
+	matchingAs, matchingCs, err = matchingAliases(after)
+	c.Assert(err, IsNil)
+	c.Check(matchingAs, DeepEquals, after)
+	c.Check(matchingCs, DeepEquals, after)
 }
 
 func (s *aliasesSuite) TestRemoveSnapAliases(c *C) {
-	aliases := []*backend.Alias{{"x", "x"}, {"bar", "x.bar"}, {"baz", "y.baz"}, {"y", "y"}}
+	aliases := []*backend.Alias{{"bar", "x.bar"}, {"baz", "y.baz"}}
 
 	err := s.be.UpdateAliases(aliases, nil)
 	c.Assert(err, IsNil)
@@ -199,7 +329,25 @@ func (s *aliasesSuite) TestRemoveSnapAliases(c *C) {
 	err = s.be.RemoveSnapAliases("x")
 	c.Assert(err, IsNil)
 
-	match, err := matchingAliases(aliases)
+	matchingAs, matchingCs, err := matchingAliases(aliases)
 	c.Assert(err, IsNil)
-	c.Check(match, DeepEquals, []*backend.Alias{{"baz", "y.baz"}, {"y", "y"}})
+	c.Check(matchingAs, DeepEquals, []*backend.Alias{{"baz", "y.baz"}})
+	// no completion for the commands -> no completion for the aliases
+	c.Check(matchingCs, HasLen, 0)
+}
+
+func (s *aliasesSuite) TestRemoveSnapAliasesWithCompleter(c *C) {
+	mkCompleters(c, "x", "x.bar", "y", "y.baz")
+	aliases := []*backend.Alias{{"xx", "x"}, {"bar", "x.bar"}, {"baz", "y.baz"}, {"yy", "y"}}
+
+	err := s.be.UpdateAliases(aliases, nil)
+	c.Assert(err, IsNil)
+
+	err = s.be.RemoveSnapAliases("x")
+	c.Assert(err, IsNil)
+
+	matchingAs, matchingCs, err := matchingAliases(aliases)
+	c.Assert(err, IsNil)
+	c.Check(matchingAs, DeepEquals, []*backend.Alias{{"baz", "y.baz"}, {"yy", "y"}})
+	c.Check(matchingCs, DeepEquals, []*backend.Alias{{"baz", "y.baz"}, {"yy", "y"}})
 }

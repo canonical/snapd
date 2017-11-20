@@ -1,0 +1,15 @@
+summary: installing a snap with unknown plugs and slots is harmless
+details: >
+    Users have painfully found that a version of snapd crashed when a snap
+    contained unknown interfaces in either plugs or slots.
+prepare: |
+    . "$TESTSLIB/snaps.sh"
+    install_local_devmode test-snapd-unknown-interfaces
+execute: |
+    echo "Snapd did not die on us"
+    snap version
+    echo "The snap was installed and can be used"
+    test-snapd-unknown-interfaces -c true
+    echo "The bogus plugs and slots are not added"
+    snap interfaces | MATCH -v bogus-plug
+    snap interfaces | MATCH -v bogus-slot
