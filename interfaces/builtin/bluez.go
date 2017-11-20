@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const bluezSummary = `allows operating as the bluez service`
@@ -211,7 +212,7 @@ func (iface *bluezInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *bluezInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *bluezInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	if !release.OnClassic {
 		spec.AddSnippet(bluezPermanentSlotDBus)
 	}
@@ -246,14 +247,14 @@ func (iface *bluezInterface) UDevConnectedPlug(spec *udev.Specification, plug *i
 	return nil
 }
 
-func (iface *bluezInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *bluezInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	if !release.OnClassic {
 		spec.AddSnippet(bluezPermanentSlotAppArmor)
 	}
 	return nil
 }
 
-func (iface *bluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *bluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	if !release.OnClassic {
 		spec.AddSnippet(bluezPermanentSlotSecComp)
 	}

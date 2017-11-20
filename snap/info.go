@@ -409,6 +409,11 @@ func (plug *PlugInfo) SecurityTags() []string {
 	return tags
 }
 
+// String returns the representation of the plug as snap:plug string.
+func (plug *PlugInfo) String() string {
+	return fmt.Sprintf("%s:%s", plug.Snap.Name(), plug.Name)
+}
+
 // SecurityTags returns security tags associated with a given slot.
 func (slot *SlotInfo) SecurityTags() []string {
 	tags := make([]string, 0, len(slot.Apps))
@@ -422,6 +427,11 @@ func (slot *SlotInfo) SecurityTags() []string {
 	return tags
 }
 
+// String returns the representation of the slot as snap:slot string.
+func (slot *SlotInfo) String() string {
+	return fmt.Sprintf("%s:%s", slot.Snap.Name(), slot.Name)
+}
+
 // SlotInfo provides information about a slot.
 type SlotInfo struct {
 	Snap *Info
@@ -432,6 +442,15 @@ type SlotInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
+}
+
+// SocketInfo provides information on application sockets.
+type SocketInfo struct {
+	App *AppInfo
+
+	Name         string
+	ListenStream string
+	SocketMode   os.FileMode
 }
 
 // AppInfo provides information about a app.
@@ -455,8 +474,9 @@ type AppInfo struct {
 	// https://github.com/snapcore/snapd/pull/794#discussion_r58688496
 	BusName string
 
-	Plugs map[string]*PlugInfo
-	Slots map[string]*SlotInfo
+	Plugs   map[string]*PlugInfo
+	Slots   map[string]*SlotInfo
+	Sockets map[string]*SocketInfo
 
 	Environment strutil.OrderedMap
 }
@@ -475,6 +495,11 @@ type HookInfo struct {
 	Name  string
 	Plugs map[string]*PlugInfo
 	Slots map[string]*SlotInfo
+}
+
+// File returns the path to the file
+func (socket *SocketInfo) File() string {
+	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
 }
 
 // SecurityTag returns application-specific security tag.
@@ -537,11 +562,6 @@ func (app *AppInfo) ServiceName() string {
 // ServiceFile returns the systemd service file path for the daemon app.
 func (app *AppInfo) ServiceFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.ServiceName())
-}
-
-// ServiceSocketFile returns the systemd socket file path for the daemon app.
-func (app *AppInfo) ServiceSocketFile() string {
-	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".socket")
 }
 
 // Env returns the app specific environment overrides
