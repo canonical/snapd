@@ -48,9 +48,9 @@ execute: |
     echo "When the store is configured to make them refreshable"
     . $TESTSLIB/files.sh
     . $TESTSLIB/store.sh
-    init_fake_refreshes test-snapd-tools $BLOB_DIR
+    init_fake_refreshes $BLOB_DIR test-snapd-tools 
     wait_for_file $BLOB_DIR/test-snapd-tools*fake1*.snap 4 .5
-    init_fake_refreshes test-snapd-python-webserver $BLOB_DIR
+    init_fake_refreshes  $BLOB_DIR test-snapd-python-webserver
     wait_for_file $BLOB_DIR/test-snapd-python-webserver*fake1*.snap 4 .5
 
     echo "And a refresh is performed"
