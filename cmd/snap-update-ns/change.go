@@ -21,12 +21,14 @@ package main
 
 import (
 	"fmt"
-	"path"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
 
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/logger"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
@@ -53,26 +55,50 @@ func (c Change) String() string {
 	return fmt.Sprintf("%s (%s)", c.Action, c.Entry)
 }
 
-var (
-	sysMount   = syscall.Mount
-	sysUnmount = syscall.Unmount
-)
-
-const unmountNoFollow = 8
+// changePerform is Change.Perform that can be mocked for testing.
+var changePerform = (*Change).Perform
 
 // Perform executes the desired mount or unmount change using system calls.
 // Filesystems that depend on helper programs or multiple independent calls to
 // the kernel (--make-shared, for example) are unsupported.
-func (c *Change) Perform() error {
+//
+// Perform may synthesize *additional* changes that were necessary to perform
+// this change (such as mounted tmpfs or overlayfs).
+func (c *Change) Perform() ([]*Change, error) {
+	if c.Action == Mount {
+		mode := os.FileMode(0755)
+		uid := 0
+		gid := 0
+		// Create target mount directory if needed.
+		if err := ensureMountPoint(c.Entry.Dir, mode, uid, gid); err != nil {
+			return nil, err
+		}
+		// If this is a bind mount then create the source directory as well.
+		// This allows snaps to share a subset of their data easily.
+		flags, _ := mount.OptsToCommonFlags(c.Entry.Options)
+		if flags&syscall.MS_BIND != 0 {
+			if err := ensureMountPoint(c.Entry.Name, mode, uid, gid); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return nil, c.lowLevelPerform()
+}
+
+// lowLevelPerform is simple bridge from Change to mount / unmount syscall.
+func (c *Change) lowLevelPerform() error {
 	switch c.Action {
 	case Mount:
-		flags, err := mount.OptsToFlags(c.Entry.Options)
-		if err != nil {
-			return err
-		}
-		return sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), "")
+		flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
+		err := sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+		logger.Debugf("mount %q %q %q %d %q -> %s", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
+		return err
 	case Unmount:
-		return sysUnmount(c.Entry.Dir, unmountNoFollow)
+		err := sysUnmount(c.Entry.Dir, umountNoFollow)
+		logger.Debugf("umount %q -> %v", c.Entry.Dir, err)
+		return err
+	case Keep:
+		return nil
 	}
 	return fmt.Errorf("cannot process mount change, unknown action: %q", c.Action)
 }
@@ -94,10 +120,10 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 	// easily test if a given directory is a subdirectory with
 	// strings.HasPrefix coupled with an extra slash character.
 	for i := range current {
-		current[i].Dir = path.Clean(current[i].Dir)
+		current[i].Dir = filepath.Clean(current[i].Dir)
 	}
 	for i := range desired {
-		desired[i].Dir = path.Clean(desired[i].Dir)
+		desired[i].Dir = filepath.Clean(desired[i].Dir)
 	}
 
 	// Sort both lists by directory name with implicit trailing slash.

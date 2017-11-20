@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const ofonoSummary = `allows operating as the ofono service`
@@ -315,17 +316,17 @@ func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 
 }
 
-func (iface *ofonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(ofonoPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(ofonoPermanentSlotDBus)
 	return nil
 }
 
-func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(ofonoPermanentSlotUDev)
 	/*
 	   1.Linux modem drivers set up the modem device /dev/modem as a symbolic link
@@ -336,7 +337,6 @@ func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *i
 	*/
 	spec.TagDevice(`KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*"`)
 	spec.TagDevice(`KERNEL=="tun"`)
-	spec.TagDevice(`KERNEL=="tun[0-9]*"`)
 	spec.TagDevice(`KERNEL=="dsp"`)
 	return nil
 }
@@ -348,7 +348,7 @@ func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification,
 	return nil
 }
 
-func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(ofonoPermanentSlotSecComp)
 	return nil
 }

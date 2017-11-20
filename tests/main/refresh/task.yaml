@@ -46,7 +46,7 @@ prepare: |
 
         echo "And a new version of that snap put in the controlled store"
         . $TESTSLIB/store.sh
-        init_fake_refreshes $SNAP_NAME $BLOB_DIR
+        init_fake_refreshes $BLOB_DIR $SNAP_NAME
     fi
 
 restore: |

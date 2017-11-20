@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/magic.h>
+#include <linux/kdev_t.h>
 #include <sched.h>
 #include <signal.h>
 #include <string.h>
@@ -76,7 +77,7 @@ static const char *sc_ns_dir = SC_NS_DIR;
  * We do this because /run/snapd/ns cannot be shared with any other peers as per:
  * https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
  **/
-static bool sc_is_ns_group_dir_private()
+static bool sc_is_ns_group_dir_private(void)
 {
 	struct sc_mountinfo *info SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 	info = sc_parse_mountinfo(NULL);
@@ -98,7 +99,7 @@ static bool sc_is_ns_group_dir_private()
 	return false;
 }
 
-void sc_reassociate_with_pid1_mount_ns()
+void sc_reassociate_with_pid1_mount_ns(void)
 {
 	int init_mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
 	int self_mnt_fd SC_CLEANUP(sc_cleanup_close) = -1;
@@ -154,7 +155,7 @@ void sc_reassociate_with_pid1_mount_ns()
 	}
 }
 
-void sc_initialize_ns_groups()
+void sc_initialize_ns_groups(void)
 {
 	debug("creating namespace group directory %s", sc_ns_dir);
 	if (sc_nonfatal_mkpath(sc_ns_dir, 0755) < 0) {
@@ -194,7 +195,7 @@ struct sc_ns_group {
 	bool should_populate;
 };
 
-static struct sc_ns_group *sc_alloc_ns_group()
+static struct sc_ns_group *sc_alloc_ns_group(void)
 {
 	struct sc_ns_group *group = calloc(1, sizeof *group);
 	if (group == NULL) {
@@ -239,8 +240,76 @@ void sc_close_ns_group(struct sc_ns_group *group)
 	free(group);
 }
 
+static dev_t find_base_snap_device(const char *base_snap_name,
+				   const char *base_snap_rev)
+{
+	// Find the backing device of the base snap.
+	// TODO: add support for "try mode" base snaps that also need
+	// consideration of the mie->root component.
+	dev_t base_snap_dev = 0;
+	char base_squashfs_path[PATH_MAX];
+	sc_must_snprintf(base_squashfs_path,
+			 sizeof base_squashfs_path, "%s/%s/%s",
+			 SNAP_MOUNT_DIR, base_snap_name, base_snap_rev);
+	struct sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
+	mi = sc_parse_mountinfo(NULL);
+	if (mi == NULL) {
+		die("cannot parse mountinfo of the current process");
+	}
+	bool found = false;
+	for (struct sc_mountinfo_entry * mie =
+	     sc_first_mountinfo_entry(mi); mie != NULL;
+	     mie = sc_next_mountinfo_entry(mie)) {
+		if (sc_streq(mie->mount_dir, base_squashfs_path)) {
+			base_snap_dev = MKDEV(mie->dev_major, mie->dev_minor);
+			debug("found base snap filesystem device %d:%d",
+			      mie->dev_major, mie->dev_minor);
+			// Don't break when found, we are interested in the last
+			// entry as this is the "effective" one.
+			found = true;
+		}
+	}
+	if (!found) {
+		die("cannot find device backing the base snap %s",
+		    base_snap_name);
+	}
+	return base_snap_dev;
+}
+
+static bool should_discard_current_ns(dev_t base_snap_dev)
+{
+	// Inspect the namespace and check if we should discard it.
+	//
+	// The namespace may become "stale" when the rootfs is not the same
+	// device we found above. This will happen whenever the base snap is
+	// refreshed since the namespace was first created.
+	struct sc_mountinfo_entry *mie;
+	struct sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
+
+	mi = sc_parse_mountinfo(NULL);
+	if (mi == NULL) {
+		die("cannot parse mountinfo of the current process");
+	}
+	for (mie = sc_first_mountinfo_entry(mi); mie != NULL;
+	     mie = sc_next_mountinfo_entry(mie)) {
+		if (!sc_streq(mie->mount_dir, "/")) {
+			continue;
+		}
+		// NOTE: we want the initial rootfs just in case overmount
+		// was used to do something weird. The initial rootfs was
+		// set up by snap-confine and that is the one we want to
+		// measure.
+		debug("found root filesystem inside the mount namespace %d:%d",
+		      mie->dev_major, mie->dev_minor);
+		return base_snap_dev != MKDEV(mie->dev_major, mie->dev_minor);
+	}
+	die("cannot find mount entry of the root filesystem inside snap namespace");
+}
+
 void sc_create_or_join_ns_group(struct sc_ns_group *group,
-				struct sc_apparmor *apparmor)
+				struct sc_apparmor *apparmor,
+				const char *base_snap_name,
+				const char *snap_name)
 {
 	// Open the mount namespace file.
 	char mnt_fname[PATH_MAX] = { 0 };
@@ -254,32 +323,58 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 	// sc_discard_preserved_ns_group() it will revert to a regular file.  If
 	// snap-confine is killed for whatever reason after the file is created but
 	// before the file is bind-mounted it will also be a regular file.
-	mnt_fd =
-	    openat(group->dir_fd, mnt_fname,
-		   O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
+	mnt_fd = openat(group->dir_fd, mnt_fname,
+			O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
 	if (mnt_fd < 0) {
 		die("cannot open mount namespace file for namespace group %s",
 		    group->name);
 	}
-	// Check if we got an nsfs-based file or a regular file. This can be
-	// reliably tested because nsfs has an unique filesystem type NSFS_MAGIC.
-	// On older kernels that don't support nsfs yet we can look for
-	// PROC_SUPER_MAGIC instead.
+	// Check if we got an nsfs-based or procfs file or a regular file. This can
+	// be reliably tested because nsfs has an unique filesystem type
+	// NSFS_MAGIC.  On older kernels that don't support nsfs yet we can look
+	// for PROC_SUPER_MAGIC instead. 
 	// We can just ensure that this is the case thanks to fstatfs.
-	struct statfs buf;
-	if (fstatfs(mnt_fd, &buf) < 0) {
-		die("cannot perform fstatfs() on an mount namespace file descriptor");
+	struct statfs ns_statfs_buf;
+	if (fstatfs(mnt_fd, &ns_statfs_buf) < 0) {
+		die("cannot perform fstatfs() on the mount namespace file descriptor");
+	}
+	// Stat the mount namespace as well, this is later used to check if the
+	// namespace is used by other processes if we are considering discarding a
+	// stale namespace.
+	struct stat ns_stat_buf;
+	if (fstat(mnt_fd, &ns_stat_buf) < 0) {
+		die("cannot perform fstat() on the mount namespace file descriptor");
 	}
 #ifndef NSFS_MAGIC
 // Account for kernel headers old enough to not know about NSFS_MAGIC.
 #define NSFS_MAGIC 0x6e736673
 #endif
-	if (buf.f_type == NSFS_MAGIC || buf.f_type == PROC_SUPER_MAGIC) {
+	if (ns_statfs_buf.f_type == NSFS_MAGIC
+	    || ns_statfs_buf.f_type == PROC_SUPER_MAGIC) {
+		char fname[PATH_MAX] = { 0 };
+		char base_snap_rev[PATH_MAX] = { 0 };
+
+		// Read the revision of the base snap.
+		sc_must_snprintf(fname, sizeof fname, "%s/%s/current",
+				 SNAP_MOUNT_DIR, base_snap_name);
+		if (readlink(fname, base_snap_rev, sizeof base_snap_rev) < 0) {
+			die("cannot read symlink %s", fname);
+		}
+		if (base_snap_rev[sizeof base_snap_rev - 1] != '\0') {
+			die("cannot use symbolic link %s - value is too long",
+			    fname);
+		}
+
+		dev_t base_snap_dev =
+		    find_base_snap_device(base_snap_name, base_snap_rev);
+
+		// Remember the vanilla working directory so that we may attempt to restore it later.
 		char *vanilla_cwd SC_CLEANUP(sc_cleanup_string) = NULL;
 		vanilla_cwd = get_current_dir_name();
 		if (vanilla_cwd == NULL) {
 			die("cannot get the current working directory");
 		}
+		// Move to the mount namespace of the snap we're trying to start.
 		debug
 		    ("attempting to re-associate the mount namespace with the namespace group %s",
 		     group->name);
@@ -289,6 +384,14 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 		debug
 		    ("successfully re-associated the mount namespace with the namespace group %s",
 		     group->name);
+
+		bool should_discard_ns =
+		    should_discard_current_ns(base_snap_dev);
+
+		if (should_discard_ns) {
+			debug("discarding obsolete base filesystem namespace");
+			debug("(not yet implemented)");
+		}
 		// Try to re-locate back to vanilla working directory. This can fail
 		// because that directory is no longer present.
 		if (chdir(vanilla_cwd) != 0) {

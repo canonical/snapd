@@ -152,7 +152,7 @@ func (s *BluezInterfaceSuite) TestAppArmorSpec(c *C) {
 	// permanent slot have a non-nil security snippet for apparmor
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.appSlot, nil), IsNil)
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot.SlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label=unconfined),`)
@@ -178,7 +178,7 @@ func (s *BluezInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// permanent core slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot.SlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
@@ -188,7 +188,7 @@ func (s *BluezInterfaceSuite) TestDBusSpec(c *C) {
 	defer restore()
 
 	spec := &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot.SlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `<allow own="org.bluez"/>`)
 
@@ -197,7 +197,7 @@ func (s *BluezInterfaceSuite) TestDBusSpec(c *C) {
 	defer restore()
 
 	spec = &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot.SlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
@@ -207,7 +207,7 @@ func (s *BluezInterfaceSuite) TestSecCompSpec(c *C) {
 	defer restore()
 
 	spec := &seccomp.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot.SlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, "listen\n")
 
@@ -216,7 +216,7 @@ func (s *BluezInterfaceSuite) TestSecCompSpec(c *C) {
 	defer restore()
 
 	spec = &seccomp.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot.SlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 }
@@ -229,7 +229,8 @@ func (s *BluezInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.appSlot, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="rfkill", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# bluez
+KERNEL=="rfkill", TAG+="snap_consumer_app"`)
 
 	// on a classic system with bluez slot coming from the core snap.
 	restore = release.MockOnClassic(true)
