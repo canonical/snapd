@@ -2,7 +2,7 @@ snapd (2.29.4) xenial; urgency=medium
 
   * New upstream release, LP: #1726258
     - snap-confine: fix snap-confine under lxd
-    - tests: disable classic-ubuntu-core-transition on i386 temporarly
+    - tests: disable classic-ubuntu-core-transition on i386 temporarily
     - many: reject bad plugs/slots
     - interfaces,tests: skip unknown plug/slot interfaces
     - store: enable "base" field from the store
