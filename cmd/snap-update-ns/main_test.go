@@ -129,10 +129,6 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 				Dir: "/usr/share/awk", Name: "/usr/share/awk",
 				Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.parent-id=/usr/share/mysnap"}}},
 		}
-		// The original change was annotated with "mount entry id" so that the
-		// cross-referencing can work. Normally this happens inside the mocked
-		// change.Perform method after any synthetic changes are generated.
-		chg.Entry.Options = append(chg.Entry.Options, "x-snapd.id=/usr/share/mysnap")
 		return syntetic, nil
 	})
 	defer restore()
@@ -145,7 +141,7 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 		`none /usr/share tmpfs x-snapd.synthetic,x-snapd.parent-id=/usr/share/mysnap 0 0
 /usr/share/adduser /usr/share/adduser none bind,ro,x-snapd.synthetic,x-snapd.parent-id=/usr/share/mysnap 0 0
 /usr/share/awk /usr/share/awk none bind,ro,x-snapd.synthetic,x-snapd.parent-id=/usr/share/mysnap 0 0
-/snap/mysnap/42/usr/share/mysnap /usr/share/mysnap none bind,ro,x-snapd.id=/usr/share/mysnap 0 0
+/snap/mysnap/42/usr/share/mysnap /usr/share/mysnap none bind,ro 0 0
 `)
 }
 
@@ -160,7 +156,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	const currentProfileContent = `none /usr/share tmpfs x-snapd.synthetic,x-snapd.parent-id=/usr/share/mysnap 0 0
 /usr/share/adduser /usr/share/adduser none bind,ro,x-snapd.synthetic,x-snapd.parent-id=/usr/share/mysnap 0 0
 /usr/share/awk /usr/share/awk none bind,ro,x-snapd.synthetic,x-snapd.parent-id=/usr/share/mysnap 0 0
-/snap/mysnap/42/usr/share/mysnap /usr/share/mysnap none bind,ro,x-snapd.id=/usr/share/mysnap 0 0
+/snap/mysnap/42/usr/share/mysnap /usr/share/mysnap none bind,ro 0 0
 `
 	const desiredProfileContent = ""
 
@@ -182,7 +178,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 				Entry: mount.Entry{
 					Name: "/snap/mysnap/42/usr/share/mysnap",
 					Dir:  "/usr/share/mysnap", Type: "none",
-					Options: []string{"bind", "ro", "x-snapd.id=/usr/share/mysnap"},
+					Options: []string{"bind", "ro"},
 				},
 			})
 		case 1:
