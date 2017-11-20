@@ -138,12 +138,14 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 		}
 		for k, v := range rawYamlInfo.Plugs {
 			info.Plugs[k] = v
+			info.Plugs[k].Snap = info
 		}
 		if info.Slots == nil {
 			info.Slots = make(map[string]*snap.SlotInfo)
 		}
 		for k, v := range rawYamlInfo.Slots {
 			info.Slots[k] = v
+			info.Slots[k].Snap = info
 		}
 	}
 
