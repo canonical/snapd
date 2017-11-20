@@ -169,9 +169,11 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		prereqName = snapsup.Base
 	}
 
+	// Ensure prereq from base snaps are available here.
 	if err := m.installPrereq(t, prereqName, snapsup.UserID); err != nil {
 		return err
 	}
+	// Ensure other prereqs are available here, i.e. content snaps
 	for _, prereqName := range snapsup.Prereq {
 		if err := m.installPrereq(t, prereqName, snapsup.UserID); err != nil {
 			return err
