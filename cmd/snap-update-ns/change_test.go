@@ -178,19 +178,19 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
 		Name:    "none",
 		Dir:     "/snap/name/42/subdir",
 		Type:    "tmpfs",
-		Options: []string{"x-snapd.id=s1", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+		Options: []string{"x-snapd.parent-id=/snap/name/42/subdir", "x-snapd.synthetic"},
 	}, {
 		// A bind mount to preserve a directory hidden by the tmpfs.
 		Name:    "/var/lib/snapd/hostfs/snap/name/42/subdir/existing",
 		Dir:     "/snap/name/42/subdir/existing",
-		Options: []string{"bind", "ro", "x-snapd.id=s2", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+		Options: []string{"bind", "ro", "x-snapd.parent-id=/snap/name/42/subdir", "x-snapd.synthetic"},
 	}, {
 		// A bind mount to put some content from another snap. The bind mount
 		// is nothing special but the fact that it is possible is the reason
 		// the two entries above exist.
 		Name:    "/snap/other/123/libs",
 		Dir:     "/snap/name/42/subdir/created",
-		Options: []string{"bind", "ro", "x-snapd.id=e1"},
+		Options: []string{"bind", "ro"},
 	}}}
 
 	desired := &mount.Profile{}
@@ -201,18 +201,18 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
 		{Entry: mount.Entry{
 			Name:    "/var/lib/snapd/hostfs/snap/name/42/subdir/existing",
 			Dir:     "/snap/name/42/subdir/existing",
-			Options: []string{"bind", "ro", "x-snapd.id=s2", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+			Options: []string{"bind", "ro", "x-snapd.parent-id=/snap/name/42/subdir", "x-snapd.synthetic"},
 		}, Action: update.Unmount},
 		{Entry: mount.Entry{
 			Name:    "/snap/other/123/libs",
 			Dir:     "/snap/name/42/subdir/created",
-			Options: []string{"bind", "ro", "x-snapd.id=e1"},
+			Options: []string{"bind", "ro"},
 		}, Action: update.Unmount},
 		{Entry: mount.Entry{
 			Name:    "none",
 			Dir:     "/snap/name/42/subdir",
 			Type:    "tmpfs",
-			Options: []string{"x-snapd.id=s1", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+			Options: []string{"x-snapd.parent-id=/snap/name/42/subdir", "x-snapd.synthetic"},
 		}, Action: update.Unmount},
 	})
 }
@@ -223,19 +223,19 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUsed(c *C) {
 		Name:    "none",
 		Dir:     "/snap/name/42/subdir",
 		Type:    "tmpfs",
-		Options: []string{"x-snapd.id=s1", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+		Options: []string{"x-snapd.parent-id=/snap/name/42/subdir/created", "x-snapd.synthetic"},
 	}, {
 		// A bind mount to preserve a directory hidden by the tmpfs.
 		Name:    "/var/lib/snapd/hostfs/snap/name/42/subdir/existing",
 		Dir:     "/snap/name/42/subdir/existing",
-		Options: []string{"bind", "ro", "x-snapd.id=s2", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+		Options: []string{"bind", "ro", "x-snapd.parent-id=/snap/name/42/subdir/created", "x-snapd.synthetic"},
 	}, {
 		// A bind mount to put some content from another snap. The bind mount
 		// is nothing special but the fact that it is possible is the reason
 		// the two entries above exist.
 		Name:    "/snap/other/123/libs",
 		Dir:     "/snap/name/42/subdir/created",
-		Options: []string{"bind", "ro", "x-snapd.id=e1"},
+		Options: []string{"bind", "ro"},
 	}}}
 
 	desired := &mount.Profile{Entries: []mount.Entry{{
@@ -243,7 +243,7 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUsed(c *C) {
 		// support it we need to keep the remaining implicit entries.
 		Name:    "/snap/other/123/libs",
 		Dir:     "/snap/name/42/subdir/created",
-		Options: []string{"bind", "ro", "x-snapd.id=e1"},
+		Options: []string{"bind", "ro"},
 	}}}
 
 	changes := update.NeededChanges(current, desired)
@@ -252,18 +252,18 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUsed(c *C) {
 		{Entry: mount.Entry{
 			Name:    "/var/lib/snapd/hostfs/snap/name/42/subdir/existing",
 			Dir:     "/snap/name/42/subdir/existing",
-			Options: []string{"bind", "ro", "x-snapd.id=s2", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+			Options: []string{"bind", "ro", "x-snapd.parent-id=/snap/name/42/subdir/created", "x-snapd.synthetic"},
 		}, Action: update.Keep},
 		{Entry: mount.Entry{
 			Name:    "/snap/other/123/libs",
 			Dir:     "/snap/name/42/subdir/created",
-			Options: []string{"bind", "ro", "x-snapd.id=e1"},
+			Options: []string{"bind", "ro"},
 		}, Action: update.Keep},
 		{Entry: mount.Entry{
 			Name:    "none",
 			Dir:     "/snap/name/42/subdir",
 			Type:    "tmpfs",
-			Options: []string{"x-snapd.id=s1", "x-snapd.parent-id=e1", "x-snapd.synthetic"},
+			Options: []string{"x-snapd.parent-id=/snap/name/42/subdir/created", "x-snapd.synthetic"},
 		}, Action: update.Keep},
 	})
 }
