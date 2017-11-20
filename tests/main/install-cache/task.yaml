@@ -1,0 +1,7 @@
+summary: Check that download caching works
+
+execute: |
+    snap install test-snapd-tools
+    snap remove test-snapd-tools
+    snap install test-snapd-tools
+    journalctl -u snapd | MATCH "using cache for .*/test-snapd-tools.*\.snap"

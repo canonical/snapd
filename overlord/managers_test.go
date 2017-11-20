@@ -1717,7 +1717,7 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 
 	captureAuthContext := func(_ *store.Config, ac auth.AuthContext) *store.Store {
 		s.ac = ac
-		return nil
+		return store.New(nil, nil)
 	}
 	r := overlord.MockStoreNew(captureAuthContext)
 	defer r()

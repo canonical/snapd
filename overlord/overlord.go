@@ -142,6 +142,7 @@ func New() (*Overlord, error) {
 	// setting up the store
 	authContext := auth.NewAuthContext(s, o.deviceMgr)
 	sto := storeNew(nil, authContext)
+	sto.SetCacheDownloads(5)
 
 	snapstate.ReplaceStore(s, sto)
 

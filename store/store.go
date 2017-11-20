@@ -428,13 +428,6 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		deltaFormat = defaultSupportedDeltaFormat
 	}
 
-	var cacher downloadCache
-	if cfg.CacheDownloads > 0 {
-		cacher = NewCacheManager(dirs.SnapDownloadCacheDir, cfg.CacheDownloads)
-	} else {
-		cacher = &nullCache{}
-	}
-
 	store := &Store{
 		cfg:             cfg,
 		series:          series,
@@ -444,13 +437,15 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailFields:    fields,
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
-		cacher:          cacher,
+		cacher:          nil,
 
 		client: httputil.NewHTTPClient(&httputil.ClientOpts{
 			Timeout:    10 * time.Second,
 			MayLogBody: true,
 		}),
 	}
+	store.SetCacheDownloads(cfg.CacheDownloads)
+
 	return store
 }
 
@@ -1975,5 +1970,18 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
 		}
 		return &errors
+	}
+}
+
+func (s *Store) CacheDownloads() int {
+	return s.cfg.CacheDownloads
+}
+
+func (s *Store) SetCacheDownloads(amount int) {
+	s.cfg.CacheDownloads = amount
+	if amount > 0 {
+		s.cacher = NewCacheManager(dirs.SnapDownloadCacheDir, amount)
+	} else {
+		s.cacher = &nullCache{}
 	}
 }
