@@ -35,6 +35,17 @@ type timeutilSuite struct{}
 
 var _ = Suite(&timeutilSuite{})
 
+func (ts *timeutilSuite) TestTimeOfDay(c *C) {
+	td := timeutil.TimeOfDay{Hour: 23, Minute: 59}
+	c.Check(td.Add(time.Minute), Equals, timeutil.TimeOfDay{Hour: 0, Minute: 0})
+
+	td = timeutil.TimeOfDay{Hour: 5, Minute: 34}
+	c.Check(td.Add(time.Minute), Equals, timeutil.TimeOfDay{Hour: 5, Minute: 35})
+
+	td = timeutil.TimeOfDay{Hour: 10, Minute: 1}
+	c.Check(td.Sub(timeutil.TimeOfDay{Hour: 10, Minute: 0}), Equals, time.Minute)
+}
+
 func (ts *timeutilSuite) TestParseTimeOfDay(c *C) {
 	for _, t := range []struct {
 		timeStr      string
