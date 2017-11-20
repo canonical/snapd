@@ -1418,7 +1418,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
-	c.Check(snaps[0]["screenshots"], check.HasLen, 0)
+	c.Check(snaps[0]["screenshots"], check.IsNil)
 	c.Check(snaps[0]["channels"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
