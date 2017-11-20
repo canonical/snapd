@@ -9,7 +9,7 @@ debug: |
     cat *-vars.txt
 execute: |
     echo "Collect SNAP and XDG environment variables"
-    test-snapd-tools.env | egrep '^SNAP_' | egrep -v '^SNAP_DID_REEXEC'| sort > snap-vars.txt
+    test-snapd-tools.env | egrep '^SNAP_' | sort > snap-vars.txt
     test-snapd-tools.env | egrep '^XDG_' | sort > xdg-vars.txt
     test-snapd-tools.env | egrep '^EXTRA_' | sort > extra-vars.txt 
 
