@@ -73,7 +73,9 @@ func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(errtracker.MockMachineIDPaths([]string{p}))
 	s.AddCleanup(errtracker.MockHostSnapd(truePath))
 	s.AddCleanup(errtracker.MockCoreSnapd(falsePath))
-	s.AddCleanup(errtracker.MockReExec(true))
+	s.AddCleanup(errtracker.MockReExec(func() string {
+		return "yes"
+	}))
 
 	s.hostBuildID, err = osutil.ReadBuildID(truePath)
 	c.Assert(err, IsNil)

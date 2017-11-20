@@ -176,15 +176,6 @@ func ExecInCoreSnap() {
 
 	// Did we already re-exec?
 	if strings.HasPrefix(exe, dirs.SnapMountDir) {
-		// Older version of snapd (before 2.28) did use this env
-		// to check if they should re-exec or not. We still need
-		// to unset it because the host snap tool may be old and
-		// using this key. So if e.g. the host has snapd 2.27 and
-		// snapd re-execs to 2.29 then `snap run --shell classic-snap`
-		// will go into an environment where the snapd 2.27 sees
-		// this key and stops re-execing - which is not what we
-		// want. C.f. https://forum.snapcraft.io/t/seccomp-error-calling-snap-from-another-classic-snap-on-core-candidate/2736/7
-		mustUnsetenv("SNAP_DID_REEXEC")
 		return
 	}
 
@@ -210,7 +201,5 @@ func ExecInCoreSnap() {
 	}
 
 	logger.Debugf("restarting into %q", full)
-	// we keep this for e.g. the errtracker
-	env := append(os.Environ(), "SNAP_DID_REEXEC=1")
-	panic(syscallExec(full, os.Args, env))
+	panic(syscallExec(full, os.Args, os.Environ()))
 }

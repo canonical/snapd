@@ -20,10 +20,7 @@
 package errtracker
 
 import (
-	"os"
 	"time"
-
-	"github.com/snapcore/snapd/osutil"
 )
 
 func MockCrashDbURL(url string) (restorer func()) {
@@ -66,18 +63,10 @@ func MockTimeNow(f func() time.Time) (restorer func()) {
 	}
 }
 
-func MockReExec(didReExec bool) (restorer func()) {
-	old := osutil.GetenvBool("SNAP_DID_REEXEC")
-	if didReExec {
-		os.Setenv("SNAP_DID_REEXEC", "1")
-	} else {
-		os.Unsetenv("SNAP_DID_REEXEC")
-	}
+func MockReExec(f func() string) (restorer func()) {
+	oldDidSnapdReExec := didSnapdReExec
+	didSnapdReExec = f
 	return func() {
-		if old {
-			os.Setenv("SNAP_DID_REEXEC", "1")
-		} else {
-			os.Unsetenv("SNAP_DID_REEXEC")
-		}
+		didSnapdReExec = oldDidSnapdReExec
 	}
 }
