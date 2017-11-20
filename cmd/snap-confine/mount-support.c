@@ -19,6 +19,8 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <fnmatch.h>
+#include <libgen.h>
 #include <libgen.h>
 #include <limits.h>
 #include <mntent.h>
@@ -33,7 +35,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <libgen.h>
 
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
@@ -705,11 +706,56 @@ static bool is_mounted_with_shared_option(const char *dir)
 
 void sc_ensure_shared_snap_mount(void)
 {
-	if (!is_mounted_with_shared_option("/")
-	    && !is_mounted_with_shared_option(SNAP_MOUNT_DIR)) {
-		sc_do_mount(SNAP_MOUNT_DIR, SNAP_MOUNT_DIR, "none",
-			    MS_BIND | MS_REC, 0);
-		sc_do_mount("none", SNAP_MOUNT_DIR, NULL, MS_SHARED | MS_REC,
-			    NULL);
+	if (is_mounted_with_shared_option("/")) {
+		debug("the / directory is shared, no need to do anything");
+		return;
+	}
+	if (is_mounted_with_shared_option(SNAP_MOUNT_DIR)) {
+		debug("the %s directory is shared, no need to do anything",
+		      SNAP_MOUNT_DIR);
+		return;
+	}
+
+	debug("snap directory needs to be `mount --make-rshared'");
+
+	const char *dirname = "/etc/systemd/system";
+	DIR *d SC_CLEANUP(sc_cleanup_closedir) = NULL;
+	struct dirent *dent;
+	char buf[PATH_MAX] = { 0 };
+
+	if ((d = opendir(dirname)) == NULL) {
+		die("cannot open directory %s", dirname);
+	}
+
+	while ((dent = readdir(d)) != NULL) {
+		if (fnmatch("snap-*.mount", dent->d_name, 0) != 0) {
+			continue;
+		}
+		sc_must_snprintf(buf, sizeof buf, "systemctl stop %s",
+				 dent->d_name);
+		if (system(buf) < 0) {
+			die("cannot stop mount unit %s", dent->d_name);
+		}
+		debug("stoped snap mount unit %s", dent->d_name);
+	}
+
+	// Bind mount /snap over itself so that we can do mount --make-rshared it.
+	sc_do_mount(SNAP_MOUNT_DIR, SNAP_MOUNT_DIR, "none",
+		    MS_BIND | MS_REC, 0);
+	sc_do_mount("none", SNAP_MOUNT_DIR, NULL, MS_SHARED | MS_REC, NULL);
+	debug("made %s mount --make-rshared", SNAP_MOUNT_DIR);
+
+	// Rewind the directory and start all the mount units again.
+	rewinddir(d);
+	while ((dent = readdir(d)) != NULL) {
+		if (fnmatch("snap-*.mount", dent->d_name, 0) != 0) {
+			continue;
+		}
+		sc_must_snprintf(buf, sizeof buf, "systemctl start %s",
+				 dent->d_name);
+		if (system(buf) < 0) {
+			die("cannot start mount unit %s", dent->d_name);
+		}
+		debug("started snap mount unit %s", dent->d_name);
 	}
 }
