@@ -113,6 +113,7 @@ var defaultTemplate = `
   /{,usr/}bin/bzip2 ixr,
   /{,usr/}bin/cat ixr,
   /{,usr/}bin/chmod ixr,
+  /{,usr/}bin/chown ixr,
   /{,usr/}bin/clear ixr,
   /{,usr/}bin/cmp ixr,
   /{,usr/}bin/cp ixr,
