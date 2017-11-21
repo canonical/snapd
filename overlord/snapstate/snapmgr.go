@@ -79,6 +79,8 @@ type SnapManager struct {
 	nextRefresh            time.Time
 	lastRefreshAttempt     time.Time
 
+	refreshHints *refreshHints
+
 	nextCatalogRefresh time.Time
 
 	lastUbuntuCoreTransitionAttempt time.Time
@@ -300,9 +302,10 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(st)
 
 	m := &SnapManager{
-		state:   st,
-		backend: backend.Backend{},
-		runner:  runner,
+		state:        st,
+		backend:      backend.Backend{},
+		runner:       runner,
+		refreshHints: newRefreshHints(st),
 	}
 
 	if err := os.MkdirAll(dirs.SnapCookieDir, 0700); err != nil {
@@ -694,6 +697,7 @@ func (m *SnapManager) Ensure() error {
 		m.ensureAliasesV2(),
 		m.ensureForceDevmodeDropsDevmodeFromState(),
 		m.ensureUbuntuCoreTransition(),
+		m.refreshHints.Ensure(),
 		m.ensureRefreshes(),
 		m.ensureCatalogRefresh(),
 	}

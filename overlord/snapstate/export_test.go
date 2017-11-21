@@ -133,3 +133,8 @@ var (
 	WriteSnapReadme = writeSnapReadme
 	SnapReadme      = snapReadme
 )
+
+// refresh-hints
+var (
+	NewRefreshHints = newRefreshHints
+)
