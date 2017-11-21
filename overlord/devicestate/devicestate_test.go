@@ -1933,32 +1933,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnClassic(c *C) {
 	c.Check(canAutoRefresh(), Equals, false)
 }
 
-func (s *deviceMgrSuite) TestRefreshControlManaged(c *C) {
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	// set to managed refresh schedule
-	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.schedule", "managed")
-	tr.Commit()
-
-	sideInfo11 := &snap.SideInfo{RealName: "snap-with-snapd-control", Revision: snap.R(11), SnapID: "snap-with-snapd-control-id"}
-	snapstate.Set(st, "snap-with-snapd-control", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo11},
-		Current:  sideInfo11.Revision,
-		SnapType: "app",
-	})
-	info11 := snaptest.MockSnap(c, `
-name: snap-with-snapd-control
-version: 1.0
-plugs:
- snapd-control:
-  refresh-schedule: managed
-`, "", sideInfo11)
-	c.Assert(info11.Plugs, HasLen, 1)
-
+func makeInstalledMockCoreSnapWithSnapdControl(c *C, st *state.State) *snap.Info {
 	sideInfoCore11 := &snap.SideInfo{RealName: "core", Revision: snap.R(11), SnapID: "core-id"}
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		Active:   true,
@@ -1974,7 +1949,39 @@ slots:
 `, "", sideInfoCore11)
 	c.Assert(core11.Slots, HasLen, 1)
 
-	// create the matching repo
+	return core11
+}
+
+var snapWithSnapdControlRefreshScheduleManagedYAML = `
+name: snap-with-snapd-control
+version: 1.0
+plugs:
+ snapd-control:
+  refresh-schedule: managed
+`
+
+var snapWithSnapdControlOnlyYAML = `
+name: snap-with-snapd-control
+version: 1.0
+plugs:
+ snapd-control:
+`
+
+func makeInstalledMockSnap(c *C, st *state.State, yml string) *snap.Info {
+	sideInfo11 := &snap.SideInfo{RealName: "snap-with-snapd-control", Revision: snap.R(11), SnapID: "snap-with-snapd-control-id"}
+	snapstate.Set(st, "snap-with-snapd-control", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo11},
+		Current:  sideInfo11.Revision,
+		SnapType: "app",
+	})
+	info11 := snaptest.MockSnap(c, yml, "", sideInfo11)
+	c.Assert(info11.Plugs, HasLen, 1)
+
+	return info11
+}
+
+func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.Info, ifname string) {
 	repo := interfaces.NewRepository()
 	for _, iface := range builtin.Interfaces() {
 		err := repo.AddInterface(iface)
@@ -1985,25 +1992,90 @@ slots:
 	err = repo.AddSnap(core11)
 	c.Assert(err, IsNil)
 	err = repo.Connect(interfaces.ConnRef{
-		interfaces.PlugRef{"snap-with-snapd-control", "snapd-control"},
-		interfaces.SlotRef{"core", "snapd-control"},
+		interfaces.PlugRef{info11.Name(), ifname},
+		interfaces.SlotRef{core11.Name(), ifname},
 	})
 	c.Assert(err, IsNil)
 	conns, err := repo.Connected("snap-with-snapd-control", "snapd-control")
 	c.Assert(err, IsNil)
 	c.Assert(conns, HasLen, 1)
 	ifacerepo.Replace(st, repo)
+}
 
-	snapdWithSnapControlDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+func (s *deviceMgrSuite) makeSnapDeclaration(c *C, st *state.State, info *snap.Info) {
+	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
-		"snap-name":    "snap-with-snapd-control",
-		"snap-id":      "snap-with-snapd-control-id",
+		"snap-name":    info.Name(),
+		"snap-id":      info.SideInfo.SnapID,
 		"publisher-id": "canonical",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapdWithSnapControlDecl)
+	err = assertstate.Add(s.state, decl)
 	c.Assert(err, IsNil)
+}
 
+func (s *deviceMgrSuite) TestCanSetRefreshScheduleManaged(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// not possbile to manage by default
+	c.Check(devicestate.CanSetRefreshScheduleManaged(st), Equals, false)
+
+	// not possible with just a snap with "snapd-control" plug with the
+	// right attribute
+	info11 := makeInstalledMockSnap(c, st, snapWithSnapdControlRefreshScheduleManagedYAML)
+	c.Check(devicestate.CanSetRefreshScheduleManaged(st), Equals, false)
+
+	// not possible with a core snap with snapd control
+	core11 := makeInstalledMockCoreSnapWithSnapdControl(c, st)
+	c.Check(devicestate.CanSetRefreshScheduleManaged(st), Equals, false)
+
+	// not possible even with connected interfaces
+	makeMockRepoWithConnectedSnaps(c, st, info11, core11, "snapd-control")
+	c.Check(devicestate.CanSetRefreshScheduleManaged(st), Equals, false)
+
+	// if all of the above plus a snap declaration are in place we can
+	// manage schedules
+	s.makeSnapDeclaration(c, st, info11)
+	c.Check(devicestate.CanSetRefreshScheduleManaged(st), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestCanSetRefreshScheduleManagedNoRefreshScheduleManaged(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// just having a connected "snapd-control" interface is not enough
+	// for setting refresh.schedule=managed
+	info11 := makeInstalledMockSnap(c, st, snapWithSnapdControlOnlyYAML)
+	core11 := makeInstalledMockCoreSnapWithSnapdControl(c, st)
+	makeMockRepoWithConnectedSnaps(c, st, info11, core11, "snapd-control")
+	s.makeSnapDeclaration(c, st, info11)
+
+	c.Check(devicestate.CanSetRefreshScheduleManaged(st), Equals, false)
+}
+
+func (s *deviceMgrSuite) TestRefreshControlManaged(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// Even with config set to managed refresh schedule
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.schedule", "managed")
+	tr.Commit()
+	// the schedule is not yet managed without a connected snapd-control
+	// interface with the "refresh-schedule: managed" attribute
+	c.Check(devicestate.RefreshScheduleManaged(st), Equals, false)
+
+	info11 := makeInstalledMockSnap(c, st, snapWithSnapdControlRefreshScheduleManagedYAML)
+	core11 := makeInstalledMockCoreSnapWithSnapdControl(c, st)
+	makeMockRepoWithConnectedSnaps(c, st, info11, core11, "snapd-control")
+	s.makeSnapDeclaration(c, st, info11)
+
+	// and once the connected interface is in place, the refresh
+	// schedule is set to managed.
 	c.Check(devicestate.RefreshScheduleManaged(st), Equals, true)
 }

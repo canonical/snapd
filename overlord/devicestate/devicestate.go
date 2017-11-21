@@ -226,11 +226,6 @@ func ProxyStore(st *state.State) (*asserts.Store, error) {
 	return a.(*asserts.Store), nil
 }
 
-func plugConnected(st *state.State, snapName, plugName string) bool {
-	conns, err := ifacerepo.Get(st).Connected(snapName, plugName)
-	return err == nil && len(conns) > 0
-}
-
 // refreshScheduleManaged returns true if the refresh schedule of the
 // device is managed by an external snap
 func refreshScheduleManaged(st *state.State) bool {
@@ -246,6 +241,12 @@ func refreshScheduleManaged(st *state.State) bool {
 	}
 
 	return CanSetRefreshScheduleManaged(st)
+}
+
+// plugConnected returns true if the given snap/plug names are connected
+func plugConnected(st *state.State, snapName, plugName string) bool {
+	conns, err := ifacerepo.Get(st).Connected(snapName, plugName)
+	return err == nil && len(conns) > 0
 }
 
 // CanSetRefreshScheduleManaged returns true if the device can be
