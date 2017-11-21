@@ -1210,6 +1210,7 @@ func (s *Store) WriteCatalogs(names io.Writer) error {
 	// do not log body for catalog updates (its huge)
 	client := httputil.NewHTTPClient(&httputil.ClientOpts{
 		MayLogBody: false,
+		Timeout:    10 * time.Second,
 	})
 	doRequest := func() (*http.Response, error) {
 		return s.doRequest(context.TODO(), client, reqOptions, nil)
