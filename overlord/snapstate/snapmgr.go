@@ -79,6 +79,8 @@ type SnapManager struct {
 	nextRefresh            time.Time
 	lastRefreshAttempt     time.Time
 
+	refreshHints *refreshHints
+
 	nextCatalogRefresh time.Time
 
 	lastUbuntuCoreTransitionAttempt time.Time
@@ -300,9 +302,10 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(st)
 
 	m := &SnapManager{
-		state:   st,
-		backend: backend.Backend{},
-		runner:  runner,
+		state:        st,
+		backend:      backend.Backend{},
+		runner:       runner,
+		refreshHints: newRefreshHints(st),
 	}
 
 	if err := os.MkdirAll(dirs.SnapCookieDir, 0700); err != nil {
@@ -516,23 +519,6 @@ func (m *SnapManager) NextCatalogRefresh() time.Time {
 	return m.nextCatalogRefresh
 }
 
-// checkRefreshHints will check for refrehes every 24h regardless of the
-// refresh schedule to be able to provide hints about outdated packages
-// to the user once we have the warning system in place.
-func (m *SnapManager) checkRefreshHints() error {
-	var lastRefreshHints time.Time
-	if err := m.state.Get("last-refresh-hints", &lastRefreshHints); err != nil && err != state.ErrNoState {
-		return err
-	}
-	if lastRefreshHints.Before(time.Now().Add(-time.Duration(24 * time.Hour))) {
-		if _, _, _, err := refreshCandidates(m.state, nil, nil, &store.RefreshOptions{RefreshManaged: true}); err != nil {
-			return err
-		}
-		m.state.Set("last-refresh-hints", time.Now())
-	}
-	return nil
-}
-
 // ensureRefreshes ensures that we refresh all installed snaps periodically
 func (m *SnapManager) ensureRefreshes() error {
 	m.state.Lock()
@@ -547,7 +533,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 
 	// always check refresh hints
-	m.checkRefreshHints()
+	m.refreshHints.Ensure()
 
 	// get lastRefresh and schedule
 	lastRefresh, err := m.LastRefresh()
