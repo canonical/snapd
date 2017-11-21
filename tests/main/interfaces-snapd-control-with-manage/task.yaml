@@ -71,4 +71,7 @@ execute: |
        exit 1
     fi
 
+    if ! which jq; then
+        snap install jq
+    fi
     cat /var/lib/snapd/state.json | jq '.data["last-refresh-hints"]' | grep $(date +%Y)
