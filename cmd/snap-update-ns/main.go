@@ -153,8 +153,22 @@ func computeAndSaveChanges(snapName string, sec *Secure) error {
 	}
 	debugShowProfile(currentBefore, "current mount profile (before applying changes)")
 
-	// Compute the needed changes and perform each change if needed, collecting
-	// those that we managed to perform or that were performed already.
+	currentAfter, err := applyProfile(snapName, currentBefore, desired, sec)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf("saving current mount profile of snap %q", snapName)
+	if err := currentAfter.Save(currentProfilePath); err != nil {
+		return fmt.Errorf("cannot save current mount profile of snap %q: %s", snapName, err)
+	}
+	return nil
+}
+
+func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, sec *Secure) (*osutil.MountProfile, error) {
+	// Compute the needed changes and perform each change if
+	// needed, collecting those that we managed to perform or that
+	// were performed already.
 	changesNeeded := NeededChanges(currentBefore, desired)
 	debugShowChanges(changesNeeded, "mount changes needed")
 
@@ -174,7 +188,7 @@ func computeAndSaveChanges(snapName string, sec *Secure) error {
 			// NOTE: we may have done something even if Perform itself has failed.
 			// We need to collect synthesized changes and store them.
 			if change.Entry.XSnapdOrigin() == "layout" {
-				return err
+				return nil, err
 			}
 			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			continue
@@ -192,12 +206,7 @@ func computeAndSaveChanges(snapName string, sec *Secure) error {
 		}
 	}
 	debugShowProfile(&currentAfter, "current mount profile (after applying changes)")
-
-	logger.Debugf("saving current mount profile of snap %q", snapName)
-	if err := currentAfter.Save(currentProfilePath); err != nil {
-		return fmt.Errorf("cannot save current mount profile of snap %q: %s", snapName, err)
-	}
-	return nil
+	return &currentAfter, nil
 }
 
 func debugShowProfile(profile *osutil.MountProfile, header string) {
@@ -224,7 +233,7 @@ func debugShowChanges(changes []*Change, header string) {
 
 func applyUserFstab(snapName string) error {
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
-	desired, err := mount.LoadProfile(desiredProfilePath)
+	desired, err := osutil.LoadMountProfile(desiredProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load desired user mount profile of snap %q: %s", snapName, err)
 	}
@@ -245,27 +254,9 @@ func applyUserFstab(snapName string) error {
 
 	debugShowProfile(desired, "desired mount profile")
 
-	// Since the user mount namespace is ephemeral, we use an
-	// empty profile as the starting point.
-	changesNeeded := NeededChanges(&mount.Profile{}, desired)
-	debugShowChanges(changesNeeded, "mount changes needed")
-
-	logger.Debugf("performing mount changes:")
-	for _, change := range changesNeeded {
-		logger.Debugf("\t * %s", change)
-		synthesised, err := changePerform(change)
-		// NOTE: we may have done something even if Perform itself has failed.
-		// We need to collect synthesized changes and store them.
-		if len(synthesised) > 0 {
-			logger.Debugf("\tsynthesised additional mount changes:")
-			for _, synth := range synthesised {
-				logger.Debugf(" * \t\t%s", synth)
-			}
-		}
-		if err != nil {
-			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
-			continue
-		}
-	}
-	return nil
+	// TODO: configure the secure helper and inform it about directories that
+	// can be created without trespassing.
+	sec := &Secure{}
+	_, err = applyProfile(snapName, &osutil.MountProfile{}, desired, sec)
+	return err
 }
