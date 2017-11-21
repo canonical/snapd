@@ -63,6 +63,7 @@ func deviceAPIBaseURL() string {
 var (
 	keyLength        = 4096
 	retryInterval    = 60 * time.Second
+	maxTentatives    = 15
 	deviceAPIBase    = deviceAPIBaseURL()
 	requestIDURL     = deviceAPIBase + "request-id"
 	serialRequestURL = deviceAPIBase + "devices"
@@ -114,9 +115,12 @@ type requestIDResp struct {
 	RequestID string `json:"request-id"`
 }
 
-func retryErr(t *state.Task, reason string, a ...interface{}) error {
+func retryErr(t *state.Task, nTentatives int, reason string, a ...interface{}) error {
 	t.State().Lock()
 	defer t.State().Unlock()
+	if nTentatives >= maxTentatives {
+		return fmt.Errorf(reason, a...)
+	}
 	t.Errorf(reason, a...)
 	return &state.Retry{After: retryInterval}
 }
@@ -126,10 +130,10 @@ type serverError struct {
 	Errors  []*serverError `json:"error_list"`
 }
 
-func retryBadStatus(t *state.Task, reason string, resp *http.Response) error {
+func retryBadStatus(t *state.Task, nTentatives int, reason string, resp *http.Response) error {
 	if resp.StatusCode > 500 {
 		// likely temporary
-		return retryErr(t, "%s: unexpected status %d", reason, resp.StatusCode)
+		return retryErr(t, nTentatives, "%s: unexpected status %d", reason, resp.StatusCode)
 	}
 	if resp.Header.Get("Content-Type") == "application/json" {
 		var srvErr serverError
@@ -149,6 +153,16 @@ func retryBadStatus(t *state.Task, reason string, resp *http.Response) error {
 }
 
 func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client, cfg *serialRequestConfig) (string, error) {
+	// limit tentatives starting from scratch before going to
+	// slower full retries
+	var nTentatives int
+	err := t.Get("pre-poll-tentatives", &nTentatives)
+	if err != nil && err != state.ErrNoState {
+		return "", err
+	}
+	nTentatives++
+	t.Set("pre-poll-tentatives", nTentatives)
+
 	st := t.State()
 	st.Unlock()
 	defer st.Lock()
@@ -167,18 +181,18 @@ func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *aut
 			// host, error out and do full retries
 			return "", fmt.Errorf("cannot retrieve request-id for making a request for a serial: %v", err)
 		}
-		return "", retryErr(t, "cannot retrieve request-id for making a request for a serial: %v", err)
+		return "", retryErr(t, nTentatives, "cannot retrieve request-id for making a request for a serial: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return "", retryBadStatus(t, "cannot retrieve request-id for making a request for a serial", resp)
+		return "", retryBadStatus(t, nTentatives, "cannot retrieve request-id for making a request for a serial", resp)
 	}
 
 	dec := json.NewDecoder(resp.Body)
 	var requestID requestIDResp
 	err = dec.Decode(&requestID)
 	if err != nil { // assume broken i/o
-		return "", retryErr(t, "cannot read response with request-id for making a request for a serial: %v", err)
+		return "", retryErr(t, nTentatives, "cannot read response with request-id for making a request for a serial: %v", err)
 	}
 
 	encodedPubKey, err := asserts.EncodePublicKey(privKey.PublicKey())
@@ -222,7 +236,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, retryErr(t, "cannot deliver device serial request: %v", err)
+		return nil, retryErr(t, 0, "cannot deliver device serial request: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -231,7 +245,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	case 202:
 		return nil, errPoll
 	default:
-		return nil, retryBadStatus(t, "cannot deliver device serial request", resp)
+		return nil, retryBadStatus(t, 0, "cannot deliver device serial request", resp)
 	}
 
 	// TODO: support a stream of assertions instead of just the serial
@@ -240,7 +254,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	dec := asserts.NewDecoder(resp.Body)
 	got, err := dec.Decode()
 	if err != nil { // assume broken i/o
-		return nil, retryErr(t, "cannot read response to request for a serial: %v", err)
+		return nil, retryErr(t, 0, "cannot read response to request for a serial: %v", err)
 	}
 
 	serial, ok := got.(*asserts.Serial)
