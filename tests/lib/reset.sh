@@ -80,7 +80,7 @@ reset_all_snap() {
     for snap in "$SNAP_MOUNT_DIR"/*; do
         snap="${snap:6}"
         case "$snap" in
-            "bin" | "$gadget_name" | "$kernel_name" | core )
+            "bin" | "$gadget_name" | "$kernel_name" | core | README)
                 ;;
             *)
                 snap remove "$snap"
