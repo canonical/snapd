@@ -9,10 +9,6 @@ details: |
 
     https://github.com/torvalds/linux/blob/master/Documentation/networking/tuntap.txt
 
-# This test is randomly failing when running with the full suite.
-# It may be a race or a sequence problem with an earlier test.
-manual: true
-
 environment:
     DEV/tun: tun255
     DEV/tap: tap255
