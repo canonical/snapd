@@ -19,7 +19,7 @@ restore: |
 
 execute: |
     config="/boot/config-$(uname -r)"
-    if [ -f $config ] && MATCH "CONFIG_STRICT_DEVMEM=y" < $config; then
+    if ([ -f $config ] && MATCH "CONFIG_STRICT_DEVMEM=y" < $config) || ([ -f /proc/config.gz ] && zcat /proc/config.gz | MATCH "CONFIG_STRICT_DEVMEM=y"); then
         echo "Kernel option CONFIG_STRICT_DEVMEM=y, it is not possible to write in /dev/mem, exiting..."
         exit 0
     fi
