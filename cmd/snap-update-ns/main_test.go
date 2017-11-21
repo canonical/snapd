@@ -267,7 +267,7 @@ func (s *mainSuite) TestApplyUserFstab(c *C) {
 	defer dirs.SetRootDir("/")
 
 	var changes []update.Change
-	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
 		changes = append(changes, *chg)
 		return nil, nil
 	})
