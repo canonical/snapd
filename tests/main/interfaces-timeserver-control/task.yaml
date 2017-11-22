@@ -34,15 +34,15 @@ execute: |
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     # Save the default timeserver to be restored at the end
-    echo $(test-snapd-timedate-control-consumer.timedatectl status | grep 'Network time on:' | sed 's/.*Network time on: \(.*\)$/\1/') > timeserver.txt
+    test-snapd-timedate-control-consumer.timedatectl status | grep -oP 'Network time on: \K(.*)' > timeserver.txt
 
     # Set the ntp value and check the status
     test-snapd-timedate-control-consumer.timedatectl set-ntp yes
-    [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep 'Network time on:' | sed 's/.*Network time on: \(.*\)$/\1/')" = "yes" ]
+    [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep -oP 'Network time on: \K(.*)')" = "yes" ]
 
     # Set the ntp value and check the status
     test-snapd-timedate-control-consumer.timedatectl set-ntp no
-    [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep 'Network time on:' | sed 's/.*Network time on: \(.*\)$/\1/')" = "no" ]
+    [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep -oP 'Network time on: \K(.*)')" = "no" ]
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0

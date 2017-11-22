@@ -44,15 +44,15 @@ execute: |
     test-snapd-timedate-control-consumer.timedatectl status | MATCH "RTC in local TZ:"
 
     # Save the RTC initial value
-    echo $(test-snapd-timedate-control-consumer.timedatectl status | grep 'RTC in local TZ:' | sed 's/.*RTC in local TZ: \(.*\)$/\1/') > rtc.txt
+    test-snapd-timedate-control-consumer.timedatectl status | grep -oP 'RTC in local TZ: \K(.*)' > rtc.txt
 
     # Set the local rtc and check the status
     test-snapd-timedate-control-consumer.timedatectl set-local-rtc yes
-    [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep 'RTC in local TZ:' | sed 's/.*RTC in local TZ: \(.*\)$/\1/')" = "yes" ]
+    [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep -oP 'RTC in local TZ: \K(.*)')" = "yes" ]
 
     # Re-set the local rtc and check the status
     test-snapd-timedate-control-consumer.timedatectl set-local-rtc no
-    [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep 'RTC in local TZ:' | sed 's/.*RTC in local TZ: \(.*\)$/\1/')" = "no" ]
+    [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep -oP 'RTC in local TZ: \K(.*)')" = "no" ]
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
