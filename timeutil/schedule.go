@@ -177,6 +177,16 @@ var weekdayMap = map[string]int{
 	"sat": 6,
 }
 
+var weekdayOrder = []string{
+	"mon",
+	"tue",
+	"wed",
+	"thu",
+	"fri",
+	"sat",
+	"sun",
+}
+
 // parseTimeInterval gets an input like "9:00-11:00"
 // and extracts the start and end of that schedule string and
 // returns them and any errors.
