@@ -20,6 +20,26 @@ disable_kernel_rate_limiting() {
     #sysctl -w kernel.printk_ratelimit=0
 }
 
+disable_refreshes() {
+    echo "Ensure jq is available"
+    if ! which jq; then
+        snap install --devmode jq
+    fi
+
+    echo "Modify state to make it look like the last refresh just happened"
+    systemctl stop snapd.socket snapd.service
+    jq ".data[\"last-refresh\"] = \"$(date +%Y-%m-%dT%H:%M:%S%:z)\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+    systemctl start snapd.socket snapd.service
+
+    echo "Minimize risk of hitting refresh schedule"
+    snap set core refresh.schedule=00:00-23:59
+    snap refresh --time|MATCH "last: 2[0-9]{3}"
+
+    echo "Ensure jq is gone"
+    snap remove jq
+}
+
 update_core_snap_for_classic_reexec() {
     # it is possible to disable this to test that snapd (the deb) works
     # fine with whatever is in the core snap
@@ -201,11 +221,7 @@ EOF
         update_core_snap_for_classic_reexec
         systemctl start snapd.{service,socket}
 
-        # ensure no auto-refresh happens during the tests
-        if [ -e /snap/core/current/meta/hooks/configure ]; then
-            snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
-            snap set core refresh.disabled=true
-        fi
+        disable_refreshes
 
         echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
         # shellcheck disable=SC2119
@@ -503,11 +519,7 @@ prepare_all_snap() {
         fi
     done
 
-    # ensure no auto-refresh happens during the tests
-    if [ -e /snap/core/current/meta/hooks/configure ]; then
-        snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
-        snap set core refresh.disabled=true
-    fi
+    disable_refreshes
 
     # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f "$SPREAD_PATH/snapd-state.tar.gz" ]; then

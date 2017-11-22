@@ -5,3 +5,4 @@ _complete() {
 }
 
 complete -F _complete test-snapd-complexion
+complete -F _complete test-snapd-complexion.two

@@ -1,0 +1,12 @@
+name: socket-activation
+version: 1.0
+apps:
+  sleep-daemon:
+    command: bin/sleep
+    daemon: simple
+    plugs: [network-bind]
+    sockets:
+      sock:
+        listen-stream: $SNAP_COMMON/socket
+        socket-mode: 0640
+    

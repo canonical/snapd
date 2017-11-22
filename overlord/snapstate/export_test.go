@@ -127,3 +127,9 @@ var (
 	CheckAliasesConflicts = checkAliasesConflicts
 	DisableAliases        = disableAliases
 )
+
+// readme files
+var (
+	WriteSnapReadme = writeSnapReadme
+	SnapReadme      = snapReadme
+)

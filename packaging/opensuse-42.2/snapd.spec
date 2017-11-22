@@ -279,7 +279,7 @@ fi
 %dir /var/lib/snapd/seccomp/bpf
 %dir /var/lib/snapd/snaps
 %dir /var/cache/snapd
-%verify(not user group mode) %attr(04755,root,root) %{_libexecdir}/snapd/snap-confine
+%verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_mandir}/man1/snap-confine.1.gz
 %{_mandir}/man5/snap-discard-ns.5.gz
 %{_udevrulesdir}/80-snappy-assign.rules
