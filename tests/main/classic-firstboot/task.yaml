@@ -39,7 +39,7 @@ restore: |
         exit
     fi
 
-    rm -r "$SEED_DIR"
+    rm -rf "$SEED_DIR"
     rm -f -- *.snap
     rm -f -- *.assert
     systemctl start snapd.socket snapd.service
