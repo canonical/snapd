@@ -134,7 +134,12 @@ var (
 	SnapReadme      = snapReadme
 )
 
-// refresh-hints
+// refreshes
 var (
-	NewRefreshHints = newRefreshHints
+	NewRefreshHints   = newRefreshHints
+	NewCatalogRefresh = newCatalogRefresh
 )
+
+func MockCatalogRefreshNextRefresh(cr *catalogRefresh, when time.Time) {
+	cr.nextCatalogRefresh = when
+}

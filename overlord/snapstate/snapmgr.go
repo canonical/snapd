@@ -68,7 +68,6 @@ const defaultRefreshSchedule = "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59"
 
 // overridden in the tests
 var errtrackerReport = errtracker.Report
-var catalogRefreshDelay = 24 * time.Hour
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
@@ -79,9 +78,8 @@ type SnapManager struct {
 	nextRefresh            time.Time
 	lastRefreshAttempt     time.Time
 
-	refreshHints *refreshHints
-
-	nextCatalogRefresh time.Time
+	refreshHints   *refreshHints
+	catalogRefresh *catalogRefresh
 
 	lastUbuntuCoreTransitionAttempt time.Time
 
@@ -302,10 +300,11 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(st)
 
 	m := &SnapManager{
-		state:        st,
-		backend:      backend.Backend{},
-		runner:       runner,
-		refreshHints: newRefreshHints(st),
+		state:          st,
+		backend:        backend.Backend{},
+		runner:         runner,
+		refreshHints:   newRefreshHints(st),
+		catalogRefresh: newCatalogRefresh(st),
 	}
 
 	if err := os.MkdirAll(dirs.SnapCookieDir, 0700); err != nil {
@@ -497,13 +496,6 @@ func (m *SnapManager) RefreshSchedule() string {
 	return m.currentRefreshSchedule
 }
 
-// NextCatalogRefresh returns the time the next update of catalog
-// data will be attempted.
-// The caller should be holding the state lock.
-func (m *SnapManager) NextCatalogRefresh() time.Time {
-	return m.nextCatalogRefresh
-}
-
 // ensureRefreshes ensures that we refresh all installed snaps periodically
 func (m *SnapManager) ensureRefreshes() error {
 	m.state.Lock()
@@ -564,33 +556,6 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 
 	return err
-}
-
-// ensureCatalogRefresh ensures that we refresh the catalog
-// data periodically
-func (m *SnapManager) ensureCatalogRefresh() error {
-	// sneakily don't do anything if in testing
-	if CanAutoRefresh == nil {
-		return nil
-	}
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	theStore := Store(m.state)
-	now := time.Now()
-	needsRefresh := m.nextCatalogRefresh.IsZero() || m.nextCatalogRefresh.Before(now)
-
-	if !needsRefresh {
-		return nil
-	}
-
-	next := now.Add(catalogRefreshDelay)
-	// catalog refresh does not carry on trying on error
-	m.nextCatalogRefresh = next
-
-	logger.Debugf("Catalog refresh starting now; next scheduled for %s.", next)
-
-	return refreshCatalogs(m.state, theStore)
 }
 
 // ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode
@@ -699,7 +664,7 @@ func (m *SnapManager) Ensure() error {
 		m.ensureUbuntuCoreTransition(),
 		m.refreshHints.Ensure(),
 		m.ensureRefreshes(),
-		m.ensureCatalogRefresh(),
+		m.catalogRefresh.Ensure(),
 	}
 
 	m.runner.Ensure()
