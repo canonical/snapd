@@ -98,6 +98,7 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 		{"23:00-01:00", nil, `cannot parse "23:00-01:00": time in an interval cannot go backwards`},
 		// FIXME: error message sucks
 		{"9:00-mon@11:00", nil, `cannot parse "9:00-mon", want "mon", "tue", etc`},
+		{"foo@9:00-11:00", nil, `cannot parse "foo", want "mon", "tue", etc`},
 
 		// valid
 		{"9:00-11:00", []*timeutil.Schedule{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}, ""},
