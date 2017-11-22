@@ -96,7 +96,7 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 	} {
 		schedule, err := timeutil.ParseSchedule(t.in)
 		if t.errStr != "" {
-			c.Check(err, ErrorMatches, t.errStr, Commentf("%q returned unexpected error: %s", err))
+			c.Check(err, ErrorMatches, t.errStr, Commentf("%q returned unexpected error: %s", t.in, err))
 		} else {
 			c.Check(err, IsNil, Commentf("%q returned error: %s", t.in, err))
 			c.Check(schedule, DeepEquals, t.expected, Commentf("%q failed", t.in))
