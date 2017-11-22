@@ -8,46 +8,6 @@ prepare_project() {
         exit 1
     fi
 
-    # apt update is hanging on security.ubuntu.com with IPv6, prefer IPv4 over IPv6
-    cat <<EOF > gai.conf
-precedence  ::1/128       50
-precedence  ::/0          40
-precedence  2002::/16     30
-precedence ::/96          20
-precedence ::ffff:0:0/96 100
-EOF
-    if ! mv gai.conf /etc/gai.conf; then
-        echo "/etc/gai.conf is not writable, ubuntu-core system? apt update won't be affected in that case"
-        rm -f gai.conf
-    fi
-
-    # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
-    # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
-    if [ -f current.delta ]; then
-        tf=$(mktemp)
-        # NOTE: We can't use tests/lib/pkgdb.sh here as it doesn't exist at
-        # this time when none of the test files is yet in place.
-        case "$SPREAD_SYSTEM" in
-            ubuntu-*|debian-*)
-                apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
-                apt-get install -y xdelta3 curl >& "$tf" || ( cat "$tf"; exit 1 )
-                ;;
-            fedora-*)
-                dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
-                ;;
-            opensuse-*)
-                zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
-                ;;
-        esac
-        rm -f "$tf"
-        curl -sS -o - "https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF" | gunzip > delta-ref.tar
-        xdelta3 -q -d -s delta-ref.tar current.delta | tar x --strip-components=1
-        rm -f delta-ref.tar current.delta
-    elif [ -d "$DELTA_PREFIX" ]; then
-        find "$DELTA_PREFIX" -mindepth 1 -maxdepth 1 -exec mv {} . \;
-        rmdir "$DELTA_PREFIX"
-    fi
-
     "$TESTSLIB"/prepare-project.sh
 }
 
