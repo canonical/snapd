@@ -46,7 +46,7 @@ restore_project() {
         # start and enable autorefresh
         if [ -e /snap/core/current/meta/hooks/configure ]; then
             systemctl enable --now snapd.refresh.timer
-            snap set core refresh.disabled=false
+            snap set core refresh.schedule=""
         fi
     fi
 
