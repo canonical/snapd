@@ -7727,6 +7727,29 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestSnapManagerRefreshSchedule(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, t := range []struct {
+		in  string
+		out string
+	}{
+		{"", snapstate.DefaultRefreshSchedule},
+		{"invalid schedule", snapstate.DefaultRefreshSchedule},
+		{"8:00-12:00", "8:00-12:00"},
+	} {
+		if t.in != "" {
+			tr := config.NewTransaction(s.state)
+			tr.Set("core", "refresh.schedule", t.in)
+			tr.Commit()
+		}
+		scheduleStr, err := s.snapmgr.RefreshSchedule()
+		c.Check(err, IsNil)
+		c.Check(scheduleStr, Equals, t.out)
+	}
+}
+
 type canDisableSuite struct{}
 
 var _ = Suite(&canDisableSuite{})

@@ -52,9 +52,9 @@ type SnapManager struct {
 	state   *state.State
 	backend managerBackend
 
-	currentRefreshSchedule string
-	nextRefresh            time.Time
-	lastRefreshAttempt     time.Time
+	lastRefreshSchedule string
+	nextRefresh         time.Time
+	lastRefreshAttempt  time.Time
 
 	refreshHints   *refreshHints
 	catalogRefresh *catalogRefresh
@@ -361,36 +361,34 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 
 var CanAutoRefresh func(st *state.State) (bool, error)
 
-func (m *SnapManager) checkRefreshSchedule() ([]*timeutil.Schedule, error) {
+func resetRefreshScheduleToDefault(st *state.State) (ts []*timeutil.Schedule, scheduleStr string) {
+	refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshSchedule)
+	if err != nil {
+		panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
+	}
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.schedule", defaultRefreshSchedule)
+	tr.Commit()
+
+	return refreshSchedule, defaultRefreshSchedule
+}
+
+func (m *SnapManager) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, err error) {
 	refreshScheduleStr := defaultRefreshSchedule
 
 	tr := config.NewTransaction(m.state)
-	err := tr.Get("core", "refresh.schedule", &refreshScheduleStr)
+	err = tr.Get("core", "refresh.schedule", &refreshScheduleStr)
 	if err != nil && !config.IsNoOption(err) {
-		return nil, err
+		return nil, "", err
 	}
+
 	refreshSchedule, err := timeutil.ParseSchedule(refreshScheduleStr)
 	if err != nil {
 		logger.Noticef("cannot use refresh.schedule configuration: %s", err)
-		refreshSchedule, err = timeutil.ParseSchedule(defaultRefreshSchedule)
-		if err != nil {
-			panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
-		}
-		tr.Set("core", "refresh.schedule", defaultRefreshSchedule)
-		tr.Commit()
+		refreshSchedule, refreshScheduleStr = resetRefreshScheduleToDefault(m.state)
 	}
 
-	// we already have a refresh time, check if we got a new config
-	if !m.nextRefresh.IsZero() {
-		if m.currentRefreshSchedule != refreshScheduleStr {
-			// the refresh schedule has changed
-			logger.Debugf("Option refresh.schedule changed.")
-			m.nextRefresh = time.Time{}
-		}
-	}
-	m.currentRefreshSchedule = refreshScheduleStr
-
-	return refreshSchedule, nil
+	return refreshSchedule, refreshScheduleStr, nil
 }
 
 func (m *SnapManager) launchAutoRefresh() error {
@@ -456,10 +454,12 @@ func (m *SnapManager) NextRefresh() time.Time {
 	return m.nextRefresh
 }
 
-// RefreshSchedule returns the current refresh schedule.
+// RefreshSchedule returns the current refresh schedule as a string
+// suitable to display to a user.
 // The caller should be holding the state lock.
-func (m *SnapManager) RefreshSchedule() string {
-	return m.currentRefreshSchedule
+func (m *SnapManager) RefreshSchedule() (string, error) {
+	_, scheduleStr, err := m.refreshScheduleWithDefaultsFallback()
+	return scheduleStr, err
 }
 
 // ensureRefreshes ensures that we refresh all installed snaps periodically
@@ -480,10 +480,19 @@ func (m *SnapManager) ensureRefreshes() error {
 	if err != nil {
 		return err
 	}
-	refreshSchedule, err := m.checkRefreshSchedule()
+	refreshSchedule, refreshScheduleStr, err := m.refreshScheduleWithDefaultsFallback()
 	if err != nil {
 		return err
 	}
+	// we already have a refresh time, check if we got a new config
+	if !m.nextRefresh.IsZero() {
+		if m.lastRefreshSchedule != refreshScheduleStr {
+			// the refresh schedule has changed
+			logger.Debugf("Option refresh.schedule changed.")
+			m.nextRefresh = time.Time{}
+		}
+	}
+	m.lastRefreshSchedule = refreshScheduleStr
 
 	// ensure nothing is in flight already
 	if autoRefreshInFlight(m.state) {
