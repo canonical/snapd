@@ -7,12 +7,6 @@ prepare_project() {
         echo "Tests cannot run inside a container"
         exit 1
     fi
-    if [[ "$SPREAD_SYSTEM" == debian-unstable-* ]]; then
-        # There's a packaging bug in Debian sid lately where some packages
-        # conflict on manual page file. To work around it simply remove the
-        # manpages package.
-        apt-get remove --purge -y manpages
-    fi
 
     # FIXME: remove once the following bug is fixed:
     #   https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=876128
