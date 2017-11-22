@@ -1207,8 +1207,13 @@ func (s *Store) WriteCatalogs(names io.Writer) error {
 		Accept: halJsonContentType,
 	}
 
+	// do not log body for catalog updates (its huge)
+	client := httputil.NewHTTPClient(&httputil.ClientOpts{
+		MayLogBody: false,
+		Timeout:    10 * time.Second,
+	})
 	doRequest := func() (*http.Response, error) {
-		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
+		return s.doRequest(context.TODO(), client, reqOptions, nil)
 	}
 	readResponse := func(resp *http.Response) error {
 		return decodeCatalog(resp, names)
