@@ -69,11 +69,17 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
+type RefreshOptions struct {
+	// RefreshManaged indicates to the store that the refresh is
+	// managed via snapd-control.
+	RefreshManaged bool
+}
+
 // the LimitTime should be slightly more than 3 times of our http.Client
 // Timeout value
-var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
+var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
 	retry.Exponential{
-		Initial: 100 * time.Millisecond,
+		Initial: 300 * time.Millisecond,
 		Factor:  2.5,
 	},
 ))
@@ -103,6 +109,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.Confinement = snap.ConfinementType(d.Confinement)
 	info.Contact = d.Contact
 	info.License = d.License
+	info.Base = d.Base
 
 	deltas := make([]snap.DeltaInfo, len(d.Deltas))
 	for i, d := range d.Deltas {
@@ -688,6 +695,13 @@ type requestOptions struct {
 	Data         []byte
 }
 
+func (r *requestOptions) addHeader(k, v string) {
+	if r.ExtraHeaders == nil {
+		r.ExtraHeaders = make(map[string]string)
+	}
+	r.ExtraHeaders[k] = v
+}
+
 func cancelled(ctx context.Context) bool {
 	select {
 	case <-ctx.Done():
@@ -1270,7 +1284,11 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 }
 
 // query the store for the information about currently offered revisions of snaps
-func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth.UserState) ([]*snapDetails, error) {
+func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth.UserState, flags *RefreshOptions) ([]*snapDetails, error) {
+	if flags == nil {
+		flags = &RefreshOptions{}
+	}
+
 	if len(currentSnaps) == 0 {
 		// nothing to do
 		return nil, nil
@@ -1295,9 +1313,10 @@ func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth
 
 	if useDeltas() {
 		logger.Debugf("Deltas enabled. Adding header X-Ubuntu-Delta-Formats: %v", s.deltaFormat)
-		reqOptions.ExtraHeaders = map[string]string{
-			"X-Ubuntu-Delta-Formats": s.deltaFormat,
-		}
+		reqOptions.addHeader("X-Ubuntu-Delta-Formats", s.deltaFormat)
+	}
+	if flags.RefreshManaged {
+		reqOptions.addHeader("X-Ubuntu-Refresh-Managed", "true")
 	}
 
 	var updateData searchResults
@@ -1324,7 +1343,7 @@ func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState)
 		return nil, ErrLocalSnap
 	}
 
-	latest, err := refreshForCandidates(s, []*currentSnapJSON{cur}, user)
+	latest, err := refreshForCandidates(s, []*currentSnapJSON{cur}, user, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1343,8 +1362,7 @@ func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState)
 
 // ListRefresh returns the available updates for a list of refresh candidates.
 // NOTE ListRefresh can return nil, nil if e.g. all local snaps are passed in
-func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState) (snaps []*snap.Info, err error) {
-
+func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState, flags *RefreshOptions) (snaps []*snap.Info, err error) {
 	candidateMap := map[string]*RefreshCandidate{}
 	currentSnaps := make([]*currentSnapJSON, 0, len(installed))
 	for _, cs := range installed {
@@ -1356,7 +1374,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		candidateMap[cs.SnapID] = cs
 	}
 
-	latest, err := s.refreshForCandidates(currentSnaps, user)
+	latest, err := s.refreshForCandidates(currentSnaps, user, flags)
 	if err != nil {
 		return nil, err
 	}

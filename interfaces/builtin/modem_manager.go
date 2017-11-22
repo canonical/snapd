@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const modemManagerSummary = `allows operating as the ModemManager service`
@@ -1218,17 +1219,17 @@ func (iface *modemManagerInterface) DBusConnectedPlug(spec *dbus.Specification, 
 	return nil
 }
 
-func (iface *modemManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *modemManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(modemManagerPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *modemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *modemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(modemManagerPermanentSlotDBus)
 	return nil
 }
 
-func (iface *modemManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
+func (iface *modemManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(modemManagerPermanentSlotUDev)
 	spec.TagDevice(`KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*"`)
 	return nil
@@ -1242,7 +1243,7 @@ func (iface *modemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specifi
 	return nil
 }
 
-func (iface *modemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *modemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(modemManagerPermanentSlotSecComp)
 	return nil
 }

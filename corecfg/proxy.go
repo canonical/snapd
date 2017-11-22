@@ -75,7 +75,7 @@ func handleProxyConfiguration(tr Conf) error {
 	return nil
 }
 
-func handleProxyStore(tr Conf) error {
+func validateProxyStore(tr Conf) error {
 	proxyStore, err := coreCfg(tr, "proxy.store")
 	if err != nil {
 		return err

@@ -94,7 +94,7 @@ func (s *ThumbnailerServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 
 	// slots have a permanent non-nil security snippet for apparmor
 	apparmorSpec = &apparmor.Specification{}
-	err = apparmorSpec.AddPermanentSlot(s.iface, s.coreSlot)
+	err = apparmorSpec.AddPermanentSlot(s.iface, s.coreSlot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.thumbnailer-service.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.thumbnailer-service.app"), testutil.Contains, `member={RequestName,ReleaseName,GetConnectionCredentials}`)

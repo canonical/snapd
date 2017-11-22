@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
 )
 
 const maliitSummary = `allows operating as the Maliit service`
@@ -144,12 +145,12 @@ func (iface *maliitInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	return nil
 }
 
-func (iface *maliitInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *maliitInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(maliitPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *maliitInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *maliitInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(maliitPermanentSlotAppArmor)
 	return nil
 }

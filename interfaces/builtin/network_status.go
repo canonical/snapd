@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/snap"
 )
 
 const networkStatusSummary = `allows operating as the NetworkingStatus service`
@@ -133,12 +134,12 @@ func (iface *networkStatusInterface) AppArmorConnectedSlot(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *networkStatusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *networkStatusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(networkStatusPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *networkStatusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *networkStatusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(networkStatusPermanentSlotDBus)
 	return nil
 }
