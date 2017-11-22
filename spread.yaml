@@ -107,6 +107,9 @@ backends:
             - debian-9-64:
                 username: debian
                 password: debian
+            - debian-sid-64:
+                username: debian
+                password: debian
             - fedora-25-64:
                 username: fedora
                 password: fedora
@@ -252,27 +255,6 @@ exclude:
     - "*.o"
     - "*.a"
 
-prepare-each: |
-    # systemd on 14.04 does not know about --rotate or --vacuum-time.
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
-        journalctl --rotate
-        sleep .1
-        journalctl --vacuum-time=1ms
-    else
-        # Force a log rotation with small size
-        sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
-        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
-
-        # Restore the initial configuration and rotate logs
-        mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
-        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
-
-        # Remove rotated journal logs
-        systemctl stop systemd-journald.service
-        find /run/log/journal/ -name "*@*.journal" -delete
-        systemctl start systemd-journald.service
-    fi
-    dmesg -c > /dev/null
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
@@ -364,22 +346,44 @@ prepare: |
                 ;;
         esac
         rm -f "$tf"
-        curl -sS -o - https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF | gunzip > delta-ref.tar
+        curl -sS -o - "https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF" | gunzip > delta-ref.tar
         xdelta3 -q -d -s delta-ref.tar current.delta | tar x --strip-components=1
         rm -f delta-ref.tar current.delta
-    elif [ -d $DELTA_PREFIX ]; then
-        find $DELTA_PREFIX -mindepth 1 -maxdepth 1 -exec mv {} . \;
-        rmdir $DELTA_PREFIX
+    elif [ -d "$DELTA_PREFIX" ]; then
+        find "$DELTA_PREFIX" -mindepth 1 -maxdepth 1 -exec mv {} . \;
+        rmdir "$DELTA_PREFIX"
     fi
 
-    . "$TESTSLIB/prepare-project.sh"
+    "$TESTSLIB"/prepare-project.sh
+
+prepare-each: |
+    # systemd on 14.04 does not know about --rotate or --vacuum-time.
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        journalctl --rotate
+        sleep .1
+        journalctl --vacuum-time=1ms
+    else
+        # Force a log rotation with small size
+        sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
+        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+
+        # Restore the initial configuration and rotate logs
+        mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
+        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+
+        # Remove rotated journal logs
+        systemctl stop systemd-journald.service
+        find /run/log/journal/ -name "*@*.journal" -delete
+        systemctl start systemd-journald.service
+    fi
+    dmesg -c > /dev/null
 
 restore: |
     if [ "$SPREAD_BACKEND" = external ]; then
         # start and enable autorefresh
         if [ -e /snap/core/current/meta/hooks/configure ]; then
             systemctl enable --now snapd.refresh.timer
-            snap set core refresh.disabled=false
+            snap set core refresh.schedule=""
         fi
     fi
 
