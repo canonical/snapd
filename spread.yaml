@@ -252,27 +252,6 @@ exclude:
     - "*.o"
     - "*.a"
 
-prepare-each: |
-    # systemd on 14.04 does not know about --rotate or --vacuum-time.
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
-        journalctl --rotate
-        sleep .1
-        journalctl --vacuum-time=1ms
-    else
-        # Force a log rotation with small size
-        sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
-        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
-
-        # Restore the initial configuration and rotate logs
-        mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
-        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
-
-        # Remove rotated journal logs
-        systemctl stop systemd-journald.service
-        find /run/log/journal/ -name "*@*.journal" -delete
-        systemctl start systemd-journald.service
-    fi
-    dmesg -c > /dev/null
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
@@ -373,6 +352,28 @@ prepare: |
     fi
 
     . "$TESTSLIB/prepare-project.sh"
+
+prepare-each: |
+    # systemd on 14.04 does not know about --rotate or --vacuum-time.
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        journalctl --rotate
+        sleep .1
+        journalctl --vacuum-time=1ms
+    else
+        # Force a log rotation with small size
+        sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
+        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+
+        # Restore the initial configuration and rotate logs
+        mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
+        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+
+        # Remove rotated journal logs
+        systemctl stop systemd-journald.service
+        find /run/log/journal/ -name "*@*.journal" -delete
+        systemctl start systemd-journald.service
+    fi
+    dmesg -c > /dev/null
 
 restore: |
     if [ "$SPREAD_BACKEND" = external ]; then
