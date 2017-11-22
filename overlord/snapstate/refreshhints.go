@@ -28,7 +28,7 @@ import (
 
 var refreshHintsDelay = time.Duration(24 * time.Hour)
 
-// refreshHints will ensure that we regular get data about refreshes
+// refreshHints will ensure that we get regular data about refreshes
 // so that we can potentially warn the user about important missing
 // refreshes.
 type refreshHints struct {
@@ -59,6 +59,8 @@ func (r *refreshHints) refresh() error {
 	refreshManaged := false
 
 	_, _, _, err := refreshCandidates(r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
+	// TODO: we currently set last-refresh-hints even when there was an
+	// error. In the future we may retry with a backoff.
 	r.state.Set("last-refresh-hints", time.Now())
 	return err
 }
