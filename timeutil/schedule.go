@@ -39,6 +39,31 @@ func (t TimeOfDay) String() string {
 	return fmt.Sprintf("%02d:%02d", t.Hour, t.Minute)
 }
 
+// Sub subtracts `other` TimeOfDay from current and returns duration
+func (t TimeOfDay) Sub(other TimeOfDay) time.Duration {
+	t1 := time.Duration(t.Hour)*time.Hour + time.Duration(t.Minute)*time.Minute
+	t2 := time.Duration(other.Hour)*time.Hour + time.Duration(other.Minute)*time.Minute
+	return t1 - t2
+}
+
+// Add adds given duration and returns a new TimeOfDay
+func (t TimeOfDay) Add(dur time.Duration) TimeOfDay {
+	t1 := time.Duration(t.Hour)*time.Hour + time.Duration(t.Minute)*time.Minute
+	t2 := t1 + dur
+	nt := TimeOfDay{
+		Hour:   int(t2.Hours()) % 24,
+		Minute: int(t2.Minutes()) % 60,
+	}
+	return nt
+}
+
+// IsValidWeekday returns true if given s looks like a valid weekday. Valid
+// inputs are 3 letter, lowercase abbreviations of week days.
+func IsValidWeekday(s string) bool {
+	_, ok := weekdayMap[s]
+	return ok
+}
+
 // ParseTime parses a string that contains hour:minute and returns
 // an TimeOfDay type or an error
 func ParseTime(s string) (t TimeOfDay, err error) {
