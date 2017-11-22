@@ -53,6 +53,8 @@ var (
 	abortWait      = 24 * time.Hour * 7
 
 	pruneMaxChanges = 500
+
+	defaultCachedDownloads = 5
 )
 
 // Overlord is the central manager of a snappy system, keeping
@@ -142,7 +144,7 @@ func New() (*Overlord, error) {
 	// setting up the store
 	authContext := auth.NewAuthContext(s, o.deviceMgr)
 	sto := storeNew(nil, authContext)
-	sto.SetCacheDownloads(5)
+	sto.SetCacheDownloads(defaultCachedDownloads)
 
 	snapstate.ReplaceStore(s, sto)
 
