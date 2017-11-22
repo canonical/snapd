@@ -33,7 +33,7 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    rm /dev/iio:device0
+    rm -f /dev/iio:device0
 
 execute: |
     . $TESTSLIB/dirs.sh
