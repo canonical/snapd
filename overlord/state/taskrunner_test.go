@@ -697,6 +697,11 @@ func (ts *taskRunnerSuite) TestUndoSequence(c *C) {
 	chg := st.NewChange("install", "...")
 
 	var prev *state.Task
+
+	// create a sequence of tasks: 3 tasks with undo handlers, a task with
+	// no undo handler, 3 tasks with undo handler, a task with no undo
+	// handler, finally a task that errors out. Every task waits for previous
+	// taske.
 	for i := 0; i < 2; i++ {
 		for j := 0; j < 3; j++ {
 			t := st.NewTask("do-with-undo", "...")
@@ -716,6 +721,7 @@ func (ts *taskRunnerSuite) TestUndoSequence(c *C) {
 	terr := st.NewTask("error-trigger", "provoking undo")
 	terr.WaitFor(prev)
 	chg.AddTask(terr)
+
 	c.Check(chg.Tasks(), HasLen, 9) // sanity check
 
 	st.Unlock()
