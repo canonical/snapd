@@ -32,7 +32,7 @@ restore: |
     rm "$NAMES"
     [ -e "$NAMES.orig" ] && mv "$NAMES.orig" "$NAMES"
     systemctl start snapd.service
-    rm testdir/foo.snap bar.snap
+    rm -f testdir/foo.snap bar.snap
     rmdir testdir
 
 debug: |
