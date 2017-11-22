@@ -107,6 +107,9 @@ backends:
             - ubuntu-18.04-64:
                 username: ubuntu
                 password: ubuntu
+            - debian-sid-64:
+                username: debian
+                password: debian
             - debian-9-64:
                 username: debian
                 password: debian
