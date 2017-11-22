@@ -69,8 +69,9 @@ func isValidTime(s string) bool {
 	return true
 }
 
-// isValidWeekday returns true if given s looks like a valid weekday
-func isValidWeekday(s string) bool {
+// IsValidWeekday returns true if given s looks like a valid weekday. Valid
+// inputs are 3 letter, lowercase abbreviations of week days.
+func IsValidWeekday(s string) bool {
 	_, ok := weekdayMap[s]
 	return ok
 }
@@ -350,7 +351,7 @@ func parseWeekday(s string) (weekday, rest string, err error) {
 	s = strings.ToLower(s)
 	l := strings.SplitN(s, "@", 2)
 	weekday = l[0]
-	if !isValidWeekday(weekday) {
+	if !IsValidWeekday(weekday) {
 		return "", "", fmt.Errorf(`cannot parse %q, want "mon", "tue", etc`, l[0])
 	}
 	rest = l[1]
@@ -385,17 +386,12 @@ func parseTimeInterval(s string) (start, end TimeOfDay, err error) {
 // parseSingleSchedule parses a schedule string like "mon@9:00-11:00" or
 // "9:00-11:00" and returns a Schedule struct and an error.
 func parseSingleSchedule(s string) (*Schedule, error) {
-	weekday, rest, err := parseWeekday(s)
-	if err != nil {
-		return nil, err
-	}
-	start, end, err := parseTimeInterval(rest)
+	start, end, err := parseTimeInterval(s)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Schedule{
-		Weekday:   weekday,
 		Start:     start,
 		End:       end,
 		Randomize: true,
@@ -580,7 +576,7 @@ func parseWeekdaySpec(s string) (string, MonthWeekday, error) {
 			return "", monthWeekdayNone, fmt.Errorf("cannot parse %q: incorrect week number", mw)
 		}
 	}
-	if !isValidWeekday(wday) {
+	if !IsValidWeekday(wday) {
 		return "", monthWeekdayNone, fmt.Errorf("cannot parse %q: invalid weekday", s)
 	}
 
