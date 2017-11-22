@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,17 +23,14 @@ package snapstate
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
 	"sort"
-	"strings"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -545,11 +542,11 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 // RefreshCandidates gets a list of candidates for update
 // Note that the state must be locked by the caller.
 func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, error) {
-	updates, _, _, err := refreshCandidates(st, nil, user)
+	updates, _, _, err := refreshCandidates(st, nil, user, nil)
 	return updates, err
 }
 
-func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
+func refreshCandidates(st *state.State, names []string, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
 	snapStates, err := All(st)
 	if err != nil {
 		return nil, nil, nil, err
@@ -612,7 +609,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 	theStore := Store(st)
 
 	st.Unlock()
-	updates, err := theStore.ListRefresh(candidatesInfo, user, nil)
+	updates, err := theStore.ListRefresh(candidatesInfo, user, flags)
 	st.Lock()
 	if err != nil {
 		return nil, nil, nil, err
@@ -633,7 +630,7 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 		return nil, nil, err
 	}
 
-	updates, stateByID, ignoreValidation, err := refreshCandidates(st, names, user)
+	updates, stateByID, ignoreValidation, err := refreshCandidates(st, names, user, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1755,34 +1752,4 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 	}
 
 	return defaults, nil
-}
-
-func refreshCatalogs(st *state.State, theStore StoreService) error {
-	st.Unlock()
-	defer st.Lock()
-
-	if err := os.MkdirAll(dirs.SnapCacheDir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory %q: %v", dirs.SnapCacheDir, err)
-	}
-
-	sections, err := theStore.Sections(nil)
-	if err != nil {
-		return err
-	}
-
-	sort.Strings(sections)
-	if err := osutil.AtomicWriteFile(dirs.SnapSectionsFile, []byte(strings.Join(sections, "\n")), 0644, 0); err != nil {
-		return err
-	}
-
-	namesFile, err := osutil.NewAtomicFile(dirs.SnapNamesFile, 0644, 0, -1, -1)
-	if err != nil {
-		return err
-	}
-	defer namesFile.Cancel()
-	if err := theStore.WriteCatalogs(namesFile); err != nil {
-		return err
-	}
-
-	return namesFile.Commit()
 }
