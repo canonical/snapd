@@ -58,11 +58,15 @@ func (b *stateBackend) EnsureBefore(d time.Duration) {
 
 func (b *stateBackend) RequestRestart(t state.RestartType) {}
 
-func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change) {
+func ensureChange(c *C, runners []*state.TaskRunner, sb *stateBackend, chg *state.Change) {
 	for i := 0; i < 10; i++ {
 		sb.ensureBefore = time.Hour
-		r.Ensure()
-		r.Wait()
+		for _, r := range runners {
+			r.Ensure()
+		}
+		for _, r := range runners {
+			r.Wait()
+		}
 		chg.State().Lock()
 		s := chg.Status()
 		chg.State().Unlock()
@@ -93,7 +97,7 @@ func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change
 //     <task>:...:1,2         - one of the above, and add task to lanes 1 and 2
 //     chg:abort              - call abort on the change
 //
-// Task wait order: ( t11 | t12 ) => ( t21 ) => ( t31 | t32 )
+// Task wait order: ( t11 | t12 ) => ( t21 ) => ( t31 | t32 ) => t41 => t42
 //
 // Task t12 has no undo.
 //
@@ -101,16 +105,16 @@ func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change
 //
 var sequenceTests = []struct{ setup, result string }{{
 	setup:  "",
-	result: "t11:do t12:do t21:do t31:do t32:do",
+	result: "t11:do t12:do t21:do t31:do t32:do t41:do t42:do",
 }, {
 	setup:  "t11:was-done t12:was-doing",
-	result: "t12:do t21:do t31:do t32:do",
+	result: "t12:do t21:do t31:do t32:do t41:do t42:do",
 }, {
 	setup:  "t11:was-done t12:was-doing chg:abort",
 	result: "t11:undo",
 }, {
 	setup:  "t12:do-retry",
-	result: "t11:do t12:do t12:do-retry t12:do t21:do t31:do t32:do",
+	result: "t11:do t12:do t12:do-retry t12:do t21:do t31:do t32:do t41:do t42:do",
 }, {
 	setup:  "t11:do-block t12:do-error",
 	result: "t11:do t11:do-block t12:do t12:do-error t11:do-unblock t11:undo",
@@ -128,7 +132,7 @@ var sequenceTests = []struct{ setup, result string }{{
 	result: "t11:do t12:do t21:do t31:do t31:do-error t32:do t32:undo t21:undo t21:undo-error t11:undo",
 }, {
 	setup:  "t21:do-set-ready",
-	result: "t11:do t12:do t21:do t31:do t32:do",
+	result: "t11:do t12:do t21:do t31:do t32:do t41:do t42:do",
 }, {
 	setup:  "t31:do-error t21:undo-set-ready",
 	result: "t11:do t12:do t21:do t31:do t31:do-error t32:do t32:undo t21:undo t11:undo",
@@ -138,13 +142,17 @@ var sequenceTests = []struct{ setup, result string }{{
 }, {
 	setup:  "t11:was-done:1 t12:was-done:2 t21:was-done:2 t31:was-done:2 t32:do-error:2",
 	result: "t31:undo t32:do t32:do-error t21:undo",
+}, {
+	setup:  "t42:do-error",
+	result: "t11:do t12:do t21:do t31:do t32:do t41:do t41:undo t42:do t42:do-error t31:undo t32:undo t21:undo t11:undo",
 }}
 
 func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
-	r := state.NewTaskRunner(st)
-	defer r.Stop()
+	r := []*state.TaskRunner{state.NewTaskRunner(st), state.NewTaskRunner(st)}
+	defer r[0].Stop()
+	defer r[1].Stop()
 
 	ch := make(chan string, 256)
 	fn := func(label string) state.HandlerFunc {
@@ -180,8 +188,9 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 			return nil
 		}
 	}
-	r.AddHandler("do", fn("do"), nil)
-	r.AddHandler("do-undo", fn("do"), fn("undo"))
+	r[0].AddHandler("do", fn("do"), nil)
+	r[0].AddHandler("do-undo", fn("do"), fn("undo"))
+	r[1].AddHandler("do-runner2", fn("do"), fn("undo"))
 
 	for _, test := range sequenceTests {
 		st.Lock()
@@ -191,9 +200,12 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 
 		chg := st.NewChange("install", "...")
 		tasks := make(map[string]*state.Task)
-		for _, name := range strings.Fields("t11 t12 t21 t31 t32") {
+		for _, name := range strings.Fields("t11 t12 t21 t31 t32 t41 t42") {
 			if name == "t12" {
 				tasks[name] = st.NewTask("do", name)
+			} else if name == "t41" {
+				// task 42 uses different task runner
+				tasks[name] = st.NewTask("do-runner2", name)
 			} else {
 				tasks[name] = st.NewTask("do-undo", name)
 			}
@@ -203,6 +215,9 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 		tasks["t21"].WaitFor(tasks["t12"])
 		tasks["t31"].WaitFor(tasks["t21"])
 		tasks["t32"].WaitFor(tasks["t21"])
+		tasks["t41"].WaitFor(tasks["t31"])
+		tasks["t41"].WaitFor(tasks["t32"])
+		tasks["t42"].WaitFor(tasks["t41"])
 		st.Unlock()
 
 		c.Logf("-----")
@@ -367,7 +382,7 @@ func (ts *taskRunnerSuite) TestExternalAbort(c *C) {
 	st.Unlock()
 
 	// The Abort above must make Ensure kill the task, or this will never end.
-	ensureChange(c, r, sb, chg)
+	ensureChange(c, []*state.TaskRunner{r}, sb, chg)
 }
 
 func (ts *taskRunnerSuite) TestStopHandlerJustFinishing(c *C) {
@@ -699,7 +714,7 @@ func (ts *taskRunnerSuite) TestCleanup(c *C) {
 	}
 
 	// Mark tasks as done.
-	ensureChange(c, r, sb, chg)
+	ensureChange(c, []*state.TaskRunner{r}, sb, chg)
 
 	// First time it errors, then it works, then it's ignored.
 	c.Assert(chgIsClean(), Equals, false)
