@@ -93,24 +93,24 @@ func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change
 //     <task>:...:1,2         - one of the above, and add task to lanes 1 and 2
 //     chg:abort              - call abort on the change
 //
-// Task wait order: ( t11 | t12 ) => ( t21 ) => ( t22 ) => ( t31 | t32 ) => ( t23 )
+// Task wait order: ( t11 | t12 ) => ( t21 ) => ( t31 | t32 )
 //
-// Tasks t12, t22 and t23 have no undo.
+// Task t12 has no undo.
 //
 // Final task statuses are tested based on the resulting events list.
 //
 var sequenceTests = []struct{ setup, result string }{{
 	setup:  "",
-	result: "t11:do t12:do t21:do t22:do t31:do t32:do t23:do",
+	result: "t11:do t12:do t21:do t31:do t32:do",
 }, {
 	setup:  "t11:was-done t12:was-doing",
-	result: "t12:do t21:do t22:do t31:do t32:do t23:do",
+	result: "t12:do t21:do t31:do t32:do",
 }, {
 	setup:  "t11:was-done t12:was-doing chg:abort",
 	result: "t11:undo",
 }, {
 	setup:  "t12:do-retry",
-	result: "t11:do t12:do t12:do-retry t12:do t21:do t22:do t31:do t32:do t23:do",
+	result: "t11:do t12:do t12:do-retry t12:do t21:do t31:do t32:do",
 }, {
 	setup:  "t11:do-block t12:do-error",
 	result: "t11:do t11:do-block t12:do t12:do-error t11:do-unblock t11:undo",
@@ -125,22 +125,19 @@ var sequenceTests = []struct{ setup, result string }{{
 	result: "t11:do t11:do-error t12:do t12:do-block t12:do-unblock t12:do-retry",
 }, {
 	setup:  "t31:do-error t21:undo-error",
-	result: "t11:do t12:do t21:do t22:do t31:do t31:do-error t32:do t32:undo t21:undo t21:undo-error t11:undo",
+	result: "t11:do t12:do t21:do t31:do t31:do-error t32:do t32:undo t21:undo t21:undo-error t11:undo",
 }, {
 	setup:  "t21:do-set-ready",
-	result: "t11:do t12:do t21:do t22:do t31:do t32:do t23:do",
+	result: "t11:do t12:do t21:do t31:do t32:do",
 }, {
 	setup:  "t31:do-error t21:undo-set-ready",
-	result: "t11:do t12:do t21:do t22:do t31:do t31:do-error t32:do t32:undo t21:undo t11:undo",
+	result: "t11:do t12:do t21:do t31:do t31:do-error t32:do t32:undo t21:undo t11:undo",
 }, {
-	setup:  "t11:was-done:1 t12:was-done:2 t21:was-done:1,2 t22:was-done:1,2 t31:was-done:1 t32:do-error:2",
+	setup:  "t11:was-done:1 t12:was-done:2 t21:was-done:1,2 t31:was-done:1 t32:do-error:2",
 	result: "t31:undo t32:do t32:do-error t21:undo t11:undo",
 }, {
-	setup:  "t11:was-done:1 t12:was-done:2 t21:was-done:2 t22:was-done:2 t31:was-done:2 t32:do-error:2",
+	setup:  "t11:was-done:1 t12:was-done:2 t21:was-done:2 t31:was-done:2 t32:do-error:2",
 	result: "t31:undo t32:do t32:do-error t21:undo",
-}, {
-	setup:  "t11:was-done t12:was-done t21:was-done t22:was-done t31:was-done t32:was-done t23:do-error",
-	result: "t23:do t23:do-error t31:undo t32:undo t21:undo t11:undo",
 }}
 
 func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
@@ -194,8 +191,8 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 
 		chg := st.NewChange("install", "...")
 		tasks := make(map[string]*state.Task)
-		for _, name := range strings.Fields("t11 t12 t21 t22 t23 t31 t32") {
-			if name == "t12" || name == "t22" || name == "t23" {
+		for _, name := range strings.Fields("t11 t12 t21 t31 t32") {
+			if name == "t12" {
 				tasks[name] = st.NewTask("do", name)
 			} else {
 				tasks[name] = st.NewTask("do-undo", name)
@@ -204,11 +201,8 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 		}
 		tasks["t21"].WaitFor(tasks["t11"])
 		tasks["t21"].WaitFor(tasks["t12"])
-		tasks["t22"].WaitFor(tasks["t21"])
-		tasks["t31"].WaitFor(tasks["t22"])
-		tasks["t32"].WaitFor(tasks["t22"])
-		tasks["t23"].WaitFor(tasks["t31"])
-		tasks["t23"].WaitFor(tasks["t32"])
+		tasks["t31"].WaitFor(tasks["t21"])
+		tasks["t32"].WaitFor(tasks["t21"])
 		st.Unlock()
 
 		c.Logf("-----")
