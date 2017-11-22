@@ -111,6 +111,27 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 	}
 }
 
+func (ts *timeutilSuite) TestIsValidWeekday(c *C) {
+	for _, t := range []struct {
+		in       string
+		expected bool
+	}{
+		{"mon", true},
+		{"tue", true},
+		{"wed", true},
+		{"thu", true},
+		{"fri", true},
+		{"sat", true},
+		{"sun", true},
+		{"foo", false},
+		{"bar", false},
+		{"barsatfu", false},
+	} {
+		c.Check(t.expected, Equals, timeutil.IsValidWeekday(t.in),
+			Commentf("%q returned unexpected value for, expected %v", t.in, t.expected))
+	}
+}
+
 func parse(c *C, s string) (time.Duration, time.Duration) {
 	l := strings.Split(s, "-")
 	c.Assert(l, HasLen, 2)
