@@ -1,8 +1,8 @@
 #!/bin/bash
 
 prepare_project() {
-    # check if running inside a container, the testsuite will not
-    # work in such an environment
+    # Check if running inside a container.
+    # The testsuite will not work in such an environment
     if systemd-detect-virt -c; then
         echo "Tests cannot run inside a container"
         exit 1
