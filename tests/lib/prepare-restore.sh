@@ -25,6 +25,9 @@ set -o pipefail
 # shellcheck source=tests/lib/random.sh
 . "$TESTSLIB/random.sh"
 
+# shellcheck source=tests/lib/spread-funcs.sh
+. "$TESTSLIB/spread-funcs.sh"
+
 ###
 ### Utility functions reused below.
 ###
