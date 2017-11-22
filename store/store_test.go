@@ -2038,11 +2038,15 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	plug := result.Plugs["shared-content-plug"]
 	c.Check(plug.Name, Equals, "shared-content-plug")
 	c.Check(plug.Snap, DeepEquals, result)
+	c.Check(plug.Apps, HasLen, 1)
+	c.Check(plug.Apps["content-plug"].Command, Equals, "bin/content-plug")
 
 	c.Check(result.Slots, HasLen, 1)
 	slot := result.Slots["shared-content-slot"]
 	c.Check(slot.Name, Equals, "shared-content-slot")
 	c.Check(slot.Snap, DeepEquals, result)
+	c.Check(slot.Apps, HasLen, 1)
+	c.Check(slot.Apps["content-plug"].Command, Equals, "bin/content-plug")
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDefaultChannelIsStable(c *C) {
