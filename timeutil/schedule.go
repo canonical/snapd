@@ -340,32 +340,10 @@ var weekdayOrder = []string{
 	"sun",
 }
 
-// parseWeekday gets an input like "mon@9:00-11:00" or "9:00-11:00"
-// and extracts the weekday of that schedule string (which can be
-// empty). It returns the remainder of the string, the weekday
-// and an error.
-func parseWeekday(s string) (weekday, rest string, err error) {
-	if !strings.Contains(s, "@") {
-		return "", s, nil
-	}
-	s = strings.ToLower(s)
-	l := strings.SplitN(s, "@", 2)
-	weekday = l[0]
-	if !IsValidWeekday(weekday) {
-		return "", "", fmt.Errorf(`cannot parse %q, want "mon", "tue", etc`, l[0])
-	}
-	rest = l[1]
-
-	return weekday, rest, nil
-}
-
 // parseTimeInterval gets an input like "9:00-11:00"
 // and extracts the start and end of that schedule string and
 // returns them and any errors.
 func parseTimeInterval(s string) (start, end TimeOfDay, err error) {
-	if strings.Contains(s, "@") {
-		return start, end, fmt.Errorf("cannot parse %q: contains invalid @", s)
-	}
 	l := strings.SplitN(s, "-", 2)
 	if len(l) != 2 {
 		return start, end, fmt.Errorf("cannot parse %q: not a valid interval", s)
@@ -383,8 +361,8 @@ func parseTimeInterval(s string) (start, end TimeOfDay, err error) {
 	return start, end, nil
 }
 
-// parseSingleSchedule parses a schedule string like "mon@9:00-11:00" or
-// "9:00-11:00" and returns a Schedule struct and an error.
+// parseSingleSchedule parses a schedule string like "9:00-11:00"and returns a
+// Schedule struct and an error.
 func parseSingleSchedule(s string) (*Schedule, error) {
 	start, end, err := parseTimeInterval(s)
 	if err != nil {
@@ -402,9 +380,6 @@ func parseSingleSchedule(s string) (*Schedule, error) {
 //
 // 9:00-15:00 (every day between 9am and 3pm)
 // 9:00-15:00/21:00-22:00 (every day between 9am,5pm and 9pm,10pm)
-// thu@9:00-15:00 (only Thursday between 9am and 3pm)
-// fri@9:00-11:00/mon@13:00-15:00 (only Friday between 9am and 3pm and Monday between 1pm and 3pm)
-// fri@9:00-11:00/13:00-15:00  (only Friday between 9am and 3pm and every day between 1pm and 3pm)
 //
 // and returns a list of Schedule types or an error
 func ParseSchedule(scheduleSpec string) ([]*Schedule, error) {
