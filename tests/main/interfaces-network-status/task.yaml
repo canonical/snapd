@@ -9,6 +9,8 @@ details: |
 
     The snap is also declaring a plug on this interface must be able to ask for its status.
 
+systems: [-ubuntu-core-16-*]
+
 prepare: |
     . "$TESTSLIB/dbus.sh"
     . "$TESTSLIB/dirs.sh"
