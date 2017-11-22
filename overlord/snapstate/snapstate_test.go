@@ -5043,7 +5043,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesWeekdaySchedules(c *C) {
 	s.snapmgr.Ensure()
 	s.state.Lock()
 
-	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule configuration: "mon@12:00-14:00" uses weekdays which is currently not supported`)
+	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule configuration: "mon,12:00~14:00" uses weekdays which is currently not supported`)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
