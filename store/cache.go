@@ -86,7 +86,7 @@ func (cm *CacheManager) Get(cacheKey, targetPath string) error {
 	if err := os.Link(cm.path(cacheKey), targetPath); err != nil {
 		return err
 	}
-	logger.Debugf("CacheManager: using cache for %s", targetPath)
+	logger.Debugf("using cache for %s", targetPath)
 	now := time.Now()
 	return os.Chtimes(targetPath, now, now)
 }

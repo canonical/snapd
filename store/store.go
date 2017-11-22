@@ -437,7 +437,6 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailFields:    fields,
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
-		cacher:          nil,
 
 		client: httputil.NewHTTPClient(&httputil.ClientOpts{
 			Timeout:    10 * time.Second,
@@ -1977,10 +1976,10 @@ func (s *Store) CacheDownloads() int {
 	return s.cfg.CacheDownloads
 }
 
-func (s *Store) SetCacheDownloads(amount int) {
+func (s *Store) SetCacheDownloads(fileCount int) {
 	s.cfg.CacheDownloads = amount
 	if amount > 0 {
-		s.cacher = NewCacheManager(dirs.SnapDownloadCacheDir, amount)
+		s.cacher = NewCacheManager(dirs.SnapDownloadCacheDir, fileCount)
 	} else {
 		s.cacher = &nullCache{}
 	}
