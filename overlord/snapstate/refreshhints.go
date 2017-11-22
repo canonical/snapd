@@ -29,7 +29,7 @@ import (
 var refreshHintsDelay = time.Duration(24 * time.Hour)
 
 // refreshHints will ensure that we regular get data about refreshes
-// so that we can potentially warn the user about importand missing
+// so that we can potentially warn the user about important missing
 // refreshes.
 type refreshHints struct {
 	state *state.State
@@ -69,9 +69,15 @@ func (r *refreshHints) Ensure() error {
 	r.state.Lock()
 	defer r.state.Unlock()
 
-	// this is only false in tests
+	// CanAutoRefresh is a hook that is set by the devicestate
+	// code to ensure that we only AutoRefersh if the device has
+	// bootstraped itself enough. This is only nil when snapstate
+	// is used in isolation (like in tests).
 	if CanAutoRefresh == nil {
 		return nil
+	}
+	if ok, err := CanAutoRefresh(r.state); err != nil || !ok {
+		return err
 	}
 
 	needsUpdate, err := r.needsUpdate()
