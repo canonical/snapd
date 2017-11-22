@@ -8,15 +8,6 @@ prepare_project() {
         exit 1
     fi
 
-    # FIXME: remove once the following bug is fixed:
-    #   https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=876128
-    if [[ "$SPREAD_SYSTEM" == debian-unstable-* ]]; then
-        # There's a packaging bug in Debian sid lately where some packages
-        # conflict on manual page file. To work around it simply remove the
-        # manpages package.
-        apt-get remove --purge -y manpages
-    fi
-
     # apt update is hanging on security.ubuntu.com with IPv6, prefer IPv4 over IPv6
     cat <<EOF > gai.conf
 precedence  ::1/128       50
