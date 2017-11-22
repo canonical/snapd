@@ -105,7 +105,7 @@ restore_project() {
         fi
     fi
 
-    rm -f $SPREAD_PATH/snapd-state.tar.gz
+    rm -f "$SPREAD_PATH/snapd-state.tar.gz"
     rm -rf ${GOPATH%%:*}/*
 }
 
