@@ -390,11 +390,23 @@ func refreshScheduleNoWeekdays(rs []*timeutil.Schedule) error {
 	return nil
 }
 
-func (m *SnapManager) refreshSchedule() ([]*timeutil.Schedule, string, error) {
+func resetRefreshScheduleToDefault(st *state.State) (ts []*timeutil.Schedule, scheduleStr string) {
+	refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshSchedule)
+	if err != nil {
+		panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
+	}
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.schedule", defaultRefreshSchedule)
+	tr.Commit()
+
+	return refreshSchedule, defaultRefreshSchedule
+}
+
+func (m *SnapManager) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, err error) {
 	refreshScheduleStr := defaultRefreshSchedule
 
 	tr := config.NewTransaction(m.state)
-	err := tr.Get("core", "refresh.schedule", &refreshScheduleStr)
+	err = tr.Get("core", "refresh.schedule", &refreshScheduleStr)
 	if err != nil && !config.IsNoOption(err) {
 		return nil, "", err
 	}
@@ -405,13 +417,7 @@ func (m *SnapManager) refreshSchedule() ([]*timeutil.Schedule, string, error) {
 	}
 	if err != nil {
 		logger.Noticef("cannot use refresh.schedule configuration: %s", err)
-		refreshScheduleStr = defaultRefreshSchedule
-		refreshSchedule, err = timeutil.ParseSchedule(defaultRefreshSchedule)
-		if err != nil {
-			panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
-		}
-		tr.Set("core", "refresh.schedule", defaultRefreshSchedule)
-		tr.Commit()
+		refreshSchedule, refreshScheduleStr = resetRefreshScheduleToDefault(m.state)
 	}
 
 	return refreshSchedule, refreshScheduleStr, nil
@@ -483,14 +489,12 @@ func (m *SnapManager) NextRefresh() time.Time {
 // RefreshSchedule returns the current refresh schedule as a string
 // suitable to display to a user.
 // The caller should be holding the state lock.
-func (m *SnapManager) RefreshSchedule() string {
-	_, scheduleStr, err := m.refreshSchedule()
-	// refreshSchedule should almost never return an error, except
-	// when the state is corrupted or in similar emergencies.
+func (m *SnapManager) RefreshSchedule() (string, error) {
+	_, scheduleStr, err := m.refreshScheduleWithDefaultsFallback()
 	if err != nil {
-		return fmt.Sprintf("cannot get refresh.schedule: %v", err)
+		return "", err
 	}
-	return scheduleStr
+	return scheduleStr, nil
 }
 
 // NextCatalogRefresh returns the time the next update of catalog
@@ -518,7 +522,7 @@ func (m *SnapManager) ensureRefreshes() error {
 	if err != nil {
 		return err
 	}
-	refreshSchedule, refreshScheduleStr, err := m.refreshSchedule()
+	refreshSchedule, refreshScheduleStr, err := m.refreshScheduleWithDefaultsFallback()
 	if err != nil {
 		return err
 	}

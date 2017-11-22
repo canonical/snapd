@@ -7744,7 +7744,8 @@ func (s *snapmgrTestSuite) TestSnapManagerRefreshSchedule(c *C) {
 			tr.Set("core", "refresh.schedule", t.in)
 			tr.Commit()
 		}
-		scheduleStr := s.snapmgr.RefreshSchedule()
+		scheduleStr, err := s.snapmgr.RefreshSchedule()
+		c.Check(err, IsNil)
 		c.Check(scheduleStr, Equals, t.out)
 	}
 }
