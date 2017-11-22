@@ -65,7 +65,6 @@ func (ts *timeutilSuite) TestScheduleString(c *C) {
 		str   string
 	}{
 		{timeutil.Schedule{Start: timeutil.TimeOfDay{Hour: 13, Minute: 41}, End: timeutil.TimeOfDay{Hour: 14, Minute: 59}}, "13:41-14:59"},
-		{timeutil.Schedule{Start: timeutil.TimeOfDay{Hour: 13, Minute: 41}, End: timeutil.TimeOfDay{Hour: 14, Minute: 59}, Weekday: "mon"}, "mon@13:41-14:59"},
 	} {
 		c.Check(t.sched.String(), Equals, t.str)
 	}
@@ -85,14 +84,10 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 		// moving backwards
 		{"11:00-09:00", nil, `cannot parse "11:00-09:00": time in an interval cannot go backwards`},
 		{"23:00-01:00", nil, `cannot parse "23:00-01:00": time in an interval cannot go backwards`},
-		// FIXME: error message sucks
-		{"9:00-mon@11:00", nil, `cannot parse "9:00-mon", want "mon", "tue", etc`},
 
 		// valid
 		{"9:00-11:00", []*timeutil.Schedule{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}, ""},
-		{"mon@9:00-11:00", []*timeutil.Schedule{{Weekday: "mon", Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}, ""},
 		{"9:00-11:00/20:00-22:00", []*timeutil.Schedule{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}, {Start: timeutil.TimeOfDay{Hour: 20}, End: timeutil.TimeOfDay{Hour: 22}}}, ""},
-		{"mon@9:00-11:00/Wed@22:00-23:00", []*timeutil.Schedule{{Weekday: "mon", Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}, {Weekday: "wed", Start: timeutil.TimeOfDay{Hour: 22}, End: timeutil.TimeOfDay{Hour: 23}}}, ""},
 	} {
 		schedule, err := timeutil.ParseSchedule(t.in)
 		if t.errStr != "" {
@@ -178,53 +173,6 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			last:     "2017-02-06 21:30",
 			now:      "2017-02-06 23:00",
 			next:     "10h-12h",
-		},
-		{
-			// weekly schedule, next window today
-			schedule: "tue@9:00-11:00/wed@9:00-11:00",
-			last:     "2017-02-01 10:00",
-			now:      "2017-02-07 05:00",
-			next:     "4h-6h",
-		},
-		{
-			// weekly schedule, next window tomorrow
-			// (2017-02-06 is a monday)
-			schedule: "tue@9:00-11:00/wed@9:00-11:00",
-			last:     "2017-02-06 03:00",
-			now:      "2017-02-06 05:00",
-			next:     "28h-30h",
-		},
-		{
-			// weekly schedule, next window in 2 days
-			// (2017-02-06 is a monday)
-			schedule: "wed@9:00-11:00/thu@9:00-11:00",
-			last:     "2017-02-06 03:00",
-			now:      "2017-02-06 05:00",
-			next:     "52h-54h",
-		},
-		{
-			// weekly schedule, missed weekly window
-			// run next monday
-			schedule: "mon@9:00-11:00",
-			last:     "2017-01-30 10:00",
-			now:      "2017-02-06 12:00",
-			// 7*24h - 3h
-			next: "165h-167h",
-		},
-		{
-			// multi day schedule, next window soon
-			schedule: "mon@9:00-11:00/tue@21:00-23:00",
-			last:     "2017-01-31 22:00",
-			now:      "2017-02-06 5:00",
-			next:     "4h-6h",
-		},
-		{
-			// weekly schedule, missed weekly window
-			// by more than 14 days
-			schedule: "mon@9:00-11:00",
-			last:     "2017-01-01 10:00",
-			now:      "2017-02-06 12:00",
-			next:     "0s-0s",
 		},
 		{
 			// daily schedule, very small window
