@@ -41,29 +41,7 @@ import (
 	"github.com/snapcore/snapd/timeutil"
 )
 
-// FIXME: what we actually want is a more flexible schedule spec that is
-// user configurable  like:
-// """
-// tue
-// tue,thu
-// tue-thu
-// 9:00
-// 9:00,15:00
-// 9:00-15:00
-// tue,thu@9:00-15:00
-// tue@9:00;thu@15:00
-// mon,wed-fri@9:00-11:00,13:00-15:00
-// """
-// where 9:00 is implicitly taken as 9:00-10:00
-// and tue is implicitly taken as tue@<our current setting?>
-//
-// it is controlled via:
-// $ snap refresh --schedule=<time spec>
-// which is a shorthand for
-// $ snap set core refresh.schedule=<time spec>
-// and we need to validate the time-spec, ideally internally by
-// intercepting the set call
-
+// the default refresh pattern
 const defaultRefreshSchedule = "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59"
 
 // overridden in the tests
@@ -381,15 +359,6 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 
 var CanAutoRefresh func(st *state.State) (bool, error)
 
-func refreshScheduleNoWeekdays(rs []*timeutil.Schedule) error {
-	for _, s := range rs {
-		if s.Weekday != "" {
-			return fmt.Errorf("%q uses weekdays which is currently not supported", s)
-		}
-	}
-	return nil
-}
-
 func (m *SnapManager) checkRefreshSchedule() ([]*timeutil.Schedule, error) {
 	refreshScheduleStr := defaultRefreshSchedule
 
@@ -399,9 +368,6 @@ func (m *SnapManager) checkRefreshSchedule() ([]*timeutil.Schedule, error) {
 		return nil, err
 	}
 	refreshSchedule, err := timeutil.ParseSchedule(refreshScheduleStr)
-	if err == nil {
-		err = refreshScheduleNoWeekdays(refreshSchedule)
-	}
 	if err != nil {
 		logger.Noticef("cannot use refresh.schedule configuration: %s", err)
 		refreshSchedule, err = timeutil.ParseSchedule(defaultRefreshSchedule)
