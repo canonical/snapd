@@ -56,12 +56,10 @@ restore_project_each() {
 }
 
 restore_project() {
-    if [ "$SPREAD_BACKEND" = external ]; then
-        # start and enable autorefresh
-        if [ -e /snap/core/current/meta/hooks/configure ]; then
-            systemctl enable --now snapd.refresh.timer
-            snap set core refresh.schedule=""
-        fi
+    # XXX: Why are we enabling autorefresh for external targets?
+    if [ "$SPREAD_BACKEND" = external ] && [ -e /snap/core/current/meta/hooks/configure ]; then
+        systemctl enable --now snapd.refresh.timer
+        snap set core refresh.schedule=""
     fi
 
     rm -f "$SPREAD_PATH/snapd-state.tar.gz"
