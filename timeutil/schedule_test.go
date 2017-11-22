@@ -394,6 +394,26 @@ func (ts *timeutilSuite) TestParseScheduleV2(c *C) {
 				{Start: timeutil.TimeOfDay{Hour: 18}, End: timeutil.TimeOfDay{Hour: 0}},
 			},
 		},
+		// same as above
+		{
+			in: "-/4",
+			expected: []*timeutil.Schedule{
+				{Start: timeutil.TimeOfDay{Hour: 0}, End: timeutil.TimeOfDay{Hour: 6}},
+				{Start: timeutil.TimeOfDay{Hour: 6}, End: timeutil.TimeOfDay{Hour: 12}},
+				{Start: timeutil.TimeOfDay{Hour: 12}, End: timeutil.TimeOfDay{Hour: 18}},
+				{Start: timeutil.TimeOfDay{Hour: 18}, End: timeutil.TimeOfDay{Hour: 0}},
+			},
+		},
+		// randomized variant of above
+		{
+			in: "~/4",
+			expected: []*timeutil.Schedule{
+				{Start: timeutil.TimeOfDay{Hour: 0}, End: timeutil.TimeOfDay{Hour: 6}, Randomize: true},
+				{Start: timeutil.TimeOfDay{Hour: 6}, End: timeutil.TimeOfDay{Hour: 12}, Randomize: true},
+				{Start: timeutil.TimeOfDay{Hour: 12}, End: timeutil.TimeOfDay{Hour: 18}, Randomize: true},
+				{Start: timeutil.TimeOfDay{Hour: 18}, End: timeutil.TimeOfDay{Hour: 0}, Randomize: true},
+			},
+		},
 		{
 			in: "23:00-01:00",
 			expected: []*timeutil.Schedule{

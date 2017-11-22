@@ -603,6 +603,10 @@ const (
 var specialTokens = map[string]string{
 	"day":     "0:00-24:00",
 	"weekend": "sat-sun",
+	// shorthand variant of whole day
+	"-": "0:00-24:00",
+	// and randomized whole day
+	"~": "0:00~24:00",
 }
 
 // Parse each event and return a slice of schedules.
