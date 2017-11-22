@@ -57,8 +57,9 @@ func (t TimeOfDay) Add(dur time.Duration) TimeOfDay {
 	return nt
 }
 
-// isValidWeekday returns true if given s looks like a valid weekday
-func isValidWeekday(s string) bool {
+// IsValidWeekday returns true if given s looks like a valid weekday. Valid
+// inputs are 3 letter, lowercase abbreviations of week days.
+func IsValidWeekday(s string) bool {
 	_, ok := weekdayMap[s]
 	return ok
 }
