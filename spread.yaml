@@ -343,12 +343,12 @@ prepare: |
                 ;;
         esac
         rm -f "$tf"
-        curl -sS -o - https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF | gunzip > delta-ref.tar
+        curl -sS -o - "https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF" | gunzip > delta-ref.tar
         xdelta3 -q -d -s delta-ref.tar current.delta | tar x --strip-components=1
         rm -f delta-ref.tar current.delta
-    elif [ -d $DELTA_PREFIX ]; then
-        find $DELTA_PREFIX -mindepth 1 -maxdepth 1 -exec mv {} . \;
-        rmdir $DELTA_PREFIX
+    elif [ -d "$DELTA_PREFIX" ]; then
+        find "$DELTA_PREFIX" -mindepth 1 -maxdepth 1 -exec mv {} . \;
+        rmdir "$DELTA_PREFIX"
     fi
 
     . "$TESTSLIB/prepare-project.sh"
