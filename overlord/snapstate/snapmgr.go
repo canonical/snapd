@@ -75,9 +75,9 @@ type SnapManager struct {
 	state   *state.State
 	backend managerBackend
 
-	currentRefreshSchedule string
-	nextRefresh            time.Time
-	lastRefreshAttempt     time.Time
+	lastRefreshSchedule string
+	nextRefresh         time.Time
+	lastRefreshAttempt  time.Time
 
 	nextCatalogRefresh time.Time
 
@@ -390,20 +390,22 @@ func refreshScheduleNoWeekdays(rs []*timeutil.Schedule) error {
 	return nil
 }
 
-func (m *SnapManager) checkRefreshSchedule() ([]*timeutil.Schedule, error) {
+func (m *SnapManager) refreshSchedule() ([]*timeutil.Schedule, string, error) {
 	refreshScheduleStr := defaultRefreshSchedule
 
 	tr := config.NewTransaction(m.state)
 	err := tr.Get("core", "refresh.schedule", &refreshScheduleStr)
 	if err != nil && !config.IsNoOption(err) {
-		return nil, err
+		return nil, "", err
 	}
+
 	refreshSchedule, err := timeutil.ParseSchedule(refreshScheduleStr)
 	if err == nil {
 		err = refreshScheduleNoWeekdays(refreshSchedule)
 	}
 	if err != nil {
 		logger.Noticef("cannot use refresh.schedule configuration: %s", err)
+		refreshScheduleStr = defaultRefreshSchedule
 		refreshSchedule, err = timeutil.ParseSchedule(defaultRefreshSchedule)
 		if err != nil {
 			panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
@@ -412,17 +414,7 @@ func (m *SnapManager) checkRefreshSchedule() ([]*timeutil.Schedule, error) {
 		tr.Commit()
 	}
 
-	// we already have a refresh time, check if we got a new config
-	if !m.nextRefresh.IsZero() {
-		if m.currentRefreshSchedule != refreshScheduleStr {
-			// the refresh schedule has changed
-			logger.Debugf("Option refresh.schedule changed.")
-			m.nextRefresh = time.Time{}
-		}
-	}
-	m.currentRefreshSchedule = refreshScheduleStr
-
-	return refreshSchedule, nil
+	return refreshSchedule, refreshScheduleStr, nil
 }
 
 func (m *SnapManager) launchAutoRefresh() error {
@@ -488,10 +480,17 @@ func (m *SnapManager) NextRefresh() time.Time {
 	return m.nextRefresh
 }
 
-// RefreshSchedule returns the current refresh schedule.
+// RefreshSchedule returns the current refresh schedule as a string
+// suitable to display to a user.
 // The caller should be holding the state lock.
 func (m *SnapManager) RefreshSchedule() string {
-	return m.currentRefreshSchedule
+	_, scheduleStr, err := m.refreshSchedule()
+	// refreshSchedule should almost never return an error, except
+	// when the state is corrupted or in similar emergencies.
+	if err != nil {
+		return fmt.Sprintf("cannot get refresh.schedule: %v", err)
+	}
+	return scheduleStr
 }
 
 // NextCatalogRefresh returns the time the next update of catalog
@@ -519,10 +518,19 @@ func (m *SnapManager) ensureRefreshes() error {
 	if err != nil {
 		return err
 	}
-	refreshSchedule, err := m.checkRefreshSchedule()
+	refreshSchedule, refreshScheduleStr, err := m.refreshSchedule()
 	if err != nil {
 		return err
 	}
+	// we already have a refresh time, check if we got a new config
+	if !m.nextRefresh.IsZero() {
+		if m.lastRefreshSchedule != refreshScheduleStr {
+			// the refresh schedule has changed
+			logger.Debugf("Option refresh.schedule changed.")
+			m.nextRefresh = time.Time{}
+		}
+	}
+	m.lastRefreshSchedule = refreshScheduleStr
 
 	// ensure nothing is in flight already
 	if autoRefreshInFlight(m.state) {
