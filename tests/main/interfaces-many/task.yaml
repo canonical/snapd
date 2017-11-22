@@ -16,7 +16,7 @@ details: |
 # - Debian sid amd64 VM
 # - Debian 9 amd64 VM
 # - TODO: All Fedora systems (for classic-only; unrelated error elsewhere)
-systems: [ubuntu-core-16-64, ubuntu-14.04-32, ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-*-amd64, ubuntu-*-armhf, ubuntu-*-arm64, ubuntu-*-i386, ubuntu-*-ppc64el, debian-sid-64, debian-9-64]
+systems: [ubuntu-core-16-64, ubuntu-14.04-32, ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-*-amd64, ubuntu-*-armhf, ubuntu-*-arm64, ubuntu-*-i386, ubuntu-*-ppc64el, debian-*]
 
 execute: |
     . $TESTSLIB/dirs.sh

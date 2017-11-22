@@ -154,6 +154,16 @@ distro_install_package() {
         ;;
     esac
 
+    # fix dependency issue where libp11-kit0 needs to be downgraded to 
+    # install gnome-keyring
+    case "$SPREAD_SYSTEM" in
+        debian-9-*)
+        if [[ "$*" =~ "gnome-keyring" ]]; then
+            apt-get remove -y libp11-kit0
+        fi
+        ;;
+    esac
+
     for pkg in "$@" ; do
         package_name=$(distro_name_package "$pkg")
         # When we could not find a different package name for the distribution
@@ -165,7 +175,7 @@ distro_install_package() {
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 # shellcheck disable=SC2086
-                quiet apt-get install $APT_FLAGS -y "$package_name"
+                apt-get install $APT_FLAGS -y "$package_name"
                 ;;
             fedora-*)
                 # shellcheck disable=SC2086
@@ -194,7 +204,7 @@ distro_purge_package() {
 
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
-                quiet apt-get remove -y --purge -y "$package_name"
+                apt-get remove -y --purge -y "$package_name"
                 ;;
             fedora-*)
                 dnf -y -q remove "$package_name"
@@ -214,7 +224,7 @@ distro_purge_package() {
 distro_update_package_db() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get update
+            apt-get update
             ;;
         fedora-*)
             dnf -q makecache
@@ -232,7 +242,7 @@ distro_update_package_db() {
 distro_clean_package_cache() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get clean
+            apt-get clean
             ;;
         opensuse-*)
             zypper -q clean --all
@@ -247,7 +257,7 @@ distro_clean_package_cache() {
 distro_auto_remove_packages() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            quiet apt-get -y autoremove
+            apt-get -y autoremove
             ;;
         fedora-*)
             dnf -q -y autoremove
