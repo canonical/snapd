@@ -61,6 +61,8 @@ func ParseTime(s string) (t TimeOfDay, err error) {
 type Schedule struct {
 	Start TimeOfDay
 	End   TimeOfDay
+
+	Weekday string
 }
 
 func (sched *Schedule) String() string {
@@ -138,6 +140,16 @@ func Next(schedule []*Schedule, last time.Time) time.Duration {
 	when := a.Sub(now) + randDur(a, b)
 
 	return when
+}
+
+var weekdayMap = map[string]int{
+	"sun": 0,
+	"mon": 1,
+	"tue": 2,
+	"wed": 3,
+	"thu": 4,
+	"fri": 5,
+	"sat": 6,
 }
 
 // parseTimeInterval gets an input like "9:00-11:00"
