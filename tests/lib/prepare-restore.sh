@@ -12,25 +12,35 @@ prepare_project() {
 }
 
 prepare_project_each() {
-    # systemd on 14.04 does not know about --rotate or --vacuum-time.
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
-        journalctl --rotate
-        sleep .1
-        journalctl --vacuum-time=1ms
-    else
-        # Force a log rotation with small size
-        sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
-        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+    # We want to rotate the logs so that when inspecting or dumping them we
+    # will just see logs since the test has started.
 
-        # Restore the initial configuration and rotate logs
-        mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
-        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+    # Clear the systemd journal. Unfortunately the deputy-systemd on Ubuntu
+    # 14.04 does not know about --rotate or --vacuum-time so we need to remove
+    # the journal the hard way.
+    case "$SPREAD_SYSTEM" in
+        ubuntu-14.04-*)
+            # Force a log rotation with small size
+            sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
+            systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
 
-        # Remove rotated journal logs
-        systemctl stop systemd-journald.service
-        find /run/log/journal/ -name "*@*.journal" -delete
-        systemctl start systemd-journald.service
-    fi
+            # Restore the initial configuration and rotate logs
+            mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
+            systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+
+            # Remove rotated journal logs
+            systemctl stop systemd-journald.service
+            find /run/log/journal/ -name "*@*.journal" -delete
+            systemctl start systemd-journald.service
+            ;;
+        *)
+            journalctl --rotate
+            sleep .1
+            journalctl --vacuum-time=1ms
+            ;;
+    esac
+
+    # Clear the kernel ring buffer.
     dmesg -c > /dev/null
 }
 
