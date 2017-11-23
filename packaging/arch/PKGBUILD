@@ -186,13 +186,13 @@ package_snapd-git() {
   install -d -m 755 "$pkgdir/var/lib/snapd/snap"
 
   # pre-create directories
-  install -d -m 755 "$pkgdir/var/cache/snapd
-  install -d -m 755 "$pkgdir/var/lib/snapd/assertions
-  install -d -m 755 "$pkgdir/var/lib/snapd/desktop/applications
-  install -d -m 755 "$pkgdir/var/lib/snapd/device
-  install -d -m 755 "$pkgdir/var/lib/snapd/hostfs
-  install -d -m 755 "$pkgdir/var/lib/snapd/mount
-  install -d -m 755 "$pkgdir/var/lib/snapd/seccomp/bpf
-  install -d -m 755 "$pkgdir/var/lib/snapd/snap/bin
-  install -d -m 755 "$pkgdir/var/lib/snapd/snaps
+  install -d -m 755 "$pkgdir/var/cache/snapd"
+  install -d -m 755 "$pkgdir/var/lib/snapd/assertions"
+  install -d -m 755 "$pkgdir/var/lib/snapd/desktop/applications"
+  install -d -m 755 "$pkgdir/var/lib/snapd/device"
+  install -d -m 755 "$pkgdir/var/lib/snapd/hostfs"
+  install -d -m 755 "$pkgdir/var/lib/snapd/mount"
+  install -d -m 755 "$pkgdir/var/lib/snapd/seccomp/bpf"
+  install -d -m 755 "$pkgdir/var/lib/snapd/snap/bin"
+  install -d -m 755 "$pkgdir/var/lib/snapd/snaps"
 }
