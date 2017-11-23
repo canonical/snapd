@@ -16,7 +16,7 @@ reset_classic() {
         ubuntu-*|debian-*)
             sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge
             ;;
-        fedora-*|opensuse-*)
+        fedora-*|opensuse-*|arch-*)
             sh -x "${SPREAD_PATH}/packaging/fedora/snap-mgmt.sh" \
                 --snap-mount-dir="$SNAP_MOUNT_DIR" \
                 --purge
