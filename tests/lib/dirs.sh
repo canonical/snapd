@@ -8,6 +8,9 @@ case "$SPREAD_SYSTEM" in
         export SNAP_MOUNT_DIR=/var/lib/snapd/snap
         export LIBEXECDIR=/usr/libexec
         ;;
+    arch-*)
+        export SNAP_MOUNT_DIR=/var/lib/snapd/snap
+        ;;
     *)
         ;;
 esac
