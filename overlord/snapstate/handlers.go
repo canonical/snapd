@@ -22,7 +22,6 @@ package snapstate
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -30,16 +29,13 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
@@ -481,10 +477,6 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := m.createSnapCookie(st, snapsup.Name()); err != nil {
-		return fmt.Errorf("cannot create snap cookie: %v", err)
-	}
-
 	snapst.Active = true
 	err = m.backend.LinkSnap(oldInfo)
 	if err != nil {
@@ -567,49 +559,6 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	m.backend.ClearTrashedData(info)
 
-	return nil
-}
-
-func (m *SnapManager) createSnapCookie(st *state.State, snapName string) error {
-	cookieID := strutil.MakeRandomString(44)
-	path := filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", snapName))
-	err := osutil.AtomicWriteFile(path, []byte(cookieID), 0600, 0)
-	if err != nil {
-		return err
-	}
-
-	var contexts map[string]string
-	err = st.Get("snap-cookies", &contexts)
-	if err != nil {
-		if err != state.ErrNoState {
-			return fmt.Errorf("cannot get snap cookies: %v", err)
-		}
-		contexts = make(map[string]string)
-	}
-	contexts[cookieID] = snapName
-	st.Set("snap-cookies", &contexts)
-	return nil
-}
-
-func (m *SnapManager) removeSnapCookie(st *state.State, snapName string) error {
-	var contexts map[string]string
-	err := st.Get("snap-cookies", &contexts)
-	if err != nil {
-		if err != state.ErrNoState {
-			return fmt.Errorf("cannot get snap cookies: %v", err)
-		}
-		contexts = make(map[string]string)
-	}
-
-	for cookieID, snap := range contexts {
-		if snapName == snap {
-			delete(contexts, cookieID)
-			st.Set("snap-cookies", contexts)
-			// error on removing the context file is not fatal
-			_ = os.Remove(filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", snapName)))
-			break
-		}
-	}
 	return nil
 }
 
@@ -778,7 +727,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	if len(snapst.Sequence) == 1 {
 		if err := m.removeSnapCookie(st, snapsup.Name()); err != nil {
-			return fmt.Errorf("cannot remove snap context: %v", err)
+			return fmt.Errorf("cannot remove snap cookie: %v", err)
 		}
 	}
 
@@ -1058,7 +1007,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			return &state.Retry{After: 3 * time.Minute}
 		}
 		if err := m.removeSnapCookie(st, snapsup.Name()); err != nil {
-			return fmt.Errorf("cannot remove snap context: %v", err)
+			return fmt.Errorf("cannot remove snap cookie: %v", err)
 		}
 	}
 	if err = config.DiscardRevisionConfig(st, snapsup.Name(), snapsup.Revision()); err != nil {

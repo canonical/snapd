@@ -274,7 +274,7 @@ func (s *SerialPortInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 func (s *SerialPortInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {
 	spec := &udev.Specification{}
 	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2, s.testSlot3, s.testSlot4} {
-		err := spec.AddPermanentSlot(s.iface, slot)
+		err := spec.AddPermanentSlot(s.iface, slot.SlotInfo)
 		c.Assert(err, IsNil)
 		c.Assert(spec.Snippets(), HasLen, 0)
 	}
@@ -282,7 +282,7 @@ func (s *SerialPortInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {
 	expectedSnippet1 := `# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", SYMLINK+="serial-port-zigbee"`
-	err := spec.AddPermanentSlot(s.iface, s.testUDev1)
+	err := spec.AddPermanentSlot(s.iface, s.testUDev1.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
@@ -292,7 +292,7 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}==
 	expectedSnippet2 := `# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", SYMLINK+="serial-port-mydevice"`
-	err = spec.AddPermanentSlot(s.iface, s.testUDev2)
+	err = spec.AddPermanentSlot(s.iface, s.testUDev2.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]
@@ -304,7 +304,7 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 	expectedSnippet3 := `# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="abcd", ATTRS{idProduct}=="1234", ENV{ID_USB_INTERFACE_NUM}=="00", SYMLINK+="serial-port-myserial"`
-	err = spec.AddPermanentSlot(s.iface, s.testUDev3)
+	err = spec.AddPermanentSlot(s.iface, s.testUDev3.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]

@@ -156,6 +156,28 @@ static void test_parse_mountinfo_entry__many_tags(void)
 	g_assert_null(entry->next);
 }
 
+static void test_parse_mountinfo_entry__empty_source(void)
+{
+	const char *line =
+	    "304 301 0:45 / /snap/test-snapd-content-advanced-plug/x1 rw,relatime - tmpfs  rw";
+	struct sc_mountinfo_entry *entry = sc_parse_mountinfo_entry(line);
+	g_assert_nonnull(entry);
+	g_test_queue_destroy((GDestroyNotify) sc_free_mountinfo_entry, entry);
+	g_assert_cmpint(entry->mount_id, ==, 304);
+	g_assert_cmpint(entry->parent_id, ==, 301);
+	g_assert_cmpint(entry->dev_major, ==, 0);
+	g_assert_cmpint(entry->dev_minor, ==, 45);
+	g_assert_cmpstr(entry->root, ==, "/");
+	g_assert_cmpstr(entry->mount_dir, ==,
+			"/snap/test-snapd-content-advanced-plug/x1");
+	g_assert_cmpstr(entry->mount_opts, ==, "rw,relatime");
+	g_assert_cmpstr(entry->optional_fields, ==, "");
+	g_assert_cmpstr(entry->fs_type, ==, "tmpfs");
+	g_assert_cmpstr(entry->mount_source, ==, "");
+	g_assert_cmpstr(entry->super_opts, ==, "rw");
+	g_assert_null(entry->next);
+}
+
 static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/mountinfo/parse_mountinfo_entry/sysfs",
@@ -172,4 +194,7 @@ static void __attribute__ ((constructor)) init(void)
 			test_parse_mountinfo_entry__one_tag);
 	g_test_add_func("/mountinfo/parse_mountinfo_entry/many_tags",
 			test_parse_mountinfo_entry__many_tags);
+	g_test_add_func
+	    ("/mountinfo/parse_mountinfo_entry/empty_source",
+	     test_parse_mountinfo_entry__empty_source);
 }

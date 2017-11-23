@@ -38,7 +38,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
+func newAssertsDB() (*asserts.Database, error) {
 	storePrivKey, _ := assertstest.ReadPrivKey(systestkeys.TestStorePrivKey)
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: asserts.NewMemoryKeypairManager(),
@@ -46,10 +46,19 @@ func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
 		Trusted:        sysdb.Trusted(),
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// for signing
 	db.ImportKey(storePrivKey)
+
+	return db, nil
+}
+
+func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
+	db, err := newAssertsDB()
+	if err != nil {
+		return err
+	}
 
 	var cliConfig client.Config
 	cli := client.New(&cliConfig)
@@ -79,7 +88,8 @@ func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
 				return err
 			}
 		}
-		return writeAssert(a, blobDir)
+		_, err = writeAssert(a, blobDir)
+		return err
 	}
 
 	f := asserts.NewFetcher(db, retrieve, save)
@@ -92,10 +102,15 @@ func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
 	return nil
 }
 
-func writeAssert(a asserts.Assertion, targetDir string) error {
+func writeAssert(a asserts.Assertion, targetDir string) (string, error) {
 	ref := a.Ref()
 	fn := fmt.Sprintf("%s.%s", strings.Join(ref.PrimaryKey, ","), ref.Type.Name)
-	return ioutil.WriteFile(filepath.Join(targetDir, "asserts", fn), asserts.Encode(a), 0644)
+	p := filepath.Join(targetDir, "asserts", fn)
+	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+		return "", err
+	}
+	err := ioutil.WriteFile(p, asserts.Encode(a), 0644)
+	return p, err
 }
 
 func makeFakeRefreshForSnap(snap, targetDir string, db *asserts.Database, f asserts.Fetcher) error {
@@ -139,7 +154,7 @@ func makeFakeRefreshForSnap(snap, targetDir string, db *asserts.Database, f asse
 	// new test-signed snap-revision
 	err = makeNewSnapRevision(origInfo, newInfo, targetDir, db)
 	if err != nil {
-		return fmt.Errorf("making new snap-revision: %v", err)
+		return fmt.Errorf("cannot make new snap-revision: %v", err)
 	}
 
 	return nil
@@ -238,5 +253,6 @@ func makeNewSnapRevision(orig, new *info, targetDir string, db *asserts.Database
 		return err
 	}
 
-	return writeAssert(a, targetDir)
+	_, err = writeAssert(a, targetDir)
+	return err
 }

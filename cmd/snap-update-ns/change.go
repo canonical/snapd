@@ -55,6 +55,9 @@ func (c Change) String() string {
 	return fmt.Sprintf("%s (%s)", c.Action, c.Entry)
 }
 
+// changePerform is Change.Perform that can be mocked for testing.
+var changePerform = (*Change).Perform
+
 // Perform executes the desired mount or unmount change using system calls.
 // Filesystems that depend on helper programs or multiple independent calls to
 // the kernel (--make-shared, for example) are unsupported.

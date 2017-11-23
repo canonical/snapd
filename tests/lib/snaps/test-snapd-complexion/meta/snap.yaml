@@ -5,3 +5,7 @@ apps:
     command: bin/test-snapd-complexion
     completer: test-snapd-complexion.bash-completer
     plugs: [home]
+  two:
+    command: bin/test-snapd-complexion
+    completer: test-snapd-complexion.bash-completer
+    plugs: [home]

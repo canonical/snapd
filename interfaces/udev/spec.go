@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
 
 type entry struct {
@@ -132,9 +133,9 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 }
 
 // AddPermanentPlug records mount-specific side-effects of having a plug.
-func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
+func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
 	type definer interface {
-		UDevPermanentPlug(spec *Specification, plug *interfaces.Plug) error
+		UDevPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	ifname := iface.Name()
 	if iface, ok := iface.(definer); ok {
@@ -147,9 +148,9 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *in
 }
 
 // AddPermanentSlot records mount-specific side-effects of having a slot.
-func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
+func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *snap.SlotInfo) error {
 	type definer interface {
-		UDevPermanentSlot(spec *Specification, slot *interfaces.Slot) error
+		UDevPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	ifname := iface.Name()
 	if iface, ok := iface.(definer); ok {

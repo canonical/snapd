@@ -20,7 +20,6 @@ execute: |
     install_local test-snapd-requires-base
     snap list | MATCH test-snapd-requires-base
 
-
     echo "Ensure the bare base works"
 
     if [ "$(uname -m)" != "x86_64" ]; then
@@ -31,12 +30,6 @@ execute: |
         exit 0
     fi
 
-    # FIXME: we need to pull in test-snapd-base-bare explicitly here for now
-    #        once snapd can do that on its own we can remove this
-    # This will be fixed via:
-    #  https://bugs.launchpad.net/snapstore/+bug/1715824
-    #
-    snap install --edge test-snapd-base-bare
     snap install --edge --devmode test-snapd-busybox-static
     echo "Ensure we can run a statically linked binary from an empty base"
     test-snapd-busybox-static.busybox-static echo hello | MATCH hello
