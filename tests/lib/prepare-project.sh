@@ -15,7 +15,7 @@ create_test_user(){
                 # unlikely to ever clash with anything, and easy to remember.
                 quiet adduser --uid 12345 --gid 12345 --disabled-password --gecos '' test
                 ;;
-            debian-*|fedora-*|opensuse-*)
+            debian-*|fedora-*|opensuse-*|arch-*)
                 quiet useradd -m --uid 12345 --gid 12345 test
                 ;;
             *)
