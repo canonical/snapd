@@ -203,7 +203,7 @@ EOF
             done
             # Copy all of the snaps back to the spool directory. From there we
             # will reuse them during subsequent `snap install` operations.
-            cp --link *.snap /var/lib/snapd/snaps/
+            cp *.snap /var/lib/snapd/snaps/
             set +x
         )
 
