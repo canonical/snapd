@@ -314,7 +314,11 @@ func planWritableMimic(dir string) ([]*Change, error) {
 	// Bind mount the original directory elsewhere for safe-keeping.
 	changes = append(changes, &Change{
 		Action: Mount, Entry: mount.Entry{
-			// XXX: should we rbind here?
+			// NOTE: Here we bind instead of recursively binding
+			// because recursive binds cannot be undone without
+			// parsing the mount table and exploring what is really
+			// there and this is not how the undo logic is
+			// designed.
 			Name: dir, Dir: safeKeepingDir, Options: []string{"bind"}},
 	})
 	// Mount tmpfs over the original directory, hiding its contents.
@@ -328,9 +332,8 @@ func planWritableMimic(dir string) ([]*Change, error) {
 	}
 	for _, fi := range entries {
 		ch := &Change{Action: Mount, Entry: mount.Entry{
-			Name: filepath.Join(safeKeepingDir, fi.Name()),
-			Dir:  filepath.Join(dir, fi.Name()),
-			// XXX: should we rbind here?
+			Name:    filepath.Join(safeKeepingDir, fi.Name()),
+			Dir:     filepath.Join(dir, fi.Name()),
 			Options: []string{"bind", "ro"},
 		}}
 		// Bind mount each element from the safe-keeping directory into the
