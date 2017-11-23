@@ -260,7 +260,9 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 		// Bind mount files and directories over. Note that files are identified by x-snapd.kind=file option.
 		{Entry: mount.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
-		// Create symlinks, if we cannot readlink just skip that entry.
+		// Create symlinks.
+		// Bad symlinks and all other file types are skipped and not
+		// recorded in mount changes.
 		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"bind", "x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
 		// Unmount the safe-keeping directory
 		{Entry: mount.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
