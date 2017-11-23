@@ -352,7 +352,7 @@ func planWritableMimic(dir string) ([]*Change, error) {
 				changes = append(changes, ch)
 			}
 		default:
-			logger.Noticef("skipping unsupported thing %s", fi)
+			logger.Noticef("skipping unsupported file %s", fi)
 		}
 	}
 	// Finally unbind the safe-keeping directory as we don't need it anymore.
