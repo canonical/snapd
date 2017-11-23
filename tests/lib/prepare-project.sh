@@ -113,7 +113,7 @@ build_rpm() {
     fi
 }
 
-build_pkg() {
+build_arch_pkg() {
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
     version="1337.$base_version"
     packaging_path=packaging/arch
@@ -278,7 +278,7 @@ if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
          build_rpm
          ;;
       arch-*)
-         build_pkg
+         build_arch_pkg
          ;;
       *)
          echo "ERROR: No build instructions available for system $SPREAD_SYSTEM"
