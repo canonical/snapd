@@ -795,7 +795,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
 		"refresh": map[string]interface{}{
-			"schedule": "",
+			"schedule": "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59",
 		},
 		"confinement": "partial",
 	}
