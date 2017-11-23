@@ -9,14 +9,9 @@ systems: [-opensuse-*,-fedora-*,-ubuntu-core-*]
 
 prepare: |
     # Install a snap declaring a plug on time-control
-    cp $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml.orig
-    sed 's/\[\]/\[time-control\]/g' -i $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml
     snap try $TESTSLIB/snaps/test-snapd-timedate-control-consumer
 
 restore: |
-    # Restore the timedate-control-consumer snap.yaml
-    cp $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml.orig $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml
-
     # Restore the initial rtc configuration
     if [ -f rtc.txt ]; then
         timedatectl set-local-rtc "$(cat rtc.txt)"
@@ -37,22 +32,22 @@ execute: |
     snap interfaces | MATCH "$CONNECTED_PATTERN"
     
     # Read/write to hwclock access should be possible
-    test-snapd-timedate-control-consumer.hwclock -r -f /dev/rtc
-    test-snapd-timedate-control-consumer.hwclock --systohc -f /dev/rtc
+    test-snapd-timedate-control-consumer.hwclock-time -r -f /dev/rtc
+    test-snapd-timedate-control-consumer.hwclock-time --systohc -f /dev/rtc
 
     # Read access should be possible
-    test-snapd-timedate-control-consumer.timedatectl status | MATCH "RTC in local TZ:"
+    test-snapd-timedate-control-consumer.timedatectl-time status | MATCH "RTC in local TZ:"
 
     # Save the RTC initial value
-    test-snapd-timedate-control-consumer.timedatectl status | grep -oP 'RTC in local TZ: \K(.*)' > rtc.txt
+    test-snapd-timedate-control-consumer.timedatectl-time status | grep -oP 'RTC in local TZ: \K(.*)' > rtc.txt
 
     # Set the local rtc and check the status
-    test-snapd-timedate-control-consumer.timedatectl set-local-rtc yes
-    [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep -oP 'RTC in local TZ: \K(.*)')" = "yes" ]
+    test-snapd-timedate-control-consumer.timedatectl-time set-local-rtc yes
+    [ "$(test-snapd-timedate-control-consumer.timedatectl-time status | grep -oP 'RTC in local TZ: \K(.*)')" = "yes" ]
 
     # Re-set the local rtc and check the status
-    test-snapd-timedate-control-consumer.timedatectl set-local-rtc no
-    [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep -oP 'RTC in local TZ: \K(.*)')" = "no" ]
+    test-snapd-timedate-control-consumer.timedatectl-time set-local-rtc no
+    [ "$(test-snapd-timedate-control-consumer.timedatectl-time status | grep -oP 'RTC in local TZ: \K(.*)')" = "no" ]
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -60,7 +55,7 @@ execute: |
 
     # Disconnect the interface and check access to timedatectl status
     snap disconnect test-snapd-timedate-control-consumer:time-control
-    if test-snapd-timedate-control-consumer.timedatectl status 2>${PWD}/call.error; then
+    if test-snapd-timedate-control-consumer.timedatectl-time status 2>${PWD}/call.error; then
         echo "Expected permission error calling timedatectl status with disconnected plug"
         exit 1
     fi

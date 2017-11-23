@@ -4,10 +4,15 @@ summary: Basic timedate-control consumer generic snap
 description: A basic generic snap that can be used to plug a timedate slot
 
 apps:
-    timedatectl:
+    timedatectl-time:
         command: bin/timedatectl
-        plugs: [] #timedate
-    hwclock:
+        plugs: [time-control]
+    timedatectl-timeserver:
+        command: bin/timedatectl
+        plugs: [timeserver-control]
+    timedatectl-timezone:
+        command: bin/timedatectl
+        plugs: [timezone-control]
+    hwclock-time:
         command: bin/hwclock
-        plugs: [] #hwclock
-
+        plugs: [time-control]
