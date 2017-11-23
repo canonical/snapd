@@ -1,10 +1,14 @@
 summary: Check that upgrade works
+
+systems: [-debian-sid-*]
+
 restore: |
     if [ "$REMOTE_STORE" = staging ]; then
         echo "skip upgrade tests while talking to the staging store"
         exit 0
     fi
     rm -f /var/tmp/myevil.txt
+
 execute: |
     if [ "$REMOTE_STORE" = staging ]; then
         echo "skip upgrade tests while talking to the staging store"
