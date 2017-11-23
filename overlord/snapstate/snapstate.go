@@ -338,7 +338,7 @@ func (e changeConflictError) Error() string {
 //
 // It's like CheckChangeConflict, but for multiple snaps, and does not
 // check snapst.
-func CheckChangeConflictMany(st *state.State, snapNames []string, checkConflictPredicate func(taskKind string) bool) error {
+func CheckChangeConflictMany(st *state.State, snapNames []string, checkConflictPredicate func(task *state.Task) bool) error {
 	snapMap := make(map[string]bool, len(snapNames))
 	for _, k := range snapNames {
 		snapMap[k] = true
@@ -362,7 +362,7 @@ func CheckChangeConflictMany(st *state.State, snapNames []string, checkConflictP
 				if err != nil {
 					return fmt.Errorf("internal error: cannot obtain plug/slot data from task: %s", task.Summary())
 				}
-				if (snapMap[plugRef.Snap] || snapMap[slotRef.Snap]) && (checkConflictPredicate == nil || checkConflictPredicate(k)) {
+				if (snapMap[plugRef.Snap] || snapMap[slotRef.Snap]) && (checkConflictPredicate == nil || checkConflictPredicate(task)) {
 					var snapName string
 					if snapMap[plugRef.Snap] {
 						snapName = plugRef.Snap
@@ -377,7 +377,7 @@ func CheckChangeConflictMany(st *state.State, snapNames []string, checkConflictP
 					return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
 				}
 				snapName := snapsup.Name()
-				if (snapMap[snapName]) && (checkConflictPredicate == nil || checkConflictPredicate(k)) {
+				if (snapMap[snapName]) && (checkConflictPredicate == nil || checkConflictPredicate(task)) {
 					return changeConflictError{snapName}
 				}
 			}
@@ -399,7 +399,7 @@ func (c changeDuringInstallError) Error() string {
 // changes that alters the snap (like remove, install, refresh) are in
 // progress. It also ensures that snapst (if not nil) did not get
 // modified. If a conflict is detected an error is returned.
-func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicate func(taskKind string) bool, snapst *SnapState) error {
+func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicate func(task *state.Task) bool, snapst *SnapState) error {
 	if err := CheckChangeConflictMany(st, []string{snapName}, checkConflictPredicate); err != nil {
 		return err
 	}
@@ -533,6 +533,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			return nil, nil, err
 		}
 		installed = append(installed, name)
+		ts.JoinLane(st.NewLane())
 		tasksets = append(tasksets, ts)
 	}
 
