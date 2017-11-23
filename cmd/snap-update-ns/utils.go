@@ -291,6 +291,17 @@ func secureMkfileAll(name string, perm os.FileMode, uid, gid int) error {
 	return err
 }
 
+// planWritableMimic plans how to transform a given directory from read-only to writable.
+//
+// The algorithm is designed to be universally reversible so that it can be
+// always de-constructed back to the original directory. The original directory
+// is hidden by tmpfs and a subset of things that were present there originally
+// is bind mounted back on top of empty directories or empty files. Symlinks
+// are re-created directly. Devices and all other elements are not supported
+// because they are forbidden in snaps for which this function is designed to
+// be used with. Since the original directory is hidden the algorithm relies on
+// a temporary directory where the original is bind-mounted during the
+// progression of the algorithm.
 func planWritableMimic(dir string) ([]*Change, error) {
 	// We need a place for "safe keeping" of what is present in the original
 	// directory as we are about to attach a tmpfs there, which will hide
