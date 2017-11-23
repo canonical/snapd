@@ -12,29 +12,43 @@ prepare_project() {
 }
 
 prepare_project_each() {
-    # systemd on 14.04 does not know about --rotate or --vacuum-time.
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
-        journalctl --rotate
-        sleep .1
-        journalctl --vacuum-time=1ms
-    else
-        # Force a log rotation with small size
-        sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
-        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+    # We want to rotate the logs so that when inspecting or dumping them we
+    # will just see logs since the test has started.
 
-        # Restore the initial configuration and rotate logs
-        mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
-        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+    # Clear the systemd journal. Unfortunately the deputy-systemd on Ubuntu
+    # 14.04 does not know about --rotate or --vacuum-time so we need to remove
+    # the journal the hard way.
+    case "$SPREAD_SYSTEM" in
+        ubuntu-14.04-*)
+            # Force a log rotation with small size
+            sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
+            systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
 
-        # Remove rotated journal logs
-        systemctl stop systemd-journald.service
-        find /run/log/journal/ -name "*@*.journal" -delete
-        systemctl start systemd-journald.service
-    fi
+            # Restore the initial configuration and rotate logs
+            mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
+            systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
+
+            # Remove rotated journal logs
+            systemctl stop systemd-journald.service
+            find /run/log/journal/ -name "*@*.journal" -delete
+            systemctl start systemd-journald.service
+            ;;
+        *)
+            journalctl --rotate
+            sleep .1
+            journalctl --vacuum-time=1ms
+            ;;
+    esac
+
+    # Clear the kernel ring buffer.
     dmesg -c > /dev/null
 }
 
 restore_project_each() {
+    # Udev rules are notoriously hard to write and seemingly correct but subtly
+    # wrong rules can pass review. Whenever that happens udev logs an error
+    # message. As a last resort from lack of a better mechanism we can try to
+    # pick up such errors.
     if grep "invalid .*snap.*.rules" /var/log/syslog; then
         echo "Invalid udev file detected, test most likely broke it"
         exit 1
@@ -42,15 +56,20 @@ restore_project_each() {
 }
 
 restore_project() {
-    if [ "$SPREAD_BACKEND" = external ]; then
-        # start and enable autorefresh
-        if [ -e /snap/core/current/meta/hooks/configure ]; then
-            systemctl enable --now snapd.refresh.timer
-            snap set core refresh.schedule=""
-        fi
+    # XXX: Why are we enabling autorefresh for external targets?
+    if [ "$SPREAD_BACKEND" = external ] && [ -e /snap/core/current/meta/hooks/configure ]; then
+        systemctl enable --now snapd.refresh.timer
+        snap set core refresh.schedule=""
     fi
 
+    # We use a trick to accelerate prepare/restore code in certain suites. That
+    # code uses a tarball to store the vanilla state. Here we just remove this
+    # tarball.
     rm -f "$SPREAD_PATH/snapd-state.tar.gz"
+
+    # Remove all of the code we pushed and any build results. This removes
+    # stale files and we cannot do incremental builds anyway so there's little
+    # point in keeping them.
     if [ -n "$GOPATH" ]; then
         rm -rf "${GOPATH%%:*}"
     fi
