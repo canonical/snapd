@@ -605,6 +605,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if snapsup.Required { // set only on install and left alone on refresh
 		snapst.Required = true
 	}
+	snapst.UserID = snapsup.UserID
 
 	newInfo, err := readInfo(snapsup.Name(), cand)
 	if err != nil {
