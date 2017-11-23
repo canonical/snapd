@@ -108,6 +108,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 			Revision: snap.R(33),
 		},
 		Channel: "beta",
+		UserID:  2,
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
@@ -132,6 +133,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(33))
 	c.Check(snapst.Channel, Equals, "beta")
+	c.Check(snapst.UserID, Equals, 2)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, HasLen, 0)
 }

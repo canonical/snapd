@@ -117,6 +117,9 @@ type SnapState struct {
 	Aliases             map[string]*AliasTarget `json:"aliases,omitempty"`
 	AutoAliasesDisabled bool                    `json:"auto-aliases-disabled,omitempty"`
 	AliasesPending      bool                    `json:"aliases-pending,omitempty"`
+
+	// UserID of the user requesting the install
+	UserID int `json:"user-id,omitempty"`
 }
 
 // Type returns the type of the snap or an error.
