@@ -21,7 +21,6 @@ package interfaces
 
 import (
 	. "gopkg.in/check.v1"
-	"reflect"
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -87,7 +86,8 @@ func (s *connSuite) TestStaticPlugAttrs(c *C) {
 
 func (s *connSuite) TestDynamicSlotAttrs(c *C) {
 	attrs := map[string]interface{}{
-		"foo": "bar",
+		"foo":    "bar",
+		"number": int(100),
 	}
 	attrData := NewConnectedSlot(s.slot, attrs)
 	c.Assert(attrData, NotNil)
@@ -100,14 +100,13 @@ func (s *connSuite) TestDynamicSlotAttrs(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "value")
 
+	val, err = attrData.Attr("number")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, int(100))
+
 	_, err = attrData.Attr("unknown")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
-
-	attrs = attrData.Attrs()
-	c.Assert(attrs, DeepEquals, map[string]interface{}{
-		"foo": "bar",
-	})
 }
 
 func (s *connSuite) TestDynamicPlugAttrs(c *C) {
@@ -128,11 +127,6 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 	_, err = plug.Attr("unknown")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
-
-	attrs = plug.Attrs()
-	c.Assert(attrs, DeepEquals, map[string]interface{}{
-		"foo": "bar",
-	})
 }
 
 func (s *connSuite) TestOverwriteStaticAttrError(c *C) {
@@ -162,11 +156,6 @@ func (s *connSuite) TestCopyAttributes(c *C) {
 	}
 
 	cpy := CopyAttributes(orig)
-	// verify that int is converted into int64
-	c.Check(reflect.TypeOf(cpy["c"]).Kind(), Equals, reflect.Int64)
-	c.Check(reflect.TypeOf(orig["c"]).Kind(), Equals, reflect.Int)
-	// change the type of orig's value to int64 to make DeepEquals happy in the test
-	orig["c"] = int64(100)
 	c.Check(cpy, DeepEquals, orig)
 
 	cpy["d"].([]interface{})[0] = 999

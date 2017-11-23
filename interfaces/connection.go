@@ -118,14 +118,6 @@ func (plug *ConnectedPlug) Attr(key string) (interface{}, error) {
 	return plug.StaticAttr(key)
 }
 
-// Attrs returns all dynamic attributes of this plug.
-func (plug *ConnectedPlug) Attrs() map[string]interface{} {
-	if plug.dynamicAttrs == nil {
-		plug.dynamicAttrs = make(map[string]interface{})
-	}
-	return plug.dynamicAttrs
-}
-
 // SetAttr sets the given dynamic attribute. Error is returned if the key is already used by a static attribute.
 func (plug *ConnectedPlug) SetAttr(key string, value interface{}) error {
 	if _, ok := plug.staticAttrs[key]; ok {
@@ -134,8 +126,7 @@ func (plug *ConnectedPlug) SetAttr(key string, value interface{}) error {
 	if plug.dynamicAttrs == nil {
 		plug.dynamicAttrs = make(map[string]interface{})
 	}
-	// make a normalized copy
-	plug.dynamicAttrs[key] = copyRecursive(value)
+	plug.dynamicAttrs[key] = value
 	return nil
 }
 
@@ -194,14 +185,6 @@ func (slot *ConnectedSlot) Attr(key string) (interface{}, error) {
 	return slot.StaticAttr(key)
 }
 
-// Attrs returns all dynamic attributes of this slot.
-func (slot *ConnectedSlot) Attrs() map[string]interface{} {
-	if slot.dynamicAttrs == nil {
-		slot.dynamicAttrs = make(map[string]interface{})
-	}
-	return slot.dynamicAttrs
-}
-
 // SetAttr sets the given dynamic attribute. Error is returned if the key is already used by a static attribute.
 func (slot *ConnectedSlot) SetAttr(key string, value interface{}) error {
 	if _, ok := slot.staticAttrs[key]; ok {
@@ -210,8 +193,7 @@ func (slot *ConnectedSlot) SetAttr(key string, value interface{}) error {
 	if slot.dynamicAttrs == nil {
 		slot.dynamicAttrs = make(map[string]interface{})
 	}
-	// make a normalized copy
-	slot.dynamicAttrs[key] = copyRecursive(value)
+	slot.dynamicAttrs[key] = value
 	return nil
 }
 
@@ -225,18 +207,9 @@ func copyAttributes(value map[string]interface{}) map[string]interface{} {
 }
 
 func copyRecursive(value interface{}) interface{} {
-	// Copy all attributes and normalize ints/floats using their 64-bit variants.
-	// That kind of normalization happens in normalizeYamlValue(..) for static attributes
-	// when the yaml is loaded, but it needs to be done here as well because we're also
-	// dealing with dynamic attributes (and attributes set by the code of interfaces).
-	//
 	// note: ensure all the mutable types (or types that need a conversion)
 	// are handled here.
 	switch v := value.(type) {
-	case int:
-		return int64(v)
-	case float32:
-		return float64(v)
 	case []interface{}:
 		arr := make([]interface{}, len(v))
 		for i, el := range v {
