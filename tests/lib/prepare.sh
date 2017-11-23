@@ -195,7 +195,7 @@ EOF
         # used for resuming downloads.
         (
             set -x
-            cd $TESTSLIB/cache/
+            cd "$TESTSLIB/cache/"
             # Download each of the snaps we want to pre-cache. Note that `snap download`
             # a quick no-op if the file is complete.
             for snap_name in ${PRE_CACHE_SNAPS:-}; do
