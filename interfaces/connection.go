@@ -25,7 +25,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// Connection represents a connection between ConnectedPlug and ConnectedSlot
+// Connection represents a connection between a particular plug and slot.
 type Connection struct {
 	plug *ConnectedPlug
 	slot *ConnectedSlot
@@ -225,6 +225,11 @@ func copyAttributes(value map[string]interface{}) map[string]interface{} {
 }
 
 func copyRecursive(value interface{}) interface{} {
+	// Copy all attributes and normalize ints/floats using their 64-bit variants.
+	// That kind of normalization happens in normalizeYamlValue(..) for static attributes
+	// when the yaml is loaded, but it needs to be done here as well because we're also
+	// dealing with dynamic attributes (and attributes set by the code of interfaces).
+	//
 	// note: ensure all the mutable types (or types that need a conversion)
 	// are handled here.
 	switch v := value.(type) {
