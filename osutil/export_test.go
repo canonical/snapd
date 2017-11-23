@@ -85,7 +85,7 @@ func WaitingReaderGuts(r io.Reader) (io.Reader, *exec.Cmd) {
 	return wr.reader, wr.cmd
 }
 
-func MockChown(f func(*os.File, int, int) error) func() {
+func MockChown(f func(*os.File, uint32, uint32) error) func() {
 	oldChown := chown
 	chown = f
 	return func() {

@@ -29,6 +29,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -185,5 +186,27 @@ func (s *createUserSuite) TestRealUser(c *check.C) {
 		cur, err := osutil.RealUser()
 		c.Assert(err, check.IsNil)
 		c.Check(cur.Username, check.Equals, t.CurrentUsername)
+	}
+}
+
+func (s *createUserSuite) TestUidGid(c *check.C) {
+	for k, t := range map[string]struct {
+		User *user.User
+		Uid  uint32
+		Gid  uint32
+		Err  string
+	}{
+		"happy":   {&user.User{Uid: "10", Gid: "10"}, 10, 10, ""},
+		"bad uid": {&user.User{Uid: "x", Gid: "10"}, sys.FlagID, sys.FlagID, "cannot parse user id x"},
+		"bad gid": {&user.User{Uid: "10", Gid: "x"}, sys.FlagID, sys.FlagID, "cannot parse group id x"},
+	} {
+		uid, gid, err := osutil.UidGid(t.User)
+		c.Check(uid, check.Equals, t.Uid, check.Commentf(k))
+		c.Check(gid, check.Equals, t.Gid, check.Commentf(k))
+		if t.Err == "" {
+			c.Check(err, check.IsNil, check.Commentf(k))
+		} else {
+			c.Check(err, check.ErrorMatches, ".*"+t.Err+".*", check.Commentf(k))
+		}
 	}
 }
