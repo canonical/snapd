@@ -50,7 +50,7 @@ func NewConnectedSlot(slot *snap.SlotInfo, dynamicAttrs map[string]interface{}) 
 	return &ConnectedSlot{
 		slotInfo:     slot,
 		staticAttrs:  copyAttributes(slot.Attrs),
-		dynamicAttrs: dynamicAttrs,
+		dynamicAttrs: normalize(dynamicAttrs).(map[string]interface{}),
 	}
 }
 
@@ -59,7 +59,7 @@ func NewConnectedPlug(plug *snap.PlugInfo, dynamicAttrs map[string]interface{}) 
 	return &ConnectedPlug{
 		plugInfo:     plug,
 		staticAttrs:  copyAttributes(plug.Attrs),
-		dynamicAttrs: dynamicAttrs,
+		dynamicAttrs: normalize(dynamicAttrs).(map[string]interface{}),
 	}
 }
 
@@ -126,7 +126,7 @@ func (plug *ConnectedPlug) SetAttr(key string, value interface{}) error {
 	if plug.dynamicAttrs == nil {
 		plug.dynamicAttrs = make(map[string]interface{})
 	}
-	plug.dynamicAttrs[key] = value
+	plug.dynamicAttrs[key] = normalize(value)
 	return nil
 }
 
@@ -193,7 +193,7 @@ func (slot *ConnectedSlot) SetAttr(key string, value interface{}) error {
 	if slot.dynamicAttrs == nil {
 		slot.dynamicAttrs = make(map[string]interface{})
 	}
-	slot.dynamicAttrs[key] = value
+	slot.dynamicAttrs[key] = normalize(value)
 	return nil
 }
 
@@ -222,7 +222,28 @@ func copyRecursive(value interface{}) interface{} {
 			mp[key] = copyRecursive(item)
 		}
 		return mp
-	default:
-		return v
 	}
+	return value
+}
+
+func normalize(value interface{}) interface{} {
+	// Normalize ints/floats using their 64-bit variants.
+	// That kind of normalization happens in normalizeYamlValue(..) for static attributes
+	// when the yaml is loaded, but it needs to be done here as well because we're also
+	// dealing with dynamic attributes set by the code of interfaces.
+	switch v := value.(type) {
+	case int:
+		return int64(v)
+	case float32:
+		return float64(v)
+	case []interface{}:
+		for i, el := range v {
+			v[i] = normalize(el)
+		}
+	case map[string]interface{}:
+		for key, item := range v {
+			v[key] = normalize(item)
+		}
+	}
+	return value
 }

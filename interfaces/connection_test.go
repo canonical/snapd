@@ -21,6 +21,7 @@ package interfaces
 
 import (
 	. "gopkg.in/check.v1"
+	"reflect"
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -57,28 +58,28 @@ slots:
 }
 
 func (s *connSuite) TestStaticSlotAttrs(c *C) {
-	attrData := NewConnectedSlot(s.slot, nil)
-	c.Assert(attrData, NotNil)
+	slot := NewConnectedSlot(s.slot, nil)
+	c.Assert(slot, NotNil)
 
-	_, err := attrData.StaticAttr("unknown")
+	_, err := slot.StaticAttr("unknown")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
 
-	attrs := attrData.StaticAttrs()
+	attrs := slot.StaticAttrs()
 	c.Assert(attrs, DeepEquals, map[string]interface{}{
 		"attr": "value",
 	})
 }
 
 func (s *connSuite) TestStaticPlugAttrs(c *C) {
-	attrData := NewConnectedPlug(s.plug, nil)
-	c.Assert(attrData, NotNil)
+	plug := NewConnectedPlug(s.plug, nil)
+	c.Assert(plug, NotNil)
 
-	_, err := attrData.StaticAttr("unknown")
+	_, err := plug.StaticAttr("unknown")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
 
-	attrs := attrData.StaticAttrs()
+	attrs := plug.StaticAttrs()
 	c.Assert(attrs, DeepEquals, map[string]interface{}{
 		"attr": "value",
 	})
@@ -89,29 +90,39 @@ func (s *connSuite) TestDynamicSlotAttrs(c *C) {
 		"foo":    "bar",
 		"number": int(100),
 	}
-	attrData := NewConnectedSlot(s.slot, attrs)
-	c.Assert(attrData, NotNil)
+	slot := NewConnectedSlot(s.slot, attrs)
+	c.Assert(slot, NotNil)
 
-	val, err := attrData.Attr("foo")
+	val, err := slot.Attr("foo")
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "bar")
 
-	val, err = attrData.Attr("attr")
+	val, err = slot.Attr("attr")
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "value")
 
-	val, err = attrData.Attr("number")
+	val, err = slot.Attr("number")
 	c.Assert(err, IsNil)
-	c.Assert(val, Equals, int(100))
+	c.Assert(reflect.TypeOf(val).Kind(), Equals, reflect.Int64)
+	c.Assert(val, Equals, int64(100))
 
-	_, err = attrData.Attr("unknown")
+	err = slot.SetAttr("other", map[string]interface{}{"number-two": int(222)})
+	c.Assert(err, IsNil)
+	val, err = slot.Attr("other")
+	c.Assert(err, IsNil)
+	num := val.(map[string]interface{})["number-two"]
+	c.Assert(reflect.TypeOf(num).Kind(), Equals, reflect.Int64)
+	c.Assert(num, Equals, int64(222))
+
+	_, err = slot.Attr("unknown")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
 }
 
 func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 	attrs := map[string]interface{}{
-		"foo": "bar",
+		"foo":    "bar",
+		"number": int(100),
 	}
 	plug := NewConnectedPlug(s.plug, attrs)
 	c.Assert(plug, NotNil)
@@ -123,6 +134,19 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 	val, err = plug.Attr("attr")
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "value")
+
+	val, err = plug.Attr("number")
+	c.Assert(err, IsNil)
+	c.Assert(reflect.TypeOf(val).Kind(), Equals, reflect.Int64)
+	c.Assert(val, Equals, int64(100))
+
+	err = plug.SetAttr("other", map[string]interface{}{"number-two": int(222)})
+	c.Assert(err, IsNil)
+	val, err = plug.Attr("other")
+	c.Assert(err, IsNil)
+	num := val.(map[string]interface{})["number-two"]
+	c.Assert(reflect.TypeOf(num).Kind(), Equals, reflect.Int64)
+	c.Assert(num, Equals, int64(222))
 
 	_, err = plug.Attr("unknown")
 	c.Assert(err, NotNil)
