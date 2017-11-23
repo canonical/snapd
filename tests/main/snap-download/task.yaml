@@ -11,6 +11,9 @@ execute: |
     ls test-snapd-control-consumer_*.snap
     verify_asserts test-snapd-control-consumer_*.assert
 
+    echo "Snap will use existing files"
+    SNAPD_DEBUG=1 snap download test-snapd-control-consumer 2>&1 | MATCH "not downloading, using existing file"
+
     echo "Snap download understand --edge"
     snap download --edge test-snapd-tools
     ls test-snapd-tools_*.snap
