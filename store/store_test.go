@@ -2308,7 +2308,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryProxyStoreFromAuthContext
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	nowhereURL, err := url.Parse("http://nowhere.nowhere")
+	nowhereURL, err := url.Parse("http://nowhere.invalid")
 	c.Assert(err, IsNil)
 	cfg := DefaultConfig()
 	cfg.StoreBaseURL = nowhereURL
@@ -4268,7 +4268,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionProxyStoreFromAu
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	nowhereURL, err := url.Parse("http://nowhere.nowhere")
+	nowhereURL, err := url.Parse("http://nowhere.invalid")
 	c.Assert(err, IsNil)
 	cfg := Config{
 		AssertionsBaseURL: nowhereURL,

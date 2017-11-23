@@ -77,9 +77,9 @@ type RefreshOptions struct {
 
 // the LimitTime should be slightly more than 3 times of our http.Client
 // Timeout value
-var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
+var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
 	retry.Exponential{
-		Initial: 100 * time.Millisecond,
+		Initial: 300 * time.Millisecond,
 		Factor:  2.5,
 	},
 ))
@@ -1207,8 +1207,13 @@ func (s *Store) WriteCatalogs(names io.Writer) error {
 		Accept: halJsonContentType,
 	}
 
+	// do not log body for catalog updates (its huge)
+	client := httputil.NewHTTPClient(&httputil.ClientOpts{
+		MayLogBody: false,
+		Timeout:    10 * time.Second,
+	})
 	doRequest := func() (*http.Response, error) {
-		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
+		return s.doRequest(context.TODO(), client, reqOptions, nil)
 	}
 	readResponse := func(resp *http.Response) error {
 		return decodeCatalog(resp, names)

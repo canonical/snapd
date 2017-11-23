@@ -37,6 +37,9 @@ const browserSupportBaseDeclarationSlots = `
     deny-connection:
       plug-attributes:
         allow-sandbox: true
+    deny-auto-connection:
+      plug-attributes:
+        allow-sandbox: true
 `
 
 const browserSupportConnectedPlugAppArmor = `

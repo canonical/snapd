@@ -267,7 +267,10 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	st.Lock()
 	nextRefresh := snapMgr.NextRefresh()
 	lastRefresh, _ := snapMgr.LastRefresh()
-	refreshScheduleStr := snapMgr.RefreshSchedule()
+	refreshScheduleStr, err := snapMgr.RefreshSchedule()
+	if err != nil {
+		return InternalError("cannot get refresh schedule: %s", err)
+	}
 	users, err := auth.Users(st)
 	st.Unlock()
 	if err != nil && err != state.ErrNoState {

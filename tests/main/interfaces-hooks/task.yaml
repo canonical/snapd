@@ -8,12 +8,8 @@ prepare: |
     snap install --dangerous basic-iface-hooks-producer_1.0_all.snap
 
 restore: |
-    rm basic-iface-hooks-consumer_1.0_all.snap
-    rm basic-iface-hooks-producer_1.0_all.snap
-
-restore: |
-    rm basic-iface-hooks-consumer_1.0_all.snap
-    rm basic-iface-hooks-producer_1.0_all.snap
+    rm -f basic-iface-hooks-consumer_1.0_all.snap
+    rm -f basic-iface-hooks-producer_1.0_all.snap
 
 execute: |
     echo "Test that snap connect with plug and slot hooks succeeds"

@@ -196,6 +196,10 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case requestIDURLPath, "/svc/request-id":
+			if s.reqID == "REQID-501" {
+				w.WriteHeader(501)
+				return
+			}
 			w.WriteHeader(200)
 			c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
 			io.WriteString(w, fmt.Sprintf(`{"request-id": "%s"}`, s.reqID))
@@ -757,6 +761,116 @@ version: gadget
 	device, err = auth.Device(s.state)
 	c.Check(err, IsNil)
 	c.Check(device.Serial, Equals, "9999")
+}
+
+func (s *deviceMgrSuite) TestDoRequestSerialErrorsOnNoHost(c *C) {
+	privKey, _ := assertstest.GenerateKey(testKeyLength)
+
+	nowhere := "http://nowhere.invalid"
+
+	mockRequestIDURL := nowhere + requestIDURLPath
+	restore := devicestate.MockRequestIDURL(mockRequestIDURL)
+	defer restore()
+
+	mockSerialRequestURL := nowhere + serialURLPath
+	restore = devicestate.MockSerialRequestURL(mockSerialRequestURL)
+	defer restore()
+
+	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+`, "")
+
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+		KeyID: privKey.PublicKey().ID(),
+	})
+	s.mgr.KeypairManager().Put(privKey)
+
+	t := s.state.NewTask("request-serial", "test")
+	chg := s.state.NewChange("become-operational", "...")
+	chg.AddTask(t)
+
+	// avoid full seeding
+	s.seeding()
+
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+}
+
+func (s *deviceMgrSuite) TestDoRequestSerialMaxTentatives(c *C) {
+	privKey, _ := assertstest.GenerateKey(testKeyLength)
+
+	// immediate
+	r := devicestate.MockRetryInterval(0)
+	defer r()
+
+	r = devicestate.MockMaxTentatives(2)
+	defer r()
+
+	s.reqID = "REQID-501"
+	mockServer := s.mockServer(c)
+	defer mockServer.Close()
+
+	mockRequestIDURL := mockServer.URL + requestIDURLPath
+	restore := devicestate.MockRequestIDURL(mockRequestIDURL)
+	defer restore()
+
+	mockSerialRequestURL := mockServer.URL + serialURLPath
+	restore = devicestate.MockSerialRequestURL(mockSerialRequestURL)
+	defer restore()
+
+	restore = devicestate.MockRepeatRequestSerial("after-add-serial")
+	defer restore()
+
+	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+`, "")
+
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+		KeyID: privKey.PublicKey().ID(),
+	})
+	s.mgr.KeypairManager().Put(privKey)
+
+	t := s.state.NewTask("request-serial", "test")
+	chg := s.state.NewChange("become-operational", "...")
+	chg.AddTask(t)
+
+	// avoid full seeding
+	s.seeding()
+
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot retrieve request-id for making a request for a serial: unexpected status 501.*`)
 }
 
 func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {

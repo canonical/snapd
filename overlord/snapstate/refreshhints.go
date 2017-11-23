@@ -28,6 +28,9 @@ import (
 
 var refreshHintsDelay = time.Duration(24 * time.Hour)
 
+// refreshHints will ensure that we get regular data about refreshes
+// so that we can potentially warn the user about important missing
+// refreshes.
 type refreshHints struct {
 	state *state.State
 }
@@ -53,12 +56,35 @@ func (r *refreshHints) needsUpdate() (bool, error) {
 }
 
 func (r *refreshHints) refresh() error {
-	_, _, _, err := refreshCandidates(r.state, nil, nil, &store.RefreshOptions{RefreshManaged: true})
+	var refreshManaged bool
+	if RefreshScheduleManaged != nil {
+		refreshManaged = RefreshScheduleManaged(r.state)
+	}
+
+	_, _, _, err := refreshCandidates(r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
+	// TODO: we currently set last-refresh-hints even when there was an
+	// error. In the future we may retry with a backoff.
 	r.state.Set("last-refresh-hints", time.Now())
 	return err
 }
 
+// Ensure will ensure that refresh hints are available on a regular
+// interval.
 func (r *refreshHints) Ensure() error {
+	r.state.Lock()
+	defer r.state.Unlock()
+
+	// CanAutoRefresh is a hook that is set by the devicestate
+	// code to ensure that we only AutoRefersh if the device has
+	// bootstraped itself enough. This is only nil when snapstate
+	// is used in isolation (like in tests).
+	if CanAutoRefresh == nil {
+		return nil
+	}
+	if ok, err := CanAutoRefresh(r.state); err != nil || !ok {
+		return err
+	}
+
 	needsUpdate, err := r.needsUpdate()
 	if err != nil {
 		return err
