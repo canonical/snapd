@@ -1,4 +1,12 @@
 #!/bin/bash
+set -x
+# NOTE: We must set -e so that any failures coming out of the various
+# statements we execute stops the build. The code is not (yet) written to
+# handle errors in general.
+set -e
+# Set pipefail option so that "foo | bar" behaves with fewer surprises by
+# failing if foo fails, not just if bar fails.
+set -o pipefail
 
 prepare_project() {
     # Check if running inside a container.
