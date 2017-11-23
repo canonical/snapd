@@ -74,6 +74,8 @@ backends:
             - opensuse-42.2-64:
                 workers: 3
                 manual: true
+            - arch-2017.07.01:
+                workers: 1
     qemu:
         systems:
             - ubuntu-14.04-32:
@@ -326,6 +328,9 @@ prepare: |
                 ;;
             opensuse-*)
                 zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
+                ;;
+            arch-*)
+                pacman -Sy --noconfirm xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
         esac
         rm -f "$tf"
