@@ -141,7 +141,7 @@ distro_install_local_package() {
             zypper -q install -y "$@"
             ;;
         arch-*)
-            pacman -Uq --noconfirm "$@"
+            pacman -U --noconfirm "$@"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
