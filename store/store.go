@@ -1982,8 +1982,8 @@ func (s *Store) CacheDownloads() int {
 }
 
 func (s *Store) SetCacheDownloads(fileCount int) {
-	s.cfg.CacheDownloads = amount
-	if amount > 0 {
+	s.cfg.CacheDownloads = fileCount
+	if fileCount > 0 {
 		s.cacher = NewCacheManager(dirs.SnapDownloadCacheDir, fileCount)
 	} else {
 		s.cacher = &nullCache{}
