@@ -82,6 +82,24 @@ func (s *autoRefreshTestSuite) TestLastRefresh(c *C) {
 	c.Check(lastRefresh.Year(), Equals, time.Now().Year())
 }
 
+func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
+	snapstate.RefreshScheduleManaged = func(st *state.State) bool {
+		return true
+	}
+	defer func() { snapstate.RefreshScheduleManaged = nil }()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	err := af.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, HasLen, 0)
+
+	refreshScheduleStr, err := af.RefreshSchedule()
+	c.Check(refreshScheduleStr, Equals, "managed")
+	c.Check(err, IsNil)
+
+	c.Check(af.NextRefresh(), DeepEquals, time.Time{})
+}
+
 func (s *autoRefreshTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {
 	s.state.Lock()
 	s.state.Set("last-refresh", time.Now())
