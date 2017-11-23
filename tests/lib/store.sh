@@ -42,9 +42,9 @@ make_snap_installable(){
 
     cp -a "$snap_path" "$dir"
     p=$(fakestore new-snap-declaration --dir "$dir" "${snap_path}")
-    snap ack $p
+    snap ack "$p"
     p=$(fakestore new-snap-revision --dir "$dir" "${snap_path}")
-    snap ack $p
+    snap ack "$p"
 }
 
 setup_fake_store(){
