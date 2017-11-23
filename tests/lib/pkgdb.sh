@@ -175,7 +175,7 @@ distro_install_package() {
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
                 # shellcheck disable=SC2086
-                apt-get install $APT_FLAGS -y "$package_name"
+                quiet apt-get install $APT_FLAGS -y "$package_name"
                 ;;
             fedora-*)
                 # shellcheck disable=SC2086
@@ -204,7 +204,7 @@ distro_purge_package() {
 
         case "$SPREAD_SYSTEM" in
             ubuntu-*|debian-*)
-                apt-get remove -y --purge -y "$package_name"
+                quiet apt-get remove -y --purge -y "$package_name"
                 ;;
             fedora-*)
                 dnf -y -q remove "$package_name"
@@ -224,7 +224,7 @@ distro_purge_package() {
 distro_update_package_db() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            apt-get update
+            quiet apt-get update
             ;;
         fedora-*)
             dnf -q makecache
@@ -242,7 +242,7 @@ distro_update_package_db() {
 distro_clean_package_cache() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            apt-get clean
+            quiet apt-get clean
             ;;
         opensuse-*)
             zypper -q clean --all
@@ -257,7 +257,7 @@ distro_clean_package_cache() {
 distro_auto_remove_packages() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
-            apt-get -y autoremove
+            quiet apt-get -y autoremove
             ;;
         fedora-*)
             dnf -q -y autoremove
