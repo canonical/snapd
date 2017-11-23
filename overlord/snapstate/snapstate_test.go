@@ -5236,21 +5236,27 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
 	c.Check(s.state.Changes(), HasLen, 1)
 }
 
+func mockAutoRefreshAssertions(f func(st *state.State, userID int) error) func() {
+	origAutoRefreshAssertions := snapstate.AutoRefreshAssertions
+	snapstate.AutoRefreshAssertions = f
+	return func() {
+		snapstate.AutoRefreshAssertions = origAutoRefreshAssertions
+	}
+}
+
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
 	s.state.Set("last-refresh", time.Time{})
-	origAutoRefreshAssertions := snapstate.AutoRefreshAssertions
-	defer func() { snapstate.AutoRefreshAssertions = origAutoRefreshAssertions }()
-
-	// simulate failure in snapstate.AutoRefresh()
 	autoRefreshAssertionsCalled := 0
-	snapstate.AutoRefreshAssertions = func(st *state.State, userID int) error {
+	restore := mockAutoRefreshAssertions(func(st *state.State, userID int) error {
+		// simulate failure in snapstate.AutoRefresh()
 		autoRefreshAssertionsCalled++
 		return fmt.Errorf("simulate store error")
-	}
+	})
+	defer restore()
 
 	// check that no change got created and that autoRefreshAssertins
 	// got called once
@@ -5267,6 +5273,57 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	s.state.Lock()
 	c.Check(s.state.Changes(), HasLen, 0)
 	c.Check(autoRefreshAssertionsCalled, Equals, 1)
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshesDisabledViaSnapdControl(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	makeTestRefreshConfig(st)
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// snapstate.AutoRefresh is called from AutoRefresh()
+	autoRefreshAssertionsCalled := 0
+	restore := mockAutoRefreshAssertions(func(st *state.State, userID int) error {
+		autoRefreshAssertionsCalled++
+		return nil
+	})
+	defer restore()
+
+	// pretend the device is refresh-control: managed
+	oldRefreshScheduleManaged := snapstate.RefreshScheduleManaged
+	snapstate.RefreshScheduleManaged = func(*state.State) bool {
+		return true
+	}
+	defer func() { snapstate.RefreshScheduleManaged = oldRefreshScheduleManaged }()
+
+	// Ensure() also runs ensureRefreshes()
+	st.Unlock()
+	s.snapmgr.Ensure()
+	st.Lock()
+
+	// no refresh was called (i.e. no update to last-refresh)
+	var lastRefresh time.Time
+	st.Get("last-refresh", &lastRefresh)
+	c.Check(lastRefresh.Year(), Equals, 2009)
+
+	// AutoRefresh was not called
+	c.Check(autoRefreshAssertionsCalled, Equals, 0)
+
+	// The last refresh hints got updated
+	var lastRefreshHints time.Time
+	st.Get("last-refresh-hints", &lastRefreshHints)
+	c.Check(lastRefreshHints.Year(), Equals, time.Now().Year())
 }
 
 func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {

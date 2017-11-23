@@ -1,0 +1,89 @@
+summary: Ensure that the snapd-control "refresh-schedule" attribute works.
+
+environment:
+  BLOB_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    echo "Ensure jq is installed"
+    if ! which jq; then
+        snap install jq
+    fi
+
+    snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
+
+    . $TESTSLIB/store.sh
+    setup_fake_store $BLOB_DIR
+
+    . $TESTSLIB/snaps.sh
+    snap_path=$(make_snap test-snapd-control-consumer)
+    make_snap_installable $BLOB_DIR ${snap_path}
+    cat > snap-decl.json <<'EOF'
+    {
+      "format": "1",
+      "revision": "2",
+      "snap-name": "test-snapd-control-consumer",
+      "snap-id": "test-snapd-control-consumer-id",
+      "plugs":
+      {
+        "snapd-control": {
+          "allow-installation": "true",
+          "allow-auto-connection": "true"
+        }
+      }
+    }
+    EOF
+    fakestore new-snap-declaration --dir "${BLOB_DIR}" --snap-decl-json snap-decl.json
+    snap ack ${BLOB_DIR}/asserts/*.snap-declaration
+
+restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    . $TESTSLIB/store.sh
+    teardown_fake_store $BLOB_DIR
+    
+execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    snap install test-snapd-control-consumer
+    snap interfaces
+
+    echo "When the snapd-control-with-manage plug is connected"
+    snap connect test-snapd-control-consumer:snapd-control-with-manage
+    snap set core refresh.schedule=managed
+
+    echo "Then the core refresh.schedule can be set to 'managed'"
+    if journalctl -u snapd |grep 'cannot parse "managed"'; then
+        echo "refresh.schedule=managed was not rejected as it should be"
+        exit 1
+    fi
+    snap refresh --time | MATCH 'schedule: managed'
+
+    echo "Check that the snapd.refresh.service is disabled as well"
+    systemctl start snapd.refresh.service
+    if snap changes | MATCH "Refresh all snaps"; then
+        echo "snapd.refresh.service did refresh, this should not happen"
+        exit 1
+    fi
+
+
+    echo "When the snapd-control-with-manage plug is disconnected"
+    snap disconnect test-snapd-control-consumer:snapd-control-with-manage
+
+    echo "Then the snap refresh schedule cannot be set to managed"
+    if snap set core refresh.schedule=managed; then
+       echo "refresh.schedule=managed was not rejected as it should be"
+       exit 1
+    fi
+
+    echo "Ensure that last-refresh-hit happens regardless of managed setting"
+    cat /var/lib/snapd/state.json | jq '.data["last-refresh-hints"]' | grep $(date +%Y)
