@@ -31,7 +31,7 @@ environment:
     GADGET_CHANNEL: "$(HOST: echo ${SPREAD_GADGET_CHANNEL:-edge})"
     REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
     SNAPPY_USE_STAGING_STORE: "$(HOST: if [ $SPREAD_REMOTE_STORE = staging ]; then echo 1; else echo 0; fi)"
-    DELTA_REF: 2.27
+    DELTA_REF: 2.29
     DELTA_PREFIX: snapd-$DELTA_REF/
     SNAPD_PUBLISHED_VERSION: "$(HOST: echo $SPREAD_SNAPD_PUBLISHED_VERSION)"
     HTTP_PROXY: "$(HOST: echo $SPREAD_HTTP_PROXY)"
@@ -72,7 +72,7 @@ backends:
             - fedora-25-64:
                 workers: 3
             - opensuse-42.2-64:
-                workers: 2
+                workers: 3
                 manual: true
     qemu:
         systems:
@@ -105,6 +105,9 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - debian-9-64:
+                username: debian
+                password: debian
+            - debian-sid-64:
                 username: debian
                 password: debian
             - fedora-25-64:
@@ -252,27 +255,6 @@ exclude:
     - "*.o"
     - "*.a"
 
-prepare-each: |
-    # systemd on 14.04 does not know about --rotate or --vacuum-time.
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
-        journalctl --rotate
-        sleep .1
-        journalctl --vacuum-time=1ms
-    else
-        # Force a log rotation with small size
-        sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
-        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
-
-        # Restore the initial configuration and rotate logs
-        mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
-        systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
-
-        # Remove rotated journal logs
-        systemctl stop systemd-journald.service
-        find /run/log/journal/ -name "*@*.journal" -delete
-        systemctl start systemd-journald.service
-    fi
-    dmesg -c > /dev/null
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
@@ -310,27 +292,10 @@ repack: |
 kill-timeout: 20m
 
 prepare: |
-    # check if running inside a container, the testsuite will not
-    # work in such an environment
-    if systemd-detect-virt -c; then
-        echo "Tests cannot run inside a container"
-        exit 1
-    fi
-    if [[ "$SPREAD_SYSTEM" == debian-unstable-* ]]; then
-        # There's a packaging bug in Debian sid lately where some packages
-        # conflict on manual page file. To work around it simply remove the
-        # manpages package.
-        apt-get remove --purge -y manpages
-    fi
-
-    # FIXME: remove once the following bug is fixed:
-    #   https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=876128
-    if [[ "$SPREAD_SYSTEM" == debian-unstable-* ]]; then
-        # There's a packaging bug in Debian sid lately where some packages
-        # conflict on manual page file. To work around it simply remove the
-        # manpages package.
-        apt-get remove --purge -y manpages
-    fi
+    # NOTE: This part of the code needs to be in spread.yaml as it runs before
+    # the rest of the source code (including the tests/lib directory) is
+    # around. The purpose of this code is to fix some connectivity issues and
+    # then apply the delta of the git repository.
 
     # apt update is hanging on security.ubuntu.com with IPv6, prefer IPv4 over IPv6
     cat <<EOF > gai.conf
@@ -364,33 +329,23 @@ prepare: |
                 ;;
         esac
         rm -f "$tf"
-        curl -sS -o - https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF | gunzip > delta-ref.tar
+        curl -sS -o - "https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF" | gunzip > delta-ref.tar
         xdelta3 -q -d -s delta-ref.tar current.delta | tar x --strip-components=1
         rm -f delta-ref.tar current.delta
-    elif [ -d $DELTA_PREFIX ]; then
-        find $DELTA_PREFIX -mindepth 1 -maxdepth 1 -exec mv {} . \;
-        rmdir $DELTA_PREFIX
+    elif [ -d "$DELTA_PREFIX" ]; then
+        find "$DELTA_PREFIX" -mindepth 1 -maxdepth 1 -exec mv {} . \;
+        rmdir "$DELTA_PREFIX"
     fi
 
-    . "$TESTSLIB/prepare-project.sh"
-
+    # NOTE: At this stage the source tree is available and no more special
+    # considerations apply.
+    "$TESTSLIB"/prepare-restore.sh --prepare-project
+prepare-each: |
+    "$TESTSLIB"/prepare-restore.sh --prepare-project-each
 restore: |
-    if [ "$SPREAD_BACKEND" = external ]; then
-        # start and enable autorefresh
-        if [ -e /snap/core/current/meta/hooks/configure ]; then
-            systemctl enable --now snapd.refresh.timer
-            snap set core refresh.disabled=false
-        fi
-    fi
-
-    rm -f $SPREAD_PATH/snapd-state.tar.gz
-    rm -rf ${GOPATH%%:*}/*
-
+    "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
-    if grep "invalid .*snap.*.rules" /var/log/syslog; then
-        echo "Invalid udev file detected, test most likely broke it"
-        exit 1
-    fi
+    "$TESTSLIB"/prepare-restore.sh --restore-project-each
 
 suites:
     tests/main/:
