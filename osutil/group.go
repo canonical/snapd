@@ -27,10 +27,11 @@ import "C"
 
 import (
 	"fmt"
-	"os/user"
 	"strconv"
 	"syscall"
 	"unsafe"
+
+	"github.com/snapcore/snapd/osutil/user"
 )
 
 // hrm, user.LookupGroup() doesn't exist yet:
@@ -133,26 +134,33 @@ func isSizeReasonable(sz int64) bool {
 
 // end code from https://golang.org/src/os/user/lookup_unix.go
 
+// TODO: add group support to osutil/user, move FindUid and FindGid in there
 // FindUid returns the identifier of the given UNIX user name.
-func FindUid(username string) (uint64, error) {
-	user, err := user.Lookup(username)
+func FindUid(username string) (uint32, error) {
+	usr, err := user.FromName(username)
 	if err != nil {
-		return 0, err
+		return user.FlagID, err
 	}
 
-	return strconv.ParseUint(user.Uid, 10, 64)
+	return usr.UID(), nil
 }
 
+// TODO: add group support to osutil/user, move FindUid and FindGid in there
 // FindGid returns the identifier of the given UNIX group name.
-func FindGid(group string) (uint64, error) {
+func FindGid(group string) (uint32, error) {
 	// In golang 1.8 we can use the built-in function like this:
 	//group, err := user.LookupGroup(group)
 	group, err := lookupGroup(group)
 	if err != nil {
-		return 0, err
+		return user.FlagID, err
 	}
 
 	// In golang 1.8 we can parse the group.Gid string instead.
 	//return strconv.ParseUint(group.Gid, 10, 64)
-	return strconv.ParseUint(group, 10, 64)
+	gid, err := strconv.ParseUint(group, 10, 32)
+	if err != nil {
+		return user.FlagID, err
+	}
+
+	return uint32(gid), nil
 }

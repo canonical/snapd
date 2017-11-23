@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -53,8 +54,8 @@ type AtomicFile struct {
 
 	target  string
 	tmpname string
-	uid     int
-	gid     int
+	uid     uint32
+	gid     uint32
 	closed  bool
 	renamed bool
 }
@@ -75,11 +76,7 @@ type AtomicFile struct {
 // Also note that there are a number of scenarios where Commit fails and then
 // Cancel also fails. In all these scenarios your filesystem was probably in a
 // rather poor state. Good luck.
-func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, uid, gid int) (aw *AtomicFile, err error) {
-	if (uid < 0) != (gid < 0) {
-		return nil, errors.New("internal error: AtomicFile needs none or both of uid and gid set")
-	}
-
+func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, uid, gid uint32) (aw *AtomicFile, err error) {
 	if flags&AtomicWriteFollow != 0 {
 		if fn, err := os.Readlink(filename); err == nil || (fn != "" && os.IsNotExist(err)) {
 			if filepath.IsAbs(fn) {
@@ -136,7 +133,9 @@ func (aw *AtomicFile) Cancel() error {
 	return e2
 }
 
-var chown = (*os.File).Chown
+var chown = user.Chown
+
+const NoChown = user.FlagID
 
 // Commit the modification; make it permanent.
 //
@@ -144,7 +143,7 @@ var chown = (*os.File).Chown
 // write will fail. If Commit fails, the writer _might_ be closed;
 // Cancel() needs to be called to clean up.
 func (aw *AtomicFile) Commit() error {
-	if aw.uid > -1 && aw.gid > -1 {
+	if aw.uid != NoChown || aw.gid != NoChown {
 		if err := chown(aw.File, aw.uid, aw.gid); err != nil {
 			return err
 		}
@@ -184,28 +183,28 @@ func (aw *AtomicFile) Commit() error {
 // The AtomicWrite* family of functions work like ioutil.WriteFile(), but the
 // file created is an AtomicWriter, which is Committed before returning.
 //
-// AtomicWriteChown and AtomicWriteFileChown take an uid and a gid that can be
-// used to specify the ownership of the created file. They must be both
-// non-negative (in which case chown is called), or both negative (in which
-// case it isn't).
+// AtomicWriteChown and AtomicWriteFileChown take an uid and a gid
+// that can be used to specify the ownership of the created file. A
+// special flag value of 0xffffffff (or NoChown, for convenience) can
+// be used to request no change to that attribute.
 //
 // AtomicWriteFile and AtomicWriteFileChown take the content to be written as a
 // []byte, and so work exactly like io.WriteFile(); AtomicWrite and
 // AtomicWriteChown take an io.Reader which is copied into the file instead,
 // and so are more amenable to streaming.
 func AtomicWrite(filename string, reader io.Reader, perm os.FileMode, flags AtomicWriteFlags) (err error) {
-	return AtomicWriteChown(filename, reader, perm, flags, -1, -1)
+	return AtomicWriteChown(filename, reader, perm, flags, NoChown, NoChown)
 }
 
 func AtomicWriteFile(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags) (err error) {
-	return AtomicWriteChown(filename, bytes.NewReader(data), perm, flags, -1, -1)
+	return AtomicWriteChown(filename, bytes.NewReader(data), perm, flags, NoChown, NoChown)
 }
 
-func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags, uid, gid int) (err error) {
+func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags, uid, gid uint32) (err error) {
 	return AtomicWriteChown(filename, bytes.NewReader(data), perm, flags, uid, gid)
 }
 
-func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, flags AtomicWriteFlags, uid, gid int) (err error) {
+func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, flags AtomicWriteFlags, uid, gid uint32) (err error) {
 	aw, err := NewAtomicFile(filename, perm, flags, uid, gid)
 	if err != nil {
 		return err

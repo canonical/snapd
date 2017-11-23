@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -34,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -869,7 +869,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
 	// This test cannot run as root as root bypassed DAC checks.
 	u, err := user.Current()
 	c.Assert(err, IsNil)
-	if u.Uid == "0" {
+	if u.UID() == 0 {
 		c.Skip("this test cannot run as root")
 	}
 

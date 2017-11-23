@@ -49,6 +49,11 @@ var _ = Suite(&copydataSuite{})
 func (s *copydataSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
+	c.Assert(os.Mkdir(filepath.Join(s.tempdir, "etc"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(s.tempdir, "etc", "passwd"), []byte(`
+user1::4294967293:4294967293::/home/user1:/bin/sh
+user2::4294967294:4294967294::/home/user2:/bin/sh
+`[1:]), 0644), IsNil)
 }
 
 func (s *copydataSuite) TearDownTest(c *C) {
@@ -68,17 +73,15 @@ version: 2.0
 func (s *copydataSuite) TestCopyData(c *C) {
 	homedir := filepath.Join(s.tempdir, "home", "user1", "snap")
 	homeData := filepath.Join(homedir, "hello/10")
-	err := os.MkdirAll(homeData, 0755)
-	c.Assert(err, IsNil)
+	c.Assert(os.MkdirAll(homeData, 0755), IsNil)
 	homeCommonData := filepath.Join(homedir, "hello/common")
-	err = os.MkdirAll(homeCommonData, 0755)
-	c.Assert(err, IsNil)
+	c.Assert(os.MkdirAll(homeCommonData, 0755), IsNil)
 
 	canaryData := []byte("ni ni ni")
 
 	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
 	// just creates data dirs in this case
-	err = s.be.CopySnapData(v1, nil, progress.Null)
+	err := s.be.CopySnapData(v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	canaryDataFile := filepath.Join(v1.DataDir(), "canary.txt")
@@ -120,9 +123,6 @@ func (s *copydataSuite) TestCopyData(c *C) {
 }
 
 func (s *copydataSuite) TestCopyDataBails(c *C) {
-	oldSnapDataHomeGlob := dirs.SnapDataHomeGlob
-	defer func() { dirs.SnapDataHomeGlob = oldSnapDataHomeGlob }()
-
 	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
 	c.Assert(s.be.CopySnapData(v1, nil, progress.Null), IsNil)
 	c.Assert(os.Chmod(v1.DataDir(), 0), IsNil)
@@ -135,10 +135,6 @@ func (s *copydataSuite) TestCopyDataBails(c *C) {
 // ensure that even with no home dir there is no error and the
 // system data gets copied
 func (s *copydataSuite) TestCopyDataNoUserHomes(c *C) {
-	// this home dir path does not exist
-	oldSnapDataHomeGlob := dirs.SnapDataHomeGlob
-	defer func() { dirs.SnapDataHomeGlob = oldSnapDataHomeGlob }()
-	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "snap")
 
 	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
 	err := s.be.CopySnapData(v1, nil, progress.Null)
@@ -227,10 +223,6 @@ func (s *copydataSuite) TestCopyDataDoUndo(c *C) {
 }
 
 func (s *copydataSuite) TestCopyDataDoUndoNoUserHomes(c *C) {
-	// this home dir path does not exist
-	oldSnapDataHomeGlob := dirs.SnapDataHomeGlob
-	defer func() { dirs.SnapDataHomeGlob = oldSnapDataHomeGlob }()
-	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "snap")
 
 	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
 	s.populateData(c, snap.R(10))

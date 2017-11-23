@@ -26,104 +26,83 @@ import (
 	"path/filepath"
 	unix "syscall"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap"
 )
 
 // RemoveSnapData removes the data for the given version of the given snap.
 func (b Backend) RemoveSnapData(snap *snap.Info) error {
-	dirs, err := snapDataDirs(snap)
-	if err != nil {
-		return err
-	}
-
-	return removeDirs(dirs)
+	return snapDataDirsDo(snap, removeDir)
 }
 
 // RemoveSnapCommonData removes the data common between versions of the given snap.
 func (b Backend) RemoveSnapCommonData(snap *snap.Info) error {
-	dirs, err := snapCommonDataDirs(snap)
-	if err != nil {
-		return err
-	}
-
-	return removeDirs(dirs)
+	return snapCommonDataDirsDo(snap, removeDir)
 }
 
 func (b Backend) untrashData(snap *snap.Info) error {
-	dirs, err := snapDataDirs(snap)
-	if err != nil {
+	return snapDataDirsDo(snap, untrash)
+}
+
+func removeDir(dir string) error {
+	if err := os.RemoveAll(dir); err != nil {
 		return err
 	}
 
-	for _, d := range dirs {
-		if e := untrash(d); e != nil {
-			err = e
-		}
-	}
-
-	return err
-}
-
-func removeDirs(dirs []string) error {
-	for _, dir := range dirs {
-		if err := os.RemoveAll(dir); err != nil {
-			return err
-		}
-
-		// Attempt to remove the parent directory as well (ignore any failure)
-		os.Remove(filepath.Dir(dir))
-	}
+	// Attempt to remove the parent directory as well (ignore any failure)
+	os.Remove(filepath.Dir(dir))
 
 	return nil
 }
 
-// snapDataDirs returns the list of data directories for the given snap version
-func snapDataDirs(snap *snap.Info) ([]string, error) {
-	// collect the directories, homes first
-	found, err := filepath.Glob(snap.DataHomeDir())
-	if err != nil {
-		return nil, err
+// snapDataDirsDo performs an action on each of the data directories for the given snap version
+func snapDataDirsDo(snap *snap.Info, action func(string) error) error {
+	// homes first
+	var it user.Iter
+	defer it.Finish()
+	for it.Scan(user.IsNonSystem) {
+		snapHome := snap.UserDataDir(it.User().Home())
+		if err := action(snapHome); err != nil {
+			return err
+		}
 	}
-	// then the /root user (including GlobalRootDir for tests)
-	found = append(found, snap.UserDataDir(filepath.Join(dirs.GlobalRootDir, "/root/")))
+	if err := it.Err(); err != nil {
+		return err
+	}
 	// then system data
-	found = append(found, snap.DataDir())
-
-	return found, nil
+	return action(snap.DataDir())
 }
 
-// snapCommonDataDirs returns the list of data directories common between versions of the given snap
-func snapCommonDataDirs(snap *snap.Info) ([]string, error) {
-	// collect the directories, homes first
-	found, err := filepath.Glob(snap.CommonDataHomeDir())
-	if err != nil {
-		return nil, err
+// snapCommonDataDirsDo performs an action on each of the data directories common between versions of the given snap
+func snapCommonDataDirsDo(snap *snap.Info, action func(string) error) error {
+	// homes first
+	var it user.Iter
+	defer it.Finish()
+	for it.Scan(user.IsNonSystem) {
+		u := it.User()
+		snapCommon := snap.UserCommonDataDir(u.Home())
+		xdgDir := snap.UserXdgRuntimeDir(u.UID())
+
+		if err := action(snapCommon); err != nil {
+			return err
+		}
+		if err := action(xdgDir); err != nil {
+			return err
+		}
+	}
+	if err := it.Err(); err != nil {
+		return err
 	}
 
-	// then XDG_RUNTIME_DIRs for the users
-	foundXdg, err := filepath.Glob(snap.XdgRuntimeDirs())
-	if err != nil {
-		return nil, err
-	}
-	found = append(found, foundXdg...)
-
-	// then system data
-	found = append(found, snap.CommonDataDir())
-
-	return found, nil
+	return action(snap.CommonDataDir())
 }
 
 // Copy all data for oldSnap to newSnap
 // (but never overwrite)
 func copySnapData(oldSnap, newSnap *snap.Info) (err error) {
-	oldDataDirs, err := snapDataDirs(oldSnap)
-	if err != nil {
-		return err
-	}
-	done := make([]string, 0, len(oldDataDirs))
+	var done []string
 	defer func() {
 		if err == nil {
 			return
@@ -140,16 +119,19 @@ func copySnapData(oldSnap, newSnap *snap.Info) (err error) {
 	}()
 
 	newSuffix := filepath.Base(newSnap.DataDir())
-	for _, oldDir := range oldDataDirs {
-		// replace the trailing "../$old-suffix" with the "../$new-suffix"
+	action := func(oldDir string) error {
+		if !osutil.IsDirectory(oldDir) {
+			return nil
+		}
 		newDir := filepath.Join(filepath.Dir(oldDir), newSuffix)
 		if err := copySnapDataDirectory(oldDir, newDir); err != nil {
 			return err
 		}
 		done = append(done, newDir)
+		return nil
 	}
 
-	return nil
+	return snapDataDirsDo(oldSnap, action)
 }
 
 // trashPath returns the trash path for the given path. This will
