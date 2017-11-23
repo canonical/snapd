@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const avahiControlBaseDeclarationSlots = `
@@ -133,7 +134,7 @@ func (iface *avahiControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	return nil
 }
 
-func (iface *avahiControlInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *avahiControlInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	if !release.OnClassic {
 		// NOTE: this is using avahi-observe permanent slot as it contains
 		// base declarations for running as the avahi service.
@@ -155,7 +156,7 @@ func (iface *avahiControlInterface) AppArmorConnectedSlot(spec *apparmor.Specifi
 	return nil
 }
 
-func (iface *avahiControlInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *avahiControlInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	if !release.OnClassic {
 		// NOTE: this is using avahi-observe permanent slot as it contains
 		// base declarations for running as the avahi service.

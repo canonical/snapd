@@ -65,7 +65,7 @@
 %endif
 
 Name:           snapd
-Version:        2.29.3
+Version:        2.29.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -521,8 +521,9 @@ echo 'SNAP_REEXEC=0' > %{buildroot}%{_sysconfdir}/sysconfig/snapd
 # Install snap management script
 install -pm 0755 packaging/fedora/snap-mgmt.sh %{buildroot}%{_libexecdir}/snapd/snap-mgmt
 
-# Create state.json file to be ghosted
+# Create state.json and the README file to be ghosted
 touch %{buildroot}%{_sharedstatedir}/snapd/state.json
+touch %{buildroot}%{_sharedstatedir}/snapd/snap/README
 
 # source codes for building projects
 %if 0%{?with_devel}
@@ -613,6 +614,7 @@ popd
 %dir %{_localstatedir}/cache/snapd
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
+%ghost %{_sharedstatedir}/snapd/snap/README
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
@@ -620,7 +622,7 @@ popd
 %dir %{_libexecdir}/snapd
 # For now, we can't use caps
 # FIXME: Switch to "%%attr(0755,root,root) %%caps(cap_sys_admin=pe)" asap!
-%attr(4755,root,root) %{_libexecdir}/snapd/snap-confine
+%attr(6755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
@@ -696,6 +698,15 @@ fi
 
 
 %changelog
+* Fri Nov 17 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.29.4
+ - snap-confine: fix snap-confine under lxd
+ - tests: disable classic-ubuntu-core-transition on i386 temporarily
+ - many: reject bad plugs/slots
+ - interfaces,tests: skip unknown plug/slot interfaces
+ - store: enable "base" field from the store
+ - packaging/fedora: Merge changes from Fedora Dist-Git
+
 * Thu Nov 09 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.29.3
  - daemon: cherry-picked /v2/logs fixes

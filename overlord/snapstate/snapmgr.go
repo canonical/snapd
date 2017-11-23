@@ -41,45 +41,23 @@ import (
 	"github.com/snapcore/snapd/timeutil"
 )
 
-// FIXME: what we actually want is a more flexible schedule spec that is
-// user configurable  like:
-// """
-// tue
-// tue,thu
-// tue-thu
-// 9:00
-// 9:00,15:00
-// 9:00-15:00
-// tue,thu@9:00-15:00
-// tue@9:00;thu@15:00
-// mon,wed-fri@9:00-11:00,13:00-15:00
-// """
-// where 9:00 is implicitly taken as 9:00-10:00
-// and tue is implicitly taken as tue@<our current setting?>
-//
-// it is controlled via:
-// $ snap refresh --schedule=<time spec>
-// which is a shorthand for
-// $ snap set core refresh.schedule=<time spec>
-// and we need to validate the time-spec, ideally internally by
-// intercepting the set call
-
+// the default refresh pattern
 const defaultRefreshSchedule = "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59"
 
 // overridden in the tests
 var errtrackerReport = errtracker.Report
-var catalogRefreshDelay = 24 * time.Hour
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
 	state   *state.State
 	backend managerBackend
 
-	currentRefreshSchedule string
-	nextRefresh            time.Time
-	lastRefreshAttempt     time.Time
+	lastRefreshSchedule string
+	nextRefresh         time.Time
+	lastRefreshAttempt  time.Time
 
-	nextCatalogRefresh time.Time
+	refreshHints   *refreshHints
+	catalogRefresh *catalogRefresh
 
 	lastUbuntuCoreTransitionAttempt time.Time
 
@@ -300,9 +278,11 @@ func Manager(st *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(st)
 
 	m := &SnapManager{
-		state:   st,
-		backend: backend.Backend{},
-		runner:  runner,
+		state:          st,
+		backend:        backend.Backend{},
+		runner:         runner,
+		refreshHints:   newRefreshHints(st),
+		catalogRefresh: newCatalogRefresh(st),
 	}
 
 	if err := os.MkdirAll(dirs.SnapCookieDir, 0700); err != nil {
@@ -359,6 +339,8 @@ func Manager(st *state.State) (*SnapManager, error) {
 	// control serialisation
 	runner.SetBlocked(m.blockedTask)
 
+	writeSnapReadme()
+
 	return m, nil
 }
 
@@ -379,48 +361,34 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 
 var CanAutoRefresh func(st *state.State) (bool, error)
 
-func refreshScheduleNoWeekdays(rs []*timeutil.Schedule) error {
-	for _, s := range rs {
-		if s.Weekday != "" {
-			return fmt.Errorf("%q uses weekdays which is currently not supported", s)
-		}
+func resetRefreshScheduleToDefault(st *state.State) (ts []*timeutil.Schedule, scheduleStr string) {
+	refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshSchedule)
+	if err != nil {
+		panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
 	}
-	return nil
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.schedule", defaultRefreshSchedule)
+	tr.Commit()
+
+	return refreshSchedule, defaultRefreshSchedule
 }
 
-func (m *SnapManager) checkRefreshSchedule() ([]*timeutil.Schedule, error) {
+func (m *SnapManager) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, err error) {
 	refreshScheduleStr := defaultRefreshSchedule
 
 	tr := config.NewTransaction(m.state)
-	err := tr.Get("core", "refresh.schedule", &refreshScheduleStr)
+	err = tr.Get("core", "refresh.schedule", &refreshScheduleStr)
 	if err != nil && !config.IsNoOption(err) {
-		return nil, err
+		return nil, "", err
 	}
+
 	refreshSchedule, err := timeutil.ParseSchedule(refreshScheduleStr)
-	if err == nil {
-		err = refreshScheduleNoWeekdays(refreshSchedule)
-	}
 	if err != nil {
 		logger.Noticef("cannot use refresh.schedule configuration: %s", err)
-		refreshSchedule, err = timeutil.ParseSchedule(defaultRefreshSchedule)
-		if err != nil {
-			panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
-		}
-		tr.Set("core", "refresh.schedule", defaultRefreshSchedule)
-		tr.Commit()
+		refreshSchedule, refreshScheduleStr = resetRefreshScheduleToDefault(m.state)
 	}
 
-	// we already have a refresh time, check if we got a new config
-	if !m.nextRefresh.IsZero() {
-		if m.currentRefreshSchedule != refreshScheduleStr {
-			// the refresh schedule has changed
-			logger.Debugf("Option refresh.schedule changed.")
-			m.nextRefresh = time.Time{}
-		}
-	}
-	m.currentRefreshSchedule = refreshScheduleStr
-
-	return refreshSchedule, nil
+	return refreshSchedule, refreshScheduleStr, nil
 }
 
 func (m *SnapManager) launchAutoRefresh() error {
@@ -486,17 +454,12 @@ func (m *SnapManager) NextRefresh() time.Time {
 	return m.nextRefresh
 }
 
-// RefreshSchedule returns the current refresh schedule.
+// RefreshSchedule returns the current refresh schedule as a string
+// suitable to display to a user.
 // The caller should be holding the state lock.
-func (m *SnapManager) RefreshSchedule() string {
-	return m.currentRefreshSchedule
-}
-
-// NextCatalogRefresh returns the time the next update of catalog
-// data will be attempted.
-// The caller should be holding the state lock.
-func (m *SnapManager) NextCatalogRefresh() time.Time {
-	return m.nextCatalogRefresh
+func (m *SnapManager) RefreshSchedule() (string, error) {
+	_, scheduleStr, err := m.refreshScheduleWithDefaultsFallback()
+	return scheduleStr, err
 }
 
 // ensureRefreshes ensures that we refresh all installed snaps periodically
@@ -517,10 +480,19 @@ func (m *SnapManager) ensureRefreshes() error {
 	if err != nil {
 		return err
 	}
-	refreshSchedule, err := m.checkRefreshSchedule()
+	refreshSchedule, refreshScheduleStr, err := m.refreshScheduleWithDefaultsFallback()
 	if err != nil {
 		return err
 	}
+	// we already have a refresh time, check if we got a new config
+	if !m.nextRefresh.IsZero() {
+		if m.lastRefreshSchedule != refreshScheduleStr {
+			// the refresh schedule has changed
+			logger.Debugf("Option refresh.schedule changed.")
+			m.nextRefresh = time.Time{}
+		}
+	}
+	m.lastRefreshSchedule = refreshScheduleStr
 
 	// ensure nothing is in flight already
 	if autoRefreshInFlight(m.state) {
@@ -559,33 +531,6 @@ func (m *SnapManager) ensureRefreshes() error {
 	}
 
 	return err
-}
-
-// ensureCatalogRefresh ensures that we refresh the catalog
-// data periodically
-func (m *SnapManager) ensureCatalogRefresh() error {
-	// sneakily don't do anything if in testing
-	if CanAutoRefresh == nil {
-		return nil
-	}
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	theStore := Store(m.state)
-	now := time.Now()
-	needsRefresh := m.nextCatalogRefresh.IsZero() || m.nextCatalogRefresh.Before(now)
-
-	if !needsRefresh {
-		return nil
-	}
-
-	next := now.Add(catalogRefreshDelay)
-	// catalog refresh does not carry on trying on error
-	m.nextCatalogRefresh = next
-
-	logger.Debugf("Catalog refresh starting now; next scheduled for %s.", next)
-
-	return refreshCatalogs(m.state, theStore)
 }
 
 // ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode
@@ -692,8 +637,9 @@ func (m *SnapManager) Ensure() error {
 		m.ensureAliasesV2(),
 		m.ensureForceDevmodeDropsDevmodeFromState(),
 		m.ensureUbuntuCoreTransition(),
+		m.refreshHints.Ensure(),
 		m.ensureRefreshes(),
-		m.ensureCatalogRefresh(),
+		m.catalogRefresh.Ensure(),
 	}
 
 	m.runner.Ensure()
