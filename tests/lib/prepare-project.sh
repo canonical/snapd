@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 # shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
 

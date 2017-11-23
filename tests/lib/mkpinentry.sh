@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 if gpg --version | MATCH "gpg \(GnuPG\) 1."; then
     echo "fake gpg pinentry not used for gpg v1"
 else
