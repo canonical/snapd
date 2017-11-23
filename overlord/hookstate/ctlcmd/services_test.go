@@ -21,6 +21,8 @@ package ctlcmd_test
 
 import (
 	"fmt"
+	"sort"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
@@ -342,7 +344,8 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	chg := s.st.NewChange("update many change", "update change")
 	installed, tts, err := snapstate.UpdateMany(s.st, []string{"test-snap", "other-snap"}, 0)
 	c.Assert(err, IsNil)
-	c.Check(installed, DeepEquals, []string{"test-snap", "other-snap"})
+	sort.Strings(installed)
+	c.Check(installed, DeepEquals, []string{"other-snap", "test-snap"})
 	c.Assert(tts, HasLen, 2)
 	c.Assert(tts[0].Tasks(), HasLen, 16)
 	c.Assert(tts[1].Tasks(), HasLen, 16)
