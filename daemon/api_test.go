@@ -173,7 +173,7 @@ func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 	s.sysctlArgses = append(s.sysctlArgses, args)
 
-	if args[0] != "show" {
+	if args[0] != "show" && args[0] != "start" && args[0] != "stop" && args[0] != "restart" {
 		panic(fmt.Sprintf("unexpected systemctl call: %v", args))
 	}
 
