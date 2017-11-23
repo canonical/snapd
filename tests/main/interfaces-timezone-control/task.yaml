@@ -6,14 +6,9 @@ details: |
 
 prepare: |
     # Install a snap declaring a plug on timezone-control
-    cp $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml.orig
-    sed 's/\[\]/\[timezone-control\]/g' -i $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml
     snap try $TESTSLIB/snaps/test-snapd-timedate-control-consumer
 
 restore: |
-    # Restore the timedate-control-consumer snap.yaml
-    cp $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml.orig $TESTSLIB/snaps/test-snapd-timedate-control-consumer/meta/snap.yaml
-
     # Restore the initial timezone
     if [ -f timezone.txt ]; then
         timedatectl set-timezone "$(cat timezone.txt)"
@@ -34,26 +29,26 @@ execute: |
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     # Read timezones information should be allowed
-    timezone1=$(test-snapd-timedate-control-consumer.timedatectl list-timezones | sed -n 1p)
-    timezone2=$(test-snapd-timedate-control-consumer.timedatectl list-timezones | sed -n 2p)
+    timezone1=$(test-snapd-timedate-control-consumer.timedatectl-timezone list-timezones | sed -n 1p)
+    timezone2=$(test-snapd-timedate-control-consumer.timedatectl-timezone list-timezones | sed -n 2p)
 
     # Save the default timezone to be restored at the end
     # The file /etc/timezone is checked to workaround issue on ubuntu core lp: #1733881
     if [ -f /etc/timezone ]; then
         cp /etc/timezone timezone.txt
     else
-        test-snapd-timedate-control-consumer.timedatectl status | grep -oP 'Time zone: \K(.*)(?= \()' > timezone.txt
+        test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()' > timezone.txt
     fi
 
     # Set the timezone1 as timezone and check the status
     # The set-timezone command works but fails in some images (lp: #1650688)
-    test-snapd-timedate-control-consumer.timedatectl set-timezone $timezone1 || true
-    [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone1" ]
+    test-snapd-timedate-control-consumer.timedatectl-timezone set-timezone $timezone1 || true
+    [ "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone1" ]
 
     # Set the timezone2 as timezone and check the status
     # The set-timezone command works but fails in some images (lp: #1650688)
-    test-snapd-timedate-control-consumer.timedatectl set-timezone $timezone2 || true
-    [ "$(test-snapd-timedate-control-consumer.timedatectl status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone2" ]
+    test-snapd-timedate-control-consumer.timedatectl-timezone set-timezone $timezone2 || true
+    [ "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone2" ]
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -61,7 +56,7 @@ execute: |
 
     # Disconnect the interface and check access to timedatectl status
     snap disconnect test-snapd-timedate-control-consumer:timezone-control
-    if test-snapd-timedate-control-consumer.timedatectl status 2>${PWD}/call.error; then
+    if test-snapd-timedate-control-consumer.timedatectl-timezone status 2>${PWD}/call.error; then
         echo "Expected permission error calling timedatectl status with disconnected plug"
         exit 1
     fi
