@@ -253,7 +253,7 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 	changes, err := update.PlanWritableMimic("/foo")
 	c.Assert(err, IsNil)
 	c.Assert(changes, DeepEquals, []*update.Change{
-		// Store /foo in /tmp.snap/foo while we set things up
+		// Store /foo in /tmp/.snap/foo while we set things up
 		{Entry: mount.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
 		// Put a tmpfs over /foo
 		{Entry: mount.Entry{Name: "none", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
