@@ -10,6 +10,10 @@ if [ "$COMMAND" != "" ]; then
         snapctl "$COMMAND" test-snapd-service.test-snapd-service
     fi
 fi
-sleep 3
 
 snapctl restart test-snapd-service.test-snapd-other-service
+
+# We need to sleep a little bit, otherwise the restarts in the test happen to quickly
+# and systemd fails them with:
+# `Start request repeated too quickly.` error in the journal (making the tests fail).
+sleep 3

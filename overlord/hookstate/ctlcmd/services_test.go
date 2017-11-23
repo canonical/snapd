@@ -54,7 +54,7 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	}, nil
 }
 
-func (f *fakeStore) ListRefresh(cand []*store.RefreshCandidate, user *auth.UserState) ([]*snap.Info, error) {
+func (f *fakeStore) ListRefresh(cand []*store.RefreshCandidate, user *auth.UserState, opt *store.RefreshOptions) ([]*snap.Info, error) {
 	return []*snap.Info{{
 		SideInfo: snap.SideInfo{
 			RealName: "test-snap",
@@ -300,8 +300,7 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 
 	s.st.Unlock()
 
-	for i := 0; i < 2; i++ {
-		ts := tts[i]
+	for _, ts := range tts {
 		tsTasks := ts.Tasks()
 		// assumes configure task is last
 		task := tsTasks[len(tsTasks)-1]
@@ -321,7 +320,7 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	for i := 1; i < 3; i++ {
+	for i := 1; i <= 2; i++ {
 		laneTasks := chg.LaneTasks(i)
 		c.Assert(laneTasks, HasLen, 15)
 		c.Check(laneTasks[11].Summary(), Matches, `Run configure hook of .* snap if present`)
@@ -352,8 +351,7 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 
 	s.st.Unlock()
 
-	for i := 0; i < 2; i++ {
-		ts := tts[i]
+	for _, ts := range tts {
 		tsTasks := ts.Tasks()
 		// assumes configure task is last
 		task := tsTasks[len(tsTasks)-1]
@@ -373,7 +371,7 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	for i := 1; i < 3; i++ {
+	for i := 1; i <= 2; i++ {
 		laneTasks := chg.LaneTasks(i)
 		c.Assert(laneTasks, HasLen, 19)
 		c.Check(laneTasks[15].Summary(), Matches, `Run configure hook of .* snap if present`)

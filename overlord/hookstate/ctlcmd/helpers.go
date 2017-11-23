@@ -82,6 +82,10 @@ func queueCommand(context *hookstate.Context, ts *state.TaskSet) error {
 	change := hookTask.Change()
 	hookTaskLanes := hookTask.Lanes()
 	tasks := change.LaneTasks(hookTaskLanes...)
+
+	// When installing or updating multiple snaps, there is one lane per snap.
+	// We want service command to join respective lane (it's the lane the hook belongs to).
+	// In case there are no lanes, only the default lane no. 0, there is no need to join it.
 	if len(hookTaskLanes) == 1 && hookTaskLanes[0] == 0 {
 		hookTaskLanes = nil
 	}
@@ -108,6 +112,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 		return err
 	}
 
+	// passing context so we can ignore self-conflicts with the current change
 	ts, err := servicestateControl(st, appInfos, inst, context)
 	if err != nil {
 		return err

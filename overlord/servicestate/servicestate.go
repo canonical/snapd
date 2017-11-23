@@ -40,6 +40,10 @@ type Instruction struct {
 
 type ServiceActionConflictError struct{ error }
 
+// Control creates a taskset for starting/stopping/restarting services via systemctl.
+// The appInfos and inst define the services and the command to execute.
+// Context is used to determine change conflicts - we will not conflict with
+// tasks from same change as that of context's.
 func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, context *hookstate.Context) (*state.TaskSet, error) {
 	// the argv to call systemctl will need at most one entry per appInfo,
 	// plus one for "systemctl", one for the action, and sometimes one for
