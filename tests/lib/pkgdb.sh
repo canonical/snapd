@@ -204,7 +204,7 @@ distro_install_package() {
                 ;;
             arch-*)
                 # shellcheck disable=SC2086
-                pacman -Sq --needed --noconfirm "$package_name"
+                pacman -Suq --needed --noconfirm "$package_name"
                 ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"

@@ -330,7 +330,7 @@ prepare: |
                 zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             arch-*)
-                pacman -Sy --noconfirm xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
+                pacman -Syu --noconfirm xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
         esac
         rm -f "$tf"
