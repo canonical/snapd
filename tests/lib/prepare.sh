@@ -202,12 +202,7 @@ EOF
                 snap download "$snap_name"
             done
             for snap_file in *.snap; do
-                mv "$snap_file" "$snap_file.partial"
-                # There is a bug in snapd where partial file must be a proper
-                # prefix of the full file or we make a wrong request to the
-                # store.
-                truncate --size=-1 "$snap_file.partial"
-                mv "$snap_file.partial" /var/lib/snapd/snaps/
+                cp --link "$snap_file" /var/lib/snapd/snaps/
             done
             set +x
         )
