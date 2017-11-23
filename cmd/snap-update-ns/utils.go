@@ -334,7 +334,7 @@ func planWritableMimic(dir string) ([]*Change, error) {
 		ch := &Change{Action: Mount, Entry: mount.Entry{
 			Name:    filepath.Join(safeKeepingDir, fi.Name()),
 			Dir:     filepath.Join(dir, fi.Name()),
-			Options: []string{"bind", "ro"},
+			Options: []string{"bind"},
 		}}
 		// Bind mount each element from the safe-keeping directory into the
 		// tmpfs. Our Change.Perform() engine can create the missing
