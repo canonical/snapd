@@ -518,6 +518,7 @@ pkg_dependencies_arch(){
     python
     jq
     git
+    openbsd-netcat
     "
 }
 
