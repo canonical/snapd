@@ -59,7 +59,7 @@ func (b *stateBackend) EnsureBefore(d time.Duration) {
 func (b *stateBackend) RequestRestart(t state.RestartType) {}
 
 func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change) {
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 20; i++ {
 		sb.ensureBefore = time.Hour
 		r.Ensure()
 		r.Wait()
@@ -93,24 +93,24 @@ func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change
 //     <task>:...:1,2         - one of the above, and add task to lanes 1 and 2
 //     chg:abort              - call abort on the change
 //
-// Task wait order: ( t11 | t12 ) => ( t21 ) => ( t22 ) => ( t31 | t32 ) => ( t23 )
+// Task wait order: ( t11 | t12 ) => ( t21 ) => ( t31 | t32 )
 //
-// Tasks t12, t22 and t23 have no undo.
+// Task t12 has no undo.
 //
 // Final task statuses are tested based on the resulting events list.
 //
 var sequenceTests = []struct{ setup, result string }{{
 	setup:  "",
-	result: "t11:do t12:do t21:do t22:do t31:do t32:do t23:do",
+	result: "t11:do t12:do t21:do t31:do t32:do",
 }, {
 	setup:  "t11:was-done t12:was-doing",
-	result: "t12:do t21:do t22:do t31:do t32:do t23:do",
+	result: "t12:do t21:do t31:do t32:do",
 }, {
 	setup:  "t11:was-done t12:was-doing chg:abort",
 	result: "t11:undo",
 }, {
 	setup:  "t12:do-retry",
-	result: "t11:do t12:do t12:do-retry t12:do t21:do t22:do t31:do t32:do t23:do",
+	result: "t11:do t12:do t12:do-retry t12:do t21:do t31:do t32:do",
 }, {
 	setup:  "t11:do-block t12:do-error",
 	result: "t11:do t11:do-block t12:do t12:do-error t11:do-unblock t11:undo",
@@ -125,22 +125,19 @@ var sequenceTests = []struct{ setup, result string }{{
 	result: "t11:do t11:do-error t12:do t12:do-block t12:do-unblock t12:do-retry",
 }, {
 	setup:  "t31:do-error t21:undo-error",
-	result: "t11:do t12:do t21:do t22:do t31:do t31:do-error t32:do t32:undo t21:undo t21:undo-error t11:undo",
+	result: "t11:do t12:do t21:do t31:do t31:do-error t32:do t32:undo t21:undo t21:undo-error t11:undo",
 }, {
 	setup:  "t21:do-set-ready",
-	result: "t11:do t12:do t21:do t22:do t31:do t32:do t23:do",
+	result: "t11:do t12:do t21:do t31:do t32:do",
 }, {
 	setup:  "t31:do-error t21:undo-set-ready",
-	result: "t11:do t12:do t21:do t22:do t31:do t31:do-error t32:do t32:undo t21:undo t11:undo",
+	result: "t11:do t12:do t21:do t31:do t31:do-error t32:do t32:undo t21:undo t11:undo",
 }, {
-	setup:  "t11:was-done:1 t12:was-done:2 t21:was-done:1,2 t22:was-done:1,2 t31:was-done:1 t32:do-error:2",
+	setup:  "t11:was-done:1 t12:was-done:2 t21:was-done:1,2 t31:was-done:1 t32:do-error:2",
 	result: "t31:undo t32:do t32:do-error t21:undo t11:undo",
 }, {
-	setup:  "t11:was-done:1 t12:was-done:2 t21:was-done:2 t22:was-done:2 t31:was-done:2 t32:do-error:2",
+	setup:  "t11:was-done:1 t12:was-done:2 t21:was-done:2 t31:was-done:2 t32:do-error:2",
 	result: "t31:undo t32:do t32:do-error t21:undo",
-}, {
-	setup:  "t11:was-done t12:was-done t21:was-done t22:was-done t31:was-done t32:was-done t23:do-error",
-	result: "t23:do t23:do-error t31:undo t32:undo t21:undo t11:undo",
 }}
 
 func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
@@ -194,8 +191,8 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 
 		chg := st.NewChange("install", "...")
 		tasks := make(map[string]*state.Task)
-		for _, name := range strings.Fields("t11 t12 t21 t22 t23 t31 t32") {
-			if name == "t12" || name == "t22" || name == "t23" {
+		for _, name := range strings.Fields("t11 t12 t21 t31 t32") {
+			if name == "t12" {
 				tasks[name] = st.NewTask("do", name)
 			} else {
 				tasks[name] = st.NewTask("do-undo", name)
@@ -204,11 +201,8 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 		}
 		tasks["t21"].WaitFor(tasks["t11"])
 		tasks["t21"].WaitFor(tasks["t12"])
-		tasks["t22"].WaitFor(tasks["t21"])
-		tasks["t31"].WaitFor(tasks["t22"])
-		tasks["t32"].WaitFor(tasks["t22"])
-		tasks["t23"].WaitFor(tasks["t31"])
-		tasks["t23"].WaitFor(tasks["t32"])
+		tasks["t31"].WaitFor(tasks["t21"])
+		tasks["t32"].WaitFor(tasks["t21"])
 		st.Unlock()
 
 		c.Logf("-----")
@@ -670,6 +664,87 @@ func (ts *taskRunnerSuite) TestPrematureChangeReady(c *C) {
 	}
 
 	c.Assert(chg.Err(), IsNil)
+}
+
+func (ts *taskRunnerSuite) TestUndoSequence(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+
+	var events []string
+
+	r.AddHandler("do-with-undo",
+		func(t *state.Task, tb *tomb.Tomb) error {
+			events = append(events, fmt.Sprintf("do-with-undo:%s", t.ID()))
+			return nil
+		}, func(t *state.Task, tb *tomb.Tomb) error {
+			events = append(events, fmt.Sprintf("undo:%s", t.ID()))
+			return nil
+		})
+	r.AddHandler("do-no-undo",
+		func(t *state.Task, tb *tomb.Tomb) error {
+			events = append(events, fmt.Sprintf("do-no-undo:%s", t.ID()))
+			return nil
+		}, nil)
+
+	r.AddHandler("error-trigger",
+		func(t *state.Task, tb *tomb.Tomb) error {
+			events = append(events, fmt.Sprintf("do-with-error:%s", t.ID()))
+			return fmt.Errorf("error")
+		}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+
+	var prev *state.Task
+
+	// create a sequence of tasks: 3 tasks with undo handlers, a task with
+	// no undo handler, 3 tasks with undo handler, a task with no undo
+	// handler, finally a task that errors out. Every task waits for previous
+	// taske.
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 3; j++ {
+			t := st.NewTask("do-with-undo", "...")
+			if prev != nil {
+				t.WaitFor(prev)
+			}
+			chg.AddTask(t)
+			prev = t
+		}
+
+		t := st.NewTask("do-no-undo", "...")
+		t.WaitFor(prev)
+		chg.AddTask(t)
+		prev = t
+	}
+
+	terr := st.NewTask("error-trigger", "provoking undo")
+	terr.WaitFor(prev)
+	chg.AddTask(terr)
+
+	c.Check(chg.Tasks(), HasLen, 9) // sanity check
+
+	st.Unlock()
+
+	ensureChange(c, r, sb, chg)
+	r.Stop()
+
+	c.Assert(events, DeepEquals, []string{
+		"do-with-undo:1",
+		"do-with-undo:2",
+		"do-with-undo:3",
+		"do-no-undo:4",
+		"do-with-undo:5",
+		"do-with-undo:6",
+		"do-with-undo:7",
+		"do-no-undo:8",
+		"do-with-error:9",
+		"undo:7",
+		"undo:6",
+		"undo:5",
+		"undo:3",
+		"undo:2",
+		"undo:1"})
 }
 
 func (ts *taskRunnerSuite) TestCleanup(c *C) {

@@ -343,10 +343,10 @@ func (r *TaskRunner) Ensure() {
 		}
 
 		if status == UndoStatus && handlers.undo == nil {
+			// Although this has no dependencies itself, it must have waited
+			// above too since follow up tasks may have handlers again.
 			// Cannot undo. Revert to done status.
 			t.SetStatus(DoneStatus)
-			// We may have to wait for dependencies, as further
-			// tasks might have handlers again.
 			if len(t.WaitTasks()) > 0 {
 				r.state.EnsureBefore(0)
 			}

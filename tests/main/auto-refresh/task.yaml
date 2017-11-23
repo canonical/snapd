@@ -5,10 +5,6 @@ prepare: |
 
 restore: |
     . "$TESTSLIB/dirs.sh"
-    if [ -e "$SNAP_MOUNT_DIR/core/current/meta/hooks/configure" ]; then
-        snap set core refresh.schedule="$(date +%a --date=2days)@12:00-14:00"
-        snap set core refresh.disabled=true
-    fi
 
 execute: |
     . "$TESTSLIB/dirs.sh"

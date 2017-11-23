@@ -36,6 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -737,17 +738,24 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsTermios(c *C) {
 }
 
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
+	// while 'root' user usually has uid 0, 'daemon' user uid may vary
+	// across distributions, best lookup the uid directly
+	daemonUid, err := osutil.FindUid("daemon")
+	c.Assert(err, IsNil)
+
 	for _, t := range []struct {
 		seccompWhitelist string
 		bpfInput         string
 		expected         int
 	}{
-		// good input. 'root' and 'daemon' are guaranteed to be '0' and
-		// '1' respectively
+		// good input. 'root' is guaranteed to be '0' and 'daemon' uid
+		// was determined at runtime
 		{"setuid u:root", "setuid;native;0", main.SeccompRetAllow},
-		{"setuid u:daemon", "setuid;native;1", main.SeccompRetAllow},
+		{"setuid u:daemon", fmt.Sprintf("setuid;native;%v", daemonUid),
+			main.SeccompRetAllow},
 		{"setgid g:root", "setgid;native;0", main.SeccompRetAllow},
-		{"setgid g:daemon", "setgid;native;1", main.SeccompRetAllow},
+		{"setgid g:daemon", fmt.Sprintf("setgid;native;%v", daemonUid),
+			main.SeccompRetAllow},
 		// bad input
 		{"setuid u:root", "setuid;native;99", main.SeccompRetKill},
 		{"setuid u:daemon", "setuid;native;99", main.SeccompRetKill},
