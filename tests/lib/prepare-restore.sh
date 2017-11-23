@@ -11,6 +11,17 @@ set -o pipefail
 # shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
 
+# XXX: boot.sh has side-effects
+# shellcheck source=tests/lib/boot.sh
+. "$TESTSLIB/boot.sh"
+
+# XXX: dirs.sh has side-effects
+# shellcheck source=tests/lib/dirs.sh
+. "$TESTSLIB/dirs.sh"
+
+# shellcheck source=tests/lib/pkgdb.sh
+. "$TESTSLIB/pkgdb.sh"
+
 ###
 ### Utility functions reused below.
 ###
@@ -165,18 +176,12 @@ prepare_project() {
     echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
 
     # check that we are not updating
-    # shellcheck source=tests/lib/boot.sh
-    . "$TESTSLIB/boot.sh"
     if [ "$(bootenv snap_mode)" = "try" ]; then
         echo "Ongoing reboot upgrade process, please try again when finished"
         exit 1
     fi
 
     # declare the "quiet" wrapper
-    # shellcheck source=tests/lib/quiet.sh
-    . "$TESTSLIB/quiet.sh"
-    # shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
 
     if [ "$SPREAD_BACKEND" = external ]; then
         # stop and disable autorefresh
@@ -208,9 +213,6 @@ prepare_project() {
     fi
 
     create_test_user
-
-    # shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
 
     distro_update_package_db
 
