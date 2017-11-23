@@ -235,7 +235,7 @@ distro_purge_package() {
                 zypper -q remove -y "$package_name"
                 ;;
             arch-*)
-                pacman -Rqnsc "$package_name"
+                pacman -Rnsc --noconfirm "$package_name"
                 ;;
             *)
                 echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
