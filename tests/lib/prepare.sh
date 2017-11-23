@@ -201,9 +201,9 @@ EOF
             for snap_name in ${PRE_CACHE_SNAPS:-}; do
                 snap download "$snap_name"
             done
-            for snap_file in *.snap; do
-                cp --link "$snap_file" /var/lib/snapd/snaps/
-            done
+            # Copy all of the snaps back to the spool directory. From there we
+            # will reuse them during subsequent `snap install` operations.
+            cp --link *.snap /var/lib/snapd/snaps/
             set +x
         )
 
