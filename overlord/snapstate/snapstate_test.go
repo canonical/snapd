@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -296,33 +295,6 @@ func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 		"discard-snap",
 		"discard-conns",
 	})
-}
-
-func (s *snapmgrTestSuite) TestGenerateCookies(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// verify that GenerateCookies creates a cookie for a snap that's missing it.
-	s.state.Set("snaps", map[string]*json.RawMessage{
-		"some-snap":  nil,
-		"other-snap": nil})
-
-	// some-snap doesn't have cookie
-	contexts := map[string]string{"other-snap": "123456"}
-	s.state.Set("snap-cookies", contexts)
-
-	s.snapmgr.GenerateCookies(s.state)
-
-	err := s.state.Get("snap-cookies", &contexts)
-	c.Assert(err, IsNil)
-	c.Assert(contexts, HasLen, 2)
-
-	cookieFile := filepath.Join(dirs.SnapCookieDir, "snap.some-snap")
-	c.Assert(osutil.FileExists(cookieFile), Equals, true)
-	data, err := ioutil.ReadFile(cookieFile)
-	c.Assert(err, IsNil)
-	c.Assert(contexts[string(data)], NotNil)
-	c.Assert(contexts[string(data)], Equals, "some-snap")
 }
 
 func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
@@ -5071,7 +5043,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesWeekdaySchedules(c *C) {
 	s.snapmgr.Ensure()
 	s.state.Lock()
 
-	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule configuration: "mon@12:00-14:00" uses weekdays which is currently not supported`)
+	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule configuration: cannot parse "mon@12:00-14:00": contains invalid @`)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
@@ -7753,6 +7725,29 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 		Channel:  "some-channel",
 		Revision: snap.R(42),
 	})
+}
+
+func (s *snapmgrTestSuite) TestSnapManagerRefreshSchedule(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, t := range []struct {
+		in  string
+		out string
+	}{
+		{"", snapstate.DefaultRefreshSchedule},
+		{"invalid schedule", snapstate.DefaultRefreshSchedule},
+		{"8:00-12:00", "8:00-12:00"},
+	} {
+		if t.in != "" {
+			tr := config.NewTransaction(s.state)
+			tr.Set("core", "refresh.schedule", t.in)
+			tr.Commit()
+		}
+		scheduleStr, err := s.snapmgr.RefreshSchedule()
+		c.Check(err, IsNil)
+		c.Check(scheduleStr, Equals, t.out)
+	}
 }
 
 type canDisableSuite struct{}

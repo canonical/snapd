@@ -24,6 +24,8 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -105,6 +107,35 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	c.Check(sysdLog[1], DeepEquals, []string{"daemon-reload"})
 }
 
+func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C) {
+	info := snaptest.MockSnap(c, packageHello+`
+ svc1:
+  daemon: simple
+  plugs: [network-bind]
+  sockets:
+    sock1:
+      listen-stream: $SNAP_DATA/sock1.socket
+      socket-mode: 0666
+    sock2:
+      listen-stream: $SNAP_COMMON/sock2.socket
+`, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	err := wrappers.AddSnapServices(info, nil)
+	c.Assert(err, IsNil)
+
+	err = wrappers.StopServices(info.Services(), &progress.Null)
+	c.Assert(err, IsNil)
+
+	err = wrappers.RemoveSnapServices(info, &progress.Null)
+	c.Assert(err, IsNil)
+
+	app := info.Apps["svc1"]
+	c.Assert(app.Sockets, HasLen, 2)
+	for _, socket := range app.Sockets {
+		c.Check(osutil.FileExists(socket.File()), Equals, false)
+	}
+}
+
 func (s *servicesTestSuite) TestRemoveSnapPackageFallbackToKill(c *C) {
 	restore := wrappers.MockKillWait(200 * time.Millisecond)
 	defer restore()
@@ -145,6 +176,41 @@ apps:
 		{"kill", svcFName, "-s", "TERM"},
 		{"kill", svcFName, "-s", "KILL"},
 	})
+}
+
+func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
+	var sysdLog []string
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		if cmd[0] == "stop" {
+			sysdLog = append(sysdLog, cmd[1])
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	info := snaptest.MockSnap(c, packageHello+`
+ svc1:
+  daemon: simple
+  plugs: [network-bind]
+  sockets:
+    sock1:
+      listen-stream: $SNAP_COMMON/sock1.socket
+      socket-mode: 0666
+    sock2:
+      listen-stream: $SNAP_DATA/sock2.socket
+`, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	err := wrappers.AddSnapServices(info, nil)
+	c.Assert(err, IsNil)
+
+	sysdLog = nil
+
+	err = wrappers.StopServices(info.Services(), &progress.Null)
+	c.Assert(err, IsNil)
+
+	sort.Strings(sysdLog)
+	c.Check(sysdLog, DeepEquals, []string{
+		"snap.hello-snap.svc1.service", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket"})
 }
 
 func (s *servicesTestSuite) TestStartServices(c *C) {
@@ -309,6 +375,59 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadClea
 		{"--root", dirs.GlobalRootDir, "disable", svc2Name},
 		{"daemon-reload"}, // so does this one :-)
 	})
+}
+
+func (s *servicesTestSuite) TestAddSnapSocketFiles(c *C) {
+	var sysdLog [][]string
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return nil, nil
+	})
+	defer r()
+
+	info := snaptest.MockSnap(c, packageHello+`
+ svc1:
+  daemon: simple
+  plugs: [network-bind]
+  sockets:
+    sock1:
+      listen-stream: $SNAP_COMMON/sock1.socket
+      socket-mode: 0666
+    sock2:
+      listen-stream: $SNAP_DATA/sock2.socket
+`, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	sock1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.sock1.socket")
+	sock2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.sock2.socket")
+
+	err := wrappers.AddSnapServices(info, nil)
+	c.Assert(err, IsNil)
+
+	content1, err := ioutil.ReadFile(sock1File)
+	c.Assert(err, IsNil)
+	expected := fmt.Sprintf(
+		`[Socket]
+Service=snap.hello-snap.svc1.service
+FileDescriptorName=sock1
+ListenStream=%s
+SocketMode=0666
+
+`, filepath.Join(s.tempdir, "/var/snap/hello-snap/common/sock1.socket"))
+	c.Check(strings.Contains(string(content1), expected), Equals, true)
+
+	content2, err := ioutil.ReadFile(sock2File)
+	c.Assert(err, IsNil)
+
+	expected = fmt.Sprintf(
+		`[Socket]
+Service=snap.hello-snap.svc1.service
+FileDescriptorName=sock2
+ListenStream=%s
+
+`, filepath.Join(s.tempdir, "/var/snap/hello-snap/12/sock2.socket"))
+	c.Check(strings.Contains(string(content2), expected), Equals, true)
+
 }
 
 func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {

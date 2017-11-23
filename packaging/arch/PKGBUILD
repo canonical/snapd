@@ -95,7 +95,7 @@ build() {
     --disable-apparmor \
     --enable-nvidia-biarch \
     --enable-merged-usr
-  make "$MAKEFLAGS"
+  make $MAKEFLAGS
 }
 
 check() {
