@@ -294,6 +294,8 @@ distro_auto_remove_packages() {
             ;;
         opensuse-*)
             ;;
+        arch-*)
+            ;;
         *)
             echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
             exit 1
