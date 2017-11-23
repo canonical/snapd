@@ -79,7 +79,7 @@ type respJSON struct {
 	Type       ResponseType `json:"type"`
 	Status     int          `json:"status-code"`
 	StatusText string       `json:"status"`
-	Result     interface{}  `json:"result,omitempty"`
+	Result     interface{}  `json:"result"`
 	*Meta
 }
 
