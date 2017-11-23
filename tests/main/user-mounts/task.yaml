@@ -1,0 +1,36 @@
+summary: smoke tests for user mounts
+details: |
+    When a confined snap has a user-fstab file, additional bind mounts will
+    be performed prior to running the application.  These mounts are private
+    to the invocation of the application, so can be used to manipulate how
+    per-user data is presented.
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-sh
+    rm -f /var/lib/snapd/mount/snap.test-snapd-sh.user-fstab
+execute: |
+    echo "Create XDG_RUNTIME_DIR for test user"
+    USER_RUNTIME_DIR=/run/user/12345
+    mkdir -p $USER_RUNTIME_DIR || true
+
+    # Add some content to the runtime dir
+    rm -rf $USER_RUNTIME_DIR/snap.test-snapd-sh
+    mkdir $USER_RUNTIME_DIR/snap.test-snapd-sh
+    mkdir $USER_RUNTIME_DIR/snap.test-snapd-sh/source
+    mkdir $USER_RUNTIME_DIR/snap.test-snapd-sh/target
+    touch $USER_RUNTIME_DIR/snap.test-snapd-sh/source/in-source
+    touch $USER_RUNTIME_DIR/snap.test-snapd-sh/target/in-target
+
+    chmod -R u=rX,go= $USER_RUNTIME_DIR
+    chown -R test:test $USER_RUNTIME_DIR
+
+    echo "Without user-fstab we see target"
+    XDG_RUNTIME_DIR=$USER_RUNTIME_DIR su -p -l -c 'test-snapd-sh -c "ls \$XDG_RUNTIME_DIR/target"' test | MATCH in-target
+
+    echo "Configuring user-fstab"
+    cat << \EOF > /var/lib/snapd/mount/snap.test-snapd-sh.user-fstab
+    $XDG_RUNTIME_DIR/source $XDG_RUNTIME_DIR/target none bind,rw 0 0
+    EOF
+
+    echo "With user-fstab we see source"
+    XDG_RUNTIME_DIR=$USER_RUNTIME_DIR su -p -l -c 'test-snapd-sh -c "ls \$XDG_RUNTIME_DIR/target"' test | MATCH in-source
