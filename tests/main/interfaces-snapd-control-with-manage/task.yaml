@@ -8,6 +8,12 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+
+    echo "Ensure jq is installed"
+    if ! which jq; then
+        snap install jq
+    fi
+
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
     . $TESTSLIB/store.sh
@@ -33,10 +39,6 @@ prepare: |
     EOF
     fakestore new-snap-declaration --dir "${BLOB_DIR}" --snap-decl-json snap-decl.json
     snap ack ${BLOB_DIR}/asserts/*.snap-declaration
-    echo "Ensure jq is installed"
-    if ! which jq; then
-        snap install jq
-    fi
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
