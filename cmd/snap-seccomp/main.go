@@ -142,6 +142,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"regexp"
 	"strconv"
@@ -672,7 +673,11 @@ func findUid(username string) (uint64, error) {
 	if !userGroupNamePattern.MatchString(username) {
 		return 0, fmt.Errorf("%q must be a valid username", username)
 	}
-	return osutil.FindUid(username)
+	uid, err := osutil.FindUid(username)
+	if err != nil {
+		return math.MaxUint64, err
+	}
+	return uint64(uid), nil
 }
 
 // findGid returns the identifier of the given UNIX group name.
@@ -680,7 +685,11 @@ func findGid(group string) (uint64, error) {
 	if !userGroupNamePattern.MatchString(group) {
 		return 0, fmt.Errorf("%q must be a valid group name", group)
 	}
-	return osutil.FindGid(group)
+	gid, err := osutil.FindGid(group)
+	if err != nil {
+		return math.MaxUint64, err
+	}
+	return uint64(gid), nil
 }
 
 func showSeccompLibraryVersion() error {

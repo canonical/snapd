@@ -98,7 +98,8 @@ func storeAuthDataFilename(homeDir string) string {
 		if err != nil {
 			panic(err)
 		}
-		homeDir = real.HomeDir
+
+		homeDir = real.Home()
 	}
 
 	return filepath.Join(homeDir, ".snap", "auth.json")
@@ -111,12 +112,8 @@ func writeAuthData(user User) error {
 		return err
 	}
 
-	uid, gid, err := osutil.UidGid(real)
-	if err != nil {
-		return err
-	}
-
-	targetFile := storeAuthDataFilename(real.HomeDir)
+	uid, gid := real.UID(), real.GID()
+	targetFile := storeAuthDataFilename(real.Home())
 
 	if err := osutil.MkdirAllChown(filepath.Dir(targetFile), 0700, uid, gid); err != nil {
 		return err

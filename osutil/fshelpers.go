@@ -21,10 +21,12 @@ package osutil
 import (
 	"os"
 	"syscall"
+
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 // FindGidOwning obtains UNIX group ID and name owning file `path`.
-func FindGidOwning(path string) (uint64, error) {
+func FindGidOwning(path string) (sys.GroupID, error) {
 	var stat syscall.Stat_t
 	if err := syscall.Stat(path, &stat); err != nil {
 		if err == syscall.ENOENT {
@@ -33,6 +35,5 @@ func FindGidOwning(path string) (uint64, error) {
 		return 0, err
 	}
 
-	gid := uint64(stat.Gid)
-	return gid, nil
+	return sys.GroupID(stat.Gid), nil
 }

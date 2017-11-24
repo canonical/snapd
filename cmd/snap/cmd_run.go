@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/user"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -36,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 	"github.com/snapcore/snapd/x11"
@@ -184,7 +184,7 @@ func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 
 func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
 	// 'current' symlink for user data (SNAP_USER_DATA)
-	userData := info.UserDataDir(usr.HomeDir)
+	userData := info.UserDataDir(usr.Home())
 	wantedSymlinkValue := filepath.Base(userData)
 	currentActiveSymlink := filepath.Join(userData, "..", "current")
 
@@ -233,8 +233,8 @@ func createUserDataDirs(info *snap.Info) error {
 	}
 
 	// see snapenv.User
-	userData := info.UserDataDir(usr.HomeDir)
-	commonUserData := info.UserCommonDataDir(usr.HomeDir)
+	userData := info.UserDataDir(usr.Home())
+	commonUserData := info.UserCommonDataDir(usr.Home())
 	for _, d := range []string{userData, commonUserData} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			// TRANSLATORS: %q is the directory whose creation failed, %v the error message
@@ -298,7 +298,7 @@ func migrateXauthority(info *snap.Info) (string, error) {
 
 	// If our target directory (XDG_RUNTIME_DIR) doesn't exist we
 	// don't attempt to create it.
-	baseTargetDir := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid)
+	baseTargetDir := filepath.Join(dirs.XdgRuntimeDirBase, strconv.FormatUint(uint64(u.UID()), 10))
 	if !osutil.FileExists(baseTargetDir) {
 		return "", nil
 	}
@@ -359,11 +359,8 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	if sys == nil {
 		return "", fmt.Errorf(i18n.G("cannot validate owner of file %s"), fin.Name())
 	}
-	// cheap comparison as the current uid is only available as a string
-	// but it is better to convert the uid from the stat result to a
-	// string than a string into a number.
-	if fmt.Sprintf("%d", sys.(*syscall.Stat_t).Uid) != u.Uid {
-		return "", fmt.Errorf(i18n.G("Xauthority file isn't owned by the current user %s"), u.Uid)
+	if sys.(*syscall.Stat_t).Uid != uint32(u.UID()) {
+		return "", fmt.Errorf(i18n.G("Xauthority file isn't owned by the current user %d"), u.UID())
 	}
 
 	targetPath := filepath.Join(baseTargetDir, ".Xauthority")

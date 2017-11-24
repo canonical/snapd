@@ -29,7 +29,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
-	"os/user"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -49,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -2091,7 +2091,8 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 			continue
 		}
 		// ignore already existing users
-		if _, err := user.Lookup(username); err == nil {
+		// XXX: this is O(no)
+		if _, err := user.FromName(username); err == nil {
 			continue
 		}
 
@@ -2172,18 +2173,15 @@ type postUserCreateData struct {
 	ForceManaged bool   `json:"force-managed"`
 }
 
-var userLookup = user.Lookup
+var userLookup = user.FromName
 
 func setupLocalUser(st *state.State, username, email string) error {
 	user, err := userLookup(username)
 	if err != nil {
 		return fmt.Errorf("cannot lookup user %q: %s", username, err)
 	}
-	uid, gid, err := osutil.UidGid(user)
-	if err != nil {
-		return err
-	}
-	authDataFn := filepath.Join(user.HomeDir, ".snap", "auth.json")
+	uid, gid := user.UID(), user.GID()
+	authDataFn := filepath.Join(user.Home(), ".snap", "auth.json")
 	if err := osutil.MkdirAllChown(filepath.Dir(authDataFn), 0700, uid, gid); err != nil {
 		return err
 	}

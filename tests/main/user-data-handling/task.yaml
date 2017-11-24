@@ -6,8 +6,8 @@ execute: |
     rev=$(snap list|grep test-snapd-tools|tr -s ' '|cut -f3 -d' ')
 
     echo "That has some user data"
-    mkdir -p /home/*/snap/test-snapd-tools/$rev/
-    touch /home/*/snap/test-snapd-tools/$rev/mock-data
+    mkdir -p /home/test/snap/test-snapd-tools/$rev/
+    touch /home/test/snap/test-snapd-tools/$rev/mock-data
     mkdir -p /root/snap/test-snapd-tools/$rev/
     touch /root/snap/test-snapd-tools/$rev/mock-data
 
@@ -16,12 +16,12 @@ execute: |
     new_rev=$(snap list|grep test-snapd-tools|tr -s ' '|cut -f3 -d' ')
 
     echo "Then the user data gets copied"
-    test -e /home/*/snap/test-snapd-tools/$new_rev/mock-data
+    test -e /home/test/snap/test-snapd-tools/$new_rev/mock-data
     test -e /root/snap/test-snapd-tools/$new_rev/mock-data
 
     echo "When the snap is removed"
     snap remove test-snapd-tools
 
     echo "Then all user data and root data is gone"
-    ! test -e /home/*/snap/test-snapd-tools/$new_rev/mock-data
+    ! test -e /home/test/snap/test-snapd-tools/$new_rev/mock-data
     ! test -e /root/snap/test-snapd-tools/$new_rev/mock-data
