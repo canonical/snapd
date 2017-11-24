@@ -173,7 +173,7 @@ func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 	s.sysctlArgses = append(s.sysctlArgses, args)
 
-	if args[0] != "show" {
+	if args[0] != "show" && args[0] != "start" && args[0] != "stop" && args[0] != "restart" {
 		panic(fmt.Sprintf("unexpected systemctl call: %v", args))
 	}
 
@@ -795,7 +795,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
 		"refresh": map[string]interface{}{
-			"schedule": "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59",
+			"schedule": "00:00-05:59/6:00-11:59/12:00-17:59/18:00-23:59",
 		},
 		"confinement": "partial",
 	}
@@ -1419,7 +1419,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
-	c.Check(snaps[0]["screenshots"], check.HasLen, 0)
+	c.Check(snaps[0]["screenshots"], check.IsNil)
 	c.Check(snaps[0]["channels"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
