@@ -34,9 +34,9 @@ type ConfigManager struct {
 	runner *state.TaskRunner
 }
 
-// overriden in tests
 var corecfgRun = func(ctx *hookstate.Context) error {
-	return corecfg.Run(ctx)
+	tr := ContextTransaction(ctx)
+	return corecfg.Run(tr)
 }
 
 // Manager returns a new ConfigManager.

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 )
@@ -33,13 +34,13 @@ var (
 )
 
 type Conf interface {
-	Get(key string, result interface{}) error
+	Get(snapName, key string, result interface{}) error
 	State() *state.State
 }
 
-func coreCfg(ctx Conf, key string) (result string, err error) {
+func coreCfg(tr Conf, key string) (result string, err error) {
 	var v interface{} = ""
-	if err := ctx.Get(key, &v); err != nil && err != state.ErrNoState {
+	if err := tr.Get("core", key, &v); err != nil && !config.IsNoOption(err) {
 		return "", err
 	}
 	// TODO: we could have a fully typed approach but at the
@@ -48,11 +49,11 @@ func coreCfg(ctx Conf, key string) (result string, err error) {
 	return fmt.Sprintf("%v", v), nil
 }
 
-func Run(ctx Conf) error {
-	if err := validateProxyStore(ctx); err != nil {
+func Run(tr Conf) error {
+	if err := validateProxyStore(tr); err != nil {
 		return err
 	}
-	if err := validateRefreshSchedule(ctx); err != nil {
+	if err := validateRefreshSchedule(tr); err != nil {
 		return err
 	}
 
@@ -66,19 +67,19 @@ func Run(ctx Conf) error {
 
 	// handle the various core config options:
 	// service.*.disable
-	if err := handleServiceDisableConfiguration(ctx); err != nil {
+	if err := handleServiceDisableConfiguration(tr); err != nil {
 		return err
 	}
 	// system.power-key-action
-	if err := handlePowerButtonConfiguration(ctx); err != nil {
+	if err := handlePowerButtonConfiguration(tr); err != nil {
 		return err
 	}
 	// pi-config.*
-	if err := handlePiConfiguration(ctx); err != nil {
+	if err := handlePiConfiguration(tr); err != nil {
 		return err
 	}
 	// proxy.{http,https,ftp}
-	if err := handleProxyConfiguration(ctx); err != nil {
+	if err := handleProxyConfiguration(tr); err != nil {
 		return err
 	}
 
