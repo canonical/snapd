@@ -7,6 +7,11 @@ arch := $(shell $(CC) -dumpmachine)
 ifeq ($(arch),x86_64-linux-gnu)
 snap_arch = amd64
 dynamic_linker=ld-linux-x86-64.so.2
+else ifeq ($(arch),x86_64-pc-linux-gnu)
+# NOTE: this is reported on Arch and probably vanilla systems
+arch := x86_64-linux-gnu
+snap_arch = amd64
+dynamic_linker=ld-linux-x86-64.so.2
 else ifeq ($(arch),x86_64-suse-linux)
 # NOTE: arch needs to be x86_64-linux-gnu, not x86_64-suse-linux
 arch := x86_64-linux-gnu
