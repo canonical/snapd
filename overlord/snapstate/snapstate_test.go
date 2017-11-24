@@ -4965,7 +4965,7 @@ func (s *snapmgrTestSuite) TestRefreshFailureCausesErrorReport(c *C) {
 		"Revision":                  "11",
 	})
 	c.Check(errMsg, Matches, `(?sm)change "install": "install a snap"
-prerequisites: Done
+prerequisites: Undo
  snap-setup: "some-snap" \(11\) "some-channel"
 download-snap: Undoing
 validate-snap: Done
@@ -4980,7 +4980,7 @@ start-snap-services: Hold
 cleanup: Hold
 run-hook: Hold`)
 	c.Check(errSig, Matches, `(?sm)snap-install:
-prerequisites: Done
+prerequisites: Undo
  snap-setup: "some-snap"
 download-snap: Undoing
 validate-snap: Done
