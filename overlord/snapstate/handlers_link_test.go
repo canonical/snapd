@@ -175,7 +175,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserIDAlreadySet(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			&snap.SideInfo{RealName: "foo", Revision: snap.R(1)},
+			{RealName: "foo", Revision: snap.R(1)},
 		},
 		Current: snap.R(1),
 		UserID:  1,
