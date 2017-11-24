@@ -198,7 +198,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserIDAlreadySet(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// check that snapst.UserID was not "transfered"
+	// check that snapst.UserID was not "transferred"
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
