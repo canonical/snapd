@@ -29,7 +29,7 @@ import (
 
 // MkdirAllChown is like os.MkdirAll but it calls os.Chown on any
 // directories it creates.
-func MkdirAllChown(path string, perm os.FileMode, uid, gid uint32) error {
+func MkdirAllChown(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	if s, err := os.Stat(path); err == nil {
 		if s.IsDir() {
 			return nil

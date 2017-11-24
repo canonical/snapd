@@ -54,8 +54,8 @@ type AtomicFile struct {
 
 	target  string
 	tmpname string
-	uid     uint32
-	gid     uint32
+	uid     sys.UserID
+	gid     sys.GroupID
 	closed  bool
 	renamed bool
 }
@@ -76,11 +76,7 @@ type AtomicFile struct {
 // Also note that there are a number of scenarios where Commit fails and then
 // Cancel also fails. In all these scenarios your filesystem was probably in a
 // rather poor state. Good luck.
-func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, uid, gid uint32) (aw *AtomicFile, err error) {
-	if (uid < 0) != (gid < 0) {
-		return nil, errors.New("internal error: AtomicFile needs none or both of uid and gid set")
-	}
-
+func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (aw *AtomicFile, err error) {
 	if flags&AtomicWriteFollow != 0 {
 		if fn, err := os.Readlink(filename); err == nil || (fn != "" && os.IsNotExist(err)) {
 			if filepath.IsAbs(fn) {
@@ -204,11 +200,11 @@ func AtomicWriteFile(filename string, data []byte, perm os.FileMode, flags Atomi
 	return AtomicWriteChown(filename, bytes.NewReader(data), perm, flags, NoChown, NoChown)
 }
 
-func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags, uid, gid uint32) (err error) {
+func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (err error) {
 	return AtomicWriteChown(filename, bytes.NewReader(data), perm, flags, uid, gid)
 }
 
-func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, flags AtomicWriteFlags, uid, gid uint32) (err error) {
+func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (err error) {
 	aw, err := NewAtomicFile(filename, perm, flags, uid, gid)
 	if err != nil {
 		return err

@@ -26,6 +26,8 @@ import (
 	"os/user"
 	"syscall"
 	"time"
+
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 func MockUserLookup(mock func(name string) (*user.User, error)) func() {
@@ -85,7 +87,7 @@ func WaitingReaderGuts(r io.Reader) (io.Reader, *exec.Cmd) {
 	return wr.reader, wr.cmd
 }
 
-func MockChown(f func(*os.File, uint32, uint32) error) func() {
+func MockChown(f func(*os.File, sys.UserID, sys.GroupID) error) func() {
 	oldChown := chown
 	chown = f
 	return func() {

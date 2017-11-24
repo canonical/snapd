@@ -28,6 +28,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 var userLookup = user.Lookup
@@ -161,17 +163,16 @@ func RealUser() (*user.User, error) {
 // UidGid returns the uid and gid of the given user, as uint32s
 //
 // XXX this should go away soon
-func UidGid(u *user.User) (uint32, uint32, error) {
+func UidGid(u *user.User) (sys.UserID, sys.GroupID, error) {
 	// XXX this will be wrong for high uids on 32-bit arches (for now)
-	const flagID = uint32(1<<32 - 1)
 	uid, err := strconv.Atoi(u.Uid)
 	if err != nil {
-		return flagID, flagID, fmt.Errorf("cannot parse user id %s: %s", u.Uid, err)
+		return sys.FlagID, sys.FlagID, fmt.Errorf("cannot parse user id %s: %s", u.Uid, err)
 	}
 	gid, err := strconv.Atoi(u.Gid)
 	if err != nil {
-		return flagID, flagID, fmt.Errorf("cannot parse group id %s: %s", u.Gid, err)
+		return sys.FlagID, sys.FlagID, fmt.Errorf("cannot parse group id %s: %s", u.Gid, err)
 	}
 
-	return uint32(uid), uint32(gid), nil
+	return sys.UserID(uid), sys.GroupID(gid), nil
 }

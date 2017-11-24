@@ -192,8 +192,8 @@ func (s *createUserSuite) TestRealUser(c *check.C) {
 func (s *createUserSuite) TestUidGid(c *check.C) {
 	for k, t := range map[string]struct {
 		User *user.User
-		Uid  uint32
-		Gid  uint32
+		Uid  sys.UserID
+		Gid  sys.GroupID
 		Err  string
 	}{
 		"happy":   {&user.User{Uid: "10", Gid: "10"}, 10, 10, ""},

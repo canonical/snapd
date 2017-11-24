@@ -25,24 +25,32 @@ import (
 	"unsafe"
 )
 
+// FlagID can be passed to chown-ish functions to mean "no change",
+// and can be returned from getuid-ish functions to mean "not found".
+const FlagID = 1<<32 - 1
+
+type UserID uint32
+
+type GroupID uint32
+
 // uid_t is an unsigned 32-bit integer in linux right now.
 // so syscall.Gete?[ug]id are wrong, and break in 32 bits
 // (see https://github.com/golang/go/issues/22739)
-func Getuid() uint32 {
-	return getid(syscall.SYS_GETUID)
+func Getuid() UserID {
+	return UserID(getid(syscall.SYS_GETUID))
 }
 
-func Geteuid() uint32 {
-	return getid(syscall.SYS_GETEUID)
+func Geteuid() UserID {
+	return UserID(getid(syscall.SYS_GETEUID))
 }
 
-func Getgid() uint32 {
-	return getid(syscall.SYS_GETGID)
+func Getgid() GroupID {
+	return GroupID(getid(syscall.SYS_GETGID))
 }
 
-// FlagID can be passed to chown-ish functions to mean "no change",
-// and can be returned from getuid-ish functions to mean "not found".
-const FlagID = uint32(1<<32 - 1)
+func Getegid() GroupID {
+	return GroupID(getid(syscall.SYS_GETEGID))
+}
 
 func getid(id uintptr) uint32 {
 	r0, _, errno := syscall.RawSyscall(id, 0, 0, 0)
@@ -54,11 +62,11 @@ func getid(id uintptr) uint32 {
 	return uint32(r0)
 }
 
-func Chown(f *os.File, uid, gid uint32) error {
+func Chown(f *os.File, uid UserID, gid GroupID) error {
 	return Fchown(f.Fd(), uid, gid)
 }
 
-func Fchown(fd uintptr, uid, gid uint32) error {
+func Fchown(fd uintptr, uid UserID, gid GroupID) error {
 	_, _, errno := syscall.Syscall(syscall.SYS_FCHOWN, fd, uintptr(uid), uintptr(gid))
 	if errno == 0 {
 		return nil
@@ -66,12 +74,12 @@ func Fchown(fd uintptr, uid, gid uint32) error {
 	return errno
 }
 
-func ChownPath(path string, uid, gid uint32) error {
-	AT_FDCWD := -0x64
+func ChownPath(path string, uid UserID, gid GroupID) error {
+	AT_FDCWD := -100 // also written as -0x64 in ztypes_linux_*.go (but -100 in sys_linux_*.s, and /usr/include/linux/fcntl.h)
 	return FchownAt(uintptr(AT_FDCWD), path, uid, gid, 0)
 }
 
-func FchownAt(dirfd uintptr, path string, uid uint32, gid uint32, flags int) error {
+func FchownAt(dirfd uintptr, path string, uid UserID, gid GroupID, flags int) error {
 	p0, err := syscall.BytePtrFromString(path)
 	if err != nil {
 		return err

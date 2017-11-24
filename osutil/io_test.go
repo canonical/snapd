@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
 
 	. "gopkg.in/check.v1"
@@ -178,10 +179,10 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) 
 }
 
 func (ts *AtomicWriteTestSuite) TestAtomicFileChownError(c *C) {
-	eUid := uint32(42)
-	eGid := uint32(74)
+	eUid := sys.UserID(42)
+	eGid := sys.GroupID(74)
 	eErr := errors.New("this didn't work")
-	defer osutil.MockChown(func(fd *os.File, uid uint32, gid uint32) error {
+	defer osutil.MockChown(func(fd *os.File, uid sys.UserID, gid sys.GroupID) error {
 		c.Check(uid, Equals, eUid)
 		c.Check(gid, Equals, eGid)
 		return eErr

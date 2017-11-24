@@ -176,8 +176,8 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 				return err
 			}
 			// ensure that permissions are preserved
-			uid := info.Sys().(*syscall.Stat_t).Uid
-			gid := info.Sys().(*syscall.Stat_t).Gid
+			uid := sys.UserID(info.Sys().(*syscall.Stat_t).Uid)
+			gid := sys.GroupID(info.Sys().(*syscall.Stat_t).Gid)
 			return sys.ChownPath(dest, uid, gid)
 		}
 
