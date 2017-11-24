@@ -30,7 +30,6 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/logger"
@@ -39,6 +38,8 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
+
+type HookFunc func(ctx *Context) error
 
 // HookManager is responsible for the maintenance of hooks in the system state.
 // It runs hooks when they're requested, assuming they're present in the given
@@ -50,6 +51,8 @@ type HookManager struct {
 
 	contextsMutex sync.RWMutex
 	contexts      map[string]*Context
+
+	hijackedMap map[string]HookFunc
 }
 
 // Handler is the interface a client must satify to handle hooks.
@@ -108,10 +111,11 @@ func Manager(s *state.State) (*HookManager, error) {
 	})
 
 	manager := &HookManager{
-		state:      s,
-		runner:     runner,
-		repository: newRepository(),
-		contexts:   make(map[string]*Context),
+		state:       s,
+		runner:      runner,
+		repository:  newRepository(),
+		contexts:    make(map[string]*Context),
+		hijackedMap: make(map[string]HookFunc),
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
@@ -141,6 +145,14 @@ func (m *HookManager) Wait() {
 // Stop implements StateManager.Stop.
 func (m *HookManager) Stop() {
 	m.runner.Stop()
+}
+
+func (m *HookManager) hijacked(snapName, hookName string) HookFunc {
+	return m.hijackedMap[fmt.Sprintf("%s:%s", snapName, hookName)]
+}
+
+func (m *HookManager) RegisterHijacked(snapName, hookName string, f HookFunc) {
+	m.hijackedMap[fmt.Sprintf("%s:%s", snapName, hookName)] = f
 }
 
 func (m *HookManager) ephemeralContext(cookieID string) (context *Context, err error) {
@@ -193,17 +205,6 @@ func hookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
 	}
 
 	return &hooksup, &snapst, nil
-}
-
-var corecfgRun = corecfg.Run
-
-// MockCorecfgRun mocks the actual invocation of corecfg in tests.
-func MockCorecfgRun(f func(ctx corecfg.Conf) error) (restore func()) {
-	oldCorecfgRun := corecfgRun
-	corecfgRun = f
-	return func() {
-		corecfgRun = oldCorecfgRun
-	}
 }
 
 // doRunHook actually runs the hook that was requested.
@@ -267,11 +268,11 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	// the core snap is special and is handled differently
+	// some hooks get hijacked, e.g. the core configuration
 	var output []byte
-	if hooksup.Snap == "core" && hooksup.Hook == "configure" {
+	if f := m.hijacked(hooksup.Snap, hooksup.Hook); f != nil {
 		context.Lock()
-		err = corecfgRun(context)
+		f(context)
 		context.Unlock()
 	} else if hookExists {
 		output, err = runHook(context, tomb)

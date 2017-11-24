@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot/boottest"
-	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -744,11 +743,11 @@ snaps:
 	rhk := hookstate.MockRunHook(hookInvoke)
 	defer rhk()
 
-	restore := hookstate.MockCorecfgRun(func(tr corecfg.Conf) error {
+	// ensure we have something that captures the core config
+	s.overlord.HookManager().RegisterHijacked("core", "configure", func(ctx *hookstate.Context) error {
 		configured = append(configured, "corecfg")
 		return nil
 	})
-	defer restore()
 
 	// avoid device reg
 	chg1 := st.NewChange("become-operational", "init device")

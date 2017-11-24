@@ -22,6 +22,7 @@ package configstate
 import (
 	"regexp"
 
+	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -33,11 +34,17 @@ type ConfigManager struct {
 	runner *state.TaskRunner
 }
 
+// overriden in tests
+var corecfgRun = func(ctx *hookstate.Context) error {
+	return corecfg.Run(ctx)
+}
+
 // Manager returns a new ConfigManager.
 func Manager(st *state.State, hookManager *hookstate.HookManager) (*ConfigManager, error) {
 	// Most configuration is handled via the "configure" hook of the
 	// snaps. However some configuration is internally handled
 	hookManager.Register(regexp.MustCompile("^configure$"), newConfigureHandler)
+	hookManager.RegisterHijacked("core", "configure", corecfgRun)
 
 	// we handle core/snapd specific configuration internally because
 	// on classic systems we may need to configure things before any
