@@ -599,6 +599,11 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 
 	ts := tts[0]
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts, s.state)
+
+	// check that the tasks are in non-default lane
+	for _, t := range ts.Tasks() {
+		c.Assert(t.Lanes(), DeepEquals, []int{1})
+	}
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -6321,8 +6326,12 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(installed, DeepEquals, []string{"one", "two"})
 
-	for _, ts := range tts {
+	for i, ts := range tts {
 		verifyInstallTasks(c, 0, 0, ts, s.state)
+		// check that tasksets are in separate lanes
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
+		}
 	}
 }
 
