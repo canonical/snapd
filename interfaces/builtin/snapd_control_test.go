@@ -79,6 +79,30 @@ func (s *SnapdControlInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
 }
 
+func (s *SnapdControlInterfaceSuite) TestSanitizePlugWithAttrHappy(c *C) {
+	const mockSnapYaml = `name: snapd-manager
+version: 1.0
+plugs:
+ snapd-control:
+  refresh-schedule: managed
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["snapd-control"]
+	c.Assert(interfaces.SanitizePlug(s.iface, plug), IsNil)
+}
+
+func (s *SnapdControlInterfaceSuite) TestSanitizePlugWithAttrNotHappy(c *C) {
+	const mockSnapYaml = `name: snapd-manager
+version: 1.0
+plugs:
+ snapd-control:
+  refresh-schedule: unsupported-value
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["snapd-control"]
+	c.Assert(interfaces.SanitizePlug(s.iface, plug), ErrorMatches, `unsupported refresh-schedule value: "unsupported-value"`)
+}
+
 func (s *SnapdControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}

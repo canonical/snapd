@@ -37,8 +37,11 @@ var (
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
 	// utils
-	SecureMkdirAll   = secureMkdirAll
-	EnsureMountPoint = ensureMountPoint
+	EnsureMountPoint  = ensureMountPoint
+	PlanWritableMimic = planWritableMimic
+	SecureMkdirAll    = secureMkdirAll
+	SecureMkfileAll   = secureMkfileAll
+	SplitIntoSegments = splitIntoSegments
 
 	// main
 	ComputeAndSaveChanges = computeAndSaveChanges
@@ -47,10 +50,11 @@ var (
 // fakeFileInfo implements os.FileInfo for one of the tests.
 // Most of the functions panic as we don't expect them to be called.
 type fakeFileInfo struct {
+	name string
 	mode os.FileMode
 }
 
-func (*fakeFileInfo) Name() string         { panic("unexpected call") }
+func (fi *fakeFileInfo) Name() string      { return fi.name }
 func (*fakeFileInfo) Size() int64          { panic("unexpected call") }
 func (fi *fakeFileInfo) Mode() os.FileMode { return fi.mode }
 func (*fakeFileInfo) ModTime() time.Time   { panic("unexpected call") }
@@ -63,6 +67,10 @@ var (
 	FileInfoDir     = &fakeFileInfo{mode: os.ModeDir}
 	FileInfoSymlink = &fakeFileInfo{mode: os.ModeSymlink}
 )
+
+func FakeFileInfo(name string, mode os.FileMode) os.FileInfo {
+	return &fakeFileInfo{name: name, mode: mode}
+}
 
 // Formatter for flags passed to open syscall.
 func formatOpenFlags(flags int) string {
@@ -78,6 +86,18 @@ func formatOpenFlags(flags int) string {
 	if flags&syscall.O_DIRECTORY != 0 {
 		flags ^= syscall.O_DIRECTORY
 		fl = append(fl, "O_DIRECTORY")
+	}
+	if flags&syscall.O_RDWR != 0 {
+		flags ^= syscall.O_RDWR
+		fl = append(fl, "O_RDWR")
+	}
+	if flags&syscall.O_CREAT != 0 {
+		flags ^= syscall.O_CREAT
+		fl = append(fl, "O_CREAT")
+	}
+	if flags&syscall.O_EXCL != 0 {
+		flags ^= syscall.O_EXCL
+		fl = append(fl, "O_EXCL")
 	}
 	if flags != 0 {
 		panic(fmt.Errorf("unrecognized open flags %d", flags))
@@ -301,5 +321,21 @@ func MockChangePerform(f func(chg *Change) ([]*Change, error)) func() {
 	changePerform = f
 	return func() {
 		changePerform = origChangePerform
+	}
+}
+
+func MockReadDir(fn func(string) ([]os.FileInfo, error)) (restore func()) {
+	old := ioutilReadDir
+	ioutilReadDir = fn
+	return func() {
+		ioutilReadDir = old
+	}
+}
+
+func MockReadlink(fn func(string) (string, error)) (restore func()) {
+	old := osReadlink
+	osReadlink = fn
+	return func() {
+		osReadlink = old
 	}
 }

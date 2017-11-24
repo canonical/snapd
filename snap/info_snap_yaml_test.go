@@ -1468,6 +1468,22 @@ apps:
 	})
 }
 
+func (s *YamlSuite) TestDaemonInvalidSocketMode(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ svc:
+   command: svc
+   sockets:
+     sock:
+       listen-stream: 8080
+       socket-mode: asdfasdf
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Check(err.Error(), Equals, "info failed to parse: yaml: unmarshal errors:\n"+
+		"  line 9: cannot unmarshal !!str `asdfasdf` into os.FileMode")
+}
+
 func (s *YamlSuite) TestSnapYamlGlobalEnvironment(c *C) {
 	y := []byte(`
 name: foo

@@ -790,3 +790,17 @@ series: 16
 revision: 0
 `)
 }
+
+func (s *baseDeclSuite) TestBrowserSupportAllowSandbox(c *C) {
+	const plugYaml = `name: plug-snap
+plugs:
+  browser-support:
+   allow-sandbox: true
+`
+	cand := s.connectCand(c, "browser-support", "", plugYaml)
+	err := cand.Check()
+	c.Check(err, NotNil)
+
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+}
