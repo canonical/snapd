@@ -77,6 +77,9 @@ arch_name_package() {
         openvswitch-switch)
             echo "openvswitch"
             ;;
+        man)
+            echo "man-db"
+            ;;
         *)
             echo "$1"
             ;;
