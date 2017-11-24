@@ -63,11 +63,11 @@ func getid(id uintptr) uint32 {
 }
 
 func Chown(f *os.File, uid UserID, gid GroupID) error {
-	return Fchown(f.Fd(), uid, gid)
+	return Fchown(int(f.Fd()), uid, gid)
 }
 
-func Fchown(fd uintptr, uid UserID, gid GroupID) error {
-	_, _, errno := syscall.Syscall(syscall.SYS_FCHOWN, fd, uintptr(uid), uintptr(gid))
+func Fchown(fd int, uid UserID, gid GroupID) error {
+	_, _, errno := syscall.Syscall(syscall.SYS_FCHOWN, uintptr(fd), uintptr(uid), uintptr(gid))
 	if errno == 0 {
 		return nil
 	}

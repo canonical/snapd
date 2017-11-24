@@ -29,6 +29,7 @@ import (
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -232,7 +233,7 @@ func (s *realSystemSuite) TestSecureMkdirAllForReal(c *C) {
 	// Create d (which already exists) with mode 0777 (but c.MkDir() used 0700
 	// internally and since we are not creating the directory we should not be
 	// changing that.
-	c.Assert(update.SecureMkdirAll(d, 0777, -1, -1), IsNil)
+	c.Assert(update.SecureMkdirAll(d, 0777, sys.FlagID, sys.FlagID), IsNil)
 	fi, err := os.Stat(d)
 	c.Assert(err, IsNil)
 	c.Check(fi.IsDir(), Equals, true)
@@ -242,7 +243,7 @@ func (s *realSystemSuite) TestSecureMkdirAllForReal(c *C) {
 	// check that it was applied. Note that default umask 022 is subtracted so
 	// effective directory has different permissions.
 	d1 := filepath.Join(d, "subdir")
-	c.Assert(update.SecureMkdirAll(d1, 0707, -1, -1), IsNil)
+	c.Assert(update.SecureMkdirAll(d1, 0707, sys.FlagID, sys.FlagID), IsNil)
 	fi, err = os.Stat(d1)
 	c.Assert(err, IsNil)
 	c.Check(fi.IsDir(), Equals, true)
@@ -251,7 +252,7 @@ func (s *realSystemSuite) TestSecureMkdirAllForReal(c *C) {
 	// Create d2, which is a deeper subdirectory, with another distinct mode
 	// and check that it was applied.
 	d2 := filepath.Join(d, "subdir/subdir/subdir")
-	c.Assert(update.SecureMkdirAll(d2, 0750, -1, -1), IsNil)
+	c.Assert(update.SecureMkdirAll(d2, 0750, sys.FlagID, sys.FlagID), IsNil)
 	fi, err = os.Stat(d2)
 	c.Assert(err, IsNil)
 	c.Check(fi.IsDir(), Equals, true)
@@ -436,7 +437,7 @@ func (s *realSystemSuite) TestSecureMkfileAllForReal(c *C) {
 	// check that it was applied. Note that default umask 022 is subtracted so
 	// effective directory has different permissions.
 	f1 := filepath.Join(d, "file")
-	c.Assert(update.SecureMkfileAll(f1, 0707, -1, -1), IsNil)
+	c.Assert(update.SecureMkfileAll(f1, 0707, sys.FlagID, sys.FlagID), IsNil)
 	fi, err := os.Stat(f1)
 	c.Assert(err, IsNil)
 	c.Check(fi.Mode().IsRegular(), Equals, true)
@@ -445,7 +446,7 @@ func (s *realSystemSuite) TestSecureMkfileAllForReal(c *C) {
 	// Create f2, which is a deeper subdirectory, with another distinct mode
 	// and check that it was applied.
 	f2 := filepath.Join(d, "subdir/subdir/file")
-	c.Assert(update.SecureMkfileAll(f2, 0750, -1, -1), IsNil)
+	c.Assert(update.SecureMkfileAll(f2, 0750, sys.FlagID, sys.FlagID), IsNil)
 	fi, err = os.Stat(f2)
 	c.Assert(err, IsNil)
 	c.Check(fi.Mode().IsRegular(), Equals, true)

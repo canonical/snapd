@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -66,9 +65,11 @@ var changePerform = (*Change).Perform
 // this change (such as mounted tmpfs or overlayfs).
 func (c *Change) Perform() ([]*Change, error) {
 	if c.Action == Mount {
-		mode := os.FileMode(0755)
-		uid := 0
-		gid := 0
+		const (
+			mode = 0755
+			uid  = 0
+			gid  = 0
+		)
 		// Create target mount directory if needed.
 		if err := ensureMountPoint(c.Entry.Dir, mode, uid, gid); err != nil {
 			return nil, err
