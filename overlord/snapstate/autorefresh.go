@@ -32,7 +32,7 @@ import (
 )
 
 // the default refresh pattern
-const defaultRefreshSchedule = "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59"
+const defaultRefreshSchedule = "00:00-05:59/6:00-11:59/12:00-17:59/18:00-23:59"
 
 // hooks setup by devicestate
 var (
@@ -42,27 +42,6 @@ var (
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
 var refreshRetryDelay = 10 * time.Minute
-
-func resetRefreshScheduleToDefault(st *state.State) (ts []*timeutil.Schedule, scheduleStr string) {
-	refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshSchedule)
-	if err != nil {
-		panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
-	}
-	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.schedule", defaultRefreshSchedule)
-	tr.Commit()
-
-	return refreshSchedule, defaultRefreshSchedule
-}
-
-func autoRefreshInFlight(st *state.State) bool {
-	for _, chg := range st.Changes() {
-		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
-			return true
-		}
-	}
-	return false
-}
 
 // autoRefresh will ensure that snaps are refreshed automatically
 // according to the refresh schedule.
@@ -133,6 +112,7 @@ func (m *autoRefresh) Ensure() error {
 		return err
 	}
 	if len(refreshSchedule) == 0 {
+		m.nextRefresh = time.Time{}
 		return nil
 	}
 	// we already have a refresh time, check if we got a new config
@@ -245,4 +225,25 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
 
 	return nil
+}
+
+func resetRefreshScheduleToDefault(st *state.State) (ts []*timeutil.Schedule, scheduleStr string) {
+	refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshSchedule)
+	if err != nil {
+		panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
+	}
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.schedule", defaultRefreshSchedule)
+	tr.Commit()
+
+	return refreshSchedule, defaultRefreshSchedule
+}
+
+func autoRefreshInFlight(st *state.State) bool {
+	for _, chg := range st.Changes() {
+		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
+			return true
+		}
+	}
+	return false
 }
