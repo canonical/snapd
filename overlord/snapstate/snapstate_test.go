@@ -7768,7 +7768,7 @@ func (s *snapmgrTestSuite) TestSideInfoPayed(c *C) {
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.CurrentSideInfo().Payed, Equals, true)
+	c.Check(snapst.CurrentSideInfo().Paid, Equals, true)
 	c.Check(snapst.CurrentSideInfo().Private, Equals, false)
 }
 
@@ -7791,7 +7791,7 @@ func (s *snapmgrTestSuite) TestSideInfoPrivate(c *C) {
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.CurrentSideInfo().Private, Equals, true)
-	c.Check(snapst.CurrentSideInfo().Payed, Equals, false)
+	c.Check(snapst.CurrentSideInfo().Paid, Equals, false)
 }
 
 type canDisableSuite struct{}

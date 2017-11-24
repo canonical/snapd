@@ -106,7 +106,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.DownloadURL = d.DownloadURL
 	info.Prices = d.Prices
 	info.Private = d.Private
-	info.Payed = len(info.Prices) > 0
+	info.Paid = len(info.Prices) > 0
 	info.Confinement = snap.ConfinementType(d.Confinement)
 	info.Contact = d.Contact
 	info.License = d.License
@@ -941,7 +941,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 	// Mark every non-free snap as must buy until we know better.
 	hasPriced := false
 	for _, info := range snaps {
-		if len(info.Prices) != 0 {
+		if info.Paid {
 			info.MustBuy = true
 			hasPriced = true
 		}
@@ -983,15 +983,15 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 	}
 
 	for _, info := range snaps {
-		info.MustBuy = mustBuy(info.Prices, bought[info.SnapID])
+		info.MustBuy = mustBuy(info.Paid, bought[info.SnapID])
 	}
 
 	return nil
 }
 
 // mustBuy determines if a snap requires a payment, based on if it is non-free and if the user has already bought it
-func mustBuy(prices map[string]float64, bought bool) bool {
-	if len(prices) == 0 {
+func mustBuy(paid bool, bought bool) bool {
+	if !paid {
 		// If the snap is free, then it doesn't need buying
 		return false
 	}
