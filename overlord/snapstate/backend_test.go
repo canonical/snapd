@@ -145,7 +145,7 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 		info.Confinement = snap.DevModeConfinement
 	case "channel-for-classic":
 		info.Confinement = snap.ClassicConfinement
-	case "channel-for-payed":
+	case "channel-for-paid":
 		info.Prices = map[string]float64{"USD": 0.77}
 		info.SideInfo.Paid = true
 	case "channel-for-private":

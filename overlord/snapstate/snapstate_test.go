@@ -7750,13 +7750,13 @@ func (s *snapmgrTestSuite) TestSnapManagerRefreshSchedule(c *C) {
 	}
 }
 
-func (s *snapmgrTestSuite) TestSideInfoPayed(c *C) {
+func (s *snapmgrTestSuite) TestSideInfoPaid(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	ts, err := snapstate.Install(s.state, "some-snap", "channel-for-payed", snap.R(0), s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Install(s.state, "some-snap", "channel-for-paid", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	chg := s.state.NewChange("install", "install payed snap")
+	chg := s.state.NewChange("install", "install paid snap")
 	chg.AddAll(ts)
 
 	s.state.Unlock()
@@ -7764,7 +7764,7 @@ func (s *snapmgrTestSuite) TestSideInfoPayed(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	// verify snap has payed sideinfo
+	// verify snap has paid sideinfo
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
@@ -7778,7 +7778,7 @@ func (s *snapmgrTestSuite) TestSideInfoPrivate(c *C) {
 	ts, err := snapstate.Install(s.state, "some-snap", "channel-for-private", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	chg := s.state.NewChange("install", "install payed snap")
+	chg := s.state.NewChange("install", "install private snap")
 	chg.AddAll(ts)
 
 	s.state.Unlock()
