@@ -30,19 +30,12 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/timeutil"
 )
-
-// the default refresh pattern
-const defaultRefreshSchedule = "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59"
 
 // overridden in the tests
 var errtrackerReport = errtracker.Report
@@ -52,10 +45,7 @@ type SnapManager struct {
 	state   *state.State
 	backend managerBackend
 
-	lastRefreshSchedule string
-	nextRefresh         time.Time
-	lastRefreshAttempt  time.Time
-
+	autoRefresh    *autoRefresh
 	refreshHints   *refreshHints
 	catalogRefresh *catalogRefresh
 
@@ -284,6 +274,7 @@ func Manager(st *state.State) (*SnapManager, error) {
 		state:          st,
 		backend:        backend.Backend{},
 		runner:         runner,
+		autoRefresh:    newAutoRefresh(st),
 		refreshHints:   newRefreshHints(st),
 		catalogRefresh: newCatalogRefresh(st),
 	}
@@ -362,178 +353,24 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 	return false
 }
 
-var CanAutoRefresh func(st *state.State) (bool, error)
-
-func resetRefreshScheduleToDefault(st *state.State) (ts []*timeutil.Schedule, scheduleStr string) {
-	refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshSchedule)
-	if err != nil {
-		panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
-	}
-	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.schedule", defaultRefreshSchedule)
-	tr.Commit()
-
-	return refreshSchedule, defaultRefreshSchedule
-}
-
-func (m *SnapManager) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, err error) {
-	refreshScheduleStr := defaultRefreshSchedule
-
-	tr := config.NewTransaction(m.state)
-	err = tr.Get("core", "refresh.schedule", &refreshScheduleStr)
-	if err != nil && !config.IsNoOption(err) {
-		return nil, "", err
-	}
-
-	refreshSchedule, err := timeutil.ParseSchedule(refreshScheduleStr)
-	if err != nil {
-		logger.Noticef("cannot use refresh.schedule configuration: %s", err)
-		refreshSchedule, refreshScheduleStr = resetRefreshScheduleToDefault(m.state)
-	}
-
-	return refreshSchedule, refreshScheduleStr, nil
-}
-
-func (m *SnapManager) launchAutoRefresh() error {
-	m.lastRefreshAttempt = time.Now()
-	updated, tasksets, err := AutoRefresh(m.state)
-	if err != nil {
-		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
-		return err
-	}
-
-	// Set last refresh time only if the store (in AutoRefresh) gave
-	// us no error.
-	m.state.Set("last-refresh", time.Now())
-
-	var msg string
-	switch len(updated) {
-	case 0:
-		logger.Noticef(i18n.G("No snaps to auto-refresh found"))
-		return nil
-	case 1:
-		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
-	case 2:
-	case 3:
-		quoted := strutil.Quoted(updated)
-		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)
-	default:
-		msg = fmt.Sprintf(i18n.G("Auto-refresh %d snaps"), len(updated))
-	}
-
-	chg := m.state.NewChange("auto-refresh", msg)
-	for _, ts := range tasksets {
-		chg.AddAll(ts)
-	}
-	chg.Set("snap-names", updated)
-	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
-
-	return nil
-}
-
-func autoRefreshInFlight(st *state.State) bool {
-	for _, chg := range st.Changes() {
-		if chg.Kind() == "auto-refresh" && !chg.Status().Ready() {
-			return true
-		}
-	}
-	return false
-}
-
-func (m *SnapManager) LastRefresh() (time.Time, error) {
-	var lastRefresh time.Time
-	err := m.state.Get("last-refresh", &lastRefresh)
-	if err != nil && err != state.ErrNoState {
-		return time.Time{}, err
-	}
-	return lastRefresh, nil
-}
-
 // NextRefresh returns the time the next update of the system's snaps
 // will be attempted.
 // The caller should be holding the state lock.
 func (m *SnapManager) NextRefresh() time.Time {
-	return m.nextRefresh
+	return m.autoRefresh.NextRefresh()
+}
+
+// LastRefresh returns the time the last snap update.
+// The caller should be holding the state lock.
+func (m *SnapManager) LastRefresh() (time.Time, error) {
+	return m.autoRefresh.LastRefresh()
 }
 
 // RefreshSchedule returns the current refresh schedule as a string
 // suitable to display to a user.
 // The caller should be holding the state lock.
 func (m *SnapManager) RefreshSchedule() (string, error) {
-	_, scheduleStr, err := m.refreshScheduleWithDefaultsFallback()
-	return scheduleStr, err
-}
-
-// ensureRefreshes ensures that we refresh all installed snaps periodically
-func (m *SnapManager) ensureRefreshes() error {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	// see if it even makes sense to try to refresh
-	if CanAutoRefresh == nil {
-		return nil
-	}
-	if ok, err := CanAutoRefresh(m.state); err != nil || !ok {
-		return err
-	}
-
-	// get lastRefresh and schedule
-	lastRefresh, err := m.LastRefresh()
-	if err != nil {
-		return err
-	}
-	refreshSchedule, refreshScheduleStr, err := m.refreshScheduleWithDefaultsFallback()
-	if err != nil {
-		return err
-	}
-	// we already have a refresh time, check if we got a new config
-	if !m.nextRefresh.IsZero() {
-		if m.lastRefreshSchedule != refreshScheduleStr {
-			// the refresh schedule has changed
-			logger.Debugf("Option refresh.schedule changed.")
-			m.nextRefresh = time.Time{}
-		}
-	}
-	m.lastRefreshSchedule = refreshScheduleStr
-
-	// ensure nothing is in flight already
-	if autoRefreshInFlight(m.state) {
-		return nil
-	}
-
-	// compute next refresh attempt time (if needed)
-	if m.nextRefresh.IsZero() {
-		// store attempts in memory so that we can backoff
-		if !lastRefresh.IsZero() {
-			delta := timeutil.Next(refreshSchedule, lastRefresh)
-			m.nextRefresh = time.Now().Add(delta)
-		} else {
-			// immediate
-			m.nextRefresh = time.Now()
-		}
-		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh)
-	}
-
-	// Check that we have reasonable delays between unsuccessful attempts.
-	// If the store is under stress we need to make sure we do not
-	// hammer it too often
-	if !m.lastRefreshAttempt.IsZero() && m.lastRefreshAttempt.Add(10*time.Minute).After(time.Now()) {
-		return nil
-	}
-
-	// do refresh attempt (if needed)
-	if !m.nextRefresh.After(time.Now()) {
-		err = m.launchAutoRefresh()
-		// clear nextRefresh only if the refresh worked. There is
-		// still the lastRefreshAttempt rate limit so things will
-		// not go into a busy store loop
-		if err == nil {
-			m.nextRefresh = time.Time{}
-		}
-	}
-
-	return err
+	return m.autoRefresh.RefreshSchedule()
 }
 
 // ensureForceDevmodeDropsDevmodeFromState undoes the froced devmode
@@ -641,7 +478,7 @@ func (m *SnapManager) Ensure() error {
 		m.ensureForceDevmodeDropsDevmodeFromState(),
 		m.ensureUbuntuCoreTransition(),
 		m.refreshHints.Ensure(),
-		m.ensureRefreshes(),
+		m.autoRefresh.Ensure(),
 		m.catalogRefresh.Ensure(),
 	}
 
