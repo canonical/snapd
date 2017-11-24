@@ -553,3 +553,18 @@ install_pkg_dependencies(){
     # shellcheck disable=SC2086
     distro_install_package $pkgs
 }
+
+# upgrade distribution and indicate if reboot is needed by outputting 'reboot'
+# to stdout
+distro_upgrade() {
+    case "$SPREAD_SYSTEM" in
+        arch-*)
+            if pacman -Syu --noconfirm 2>&1 | grep -q "there is nothing to do" ; then
+                echo "reboot"
+            fi
+            ;;
+        *)
+            echo "WARNING: distro upgrade not supported on $SPREAD_SYSTEM"
+            ;;
+    esac
+}
