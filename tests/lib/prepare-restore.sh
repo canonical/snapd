@@ -256,6 +256,17 @@ prepare_project() {
 
     distro_update_package_db
 
+    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        # perform system upgrade on Arch so that we run with most recent kernel
+        # and userspace
+        if [[ "$SPREAD_REBOOT" == 0 ]]; then
+            if distro_upgrade | MATCH "reboot"; then
+                echo "system upgraded, reboot required"
+                REBOOT
+            fi
+        fi
+    fi
+
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         if [ ! -d packaging/ubuntu-14.04 ]; then
             echo "no packaging/ubuntu-14.04/ directory "
