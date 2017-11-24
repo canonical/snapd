@@ -373,10 +373,14 @@ suites:
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 . $TESTSLIB/pkgdb.sh
                 distro_purge_package snapd
-                if [[ "$SPREAD_SYSTEM" != opensuse-* ]]; then
-                    # A snap-confine package never existed on openSUSE
-                    distro_purge_package snap-confine
-                fi
+                case "$SPREAD_SYSTEM" in
+                    opensuse-*|arch-*)
+                        # Neither Arch nor openSUSE have snap-confine package
+                        ;;
+                    *)
+                        distro_purge_package snap-confine
+                        ;;
+                esac
             fi
 
     tests/completion/:
@@ -475,7 +479,17 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             . $TESTSLIB/pkgdb.sh
-            distro_purge_package snapd snap-confine ubuntu-core-launcher
+
+            distro_purge_package snapd
+            case "$SPREAD_SYSTEM" in
+                arch-*)
+                    # there is no snap-confine and ubuntu-core-launcher
+                    # in Arch
+                    ;;
+                *)
+                    distro_purge_package snap-confine ubuntu-core-launcher
+                    ;;
+            esac
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
