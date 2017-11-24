@@ -88,6 +88,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	// store is setup
 	sto := snapstate.Store(s)
 	c.Check(sto, FitsTypeOf, &store.Store{})
+	c.Check(sto.(*store.Store).CacheDownloads(), Equals, 5)
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
