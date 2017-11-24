@@ -76,6 +76,7 @@ backends:
                 manual: true
             - arch-2017.07.01:
                 workers: 1
+                kernel: GRUB 2
     qemu:
         systems:
             - ubuntu-14.04-32:
