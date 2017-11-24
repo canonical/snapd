@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/logger"
@@ -194,6 +195,17 @@ func hookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
 	return &hooksup, &snapst, nil
 }
 
+var corecfgRun = corecfg.Run
+
+// MockCorecfgRun mocks the actual invocation of corecfg in tests.
+func MockCorecfgRun(f func(ctx corecfg.Conf) error) (restore func()) {
+	oldCorecfgRun := corecfgRun
+	corecfgRun = f
+	return func() {
+		corecfgRun = oldCorecfgRun
+	}
+}
+
 // doRunHook actually runs the hook that was requested.
 //
 // Note that this method is synchronous, as the task is already running in a
@@ -238,7 +250,6 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	if handlersCount > 1 {
 		return fmt.Errorf("internal error: %d handlers registered for hook %q, expected 1", handlersCount, hooksup.Hook)
 	}
-
 	context.handler = handlers[0]
 
 	contextID := context.ID()
@@ -256,24 +267,30 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	if hookExists {
-		output, err := runHook(context, tomb)
-		if err != nil {
-			if hooksup.TrackError {
-				trackHookError(context, output, err)
+	// the core snap is special and is handled differently
+	var output []byte
+	if hooksup.Snap == "core" && hooksup.Hook == "configure" {
+		context.Lock()
+		err = corecfgRun(context)
+		context.Unlock()
+	} else if hookExists {
+		output, err = runHook(context, tomb)
+	}
+	if err != nil {
+		if hooksup.TrackError {
+			trackHookError(context, output, err)
+		}
+		err = osutil.OutputErr(output, err)
+		if hooksup.IgnoreError {
+			task.State().Lock()
+			task.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
+			task.State().Unlock()
+		} else {
+			if handlerErr := context.Handler().Error(err); handlerErr != nil {
+				return handlerErr
 			}
-			err = osutil.OutputErr(output, err)
-			if hooksup.IgnoreError {
-				task.State().Lock()
-				task.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
-				task.State().Unlock()
-			} else {
-				if handlerErr := context.Handler().Error(err); handlerErr != nil {
-					return handlerErr
-				}
 
-				return fmt.Errorf("run hook %q: %v", hooksup.Hook, err)
-			}
+			return fmt.Errorf("run hook %q: %v", hooksup.Hook, err)
 		}
 	}
 

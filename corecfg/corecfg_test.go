@@ -20,7 +20,6 @@
 package corecfg_test
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -38,10 +37,7 @@ type mockConf struct {
 	err   error
 }
 
-func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
-	if snapName != "core" {
-		return fmt.Errorf("mockConf only knows about core")
-	}
+func (cfg *mockConf) Get(key string, result interface{}) error {
 	if cfg.conf[key] != nil {
 		v1 := reflect.ValueOf(result)
 		v2 := reflect.Indirect(v1)

@@ -222,15 +222,9 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 			"cleanup",
 		)
 	}
-	if opts&runCoreConfigure != 0 {
-		expected = append(expected,
-			"configure-snapd",
-		)
-	} else {
-		expected = append(expected,
-			"run-hook[configure]",
-		)
-	}
+	expected = append(expected,
+		"run-hook[configure]",
+	)
 
 	c.Assert(kinds, DeepEquals, expected)
 }

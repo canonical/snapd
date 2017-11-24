@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -745,8 +744,8 @@ snaps:
 	rhk := hookstate.MockRunHook(hookInvoke)
 	defer rhk()
 
-	restore := configstate.MockCorecfgRun(func(tr corecfg.Conf) error {
-		configured = append(configured, "configure-snapd")
+	restore := hookstate.MockCorecfgRun(func(tr corecfg.Conf) error {
+		configured = append(configured, "corecfg")
 		return nil
 	})
 	defer restore()
@@ -808,7 +807,7 @@ snaps:
 	c.Assert(err, IsNil)
 	c.Check(val, Equals, "foo.")
 
-	c.Check(configured, DeepEquals, []string{"configure-snapd", "pc-kernel", "pc", "foo"})
+	c.Check(configured, DeepEquals, []string{"corecfg", "pc-kernel", "pc", "foo"})
 
 	// and ensure state is now considered seeded
 	var seeded bool
