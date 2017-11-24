@@ -28,7 +28,6 @@ import (
 )
 
 var AttributesTask = attributesTask
-var CopyAttributes = copyAttributes
 
 func MockServicestateControlFunc(f func(*state.State, []*snap.AppInfo, *servicestate.Instruction, *hookstate.Context) (*state.TaskSet, error)) (restore func()) {
 	old := servicestateControl

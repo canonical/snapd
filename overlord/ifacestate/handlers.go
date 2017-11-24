@@ -399,6 +399,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	// TODO: pass dynamic attributes from hooks
 	err = m.repo.Connect(connRef)
 	if err != nil {
 		return err

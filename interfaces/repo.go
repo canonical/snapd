@@ -577,7 +577,12 @@ func (r *Repository) Connect(ref ConnRef) error {
 	if r.plugSlots[plug] == nil {
 		r.plugSlots[plug] = make(map[*snap.SlotInfo]*Connection)
 	}
-	conn := &Connection{plugInfo: plug, slotInfo: slot}
+
+	// TODO: store copy of attributes from hooks
+	cplug := &ConnectedPlug{plugInfo: plug}
+	cslot := &ConnectedSlot{slotInfo: slot}
+
+	conn := &Connection{plug: cplug, slot: cslot}
 	r.slotPlugs[slot][plug] = conn
 	r.plugSlots[plug][slot] = conn
 	return nil
@@ -771,6 +776,7 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 		}
 		for plugInfo := range r.slotPlugs[slotInfo] {
 			plug := &Plug{PlugInfo: plugInfo}
+			// TODO: pass ConnectedPlug and ConnectedSlot to interfaces
 			if err := spec.AddConnectedSlot(iface, plug, nil, slot, nil); err != nil {
 				return nil, err
 			}
@@ -785,6 +791,7 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 		}
 		for slotInfo := range r.plugSlots[plugInfo] {
 			slot := &Slot{SlotInfo: slotInfo}
+			// TODO: pass ConnectedPlug and ConnectedSlot to interfaces
 			if err := spec.AddConnectedPlug(iface, plug, nil, slot, nil); err != nil {
 				return nil, err
 			}
