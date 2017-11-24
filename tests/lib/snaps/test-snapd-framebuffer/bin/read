@@ -1,0 +1,3 @@
+#!/bin/sh
+
+dd if=/dev/fb0 of=/dev/null count=10

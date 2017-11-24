@@ -160,6 +160,7 @@ func (cs *changeSuite) TestLaneTasks(c *C) {
 	t3 := st.NewTask("task3", "...")
 	t4 := st.NewTask("task4", "...")
 	t5 := st.NewTask("task5", "...")
+	t6 := st.NewTask("task6", "...")
 
 	// lane1: task1, task2, task4
 	// lane2: task3, task4
@@ -174,6 +175,7 @@ func (cs *changeSuite) TestLaneTasks(c *C) {
 	chg.AddTask(t3)
 	chg.AddTask(t4)
 	chg.AddTask(t5)
+	chg.AddTask(t6)
 
 	checkTasks := func(obtained, expected []*state.Task) {
 		c.Assert(obtained, HasLen, len(expected))
@@ -197,10 +199,10 @@ func (cs *changeSuite) TestLaneTasks(c *C) {
 	c.Assert(chg.LaneTasks(), HasLen, 0)
 
 	tasks := chg.LaneTasks(0)
-	checkTasks(tasks, []*state.Task{t5})
+	checkTasks(tasks, []*state.Task{t5, t6})
 
 	tasks = chg.LaneTasks(0, lane2)
-	checkTasks(tasks, []*state.Task{t3, t4, t5})
+	checkTasks(tasks, []*state.Task{t3, t4, t5, t6})
 
 	tasks = chg.LaneTasks(lane1)
 	checkTasks(tasks, []*state.Task{t1, t2, t4})

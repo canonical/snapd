@@ -62,7 +62,7 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 }
 
-func (s *refreshHintsTestSuite) TearDownTests(c *C) {
+func (s *refreshHintsTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 }
 

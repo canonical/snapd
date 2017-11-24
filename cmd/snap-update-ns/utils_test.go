@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/testutil"
@@ -218,6 +219,71 @@ func (s *utilsSuite) TestSecureMkdirAllOpenError(c *C) {
 		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> err
 		`close 3`,
 	})
+}
+
+func (s *utilsSuite) TestPlanWritableMimic(c *C) {
+	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
+		c.Assert(dir, Equals, "/foo")
+		return []os.FileInfo{
+			update.FakeFileInfo("file", 0),
+			update.FakeFileInfo("dir", os.ModeDir),
+			update.FakeFileInfo("symlink", os.ModeSymlink),
+			update.FakeFileInfo("error-symlink-readlink", os.ModeSymlink),
+			// NOTE: None of the filesystem entries below are supported because
+			// they cannot be placed inside snaps or can only be created at
+			// runtime in areas that are already writable and this would never
+			// have to be handled in a writable mimic.
+			update.FakeFileInfo("block-dev", os.ModeDevice),
+			update.FakeFileInfo("char-dev", os.ModeDevice|os.ModeCharDevice),
+			update.FakeFileInfo("socket", os.ModeSocket),
+			update.FakeFileInfo("pipe", os.ModeNamedPipe),
+		}, nil
+	})
+	defer restore()
+	restore = update.MockReadlink(func(name string) (string, error) {
+		switch name {
+		case "/foo/symlink":
+			return "target", nil
+		case "/foo/error-symlink-readlink":
+			return "", errTesting
+		}
+		panic("unexpected")
+	})
+	defer restore()
+
+	changes, err := update.PlanWritableMimic("/foo")
+	c.Assert(err, IsNil)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		// Store /foo in /tmp/.snap/foo while we set things up
+		{Entry: mount.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
+		// Put a tmpfs over /foo
+		{Entry: mount.Entry{Name: "none", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
+		// Bind mount files and directories over. Note that files are identified by x-snapd.kind=file option.
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
+		// Create symlinks.
+		// Bad symlinks and all other file types are skipped and not
+		// recorded in mount changes.
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"bind", "x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		// Unmount the safe-keeping directory
+		{Entry: mount.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
+	})
+}
+
+func (s *utilsSuite) TestPlanWritableMimicErrors(c *C) {
+	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
+		c.Assert(dir, Equals, "/foo")
+		return nil, errTesting
+	})
+	defer restore()
+	restore = update.MockReadlink(func(name string) (string, error) {
+		return "", errTesting
+	})
+	defer restore()
+
+	changes, err := update.PlanWritableMimic("/foo")
+	c.Assert(err, ErrorMatches, "testing")
+	c.Assert(changes, HasLen, 0)
 }
 
 // realSystemSuite is not isolated / mocked from the system.

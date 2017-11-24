@@ -21,11 +21,13 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
 
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/sys"
 )
@@ -37,7 +39,8 @@ const (
 
 // For mocking everything during testing.
 var (
-	osLstat = os.Lstat
+	osLstat    = os.Lstat
+	osReadlink = os.Readlink
 
 	sysClose   = syscall.Close
 	sysMkdirat = syscall.Mkdirat
@@ -46,6 +49,8 @@ var (
 	sysOpenat  = syscall.Openat
 	sysUnmount = syscall.Unmount
 	sysFchown  = sys.Fchown
+
+	ioutilReadDir = ioutil.ReadDir
 )
 
 // ReadOnlyFsError is an error encapsulating encountered EROFS.
@@ -285,6 +290,77 @@ func secureMkfileAll(name string, perm os.FileMode, uid sys.UserID, gid sys.Grou
 		err = secureMkFile(fd, segments, len(segments)-1, perm, uid, gid)
 	}
 	return err
+}
+
+// planWritableMimic plans how to transform a given directory from read-only to writable.
+//
+// The algorithm is designed to be universally reversible so that it can be
+// always de-constructed back to the original directory. The original directory
+// is hidden by tmpfs and a subset of things that were present there originally
+// is bind mounted back on top of empty directories or empty files. Symlinks
+// are re-created directly. Devices and all other elements are not supported
+// because they are forbidden in snaps for which this function is designed to
+// be used with. Since the original directory is hidden the algorithm relies on
+// a temporary directory where the original is bind-mounted during the
+// progression of the algorithm.
+func planWritableMimic(dir string) ([]*Change, error) {
+	// We need a place for "safe keeping" of what is present in the original
+	// directory as we are about to attach a tmpfs there, which will hide
+	// everything inside.
+	logger.Debugf("create-writable-mimic %q", dir)
+	safeKeepingDir := filepath.Join("/tmp/.snap/", dir)
+
+	var changes []*Change
+
+	// Bind mount the original directory elsewhere for safe-keeping.
+	changes = append(changes, &Change{
+		Action: Mount, Entry: mount.Entry{
+			// NOTE: Here we bind instead of recursively binding
+			// because recursive binds cannot be undone without
+			// parsing the mount table and exploring what is really
+			// there and this is not how the undo logic is
+			// designed.
+			Name: dir, Dir: safeKeepingDir, Options: []string{"bind"}},
+	})
+	// Mount tmpfs over the original directory, hiding its contents.
+	changes = append(changes, &Change{
+		Action: Mount, Entry: mount.Entry{Name: "none", Dir: dir, Type: "tmpfs"},
+	})
+	// Iterate over the items in the original directory (nothing is mounted _yet_).
+	entries, err := ioutilReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	for _, fi := range entries {
+		ch := &Change{Action: Mount, Entry: mount.Entry{
+			Name:    filepath.Join(safeKeepingDir, fi.Name()),
+			Dir:     filepath.Join(dir, fi.Name()),
+			Options: []string{"bind"},
+		}}
+		// Bind mount each element from the safe-keeping directory into the
+		// tmpfs. Our Change.Perform() engine can create the missing
+		// directories automatically so we don't bother creating those.
+		m := fi.Mode()
+		switch {
+		case m.IsDir():
+			changes = append(changes, ch)
+		case m.IsRegular():
+			ch.Entry.Options = append(ch.Entry.Options, "x-snapd.kind=file")
+			changes = append(changes, ch)
+		case m&os.ModeSymlink != 0:
+			if target, err := osReadlink(filepath.Join(dir, fi.Name())); err == nil {
+				ch.Entry.Options = append(ch.Entry.Options, "x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", target))
+				changes = append(changes, ch)
+			}
+		default:
+			logger.Noticef("skipping unsupported file %s", fi)
+		}
+	}
+	// Finally unbind the safe-keeping directory as we don't need it anymore.
+	changes = append(changes, &Change{
+		Action: Unmount, Entry: mount.Entry{Name: "none", Dir: safeKeepingDir},
+	})
+	return changes, nil
 }
 
 func ensureMountPoint(path string, mode os.FileMode, uid sys.UserID, gid sys.GroupID) error {
