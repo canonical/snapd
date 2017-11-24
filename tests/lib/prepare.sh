@@ -195,18 +195,15 @@ EOF
         # used for resuming downloads.
         (
             set -x
-            cd /tmp
+            cd "$TESTSLIB/cache/"
+            # Download each of the snaps we want to pre-cache. Note that `snap download`
+            # a quick no-op if the file is complete.
             for snap_name in ${PRE_CACHE_SNAPS:-}; do
                 snap download "$snap_name"
             done
-            for snap_file in *.snap; do
-                mv "$snap_file" "$snap_file.partial"
-                # There is a bug in snapd where partial file must be a proper
-                # prefix of the full file or we make a wrong request to the
-                # store.
-                truncate --size=-1 "$snap_file.partial"
-                mv "$snap_file.partial" /var/lib/snapd/snaps/
-            done
+            # Copy all of the snaps back to the spool directory. From there we
+            # will reuse them during subsequent `snap install` operations.
+            cp *.snap /var/lib/snapd/snaps/
             set +x
         )
 

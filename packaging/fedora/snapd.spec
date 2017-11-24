@@ -65,7 +65,7 @@
 %endif
 
 Name:           snapd
-Version:        2.29.3
+Version:        2.29.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -622,7 +622,7 @@ popd
 %dir %{_libexecdir}/snapd
 # For now, we can't use caps
 # FIXME: Switch to "%%attr(0755,root,root) %%caps(cap_sys_admin=pe)" asap!
-%attr(4755,root,root) %{_libexecdir}/snapd/snap-confine
+%attr(6755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
@@ -698,6 +698,15 @@ fi
 
 
 %changelog
+* Fri Nov 17 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.29.4
+ - snap-confine: fix snap-confine under lxd
+ - tests: disable classic-ubuntu-core-transition on i386 temporarily
+ - many: reject bad plugs/slots
+ - interfaces,tests: skip unknown plug/slot interfaces
+ - store: enable "base" field from the store
+ - packaging/fedora: Merge changes from Fedora Dist-Git
+
 * Thu Nov 09 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.29.3
  - daemon: cherry-picked /v2/logs fixes

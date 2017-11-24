@@ -490,7 +490,6 @@ func (c *Change) LaneTasks(lanes ...int) []*Task {
 		t := c.state.tasks[tid]
 		if len(t.lanes) == 0 && laneLookup[0] {
 			tasks = append(tasks, t)
-			break
 		}
 		for _, l := range t.lanes {
 			if laneLookup[l] {
