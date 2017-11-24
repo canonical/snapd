@@ -344,13 +344,13 @@ prepare: |
 
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
-    "$TESTSLIB"/prepare-restore.sh --prepare-project
+    ( . "$TESTSLIB"/prepare-restore.sh --prepare-project )
 prepare-each: |
-    "$TESTSLIB"/prepare-restore.sh --prepare-project-each
+    ( . "$TESTSLIB"/prepare-restore.sh --prepare-project-each )
 restore: |
-    "$TESTSLIB"/prepare-restore.sh --restore-project
+    ( . "$TESTSLIB"/prepare-restore.sh --restore-project )
 restore-each: |
-    "$TESTSLIB"/prepare-restore.sh --restore-project-each
+    ( . "$TESTSLIB"/prepare-restore.sh --restore-project-each )
 
 suites:
     tests/main/:
