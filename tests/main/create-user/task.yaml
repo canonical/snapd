@@ -2,7 +2,7 @@ summary: Ensure create-user functionality
 
 # Disabled for Fedora, openSUSE as both have not all options for add user
 # available the `snap create-user` command requires. Needs code rework.
-systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*]
 
 environment:
     USER_EMAIL: mvo@ubuntu.com
