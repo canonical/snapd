@@ -2,7 +2,7 @@ summary: Ensure that the device cgroup works properly for serial-port.
 
 # We don't run the native kernel on these distributions yet so we can't
 # load kernel modules coming from distribution packages yet.
-systems: [-fedora-*, -opensuse-*, -debian-unstable-*]
+systems: [-fedora-*, -opensuse-*, -debian-*]
 
 prepare: |
     # create serial devices if they don't exist
