@@ -521,6 +521,8 @@ pkg_dependencies_arch(){
     jq
     git
     openbsd-netcat
+    xdg-user-dirs
+    expect
     "
 }
 
