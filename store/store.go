@@ -106,6 +106,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.DownloadURL = d.DownloadURL
 	info.Prices = d.Prices
 	info.Private = d.Private
+	info.Payed = len(info.Prices) > 0
 	info.Confinement = snap.ConfinementType(d.Confinement)
 	info.Contact = d.Contact
 	info.License = d.License

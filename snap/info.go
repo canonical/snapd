@@ -135,6 +135,7 @@ type SideInfo struct {
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
 	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
+	Payed             bool     `yaml:"payed,omitempty" json:"payed,omitempty"`
 }
 
 // Info provides information about snaps.

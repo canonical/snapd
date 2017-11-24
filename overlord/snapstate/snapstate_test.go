@@ -7750,6 +7750,50 @@ func (s *snapmgrTestSuite) TestSnapManagerRefreshSchedule(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestSideInfoPayed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	ts, err := snapstate.Install(s.state, "some-snap", "channel-for-payed", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "install payed snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// verify snap has payed sideinfo
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.CurrentSideInfo().Payed, Equals, true)
+	c.Check(snapst.CurrentSideInfo().Private, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestSideInfoPrivate(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	ts, err := snapstate.Install(s.state, "some-snap", "channel-for-private", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "install payed snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// verify snap has private sideinfo
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.CurrentSideInfo().Private, Equals, true)
+	c.Check(snapst.CurrentSideInfo().Payed, Equals, false)
+}
+
 type canDisableSuite struct{}
 
 var _ = Suite(&canDisableSuite{})
