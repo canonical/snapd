@@ -478,7 +478,17 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             . $TESTSLIB/pkgdb.sh
-            distro_purge_package snapd snap-confine ubuntu-core-launcher
+
+            distro_purge_package snapd
+            case "$SPREAD_SYSTEM" in
+                arch-*)
+                    # there is no snap-confine and ubuntu-core-launcher
+                    # in Arch
+                    ;;
+                *)
+                    distro_purge_package snap-confine ubuntu-core-launcher
+                    ;;
+            esac
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
