@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type linkSnapSuite struct {
@@ -136,6 +138,71 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	c.Check(snapst.UserID, Equals, 2)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, HasLen, 0)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSuccessNoUserID(c *C) {
+	s.state.Lock()
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel: "beta",
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// check that snapst.UserID does not get set
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.UserID, Equals, 0)
+
+	var snaps map[string]*json.RawMessage
+	err = s.state.Get("snaps", &snaps)
+	c.Assert(err, IsNil)
+	raw := []byte(*snaps["foo"])
+	c.Check(string(raw), Not(testutil.Contains), "user-id")
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSuccessUserIDAlreadySet(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			&snap.SideInfo{RealName: "foo", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+		UserID:  1,
+	})
+
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel: "beta",
+		UserID:  2,
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// check that snapst.UserID was not "transfered"
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.UserID, Equals, 1)
 }
 
 func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
