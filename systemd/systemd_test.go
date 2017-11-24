@@ -459,7 +459,7 @@ Before=snapd.service
 What=%s
 Where=/apps/foo/1.0
 Type=squashfs
-Options=nodev,ro
+Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target
@@ -483,7 +483,7 @@ Before=snapd.service
 What=%s
 Where=/apps/foo/1.0
 Type=none
-Options=nodev,ro,bind
+Options=nodev,ro,x-gdu.hide,bind
 
 [Install]
 WantedBy=multi-user.target
@@ -526,7 +526,7 @@ Before=snapd.service
 What=%s
 Where=/apps/foo/1.0
 Type=fuse.squashfuse
-Options=nodev,ro,allow_other
+Options=nodev,ro,x-gdu.hide,allow_other
 
 [Install]
 WantedBy=multi-user.target
@@ -565,7 +565,7 @@ Before=snapd.service
 What=%s
 Where=/apps/foo/1.0
 Type=squashfs
-Options=nodev,ro
+Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target
