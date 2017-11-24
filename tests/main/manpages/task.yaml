@@ -9,7 +9,7 @@ restore: |
     distro_purge_package man
 execute: |
     for manpage in snap snap-confine snap-discard-ns; do
-        if ! man --what $manpage; then
+        if ! LC_ALL=C man --what $manpage; then
             echo "Expected to see manual page for $manpage"
             exit 1
         fi
