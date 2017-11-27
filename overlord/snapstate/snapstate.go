@@ -61,6 +61,10 @@ func needsMaybeCore(typ snap.Type) int {
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
+	if snapst.IsInstalled() && !snapst.Active {
+		return nil, fmt.Errorf("internal error: cannot update a disabled snap")
+	}
+
 	if snapsup.Flags.Classic {
 		if !release.OnClassic {
 			return nil, fmt.Errorf("classic confinement is only supported on classic systems")
@@ -138,7 +142,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = preRefreshHook
 	}
 
-	if snapst.Active {
+	if snapst.IsInstalled() {
 		// unlink-current-snap (will stop services for copy-data)
 		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), snapsup.Name()))
 		addTask(stop)
