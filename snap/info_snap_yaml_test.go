@@ -1142,6 +1142,7 @@ hooks:
 plugs:
     foo-socket-plug:
         interface: socket
+        path: /dummy
         # $protocol: foo
     logging:
         interface: syslog
@@ -1244,7 +1245,12 @@ slots:
 	c.Check(plug3.Snap, Equals, info)
 	c.Check(plug3.Name, Equals, "foo-socket-plug")
 	c.Check(plug3.Interface, Equals, "socket")
-	c.Check(plug3.Attrs, HasLen, 0)
+	c.Check(plug3.Attrs, HasLen, 1)
+	v, err := plug3.Attr("path")
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, "/dummy")
+	_, err = plug3.Attr("unknown")
+	c.Check(err, ErrorMatches, `attribute "unknown" not found`)
 	c.Check(plug3.Label, Equals, "")
 	c.Check(plug3.Apps, DeepEquals, map[string]*snap.AppInfo{app2.Name: app2})
 
@@ -1267,6 +1273,11 @@ slots:
 	c.Check(slot1.Interface, Equals, "socket")
 	c.Check(slot1.Attrs, DeepEquals, map[string]interface{}{
 		"protocol": "foo", "path": "$SNAP_DATA/socket"})
+	v, err = slot1.Attr("protocol")
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, "foo")
+	_, err = slot1.Attr("unknown")
+	c.Check(err, ErrorMatches, `attribute "unknown" not found`)
 	c.Check(slot1.Label, Equals, "")
 	c.Check(slot1.Apps, DeepEquals, map[string]*snap.AppInfo{app1.Name: app1})
 
