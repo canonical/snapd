@@ -1,31 +1,29 @@
-usr/bin/snap
-usr/bin/snapctl
-usr/lib/snapd/system-shutdown
-usr/bin/snap-exec /usr/lib/snapd/
-usr/bin/snap-repair /usr/lib/snapd/
-usr/bin/snap-update-ns /usr/lib/snapd/
-usr/bin/snapd /usr/lib/snapd/
-usr/bin/snap-seccomp /usr/lib/snapd/
-
 # bash completion
-data/completion/snap /usr/share/bash-completion/completions
+# for compatibility with ancient snap installs that wrote the shell based
+# polkit actions
+# snap-confine stuff
+# snap/snapd version information
+# udev, must be installed before 80-udisks
+# wrapper scripts instead of the modern symlinks
 data/completion/complete.sh /usr/lib/snapd/
 data/completion/etelpmoc.sh /usr/lib/snapd/
-# udev, must be installed before 80-udisks
-data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
-# snap/snapd version information
+data/completion/snap /usr/share/bash-completion/completions
 data/info /usr/lib/snapd/
-# polkit actions
 data/polkit/io.snapcraft.snapd.policy /usr/share/polkit-1/actions/
-
-# snap-confine stuff
+data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
 etc/apparmor.d/usr.lib.snapd.snap-confine.real
 lib/udev/rules.d/80-snappy-assign.rules
 lib/udev/snappy-app-dev
+usr/bin/snap
+usr/bin/snap-exec /usr/lib/snapd/
+usr/bin/snap-repair /usr/lib/snapd/
+usr/bin/snap-seccomp /usr/lib/snapd/
+usr/bin/snap-update-ns /usr/lib/snapd/
+usr/bin/snapctl
+usr/bin/snapd /usr/lib/snapd/
+usr/bin/ubuntu-core-launcher
 usr/lib/snapd/snap-confine
 usr/lib/snapd/snap-discard-ns
+usr/lib/snapd/system-shutdown
 usr/share/man/man1/snap-confine.1
 usr/share/man/man5/snap-discard-ns.5
-# for compatibility with ancient snap installs that wrote the shell based
-# wrapper scripts instead of the modern symlinks
-usr/bin/ubuntu-core-launcher
