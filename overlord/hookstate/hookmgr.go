@@ -154,7 +154,7 @@ func (m *HookManager) hijacked(hookName, snapName string) HookFunc {
 func (m *HookManager) RegisterHijacked(hookName, snapName string, f HookFunc) {
 	key := fmt.Sprintf("%s:%s", hookName, snapName)
 	if _, ok := m.hijackedMap[key]; ok {
-		panic("hook %s already hijacked")
+		panic(fmt.Sprintf("hook %s for snap %s already hijacked", hookName, snapName))
 	}
 	m.hijackedMap[key] = f
 }
