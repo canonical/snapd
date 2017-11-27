@@ -208,4 +208,8 @@ package_snapd-git() {
   install -m 644 -D "$srcdir/snap.1" \
           "$pkgdir/usr/share/man/man1/snap.1"
 
+  # Install the "info" data file with snapd version
+  install -m 644 -D "$GOPATH/src/${_gourl}/data/info" \
+          "$pkgdir/usr/lib/snapd/info"
+
 }
