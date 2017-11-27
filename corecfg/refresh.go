@@ -32,6 +32,6 @@ func validateRefreshSchedule(tr Conf) error {
 		return nil
 	}
 	// FIXME: add support for things like "managed" once we have that
-	_, err = timeutil.ParseSchedule(refreshScheduleStr)
+	_, err = timeutil.ParseLegacySchedule(refreshScheduleStr)
 	return err
 }

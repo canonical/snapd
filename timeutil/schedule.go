@@ -214,13 +214,13 @@ func parseSingleSchedule(s string) (*Schedule, error) {
 	}, nil
 }
 
-// ParseSchedule takes a schedule string in the form of:
+// ParseLegacySchedule takes a schedule string in the form of:
 //
 // 9:00-15:00 (every day between 9am and 3pm)
 // 9:00-15:00/21:00-22:00 (every day between 9am,5pm and 9pm,10pm)
 //
 // and returns a list of Schedule types or an error
-func ParseSchedule(scheduleSpec string) ([]*Schedule, error) {
+func ParseLegacySchedule(scheduleSpec string) ([]*Schedule, error) {
 	var schedule []*Schedule
 
 	for _, s := range strings.Split(scheduleSpec, "/") {
