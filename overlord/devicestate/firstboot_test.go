@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -744,10 +745,11 @@ snaps:
 	defer rhk()
 
 	// ensure we have something that captures the core config
-	s.overlord.HookManager().RegisterHijacked("core", "configure", func(ctx *hookstate.Context) error {
+	restore := configstate.MockCorecfgRun(func(*hookstate.Context) error {
 		configured = append(configured, "corecfg")
 		return nil
 	})
+	defer restore()
 
 	// avoid device reg
 	chg1 := st.NewChange("become-operational", "init device")

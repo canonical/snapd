@@ -147,12 +147,16 @@ func (m *HookManager) Stop() {
 	m.runner.Stop()
 }
 
-func (m *HookManager) hijacked(snapName, hookName string) HookFunc {
-	return m.hijackedMap[fmt.Sprintf("%s:%s", snapName, hookName)]
+func (m *HookManager) hijacked(hookName, snapName string) HookFunc {
+	return m.hijackedMap[fmt.Sprintf("%s:%s", hookName, snapName)]
 }
 
-func (m *HookManager) RegisterHijacked(snapName, hookName string, f HookFunc) {
-	m.hijackedMap[fmt.Sprintf("%s:%s", snapName, hookName)] = f
+func (m *HookManager) RegisterHijacked(hookName, snapName string, f HookFunc) {
+	key := fmt.Sprintf("%s:%s", hookName, snapName)
+	if _, ok := m.hijackedMap[key]; ok {
+		panic("hook %s already hijacked")
+	}
+	m.hijackedMap[key] = f
 }
 
 func (m *HookManager) ephemeralContext(cookieID string) (context *Context, err error) {
@@ -224,8 +228,9 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("cannot read %q snap details: %v", hooksup.Snap, err)
 	}
 
+	isHijacked := m.hijacked(hooksup.Hook, hooksup.Snap) != nil
 	hookExists := info.Hooks[hooksup.Hook] != nil
-	if !hookExists && !hooksup.Optional {
+	if !isHijacked && !hookExists && !hooksup.Optional {
 		return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
 	}
 
@@ -270,7 +275,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 
 	// some hooks get hijacked, e.g. the core configuration
 	var output []byte
-	if f := m.hijacked(hooksup.Snap, hooksup.Hook); f != nil {
+	if f := m.hijacked(hooksup.Hook, hooksup.Snap); f != nil {
 		context.Lock()
 		f(context)
 		context.Unlock()
