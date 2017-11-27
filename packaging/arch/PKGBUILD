@@ -18,8 +18,9 @@ checkdepends=('python' 'squashfs-tools' 'indent' 'shellcheck')
 
 options=('!strip' 'emptydirs')
 install=snapd.install
-source=("git+https://github.com/snapcore/$pkgbase.git")
-md5sums=('SKIP')
+source=("git+https://github.com/snapcore/$pkgbase.git" "snap-mgmt.sh")
+md5sums=('SKIP'
+         '3e4bf446e920a285f23c84866c316126')
 
 pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd')
@@ -221,4 +222,7 @@ package_snapd-git() {
   install -m 644 -D "$GOPATH/src/${_gourl}/data/info" \
           "$pkgdir/usr/lib/snapd/info"
 
+  # Install helper
+  install -m 755 -D "$srcdir/snap-mgmt.sh" \
+          "$pkgdir/usr/lib/snapd/snap-mgmt"
 }
