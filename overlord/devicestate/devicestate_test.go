@@ -2170,26 +2170,3 @@ func (s *deviceMgrSuite) TestCanSetRefreshScheduleManagedNoRefreshScheduleManage
 
 	c.Check(devicestate.CanSetRefreshScheduleManaged(st), Equals, false)
 }
-
-func (s *deviceMgrSuite) TestRefreshControlManaged(c *C) {
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	// Even with config set to managed refresh schedule
-	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.schedule", "managed")
-	tr.Commit()
-	// the schedule is not yet managed without a connected snapd-control
-	// interface with the "refresh-schedule: managed" attribute
-	c.Check(devicestate.RefreshScheduleManaged(st), Equals, false)
-
-	info11 := makeInstalledMockSnap(c, st, snapWithSnapdControlRefreshScheduleManagedYAML)
-	core11 := makeInstalledMockCoreSnapWithSnapdControl(c, st)
-	makeMockRepoWithConnectedSnaps(c, st, info11, core11, "snapd-control")
-	s.makeSnapDeclaration(c, st, info11)
-
-	// and once the connected interface is in place, the refresh
-	// schedule is set to managed.
-	c.Check(devicestate.RefreshScheduleManaged(st), Equals, true)
-}

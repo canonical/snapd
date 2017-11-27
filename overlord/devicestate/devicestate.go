@@ -198,7 +198,7 @@ func delayedCrossMgrInit() {
 		snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
 	})
 	snapstate.CanAutoRefresh = canAutoRefresh
-	snapstate.RefreshScheduleManaged = refreshScheduleManaged
+	snapstate.CanSetRefreshScheduleManaged = CanSetRefreshScheduleManaged
 }
 
 // ProxyStore returns the store assertion for the proxy store if one is set.
@@ -224,23 +224,6 @@ func ProxyStore(st *state.State) (*asserts.Store, error) {
 	}
 
 	return a.(*asserts.Store), nil
-}
-
-// refreshScheduleManaged returns true if the refresh schedule of the
-// device is managed by an external snap
-func refreshScheduleManaged(st *state.State) bool {
-	var refreshScheduleStr string
-
-	tr := config.NewTransaction(st)
-	err := tr.Get("core", "refresh.schedule", &refreshScheduleStr)
-	if err != nil {
-		return false
-	}
-	if refreshScheduleStr != "managed" {
-		return false
-	}
-
-	return CanSetRefreshScheduleManaged(st)
 }
 
 // plugConnected returns true if the given snap/plug names are connected
