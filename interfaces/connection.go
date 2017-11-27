@@ -21,6 +21,7 @@ package interfaces
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/snapcore/snapd/snap"
 )
@@ -49,6 +50,33 @@ type ConnectedSlot struct {
 // to ConnectedSlot, ConnectedPlug, PlugInfo and SlotInfo types.
 type AttrGetter interface {
 	Attr(key string) (interface{}, error)
+}
+
+func getAttribute(staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, key string, val interface{}) error {
+	var v interface{}
+	var ok bool
+
+	if dynamicAttrs != nil {
+		v, ok = dynamicAttrs[key]
+	}
+	if !ok && staticAttrs != nil {
+		v, ok = staticAttrs[key]
+	}
+
+	if ok {
+		rt := reflect.TypeOf(val)
+		if rt.Kind() != reflect.Ptr || val == nil {
+			return fmt.Errorf("cannot store the value of attribute %q", key)
+		}
+
+		if reflect.TypeOf(v) != rt.Elem() {
+			return fmt.Errorf("the type of attribute %q is %s, expected %s", key, reflect.TypeOf(v).Name(), rt)
+		}
+		rv := reflect.ValueOf(val)
+		rv.Elem().Set(reflect.ValueOf(v))
+		return nil
+	}
+	return fmt.Errorf("attribute %q not found", key)
 }
 
 // NewConnectedSlot creates an object representing a connected slot.
@@ -100,11 +128,8 @@ func (plug *ConnectedPlug) SecurityTags() []string {
 }
 
 // StaticAttr returns a static attribute with the given key, or error if attribute doesn't exist.
-func (plug *ConnectedPlug) StaticAttr(key string) (interface{}, error) {
-	if val, ok := plug.staticAttrs[key]; ok {
-		return val, nil
-	}
-	return nil, fmt.Errorf("attribute %q not found", key)
+func (plug *ConnectedPlug) StaticAttr(key string, val interface{}) error {
+	return getAttribute(plug.staticAttrs, nil, key, val)
 }
 
 // StaticAttrs returns all static attributes.
@@ -115,13 +140,8 @@ func (plug *ConnectedPlug) StaticAttrs() map[string]interface{} {
 // Attr returns a dynamic attribute with the given name. It falls back to returning static
 // attribute if dynamic one doesn't exist. Error is returned if neither dynamic nor static
 // attribute exist.
-func (plug *ConnectedPlug) Attr(key string) (interface{}, error) {
-	if plug.dynamicAttrs != nil {
-		if val, ok := plug.dynamicAttrs[key]; ok {
-			return val, nil
-		}
-	}
-	return plug.StaticAttr(key)
+func (plug *ConnectedPlug) Attr(key string, val interface{}) error {
+	return getAttribute(plug.staticAttrs, plug.dynamicAttrs, key, val)
 }
 
 // SetAttr sets the given dynamic attribute. Error is returned if the key is already used by a static attribute.
@@ -167,11 +187,8 @@ func (slot *ConnectedSlot) SecurityTags() []string {
 }
 
 // StaticAttr returns a static attribute with the given key, or error if attribute doesn't exist.
-func (slot *ConnectedSlot) StaticAttr(key string) (interface{}, error) {
-	if val, ok := slot.staticAttrs[key]; ok {
-		return val, nil
-	}
-	return nil, fmt.Errorf("attribute %q not found", key)
+func (slot *ConnectedSlot) StaticAttr(key string, val interface{}) error {
+	return getAttribute(slot.staticAttrs, nil, key, val)
 }
 
 // StaticAttrs returns all static attributes.
@@ -182,13 +199,8 @@ func (slot *ConnectedSlot) StaticAttrs() map[string]interface{} {
 // Attr returns a dynamic attribute with the given name. It falls back to returning static
 // attribute if dynamic one doesn't exist. Error is returned if neither dynamic nor static
 // attribute exist.
-func (slot *ConnectedSlot) Attr(key string) (interface{}, error) {
-	if slot.dynamicAttrs != nil {
-		if val, ok := slot.dynamicAttrs[key]; ok {
-			return val, nil
-		}
-	}
-	return slot.StaticAttr(key)
+func (slot *ConnectedSlot) Attr(key string, val interface{}) error {
+	return getAttribute(slot.staticAttrs, slot.dynamicAttrs, key, val)
 }
 
 // SetAttr sets the given dynamic attribute. Error is returned if the key is already used by a static attribute.
