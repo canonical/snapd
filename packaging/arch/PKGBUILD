@@ -96,6 +96,9 @@ build() {
     --enable-nvidia-biarch \
     --enable-merged-usr
   make $MAKEFLAGS
+
+  # generate man-pages for snap
+  $GOPATH/bin/snap help --man > "$srcdir/snap.1"
 }
 
 check() {
@@ -200,4 +203,9 @@ package_snapd-git() {
   install -d -m 000 "$pkgdir/var/lib/snapd/void"
   install -d -m 700 "$pkgdir/var/lib/snapd/cookie"
   install -d -m 700 "$pkgdir/var/lib/snapd/cache"
+
+  # Install snap(1) man page
+  install -m 644 -D "$srcdir/snap.1" \
+          "$pkgdir/usr/share/man/man1/snap.1"
+
 }
