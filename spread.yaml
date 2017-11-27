@@ -66,10 +66,16 @@ backends:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
                 workers: 4
-            - debian-unstable-64:
+            - debian-sid-64:
+                kernel: GRUB 2
+                workers: 4
+            - debian-9-64:
                 kernel: GRUB 2
                 workers: 4
             - fedora-25-64:
+                workers: 3
+                manual: true
+            - fedora-26-64:
                 workers: 3
             - opensuse-42.2-64:
                 workers: 3
@@ -104,6 +110,9 @@ backends:
             - ubuntu-18.04-64:
                 username: ubuntu
                 password: ubuntu
+            - debian-sid-64:
+                username: debian
+                password: debian
             - debian-9-64:
                 username: debian
                 password: debian
@@ -111,6 +120,9 @@ backends:
                 username: debian
                 password: debian
             - fedora-25-64:
+                username: fedora
+                password: fedora
+            - fedora-26-64:
                 username: fedora
                 password: fedora
     autopkgtest:
