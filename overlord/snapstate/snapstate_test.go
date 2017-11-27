@@ -247,12 +247,12 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"validate-snap",
 		"mount-snap",
 	}
+	expected = append(expected, "run-hook[pre-refresh]")
 	if opts&unlinkBefore != 0 {
 		expected = append(expected,
 			"stop-snap-services",
 		)
 	}
-	expected = append(expected, "run-hook[pre-refresh]")
 	if opts&unlinkBefore != 0 {
 		expected = append(expected,
 			"remove-aliases",

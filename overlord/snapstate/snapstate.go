@@ -132,13 +132,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = mount
 	}
 
-	if snapst.Active {
-		// unlink-current-snap (will stop services for copy-data)
-		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), snapsup.Name()))
-		addTask(stop)
-		prev = stop
-	}
-
 	if runRefreshHooks {
 		preRefreshHook := SetupPreRefreshHook(st, snapsup.Name())
 		addTask(preRefreshHook)
@@ -146,6 +139,11 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	if snapst.Active {
+		// unlink-current-snap (will stop services for copy-data)
+		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), snapsup.Name()))
+		addTask(stop)
+		prev = stop
+
 		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), snapsup.Name()))
 		addTask(removeAliases)
 		prev = removeAliases
