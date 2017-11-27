@@ -195,4 +195,9 @@ package_snapd-git() {
   install -d -m 755 "$pkgdir/var/lib/snapd/seccomp/bpf"
   install -d -m 755 "$pkgdir/var/lib/snapd/snap/bin"
   install -d -m 755 "$pkgdir/var/lib/snapd/snaps"
+  install -d -m 755 "$pkgdir/var/lib/snapd/lib/gl"
+  # these dirs have special permissions
+  install -d -m 000 "$pkgdir/var/lib/snapd/void"
+  install -d -m 700 "$pkgdir/var/lib/snapd/cookie"
+  install -d -m 700 "$pkgdir/var/lib/snapd/cache"
 }
