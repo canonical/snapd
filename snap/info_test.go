@@ -827,3 +827,23 @@ func (s *infoSuite) TestSlotInfoString(c *C) {
 	slot := &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "slot"}
 	c.Assert(slot.String(), Equals, "snap:slot")
 }
+
+func (s *infoSuite) TestPlugInfoAttr(c *C) {
+	plug := &snap.PlugInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Attrs: map[string]interface{}{"key": "value"}}
+	v, err := plug.Attr("key")
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, "value")
+
+	_, err = plug.Attr("unknown")
+	c.Check(err, ErrorMatches, `attribute "unknown" not found`)
+}
+
+func (s *infoSuite) TestSlotInfoAttr(c *C) {
+	slot := &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Attrs: map[string]interface{}{"key": "value"}}
+	v, err := slot.Attr("key")
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, "value")
+
+	_, err = slot.Attr("unknown")
+	c.Check(err, ErrorMatches, `attribute "unknown" not found`)
+}
