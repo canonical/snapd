@@ -829,21 +829,34 @@ func (s *infoSuite) TestSlotInfoString(c *C) {
 }
 
 func (s *infoSuite) TestPlugInfoAttr(c *C) {
-	plug := &snap.PlugInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Attrs: map[string]interface{}{"key": "value"}}
-	v, err := plug.Attr("key")
-	c.Assert(err, IsNil)
-	c.Check(v, Equals, "value")
+	var val string
+	var intVal int
 
-	_, err = plug.Attr("unknown")
-	c.Check(err, ErrorMatches, `attribute "unknown" not found`)
+	plug := &snap.PlugInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Attrs: map[string]interface{}{"key": "value", "number": int(123)}}
+	c.Assert(plug.Attr("key", &val), IsNil)
+	c.Check(val, Equals, "value")
+
+	c.Assert(plug.Attr("number", &intVal), IsNil)
+	c.Check(intVal, Equals, 123)
+
+	c.Check(plug.Attr("key", &intVal), ErrorMatches, `the type of attribute "key" is string, expected \*int`)
+	c.Check(plug.Attr("unknown", &val), ErrorMatches, `attribute "unknown" not found`)
+	c.Check(plug.Attr("key", intVal), ErrorMatches, `cannot store the value of attribute "key"`)
 }
 
 func (s *infoSuite) TestSlotInfoAttr(c *C) {
-	slot := &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Attrs: map[string]interface{}{"key": "value"}}
-	v, err := slot.Attr("key")
-	c.Assert(err, IsNil)
-	c.Check(v, Equals, "value")
+	var val string
+	var intVal int
 
-	_, err = slot.Attr("unknown")
-	c.Check(err, ErrorMatches, `attribute "unknown" not found`)
+	slot := &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Attrs: map[string]interface{}{"key": "value", "number": int(123)}}
+
+	c.Assert(slot.Attr("key", &val), IsNil)
+	c.Check(val, Equals, "value")
+
+	c.Assert(slot.Attr("number", &intVal), IsNil)
+	c.Check(intVal, Equals, 123)
+
+	c.Check(slot.Attr("key", &intVal), ErrorMatches, `the type of attribute "key" is string, expected \*int`)
+	c.Check(slot.Attr("unknown", &val), ErrorMatches, `attribute "unknown" not found`)
+	c.Check(slot.Attr("key", intVal), ErrorMatches, `cannot store the value of attribute "key"`)
 }
