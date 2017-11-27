@@ -171,7 +171,7 @@ build_arch_pkg() {
     mv /tmp/pkg/PKGBUILD.tmp /tmp/pkg/PKGBUILD
 
     chown -R test:test /tmp/pkg
-    su -l -c "cd /tmp/pkg && makepkg -f --nocheck" test
+    su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
 
     cp /tmp/pkg/snapd*.pkg.tar.xz "$GOPATH"
 }
