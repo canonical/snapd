@@ -4,13 +4,19 @@ set -e
 
 systemctl_stop() {
     unit="$1"
-    for i in $(seq 10); do
+    if ! systemctl is-active -q "$unit"; then
+        echo "$unit is stopped."
+        return
+    fi
+    echo "Stoping $unit [attempt $i]"
+    systemctl stop -q "$unit" || true
+
+    for i in $(seq 20); do
+        echo "Waiting until unit $unit is stopped [attempt $i]"
         if ! systemctl is-active -q "$unit"; then
             echo "$unit is stopped."
-            break
+            return
         fi
-        echo "Stoping $unit [attempt $i]"
-        systemctl stop -q "$unit" || true
         sleep .1
     done
 }
@@ -79,6 +85,10 @@ if [ "$1" = "purge" ]; then
     for d in "/snap/bin" "/snap" "/var/snap"; do
         if [ -d "$d" ]; then
             rmdir --ignore-fail-on-non-empty $d
+        fi
+        if [ -d "$d" ]; then
+            echo "Failed cleaning dir $d"
+            exit 1
         fi
     done
 
