@@ -45,6 +45,12 @@ type ConnectedSlot struct {
 	dynamicAttrs map[string]interface{}
 }
 
+// AttrGetter is an interface with Attr getter method common
+// to ConnectedSlot, ConnectedPlug, PlugInfo and SlotInfo types.
+type AttrGetter interface {
+	Attr(key string) (interface{}, error)
+}
+
 // NewConnectedSlot creates an object representing a connected slot.
 func NewConnectedSlot(slot *snap.SlotInfo, dynamicAttrs map[string]interface{}) *ConnectedSlot {
 	return &ConnectedSlot{
