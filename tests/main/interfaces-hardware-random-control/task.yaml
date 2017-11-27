@@ -11,7 +11,7 @@ summary: |
     /sys/class/misc/hw_random/{rng_available,rng_current}
 
 # Execution skipped on debian due to device /dev/hwrng not created by default
-systems: [-debian-unstable-*]
+systems: [-debian-*]
 
 prepare: |
     echo "Given a snap declaring a plug on the hardware-random-control interface is installed"

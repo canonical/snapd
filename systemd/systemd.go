@@ -416,7 +416,7 @@ func MountUnitPath(baseDir string) string {
 func (s *systemd) WriteMountUnitFile(name, what, where, fstype string) (string, error) {
 	options := []string{"nodev"}
 	if fstype == "squashfs" {
-		options = append(options, "ro")
+		options = append(options, "ro", "x-gdu.hide")
 	}
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
