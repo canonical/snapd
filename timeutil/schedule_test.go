@@ -100,7 +100,7 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 		{"9:00-11:00", []*timeutil.Schedule{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}, ""},
 		{"9:00-11:00/20:00-22:00", []*timeutil.Schedule{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}, {Start: timeutil.TimeOfDay{Hour: 20}, End: timeutil.TimeOfDay{Hour: 22}}}, ""},
 	} {
-		schedule, err := timeutil.ParseSchedule(t.in)
+		schedule, err := timeutil.ParseLegacySchedule(t.in)
 		if t.errStr != "" {
 			c.Check(err, ErrorMatches, t.errStr, Commentf("%q returned unexpected error: %s", t.in, err))
 		} else {
@@ -231,7 +231,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 		})
 		defer restorer()
 
-		sched, err := timeutil.ParseSchedule(t.schedule)
+		sched, err := timeutil.ParseLegacySchedule(t.schedule)
 		c.Assert(err, IsNil)
 		minDist, maxDist := parse(c, t.next)
 
