@@ -60,13 +60,13 @@ Architecture: any
 Depends: adduser,
          apparmor (>= 2.10.95-0ubuntu2.2),
          ca-certificates,
-         gnupg1 | gnupg,
          openssh-client,
          squashfs-tools,
          systemd,
          udev,
          ${misc:Depends},
          ${shlibs:Depends}
+Recommends: gnupg1 | gnupg
 Replaces: snap-confine (<< 2.23),
           snapd-xdg-open (<= 0.0.0),
           ubuntu-core-launcher (<< 2.22),
