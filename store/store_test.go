@@ -2012,6 +2012,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(result.Title(), Equals, "Hello World")
 	c.Check(result.License, Equals, "GPL-3.0")
 	c.Assert(result.Prices, DeepEquals, map[string]float64{"EUR": 0.99, "USD": 1.23})
+	c.Assert(result.Paid, Equals, true)
 	c.Assert(result.Screenshots, DeepEquals, []snap.ScreenshotInfo{
 		{
 			URL: "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/screenshot.png",
@@ -4408,14 +4409,17 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrders(c *C) {
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
 	helloWorld.Prices = map[string]float64{"USD": 1.23}
+	helloWorld.Paid = true
 
 	funkyApp := &snap.Info{}
 	funkyApp.SnapID = funkyAppSnapID
 	funkyApp.Prices = map[string]float64{"USD": 2.34}
+	funkyApp.Paid = true
 
 	otherApp := &snap.Info{}
 	otherApp.SnapID = "other"
 	otherApp.Prices = map[string]float64{"USD": 3.45}
+	otherApp.Paid = true
 
 	otherApp2 := &snap.Info{}
 	otherApp2.SnapID = "other2"
@@ -4454,14 +4458,17 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersFailedAccess(c *C) {
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
 	helloWorld.Prices = map[string]float64{"USD": 1.23}
+	helloWorld.Paid = true
 
 	funkyApp := &snap.Info{}
 	funkyApp.SnapID = funkyAppSnapID
 	funkyApp.Prices = map[string]float64{"USD": 2.34}
+	funkyApp.Paid = true
 
 	otherApp := &snap.Info{}
 	otherApp.SnapID = "other"
 	otherApp.Prices = map[string]float64{"USD": 3.45}
+	otherApp.Paid = true
 
 	otherApp2 := &snap.Info{}
 	otherApp2.SnapID = "other2"
@@ -4485,14 +4492,17 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersNoAuth(c *C) {
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
 	helloWorld.Prices = map[string]float64{"USD": 1.23}
+	helloWorld.Paid = true
 
 	funkyApp := &snap.Info{}
 	funkyApp.SnapID = funkyAppSnapID
 	funkyApp.Prices = map[string]float64{"USD": 2.34}
+	funkyApp.Paid = true
 
 	otherApp := &snap.Info{}
 	otherApp.SnapID = "other"
 	otherApp.Prices = map[string]float64{"USD": 3.45}
+	otherApp.Paid = true
 
 	otherApp2 := &snap.Info{}
 	otherApp2.SnapID = "other2"
@@ -4568,6 +4578,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingle(c *C) {
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
 	helloWorld.Prices = map[string]float64{"USD": 1.23}
+	helloWorld.Paid = true
 
 	snaps := []*snap.Info{helloWorld}
 
@@ -4616,6 +4627,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingleNotFound(c *C) 
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
 	helloWorld.Prices = map[string]float64{"USD": 1.23}
+	helloWorld.Paid = true
 
 	snaps := []*snap.Info{helloWorld}
 
@@ -4648,6 +4660,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersTokenExpired(c *C) {
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
 	helloWorld.Prices = map[string]float64{"USD": 1.23}
+	helloWorld.Paid = true
 
 	snaps := []*snap.Info{helloWorld}
 
@@ -4657,18 +4670,15 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersTokenExpired(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreMustBuy(c *C) {
-	free := map[string]float64{}
-	priced := map[string]float64{"USD": 2.99}
-
 	// Never need to buy a free snap.
-	c.Check(mustBuy(free, true), Equals, false)
-	c.Check(mustBuy(free, false), Equals, false)
+	c.Check(mustBuy(false, true), Equals, false)
+	c.Check(mustBuy(false, false), Equals, false)
 
 	// Don't need to buy snaps that have been bought.
-	c.Check(mustBuy(priced, true), Equals, false)
+	c.Check(mustBuy(true, true), Equals, false)
 
 	// Need to buy snaps that aren't bought.
-	c.Check(mustBuy(priced, false), Equals, true)
+	c.Check(mustBuy(true, false), Equals, true)
 }
 
 const customersMeValid = `

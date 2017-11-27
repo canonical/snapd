@@ -11,6 +11,9 @@ else
             ;;
         *)
             mkdir -p ~/.snap/gnupg/
+            # It is just created once by gpg-agent, then if this dir does not exist gpg will
+            # fail to create the key
+            mkdir -p ~/.snap/gnupg/private-keys-v1.d
             echo pinentry-program "$TESTSLIB/pinentry-fake.sh" > ~/.snap/gnupg/gpg-agent.conf
             chmod -R go-rwx ~/.snap
             ;;

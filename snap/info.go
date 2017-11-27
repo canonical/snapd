@@ -135,6 +135,7 @@ type SideInfo struct {
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
 	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
+	Paid              bool     `yaml:"paid,omitempty" json:"paid,omitempty"`
 }
 
 // Info provides information about snaps.
@@ -396,6 +397,13 @@ type PlugInfo struct {
 	Hooks     map[string]*HookInfo
 }
 
+func (plug *PlugInfo) Attr(key string) (interface{}, error) {
+	if val, ok := plug.Attrs[key]; ok {
+		return val, nil
+	}
+	return nil, fmt.Errorf("attribute %q not found", key)
+}
+
 // SecurityTags returns security tags associated with a given plug.
 func (plug *PlugInfo) SecurityTags() []string {
 	tags := make([]string, 0, len(plug.Apps)+len(plug.Hooks))
@@ -412,6 +420,13 @@ func (plug *PlugInfo) SecurityTags() []string {
 // String returns the representation of the plug as snap:plug string.
 func (plug *PlugInfo) String() string {
 	return fmt.Sprintf("%s:%s", plug.Snap.Name(), plug.Name)
+}
+
+func (slot *SlotInfo) Attr(key string) (interface{}, error) {
+	if val, ok := slot.Attrs[key]; ok {
+		return val, nil
+	}
+	return nil, fmt.Errorf("attribute %q not found", key)
 }
 
 // SecurityTags returns security tags associated with a given slot.

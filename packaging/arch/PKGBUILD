@@ -96,6 +96,9 @@ build() {
     --enable-nvidia-biarch \
     --enable-merged-usr
   make $MAKEFLAGS
+
+  # generate man-pages for snap
+  $GOPATH/bin/snap help --man > "$srcdir/snap.1"
 }
 
 check() {
@@ -184,4 +187,29 @@ package_snapd-git() {
   # and make sure that target exists so that we don't have dangling symlinks
   # after installing the package
   install -d -m 755 "$pkgdir/var/lib/snapd/snap"
+
+  # pre-create directories
+  install -d -m 755 "$pkgdir/var/cache/snapd"
+  install -d -m 755 "$pkgdir/var/lib/snapd/assertions"
+  install -d -m 755 "$pkgdir/var/lib/snapd/desktop/applications"
+  install -d -m 755 "$pkgdir/var/lib/snapd/device"
+  install -d -m 755 "$pkgdir/var/lib/snapd/hostfs"
+  install -d -m 755 "$pkgdir/var/lib/snapd/mount"
+  install -d -m 755 "$pkgdir/var/lib/snapd/seccomp/bpf"
+  install -d -m 755 "$pkgdir/var/lib/snapd/snap/bin"
+  install -d -m 755 "$pkgdir/var/lib/snapd/snaps"
+  install -d -m 755 "$pkgdir/var/lib/snapd/lib/gl"
+  # these dirs have special permissions
+  install -d -m 000 "$pkgdir/var/lib/snapd/void"
+  install -d -m 700 "$pkgdir/var/lib/snapd/cookie"
+  install -d -m 700 "$pkgdir/var/lib/snapd/cache"
+
+  # Install snap(1) man page
+  install -m 644 -D "$srcdir/snap.1" \
+          "$pkgdir/usr/share/man/man1/snap.1"
+
+  # Install the "info" data file with snapd version
+  install -m 644 -D "$GOPATH/src/${_gourl}/data/info" \
+          "$pkgdir/usr/lib/snapd/info"
+
 }
