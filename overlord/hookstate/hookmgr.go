@@ -39,7 +39,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type HookFunc func(ctx *Context) error
+type hijackFunc func(ctx *Context) error
+type hijackKey struct{ hook, snap string }
 
 // HookManager is responsible for the maintenance of hooks in the system state.
 // It runs hooks when they're requested, assuming they're present in the given
@@ -52,7 +53,7 @@ type HookManager struct {
 	contextsMutex sync.RWMutex
 	contexts      map[string]*Context
 
-	hijackedMap map[string]HookFunc
+	hijackedMap map[hijackKey]hijackFunc
 }
 
 // Handler is the interface a client must satify to handle hooks.
@@ -115,7 +116,7 @@ func Manager(s *state.State) (*HookManager, error) {
 		runner:      runner,
 		repository:  newRepository(),
 		contexts:    make(map[string]*Context),
-		hijackedMap: make(map[string]HookFunc),
+		hijackedMap: make(map[hijackKey]hijackFunc),
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
@@ -147,16 +148,15 @@ func (m *HookManager) Stop() {
 	m.runner.Stop()
 }
 
-func (m *HookManager) hijacked(hookName, snapName string) HookFunc {
-	return m.hijackedMap[fmt.Sprintf("%s:%s", hookName, snapName)]
+func (m *HookManager) hijacked(hookName, snapName string) hijackFunc {
+	return m.hijackedMap[hijackKey{hookName, snapName}]
 }
 
-func (m *HookManager) RegisterHijacked(hookName, snapName string, f HookFunc) {
-	key := fmt.Sprintf("%s:%s", hookName, snapName)
-	if _, ok := m.hijackedMap[key]; ok {
+func (m *HookManager) RegisterHijack(hookName, snapName string, f hijackFunc) {
+	if _, ok := m.hijackedMap[hijackKey{hookName, snapName}]; ok {
 		panic(fmt.Sprintf("hook %s for snap %s already hijacked", hookName, snapName))
 	}
-	m.hijackedMap[key] = f
+	m.hijackedMap[hijackKey{hookName, snapName}] = f
 }
 
 func (m *HookManager) ephemeralContext(cookieID string) (context *Context, err error) {
@@ -228,9 +228,9 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("cannot read %q snap details: %v", hooksup.Snap, err)
 	}
 
-	isHijacked := m.hijacked(hooksup.Hook, hooksup.Snap) != nil
+	mustHijack := m.hijacked(hooksup.Hook, hooksup.Snap) != nil
 	hookExists := info.Hooks[hooksup.Hook] != nil
-	if !isHijacked && !hookExists && !hooksup.Optional {
+	if !mustHijack && !hookExists && !hooksup.Optional {
 		return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
 	}
 
@@ -277,7 +277,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	var output []byte
 	if f := m.hijacked(hooksup.Hook, hooksup.Snap); f != nil {
 		context.Lock()
-		f(context)
+		err = f(context)
 		context.Unlock()
 	} else if hookExists {
 		output, err = runHook(context, tomb)

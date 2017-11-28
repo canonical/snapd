@@ -55,7 +55,7 @@ func Manager(st *state.State, hookManager *hookstate.HookManager) (*ConfigManage
 	// Ensure that we run configure for the core snap internally.
 	// Note that we use the func() indirection so that mocking corecfgRun
 	// in tests works correctly.
-	hookManager.RegisterHijacked("configure", "core", func(ctx *hookstate.Context) error {
+	hookManager.RegisterHijack("configure", "core", func(ctx *hookstate.Context) error {
 		return corecfgRun(ctx)
 	})
 
