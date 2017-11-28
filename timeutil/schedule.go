@@ -321,8 +321,13 @@ func parseSingleSchedule(s string) (*Schedule, error) {
 	}
 
 	return &Schedule{
-		Start: start,
-		End:   end,
+		Times: []TimeSpan{
+			{
+				Start:  start,
+				End:    end,
+				Spread: true,
+			},
+		},
 	}, nil
 }
 
