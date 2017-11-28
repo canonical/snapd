@@ -22,13 +22,8 @@ package configstate
 import (
 	"regexp"
 
-	"gopkg.in/tomb.v2"
-
 	"github.com/snapcore/snapd/corecfg"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -39,11 +34,30 @@ type ConfigManager struct {
 	runner *state.TaskRunner
 }
 
+var corecfgRun = corecfg.Run
+
+func MockCorecfgRun(f func(conf corecfg.Conf) error) (restore func()) {
+	origCorecfgRun := corecfgRun
+	corecfgRun = f
+	return func() {
+		corecfgRun = origCorecfgRun
+	}
+}
+
 // Manager returns a new ConfigManager.
 func Manager(st *state.State, hookManager *hookstate.HookManager) (*ConfigManager, error) {
 	// Most configuration is handled via the "configure" hook of the
 	// snaps. However some configuration is internally handled
 	hookManager.Register(regexp.MustCompile("^configure$"), newConfigureHandler)
+	// Ensure that we run configure for the core snap internally.
+	// Note that we use the func() indirection so that mocking corecfgRun
+	// in tests works correctly.
+	hookManager.RegisterHijack("configure", "core", func(ctx *hookstate.Context) error {
+		ctx.Lock()
+		tr := ContextTransaction(ctx)
+		ctx.Unlock()
+		return corecfgRun(tr)
+	})
 
 	// we handle core/snapd specific configuration internally because
 	// on classic systems we may need to configure things before any
@@ -53,7 +67,6 @@ func Manager(st *state.State, hookManager *hookstate.HookManager) (*ConfigManage
 		state:  st,
 		runner: runner,
 	}
-	runner.AddHandler("configure-snapd", manager.doRunCoreConfigure, nil)
 
 	return manager, nil
 }
@@ -72,69 +85,4 @@ func (m *ConfigManager) Wait() {
 // Stop implements StateManager.Stop.
 func (m *ConfigManager) Stop() {
 	m.runner.Stop()
-}
-
-var corecfgRun = corecfg.Run
-
-func MockCorecfgRun(f func(tr corecfg.Conf) error) (restore func()) {
-	origCorecfgRun := corecfgRun
-	corecfgRun = f
-	return func() {
-		corecfgRun = origCorecfgRun
-	}
-}
-
-func (m *ConfigManager) doRunCoreConfigure(t *state.Task, tomb *tomb.Tomb) error {
-	var patch map[string]interface{}
-	var useDefaults, ignoreErrors, trackErrors bool
-
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	// FIXME: duplicated code from configureHandler.Before()
-	if err := t.Get("use-defaults", &useDefaults); err != nil && err != state.ErrNoState {
-		return err
-	}
-	if useDefaults {
-		var err error
-		patch, err = snapstate.ConfigDefaults(st, "core")
-		if err != nil && err != state.ErrNoState {
-			return err
-		}
-	} else {
-		if err := t.Get("patch", &patch); err != nil && err != state.ErrNoState {
-			return err
-		}
-	}
-
-	if err := t.Get("ignore-error", &ignoreErrors); err != nil && err != state.ErrNoState {
-		return err
-	}
-	if err := t.Get("track-error", &trackErrors); err != nil && err != state.ErrNoState {
-		return err
-	}
-
-	tr := config.NewTransaction(st)
-	st.Unlock()
-	defer st.Lock()
-	for key, value := range patch {
-		if err := tr.Set("core", key, value); err != nil {
-			return err
-		}
-	}
-
-	if err := corecfgRun(tr); err != nil {
-		// FIXME: support trackErrors
-		if ignoreErrors {
-			logger.Noticef("cannot apply core configuration: %s", err)
-		} else {
-			return err
-		}
-	}
-
-	st.Lock()
-	tr.Commit()
-	st.Unlock()
-	return nil
 }
