@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -745,7 +746,7 @@ snaps:
 	defer rhk()
 
 	// ensure we have something that captures the core config
-	restore := configstate.MockCorecfgRun(func(*hookstate.Context) error {
+	restore := configstate.MockCorecfgRun(func(corecfg.Conf) error {
 		configured = append(configured, "corecfg")
 		return nil
 	})

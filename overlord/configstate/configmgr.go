@@ -34,14 +34,9 @@ type ConfigManager struct {
 	runner *state.TaskRunner
 }
 
-var corecfgRun = func(ctx *hookstate.Context) error {
-	ctx.Lock()
-	tr := ContextTransaction(ctx)
-	ctx.Unlock()
-	return corecfg.Run(tr)
-}
+var corecfgRun = corecfg.Run
 
-func MockCorecfgRun(f func(ctx *hookstate.Context) error) (restore func()) {
+func MockCorecfgRun(f func(conf corecfg.Conf) error) (restore func()) {
 	origCorecfgRun := corecfgRun
 	corecfgRun = f
 	return func() {
@@ -58,7 +53,10 @@ func Manager(st *state.State, hookManager *hookstate.HookManager) (*ConfigManage
 	// Note that we use the func() indirection so that mocking corecfgRun
 	// in tests works correctly.
 	hookManager.RegisterHijack("configure", "core", func(ctx *hookstate.Context) error {
-		return corecfgRun(ctx)
+		ctx.Lock()
+		tr := ContextTransaction(ctx)
+		ctx.Unlock()
+		return corecfgRun(tr)
 	})
 
 	// we handle core/snapd specific configuration internally because
