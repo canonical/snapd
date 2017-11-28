@@ -98,7 +98,7 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 	//
 	// Note that if you compare this to the code that plans a writable mimic
 	// you will see that there are additional changes that are _not_
-	// represented here. The changes are have only one goal: tell
+	// represented here. The changes have only one goal: tell
 	// snap-update-ns how the mimic can be undone in case it is no longer
 	// needed.
 	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
