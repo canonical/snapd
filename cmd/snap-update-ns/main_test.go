@@ -150,7 +150,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	defer dirs.SetRootDir("/")
 
 	// The snap `mysnap` no longer wishes to export it's usr/share/mysnap
-	// directory. All the syntetic changes that were associated with that mount
+	// directory. All the synthetic changes that were associated with that mount
 	// entry can be discarded.
 	const snapName = "mysnap"
 	const currentProfileContent = `none /usr/share tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
