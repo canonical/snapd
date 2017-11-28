@@ -9,6 +9,8 @@ prepare: |
     install_local test-snapd-sh
     rm -f /var/lib/snapd/mount/snap.test-snapd-sh.user-fstab
 execute: |
+    . $TESTSLIB/dirs.sh
+
     echo "Create XDG_RUNTIME_DIR for test user"
     USER_RUNTIME_DIR=/run/user/12345
     mkdir -p $USER_RUNTIME_DIR || true
@@ -31,6 +33,8 @@ execute: |
     cat << \EOF > /var/lib/snapd/mount/snap.test-snapd-sh.user-fstab
     $XDG_RUNTIME_DIR/source $XDG_RUNTIME_DIR/target none bind,rw 0 0
     EOF
+
+    $LIBEXECDIR/snapd/snap-discard-ns test-snapd-sh
 
     echo "With user-fstab we see source"
     XDG_RUNTIME_DIR=$USER_RUNTIME_DIR su -p -l -c 'test-snapd-sh -c "ls \$XDG_RUNTIME_DIR/target"' test | MATCH in-source
