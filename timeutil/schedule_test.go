@@ -81,7 +81,7 @@ func (ts *timeutilSuite) TestScheduleString(c *C) {
 	}
 }
 
-func (ts *timeutilSuite) TestParseSchedule(c *C) {
+func (ts *timeutilSuite) TestParseLegacySchedule(c *C) {
 	for _, t := range []struct {
 		in       string
 		expected []*timeutil.Schedule
@@ -92,14 +92,21 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 		{"invalid-11:00", nil, `cannot parse "invalid": not a valid time`},
 		{"9:00-11:00/invalid", nil, `cannot parse "invalid": not a valid interval`},
 		{"09:00-25:00", nil, `cannot parse "25:00": not a valid time`},
-		// moving backwards
-		{"11:00-09:00", nil, `cannot parse "11:00-09:00": time in an interval cannot go backwards`},
-		{"23:00-01:00", nil, `cannot parse "23:00-01:00": time in an interval cannot go backwards`},
+		{"09:00-24:30", nil, `cannot parse "24:30": not a valid time`},
 
 		// valid
-		{"9:00-11:00", []*timeutil.Schedule{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}, ""},
-		{"9:00-11:00/20:00-22:00", []*timeutil.Schedule{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}, {Start: timeutil.TimeOfDay{Hour: 20}, End: timeutil.TimeOfDay{Hour: 22}}}, ""},
+		{"9:00-11:00", []*timeutil.Schedule{
+			{Times: []timeutil.TimeSpan{
+				{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}, Spread: true}}},
+		}, ""},
+		{"9:00-11:00/20:00-22:00", []*timeutil.Schedule{
+			{Times: []timeutil.TimeSpan{
+				{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}, Spread: true}}},
+			{Times: []timeutil.TimeSpan{
+				{Start: timeutil.TimeOfDay{Hour: 20}, End: timeutil.TimeOfDay{Hour: 22}, Spread: true}}},
+		}, ""},
 	} {
+		c.Logf("trying: %v", t)
 		schedule, err := timeutil.ParseLegacySchedule(t.in)
 		if t.errStr != "" {
 			c.Check(err, ErrorMatches, t.errStr, Commentf("%q returned unexpected error: %s", t.in, err))
