@@ -309,9 +309,6 @@ func parseTimeInterval(s string) (start, end TimeOfDay, err error) {
 	if err != nil {
 		return start, end, fmt.Errorf("cannot parse %q: not a valid time", l[1])
 	}
-	if !(start.Hour <= end.Hour && start.Minute <= end.Minute) {
-		return start, end, fmt.Errorf("cannot parse %q: time in an interval cannot go backwards", s)
-	}
 
 	return start, end, nil
 }
@@ -347,4 +344,303 @@ func ParseLegacySchedule(scheduleSpec string) ([]*Schedule, error) {
 	}
 
 	return schedule, nil
+}
+
+// ParseSchedule parses a schedule in V2 format. The format is described as:
+//
+//     eventlist = eventset *( ".." eventset )
+//     eventset = wdaylist / timelist / wdaylist "," timelist
+//
+//     wdaylist = wdayset *( "," wdayset )
+//     wdayset = wday / wdayspan
+//     wday =  ( "sun" / "mon" / "tue" / "wed" / "thu" / "fri" / "sat" ) [ DIGIT ]
+//     wdayspan = wday "-" wday
+//
+//     timelist = timeset *( "," timeset )
+//     timeset = time / timespan
+//     time = 2DIGIT ":" 2DIGIT
+//     timespan = time ( "-" / "~" ) time [ "/" ( time / count ) ]
+//     count = 1*DIGIT
+//
+// Examples:
+// mon,10:00..fri,15:00 (Monday at 10:00, Friday at 15:00)
+// mon,fri,10:00,15:00 (Monday at 10:00 and 15:00, Friday at 10:00 and 15:00)
+// mon-wed,fri,9:00-11:00/2 (Monday to Wednesday and on Friday, twice between
+//                           9:00 and 11:00)
+// mon,9:00~11:00..wed,22:00~23:00 (Monday, sometime between 9:00 and 11:00, and
+//                                  on Wednesday, sometime between 22:00 and 23:00)
+// mon,wed  (Monday and on Wednesday)
+// mon..wed (same as above)
+//
+// Returns a slice of schedules or an error if parsing failed
+func ParseSchedule(scheduleSpec string) ([]*Schedule, error) {
+	var schedule []*Schedule
+
+	for _, s := range strings.Split(scheduleSpec, "..") {
+		// cut the schedule in event sets
+		//     eventlist = eventset *( ".." eventset )
+		sched, err := parseEventSet(s)
+		if err != nil {
+			return nil, err
+		}
+		schedule = append(schedule, sched)
+	}
+	return schedule, nil
+}
+
+// parseWeekSpan generates a per day (span) schedule
+func parseWeekSpan(start string, end string) (*WeekSpan, error) {
+	startWeekday, err := parseWeekday(start)
+	if err != nil {
+		return nil, err
+	}
+
+	endWeekday, err := parseWeekday(end)
+	if err != nil {
+		return nil, err
+	}
+
+	if endWeekday.Pos < startWeekday.Pos {
+		return nil, fmt.Errorf("unsupported schedule")
+	}
+
+	if (startWeekday.Pos != 0 && endWeekday.Pos == 0) ||
+		(endWeekday.Pos != 0 && startWeekday.Pos == 0) {
+		return nil, fmt.Errorf("mixed weekday and nonweekday")
+	}
+
+	span := &WeekSpan{
+		Start: *startWeekday,
+	}
+	if *endWeekday != *startWeekday {
+		span.End = *endWeekday
+	}
+
+	return span, nil
+}
+
+// parseSpan splits a span string `<start>-<end>` and returns the start and end
+// pieces. If string is not a span then the whole string is returned
+func parseSpan(spec string) (string, string) {
+	var start, end string
+
+	specs := strings.Split(spec, spanToken)
+
+	if len(specs) == 1 {
+		start = specs[0]
+		end = start
+	} else {
+		start = specs[0]
+		end = specs[1]
+	}
+	return start, end
+}
+
+// parseTime parses a time specification which can either be `<hh>:<mm>` or
+// `<hh>:<mm>-<hh>:<mm>`. Returns corresponding TimeOfDay structs.
+func parseTime(start, end string) (TimeOfDay, TimeOfDay, error) {
+	// is it a time?
+	var err error
+	var tstart, tend TimeOfDay
+
+	if start == end {
+		// single time, eg. 10:00
+		tstart, err = ParseTime(start)
+		if err == nil {
+			tend = tstart
+		}
+	} else {
+		// time span, eg. 10:00-12:00
+		tstart, tend, err = parseTimeInterval(fmt.Sprintf("%s-%s", start, end))
+	}
+
+	return tstart, tend, err
+}
+
+func parseTimeSpan(start, end string) (*TimeSpan, error) {
+
+	startTime, endTime, err := parseTime(start, end)
+	if err != nil {
+		return nil, err
+	}
+
+	span := &TimeSpan{
+		Start: startTime,
+	}
+	if endTime != startTime {
+		span.End = endTime
+	}
+	return span, nil
+}
+
+// parseWeekday will parse a string and extract weekday (eg. wed),
+// MonthWeekday (eg. 1st, 5th in the month).
+func parseWeekday(s string) (*Weekday, error) {
+	l := len(s)
+	if l != 3 && l != 4 {
+		return nil, fmt.Errorf("cannot parse %q: invalid format", s)
+	}
+
+	day := s
+	var pos uint
+	if l == 4 {
+		day = s[0:3]
+		if v, err := strconv.ParseUint(s[3:], 10, 32); err != nil {
+			return nil, fmt.Errorf("cannot parse %q: invalid week", s)
+		} else if v < 1 || v > 5 {
+			return nil, fmt.Errorf("cannot parse %q: incorrect week number", s)
+		} else {
+			pos = uint(v)
+		}
+	}
+
+	if !IsValidWeekday(day) {
+		return nil, fmt.Errorf("cannot parse %q: invalid weekday", s)
+	}
+
+	week := &Weekday{
+		Day: day,
+		Pos: pos,
+	}
+	return week, nil
+}
+
+// parseCount will parse the string containing a count token and return the
+// count, the rest of the string with count information removed or an error
+func parseCount(s string) (count uint, rest string, err error) {
+	if strings.Contains(s, countToken) {
+		//     timespan = time ( "-" / "~" ) time [ "/" ( time / count ) ]
+		ws := strings.Split(s, countToken)
+		rest = ws[0]
+		countStr := ws[1]
+		c, err := strconv.ParseUint(countStr, 10, 32)
+		if err != nil || c == 0 {
+			return 0, "", fmt.Errorf("cannot parse %q: not a valid event interval",
+				s)
+		}
+		return uint(c), rest, nil
+	}
+	return 0, s, nil
+}
+
+// isValidWeekdaySpec returns true if string is of the following format:
+//     wday =  ( "sun" / "mon" / "tue" / "wed" / "thu" / "fri" / "sat" ) [ DIGIT ]
+func isValidWeekdaySpec(s string) bool {
+	_, err := parseWeekday(s)
+	return err == nil
+}
+
+const (
+	spanToken           = "-"
+	randomizedSpanToken = "~"
+	countToken          = "/"
+)
+
+var specialTokens = map[string]string{
+	// shorthand variant of whole day
+	"-": "0:00-24:00",
+	// and randomized whole day
+	"~": "0:00~24:00",
+}
+
+// Parse each event and return a slice of schedules.
+func parseEventSet(s string) (*Schedule, error) {
+	var events []string
+	// split event set into events
+	//     eventset = wdaylist / timelist / wdaylist "," timelist
+	// or wdaysets
+	//     wdaylist = wdayset *( "," wdayset )
+	// or timesets
+	//     timelist = timeset *( "," timeset )
+	//
+	// NOTE: the syntax is ambiguous in the sense the type of a 'set' is now
+	// explicitly indicated, thus the parsing will first try to handle it as
+	// a wdayset, then as timeset
+
+	if els := strings.Split(s, ","); len(els) > 1 {
+		events = els
+	} else {
+		events = []string{s}
+	}
+
+	var schedule Schedule
+	// indicates that any further events must be time events
+	var expectTime bool
+
+	for _, event := range events {
+		// process events one by one
+
+		randomized := false
+		var count uint
+		var start string
+		var end string
+
+		if c, rest, err := parseCount(event); err != nil {
+			return nil, err
+		} else if c > 0 {
+			// count was specified
+			count = c
+			// count token is only allowed in timespans, meaning
+			// we're parsing only timespans from now on
+			expectTime = true
+
+			// update the remaining part of the event
+			event = rest
+		}
+
+		if special, ok := specialTokens[event]; ok {
+			event = special
+		}
+
+		if strings.Contains(event, randomizedSpanToken) {
+			// timespan uses "~" to indicate that the actual event
+			// time is to be randomized.
+			randomized = true
+			event = strings.Replace(event,
+				randomizedSpanToken,
+				spanToken, 1)
+
+			// randomize token is only allowed in timespans, meaning
+			// we're parsing only timespans from now on
+			expectTime = true
+		}
+
+		// spans
+		//     wdayspan = wday "-" wday
+		//     timespan = time ( "-" / "~" ) time [ "/" ( time / count ) ]
+		start, end = parseSpan(event)
+
+		if isValidTime(start) && isValidTime(end) {
+			// from now on we expect only timespans
+			expectTime = true
+
+			if span, err := parseTimeSpan(start, end); err != nil {
+				return nil, err
+			} else {
+				span.Split = count
+				span.Spread = randomized
+
+				schedule.Times = append(schedule.Times, *span)
+			}
+
+		} else if isValidWeekdaySpec(start) && isValidWeekdaySpec(end) {
+			// is it a day?
+
+			if expectTime {
+				return nil, fmt.Errorf("cannot parse %q: expected time spec", s)
+			}
+
+			if span, err := parseWeekSpan(start, end); err != nil {
+				return nil, fmt.Errorf("cannot parse %q: %s", event, err.Error())
+			} else {
+				schedule.Week = append(schedule.Week, *span)
+			}
+		} else {
+			// no, it's an error
+			return nil, fmt.Errorf("cannot parse %q: not a valid event", s)
+		}
+
+	}
+
+	return &schedule, nil
 }
