@@ -92,9 +92,9 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 	c.Assert(ioutil.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
 	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
-	// In order to make that work, /usr/share had to be converated to a
-	// writable mimic. Some actions were performed under the hood and now we
-	// see a subset of them as synthetic changes here.
+	// In order to make that work, /usr/share had to be converted to a writable
+	// mimic. Some actions were performed under the hood and now we see a
+	// subset of them as synthetic changes here.
 	//
 	// Note that if you compare this to the code that plans a writable mimic
 	// you will see that there are additional changes that are _not_
