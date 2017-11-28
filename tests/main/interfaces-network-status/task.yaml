@@ -32,25 +32,12 @@ execute: |
     CONNECTED_PATTERN="^test-snapd-network-status-provider:network-status-test +test-snapd-network-status-provider:network-status"
     DISCONNECTED_PATTERN="^- +test-snapd-network-status-provider:network-status$"
 
-    dbus_send(){
-        local method="$1"
-        echo $(dbus-send --system --print-reply --dest=com.ubuntu.connectivity1.NetworkingStatus /com/ubuntu/connectivity1/NetworkingStatus com.ubuntu.connectivity1.NetworkingStatus.${method})
-    }
-
     echo "The interface is connected by default"
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
-    for i in $(seq 5); do
-        if ! dbus_send GetVersion | MATCH "my-ap-version"; then
-            sleep 1
-        else
-            break
-        fi
-    done
-
     echo "Check the network-status is working from the consumer app in the snap and running dbus-send"
-    dbus_send GetVersion | MATCH "my-ap-version"
     test-snapd-network-status-provider.consumer GetState | MATCH "my-ap-state"
+    test-snapd-network-status-provider.consumer GetVersion | MATCH "my-ap-version"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
