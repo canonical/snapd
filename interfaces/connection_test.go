@@ -21,7 +21,6 @@ package interfaces
 
 import (
 	. "gopkg.in/check.v1"
-	"reflect"
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -57,32 +56,50 @@ slots:
 	s.slot = producer.Slots["slot"]
 }
 
+// Make sure ConnectedPlug,ConnectedSlot, PlugInfo, SlotInfo implement AttrGetter.
+var _ AttrGetter = (*ConnectedPlug)(nil)
+var _ AttrGetter = (*ConnectedSlot)(nil)
+var _ AttrGetter = (*snap.PlugInfo)(nil)
+var _ AttrGetter = (*snap.SlotInfo)(nil)
+
 func (s *connSuite) TestStaticSlotAttrs(c *C) {
 	slot := NewConnectedSlot(s.slot, nil)
 	c.Assert(slot, NotNil)
 
-	_, err := slot.StaticAttr("unknown")
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
+	var val string
+	var intVal int
+	c.Assert(slot.StaticAttr("unknown", &val), ErrorMatches, `snap "producer" does not have attribute "unknown" for interface "interface"`)
 
 	attrs := slot.StaticAttrs()
 	c.Assert(attrs, DeepEquals, map[string]interface{}{
 		"attr": "value",
 	})
+	slot.StaticAttr("attr", &val)
+	c.Assert(val, Equals, "value")
+
+	c.Assert(slot.StaticAttr("unknown", &val), ErrorMatches, `snap "producer" does not have attribute "unknown" for interface "interface"`)
+	c.Check(slot.StaticAttr("attr", &intVal), ErrorMatches, `snap "producer" has interface "interface" with invalid value type for "attr" attribute`)
+	c.Check(slot.StaticAttr("attr", val), ErrorMatches, `internal error: cannot get "attr" attribute of interface "interface" with non-pointer value`)
 }
 
 func (s *connSuite) TestStaticPlugAttrs(c *C) {
 	plug := NewConnectedPlug(s.plug, nil)
 	c.Assert(plug, NotNil)
 
-	_, err := plug.StaticAttr("unknown")
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
+	var val string
+	var intVal int
+	c.Assert(plug.StaticAttr("unknown", &val), ErrorMatches, `snap "consumer" does not have attribute "unknown" for interface "interface"`)
 
 	attrs := plug.StaticAttrs()
 	c.Assert(attrs, DeepEquals, map[string]interface{}{
 		"attr": "value",
 	})
+	plug.StaticAttr("attr", &val)
+	c.Assert(val, Equals, "value")
+
+	c.Assert(plug.StaticAttr("unknown", &val), ErrorMatches, `snap "consumer" does not have attribute "unknown" for interface "interface"`)
+	c.Check(plug.StaticAttr("attr", &intVal), ErrorMatches, `snap "consumer" has interface "interface" with invalid value type for "attr" attribute`)
+	c.Check(plug.StaticAttr("attr", val), ErrorMatches, `internal error: cannot get "attr" attribute of interface "interface" with non-pointer value`)
 }
 
 func (s *connSuite) TestDynamicSlotAttrs(c *C) {
@@ -93,30 +110,28 @@ func (s *connSuite) TestDynamicSlotAttrs(c *C) {
 	slot := NewConnectedSlot(s.slot, attrs)
 	c.Assert(slot, NotNil)
 
-	val, err := slot.Attr("foo")
-	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "bar")
+	var strVal string
+	var intVal int64
+	var mapVal map[string]interface{}
 
-	val, err = slot.Attr("attr")
-	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "value")
+	c.Assert(slot.Attr("foo", &strVal), IsNil)
+	c.Assert(strVal, Equals, "bar")
 
-	val, err = slot.Attr("number")
-	c.Assert(err, IsNil)
-	c.Assert(reflect.TypeOf(val).Kind(), Equals, reflect.Int64)
-	c.Assert(val, Equals, int64(100))
+	c.Assert(slot.Attr("attr", &strVal), IsNil)
+	c.Assert(strVal, Equals, "value")
 
-	err = slot.SetAttr("other", map[string]interface{}{"number-two": int(222)})
+	c.Assert(slot.Attr("number", &intVal), IsNil)
+	c.Assert(intVal, Equals, int64(100))
+
+	err := slot.SetAttr("other", map[string]interface{}{"number-two": int(222)})
 	c.Assert(err, IsNil)
-	val, err = slot.Attr("other")
-	c.Assert(err, IsNil)
-	num := val.(map[string]interface{})["number-two"]
-	c.Assert(reflect.TypeOf(num).Kind(), Equals, reflect.Int64)
+	c.Assert(slot.Attr("other", &mapVal), IsNil)
+	num := mapVal["number-two"]
 	c.Assert(num, Equals, int64(222))
 
-	_, err = slot.Attr("unknown")
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
+	c.Check(slot.Attr("unknown", &strVal), ErrorMatches, `snap "producer" does not have attribute "unknown" for interface "interface"`)
+	c.Check(slot.Attr("foo", &intVal), ErrorMatches, `snap "producer" has interface "interface" with invalid value type for "foo" attribute`)
+	c.Check(slot.Attr("number", intVal), ErrorMatches, `internal error: cannot get "number" attribute of interface "interface" with non-pointer value`)
 }
 
 func (s *connSuite) TestDynamicPlugAttrs(c *C) {
@@ -127,30 +142,28 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 	plug := NewConnectedPlug(s.plug, attrs)
 	c.Assert(plug, NotNil)
 
-	val, err := plug.Attr("foo")
-	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "bar")
+	var strVal string
+	var intVal int64
+	var mapVal map[string]interface{}
 
-	val, err = plug.Attr("attr")
-	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "value")
+	c.Assert(plug.Attr("foo", &strVal), IsNil)
+	c.Assert(strVal, Equals, "bar")
 
-	val, err = plug.Attr("number")
-	c.Assert(err, IsNil)
-	c.Assert(reflect.TypeOf(val).Kind(), Equals, reflect.Int64)
-	c.Assert(val, Equals, int64(100))
+	c.Assert(plug.Attr("attr", &strVal), IsNil)
+	c.Assert(strVal, Equals, "value")
 
-	err = plug.SetAttr("other", map[string]interface{}{"number-two": int(222)})
+	c.Assert(plug.Attr("number", &intVal), IsNil)
+	c.Assert(intVal, Equals, int64(100))
+
+	err := plug.SetAttr("other", map[string]interface{}{"number-two": int(222)})
 	c.Assert(err, IsNil)
-	val, err = plug.Attr("other")
-	c.Assert(err, IsNil)
-	num := val.(map[string]interface{})["number-two"]
-	c.Assert(reflect.TypeOf(num).Kind(), Equals, reflect.Int64)
+	c.Assert(plug.Attr("other", &mapVal), IsNil)
+	num := mapVal["number-two"]
 	c.Assert(num, Equals, int64(222))
 
-	_, err = plug.Attr("unknown")
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `attribute "unknown" not found`)
+	c.Check(plug.Attr("unknown", &strVal), ErrorMatches, `snap "consumer" does not have attribute "unknown" for interface "interface"`)
+	c.Check(plug.Attr("foo", &intVal), ErrorMatches, `snap "consumer" has interface "interface" with invalid value type for "foo" attribute`)
+	c.Check(plug.Attr("number", intVal), ErrorMatches, `internal error: cannot get "number" attribute of interface "interface" with non-pointer value`)
 }
 
 func (s *connSuite) TestOverwriteStaticAttrError(c *C) {

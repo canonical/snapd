@@ -829,21 +829,34 @@ func (s *infoSuite) TestSlotInfoString(c *C) {
 }
 
 func (s *infoSuite) TestPlugInfoAttr(c *C) {
-	plug := &snap.PlugInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Attrs: map[string]interface{}{"key": "value"}}
-	v, err := plug.Attr("key")
-	c.Assert(err, IsNil)
-	c.Check(v, Equals, "value")
+	var val string
+	var intVal int
 
-	_, err = plug.Attr("unknown")
-	c.Check(err, ErrorMatches, `attribute "unknown" not found`)
+	plug := &snap.PlugInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Interface: "interface", Attrs: map[string]interface{}{"key": "value", "number": int(123)}}
+	c.Assert(plug.Attr("key", &val), IsNil)
+	c.Check(val, Equals, "value")
+
+	c.Assert(plug.Attr("number", &intVal), IsNil)
+	c.Check(intVal, Equals, 123)
+
+	c.Check(plug.Attr("key", &intVal), ErrorMatches, `snap "snap" has interface "interface" with invalid value type for "key" attribute`)
+	c.Check(plug.Attr("unknown", &val), ErrorMatches, `snap "snap" does not have attribute "unknown" for interface "interface"`)
+	c.Check(plug.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
 }
 
 func (s *infoSuite) TestSlotInfoAttr(c *C) {
-	slot := &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Attrs: map[string]interface{}{"key": "value"}}
-	v, err := slot.Attr("key")
-	c.Assert(err, IsNil)
-	c.Check(v, Equals, "value")
+	var val string
+	var intVal int
 
-	_, err = slot.Attr("unknown")
-	c.Check(err, ErrorMatches, `attribute "unknown" not found`)
+	slot := &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Interface: "interface", Attrs: map[string]interface{}{"key": "value", "number": int(123)}}
+
+	c.Assert(slot.Attr("key", &val), IsNil)
+	c.Check(val, Equals, "value")
+
+	c.Assert(slot.Attr("number", &intVal), IsNil)
+	c.Check(intVal, Equals, 123)
+
+	c.Check(slot.Attr("key", &intVal), ErrorMatches, `snap "snap" has interface "interface" with invalid value type for "key" attribute`)
+	c.Check(slot.Attr("unknown", &val), ErrorMatches, `snap "snap" does not have attribute "unknown" for interface "interface"`)
+	c.Check(slot.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
 }
