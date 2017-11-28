@@ -137,9 +137,9 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 	}
 
 	// Indexed by mount point path.
-	var reuse map[string]bool = make(map[string]bool)
+	reuse := make(map[string]bool)
 	// Indexed by entry ID
-	var desiredIDs map[string]bool = make(map[string]bool)
+	desiredIDs := make(map[string]bool)
 	var skipDir string
 
 	// Collect the IDs of desired changes.
