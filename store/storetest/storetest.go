@@ -53,7 +53,7 @@ func (Store) LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info
 	panic("Store.LookupRefresh not expected")
 }
 
-func (Store) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error) {
+func (Store) ListRefresh([]*store.RefreshCandidate, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error) {
 	panic("Store.ListRefresh not expected")
 }
 

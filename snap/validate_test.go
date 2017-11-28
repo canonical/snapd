@@ -41,7 +41,7 @@ func createSampleApp() *AppInfo {
 		Snap: &Info{
 			SideInfo: SideInfo{
 				RealName: "mysnap",
-				Revision: Revision{20},
+				Revision: R(20),
 			},
 		},
 		Name:  "foo",
@@ -165,6 +165,13 @@ func (s *ValidateSuite) TestValidateAppSocketsEmptyPermsOk(c *C) {
 	c.Check(ValidateApp(app), IsNil)
 }
 
+func (s *ValidateSuite) TestValidateAppSocketsWrongPerms(c *C) {
+	app := createSampleApp()
+	app.Sockets["sock"].SocketMode = 1234
+	err := ValidateApp(app)
+	c.Assert(err, ErrorMatches, `cannot use socket mode: 2322`)
+}
+
 func (s *ValidateSuite) TestValidateAppSocketsMissingNetworkBindPlug(c *C) {
 	app := createSampleApp()
 	delete(app.Plugs, "network-bind")
@@ -197,7 +204,10 @@ func (s *ValidateSuite) TestValidateAppSocketsValidListenStreamAddresses(c *C) {
 		// abstract sockets
 		"@snap.mysnap.my.socket",
 		// addresses and ports
-		"8080",
+		"1",
+		"1023",
+		"1024",
+		"65535",
 		"127.0.0.1:8080",
 		"[::]:8080",
 		"[::1]:8080",
@@ -234,7 +244,7 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathContainsDot
 		`socket "sock" has invalid "listen-stream": "\$SNAP/../some.path" should be written as "some.path"`)
 }
 
-func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathRelative(c *C) {
+func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathPrefix(c *C) {
 	app := createSampleApp()
 	invalidListenAddresses := []string{
 		"$SNAP/my.socket", // snap dir is not writable
@@ -253,6 +263,8 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathRelative(c 
 func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAbstractSocket(c *C) {
 	app := createSampleApp()
 	invalidListenAddresses := []string{
+		"@snap.mysnap",
+		"@snap.mysnap\000.foo",
 		"@snap.notmysnap.my.socket",
 		"@some.other.name",
 		"@snap.myappiswrong.foo",
@@ -270,6 +282,8 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
 	invalidListenAddresses := []string{
 		"10.0.1.1:8080",
 		"[fafa::baba]:8080",
+		"127.0.0.1\000:8080",
+		"127.0.0.1::8080",
 	}
 	socket := app.Sockets["sock"]
 	for _, invalidAddress := range invalidListenAddresses {
@@ -282,6 +296,8 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
 func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPort(c *C) {
 	app := createSampleApp()
 	invalidPorts := []string{
+		"0",
+		"66536",
 		"-8080",
 		"12312345345",
 		"[::]:-123",
@@ -568,6 +584,8 @@ func (s *ValidateSuite) TestValidateSocketName(c *C) {
 		"0", "123",
 		// identifier must be plain ASCII
 		"日本語", "한글", "ру́сский язы́к",
+		// no null chars in the string are allowed
+		"aa-a\000-b",
 	}
 	for _, name := range invalidNames {
 		err := ValidateSocketName(name)

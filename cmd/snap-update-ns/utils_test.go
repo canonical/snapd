@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -52,6 +53,15 @@ func (s *utilsSuite) SetUpTest(c *C) {
 func (s *utilsSuite) TearDownTest(c *C) {
 	s.sys.CheckForStrayDescriptors(c)
 	s.BaseTest.TearDownTest(c)
+}
+
+// secure-mkdir-all
+
+// Ensure that we reject unclean paths.
+func (s *utilsSuite) TestSecureMkdirAllUnclean(c *C) {
+	err := update.SecureMkdirAll("/unclean//path", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, `cannot split unclean path .*`)
+	c.Assert(s.sys.Calls(), HasLen, 0)
 }
 
 // Ensure that we refuse to create a directory with an relative path.
@@ -210,6 +220,71 @@ func (s *utilsSuite) TestSecureMkdirAllOpenError(c *C) {
 	})
 }
 
+func (s *utilsSuite) TestPlanWritableMimic(c *C) {
+	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
+		c.Assert(dir, Equals, "/foo")
+		return []os.FileInfo{
+			update.FakeFileInfo("file", 0),
+			update.FakeFileInfo("dir", os.ModeDir),
+			update.FakeFileInfo("symlink", os.ModeSymlink),
+			update.FakeFileInfo("error-symlink-readlink", os.ModeSymlink),
+			// NOTE: None of the filesystem entries below are supported because
+			// they cannot be placed inside snaps or can only be created at
+			// runtime in areas that are already writable and this would never
+			// have to be handled in a writable mimic.
+			update.FakeFileInfo("block-dev", os.ModeDevice),
+			update.FakeFileInfo("char-dev", os.ModeDevice|os.ModeCharDevice),
+			update.FakeFileInfo("socket", os.ModeSocket),
+			update.FakeFileInfo("pipe", os.ModeNamedPipe),
+		}, nil
+	})
+	defer restore()
+	restore = update.MockReadlink(func(name string) (string, error) {
+		switch name {
+		case "/foo/symlink":
+			return "target", nil
+		case "/foo/error-symlink-readlink":
+			return "", errTesting
+		}
+		panic("unexpected")
+	})
+	defer restore()
+
+	changes, err := update.PlanWritableMimic("/foo")
+	c.Assert(err, IsNil)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		// Store /foo in /tmp/.snap/foo while we set things up
+		{Entry: mount.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
+		// Put a tmpfs over /foo
+		{Entry: mount.Entry{Name: "none", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
+		// Bind mount files and directories over. Note that files are identified by x-snapd.kind=file option.
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
+		// Create symlinks.
+		// Bad symlinks and all other file types are skipped and not
+		// recorded in mount changes.
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"bind", "x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		// Unmount the safe-keeping directory
+		{Entry: mount.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
+	})
+}
+
+func (s *utilsSuite) TestPlanWritableMimicErrors(c *C) {
+	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
+		c.Assert(dir, Equals, "/foo")
+		return nil, errTesting
+	})
+	defer restore()
+	restore = update.MockReadlink(func(name string) (string, error) {
+		return "", errTesting
+	})
+	defer restore()
+
+	changes, err := update.PlanWritableMimic("/foo")
+	c.Assert(err, ErrorMatches, "testing")
+	c.Assert(changes, HasLen, 0)
+}
+
 // realSystemSuite is not isolated / mocked from the system.
 type realSystemSuite struct{}
 
@@ -247,4 +322,217 @@ func (s *realSystemSuite) TestSecureMkdirAllForReal(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(fi.IsDir(), Equals, true)
 	c.Check(fi.Mode().Perm(), Equals, os.FileMode(0750))
+}
+
+// secure-mkfile-all
+
+// Ensure that we reject unclean paths.
+func (s *utilsSuite) TestSecureMkfileAllUnclean(c *C) {
+	err := update.SecureMkfileAll("/unclean//path", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, `cannot split unclean path .*`)
+	c.Assert(s.sys.Calls(), HasLen, 0)
+}
+
+// Ensure that we refuse to create a file with an relative path.
+func (s *utilsSuite) TestSecureMkfileAllRelative(c *C) {
+	err := update.SecureMkfileAll("rel/path", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, `cannot create file with relative path: "rel/path"`)
+	c.Assert(s.sys.Calls(), HasLen, 0)
+}
+
+// Ensure that we refuse creating the root directory as a file.
+func (s *utilsSuite) TestSecureMkfileAllLevel0(c *C) {
+	err := update.SecureMkfileAll("/", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, `cannot create non-file path: "/"`)
+	c.Assert(s.sys.Calls(), HasLen, 0)
+}
+
+// Ensure that we can create a file in the top-level directory.
+func (s *utilsSuite) TestSecureMkfileAllLevel1(c *C) {
+	c.Assert(update.SecureMkfileAll("/path", 0755, 123, 456), IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,              // -> 3
+		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> 4
+		`fchown 4 123 456`,
+		`close 4`,
+		`close 3`,
+	})
+}
+
+// Ensure that we can create a file two levels from the top-level directory.
+func (s *utilsSuite) TestSecureMkfileAllLevel2(c *C) {
+	c.Assert(update.SecureMkfileAll("/path/to", 0755, 123, 456), IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`mkdirat 3 "path" 0755`,
+		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
+		`fchown 4 123 456`,
+		`close 3`,
+		`openat 4 "to" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> 3
+		`fchown 3 123 456`,
+		`close 3`,
+		`close 4`,
+	})
+}
+
+// Ensure that we can create a file three levels from the top-level directory.
+func (s *utilsSuite) TestSecureMkfileAllLevel3(c *C) {
+	c.Assert(update.SecureMkfileAll("/path/to/something", 0755, 123, 456), IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`mkdirat 3 "path" 0755`,
+		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
+		`fchown 4 123 456`,
+		`mkdirat 4 "to" 0755`,
+		`openat 4 "to" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 5
+		`fchown 5 123 456`,
+		`close 4`,
+		`close 3`,
+		`openat 5 "something" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> 3
+		`fchown 3 123 456`,
+		`close 3`,
+		`close 5`,
+	})
+}
+
+// Ensure that we can detect read only filesystems.
+func (s *utilsSuite) TestSecureMkfileAllROFS(c *C) {
+	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST) // just realistic
+	s.sys.InsertFault(`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, syscall.EROFS)
+	err := update.SecureMkfileAll("/rofs/path", 0755, 123, 456)
+	c.Check(err, ErrorMatches, `cannot operate on read-only filesystem at /rofs`)
+	c.Assert(err.(*update.ReadOnlyFsError).Path, Equals, "/rofs")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,        // -> 3
+		`mkdirat 3 "rofs" 0755`,                              // -> EEXIST
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
+		`close 3`,
+		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> EROFS
+		`close 4`,
+	})
+}
+
+// Ensure that we don't chown existing files or directories.
+func (s *utilsSuite) TestSecureMkfileAllExistingDirsDontChown(c *C) {
+	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, syscall.EEXIST)
+	err := update.SecureMkfileAll("/abs/path", 0755, 123, 456)
+	c.Check(err, IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`mkdirat 3 "abs" 0755`,
+		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
+		`close 3`,
+		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> EEXIST
+		`openat 4 "path" O_NOFOLLOW|O_CLOEXEC 0`,                   // -> 3
+		`close 3`,
+		`close 4`,
+	})
+}
+
+// Ensure that we we close everything when openat fails.
+func (s *utilsSuite) TestSecureMkfileAllOpenat2ndError(c *C) {
+	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC 0`, errTesting)
+	err := update.SecureMkfileAll("/abs", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, `cannot open file "abs": testing`)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,             // -> 3
+		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> EEXIST
+		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC 0`,                   // -> err
+		`close 3`,
+	})
+}
+
+// Ensure that we we close everything when openat (non-exclusive) fails.
+func (s *utilsSuite) TestSecureMkfileAllOpenatError(c *C) {
+	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, errTesting)
+	err := update.SecureMkfileAll("/abs", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, `cannot open file "abs": testing`)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,             // -> 3
+		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> err
+		`close 3`,
+	})
+}
+
+// Ensure that we we close everything when fchown fails.
+func (s *utilsSuite) TestSecureMkfileAllFchownError(c *C) {
+	s.sys.InsertFault(`fchown 4 123 456`, errTesting)
+	err := update.SecureMkfileAll("/path", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, `cannot chown file "path" to 123.456: testing`)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,              // -> 3
+		`openat 3 "path" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> 4
+		`fchown 4 123 456`,
+		`close 4`,
+		`close 3`,
+	})
+}
+
+// Check error path when we cannot open root directory.
+func (s *utilsSuite) TestSecureMkfileAllOpenRootError(c *C) {
+	s.sys.InsertFault(`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
+	err := update.SecureMkfileAll("/abs/path", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, "cannot open root directory: testing")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> err
+	})
+}
+
+// Check error path when we cannot open non-root directory.
+func (s *utilsSuite) TestSecureMkfileAllOpenError(c *C) {
+	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
+	err := update.SecureMkfileAll("/abs/path", 0755, 123, 456)
+	c.Assert(err, ErrorMatches, `cannot open path segment "abs" \(got up to "/"\): testing`)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`mkdirat 3 "abs" 0755`,
+		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> err
+		`close 3`,
+	})
+}
+
+// Check that we can actually create files.
+// This doesn't test the chown logic as that requires root.
+func (s *realSystemSuite) TestSecureMkfileAllForReal(c *C) {
+	d := c.MkDir()
+
+	// Create f1, which is a simple subdirectory, with a distinct mode and
+	// check that it was applied. Note that default umask 022 is subtracted so
+	// effective directory has different permissions.
+	f1 := filepath.Join(d, "file")
+	c.Assert(update.SecureMkfileAll(f1, 0707, -1, -1), IsNil)
+	fi, err := os.Stat(f1)
+	c.Assert(err, IsNil)
+	c.Check(fi.Mode().IsRegular(), Equals, true)
+	c.Check(fi.Mode().Perm(), Equals, os.FileMode(0705))
+
+	// Create f2, which is a deeper subdirectory, with another distinct mode
+	// and check that it was applied.
+	f2 := filepath.Join(d, "subdir/subdir/file")
+	c.Assert(update.SecureMkfileAll(f2, 0750, -1, -1), IsNil)
+	fi, err = os.Stat(f2)
+	c.Assert(err, IsNil)
+	c.Check(fi.Mode().IsRegular(), Equals, true)
+	c.Check(fi.Mode().Perm(), Equals, os.FileMode(0750))
+}
+
+func (s *utilsSuite) TestCleanTrailingSlash(c *C) {
+	// This is a sanity test for the use of filepath.Clean in secureMk{dir,file}All
+	c.Assert(filepath.Clean("/path/"), Equals, "/path")
+	c.Assert(filepath.Clean("path/"), Equals, "path")
+	c.Assert(filepath.Clean("path/."), Equals, "path")
+	c.Assert(filepath.Clean("path/.."), Equals, ".")
+	c.Assert(filepath.Clean("other/path/.."), Equals, "other")
+}
+
+func (s *utilsSuite) TestSplitIntoSegments(c *C) {
+	sg, err := update.SplitIntoSegments("/foo/bar/froz")
+	c.Assert(err, IsNil)
+	c.Assert(sg, DeepEquals, []string{"foo", "bar", "froz"})
+
+	sg, err = update.SplitIntoSegments("/foo//fii/../.")
+	c.Assert(err, ErrorMatches, `cannot split unclean path ".+"`)
+	c.Assert(sg, HasLen, 0)
 }
