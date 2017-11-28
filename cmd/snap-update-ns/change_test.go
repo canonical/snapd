@@ -174,7 +174,9 @@ func (s *changeSuite) TestNeededChangesSameParentChangedChild(c *C) {
 // Unused bind mount farms are unmounted.
 func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
 	current := &mount.Profile{Entries: []mount.Entry{{
-		// The tmpfs that lets us write into immutable squashfs.
+		// The tmpfs that lets us write into immutable squashfs. We mock x-snapd.needed-by
+		// to the squashfs mount. Mark it synthetic since it is a helper mount that is needed
+		// to facilitate the following mounts.
 		Name:    "tmpfs",
 		Dir:     "/snap/name/42/subdir",
 		Type:    "tmpfs",
