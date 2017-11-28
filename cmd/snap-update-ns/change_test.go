@@ -174,22 +174,26 @@ func (s *changeSuite) TestNeededChangesSameParentChangedChild(c *C) {
 // Unused bind mount farms are unmounted.
 func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
 	current := &mount.Profile{Entries: []mount.Entry{{
-		// The tmpfs that lets us write into immutable squashfs. We mock x-snapd.needed-by
-		// to the squashfs mount. Mark it synthetic since it is a helper mount that is needed
+		// The tmpfs that lets us write into immutable squashfs. We mock
+		// x-snapd.needed-by to the last entry in the current profile (the bind
+		// mount). Mark it synthetic since it is a helper mount that is needed
 		// to facilitate the following mounts.
 		Name:    "tmpfs",
 		Dir:     "/snap/name/42/subdir",
 		Type:    "tmpfs",
 		Options: []string{"x-snapd.needed-by=/snap/name/42/subdir", "x-snapd.synthetic"},
 	}, {
-		// A bind mount to preserve a directory hidden by the tmpfs.
+		// A bind mount to preserve a directory hidden by the tmpfs (the mount
+		// point is created elsewhere). We mock x-snapd.needed-by to the
+		// location of the bind mount below that is no longer desired.
 		Name:    "/var/lib/snapd/hostfs/snap/name/42/subdir/existing",
 		Dir:     "/snap/name/42/subdir/existing",
 		Options: []string{"bind", "ro", "x-snapd.needed-by=/snap/name/42/subdir", "x-snapd.synthetic"},
 	}, {
 		// A bind mount to put some content from another snap. The bind mount
 		// is nothing special but the fact that it is possible is the reason
-		// the two entries above exist.
+		// the two entries above exist. The mount point (created) is created
+		// elsewhere.
 		Name:    "/snap/other/123/libs",
 		Dir:     "/snap/name/42/subdir/created",
 		Options: []string{"bind", "ro"},
@@ -220,21 +224,18 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
 }
 
 func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUsed(c *C) {
+	// NOTE: the current profile is the same as in the test
+	// TestNeededChangesTmpfsBindMountFarmUnused written above.
 	current := &mount.Profile{Entries: []mount.Entry{{
-		// The tmpfs that lets us write into immutable squashfs.
 		Name:    "tmpfs",
 		Dir:     "/snap/name/42/subdir",
 		Type:    "tmpfs",
 		Options: []string{"x-snapd.needed-by=/snap/name/42/subdir/created", "x-snapd.synthetic"},
 	}, {
-		// A bind mount to preserve a directory hidden by the tmpfs.
 		Name:    "/var/lib/snapd/hostfs/snap/name/42/subdir/existing",
 		Dir:     "/snap/name/42/subdir/existing",
 		Options: []string{"bind", "ro", "x-snapd.needed-by=/snap/name/42/subdir/created", "x-snapd.synthetic"},
 	}, {
-		// A bind mount to put some content from another snap. The bind mount
-		// is nothing special but the fact that it is possible is the reason
-		// the two entries above exist.
 		Name:    "/snap/other/123/libs",
 		Dir:     "/snap/name/42/subdir/created",
 		Options: []string{"bind", "ro"},
