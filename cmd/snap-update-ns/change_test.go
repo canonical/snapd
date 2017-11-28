@@ -175,7 +175,7 @@ func (s *changeSuite) TestNeededChangesSameParentChangedChild(c *C) {
 func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
 	current := &mount.Profile{Entries: []mount.Entry{{
 		// The tmpfs that lets us write into immutable squashfs.
-		Name:    "none",
+		Name:    "tmpfs",
 		Dir:     "/snap/name/42/subdir",
 		Type:    "tmpfs",
 		Options: []string{"x-snapd.needed-by=/snap/name/42/subdir", "x-snapd.synthetic"},
@@ -209,7 +209,7 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
 			Options: []string{"bind", "ro"},
 		}, Action: update.Unmount},
 		{Entry: mount.Entry{
-			Name:    "none",
+			Name:    "tmpfs",
 			Dir:     "/snap/name/42/subdir",
 			Type:    "tmpfs",
 			Options: []string{"x-snapd.needed-by=/snap/name/42/subdir", "x-snapd.synthetic"},
@@ -220,7 +220,7 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
 func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUsed(c *C) {
 	current := &mount.Profile{Entries: []mount.Entry{{
 		// The tmpfs that lets us write into immutable squashfs.
-		Name:    "none",
+		Name:    "tmpfs",
 		Dir:     "/snap/name/42/subdir",
 		Type:    "tmpfs",
 		Options: []string{"x-snapd.needed-by=/snap/name/42/subdir/created", "x-snapd.synthetic"},
@@ -260,7 +260,7 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUsed(c *C) {
 			Options: []string{"bind", "ro"},
 		}, Action: update.Keep},
 		{Entry: mount.Entry{
-			Name:    "none",
+			Name:    "tmpfs",
 			Dir:     "/snap/name/42/subdir",
 			Type:    "tmpfs",
 			Options: []string{"x-snapd.needed-by=/snap/name/42/subdir/created", "x-snapd.synthetic"},

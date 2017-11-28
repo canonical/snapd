@@ -113,7 +113,7 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 			// The original directory (which was a part of the core snap and is
 			// read only) was hidden with a tmpfs.
 			{Action: update.Mount, Entry: mount.Entry{
-				Dir: "/usr/share", Name: "none", Type: "tmpfs",
+				Dir: "/usr/share", Name: "tmpfs", Type: "tmpfs",
 				Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
 			// For the sake of brevity we will only represent a few of the
 			// entries typically there. Normally this list can get quite long.
@@ -138,7 +138,7 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 	content, err := ioutil.ReadFile(currentProfilePath)
 	c.Assert(err, IsNil)
 	c.Check(string(content), Equals,
-		`none /usr/share tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
+		`tmpfs /usr/share tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
 /usr/share/adduser /usr/share/adduser none bind,ro,x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
 /usr/share/awk /usr/share/awk none bind,ro,x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
 /snap/mysnap/42/usr/share/mysnap /usr/share/mysnap none bind,ro 0 0
@@ -153,7 +153,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	// directory. All the synthetic changes that were associated with that mount
 	// entry can be discarded.
 	const snapName = "mysnap"
-	const currentProfileContent = `none /usr/share tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
+	const currentProfileContent = `tmpfs /usr/share tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
 /usr/share/adduser /usr/share/adduser none bind,ro,x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
 /usr/share/awk /usr/share/awk none bind,ro,x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
 /snap/mysnap/42/usr/share/mysnap /usr/share/mysnap none bind,ro 0 0
@@ -201,7 +201,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 			c.Assert(chg, DeepEquals, &update.Change{
 				Action: update.Unmount,
 				Entry: mount.Entry{
-					Name: "none", Dir: "/usr/share", Type: "tmpfs",
+					Name: "tmpfs", Dir: "/usr/share", Type: "tmpfs",
 					Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
 				},
 			})
