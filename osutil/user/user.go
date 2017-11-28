@@ -34,7 +34,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -42,17 +41,13 @@ var minUserUID sys.UserID
 var shells = []string{"/bin/sh"}
 
 func init() {
-	Init()
+	setup()
 }
 
-func Init() {
-	// any others?
-	if release.DistroLike("fedora") {
-		minUserUID = 500
-	} else {
-		minUserUID = 1000
-	}
+func setup() {
+	minUserUID = minUID()
 
+	shells = nil
 	if f, err := os.Open(filepath.Join(dirs.GlobalRootDir, "/etc/shells")); err == nil {
 		defer f.Close()
 		scanner := bufio.NewScanner(f)
@@ -66,6 +61,60 @@ func Init() {
 	}
 
 	me, meErr = FromUID(sys.Getuid())
+}
+
+// Mock is exposed to be called from tests. If in your tests you changed things
+// that impact what users look like you might need to call user.Mock() so it
+// re-reads some bits of data (don't forget to call the returned restore
+// function in your test teardown, otherwise things'll be weird).
+//
+// Currently, this looks up:
+//  * UID_MIN (from /etc/login.defs; man 5 login.defs)
+//  * the list of valid login shells (from /etc/shells; man 5 shells)
+//  * the current user (from getuid(2) and /etc/passwd)
+func Mock() (restore func()) {
+	oldMinUserUID := minUserUID
+	oldShells := shells
+	oldMe := me
+	oldMeErr := meErr
+
+	setup()
+
+	return func() {
+		minUserUID = oldMinUserUID
+		shells = oldShells
+		me = oldMe
+		meErr = oldMeErr
+	}
+}
+
+// get UID_MIN from /etc/login.defs
+func minUID() sys.UserID {
+	uid := sys.UserID(1000) // default according to login.defs(5)
+
+	f, err := os.Open(filepath.Join(dirs.GlobalRootDir, "/etc/login.defs"))
+	if err != nil {
+		return uid
+	}
+	defer f.Close()
+	prefix := []byte("UID_MIN")
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := bytes.TrimSpace(scanner.Bytes())
+		if !bytes.HasPrefix(line, prefix) {
+			continue
+		}
+		fields := bytes.Fields(line)
+		if len(fields) != 2 || !bytes.Equal(fields[0], prefix) {
+			continue
+		}
+		if u, err := strconv.ParseUint(string(fields[1]), 10, 32); err == nil {
+			uid = sys.UserID(u)
+			break
+		}
+	}
+
+	return uid
 }
 
 // IsNonSystem is a filter that will return true only if the given
@@ -108,7 +157,22 @@ func (u *User) isSystemUser() bool {
 		return true
 	}
 
+	if len(shells) == 0 {
+		// no /etc/shells --> all shells are user shells
+		return false
+	}
+
 	return !strutil.ListContains(shells, u.shell)
+}
+
+func (u *User) satisfiesAll(conds []func(*User) bool) bool {
+	for _, cond := range conds {
+		if !cond(u) {
+			return false
+		}
+	}
+
+	return true
 }
 
 var me *User
@@ -118,11 +182,11 @@ func Current() (*User, error) {
 	return me, meErr
 }
 
-// NotFound is returned by First when no users are found that match the given filter.
+// NotFound is returned when no users are found that match the given filter.
 var NotFound = errors.New("user not found")
 
-// First tries to return a user that matches the given filter.
-func First(filter func(*User) bool) (*User, error) {
+// first tries to return a user that matches the given filter.
+func first(filter func(*User) bool) (*User, error) {
 	var it Iter
 	defer it.Finish()
 	for it.Scan(filter) {
@@ -139,14 +203,14 @@ func First(filter func(*User) bool) (*User, error) {
 
 // FromUID tries to find a user with the given UID.
 func FromUID(uid sys.UserID) (*User, error) {
-	return First(func(u *User) bool {
+	return first(func(u *User) bool {
 		return u.uid == uid
 	})
 }
 
 // FromName tries to find a user with the given name.
 func FromName(name string) (*User, error) {
-	return First(func(u *User) bool {
+	return first(func(u *User) bool {
 		return u.name == name
 	})
 }
@@ -171,13 +235,9 @@ func (it *Iter) User() *User {
 	return it.cur
 }
 
-// Scan advances the iterator until it finds a user that matches all
-// the given conditions.
-func (it *Iter) Scan(conds ...func(*User) bool) bool {
-	if it.err != nil {
-		return false
-	}
-
+// nextFile finds the next passwd file and sets up the scanner to read it
+// returns true if it succeeded, false otherwise.
+func (it *Iter) nextFile() bool {
 	for it.scanner == nil {
 		if it.pwi >= len(passwds) {
 			// no more files to scan
@@ -203,7 +263,22 @@ func (it *Iter) Scan(conds ...func(*User) bool) bool {
 		it.scanner = bufio.NewScanner(it.pwf)
 	}
 
-outer:
+	return true
+}
+
+// Scan advances the iterator until it finds a user that matches all
+// the given conditions.
+func (it *Iter) Scan(conds ...func(*User) bool) bool {
+	if it.err != nil {
+		return false
+	}
+
+	if it.scanner == nil {
+		if ok := it.nextFile(); !ok {
+			return false
+		}
+	}
+
 	for it.scanner.Scan() {
 		it.cur = nil
 		line := bytes.TrimSpace(it.scanner.Bytes())
@@ -232,15 +307,15 @@ outer:
 			uid:   sys.UserID(uid),
 			gid:   sys.GroupID(gid),
 		}
-		for _, cond := range conds {
-			if !cond(u) {
-				continue outer
-			}
+		if !u.satisfiesAll(conds) {
+			continue
 		}
 
 		it.cur = u
 		return true
 	}
+
+	// reached the end of the current file; try again with the next one
 	it.err = it.scanner.Err()
 	it.scanner = nil
 

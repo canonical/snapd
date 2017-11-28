@@ -26,3 +26,8 @@ func Shells() []string {
 func Passwds() []string {
 	return passwds
 }
+
+var (
+	MinUID = minUID
+	First  = first
+)

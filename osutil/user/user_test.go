@@ -30,6 +30,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/osutil/user"
 )
@@ -37,11 +38,13 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { check.TestingT(t) }
 
-type suite struct{}
+type suite struct {
+	restore func()
+}
 
-var _ = check.Suite(suite{})
+var _ = check.Suite(&suite{})
 
-func (suite) SetUpTest(c *check.C) {
+func (s *suite) SetUpTest(c *check.C) {
 	rootDir := c.MkDir()
 	dirs.SetRootDir(rootDir)
 	// create some users
@@ -56,7 +59,12 @@ user2::4294967294:4294967294::/home/user2:/bin/sh
 	c.Assert(ioutil.WriteFile(filepath.Join(rootDir, "/var/lib/extrausers/passwd"), []byte(passdata), 0644), check.IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(rootDir, "etc/passwd"), []byte("sshd:x:124:65534::/var/run/sshd:/usr/sbin/nologin\n"), 0644), check.IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(rootDir, "etc", "shells"), []byte("/bin/sh\n"), 0644), check.IsNil)
-	user.Init()
+	s.restore = user.Mock()
+}
+
+func (s suite) TearDownTest(c *check.C) {
+	s.restore()
+	dirs.SetRootDir("")
 }
 
 func (suite) TestCurrent(c *check.C) {
@@ -128,4 +136,37 @@ func (suite) TestFirst(c *check.C) {
 	u, err := user.First(func(*user.User) bool { return false })
 	c.Assert(u, check.IsNil)
 	c.Check(err, check.Equals, user.NotFound)
+}
+
+func (suite) TestMinUIDHappy(c *check.C) {
+	fname := filepath.Join(dirs.GlobalRootDir, "/etc/login.defs")
+	c.Assert(ioutil.WriteFile(fname, []byte(`
+BLA bla
+# UID_MIN 999
+UID_MIN potatoes
+UID_MIN 7 is a lie
+UID_MIN 64# comments must be on their own line
+UID_MIN 42
+UID_MIN 12345
+`), 0644), check.IsNil)
+	// it picks up the first spec-compliant value
+	c.Check(user.MinUID(), check.Equals, sys.UserID(42))
+}
+
+func (suite) TestMinUIDEmpty(c *check.C) {
+	fname := filepath.Join(dirs.GlobalRootDir, "/etc/login.defs")
+	c.Assert(ioutil.WriteFile(fname, nil, 0644), check.IsNil)
+	c.Check(user.MinUID(), check.Equals, sys.UserID(1000))
+}
+
+func (suite) TestMinUIDMissing(c *check.C) {
+	fname := filepath.Join(dirs.GlobalRootDir, "/etc/login.defs")
+	c.Assert(osutil.FileExists(fname), check.Equals, false)
+	c.Check(user.MinUID(), check.Equals, sys.UserID(1000))
+}
+
+func (suite) TestMinUIDMissingLine(c *check.C) {
+	fname := filepath.Join(dirs.GlobalRootDir, "/etc/login.defs")
+	c.Assert(ioutil.WriteFile(fname, []byte("HELLO THERE\n"), 0644), check.IsNil)
+	c.Check(user.MinUID(), check.Equals, sys.UserID(1000))
 }
