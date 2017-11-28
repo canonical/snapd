@@ -178,12 +178,12 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
 		Name:    "none",
 		Dir:     "/snap/name/42/subdir",
 		Type:    "tmpfs",
-		Options: []string{"x-snapd.parent-id=/snap/name/42/subdir", "x-snapd.synthetic"},
+		Options: []string{"x-snapd.needed-by=/snap/name/42/subdir", "x-snapd.synthetic"},
 	}, {
 		// A bind mount to preserve a directory hidden by the tmpfs.
 		Name:    "/var/lib/snapd/hostfs/snap/name/42/subdir/existing",
 		Dir:     "/snap/name/42/subdir/existing",
-		Options: []string{"bind", "ro", "x-snapd.parent-id=/snap/name/42/subdir", "x-snapd.synthetic"},
+		Options: []string{"bind", "ro", "x-snapd.needed-by=/snap/name/42/subdir", "x-snapd.synthetic"},
 	}, {
 		// A bind mount to put some content from another snap. The bind mount
 		// is nothing special but the fact that it is possible is the reason
@@ -201,7 +201,7 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
 		{Entry: mount.Entry{
 			Name:    "/var/lib/snapd/hostfs/snap/name/42/subdir/existing",
 			Dir:     "/snap/name/42/subdir/existing",
-			Options: []string{"bind", "ro", "x-snapd.parent-id=/snap/name/42/subdir", "x-snapd.synthetic"},
+			Options: []string{"bind", "ro", "x-snapd.needed-by=/snap/name/42/subdir", "x-snapd.synthetic"},
 		}, Action: update.Unmount},
 		{Entry: mount.Entry{
 			Name:    "/snap/other/123/libs",
@@ -212,7 +212,7 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
 			Name:    "none",
 			Dir:     "/snap/name/42/subdir",
 			Type:    "tmpfs",
-			Options: []string{"x-snapd.parent-id=/snap/name/42/subdir", "x-snapd.synthetic"},
+			Options: []string{"x-snapd.needed-by=/snap/name/42/subdir", "x-snapd.synthetic"},
 		}, Action: update.Unmount},
 	})
 }
@@ -223,12 +223,12 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUsed(c *C) {
 		Name:    "none",
 		Dir:     "/snap/name/42/subdir",
 		Type:    "tmpfs",
-		Options: []string{"x-snapd.parent-id=/snap/name/42/subdir/created", "x-snapd.synthetic"},
+		Options: []string{"x-snapd.needed-by=/snap/name/42/subdir/created", "x-snapd.synthetic"},
 	}, {
 		// A bind mount to preserve a directory hidden by the tmpfs.
 		Name:    "/var/lib/snapd/hostfs/snap/name/42/subdir/existing",
 		Dir:     "/snap/name/42/subdir/existing",
-		Options: []string{"bind", "ro", "x-snapd.parent-id=/snap/name/42/subdir/created", "x-snapd.synthetic"},
+		Options: []string{"bind", "ro", "x-snapd.needed-by=/snap/name/42/subdir/created", "x-snapd.synthetic"},
 	}, {
 		// A bind mount to put some content from another snap. The bind mount
 		// is nothing special but the fact that it is possible is the reason
@@ -252,7 +252,7 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUsed(c *C) {
 		{Entry: mount.Entry{
 			Name:    "/var/lib/snapd/hostfs/snap/name/42/subdir/existing",
 			Dir:     "/snap/name/42/subdir/existing",
-			Options: []string{"bind", "ro", "x-snapd.parent-id=/snap/name/42/subdir/created", "x-snapd.synthetic"},
+			Options: []string{"bind", "ro", "x-snapd.needed-by=/snap/name/42/subdir/created", "x-snapd.synthetic"},
 		}, Action: update.Keep},
 		{Entry: mount.Entry{
 			Name:    "/snap/other/123/libs",
@@ -263,7 +263,7 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUsed(c *C) {
 			Name:    "none",
 			Dir:     "/snap/name/42/subdir",
 			Type:    "tmpfs",
-			Options: []string{"x-snapd.parent-id=/snap/name/42/subdir/created", "x-snapd.synthetic"},
+			Options: []string{"x-snapd.needed-by=/snap/name/42/subdir/created", "x-snapd.synthetic"},
 		}, Action: update.Keep},
 	})
 }

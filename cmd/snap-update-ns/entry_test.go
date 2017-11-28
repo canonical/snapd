@@ -159,14 +159,14 @@ func (s *entrySuite) TestXSnapdEntryID(c *C) {
 	c.Assert(update.XSnapdEntryID(e), Equals, "foo")
 }
 
-func (s *entrySuite) TestXSnapdParentID(c *C) {
-	// Parent entry ID is optional.
+func (s *entrySuite) TestXSnapdNeededBy(c *C) {
+	// The needed-by attribute is optional.
 	e := &mount.Entry{}
-	c.Assert(update.XSnapdParentID(e), Equals, "")
+	c.Assert(update.XSnapdNeededBy(e), Equals, "")
 
-	// Parent entry ID is parsed from the x-snapd.parent-id= option.
-	e = &mount.Entry{Options: []string{"x-snap.id=foo", "x-snapd.parent-id=bar"}}
-	c.Assert(update.XSnapdParentID(e), Equals, "bar")
+	// The needed-by attribute parsed from the x-snapd.needed-by= option.
+	e = &mount.Entry{Options: []string{"x-snap.id=foo", "x-snapd.needed-by=bar"}}
+	c.Assert(update.XSnapdNeededBy(e), Equals, "bar")
 }
 
 func (s *entrySuite) TestXSnapdSynthetic(c *C) {

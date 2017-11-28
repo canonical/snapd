@@ -114,7 +114,7 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 			// read only) was hidden with a tmpfs.
 			{Action: update.Mount, Entry: mount.Entry{
 				Dir: "/usr/share", Name: "none", Type: "tmpfs",
-				Options: []string{"x-snapd.synthetic", "x-snapd.parent-id=/usr/share/mysnap"}}},
+				Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
 			// For the sake of brevity we will only represent a few of the
 			// entries typically there. Normally this list can get quite long.
 			// Also note that the entry is a little fake. In reality it was
@@ -124,10 +124,10 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 			// undo operation when /usr/share/mysnap is no longer needed.
 			{Action: update.Mount, Entry: mount.Entry{
 				Dir: "/usr/share/adduser", Name: "/usr/share/adduser",
-				Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.parent-id=/usr/share/mysnap"}}},
+				Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
 			{Action: update.Mount, Entry: mount.Entry{
 				Dir: "/usr/share/awk", Name: "/usr/share/awk",
-				Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.parent-id=/usr/share/mysnap"}}},
+				Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
 		}
 		return syntetic, nil
 	})
@@ -138,9 +138,9 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 	content, err := ioutil.ReadFile(currentProfilePath)
 	c.Assert(err, IsNil)
 	c.Check(string(content), Equals,
-		`none /usr/share tmpfs x-snapd.synthetic,x-snapd.parent-id=/usr/share/mysnap 0 0
-/usr/share/adduser /usr/share/adduser none bind,ro,x-snapd.synthetic,x-snapd.parent-id=/usr/share/mysnap 0 0
-/usr/share/awk /usr/share/awk none bind,ro,x-snapd.synthetic,x-snapd.parent-id=/usr/share/mysnap 0 0
+		`none /usr/share tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
+/usr/share/adduser /usr/share/adduser none bind,ro,x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
+/usr/share/awk /usr/share/awk none bind,ro,x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
 /snap/mysnap/42/usr/share/mysnap /usr/share/mysnap none bind,ro 0 0
 `)
 }
@@ -153,9 +153,9 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	// directory. All the syntetic changes that were associated with that mount
 	// entry can be discarded.
 	const snapName = "mysnap"
-	const currentProfileContent = `none /usr/share tmpfs x-snapd.synthetic,x-snapd.parent-id=/usr/share/mysnap 0 0
-/usr/share/adduser /usr/share/adduser none bind,ro,x-snapd.synthetic,x-snapd.parent-id=/usr/share/mysnap 0 0
-/usr/share/awk /usr/share/awk none bind,ro,x-snapd.synthetic,x-snapd.parent-id=/usr/share/mysnap 0 0
+	const currentProfileContent = `none /usr/share tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
+/usr/share/adduser /usr/share/adduser none bind,ro,x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
+/usr/share/awk /usr/share/awk none bind,ro,x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
 /snap/mysnap/42/usr/share/mysnap /usr/share/mysnap none bind,ro 0 0
 `
 	const desiredProfileContent = ""
@@ -186,7 +186,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 				Action: update.Unmount,
 				Entry: mount.Entry{
 					Name: "/usr/share/awk", Dir: "/usr/share/awk", Type: "none",
-					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.parent-id=/usr/share/mysnap"},
+					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
 				},
 			})
 		case 2:
@@ -194,7 +194,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 				Action: update.Unmount,
 				Entry: mount.Entry{
 					Name: "/usr/share/adduser", Dir: "/usr/share/adduser", Type: "none",
-					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.parent-id=/usr/share/mysnap"},
+					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
 				},
 			})
 		case 3:
@@ -202,7 +202,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 				Action: update.Unmount,
 				Entry: mount.Entry{
 					Name: "none", Dir: "/usr/share", Type: "tmpfs",
-					Options: []string{"x-snapd.synthetic", "x-snapd.parent-id=/usr/share/mysnap"},
+					Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
 				},
 			})
 		default:
