@@ -30,10 +30,11 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func init() {
-	snapstate.Configure = Configure
+	snapstate.Configure = configure
 }
 
 func ConfigureHookTimeout() time.Duration {
@@ -47,7 +48,25 @@ func ConfigureHookTimeout() time.Duration {
 }
 
 // Configure returns a taskset to apply the given configuration patch.
-func Configure(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+func Configure(st *state.State, snapName string, patch map[string]interface{}, flags int) (*state.TaskSet, error) {
+	// core is handled internally and can be configured before
+	// being installed
+	if snapName != "core" {
+		var snapst snapstate.SnapState
+		err := snapstate.Get(st, snapName, &snapst)
+		if err != nil && err != state.ErrNoState {
+			return nil, err
+		}
+		if !snapst.IsInstalled() {
+			return nil, &snap.NotInstalledError{Snap: snapName}
+		}
+	}
+
+	taskset := configure(st, snapName, patch, flags)
+	return taskset, nil
+}
+
+func configure(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
 	summary := fmt.Sprintf(i18n.G("Run configure hook of %q snap"), snapName)
 	// regular configuration hook
 	hooksup := &hookstate.HookSetup{

@@ -73,6 +73,16 @@ var configureTests = []struct {
 }}
 
 func (s *tasksetsSuite) TestConfigure(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "test-snap", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+		Active:  true,
+	})
+	s.state.Unlock()
+
 	for _, test := range configureTests {
 		var flags int
 		if test.ignoreError {
@@ -83,8 +93,9 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 		}
 
 		s.state.Lock()
-		taskset := configstate.Configure(s.state, "test-snap", test.patch, flags)
+		taskset, err := configstate.Configure(s.state, "test-snap", test.patch, flags)
 		s.state.Unlock()
+		c.Assert(err, IsNil)
 
 		tasks := taskset.Tasks()
 		c.Assert(tasks, HasLen, 1)
@@ -100,7 +111,7 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 
 		var hooksup hookstate.HookSetup
 		s.state.Lock()
-		err := task.Get("hook-setup", &hooksup)
+		err = task.Get("hook-setup", &hooksup)
 		s.state.Unlock()
 		c.Check(err, IsNil)
 
@@ -131,6 +142,19 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 		}
 		c.Check(useDefaults, Equals, test.useDefaults)
 	}
+}
+
+func (s *tasksetsSuite) TestConfigureNotInstalled(c *C) {
+	patch := map[string]interface{}{"foo": "bar"}
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := configstate.Configure(s.state, "test-snap", patch, 0)
+	c.Check(err, ErrorMatches, `snap "test-snap" is not installed`)
+
+	// core can be configure before being installed
+	_, err = configstate.Configure(s.state, "core", patch, 0)
+	c.Check(err, IsNil)
 }
 
 type coreCfgHijackSuite struct {
@@ -169,13 +193,14 @@ func (s *coreCfgHijackSuite) TestHijack(c *C) {
 		Current:  snap.R(1),
 	})
 
-	ts := configstate.Configure(s.state, "core", nil, 0)
+	ts, err := configstate.Configure(s.state, "core", nil, 0)
+	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("configure-core", "configure core")
 	chg.AddAll(ts)
 
 	s.state.Unlock()
-	err := s.o.Settle(5 * time.Second)
+	err = s.o.Settle(5 * time.Second)
 	s.state.Lock()
 	c.Assert(err, IsNil)
 
