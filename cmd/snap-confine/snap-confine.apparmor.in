@@ -8,7 +8,7 @@
     #
     # Those are discussed on https://forum.snapcraft.io/t/snapd-vs-upstream-kernel-vs-apparmor
     # and https://forum.snapcraft.io/t/snaps-and-nfs-home/
-    include "/var/lib/snapd/apparmor/snap-confine"
+    #include "/var/lib/snapd/apparmor/snap-confine"
 
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
