@@ -75,7 +75,61 @@ func (ts *timeutilSuite) TestScheduleString(c *C) {
 		sched timeutil.Schedule
 		str   string
 	}{
-		{timeutil.Schedule{Start: timeutil.TimeOfDay{Hour: 13, Minute: 41}, End: timeutil.TimeOfDay{Hour: 14, Minute: 59}}, "13:41-14:59"},
+		{timeutil.Schedule{
+			Times: []timeutil.TimeSpan{
+				{Start: timeutil.TimeOfDay{Hour: 13, Minute: 41},
+					End: timeutil.TimeOfDay{Hour: 14, Minute: 59}},
+			},
+		}, "13:41-14:59"},
+		{timeutil.Schedule{
+			Times: []timeutil.TimeSpan{{
+				Start: timeutil.TimeOfDay{Hour: 13, Minute: 41},
+				End:   timeutil.TimeOfDay{Hour: 14, Minute: 59}}},
+			Week: []timeutil.WeekSpan{
+				{Start: timeutil.Weekday{Day: "mon"}}},
+		}, "mon,13:41-14:59"},
+		{timeutil.Schedule{
+			Times: []timeutil.TimeSpan{
+				{Start: timeutil.TimeOfDay{Hour: 13, Minute: 41},
+					End: timeutil.TimeOfDay{Hour: 14, Minute: 59}, Spread: true}},
+		}, "13:41~14:59"},
+		{timeutil.Schedule{
+			Times: []timeutil.TimeSpan{
+				{Start: timeutil.TimeOfDay{Hour: 6}, End: timeutil.TimeOfDay{Hour: 6}}},
+			Week: []timeutil.WeekSpan{
+				{Start: timeutil.Weekday{Day: "mon"}, End: timeutil.Weekday{Day: "fri"}}},
+		}, "mon-fri,06:00"},
+		{timeutil.Schedule{
+			Times: []timeutil.TimeSpan{
+				{Start: timeutil.TimeOfDay{Hour: 6}, End: timeutil.TimeOfDay{Hour: 6}},
+				{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 14},
+					Spread: true, Split: 2}},
+			Week: []timeutil.WeekSpan{
+				{Start: timeutil.Weekday{Day: "mon"}, End: timeutil.Weekday{Day: "fri"}},
+				{Start: timeutil.Weekday{Day: "sat"}}},
+		}, "mon-fri,sat,06:00,09:00~14:00/2"},
+
+		{timeutil.Schedule{
+			Times: []timeutil.TimeSpan{
+				{Start: timeutil.TimeOfDay{Hour: 6}, End: timeutil.TimeOfDay{Hour: 6}}},
+			Week: []timeutil.WeekSpan{
+				{Start: timeutil.Weekday{Day: "mon", Pos: 1}, End: timeutil.Weekday{Day: "fri", Pos: 1}}},
+		}, "mon1-fri1,06:00"},
+		{timeutil.Schedule{
+			Times: []timeutil.TimeSpan{
+				{Start: timeutil.TimeOfDay{Hour: 6}, End: timeutil.TimeOfDay{Hour: 6}}},
+			Week: []timeutil.WeekSpan{
+				{Start: timeutil.Weekday{Day: "mon", Pos: 5}}},
+		}, "mon5,06:00"},
+		{timeutil.Schedule{
+			Week: []timeutil.WeekSpan{
+				{Start: timeutil.Weekday{Day: "mon"}}},
+		}, "mon"},
+		{timeutil.Schedule{
+			Times: []timeutil.TimeSpan{
+				{Start: timeutil.TimeOfDay{Hour: 6}, End: timeutil.TimeOfDay{Hour: 9},
+					Spread: true, Split: 2}},
+		}, "06:00~09:00/2"},
 	} {
 		c.Check(t.sched.String(), Equals, t.str)
 	}
