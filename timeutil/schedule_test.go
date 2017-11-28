@@ -519,3 +519,278 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 		}
 	}
 }
+
+func (ts *timeutilSuite) TestScheduleNext(c *C) {
+	const shortForm = "2006-01-02 15:04"
+
+	for _, t := range []struct {
+		schedule   string
+		last       string
+		now        string
+		next       string
+		randomized bool
+	}{
+		{
+			schedule: "mon,10:00..fri,15:00",
+			// sun 22:00
+			last: "2017-02-05 22:00",
+			// mon 9:00
+			now:  "2017-02-06 9:00",
+			next: "1h-1h",
+		},
+		{
+			// first monday of the month, at 10:00
+			schedule: "mon1,10:00",
+			// Sun 22:00
+			last: "2017-02-05 22:00",
+			// Mon 9:00
+			now:  "2017-02-06 9:00",
+			next: "1h-1h",
+		},
+		{
+			// first Monday of the month, at 10:00
+			schedule: "mon1,10:00",
+			// first Monday of the month, 10:00
+			last: "2017-02-06 10:00",
+			// first Monday of the month, 11:00, right after
+			// 'previous first Monday' run
+			now: "2017-02-06 11:00",
+			// expecting March, 6th, 10:00, 27 days and 23 hours
+			// from now
+			next: "671h-671h",
+		},
+		{
+			// second Monday of the month, at 10:00
+			schedule: "mon2,10:00",
+			// first Monday of the month, 9:00
+			last: "2017-02-06 10:00",
+			// first Monday of the month, 11:00, right after
+			// 'previous first Monday' run
+			now: "2017-02-06 11:00",
+			// expecting February, 13, 10:00, 6 days and 23 hours
+			// from now
+			next: "167h-167h",
+		},
+		{
+			// last Monday of the month, at 10:00
+			schedule: "mon5,10:00",
+			// first Monday of the month, 9:00
+			last: "2017-02-06 10:00",
+			// first Monday of the month, 11:00, right after
+			// 'previous first Monday' run
+			now: "2017-02-06 11:00",
+			// expecting February, 27th, 10:00, 20 days and 23 hours
+			// from now
+			next: "503h-503h",
+		},
+		{
+			// from last Monday of the month to the second Tuesday of
+			// the month, at 10:00
+			schedule: "mon1-tue2,10:00",
+			// Sunday, 22:00
+			last: "2017-02-05 22:00",
+			// first Monday of the month
+			now: "2017-02-06 11:00",
+			// expecting to run the next day at 10:00
+			next: "23h-23h",
+		},
+		{
+			// from last Monday of the month to the second Tuesday of
+			// the month, at 10:00
+			schedule: "mon1-tue2,10:00-12:00",
+			// Sunday, 22:00
+			last: "2017-02-05 22:00",
+			// first Monday of the month, within the update window
+			now: "2017-02-06 11:00",
+			// expecting to run now
+			next: "0h-0h",
+		},
+		{
+			// from last Monday of the month to the second Tuesday of
+			// the month, at 10:00
+			schedule: "mon1-tue2,10:00~12:00",
+			// Sunday, 22:00
+			last: "2017-02-05 22:00",
+			// first Monday of the month, within the update window
+			now: "2017-02-06 11:00",
+			// expecting to run now
+			next: "0h-1h",
+			// since we're in update window we'll run now regardless
+			// of 'spreading'
+			randomized: false,
+		},
+		{
+			schedule:   "mon,10:00~12:00..fri,15:00",
+			last:       "2017-02-05 22:00",
+			now:        "2017-02-06 9:00",
+			next:       "1h-3h",
+			randomized: true,
+		},
+		{
+			schedule: "mon,10:00-12:00..fri,15:00",
+			last:     "2017-02-06 12:00",
+			// tue 12:00
+			now: "2017-02-07 12:00",
+			// 3 days and 3 hours from now
+			next: "75h-75h",
+		},
+		{
+			// randomized between 10:00 and 12:00
+			schedule: "mon,10:00~12:00",
+			// sun 22:00
+			last: "2017-02-05 22:00",
+			// mon 9:00
+			now:        "2017-02-06 9:00",
+			next:       "1h-3h",
+			randomized: true,
+		},
+		{
+			// Friday to Monday, 10am
+			schedule: "fri-mon,10:00",
+			// sun 22:00
+			last: "2017-02-05 22:00",
+			// mon 9:00
+			now:  "2017-02-06 9:00",
+			next: "1h-1h",
+		},
+		{
+			// Friday to Monday, 10am
+			schedule: "fri-mon,10:00",
+			// mon 10:00
+			last: "2017-02-06 10:00",
+			// mon 10:00
+			now: "2017-02-06 10:00",
+			// 4 days from now
+			next: "96h-96h",
+		},
+		{
+			// Wednesday to Friday, 10am
+			schedule: "wed-fri,10:00",
+			// mon 10:00
+			last: "2017-02-06 10:00",
+			// mon 10:00
+			now: "2017-02-06 10:00",
+			// 2 days from now
+			next: "48h-48h",
+		},
+		{
+			// randomized, once a day
+			schedule: "0:00~24:00",
+			// sun 22:00
+			last: "2017-02-05 22:00",
+			// mon 9:00
+			now:        "2017-02-05 23:00",
+			next:       "1h-25h",
+			randomized: true,
+		},
+		{
+			// randomized, once a day
+			schedule: "0:00~24:00",
+			// mon 10:00
+			last: "2017-02-06 10:00",
+			// mon 11:00
+			now: "2017-02-06 11:00",
+			// sometime the next day
+			next:       "13h-37h",
+			randomized: true,
+		},
+		{
+			// during the night, 23:00-1:00
+			schedule: "23:00~1:00",
+			// mon 10:00
+			last: "2017-02-06 10:00",
+			// mon 11:00
+			now: "2017-02-06 22:00",
+			// sometime over the night
+			next:       "1h-3h",
+			randomized: true,
+		},
+		{
+			// during the night, 23:00-1:00
+			schedule: "23:00~1:00",
+			// Mon 23:00
+			last: "2017-02-06 23:00",
+			// Tue 0:00
+			now: "2017-02-07 00:00",
+			// sometime over the night
+			next:       "23h-25h",
+			randomized: true,
+		},
+		{
+			// twice between 9am and 11am
+			schedule: "9:00-11:00/2",
+			// last attempt at the beginning of window
+			last: "2017-02-06 9:00",
+			// sometime between 10am and 11am
+			now:  "2017-02-06 9:30",
+			next: "30m-90m",
+		},
+		{
+			// 2 ranges
+			schedule: "9:00-10:00,10:00-11:00",
+			// last attempt at the beginning of window
+			last: "2017-02-06 9:00",
+			// next one at 10am
+			now:  "2017-02-06 9:30",
+			next: "30m-30m",
+		},
+		{
+			// twice, at 9am and at 2pm
+			schedule: "9:00,14:00",
+			// last attempt at the beginning of window
+			last: "2017-02-06 9:00",
+			// next one at 2pm
+			now:  "2017-02-06 9:30",
+			next: "270m-270m",
+		},
+		{
+			// 2 ranges, reversed order in spec
+			schedule: "10:00~11:00,9:00-10:00",
+			// last attempt at the beginning of window
+			last: "2017-02-06 9:00",
+			// sometime between 10am and 11am
+			now:        "2017-02-06 9:30",
+			next:       "30m-90m",
+			randomized: true,
+		},
+	} {
+		c.Logf("trying %+v", t)
+
+		last, err := time.ParseInLocation(shortForm, t.last, time.Local)
+		c.Assert(err, IsNil)
+
+		fakeNow, err := time.ParseInLocation(shortForm, t.now, time.Local)
+		c.Assert(err, IsNil)
+		restorer := timeutil.MockTimeNow(func() time.Time {
+			return fakeNow
+		})
+		defer restorer()
+
+		sched, err := timeutil.ParseSchedule(t.schedule)
+		c.Assert(err, IsNil)
+
+		// keep track of previous result for tests where event time is
+		// randomized
+		previous := time.Duration(0)
+		calls := 2
+
+		for i := 0; i < calls; i++ {
+			next := timeutil.Next(sched, last)
+			if t.randomized {
+				c.Check(next, Not(Equals), previous)
+			} else if previous != 0 {
+				// not randomized and not the first run
+				c.Check(next, Equals, previous)
+			}
+
+			c.Logf("next: %v", next)
+			minDist, maxDist := parse(c, t.next)
+
+			c.Check(next >= minDist && next <= maxDist,
+				Equals, true,
+				Commentf("invalid  distance for schedule %q with last refresh %q, now %q, expected %v, got %v",
+					t.schedule, t.last, t.now, t.next, next))
+			previous = next
+		}
+	}
+}
