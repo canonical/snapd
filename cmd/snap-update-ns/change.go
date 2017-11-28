@@ -161,6 +161,19 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 		// Reuse synthetic entries if their needed-by entry is desired.
 		// Synthetic entries cannot exist on their own and always couple to a
 		// non-synthetic entry.
+
+		// NOTE: Synthetic changes have a special purpose.
+		//
+		// They are a "shadow" of mount events that occurred to allow one of
+		// the desired mount entries to be possible. The changes have only one
+		// goal: tell snap-update-ns how those mount events can be undone in
+		// case they are no longer needed. The actual changes may have been
+		// different and may have involved steps not represented as synthetic
+		// mount entires as long as those synthetic entries can be undone to
+		// reverse the effect. In reality each non-tmpfs synthetic entry was
+		// constructed using a temporary bind mount that contained the original
+		// mount entries of a directory that was hidden with a tmpfs, but this
+		// fact was lost.
 		if XSnapdSynthetic(&current[i]) && desiredIDs[XSnapdNeededBy(&current[i])] {
 			logger.Debugf("reusing synthetic entry %q", current[i])
 			reuse[dir] = true
