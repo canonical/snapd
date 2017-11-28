@@ -39,6 +39,7 @@ var (
 	// utils
 	EnsureMountPoint  = ensureMountPoint
 	PlanWritableMimic = planWritableMimic
+	ExecWritableMimic = execWritableMimic
 	SecureMkdirAll    = secureMkdirAll
 	SecureMkfileAll   = secureMkfileAll
 	SplitIntoSegments = splitIntoSegments

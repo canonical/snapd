@@ -362,6 +362,93 @@ func planWritableMimic(dir string) ([]*Change, error) {
 	return changes, nil
 }
 
+// execWritableMimic executes the plan for a writable mimic.
+// The result is a transformed mount namespace and a set of fake mount changes
+// that only exist in order to undo the plan.
+//
+// Certain assumptions are made about the plan, it must closely resemble that
+// created by planWritableMimic, in particular the sequence must look like this:
+//
+// - bind a directory aside into safekeeping location
+// - cover the original with tmpfs
+// - bind mount something from safekeeping location to an empty file or
+//   directory in the tmpfs; this step can repeat any number of times
+// - unbind the safekeeping location
+//
+// Apart from merely executing the plan a fake plan is returned for undo. The
+// undo plan skips the following elements as compared to the original plan:
+//
+// - the initial bind mount that constructs the safekeeping directory is gone
+// - the final unmount that removes the safekeeping directory
+// - the source of each of the bind mounts that re-populate tmpfs.
+//
+// In the event of a failure the undo plan is executed and an error is
+// returned. If the undo plan fails the function panics as it cannot fix the
+// system from an inconsistent state.
+func execWritableMimic(plan []*Change) ([]*Change, error) {
+	undoChanges := make([]*Change, 0, len(plan)-2)
+	for i, change := range plan {
+		if _, err := changePerform(change); err != nil {
+			recoveryUndoChanges := make([]*Change, 0, len(undoChanges)+1)
+			if i > 0 {
+				// The undo plan doesn't contain the entry for the initial bind
+				// mount of the safe keeping directory but we have already
+				// performed it. For this recovery phase we need to insert that
+				// in front of the undo plan manually.
+				recoveryUndoChanges = append(recoveryUndoChanges, plan[0])
+			}
+			recoveryUndoChanges = append(recoveryUndoChanges, undoChanges...)
+
+			// Drat, we failed! Let's undo everything according to our own undo
+			// plan, by following it in reverse order.
+			for j := len(recoveryUndoChanges) - 1; j >= 0; j-- {
+				recoveryUndoChange := recoveryUndoChanges[j]
+				// All the changes mount something, we need to reverse that.
+				// The "undo plan" is "a plan that can be undone" not "the plan
+				// for how to undo" so we need to flip the actions.
+				recoveryUndoChange.Action = Unmount
+				if _, err2 := changePerform(recoveryUndoChange); err2 != nil {
+					// Drat, we failed when trying to recover from an error.
+					// We cannot do anything at this stage.
+					panic(fmt.Errorf("cannot undo change %q while recovering from earlier error %v: %v", recoveryUndoChange, err, err2))
+				}
+			}
+			return nil, err
+		}
+		if i == 0 || i == len(plan)-1 {
+			// Don't represent the initial and final changes in the undo plan.
+			// The initial change is the safe-keeping bind mount, the final
+			// change is the safe-keeping unmount.
+			continue
+		}
+		if kind, _ := change.Entry.OptStr("x-snapd.kind"); kind == "symlink" {
+			// Don't represent symlinks in the undo plan. They are removed when
+			// the tmpfs is unmounted.
+			continue
+
+		}
+		// Store an undo change for the change we just performed.
+		undoChange := &Change{
+			Action: Mount,
+			Entry:  mount.Entry{Dir: change.Entry.Dir, Name: change.Entry.Name, Type: change.Entry.Type, Options: change.Entry.Options},
+		}
+		// Because of the use of a temporary bind mount (aka the safe-keeping
+		// directory) we cannot represent bind mounts fully (the temporary bind
+		// mount is unmounted as the last stage of this process). For that
+		// reason let's hide the original location and overwrite it so to
+		// appear as if the directory was a bind mount over itself. This is not
+		// fully true (it is a bind mount from the old self to the new empty
+		// directory or file in the same path, with the tmpfs in place already)
+		// but this is closer to the truth and more in line with the idea that
+		// this is just a plan for undoing the operation.
+		if undoChange.Entry.OptBool("bind") {
+			undoChange.Entry.Name = undoChange.Entry.Dir
+		}
+		undoChanges = append(undoChanges, undoChange)
+	}
+	return undoChanges, nil
+}
+
 func ensureMountPoint(path string, mode os.FileMode, uid int, gid int) error {
 	// If the mount point is not present then create a directory in its
 	// place.  This is very naive, doesn't handle read-only file systems
