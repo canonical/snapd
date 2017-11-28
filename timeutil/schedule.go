@@ -20,6 +20,7 @@
 package timeutil
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"regexp"
@@ -107,16 +108,95 @@ func ParseTime(s string) (t TimeOfDay, err error) {
 	return t, nil
 }
 
-// Schedule defines a start and end time in which events should run.
-type Schedule struct {
+// Weekday represents a weekday such as Monday, Tuesday, with optional
+// week-in-the-month position, eg. the first Monday of the month
+type Weekday struct {
+	// Day stands for a weekday - "mon", "tue", ..
+	Day string
+	// Week the day appears in given month, 5 means the last week
+	Pos uint
+}
+
+// IsZero indicates if Weekday is in the default state
+func (w Weekday) IsZero() bool {
+	return w == Weekday{}
+}
+
+func (w Weekday) String() string {
+	if w.Pos == 0 {
+		return w.Day
+	}
+	return w.Day + strconv.FormatUint(uint64(w.Pos), 10)
+}
+
+// WeekSpan represents a span of weekdays between Start and End days. WeekSpan
+// may wrap around the week, eg. fri-mon is a span from Friday to Monday
+type WeekSpan struct {
+	Start Weekday
+	End   Weekday
+}
+
+func (ws WeekSpan) String() string {
+	if !ws.End.IsZero() && ws.End != ws.Start {
+		return ws.Start.String() + "-" + ws.End.String()
+	}
+	return ws.Start.String()
+}
+// TimeSpan is a time span within a single day (or this and the next day).
+// TimeSpan may wrap around, eg. 23:00-1:00 representing a span from 11pm to 1am
+// the next day.
+type TimeSpan struct {
 	Start TimeOfDay
 	End   TimeOfDay
+	// indicates if the span is split into smaller subspans. Use Subspan()
+	// to generate a slice of TimeSpan using the current TimeSpan as a base
+	Split uint
+	// indicates if the events are randomly spread between Start and End
+	Spread bool
+}
 
-	Weekday string
+func (ts TimeSpan) String() string {
+	sep := "-"
+	if ts.Spread {
+		sep = "~"
+	}
+	if !ts.End.IsZero() && ts.End != ts.Start {
+		s := ts.Start.String() + sep + ts.End.String()
+		if ts.Split > 0 {
+			s += "/" + strconv.FormatUint(uint64(ts.Split), 10)
+		}
+		return s
+	}
+	return ts.Start.String()
+}
+
+// Schedule represents a single schedule
+type Schedule struct {
+	Week  []WeekSpan
+	Times []TimeSpan
 }
 
 func (sched *Schedule) String() string {
-	return fmt.Sprintf("%s-%s", sched.Start, sched.End)
+	buf := &bytes.Buffer{}
+
+	for i, span := range sched.Week {
+		if i > 0 {
+			fmt.Fprint(buf, ",")
+		}
+		fmt.Fprintf(buf, "%s", span)
+	}
+
+	if len(sched.Week) > 0 && len(sched.Times) > 0 {
+		fmt.Fprint(buf, ",")
+	}
+
+	for i, span := range sched.Times {
+		if i > 0 {
+			fmt.Fprintf(buf, ",")
+		}
+		fmt.Fprintf(buf, "%s", span)
+	}
+	return buf.String()
 }
 
 func (sched *Schedule) Next(last time.Time) (start, end time.Time) {
