@@ -47,7 +47,7 @@ if [ "$1" = "purge" ]; then
         snap=$(grep 'Where=/snap/' "/etc/systemd/system/$unit"|cut -f3 -d/)
         rev=$(grep 'Where=/snap/' "/etc/systemd/system/$unit"|cut -f4 -d/)
         if [ -n "$snap" ]; then
-            echo "Removing snap $snap"
+            echo "Removing snap $snap and revision $rev"
             # aliases
             if [ -d /snap/bin ]; then
                 find /snap/bin -maxdepth 1 -lname "$snap" -delete
@@ -83,8 +83,9 @@ if [ "$1" = "purge" ]; then
 
     echo "Final directory cleanup"
     for d in "/snap/bin" "/snap" "/var/snap"; do
+        # Force remove due to directories for old revisions could still exist
         if [ -d "$d" ]; then
-            rmdir --ignore-fail-on-non-empty $d
+            rm -rf  $d
         fi
         if [ -d "$d" ]; then
             echo "Failed cleaning dir $d"
