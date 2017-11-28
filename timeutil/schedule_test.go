@@ -301,3 +301,221 @@ func (ts *timeutilSuite) TestLegacyScheduleNext(c *C) {
 	}
 
 }
+
+func (ts *timeutilSuite) TestParseSchedule(c *C) {
+	for _, t := range []struct {
+		in       string
+		expected []*timeutil.Schedule
+		errStr   string
+	}{
+		// invalid
+		{"", nil, `cannot parse "": not a valid event`},
+		{"invalid-11:00", nil, `cannot parse "invalid-11:00": not a valid event`},
+		{"9:00-11:00/invalid", nil, `cannot parse "9:00-11:00/invalid": not a valid event interval`},
+		{"9:00-11:00/0", nil, `cannot parse "9:00-11:00/0": not a valid event interval`},
+		{"09:00-25:00", nil, `cannot parse "09:00-25:00": not a valid event`},
+		{"09:00-24:30", nil, `cannot parse "09:00-24:30": not a valid event`},
+		{"mon-01:00", nil, `cannot parse "mon-01:00": not a valid event`},
+		{"9:00-mon@11:00", nil, `cannot parse "9:00-mon@11:00": not a valid event`},
+		{"9:00,mon", nil, `cannot parse "9:00,mon": expected time spec`},
+		{"mon~wed", nil, `cannot parse "mon~wed": expected time spec`},
+		{"mon-wed/2..9:00", nil, `cannot parse "mon-wed/2": expected time spec`},
+		{"mon9,9:00", nil, `cannot parse "mon9,9:00": not a valid event`},
+		{"mon0,9:00", nil, `cannot parse "mon0,9:00": not a valid event`},
+		{"mon5-mon1,9:00", nil, `cannot parse "mon5-mon1": unsupported schedule`},
+		{"mon-mon2,9:00", nil, `cannot parse "mon-mon2": mixed weekday and nonweekday`},
+		{"mon%,9:00", nil, `cannot parse "mon%,9:00": not a valid event`},
+		{"foo2,9:00", nil, `cannot parse "foo2,9:00": not a valid event`},
+		// valid
+		{
+			in: "9:00-11:00",
+			expected: []*timeutil.Schedule{{
+				Times: []timeutil.TimeSpan{
+					{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}},
+			}},
+		},
+		{
+			in: "9:00-11:00/2",
+			expected: []*timeutil.Schedule{{
+				Times: []timeutil.TimeSpan{
+					{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11},
+						Split: 2}},
+			}},
+		},
+		{
+			in: "mon,9:00-11:00",
+			expected: []*timeutil.Schedule{{
+				Times: []timeutil.TimeSpan{
+					{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}},
+				Week: []timeutil.WeekSpan{
+					{Start: timeutil.Weekday{Day: "mon"}}},
+			}},
+		},
+		{
+			in: "fri,mon,9:00-11:00",
+			expected: []*timeutil.Schedule{{
+				Times: []timeutil.TimeSpan{
+					{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}},
+				Week: []timeutil.WeekSpan{
+					{Start: timeutil.Weekday{Day: "fri"}},
+					{Start: timeutil.Weekday{Day: "mon"}}},
+			}},
+		},
+		{
+			in: "9:00-11:00..20:00-22:00",
+			expected: []*timeutil.Schedule{
+				{Times: []timeutil.TimeSpan{
+					{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}}},
+				{Times: []timeutil.TimeSpan{
+					{Start: timeutil.TimeOfDay{Hour: 20}, End: timeutil.TimeOfDay{Hour: 22}}}},
+			},
+		},
+		{
+			in: "mon,9:00-11:00..wed,22:00-23:00",
+			expected: []*timeutil.Schedule{
+				{
+					Times: []timeutil.TimeSpan{{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11}}},
+					Week:  []timeutil.WeekSpan{{Start: timeutil.Weekday{Day: "mon"}}},
+				},
+				{
+					Times: []timeutil.TimeSpan{{Start: timeutil.TimeOfDay{Hour: 22}, End: timeutil.TimeOfDay{Hour: 23}}},
+					Week:  []timeutil.WeekSpan{{Start: timeutil.Weekday{Day: "wed"}}},
+				},
+			},
+		},
+		{
+			in: "mon,9:00,10:00,14:00,15:00",
+			expected: []*timeutil.Schedule{{
+				Times: []timeutil.TimeSpan{
+					{Start: timeutil.TimeOfDay{Hour: 9}},
+					{Start: timeutil.TimeOfDay{Hour: 10}},
+					{Start: timeutil.TimeOfDay{Hour: 14}},
+					{Start: timeutil.TimeOfDay{Hour: 15}},
+				},
+				Week: []timeutil.WeekSpan{
+					{Start: timeutil.Weekday{Day: "mon"}},
+				},
+			}},
+		},
+		{
+			in: "mon,wed",
+			expected: []*timeutil.Schedule{{
+				Week: []timeutil.WeekSpan{
+					{Start: timeutil.Weekday{Day: "mon"}},
+					{Start: timeutil.Weekday{Day: "wed"}},
+				},
+			}},
+		},
+		// same as above
+		{
+			in: "mon..wed",
+			expected: []*timeutil.Schedule{
+				{Week: []timeutil.WeekSpan{
+					{Start: timeutil.Weekday{Day: "mon"}}}},
+				{Week: []timeutil.WeekSpan{
+					{Start: timeutil.Weekday{Day: "wed"}}}},
+			},
+		},
+		// but not the same as this one
+		{
+			in: "mon-wed",
+			expected: []*timeutil.Schedule{{
+				Week: []timeutil.WeekSpan{
+					{Start: timeutil.Weekday{Day: "mon"}, End: timeutil.Weekday{Day: "wed"}}},
+			}},
+		},
+		{
+			in: "mon-wed,fri,9:00-11:00/2",
+			expected: []*timeutil.Schedule{{
+				Times: []timeutil.TimeSpan{
+					{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11},
+						Split: 2},
+				},
+				Week: []timeutil.WeekSpan{
+					{Start: timeutil.Weekday{Day: "mon"}, End: timeutil.Weekday{Day: "wed"}},
+					{Start: timeutil.Weekday{Day: "fri"}},
+				},
+			}},
+		},
+		{
+			in: "9:00~11:00",
+			expected: []*timeutil.Schedule{{
+				Times: []timeutil.TimeSpan{
+					{Start: timeutil.TimeOfDay{Hour: 9}, End: timeutil.TimeOfDay{Hour: 11},
+						Spread: true},
+				},
+			}},
+		},
+		{
+			in: "9:00",
+			expected: []*timeutil.Schedule{{
+				Times: []timeutil.TimeSpan{
+					{Start: timeutil.TimeOfDay{Hour: 9}},
+				},
+			}},
+		},
+		{
+			in: "mon1,9:00",
+			expected: []*timeutil.Schedule{{
+				Times: []timeutil.TimeSpan{
+					{Start: timeutil.TimeOfDay{Hour: 9}},
+				},
+				Week: []timeutil.WeekSpan{
+					{Start: timeutil.Weekday{Day: "mon", Pos: 1}},
+				},
+			}},
+		},
+		{
+			in: "00:00-24:00",
+			expected: []*timeutil.Schedule{{
+				Times: []timeutil.TimeSpan{
+					{Start: timeutil.TimeOfDay{Hour: 0}, End: timeutil.TimeOfDay{Hour: 24}},
+				},
+			}},
+		},
+		// 4 events during the whole day - 0:00-24:00/4
+		{
+			in: "-/4",
+			expected: []*timeutil.Schedule{{
+				Times: []timeutil.TimeSpan{
+					{Start: timeutil.TimeOfDay{Hour: 0}, End: timeutil.TimeOfDay{Hour: 24},
+						Split: 4},
+				},
+			}},
+		},
+		// randomized variant of above
+		{
+			in: "~/4",
+			expected: []*timeutil.Schedule{{
+				Times: []timeutil.TimeSpan{
+					{Start: timeutil.TimeOfDay{Hour: 0}, End: timeutil.TimeOfDay{Hour: 24},
+						Spread: true, Split: 4},
+				},
+			}},
+		},
+		{
+			in: "23:00-01:00",
+			expected: []*timeutil.Schedule{{
+				Times: []timeutil.TimeSpan{
+					{Start: timeutil.TimeOfDay{Hour: 23}, End: timeutil.TimeOfDay{Hour: 1}},
+				},
+			}},
+		},
+		{
+			in: "fri-mon",
+			expected: []*timeutil.Schedule{{
+				Week: []timeutil.WeekSpan{
+					{Start: timeutil.Weekday{Day: "fri"}, End: timeutil.Weekday{Day: "mon"}}},
+			}},
+		},
+	} {
+		c.Logf("trying %+v", t)
+		schedule, err := timeutil.ParseSchedule(t.in)
+		if t.errStr != "" {
+			c.Check(err, ErrorMatches, t.errStr, Commentf("%q returned unexpected error: %s", t.in, err))
+		} else {
+			c.Check(err, IsNil, Commentf("%q returned error: %s", t.in, err))
+			c.Check(schedule, DeepEquals, t.expected, Commentf("%q failed", t.in))
+		}
+	}
+}
