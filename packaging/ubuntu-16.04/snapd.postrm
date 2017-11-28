@@ -88,6 +88,7 @@ if [ "$1" = "purge" ]; then
         fi
         if [ -d "$d" ]; then
             echo "Failed cleaning dir $d"
+            ls "$d"
             exit 1
         fi
     done
