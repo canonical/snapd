@@ -35,7 +35,7 @@ execute: |
     echo "The interface is connected by default"
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
-    echo "Check the network-status is working from the consumer app in the snap and running dbus-send"
+    echo "Check the network-status is working from the consumer app in the snap"
     test-snapd-network-status-provider.consumer GetState | MATCH "my-ap-state"
     test-snapd-network-status-provider.consumer GetVersion | MATCH "my-ap-version"
 
