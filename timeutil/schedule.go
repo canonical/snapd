@@ -28,8 +28,11 @@ import (
 	"time"
 )
 
+// Match 0:00-24:59, so that we cover 0:00-24:00, where 24:00 means the later
+// end of the day. 24:<mm> where mm > 0 must be handled separately.
 var validTime = regexp.MustCompile(`^([0-9]|0[0-9]|1[0-9]|2[0-3]):([0-5][0-9])$`)
 
+// TimeOfDay represents a hour:minute time within a day.
 type TimeOfDay struct {
 	Hour   int
 	Minute int
@@ -57,6 +60,23 @@ func (t TimeOfDay) Add(dur time.Duration) TimeOfDay {
 	return nt
 }
 
+// MakeTime generates a time.Time using base for information on year, month, day
+// and with hour and minute set from TimeOfDay
+func (t TimeOfDay) MakeTime(base time.Time) time.Time {
+	return time.Date(base.Year(), base.Month(), base.Day(),
+		t.Hour, t.Minute, 0, 0, time.Local)
+}
+
+// IsZero reports whether t represents a zero time instant
+func (t TimeOfDay) IsZero() bool {
+	return t == TimeOfDay{}
+}
+
+// isValidTime returns true if given s looks like a valid time specification
+func isValidTime(s string) bool {
+	return len(validTime.FindStringSubmatch(s)) > 0 || s == "24:00"
+}
+
 // IsValidWeekday returns true if given s looks like a valid weekday. Valid
 // inputs are 3 letter, lowercase abbreviations of week days.
 func IsValidWeekday(s string) bool {
@@ -67,6 +87,11 @@ func IsValidWeekday(s string) bool {
 // ParseTime parses a string that contains hour:minute and returns
 // an TimeOfDay type or an error
 func ParseTime(s string) (t TimeOfDay, err error) {
+	if s == "24:00" {
+		t.Hour = 24
+		return t, nil
+	}
+
 	m := validTime.FindStringSubmatch(s)
 	if len(m) == 0 {
 		return t, fmt.Errorf("cannot parse %q", s)
