@@ -84,10 +84,10 @@ func (s *autoRefreshTestSuite) TestLastRefresh(c *C) {
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
-	snapstate.CanSetRefreshScheduleManaged = func(st *state.State) bool {
+	snapstate.CanManageRefreshes = func(st *state.State) bool {
 		return true
 	}
-	defer func() { snapstate.CanSetRefreshScheduleManaged = nil }()
+	defer func() { snapstate.CanManageRefreshes = nil }()
 
 	s.state.Lock()
 	defer s.state.Unlock()

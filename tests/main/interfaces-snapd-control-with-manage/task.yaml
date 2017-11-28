@@ -14,6 +14,8 @@ prepare: |
         snap install jq
     fi
 
+    snap debug can-manage-refreshes | MATCH false
+
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
     . $TESTSLIB/store.sh
@@ -59,9 +61,12 @@ execute: |
 
     echo "When the snapd-control-with-manage plug is connected"
     snap connect test-snapd-control-consumer:snapd-control-with-manage
-    snap set core refresh.schedule=managed
+
+    echo "Then the system knows it can be set to managed"
+    snap debug can-manage-refreshes | MATCH true
 
     echo "Then the core refresh.schedule can be set to 'managed'"
+    snap set core refresh.schedule=managed
     if journalctl -u snapd |grep 'cannot parse "managed"'; then
         echo "refresh.schedule=managed was not rejected as it should be"
         exit 1

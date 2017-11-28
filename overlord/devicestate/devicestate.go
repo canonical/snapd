@@ -198,7 +198,7 @@ func delayedCrossMgrInit() {
 		snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
 	})
 	snapstate.CanAutoRefresh = canAutoRefresh
-	snapstate.CanSetRefreshScheduleManaged = CanSetRefreshScheduleManaged
+	snapstate.CanManageRefreshes = CanManageRefreshes
 }
 
 // ProxyStore returns the store assertion for the proxy store if one is set.
@@ -226,15 +226,16 @@ func ProxyStore(st *state.State) (*asserts.Store, error) {
 	return a.(*asserts.Store), nil
 }
 
-// plugConnected returns true if the given snap/plug names are connected
-func plugConnected(st *state.State, snapName, plugName string) bool {
-	conns, err := ifacerepo.Get(st).Connected(snapName, plugName)
+// interfaceConnected returns true if the given snap/interface names
+// are connected
+func interfaceConnected(st *state.State, snapName, ifName string) bool {
+	conns, err := ifacerepo.Get(st).Connected(snapName, ifName)
 	return err == nil && len(conns) > 0
 }
 
-// CanSetRefreshScheduleManaged returns true if the device can be
+// CanManageRefreshes returns true if the device can be
 // switched to the "core.refresh.schedule=managed" mode.
-func CanSetRefreshScheduleManaged(st *state.State) bool {
+func CanManageRefreshes(st *state.State) bool {
 	snapStates, err := snapstate.All(st)
 	if err != nil {
 		return false
@@ -257,7 +258,7 @@ func CanSetRefreshScheduleManaged(st *state.State) bool {
 			if plugInfo.Interface == "snapd-control" && plugInfo.Attrs["refresh-schedule"] == "managed" {
 				snapName := info.Name()
 				plugName := plugInfo.Name
-				if plugConnected(st, snapName, plugName) {
+				if interfaceConnected(st, snapName, plugName) {
 					return true
 				}
 			}

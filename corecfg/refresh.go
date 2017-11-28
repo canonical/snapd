@@ -40,7 +40,7 @@ func validateRefreshSchedule(tr Conf) error {
 		st.Lock()
 		defer st.Unlock()
 
-		if !devicestate.CanSetRefreshScheduleManaged(st) {
+		if !devicestate.CanManageRefreshes(st) {
 			return fmt.Errorf("cannot set schedule to managed")
 		}
 		return nil

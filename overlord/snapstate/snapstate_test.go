@@ -5306,11 +5306,11 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesDisabledViaSnapdControl(c *C) {
 	defer restore()
 
 	// pretend the device is refresh-control: managed
-	oldCanSetRefreshScheduleManaged := snapstate.CanSetRefreshScheduleManaged
-	snapstate.CanSetRefreshScheduleManaged = func(*state.State) bool {
+	oldCanManageRefreshes := snapstate.CanManageRefreshes
+	snapstate.CanManageRefreshes = func(*state.State) bool {
 		return true
 	}
-	defer func() { snapstate.CanSetRefreshScheduleManaged = oldCanSetRefreshScheduleManaged }()
+	defer func() { snapstate.CanManageRefreshes = oldCanManageRefreshes }()
 	tr := config.NewTransaction(st)
 	tr.Set("core", "refresh.schedule", "managed")
 	tr.Commit()

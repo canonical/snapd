@@ -36,8 +36,8 @@ const defaultRefreshSchedule = "00:00-05:59/6:00-11:59/12:00-17:59/18:00-23:59"
 
 // hooks setup by devicestate
 var (
-	CanAutoRefresh               func(st *state.State) (bool, error)
-	CanSetRefreshScheduleManaged func(st *state.State) bool
+	CanAutoRefresh     func(st *state.State) (bool, error)
+	CanManageRefreshes func(st *state.State) bool
 )
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
@@ -254,7 +254,7 @@ func refreshScheduleManaged(st *state.State) bool {
 	var refreshScheduleStr string
 
 	// this will only be "nil" if running in tests
-	if CanSetRefreshScheduleManaged == nil {
+	if CanManageRefreshes == nil {
 		return false
 	}
 
@@ -267,5 +267,5 @@ func refreshScheduleManaged(st *state.State) bool {
 		return false
 	}
 
-	return CanSetRefreshScheduleManaged(st)
+	return CanManageRefreshes(st)
 }

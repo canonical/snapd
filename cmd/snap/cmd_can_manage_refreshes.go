@@ -20,25 +20,32 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/jessevdk/go-flags"
 )
 
-type cmdCanSetRefreshScheduleManaged struct{}
+type cmdCanManageRefreshes struct{}
 
 func init() {
-	cmd := addDebugCommand("can-set-refresh-schedule-managed",
+	cmd := addDebugCommand("can-manage-refreshes",
 		"(internal) return if refresh.schedule=managed can be used",
 		"(internal) return if refresh.schedule=managed can be used",
 		func() flags.Commander {
-			return &cmdCanSetRefreshScheduleManaged{}
+			return &cmdCanManageRefreshes{}
 		})
 	cmd.hidden = true
 }
 
-func (x *cmdCanSetRefreshScheduleManaged) Execute(args []string) error {
+func (x *cmdCanManageRefreshes) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
-	return Client().Debug("can-set-refresh-schedule-managed", nil, nil)
+	var resp bool
+	if err := Client().Debug("can-manage-refreshes", nil, &resp); err != nil {
+		return err
+	}
+	fmt.Fprintf(Stdout, "%v\n", resp)
+	return nil
 }

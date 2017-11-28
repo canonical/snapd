@@ -2129,34 +2129,34 @@ func (s *deviceMgrSuite) makeSnapDeclaration(c *C, st *state.State, info *snap.I
 	c.Assert(err, IsNil)
 }
 
-func (s *deviceMgrSuite) TestCanSetRefreshScheduleManaged(c *C) {
+func (s *deviceMgrSuite) TestCanManageRefreshes(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
 
 	// not possbile to manage by default
-	c.Check(devicestate.CanSetRefreshScheduleManaged(st), Equals, false)
+	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
 
 	// not possible with just a snap with "snapd-control" plug with the
 	// right attribute
 	info11 := makeInstalledMockSnap(c, st, snapWithSnapdControlRefreshScheduleManagedYAML)
-	c.Check(devicestate.CanSetRefreshScheduleManaged(st), Equals, false)
+	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
 
 	// not possible with a core snap with snapd control
 	core11 := makeInstalledMockCoreSnapWithSnapdControl(c, st)
-	c.Check(devicestate.CanSetRefreshScheduleManaged(st), Equals, false)
+	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
 
 	// not possible even with connected interfaces
 	makeMockRepoWithConnectedSnaps(c, st, info11, core11, "snapd-control")
-	c.Check(devicestate.CanSetRefreshScheduleManaged(st), Equals, false)
+	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
 
 	// if all of the above plus a snap declaration are in place we can
 	// manage schedules
 	s.makeSnapDeclaration(c, st, info11)
-	c.Check(devicestate.CanSetRefreshScheduleManaged(st), Equals, true)
+	c.Check(devicestate.CanManageRefreshes(st), Equals, true)
 }
 
-func (s *deviceMgrSuite) TestCanSetRefreshScheduleManagedNoRefreshScheduleManaged(c *C) {
+func (s *deviceMgrSuite) TestCanManageRefreshesNoRefreshScheduleManaged(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -2168,5 +2168,5 @@ func (s *deviceMgrSuite) TestCanSetRefreshScheduleManagedNoRefreshScheduleManage
 	makeMockRepoWithConnectedSnaps(c, st, info11, core11, "snapd-control")
 	s.makeSnapDeclaration(c, st, info11)
 
-	c.Check(devicestate.CanSetRefreshScheduleManaged(st), Equals, false)
+	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
 }
