@@ -109,7 +109,7 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 				Name: "/snap/mysnap/42/usr/share/mysnap",
 				Dir:  "/usr/share/mysnap", Type: "none",
 				Options: []string{"bind", "ro"}}})
-		syntetic := []*update.Change{
+		synthetic := []*update.Change{
 			// The original directory (which was a part of the core snap and is
 			// read only) was hidden with a tmpfs.
 			{Action: update.Mount, Entry: mount.Entry{
@@ -129,7 +129,7 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 				Dir: "/usr/share/awk", Name: "/usr/share/awk",
 				Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
 		}
-		return syntetic, nil
+		return synthetic, nil
 	})
 	defer restore()
 
