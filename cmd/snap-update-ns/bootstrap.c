@@ -41,70 +41,6 @@ int bootstrap_errno = 0;
 // bootstrap_msg contains a static string if something fails.
 const char* bootstrap_msg = NULL;
 
-// read_cmdline reads /proc/self/cmdline into the specified buffer, returning
-// number of bytes read.
-ssize_t read_cmdline(char* buf, size_t buf_size)
-{
-    int fd = open("/proc/self/cmdline", O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
-    if (fd < 0) {
-        bootstrap_errno = errno;
-        bootstrap_msg = "cannot open /proc/self/cmdline";
-        return -1;
-    }
-    // Ensure buf is initialized to all NULLs since our parsing of cmdline with
-    // its embedded NULLs depends on this. Use for loop instead of memset() to
-    // guarantee this initialization won't be optimized away.
-    size_t i;
-    for (i = 0; i < buf_size; ++i) {
-        buf[i] = '\0';
-    }
-    ssize_t num_read = read(fd, buf, buf_size);
-    if (num_read < 0) {
-        bootstrap_errno = errno;
-        bootstrap_msg = "cannot read /proc/self/cmdline";
-    } else if (num_read == 0) {
-        bootstrap_errno = errno;
-        bootstrap_msg = "unexpectedly /proc/self/cmdline is empty";
-    } else if (num_read == buf_size && buf_size > 0 && buf[buf_size - 1] != '\0') {
-        bootstrap_errno = 0;
-        bootstrap_msg = "cannot fit all of /proc/self/cmdline, buffer too small";
-        num_read = -1;
-    }
-    close(fd);
-    return num_read;
-}
-
-// find_snap_name scans the command line buffer and looks for the 1st argument.
-// if the 1st argument exists but is empty NULL is returned.
-const char*
-find_snap_name(const char* buf)
-{
-    // Skip the zeroth argument as well as any options. We know buf is NUL
-    // padded and terminated from read_cmdline().
-    do {
-        size_t arg_len = strlen(buf);
-        buf += arg_len + 1;
-    } while (buf[0] == '-');
-
-    const char* snap_name = buf;
-    if (strlen(snap_name) == 0) {
-        return NULL;
-    }
-    return snap_name;
-}
-
-const char*
-find_1st_option(const char* buf)
-{
-    // Skip the zeroth argument and find the first command line option.
-    // We know buf is NUL padded and terminated from read_cmdline().
-    size_t pos = strlen(buf) + 1;
-    if (buf[pos] == '-') {
-        return &buf[pos];
-    }
-    return NULL;
-}
-
 // setns_into_snap switches mount namespace into that of a given snap.
 static int
 setns_into_snap(const char* snap_name)
@@ -228,21 +164,20 @@ int validate_snap_name(const char* snap_name)
     return 0;
 }
 
-// process_arguments parses given cmdline which must be list of strings separated with NUL bytes.
-// cmdline is an array of NUL ('\0') separated strings and guaranteed to be
-// NUL-terminated via read_cmdline().
-void process_arguments(const char* cmdline, const char** snap_name_out, bool* should_setns_out)
+// process_arguments parses given a command line
+// argc and argv are defined as for the main() function
+void process_arguments(int argc, char *const *argv, const char** snap_name_out, bool* should_setns_out)
 {
     // Find the name of the called program. If it is ending with ".test" then do nothing.
     // NOTE: This lets us use cgo/go to write tests without running the bulk
     // of the code automatically.
     //
-    const char* argv0 = cmdline;
-    if (argv0 == NULL) {
+    if (argv == NULL || argc < 1) {
         bootstrap_errno = 0;
         bootstrap_msg = "argv0 is corrupted";
         return;
     }
+    const char* argv0 = argv[0];
     const char* argv0_suffix_maybe = strstr(argv0, ".test");
     if (argv0_suffix_maybe != NULL && argv0_suffix_maybe[strlen(".test")] == '\0') {
         bootstrap_errno = 0;
@@ -250,23 +185,38 @@ void process_arguments(const char* cmdline, const char** snap_name_out, bool* sh
         return;
     }
 
-    // When we are running under "--from-snap-confine" option skip the setns
-    // call as snap-confine has already placed us in the right namespace.
-    const char* option = find_1st_option(cmdline);
     bool should_setns = true;
-    if (option != NULL) {
-        if (strncmp(option, "--from-snap-confine", strlen("--from-snap-confine")) == 0) {
-            should_setns = false;
+    const char* snap_name = NULL;
+
+    // Sanity check the command line arguments.  The go parts will
+    // scan this too.
+    int i;
+    for (i = 1; i < argc; i++) {
+        const char *arg = argv[i];
+        if (arg[0] == '-') {
+            /* We have an option */
+            if (!strcmp(arg, "--from-snap-confine")) {
+                // When we are running under "--from-snap-confine"
+                // option skip the setns call as snap-confine has
+                // already placed us in the right namespace.
+                should_setns = false;
+            } else {
+                bootstrap_errno = 0;
+                bootstrap_msg = "unsupported option";
+                return;
+            }
         } else {
-            bootstrap_errno = 0;
-            bootstrap_msg = "unsupported option";
-            return;
+            // We expect a single positional argument: the snap name
+            if (snap_name != NULL) {
+                bootstrap_errno = 0;
+                bootstrap_msg = "too many positional arguments";
+                return;
+            }
+            snap_name = arg;
         }
     }
 
-    // Find the name of the snap by scanning the cmdline.  If there's no snap
-    // name given, just bail out. The go parts will scan this too.
-    const char* snap_name = find_snap_name(cmdline);
+    // If there's no snap name given, just bail out.
     if (snap_name == NULL) {
         bootstrap_errno = 0;
         bootstrap_msg = "snap name not provided";
@@ -293,7 +243,7 @@ void process_arguments(const char* cmdline, const char** snap_name_out, bool* sh
 
 // bootstrap prepares snap-update-ns to work in the namespace of the snap given
 // on command line.
-void bootstrap(void)
+void bootstrap(int argc, char **argv, char **envp)
 {
     // We may have been started via a setuid-root snap-confine. In order to
     // prevent environment-based attacks we start by erasing all environment
@@ -307,23 +257,13 @@ void bootstrap(void)
     if (snapd_debug != NULL) {
         setenv("SNAPD_DEBUG", snapd_debug, 0);
     }
-    // We don't have argc/argv so let's imitate that by reading cmdline
-    // NOTE: use explicit initialization to avoid optimizing-out memset.
-    char cmdline[1024] = {
-        0,
-    };
-    ssize_t num_read;
-    if ((num_read = read_cmdline(cmdline, sizeof cmdline)) < 0) {
-        // read_cmdline sets bootstrap_{errno,msg}
-        return;
-    }
 
     // Analyze the read process cmdline to find the snap name and decide if we
     // should use setns to jump into the mount namespace of a particular snap.
     // This is spread out for easier testability.
     const char* snap_name = NULL;
     bool should_setns = false;
-    process_arguments(cmdline, &snap_name, &should_setns);
+    process_arguments(argc, argv, &snap_name, &should_setns);
     if (snap_name != NULL && should_setns) {
         setns_into_snap(snap_name);
         // setns_into_snap sets bootstrap_{errno,msg}

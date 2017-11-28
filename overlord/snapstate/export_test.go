@@ -127,3 +127,28 @@ var (
 	CheckAliasesConflicts = checkAliasesConflicts
 	DisableAliases        = disableAliases
 )
+
+// readme files
+var (
+	WriteSnapReadme = writeSnapReadme
+	SnapReadme      = snapReadme
+)
+
+// refreshes
+var (
+	NewAutoRefresh    = newAutoRefresh
+	NewRefreshHints   = newRefreshHints
+	NewCatalogRefresh = newCatalogRefresh
+)
+
+func MockCatalogRefreshNextRefresh(cr *catalogRefresh, when time.Time) {
+	cr.nextCatalogRefresh = when
+}
+
+func MockRefreshRetryDelay(d time.Duration) func() {
+	origRefreshRetryDelay := refreshRetryDelay
+	refreshRetryDelay = d
+	return func() {
+		refreshRetryDelay = origRefreshRetryDelay
+	}
+}

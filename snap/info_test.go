@@ -115,7 +115,7 @@ slots:
 	c.Assert(info.Plugs["plug"].SecurityTags(), DeepEquals, []string{
 		"snap.name.app1", "snap.name.app2", "snap.name.hook.hook1"})
 	c.Assert(info.Slots["slot"].SecurityTags(), DeepEquals, []string{
-		"snap.name.app1", "snap.name.app2"})
+		"snap.name.app1", "snap.name.app2", "snap.name.hook.hook1"})
 }
 
 func (s *infoSuite) TestAppInfoWrapperPath(c *C) {
@@ -567,14 +567,15 @@ func (s *infoSuite) TestReadInfoImplicitAndExplicitHooks(c *C) {
 version: 1.0
 hooks:
   explicit:
-    plugs: [test-plug]`
+    plugs: [test-plug]
+    slots: [test-slot]`
 	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"explicit", "implicit"}, func(c *C, info *snap.Info) {
 		// Verify that the `implicit` hook has now been loaded, and that it has
 		// no associated plugs. Also verify that the `explicit` hook is still
 		// valid.
 		c.Check(info.Hooks, HasLen, 2)
 		verifyImplicitHook(c, info, "implicit")
-		verifyExplicitHook(c, info, "explicit", []string{"test-plug"})
+		verifyExplicitHook(c, info, "explicit", []string{"test-plug"}, []string{"test-slot"})
 	})
 }
 
@@ -585,11 +586,12 @@ func verifyImplicitHook(c *C, info *snap.Info, hookName string) {
 	c.Check(hook.Plugs, IsNil)
 }
 
-func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []string) {
+func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []string, slotNames []string) {
 	hook := info.Hooks[hookName]
 	c.Assert(hook, NotNil, Commentf("Expected hooks to contain %q", hookName))
 	c.Check(hook.Name, Equals, hookName)
 	c.Check(hook.Plugs, HasLen, len(plugNames))
+	c.Check(hook.Slots, HasLen, len(slotNames))
 
 	for _, plugName := range plugNames {
 		// Verify that the HookInfo and PlugInfo point to each other
@@ -604,6 +606,21 @@ func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 		// Verify also that the hook plug made it into info.Plugs
 		c.Check(info.Plugs[plugName], DeepEquals, plug)
 	}
+
+	for _, slotName := range slotNames {
+		// Verify that the HookInfo and SlotInfo point to each other
+		slot := hook.Slots[slotName]
+		c.Assert(slot, NotNil, Commentf("Expected hook slots to contain %q", slotName))
+		c.Check(slot.Name, Equals, slotName)
+		c.Check(slot.Hooks, HasLen, 1)
+		hook = slot.Hooks[hookName]
+		c.Assert(hook, NotNil, Commentf("Expected slot to be associated with hook %q", hookName))
+		c.Check(hook.Name, Equals, hookName)
+
+		// Verify also that the hook plug made it into info.Slots
+		c.Check(info.Slots[slotName], DeepEquals, slot)
+	}
+
 }
 
 func (s *infoSuite) TestMinimalInfoDirAndFileMethods(c *C) {

@@ -62,6 +62,14 @@ func MockRetryInterval(interval time.Duration) (restore func()) {
 	}
 }
 
+func MockMaxTentatives(max int) (restore func()) {
+	old := maxTentatives
+	maxTentatives = max
+	return func() {
+		maxTentatives = old
+	}
+}
+
 func (m *DeviceManager) KeypairManager() asserts.KeypairManager {
 	return m.keypairMgr
 }
