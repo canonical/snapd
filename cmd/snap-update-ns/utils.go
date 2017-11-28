@@ -323,7 +323,7 @@ func planWritableMimic(dir string) ([]*Change, error) {
 	})
 	// Mount tmpfs over the original directory, hiding its contents.
 	changes = append(changes, &Change{
-		Action: Mount, Entry: mount.Entry{Name: "none", Dir: dir, Type: "tmpfs"},
+		Action: Mount, Entry: mount.Entry{Name: "tmpfs", Dir: dir, Type: "tmpfs"},
 	})
 	// Iterate over the items in the original directory (nothing is mounted _yet_).
 	entries, err := ioutilReadDir(dir)
