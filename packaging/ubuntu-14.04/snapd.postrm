@@ -4,10 +4,7 @@ set -e
 
 systemctl_stop() {
     unit="$1"
-    if ! systemctl is-active -q "$unit"; then
-        echo "$unit is stopped."
-        return
-    fi
+
     echo "Stoping $unit [attempt $i]"
     systemctl stop -q "$unit" || true
 
@@ -82,10 +79,10 @@ if [ "$1" = "purge" ]; then
     for d in "/snap/bin" "/snap" "/var/snap"; do
         # Force remove due to directories for old revisions could still exist
         if [ -d "$d" ]; then
-            rm -rf  $d
+            rm -rf  "$d"
         fi
         if [ -d "$d" ]; then
-            echo "Failed cleaning dir $d"
+            echo "Cannot remove directory $d"
             ls "$d"
             exit 1
         fi
