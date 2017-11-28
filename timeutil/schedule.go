@@ -142,6 +142,50 @@ func (ws WeekSpan) String() string {
 	}
 	return ws.Start.String()
 }
+
+// IsWithinRange checks if t is within the day-span represented by ws.
+func (ws WeekSpan) IsWithinRange(t time.Time) bool {
+	// every day matches with empty week span
+	if ws.Start.IsZero() {
+		return true
+	}
+
+	start, end := ws.Start, ws.End
+	if end.IsZero() {
+		end = start
+	}
+	wdStart, wdEnd := weekdayMap[start.Day], weekdayMap[end.Day]
+
+	// is it the right week?
+	if start.Pos > 0 {
+		week := uint(t.Day()/7) + 1
+		switch {
+		case start.Pos == 5:
+			if !isLastWeekdayInMonth(t) {
+				return false
+			}
+		case week < start.Pos || week > end.Pos:
+			return false
+		}
+	}
+
+	// is it the right day?
+	switch {
+	case wdStart == wdEnd && t.Weekday() != wdStart:
+		// a single day
+		return false
+	case wdEnd > wdStart && (t.Weekday() < wdStart || t.Weekday() > wdEnd):
+		// day span, eg. mon-fri
+		return false
+	case wdEnd < wdStart && t.Weekday() < wdStart && t.Weekday()+7 > wdEnd+7:
+		// day span that wraps around, eg. fri-mon,
+		// since time.Weekday values go from 0-6, add 7
+		// (week) at the end to get a continuous range
+		return false
+	}
+	return true
+}
+
 // TimeSpan is a time span within a single day (or this and the next day).
 // TimeSpan may wrap around, eg. 23:00-1:00 representing a span from 11pm to 1am
 // the next day.
@@ -168,6 +212,45 @@ func (ts TimeSpan) String() string {
 		return s
 	}
 	return ts.Start.String()
+}
+
+// MakeTime generates a start and end times from ts using t as a base. Returned
+// end time is automatically shifted to the next day if End is before Start
+func (ts TimeSpan) MakeTime(t time.Time) (start time.Time, end time.Time) {
+	a := ts.Start.MakeTime(t)
+	b := a
+	if !ts.End.IsZero() && ts.End != ts.Start {
+		b = ts.End.MakeTime(t)
+
+		// 23:00-1:00
+		if b.Before(a) {
+			b = b.Add(24 * time.Hour)
+		}
+	}
+	return a, b
+}
+
+// Subspans returns a slice of TimeSpan generated from ts by splitting the time
+// between ts.Start and ts.End into ts.Split equal spans.
+func (ts TimeSpan) Subspans() []TimeSpan {
+	if ts.Split == 0 || ts.Split == 1 || ts.End == ts.Start {
+		return []TimeSpan{ts}
+	}
+
+	span := ts.End.Sub(ts.Start)
+	step := span / time.Duration(ts.Split)
+
+	var spans []TimeSpan
+	for i := uint(0); i < ts.Split; i++ {
+		start := ts.Start.Add(time.Duration(i) * step)
+		spans = append(spans, TimeSpan{
+			Start:  start,
+			End:    start.Add(step),
+			Split:  0, // no more subspans
+			Spread: ts.Spread,
+		})
+	}
+	return spans
 }
 
 // Schedule represents a single schedule
@@ -199,28 +282,92 @@ func (sched *Schedule) String() string {
 	return buf.String()
 }
 
-func (sched *Schedule) Next(last time.Time) (start, end time.Time) {
+// isLastWeekdayInMonth returns true if t.Weekday() is the last weekday
+// occurring this t.Month(), eg. check is Feb 25 2017 is the last Saturday of
+// February.
+func isLastWeekdayInMonth(t time.Time) bool {
+	// try a week from now, if it's still the same month then t.Weekday() is
+	// not last
+	return t.Month() != t.Add(7*24*time.Hour).Month()
+}
+
+type NextSchedule struct {
+	Start  time.Time
+	End    time.Time
+	Spread bool
+}
+
+// Next returns when the time of the next interval defined in sched.
+func (sched *Schedule) Next(last time.Time) NextSchedule {
 	now := timeNow()
 
+	weeks := sched.Week
+	if len(weeks) == 0 {
+		weeks = []WeekSpan{{}}
+	}
+
+	times := sched.Times
+	if len(times) == 0 {
+		times = []TimeSpan{{}}
+	}
+
 	t := last
+	tnext := t
+
 	for {
-		a := time.Date(t.Year(), t.Month(), t.Day(), sched.Start.Hour, sched.Start.Minute, 0, 0, time.Local)
-		b := time.Date(t.Year(), t.Month(), t.Day(), sched.End.Hour, sched.End.Minute, 0, 0, time.Local)
+		// try to find a matching schedule by moving in 24h jumps, check
+		// if the event needs to happen on a specific day in a specific
+		// week, next pick the earliest event time
 
-		// not using AddDate() here as this can panic() if no
-		// location is set
-		t = t.Add(24 * time.Hour)
+		var a, b time.Time
 
-		// same inteval as last update, move forward
-		if (last.Equal(a) || last.After(a)) && (last.Equal(b) || last.Before(b)) {
+		t = tnext
+
+		tnext = t.Add(24 * time.Hour)
+
+		// if there's a week schedule, check if we hit that first
+		var weekMatch bool
+		for _, week := range weeks {
+			if week.IsWithinRange(t) {
+				weekMatch = true
+				break
+			}
+		}
+
+		if !weekMatch {
 			continue
 		}
+
+		var spread bool
+		for i := range times {
+			for _, ts := range times[i].Subspans() {
+				newA, newB := ts.MakeTime(t)
+
+				// same interval as last update, move forward
+				if (last.Equal(newA) || last.After(newA)) && (last.Equal(newB) || last.Before(newB)) {
+					continue
+				}
+
+				// if candidate comes before current use it
+				if a.IsZero() || newA.Before(a) {
+					a = newA
+					b = newB
+					spread = ts.Spread
+				}
+			}
+		}
+
+		// if the end is before now
 		if b.Before(now) {
 			continue
 		}
-
-		return a, b
+		return NextSchedule{
+			Start:  a,
+			End:    b,
+			Spread: spread,
+		}
 	}
+
 }
 
 func randDur(a, b time.Time) time.Duration {
@@ -242,54 +389,52 @@ var (
 	timeNow = time.Now
 
 	// FIMXE: pass in as a parameter for next
-	maxDuration = 14 * 24 * time.Hour
+	maxDuration = 31 * 24 * time.Hour
 )
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-// Next will return the duration until a random time in the next
+// Next will return the duration until an optionally random time in the next
 // schedule window.
 func Next(schedule []*Schedule, last time.Time) time.Duration {
 	now := timeNow()
 
 	a := last.Add(maxDuration)
 	b := a.Add(1 * time.Hour)
+
+	randomize := false
 	for _, sched := range schedule {
-		start, end := sched.Next(last)
-		if start.Before(a) {
-			a = start
-			b = end
+		next := sched.Next(last)
+		if next.Start.Before(a) {
+			// randomize = sched.Randomize
+			a = next.Start
+			b = next.End
+			randomize = next.Spread
 		}
 	}
 	if a.Before(now) {
 		return 0
 	}
 
-	when := a.Sub(now) + randDur(a, b)
+	when := a.Sub(now)
+	if randomize {
+		when += randDur(a, b)
+	}
 
 	return when
+
 }
 
-var weekdayMap = map[string]int{
-	"sun": 0,
-	"mon": 1,
-	"tue": 2,
-	"wed": 3,
-	"thu": 4,
-	"fri": 5,
-	"sat": 6,
-}
-
-var weekdayOrder = []string{
-	"mon",
-	"tue",
-	"wed",
-	"thu",
-	"fri",
-	"sat",
-	"sun",
+var weekdayMap = map[string]time.Weekday{
+	"sun": time.Sunday,
+	"mon": time.Monday,
+	"tue": time.Tuesday,
+	"wed": time.Wednesday,
+	"thu": time.Thursday,
+	"fri": time.Friday,
+	"sat": time.Saturday,
 }
 
 // parseTimeInterval gets an input like "9:00-11:00"
