@@ -20,6 +20,8 @@
 package mount
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
 )
@@ -43,6 +45,16 @@ func (spec *Specification) AddMountEntry(e Entry) error {
 func (spec *Specification) MountEntries() []Entry {
 	result := make([]Entry, len(spec.mountEntries))
 	copy(result, spec.mountEntries)
+	// Number each entry, in case we get clashes this will automatically give
+	// them unique names.
+	count := make(map[string]int, len(spec.mountEntries))
+	for i := range result {
+		path := result[i].Dir
+		count[path] += 1
+		if c := count[path]; c > 1 {
+			result[i].Dir += fmt.Sprintf("-%d", c)
+		}
+	}
 	return result
 }
 

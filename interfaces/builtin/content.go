@@ -78,6 +78,16 @@ func (iface *contentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		slot.Attrs["content"] = slot.Name
 	}
 
+	// Error if "read" or "write" are present alongside "source".
+	if _, ok := slot.Attrs["source"]; ok {
+		if _, ok := slot.Attrs["read"]; ok {
+			return fmt.Errorf(`move the "read" attribute into the "source" section`)
+		}
+		if _, ok := slot.Attrs["write"]; ok {
+			return fmt.Errorf(`move the "write" attribute into the "source" section`)
+		}
+	}
+
 	// check that we have either a read or write path
 	rpath := iface.path(slot, "read")
 	wpath := iface.path(slot, "write")
@@ -93,7 +103,6 @@ func (iface *contentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 			return fmt.Errorf("content interface path is not clean: %q", p)
 		}
 	}
-
 	return nil
 }
 
@@ -124,7 +133,12 @@ func (iface *contentInterface) path(slot *interfaces.Slot, name string) []string
 		panic("internal error, path can only be used with read/write")
 	}
 
-	paths, ok := slot.Attrs[name].([]interface{})
+	source, ok := slot.Attrs["source"].(map[string]interface{})
+	if !ok {
+		source = slot.Attrs
+	}
+
+	paths, ok := source[name].([]interface{})
 	if !ok {
 		return nil
 	}
@@ -165,9 +179,15 @@ func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, ext
 	options := make([]string, 0, len(extraOptions)+1)
 	options = append(options, "bind")
 	options = append(options, extraOptions...)
+	source := resolveSpecialVariable(relSrc, slot.Snap)
+	target := resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap)
+	if _, ok := slot.Attrs["source"].(map[string]interface{}); ok {
+		_, sourceName := filepath.Split(source)
+		target = filepath.Join(target, sourceName)
+	}
 	return mount.Entry{
-		Name:    resolveSpecialVariable(relSrc, slot.Snap),
-		Dir:     resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap),
+		Name:    source,
+		Dir:     target,
 		Options: options,
 	}
 }

@@ -39,16 +39,16 @@ var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
 		MountConnectedPlugCallback: func(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-			return spec.AddMountEntry(mount.Entry{Name: "connected-plug"})
+			return spec.AddMountEntry(mount.Entry{Dir: "dir-a", Name: "connected-plug"})
 		},
 		MountConnectedSlotCallback: func(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-			return spec.AddMountEntry(mount.Entry{Name: "connected-slot"})
+			return spec.AddMountEntry(mount.Entry{Dir: "dir-b", Name: "connected-slot"})
 		},
 		MountPermanentPlugCallback: func(spec *mount.Specification, plug *snap.PlugInfo) error {
-			return spec.AddMountEntry(mount.Entry{Name: "permanent-plug"})
+			return spec.AddMountEntry(mount.Entry{Dir: "dir-c", Name: "permanent-plug"})
 		},
 		MountPermanentSlotCallback: func(spec *mount.Specification, slot *snap.SlotInfo) error {
-			return spec.AddMountEntry(mount.Entry{Name: "permanent-slot"})
+			return spec.AddMountEntry(mount.Entry{Dir: "dir-d", Name: "permanent-slot"})
 		},
 	},
 	plug: &interfaces.Plug{
@@ -73,8 +73,8 @@ func (s *specSuite) SetUpTest(c *C) {
 
 // AddMountEntry is not broken
 func (s *specSuite) TestSmoke(c *C) {
-	ent0 := mount.Entry{Name: "fs1"}
-	ent1 := mount.Entry{Name: "fs2"}
+	ent0 := mount.Entry{Dir: "dir-a", Name: "fs1"}
+	ent1 := mount.Entry{Dir: "dir-b", Name: "fs2"}
 	c.Assert(s.spec.AddMountEntry(ent0), IsNil)
 	c.Assert(s.spec.AddMountEntry(ent1), IsNil)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []mount.Entry{ent0, ent1})
@@ -88,6 +88,8 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(r.AddPermanentPlug(s.iface, s.plug.PlugInfo), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []mount.Entry{
-		{Name: "connected-plug"}, {Name: "connected-slot"},
-		{Name: "permanent-plug"}, {Name: "permanent-slot"}})
+		{Dir: "dir-a", Name: "connected-plug"},
+		{Dir: "dir-b", Name: "connected-slot"},
+		{Dir: "dir-c", Name: "permanent-plug"},
+		{Dir: "dir-d", Name: "permanent-slot"}})
 }
