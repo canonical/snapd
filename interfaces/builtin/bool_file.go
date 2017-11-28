@@ -112,8 +112,9 @@ func (iface *boolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 }
 
 func (iface *boolFileInterface) dereferencedPath(slot *interfaces.ConnectedSlot) (string, error) {
-	if path, ok := slot.Attrs["path"].(string); ok {
-		path, err := evalSymlinks(path)
+	var path string
+	if err := slot.Attr("path", &path); err == nil {
+		path, err = evalSymlinks(path)
 		if err != nil {
 			return "", err
 		}
@@ -124,7 +125,8 @@ func (iface *boolFileInterface) dereferencedPath(slot *interfaces.ConnectedSlot)
 
 // isGPIO checks if a given bool-file slot refers to a GPIO pin.
 func (iface *boolFileInterface) isGPIO(slot *snap.SlotInfo) bool {
-	if path, ok := slot.Attrs["path"].(string); ok {
+	var path string
+	if err := slot.Attr("path", &path); err == nil {
 		path = filepath.Clean(path)
 		return boolFileGPIOValuePattern.MatchString(path)
 	}
