@@ -35,7 +35,9 @@ type ConfigManager struct {
 }
 
 var corecfgRun = func(ctx *hookstate.Context) error {
+	ctx.Lock()
 	tr := ContextTransaction(ctx)
+	ctx.Unlock()
 	return corecfg.Run(tr)
 }
 

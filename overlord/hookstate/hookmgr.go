@@ -276,9 +276,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	// some hooks get hijacked, e.g. the core configuration
 	var output []byte
 	if f := m.hijacked(hooksup.Hook, hooksup.Snap); f != nil {
-		context.Lock()
 		err = f(context)
-		context.Unlock()
 	} else if hookExists {
 		output, err = runHook(context, tomb)
 	}
