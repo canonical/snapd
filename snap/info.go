@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -397,11 +398,25 @@ type PlugInfo struct {
 	Hooks     map[string]*HookInfo
 }
 
-func (plug *PlugInfo) Attr(key string) (interface{}, error) {
-	if val, ok := plug.Attrs[key]; ok {
-		return val, nil
+func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
+	if v, ok := attrs[key]; ok {
+		rt := reflect.TypeOf(val)
+		if rt.Kind() != reflect.Ptr || val == nil {
+			return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", key, ifaceName)
+		}
+
+		if reflect.TypeOf(v) != rt.Elem() {
+			return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, key)
+		}
+		rv := reflect.ValueOf(val)
+		rv.Elem().Set(reflect.ValueOf(v))
+		return nil
 	}
-	return nil, fmt.Errorf("attribute %q not found", key)
+	return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)
+}
+
+func (plug *PlugInfo) Attr(key string, val interface{}) error {
+	return getAttribute(plug.Snap.Name(), plug.Interface, plug.Attrs, key, val)
 }
 
 // SecurityTags returns security tags associated with a given plug.
@@ -422,11 +437,8 @@ func (plug *PlugInfo) String() string {
 	return fmt.Sprintf("%s:%s", plug.Snap.Name(), plug.Name)
 }
 
-func (slot *SlotInfo) Attr(key string) (interface{}, error) {
-	if val, ok := slot.Attrs[key]; ok {
-		return val, nil
-	}
-	return nil, fmt.Errorf("attribute %q not found", key)
+func (slot *SlotInfo) Attr(key string, val interface{}) error {
+	return getAttribute(slot.Snap.Name(), slot.Interface, slot.Attrs, key, val)
 }
 
 // SecurityTags returns security tags associated with a given slot.
