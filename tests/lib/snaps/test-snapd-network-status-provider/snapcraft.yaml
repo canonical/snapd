@@ -17,10 +17,6 @@ apps:
 slots:
     network-status-test:
       interface: network-status
-    network-status-dbus:
-        interface: dbus
-        bus: system
-        name: com.ubuntu.connectivity1.NetworkingStatus
 
 parts:
     deps:
