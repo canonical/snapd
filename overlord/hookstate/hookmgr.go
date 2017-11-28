@@ -53,7 +53,7 @@ type HookManager struct {
 	contextsMutex sync.RWMutex
 	contexts      map[string]*Context
 
-	hijackedMap map[hijackKey]hijackFunc
+	hijackMap map[hijackKey]hijackFunc
 }
 
 // Handler is the interface a client must satify to handle hooks.
@@ -112,11 +112,11 @@ func Manager(s *state.State) (*HookManager, error) {
 	})
 
 	manager := &HookManager{
-		state:       s,
-		runner:      runner,
-		repository:  newRepository(),
-		contexts:    make(map[string]*Context),
-		hijackedMap: make(map[hijackKey]hijackFunc),
+		state:      s,
+		runner:     runner,
+		repository: newRepository(),
+		contexts:   make(map[string]*Context),
+		hijackMap:  make(map[hijackKey]hijackFunc),
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
@@ -149,14 +149,14 @@ func (m *HookManager) Stop() {
 }
 
 func (m *HookManager) hijacked(hookName, snapName string) hijackFunc {
-	return m.hijackedMap[hijackKey{hookName, snapName}]
+	return m.hijackMap[hijackKey{hookName, snapName}]
 }
 
 func (m *HookManager) RegisterHijack(hookName, snapName string, f hijackFunc) {
-	if _, ok := m.hijackedMap[hijackKey{hookName, snapName}]; ok {
+	if _, ok := m.hijackMap[hijackKey{hookName, snapName}]; ok {
 		panic(fmt.Sprintf("hook %s for snap %s already hijacked", hookName, snapName))
 	}
-	m.hijackedMap[hijackKey{hookName, snapName}] = f
+	m.hijackMap[hijackKey{hookName, snapName}] = f
 }
 
 func (m *HookManager) ephemeralContext(cookieID string) (context *Context, err error) {
