@@ -161,7 +161,7 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 		skipDir = "" // reset skip prefix as it no longer applies
 
 		// Reuse synthetic entries if their parent is desired.
-		if XSnapdSynthetic(&current[i]) && desiredIDs[XSnapdParentID(&current[i])] {
+		if XSnapdSynthetic(&current[i]) && desiredIDs[XSnapdNeededBy(&current[i])] {
 			logger.Debugf("reusing synthetic entry %q", current[i])
 			reuse[dir] = true
 			continue
