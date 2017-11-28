@@ -8,6 +8,7 @@ execute: |
     echo "That has some user data"
     mkdir -p /home/test/snap/test-snapd-tools/$rev/
     touch /home/test/snap/test-snapd-tools/$rev/mock-data
+    chown -R test:test /home/test/snap/
     mkdir -p /root/snap/test-snapd-tools/$rev/
     touch /root/snap/test-snapd-tools/$rev/mock-data
 

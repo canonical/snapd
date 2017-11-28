@@ -26,6 +26,7 @@ execute: |
     echo '{}' > /root/.snap/auth.json
     mkdir -p /home/test/.snap/
     echo '{}' > /home/test/.snap/auth.json
+    chown -R test:test /home/test/.snap
 
     echo "Ensure transition is triggered"
     # wait for steady state or ensure-state-soon will be pointless
