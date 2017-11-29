@@ -35,6 +35,9 @@
 
 #define SC_NVIDIA_DRIVER_VERSION_FILE "/sys/module/nvidia/version"
 
+// note: if the parent dir changes to something other than
+// the current /var/lib/snapd/lib then sc_mkdir_and_mount_and_bind
+// and sc_mkdir_and_mount_and_bind need updating.
 #define SC_LIBGL_DIR   "/var/lib/snapd/lib/gl"
 #define SC_LIBGL32_DIR "/var/lib/snapd/lib/gl32"
 #define SC_VULKAN_DIR  "/var/lib/snapd/lib/vulkan"
@@ -220,7 +223,7 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 	}
 }
 
-static void sc_mount_and_mkdir_and_glob_files(const char *rootfs_dir,
+static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 					      const char *tgt_dir,
 					      const char *glob_list[],
 					      size_t glob_list_len)
@@ -253,9 +256,9 @@ static void sc_mount_and_mkdir_and_glob_files(const char *rootfs_dir,
 
 static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 {
-	sc_mount_and_mkdir_and_glob_files(rootfs_dir, SC_LIBGL_DIR,
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_LIBGL_DIR,
 					  nvidia_globs, nvidia_globs_len);
-	sc_mount_and_mkdir_and_glob_files(rootfs_dir, SC_LIBGL32_DIR,
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_LIBGL32_DIR,
 					  nvidia_globs32, nvidia_globs32_len);
 }
 
@@ -293,7 +296,7 @@ static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
 	      driver->minor_version);
 }
 
-static void sc_mount_and_bind_and_mkdir(const char *rootfs_dir,
+static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir,
 					const char *src_dir,
 					const char *tgt_dir)
 {
@@ -336,9 +339,9 @@ static void sc_mount_and_bind_and_mkdir(const char *rootfs_dir,
 static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 {
 	// Attempt mount of both the native and 32-bit variants of the driver if they exist
-	sc_mount_and_bind_and_mkdir(rootfs_dir, "/usr/lib/nvidia",
+	sc_mkdir_and_mount_and_bind(rootfs_dir, "/usr/lib/nvidia",
 				    SC_LIBGL_DIR);
-	sc_mount_and_bind_and_mkdir(rootfs_dir, "/usr/lib32/nvidia",
+	sc_mkdir_and_mount_and_bind(rootfs_dir, "/usr/lib32/nvidia",
 				    SC_LIBGL32_DIR);
 }
 
@@ -358,6 +361,6 @@ void sc_mount_nvidia_driver(const char *rootfs_dir)
 #endif				// ifdef NVIDIA_BIARCH
 
 	// Common for both driver mechanisms
-	sc_mount_and_mkdir_and_glob_files(rootfs_dir, SC_VULKAN_DIR,
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_VULKAN_DIR,
 					  vulkan_globs, vulkan_globs_len);
 }
