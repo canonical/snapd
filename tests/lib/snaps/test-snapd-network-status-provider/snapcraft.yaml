@@ -8,7 +8,6 @@ grade: stable
 apps:
     provider:
         command: wrapper
-        plugs: [mount-observe]
         slots: [network-status-test]
     consumer:
         command: consumer

@@ -1,32 +1,24 @@
 summary: Ensure that the network-status interface works.
 
 details: |
-    The network-status interface allows a snap to monitor networking.
+    The network-status interface allows a snap to monitor network connection status.
 
     A snap which defines the network-status plug must be shown in the interfaces list.
-    The plug must not be autoconnected on install and, as usual, must be able to be
-    reconnected.
+    The plug is autoconnected on install and, as usual, must be able to be disconnect/reconnect.
 
     The snap is also declaring a plug on this interface must be able to ask for its status.
 
-systems: [-ubuntu-core-16-*]
-
 prepare: |
-    . "$TESTSLIB/dbus.sh"
     . "$TESTSLIB/dirs.sh"
 
     echo "Given a snap declaring a plug on the network-status interface is installed"
     snap install test-snapd-network-status-provider
-    snap connect test-snapd-network-status-provider:mount-observe
 
     echo "And the provider dbus loop is started"
     start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-network-status-provider.provider
 
 restore: |
     rm -f getstate.error
-
-    . "$TESTSLIB/dbus.sh"
-    stop_dbus_unit
 
 execute: |
     CONNECTED_PATTERN="^test-snapd-network-status-provider:network-status-test +test-snapd-network-status-provider:network-status"
