@@ -579,8 +579,8 @@ func (r *Repository) Connect(ref ConnRef) error {
 	}
 
 	// TODO: store copy of attributes from hooks
-	cplug := &ConnectedPlug{plugInfo: plug}
-	cslot := &ConnectedSlot{slotInfo: slot}
+	cplug := NewConnectedPlug(plug, nil)
+	cslot := NewConnectedSlot(slot, nil)
 
 	conn := &Connection{plug: cplug, slot: cslot}
 	r.slotPlugs[slot][plug] = conn
