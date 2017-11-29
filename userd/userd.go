@@ -51,8 +51,8 @@ func (ud *Userd) Init() error {
 	}
 
 	ud.dbusIfaces = []dbusInterface{
-		&Launcher{},
-		&Settings{},
+		&Launcher{ud.conn},
+		&Settings{ud.conn},
 	}
 	for _, iface := range ud.dbusIfaces {
 		reply, err := ud.conn.RequestName(iface.Name(), dbus.NameFlagDoNotQueue)

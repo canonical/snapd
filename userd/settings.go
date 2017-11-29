@@ -70,7 +70,9 @@ func settingWhitelisted(setting string) *dbus.Error {
 }
 
 // Settings implements the 'io.snapcraft.Settings' DBus interface.
-type Settings struct{}
+type Settings struct {
+	conn *dbus.Conn
+}
 
 // Name returns the name of the interface this object implements
 func (s *Settings) Name() string {
@@ -92,7 +94,13 @@ func (s *Settings) IntrospectionData() string {
 // DBus interface.
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Check string:'default-web-browser' string:'firefox.desktop'
-func (s *Settings) Check(setting, check string) (string, *dbus.Error) {
+func (s *Settings) Check(setting, check string, sender dbus.Sender) (string, *dbus.Error) {
+	pid, err := connectionPid(s.conn, sender)
+	if err != nil {
+		return "", dbus.MakeFailedError(fmt.Errorf("cannot get connection pid: %v", err))
+	}
+	fmt.Println(pid)
+
 	if err := settingWhitelisted(setting); err != nil {
 		return "", err
 	}
