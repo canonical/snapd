@@ -24,6 +24,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/corecfg"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -36,6 +38,7 @@ type tasksetsSuite struct {
 }
 
 var _ = Suite(&tasksetsSuite{})
+var _ = Suite(&coreCfgHijackSuite{})
 
 func (s *tasksetsSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
@@ -128,4 +131,54 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 		}
 		c.Check(useDefaults, Equals, test.useDefaults)
 	}
+}
+
+type coreCfgHijackSuite struct {
+	o     *overlord.Overlord
+	state *state.State
+}
+
+func (s *coreCfgHijackSuite) SetUpTest(c *C) {
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+	hookMgr, err := hookstate.Manager(s.state)
+	c.Assert(err, IsNil)
+	s.o.AddManager(hookMgr)
+	configMgr, err := configstate.Manager(s.state, hookMgr)
+	c.Assert(err, IsNil)
+	s.o.AddManager(configMgr)
+}
+
+func (s *coreCfgHijackSuite) TestHijack(c *C) {
+	coreCfgRan := false
+	witnessCoreCfgRun := func(conf corecfg.Conf) error {
+		// called with no state lock!
+		conf.State().Lock()
+		defer conf.State().Unlock()
+		coreCfgRan = true
+		return nil
+	}
+	r := configstate.MockCorecfgRun(witnessCoreCfgRun)
+	defer r()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{{RealName: "core", Revision: snap.R(1)}},
+		Active:   true,
+		Current:  snap.R(1),
+	})
+
+	ts := configstate.Configure(s.state, "core", nil, 0)
+
+	chg := s.state.NewChange("configure-core", "configure core")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	err := s.o.Settle(5 * time.Second)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	c.Check(chg.Err(), IsNil)
+	c.Check(coreCfgRan, Equals, true)
 }
