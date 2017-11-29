@@ -1565,7 +1565,7 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	taskset, err := configstate.Configure(st, snapName, patchValues, 0)
+	taskset, err := configstate.ConfigureInstalled(st, snapName, patchValues, 0)
 	if err != nil {
 		if _, ok := err.(*snap.NotInstalledError); ok {
 			return SnapNotFound(snapName, err)

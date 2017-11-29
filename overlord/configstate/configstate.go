@@ -34,7 +34,7 @@ import (
 )
 
 func init() {
-	snapstate.Configure = configure
+	snapstate.Configure = Configure
 }
 
 func ConfigureHookTimeout() time.Duration {
@@ -47,8 +47,10 @@ func ConfigureHookTimeout() time.Duration {
 	return timeout
 }
 
-// Configure returns a taskset to apply the given configuration patch.
-func Configure(st *state.State, snapName string, patch map[string]interface{}, flags int) (*state.TaskSet, error) {
+// ConfigureInstalled returns a taskset to apply the given
+// configuration patch for an installed snap. It returns
+// snap.NotInstalledError if the snap is not installed.
+func ConfigureInstalled(st *state.State, snapName string, patch map[string]interface{}, flags int) (*state.TaskSet, error) {
 	// core is handled internally and can be configured before
 	// being installed
 	if snapName != "core" {
@@ -62,11 +64,12 @@ func Configure(st *state.State, snapName string, patch map[string]interface{}, f
 		}
 	}
 
-	taskset := configure(st, snapName, patch, flags)
+	taskset := Configure(st, snapName, patch, flags)
 	return taskset, nil
 }
 
-func configure(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+// Configure returns a taskset to apply the given configuration patch.
+func Configure(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
 	summary := fmt.Sprintf(i18n.G("Run configure hook of %q snap"), snapName)
 	// regular configuration hook
 	hooksup := &hookstate.HookSetup{

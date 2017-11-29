@@ -72,7 +72,7 @@ var configureTests = []struct {
 	useDefaults: true,
 }}
 
-func (s *tasksetsSuite) TestConfigure(c *C) {
+func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
@@ -93,9 +93,8 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 		}
 
 		s.state.Lock()
-		taskset, err := configstate.Configure(s.state, "test-snap", test.patch, flags)
+		taskset := configstate.Configure(s.state, "test-snap", test.patch, flags)
 		s.state.Unlock()
-		c.Assert(err, IsNil)
 
 		tasks := taskset.Tasks()
 		c.Assert(tasks, HasLen, 1)
@@ -111,7 +110,7 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 
 		var hooksup hookstate.HookSetup
 		s.state.Lock()
-		err = task.Get("hook-setup", &hooksup)
+		err := task.Get("hook-setup", &hooksup)
 		s.state.Unlock()
 		c.Check(err, IsNil)
 
@@ -149,11 +148,11 @@ func (s *tasksetsSuite) TestConfigureNotInstalled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := configstate.Configure(s.state, "test-snap", patch, 0)
+	_, err := configstate.ConfigureInstalled(s.state, "test-snap", patch, 0)
 	c.Check(err, ErrorMatches, `snap "test-snap" is not installed`)
 
 	// core can be configure before being installed
-	_, err = configstate.Configure(s.state, "core", patch, 0)
+	_, err = configstate.ConfigureInstalled(s.state, "core", patch, 0)
 	c.Check(err, IsNil)
 }
 
@@ -187,20 +186,14 @@ func (s *coreCfgHijackSuite) TestHijack(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	snapstate.Set(s.state, "core", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{{RealName: "core", Revision: snap.R(1)}},
-		Active:   true,
-		Current:  snap.R(1),
-	})
 
-	ts, err := configstate.Configure(s.state, "core", nil, 0)
-	c.Assert(err, IsNil)
+	ts := configstate.Configure(s.state, "core", nil, 0)
 
 	chg := s.state.NewChange("configure-core", "configure core")
 	chg.AddAll(ts)
 
 	s.state.Unlock()
-	err = s.o.Settle(5 * time.Second)
+	err := s.o.Settle(5 * time.Second)
 	s.state.Lock()
 	c.Assert(err, IsNil)
 
