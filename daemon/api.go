@@ -2364,6 +2364,8 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(map[string]interface{}{
 			"base-declaration": string(asserts.Encode(bd)),
 		}, nil)
+	case "can-manage-refreshes":
+		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}

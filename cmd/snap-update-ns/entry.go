@@ -98,20 +98,23 @@ func XSnapdGID(e *mount.Entry) (gid uint64, err error) {
 // XSnapdEntryID returns the identifier of a given mount enrty.
 //
 // Identifiers are kept in the x-snapd.id mount option. The value is a string
-// that identifies a mount entry and is stable across invocations of snapd (it
-// is a hash of some sort).
+// that identifies a mount entry and is stable across invocations of snapd. In
+// absence of that identifier the entry mount point is returned.
 func XSnapdEntryID(e *mount.Entry) string {
-	val, _ := e.OptStr("x-snapd.id")
-	return val
+	if val, ok := e.OptStr("x-snapd.id"); ok {
+		return val
+	}
+	return e.Dir
 }
 
-// XSnapdParentID returns the identifier of the parent mount entry.
+// XSnapdNeededBy the identifier of an entry which needs this entry to function.
 //
-// Parent identifiers are kept in the x-snapd.parent-id mount option. The value
-// is a string that identifies a mount entry and is stable across invocations
-// of snapd (it is a hash of some sort).
-func XSnapdParentID(e *mount.Entry) string {
-	val, _ := e.OptStr("x-snapd.parent-id")
+// The "needed by" identifiers are kept in the x-snapd.needed-by mount option.
+// The value is a string that identifies another mount entry which, in order to
+// be feasible, has spawned one or more additional support entries. Each such
+// entry contains the needed-by attribute.
+func XSnapdNeededBy(e *mount.Entry) string {
+	val, _ := e.OptStr("x-snapd.needed-by")
 	return val
 }
 

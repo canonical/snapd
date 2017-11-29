@@ -56,7 +56,8 @@ func (r *refreshHints) needsUpdate() (bool, error) {
 }
 
 func (r *refreshHints) refresh() error {
-	refreshManaged := false
+	var refreshManaged bool
+	refreshManaged = refreshScheduleManaged(r.state)
 
 	_, _, _, err := refreshCandidates(r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
 	// TODO: we currently set last-refresh-hints even when there was an

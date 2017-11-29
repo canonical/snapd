@@ -225,15 +225,9 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 			"cleanup",
 		)
 	}
-	if opts&runCoreConfigure != 0 {
-		expected = append(expected,
-			"configure-snapd",
-		)
-	} else {
-		expected = append(expected,
-			"run-hook[configure]",
-		)
-	}
+	expected = append(expected,
+		"run-hook[configure]",
+	)
 
 	c.Assert(kinds, DeepEquals, expected)
 }
@@ -5070,7 +5064,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesWeekdaySchedules(c *C) {
 	s.snapmgr.Ensure()
 	s.state.Lock()
 
-	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule configuration: cannot parse "mon@12:00-14:00": contains invalid @`)
+	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule configuration: cannot parse "mon@12:00": not a valid time`)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
@@ -5263,21 +5257,27 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
 	c.Check(s.state.Changes(), HasLen, 1)
 }
 
+func mockAutoRefreshAssertions(f func(st *state.State, userID int) error) func() {
+	origAutoRefreshAssertions := snapstate.AutoRefreshAssertions
+	snapstate.AutoRefreshAssertions = f
+	return func() {
+		snapstate.AutoRefreshAssertions = origAutoRefreshAssertions
+	}
+}
+
 func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
 	s.state.Set("last-refresh", time.Time{})
-	origAutoRefreshAssertions := snapstate.AutoRefreshAssertions
-	defer func() { snapstate.AutoRefreshAssertions = origAutoRefreshAssertions }()
-
-	// simulate failure in snapstate.AutoRefresh()
 	autoRefreshAssertionsCalled := 0
-	snapstate.AutoRefreshAssertions = func(st *state.State, userID int) error {
+	restore := mockAutoRefreshAssertions(func(st *state.State, userID int) error {
+		// simulate failure in snapstate.AutoRefresh()
 		autoRefreshAssertionsCalled++
 		return fmt.Errorf("simulate store error")
-	}
+	})
+	defer restore()
 
 	// check that no change got created and that autoRefreshAssertins
 	// got called once
@@ -5294,6 +5294,60 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	s.state.Lock()
 	c.Check(s.state.Changes(), HasLen, 0)
 	c.Check(autoRefreshAssertionsCalled, Equals, 1)
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshesDisabledViaSnapdControl(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	makeTestRefreshConfig(st)
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// snapstate.AutoRefresh is called from AutoRefresh()
+	autoRefreshAssertionsCalled := 0
+	restore := mockAutoRefreshAssertions(func(st *state.State, userID int) error {
+		autoRefreshAssertionsCalled++
+		return nil
+	})
+	defer restore()
+
+	// pretend the device is refresh-control: managed
+	oldCanManageRefreshes := snapstate.CanManageRefreshes
+	snapstate.CanManageRefreshes = func(*state.State) bool {
+		return true
+	}
+	defer func() { snapstate.CanManageRefreshes = oldCanManageRefreshes }()
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.schedule", "managed")
+	tr.Commit()
+
+	// Ensure() also runs ensureRefreshes()
+	st.Unlock()
+	s.snapmgr.Ensure()
+	st.Lock()
+
+	// no refresh was called (i.e. no update to last-refresh)
+	var lastRefresh time.Time
+	st.Get("last-refresh", &lastRefresh)
+	c.Check(lastRefresh.Year(), Equals, 2009)
+
+	// AutoRefresh was not called
+	c.Check(autoRefreshAssertionsCalled, Equals, 0)
+
+	// The last refresh hints got updated
+	var lastRefreshHints time.Time
+	st.Get("last-refresh-hints", &lastRefreshHints)
+	c.Check(lastRefreshHints.Year(), Equals, time.Now().Year())
 }
 
 func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
@@ -7779,6 +7833,50 @@ func (s *snapmgrTestSuite) TestSnapManagerRefreshSchedule(c *C) {
 		c.Check(err, IsNil)
 		c.Check(scheduleStr, Equals, t.out)
 	}
+}
+
+func (s *snapmgrTestSuite) TestSideInfoPaid(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	ts, err := snapstate.Install(s.state, "some-snap", "channel-for-paid", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "install paid snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// verify snap has paid sideinfo
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.CurrentSideInfo().Paid, Equals, true)
+	c.Check(snapst.CurrentSideInfo().Private, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestSideInfoPrivate(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	ts, err := snapstate.Install(s.state, "some-snap", "channel-for-private", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "install private snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// verify snap has private sideinfo
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.CurrentSideInfo().Private, Equals, true)
+	c.Check(snapst.CurrentSideInfo().Paid, Equals, false)
 }
 
 type canDisableSuite struct{}
