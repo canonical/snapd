@@ -39,7 +39,7 @@ int main(int argc, char **argv)
 		sc_close_ns_group(group);
 	}
 	// Unlink the current mount profile, if any.
-	char profile_path[PATH_MAX];
+	char profile_path[PATH_MAX] = { 0 };
 	sc_must_snprintf(profile_path, sizeof(profile_path),
 			 "/run/snapd/ns/snap.%s.fstab", snap_name);
 	if (unlink(profile_path) < 0) {

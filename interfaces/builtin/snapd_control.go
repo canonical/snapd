@@ -19,6 +19,12 @@
 
 package builtin
 
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/interfaces"
+)
+
 const snapdControlSummary = `allows communicating with snapd`
 
 const snapdControlBaseDeclarationPlugs = `
@@ -35,15 +41,28 @@ const snapdControlBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/snapd-control
 const snapdControlConnectedPlugAppArmor = `
 # Description: Can manage snaps via snapd.
 
 /run/snapd.socket rw,
 `
 
+type snapControlInterface struct {
+	commonInterface
+}
+
+func (iface *snapControlInterface) SanitizePlug(plug *interfaces.Plug) error {
+	if refreshSchedule, ok := plug.Attrs["refresh-schedule"].(string); ok {
+		if refreshSchedule != "managed" {
+			return fmt.Errorf("unsupported refresh-schedule value: %q", refreshSchedule)
+		}
+	}
+
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
+	registerIface(&snapControlInterface{commonInterface{
 		name:                  "snapd-control",
 		summary:               snapdControlSummary,
 		implicitOnCore:        true,
@@ -52,5 +71,5 @@ func init() {
 		baseDeclarationSlots:  snapdControlBaseDeclarationSlots,
 		connectedPlugAppArmor: snapdControlConnectedPlugAppArmor,
 		reservedForOS:         true,
-	})
+	}})
 }

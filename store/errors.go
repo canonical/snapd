@@ -46,6 +46,8 @@ var (
 	Err2faFailed = errors.New("two factor authentication failed")
 
 	// ErrInvalidCredentials is returned on login error
+	// It can also be returned when refreshing the discharge
+	// macaroon if the user has changed their password.
 	ErrInvalidCredentials = errors.New("invalid credentials")
 
 	// ErrTOSNotAccepted is returned when the user has not accepted the store's terms of service.

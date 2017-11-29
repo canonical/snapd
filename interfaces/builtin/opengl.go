@@ -32,8 +32,8 @@ const openglConnectedPlugAppArmor = `
 # Description: Can access opengl.
 
   # specific gl libs
-  /var/lib/snapd/lib/gl/ r,
-  /var/lib/snapd/lib/gl/** rm,
+  /var/lib/snapd/lib/gl{,32}/ r,
+  /var/lib/snapd/lib/gl{,32}/** rm,
 
   # Supports linux-driver-management from Solus (staged symlink trees into libdirs)
   /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}glx-provider/**.so{,.*}  rm,
@@ -44,6 +44,11 @@ const openglConnectedPlugAppArmor = `
   /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvcuvid.so{,.*} rm,
   /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,EGL}*nvidia.so{,.*} rm,
   /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libGLdispatch.so{,.*} rm,
+
+  # Support reading the Vulkan ICD files
+  /var/lib/snapd/lib/vulkan/ r,
+  /var/lib/snapd/lib/vulkan/** r,
+  /var/lib/snapd/hostfs/usr/share/vulkan/icd.d/*nvidia*.json r,
 
   # Main bi-arch GL libraries
   /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,EGL}.so{,.*} rm,
@@ -61,6 +66,7 @@ const openglConnectedPlugAppArmor = `
 
   # /sys/devices
   /sys/devices/pci[0-9]*/**/config r,
+  /sys/devices/pci[0-9]*/**/revision r,
   /sys/devices/pci[0-9]*/**/{,subsystem_}device r,
   /sys/devices/pci[0-9]*/**/{,subsystem_}vendor r,
   /sys/devices/**/drm{,_dp_aux_dev}/** r,
@@ -83,10 +89,10 @@ const openglConnectedPlugAppArmor = `
 
 // The nvidia modules don't use sysfs (therefore they can't be udev tagged) and
 // will be added by snap-confine.
-const openglConnectedPlugUDev = `
-SUBSYSTEM=="drm", KERNEL=="card[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="vchiq",   TAG+="###CONNECTED_SECURITY_TAGS###"
-`
+var openglConnectedPlugUDev = []string{
+	`SUBSYSTEM=="drm", KERNEL=="card[0-9]*"`,
+	`KERNEL=="vchiq"`,
+}
 
 func init() {
 	registerIface(&commonInterface{

@@ -1,7 +1,5 @@
-sudo: required
-dist: trusty
 language: go
-go:
+go:        
   - 1.6
 
 env:
@@ -13,9 +11,12 @@ git:
     quiet: true
 
 install:
-  - sudo apt-get update -qq
-  - sudo apt-get install -qq squashfs-tools xdelta3
-  - sudo apt-get install -qq gnupg1 || sudo apt-get install -qq gnupg
+    - true
 
 script:
     - ./run-checks --spread
+
+addons:
+  apt:
+    packages:
+    - xdelta3

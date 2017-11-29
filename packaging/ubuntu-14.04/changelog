@@ -1,3 +1,292 @@
+snapd (2.29.4~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - snap-confine: fix snap-confine under lxd
+    - tests: disable classic-ubuntu-core-transition on i386 temporarily
+    - many: reject bad plugs/slots
+    - interfaces,tests: skip unknown plug/slot interfaces
+    - store: enable "base" field from the store
+    - packaging/fedora: Merge changes from Fedora Dist-Git
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 17 Nov 2017 22:55:09 +0100
+
+snapd (2.29.3~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - daemon: cherry-picked /v2/logs fixes
+    - cmd/snap-confine: Respect biarch nature of libdirs
+    - cmd/snap-confine: Ensure snap-confine is allowed to access os-
+      release
+    - interfaces: fix udev tagging for hooks
+    - cmd: fix re-exec bug with classic confinement for host snapd
+    - tests: disable xdg-open-compat test
+    - cmd/snap-confine: add slave PTYs and let devpts newinstance
+      perform mediation
+    - interfaces/many: misc policy updates for browser-support, cups-
+      control and network-status
+    - interfaces/raw-usb: match on SUBSYSTEM, not SUBSYSTEMS
+    - tests: fix security-device-cgroup* tests on devices with
+      framebuffer
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 09 Nov 2017 19:16:24 +0100
+
+snapd (2.29.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - snapctl: disable stop/start/restart (2.29)
+    - cmd/snap-update-ns: fix collection of changes made
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 03 Nov 2017 17:17:47 +0100
+
+snapd (2.29.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - interfaces: fix incorrect signature of ofono DBusPermanentSlot
+    - interfaces/serial-port: udev tag plugged slots that have just
+      'path' via KERNEL
+    - interfaces/hidraw: udev tag plugged slots that have just 'path'
+      via KERNEL
+    - interfaces/uhid: unconditionally add existing uhid device to the
+      device cgroup
+    - cmd/snap-update-ns: fix mount rules for font sharing
+    - tests: disable refresh-undo test on trusty for now
+    - tests: use `snap change --last=install` in snapd-reexec test
+    - Revert " wrappers: fail install if exec-line cannot be re-written
+    - interfaces: don't udev tag devmode or classic snaps
+    - many: make ignore-validation sticky and send the flag with refresh
+      requests
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 03 Nov 2017 07:25:17 +0100
+
+snapd (2.29~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - interfaces/many: miscellaneous updates based on feedback from the
+      field
+    - snap-confine: allow reading uevents from any where in /sys
+    - spread: add bionic beaver
+    - debian: make packaging/ubuntu-14.04/copyright a real file again
+    - tests: cherry pick the fix for services test into 2.29
+    - cmd/snap-update-ns: initialize logger
+    - hooks/configure: queue service restarts
+    - snap-{confine,seccomp}: make @unrestricted fully unrestricted
+    - interfaces: clean system apparmor cache on core device
+    - debian: do not build static snap-exec on powerpc
+    - snap-confine: increase sanity_timeout to 6s
+    - snapctl: cherry pick service commands changes
+    - cmd/snap: tell translators about arg names and descs req's
+    - systemd: run all mount units before snapd.service to avoid race
+    - store: add a test to show auth failures are forwarded by doRequest
+    - daemon: convert ErrInvalidCredentials to a 401 Unauthorized error.
+    - store: forward on INVALID_CREDENTIALS error as
+      ErrInvalidCredentials
+    - daemon: generate a forbidden response message if polkit dialog is
+      dismissed
+    - daemon: Allow Polkit authorization to cancel changes.
+    - travis: switch to container based test runs
+    - interfaces: reduce duplicated code in interface tests mocks
+    - tests: improve revert related testing
+    - interfaces: sanitize plugs and slots early in ReadInfo
+    - store: add download caching
+    - preserve TMPDIR and HOSTALIASES across snap-confine invocation
+    - snap-confine: init all arrays with `= {0,}`
+    - tests: adding test for network-manager interface
+    - interfaces/mount: don't generate legacy per-hook/per-app mount
+      profiles
+    - snap: introduce structured epochs
+    - tests: fix interfaces-cups-control test for cups-2.2.5
+    - snap-confine: cleanup incorrectly created nvidia udev tags
+    - cmd/snap-confine: update valid security tag regexp
+    - cmd/libsnap: enable two stranded tests
+    - cmd,packaging: enable apparmor on openSUSE
+    - overlord/ifacestate: refresh all security backends on startup
+    - interfaces/dbus: drop unneeded check for
+      release.ReleaseInfo.ForceDevMode
+    - dbus: ensure io.snapcraft.Launcher.service is created on re-
+      exec
+    - overlord/auth: continue for now supporting UBUNTU_STORE_ID if the
+      model is generic-classic
+    - snap-confine: add support for handling /dev/nvidia-modeset
+    - interfaces/network-control: remove incorrect rules for tun
+    - spread: allow setting SPREAD_DEBUG_EACH=0 to disable debug-each
+      section
+    - packaging: remove .mnt files on removal
+    - tests: fix econnreset scenario when the iptables rule was not
+      created
+    - tests: add test for lxd interface
+    - run-checks: use nakedret static checker to check for naked
+      returns on long functions
+    - progress: be more flexible in testing ansimeter
+    - interfaces: fix udev rules for tun
+    - many: implement our own ANSI-escape-using progress indicator
+    - snap-exec: update tests to follow main_test pattern
+    - snap: support "command: foo $ENV_STRING"
+    - packaging: update nvidia configure options
+    - snap: add new `snap pack` and use in tests
+    - cmd: correctly name the "Ubuntu" and "Arch" NVIDIA methods
+    - cmd: add autogen case for solus
+    - tests: do not use http://canihazip.com/ which appears to be down
+    - hooks: commands for controlling own services from snapctl
+    - snap: refactor cmdGet.Execute()
+    - interfaces/mount: make Change.Perform testable and test it
+    - interfaces/mount,cmd/snap-update-ns: move change code
+    - snap-confine: is_running_on_classic_distribution() looks into os-
+      release
+    - interfaces: misc updates for default, browser-support, home and
+      system-observe
+    - interfaces: deny lttng by default
+    - interfaces/lxd: lxd slot implementation can also be an app snap
+    - release,cmd,dirs: Redo the distro checks to take into account
+      distribution families
+    - cmd/snap: completion for alias and unalias
+    - snap-confine: add new SC_CLEANUP and use it
+    - snap: refrain from running filepath.Base on random strings
+    - cmd/snap-confine: put processes into freezer hierarchy
+    - wrappers: fail install if exec-line cannot be re-written
+    - cmd/snap-seccomp,osutil: make user/group lookup functions public
+    - snapstate: deal with snap user data in the /root/ directory
+    - interfaces: Enhance full-confinement support for biarch
+      distributions
+    - snap-confine: Only attempt to copy/mount NVIDIA libs when NVIDIA
+      is used
+    - packaging/fedora: Add Fedora 26, 27, and Rawhide symlinks
+    - overlord/snapstate: prefer a smaller corner case for doing the
+      wrong thing
+    - cmd/snap-repair:  set user agent for snap-repair http requests
+    - packaging: bring down the delta between 14.04 and 16.04
+    - snap-confine: Ensure lib64 biarch directory is respected
+    - snap-confine: update apparmor rules for fedora based base snaps
+    - tests: Increase SNAPD_CONFIGURE_HOOK_TIMEOUT to 3 minutes to
+      install real snaps
+    - daemon: use client.Snap instead of map[string]interface{} for
+      snaps.
+    - hooks: rename refresh hook to post-refresh
+    - git: make the .gitingore file a bit more targeted
+    - interfaces/opengl: don't udev tag nvidia devices and use snap-
+      confine instead
+    - cmd/snap-{confine,update-ns}: apply mount profiles using snap-
+      update-ns
+    - cmd: update "make hack"
+    - interfaces/system-observe: allow clients to enumerate DBus
+      connection names
+    - snap-repair: implement `snap-repair {list,show}`
+    - dirs,interfaces: create snap-confine.d on demand when re-executing
+    - snap-confine: fix base snaps on core
+    - cmd/snap-repair: fix tests when running as root
+    - interfaces: add Connection type
+    - cmd/snap-repair: skip disabled repairs
+    - cmd/snap-repair: prefer leaking unmanaged fds on test failure over
+      closing random ones
+    - snap-repair: make `repair` binary available for repair scripts
+    - snap-repair: fix missing Close() in TestStatusHappy
+    - cmd/snap-confine,packaging: import snapd-generated policy
+    - cmd/snap: return empty document if snap has no configuration
+    - snap-seccomp: run secondary-arch tests via gcc-multilib
+    - snap: implement `snap {repair,repairs}` and pass-through to snap-
+      repair
+    - interfaces/builtin: allow receiving dbus messages
+    - snap-repair: implement `snap-repair {done,skip,retry}`
+    - data/completion: small tweak to snap completion snippet
+    - dirs: fix classic support detection
+    - cmd/snap-repair: integrate root public keys for repairs
+    - tests: fix ubuntu core services
+    - tests: add new test that checks that the compat snapd-xdg-open
+      works
+    - snap-confine: improve error message if core/u-core cannot be found
+    - tests: only run tests/regression/nmcli on amd64
+    - interfaces: mount host system fonts in desktop interface
+    - interfaces: enable partial apparmor support
+    - snapstate: auto-install missing base snaps
+    - spread: work around temporary packaging issue in debian sid
+    - asserts,cmd/snap-repair: introduce a mandatory summary for repairs
+    - asserts,cmd/snap-repair: represent RepairID internally as an int
+    - tests: test the real "xdg-open" from the core snap
+    - many: implement fetching sections and package names periodically.
+    - interfaces/network: allow using netcat as client
+    - snap-seccomp, osutil: use osutil.AtomicFile in snap-seccomp
+    - snap-seccomp: skip mknod syscall on arm64
+    - tests: add trivial canonical-livepatch test
+    - tests: add test that ensures that all core services are working
+    - many: add logger.MockLogger() and use it in the tests
+    - snap-repair: fix test failure in TestRepairHitsTimeout
+    - asserts: add empty values check in HeadersFromPrimaryKey
+    - daemon: remove unused installSnap var in test
+    - daemon: reach for Overlord.Loop less thanks to overlord.Mock
+    - snap-seccomp: manually resolve socket() call in tests
+    - tests: change regex used to validate installed ubuntu core snap
+    - cmd/snapctl: allow snapctl -h without a context (regression fix).
+    - many: use snapcore/snapd/i18n instead of i18n/dumb
+    - many: introduce asserts.NotFoundError replacing both ErrNotFound
+      and store.AssertionNotFoundError
+    - packaging: don't include any marcos in comments
+    - overlord: use overlord.Mock in more tests, make sure we check the
+      outcome of Settle
+    - tests: try to fix staging tests
+    - store: simplify api base url config
+    - systemd: add systemd.MockJournalctl()
+    - many: provide systemd.MockSystemctl() helper
+    - tests: improve the listing test to not fail for e.g. 2.28~rc2
+    - snapstate: give snapmgrTestSuite.settle() more time to settle
+    - tests: fix regex to check core version on snap list
+    - debian: update trusted account-keys check on 14.04 packaging
+    - interfaces: add udev netlink support to hardware-observe
+    - overlord: introduce Mock which enables to use Overlord.Settle for
+      settle in many more places
+    - snap-repair: execute the repair and capture logs/status
+    - tests: run the tests/unit/go everywhere
+    - daemon, snapstate: move ensureCore from daemon/api.go into
+      snapstate.go
+    - cmd/snap: get keys or root document
+    - spread.yaml: turn suse to manual given that it's breaking master
+    - many: configure store from state, reconfigure store at runtime
+    - osutil: AtomicWriter (an io.Writer), and io.Reader versions of
+      AtomicWrite*
+    - tests: check for negative syscalls in runBpf() and skip those
+      tests
+    - docs: use abolute path in PULL_REQUEST_TEMPLATE.md
+    - store: move device auth endpoint uris to config (#3831)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 30 Oct 2017 16:22:26 +0100
+
+snapd (2.28.5~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1714984
+    - snap-confine: cleanup broken nvidia udev tags
+    - cmd/snap-confine: update valid security tag regexp
+    - overlord/ifacestate: refresh udev backend on startup
+    - dbus: ensure io.snapcraft.Launcher.service is created on re-
+      exec
+    - snap-confine: add support for handling /dev/nvidia-modeset
+    - interfaces/network-control: remove incorrect rules for tun
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 13 Oct 2017 23:25:46 +0200
+
+snapd (2.28.4~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1714984
+    - interfaces/opengl: don't udev tag nvidia devices and use snap-
+      confine instead
+    - debian: fix replaces/breaks for snap-xdg-open (thanks to apw!)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 11 Oct 2017 19:40:57 +0200
+
+snapd (2.28.3~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1714984
+    - interfaces/lxd: lxd slot implementation can also be an app
+      snap
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 11 Oct 2017 08:20:26 +0200
+
+snapd (2.28.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1714984
+    - interfaces: fix udev rules for tun
+    - release,cmd,dirs: Redo the distro checks to take into account
+      distribution families
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 10 Oct 2017 18:39:58 +0200
+
 snapd (2.28.1~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1714984

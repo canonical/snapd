@@ -20,26 +20,17 @@
 package kmod
 
 import (
-	"fmt"
 	"os/exec"
-
-	"github.com/snapcore/snapd/osutil"
 )
 
-func LoadModule(module string) error {
-	if output, err := exec.Command("modprobe", "--syslog", module).CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot load module %s: %s", module, osutil.OutputErr(output, err))
-	}
-	return nil
-}
-
 // loadModules loads given list of modules via modprobe.
-// Any error from modprobe interrupts loading of subsequent modules and returns the error.
-func loadModules(modules []string) error {
+// Since different kernels may not have the requested module, we treat any
+// error from modprobe as non-fatal and subsequent module loads are attempted
+// (otherwise failure to load a module means failure to connect the interface
+// and the other security backends)
+func loadModules(modules []string) {
 	for _, mod := range modules {
-		if err := LoadModule(mod); err != nil {
-			return err
-		}
+		// ignore errors which are logged by loadModule() via syslog
+		_ = exec.Command("modprobe", "--syslog", mod).Run()
 	}
-	return nil
 }

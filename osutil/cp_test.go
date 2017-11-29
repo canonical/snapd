@@ -63,7 +63,7 @@ func (s *cpSuite) µ(msg string) (err error) {
 		}
 	}
 
-	return
+	return err
 }
 
 func (s *cpSuite) SetUpTest(c *C) {

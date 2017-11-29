@@ -115,6 +115,9 @@ func (p *parser) validate(depth int) error {
 			if last == opAND || last == opOR {
 				return fmt.Errorf("expected license name, got %q", tok)
 			}
+			if tok == opWITH && last == "(" {
+				return fmt.Errorf("expected license name before %s", tok)
+			}
 			if last == opWITH {
 				return fmt.Errorf("expected exception name, got %q", tok)
 			}

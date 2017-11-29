@@ -20,13 +20,13 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const mirSummary = `allows operating as the Mir server`
@@ -89,16 +89,6 @@ unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS#
 /run/user/[0-9]*/mir_socket rw,
 `
 
-const mirPermanentSlotUdev = `
-KERNEL=="tty[0-9]*", TAG+="%[1]s"
-
-# input devices
-KERNEL=="mice",   TAG+="%[1]s"
-KERNEL=="mouse[0-9]*", TAG+="%[1]s"
-KERNEL=="event[0-9]*", TAG+="%[1]s"
-KERNEL=="ts[0-9]*",    TAG+="%[1]s"
-`
-
 type mirInterface struct{}
 
 func (iface *mirInterface) Name() string {
@@ -128,21 +118,22 @@ func (iface *mirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *mirInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *mirInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(mirPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *mirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *mirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(mirPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *mirInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	for appName := range slot.Apps {
-		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(mirPermanentSlotUdev, tag))
-	}
+func (iface *mirInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+	spec.TagDevice(`KERNEL=="tty[0-9]*"`)
+	spec.TagDevice(`KERNEL=="mice"`)
+	spec.TagDevice(`KERNEL=="mouse[0-9]*"`)
+	spec.TagDevice(`KERNEL=="event[0-9]*"`)
+	spec.TagDevice(`KERNEL=="ts[0-9]*"`)
 	return nil
 }
 

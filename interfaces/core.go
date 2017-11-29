@@ -35,11 +35,7 @@ type Plug struct {
 
 // Ref returns reference to a plug
 func (plug *Plug) Ref() PlugRef {
-	return NewPlugRef(plug.PlugInfo)
-}
-
-func NewPlugRef(plugInfo *snap.PlugInfo) PlugRef {
-	return PlugRef{Snap: plugInfo.Snap.Name(), Name: plugInfo.Name}
+	return PlugRef{Snap: plug.Snap.Name(), Name: plug.Name}
 }
 
 // Sanitize plug with a given snapd interface.
@@ -74,11 +70,7 @@ type Slot struct {
 
 // Ref returns reference to a slot
 func (slot *Slot) Ref() SlotRef {
-	return NewSlotRef(slot.SlotInfo)
-}
-
-func NewSlotRef(slotInfo *snap.SlotInfo) SlotRef {
-	return SlotRef{Snap: slotInfo.Snap.Name(), Name: slotInfo.Name}
+	return SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}
 }
 
 // Sanitize slot with a given snapd interface.
@@ -127,21 +119,12 @@ type ConnRef struct {
 	SlotRef SlotRef
 }
 
-type Connection struct {
-	plug *ConnectedPlug
-	slot *ConnectedSlot
-}
-
-type ConnectedPlug struct {
-	plugInfo *snap.PlugInfo
-}
-
-type ConnectedSlot struct {
-	slotInfo *snap.SlotInfo
-}
-
-func (conn *Connection) Interface() string {
-	return conn.plug.plugInfo.Interface
+// NewConnRef creates a connection reference for given plug and slot
+func NewConnRef(plug *snap.PlugInfo, slot *snap.SlotInfo) *ConnRef {
+	return &ConnRef{
+		PlugRef: PlugRef{Snap: plug.Snap.Name(), Name: plug.Name},
+		SlotRef: SlotRef{Snap: slot.Snap.Name(), Name: slot.Name},
+	}
 }
 
 // ID returns a string identifying a given connection.
@@ -226,9 +209,9 @@ func StaticInfoOf(iface Interface) (si StaticInfo) {
 // Specification describes interactions between backends and interfaces.
 type Specification interface {
 	// AddPermanentSlot records side-effects of having a slot.
-	AddPermanentSlot(iface Interface, slot *Slot) error
+	AddPermanentSlot(iface Interface, slot *snap.SlotInfo) error
 	// AddPermanentPlug records side-effects of having a plug.
-	AddPermanentPlug(iface Interface, plug *Plug) error
+	AddPermanentPlug(iface Interface, plug *snap.PlugInfo) error
 	// AddConnectedSlot records side-effects of having a connected slot.
 	AddConnectedSlot(iface Interface, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error
 	// AddConnectedPlug records side-effects of having a connected plug.

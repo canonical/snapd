@@ -48,8 +48,6 @@ const i2cConnectedPlugAppArmor = `
 /sys/devices/platform/{*,**.i2c}/%s/** rw,
 `
 
-const i2cConnectedPlugUDev = `KERNEL=="%s", TAG+="%s"`
-
 // The type for i2c interface
 type i2cInterface struct{}
 
@@ -111,11 +109,7 @@ func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 	if !pathOk {
 		return nil
 	}
-	const pathPrefix = "/dev/"
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(i2cConnectedPlugUDev, strings.TrimPrefix(path, pathPrefix), tag))
-	}
+	spec.TagDevice(fmt.Sprintf(`KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 

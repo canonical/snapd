@@ -42,15 +42,18 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -149,7 +152,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.o.AddManager(s.mgr)
 
 	s.state.Lock()
-	storestate.ReplaceStore(s.state, &fakeStore{
+	snapstate.ReplaceStore(s.state, &fakeStore{
 		state: s.state,
 		db:    s.storeSigning,
 	})
@@ -175,10 +178,8 @@ func (s *deviceMgrSuite) settle(c *C) {
 }
 
 const (
-	// will become "/api/v1/snaps/auth/request-id"
-	requestIDURLPath = "/identity/api/v1/request-id"
-	// will become "/api/v1/snaps/auth/serial"
-	serialURLPath = "/identity/api/v1/devices"
+	requestIDURLPath = "/api/v1/snaps/auth/request-id"
+	serialURLPath    = "/api/v1/snaps/auth/devices"
 )
 
 // seeding avoids triggering a real full seeding, it simulates having it in process instead
@@ -195,6 +196,10 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case requestIDURLPath, "/svc/request-id":
+			if s.reqID == "REQID-501" {
+				w.WriteHeader(501)
+				return
+			}
 			w.WriteHeader(200)
 			c.Check(r.Header.Get("User-Agent"), Equals, expectedUserAgent)
 			io.WriteString(w, fmt.Sprintf(`{"request-id": "%s"}`, s.reqID))
@@ -758,6 +763,116 @@ version: gadget
 	c.Check(device.Serial, Equals, "9999")
 }
 
+func (s *deviceMgrSuite) TestDoRequestSerialErrorsOnNoHost(c *C) {
+	privKey, _ := assertstest.GenerateKey(testKeyLength)
+
+	nowhere := "http://nowhere.invalid"
+
+	mockRequestIDURL := nowhere + requestIDURLPath
+	restore := devicestate.MockRequestIDURL(mockRequestIDURL)
+	defer restore()
+
+	mockSerialRequestURL := nowhere + serialURLPath
+	restore = devicestate.MockSerialRequestURL(mockSerialRequestURL)
+	defer restore()
+
+	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+`, "")
+
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+		KeyID: privKey.PublicKey().ID(),
+	})
+	s.mgr.KeypairManager().Put(privKey)
+
+	t := s.state.NewTask("request-serial", "test")
+	chg := s.state.NewChange("become-operational", "...")
+	chg.AddTask(t)
+
+	// avoid full seeding
+	s.seeding()
+
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+}
+
+func (s *deviceMgrSuite) TestDoRequestSerialMaxTentatives(c *C) {
+	privKey, _ := assertstest.GenerateKey(testKeyLength)
+
+	// immediate
+	r := devicestate.MockRetryInterval(0)
+	defer r()
+
+	r = devicestate.MockMaxTentatives(2)
+	defer r()
+
+	s.reqID = "REQID-501"
+	mockServer := s.mockServer(c)
+	defer mockServer.Close()
+
+	mockRequestIDURL := mockServer.URL + requestIDURLPath
+	restore := devicestate.MockRequestIDURL(mockRequestIDURL)
+	defer restore()
+
+	mockSerialRequestURL := mockServer.URL + serialURLPath
+	restore = devicestate.MockSerialRequestURL(mockSerialRequestURL)
+	defer restore()
+
+	restore = devicestate.MockRepeatRequestSerial("after-add-serial")
+	defer restore()
+
+	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+`, "")
+
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+		KeyID: privKey.PublicKey().ID(),
+	})
+	s.mgr.KeypairManager().Put(privKey)
+
+	t := s.state.NewTask("request-serial", "test")
+	chg := s.state.NewChange("become-operational", "...")
+	chg.AddTask(t)
+
+	// avoid full seeding
+	s.seeding()
+
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot retrieve request-id for making a request for a serial: unexpected status 501.*`)
+}
+
 func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	r1 := devicestate.MockKeyLength(testKeyLength)
 	defer r1()
@@ -1256,6 +1371,55 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequestParams(c *C) {
 	c.Check(sessReq.Model(), Equals, "pc")
 	c.Check(sessReq.Serial(), Equals, "8989")
 	c.Check(sessReq.Nonce(), Equals, "NONCE-1")
+}
+
+func (s *deviceMgrSuite) TestDeviceAssertionsProxyStore(c *C) {
+	// nothing in the state
+	s.state.Lock()
+	_, err := devicestate.ProxyStore(s.state)
+	s.state.Unlock()
+	c.Check(err, Equals, state.ErrNoState)
+
+	_, err = s.mgr.ProxyStore()
+	c.Check(err, Equals, state.ErrNoState)
+
+	// have a store referenced
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	err = tr.Set("core", "proxy.store", "foo")
+	tr.Commit()
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	_, err = s.mgr.ProxyStore()
+	c.Check(err, Equals, state.ErrNoState)
+
+	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
+	s.state.Lock()
+	err = assertstate.Add(s.state, operatorAcct)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
+	// have a store assertion.
+	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":       "foo",
+		"operator-id": operatorAcct.AccountID(),
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.state.Lock()
+	err = assertstate.Add(s.state, stoAs)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
+	sto, err := s.mgr.ProxyStore()
+	c.Assert(err, IsNil)
+	c.Assert(sto.Store(), Equals, "foo")
+
+	s.state.Lock()
+	sto, err = devicestate.ProxyStore(s.state)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	c.Assert(sto.Store(), Equals, "foo")
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlreadySeeded(c *C) {
@@ -1881,4 +2045,128 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnClassic(c *C) {
 	// not seeded, model, serial -> no auto-refresh
 	s.state.Set("seeded", false)
 	c.Check(canAutoRefresh(), Equals, false)
+}
+
+func makeInstalledMockCoreSnapWithSnapdControl(c *C, st *state.State) *snap.Info {
+	sideInfoCore11 := &snap.SideInfo{RealName: "core", Revision: snap.R(11), SnapID: "core-id"}
+	snapstate.Set(st, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfoCore11},
+		Current:  sideInfoCore11.Revision,
+		SnapType: "os",
+	})
+	core11 := snaptest.MockSnap(c, `
+name: core
+version: 1.0
+slots:
+ snapd-control:
+`, "", sideInfoCore11)
+	c.Assert(core11.Slots, HasLen, 1)
+
+	return core11
+}
+
+var snapWithSnapdControlRefreshScheduleManagedYAML = `
+name: snap-with-snapd-control
+version: 1.0
+plugs:
+ snapd-control:
+  refresh-schedule: managed
+`
+
+var snapWithSnapdControlOnlyYAML = `
+name: snap-with-snapd-control
+version: 1.0
+plugs:
+ snapd-control:
+`
+
+func makeInstalledMockSnap(c *C, st *state.State, yml string) *snap.Info {
+	sideInfo11 := &snap.SideInfo{RealName: "snap-with-snapd-control", Revision: snap.R(11), SnapID: "snap-with-snapd-control-id"}
+	snapstate.Set(st, "snap-with-snapd-control", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo11},
+		Current:  sideInfo11.Revision,
+		SnapType: "app",
+	})
+	info11 := snaptest.MockSnap(c, yml, "", sideInfo11)
+	c.Assert(info11.Plugs, HasLen, 1)
+
+	return info11
+}
+
+func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.Info, ifname string) {
+	repo := interfaces.NewRepository()
+	for _, iface := range builtin.Interfaces() {
+		err := repo.AddInterface(iface)
+		c.Assert(err, IsNil)
+	}
+	err := repo.AddSnap(info11)
+	c.Assert(err, IsNil)
+	err = repo.AddSnap(core11)
+	c.Assert(err, IsNil)
+	err = repo.Connect(interfaces.ConnRef{
+		interfaces.PlugRef{Snap: info11.Name(), Name: ifname},
+		interfaces.SlotRef{Snap: core11.Name(), Name: ifname},
+	})
+	c.Assert(err, IsNil)
+	conns, err := repo.Connected("snap-with-snapd-control", "snapd-control")
+	c.Assert(err, IsNil)
+	c.Assert(conns, HasLen, 1)
+	ifacerepo.Replace(st, repo)
+}
+
+func (s *deviceMgrSuite) makeSnapDeclaration(c *C, st *state.State, info *snap.Info) {
+	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-name":    info.Name(),
+		"snap-id":      info.SideInfo.SnapID,
+		"publisher-id": "canonical",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, decl)
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestCanManageRefreshes(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// not possbile to manage by default
+	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
+
+	// not possible with just a snap with "snapd-control" plug with the
+	// right attribute
+	info11 := makeInstalledMockSnap(c, st, snapWithSnapdControlRefreshScheduleManagedYAML)
+	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
+
+	// not possible with a core snap with snapd control
+	core11 := makeInstalledMockCoreSnapWithSnapdControl(c, st)
+	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
+
+	// not possible even with connected interfaces
+	makeMockRepoWithConnectedSnaps(c, st, info11, core11, "snapd-control")
+	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
+
+	// if all of the above plus a snap declaration are in place we can
+	// manage schedules
+	s.makeSnapDeclaration(c, st, info11)
+	c.Check(devicestate.CanManageRefreshes(st), Equals, true)
+}
+
+func (s *deviceMgrSuite) TestCanManageRefreshesNoRefreshScheduleManaged(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// just having a connected "snapd-control" interface is not enough
+	// for setting refresh.schedule=managed
+	info11 := makeInstalledMockSnap(c, st, snapWithSnapdControlOnlyYAML)
+	core11 := makeInstalledMockCoreSnapWithSnapdControl(c, st)
+	makeMockRepoWithConnectedSnaps(c, st, info11, core11, "snapd-control")
+	s.makeSnapDeclaration(c, st, info11)
+
+	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
 }

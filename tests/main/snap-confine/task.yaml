@@ -24,3 +24,18 @@ execute: |
         echo "test-snapd-tools.echo should fail to run, test broken"
     fi
     cat snap-confine.stderr | MATCH 'cannot locate the core or legacy core snap \(current symlink missing\?\):'
+
+    echo "Test nvidia device fix"
+    mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current
+    # For https://github.com/snapcore/snapd/pull/4042
+    echo "Simulate nvidia device tags"
+    mkdir -p /run/udev/tags/snap_test-snapd-tools_echo
+    for f in c226:0 +module:nvidia +module:nvidia_modeset; do
+        touch /run/udev/tags/snap_test-snapd-tools_echo/$f
+    done
+    test-snapd-tools.echo hello | MATCH hello
+    echo "Non nvidia files are still there"
+    test -f /run/udev/tags/snap_test-snapd-tools_echo/c226:0
+    echo "But nvidia files are gone"
+    ! test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia
+    ! test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia_modeset

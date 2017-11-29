@@ -147,8 +147,7 @@ Icon=${SNAP}/meep
 
 # the empty line above is fine`)
 
-	e, err := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
-	c.Assert(err, IsNil)
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 Name=foo
 Icon=%s/foo/12/meep
@@ -171,8 +170,10 @@ Name=foo
 Exec=baz
 `)
 
-	_, err = wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
-	c.Assert(err, ErrorMatches, `invalid exec command: "baz"`)
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Entry]
+Name=foo
+`)
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecPrefix(c *C) {
@@ -189,8 +190,31 @@ Name=foo
 Exec=snap.app.evil.evil
 `)
 
-	_, err = wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
-	c.Assert(err, ErrorMatches, `invalid exec command: "snap.app.evil.evil"`)
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Entry]
+Name=foo
+`)
+}
+
+func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecRewriteFromDesktop(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+`))
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=snap.app.evil.evil
+`)
+
+	e := wrappers.SanitizeDesktopFile(snap, "app.desktop", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Entry]
+Name=foo
+Exec=env BAMF_DESKTOP_FILE_HINT=app.desktop /snap/bin/snap.app
+`)
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecOk(c *C) {
@@ -207,8 +231,7 @@ Name=foo
 Exec=snap.app %U
 `)
 
-	e, err := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
-	c.Assert(err, IsNil)
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 Name=foo
 Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app %%U
@@ -231,8 +254,7 @@ Name=foo
 TryExec=snap.app %U
 `)
 
-	e, err := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
-	c.Assert(err, IsNil)
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
 `)
@@ -250,8 +272,7 @@ Invalid=key
 Invalid[i18n]=key
 `)
 
-	e, err := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
-	c.Assert(err, IsNil)
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
 GenericName=bar
@@ -265,8 +286,7 @@ func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopActionsOk(c *C) {
 	snap := &snap.Info{}
 	desktopContent := []byte("[Desktop Action is-ok]\n")
 
-	e, err := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
-	c.Assert(err, IsNil)
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, string(desktopContent))
 }
 
@@ -287,8 +307,7 @@ Name=Private Mode
 TargetEnvironment=Unity
 `)
 
-	e, err := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
-	c.Assert(err, IsNil)
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, string(desktopContent))
 }
 

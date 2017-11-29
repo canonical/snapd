@@ -83,7 +83,7 @@ deny /etc/fuse.conf r,
 #/{,usr/}bin/fusermount ixr,
 `
 
-const fuseSupportConnectedPlugUDev = `KERNEL=="fuse", TAG+="###CONNECTED_SECURITY_TAGS###"`
+var fuseSupportConnectedPlugUDev = []string{`KERNEL=="fuse"`}
 
 func init() {
 	registerIface(&commonInterface{

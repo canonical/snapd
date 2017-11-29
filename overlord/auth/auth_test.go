@@ -20,6 +20,7 @@
 package auth_test
 
 import (
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -29,6 +30,7 @@ import (
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -38,9 +40,17 @@ func Test(t *testing.T) { TestingT(t) }
 
 type authSuite struct {
 	state *state.State
+
+	defURL *url.URL
 }
 
 var _ = Suite(&authSuite{})
+
+func (as *authSuite) SetupSuite(c *C) {
+	var err error
+	as.defURL, err = url.Parse("http://store")
+	c.Assert(err, IsNil)
+}
 
 func (as *authSuite) SetUpTest(c *C) {
 	as.state = state.New(nil)
@@ -508,12 +518,17 @@ func (as *authSuite) TestAuthContextUpdateDeviceAuthOtherUpdate(c *C) {
 	})
 }
 
-func (as *authSuite) TestAuthContextStoreIDFallback(c *C) {
+func (as *authSuite) TestAuthContextStoreParamsFallback(c *C) {
 	authContext := auth.NewAuthContext(as.state, nil)
 
 	storeID, err := authContext.StoreID("store-id")
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "store-id")
+
+	proxyStoreID, proxyStoreURL, err := authContext.ProxyStoreParams(as.defURL)
+	c.Assert(err, IsNil)
+	c.Check(proxyStoreID, Equals, "")
+	c.Check(proxyStoreURL, Equals, as.defURL)
 }
 
 func (as *authSuite) TestAuthContextStoreIDFromEnv(c *C) {
@@ -525,6 +540,7 @@ func (as *authSuite) TestAuthContextStoreIDFromEnv(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "env-store-id")
 }
+
 func (as *authSuite) TestAuthContextDeviceSessionRequestParamsNilDeviceAssertions(c *C) {
 	authContext := auth.NewAuthContext(as.state, nil)
 
@@ -575,6 +591,16 @@ model: baz-3000
 serial: 9999
 nonce: @NONCE@
 timestamp: @TS@
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw=`
+
+	exStore = `type: store
+authority-id: canonical
+store: foo
+operator-id: foo-operator
+url: http://foo.internal
+timestamp: 2017-11-01T10:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw=`
@@ -634,6 +660,17 @@ func (da *testDeviceAssertions) DeviceSessionRequestParams(nonce string) (*auth.
 	}, nil
 }
 
+func (da *testDeviceAssertions) ProxyStore() (*asserts.Store, error) {
+	if da.nothing {
+		return nil, state.ErrNoState
+	}
+	a, err := asserts.Decode([]byte(exStore))
+	if err != nil {
+		return nil, err
+	}
+	return a.(*asserts.Store), nil
+}
+
 func (as *authSuite) TestAuthContextMissingDeviceAssertions(c *C) {
 	// no assertions in state
 	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{nothing: true})
@@ -644,6 +681,11 @@ func (as *authSuite) TestAuthContextMissingDeviceAssertions(c *C) {
 	storeID, err := authContext.StoreID("fallback")
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "fallback")
+
+	proxyStoreID, proxyStoreURL, err := authContext.ProxyStoreParams(as.defURL)
+	c.Assert(err, IsNil)
+	c.Check(proxyStoreID, Equals, "")
+	c.Check(proxyStoreURL, Equals, as.defURL)
 }
 
 func (as *authSuite) TestAuthContextWithDeviceAssertions(c *C) {
@@ -665,9 +707,55 @@ func (as *authSuite) TestAuthContextWithDeviceAssertions(c *C) {
 	c.Check(strings.Contains(model, "model: baz-3000\n"), Equals, true)
 	c.Check(strings.Contains(model, "serial:\n"), Equals, false)
 
+	// going to be ignored
+	os.Setenv("UBUNTU_STORE_ID", "env-store-id")
+	defer os.Unsetenv("UBUNTU_STORE_ID")
 	storeID, err := authContext.StoreID("store-id")
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "my-brand-store-id")
+
+	// proxy store
+	fooURL, err := url.Parse("http://foo.internal")
+	c.Assert(err, IsNil)
+
+	proxyStoreID, proxyStoreURL, err := authContext.ProxyStoreParams(as.defURL)
+	c.Assert(err, IsNil)
+	c.Check(proxyStoreID, Equals, "foo")
+	c.Check(proxyStoreURL, DeepEquals, fooURL)
+}
+
+func (as *authSuite) TestAuthContextWithDeviceAssertionsGenericClassicModel(c *C) {
+	model, err := asserts.Decode([]byte(exModel))
+	c.Assert(err, IsNil)
+	// (ab)use the example as the generic classic model
+	r := sysdb.MockGenericClassicModel(model.(*asserts.Model))
+	defer r()
+	// having assertions in state
+	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{})
+
+	// for the generic classic model we continue to consider the env var
+	os.Setenv("UBUNTU_STORE_ID", "env-store-id")
+	defer os.Unsetenv("UBUNTU_STORE_ID")
+	storeID, err := authContext.StoreID("store-id")
+	c.Assert(err, IsNil)
+	c.Check(storeID, Equals, "env-store-id")
+}
+
+func (as *authSuite) TestAuthContextWithDeviceAssertionsGenericClassicModelNoEnvVar(c *C) {
+	model, err := asserts.Decode([]byte(exModel))
+	c.Assert(err, IsNil)
+	// (ab)use the example as the generic classic model
+	r := sysdb.MockGenericClassicModel(model.(*asserts.Model))
+	defer r()
+	// having assertions in state
+	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{})
+
+	// for the generic classic model we continue to consider the env var
+	// but when the env var is unset we don't do anything wrong.
+	os.Unsetenv("UBUNTU_STORE_ID")
+	storeID, err := authContext.StoreID("store-id")
+	c.Assert(err, IsNil)
+	c.Check(storeID, Equals, "store-id")
 }
 
 func (as *authSuite) TestUsers(c *C) {

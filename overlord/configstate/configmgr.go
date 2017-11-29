@@ -22,6 +22,7 @@ package configstate
 import (
 	"regexp"
 
+	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -29,16 +30,59 @@ import (
 // ConfigManager is responsible for the maintenance of per-snap configuration in
 // the system state.
 type ConfigManager struct {
-	state *state.State
+	state  *state.State
+	runner *state.TaskRunner
+}
+
+var corecfgRun = corecfg.Run
+
+func MockCorecfgRun(f func(conf corecfg.Conf) error) (restore func()) {
+	origCorecfgRun := corecfgRun
+	corecfgRun = f
+	return func() {
+		corecfgRun = origCorecfgRun
+	}
 }
 
 // Manager returns a new ConfigManager.
-func Manager(s *state.State, hookManager *hookstate.HookManager) (*ConfigManager, error) {
+func Manager(st *state.State, hookManager *hookstate.HookManager) (*ConfigManager, error) {
+	// Most configuration is handled via the "configure" hook of the
+	// snaps. However some configuration is internally handled
+	hookManager.Register(regexp.MustCompile("^configure$"), newConfigureHandler)
+	// Ensure that we run configure for the core snap internally.
+	// Note that we use the func() indirection so that mocking corecfgRun
+	// in tests works correctly.
+	hookManager.RegisterHijack("configure", "core", func(ctx *hookstate.Context) error {
+		ctx.Lock()
+		tr := ContextTransaction(ctx)
+		ctx.Unlock()
+		return corecfgRun(tr)
+	})
+
+	// we handle core/snapd specific configuration internally because
+	// on classic systems we may need to configure things before any
+	// snap is installed.
+	runner := state.NewTaskRunner(st)
 	manager := &ConfigManager{
-		state: s,
+		state:  st,
+		runner: runner,
 	}
 
-	hookManager.Register(regexp.MustCompile("^configure$"), newConfigureHandler)
-
 	return manager, nil
+}
+
+// Ensure implements StateManager.Ensure.
+func (m *ConfigManager) Ensure() error {
+	m.runner.Ensure()
+	return nil
+}
+
+// Wait implements StateManager.Wait.
+func (m *ConfigManager) Wait() {
+	m.runner.Wait()
+}
+
+// Stop implements StateManager.Stop.
+func (m *ConfigManager) Stop() {
+	m.runner.Stop()
 }

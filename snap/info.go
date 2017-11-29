@@ -135,6 +135,7 @@ type SideInfo struct {
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
 	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
+	Paid              bool     `yaml:"paid,omitempty" json:"paid,omitempty"`
 }
 
 // Info provides information about snaps.
@@ -154,7 +155,7 @@ type Info struct {
 	LicenseAgreement string
 	LicenseVersion   string
 	License          string
-	Epoch            string
+	Epoch            Epoch
 	Base             string
 	Confinement      ConfinementType
 	Apps             map[string]*AppInfo
@@ -213,7 +214,7 @@ type ChannelSnapInfo struct {
 	Confinement ConfinementType `json:"confinement"`
 	Version     string          `json:"version"`
 	Channel     string          `json:"channel"`
-	Epoch       string          `json:"epoch"`
+	Epoch       Epoch           `json:"epoch"`
 	Size        int64           `json:"size"`
 }
 
@@ -327,13 +328,13 @@ func (s *Info) Services() []*AppInfo {
 	return svcs
 }
 
-func (s *Info) BadInterfacesInfoString() string {
+func BadInterfacesSummary(snapInfo *Info) string {
 	inverted := make(map[string][]string)
-	for name, reason := range s.BadInterfaces {
+	for name, reason := range snapInfo.BadInterfaces {
 		inverted[reason] = append(inverted[reason], name)
 	}
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "snap %q has bad plugs or slots: ", s.Name())
+	fmt.Fprintf(&buf, "snap %q has bad plugs or slots: ", snapInfo.Name())
 	reasons := make([]string, 0, len(inverted))
 	for reason := range inverted {
 		reasons = append(reasons, reason)
@@ -409,15 +410,27 @@ func (plug *PlugInfo) SecurityTags() []string {
 	return tags
 }
 
+// String returns the representation of the plug as snap:plug string.
+func (plug *PlugInfo) String() string {
+	return fmt.Sprintf("%s:%s", plug.Snap.Name(), plug.Name)
+}
+
 // SecurityTags returns security tags associated with a given slot.
 func (slot *SlotInfo) SecurityTags() []string {
 	tags := make([]string, 0, len(slot.Apps))
 	for _, app := range slot.Apps {
 		tags = append(tags, app.SecurityTag())
 	}
-	// NOTE: hooks cannot have slots
+	for _, hook := range slot.Hooks {
+		tags = append(tags, hook.SecurityTag())
+	}
 	sort.Strings(tags)
 	return tags
+}
+
+// String returns the representation of the slot as snap:slot string.
+func (slot *SlotInfo) String() string {
+	return fmt.Sprintf("%s:%s", slot.Snap.Name(), slot.Name)
 }
 
 // SlotInfo provides information about a slot.
@@ -429,6 +442,16 @@ type SlotInfo struct {
 	Attrs     map[string]interface{}
 	Label     string
 	Apps      map[string]*AppInfo
+	Hooks     map[string]*HookInfo
+}
+
+// SocketInfo provides information on application sockets.
+type SocketInfo struct {
+	App *AppInfo
+
+	Name         string
+	ListenStream string
+	SocketMode   os.FileMode
 }
 
 // AppInfo provides information about a app.
@@ -452,8 +475,9 @@ type AppInfo struct {
 	// https://github.com/snapcore/snapd/pull/794#discussion_r58688496
 	BusName string
 
-	Plugs map[string]*PlugInfo
-	Slots map[string]*SlotInfo
+	Plugs   map[string]*PlugInfo
+	Slots   map[string]*SlotInfo
+	Sockets map[string]*SocketInfo
 
 	Environment strutil.OrderedMap
 }
@@ -471,6 +495,12 @@ type HookInfo struct {
 
 	Name  string
 	Plugs map[string]*PlugInfo
+	Slots map[string]*SlotInfo
+}
+
+// File returns the path to the file
+func (socket *SocketInfo) File() string {
+	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
 }
 
 // SecurityTag returns application-specific security tag.
@@ -533,11 +563,6 @@ func (app *AppInfo) ServiceName() string {
 // ServiceFile returns the systemd service file path for the daemon app.
 func (app *AppInfo) ServiceFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.ServiceName())
-}
-
-// ServiceSocketFile returns the systemd socket file path for the daemon app.
-func (app *AppInfo) ServiceSocketFile() string {
-	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".socket")
 }
 
 // Env returns the app specific environment overrides

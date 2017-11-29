@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type powerbtnSuite struct {
@@ -63,19 +62,15 @@ func (s *powerbtnSuite) TestConfigurePowerIntegration(c *C) {
 
 	for _, action := range []string{"ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "lock"} {
 
-		mockSnapctl := testutil.MockCommand(c, "snapctl", fmt.Sprintf(`
-if [ "$1" = "get" ] && [ "$2" = "system.power-key-action" ]; then
-    echo "%s"
-fi
-`, action))
-		defer mockSnapctl.Restore()
-
-		err := corecfg.Run()
+		err := corecfg.Run(&mockConf{
+			conf: map[string]interface{}{
+				"system.power-key-action": action,
+			},
+		})
 		c.Assert(err, IsNil)
 
 		// ensure nothing gets enabled/disabled when an unsupported
 		// service is set for disable
-		c.Check(mockSnapctl.Calls(), Not(HasLen), 0)
 		content, err := ioutil.ReadFile(s.mockPowerBtnCfg)
 		c.Assert(err, IsNil)
 		c.Check(string(content), Equals, fmt.Sprintf("[Login]\nHandlePowerKey=%s\n", action))

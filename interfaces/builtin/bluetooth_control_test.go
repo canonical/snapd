@@ -105,7 +105,8 @@ func (s *BluetoothControlInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], testutil.Contains, `SUBSYSTEM=="bluetooth", TAG+="snap_other_app2"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# bluetooth-control
+SUBSYSTEM=="bluetooth", TAG+="snap_other_app2"`)
 }
 
 func (s *BluetoothControlInterfaceSuite) TestInterfaces(c *C) {

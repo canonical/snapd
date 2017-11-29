@@ -3,5 +3,5 @@
 echo "configure hook"
 command=$(snapctl get command)
 if [ "$command" = "dump-env" ]; then
-    env > $SNAP_DATA/hooks-env
+    env > "$SNAP_DATA"/hooks-env
 fi

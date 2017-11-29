@@ -16,6 +16,7 @@ restore: |
 
 prepare: |
     snap list | awk "/^core / {print(\$3)}" > nextBoot
+    snap install test-snapd-tools
 
 execute: |
     . $TESTSLIB/boot.sh
@@ -61,6 +62,9 @@ execute: |
 
     # wait for the link task to be done
     while ! snap change ${chg_id}|grep -q "^Done.*Make snap.*available to the system" ; do sleep 1 ; done
+
+    echo "Ensure the test snap still runs"
+    test-snapd-tools.echo hello | MATCH hello
 
     echo "Ensure the bootloader is correct before reboot"
     snap list | awk "/^core / {print(\$3)}" > nextBoot

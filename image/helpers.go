@@ -22,13 +22,18 @@ package image
 // TODO: put these in appropriate package(s) once they are clarified a bit more
 
 import (
+	"crypto"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
@@ -142,10 +147,32 @@ func (tsto *ToolingStore) DownloadSnap(name string, revision snap.Revision, opts
 	baseName := filepath.Base(snap.MountFile())
 	targetFn = filepath.Join(targetDir, baseName)
 
-	pb := progress.NewTextProgress()
+	// check if we already have the right file
+	if osutil.FileExists(targetFn) {
+		sha3_384Dgst, size, err := osutil.FileDigest(targetFn, crypto.SHA3_384)
+		if err == nil && size == uint64(snap.DownloadInfo.Size) && fmt.Sprintf("%x", sha3_384Dgst) == snap.DownloadInfo.Sha3_384 {
+			logger.Debugf("not downloading, using existing file %s", targetFn)
+			return targetFn, snap, nil
+		}
+	}
+
+	pb := progress.MakeProgressBar()
+	defer pb.Finished()
+
+	// Intercept sigint
+	c := make(chan os.Signal, 3)
+	signal.Notify(c, syscall.SIGINT)
+	go func() {
+		<-c
+		pb.Finished()
+		os.Exit(1)
+	}()
+
 	if err = sto.Download(context.TODO(), name, targetFn, &snap.DownloadInfo, pb, tsto.user); err != nil {
 		return "", nil, err
 	}
+
+	signal.Reset(syscall.SIGINT)
 
 	return targetFn, snap, nil
 }

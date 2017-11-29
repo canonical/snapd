@@ -20,15 +20,12 @@
 package builtin_test
 
 import (
-	"fmt"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type utilsSuite struct {
@@ -67,17 +64,9 @@ func (s *utilsSuite) TestSanitizeSlotReservedForOSOrApp(c *C) {
 }
 
 func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *interfaces.Plug {
-	info := snaptest.MockInfo(c, yaml, si)
-	if plugInfo, ok := info.Plugs[plugName]; ok {
-		return &interfaces.Plug{PlugInfo: plugInfo}
-	}
-	panic(fmt.Sprintf("cannot find plug %q in snap %q", plugName, info.Name()))
+	return builtin.MockPlug(c, yaml, si, plugName)
 }
 
 func MockSlot(c *C, yaml string, si *snap.SideInfo, slotName string) *interfaces.Slot {
-	info := snaptest.MockInfo(c, yaml, si)
-	if slotInfo, ok := info.Slots[slotName]; ok {
-		return &interfaces.Slot{SlotInfo: slotInfo}
-	}
-	panic(fmt.Sprintf("cannot find slot %q in snap %q", slotName, info.Name()))
+	return builtin.MockSlot(c, yaml, si, slotName)
 }

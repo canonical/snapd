@@ -35,8 +35,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var noConflictOnConnectTasks = func(kind string) bool {
-	return kind != "connect" && kind != "disconnect"
+var noConflictOnConnectTasks = func(task *state.Task) bool {
+	return task.Kind() != "connect" && task.Kind() != "disconnect"
 }
 
 // Connect returns a set of tasks for connecting an interface.
