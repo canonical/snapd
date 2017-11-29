@@ -62,7 +62,16 @@ func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 	if osutil.FileExists(dst) {
 		return nil
 	}
+	if err := osutil.CopyFile(filepath.Join(coreRoot, dst), dst, osutil.CopyFlagPreserveAll); err != nil {
+		return err
+	}
+
+	dst := "/usr/share/dbus-1/services/io.snapcraft.Settings.service"
+	if osutil.FileExists(dst) {
+		return nil
+	}
 	return osutil.CopyFile(filepath.Join(coreRoot, dst), dst, osutil.CopyFlagPreserveAll)
+
 }
 
 // Setup creates dbus configuration files specific to a given snap.

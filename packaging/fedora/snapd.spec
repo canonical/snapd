@@ -579,6 +579,7 @@ popd
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
+%{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
