@@ -42,11 +42,11 @@ const settingsIntrospectionXML = `
 	<method name='Check'>
 		<arg type='s' name='setting' direction='in'/>
 		<arg type='s' name='check' direction='in'/>
-                <arg type='s' name='result' direction='out'/>
+		<arg type='s' name='result' direction='out'/>
 	</method>
 	<method name='Get'>
 		<arg type='s' name='setting' direction='in'/>
-                <arg type='s' name='result' direction='out'/>
+		<arg type='s' name='result' direction='out'/>
 	</method>
 	<method name='Set'>
 		<arg type='s' name='setting' direction='in'/>
