@@ -136,25 +136,62 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 		desiredMap[desired[i].Dir] = &desired[i]
 	}
 
+	// Indexed by mount point path.
+	reuse := make(map[string]bool)
+	// Indexed by entry ID
+	desiredIDs := make(map[string]bool)
+	var skipDir string
+
+	// Collect the IDs of desired changes.
+	// We need that below to keep implicit changes from the current profile.
+	for i := range desired {
+		desiredIDs[XSnapdEntryID(&desired[i])] = true
+	}
+
 	// Compute reusable entries: those which are equal in current and desired and which
 	// are not prefixed by another entry that changed.
-	var reuse map[string]bool
-	var skipDir string
 	for i := range current {
 		dir := current[i].Dir
 		if skipDir != "" && strings.HasPrefix(dir, skipDir) {
+			logger.Debugf("skipping entry %q", current[i])
 			continue
 		}
 		skipDir = "" // reset skip prefix as it no longer applies
-		if entry, ok := desiredMap[dir]; ok && current[i].Equal(entry) {
-			if reuse == nil {
-				reuse = make(map[string]bool)
-			}
+
+		// Reuse synthetic entries if their needed-by entry is desired.
+		// Synthetic entries cannot exist on their own and always couple to a
+		// non-synthetic entry.
+
+		// NOTE: Synthetic changes have a special purpose.
+		//
+		// They are a "shadow" of mount events that occurred to allow one of
+		// the desired mount entries to be possible. The changes have only one
+		// goal: tell snap-update-ns how those mount events can be undone in
+		// case they are no longer needed. The actual changes may have been
+		// different and may have involved steps not represented as synthetic
+		// mount entires as long as those synthetic entries can be undone to
+		// reverse the effect. In reality each non-tmpfs synthetic entry was
+		// constructed using a temporary bind mount that contained the original
+		// mount entries of a directory that was hidden with a tmpfs, but this
+		// fact was lost.
+		if XSnapdSynthetic(&current[i]) && desiredIDs[XSnapdNeededBy(&current[i])] {
+			logger.Debugf("reusing synthetic entry %q", current[i])
 			reuse[dir] = true
 			continue
 		}
+
+		// Reuse entries that are desired and identical in the current profile.
+		if entry, ok := desiredMap[dir]; ok && current[i].Equal(entry) {
+			logger.Debugf("reusing unchanged entry %q", current[i])
+			reuse[dir] = true
+			continue
+		}
+
 		skipDir = strings.TrimSuffix(dir, "/") + "/"
 	}
+
+	logger.Debugf("desiredIDs: %v", desiredIDs)
+	logger.Debugf("reuse: %v", reuse)
 
 	// We are now ready to compute the necessary mount changes.
 	var changes []*Change
