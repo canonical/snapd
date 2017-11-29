@@ -14,9 +14,6 @@ prepare: |
     echo "Given a snap declaring a plug on the network-status interface is installed"
     snap install test-snapd-network-status-provider
 
-    echo "And the provider dbus loop is started"
-    start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-network-status-provider.provider
-
 restore: |
     rm -f getstate.error
 
