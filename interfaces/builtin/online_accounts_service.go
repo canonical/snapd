@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
 )
 
 const onlineAccountsServiceSummary = `allows operating as the Online Accounts service`
@@ -124,12 +125,12 @@ func (iface *onlineAccountsServiceInterface) AppArmorConnectedSlot(spec *apparmo
 	return nil
 }
 
-func (iface *onlineAccountsServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *onlineAccountsServiceInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(onlineAccountsServicePermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *onlineAccountsServiceInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *onlineAccountsServiceInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(onlineAccountsServicePermanentSlotSecComp)
 	return nil
 }

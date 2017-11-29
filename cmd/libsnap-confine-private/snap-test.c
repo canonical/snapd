@@ -20,7 +20,7 @@
 
 #include <glib.h>
 
-static void test_verify_security_tag()
+static void test_verify_security_tag(void)
 {
 	// First, test the names we know are good
 	g_assert_true(verify_security_tag("snap.name.app", "name"));
@@ -54,7 +54,8 @@ static void test_verify_security_tag()
 	g_assert_false(verify_security_tag("snap.n@me.app", "n@me"));
 	g_assert_false(verify_security_tag("SNAP.name.app", "name"));
 	g_assert_false(verify_security_tag("snap.Name.app", "Name"));
-	g_assert_false(verify_security_tag("snap.0name.app", "0name"));
+	// This used to be false but it's now allowed.
+	g_assert_true(verify_security_tag("snap.0name.app", "0name"));
 	g_assert_false(verify_security_tag("snap.-name.app", "-name"));
 	g_assert_false(verify_security_tag("snap.name.@app", "name"));
 	g_assert_false(verify_security_tag(".name.app", "name"));
@@ -67,9 +68,16 @@ static void test_verify_security_tag()
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "fooo"));
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "snap"));
 	g_assert_false(verify_security_tag("snap.foo.hook.bar", "bar"));
+
+	// Regression test 12to8
+	g_assert_true(verify_security_tag("snap.12to8.128to8", "12to8"));
+	g_assert_true(verify_security_tag("snap.123test.123test", "123test"));
+	g_assert_true(verify_security_tag
+		      ("snap.123test.hook.configure", "123test"));
+
 }
 
-static void test_sc_snap_name_validate()
+static void test_sc_snap_name_validate(void)
 {
 	struct sc_error *err = NULL;
 
@@ -136,7 +144,7 @@ static void test_sc_snap_name_validate()
 		"a0", "a-0", "a-0a",
 		"01game", "1-or-2"
 	};
-	for (int i = 0; i < sizeof valid_names / sizeof *valid_names; ++i) {
+	for (size_t i = 0; i < sizeof valid_names / sizeof *valid_names; ++i) {
 		g_test_message("checking valid snap name: %s", valid_names[i]);
 		sc_snap_name_validate(valid_names[i], &err);
 		g_assert_null(err);
@@ -157,7 +165,8 @@ static void test_sc_snap_name_validate()
 		// identifier must be plain ASCII
 		"日本語", "한글", "ру́сский язы́к",
 	};
-	for (int i = 0; i < sizeof invalid_names / sizeof *invalid_names; ++i) {
+	for (size_t i = 0; i < sizeof invalid_names / sizeof *invalid_names;
+	     ++i) {
 		g_test_message("checking invalid snap name: >%s<",
 			       invalid_names[i]);
 		sc_snap_name_validate(invalid_names[i], &err);
@@ -166,9 +175,15 @@ static void test_sc_snap_name_validate()
 			      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME));
 		sc_error_free(err);
 	}
+	// Regression test: 12to8 and 123test
+	sc_snap_name_validate("12to8", &err);
+	g_assert_null(err);
+	sc_snap_name_validate("123test", &err);
+	g_assert_null(err);
+
 }
 
-static void test_sc_snap_name_validate__respects_error_protocol()
+static void test_sc_snap_name_validate__respects_error_protocol(void)
 {
 	if (g_test_subprocess()) {
 		sc_snap_name_validate("hello world", NULL);
@@ -182,7 +197,7 @@ static void test_sc_snap_name_validate__respects_error_protocol()
 	    ("snap name must use lower case letters, digits or dashes\n");
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/snap/verify_security_tag", test_verify_security_tag);
 	g_test_add_func("/snap/sc_snap_name_validate",

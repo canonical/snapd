@@ -1,0 +1,12 @@
+name: test-classic-cgroup
+version: 1.0
+summary: Basic classic cgroup tester
+description: A basic snap for testing classic and cgroup
+ (framebuffer)
+confinement: classic
+
+apps:
+  read-fb:
+    command: bin/read-fb
+  read-kmsg:
+    command: bin/read-kmsg

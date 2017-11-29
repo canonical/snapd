@@ -46,10 +46,10 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -479,16 +479,14 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 	c.Assert(mockServer, NotNil)
 
 	baseURL, _ = url.Parse(mockServer.URL)
-	assertionsBaseURL, _ := baseURL.Parse("api/v1/snaps")
 	storeCfg := store.Config{
-		StoreBaseURL:      baseURL,
-		AssertionsBaseURL: assertionsBaseURL,
+		StoreBaseURL: baseURL,
 	}
 
 	mStore := store.New(&storeCfg, nil)
 	st := ms.o.State()
 	st.Lock()
-	storestate.ReplaceStore(ms.o.State(), mStore)
+	snapstate.ReplaceStore(ms.o.State(), mStore)
 	st.Unlock()
 
 	return mockServer
@@ -1717,11 +1715,11 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
-	captureAuthContext := func(_ *state.State, ac auth.AuthContext) error {
+	captureAuthContext := func(_ *store.Config, ac auth.AuthContext) *store.Store {
 		s.ac = ac
-		return nil
+		return store.New(nil, nil)
 	}
-	r := overlord.MockSetupStore(captureAuthContext)
+	r := overlord.MockStoreNew(captureAuthContext)
 	defer r()
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
@@ -1797,7 +1795,7 @@ func (s *authContextSetupSuite) TestStoreID(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "fallback")
 
-	// setup model in system state
+	// setup model in system statey
 	auth.SetDevice(st, &auth.DeviceState{
 		Brand:  s.serial.BrandID(),
 		Model:  s.serial.Model(),
@@ -1847,4 +1845,48 @@ func (s *authContextSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	c.Check(params.EncodedSerial(), DeepEquals, string(asserts.Encode(s.serial)))
 	c.Check(params.EncodedModel(), DeepEquals, string(asserts.Encode(s.model)))
 
+}
+
+func (s *authContextSetupSuite) TestProxyStoreParams(c *C) {
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	defURL, err := url.Parse("http://store")
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	proxyStoreID, proxyStoreURL, err := s.ac.ProxyStoreParams(defURL)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(proxyStoreID, Equals, "")
+	c.Check(proxyStoreURL, Equals, defURL)
+
+	// setup proxy store reference and assertion
+	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
+	err = assertstate.Add(st, operatorAcct)
+	c.Assert(err, IsNil)
+	stoAs, err := s.storeSigning.Sign(asserts.StoreType, map[string]interface{}{
+		"store":       "foo",
+		"operator-id": operatorAcct.AccountID(),
+		"url":         "http://foo.internal",
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, stoAs)
+	c.Assert(err, IsNil)
+	tr := config.NewTransaction(st)
+	err = tr.Set("core", "proxy.store", "foo")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	fooURL, err := url.Parse("http://foo.internal")
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	proxyStoreID, proxyStoreURL, err = s.ac.ProxyStoreParams(defURL)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(proxyStoreID, Equals, "foo")
+	c.Check(proxyStoreURL, DeepEquals, fooURL)
 }

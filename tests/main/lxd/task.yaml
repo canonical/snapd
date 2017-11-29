@@ -4,6 +4,9 @@ summary: Ensure that lxd works
 # currently nor on ubuntu 14.04
 systems: [ubuntu-16*, ubuntu-core-*]
 
+# lxd downloads can be quite slow
+kill-timeout: 25m
+
 restore: |
     if  [[ $(ls -1 "$GOHOME"/snapd_*.deb | wc -l || echo 0) -eq 0 ]]; then
         exit
@@ -79,4 +82,11 @@ execute: |
 
     echo "Ensure we can use snapd inside lxd"
     lxd.lxc exec my-ubuntu snap install test-snapd-tools
-    lxd.lxc exec my-ubuntu test-snapd-tools.echo from-the-inside | MATCH from-the-inside
+    echo "And we can run snaps as regular users"
+    lxd.lxc exec my-ubuntu -- su -c "/snap/bin/test-snapd-tools.echo from-the-inside" ubuntu | MATCH from-the-inside
+    echo "And as root"
+    lxd.lxc exec my-ubuntu -- test-snapd-tools.echo from-the-inside | MATCH from-the-inside
+
+    echo "Install lxd-demo server to exercise the lxd interface"
+    snap install lxd-demo-server
+    snap connect lxd-demo-server:lxd lxd:lxd

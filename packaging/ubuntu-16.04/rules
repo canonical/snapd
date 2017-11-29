@@ -74,7 +74,6 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
     BUILT_USING_PACKAGES=libcap-dev libapparmor-dev libseccomp-dev
 else
 ifeq ($(shell dpkg-vendor --query Vendor),Debian)
-    VENDOR_ARGS=--disable-apparmor --disable-seccomp
     BUILT_USING_PACKAGES=libcap-dev
 else
     VENDOR_ARGS=--disable-apparmor
@@ -124,14 +123,19 @@ override_dh_auto_build:
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+
+	# (static linking on powerpc with cgo is broken)
+ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	# Generate static snap-exec and snap-update-ns - it somehow includes CGO so
 	# we must force a static build here. We need a static snap-{exec,update-ns}
 	# inside the core snap because not all bases will have a libc
 	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
 	(cd _build/bin && GOPATH=$$(pwd)/.. go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
+
 	# ensure we generated a static build
 	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
 	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
+endif
 
 	# Build C bits, sadly manually
 	cd cmd && ( autoreconf -i -f )
@@ -187,15 +191,7 @@ override_dh_install:
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
-ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-else
-	# HACK: As we want to share the packaging bits between Debian and Ubuntu
-	# we have to get an empty file in place which satisfies the item in
-	# the snapd.install file.
-	install -d $(CURDIR)/debian/tmp/etc/apparmor.d
-	touch $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-endif
 
 	dh_install
 

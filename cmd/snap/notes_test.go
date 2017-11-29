@@ -82,6 +82,12 @@ func (notesSuite) TestNotesBroken(c *check.C) {
 	}).String(), check.Equals, "broken")
 }
 
+func (notesSuite) TestNotesIgnoreValidation(c *check.C) {
+	c.Check((&snap.Notes{
+		IgnoreValidation: true,
+	}).String(), check.Equals, "ignore-validation")
+}
+
 func (notesSuite) TestNotesNothing(c *check.C) {
 	c.Check((&snap.Notes{}).String(), check.Equals, "-")
 }
@@ -97,4 +103,5 @@ func (notesSuite) TestNotesFromLocal(c *check.C) {
 	// Check that DevMode note is derived from DevMode flag, not DevModeConfinement type.
 	c.Check(snap.NotesFromLocal(&client.Snap{DevMode: true}).DevMode, check.Equals, true)
 	c.Check(snap.NotesFromLocal(&client.Snap{Confinement: client.DevModeConfinement}).DevMode, check.Equals, false)
+	c.Check(snap.NotesFromLocal(&client.Snap{IgnoreValidation: true}).IgnoreValidation, check.Equals, true)
 }

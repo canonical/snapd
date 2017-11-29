@@ -33,3 +33,7 @@ func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 		defaultRetryStrategy = originalDefaultRetryStrategy
 	})
 }
+
+func (cm *CacheManager) CacheDir() string {
+	return cm.cacheDir
+}

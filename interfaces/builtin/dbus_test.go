@@ -281,7 +281,7 @@ plugs:
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSession(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddPermanentSlot(s.iface, s.sessionSlot)
+	err := apparmorSpec.AddPermanentSlot(s.iface, s.sessionSlot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-provider"})
 	snippet := apparmorSpec.SnippetForTag("snap.test-dbus.test-session-provider")
@@ -307,7 +307,7 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSessionNative(c *C) {
 	defer restore()
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddPermanentSlot(s.iface, s.sessionSlot)
+	err := apparmorSpec.AddPermanentSlot(s.iface, s.sessionSlot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-provider"})
 
@@ -320,7 +320,7 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSessionClassic(c *C) {
 	defer restore()
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddPermanentSlot(s.iface, s.sessionSlot)
+	err := apparmorSpec.AddPermanentSlot(s.iface, s.sessionSlot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-provider"})
 
@@ -330,7 +330,7 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSessionClassic(c *C) {
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddPermanentSlot(s.iface, s.systemSlot)
+	err := apparmorSpec.AddPermanentSlot(s.iface, s.systemSlot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-system-provider"})
 	snippet := apparmorSpec.SnippetForTag("snap.test-dbus.test-system-provider")
@@ -353,14 +353,14 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
 
 func (s *DbusInterfaceSuite) TestPermanentSlotDBusSession(c *C) {
 	dbusSpec := &dbus.Specification{}
-	err := dbusSpec.AddPermanentSlot(s.iface, s.sessionSlot)
+	err := dbusSpec.AddPermanentSlot(s.iface, s.sessionSlot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotDBusSystem(c *C) {
 	dbusSpec := &dbus.Specification{}
-	err := dbusSpec.AddPermanentSlot(s.iface, s.systemSlot)
+	err := dbusSpec.AddPermanentSlot(s.iface, s.systemSlot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-system-provider"})
 	snippet := dbusSpec.SnippetForTag("snap.test-dbus.test-system-provider")

@@ -28,6 +28,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// The maximum number of Usb bInterfaceNumber.
+const UsbMaxInterfaces = 32
+
 // AppLabelExpr returns the specification of the apparmor label describing
 // all the apps bound to a given slot. The result has one of three forms,
 // depending on how apps are bound to the slot:
@@ -68,28 +71,6 @@ func slotAppLabelExpr(slot *interfaces.Slot) string {
 
 func plugAppLabelExpr(plug *interfaces.Plug) string {
 	return appLabelExpr(plug.Apps, plug.Snap)
-}
-
-// Function to support creation of udev snippet
-func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, key string, data string) string {
-	const udevHeader string = `IMPORT{builtin}="usb_id"`
-	const udevDevicePrefix string = `SUBSYSTEM=="%s", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`
-	const udevSuffix string = `, %s+="%s"`
-
-	var udevSnippet bytes.Buffer
-	udevSnippet.WriteString(udevHeader + "\n")
-	udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefix, subsystem, usbVendor, usbProduct))
-	udevSnippet.WriteString(fmt.Sprintf(udevSuffix, key, data))
-	return udevSnippet.String()
-}
-
-// Function to create an udev TAG, essentially the cgroup name for
-// the snap application.
-// @param snapName is the name of the snap
-// @param appName is the name of the application
-// @return string "snap_<snap name>_<app name>"
-func udevSnapSecurityName(snapName string, appName string) string {
-	return fmt.Sprintf(`snap_%s_%s`, snapName, appName)
 }
 
 // sanitizeSlotReservedForOS checks if slot is of type os.

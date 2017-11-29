@@ -29,7 +29,7 @@ var (
 	AddImplicitSlots = addImplicitSlots
 )
 
-func MockConflictPredicate(pred func(string) bool) (restore func()) {
+func MockConflictPredicate(pred func(*state.Task) bool) (restore func()) {
 	old := noConflictOnConnectTasks
 	noConflictOnConnectTasks = pred
 	return func() { noConflictOnConnectTasks = old }

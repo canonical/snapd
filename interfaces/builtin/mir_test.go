@@ -84,13 +84,13 @@ func (s *MirInterfaceSuite) TestName(c *C) {
 
 func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddPermanentSlot(s.iface, s.coreSlot)
+	err := apparmorSpec.AddPermanentSlot(s.iface, s.coreSlot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mir-server.mir"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.mir-server.mir"), testutil.Contains, "capability sys_tty_config")
 
 	apparmorSpec = &apparmor.Specification{}
-	err = apparmorSpec.AddPermanentSlot(s.iface, s.classicSlot)
+	err = apparmorSpec.AddPermanentSlot(s.iface, s.classicSlot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
 
@@ -121,7 +121,7 @@ apps:
 
 func (s *MirInterfaceSuite) TestSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlot)
+	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.mir-server.mir"})
 	c.Check(seccompSpec.SnippetForTag("snap.mir-server.mir"), testutil.Contains, "listen\n")
@@ -129,7 +129,7 @@ func (s *MirInterfaceSuite) TestSecComp(c *C) {
 
 func (s *MirInterfaceSuite) TestSecCompOnClassic(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, s.classicSlot)
+	err := seccompSpec.AddPermanentSlot(s.iface, s.classicSlot.SlotInfo)
 	c.Assert(err, IsNil)
 	snippets := seccompSpec.Snippets()
 	// no permanent seccomp snippet for the slot
@@ -138,9 +138,18 @@ func (s *MirInterfaceSuite) TestSecCompOnClassic(c *C) {
 
 func (s *MirInterfaceSuite) TestUDevSpec(c *C) {
 	udevSpec := &udev.Specification{}
-	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 1)
-	c.Assert(udevSpec.Snippets()[0], testutil.Contains, `KERNEL=="event[0-9]*", TAG+="snap_mir-server_mir"`)
+	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.coreSlot.SlotInfo), IsNil)
+	c.Assert(udevSpec.Snippets(), HasLen, 5)
+	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
+KERNEL=="tty[0-9]*", TAG+="snap_mir-server_mir"`)
+	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
+KERNEL=="mice", TAG+="snap_mir-server_mir"`)
+	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
+KERNEL=="mouse[0-9]*", TAG+="snap_mir-server_mir"`)
+	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
+KERNEL=="event[0-9]*", TAG+="snap_mir-server_mir"`)
+	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
+KERNEL=="ts[0-9]*", TAG+="snap_mir-server_mir"`)
 }
 
 func (s *MirInterfaceSuite) TestInterfaces(c *C) {

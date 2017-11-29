@@ -27,10 +27,13 @@ import (
 
 var (
 	shortStartHelp = i18n.G("Start services")
+	longStartHelp  = i18n.G(`
+The start command starts the given services of the snap. If executed from the
+"configure" hook, the services will be started after the hook finishes.`)
 )
 
 func init() {
-	addCommand("start", shortStartHelp, "", func() command { return &startCommand{} })
+	addCommand("start", shortStartHelp, longStartHelp, func() command { return &startCommand{} })
 }
 
 type startCommand struct {
@@ -38,7 +41,7 @@ type startCommand struct {
 	Positional struct {
 		ServiceNames []string `positional-arg-name:"<service>" required:"yes"`
 	} `positional-args:"yes" required:"yes"`
-	Enable bool `long:"enable"`
+	Enable bool `long:"enable" description:"Enable the specified services (see man systemctl for details)"`
 }
 
 func (c *startCommand) Execute(args []string) error {

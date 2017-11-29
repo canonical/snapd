@@ -72,6 +72,9 @@ if [ "$1" = "purge" ]; then
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
     done
 
+    # generated readme files
+    rm -f "/snap/README"
+
     echo "Final directory cleanup"
     for d in "/snap/bin" "/snap" "/var/snap"; do
         if [ -d "$d" ]; then
@@ -83,6 +86,7 @@ if [ "$1" = "purge" ]; then
     # opportunistic as those might not be actually mounted
     for mnt in /run/snapd/ns/*.mnt; do
         umount -l "$mnt" || true
+        rm -f "$mnt"
     done
     for fstab in /run/snapd/ns/*.fstab; do
         rm -f "$fstab"

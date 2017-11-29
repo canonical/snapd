@@ -47,7 +47,9 @@ func ConfigureHookTimeout() time.Duration {
 }
 
 // Configure returns a taskset to apply the given configuration patch.
-func Configure(s *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+func Configure(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+	summary := fmt.Sprintf(i18n.G("Run configure hook of %q snap"), snapName)
+	// regular configuration hook
 	hooksup := &hookstate.HookSetup{
 		Snap:        snapName,
 		Hook:        "configure",
@@ -63,12 +65,11 @@ func Configure(s *state.State, snapName string, patch map[string]interface{}, fl
 	} else if len(patch) > 0 {
 		contextData = map[string]interface{}{"patch": patch}
 	}
-	var summary string
+
 	if hooksup.Optional {
 		summary = fmt.Sprintf(i18n.G("Run configure hook of %q snap if present"), snapName)
-	} else {
-		summary = fmt.Sprintf(i18n.G("Run configure hook of %q snap"), snapName)
 	}
-	task := hookstate.HookTask(s, summary, hooksup, contextData)
+
+	task := hookstate.HookTask(st, summary, hooksup, contextData)
 	return state.NewTaskSet(task)
 }

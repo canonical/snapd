@@ -38,8 +38,7 @@ import (
 )
 
 type linkSuite struct {
-	be           backend.Backend
-	nullProgress progress.NullProgress
+	be backend.Backend
 
 	systemctlRestorer func()
 }
@@ -87,7 +86,7 @@ apps:
 	c.Assert(l, HasLen, 1)
 
 	// undo will remove
-	err = s.be.UnlinkSnap(info, &s.nullProgress)
+	err = s.be.UnlinkSnap(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	l, err = filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
@@ -101,10 +100,6 @@ apps:
 func (s *linkSuite) TestLinkDoUndoCurrentSymlink(c *C) {
 	const yaml = `name: hello
 version: 1.0
-
-apps:
- bin:
-  command: hello.bin
 `
 	const contents = ""
 
@@ -126,7 +121,7 @@ apps:
 	c.Assert(currentDataDir, Equals, dataDir)
 
 	// undo will remove the symlinks
-	err = s.be.UnlinkSnap(info, &s.nullProgress)
+	err = s.be.UnlinkSnap(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	c.Check(osutil.FileExists(currentActiveSymlink), Equals, false)
@@ -197,10 +192,10 @@ apps:
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
 
-	err = s.be.UnlinkSnap(info, &s.nullProgress)
+	err = s.be.UnlinkSnap(info, progress.Null)
 	c.Assert(err, IsNil)
 
-	err = s.be.UnlinkSnap(info, &s.nullProgress)
+	err = s.be.UnlinkSnap(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	// no wrappers
@@ -242,8 +237,6 @@ environment:
  KEY: value
 
 apps:
- bin:
-   command: bin
  foo:
    command: foo
  bar:
@@ -260,7 +253,7 @@ apps:
 [Desktop Entry]
 Name=bin
 Icon=${SNAP}/bin.png
-Exec=hello.bin
+Exec=bin
 `), 0644), IsNil)
 
 	r := systemd.MockSystemctl(func(...string) ([]byte, error) {
