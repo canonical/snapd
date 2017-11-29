@@ -62,7 +62,7 @@ func needsMaybeCore(typ snap.Type) int {
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
 	if snapst.IsInstalled() && !snapst.Active {
-		return nil, fmt.Errorf("cannot update a disabled snap %q", snapsup.Name())
+		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.Name())
 	}
 
 	if snapsup.Flags.Classic {
@@ -126,8 +126,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = checkAsserts
 	}
 
-	runRefreshHooks := (snapst.IsInstalled() && !snapsup.Flags.Revert)
-
 	// mount
 	if !revisionIsLocal {
 		mount := st.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q%s"), snapsup.Name(), revisionStr))
@@ -136,6 +134,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	// run refresh hooks when updating existing snap, otherwise run install hook further down.
+	runRefreshHooks := (snapst.IsInstalled() && !snapsup.Flags.Revert)
 	if runRefreshHooks {
 		preRefreshHook := SetupPreRefreshHook(st, snapsup.Name())
 		addTask(preRefreshHook)
