@@ -1,6 +1,6 @@
 snap
-var/cache/snapd
 usr/lib/snapd
+var/cache/snapd
 var/lib/snapd/apparmor/snap-confine
 var/lib/snapd/auto-import
 var/lib/snapd/desktop
