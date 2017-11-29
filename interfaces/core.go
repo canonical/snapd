@@ -119,15 +119,6 @@ type ConnRef struct {
 	SlotRef SlotRef
 }
 
-type Connection struct {
-	plugInfo *snap.PlugInfo
-	slotInfo *snap.SlotInfo
-}
-
-func (conn *Connection) Interface() string {
-	return conn.plugInfo.Interface
-}
-
 // NewConnRef creates a connection reference for given plug and slot
 func NewConnRef(plug *snap.PlugInfo, slot *snap.SlotInfo) *ConnRef {
 	return &ConnRef{

@@ -9,7 +9,7 @@ prepare: |
     snap install --channel beta --devmode test-snapd-devmode
 
 restore: |
-    rm basic_1.0_all.snap
+    rm -f basic_1.0_all.snap
     . $TESTSLIB/pkgdb.sh
     distro_purge_package python3-yaml
     rm -f out

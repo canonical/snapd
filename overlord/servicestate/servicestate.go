@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/cmdstate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -39,7 +40,11 @@ type Instruction struct {
 
 type ServiceActionConflictError struct{ error }
 
-func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*state.TaskSet, error) {
+// Control creates a taskset for starting/stopping/restarting services via systemctl.
+// The appInfos and inst define the services and the command to execute.
+// Context is used to determine change conflicts - we will not conflict with
+// tasks from same change as that of context's.
+func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, context *hookstate.Context) (*state.TaskSet, error) {
 	// the argv to call systemctl will need at most one entry per appInfo,
 	// plus one for "systemctl", one for the action, and sometimes one for
 	// an option. That's a maximum of 3+len(appInfos).
@@ -83,7 +88,22 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*sta
 
 	st.Lock()
 	defer st.Unlock()
-	if err := snapstate.CheckChangeConflictMany(st, snapNames, nil); err != nil {
+
+	var checkConflict func(otherTask *state.Task) bool
+	if context != nil && !context.IsEphemeral() {
+		if task, ok := context.Task(); ok {
+			chg := task.Change()
+			checkConflict = func(otherTask *state.Task) bool {
+				if chg != nil && otherTask.Change() != nil {
+					// if same change, then return false (no conflict)
+					return chg.ID() != otherTask.Change().ID()
+				}
+				return true
+			}
+		}
+	}
+
+	if err := snapstate.CheckChangeConflictMany(st, snapNames, checkConflict); err != nil {
 		return nil, &ServiceActionConflictError{err}
 	}
 

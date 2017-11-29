@@ -20,6 +20,9 @@
 package corecfg
 
 import (
+	"fmt"
+
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -31,7 +34,18 @@ func validateRefreshSchedule(tr Conf) error {
 	if refreshScheduleStr == "" {
 		return nil
 	}
-	// FIXME: add support for things like "managed" once we have that
+
+	if refreshScheduleStr == "managed" {
+		st := tr.State()
+		st.Lock()
+		defer st.Unlock()
+
+		if !devicestate.CanManageRefreshes(st) {
+			return fmt.Errorf("cannot set schedule to managed")
+		}
+		return nil
+	}
+
 	_, err = timeutil.ParseSchedule(refreshScheduleStr)
 	return err
 }
