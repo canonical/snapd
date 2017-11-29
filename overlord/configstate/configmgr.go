@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,12 +27,10 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// ConfigManager is responsible for the maintenance of per-snap configuration in
-// the system state.
-type ConfigManager struct {
-	state  *state.State
-	runner *state.TaskRunner
-}
+// ConfigManager is responsible for the maintenance of per-snap
+// configuration in the system state. It is not a "real" manager as it
+// passes the heavy lifting on to the HookManager.
+type ConfigManager struct{}
 
 var corecfgRun = corecfg.Run
 
@@ -59,30 +57,18 @@ func Manager(st *state.State, hookManager *hookstate.HookManager) (*ConfigManage
 		return corecfgRun(tr)
 	})
 
-	// we handle core/snapd specific configuration internally because
-	// on classic systems we may need to configure things before any
-	// snap is installed.
-	runner := state.NewTaskRunner(st)
-	manager := &ConfigManager{
-		state:  st,
-		runner: runner,
-	}
-
-	return manager, nil
+	return &ConfigManager{}, nil
 }
 
 // Ensure implements StateManager.Ensure.
 func (m *ConfigManager) Ensure() error {
-	m.runner.Ensure()
 	return nil
 }
 
 // Wait implements StateManager.Wait.
 func (m *ConfigManager) Wait() {
-	m.runner.Wait()
 }
 
 // Stop implements StateManager.Stop.
 func (m *ConfigManager) Stop() {
-	m.runner.Stop()
 }
