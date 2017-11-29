@@ -38,11 +38,12 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "../libsnap-confine-private/cgroup-freezer-support.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
-#include "../libsnap-confine-private/locking.h"
 #include "user-support.h"
 
 /*!
@@ -306,11 +307,12 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 	die("cannot find mount entry of the root filesystem inside snap namespace");
 }
 
-void sc_create_or_join_ns_group(struct sc_ns_group *group,
-				struct sc_apparmor *apparmor,
-				const char *base_snap_name,
-				const char *snap_name)
+int sc_create_or_join_ns_group(struct sc_ns_group *group,
+			       struct sc_apparmor *apparmor,
+			       const char *base_snap_name,
+			       const char *snap_name)
 {
+	int retcode = 0;
 	// Open the mount namespace file.
 	char mnt_fname[PATH_MAX] = { 0 };
 	sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
@@ -385,12 +387,40 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 		    ("successfully re-associated the mount namespace with the namespace group %s",
 		     group->name);
 
-		bool should_discard_ns =
-		    should_discard_current_ns(base_snap_dev);
-
-		if (should_discard_ns) {
-			debug("discarding obsolete base filesystem namespace");
-			debug("(not yet implemented)");
+		if (should_discard_current_ns(base_snap_dev)) {
+			debug("the namespace is stale and should be discarded");
+			if (sc_cgroup_freezer_occupied(snap_name, (uid_t) - 1)) {
+				fprintf(stderr,
+					"snap %s cannot use current base snap %s because "
+					"existing process are still using the old revision\n",
+					snap_name, base_snap_name);
+			} else {
+				debug("discarding stale mount namespace");
+				// This will move us back to the main mount namespace. We have
+				// to do this as the directory with mount namespaces is
+				// privately shared (so not shared) so from this perspective
+				// (inside a snap mount namespace) we cannot unmount it - it's
+				// not mounted.
+				sc_reassociate_with_pid1_mount_ns();
+				// XXX: This doesn't work (apparmor is confused about
+				// file descriptors and namespace transitions
+				// apparently). Instead of doing that, just unmount the
+				// thing manually with a full path.
+				//
+				// sc_discard_preserved_ns_group(group);
+				sc_must_snprintf(mnt_fname, sizeof mnt_fname,
+						 "%s/%s%s", sc_ns_dir,
+						 group->name, SC_NS_MNT_FILE);
+				// Use MNT_DETACH as otherwise we get EBUSY.
+				if (umount2(mnt_fname, MNT_DETACH|UMOUNT_NOFOLLOW) < 0) {
+					die("cannot umount stale mount namespace %s", mnt_fname);
+				}
+				debug("stale mount namespace discarded");
+				// Instead of returning, carry on with the code below to
+				// restore the correct working directory for a subsequent
+				// second invocation of this function.
+				retcode = EAGAIN;
+			}
 		}
 		// Try to re-locate back to vanilla working directory. This can fail
 		// because that directory is no longer present.
@@ -404,7 +434,7 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 			}
 			debug("successfully moved to %s", SC_VOID_DIR);
 		}
-		return;
+		return retcode;
 	}
 	debug("initializing new namespace group %s", group->name);
 	// Create a new namespace and ask the caller to populate it.
@@ -501,9 +531,10 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group,
 		}
 		group->should_populate = true;
 	}
+	return 0;
 }
 
-bool sc_should_populate_ns_group(struct sc_ns_group *group)
+bool sc_should_populate_ns_group(struct sc_ns_group * group)
 {
 	return group->should_populate;
 }
