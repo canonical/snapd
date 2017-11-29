@@ -557,6 +557,7 @@ pkg_dependencies_arch(){
     openbsd-netcat
     xdg-user-dirs
     expect
+    libx11
     "
 }
 
