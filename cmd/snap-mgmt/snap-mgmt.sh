@@ -26,18 +26,30 @@ SNAP_UNIT_PREFIX="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
 
 systemctl_stop() {
     unit="$1"
-    if systemctl is-active -q "$unit"; then
-        echo "Stoping $unit"
+    for i in $(seq 10); do
+        if systemctl is-active -q "$unit"; then
+            echo "Stoping $unit"
+            systemctl stop -q "$unit" || true
+        fi
+        echo "Stoping $unit [attempt $i]"
         systemctl stop -q "$unit" || true
-    fi
+        sleep .1
+    done
 }
 
 purge() {
-    # undo any bind mount to ${SNAP_MOUNT_DIR} that resulted from LP:#1668659
-    if grep -q "${SNAP_MOUNT_DIR} ${SNAP_MOUNT_DIR}" /proc/self/mountinfo; then
-        umount -l "${SNAP_MOUNT_DIR}" || true
+    if grep -q CODENAME=trusty /etc/os-release >/dev/null 2>&1 ; then
+        # snap.mount.service is a trusty thing
+        systemctl_stop snap.mount.service
+    else
+        # undo any bind mount to /snap that resulted from LP:#1668659
+        # (that bug can't happen in trusty -- and doing this would mess up snap.mount.service there)
+        if grep -q "/snap /snap" /proc/self/mountinfo; then
+            umount -l /snap || true
+        fi
     fi
 
+    units=$(systemctl list-unit-files --full | grep -vF snap.mount.service || true)
     mounts=$(systemctl list-unit-files --full | grep "^${SNAP_UNIT_PREFIX}[-.].*\.mount" | cut -f1 -d ' ')
     services=$(systemctl list-unit-files --full | grep "^${SNAP_UNIT_PREFIX}[-.].*\.service" | cut -f1 -d ' ')
     for unit in $services $mounts; do
@@ -112,6 +124,11 @@ purge() {
 
     echo "Removing snapd catalog cache"
     rm -f /var/cache/snapd/*
+
+    if test -d /etc/apparmor.d; then
+        echo "Removing extra snap-confine apparmor rules"
+        rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine
+    fi
 }
 
 while [ -n "$1" ]; do
