@@ -17,34 +17,11 @@
  *
  */
 
-package corecfg_test
+package configcore
 
-import (
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/corecfg"
+var (
+	UpdatePiConfig       = updatePiConfig
+	SwitchHandlePowerKey = switchHandlePowerKey
+	SwitchDisableService = switchDisableService
+	UpdateKeyValueStream = updateKeyValueStream
 )
-
-type refreshSuite struct {
-	coreCfgSuite
-}
-
-var _ = Suite(&refreshSuite{})
-
-func (s *refreshSuite) TestConfigureRefreshScheduleHappy(c *C) {
-	err := corecfg.Run(&mockConf{
-		conf: map[string]interface{}{
-			"refresh.schedule": "8:00-12:00",
-		},
-	})
-	c.Assert(err, IsNil)
-}
-
-func (s *refreshSuite) TestConfigureRefreshScheduleRejected(c *C) {
-	err := corecfg.Run(&mockConf{
-		conf: map[string]interface{}{
-			"refresh.schedule": "invalid",
-		},
-	})
-	c.Assert(err, ErrorMatches, `cannot parse "invalid": not a valid interval`)
-}
