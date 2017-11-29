@@ -59,7 +59,8 @@ var settingsWhitelist = []string{
 	"default-web-browser",
 }
 
-var allowedSettingsValues = regexp.MustCompile(`^[a-zA-Z0-9.]+$`)
+// FIXME: too restrictive?
+var allowedSettingsValues = regexp.MustCompile(`^[a-zA-Z0-9._]+$`)
 
 func settingWhitelisted(setting string) *dbus.Error {
 	for _, whitelisted := range settingsWhitelist {
@@ -91,6 +92,11 @@ func (s *Settings) IntrospectionData() string {
 	return settingsIntrospectionXML
 }
 
+// some notes:
+// - we only set/get desktop files
+// - all desktop files of snaps are prefixed with: ${snap}_
+// - on get/check/set we need to add/strip this prefix
+
 // Check implements the 'Check' method of the 'io.snapcraft.Settings'
 // DBus interface.
 //
@@ -101,10 +107,6 @@ func (s *Settings) Check(setting, check string, sender dbus.Sender) (string, *db
 	if err != nil {
 		dbus.MakeFailedError(err)
 	}
-	if !strings.HasPrefix(setting, snap) {
-		return "", dbus.MakeFailedError(fmt.Errorf("snap %s cannot check setting %s", snap, setting))
-	}
-
 	if err := settingWhitelisted(setting); err != nil {
 		return "", err
 	}
@@ -112,11 +114,15 @@ func (s *Settings) Check(setting, check string, sender dbus.Sender) (string, *db
 		return "", dbus.MakeFailedError(fmt.Errorf("cannot check setting %q to value %q: value not allowed", setting, check))
 	}
 
-	cmd := exec.Command("xdg-settings", "check", setting, check)
+	// FIXME: this works only for desktop files
+	desktopFile := fmt.Sprintf("%s_%s", snap, check)
+
+	cmd := exec.Command("xdg-settings", "check", setting, desktopFile)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", dbus.MakeFailedError(fmt.Errorf("cannot check setting %s: %s", setting, osutil.OutputErr(output, err)))
 	}
+	fmt.Println("check '", string(output), "'\n\n")
 
 	return strings.TrimSpace(string(output)), nil
 }
@@ -141,11 +147,11 @@ func (s *Settings) Get(setting string, sender dbus.Sender) (string, *dbus.Error)
 	if err != nil {
 		dbus.MakeFailedError(err)
 	}
-	if !strings.HasPrefix(setting, snap) {
+	if !strings.HasPrefix(string(output), snap+"_") {
 		return "NOT_THIS_SNAP.snap.desktop", nil
 	}
-
-	return strings.TrimSpace(string(output)), nil
+	desktopFile := strings.SplitN(string(output), "_", 2)[1]
+	return strings.TrimSpace(desktopFile), nil
 }
 
 // Set implements the 'Set' method of the 'io.snapcraft.Settings'
@@ -165,9 +171,7 @@ func (s *Settings) Set(setting, new string, sender dbus.Sender) *dbus.Error {
 	if err != nil {
 		dbus.MakeFailedError(err)
 	}
-	if !strings.HasPrefix(new, snap) {
-		return dbus.MakeFailedError(fmt.Errorf("snap %s cannot set %s to %s", snap, setting, new))
-	}
+	new = fmt.Sprintf("%s_%s", snap, new)
 
 	// FIXME: what GUI toolkit to use?
 	// FIXME2: we could support kdialog here as well
@@ -179,7 +183,7 @@ func (s *Settings) Set(setting, new string, sender dbus.Sender) *dbus.Error {
 	// FIXME2: we need to make the dbus timeout longer for the dialog
 	//         or we get the dreaded org.freedesktop.DBus.Error.NoReply
 	//         error in the application
-	cmd := exec.Command("zenity", "--question", "--modal", "--text="+fmt.Sprintf(i18n.G("Allow changing setting %q to %q ?"), setting, new))
+	cmd := exec.Command("zenity", "--question", "--modal", "--text="+fmt.Sprintf(i18n.G("<big><b>Allow settings change?</b></big>\n\nAllow snap %q to change %q to %q ?"), snap, setting, new))
 	if err := cmd.Run(); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot set setting: user declined"))
 	}
