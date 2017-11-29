@@ -95,11 +95,14 @@ func (s *Settings) IntrospectionData() string {
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Check string:'default-web-browser' string:'firefox.desktop'
 func (s *Settings) Check(setting, check string, sender dbus.Sender) (string, *dbus.Error) {
-	pid, err := connectionPid(s.conn, sender)
+	// avoid information leak: see https://github.com/snapcore/snapd/pull/4073#discussion_r146682758
+	snap, err := snapFromSender(s.conn, sender)
 	if err != nil {
-		return "", dbus.MakeFailedError(fmt.Errorf("cannot get connection pid: %v", err))
+		dbus.MakeFailedError(err)
 	}
-	fmt.Println(pid)
+	if !strings.HasPrefix(setting, snap) {
+		return "", dbus.MakeFailedError(fmt.Errorf("snap %s cannot check setting %s", snap, setting))
+	}
 
 	if err := settingWhitelisted(setting); err != nil {
 		return "", err
@@ -121,7 +124,7 @@ func (s *Settings) Check(setting, check string, sender dbus.Sender) (string, *db
 // DBus interface.
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Get string:'default-web-browser'
-func (s *Settings) Get(setting string) (string, *dbus.Error) {
+func (s *Settings) Get(setting string, sender dbus.Sender) (string, *dbus.Error) {
 	if err := settingWhitelisted(setting); err != nil {
 		return "", err
 	}
@@ -132,6 +135,15 @@ func (s *Settings) Get(setting string) (string, *dbus.Error) {
 		return "", dbus.MakeFailedError(fmt.Errorf("cannot get setting %s: %s", setting, osutil.OutputErr(output, err)))
 	}
 
+	// avoid information leak: see https://github.com/snapcore/snapd/pull/4073#discussion_r146682758
+	snap, err := snapFromSender(s.conn, sender)
+	if err != nil {
+		dbus.MakeFailedError(err)
+	}
+	if !strings.HasPrefix(setting, snap) {
+		return "NOT_THIS_SNAP.snap.desktop", nil
+	}
+
 	return strings.TrimSpace(string(output)), nil
 }
 
@@ -139,12 +151,21 @@ func (s *Settings) Get(setting string) (string, *dbus.Error) {
 // DBus interface.
 //
 // Example usage: dbus-send --session --dest=io.snapcraft.Settings --type=method_call --print-reply /io/snapcraft/Settings io.snapcraft.Settings.Set string:'default-web-browser' string:'chromium-browser.desktop'
-func (s *Settings) Set(setting, new string) *dbus.Error {
+func (s *Settings) Set(setting, new string, sender dbus.Sender) *dbus.Error {
 	if err := settingWhitelisted(setting); err != nil {
 		return err
 	}
 	if !allowedSettingsValues.MatchString(new) {
 		return dbus.MakeFailedError(fmt.Errorf("cannot set setting %q to value %q: value not allowed", setting, new))
+	}
+
+	// see https://github.com/snapcore/snapd/pull/4073#discussion_r146682758
+	snap, err := snapFromSender(s.conn, sender)
+	if err != nil {
+		dbus.MakeFailedError(err)
+	}
+	if !strings.HasPrefix(setting, snap) {
+		return dbus.MakeFailedError(fmt.Errorf("snap %s cannot set %s to %s", snap, setting, new))
 	}
 
 	// FIXME: what GUI toolkit to use?
