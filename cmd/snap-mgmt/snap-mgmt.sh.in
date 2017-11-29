@@ -7,7 +7,7 @@
 
 set -e
 
-SNAP_MOUNT_DIR="/var/lib/snapd/snap"
+SNAP_MOUNT_DIR="@SNAP_MOUNT_DIR@"
 
 show_help() {
     exec cat <<'EOF'
