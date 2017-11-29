@@ -29,35 +29,40 @@ import (
 // and can be returned from getuid-ish functions to mean "not found".
 const FlagID = 1<<32 - 1
 
+// UserID is the type of the system's user identifiers (in C, uid_t).
+//
+// We give it its own explicit type so you don't have to remember that
+// it's a uint32 (which lead to the bug this package fixes in the
+// first place)
 type UserID uint32
 
+// GroupID is the type of the system's group identifiers (in C, gid_t).
 type GroupID uint32
 
 // uid_t is an unsigned 32-bit integer in linux right now.
 // so syscall.Gete?[ug]id are wrong, and break in 32 bits
 // (see https://github.com/golang/go/issues/22739)
 func Getuid() UserID {
-	return UserID(getid(syscall.SYS_GETUID))
+	return UserID(getid(_SYS_GETUID))
 }
 
 func Geteuid() UserID {
-	return UserID(getid(syscall.SYS_GETEUID))
+	return UserID(getid(_SYS_GETEUID))
 }
 
 func Getgid() GroupID {
-	return GroupID(getid(syscall.SYS_GETGID))
+	return GroupID(getid(_SYS_GETGID))
 }
 
 func Getegid() GroupID {
-	return GroupID(getid(syscall.SYS_GETEGID))
+	return GroupID(getid(_SYS_GETEGID))
 }
 
 func getid(id uintptr) uint32 {
+	// these are documented as not failing, but see golang#22924
 	r0, _, errno := syscall.RawSyscall(id, 0, 0, 0)
 	if errno != 0 {
-		// -1 is used as a flag to mean 'no change' to chown(2), so it's safe
-		// to use as a flag for ourselves as well.
-		return FlagID
+		return uint32(-errno)
 	}
 	return uint32(r0)
 }
