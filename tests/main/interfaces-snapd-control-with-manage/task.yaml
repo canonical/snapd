@@ -91,4 +91,10 @@ execute: |
     fi
 
     echo "Ensure that last-refresh-hit happens regardless of managed setting"
+    for i in $(seq 120); do
+        if cat /var/lib/snapd/state.json | jq '.data["last-refresh-hints"]' | grep $(date +%Y); then
+            break
+        fi
+        sleep 1
+    fi
     cat /var/lib/snapd/state.json | jq '.data["last-refresh-hints"]' | grep $(date +%Y)
