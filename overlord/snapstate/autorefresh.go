@@ -36,8 +36,8 @@ const defaultRefreshSchedule = "00:00-05:59/6:00-11:59/12:00-17:59/18:00-23:59"
 
 // hooks setup by devicestate
 var (
-	CanAutoRefresh         func(st *state.State) (bool, error)
-	RefreshScheduleManaged func(st *state.State) bool
+	CanAutoRefresh     func(st *state.State) (bool, error)
+	CanManageRefreshes func(st *state.State) bool
 )
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
@@ -164,7 +164,7 @@ func (m *autoRefresh) Ensure() error {
 // TODO: we can remove the refreshSchedule reset because we have validation
 //       of the schedule now.
 func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, err error) {
-	if RefreshScheduleManaged != nil && RefreshScheduleManaged(m.state) {
+	if refreshScheduleManaged(m.state) {
 		if m.lastRefreshSchedule != "managed" {
 			logger.Noticef("refresh.schedule is managed via the snapd-control interface")
 			m.lastRefreshSchedule = "managed"
@@ -246,4 +246,26 @@ func autoRefreshInFlight(st *state.State) bool {
 		}
 	}
 	return false
+}
+
+// refreshScheduleManaged returns true if the refresh schedule of the
+// device is managed by an external snap
+func refreshScheduleManaged(st *state.State) bool {
+	var refreshScheduleStr string
+
+	// this will only be "nil" if running in tests
+	if CanManageRefreshes == nil {
+		return false
+	}
+
+	tr := config.NewTransaction(st)
+	err := tr.Get("core", "refresh.schedule", &refreshScheduleStr)
+	if err != nil {
+		return false
+	}
+	if refreshScheduleStr != "managed" {
+		return false
+	}
+
+	return CanManageRefreshes(st)
 }

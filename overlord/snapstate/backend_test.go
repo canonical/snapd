@@ -179,6 +179,8 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 		name = "some-snap"
 	case "core-snap-id":
 		name = "core"
+	case "snap-with-snapd-control-id":
+		name = "snap-with-snapd-control"
 	default:
 		panic(fmt.Sprintf("ListRefresh: unknown snap-id: %s", cand.SnapID))
 	}
