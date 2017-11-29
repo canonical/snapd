@@ -119,12 +119,6 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	}
 
 	confinement := snap.StrictConfinement
-	switch spec.Channel {
-	case "channel-for-devmode":
-		confinement = snap.DevModeConfinement
-	case "channel-for-classic":
-		confinement = snap.ClassicConfinement
-	}
 
 	typ := snap.TypeApp
 	if spec.Name == "some-core" {
@@ -146,6 +140,18 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 		Confinement: confinement,
 		Type:        typ,
 	}
+	switch spec.Channel {
+	case "channel-for-devmode":
+		info.Confinement = snap.DevModeConfinement
+	case "channel-for-classic":
+		info.Confinement = snap.ClassicConfinement
+	case "channel-for-paid":
+		info.Prices = map[string]float64{"USD": 0.77}
+		info.SideInfo.Paid = true
+	case "channel-for-private":
+		info.SideInfo.Private = true
+	}
+
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: spec.Name, revno: spec.Revision})
 
 	return info, nil
@@ -173,6 +179,8 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 		name = "some-snap"
 	case "core-snap-id":
 		name = "core"
+	case "snap-with-snapd-control-id":
+		name = "snap-with-snapd-control"
 	default:
 		panic(fmt.Sprintf("ListRefresh: unknown snap-id: %s", cand.SnapID))
 	}
