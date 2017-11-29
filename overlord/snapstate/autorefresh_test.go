@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -83,13 +84,22 @@ func (s *autoRefreshTestSuite) TestLastRefresh(c *C) {
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
-	snapstate.RefreshScheduleManaged = func(st *state.State) bool {
+	snapstate.CanManageRefreshes = func(st *state.State) bool {
 		return true
 	}
-	defer func() { snapstate.RefreshScheduleManaged = nil }()
+	defer func() { snapstate.CanManageRefreshes = nil }()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.schedule", "managed")
+	tr.Commit()
 
 	af := snapstate.NewAutoRefresh(s.state)
+	s.state.Unlock()
 	err := af.Ensure()
+	s.state.Lock()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 0)
 
