@@ -564,9 +564,10 @@ func (s snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
 		Current:  snap.R(2),
 		SnapType: "app",
 	}
-	_, err := snapstate.DoInstall(s.state, snapst, nil, 0)
+	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}}
+	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `internal error: cannot update a disabled snap`)
+	c.Assert(err, ErrorMatches, `cannot update a disabled snap "some-snap"`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateCreatesDiscardAfterCurrentTasks(c *C) {
