@@ -518,9 +518,6 @@ rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 # Disable re-exec by default
 echo 'SNAP_REEXEC=0' > %{buildroot}%{_sysconfdir}/sysconfig/snapd
 
-# Install snap management script
-install -pm 0755 packaging/fedora/snap-mgmt.sh %{buildroot}%{_libexecdir}/snapd/snap-mgmt
-
 # Create state.json and the README file to be ghosted
 touch %{buildroot}%{_sharedstatedir}/snapd/state.json
 touch %{buildroot}%{_sharedstatedir}/snapd/snap/README
