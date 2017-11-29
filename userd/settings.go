@@ -179,7 +179,7 @@ func (s *Settings) Set(setting, new string, sender dbus.Sender) *dbus.Error {
 	// FIXME2: we need to make the dbus timeout longer for the dialog
 	//         or we get the dreaded org.freedesktop.DBus.Error.NoReply
 	//         error in the application
-	cmd := exec.Command("zenity", "--question", "--text="+fmt.Sprintf(i18n.G("Allow changing setting %q to %q ?"), setting, new))
+	cmd := exec.Command("zenity", "--question", "--modal", "--text="+fmt.Sprintf(i18n.G("Allow changing setting %q to %q ?"), setting, new))
 	if err := cmd.Run(); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot set setting: user declined"))
 	}
