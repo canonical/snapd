@@ -19,6 +19,7 @@
 
 package builtin
 
+// https://github.com/raspberrypi/linux/blob/rpi-4.4.y/drivers/char/broadcom/bcm2835-gpiomem.c
 const gpioMemoryControlSummary = `allows write access to all gpio memory`
 
 const gpioMemoryControlBaseDeclarationSlots = `
@@ -30,8 +31,10 @@ const gpioMemoryControlBaseDeclarationSlots = `
 `
 
 const gpioMemoryControlConnectedPlugAppArmor = `
-# Description: Allow writing to /dev/gpiomem on kernels that provide it.
-#
+# Description: Allow writing to /dev/gpiomem on kernels that provide it (eg,
+# via the bcm2835-gpiomem kernel module). This allows direct access to the
+# physical memory for GPIO devices (i.e. a subset of /dev/mem) and therefore
+# grants access to all GPIO devices on the system.
 /dev/gpiomem rw,
 `
 
