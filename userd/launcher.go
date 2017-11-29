@@ -47,7 +47,9 @@ var (
 )
 
 // Launcher implements the 'io.snapcraft.Launcher' DBus interface.
-type Launcher struct{}
+type Launcher struct {
+	conn *dbus.Conn
+}
 
 // Name returns the name of the interface this object implements
 func (s *Launcher) Name() string {
