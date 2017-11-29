@@ -8,8 +8,10 @@ details: |
 systems: [-opensuse-*,-fedora-*,-ubuntu-core-*]
 
 prepare: |
+    . $TESTSLIB/snaps.sh
+
     # Install a snap declaring a plug on time-control
-    snap try $TESTSLIB/snaps/test-snapd-timedate-control-consumer
+    install_local test-snapd-timedate-control-consumer
 
 restore: |
     # Restore the initial rtc configuration
@@ -17,12 +19,11 @@ restore: |
         timedatectl set-local-rtc "$(cat rtc.txt)"
         rm -f rtc.txt
     fi
+    rm -f call.error
 
 execute: |
     CONNECTED_PATTERN=":time-control +test-snapd-timedate-control-consumer"
     DISCONNECTED_PATTERN="\- +test-snapd-timedate-control-consumer:time-control"
-
-    . $TESTSLIB/dirs.sh
 
     # Check the interface is disconnected by detault
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"

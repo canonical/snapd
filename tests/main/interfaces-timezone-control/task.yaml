@@ -5,8 +5,10 @@ details: |
     can access timezone information and update it.
 
 prepare: |
+    . $TESTSLIB/snaps.sh
+
     # Install a snap declaring a plug on timezone-control
-    snap try $TESTSLIB/snaps/test-snapd-timedate-control-consumer
+    install_local test-snapd-timedate-control-consumer
 
 restore: |
     # Restore the initial timezone
@@ -14,12 +16,11 @@ restore: |
         timedatectl set-timezone "$(cat timezone.txt)"
         rm -f timezone.txt
     fi
+    rm -f call.error
 
 execute: |
     CONNECTED_PATTERN=":timezone-control +test-snapd-timedate-control-consumer"
     DISCONNECTED_PATTERN="\- +test-snapd-timedate-control-consumer:timezone-control"
-
-    . $TESTSLIB/dirs.sh
 
     # Check the interface is disconnected by detault
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
