@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -390,7 +391,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		"}\n")
 	defer restoreClassicTemplate()
 	for _, scenario := range combineSnippetsScenarios {
-		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *interfaces.Slot) error {
+		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 			if scenario.snippet == "" {
 				return nil
 			}
@@ -498,6 +499,34 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 	_, err = os.Stat(dirs.SnapConfineAppArmorDir)
 	c.Check(err, IsNil)
 
+}
+
+func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
+	restorer := release.MockOnClassic(false)
+	defer restorer()
+
+	err := os.MkdirAll(dirs.SystemApparmorCacheDir, 0755)
+	c.Assert(err, IsNil)
+	// the canary file in the cache will be removed
+	canaryPath := filepath.Join(dirs.SystemApparmorCacheDir, "meep")
+	err = ioutil.WriteFile(canaryPath, nil, 0644)
+	c.Assert(err, IsNil)
+	// but non-regular entries in the cache dir are kept
+	dirsAreKept := filepath.Join(dirs.SystemApparmorCacheDir, "dir")
+	err = os.MkdirAll(dirsAreKept, 0755)
+	c.Assert(err, IsNil)
+	symlinksAreKept := filepath.Join(dirs.SystemApparmorCacheDir, "symlink")
+	err = os.Symlink("some-sylink-target", symlinksAreKept)
+	c.Assert(err, IsNil)
+
+	// install the new core snap on classic triggers a new snap-confine
+	// for this snap-confine on core
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, coreYaml, 111)
+
+	l, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*"))
+	c.Assert(err, IsNil)
+	// canary is gone, extra stuff is kept
+	c.Check(l, DeepEquals, []string{dirsAreKept, symlinksAreKept})
 }
 
 func (s *backendSuite) TestIsHomeUsingNFS(c *C) {

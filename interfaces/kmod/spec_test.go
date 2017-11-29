@@ -44,10 +44,10 @@ var _ = Suite(&specSuite{
 		KModConnectedSlotCallback: func(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 			return spec.AddModule("module2")
 		},
-		KModPermanentPlugCallback: func(spec *kmod.Specification, plug *interfaces.Plug) error {
+		KModPermanentPlugCallback: func(spec *kmod.Specification, plug *snap.PlugInfo) error {
 			return spec.AddModule("module3")
 		},
-		KModPermanentSlotCallback: func(spec *kmod.Specification, slot *interfaces.Slot) error {
+		KModPermanentSlotCallback: func(spec *kmod.Specification, slot *snap.SlotInfo) error {
 			return spec.AddModule("module4")
 		},
 	},
@@ -59,10 +59,10 @@ var _ = Suite(&specSuite{
 		KModConnectedSlotCallback: func(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 			return spec.AddModule("module2")
 		},
-		KModPermanentPlugCallback: func(spec *kmod.Specification, plug *interfaces.Plug) error {
+		KModPermanentPlugCallback: func(spec *kmod.Specification, plug *snap.PlugInfo) error {
 			return spec.AddModule("module5")
 		},
-		KModPermanentSlotCallback: func(spec *kmod.Specification, slot *interfaces.Slot) error {
+		KModPermanentSlotCallback: func(spec *kmod.Specification, slot *snap.SlotInfo) error {
 			return spec.AddModule("module6")
 		},
 	},
@@ -106,13 +106,13 @@ func (s *specSuite) TestDeduplication(c *C) {
 	var r interfaces.Specification = s.spec
 	c.Assert(r.AddConnectedPlug(s.iface1, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(r.AddConnectedSlot(s.iface1, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddPermanentPlug(s.iface1, s.plug), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface1, s.slot), IsNil)
+	c.Assert(r.AddPermanentPlug(s.iface1, s.plug.PlugInfo), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface1, s.slot.SlotInfo), IsNil)
 
 	c.Assert(r.AddConnectedPlug(s.iface2, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(r.AddConnectedSlot(s.iface2, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddPermanentPlug(s.iface2, s.plug), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface2, s.slot), IsNil)
+	c.Assert(r.AddPermanentPlug(s.iface2, s.plug.PlugInfo), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface2, s.slot.SlotInfo), IsNil)
 	c.Assert(s.spec.Modules(), DeepEquals, map[string]bool{
 		"module1": true, "module2": true, "module3": true, "module4": true, "module5": true, "module6": true})
 }
@@ -122,8 +122,8 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
 	c.Assert(r.AddConnectedPlug(s.iface1, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(r.AddConnectedSlot(s.iface1, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddPermanentPlug(s.iface1, s.plug), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface1, s.slot), IsNil)
+	c.Assert(r.AddPermanentPlug(s.iface1, s.plug.PlugInfo), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface1, s.slot.SlotInfo), IsNil)
 	c.Assert(s.spec.Modules(), DeepEquals, map[string]bool{
 		"module1": true, "module2": true, "module3": true, "module4": true})
 }

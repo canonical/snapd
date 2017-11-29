@@ -48,7 +48,7 @@
 // sc_maybe_fixup_permissions fixes incorrect permissions
 // inside the mount namespace for /var/lib. Before 1ccce4
 // this directory was created with permissions 1777.
-void sc_maybe_fixup_permissions()
+static void sc_maybe_fixup_permissions(void)
 {
 	struct stat buf;
 	if (stat("/var/lib", &buf) != 0) {
@@ -68,7 +68,7 @@ void sc_maybe_fixup_permissions()
 // that cause libudev on 16.04 to fail with "udev_enumerate_scan failed".
 // See also:
 // https://forum.snapcraft.io/t/weird-udev-enumerate-error/2360/17
-void sc_maybe_fixup_udev()
+static void sc_maybe_fixup_udev(void)
 {
 	glob_t glob_res SC_CLEANUP(globfree) = {
 	.gl_pathv = NULL,.gl_pathc = 0,.gl_offs = 0,};
@@ -131,9 +131,23 @@ int main(int argc, char **argv)
 	debug("base snap:    %s", base_snap_name);
 
 	// Who are we?
-	uid_t real_uid = getuid();
-	gid_t real_gid = getgid();
+	uid_t real_uid, effective_uid, saved_uid;
+	gid_t real_gid, effective_gid, saved_gid;
+	getresuid(&real_uid, &effective_uid, &saved_uid);
+	getresgid(&real_gid, &effective_gid, &saved_gid);
+	debug("ruid: %d, euid: %d, suid: %d",
+	      real_uid, effective_uid, saved_uid);
+	debug("rgid: %d, egid: %d, sgid: %d",
+	      real_gid, effective_gid, saved_gid);
 
+	// snap-confine runs as both setuid root and setgid root.
+	// Temporarily drop group privileges here and reraise later
+	// as needed.
+	if (effective_gid == 0 && real_gid != 0) {
+		if (setegid(real_gid) != 0) {
+			die("cannot set effective group id to %d", real_gid);
+		}
+	}
 #ifndef CAPS_OVER_SETUID
 	// this code always needs to run as root for the cgroup/udev setup,
 	// however for the tests we allow it to run as non-root
@@ -208,7 +222,8 @@ int main(int argc, char **argv)
 			debug("initializing mount namespace: %s", snap_name);
 			struct sc_ns_group *group = NULL;
 			group = sc_open_ns_group(snap_name, 0);
-			sc_create_or_join_ns_group(group, &apparmor);
+			sc_create_or_join_ns_group(group, &apparmor,
+						   base_snap_name, snap_name);
 			if (sc_should_populate_ns_group(group)) {
 				sc_populate_mount_ns(base_snap_name, snap_name);
 				sc_preserve_populated_ns_group(group);
@@ -225,7 +240,21 @@ int main(int argc, char **argv)
 			// control group. This simplifies testing if any processes
 			// belonging to a given snap are still alive.
 			// See the documentation of the function for details.
+
+			if (getegid() != 0 && saved_gid == 0) {
+				// Temporarily raise egid so we can chown the freezer cgroup
+				// under LXD.
+				if (setegid(0) != 0) {
+					die("cannot set effective group id to root");
+				}
+			}
 			sc_cgroup_freezer_join(snap_name, getpid());
+			if (geteuid() == 0 && real_gid != 0) {
+				if (setegid(real_gid) != 0) {
+					die("cannot set effective group id to %d", real_gid);
+				}
+			}
+
 			sc_unlock(snap_name, snap_lock_fd);
 
 			// Reset path as we cannot rely on the path from the host OS to

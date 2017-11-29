@@ -22,12 +22,10 @@ package corecfg
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/systemd"
 )
 
 var (
@@ -35,46 +33,53 @@ var (
 	Stderr = os.Stderr
 )
 
-// ensureSupportInterface checks that the system has the core-support
-// interface. An error is returned if this is not the case
-func ensureSupportInterface() error {
-	return systemd.Available()
+type Conf interface {
+	Get(snapName, key string, result interface{}) error
+	State() *state.State
 }
 
-func snapctlGet(key string) (string, error) {
-	raw, err := exec.Command("snapctl", "get", key).CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("cannot run snapctl: %s", osutil.OutputErr(raw, err))
+func coreCfg(tr Conf, key string) (result string, err error) {
+	var v interface{} = ""
+	if err := tr.Get("core", key, &v); err != nil && !config.IsNoOption(err) {
+		return "", err
+	}
+	// TODO: we could have a fully typed approach but at the
+	// moment we also always use "" to mean unset as well, this is
+	// the smallest change
+	return fmt.Sprintf("%v", v), nil
+}
+
+func Run(tr Conf) error {
+	if err := validateProxyStore(tr); err != nil {
+		return err
+	}
+	if err := validateRefreshSchedule(tr); err != nil {
+		return err
 	}
 
-	output := strings.TrimRight(string(raw), "\n")
-	return output, nil
-}
-
-func Run() error {
 	// see if it makes sense to run at all
 	if release.OnClassic {
-		return fmt.Errorf("cannot run core-configure on classic distribution")
+		// nothing to do
+		return nil
 	}
-	if err := ensureSupportInterface(); err != nil {
-		return fmt.Errorf("cannot run systemctl - core-support interface seems disconnected: %v", err)
-	}
+	// TODO: consider allowing some of these on classic too?
+	// consider erroring on core-only options on classic?
 
 	// handle the various core config options:
 	// service.*.disable
-	if err := handleServiceDisableConfiguration(); err != nil {
+	if err := handleServiceDisableConfiguration(tr); err != nil {
 		return err
 	}
 	// system.power-key-action
-	if err := handlePowerButtonConfiguration(); err != nil {
+	if err := handlePowerButtonConfiguration(tr); err != nil {
 		return err
 	}
 	// pi-config.*
-	if err := handlePiConfiguration(); err != nil {
+	if err := handlePiConfiguration(tr); err != nil {
 		return err
 	}
 	// proxy.{http,https,ftp}
-	if err := handleProxyConfiguration(); err != nil {
+	if err := handleProxyConfiguration(tr); err != nil {
 		return err
 	}
 

@@ -154,6 +154,16 @@ distro_install_package() {
         ;;
     esac
 
+    # fix dependency issue where libp11-kit0 needs to be downgraded to 
+    # install gnome-keyring
+    case "$SPREAD_SYSTEM" in
+        debian-9-*)
+        if [[ "$*" =~ "gnome-keyring" ]]; then
+            apt-get remove -y libp11-kit0
+        fi
+        ;;
+    esac
+
     for pkg in "$@" ; do
         package_name=$(distro_name_package "$pkg")
         # When we could not find a different package name for the distribution
@@ -370,6 +380,7 @@ pkg_dependencies_ubuntu_classic(){
         python3-yaml
         upower
         weston
+        xdg-user-dirs
         xdg-utils
         "
 
@@ -405,6 +416,9 @@ pkg_dependencies_ubuntu_classic(){
                 "
             ;;
         debian-*)
+            echo "
+                net-tools
+                "
             ;;
     esac
 }
@@ -427,6 +441,7 @@ pkg_dependencies_fedora(){
         mock
         redhat-lsb-core
         rpm-build
+        xdg-user-dirs
         "
 }
 
@@ -442,6 +457,7 @@ pkg_dependencies_opensuse(){
         osc
         rng-tools
         xdg-utils
+        xdg-user-dirs
         "
 }
 

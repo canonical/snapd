@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/snap"
 )
 
 const locationObserveSummary = `allows access to the current physical location`
@@ -273,7 +274,7 @@ func (iface *locationObserveInterface) DBusConnectedPlug(spec *dbus.Specificatio
 	return nil
 }
 
-func (iface *locationObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *locationObserveInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(locationObservePermanentSlotDBus)
 	return nil
 }
@@ -286,7 +287,7 @@ func (iface *locationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Spec
 	return nil
 }
 
-func (iface *locationObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *locationObserveInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(locationObservePermanentSlotAppArmor)
 	return nil
 }

@@ -82,21 +82,16 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 	defer restore()
 
 	for _, srvName := range []string{"ssh", "rsyslog"} {
-		srv := fmt.Sprintf("%s.service", srvName)
-
 		s.systemctlArgs = nil
-		mockSnapctl := testutil.MockCommand(c, "snapctl", fmt.Sprintf(`
-if [ "$1" = "get" ] && [ "$2" = "service.%s.disable" ]; then
-    echo "true"
-fi
-`, srvName))
-		defer mockSnapctl.Restore()
 
-		err := corecfg.Run()
+		err := corecfg.Run(&mockConf{
+			conf: map[string]interface{}{
+				fmt.Sprintf("service.%s.disable", srvName): true,
+			},
+		})
 		c.Assert(err, IsNil)
-		c.Check(mockSnapctl.Calls(), Not(HasLen), 0)
+		srv := fmt.Sprintf("%s.service", srvName)
 		c.Check(s.systemctlArgs, DeepEquals, [][]string{
-			{"--version"},
 			{"--root", dirs.GlobalRootDir, "disable", srv},
 			{"stop", srv},
 			{"show", "--property=ActiveState", srv},
@@ -109,21 +104,16 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 	defer restore()
 
 	for _, srvName := range []string{"ssh", "rsyslog"} {
-		srv := fmt.Sprintf("%s.service", srvName)
-
 		s.systemctlArgs = nil
-		mockSnapctl := testutil.MockCommand(c, "snapctl", fmt.Sprintf(`
-if [ "$1" = "get" ] && [ "$2" = "service.%s.disable" ]; then
-    echo "false"
-fi
-`, srvName))
-		defer mockSnapctl.Restore()
+		err := corecfg.Run(&mockConf{
+			conf: map[string]interface{}{
+				fmt.Sprintf("service.%s.disable", srvName): false,
+			},
+		})
 
-		err := corecfg.Run()
 		c.Assert(err, IsNil)
-		c.Check(mockSnapctl.Calls(), Not(HasLen), 0)
+		srv := fmt.Sprintf("%s.service", srvName)
 		c.Check(s.systemctlArgs, DeepEquals, [][]string{
-			{"--version"},
 			{"--root", dirs.GlobalRootDir, "enable", srv},
 			{"start", srv},
 		})
@@ -134,21 +124,14 @@ func (s *servicesSuite) TestConfigureServiceUnsupportedService(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	s.systemctlArgs = nil
-	mockSnapctl := testutil.MockCommand(c, "snapctl", `
-if [ "$1" = "get" ] && [ "$2" = "service.snapd.disable" ]; then
-    echo "true"
-fi
-`)
-	defer mockSnapctl.Restore()
-
-	err := corecfg.Run()
+	err := corecfg.Run(&mockConf{
+		conf: map[string]interface{}{
+			"service.snapd.disable": true,
+		},
+	})
 	c.Assert(err, IsNil)
 
 	// ensure nothing gets enabled/disabled when an unsupported
 	// service is set for disable
-	c.Check(mockSnapctl.Calls(), Not(HasLen), 0)
-	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"--version"},
-	})
+	c.Check(s.systemctlArgs, IsNil)
 }

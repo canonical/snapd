@@ -224,7 +224,10 @@ network netlink raw,
 # subset of freedesktop.org
 /usr/share/mime/**                   r,
 owner @{HOME}/.local/share/mime/**   r,
-owner @{HOME}/.config/user-dirs.dirs r,
+owner @{HOME}/.config/user-dirs.* r,
+
+/etc/xdg/user-dirs.conf r,
+/etc/xdg/user-dirs.defaults r,
 
 # gtk settings (subset of gnome abstraction)
 owner @{HOME}/.config/gtk-2.0/gtkfilechooser.ini r,

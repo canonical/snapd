@@ -74,6 +74,13 @@ dbus (receive)
 # set-local-rtc commands.
 /usr/bin/timedatectl{,.real} ixr,
 
+# Silence this noisy denial. systemd utilities look at /proc/1/environ to see
+# if running in a container, but they will fallback gracefully. No other
+# interfaces allow this denial, so no problems with silencing it for now. Note
+# that allowing this triggers a 'ptrace trace peer=unconfined' denial, which we
+# want to avoid.
+deny @{PROC}/1/environ r,
+
 # Allow write access to system real-time clock
 # See 'man 4 rtc' for details.
 
@@ -92,7 +99,7 @@ capability sys_time,
 /sbin/hwclock ixr,
 `
 
-const timeControlConnectedPlugUDev = `SUBSYSTEM=="rtc", TAG+="###CONNECTED_SECURITY_TAGS###"`
+var timeControlConnectedPlugUDev = []string{`SUBSYSTEM=="rtc"`}
 
 func init() {
 	registerIface(&commonInterface{

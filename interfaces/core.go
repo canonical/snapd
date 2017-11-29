@@ -99,8 +99,9 @@ func (ref SlotRef) String() string {
 
 // Interfaces holds information about a list of plugs, slots and their connections.
 type Interfaces struct {
-	Plugs []*Plug `json:"plugs"`
-	Slots []*Slot `json:"slots"`
+	Plugs       []*snap.PlugInfo
+	Slots       []*snap.SlotInfo
+	Connections []*ConnRef
 }
 
 // Info holds information about a given interface and its instances.
@@ -118,13 +119,12 @@ type ConnRef struct {
 	SlotRef SlotRef
 }
 
-type Connection struct {
-	plugInfo *snap.PlugInfo
-	slotInfo *snap.SlotInfo
-}
-
-func (conn *Connection) Interface() string {
-	return conn.plugInfo.Interface
+// NewConnRef creates a connection reference for given plug and slot
+func NewConnRef(plug *snap.PlugInfo, slot *snap.SlotInfo) *ConnRef {
+	return &ConnRef{
+		PlugRef: PlugRef{Snap: plug.Snap.Name(), Name: plug.Name},
+		SlotRef: SlotRef{Snap: slot.Snap.Name(), Name: slot.Name},
+	}
 }
 
 // ID returns a string identifying a given connection.
@@ -209,9 +209,9 @@ func StaticInfoOf(iface Interface) (si StaticInfo) {
 // Specification describes interactions between backends and interfaces.
 type Specification interface {
 	// AddPermanentSlot records side-effects of having a slot.
-	AddPermanentSlot(iface Interface, slot *Slot) error
+	AddPermanentSlot(iface Interface, slot *snap.SlotInfo) error
 	// AddPermanentPlug records side-effects of having a plug.
-	AddPermanentPlug(iface Interface, plug *Plug) error
+	AddPermanentPlug(iface Interface, plug *snap.PlugInfo) error
 	// AddConnectedSlot records side-effects of having a connected slot.
 	AddConnectedSlot(iface Interface, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error
 	// AddConnectedPlug records side-effects of having a connected plug.

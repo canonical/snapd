@@ -20,7 +20,6 @@
 package corecfg_test
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -31,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type piCfgSuite struct {
@@ -134,29 +132,21 @@ func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	mockSnapctl := testutil.MockCommand(c, "snapctl", fmt.Sprintf(`
-if [ "$1" = "get" ] && [ "$2" = "pi-config.disable-overscan" ]; then
-    echo "1"
-fi
-`))
-	defer mockSnapctl.Restore()
-
-	err := corecfg.Run()
+	err := corecfg.Run(&mockConf{
+		conf: map[string]interface{}{
+			"pi-config.disable-overscan": 1,
+		},
+	})
 	c.Assert(err, IsNil)
 
 	expected := strings.Replace(mockConfigTxt, "#disable_overscan=1", "disable_overscan=1", -1)
 	s.checkMockConfig(c, expected)
 
-	// run again with the inverse result and ensure we are back
-	// as before
-	mockSnapctl = testutil.MockCommand(c, "snapctl", fmt.Sprintf(`
-if [ "$1" = "get" ] && [ "$2" = "pi-config.disable-overscan" ]; then
-    echo ""
-fi
-`))
-	defer mockSnapctl.Restore()
-
-	err = corecfg.Run()
+	err = corecfg.Run(&mockConf{
+		conf: map[string]interface{}{
+			"pi-config.disable-overscan": "",
+		},
+	})
 	c.Assert(err, IsNil)
 
 	s.checkMockConfig(c, mockConfigTxt)

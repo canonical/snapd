@@ -79,7 +79,7 @@ execute: |
     echo "Ensure a core refresh restart snapd"
     prev_core=$(snap list | awk "/^core / {print(\$3)}")
     snap install --dangerous /var/lib/snapd/snaps/core_${prev_core}.snap
-    journalctl | MATCH "Requested daemon restart"
+    snap change --last=install | MATCH "Requested daemon restart"
 
     echo "Ensure the right snapd (from the new core) is running"
     now_core=$(snap list | awk "/^core / {print(\$3)}")

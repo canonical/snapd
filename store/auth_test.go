@@ -172,7 +172,7 @@ func (s *authTestSuite) TestDischargeAuthCaveatInvalidLogin(c *C) {
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
 	discharge, err := dischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
-	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: Provided email/password is not correct.")
+	c.Assert(err, Equals, ErrInvalidCredentials)
 	c.Assert(discharge, Equals, "")
 }
 
@@ -221,7 +221,7 @@ func (s *authTestSuite) TestRefreshDischargeMacaroonInvalidLogin(c *C) {
 	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
 
 	discharge, err := refreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
-	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: Provided email/password is not correct.")
+	c.Assert(err, Equals, ErrInvalidCredentials)
 	c.Assert(discharge, Equals, "")
 }
 
