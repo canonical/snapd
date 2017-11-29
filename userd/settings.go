@@ -54,6 +54,7 @@ const settingsIntrospectionXML = `
 	</method>
 </interface>`
 
+// FIXME: allow setting default-url-scheme-handler ?
 var settingsWhitelist = []string{
 	"default-web-browser",
 }
@@ -164,7 +165,7 @@ func (s *Settings) Set(setting, new string, sender dbus.Sender) *dbus.Error {
 	if err != nil {
 		dbus.MakeFailedError(err)
 	}
-	if !strings.HasPrefix(setting, snap) {
+	if !strings.HasPrefix(new, snap) {
 		return dbus.MakeFailedError(fmt.Errorf("snap %s cannot set %s to %s", snap, setting, new))
 	}
 
@@ -173,6 +174,11 @@ func (s *Settings) Set(setting, new string, sender dbus.Sender) *dbus.Error {
 	if !osutil.ExecutableExists("zenity") {
 		return dbus.MakeFailedError(fmt.Errorf("cannot find zenity"))
 	}
+	// FIXME: we need to know the parent PID or our dialog may pop under
+	//        the existing windows
+	// FIXME2: we need to make the dbus timeout longer for the dialog
+	//         or we get the dreaded org.freedesktop.DBus.Error.NoReply
+	//         error in the application
 	cmd := exec.Command("zenity", "--question", "--text="+fmt.Sprintf(i18n.G("Allow changing setting %q to %q ?"), setting, new))
 	if err := cmd.Run(); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot set setting: user declined"))
