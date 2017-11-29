@@ -282,6 +282,26 @@ func (sched *Schedule) String() string {
 	return buf.String()
 }
 
+func (sched *Schedule) weekSpans() []WeekSpan {
+	if len(sched.Week) == 0 {
+		return []WeekSpan{{}}
+	}
+	return sched.Week
+}
+
+func (sched *Schedule) flattenedTimeSpans() []TimeSpan {
+	baseTimes := sched.Times
+	if len(baseTimes) == 0 {
+		baseTimes = []TimeSpan{{}}
+	}
+
+	times := make([]TimeSpan, 0, len(baseTimes))
+	for _, ts := range baseTimes {
+		times = append(times, ts.Subspans()...)
+	}
+	return times
+}
+
 // isLastWeekdayInMonth returns true if t.Weekday() is the last weekday
 // occurring this t.Month(), eg. check is Feb 25 2017 is the last Saturday of
 // February.
@@ -301,15 +321,8 @@ type NextSchedule struct {
 func (sched *Schedule) Next(last time.Time) NextSchedule {
 	now := timeNow()
 
-	weeks := sched.Week
-	if len(weeks) == 0 {
-		weeks = []WeekSpan{{}}
-	}
-
-	times := sched.Times
-	if len(times) == 0 {
-		times = []TimeSpan{{}}
-	}
+	weeks := sched.weekSpans()
+	times := sched.flattenedTimeSpans()
 
 	t := last
 	tnext := t
@@ -340,20 +353,19 @@ func (sched *Schedule) Next(last time.Time) NextSchedule {
 
 		var spread bool
 		for i := range times {
-			for _, ts := range times[i].Subspans() {
-				newA, newB := ts.MakeTime(t)
+			ts := times[i]
+			newA, newB := ts.MakeTime(t)
 
-				// same interval as last update, move forward
-				if (last.Equal(newA) || last.After(newA)) && (last.Equal(newB) || last.Before(newB)) {
-					continue
-				}
+			// same interval as last update, move forward
+			if (last.Equal(newA) || last.After(newA)) && (last.Equal(newB) || last.Before(newB)) {
+				continue
+			}
 
-				// if candidate comes before current use it
-				if a.IsZero() || newA.Before(a) {
-					a = newA
-					b = newB
-					spread = ts.Spread
-				}
+			// if candidate comes before current use it
+			if a.IsZero() || newA.Before(a) {
+				a = newA
+				b = newB
+				spread = ts.Spread
 			}
 		}
 
