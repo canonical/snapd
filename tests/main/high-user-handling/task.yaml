@@ -1,5 +1,7 @@
 summary: Check that the refresh data copy works.
 
+systems: [-ubuntu-core-*]
+
 prepare: |
     useradd --uid "$(( (1<<32)-2 ))" --shell /bin/sh hightest
 
@@ -7,5 +9,4 @@ restore: |
     userdel hightest
 
 execute: |
-    sudo -E -u hightest go run test.go
-
+    sudo -E -u hightest "$(which go)" run test.go
