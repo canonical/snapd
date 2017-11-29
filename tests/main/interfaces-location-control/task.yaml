@@ -8,20 +8,18 @@ details: |
     reconnected.
     The snap is also declaring a plug on this interface must be able to ask for its properties.
 
-systems: [-ubuntu-core-16-*]
-
 prepare: |
     . "$TESTSLIB/dbus.sh"
     . "$TESTSLIB/dirs.sh"
     echo "Given a snap declaring a plug on the location-control interface is installed"
     snap install test-snapd-location-control-provider
-    snap connect test-snapd-location-control-provider:mount-observe
 
     echo "And the provider dbus loop is started"
     start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-location-control-provider.provider
 
 restore: |
     rm -f getprop.error
+
     . "$TESTSLIB/dbus.sh"
     stop_dbus_unit
 

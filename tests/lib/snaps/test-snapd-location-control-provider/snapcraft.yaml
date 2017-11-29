@@ -1,6 +1,6 @@
 name: test-snapd-location-control-provider
 version: 1.0
-summary: Basic location provider snap
+summary: Basic location control provider snap
 description: A basic snap declaring an location control slot
 confinement: strict
 grade: stable
@@ -8,7 +8,6 @@ grade: stable
 apps:
     provider:
         command: wrapper
-        plugs: [mount-observe]
         slots: [location-control-test]
     consumer:
         command: consumer
