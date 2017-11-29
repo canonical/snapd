@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const modemManagerSummary = `allows operating as the ModemManager service`
@@ -1188,10 +1189,6 @@ KERNEL=="cdc-wdm*", SUBSYSTEM=="usbmisc", ENV{ID_MM_CANDIDATE}="1"
 LABEL="mm_candidate_end"
 `
 
-const modemManagerPermanentSlotUDevTag = `
-KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
-`
-
 type modemManagerInterface struct{}
 
 func (iface *modemManagerInterface) Name() string {
@@ -1222,24 +1219,19 @@ func (iface *modemManagerInterface) DBusConnectedPlug(spec *dbus.Specification, 
 	return nil
 }
 
-func (iface *modemManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *modemManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(modemManagerPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *modemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *modemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(modemManagerPermanentSlotDBus)
 	return nil
 }
 
-func (iface *modemManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	old := "###CONNECTED_SECURITY_TAGS###"
-	udevRule := modemManagerPermanentSlotUDev
-	for appName := range slot.Apps {
-		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
-		udevRule += strings.Replace(modemManagerPermanentSlotUDevTag, old, tag, -1)
-	}
-	spec.AddSnippet(udevRule)
+func (iface *modemManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+	spec.AddSnippet(modemManagerPermanentSlotUDev)
+	spec.TagDevice(`KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*"`)
 	return nil
 }
 
@@ -1251,7 +1243,7 @@ func (iface *modemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specifi
 	return nil
 }
 
-func (iface *modemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *modemManagerInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(modemManagerPermanentSlotSecComp)
 	return nil
 }

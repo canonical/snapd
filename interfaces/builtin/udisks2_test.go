@@ -144,7 +144,7 @@ func (s *UDisks2InterfaceSuite) TestAppArmorSpec(c *C) {
 	// permanent slot have a non-nil security snippet for apparmor
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label=unconfined),`)
@@ -157,22 +157,25 @@ func (s *UDisks2InterfaceSuite) TestDBusSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `<policy context="default">`)
 
 	spec = &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `<policy user="root">`)
 }
 
 func (s *UDisks2InterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 3)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `LABEL="udisks_probe_end"`)
-	c.Assert(spec.Snippets()[0], testutil.Contains, `SUBSYSTEM=="usb", TAG+="snap_producer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# udisks2
+SUBSYSTEM=="block", TAG+="snap_producer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# udisks2
+SUBSYSTEM=="usb", TAG+="snap_producer_app"`)
 }
 
 func (s *UDisks2InterfaceSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, "mount\n")
 }

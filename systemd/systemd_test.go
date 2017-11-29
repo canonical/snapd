@@ -453,12 +453,13 @@ func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
 Description=Mount unit for foo
+Before=snapd.service
 
 [Mount]
 What=%s
 Where=/apps/foo/1.0
 Type=squashfs
-Options=nodev,ro
+Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target
@@ -476,12 +477,13 @@ func (s *SystemdTestSuite) TestWriteMountUnitForDirs(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
 Description=Mount unit for foodir
+Before=snapd.service
 
 [Mount]
 What=%s
 Where=/apps/foo/1.0
 Type=none
-Options=nodev,ro,bind
+Options=nodev,ro,x-gdu.hide,bind
 
 [Install]
 WantedBy=multi-user.target
@@ -518,12 +520,13 @@ exit 0
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
 Description=Mount unit for foo
+Before=snapd.service
 
 [Mount]
 What=%s
 Where=/apps/foo/1.0
 Type=fuse.squashfuse
-Options=nodev,ro,allow_other
+Options=nodev,ro,x-gdu.hide,allow_other
 
 [Install]
 WantedBy=multi-user.target
@@ -556,12 +559,13 @@ exit 0
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
 Description=Mount unit for foo
+Before=snapd.service
 
 [Mount]
 What=%s
 Where=/apps/foo/1.0
 Type=squashfs
-Options=nodev,ro
+Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target

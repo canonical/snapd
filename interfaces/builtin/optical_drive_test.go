@@ -86,8 +86,9 @@ func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *OpticalDriveInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="sr[0-9]*",  TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), testutil.Contains, `# optical-drive
+KERNEL=="sr[0-9]*", TAG+="snap_consumer_app"`)
 }
 
 func (s *OpticalDriveInterfaceSuite) TestStaticInfo(c *C) {

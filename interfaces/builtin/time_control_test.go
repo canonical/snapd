@@ -95,7 +95,8 @@ func (s *TimeControlInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], testutil.Contains, `SUBSYSTEM=="rtc", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# time-control
+SUBSYSTEM=="rtc", TAG+="snap_consumer_app"`)
 }
 
 func (s *TimeControlInterfaceSuite) TestStaticInfo(c *C) {

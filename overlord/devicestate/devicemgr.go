@@ -466,3 +466,11 @@ func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*auth.DeviceSe
 	}, err
 
 }
+
+// ProxyStore returns the store assertion for the proxy store if one is set.
+func (m *DeviceManager) ProxyStore() (*asserts.Store, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	return ProxyStore(m.state)
+}

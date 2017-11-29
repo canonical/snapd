@@ -25,7 +25,7 @@ prepare: |
 
         echo "And a new version of that snap put in the controlled store"
         . $TESTSLIB/store.sh
-        init_fake_refreshes test-snapd-tools $BLOB_DIR
+        init_fake_refreshes $BLOB_DIR test-snapd-tools
     fi
 
 restore: |

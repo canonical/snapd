@@ -57,7 +57,9 @@ func init() {
 	addCommand("connect", shortConnectHelp, longConnectHelp, func() flags.Commander {
 		return &cmdConnect{}
 	}, nil, []argDesc{
+		// TRANSLATORS: This needs to be wrapped in <>s.
 		{name: i18n.G("<snap>:<plug>")},
+		// TRANSLATORS: This needs to be wrapped in <>s.
 		{name: i18n.G("<snap>:<slot>")},
 	})
 }

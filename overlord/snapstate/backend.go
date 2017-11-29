@@ -20,10 +20,34 @@
 package snapstate
 
 import (
+	"io"
+
+	"golang.org/x/net/context"
+
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
+
+// A StoreService can find, list available updates and download snaps.
+type StoreService interface {
+	SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
+	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
+	LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error)
+	ListRefresh([]*store.RefreshCandidate, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error)
+	Sections(user *auth.UserState) ([]string, error)
+	WriteCatalogs(names io.Writer) error
+	Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error
+
+	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
+
+	SuggestedCurrency() string
+	Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error)
+	ReadyToBuy(*auth.UserState) error
+}
 
 type managerBackend interface {
 	// install releated

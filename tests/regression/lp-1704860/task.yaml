@@ -19,4 +19,7 @@ execute: |
     . $TESTSLIB/snaps.sh
     install_local_classic test-snapd-classic-confinement
     # We don't want to see SNAP_DID_REEXEC being set.
-    snap run --shell test-snapd-classic-confinement ./snap-env-query.sh | MATCH -v 'SNAP_DID_REEXEC='
+    if snap run --shell test-snapd-classic-confinement ./snap-env-query.sh | grep 'SNAP_DID_REEXEC='; then
+        echo "SNAP_DID_REEXEC environment is set - it should *not* be set ever"
+        exit 1
+    fi

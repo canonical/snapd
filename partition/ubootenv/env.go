@@ -107,9 +107,12 @@ func OpenWithFlags(fname string, flags OpenFlags) (*Env, error) {
 	if crc != actualCRC {
 		return nil, fmt.Errorf("cannot open %q: bad CRC %v != %v", fname, crc, actualCRC)
 	}
-	eof := bytes.Index(payload, []byte{0, 0})
 
-	data, err := parseData(payload[:eof], flags)
+	if eof := bytes.Index(payload, []byte{0, 0}); eof >= 0 {
+		payload = payload[:eof]
+	}
+
+	data, err := parseData(payload, flags)
 	if err != nil {
 		return nil, err
 	}
