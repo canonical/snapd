@@ -134,9 +134,7 @@ func New() (*Overlord, error) {
 
 	o.addManager(cmdstate.Manager(s))
 
-	if err := configstate.Init(hookMgr); err != nil {
-		return nil, err
-	}
+	configstateInit(hookMgr)
 
 	s.Lock()
 	defer s.Unlock()

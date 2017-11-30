@@ -36,7 +36,7 @@ func MockCorecfgRun(f func(conf corecfg.Conf) error) (restore func()) {
 	}
 }
 
-func Init(hookManager *hookstate.HookManager) error {
+func Init(hookManager *hookstate.HookManager) {
 	// Most configuration is handled via the "configure" hook of the
 	// snaps. However some configuration is internally handled
 	hookManager.Register(regexp.MustCompile("^configure$"), newConfigureHandler)
@@ -49,6 +49,4 @@ func Init(hookManager *hookstate.HookManager) error {
 		ctx.Unlock()
 		return corecfgRun(tr)
 	})
-
-	return nil
 }

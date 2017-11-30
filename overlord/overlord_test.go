@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -64,9 +65,8 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	defer restore()
 
 	var configstateInitCalled bool
-	overlord.MockConfigstateInit(func(*hookstate.HookManager) error {
-		configstateInitCalled := true
-		return nil
+	overlord.MockConfigstateInit(func(*hookstate.HookManager) {
+		configstateInitCalled = true
 	})
 
 	o, err := overlord.New()
