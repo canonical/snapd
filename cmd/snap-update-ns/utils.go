@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 // not available through syscall
@@ -47,7 +48,7 @@ var (
 	sysOpen    = syscall.Open
 	sysOpenat  = syscall.Openat
 	sysUnmount = syscall.Unmount
-	sysFchown  = syscall.Fchown
+	sysFchown  = sys.Fchown
 
 	ioutilReadDir = ioutil.ReadDir
 )
@@ -64,7 +65,7 @@ func (e *ReadOnlyFsError) Error() string {
 // Create directories for all but the last segments and return the file
 // descriptor to the leaf directory. This function is a base for secure
 // variants of mkdir, touch and symlink.
-func secureMkPrefix(segments []string, perm os.FileMode, uid, gid int) (int, error) {
+func secureMkPrefix(segments []string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
 	logger.Debugf("secure-mk-prefix %q %v %d %d -> ...", segments, perm, uid, gid)
 
 	// Declare var and don't assign-declare below to ensure we don't swallow
@@ -105,7 +106,7 @@ func secureMkPrefix(segments []string, perm os.FileMode, uid, gid int) (int, err
 // by segments. This function can be used to construct subsequent elements of
 // the constructed path. The return value contains the newly created file
 // descriptor or -1 on error.
-func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid, gid int) (int, error) {
+func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
 	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> ...", fd, segments, i, perm, uid, gid)
 
 	segment := segments[i]
@@ -152,7 +153,7 @@ func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid, gid in
 // segments. This function is meant to be used to create the leaf file as a
 // preparation for a mount point. Existing files are reused without errors.
 // Newly created files have the specified mode and ownership.
-func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid, gid int) error {
+func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	logger.Debugf("secure-mk-file %d %q %d %v %d %d", fd, segments, i, perm, uid, gid)
 	segment := segments[i]
 	made := true
@@ -219,7 +220,7 @@ func splitIntoSegments(name string) ([]string, error) {
 // The uid and gid are used for the fchown(2) system call which is performed
 // after each segment is created and opened. The special value -1 may be used
 // to request that ownership is not changed.
-func secureMkdirAll(name string, perm os.FileMode, uid, gid int) error {
+func secureMkdirAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	logger.Debugf("secure-mkdir-all %q %v %d %d", name, perm, uid, gid)
 
 	// Only support absolute paths to avoid bugs in snap-confine when
@@ -258,7 +259,7 @@ func secureMkdirAll(name string, perm os.FileMode, uid, gid int) error {
 // This function is like secureMkdirAll but it creates an empty file instead of
 // a directory for the final path component. Each created directory component
 // is chowned to the desired user and group.
-func secureMkfileAll(name string, perm os.FileMode, uid, gid int) error {
+func secureMkfileAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	logger.Debugf("secure-mkfile-all %q %q %d %d", name, perm, uid, gid)
 
 	// Only support absolute paths to avoid bugs in snap-confine when
@@ -449,7 +450,7 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 	return undoChanges, nil
 }
 
-func ensureMountPoint(path string, mode os.FileMode, uid int, gid int) error {
+func ensureMountPoint(path string, mode os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	// If the mount point is not present then create a directory in its
 	// place.  This is very naive, doesn't handle read-only file systems
 	// but it is a good starting point for people working with things like
