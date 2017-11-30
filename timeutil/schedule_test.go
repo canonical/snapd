@@ -729,7 +729,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			// 2 ranges
 			schedule: "9:00-10:00,10:00-11:00",
 			// last attempt at the beginning of window
-			last: "2017-02-06 9:00",
+			last: "2017-02-06 9:01",
 			// next one at 10am
 			now:  "2017-02-06 9:30",
 			next: "30m-30m",
@@ -737,8 +737,8 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 		{
 			// twice, at 9am and at 2pm
 			schedule: "9:00,14:00",
-			// last attempt at the beginning of window
-			last: "2017-02-06 9:00",
+			// last right after scheduled time window
+			last: "2017-02-06 9:01",
 			// next one at 2pm
 			now:  "2017-02-06 9:30",
 			next: "270m-270m",
@@ -747,7 +747,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			// 2 ranges, reversed order in spec
 			schedule: "10:00~11:00,9:00-10:00",
 			// last attempt at the beginning of window
-			last: "2017-02-06 9:00",
+			last: "2017-02-06 9:01",
 			// sometime between 10am and 11am
 			now:        "2017-02-06 9:30",
 			next:       "30m-90m",
