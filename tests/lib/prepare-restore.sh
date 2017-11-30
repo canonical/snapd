@@ -56,7 +56,8 @@ create_test_user(){
 
     echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-    chown test.test -R ..
+    chown test.test -R "$SPREAD_PATH"
+    chown test.test "$SPREAD_PATH/../"
 }
 
 build_deb(){
