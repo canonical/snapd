@@ -17,7 +17,7 @@
  *
  */
 
-package corecfg_test
+package configcore_test
 
 import (
 	"fmt"
@@ -26,15 +26,15 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type servicesSuite struct {
-	coreCfgSuite
+	configcoreSuite
 	testutil.BaseTest
 }
 
@@ -54,12 +54,12 @@ func (s *servicesSuite) TearDownTest(c *C) {
 }
 
 func (s *servicesSuite) TestConfigureServiceInvalidValue(c *C) {
-	err := corecfg.SwitchDisableService("ssh", "xxx")
+	err := configcore.SwitchDisableService("ssh", "xxx")
 	c.Check(err, ErrorMatches, `option "ssh.service" has invalid value "xxx"`)
 }
 
 func (s *servicesSuite) TestConfigureServiceNotDisabled(c *C) {
-	err := corecfg.SwitchDisableService("ssh", "false")
+	err := configcore.SwitchDisableService("ssh", "false")
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "unmask", "ssh.service"},
@@ -69,7 +69,7 @@ func (s *servicesSuite) TestConfigureServiceNotDisabled(c *C) {
 }
 
 func (s *servicesSuite) TestConfigureServiceDisabled(c *C) {
-	err := corecfg.SwitchDisableService("ssh", "true")
+	err := configcore.SwitchDisableService("ssh", "true")
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "disable", "ssh.service"},
@@ -86,7 +86,7 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 	for _, srvName := range []string{"ssh", "rsyslog"} {
 		s.systemctlArgs = nil
 
-		err := corecfg.Run(&mockConf{
+		err := configcore.Run(&mockConf{
 			conf: map[string]interface{}{
 				fmt.Sprintf("service.%s.disable", srvName): true,
 			},
@@ -108,7 +108,7 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 
 	for _, srvName := range []string{"ssh", "rsyslog"} {
 		s.systemctlArgs = nil
-		err := corecfg.Run(&mockConf{
+		err := configcore.Run(&mockConf{
 			conf: map[string]interface{}{
 				fmt.Sprintf("service.%s.disable", srvName): false,
 			},
@@ -128,7 +128,7 @@ func (s *servicesSuite) TestConfigureServiceUnsupportedService(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	err := corecfg.Run(&mockConf{
+	err := configcore.Run(&mockConf{
 		conf: map[string]interface{}{
 			"service.snapd.disable": true,
 		},
