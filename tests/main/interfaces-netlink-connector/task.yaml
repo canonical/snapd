@@ -10,10 +10,6 @@ prepare: |
 
     # Install a snap declaring a plug on netlink-connector
     install_local test-snapd-netlink-connector
-    snap connect test-snapd-netlink-connector:network-control
-
-restore: |
-    rm -f call.error
 
 execute: |
     CONNECTED_PATTERN=":netlink-audit +test-snapd-netlink-connector"
@@ -37,8 +33,7 @@ execute: |
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to bind the netlink socket"
-    if test-snapd-netlink-connector.bind 2>${PWD}/call.error; then
+    if test-snapd-netlink-connector.bind; then
         echo "Expected permission error creating/binding a netlink socket"
         exit 1
     fi
-    MATCH "Permission denied" < call.error

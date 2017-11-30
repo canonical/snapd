@@ -11,5 +11,5 @@ if __name__ == "__main__":
     cn_idx_proc = 1
 
     with socket.socket(socket.AF_NETLINK, socket.SOCK_DGRAM, netlink_connector_protocol) as sock:
-        sock.bind((os.getpid(), 1))
+        sock.bind((os.getpid(), cn_idx_proc))
         print('netlink connect bound')

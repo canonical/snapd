@@ -6,4 +6,4 @@ version: 1.0
 apps:
   bind:
     command: bin/bind
-    plugs: [netlink-connector, network, network-control]
+    plugs: [netlink-connector]
