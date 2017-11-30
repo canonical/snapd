@@ -19,11 +19,12 @@ subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
-check: check-syntax-c check-unit-tests
+check: check-unit-tests
 
 # Force particular coding style on all source and header files.
 .PHONY: check-syntax-c
 check-syntax-c:
+	echo "WARNING: check-syntax-c produces different results for different version of indent"
 	@d=`mktemp -d`; \
 	trap 'rm -rf $d' EXIT; \
 	for f in $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])) ; do \
