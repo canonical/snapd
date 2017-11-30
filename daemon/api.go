@@ -2179,13 +2179,9 @@ func setupLocalUser(st *state.State, username, email string) error {
 	if err != nil {
 		return fmt.Errorf("cannot lookup user %q: %s", username, err)
 	}
-	uid, err := strconv.Atoi(user.Uid)
+	uid, gid, err := osutil.UidGid(user)
 	if err != nil {
-		return fmt.Errorf("cannot get uid of user %q: %s", username, err)
-	}
-	gid, err := strconv.Atoi(user.Gid)
-	if err != nil {
-		return fmt.Errorf("cannot get gid of user %q: %s", username, err)
+		return err
 	}
 	authDataFn := filepath.Join(user.HomeDir, ".snap", "auth.json")
 	if err := osutil.MkdirAllChown(filepath.Dir(authDataFn), 0700, uid, gid); err != nil {
