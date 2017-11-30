@@ -353,24 +353,31 @@ func (sched *Schedule) Next(last time.Time) NextSchedule {
 
 		var spread bool
 		for i := range times {
+			// consider all time spans for this particular date and
+			// find the earliest possible one that is not before
+			// 'now', and does not include the 'last' time
 			ts := times[i]
 			newA, newB := ts.MakeTime(t)
+
+			// the time span ends before 'now', try another one
+			if newB.Before(now) {
+				continue
+			}
 
 			// same interval as last update, move forward
 			if (last.Equal(newA) || last.After(newA)) && (last.Equal(newB) || last.Before(newB)) {
 				continue
 			}
 
-			// if candidate comes before current use it
+			// if this candidate comes before current candidate use it
 			if a.IsZero() || newA.Before(a) {
 				a = newA
 				b = newB
 				spread = ts.Spread
 			}
 		}
-
-		// if the end is before now
-		if b.Before(now) {
+		// no suitable time span was found this day so try the next day
+		if b.IsZero() || b.Before(now) {
 			continue
 		}
 		return NextSchedule{
