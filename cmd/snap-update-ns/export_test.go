@@ -27,6 +27,8 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 var (
@@ -130,7 +132,7 @@ type SystemCalls interface {
 	Lstat(name string) (os.FileInfo, error)
 
 	Close(fd int) error
-	Fchown(fd int, uid int, gid int) error
+	Fchown(fd int, uid sys.UserID, gid sys.GroupID) error
 	Mkdirat(dirfd int, path string, mode uint32) error
 	Mount(source string, target string, fstype string, flags uintptr, data string) (err error)
 	Open(path string, flags int, mode uint32) (fd int, err error)
@@ -221,7 +223,7 @@ func (sys *SyscallRecorder) Close(fd int) error {
 	return sys.freeFd(fd)
 }
 
-func (sys *SyscallRecorder) Fchown(fd int, uid int, gid int) error {
+func (sys *SyscallRecorder) Fchown(fd int, uid sys.UserID, gid sys.GroupID) error {
 	return sys.call(fmt.Sprintf("fchown %d %d %d", fd, uid, gid))
 }
 

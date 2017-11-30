@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build arm 386 ppc
 
 /*
  * Copyright (C) 2017 Canonical Ltd
@@ -17,35 +18,13 @@
  *
  */
 
-package corecfg
+package sys
 
-import (
-	"fmt"
+import "syscall"
 
-	"github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/timeutil"
+const (
+	_SYS_GETUID  = syscall.SYS_GETUID32
+	_SYS_GETGID  = syscall.SYS_GETGID32
+	_SYS_GETEUID = syscall.SYS_GETEUID32
+	_SYS_GETEGID = syscall.SYS_GETEGID32
 )
-
-func validateRefreshSchedule(tr Conf) error {
-	refreshScheduleStr, err := coreCfg(tr, "refresh.schedule")
-	if err != nil {
-		return err
-	}
-	if refreshScheduleStr == "" {
-		return nil
-	}
-
-	if refreshScheduleStr == "managed" {
-		st := tr.State()
-		st.Lock()
-		defer st.Unlock()
-
-		if !devicestate.CanManageRefreshes(st) {
-			return fmt.Errorf("cannot set schedule to managed")
-		}
-		return nil
-	}
-
-	_, err = timeutil.ParseSchedule(refreshScheduleStr)
-	return err
-}
