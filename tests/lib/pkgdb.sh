@@ -558,6 +558,7 @@ pkg_dependencies_arch(){
     xdg-user-dirs
     expect
     libx11
+    bash-completion
     "
 }
 
