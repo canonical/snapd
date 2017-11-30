@@ -1565,16 +1565,13 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &snapst); err != nil {
-		if err == state.ErrNoState {
+	taskset, err := configstate.ConfigureInstalled(st, snapName, patchValues, 0)
+	if err != nil {
+		if _, ok := err.(*snap.NotInstalledError); ok {
 			return SnapNotFound(snapName, err)
-		} else {
-			return InternalError("%v", err)
 		}
+		return InternalError("%v", err)
 	}
-
-	taskset := configstate.Configure(st, snapName, patchValues, 0)
 
 	summary := fmt.Sprintf("Change configuration of %q snap", snapName)
 	change := newChange(st, "configure-snap", summary, []*state.TaskSet{taskset}, []string{snapName})
@@ -2364,6 +2361,8 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(map[string]interface{}{
 			"base-declaration": string(asserts.Encode(bd)),
 		}, nil)
+	case "can-manage-refreshes":
+		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
