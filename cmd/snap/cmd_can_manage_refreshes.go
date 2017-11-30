@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,35 +17,35 @@
  *
  */
 
-package corecfg
+package main
 
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/timeutil"
+	"github.com/jessevdk/go-flags"
 )
 
-func validateRefreshSchedule(tr Conf) error {
-	refreshScheduleStr, err := coreCfg(tr, "refresh.schedule")
-	if err != nil {
+type cmdCanManageRefreshes struct{}
+
+func init() {
+	cmd := addDebugCommand("can-manage-refreshes",
+		"(internal) return if refresh.schedule=managed can be used",
+		"(internal) return if refresh.schedule=managed can be used",
+		func() flags.Commander {
+			return &cmdCanManageRefreshes{}
+		})
+	cmd.hidden = true
+}
+
+func (x *cmdCanManageRefreshes) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
+	var resp bool
+	if err := Client().Debug("can-manage-refreshes", nil, &resp); err != nil {
 		return err
 	}
-	if refreshScheduleStr == "" {
-		return nil
-	}
-
-	if refreshScheduleStr == "managed" {
-		st := tr.State()
-		st.Lock()
-		defer st.Unlock()
-
-		if !devicestate.CanManageRefreshes(st) {
-			return fmt.Errorf("cannot set schedule to managed")
-		}
-		return nil
-	}
-
-	_, err = timeutil.ParseLegacySchedule(refreshScheduleStr)
-	return err
+	fmt.Fprintf(Stdout, "%v\n", resp)
+	return nil
 }

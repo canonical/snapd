@@ -61,6 +61,10 @@ func needsMaybeCore(typ snap.Type) int {
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
+	if snapst.IsInstalled() && !snapst.Active {
+		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.Name())
+	}
+
 	if snapsup.Flags.Classic {
 		if !release.OnClassic {
 			return nil, fmt.Errorf("classic confinement is only supported on classic systems")
@@ -129,7 +133,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = mount
 	}
 
-	if snapst.Active {
+	// run refresh hooks when updating existing snap, otherwise run install hook further down.
+	runRefreshHooks := (snapst.IsInstalled() && !snapsup.Flags.Revert)
+	if runRefreshHooks {
+		preRefreshHook := SetupPreRefreshHook(st, snapsup.Name())
+		addTask(preRefreshHook)
+		prev = preRefreshHook
+	}
+
+	if snapst.IsInstalled() {
 		// unlink-current-snap (will stop services for copy-data)
 		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), snapsup.Name()))
 		addTask(stop)
@@ -178,11 +190,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupAliases)
 	prev = setupAliases
 
-	// run refresh hook when updating existing snap, otherwise run install hook
-	if snapst.IsInstalled() && !snapsup.Flags.Revert {
-		refreshHook := SetupPostRefreshHook(st, snapsup.Name())
-		addTask(refreshHook)
-		prev = refreshHook
+	if runRefreshHooks {
+		postRefreshHook := SetupPostRefreshHook(st, snapsup.Name())
+		addTask(postRefreshHook)
+		prev = postRefreshHook
 	}
 
 	// only run install hook if installing the snap for the first time
@@ -284,6 +295,10 @@ var Configure = func(st *state.State, snapName string, patch map[string]interfac
 
 var SetupInstallHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupInstallHook is unset")
+}
+
+var SetupPreRefreshHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.SetupPreRefreshHook is unset")
 }
 
 var SetupPostRefreshHook = func(st *state.State, snapName string) *state.Task {
