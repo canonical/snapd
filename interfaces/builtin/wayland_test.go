@@ -30,9 +30,11 @@ import (
 )
 
 type WaylandInterfaceSuite struct {
-	iface    interfaces.Interface
-	coreSlot *interfaces.Slot
-	plug     *interfaces.Plug
+	iface        interfaces.Interface
+	coreSlotInfo *snap.SlotInfo
+	coreSlot     *interfaces.ConnectedSlot
+	plugInfo     *snap.PlugInfo
+	plug         *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&WaylandInterfaceSuite{
@@ -52,8 +54,8 @@ slots:
 `
 
 func (s *WaylandInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, waylandConsumerYaml, nil, "wayland")
-	s.coreSlot = MockSlot(c, waylandCoreYaml, nil, "wayland")
+	s.plug, s.plugInfo = MockConnectedPlug(c, waylandConsumerYaml, nil, "wayland")
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, waylandCoreYaml, nil, "wayland")
 }
 
 func (s *WaylandInterfaceSuite) TestName(c *C) {
@@ -61,31 +63,31 @@ func (s *WaylandInterfaceSuite) TestName(c *C) {
 }
 
 func (s *WaylandInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.coreSlot.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizeSlot(s.iface, s.coreSlotInfo), IsNil)
 	// wayland slot currently only used with core
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "wayland",
 		Interface: "wayland",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
 		"wayland slots are reserved for the core snap")
 }
 
 func (s *WaylandInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *WaylandInterfaceSuite) TestAppArmorSpec(c *C) {
 	// connected plug to core slot
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/*/wayland-[0-9]* rw,")
 
 	// connected plug to core slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 

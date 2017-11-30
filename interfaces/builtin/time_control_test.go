@@ -31,21 +31,15 @@ import (
 )
 
 type TimeControlInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&TimeControlInterfaceSuite{
 	iface: builtin.MustInterface("time-control"),
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "time-control",
-			Interface: "time-control",
-		},
-	},
-	plug: nil,
 })
 
 const timectlConsumerYaml = `name: consumer
@@ -61,8 +55,8 @@ slots:
 `
 
 func (s *TimeControlInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, timectlConsumerYaml, nil, "time-control")
-	s.slot = MockSlot(c, timectlCoreYaml, nil, "time-control")
+	s.plug, s.plugInfo = MockConnectedPlug(c, timectlConsumerYaml, nil, "time-control")
+	s.slot, s.slotInfo = MockConnectedSlot(c, timectlCoreYaml, nil, "time-control")
 }
 
 func (s *TimeControlInterfaceSuite) TestName(c *C) {
@@ -70,30 +64,30 @@ func (s *TimeControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *TimeControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "time-control",
 		Interface: "time-control",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
 		"time-control slots are reserved for the core snap")
 }
 
 func (s *TimeControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *TimeControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "org/freedesktop/timedate1")
 }
 
 func (s *TimeControlInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	c.Assert(spec.Snippets(), testutil.Contains, `# time-control
 SUBSYSTEM=="rtc", TAG+="snap_consumer_app"`)
@@ -108,7 +102,8 @@ func (s *TimeControlInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *TimeControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
+	// FIXME: fix AutoConnect methods
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 
 func (s *TimeControlInterfaceSuite) TestInterfaces(c *C) {

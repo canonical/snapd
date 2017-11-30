@@ -71,7 +71,7 @@ var hidrawDeviceNodePattern = regexp.MustCompile("^/dev/hidraw[0-9]{1,3}$")
 var hidrawUDevSymlinkPattern = regexp.MustCompile("^/dev/hidraw-[a-z0-9]+$")
 
 // SanitizeSlot checks validity of the defined slot
-func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *hidrawInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct
 	return nil
 }
 
-func (iface *hidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *hidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if iface.hasUsbAttrs(slot) {
 		// This apparmor rule must match hidrawDeviceNodePattern
 		// UDev tagging and device cgroups will restrict down to the specific device
@@ -146,9 +146,9 @@ func (iface *hidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	}
 
 	// Path to fixed device node
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk {
-		return nil
+	var path string
+	if err := slot.Attr("path", &path); err != nil {
+		return err
 	}
 	cleanedPath := filepath.Clean(path)
 	spec.AddSnippet(fmt.Sprintf("%s rw,", cleanedPath))
@@ -156,23 +156,27 @@ func (iface *hidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 
 }
 
-func (iface *hidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *hidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	hasOnlyPath := true
 	if iface.hasUsbAttrs(slot) {
 		hasOnlyPath = false
 	}
 
-	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-	if !vOk && !hasOnlyPath {
+	var usbVendor int64
+	var usbProduct int64
+	var path string
+
+	err := slot.Attr("usb-vendor", &usbVendor)
+	if err != nil && !hasOnlyPath {
 		return nil
 	}
-	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-	if !pOk && !hasOnlyPath {
+	err = slot.Attr("usb-product", &usbProduct)
+	if err != nil && !hasOnlyPath {
 		return nil
 	}
 
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk && hasOnlyPath {
+	err = slot.Attr("path", &path)
+	if err != nil && hasOnlyPath {
 		return nil
 	}
 
@@ -190,11 +194,12 @@ func (iface *hidrawInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bo
 	return true
 }
 
-func (iface *hidrawInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
-	if _, ok := slot.Attrs["usb-vendor"]; ok {
+func (iface *hidrawInterface) hasUsbAttrs(attrs interfaces.AttrGetter) bool {
+	var v int64
+	if err := attrs.Attr("usb-vendor", &v); err == nil {
 		return true
 	}
-	if _, ok := slot.Attrs["usb-product"]; ok {
+	if err := attrs.Attr("usb-product", &v); err == nil {
 		return true
 	}
 	return false
