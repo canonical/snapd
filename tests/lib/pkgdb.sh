@@ -357,6 +357,7 @@ pkg_dependencies_ubuntu_generic(){
         git
         indent
         jq
+        apparmor-utils
         libapparmor-dev
         libglib2.0-dev
         libseccomp-dev
