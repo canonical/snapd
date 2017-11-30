@@ -106,6 +106,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.DownloadURL = d.DownloadURL
 	info.Prices = d.Prices
 	info.Private = d.Private
+	info.Paid = len(info.Prices) > 0
 	info.Confinement = snap.ConfinementType(d.Confinement)
 	info.Contact = d.Contact
 	info.License = d.License
@@ -428,13 +429,6 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		deltaFormat = defaultSupportedDeltaFormat
 	}
 
-	var cacher downloadCache
-	if cfg.CacheDownloads > 0 {
-		cacher = NewCacheManager(dirs.SnapDownloadCacheDir, cfg.CacheDownloads)
-	} else {
-		cacher = &nullCache{}
-	}
-
 	store := &Store{
 		cfg:             cfg,
 		series:          series,
@@ -444,13 +438,14 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailFields:    fields,
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
-		cacher:          cacher,
 
 		client: httputil.NewHTTPClient(&httputil.ClientOpts{
 			Timeout:    10 * time.Second,
 			MayLogBody: true,
 		}),
 	}
+	store.SetCacheDownloads(cfg.CacheDownloads)
+
 	return store
 }
 
@@ -940,7 +935,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 	// Mark every non-free snap as must buy until we know better.
 	hasPriced := false
 	for _, info := range snaps {
-		if len(info.Prices) != 0 {
+		if info.Paid {
 			info.MustBuy = true
 			hasPriced = true
 		}
@@ -982,15 +977,15 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 	}
 
 	for _, info := range snaps {
-		info.MustBuy = mustBuy(info.Prices, bought[info.SnapID])
+		info.MustBuy = mustBuy(info.Paid, bought[info.SnapID])
 	}
 
 	return nil
 }
 
 // mustBuy determines if a snap requires a payment, based on if it is non-free and if the user has already bought it
-func mustBuy(prices map[string]float64, bought bool) bool {
-	if len(prices) == 0 {
+func mustBuy(paid bool, bought bool) bool {
+	if !paid {
 		// If the snap is free, then it doesn't need buying
 		return false
 	}
@@ -1207,8 +1202,13 @@ func (s *Store) WriteCatalogs(names io.Writer) error {
 		Accept: halJsonContentType,
 	}
 
+	// do not log body for catalog updates (its huge)
+	client := httputil.NewHTTPClient(&httputil.ClientOpts{
+		MayLogBody: false,
+		Timeout:    10 * time.Second,
+	})
 	doRequest := func() (*http.Response, error) {
-		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
+		return s.doRequest(context.TODO(), client, reqOptions, nil)
 	}
 	readResponse := func(resp *http.Response) error {
 		return decodeCatalog(resp, names)
@@ -1975,5 +1975,18 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
 		}
 		return &errors
+	}
+}
+
+func (s *Store) CacheDownloads() int {
+	return s.cfg.CacheDownloads
+}
+
+func (s *Store) SetCacheDownloads(fileCount int) {
+	s.cfg.CacheDownloads = fileCount
+	if fileCount > 0 {
+		s.cacher = NewCacheManager(dirs.SnapDownloadCacheDir, fileCount)
+	} else {
+		s.cacher = &nullCache{}
 	}
 }

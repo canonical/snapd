@@ -66,6 +66,7 @@ const openglConnectedPlugAppArmor = `
 
   # /sys/devices
   /sys/devices/pci[0-9]*/**/config r,
+  /sys/devices/pci[0-9]*/**/revision r,
   /sys/devices/pci[0-9]*/**/{,subsystem_}device r,
   /sys/devices/pci[0-9]*/**/{,subsystem_}vendor r,
   /sys/devices/**/drm{,_dp_aux_dev}/** r,
