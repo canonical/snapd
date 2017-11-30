@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const spiSummary = `allows access to specific spi controller`
@@ -56,10 +57,10 @@ func (iface *spiInterface) StaticInfo() interfaces.StaticInfo {
 
 var spiDevPattern = regexp.MustCompile("^/dev/spidev[0-9].[0-9]+$")
 
-func (iface *spiInterface) path(slot *interfaces.Slot) (string, error) {
-	path, ok := slot.Attrs["path"].(string)
-	if !ok || path == "" {
-		return "", fmt.Errorf("slot %q must have a path attribute", slot.Ref())
+func (iface *spiInterface) path(attrs interfaces.AttrGetter) (string, error) {
+	var path string
+	if err := attrs.Attr("path", &path); err != nil || path == "" {
+		return "", fmt.Errorf("spi slot must have a path attribute")
 	}
 	path = filepath.Clean(path)
 	if !spiDevPattern.MatchString(path) {
@@ -68,7 +69,7 @@ func (iface *spiInterface) path(slot *interfaces.Slot) (string, error) {
 	return path, nil
 }
 
-func (iface *spiInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *spiInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
@@ -76,7 +77,7 @@ func (iface *spiInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return err
 }
 
-func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	path, err := iface.path(slot)
 	if err != nil {
 		return nil
@@ -86,7 +87,7 @@ func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *spiInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *spiInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	path, err := iface.path(slot)
 	if err != nil {
 		return nil
