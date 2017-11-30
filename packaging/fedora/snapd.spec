@@ -65,7 +65,7 @@
 %endif
 
 Name:           snapd
-Version:        2.29.4
+Version:        2.29.4.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -696,6 +696,11 @@ fi
 
 
 %changelog
+* Thu Nov 30 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.29.4.2
+  - snap-confine: use #include in snap-confine.apparmor.in
+  - packaging: fix typo that causes error in the misspell test
+
 * Fri Nov 17 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.29.4
  - snap-confine: fix snap-confine under lxd

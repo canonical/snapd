@@ -1,3 +1,10 @@
+snapd (2.29.4.2) xenial; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - snap-confine: use #include in snap-confine.apparmor.in
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 30 Nov 2017 17:42:33 +0100
+
 snapd (2.29.4.1) xenial; urgency=medium
 
   * New upstream release, LP: #1726258

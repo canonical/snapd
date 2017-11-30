@@ -1,3 +1,18 @@
+snapd (2.29.4.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - snap-confine: use #include in snap-confine.apparmor.in
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 30 Nov 2017 17:42:33 +0100
+
+snapd (2.29.4.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1726258
+    - tests: more debug info for classic-ubuntu-core-transition
+    - packaging: fix typo that causes error in the misspell test
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 28 Nov 2017 07:45:23 +0100
+
 snapd (2.29.4~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1726258
