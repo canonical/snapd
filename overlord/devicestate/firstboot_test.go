@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot/boottest"
-	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -43,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -746,8 +746,8 @@ snaps:
 	defer rhk()
 
 	// ensure we have something that captures the core config
-	restore := configstate.MockCorecfgRun(func(corecfg.Conf) error {
-		configured = append(configured, "corecfg")
+	restore := configstate.MockConfigcoreRun(func(configcore.Conf) error {
+		configured = append(configured, "configcore")
 		return nil
 	})
 	defer restore()
@@ -809,7 +809,7 @@ snaps:
 	c.Assert(err, IsNil)
 	c.Check(val, Equals, "foo.")
 
-	c.Check(configured, DeepEquals, []string{"corecfg", "pc-kernel", "pc", "foo"})
+	c.Check(configured, DeepEquals, []string{"configcore", "pc-kernel", "pc", "foo"})
 
 	// and ensure state is now considered seeded
 	var seeded bool

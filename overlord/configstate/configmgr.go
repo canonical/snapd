@@ -22,7 +22,7 @@ package configstate
 import (
 	"regexp"
 
-	"github.com/snapcore/snapd/corecfg"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -34,13 +34,13 @@ type ConfigManager struct {
 	runner *state.TaskRunner
 }
 
-var corecfgRun = corecfg.Run
+var configcoreRun = configcore.Run
 
-func MockCorecfgRun(f func(conf corecfg.Conf) error) (restore func()) {
-	origCorecfgRun := corecfgRun
-	corecfgRun = f
+func MockConfigcoreRun(f func(conf configcore.Conf) error) (restore func()) {
+	origConfigcoreRun := configcoreRun
+	configcoreRun = f
 	return func() {
-		corecfgRun = origCorecfgRun
+		configcoreRun = origConfigcoreRun
 	}
 }
 
@@ -50,13 +50,13 @@ func Manager(st *state.State, hookManager *hookstate.HookManager) (*ConfigManage
 	// snaps. However some configuration is internally handled
 	hookManager.Register(regexp.MustCompile("^configure$"), newConfigureHandler)
 	// Ensure that we run configure for the core snap internally.
-	// Note that we use the func() indirection so that mocking corecfgRun
+	// Note that we use the func() indirection so that mocking configcoreRun
 	// in tests works correctly.
 	hookManager.RegisterHijack("configure", "core", func(ctx *hookstate.Context) error {
 		ctx.Lock()
 		tr := ContextTransaction(ctx)
 		ctx.Unlock()
-		return corecfgRun(tr)
+		return configcoreRun(tr)
 	})
 
 	// we handle core/snapd specific configuration internally because
