@@ -25,6 +25,7 @@ check: check-unit-tests
 .PHONY: check-syntax-c
 check-syntax-c:
 	echo "WARNING: check-syntax-c produces different results for different version of indent"
+	echo "Your version of indent: `indent --version`"
 	@d=`mktemp -d`; \
 	trap 'rm -rf $d' EXIT; \
 	for f in $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])) ; do \
