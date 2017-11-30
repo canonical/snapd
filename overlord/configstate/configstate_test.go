@@ -144,9 +144,8 @@ func (s *coreCfgHijackSuite) SetUpTest(c *C) {
 	hookMgr, err := hookstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.o.AddManager(hookMgr)
-	configMgr, err := configstate.Manager(s.state, hookMgr)
+	err = configstate.Init(hookMgr)
 	c.Assert(err, IsNil)
-	s.o.AddManager(configMgr)
 }
 
 func (s *coreCfgHijackSuite) TestHijack(c *C) {
