@@ -143,14 +143,24 @@ static void show_buffers(const char *line, int offset,
 }
 
 static char *parse_next_string_field(struct sc_mountinfo_entry *entry,
-				     const char *line, int *offset,
-				     int *offset_delta)
+				     const char *line, int *offset)
 {
+	int offset_delta = 0;
 	char *field = &entry->line_buf[0] + *offset;
-	int nscanned = sscanf(line + *offset, "%s %n", field, offset_delta);
-	if (nscanned != 1)
-		return NULL;
-	*offset += *offset_delta;
+	if (line[*offset] == ' ') {
+		// Special case for empty fields which cannot be parsed with %s.
+		*field = '\0';
+		*offset += 1;
+	} else {
+		int nscanned =
+		    sscanf(line + *offset, "%s%n", field, &offset_delta);
+		if (nscanned != 1)
+			return NULL;
+		*offset += offset_delta;
+		if (line[*offset] == ' ') {
+			*offset += 1;
+		}
+	}
 	show_buffers(line, *offset, entry);
 	return field;
 }
@@ -201,23 +211,19 @@ static struct sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 	show_buffers(line, offset, entry);
 
 	if ((entry->root =
-	     parse_next_string_field(entry, line, &offset,
-				     &offset_delta)) == NULL)
+	     parse_next_string_field(entry, line, &offset)) == NULL)
 		goto fail;
 	if ((entry->mount_dir =
-	     parse_next_string_field(entry, line, &offset,
-				     &offset_delta)) == NULL)
+	     parse_next_string_field(entry, line, &offset)) == NULL)
 		goto fail;
 	if ((entry->mount_opts =
-	     parse_next_string_field(entry, line, &offset,
-				     &offset_delta)) == NULL)
+	     parse_next_string_field(entry, line, &offset)) == NULL)
 		goto fail;
 	entry->optional_fields = &entry->line_buf[0] + offset;
 	// NOTE: This ensures that optional_fields is never NULL. If this changes,
 	// must adjust all callers of parse_mountinfo_entry() accordingly.
 	for (int field_num = 0;; ++field_num) {
-		char *opt_field = parse_next_string_field(entry, line, &offset,
-							  &offset_delta);
+		char *opt_field = parse_next_string_field(entry, line, &offset);
 		if (opt_field == NULL)
 			goto fail;
 		if (strcmp(opt_field, "-") == 0) {
@@ -229,16 +235,13 @@ static struct sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 		}
 	}
 	if ((entry->fs_type =
-	     parse_next_string_field(entry, line, &offset,
-				     &offset_delta)) == NULL)
+	     parse_next_string_field(entry, line, &offset)) == NULL)
 		goto fail;
 	if ((entry->mount_source =
-	     parse_next_string_field(entry, line, &offset,
-				     &offset_delta)) == NULL)
+	     parse_next_string_field(entry, line, &offset)) == NULL)
 		goto fail;
 	if ((entry->super_opts =
-	     parse_next_string_field(entry, line, &offset,
-				     &offset_delta)) == NULL)
+	     parse_next_string_field(entry, line, &offset)) == NULL)
 		goto fail;
 	show_buffers(line, offset, entry);
 	return entry;

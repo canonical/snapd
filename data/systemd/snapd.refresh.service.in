@@ -7,5 +7,5 @@ Documentation=man:snap(1)
 
 [Service]
 Type=oneshot
-ExecStart=@bindir@/snap refresh
+ExecStart=/bin/sh -c 'if ! @bindir@/snap refresh --time|grep "schedule:.*managed"; then @bindir@/snap refresh; fi'
 Environment=SNAP_REFRESH_FROM_EMERGENCY_TIMER=1
