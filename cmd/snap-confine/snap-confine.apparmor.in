@@ -306,18 +306,14 @@
     /var/lib/snapd/context/snap.* r,
 
     # Allow snap-confine to unmount stale mount namespaces.
-    # XXX: This rule is not necessary due to the bug mentioned below. I'm
-    # including it in the hope that it can be used once the kernel is fixed.
     umount /run/snapd/ns/*.mnt,
-
-    # XXX: This looks like a bug in apparmor where it becomes woefully confused
-    # about where we are after setns calls that jump in and then out of a mount
-    # namespace.  Without the following rule I see this failure while executing
-    # qemu:ubuntu-16.04-64:tests/main/stale-base-snap
+    # XXX: It seems the bug is back, we still need this. Without this rule we
+    # get this denial. Note that the code really only (always) unmounts
+    # /run/snapd/ns/$SNAP_NAME.mnt so this is a genuine kernel bug.
     #
-    # Nov 29 22:11:00 autopkgtest audit[21993]: AVC apparmor="DENIED"
+    # Nov 30 10:26:00 autopkgtest audit[16159]: AVC apparmor="DENIED"
     # operation="umount" profile="/snap/core/x1/usr/lib/snapd/snap-confine"
-    # name="/" pid=21993 comm="snap-confine"
+    #
     umount /,
 
     # Support for the quirk system
@@ -368,7 +364,7 @@
     capability sys_admin,
     signal (send, receive) set=(abrt) peer=@LIBEXECDIR@/snap-confine,
     signal (send) set=(int) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
-    signal (send, receive) set=(alrm, exists) peer=@LIBEXECDIR@/snap-confine,
+    signal (send, receive) set=(int, alrm, exists) peer=@LIBEXECDIR@/snap-confine,
     signal (receive) set=(exists) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
 
     # workaround for linux 4.13/upstream, see
