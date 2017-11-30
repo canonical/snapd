@@ -17,7 +17,7 @@
  *
  */
 
-package corecfg
+package configcore
 
 import (
 	"fmt"

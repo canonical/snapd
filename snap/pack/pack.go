@@ -30,6 +30,7 @@ import (
 	"syscall"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 )
@@ -175,9 +176,9 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 				return err
 			}
 			// ensure that permissions are preserved
-			uid := int(info.Sys().(*syscall.Stat_t).Uid)
-			gid := int(info.Sys().(*syscall.Stat_t).Gid)
-			return os.Chown(dest, uid, gid)
+			uid := sys.UserID(info.Sys().(*syscall.Stat_t).Uid)
+			gid := sys.GroupID(info.Sys().(*syscall.Stat_t).Gid)
+			return sys.ChownPath(dest, uid, gid)
 		}
 
 		// handle char/block devices

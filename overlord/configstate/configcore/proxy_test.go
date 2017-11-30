@@ -17,7 +17,7 @@
  *
  */
 
-package corecfg_test
+package configcore_test
 
 import (
 	"fmt"
@@ -30,14 +30,14 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
-	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 )
 
 type proxySuite struct {
-	coreCfgSuite
+	configcoreSuite
 
 	mockEtcEnvironment string
 
@@ -47,7 +47,7 @@ type proxySuite struct {
 var _ = Suite(&proxySuite{})
 
 func (s *proxySuite) SetUpTest(c *C) {
-	s.coreCfgSuite.SetUpTest(c)
+	s.configcoreSuite.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
@@ -86,7 +86,7 @@ PATH="/usr/bin"
 `), 0644)
 		c.Assert(err, IsNil)
 
-		err = corecfg.Run(&mockConf{
+		err = configcore.Run(&mockConf{
 			conf: map[string]interface{}{
 				fmt.Sprintf("proxy.%s", proto): fmt.Sprintf("%s://example.com", proto),
 			},
@@ -103,7 +103,7 @@ PATH="/usr/bin"
 
 func (s *proxySuite) TestConfigureProxyStore(c *C) {
 	// set to ""
-	err := corecfg.Run(&mockConf{
+	err := configcore.Run(&mockConf{
 		conf: map[string]interface{}{
 			"proxy.store": "",
 		},
@@ -118,7 +118,7 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 		},
 	}
 
-	err = corecfg.Run(conf)
+	err = configcore.Run(conf)
 	c.Check(err, ErrorMatches, `cannot set proxy.store to "foo" without a matching store assertion`)
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
@@ -139,6 +139,6 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 
-	err = corecfg.Run(conf)
+	err = configcore.Run(conf)
 	c.Check(err, IsNil)
 }
