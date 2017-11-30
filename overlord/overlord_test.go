@@ -63,6 +63,12 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	restore := patch.Mock(42, nil)
 	defer restore()
 
+	var configstateInitCalled bool
+	overlord.MockConfigstateInit(func(*hookstate.HookManager) error {
+		configstateInitCalled := true
+		return nil
+	})
+
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 	c.Check(o, NotNil)
@@ -73,7 +79,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.HookManager(), NotNil)
 	c.Check(o.DeviceManager(), NotNil)
 	c.Check(o.CommandManager(), NotNil)
-	c.Check(o.ConfigManager(), NotNil)
+	c.Check(configstateInitCalled, Equals, true)
 
 	s := o.State()
 	c.Check(s, NotNil)

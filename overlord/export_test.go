@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -63,5 +64,12 @@ func MockStoreNew(new func(*store.Config, auth.AuthContext) *store.Store) (resto
 	storeNew = new
 	return func() {
 		storeNew = store.New
+	}
+}
+
+func MockConfigstateInit(new func(hookmgr *hookstate.HookManager) error) (restore func()) {
+	configstateInit = new
+	return func() {
+		configstateInit = configstate.Init
 	}
 }

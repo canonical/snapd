@@ -24,13 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/state"
 )
-
-// ConfigManager is responsible for the maintenance of per-snap
-// configuration in the system state. It is not a "real" manager as it
-// passes the heavy lifting on to the HookManager.
-type ConfigManager struct{}
 
 var corecfgRun = corecfg.Run
 
@@ -42,8 +36,7 @@ func MockCorecfgRun(f func(conf corecfg.Conf) error) (restore func()) {
 	}
 }
 
-// Manager returns a new ConfigManager.
-func Manager(st *state.State, hookManager *hookstate.HookManager) (*ConfigManager, error) {
+func Init(hookManager *hookstate.HookManager) error {
 	// Most configuration is handled via the "configure" hook of the
 	// snaps. However some configuration is internally handled
 	hookManager.Register(regexp.MustCompile("^configure$"), newConfigureHandler)
@@ -57,18 +50,5 @@ func Manager(st *state.State, hookManager *hookstate.HookManager) (*ConfigManage
 		return corecfgRun(tr)
 	})
 
-	return &ConfigManager{}, nil
-}
-
-// Ensure implements StateManager.Ensure.
-func (m *ConfigManager) Ensure() error {
 	return nil
-}
-
-// Wait implements StateManager.Wait.
-func (m *ConfigManager) Wait() {
-}
-
-// Stop implements StateManager.Stop.
-func (m *ConfigManager) Stop() {
 }
