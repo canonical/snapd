@@ -44,8 +44,14 @@ func switchDisableService(service, value string) error {
 		if err := sysd.Disable(serviceName); err != nil {
 			return err
 		}
+		if err := sysd.Mask(serviceName); err != nil {
+			return err
+		}
 		return sysd.Stop(serviceName, 5*time.Minute)
 	case "false":
+		if err := sysd.Unmask(serviceName); err != nil {
+			return err
+		}
 		if err := sysd.Enable(serviceName); err != nil {
 			return err
 		}
