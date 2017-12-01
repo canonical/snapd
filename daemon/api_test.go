@@ -3345,7 +3345,7 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
@@ -3686,7 +3686,7 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	_, err := repo.Connect(connRef, nil, nil)
+	_, err := repo.Connect(connRef, nil, nil, nil)
 	c.Assert(err, check.IsNil)
 
 	d.overlord.Loop()

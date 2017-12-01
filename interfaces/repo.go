@@ -551,7 +551,7 @@ type PlugValidator interface {
 
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
-func (r *Repository) Connect(ref ConnRef, plugAttrs map[string]interface{}, slotAttrs map[string]interface{}) (*Connection, error) {
+func (r *Repository) Connect(ref ConnRef, plugAttrs map[string]interface{}, slotAttrs map[string]interface{}, policyCheck func(*ConnectedPlug, *ConnectedSlot) error) (*Connection, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -598,6 +598,12 @@ func (r *Repository) Connect(ref ConnRef, plugAttrs map[string]interface{}, slot
 	} else {
 		// This should never happen
 		return nil, fmt.Errorf("internal error: unknown interface %q", plug.Interface)
+	}
+
+	if policyCheck != nil {
+		if err := policyCheck(cplug, cslot); err != nil {
+			return nil, err
+		}
 	}
 
 	// Connect the plug
@@ -940,7 +946,7 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 
 // AutoConnectCandidateSlots finds and returns viable auto-connection candidates
 // for a given plug.
-func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, policyCheck func(*Plug, *Slot) bool) []*snap.SlotInfo {
+func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, policyCheck func(*ConnectedPlug, *ConnectedSlot) bool) []*snap.SlotInfo {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -961,7 +967,7 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 			plug := &Plug{PlugInfo: plugInfo}
 			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow
-			if !policyCheck(plug, slot) {
+			if !policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil)) {
 				continue
 			}
 
@@ -975,7 +981,7 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 
 // AutoConnectCandidatePlugs finds and returns viable auto-connection candidates
 // for a given slot.
-func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, policyCheck func(*Plug, *Slot) bool) []*snap.PlugInfo {
+func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, policyCheck func(*ConnectedPlug, *ConnectedSlot) bool) []*snap.PlugInfo {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -996,7 +1002,7 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 			plug := &Plug{PlugInfo: plugInfo}
 			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow
-			if !policyCheck(plug, slot) {
+			if !policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil)) {
 				continue
 			}
 

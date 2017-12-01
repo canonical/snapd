@@ -26,10 +26,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/policy"
-	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -369,57 +366,22 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	if plug == nil {
 		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
 	}
-	var plugDecl *asserts.SnapDeclaration
-	if plug.Snap.SnapID != "" {
-		var err error
-		plugDecl, err = assertstate.SnapDeclaration(st, plug.Snap.SnapID)
-		if err != nil {
-			return fmt.Errorf("cannot find snap declaration for %q: %v", plug.Snap.Name(), err)
-		}
-	}
 
 	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	if slot == nil {
 		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
-	}
-	var slotDecl *asserts.SnapDeclaration
-	if slot.Snap.SnapID != "" {
-		var err error
-		slotDecl, err = assertstate.SnapDeclaration(st, slot.Snap.SnapID)
-		if err != nil {
-			return fmt.Errorf("cannot find snap declaration for %q: %v", slot.Snap.Name(), err)
-		}
-	}
-
-	baseDecl, err := assertstate.BaseDeclaration(st)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
-	}
-
-	// check the connection against the declarations' rules
-	ic := policy.ConnectCandidate{
-		Plug:                plug,
-		PlugSnapDeclaration: plugDecl,
-		Slot:                slot,
-		SlotSnapDeclaration: slotDecl,
-		BaseDeclaration:     baseDecl,
-	}
-
-	// if either of plug or slot snaps don't have a declaration it
-	// means they were installed with "dangerous", so the security
-	// check should be skipped at this point.
-	if plugDecl != nil && slotDecl != nil {
-		err = ic.Check()
-		if err != nil {
-			return err
-		}
 	}
 
 	plugAttrs, slotAttrs, err := getTaskHookAttributes(task)
 	if err != nil {
 		return err
 	}
-	conn, err := m.repo.Connect(connRef, plugAttrs, slotAttrs)
+
+	policyCheck, err := newConnectChecker(st)
+	if err != nil {
+		return err
+	}
+	conn, err := m.repo.Connect(connRef, plugAttrs, slotAttrs, policyCheck.check)
 	if err != nil {
 		return err
 	}

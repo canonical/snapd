@@ -204,7 +204,8 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
 			continue
 		}
-		if _, err := m.repo.Connect(connRef, cn.DynamicPlugAttrs, cn.DynamicSlotAttrs); err != nil {
+		// Note: reloaded connections are not checked against policy again.
+		if _, err := m.repo.Connect(connRef, cn.DynamicPlugAttrs, cn.DynamicSlotAttrs, nil); err != nil {
 			logger.Noticef("%s", err)
 		}
 	}
@@ -279,37 +280,92 @@ func (c *autoConnectChecker) snapDeclaration(snapID string) (*asserts.SnapDeclar
 	return snapDecl, nil
 }
 
-func (c *autoConnectChecker) check(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) bool {
 	var plugDecl *asserts.SnapDeclaration
-	if plug.Snap.SnapID != "" {
+	if plug.Snap().SnapID != "" {
 		var err error
-		plugDecl, err = c.snapDeclaration(plug.Snap.SnapID)
+		plugDecl, err = c.snapDeclaration(plug.Snap().SnapID)
 		if err != nil {
-			logger.Noticef("error: cannot find snap declaration for %q: %v", plug.Snap.Name(), err)
+			logger.Noticef("error: cannot find snap declaration for %q: %v", plug.Snap().Name(), err)
 			return false
 		}
 	}
 
 	var slotDecl *asserts.SnapDeclaration
-	if slot.Snap.SnapID != "" {
+	if slot.Snap().SnapID != "" {
 		var err error
-		slotDecl, err = c.snapDeclaration(slot.Snap.SnapID)
+		slotDecl, err = c.snapDeclaration(slot.Snap().SnapID)
 		if err != nil {
-			logger.Noticef("error: cannot find snap declaration for %q: %v", slot.Snap.Name(), err)
+			logger.Noticef("error: cannot find snap declaration for %q: %v", slot.Snap().Name(), err)
 			return false
 		}
 	}
 
 	// check the connection against the declarations' rules
 	ic := policy.ConnectCandidate{
-		Plug:                plug.PlugInfo,
+		Plug:                plug,
 		PlugSnapDeclaration: plugDecl,
-		Slot:                slot.SlotInfo,
+		Slot:                slot,
 		SlotSnapDeclaration: slotDecl,
 		BaseDeclaration:     c.baseDecl,
 	}
 
 	return ic.CheckAutoConnect() == nil
+}
+
+type connectChecker struct {
+	st       *state.State
+	baseDecl *asserts.BaseDeclaration
+}
+
+func newConnectChecker(s *state.State) (*connectChecker, error) {
+	baseDecl, err := assertstate.BaseDeclaration(s)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot find base declaration: %v", err)
+	}
+	return &connectChecker{
+		st:       s,
+		baseDecl: baseDecl,
+	}, nil
+}
+
+func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var plugDecl *asserts.SnapDeclaration
+	if plug.Snap().SnapID != "" {
+		var err error
+		plugDecl, err = assertstate.SnapDeclaration(c.st, plug.Snap().SnapID)
+		if err != nil {
+			return fmt.Errorf("cannot find snap declaration for %q: %v", plug.Snap().Name(), err)
+		}
+	}
+
+	var slotDecl *asserts.SnapDeclaration
+	if slot.Snap().SnapID != "" {
+		var err error
+		slotDecl, err = assertstate.SnapDeclaration(c.st, slot.Snap().SnapID)
+		if err != nil {
+			return fmt.Errorf("cannot find snap declaration for %q: %v", slot.Snap().Name(), err)
+		}
+	}
+
+	// check the connection against the declarations' rules
+	ic := policy.ConnectCandidate{
+		Plug:                plug,
+		PlugSnapDeclaration: plugDecl,
+		Slot:                slot,
+		SlotSnapDeclaration: slotDecl,
+		BaseDeclaration:     c.baseDecl,
+	}
+
+	// if either of plug or slot snaps don't have a declaration it
+	// means they were installed with "dangerous", so the security
+	// check should be skipped at this point.
+	if plugDecl != nil && slotDecl != nil {
+		if err := ic.Check(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // autoConnect connects the given snap to viable candidates returning the list
@@ -368,7 +424,8 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 			// NOTE: we don't log anything here as this is a normal and common condition.
 			continue
 		}
-		if _, err := m.repo.Connect(*connRef, nil, nil); err != nil {
+		// FIXME: need to pass connect policy check once autoconnect supports interface hooks
+		if _, err := m.repo.Connect(*connRef, nil, nil, nil); err != nil {
 			task.Logf("cannot auto connect %s to %s: %s (plug auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
 			continue
 		}
@@ -408,7 +465,8 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 				// NOTE: we don't log anything here as this is a normal and common condition.
 				continue
 			}
-			if _, err := m.repo.Connect(*connRef, nil, nil); err != nil {
+			// FIXME: need to pass connect policy check once autoconnect supports interface hooks
+			if _, err := m.repo.Connect(*connRef, nil, nil, nil); err != nil {
 				task.Logf("cannot auto connect %s to %s: %s (slot auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
 				continue
 			}
