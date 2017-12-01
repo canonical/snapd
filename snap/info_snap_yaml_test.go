@@ -1577,22 +1577,22 @@ apps:
 	c.Assert(err, IsNil)
 
 	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
-		"foo": &snap.AppInfo{
+		"foo": {
 			Snap:       info,
 			Name:       "foo",
 			StartAfter: []string{"bar", "zed"},
 		},
-		"bar": &snap.AppInfo{
+		"bar": {
 			Snap:        info,
 			Name:        "bar",
 			StartBefore: []string{"foo"},
 		},
-		"baz": &snap.AppInfo{
+		"baz": {
 			Snap:       info,
 			Name:       "baz",
 			StartAfter: []string{"foo"},
 		},
-		"zed": &snap.AppInfo{
+		"zed": {
 			Snap: info,
 			Name: "zed",
 		},
