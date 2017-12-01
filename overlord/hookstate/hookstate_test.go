@@ -218,7 +218,26 @@ func (s *hookManagerSuite) TestHookTaskEnsure(c *C) {
 	c.Check(s.change.Status(), Equals, state.DoneStatus)
 }
 
+func (s *hookManagerSuite) TestHookSnapMissing(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", nil)
+	s.state.Unlock()
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.change.Err(), ErrorMatches, `(?s).*cannot find "test-snap" snap.*`)
+}
+
 func (s *hookManagerSuite) TestHookHijackingHappy(c *C) {
+	// this works even if test-snap is not present
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", nil)
+	s.state.Unlock()
+
 	var hijackedContext *hookstate.Context
 	s.manager.RegisterHijack("configure", "test-snap", func(ctx *hookstate.Context) error {
 		hijackedContext = ctx
