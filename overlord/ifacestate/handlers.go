@@ -358,7 +358,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	conns, err := getConns(st)
+	connections, err := getConns(st)
 	if err != nil {
 		return err
 	}
@@ -415,8 +415,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	// TODO: pass dynamic attributes from hooks
-	err = m.repo.Connect(connRef)
+	plugAttrs, slotAttrs, err := getTaskHookAttributes(task)
+	if err != nil {
+		return err
+	}
+	conn, err := m.repo.Connect(connRef, plugAttrs, slotAttrs)
 	if err != nil {
 		return err
 	}
@@ -440,8 +443,8 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	conns[connRef.ID()] = connState{Interface: plug.Interface}
-	setConns(st, conns)
+	connections[connRef.ID()] = connState{Interface: conn.Interface(), DynamicPlugAttrs: conn.Plug.DynamicAttrs(), DynamicSlotAttrs: conn.Slot.DynamicAttrs()}
+	setConns(st, connections)
 
 	return nil
 }
