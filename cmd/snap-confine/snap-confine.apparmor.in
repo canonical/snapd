@@ -263,6 +263,10 @@
     mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
     mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
 
+    # create gl dirs as needed
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/ w,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/ w,
+
     # for chroot on steroids, we use pivot_root as a better chroot that makes
     # apparmor rules behave the same on classic and outside of classic.
 

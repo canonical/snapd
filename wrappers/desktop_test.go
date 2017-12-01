@@ -211,10 +211,10 @@ Exec=snap.app.evil.evil
 `)
 
 	e := wrappers.SanitizeDesktopFile(snap, "app.desktop", desktopContent)
-	c.Assert(string(e), Equals, `[Desktop Entry]
+	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 Name=foo
-Exec=env BAMF_DESKTOP_FILE_HINT=app.desktop /snap/bin/snap.app
-`)
+Exec=env BAMF_DESKTOP_FILE_HINT=app.desktop %s/bin/snap.app
+`, dirs.SnapMountDir))
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExecOk(c *C) {
