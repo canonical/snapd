@@ -541,12 +541,12 @@ func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slo
 
 // SlotValidator can be implemented by Interfaces that need to validate the slot before the security is lifted.
 type SlotValidator interface {
-	ValidateSlot(slot *ConnectedSlot) error
+	AfterPrepareSlot(slot *ConnectedSlot) error
 }
 
 // SlotValidator can be implemented by Interfaces that need to validate the slot before the security is lifted.
 type PlugValidator interface {
-	ValidatePlug(slot *ConnectedPlug) error
+	AfterPreparePlug(slot *ConnectedPlug) error
 }
 
 // Connect establishes a connection between a plug and a slot.
@@ -586,12 +586,12 @@ func (r *Repository) Connect(ref ConnRef, plugAttrs map[string]interface{}, slot
 
 	if iface, ok := r.ifaces[plug.Interface]; ok {
 		if iface, ok := iface.(PlugValidator); ok {
-			if err := iface.ValidatePlug(cplug); err != nil {
+			if err := iface.AfterPreparePlug(cplug); err != nil {
 				return nil, fmt.Errorf("validation failed for snap %q, plug %q: %s", plug.Snap.Name(), plug.Name, err)
 			}
 		}
 		if iface, ok := iface.(SlotValidator); ok {
-			if err := iface.ValidateSlot(cslot); err != nil {
+			if err := iface.AfterPrepareSlot(cslot); err != nil {
 				return nil, fmt.Errorf("validation failed for snap %q, slot %q: %s", slot.Snap.Name(), slot.Name, err)
 			}
 		}
