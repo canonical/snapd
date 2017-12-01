@@ -158,6 +158,9 @@ backends:
             - ubuntu-16.04-armhf:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-16.04-s390x:
+                username: ubuntu
+                password: ubuntu
             # Yakkety
             - ubuntu-16.10-amd64:
                 username: ubuntu
@@ -169,6 +172,9 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-16.10-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-16.10-s390x:
                 username: ubuntu
                 password: ubuntu
             # Zesty
@@ -184,6 +190,9 @@ backends:
             - ubuntu-17.04-armhf:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-17.04-s390x:
+                username: ubuntu
+                password: ubuntu
             # Artful
             - ubuntu-17.10-amd64:
                 username: ubuntu
@@ -197,6 +206,9 @@ backends:
             - ubuntu-17.10-armhf:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-17.10-s390x:
+                username: ubuntu
+                password: ubuntu
             # Bionic
             - ubuntu-18.04-amd64:
                 username: ubuntu
@@ -208,6 +220,9 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-18.04-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-s390x:
                 username: ubuntu
                 password: ubuntu
     external:

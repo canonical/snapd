@@ -35,6 +35,9 @@
 
 #define SC_NVIDIA_DRIVER_VERSION_FILE "/sys/module/nvidia/version"
 
+// note: if the parent dir changes to something other than
+// the current /var/lib/snapd/lib then sc_mkdir_and_mount_and_bind
+// and sc_mkdir_and_mount_and_bind need updating.
 #define SC_LIBGL_DIR   "/var/lib/snapd/lib/gl"
 #define SC_LIBGL32_DIR "/var/lib/snapd/lib/gl32"
 #define SC_VULKAN_DIR  "/var/lib/snapd/lib/vulkan"
@@ -220,15 +223,21 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 	}
 }
 
-static void sc_mount_and_glob_files(const char *rootfs_dir,
-				    const char *tgt_dir,
-				    const char *glob_list[],
-				    size_t glob_list_len)
+static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
+					      const char *tgt_dir,
+					      const char *glob_list[],
+					      size_t glob_list_len)
 {
 	// Bind mount a tmpfs on $rootfs_dir/$tgt_dir (i.e. /var/lib/snapd/lib/gl)
 	char buf[512] = { 0 };
 	sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir, tgt_dir);
 	const char *libgl_dir = buf;
+
+	int res = mkdir(libgl_dir, 0755);
+	if (res != 0 && errno != EEXIST) {
+		die("cannot create tmpfs target %s", libgl_dir);
+	}
+
 	debug("mounting tmpfs at %s", libgl_dir);
 	if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
 		die("cannot mount tmpfs at %s", libgl_dir);
@@ -247,10 +256,10 @@ static void sc_mount_and_glob_files(const char *rootfs_dir,
 
 static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 {
-	sc_mount_and_glob_files(rootfs_dir, SC_LIBGL_DIR,
-				nvidia_globs, nvidia_globs_len);
-	sc_mount_and_glob_files(rootfs_dir, SC_LIBGL32_DIR,
-				nvidia_globs32, nvidia_globs32_len);
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_LIBGL_DIR,
+					  nvidia_globs, nvidia_globs_len);
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_LIBGL32_DIR,
+					  nvidia_globs32, nvidia_globs32_len);
 }
 
 #endif				// ifdef NVIDIA_BIARCH
@@ -287,8 +296,9 @@ static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
 	      driver->minor_version);
 }
 
-static void sc_mount_and_bind(const char *rootfs_dir, const char *src_dir,
-			      const char *tgt_dir)
+static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir,
+					const char *src_dir,
+					const char *tgt_dir)
 {
 	struct sc_nvidia_driver driver;
 
@@ -315,6 +325,10 @@ static void sc_mount_and_bind(const char *rootfs_dir, const char *src_dir,
 	if (access(src, F_OK) != 0) {
 		return;
 	}
+	int res = mkdir(dst, 0755);
+	if (res != 0 && errno != EEXIST) {
+		die("cannot create directory %s", dst);
+	}
 	// Bind mount the binary nvidia driver into $tgt_dir (i.e. /var/lib/snapd/lib/gl).
 	debug("bind mounting nvidia driver %s -> %s", src, dst);
 	if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
@@ -325,8 +339,10 @@ static void sc_mount_and_bind(const char *rootfs_dir, const char *src_dir,
 static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 {
 	// Attempt mount of both the native and 32-bit variants of the driver if they exist
-	sc_mount_and_bind(rootfs_dir, "/usr/lib/nvidia", SC_LIBGL_DIR);
-	sc_mount_and_bind(rootfs_dir, "/usr/lib32/nvidia", SC_LIBGL32_DIR);
+	sc_mkdir_and_mount_and_bind(rootfs_dir, "/usr/lib/nvidia",
+				    SC_LIBGL_DIR);
+	sc_mkdir_and_mount_and_bind(rootfs_dir, "/usr/lib32/nvidia",
+				    SC_LIBGL32_DIR);
 }
 
 #endif				// ifdef NVIDIA_MULTIARCH
@@ -345,6 +361,6 @@ void sc_mount_nvidia_driver(const char *rootfs_dir)
 #endif				// ifdef NVIDIA_BIARCH
 
 	// Common for both driver mechanisms
-	sc_mount_and_glob_files(rootfs_dir, SC_VULKAN_DIR,
-				vulkan_globs, vulkan_globs_len);
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_VULKAN_DIR,
+					  vulkan_globs, vulkan_globs_len);
 }
