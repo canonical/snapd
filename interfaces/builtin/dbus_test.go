@@ -154,7 +154,7 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := info.Slots["dbus-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestValidSystemBusName(c *C) {
@@ -171,7 +171,7 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := info.Slots["dbus-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestValidFullBusName(c *C) {
@@ -188,7 +188,7 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := info.Slots["dbus-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestNonexistentBusName(c *C) {
@@ -205,7 +205,7 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := info.Slots["dbus-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches, "bus 'nonexistent' must be one of 'session' or 'system'")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "bus 'nonexistent' must be one of 'session' or 'system'")
 }
 
 // If this test is failing, be sure to verify the AppArmor rules for binding to
@@ -224,7 +224,7 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := info.Slots["dbus-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches, "DBus bus name must not end with -NUMBER")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "DBus bus name must not end with -NUMBER")
 }
 
 func (s *DbusInterfaceSuite) TestSanitizeSlotSystem(c *C) {
@@ -241,7 +241,7 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := info.Slots["dbus-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestSanitizeSlotSession(c *C) {
@@ -258,7 +258,7 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := info.Slots["dbus-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestSanitizePlugSystem(c *C) {

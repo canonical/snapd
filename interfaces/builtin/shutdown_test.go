@@ -65,13 +65,13 @@ func (s *ShutdownInterfaceSuite) TestName(c *C) {
 }
 
 func (s *ShutdownInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "shutdown",
 		Interface: "shutdown",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches, "shutdown slots are reserved for the core snap")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "shutdown slots are reserved for the core snap")
 }
 
 func (s *ShutdownInterfaceSuite) TestSanitizePlug(c *C) {

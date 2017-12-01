@@ -1474,7 +1474,7 @@ func (s *AddRemoveSuite) SetUpTest(c *C) {
 	err = s.repo.AddInterface(&ifacetest.TestInterface{
 		InterfaceName:             "invalid",
 		BeforePreparePlugCallback: func(plug *snap.PlugInfo) error { return fmt.Errorf("plug is invalid") },
-		SanitizeSlotCallback:      func(slot *snap.SlotInfo) error { return fmt.Errorf("slot is invalid") },
+		BeforePrepareSlotCallback: func(slot *snap.SlotInfo) error { return fmt.Errorf("slot is invalid") },
 	})
 	c.Assert(err, IsNil)
 }

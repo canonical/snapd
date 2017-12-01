@@ -409,7 +409,7 @@ func (iface *dbusInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	return err
 }
 
-func (iface *dbusInterface) SanitizeSlot(slot *snap.SlotInfo) error {
+func (iface *dbusInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	_, _, err := iface.getAttribs(slot.Attrs)
 	return err
 }

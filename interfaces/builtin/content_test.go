@@ -59,7 +59,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := info.Slots["content-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *ContentSuite) TestSanitizeSlotContentLabelDefault(c *C) {
@@ -73,7 +73,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := info.Slots["content-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 	c.Assert(slot.Attrs["content"], Equals, slot.Name)
 }
 
@@ -87,7 +87,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := info.Slots["content-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches, "read or write path must be set")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "read or write path must be set")
 }
 
 func (s *ContentSuite) TestSanitizeSlotEmptyPaths(c *C) {
@@ -102,7 +102,7 @@ slots:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := info.Slots["content-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches, "read or write path must be set")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "read or write path must be set")
 }
 
 func (s *ContentSuite) TestSanitizeSlotHasRelativePath(c *C) {
@@ -116,7 +116,7 @@ slots:
 	for _, rw := range []string{"read: [../foo]", "write: [../bar]"} {
 		info := snaptest.MockInfo(c, mockSnapYaml+"  "+rw, nil)
 		slot := info.Slots["content-slot"]
-		c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches, "content interface path is not clean:.*")
+		c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "content interface path is not clean:.*")
 	}
 }
 
@@ -198,7 +198,7 @@ apps:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := info.Slots["content"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches, "read or write path must be set")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "read or write path must be set")
 }
 
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {

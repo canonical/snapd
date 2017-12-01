@@ -66,13 +66,13 @@ func (s *MountObserveInterfaceSuite) TestName(c *C) {
 }
 
 func (s *MountObserveInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "mount-observe",
 		Interface: "mount-observe",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches, "mount-observe slots are reserved for the core snap")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "mount-observe slots are reserved for the core snap")
 }
 
 func (s *MountObserveInterfaceSuite) TestSanitizePlug(c *C) {

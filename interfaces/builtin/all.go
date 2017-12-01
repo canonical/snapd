@@ -93,7 +93,7 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 			badSlots = append(badSlots, slotName)
 			continue
 		}
-		if err := interfaces.SanitizeSlot(iface, slotInfo); err != nil {
+		if err := interfaces.BeforePrepareSlot(iface, slotInfo); err != nil {
 			snapInfo.BadInterfaces[slotName] = err.Error()
 			badSlots = append(badSlots, slotName)
 			continue
