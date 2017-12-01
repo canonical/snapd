@@ -62,8 +62,8 @@ plugs:
 	slotSnap := snaptest.MockInfo(c, slotYaml, nil)
 	plugSnap := snaptest.MockInfo(c, plugYaml, nil)
 	return &policy.ConnectCandidate{
-		Plug:            plugSnap.Plugs[iface],
-		Slot:            slotSnap.Slots[iface],
+		Plug:            interfaces.NewConnectedPlug(plugSnap.Plugs[iface], nil),
+		Slot:            interfaces.NewConnectedSlot(slotSnap.Slots[iface], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 }
