@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/spdx"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Regular expressions describing correct identifiers.
@@ -263,6 +264,44 @@ func validateAppSocket(socket *SocketInfo) error {
 	return validateSocketAddr(socket, "listen-stream", socket.ListenStream)
 }
 
+type appStartupOrder int
+
+const (
+	orderBefore appStartupOrder = iota
+	orderAfter
+)
+
+func validateAppStartup(app *AppInfo, order appStartupOrder) error {
+	orderStr := "before"
+	deps := app.StartBefore
+	if order == orderAfter {
+		orderStr = "after"
+		deps = app.StartAfter
+	}
+
+	for _, dep := range deps {
+		// dependency is not defined
+		if other, ok := app.Snap.Apps[dep]; !ok {
+			return fmt.Errorf("cannot validate app %q startup ordering: needs to be started %s %q, but %q is not defined",
+				app.Name, orderStr, dep, dep)
+		} else {
+			// or it depends on us in the same order, eg. foo is
+			// started after bar, but bar is to be started after foo
+			// as well, validate only one dependency step
+			otherDeps := other.StartBefore
+			if order == orderAfter {
+				otherDeps = other.StartAfter
+			}
+
+			if strutil.ListContains(otherDeps, app.Name) {
+				return fmt.Errorf("cannot validate app %q startup ordering: needs to be started %s %q, but %q is declared to start %s %q",
+					app.Name, orderStr, other.Name, other.Name, orderStr, app.Name)
+			}
+		}
+	}
+	return nil
+}
+
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused.
@@ -310,6 +349,13 @@ func ValidateApp(app *AppInfo) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	if err := validateAppStartup(app, orderBefore); err != nil {
+		return err
+	}
+	if err := validateAppStartup(app, orderAfter); err != nil {
+		return err
 	}
 
 	return nil
