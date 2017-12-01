@@ -5,7 +5,7 @@ set -e
 systemctl_stop() {
     unit="$1"
 
-    echo "Stoping $unit [attempt $i]"
+    echo "Stoping unit $unit"
     systemctl stop -q "$unit" || true
 
     for i in $(seq 20); do
@@ -79,7 +79,7 @@ if [ "$1" = "purge" ]; then
     for d in "/snap/bin" "/snap" "/var/snap"; do
         # Force remove due to directories for old revisions could still exist
         if [ -d "$d" ]; then
-            rm -rf  "$d"
+            rm -rf "$d"
         fi
         if [ -d "$d" ]; then
             echo "Cannot remove directory $d"
