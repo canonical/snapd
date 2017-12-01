@@ -539,9 +539,19 @@ func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slo
 	}
 }
 
+// SlotValidator can be implemented by Interfaces that need to validate the slot before the security is lifted.
+type SlotValidator interface {
+	ValidateSlot(slot *ConnectedSlot) error
+}
+
+// SlotValidator can be implemented by Interfaces that need to validate the slot before the security is lifted.
+type PlugValidator interface {
+	ValidatePlug(slot *ConnectedPlug) error
+}
+
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
-func (r *Repository) Connect(ref ConnRef) error {
+func (r *Repository) Connect(ref ConnRef, plugAttrs map[string]interface{}, slotAttrs map[string]interface{}) (*Connection, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -553,23 +563,43 @@ func (r *Repository) Connect(ref ConnRef) error {
 	// Ensure that such plug exists
 	plug := r.plugs[plugSnapName][plugName]
 	if plug == nil {
-		return fmt.Errorf("cannot connect plug %q from snap %q, no such plug", plugName, plugSnapName)
+		return nil, fmt.Errorf("cannot connect plug %q from snap %q, no such plug", plugName, plugSnapName)
 	}
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return fmt.Errorf("cannot connect plug to slot %q from snap %q, no such slot", slotName, slotSnapName)
+		return nil, fmt.Errorf("cannot connect plug to slot %q from snap %q, no such slot", slotName, slotSnapName)
 	}
 	// Ensure that plug and slot are compatible
 	if slot.Interface != plug.Interface {
-		return fmt.Errorf(`cannot connect plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
+		return nil, fmt.Errorf(`cannot connect plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
 			plugSnapName, plugName, plug.Interface, slotSnapName, slotName, slot.Interface)
 	}
 	// Ensure that slot and plug are not connected yet
 	if r.slotPlugs[slot][plug] != nil {
 		// But if they are don't treat this as an error.
-		return nil
+		return r.slotPlugs[slot][plug], nil
 	}
+
+	cplug := NewConnectedPlug(plug, plugAttrs)
+	cslot := NewConnectedSlot(slot, slotAttrs)
+
+	if iface, ok := r.ifaces[plug.Interface]; ok {
+		if iface, ok := iface.(PlugValidator); ok {
+			if err := iface.ValidatePlug(cplug); err != nil {
+				return nil, fmt.Errorf("validation failed for snap %q, plug %q: %s", plug.Snap.Name(), plug.Name, err)
+			}
+		}
+		if iface, ok := iface.(SlotValidator); ok {
+			if err := iface.ValidateSlot(cslot); err != nil {
+				return nil, fmt.Errorf("validation failed for snap %q, slot %q: %s", slot.Snap.Name(), slot.Name, err)
+			}
+		}
+	} else {
+		// This should never happen
+		return nil, fmt.Errorf("internal error: unknown interface %q", plug.Interface)
+	}
+
 	// Connect the plug
 	if r.slotPlugs[slot] == nil {
 		r.slotPlugs[slot] = make(map[*snap.PlugInfo]*Connection)
@@ -578,14 +608,10 @@ func (r *Repository) Connect(ref ConnRef) error {
 		r.plugSlots[plug] = make(map[*snap.SlotInfo]*Connection)
 	}
 
-	// TODO: store copy of attributes from hooks
-	cplug := NewConnectedPlug(plug, nil)
-	cslot := NewConnectedSlot(slot, nil)
-
-	conn := &Connection{plug: cplug, slot: cslot}
+	conn := &Connection{Plug: cplug, Slot: cslot}
 	r.slotPlugs[slot][plug] = conn
 	r.plugSlots[plug][slot] = conn
-	return nil
+	return conn, nil
 }
 
 // Disconnect disconnects the named plug from the slot of the given snap.
@@ -774,7 +800,7 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 			return nil, err
 		}
 		for _, conn := range r.slotPlugs[slotInfo] {
-			if err := spec.AddConnectedSlot(iface, conn.plug, conn.slot); err != nil {
+			if err := spec.AddConnectedSlot(iface, conn.Plug, conn.Slot); err != nil {
 				return nil, err
 			}
 		}
@@ -786,7 +812,7 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 			return nil, err
 		}
 		for _, conn := range r.plugSlots[plugInfo] {
-			if err := spec.AddConnectedPlug(iface, conn.plug, conn.slot); err != nil {
+			if err := spec.AddConnectedPlug(iface, conn.Plug, conn.Slot); err != nil {
 				return nil, err
 			}
 		}

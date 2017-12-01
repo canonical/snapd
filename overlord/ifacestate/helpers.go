@@ -196,7 +196,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 	if err != nil {
 		return err
 	}
-	for id := range conns {
+	for id, cn := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return err
@@ -204,7 +204,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
 			continue
 		}
-		if err := m.repo.Connect(connRef); err != nil {
+		if _, err := m.repo.Connect(connRef, cn.DynamicPlugAttrs, cn.DynamicSlotAttrs); err != nil {
 			logger.Noticef("%s", err)
 		}
 	}
@@ -242,8 +242,10 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string)
 }
 
 type connState struct {
-	Auto      bool   `json:"auto,omitempty"`
-	Interface string `json:"interface,omitempty"`
+	Auto             bool                   `json:"auto,omitempty"`
+	Interface        string                 `json:"interface,omitempty"`
+	DynamicPlugAttrs map[string]interface{} `json:"dynamic-plug-attrs,omitempty"`
+	DynamicSlotAttrs map[string]interface{} `json:"dynamic-plug-attrs,omitempty"`
 }
 
 type autoConnectChecker struct {
@@ -366,7 +368,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 			// NOTE: we don't log anything here as this is a normal and common condition.
 			continue
 		}
-		if err := m.repo.Connect(*connRef); err != nil {
+		if _, err := m.repo.Connect(*connRef, nil, nil); err != nil {
 			task.Logf("cannot auto connect %s to %s: %s (plug auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
 			continue
 		}
@@ -406,7 +408,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 				// NOTE: we don't log anything here as this is a normal and common condition.
 				continue
 			}
-			if err := m.repo.Connect(*connRef); err != nil {
+			if _, err := m.repo.Connect(*connRef, nil, nil); err != nil {
 				task.Logf("cannot auto connect %s to %s: %s (slot auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
 				continue
 			}
