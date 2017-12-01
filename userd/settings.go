@@ -24,11 +24,17 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/godbus/dbus"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 )
+
+// Timeout when the confirmation dialog for an xdg-setging
+// automatically closes. Keep in sync with the core snaps
+// xdg-settings wrapper which also sets this value to 300.
+var defaultConfirmDialogTimeout = 300 * time.Second
 
 const settingsIntrospectionXML = `
 <interface name="org.freedesktop.DBus.Peer">
@@ -180,11 +186,29 @@ func (s *Settings) Set(setting, new string, sender dbus.Sender) *dbus.Error {
 	}
 	// FIXME: we need to know the parent PID or our dialog may pop under
 	//        the existing windows
-	// FIXME2: we need to make the dbus timeout longer for the dialog
-	//         or we get the dreaded org.freedesktop.DBus.Error.NoReply
-	//         error in the application
-	cmd := exec.Command("zenity", "--question", "--modal", "--text="+fmt.Sprintf(i18n.G("<big><b>Allow settings change?</b></big>\n\nAllow snap %q to change %q to %q ?"), snap, setting, new))
-	if err := cmd.Run(); err != nil {
+	txt := fmt.Sprintf(i18n.G(`
+<big><b>Allow settings change?</b></big>
+
+Allow snap %q to change %q to %q ?
+
+<span size="x-small">This dialog will close automatically after 5 minutes of inactivity.</span>
+`), snap, setting, new)
+	cmd := exec.Command("zenity", "--question", "--modal", "--text="+txt)
+	if err := cmd.Start(); err != nil {
+		return dbus.MakeFailedError(err)
+	}
+	done := make(chan error)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case err = <-done:
+		// normal exit
+	case <-time.After(defaultConfirmDialogTimeout * time.Second):
+		// timeout do nothing, the other side will have timed
+		// out as well, no need to send a reply.
+		cmd.Process.Kill()
+		return nil
+	}
+	if err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot set setting: user declined"))
 	}
 
