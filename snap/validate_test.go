@@ -592,3 +592,79 @@ func (s *ValidateSuite) TestValidateSocketName(c *C) {
 		c.Assert(err, ErrorMatches, `invalid socket name: ".*"`)
 	}
 }
+
+func (s *ValidateSuite) TestValidateStartupOrder(c *C) {
+
+}
+func (s *YamlSuite) TestValidateAppStartBeforeBad(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    start-before: [baz]
+  bar:
+
+`)
+	info, err := InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `cannot validate app "foo" startup ordering: needs to be started before "baz", but "baz" is not defined`)
+}
+
+func (s *YamlSuite) TestValidateAppStartAfterBad(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    start-after: [baz]
+  bar:
+
+`)
+	info, err := InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `cannot validate app "foo" startup ordering: needs to be started after "baz", but "baz" is not defined`)
+}
+
+func (s *YamlSuite) TestValidateAppStartSimpleDirectDependencyBad(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   start-after: [bar]
+ bar:
+   start-after: [foo]
+
+`)
+	info, err := InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	err = ValidateApp(info.Apps["bar"])
+	c.Assert(err, ErrorMatches, `cannot validate app "bar" startup ordering: needs to be started after "foo", but "foo" is declared to start after "bar"`)
+	err = ValidateApp(info.Apps["foo"])
+	c.Assert(err, ErrorMatches, `cannot validate app "foo" startup ordering: needs to be started after "bar", but "bar" is declared to start after "foo"`)
+}
+
+func (s *YamlSuite) TestValidateAppStartOrderCorrect(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   start-after: [bar, zed]
+ bar:
+   start-before: [foo]
+ baz:
+   start-after: [foo]
+ zed:
+
+`)
+	info, err := InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Assert(err, IsNil)
+}
