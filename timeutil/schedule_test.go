@@ -81,7 +81,7 @@ func (ts *timeutilSuite) TestScheduleString(c *C) {
 	}
 }
 
-func (ts *timeutilSuite) TestParseSchedule(c *C) {
+func (ts *timeutilSuite) TestParseLegacySchedule(c *C) {
 	for _, t := range []struct {
 		in       string
 		expected []*timeutil.Schedule
@@ -142,7 +142,7 @@ func parse(c *C, s string) (time.Duration, time.Duration) {
 	return a, b
 }
 
-func (ts *timeutilSuite) TestScheduleNext(c *C) {
+func (ts *timeutilSuite) TestLegacyScheduleNext(c *C) {
 	const shortForm = "2006-01-02 15:04"
 
 	for _, t := range []struct {
