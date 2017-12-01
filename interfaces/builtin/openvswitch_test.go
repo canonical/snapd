@@ -77,7 +77,7 @@ func (s *OpenvSwitchInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *OpenvSwitchInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *OpenvSwitchInterfaceSuite) TestUsedSecuritySystems(c *C) {

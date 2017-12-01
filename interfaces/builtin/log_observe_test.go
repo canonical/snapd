@@ -77,7 +77,7 @@ func (s *LogObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *LogObserveInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *LogObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {

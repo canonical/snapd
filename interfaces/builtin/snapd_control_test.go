@@ -76,7 +76,7 @@ func (s *SnapdControlInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *SnapdControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *SnapdControlInterfaceSuite) TestSanitizePlugWithAttrHappy(c *C) {
@@ -88,7 +88,7 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["snapd-control"]
-	c.Assert(interfaces.SanitizePlug(s.iface, plug), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 }
 
 func (s *SnapdControlInterfaceSuite) TestSanitizePlugWithAttrNotHappy(c *C) {
@@ -100,7 +100,7 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["snapd-control"]
-	c.Assert(interfaces.SanitizePlug(s.iface, plug), ErrorMatches, `unsupported refresh-schedule value: "unsupported-value"`)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, `unsupported refresh-schedule value: "unsupported-value"`)
 }
 
 func (s *SnapdControlInterfaceSuite) TestUsedSecuritySystems(c *C) {

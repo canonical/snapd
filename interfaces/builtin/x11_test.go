@@ -79,7 +79,7 @@ func (s *X11InterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *X11InterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *X11InterfaceSuite) TestUsedSecuritySystems(c *C) {

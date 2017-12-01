@@ -75,7 +75,7 @@ func (s *CameraInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *CameraInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *CameraInterfaceSuite) TestAppArmorSpec(c *C) {

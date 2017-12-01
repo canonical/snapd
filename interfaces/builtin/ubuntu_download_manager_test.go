@@ -66,7 +66,7 @@ func (s *UbuntuDownloadManagerInterfaceSuite) TestName(c *C) {
 }
 
 func (s *UbuntuDownloadManagerInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *UbuntuDownloadManagerInterfaceSuite) TestSanitizeSlot(c *C) {

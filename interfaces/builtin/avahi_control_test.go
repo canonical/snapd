@@ -85,7 +85,7 @@ func (s *AvahiControlInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *AvahiControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {

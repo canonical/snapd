@@ -75,7 +75,7 @@ func (s *RawUsbInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *RawUsbInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *RawUsbInterfaceSuite) TestAppArmorSpec(c *C) {

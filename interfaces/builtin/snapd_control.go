@@ -51,7 +51,7 @@ type snapControlInterface struct {
 	commonInterface
 }
 
-func (iface *snapControlInterface) SanitizePlug(plug *snap.PlugInfo) error {
+func (iface *snapControlInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if refreshSchedule, ok := plug.Attrs["refresh-schedule"].(string); ok {
 		if refreshSchedule != "managed" {
 			return fmt.Errorf("unsupported refresh-schedule value: %q", refreshSchedule)

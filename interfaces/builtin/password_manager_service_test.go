@@ -77,7 +77,7 @@ func (s *passwordManagerServiceInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *passwordManagerServiceInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *passwordManagerServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {

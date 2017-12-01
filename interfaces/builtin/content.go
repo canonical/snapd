@@ -97,7 +97,7 @@ func (iface *contentInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	return nil
 }
 
-func (iface *contentInterface) SanitizePlug(plug *snap.PlugInfo) error {
+func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	content, ok := plug.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
 		if plug.Attrs == nil {

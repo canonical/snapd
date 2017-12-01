@@ -138,7 +138,7 @@ func (s *GpioInterfaceSuite) TestSanitizeSlotAppSnap(c *C) {
 }
 
 func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.gadgetPlugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.gadgetPlugInfo), IsNil)
 }
 
 func (s *GpioInterfaceSuite) TestSystemdConnectedSlot(c *C) {

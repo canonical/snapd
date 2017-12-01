@@ -75,7 +75,7 @@ func (s *LxdInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *LxdInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *LxdInterfaceSuite) TestAppArmorSpec(c *C) {

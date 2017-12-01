@@ -76,7 +76,7 @@ func (s *NetworkSetupControlInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *NetworkSetupControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *NetworkSetupControlInterfaceSuite) TestUsedSecuritySystems(c *C) {

@@ -76,7 +76,7 @@ func (s *PhysicalMemoryObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *PhysicalMemoryObserveInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *PhysicalMemoryObserveInterfaceSuite) TestAppArmorSpec(c *C) {

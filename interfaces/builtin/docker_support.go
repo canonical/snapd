@@ -572,7 +572,7 @@ func (iface *dockerSupportInterface) SecCompConnectedPlug(spec *seccomp.Specific
 	return nil
 }
 
-func (iface *dockerSupportInterface) SanitizePlug(plug *snap.PlugInfo) error {
+func (iface *dockerSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if v, ok := plug.Attrs["privileged-containers"]; ok {
 		if _, ok = v.(bool); !ok {
 			return fmt.Errorf("docker-support plug requires bool with 'privileged-containers'")

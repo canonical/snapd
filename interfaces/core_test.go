@@ -189,14 +189,14 @@ plugs:
     interface: iface
 `, nil)
 	plug := info.Plugs["plug"]
-	c.Assert(SanitizePlug(&ifacetest.TestInterface{
+	c.Assert(BeforePreparePlug(&ifacetest.TestInterface{
 		InterfaceName: "iface",
 	}, plug), IsNil)
-	c.Assert(SanitizePlug(&ifacetest.TestInterface{
-		InterfaceName:        "iface",
-		SanitizePlugCallback: func(plug *snap.PlugInfo) error { return fmt.Errorf("broken") },
+	c.Assert(BeforePreparePlug(&ifacetest.TestInterface{
+		InterfaceName:             "iface",
+		BeforePreparePlugCallback: func(plug *snap.PlugInfo) error { return fmt.Errorf("broken") },
 	}, plug), ErrorMatches, "broken")
-	c.Assert(SanitizePlug(&ifacetest.TestInterface{
+	c.Assert(BeforePreparePlug(&ifacetest.TestInterface{
 		InterfaceName: "other",
 	}, plug), ErrorMatches, `cannot sanitize plug "snap:plug" \(interface "iface"\) using interface "other"`)
 }
