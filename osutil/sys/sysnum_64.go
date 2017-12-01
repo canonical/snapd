@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build arm64 amd64 ppc64le s390x
 
 /*
  * Copyright (C) 2017 Canonical Ltd
@@ -17,11 +18,13 @@
  *
  */
 
-package corecfg
+package sys
 
-var (
-	UpdatePiConfig       = updatePiConfig
-	SwitchHandlePowerKey = switchHandlePowerKey
-	SwitchDisableService = switchDisableService
-	UpdateKeyValueStream = updateKeyValueStream
+import "syscall"
+
+const (
+	_SYS_GETUID  = syscall.SYS_GETUID
+	_SYS_GETGID  = syscall.SYS_GETGID
+	_SYS_GETEUID = syscall.SYS_GETEUID
+	_SYS_GETEGID = syscall.SYS_GETEGID
 )

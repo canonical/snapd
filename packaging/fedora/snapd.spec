@@ -252,7 +252,6 @@ Provides:      golang(%{import_path}/boot) = %{version}-%{release}
 Provides:      golang(%{import_path}/boot/boottest) = %{version}-%{release}
 Provides:      golang(%{import_path}/client) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd) = %{version}-%{release}
-Provides:      golang(%{import_path}/corecfg) = %{version}-%{release}
 Provides:      golang(%{import_path}/daemon) = %{version}-%{release}
 Provides:      golang(%{import_path}/dirs) = %{version}-%{release}
 Provides:      golang(%{import_path}/errtracker) = %{version}-%{release}
@@ -280,6 +279,7 @@ Provides:      golang(%{import_path}/overlord/auth) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/cmdstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate/config) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/configstate/configcore) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/devicestate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate/ctlcmd) = %{version}-%{release}
@@ -517,9 +517,6 @@ rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 
 # Disable re-exec by default
 echo 'SNAP_REEXEC=0' > %{buildroot}%{_sysconfdir}/sysconfig/snapd
-
-# Install snap management script
-install -pm 0755 packaging/fedora/snap-mgmt.sh %{buildroot}%{_libexecdir}/snapd/snap-mgmt
 
 # Create state.json and the README file to be ghosted
 touch %{buildroot}%{_sharedstatedir}/snapd/state.json

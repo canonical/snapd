@@ -347,8 +347,8 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	sort.Strings(installed)
 	c.Check(installed, DeepEquals, []string{"other-snap", "test-snap"})
 	c.Assert(tts, HasLen, 2)
-	c.Assert(tts[0].Tasks(), HasLen, 16)
-	c.Assert(tts[1].Tasks(), HasLen, 16)
+	c.Assert(tts[0].Tasks(), HasLen, 17)
+	c.Assert(tts[1].Tasks(), HasLen, 17)
 	chg.AddAll(tts[0])
 	chg.AddAll(tts[1])
 
@@ -376,11 +376,11 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 
 	for i := 1; i <= 2; i++ {
 		laneTasks := chg.LaneTasks(i)
-		c.Assert(laneTasks, HasLen, 19)
-		c.Check(laneTasks[15].Summary(), Matches, `Run configure hook of .* snap if present`)
-		c.Check(laneTasks[16].Summary(), Equals, "stop of [test-snap.test-service]")
-		c.Check(laneTasks[17].Summary(), Equals, "start of [test-snap.test-service]")
-		c.Check(laneTasks[18].Summary(), Equals, "restart of [test-snap.test-service]")
+		c.Assert(laneTasks, HasLen, 20)
+		c.Check(laneTasks[16].Summary(), Matches, `Run configure hook of .* snap if present`)
+		c.Check(laneTasks[17].Summary(), Equals, "stop of [test-snap.test-service]")
+		c.Check(laneTasks[18].Summary(), Equals, "start of [test-snap.test-service]")
+		c.Check(laneTasks[19].Summary(), Equals, "restart of [test-snap.test-service]")
 	}
 }
 
