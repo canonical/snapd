@@ -73,7 +73,7 @@ func (s *DesktopInterfaceSuite) TestName(c *C) {
 }
 
 func (s *DesktopInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.coreSlotInfo), IsNil)
 
 	// desktop slot currently only used with core
 	slot := &snap.SlotInfo{
@@ -81,7 +81,7 @@ func (s *DesktopInterfaceSuite) TestSanitizeSlot(c *C) {
 		Name:      "desktop",
 		Interface: "desktop",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"desktop slots are reserved for the core snap")
 }
 

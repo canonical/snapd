@@ -98,7 +98,7 @@ func (s *DockerSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlug(c *C) {

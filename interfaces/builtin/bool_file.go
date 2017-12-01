@@ -69,9 +69,9 @@ var boolFileAllowedPathPatterns = []*regexp.Regexp{
 	boolFileGPIOValuePattern,
 }
 
-// SanitizeSlot checks and possibly modifies a slot.
+// BeforePrepareSlot checks and possibly modifies a slot.
 // Valid "bool-file" slots must contain the attribute "path".
-func (iface *boolFileInterface) SanitizeSlot(slot *snap.SlotInfo) error {
+func (iface *boolFileInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
 		return fmt.Errorf("bool-file must contain the path attribute")

@@ -66,13 +66,13 @@ func (s *OpenvSwitchInterfaceSuite) TestName(c *C) {
 }
 
 func (s *OpenvSwitchInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "openvswitch",
 		Interface: "openvswitch",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"openvswitch slots are reserved for the core snap")
 }
 

@@ -65,13 +65,13 @@ func (s *PhysicalMemoryObserveInterfaceSuite) TestName(c *C) {
 }
 
 func (s *PhysicalMemoryObserveInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "physical-memory-observe",
 		Interface: "physical-memory-observe",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"physical-memory-observe slots are reserved for the core snap")
 }
 

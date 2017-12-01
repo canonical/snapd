@@ -163,23 +163,23 @@ func (s *I2cInterfaceSuite) TestName(c *C) {
 }
 
 func (s *I2cInterfaceSuite) TestSanitizeCoreSnapSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testSlot1Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlot1Info), IsNil)
 }
 
 func (s *I2cInterfaceSuite) TestSanitizeGadgetSnapSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDev1Info), IsNil)
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDev2Info), IsNil)
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDev3Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDev1Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDev2Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDev3Info), IsNil)
 }
 
 func (s *I2cInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue1Info), ErrorMatches, "i2c path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue2Info), ErrorMatches, "i2c path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue3Info), ErrorMatches, "i2c path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue4Info), ErrorMatches, "i2c path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue5Info), ErrorMatches, "i2c path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue6Info), ErrorMatches, "i2c slot must have a path attribute")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue7Info), ErrorMatches, "i2c slot must have a path attribute")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue1Info), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue2Info), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue3Info), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue4Info), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue5Info), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue6Info), ErrorMatches, "i2c slot must have a path attribute")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue7Info), ErrorMatches, "i2c slot must have a path attribute")
 }
 
 func (s *I2cInterfaceSuite) TestUDevSpec(c *C) {

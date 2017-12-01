@@ -41,8 +41,8 @@ type TestInterface struct {
 	AutoConnectCallback func(*interfaces.Plug, *interfaces.Slot) bool
 	// BeforePreparePlugCallback is the callback invoked inside BeforePreparePlug()
 	BeforePreparePlugCallback func(plug *snap.PlugInfo) error
-	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
-	SanitizeSlotCallback func(slot *snap.SlotInfo) error
+	// BeforePrepareSlotCallback is the callback invoked inside BeforePrepareSlot()
+	BeforePrepareSlotCallback func(slot *snap.SlotInfo) error
 
 	ValidatePlugCallback func(plug *interfaces.Plug, attrs map[string]interface{}) error
 	ValidateSlotCallback func(slot *interfaces.Slot, attrs map[string]interface{}) error
@@ -126,10 +126,10 @@ func (t *TestInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	return nil
 }
 
-// SanitizeSlot checks and possibly modifies a slot.
-func (t *TestInterface) SanitizeSlot(slot *snap.SlotInfo) error {
-	if t.SanitizeSlotCallback != nil {
-		return t.SanitizeSlotCallback(slot)
+// BeforePrepareSlot checks and possibly modifies a slot.
+func (t *TestInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+	if t.BeforePrepareSlotCallback != nil {
+		return t.BeforePrepareSlotCallback(slot)
 	}
 	return nil
 }
