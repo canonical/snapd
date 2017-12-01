@@ -17,22 +17,22 @@
  *
  */
 
-package corecfg_test
+package configcore_test
 
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/corecfg"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 )
 
 type refreshSuite struct {
-	coreCfgSuite
+	configcoreSuite
 }
 
 var _ = Suite(&refreshSuite{})
 
 func (s *refreshSuite) TestConfigureRefreshScheduleHappy(c *C) {
-	err := corecfg.Run(&mockConf{
+	err := configcore.Run(&mockConf{
 		conf: map[string]interface{}{
 			"refresh.schedule": "8:00-12:00",
 		},
@@ -41,7 +41,7 @@ func (s *refreshSuite) TestConfigureRefreshScheduleHappy(c *C) {
 }
 
 func (s *refreshSuite) TestConfigureRefreshScheduleRejected(c *C) {
-	err := corecfg.Run(&mockConf{
+	err := configcore.Run(&mockConf{
 		conf: map[string]interface{}{
 			"refresh.schedule": "invalid",
 		},

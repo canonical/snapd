@@ -28,6 +28,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 var userLookup = user.Lookup
@@ -104,13 +106,9 @@ func AddUser(name string, opts *AddUserOptions) error {
 		return fmt.Errorf("cannot find user %q: %s", name, err)
 	}
 
-	uid, err := strconv.Atoi(u.Uid)
+	uid, gid, err := UidGid(u)
 	if err != nil {
-		return fmt.Errorf("cannot parse user id %s: %s", u.Uid, err)
-	}
-	gid, err := strconv.Atoi(u.Gid)
-	if err != nil {
-		return fmt.Errorf("cannot parse group id %s: %s", u.Gid, err)
+		return err
 	}
 
 	sshDir := filepath.Join(u.HomeDir, ".ssh")
@@ -160,4 +158,21 @@ func RealUser() (*user.User, error) {
 	}
 
 	return real, nil
+}
+
+// UidGid returns the uid and gid of the given user, as uint32s
+//
+// XXX this should go away soon
+func UidGid(u *user.User) (sys.UserID, sys.GroupID, error) {
+	// XXX this will be wrong for high uids on 32-bit arches (for now)
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return sys.FlagID, sys.FlagID, fmt.Errorf("cannot parse user id %s: %s", u.Uid, err)
+	}
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		return sys.FlagID, sys.FlagID, fmt.Errorf("cannot parse group id %s: %s", u.Gid, err)
+	}
+
+	return sys.UserID(uid), sys.GroupID(gid), nil
 }

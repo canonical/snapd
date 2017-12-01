@@ -1,4 +1,4 @@
-summary: Check install and remove hooks.
+summary: Check install, remove and pre-refresh/post-refresh hooks.
 
 environment:
     REMOVE_HOOK_FILE: "$HOME/remove-hook-executed"
@@ -14,9 +14,15 @@ execute: |
     snap get snap-hooks installed | MATCH 1
     snap get snap-hooks foo | MATCH bar
 
+    echo "Verify that pre-refresh hook was not executed"
+    if snap get snap-install-hooks prerefreshed; then
+        echo "'prerefreshed' config value not expected on first install"
+        exit 1
+    fi
+
     echo "Verify that post-refresh hook was not executed"
-    if snap get snap-install-hooks refreshed; then
-        echo "'refreshed' config value not expected on first install"
+    if snap get snap-install-hooks postrefreshed; then
+        echo "'postrefreshed' config value not expected on first install"
         exit 1
     fi
 
@@ -25,8 +31,11 @@ execute: |
     install_local snap-hooks
     snap get snap-hooks installed | MATCH 2
 
+    echo "Verify that pre-refresh hook was executed"
+    snap get snap-hooks prerefreshed | MATCH "pre-refresh at revision x1"
+
     echo "Verify that post-refresh hook was executed"
-    snap get snap-hooks refreshed | MATCH 1
+    snap get snap-hooks postrefreshed | MATCH "post-refresh at revision x2"
 
     snap connect snap-hooks:home
 

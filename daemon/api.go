@@ -1565,16 +1565,13 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &snapst); err != nil {
-		if err == state.ErrNoState {
+	taskset, err := configstate.ConfigureInstalled(st, snapName, patchValues, 0)
+	if err != nil {
+		if _, ok := err.(*snap.NotInstalledError); ok {
 			return SnapNotFound(snapName, err)
-		} else {
-			return InternalError("%v", err)
 		}
+		return InternalError("%v", err)
 	}
-
-	taskset := configstate.Configure(st, snapName, patchValues, 0)
 
 	summary := fmt.Sprintf("Change configuration of %q snap", snapName)
 	change := newChange(st, "configure-snap", summary, []*state.TaskSet{taskset}, []string{snapName})
@@ -2182,13 +2179,9 @@ func setupLocalUser(st *state.State, username, email string) error {
 	if err != nil {
 		return fmt.Errorf("cannot lookup user %q: %s", username, err)
 	}
-	uid, err := strconv.Atoi(user.Uid)
+	uid, gid, err := osutil.UidGid(user)
 	if err != nil {
-		return fmt.Errorf("cannot get uid of user %q: %s", username, err)
-	}
-	gid, err := strconv.Atoi(user.Gid)
-	if err != nil {
-		return fmt.Errorf("cannot get gid of user %q: %s", username, err)
+		return err
 	}
 	authDataFn := filepath.Join(user.HomeDir, ".snap", "auth.json")
 	if err := osutil.MkdirAllChown(filepath.Dir(authDataFn), 0700, uid, gid); err != nil {
