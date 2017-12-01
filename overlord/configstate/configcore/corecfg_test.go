@@ -17,7 +17,7 @@
  *
  */
 
-package corecfg_test
+package configcore_test
 
 import (
 	"fmt"
@@ -54,17 +54,17 @@ func (cfg *mockConf) State() *state.State {
 	return cfg.state
 }
 
-// coreCfgSuite is the base for all the corecfg tests
-type coreCfgSuite struct {
+// configcoreSuite is the base for all the configcore tests
+type configcoreSuite struct {
 	state *state.State
 
 	systemctlArgs     [][]string
 	systemctlRestorer func()
 }
 
-var _ = Suite(&coreCfgSuite{})
+var _ = Suite(&configcoreSuite{})
 
-func (s *coreCfgSuite) SetUpSuite(c *C) {
+func (s *configcoreSuite) SetUpSuite(c *C) {
 	s.systemctlRestorer = systemd.MockSystemctl(func(args ...string) ([]byte, error) {
 		s.systemctlArgs = append(s.systemctlArgs, args[:])
 		output := []byte("ActiveState=inactive")
@@ -72,15 +72,15 @@ func (s *coreCfgSuite) SetUpSuite(c *C) {
 	})
 }
 
-func (s *coreCfgSuite) TearDownSuite(c *C) {
+func (s *configcoreSuite) TearDownSuite(c *C) {
 	s.systemctlRestorer()
 }
 
-func (s *coreCfgSuite) SetUpTest(c *C) {
+func (s *configcoreSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 }
 
-// runCfgSuite tests corecfg.Run()
+// runCfgSuite tests configcore.Run()
 type runCfgSuite struct {
-	coreCfgSuite
+	configcoreSuite
 }

@@ -17,7 +17,7 @@
  *
  */
 
-package corecfg_test
+package configcore_test
 
 import (
 	"fmt"
@@ -27,13 +27,13 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 )
 
 type powerbtnSuite struct {
-	coreCfgSuite
+	configcoreSuite
 
 	mockPowerBtnCfg string
 }
@@ -52,7 +52,7 @@ func (s *powerbtnSuite) TearDownTest(c *C) {
 }
 
 func (s *powerbtnSuite) TestConfigurePowerButtonInvalid(c *C) {
-	err := corecfg.SwitchHandlePowerKey("invalid-action")
+	err := configcore.SwitchHandlePowerKey("invalid-action")
 	c.Check(err, ErrorMatches, `invalid action "invalid-action" supplied for system.power-key-action option`)
 }
 
@@ -62,7 +62,7 @@ func (s *powerbtnSuite) TestConfigurePowerIntegration(c *C) {
 
 	for _, action := range []string{"ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "lock"} {
 
-		err := corecfg.Run(&mockConf{
+		err := configcore.Run(&mockConf{
 			conf: map[string]interface{}{
 				"system.power-key-action": action,
 			},
