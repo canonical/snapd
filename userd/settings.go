@@ -128,7 +128,6 @@ func (s *Settings) Check(setting, check string, sender dbus.Sender) (string, *db
 	if err != nil {
 		return "", dbus.MakeFailedError(fmt.Errorf("cannot check setting %s: %s", setting, osutil.OutputErr(output, err)))
 	}
-	fmt.Println("check '", string(output), "'\n\n")
 
 	return strings.TrimSpace(string(output)), nil
 }
