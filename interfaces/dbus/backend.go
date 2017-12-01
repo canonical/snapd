@@ -66,7 +66,7 @@ func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 		return err
 	}
 
-	dst := "/usr/share/dbus-1/services/io.snapcraft.Settings.service"
+	dst = "/usr/share/dbus-1/services/io.snapcraft.Settings.service"
 	if osutil.FileExists(dst) {
 		return nil
 	}
