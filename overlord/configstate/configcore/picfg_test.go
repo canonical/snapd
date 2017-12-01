@@ -17,7 +17,7 @@
  *
  */
 
-package corecfg_test
+package configcore_test
 
 import (
 	"io/ioutil"
@@ -27,13 +27,13 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 )
 
 type piCfgSuite struct {
-	coreCfgSuite
+	configcoreSuite
 
 	mockConfigPath string
 }
@@ -75,7 +75,7 @@ func (s *piCfgSuite) checkMockConfig(c *C, expected string) {
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigUncommentExisting(c *C) {
-	err := corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"disable_overscan": "1"})
+	err := configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"disable_overscan": "1"})
 	c.Assert(err, IsNil)
 
 	expected := strings.Replace(mockConfigTxt, "#disable_overscan=1", "disable_overscan=1", -1)
@@ -85,7 +85,7 @@ func (s *piCfgSuite) TestConfigurePiConfigUncommentExisting(c *C) {
 func (s *piCfgSuite) TestConfigurePiConfigCommentExisting(c *C) {
 	s.mockConfig(c, mockConfigTxt+"\navoid_warnings=1\n")
 
-	err := corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"avoid_warnings": ""})
+	err := configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"avoid_warnings": ""})
 	c.Assert(err, IsNil)
 
 	expected := mockConfigTxt + "\n" + "#avoid_warnings=1"
@@ -93,14 +93,14 @@ func (s *piCfgSuite) TestConfigurePiConfigCommentExisting(c *C) {
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigAddNewOption(c *C) {
-	err := corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"framebuffer_depth": "16"})
+	err := configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"framebuffer_depth": "16"})
 	c.Assert(err, IsNil)
 
 	expected := mockConfigTxt + "\n" + "framebuffer_depth=16"
 	s.checkMockConfig(c, expected)
 
 	// add again, verify its not added twice but updated
-	err = corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"framebuffer_depth": "32"})
+	err = configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"framebuffer_depth": "32"})
 	c.Assert(err, IsNil)
 	expected = mockConfigTxt + "\n" + "framebuffer_depth=32"
 	s.checkMockConfig(c, expected)
@@ -113,7 +113,7 @@ func (s *piCfgSuite) TestConfigurePiConfigNoChangeUnset(c *C) {
 	c.Assert(err, IsNil)
 	defer os.Chmod(filepath.Dir(s.mockConfigPath), 0755)
 
-	err = corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"hdmi_group": ""})
+	err = configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"hdmi_group": ""})
 	c.Assert(err, IsNil)
 }
 
@@ -124,7 +124,7 @@ func (s *piCfgSuite) TestConfigurePiConfigNoChangeSet(c *C) {
 	c.Assert(err, IsNil)
 	defer os.Chmod(filepath.Dir(s.mockConfigPath), 0755)
 
-	err = corecfg.UpdatePiConfig(s.mockConfigPath, map[string]string{"unrelated_options": "cannot-be-set"})
+	err = configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"unrelated_options": "cannot-be-set"})
 	c.Assert(err, ErrorMatches, `cannot set unsupported configuration value "unrelated_options"`)
 }
 
@@ -132,7 +132,7 @@ func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	err := corecfg.Run(&mockConf{
+	err := configcore.Run(&mockConf{
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": 1,
 		},
@@ -142,7 +142,7 @@ func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
 	expected := strings.Replace(mockConfigTxt, "#disable_overscan=1", "disable_overscan=1", -1)
 	s.checkMockConfig(c, expected)
 
-	err = corecfg.Run(&mockConf{
+	err = configcore.Run(&mockConf{
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": "",
 		},
