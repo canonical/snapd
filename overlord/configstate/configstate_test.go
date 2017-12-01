@@ -167,9 +167,7 @@ func (s *configcoreHijackSuite) SetUpTest(c *C) {
 	hookMgr, err := hookstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.o.AddManager(hookMgr)
-	configMgr, err := configstate.Manager(s.state, hookMgr)
-	c.Assert(err, IsNil)
-	s.o.AddManager(configMgr)
+	configstate.Init(hookMgr)
 }
 
 func (s *configcoreHijackSuite) TestHijack(c *C) {
