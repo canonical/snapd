@@ -44,7 +44,7 @@ execute: |
     for f in /etc/apparmor.d/usr.lib.snapd.snap-confine*; do
         apparmor_parser -QTK $f
         if which aa-enforce 2>/dev/null; then
-            aa-enforce
+            aa-enforce $f
         fi
     done
 
