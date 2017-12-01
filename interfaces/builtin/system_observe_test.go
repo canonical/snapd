@@ -79,7 +79,7 @@ func (s *SystemObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *SystemObserveInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {

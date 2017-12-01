@@ -275,7 +275,7 @@ plugs:
 	c.Assert(err, IsNil)
 
 	plug := info.Plugs["dbus-plug"]
-	c.Assert(interfaces.SanitizePlug(s.iface, plug), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestSanitizePlugSession(c *C) {
@@ -292,7 +292,7 @@ plugs:
 	c.Assert(err, IsNil)
 
 	plug := info.Plugs["dbus-plug"]
-	c.Assert(interfaces.SanitizePlug(s.iface, plug), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSession(c *C) {

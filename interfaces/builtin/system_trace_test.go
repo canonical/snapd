@@ -76,7 +76,7 @@ func (s *SystemTraceInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *SystemTraceInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *SystemTraceInterfaceSuite) TestUsedSecuritySystems(c *C) {

@@ -404,7 +404,7 @@ func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, 
 	return nil
 }
 
-func (iface *dbusInterface) SanitizePlug(plug *snap.PlugInfo) error {
+func (iface *dbusInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	_, _, err := iface.getAttribs(plug.Attrs)
 	return err
 }

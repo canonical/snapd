@@ -97,18 +97,18 @@ func (s *TestInterfaceSuite) TestValidateSlotError(c *C) {
 
 // TestInterface doesn't do any sanitization by default
 func (s *TestInterfaceSuite) TestSanitizePlugOK(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 // TestInterface has provisions to customize sanitization
 func (s *TestInterfaceSuite) TestSanitizePlugError(c *C) {
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "test",
-		SanitizePlugCallback: func(plug *snap.PlugInfo) error {
+		BeforePreparePlugCallback: func(plug *snap.PlugInfo) error {
 			return fmt.Errorf("sanitize plug failed")
 		},
 	}
-	c.Assert(interfaces.SanitizePlug(iface, s.plugInfo), ErrorMatches, "sanitize plug failed")
+	c.Assert(interfaces.BeforePreparePlug(iface, s.plugInfo), ErrorMatches, "sanitize plug failed")
 }
 
 // TestInterface doesn't do any sanitization by default

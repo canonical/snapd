@@ -102,7 +102,7 @@ func (s *DockerSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedTrue(c *C) {
@@ -123,7 +123,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	plug := info.Plugs["privileged"]
-	c.Assert(interfaces.SanitizePlug(s.iface, plug), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err = apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil), s.slot)
@@ -156,7 +156,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	plug := info.Plugs["privileged"]
-	c.Assert(interfaces.SanitizePlug(s.iface, plug), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 
 	apparmorSpec := &apparmor.Specification{}
 	err = apparmorSpec.AddConnectedPlug(s.iface, interfaces.NewConnectedPlug(plug, nil), s.slot)
@@ -184,7 +184,7 @@ plugs:
 	c.Assert(err, IsNil)
 
 	plug := info.Plugs["privileged"]
-	c.Assert(interfaces.SanitizePlug(s.iface, plug), ErrorMatches, "docker-support plug requires bool with 'privileged-containers'")
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, "docker-support plug requires bool with 'privileged-containers'")
 }
 
 func (s *DockerSupportInterfaceSuite) TestInterfaces(c *C) {

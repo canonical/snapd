@@ -39,14 +39,14 @@ func (plug *Plug) Ref() PlugRef {
 }
 
 // Sanitize plug with a given snapd interface.
-func SanitizePlug(iface Interface, plugInfo *snap.PlugInfo) error {
+func BeforePreparePlug(iface Interface, plugInfo *snap.PlugInfo) error {
 	if iface.Name() != plugInfo.Interface {
 		return fmt.Errorf("cannot sanitize plug %q (interface %q) using interface %q",
 			PlugRef{Snap: plugInfo.Snap.Name(), Name: plugInfo.Name}, plugInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(PlugSanitizer); ok {
-		err = iface.SanitizePlug(plugInfo)
+		err = iface.BeforePreparePlug(plugInfo)
 	}
 	return err
 }
@@ -167,7 +167,7 @@ type Interface interface {
 
 // PlugSanitizer can be implemented by Interfaces that have reasons to sanitize their plugs.
 type PlugSanitizer interface {
-	SanitizePlug(plug *snap.PlugInfo) error
+	BeforePreparePlug(plug *snap.PlugInfo) error
 }
 
 // SlotSanitizer can be implemented by Interfaces that have reasons to sanitize their slots.

@@ -39,8 +39,8 @@ type TestInterface struct {
 	InterfaceStaticInfo interfaces.StaticInfo
 	// AutoConnectCallback is the callback invoked inside AutoConnect
 	AutoConnectCallback func(*interfaces.Plug, *interfaces.Slot) bool
-	// SanitizePlugCallback is the callback invoked inside SanitizePlug()
-	SanitizePlugCallback func(plug *snap.PlugInfo) error
+	// BeforePreparePlugCallback is the callback invoked inside BeforePreparePlug()
+	BeforePreparePlugCallback func(plug *snap.PlugInfo) error
 	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
 	SanitizeSlotCallback func(slot *snap.SlotInfo) error
 
@@ -118,10 +118,10 @@ func (t *TestInterface) StaticInfo() interfaces.StaticInfo {
 	return t.InterfaceStaticInfo
 }
 
-// SanitizePlug checks and possibly modifies a plug.
-func (t *TestInterface) SanitizePlug(plug *snap.PlugInfo) error {
-	if t.SanitizePlugCallback != nil {
-		return t.SanitizePlugCallback(plug)
+// BeforePreparePlug checks and possibly modifies a plug.
+func (t *TestInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	if t.BeforePreparePlugCallback != nil {
+		return t.BeforePreparePlugCallback(plug)
 	}
 	return nil
 }

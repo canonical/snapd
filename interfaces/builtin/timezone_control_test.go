@@ -77,7 +77,7 @@ func (s *TimezoneControlInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *TimezoneControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *TimezoneControlInterfaceSuite) TestConnectedPlug(c *C) {

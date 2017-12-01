@@ -100,7 +100,7 @@ func (s *UPowerObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *UPowerObserveInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 // The label glob when all apps are bound to the ofono slot

@@ -76,7 +76,7 @@ func (s *ioPortsControlInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *ioPortsControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *ioPortsControlInterfaceSuite) TestAppArmorSpec(c *C) {

@@ -72,7 +72,7 @@ func (s *BrowserSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizePlugNoAttrib(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizePlugWithAttrib(c *C) {
@@ -84,7 +84,7 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["browser-support"]
-	c.Assert(interfaces.SanitizePlug(s.iface, plug), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizePlugWithBadAttrib(c *C) {
@@ -96,7 +96,7 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["browser-support"]
-	c.Assert(interfaces.SanitizePlug(s.iface, plug), ErrorMatches,
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
 		"browser-support plug requires bool with 'allow-sandbox'")
 }
 
