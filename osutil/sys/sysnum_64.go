@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build arm64 amd64 ppc64le s390x
 
 /*
  * Copyright (C) 2017 Canonical Ltd
@@ -17,21 +18,13 @@
  *
  */
 
-package corecfg
+package sys
 
-import (
-	"github.com/snapcore/snapd/timeutil"
+import "syscall"
+
+const (
+	_SYS_GETUID  = syscall.SYS_GETUID
+	_SYS_GETGID  = syscall.SYS_GETGID
+	_SYS_GETEUID = syscall.SYS_GETEUID
+	_SYS_GETEGID = syscall.SYS_GETEGID
 )
-
-func validateRefreshSchedule(tr Conf) error {
-	refreshScheduleStr, err := coreCfg(tr, "refresh.schedule")
-	if err != nil {
-		return err
-	}
-	if refreshScheduleStr == "" {
-		return nil
-	}
-	// FIXME: add support for things like "managed" once we have that
-	_, err = timeutil.ParseSchedule(refreshScheduleStr)
-	return err
-}

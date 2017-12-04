@@ -89,7 +89,7 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 		return err
 	}
 
-	namesFile, err := osutil.NewAtomicFile(dirs.SnapNamesFile, 0644, 0, -1, -1)
+	namesFile, err := osutil.NewAtomicFile(dirs.SnapNamesFile, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return err
 	}

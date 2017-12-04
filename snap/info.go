@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -60,7 +61,7 @@ type PlaceInfo interface {
 	UserCommonDataDir(home string) string
 
 	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
-	UserXdgRuntimeDir(userID int) string
+	UserXdgRuntimeDir(userID sys.UserID) string
 
 	// DataHomeDir returns the a glob that matches all per user data directories of a snap.
 	DataHomeDir() string
@@ -296,7 +297,7 @@ func (s *Info) CommonDataHomeDir() string {
 }
 
 // UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a particular user.
-func (s *Info) UserXdgRuntimeDir(euid int) string {
+func (s *Info) UserXdgRuntimeDir(euid sys.UserID) string {
 	return filepath.Join("/run/user", fmt.Sprintf("%d/snap.%s", euid, s.Name()))
 }
 
