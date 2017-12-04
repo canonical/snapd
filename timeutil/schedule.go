@@ -178,7 +178,8 @@ type TimeSpan struct {
 	End   Clock
 	// Split defines the number of subspans this span will be divided into.
 	Split uint
-	// Spread defines whether the events are randomly spread inside the span or subspans.
+	// Spread defines whether the events are randomly spread inside the span
+	// or subspans.
 	Spread bool
 }
 
