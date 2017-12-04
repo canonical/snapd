@@ -60,9 +60,9 @@ func (t Clock) Add(dur time.Duration) Clock {
 	return nt
 }
 
-// MakeTime generates a time.Time using base for information on year, month, day
+// Time generates a time.Time using base for information on year, month, day
 // and with hour and minute set from TimeOfDay
-func (t Clock) MakeTime(base time.Time) time.Time {
+func (t Clock) Time(base time.Time) time.Time {
 	return time.Date(base.Year(), base.Month(), base.Day(),
 		t.Hour, t.Minute, 0, 0, time.Local)
 }
@@ -217,10 +217,10 @@ func (ts TimeSpan) String() string {
 // MakeTime generates a start and end times from ts using t as a base. Returned
 // end time is automatically shifted to the next day if End is before Start
 func (ts TimeSpan) MakeTime(t time.Time) (start time.Time, end time.Time) {
-	a := ts.Start.MakeTime(t)
+	a := ts.Start.Time(t)
 	b := a
 	if !ts.End.IsZero() && ts.End != ts.Start {
-		b = ts.End.MakeTime(t)
+		b = ts.End.Time(t)
 
 		// 23:00-1:00
 		if b.Before(a) {
