@@ -408,22 +408,21 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-// Next will return the duration until an optionally random time in the next
-// schedule window.
+// Next returns the earliest event after last according to the provided
+// schedule.
 func Next(schedule []*Schedule, last time.Time) time.Duration {
 	now := timeNow()
 
 	a := last.Add(maxDuration)
 	b := a.Add(1 * time.Hour)
 
-	randomize := false
+	spread := false
 	for _, sched := range schedule {
 		next := sched.Next(last)
 		if next.Start.Before(a) {
-			// randomize = sched.Randomize
 			a = next.Start
 			b = next.End
-			randomize = next.Spread
+			spread = next.Spread
 		}
 	}
 	if a.Before(now) {
@@ -431,7 +430,7 @@ func Next(schedule []*Schedule, last time.Time) time.Duration {
 	}
 
 	when := a.Sub(now)
-	if randomize {
+	if spread {
 		when += randDur(a, b)
 	}
 
