@@ -34,6 +34,15 @@ execute: |
     echo "The interface is connected by default"
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
+    echo "Then wait until the dbus name is properly reserved"
+    for i in $(seq 10); do
+        if ! test-snapd-network-status-provider.consumer GetVersion | MATCH "my-ap-version"; then
+            sleep 1
+        else
+            break
+        fi
+    done
+
     echo "Check the network-status is working from the consumer app in the snap"
     test-snapd-network-status-provider.consumer GetState | MATCH "my-ap-state"
     test-snapd-network-status-provider.consumer GetVersion | MATCH "my-ap-version"
