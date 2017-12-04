@@ -291,14 +291,18 @@ func isLastWeekdayInMonth(t time.Time) bool {
 	return t.Month() != t.Add(7*24*time.Hour).Month()
 }
 
-type NextSchedule struct {
-	Start  time.Time
-	End    time.Time
+// ScheduleWindow represents a time window between Start and End times when the
+// scheduled even can happen.
+type ScheduleWindow struct {
+	Start time.Time
+	End   time.Time
+	// Spread defines whether the event shall be randomly placed between
+	// Start and End times
 	Spread bool
 }
 
 // Next returns when the time of the next interval defined in sched.
-func (sched *Schedule) Next(last time.Time) NextSchedule {
+func (sched *Schedule) Next(last time.Time) ScheduleWindow {
 	now := timeNow()
 
 	weeks := sched.weekSpans()
@@ -355,7 +359,7 @@ func (sched *Schedule) Next(last time.Time) NextSchedule {
 		if b.IsZero() || b.Before(now) {
 			continue
 		}
-		return NextSchedule{
+		return ScheduleWindow{
 			Start:  a,
 			End:    b,
 			Spread: spread,
