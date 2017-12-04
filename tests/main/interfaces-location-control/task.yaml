@@ -37,6 +37,15 @@ execute: |
     snap connect test-snapd-location-control-provider:location-control test-snapd-location-control-provider:location-control-test
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
+    echo "Then wait until the dbus name is properly reserved"
+    for i in $(seq 10); do
+        if ! test-snapd-location-control-provider.consumer Get | MATCH "location-get"; then
+            sleep 1
+        else
+            break
+        fi
+    done
+
     echo "Check the location-control is working from the consumer app in the snap"
     test-snapd-location-control-provider.consumer Get | MATCH "location-get"
     test-snapd-location-control-provider.consumer Set | MATCH "location-set"
