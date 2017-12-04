@@ -62,7 +62,7 @@ func switchDisableService(service, value string) error {
 }
 
 // services that can be disabled
-var services = []string{"ssh", "rsyslog"}
+var services = []string{"ssh", "rsyslog", "snapd.autoimport"}
 
 func handleServiceDisableConfiguration(tr Conf) error {
 	for _, service := range services {
