@@ -237,6 +237,18 @@ func (ts TimeSpan) Subspans() []TimeSpan {
 	return spans
 }
 
+// ScheduleWindow generates a ScheduleWindow corresponding to ts using t as a
+// base. The returned window stars and ends on t.Day() according to the time
+// span's start and end times.
+func (ts TimeSpan) ScheduleWindow(t time.Time) ScheduleWindow {
+	start, end := ts.Times(t)
+	return ScheduleWindow{
+		Start:  start,
+		End:    end,
+		Spread: ts.Spread,
+	}
+}
+
 // Schedule represents a single schedule
 type Schedule struct {
 	WeekSpans []WeekSpan
@@ -302,24 +314,44 @@ type ScheduleWindow struct {
 	Spread bool
 }
 
+// StartsBefore returns true if the window's start time is before t.
+func (s ScheduleWindow) StartsBefore(t time.Time) bool {
+	return s.Start.Before(t)
+}
+
+// EndsBefore returns true if the window's end time is before t.
+func (s ScheduleWindow) EndsBefore(t time.Time) bool {
+	return s.End.Before(t)
+}
+
+// Returnes true if t falls inside the window.
+func (s ScheduleWindow) Includes(t time.Time) bool {
+	return (t.Equal(s.Start) || t.After(s.Start)) && (t.Equal(s.End) || t.Before(s.End))
+}
+
+// Returns true if window is uninitialized.
+func (s ScheduleWindow) IsZero() bool {
+	return s.Start.IsZero()
+}
+
 // Next returns when the time of the next interval defined in sched.
 func (sched *Schedule) Next(last time.Time) ScheduleWindow {
 	now := timeNow()
 
-	weeks := sched.weekSpans()
-	times := sched.flattenedTimeSpans()
+	wspans := sched.weekSpans()
+	tspans := sched.flattenedTimeSpans()
 
 	for t := last; ; t = t.Add(24 * time.Hour) {
 		// try to find a matching schedule by moving in 24h jumps, check
 		// if the event needs to happen on a specific day in a specific
 		// week, next pick the earliest event time
 
-		var a, b time.Time
+		var window ScheduleWindow
 
 		// if there's a week schedule, check if we hit that first
-		if len(weeks) > 0 {
+		if len(wspans) > 0 {
 			var weekMatch bool
-			for _, week := range weeks {
+			for _, week := range wspans {
 				if week.Match(t) {
 					weekMatch = true
 					break
@@ -331,40 +363,32 @@ func (sched *Schedule) Next(last time.Time) ScheduleWindow {
 			}
 		}
 
-		var spread bool
-		for i := range times {
+		for _, tspan := range tspans {
 			// consider all time spans for this particular date and
 			// find the earliest possible one that is not before
 			// 'now', and does not include the 'last' time
-			ts := times[i]
-			newA, newB := ts.Times(t)
+			newWindow := tspan.ScheduleWindow(t)
 
 			// the time span ends before 'now', try another one
-			if newB.Before(now) {
+			if newWindow.EndsBefore(now) {
 				continue
 			}
 
 			// same interval as last update, move forward
-			if (last.Equal(newA) || last.After(newA)) && (last.Equal(newB) || last.Before(newB)) {
+			if newWindow.Includes(last) {
 				continue
 			}
 
 			// if this candidate comes before current candidate use it
-			if a.IsZero() || newA.Before(a) {
-				a = newA
-				b = newB
-				spread = ts.Spread
+			if window.IsZero() || newWindow.StartsBefore(window.Start) {
+				window = newWindow
 			}
 		}
 		// no suitable time span was found this day so try the next day
-		if b.IsZero() || b.Before(now) {
+		if window.EndsBefore(now) {
 			continue
 		}
-		return ScheduleWindow{
-			Start:  a,
-			End:    b,
-			Spread: spread,
-		}
+		return window
 	}
 
 }
