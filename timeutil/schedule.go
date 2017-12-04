@@ -108,9 +108,9 @@ func ParseTime(s string) (t Clock, err error) {
 	return t, nil
 }
 
-// Weekday represents a weekday such as Monday, Tuesday, with optional
+// Week represents a weekday such as Monday, Tuesday, with optional
 // week-in-the-month position, eg. the first Monday of the month
-type Weekday struct {
+type Week struct {
 	// Day stands for a weekday - "mon", "tue", ..
 	Day string
 	// Week the day appears in given month, 5 means the last week
@@ -118,11 +118,11 @@ type Weekday struct {
 }
 
 // IsZero indicates if Weekday is in the default state
-func (w Weekday) IsZero() bool {
-	return w == Weekday{}
+func (w Week) IsZero() bool {
+	return w == Week{}
 }
 
-func (w Weekday) String() string {
+func (w Week) String() string {
 	if w.Pos == 0 {
 		return w.Day
 	}
@@ -132,8 +132,8 @@ func (w Weekday) String() string {
 // WeekSpan represents a span of weekdays between Start and End days. WeekSpan
 // may wrap around the week, eg. fri-mon is a span from Friday to Monday
 type WeekSpan struct {
-	Start Weekday
-	End   Weekday
+	Start Week
+	End   Week
 }
 
 func (ws WeekSpan) String() string {
@@ -636,7 +636,7 @@ func parseTimeSpan(start, end string) (*TimeSpan, error) {
 
 // parseWeekday will parse a string and extract weekday (eg. wed),
 // MonthWeekday (eg. 1st, 5th in the month).
-func parseWeekday(s string) (*Weekday, error) {
+func parseWeekday(s string) (*Week, error) {
 	l := len(s)
 	if l != 3 && l != 4 {
 		return nil, fmt.Errorf("cannot parse %q: invalid format", s)
@@ -659,7 +659,7 @@ func parseWeekday(s string) (*Weekday, error) {
 		return nil, fmt.Errorf("cannot parse %q: invalid weekday", s)
 	}
 
-	week := &Weekday{
+	week := &Week{
 		Day: day,
 		Pos: pos,
 	}
