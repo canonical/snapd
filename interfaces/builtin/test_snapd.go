@@ -20,6 +20,8 @@
 package builtin
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/snap"
@@ -33,7 +35,7 @@ const testSnapdInterfaceBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - app
-    deny-auto-connection: false
+    deny-auto-connection: true
     deny-connection:
       on-classic: false
 `
@@ -63,11 +65,21 @@ func (iface *testSnapdInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 }
 
 func (iface *testSnapdInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
-	return nil
+	var value string
+	if err := plug.Attr("consumer-attr3", &value); err != nil {
+		return err
+	}
+	value = fmt.Sprintf("%s-validated", value)
+	return plug.SetAttr("consumer-attr3", value)
 }
 
-func (iface *testSnapdInterface) BeforeConnectSlot(plug *interfaces.ConnectedSlot) error {
-	return nil
+func (iface *testSnapdInterface) BeforeConnectSlot(slot *interfaces.ConnectedSlot) error {
+	var value string
+	if err := slot.Attr("producer-attr3", &value); err != nil {
+		return err
+	}
+	value = fmt.Sprintf("%s-validated", value)
+	return slot.SetAttr("producer-attr3", value)
 }
 
 func (iface *testSnapdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

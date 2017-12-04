@@ -18,7 +18,7 @@ if ! output=$(snapctl get :producer producer-attr3); then
     echo "Expected connect-slot-producer to be able to read the value of own 'producer-attr3' attribute"
     exit 1
 fi
-expected_output="producervalue3"
+expected_output="producervalue3-validated"
 if [ "$output" != "$expected_output" ]; then
     echo "Expected output to be '$expected_output', but it was '$output'"
     exit 1
@@ -29,7 +29,7 @@ if ! output=$(snapctl get --plug :producer consumer-attr3); then
     echo "Expected connect-slot-producer to be able to read the value of 'consumer-attr3' attribute of the plug"
     exit 1
 fi
-expected_output="consumervalue3"
+expected_output="consumervalue3-validated"
 if [ "$output" != "$expected_output" ]; then
     echo "Expected output to be '$expected_output', but it was '$output'"
     exit 1
