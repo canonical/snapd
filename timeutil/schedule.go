@@ -32,28 +32,28 @@ import (
 // Match 0:00-24:00, where 24:00 means the later end of the day.
 var validTime = regexp.MustCompile(`^(([0-9]|0[0-9]|1[0-9]|2[0-3]):([0-5][0-9]))|(24:00)$`)
 
-// TimeOfDay represents a hour:minute time within a day.
-type TimeOfDay struct {
+// Clock represents a hour:minute time within a day.
+type Clock struct {
 	Hour   int
 	Minute int
 }
 
-func (t TimeOfDay) String() string {
+func (t Clock) String() string {
 	return fmt.Sprintf("%02d:%02d", t.Hour, t.Minute)
 }
 
 // Sub subtracts `other` TimeOfDay from current and returns duration
-func (t TimeOfDay) Sub(other TimeOfDay) time.Duration {
+func (t Clock) Sub(other Clock) time.Duration {
 	t1 := time.Duration(t.Hour)*time.Hour + time.Duration(t.Minute)*time.Minute
 	t2 := time.Duration(other.Hour)*time.Hour + time.Duration(other.Minute)*time.Minute
 	return t1 - t2
 }
 
 // Add adds given duration and returns a new TimeOfDay
-func (t TimeOfDay) Add(dur time.Duration) TimeOfDay {
+func (t Clock) Add(dur time.Duration) Clock {
 	t1 := time.Duration(t.Hour)*time.Hour + time.Duration(t.Minute)*time.Minute
 	t2 := t1 + dur
-	nt := TimeOfDay{
+	nt := Clock{
 		Hour:   int(t2.Hours()) % 24,
 		Minute: int(t2.Minutes()) % 60,
 	}
@@ -62,14 +62,14 @@ func (t TimeOfDay) Add(dur time.Duration) TimeOfDay {
 
 // MakeTime generates a time.Time using base for information on year, month, day
 // and with hour and minute set from TimeOfDay
-func (t TimeOfDay) MakeTime(base time.Time) time.Time {
+func (t Clock) MakeTime(base time.Time) time.Time {
 	return time.Date(base.Year(), base.Month(), base.Day(),
 		t.Hour, t.Minute, 0, 0, time.Local)
 }
 
 // IsZero reports whether t represents a zero time instant
-func (t TimeOfDay) IsZero() bool {
-	return t == TimeOfDay{}
+func (t Clock) IsZero() bool {
+	return t == Clock{}
 }
 
 // isValidTime returns true if given s looks like a valid time specification
@@ -86,7 +86,7 @@ func IsValidWeekday(s string) bool {
 
 // ParseTime parses a string that contains hour:minute and returns
 // an TimeOfDay type or an error
-func ParseTime(s string) (t TimeOfDay, err error) {
+func ParseTime(s string) (t Clock, err error) {
 	m := validTime.FindStringSubmatch(s)
 	if len(m) == 0 {
 		return t, fmt.Errorf("cannot parse %q", s)
@@ -190,8 +190,8 @@ func (ws WeekSpan) IsWithinRange(t time.Time) bool {
 // TimeSpan may wrap around, eg. 23:00-1:00 representing a span from 11pm to 1am
 // the next day.
 type TimeSpan struct {
-	Start TimeOfDay
-	End   TimeOfDay
+	Start Clock
+	End   Clock
 	// indicates if the span is split into smaller subspans. Use Subspan()
 	// to generate a slice of TimeSpan using the current TimeSpan as a base
 	Split uint
@@ -451,7 +451,7 @@ var weekdayMap = map[string]time.Weekday{
 // parseTimeInterval gets an input like "9:00-11:00"
 // and extracts the start and end of that schedule string and
 // returns them and any errors.
-func parseTimeInterval(s string) (start, end TimeOfDay, err error) {
+func parseTimeInterval(s string) (start, end Clock, err error) {
 	l := strings.SplitN(s, "-", 2)
 	if len(l) != 2 {
 		return start, end, fmt.Errorf("cannot parse %q: not a valid interval", s)
@@ -599,10 +599,10 @@ func parseSpan(spec string) (string, string) {
 
 // parseTime parses a time specification which can either be `<hh>:<mm>` or
 // `<hh>:<mm>-<hh>:<mm>`. Returns corresponding TimeOfDay structs.
-func parseTime(start, end string) (TimeOfDay, TimeOfDay, error) {
+func parseTime(start, end string) (Clock, Clock, error) {
 	// is it a time?
 	var err error
-	var tstart, tend TimeOfDay
+	var tstart, tend Clock
 
 	if start == end {
 		// single time, eg. 10:00
