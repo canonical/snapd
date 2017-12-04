@@ -135,6 +135,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"home":          true,
 		"lxd-support":   true,
 		"snapd-control": true,
+		"test-snapd":    true,
 	}
 
 	// these simply auto-connect, anything else doesn't
@@ -492,6 +493,7 @@ var (
 		"serial-port": {"core", "gadget"},
 		"spi":         {"core", "gadget"},
 		"storage-framework-service": {"app"},
+		"test-snapd":                {"app"},
 		"thumbnailer-service":       {"app"},
 		"ubuntu-download-manager":   {"app"},
 		"udisks2":                   {"app"},
