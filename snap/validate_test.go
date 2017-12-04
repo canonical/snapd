@@ -593,9 +593,6 @@ func (s *ValidateSuite) TestValidateSocketName(c *C) {
 	}
 }
 
-func (s *ValidateSuite) TestValidateStartupOrder(c *C) {
-
-}
 func (s *YamlSuite) TestValidateAppStartBeforeBad(c *C) {
 	y := []byte(`
 name: foo
