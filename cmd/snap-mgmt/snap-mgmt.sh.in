@@ -129,6 +129,7 @@ purge() {
     rm -f /var/cache/snapd/*
 
     if test -d /etc/apparmor.d; then
+        # Remove auto-generated rules for snap-confine from the 'core' snap
         echo "Removing extra snap-confine apparmor rules"
         # shellcheck disable=SC2046
         rm -f /etc/apparmor.d/$(echo "$SNAP_UNIT_PREFIX" | tr '-' '.').core.*.usr.lib.snapd.snap-confine
