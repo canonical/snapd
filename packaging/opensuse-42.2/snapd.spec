@@ -250,7 +250,7 @@ esac
 %preun
 %service_del_preun %{systemd_services_list}
 if [ $1 -eq 0 ]; then
-    rm -f /var/cache/snapd/*
+    %{_libexecdir}/snapd/snap-mgmt --purge || :
 fi
 
 %postun
@@ -297,6 +297,7 @@ fi
 %{_libexecdir}/snapd/snap-exec
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snapd
+%{_libexecdir}/snapd/snap-mgmt
 %{_libexecdir}/udev/snappy-app-dev
 /usr/share/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
