@@ -67,11 +67,6 @@ func (t Clock) Time(base time.Time) time.Time {
 		t.Hour, t.Minute, 0, 0, time.Local)
 }
 
-// IsZero reports whether t represents a zero time instant
-func (t Clock) IsZero() bool {
-	return t == Clock{}
-}
-
 // isValidTime returns true if given s looks like a valid time specification
 func isValidTime(s string) bool {
 	return validTime.MatchString(s)
@@ -194,7 +189,7 @@ func (ts TimeSpan) String() string {
 	if ts.Spread {
 		sep = "~"
 	}
-	if !ts.End.IsZero() && ts.End != ts.Start {
+	if ts.End != ts.Start {
 		s := ts.Start.String() + sep + ts.End.String()
 		if ts.Split > 0 {
 			s += "/" + strconv.Itoa(int(ts.Split))
@@ -209,7 +204,7 @@ func (ts TimeSpan) String() string {
 func (ts TimeSpan) MakeTime(t time.Time) (start time.Time, end time.Time) {
 	a := ts.Start.Time(t)
 	b := a
-	if !ts.End.IsZero() && ts.End != ts.Start {
+	if ts.End != ts.Start {
 		b = ts.End.Time(t)
 
 		// 23:00-1:00
