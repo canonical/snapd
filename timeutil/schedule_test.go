@@ -86,7 +86,8 @@ func (ts *timeutilSuite) TestScheduleString(c *C) {
 				Start: timeutil.Clock{Hour: 13, Minute: 41},
 				End:   timeutil.Clock{Hour: 14, Minute: 59}}},
 			Week: []timeutil.WeekSpan{
-				{Start: timeutil.Week{Day: "mon"}}},
+				{Start: timeutil.Week{Day: time.Monday},
+					End: timeutil.Week{Day: time.Monday}}},
 		}, "mon,13:41-14:59"},
 		{timeutil.Schedule{
 			Times: []timeutil.TimeSpan{
@@ -97,7 +98,7 @@ func (ts *timeutilSuite) TestScheduleString(c *C) {
 			Times: []timeutil.TimeSpan{
 				{Start: timeutil.Clock{Hour: 6}, End: timeutil.Clock{Hour: 6}}},
 			Week: []timeutil.WeekSpan{
-				{Start: timeutil.Week{Day: "mon"}, End: timeutil.Week{Day: "fri"}}},
+				{Start: timeutil.Week{Day: time.Monday}, End: timeutil.Week{Day: time.Friday}}},
 		}, "mon-fri,06:00"},
 		{timeutil.Schedule{
 			Times: []timeutil.TimeSpan{
@@ -105,25 +106,27 @@ func (ts *timeutilSuite) TestScheduleString(c *C) {
 				{Start: timeutil.Clock{Hour: 9}, End: timeutil.Clock{Hour: 14},
 					Spread: true, Split: 2}},
 			Week: []timeutil.WeekSpan{
-				{Start: timeutil.Week{Day: "mon"}, End: timeutil.Week{Day: "fri"}},
-				{Start: timeutil.Week{Day: "sat"}}},
+				{Start: timeutil.Week{Day: time.Monday}, End: timeutil.Week{Day: time.Friday}},
+				{Start: timeutil.Week{Day: time.Saturday}, End: timeutil.Week{Day: time.Saturday}}},
 		}, "mon-fri,sat,06:00,09:00~14:00/2"},
 
 		{timeutil.Schedule{
 			Times: []timeutil.TimeSpan{
 				{Start: timeutil.Clock{Hour: 6}, End: timeutil.Clock{Hour: 6}}},
 			Week: []timeutil.WeekSpan{
-				{Start: timeutil.Week{Day: "mon", Pos: 1}, End: timeutil.Week{Day: "fri", Pos: 1}}},
+				{Start: timeutil.Week{Day: time.Monday, Pos: 1}, End: timeutil.Week{Day: time.Friday, Pos: 1}}},
 		}, "mon1-fri1,06:00"},
 		{timeutil.Schedule{
 			Times: []timeutil.TimeSpan{
 				{Start: timeutil.Clock{Hour: 6}, End: timeutil.Clock{Hour: 6}}},
 			Week: []timeutil.WeekSpan{
-				{Start: timeutil.Week{Day: "mon", Pos: 5}}},
+				{Start: timeutil.Week{Day: time.Monday, Pos: 5},
+					End: timeutil.Week{Day: time.Monday, Pos: 5}}},
 		}, "mon5,06:00"},
 		{timeutil.Schedule{
 			Week: []timeutil.WeekSpan{
-				{Start: timeutil.Week{Day: "mon"}}},
+				{Start: timeutil.Week{Day: time.Monday},
+					End: timeutil.Week{Day: time.Monday}}},
 		}, "mon"},
 		{timeutil.Schedule{
 			Times: []timeutil.TimeSpan{
@@ -348,7 +351,8 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 				Times: []timeutil.TimeSpan{
 					{Start: timeutil.Clock{Hour: 9}, End: timeutil.Clock{Hour: 11}}},
 				Week: []timeutil.WeekSpan{
-					{Start: timeutil.Week{Day: "mon"}}},
+					{Start: timeutil.Week{Day: time.Monday},
+						End: timeutil.Week{Day: time.Monday}}},
 			}},
 		},
 		{
@@ -357,8 +361,10 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 				Times: []timeutil.TimeSpan{
 					{Start: timeutil.Clock{Hour: 9}, End: timeutil.Clock{Hour: 11}}},
 				Week: []timeutil.WeekSpan{
-					{Start: timeutil.Week{Day: "fri"}},
-					{Start: timeutil.Week{Day: "mon"}}},
+					{Start: timeutil.Week{Day: time.Friday},
+						End: timeutil.Week{Day: time.Friday}},
+					{Start: timeutil.Week{Day: time.Monday},
+						End: timeutil.Week{Day: time.Monday}}},
 			}},
 		},
 		{
@@ -374,12 +380,20 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 			in: "mon,9:00-11:00..wed,22:00-23:00",
 			expected: []*timeutil.Schedule{
 				{
-					Times: []timeutil.TimeSpan{{Start: timeutil.Clock{Hour: 9}, End: timeutil.Clock{Hour: 11}}},
-					Week:  []timeutil.WeekSpan{{Start: timeutil.Week{Day: "mon"}}},
+					Times: []timeutil.TimeSpan{
+						{Start: timeutil.Clock{Hour: 9},
+							End: timeutil.Clock{Hour: 11}}},
+					Week: []timeutil.WeekSpan{
+						{Start: timeutil.Week{Day: time.Monday},
+							End: timeutil.Week{Day: time.Monday}}},
 				},
 				{
-					Times: []timeutil.TimeSpan{{Start: timeutil.Clock{Hour: 22}, End: timeutil.Clock{Hour: 23}}},
-					Week:  []timeutil.WeekSpan{{Start: timeutil.Week{Day: "wed"}}},
+					Times: []timeutil.TimeSpan{
+						{Start: timeutil.Clock{Hour: 22},
+							End: timeutil.Clock{Hour: 23}}},
+					Week: []timeutil.WeekSpan{
+						{Start: timeutil.Week{Day: time.Wednesday},
+							End: timeutil.Week{Day: time.Wednesday}}},
 				},
 			},
 		},
@@ -393,7 +407,8 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 					{Start: timeutil.Clock{Hour: 15}},
 				},
 				Week: []timeutil.WeekSpan{
-					{Start: timeutil.Week{Day: "mon"}},
+					{Start: timeutil.Week{Day: time.Monday},
+						End: timeutil.Week{Day: time.Monday}},
 				},
 			}},
 		},
@@ -401,8 +416,10 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 			in: "mon,wed",
 			expected: []*timeutil.Schedule{{
 				Week: []timeutil.WeekSpan{
-					{Start: timeutil.Week{Day: "mon"}},
-					{Start: timeutil.Week{Day: "wed"}},
+					{Start: timeutil.Week{Day: time.Monday},
+						End: timeutil.Week{Day: time.Monday}},
+					{Start: timeutil.Week{Day: time.Wednesday},
+						End: timeutil.Week{Day: time.Wednesday}},
 				},
 			}},
 		},
@@ -411,9 +428,11 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 			in: "mon..wed",
 			expected: []*timeutil.Schedule{
 				{Week: []timeutil.WeekSpan{
-					{Start: timeutil.Week{Day: "mon"}}}},
+					{Start: timeutil.Week{Day: time.Monday},
+						End: timeutil.Week{Day: time.Monday}}}},
 				{Week: []timeutil.WeekSpan{
-					{Start: timeutil.Week{Day: "wed"}}}},
+					{Start: timeutil.Week{Day: time.Wednesday},
+						End: timeutil.Week{Day: time.Wednesday}}}},
 			},
 		},
 		// but not the same as this one
@@ -421,7 +440,8 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 			in: "mon-wed",
 			expected: []*timeutil.Schedule{{
 				Week: []timeutil.WeekSpan{
-					{Start: timeutil.Week{Day: "mon"}, End: timeutil.Week{Day: "wed"}}},
+					{Start: timeutil.Week{Day: time.Monday},
+						End: timeutil.Week{Day: time.Wednesday}}},
 			}},
 		},
 		{
@@ -432,8 +452,10 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 						Split: 2},
 				},
 				Week: []timeutil.WeekSpan{
-					{Start: timeutil.Week{Day: "mon"}, End: timeutil.Week{Day: "wed"}},
-					{Start: timeutil.Week{Day: "fri"}},
+					{Start: timeutil.Week{Day: time.Monday},
+						End: timeutil.Week{Day: time.Wednesday}},
+					{Start: timeutil.Week{Day: time.Friday},
+						End: timeutil.Week{Day: time.Friday}},
 				},
 			}},
 		},
@@ -461,7 +483,8 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 					{Start: timeutil.Clock{Hour: 9}},
 				},
 				Week: []timeutil.WeekSpan{
-					{Start: timeutil.Week{Day: "mon", Pos: 1}},
+					{Start: timeutil.Week{Day: time.Monday, Pos: 1},
+						End: timeutil.Week{Day: time.Monday, Pos: 1}},
 				},
 			}},
 		},
@@ -505,7 +528,8 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 			in: "fri-mon",
 			expected: []*timeutil.Schedule{{
 				Week: []timeutil.WeekSpan{
-					{Start: timeutil.Week{Day: "fri"}, End: timeutil.Week{Day: "mon"}}},
+					{Start: timeutil.Week{Day: time.Friday},
+						End: timeutil.Week{Day: time.Monday}}},
 			}},
 		},
 	} {

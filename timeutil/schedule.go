@@ -111,24 +111,20 @@ func ParseTime(s string) (t Clock, err error) {
 // Week represents a weekday such as Monday, Tuesday, with optional
 // week-in-the-month position, eg. the first Monday of the month
 type Week struct {
-	// Day stands for a weekday - "mon", "tue", ..
-	Day string
+	Day time.Weekday
 	// Pos defines which week inside the month the Day refers to, where zero
 	// means every week, 1 means first occurrence of the weekday, and 5
 	// means last occurrence (which might be the fourth or the fifth).
 	Pos uint
 }
 
-// IsZero indicates if Weekday is in the default state
-func (w Week) IsZero() bool {
-	return w == Week{}
-}
-
 func (w Week) String() string {
+	// Wednesday -> wed
+	day := strings.ToLower(w.Day.String()[0:3])
 	if w.Pos == 0 {
-		return w.Day
+		return day
 	}
-	return w.Day + strconv.Itoa(int(w.Pos))
+	return day + strconv.Itoa(int(w.Pos))
 }
 
 // WeekSpan represents a span of weekdays between Start and End days. WeekSpan
@@ -139,7 +135,7 @@ type WeekSpan struct {
 }
 
 func (ws WeekSpan) String() string {
-	if !ws.End.IsZero() && ws.End != ws.Start {
+	if ws.End != ws.Start {
 		return ws.Start.String() + "-" + ws.End.String()
 	}
 	return ws.Start.String()
@@ -147,16 +143,8 @@ func (ws WeekSpan) String() string {
 
 // Match checks if t is within the day-span represented by ws.
 func (ws WeekSpan) Match(t time.Time) bool {
-	// every day matches with empty week span
-	if ws.Start.IsZero() {
-		return true
-	}
-
 	start, end := ws.Start, ws.End
-	if end.IsZero() {
-		end = start
-	}
-	wdStart, wdEnd := weekdayMap[start.Day], weekdayMap[end.Day]
+	wdStart, wdEnd := start.Day, end.Day
 
 	// is it the right week?
 	if start.Pos > 0 {
@@ -285,9 +273,6 @@ func (sched *Schedule) String() string {
 }
 
 func (sched *Schedule) weekSpans() []WeekSpan {
-	if len(sched.Week) == 0 {
-		return []WeekSpan{{}}
-	}
 	return sched.Week
 }
 
@@ -334,16 +319,18 @@ func (sched *Schedule) Next(last time.Time) NextSchedule {
 		var a, b time.Time
 
 		// if there's a week schedule, check if we hit that first
-		var weekMatch bool
-		for _, week := range weeks {
-			if week.Match(t) {
-				weekMatch = true
-				break
+		if len(weeks) > 0 {
+			var weekMatch bool
+			for _, week := range weeks {
+				if week.Match(t) {
+					weekMatch = true
+					break
+				}
 			}
-		}
 
-		if !weekMatch {
-			continue
+			if !weekMatch {
+				continue
+			}
 		}
 
 		var spread bool
@@ -574,9 +561,7 @@ func parseWeekSpan(start string, end string) (*WeekSpan, error) {
 
 	span := &WeekSpan{
 		Start: *startWeekday,
-	}
-	if *endWeekday != *startWeekday {
-		span.End = *endWeekday
+		End:   *endWeekday,
 	}
 
 	return span, nil
@@ -662,7 +647,7 @@ func parseWeekday(s string) (*Week, error) {
 	}
 
 	week := &Week{
-		Day: day,
+		Day: weekdayMap[day],
 		Pos: pos,
 	}
 	return week, nil
