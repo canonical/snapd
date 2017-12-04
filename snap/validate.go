@@ -271,32 +271,41 @@ const (
 	orderAfter
 )
 
-func validateAppStartup(app *AppInfo, order appStartupOrder) error {
-	orderStr := "before"
-	deps := app.Before
-	if order == orderAfter {
-		orderStr = "after"
-		deps = app.After
+func (a appStartupOrder) String() string {
+	switch a {
+	case orderBefore:
+		return "before"
+	case orderAfter:
+		return "after"
 	}
+	return fmt.Sprintf("<unsupported order: %v>", int(a))
+}
 
-	for _, dep := range deps {
+func appStartupOrdering(app *AppInfo, order appStartupOrder) []string {
+	switch order {
+	case orderBefore:
+		return app.Before
+	case orderAfter:
+		return app.After
+	}
+	panic(fmt.Sprintf("unsupported order: %v", order))
+}
+
+func validateAppStartupOrdering(app *AppInfo, order appStartupOrder) error {
+	for _, dep := range appStartupOrdering(app, order) {
 		// dependency is not defined
-		if other, ok := app.Snap.Apps[dep]; !ok {
+		other, ok := app.Snap.Apps[dep]
+		if !ok {
 			return fmt.Errorf("cannot validate app %q startup ordering: needs to be started %s %q, but %q is not defined",
-				app.Name, orderStr, dep, dep)
-		} else {
-			// or it depends on us in the same order, eg. foo is
-			// started after bar, but bar is to be started after foo
-			// as well, validate only one dependency step
-			otherDeps := other.Before
-			if order == orderAfter {
-				otherDeps = other.After
-			}
-
-			if strutil.ListContains(otherDeps, app.Name) {
-				return fmt.Errorf("cannot validate app %q startup ordering: needs to be started %s %q, but %q is declared to start %s %q",
-					app.Name, orderStr, other.Name, other.Name, orderStr, app.Name)
-			}
+				app.Name, order, dep, dep)
+		}
+		// or it depends on us in the same order, eg. foo is
+		// started after bar, but bar is to be started after foo
+		// as well, validate only one dependency step
+		otherDeps := appStartupOrdering(other, order)
+		if strutil.ListContains(otherDeps, app.Name) {
+			return fmt.Errorf("cannot validate app %q startup ordering: needs to be started %s %q, but %q is declared to start %s %q",
+				app.Name, order, other.Name, other.Name, order, app.Name)
 		}
 	}
 	return nil
@@ -351,10 +360,10 @@ func ValidateApp(app *AppInfo) error {
 		}
 	}
 
-	if err := validateAppStartup(app, orderBefore); err != nil {
+	if err := validateAppStartupOrdering(app, orderBefore); err != nil {
 		return err
 	}
-	if err := validateAppStartup(app, orderAfter); err != nil {
+	if err := validateAppStartupOrdering(app, orderAfter); err != nil {
 		return err
 	}
 
