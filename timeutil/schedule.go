@@ -143,8 +143,8 @@ func (ws WeekSpan) String() string {
 	return ws.Start.String()
 }
 
-// IsWithinRange checks if t is within the day-span represented by ws.
-func (ws WeekSpan) IsWithinRange(t time.Time) bool {
+// Match checks if t is within the day-span represented by ws.
+func (ws WeekSpan) Match(t time.Time) bool {
 	// every day matches with empty week span
 	if ws.Start.IsZero() {
 		return true
@@ -334,7 +334,7 @@ func (sched *Schedule) Next(last time.Time) NextSchedule {
 		// if there's a week schedule, check if we hit that first
 		var weekMatch bool
 		for _, week := range weeks {
-			if week.IsWithinRange(t) {
+			if week.Match(t) {
 				weekMatch = true
 				break
 			}
