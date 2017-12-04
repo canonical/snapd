@@ -128,7 +128,7 @@ func (w Week) String() string {
 	if w.Pos == 0 {
 		return w.Day
 	}
-	return w.Day + strconv.FormatUint(uint64(w.Pos), 10)
+	return w.Day + strconv.Itoa(int(w.Pos))
 }
 
 // WeekSpan represents a span of weekdays between Start and End days. WeekSpan
@@ -209,7 +209,7 @@ func (ts TimeSpan) String() string {
 	if !ts.End.IsZero() && ts.End != ts.Start {
 		s := ts.Start.String() + sep + ts.End.String()
 		if ts.Split > 0 {
-			s += "/" + strconv.FormatUint(uint64(ts.Split), 10)
+			s += "/" + strconv.Itoa(int(ts.Split))
 		}
 		return s
 	}
