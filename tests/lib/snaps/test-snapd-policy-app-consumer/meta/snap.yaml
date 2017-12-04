@@ -248,6 +248,9 @@ apps:
   system-trace:
     command: bin/run
     plugs: [ system-trace ]
+  test-snapd:
+    command: bin/run
+    plugs: [ test-snapd ]
   thumbnailer-service:
     command: bin/run
     plugs: [ thumbnailer-service ]
@@ -310,3 +313,5 @@ plugs:
     interface: dbus
     bus: system
     name: test.system
+  test-snapd:
+    interface: test-snapd
