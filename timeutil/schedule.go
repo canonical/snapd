@@ -238,25 +238,25 @@ func (ts TimeSpan) Subspans() []TimeSpan {
 
 // Schedule represents a single schedule
 type Schedule struct {
-	Week  []WeekSpan
-	Times []TimeSpan
+	WeekSpans []WeekSpan
+	TimeSpans []TimeSpan
 }
 
 func (sched *Schedule) String() string {
 	buf := &bytes.Buffer{}
 
-	for i, span := range sched.Week {
+	for i, span := range sched.WeekSpans {
 		if i > 0 {
 			fmt.Fprint(buf, ",")
 		}
 		fmt.Fprintf(buf, "%s", span)
 	}
 
-	if len(sched.Week) > 0 && len(sched.Times) > 0 {
+	if len(sched.WeekSpans) > 0 && len(sched.TimeSpans) > 0 {
 		fmt.Fprint(buf, ",")
 	}
 
-	for i, span := range sched.Times {
+	for i, span := range sched.TimeSpans {
 		if i > 0 {
 			fmt.Fprintf(buf, ",")
 		}
@@ -266,11 +266,11 @@ func (sched *Schedule) String() string {
 }
 
 func (sched *Schedule) weekSpans() []WeekSpan {
-	return sched.Week
+	return sched.WeekSpans
 }
 
 func (sched *Schedule) flattenedTimeSpans() []TimeSpan {
-	baseTimes := sched.Times
+	baseTimes := sched.TimeSpans
 	if len(baseTimes) == 0 {
 		baseTimes = []TimeSpan{{}}
 	}
@@ -459,7 +459,7 @@ func parseSingleSchedule(s string) (*Schedule, error) {
 	}
 
 	return &Schedule{
-		Times: []TimeSpan{
+		TimeSpans: []TimeSpan{
 			{
 				Start:  start,
 				End:    end,
@@ -759,7 +759,7 @@ func parseEventSet(s string) (*Schedule, error) {
 				span.Split = count
 				span.Spread = randomized
 
-				schedule.Times = append(schedule.Times, *span)
+				schedule.TimeSpans = append(schedule.TimeSpans, *span)
 			}
 
 		} else if isValidWeekdaySpec(start) && isValidWeekdaySpec(end) {
@@ -772,7 +772,7 @@ func parseEventSet(s string) (*Schedule, error) {
 			if span, err := parseWeekSpan(start, end); err != nil {
 				return nil, fmt.Errorf("cannot parse %q: %s", event, err.Error())
 			} else {
-				schedule.Week = append(schedule.Week, *span)
+				schedule.WeekSpans = append(schedule.WeekSpans, *span)
 			}
 		} else {
 			// no, it's an error
