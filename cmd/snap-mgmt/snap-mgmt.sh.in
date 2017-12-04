@@ -26,15 +26,10 @@ SNAP_UNIT_PREFIX="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
 
 systemctl_stop() {
     unit="$1"
-    for i in $(seq 10); do
-        if systemctl is-active -q "$unit"; then
-            echo "Stopping $unit"
-            systemctl stop -q "$unit" || true
-        fi
-        echo "Stopping $unit [attempt $i]"
+    if systemctl is-active -q "$unit"; then
+        echo "Stopping $unit"
         systemctl stop -q "$unit" || true
-        sleep .1
-    done
+    fi
 }
 
 purge() {
