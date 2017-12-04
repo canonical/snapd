@@ -35,14 +35,22 @@ bind
 socket AF_NETLINK - NETLINK_AUDIT
 `
 
+const netlinkAuditConnectedPlugAppArmor = `
+# Description: Can use netlink to read/write to kernel audit system.
+network netlink,
+# CAP_NET_ADMIN required per 'man 7 netlink'
+capability net_admin,
+`
+
 func init() {
 	registerIface(&commonInterface{
-		name:                 "netlink-audit",
-		summary:              netlinkAuditSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationSlots: netlinkAuditBaseDeclarationSlots,
-		connectedPlugSecComp: netlinkAuditConnectedPlugSecComp,
-		reservedForOS:        true,
+		name:                  "netlink-audit",
+		summary:               netlinkAuditSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  netlinkAuditBaseDeclarationSlots,
+		connectedPlugSecComp:  netlinkAuditConnectedPlugSecComp,
+		connectedPlugAppArmor: netlinkAuditConnectedPlugAppArmor,
+		reservedForOS:         true,
 	})
 }
