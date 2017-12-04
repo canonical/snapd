@@ -29,9 +29,8 @@ import (
 	"time"
 )
 
-// Match 0:00-24:59, so that we cover 0:00-24:00, where 24:00 means the later
-// end of the day. 24:<mm> where mm > 0 must be handled separately.
-var validTime = regexp.MustCompile(`^([0-9]|0[0-9]|1[0-9]|2[0-3]):([0-5][0-9])$`)
+// Match 0:00-24:00, where 24:00 means the later end of the day.
+var validTime = regexp.MustCompile(`^(([0-9]|0[0-9]|1[0-9]|2[0-3]):([0-5][0-9]))|(24:00)$`)
 
 // TimeOfDay represents a hour:minute time within a day.
 type TimeOfDay struct {
@@ -75,7 +74,7 @@ func (t TimeOfDay) IsZero() bool {
 
 // isValidTime returns true if given s looks like a valid time specification
 func isValidTime(s string) bool {
-	return len(validTime.FindStringSubmatch(s)) > 0 || s == "24:00"
+	return validTime.MatchString(s)
 }
 
 // IsValidWeekday returns true if given s looks like a valid weekday. Valid
@@ -88,22 +87,23 @@ func IsValidWeekday(s string) bool {
 // ParseTime parses a string that contains hour:minute and returns
 // an TimeOfDay type or an error
 func ParseTime(s string) (t TimeOfDay, err error) {
-	if s == "24:00" {
-		t.Hour = 24
-		return t, nil
-	}
-
 	m := validTime.FindStringSubmatch(s)
 	if len(m) == 0 {
 		return t, fmt.Errorf("cannot parse %q", s)
 	}
-	t.Hour, err = strconv.Atoi(m[1])
-	if err != nil {
-		return t, fmt.Errorf("cannot parse %q: %s", m[1], err)
+
+	if m[4] == "24:00" {
+		t.Hour = 24
+		return t, nil
 	}
-	t.Minute, err = strconv.Atoi(m[2])
+
+	t.Hour, err = strconv.Atoi(m[2])
 	if err != nil {
 		return t, fmt.Errorf("cannot parse %q: %s", m[2], err)
+	}
+	t.Minute, err = strconv.Atoi(m[3])
+	if err != nil {
+		return t, fmt.Errorf("cannot parse %q: %s", m[3], err)
 	}
 	return t, nil
 }
