@@ -199,9 +199,9 @@ func (ts TimeSpan) String() string {
 	return ts.Start.String()
 }
 
-// MakeTime generates a start and end times from ts using t as a base. Returned
+// Times generates a start and end times from ts using t as a base. Returned
 // end time is automatically shifted to the next day if End is before Start
-func (ts TimeSpan) MakeTime(t time.Time) (start time.Time, end time.Time) {
+func (ts TimeSpan) Times(t time.Time) (start time.Time, end time.Time) {
 	a := ts.Start.Time(t)
 	b := a
 	if ts.End != ts.Start {
@@ -334,7 +334,7 @@ func (sched *Schedule) Next(last time.Time) NextSchedule {
 			// find the earliest possible one that is not before
 			// 'now', and does not include the 'last' time
 			ts := times[i]
-			newA, newB := ts.MakeTime(t)
+			newA, newB := ts.Times(t)
 
 			// the time span ends before 'now', try another one
 			if newB.Before(now) {
