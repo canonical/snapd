@@ -113,7 +113,9 @@ func ParseTime(s string) (t Clock, err error) {
 type Week struct {
 	// Day stands for a weekday - "mon", "tue", ..
 	Day string
-	// Week the day appears in given month, 5 means the last week
+	// Pos defines which week inside the month the Day refers to, where zero
+	// means every week, 1 means first occurrence of the weekday, and 5
+	// means last occurrence (which might be the fourth or the fifth).
 	Pos uint
 }
 
