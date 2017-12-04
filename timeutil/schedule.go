@@ -415,25 +415,24 @@ func init() {
 func Next(schedule []*Schedule, last time.Time) time.Duration {
 	now := timeNow()
 
-	a := last.Add(maxDuration)
-	b := a.Add(1 * time.Hour)
+	window := ScheduleWindow{
+		Start: last.Add(maxDuration),
+		End:   last.Add(maxDuration).Add(1 * time.Hour),
+	}
 
-	spread := false
 	for _, sched := range schedule {
 		next := sched.Next(last)
-		if next.Start.Before(a) {
-			a = next.Start
-			b = next.End
-			spread = next.Spread
+		if next.StartsBefore(window.Start) {
+			window = next
 		}
 	}
-	if a.Before(now) {
+	if window.StartsBefore(now) {
 		return 0
 	}
 
-	when := a.Sub(now)
-	if spread {
-		when += randDur(a, b)
+	when := window.Start.Sub(now)
+	if window.Spread {
+		when += randDur(window.Start, window.End)
 	}
 
 	return when
