@@ -1565,11 +1565,11 @@ func (s *YamlSuite) TestSnapYamlAppStartOrder(c *C) {
 version: 42
 apps:
  foo:
-   start-after: [bar, zed]
+   after: [bar, zed]
  bar:
-   start-before: [foo]
+   before: [foo]
  baz:
-   start-after: [foo]
+   after: [foo]
  zed:
 
 `)
@@ -1577,20 +1577,20 @@ apps:
 	c.Assert(err, IsNil)
 
 	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
-		"foo": &snap.AppInfo{
-			Snap:       info,
-			Name:       "foo",
-			StartAfter: []string{"bar", "zed"},
+		"foo": {
+			Snap:  info,
+			Name:  "foo",
+			After: []string{"bar", "zed"},
 		},
-		"bar": &snap.AppInfo{
-			Snap:        info,
-			Name:        "bar",
-			StartBefore: []string{"foo"},
+		"bar": {
+			Snap:   info,
+			Name:   "bar",
+			Before: []string{"foo"},
 		},
-		"baz": &snap.AppInfo{
-			Snap:       info,
-			Name:       "baz",
-			StartAfter: []string{"foo"},
+		"baz": {
+			Snap:  info,
+			Name:  "baz",
+			After: []string{"foo"},
 		},
 		"zed": &snap.AppInfo{
 			Snap: info,

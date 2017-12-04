@@ -78,8 +78,8 @@ type appYaml struct {
 
 	Sockets map[string]socketsYaml `yaml:"sockets,omitempty"`
 
-	StartAfter  []string `yaml:"start-after,omitempty"`
-	StartBefore []string `yaml:"start-before,omitempty"`
+	After  []string `yaml:"after,omitempty"`
+	Before []string `yaml:"before,omitempty"`
 }
 
 type hookYaml struct {
@@ -292,8 +292,8 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			BusName:         yApp.BusName,
 			Environment:     yApp.Environment,
 			Completer:       yApp.Completer,
-			StartBefore:     yApp.StartBefore,
-			StartAfter:      yApp.StartAfter,
+			Before:          yApp.Before,
+			After:           yApp.After,
 		}
 		if len(y.Plugs) > 0 || len(yApp.PlugNames) > 0 {
 			app.Plugs = make(map[string]*PlugInfo)
