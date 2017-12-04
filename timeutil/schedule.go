@@ -144,31 +144,25 @@ func (ws WeekSpan) Match(t time.Time) bool {
 	// is it the right week?
 	if start.Pos > 0 {
 		week := uint(t.Day()/7) + 1
-		switch {
-		case start.Pos == 5:
+
+		if start.Pos == 5 {
+			// last week of the month
 			if !isLastWeekdayInMonth(t) {
 				return false
 			}
-		case week < start.Pos || week > end.Pos:
-			return false
+		} else {
+			if week < start.Pos || week > end.Pos {
+				return false
+			}
 		}
 	}
 
-	// is it the right day?
-	switch {
-	case wdStart == wdEnd && t.Weekday() != wdStart:
-		// a single day
-		return false
-	case wdEnd > wdStart && (t.Weekday() < wdStart || t.Weekday() > wdEnd):
-		// day span, eg. mon-fri
-		return false
-	case wdEnd < wdStart && t.Weekday() < wdStart && t.Weekday()+7 > wdEnd+7:
-		// day span that wraps around, eg. fri-mon,
-		// since time.Weekday values go from 0-6, add 7
-		// (week) at the end to get a continuous range
-		return false
+	if wdStart <= wdEnd {
+		// single day (mon) or start < end (eg. mon-fri)
+		return t.Weekday() >= wdStart && t.Weekday() <= wdEnd
 	}
-	return true
+	// wraps around the week end, eg. fri-mon
+	return t.Weekday() >= wdStart || t.Weekday() <= wdEnd
 }
 
 // TimeSpan represents a time span within 24h, potentially crossing days. For
