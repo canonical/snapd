@@ -171,16 +171,14 @@ func (ws WeekSpan) Match(t time.Time) bool {
 	return true
 }
 
-// TimeSpan is a time span within a single day (or this and the next day).
-// TimeSpan may wrap around, eg. 23:00-1:00 representing a span from 11pm to 1am
-// the next day.
+// TimeSpan represents a time span within 24h, potentially crossing days. For
+// example, 23:00-1:00 represents a span from 11pm to 1am.
 type TimeSpan struct {
 	Start Clock
 	End   Clock
-	// indicates if the span is split into smaller subspans. Use Subspan()
-	// to generate a slice of TimeSpan using the current TimeSpan as a base
+	// Split defines the number of subspans this span will be divided into.
 	Split uint
-	// indicates if the events are randomly spread between Start and End
+	// Spread defines whether the events are randomly spread inside the span or subspans.
 	Spread bool
 }
 
