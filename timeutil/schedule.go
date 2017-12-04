@@ -324,19 +324,12 @@ func (sched *Schedule) Next(last time.Time) NextSchedule {
 	weeks := sched.weekSpans()
 	times := sched.flattenedTimeSpans()
 
-	t := last
-	tnext := t
-
-	for {
+	for t := last; ; t = t.Add(24 * time.Hour) {
 		// try to find a matching schedule by moving in 24h jumps, check
 		// if the event needs to happen on a specific day in a specific
 		// week, next pick the earliest event time
 
 		var a, b time.Time
-
-		t = tnext
-
-		tnext = t.Add(24 * time.Hour)
 
 		// if there's a week schedule, check if we hit that first
 		var weekMatch bool
