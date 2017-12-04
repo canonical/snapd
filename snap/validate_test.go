@@ -602,7 +602,7 @@ name: foo
 version: 1.0
 apps:
   foo:
-    start-before: [baz]
+    before: [baz]
   bar:
 
 `)
@@ -619,7 +619,7 @@ name: foo
 version: 1.0
 apps:
   foo:
-    start-after: [baz]
+    after: [baz]
   bar:
 
 `)
@@ -635,9 +635,9 @@ func (s *YamlSuite) TestValidateAppStartSimpleDirectDependencyBad(c *C) {
 version: 42
 apps:
  foo:
-   start-after: [bar]
+   after: [bar]
  bar:
-   start-after: [foo]
+   after: [foo]
 
 `)
 	info, err := InfoFromSnapYaml(y)
@@ -654,11 +654,11 @@ func (s *YamlSuite) TestValidateAppStartOrderCorrect(c *C) {
 version: 42
 apps:
  foo:
-   start-after: [bar, zed]
+   after: [bar, zed]
  bar:
-   start-before: [foo]
+   before: [foo]
  baz:
-   start-after: [foo]
+   after: [foo]
  zed:
 
 `)

@@ -484,8 +484,8 @@ type AppInfo struct {
 
 	// list of other service names that this service will start after or
 	// before
-	StartAfter  []string
-	StartBefore []string
+	After  []string
+	Before []string
 }
 
 // ScreenshotInfo provides information about a screenshot.

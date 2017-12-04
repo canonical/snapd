@@ -273,10 +273,10 @@ const (
 
 func validateAppStartup(app *AppInfo, order appStartupOrder) error {
 	orderStr := "before"
-	deps := app.StartBefore
+	deps := app.Before
 	if order == orderAfter {
 		orderStr = "after"
-		deps = app.StartAfter
+		deps = app.After
 	}
 
 	for _, dep := range deps {
@@ -288,9 +288,9 @@ func validateAppStartup(app *AppInfo, order appStartupOrder) error {
 			// or it depends on us in the same order, eg. foo is
 			// started after bar, but bar is to be started after foo
 			// as well, validate only one dependency step
-			otherDeps := other.StartBefore
+			otherDeps := other.Before
 			if order == orderAfter {
-				otherDeps = other.StartAfter
+				otherDeps = other.After
 			}
 
 			if strutil.ListContains(otherDeps, app.Name) {
