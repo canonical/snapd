@@ -609,9 +609,7 @@ func parseTimeSpan(start, end string) (*TimeSpan, error) {
 
 	span := &TimeSpan{
 		Start: startTime,
-	}
-	if endTime != startTime {
-		span.End = endTime
+		End:   endTime,
 	}
 	return span, nil
 }
