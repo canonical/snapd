@@ -14,4 +14,4 @@ restore: |
 execute: |
     echo "Test that snap connect with plug and slot hooks succeeds"
 
-    snap connect basic-iface-hooks-consumer:foo basic-iface-hooks-producer:bar
+    snap connect basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer

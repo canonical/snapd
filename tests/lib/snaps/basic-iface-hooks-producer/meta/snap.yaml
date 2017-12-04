@@ -1,8 +1,7 @@
 name: basic-iface-hooks-producer
 version: 1.0
 slots:
-    bar:
-        interface: content
-        content: abc
-        read:
-            - $SNAP/etc
+    producer:
+        interface: test-snapd
+        producer-attr1: producervalue1
+        producer-attr2: producervalue2

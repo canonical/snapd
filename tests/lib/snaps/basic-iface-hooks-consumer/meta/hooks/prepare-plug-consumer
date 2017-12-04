@@ -1,0 +1,31 @@
+#!/bin/sh
+
+echo "Setting and getting attribute value from prepare-plug-consumer hook"
+
+# Read the value of static 'consumer-attr1' attribute
+if ! output=$(snapctl get :consumer consumer-attr1); then
+    echo "Expected snapctl get to be able to read the value of own 'consumer-attr1' attribute"
+    exit 1
+fi
+expected_output="consumervalue1"
+if [ "$output" != "$expected_output" ]; then
+    echo "Expected output to be '$expected_output', but it was '$output'"
+    exit 1
+fi
+
+# Set a dynamic attribute.
+if ! snapctl set :consumer consumer-attr3=consumervalue3; then
+    echo "Expected snapctl set to be able to set the value of own 'consumer-attr3' attribute"
+    exit 1
+fi
+
+# Read dynamic attribute
+if ! output=$(snapctl get :consumer consumer-attr3); then
+    echo "Expected snapctl get to be able to read the value of own dynamic attribute"
+    exit 1
+fi
+expected_output="consumervalue3"
+if [ "$output" != "$expected_output" ]; then
+    echo "Expected output to be '$expected_output', but it was '$output'"
+    exit 1
+fi
