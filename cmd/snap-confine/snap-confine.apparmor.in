@@ -55,10 +55,12 @@
     # cgroup: freezer
     # Allow creating per-snap cgroup freezers and adding snap command (task)
     # invocations to the freezer. This allows for reliably enumerating all
-    # running tasks for the snap.
+    # running tasks for the snap. In addition, allow enumerating processes in
+    # the cgroup to determine if it is occupied.
     /sys/fs/cgroup/freezer/ r,
     /sys/fs/cgroup/freezer/snap.*/ w,
     /sys/fs/cgroup/freezer/snap.*/tasks w,
+    /sys/fs/cgroup/freezer/snap.*/cgroup.procs r,
 
     # querying udev
     /etc/udev/udev.conf r,
@@ -302,6 +304,21 @@
 
     # Allow snap-confine to read snap contexts
     /var/lib/snapd/context/snap.* r,
+
+    # Allow snap-confine to unmount stale mount namespaces.
+    # XXX: This rule is not necessary due to the bug mentioned below. I'm
+    # including it in the hope that it can be used once the kernel is fixed.
+    umount /run/snapd/ns/*.mnt,
+
+    # XXX: This looks like a bug in apparmor where it becomes woefully confused
+    # about where we are after setns calls that jump in and then out of a mount
+    # namespace.  Without the following rule I see this failure while executing
+    # qemu:ubuntu-16.04-64:tests/main/stale-base-snap
+    #
+    # Nov 29 22:11:00 autopkgtest audit[21993]: AVC apparmor="DENIED"
+    # operation="umount" profile="/snap/core/x1/usr/lib/snapd/snap-confine"
+    # name="/" pid=21993 comm="snap-confine"
+    umount /,
 
     # Support for the quirk system
     /var/ r,
