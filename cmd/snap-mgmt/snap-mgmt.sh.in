@@ -28,10 +28,10 @@ systemctl_stop() {
     unit="$1"
     for i in $(seq 10); do
         if systemctl is-active -q "$unit"; then
-            echo "Stoping $unit"
+            echo "Stopping $unit"
             systemctl stop -q "$unit" || true
         fi
-        echo "Stoping $unit [attempt $i]"
+        echo "Stopping $unit [attempt $i]"
         systemctl stop -q "$unit" || true
         sleep .1
     done
