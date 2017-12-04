@@ -223,15 +223,15 @@ func (ts TimeSpan) Subspans() []TimeSpan {
 	span := ts.End.Sub(ts.Start)
 	step := span / time.Duration(ts.Split)
 
-	var spans []TimeSpan
+	spans := make([]TimeSpan, ts.Split)
 	for i := uint(0); i < ts.Split; i++ {
 		start := ts.Start.Add(time.Duration(i) * step)
-		spans = append(spans, TimeSpan{
+		spans[i] = TimeSpan{
 			Start:  start,
 			End:    start.Add(step),
 			Split:  0, // no more subspans
 			Spread: ts.Spread,
-		})
+		}
 	}
 	return spans
 }
