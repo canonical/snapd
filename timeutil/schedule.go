@@ -195,17 +195,14 @@ func (ts TimeSpan) String() string {
 // Times generates a start and end times from ts using t as a base. Returned
 // end time is automatically shifted to the next day if End is before Start
 func (ts TimeSpan) Times(t time.Time) (start time.Time, end time.Time) {
-	a := ts.Start.Time(t)
-	b := a
-	if ts.End != ts.Start {
-		b = ts.End.Time(t)
+	start = ts.Start.Time(t)
+	end = ts.End.Time(t)
 
-		// 23:00-1:00
-		if b.Before(a) {
-			b = b.Add(24 * time.Hour)
-		}
+	// 23:00-1:00
+	if end.Before(start) {
+		end = end.Add(24 * time.Hour)
 	}
-	return a, b
+	return start, end
 }
 
 // Subspans returns a slice of TimeSpan generated from ts by splitting the time
