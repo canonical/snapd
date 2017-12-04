@@ -247,20 +247,20 @@ func (sched *Schedule) String() string {
 
 	for i, span := range sched.WeekSpans {
 		if i > 0 {
-			fmt.Fprint(buf, ",")
+			buf.WriteByte(',')
 		}
-		fmt.Fprintf(buf, "%s", span)
+		buf.WriteString(span.String())
 	}
 
 	if len(sched.WeekSpans) > 0 && len(sched.TimeSpans) > 0 {
-		fmt.Fprint(buf, ",")
+		buf.WriteByte(',')
 	}
 
 	for i, span := range sched.TimeSpans {
 		if i > 0 {
-			fmt.Fprintf(buf, ",")
+			buf.WriteByte(',')
 		}
-		fmt.Fprintf(buf, "%s", span)
+		buf.WriteString(span.String())
 	}
 	return buf.String()
 }
