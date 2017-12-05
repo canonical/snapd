@@ -20,6 +20,7 @@
 package client
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -31,40 +32,56 @@ import (
 
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
-	ID              string        `json:"id"`
-	Title           string        `json:"title,omitempty"`
-	Summary         string        `json:"summary"`
-	Description     string        `json:"description"`
-	DownloadSize    int64         `json:"download-size"`
-	Icon            string        `json:"icon"`
-	InstalledSize   int64         `json:"installed-size"`
-	InstallDate     time.Time     `json:"install-date"`
-	Name            string        `json:"name"`
-	Developer       string        `json:"developer"`
-	Status          string        `json:"status"`
-	Type            string        `json:"type"`
-	Version         string        `json:"version"`
-	Channel         string        `json:"channel"`
-	TrackingChannel string        `json:"tracking-channel"`
-	Revision        snap.Revision `json:"revision"`
-	Confinement     string        `json:"confinement"`
-	Private         bool          `json:"private"`
-	DevMode         bool          `json:"devmode"`
-	JailMode        bool          `json:"jailmode"`
-	TryMode         bool          `json:"trymode"`
-	Apps            []AppInfo     `json:"apps"`
-	Broken          string        `json:"broken"`
-	Contact         string        `json:"contact"`
-	License         string        `json:"license,omitempty"`
+	ID               string        `json:"id"`
+	Title            string        `json:"title,omitempty"`
+	Summary          string        `json:"summary"`
+	Description      string        `json:"description"`
+	DownloadSize     int64         `json:"download-size,omitempty"`
+	Icon             string        `json:"icon,omitempty"`
+	InstalledSize    int64         `json:"installed-size,omitempty"`
+	InstallDate      time.Time     `json:"install-date,omitempty"`
+	Name             string        `json:"name"`
+	Developer        string        `json:"developer"`
+	Status           string        `json:"status"`
+	Type             string        `json:"type"`
+	Version          string        `json:"version"`
+	Channel          string        `json:"channel"`
+	TrackingChannel  string        `json:"tracking-channel,omitempty"`
+	IgnoreValidation bool          `json:"ignore-validation,omitempty"`
+	Revision         snap.Revision `json:"revision"`
+	Confinement      string        `json:"confinement"`
+	Private          bool          `json:"private,omitempty"`
+	DevMode          bool          `json:"devmode,omitempty"`
+	JailMode         bool          `json:"jailmode,omitempty"`
+	TryMode          bool          `json:"trymode,omitempty"`
+	Apps             []AppInfo     `json:"apps,omitempty"`
+	Broken           string        `json:"broken,omitempty"`
+	Contact          string        `json:"contact"`
+	License          string        `json:"license,omitempty"`
 
-	Prices      map[string]float64 `json:"prices"`
-	Screenshots []Screenshot       `json:"screenshots"`
+	Prices      map[string]float64 `json:"prices,omitempty"`
+	Screenshots []Screenshot       `json:"screenshots,omitempty"`
 
 	// The flattended channel map with $track/$risk
-	Channels map[string]*snap.ChannelSnapInfo `json:"channels"`
+	Channels map[string]*snap.ChannelSnapInfo `json:"channels,omitempty"`
 
 	// The ordered list of tracks that contains channels
-	Tracks []string
+	Tracks []string `json:"tracks,omitempty"`
+}
+
+func (s *Snap) MarshalJSON() ([]byte, error) {
+	type auxSnap Snap // use auxiliary type so that Go does not call Snap.MarshalJSON()
+	// separate type just for marshalling
+	m := struct {
+		auxSnap
+		InstallDate *time.Time `json:"install-date,omitempty"`
+	}{
+		auxSnap: auxSnap(*s),
+	}
+	if !s.InstallDate.IsZero() {
+		m.InstallDate = &s.InstallDate
+	}
+	return json.Marshal(&m)
 }
 
 type Screenshot struct {

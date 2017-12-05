@@ -74,7 +74,6 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
     BUILT_USING_PACKAGES=libcap-dev libapparmor-dev libseccomp-dev
 else
 ifeq ($(shell dpkg-vendor --query Vendor),Debian)
-    VENDOR_ARGS=--disable-apparmor --disable-seccomp
     BUILT_USING_PACKAGES=libcap-dev
 else
     VENDOR_ARGS=--disable-apparmor
@@ -192,15 +191,7 @@ override_dh_install:
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
-ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-else
-	# HACK: As we want to share the packaging bits between Debian and Ubuntu
-	# we have to get an empty file in place which satisfies the item in
-	# the snapd.install file.
-	install -d $(CURDIR)/debian/tmp/etc/apparmor.d
-	touch $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
-endif
 
 	dh_install
 

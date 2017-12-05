@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func init() {
@@ -46,8 +47,31 @@ func ConfigureHookTimeout() time.Duration {
 	return timeout
 }
 
+// ConfigureInstalled returns a taskset to apply the given
+// configuration patch for an installed snap. It returns
+// snap.NotInstalledError if the snap is not installed.
+func ConfigureInstalled(st *state.State, snapName string, patch map[string]interface{}, flags int) (*state.TaskSet, error) {
+	// core is handled internally and can be configured before
+	// being installed
+	if snapName != "core" {
+		var snapst snapstate.SnapState
+		err := snapstate.Get(st, snapName, &snapst)
+		if err != nil && err != state.ErrNoState {
+			return nil, err
+		}
+		if !snapst.IsInstalled() {
+			return nil, &snap.NotInstalledError{Snap: snapName}
+		}
+	}
+
+	taskset := Configure(st, snapName, patch, flags)
+	return taskset, nil
+}
+
 // Configure returns a taskset to apply the given configuration patch.
-func Configure(s *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+func Configure(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+	summary := fmt.Sprintf(i18n.G("Run configure hook of %q snap"), snapName)
+	// regular configuration hook
 	hooksup := &hookstate.HookSetup{
 		Snap:        snapName,
 		Hook:        "configure",
@@ -63,12 +87,11 @@ func Configure(s *state.State, snapName string, patch map[string]interface{}, fl
 	} else if len(patch) > 0 {
 		contextData = map[string]interface{}{"patch": patch}
 	}
-	var summary string
+
 	if hooksup.Optional {
 		summary = fmt.Sprintf(i18n.G("Run configure hook of %q snap if present"), snapName)
-	} else {
-		summary = fmt.Sprintf(i18n.G("Run configure hook of %q snap"), snapName)
 	}
-	task := hookstate.HookTask(s, summary, hooksup, contextData)
+
+	task := hookstate.HookTask(st, summary, hooksup, contextData)
 	return state.NewTaskSet(task)
 }

@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -236,7 +235,6 @@ func (s *cmdSuite) TestExecInCoreSnap(c *C) {
 	c.Check(s.execCalled, Equals, 1)
 	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.newCore, "/usr/lib/snapd/potato"))
 	c.Check(s.lastExecArgv, DeepEquals, os.Args)
-	c.Check(s.lastExecEnvv, testutil.Contains, "SNAP_DID_REEXEC=1")
 }
 
 func (s *cmdSuite) TestExecInOldCoreSnap(c *C) {
@@ -246,7 +244,6 @@ func (s *cmdSuite) TestExecInOldCoreSnap(c *C) {
 	c.Check(s.execCalled, Equals, 1)
 	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.oldCore, "/usr/lib/snapd/potato"))
 	c.Check(s.lastExecArgv, DeepEquals, os.Args)
-	c.Check(s.lastExecEnvv, testutil.Contains, "SNAP_DID_REEXEC=1")
 }
 
 func (s *cmdSuite) TestExecInCoreSnapBailsNoCoreSupport(c *C) {
@@ -293,6 +290,7 @@ func (s *cmdSuite) TestExecInCoreSnapNoDouble(c *C) {
 	selfExe := filepath.Join(s.fakeroot, "proc/self/exe")
 	err := os.Symlink(filepath.Join(s.fakeroot, "/snap/core/42/usr/lib/snapd"), selfExe)
 	c.Assert(err, IsNil)
+	cmd.MockSelfExe(selfExe)
 
 	cmd.ExecInCoreSnap()
 	c.Check(s.execCalled, Equals, 0)

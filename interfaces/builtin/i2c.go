@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const i2cSummary = `allows access to specific I2C controller`
@@ -47,8 +48,6 @@ const i2cConnectedPlugAppArmor = `
 %s rw,
 /sys/devices/platform/{*,**.i2c}/%s/** rw,
 `
-
-const i2cConnectedPlugUDev = `KERNEL=="%s", TAG+="%s"`
 
 // The type for i2c interface
 type i2cInterface struct{}
@@ -75,7 +74,7 @@ func (iface *i2cInterface) String() string {
 var i2cControlDeviceNodePattern = regexp.MustCompile("^/dev/i2c-[0-9]+$")
 
 // Check validity of the defined slot
-func (iface *i2cInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *i2cInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
@@ -95,7 +94,7 @@ func (iface *i2cInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil
@@ -106,16 +105,12 @@ func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil
 	}
-	const pathPrefix = "/dev/"
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(i2cConnectedPlugUDev, strings.TrimPrefix(path, pathPrefix), tag))
-	}
+	spec.TagDevice(fmt.Sprintf(`KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 

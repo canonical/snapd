@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -106,7 +107,7 @@ func basicEnv(info *snap.Info) map[string]string {
 		"SNAP_REVISION": info.Revision.String(),
 		"SNAP_ARCH":     arch.UbuntuArchitecture(),
 		// see https://github.com/snapcore/snapd/pull/2732#pullrequestreview-18827193
-		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/void",
+		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 		"SNAP_REEXEC":       os.Getenv("SNAP_REEXEC"),
 	}
 }
@@ -119,7 +120,7 @@ func userEnv(info *snap.Info, home string) map[string]string {
 	result := map[string]string{
 		"SNAP_USER_COMMON": info.UserCommonDataDir(home),
 		"SNAP_USER_DATA":   info.UserDataDir(home),
-		"XDG_RUNTIME_DIR":  info.UserXdgRuntimeDir(os.Geteuid()),
+		"XDG_RUNTIME_DIR":  info.UserXdgRuntimeDir(sys.Geteuid()),
 	}
 	// For non-classic snaps, we set HOME but on classic allow snaps to see real HOME
 	if !info.NeedsClassic() {

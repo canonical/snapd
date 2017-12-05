@@ -31,7 +31,7 @@
  *
  * This function should be called before sc_initialize_ns_groups().
  **/
-void sc_reassociate_with_pid1_mount_ns();
+void sc_reassociate_with_pid1_mount_ns(void);
 
 /**
  * Initialize namespace sharing.
@@ -54,7 +54,7 @@ void sc_reassociate_with_pid1_mount_ns();
  *
  * For more details see namespaces(7).
  **/
-void sc_initialize_ns_groups();
+void sc_initialize_ns_groups(void);
 
 /**
  * Data required to manage namespaces amongst a group of processes.

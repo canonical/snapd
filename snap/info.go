@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -60,7 +61,7 @@ type PlaceInfo interface {
 	UserCommonDataDir(home string) string
 
 	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
-	UserXdgRuntimeDir(userID int) string
+	UserXdgRuntimeDir(userID sys.UserID) string
 
 	// DataHomeDir returns the a glob that matches all per user data directories of a snap.
 	DataHomeDir() string
@@ -135,6 +136,7 @@ type SideInfo struct {
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
 	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
+	Paid              bool     `yaml:"paid,omitempty" json:"paid,omitempty"`
 }
 
 // Info provides information about snaps.
@@ -295,7 +297,7 @@ func (s *Info) CommonDataHomeDir() string {
 }
 
 // UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a particular user.
-func (s *Info) UserXdgRuntimeDir(euid int) string {
+func (s *Info) UserXdgRuntimeDir(euid sys.UserID) string {
 	return filepath.Join("/run/user", fmt.Sprintf("%d/snap.%s", euid, s.Name()))
 }
 
@@ -409,15 +411,27 @@ func (plug *PlugInfo) SecurityTags() []string {
 	return tags
 }
 
+// String returns the representation of the plug as snap:plug string.
+func (plug *PlugInfo) String() string {
+	return fmt.Sprintf("%s:%s", plug.Snap.Name(), plug.Name)
+}
+
 // SecurityTags returns security tags associated with a given slot.
 func (slot *SlotInfo) SecurityTags() []string {
 	tags := make([]string, 0, len(slot.Apps))
 	for _, app := range slot.Apps {
 		tags = append(tags, app.SecurityTag())
 	}
-	// NOTE: hooks cannot have slots
+	for _, hook := range slot.Hooks {
+		tags = append(tags, hook.SecurityTag())
+	}
 	sort.Strings(tags)
 	return tags
+}
+
+// String returns the representation of the slot as snap:slot string.
+func (slot *SlotInfo) String() string {
+	return fmt.Sprintf("%s:%s", slot.Snap.Name(), slot.Name)
 }
 
 // SlotInfo provides information about a slot.
@@ -429,6 +443,16 @@ type SlotInfo struct {
 	Attrs     map[string]interface{}
 	Label     string
 	Apps      map[string]*AppInfo
+	Hooks     map[string]*HookInfo
+}
+
+// SocketInfo provides information on application sockets.
+type SocketInfo struct {
+	App *AppInfo
+
+	Name         string
+	ListenStream string
+	SocketMode   os.FileMode
 }
 
 // AppInfo provides information about a app.
@@ -452,8 +476,9 @@ type AppInfo struct {
 	// https://github.com/snapcore/snapd/pull/794#discussion_r58688496
 	BusName string
 
-	Plugs map[string]*PlugInfo
-	Slots map[string]*SlotInfo
+	Plugs   map[string]*PlugInfo
+	Slots   map[string]*SlotInfo
+	Sockets map[string]*SocketInfo
 
 	Environment strutil.OrderedMap
 }
@@ -471,6 +496,12 @@ type HookInfo struct {
 
 	Name  string
 	Plugs map[string]*PlugInfo
+	Slots map[string]*SlotInfo
+}
+
+// File returns the path to the file
+func (socket *SocketInfo) File() string {
+	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
 }
 
 // SecurityTag returns application-specific security tag.
@@ -533,11 +564,6 @@ func (app *AppInfo) ServiceName() string {
 // ServiceFile returns the systemd service file path for the daemon app.
 func (app *AppInfo) ServiceFile() string {
 	return filepath.Join(dirs.SnapServicesDir, app.ServiceName())
-}
-
-// ServiceSocketFile returns the systemd socket file path for the daemon app.
-func (app *AppInfo) ServiceSocketFile() string {
-	return filepath.Join(dirs.SnapServicesDir, app.SecurityTag()+".socket")
 }
 
 // Env returns the app specific environment overrides

@@ -4,7 +4,7 @@ summary: Ensure that the ubuntu-core -> core transition works
 # we disable on ppc64el because the downloads are very slow there
 # Both Fedora and openSUSE are disabled at the moment as there is something
 # fishy going on and the snapd service gets terminated during the process.
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -ubuntu-*-i386]
 
 warn-timeout: 1m
 kill-timeout: 5m
@@ -13,6 +13,9 @@ restore: |
     rm -f state.json.new
 
 debug: |
+    snap list || true
+    snap info core || true
+    snap info ubuntu-core || true
     snap changes
     . "$TESTSLIB/changes.sh"
     snap change "$(change_id 'Transition ubuntu-core to core')" || true

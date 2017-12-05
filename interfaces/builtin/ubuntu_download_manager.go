@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/snap"
 )
 
 const ubuntuDownloadManagerSummary = `allows operating as or interacting with the Ubuntu download manager`
@@ -211,7 +212,7 @@ func (iface *ubuntuDownloadManagerInterface) String() string {
 	return iface.Name()
 }
 
-func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(downloadConnectedPlugAppArmor, old, new, -1)
@@ -219,17 +220,17 @@ func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedPlug(spec *apparmo
 	return nil
 }
 
-func (iface *ubuntuDownloadManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *ubuntuDownloadManagerInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(downloadPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(downloadConnectedSlotAppArmor, old, new, -1)
 	old = "###PLUG_NAME###"
-	new = plug.Snap.Name()
+	new = plug.Snap().Name()
 	snippet = strings.Replace(snippet, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil

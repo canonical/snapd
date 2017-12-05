@@ -83,6 +83,14 @@ var unescape = strings.NewReplacer(
 	`\134`, "\\",
 ).Replace
 
+func Escape(path string) string {
+	return escape(path)
+}
+
+func Unescape(path string) string {
+	return unescape(path)
+}
+
 func (e Entry) String() string {
 	// Name represents name of the device in a mount entry.
 	name := "none"
@@ -207,4 +215,27 @@ func OptsToFlags(opts []string) (flags int, err error) {
 		}
 	}
 	return flags, nil
+}
+
+// OptStr returns the value part of a key=value mount option.
+// The name of the option must not contain the trailing "=" character.
+func (e *Entry) OptStr(name string) (string, bool) {
+	prefix := name + "="
+	for _, opt := range e.Options {
+		if strings.HasPrefix(opt, prefix) {
+			kv := strings.SplitN(opt, "=", 2)
+			return kv[1], true
+		}
+	}
+	return "", false
+}
+
+// OptBool returns true if a given mount option is present.
+func (e *Entry) OptBool(name string) bool {
+	for _, opt := range e.Options {
+		if opt == name {
+			return true
+		}
+	}
+	return false
 }

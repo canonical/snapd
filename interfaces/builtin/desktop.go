@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const desktopSummary = `allows access to basic graphical desktop resources`
@@ -71,7 +72,10 @@ owner @{HOME}/.config/gtk-3.0/bookmarks r,
 
 # subset of freedesktop.org
 owner @{HOME}/.local/share/mime/**   r,
-owner @{HOME}/.config/user-dirs.dirs r,
+owner @{HOME}/.config/user-dirs.* r,
+
+/etc/xdg/user-dirs.conf r,
+/etc/xdg/user-dirs.defaults r,
 
 # gmenu
 dbus (send)
@@ -144,7 +148,7 @@ func (iface *desktopInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *desktopInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *desktopInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
@@ -153,12 +157,12 @@ func (iface *desktopInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) b
 	return true
 }
 
-func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(desktopConnectedPlugAppArmor)
 	return nil
 }
 
-func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if !release.OnClassic {
 		// There is nothing to expose on an all-snaps system
 		return nil

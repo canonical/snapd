@@ -84,6 +84,35 @@ append_coverage() (
     fi
 )
 
+missing_interface_spread_test() {
+    snap_yaml="tests/lib/snaps/test-snapd-policy-app-consumer/meta/snap.yaml"
+    core_snap_yaml="tests/lib/snaps/test-snapd-policy-app-provider-core/meta/snap.yaml"
+    classic_snap_yaml="tests/lib/snaps/test-snapd-policy-app-provider-classic/meta/snap.yaml"
+    for iface in $(go run ./tests/lib/list-interfaces.go) ; do
+        search="plugs: \[ $iface \]"
+        case "$iface" in
+            bool-file|gpio|hidraw|i2c|iio|serial-port|spi)
+                # skip gadget provided interfaces for now
+                continue
+                ;;
+            dbus|content)
+                search="interface: $iface"
+                ;;
+            autopilot)
+                search="plugs: \[ autopilot-introspection \]"
+                ;;
+        esac
+        if ! grep -q "$search" "$snap_yaml" ; then
+            echo "Missing high-level test for interface '$iface'. Please add to:"
+            echo "* $snap_yaml"
+            echo "* $core_snap_yaml (if needed)"
+            echo "* $classic_snap_yaml (if needed)"
+            exit 1
+        fi
+    done
+}
+
+
 if [ "$STATIC" = 1 ]; then
     ./get-deps.sh
 
@@ -168,6 +197,9 @@ if [ "$STATIC" = 1 ]; then
         echo "$got"
         exit 1
     fi
+
+    echo Checking all interfaces have minimal spread test
+    missing_interface_spread_test
 fi
 
 if [ "$UNIT" = 1 ]; then

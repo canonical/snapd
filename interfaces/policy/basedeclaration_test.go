@@ -545,8 +545,7 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 				c.Check(err, NotNil, comm)
 			}
 			if compareWithSanitize {
-				slot := &interfaces.Slot{SlotInfo: slotInfo}
-				sanitizeErr := slot.Sanitize(iface)
+				sanitizeErr := interfaces.SanitizeSlot(iface, slotInfo)
 				if err == nil {
 					c.Check(sanitizeErr, IsNil, comm)
 				} else {
@@ -790,4 +789,18 @@ authority-id: canonical
 series: 16
 revision: 0
 `)
+}
+
+func (s *baseDeclSuite) TestBrowserSupportAllowSandbox(c *C) {
+	const plugYaml = `name: plug-snap
+plugs:
+  browser-support:
+   allow-sandbox: true
+`
+	cand := s.connectCand(c, "browser-support", "", plugYaml)
+	err := cand.Check()
+	c.Check(err, NotNil)
+
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
 }

@@ -26,12 +26,8 @@
 extern int bootstrap_errno;
 extern const char* bootstrap_msg;
 
-void bootstrap(void);
-void process_arguments(const char* cmdline, const char** snap_name_out, bool* should_setns_out);
-ssize_t read_cmdline(char* buf, size_t buf_size);
-const char* find_argv0(const char* buf);
-const char* find_snap_name(const char* buf);
-const char* find_1st_option(const char* buf);
+void bootstrap(int argc, char **argv, char **envp);
+void process_arguments(int argc, char *const *argv, const char** snap_name_out, bool* should_setns_out);
 int validate_snap_name(const char* snap_name);
 
 #endif

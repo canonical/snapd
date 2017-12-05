@@ -85,7 +85,7 @@ func (s *backendSuite) TestName(c *C) {
 
 func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -107,11 +107,11 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 
 func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
-	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *snap.PlugInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -135,7 +135,7 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 
 func (s *backendSuite) TestSecurityIsStable(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -152,7 +152,7 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 
 func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -174,7 +174,7 @@ func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet(createSnippetForApps(slot.Apps))
 		return nil
 	}
@@ -197,11 +197,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet(createSnippetForApps(slot.Apps))
 		return nil
 	}
-	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *snap.PlugInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -226,7 +226,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet(createSnippetForApps(slot.Apps))
 		return nil
 	}
@@ -249,11 +249,11 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet(createSnippetForApps(slot.Apps))
 		return nil
 	}
-	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *snap.PlugInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -276,7 +276,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 
 func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -285,7 +285,11 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
 		data, err := ioutil.ReadFile(fname)
 		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, "# This file is automatically generated.\ndummy\n")
+		if opts.DevMode || opts.Classic {
+			c.Check(string(data), Equals, "# This file is automatically generated.\n# udev tagging/device cgroups disabled with non-strict mode snaps\n#dummy\n")
+		} else {
+			c.Check(string(data), Equals, "# This file is automatically generated.\ndummy\n")
+		}
 		stat, err := os.Stat(fname)
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -293,9 +297,31 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 	}
 }
 
+func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWithNewline(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
+		spec.AddSnippet("dummy1\ndummy2")
+		return nil
+	}
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
+		data, err := ioutil.ReadFile(fname)
+		c.Assert(err, IsNil)
+		if opts.DevMode || opts.Classic {
+			c.Check(string(data), Equals, "# This file is automatically generated.\n# udev tagging/device cgroups disabled with non-strict mode snaps\n#dummy1\n#dummy2\n")
+		} else {
+			c.Check(string(data), Equals, "# This file is automatically generated.\ndummy1\ndummy2\n")
+		}
+		stat, err := os.Stat(fname)
+		c.Assert(err, IsNil)
+		c.Check(stat.Mode(), Equals, os.FileMode(0644))
+		s.RemoveSnap(c, snapInfo)
+	}
+}
 func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenPlugNoApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *interfaces.Plug) error {
+	s.Iface.UDevPermanentPlugCallback = func(spec *udev.Specification, slot *snap.PlugInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -304,7 +330,11 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenPlugNoApps(c *C)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.foo.rules")
 		data, err := ioutil.ReadFile(fname)
 		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, "# This file is automatically generated.\ndummy\n")
+		if opts.DevMode || opts.Classic {
+			c.Check(string(data), Equals, "# This file is automatically generated.\n# udev tagging/device cgroups disabled with non-strict mode snaps\n#dummy\n")
+		} else {
+			c.Check(string(data), Equals, "# This file is automatically generated.\ndummy\n")
+		}
 		stat, err := os.Stat(fname)
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -314,7 +344,7 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenPlugNoApps(c *C)
 
 func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenSlotNoApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -323,7 +353,11 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenSlotNoApps(c *C)
 		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.foo.rules")
 		data, err := ioutil.ReadFile(fname)
 		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, "# This file is automatically generated.\ndummy\n")
+		if opts.DevMode || opts.Classic {
+			c.Check(string(data), Equals, "# This file is automatically generated.\n# udev tagging/device cgroups disabled with non-strict mode snaps\n#dummy\n")
+		} else {
+			c.Check(string(data), Equals, "# This file is automatically generated.\ndummy\n")
+		}
 		stat, err := os.Stat(fname)
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -344,7 +378,7 @@ func (s *backendSuite) TestCombineSnippetsWithoutAnySnippets(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapToOneWithoutSlots(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}
@@ -367,7 +401,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithoutSlots(c *C) {
 
 func (s *backendSuite) TestUpdatingSnapWithoutSlotsToOneWithoutSlots(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *interfaces.Slot) error {
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
 		spec.AddSnippet("dummy")
 		return nil
 	}

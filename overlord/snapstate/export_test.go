@@ -71,6 +71,10 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 	m.runner.AddHandler("run-hook", func(task *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
+	m.runner.AddHandler("configure-snapd", func(t *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}, nil)
+
 }
 
 // AddAdhocTaskHandlers registers handlers for ad hoc test handler
@@ -109,6 +113,7 @@ var (
 	CachedStore            = cachedStore
 	DefaultRefreshSchedule = defaultRefreshSchedule
 	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
+	DoInstall              = doInstall
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -123,3 +128,28 @@ var (
 	CheckAliasesConflicts = checkAliasesConflicts
 	DisableAliases        = disableAliases
 )
+
+// readme files
+var (
+	WriteSnapReadme = writeSnapReadme
+	SnapReadme      = snapReadme
+)
+
+// refreshes
+var (
+	NewAutoRefresh    = newAutoRefresh
+	NewRefreshHints   = newRefreshHints
+	NewCatalogRefresh = newCatalogRefresh
+)
+
+func MockCatalogRefreshNextRefresh(cr *catalogRefresh, when time.Time) {
+	cr.nextCatalogRefresh = when
+}
+
+func MockRefreshRetryDelay(d time.Duration) func() {
+	origRefreshRetryDelay := refreshRetryDelay
+	refreshRetryDelay = d
+	return func() {
+		refreshRetryDelay = origRefreshRetryDelay
+	}
+}
