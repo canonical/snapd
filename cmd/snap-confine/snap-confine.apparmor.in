@@ -307,13 +307,8 @@
 
     # Allow snap-confine to unmount stale mount namespaces.
     umount /run/snapd/ns/*.mnt,
-    # XXX: It seems the bug is back, we still need this. Without this rule we
-    # get this denial. Note that the code really only (always) unmounts
-    # /run/snapd/ns/$SNAP_NAME.mnt so this is a genuine kernel bug.
-    #
-    # Nov 30 10:26:00 autopkgtest audit[16159]: AVC apparmor="DENIED"
-    # operation="umount" profile="/snap/core/x1/usr/lib/snapd/snap-confine"
-    #
+    # Required to correctly unmount bound mount namespace.
+    # See LP: #1735459 for details.
     umount /,
 
     # Support for the quirk system
