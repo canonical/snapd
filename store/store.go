@@ -73,6 +73,10 @@ type RefreshOptions struct {
 	// RefreshManaged indicates to the store that the refresh is
 	// managed via snapd-control.
 	RefreshManaged bool
+
+	// RefreshAmend tells the store that we want to refresh from
+	// an unknown (e.g. local) snap to a store snap
+	RefreshAmend bool
 }
 
 // the LimitTime should be slightly more than 3 times of our http.Client

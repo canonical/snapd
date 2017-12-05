@@ -20,6 +20,8 @@
 package snapstate
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -33,7 +35,15 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	return auth.User(st, userID)
 }
 
-func updateInfo(st *state.State, snapst *SnapState, channel string, ignoreValidation bool, userID int) (*snap.Info, error) {
+func snapNameToSnapIDFromStore(st *state.State, name string, user *auth.UserState) (string, error) {
+	theStore := Store(st)
+	st.Unlock()
+	info, err := theStore.SnapInfo(store.SnapSpec{Name: name}, user)
+	st.Lock()
+	return info.SnapID, err
+}
+
+func updateInfo(st *state.State, snapst *SnapState, channel string, ignoreValidation, amend bool, userID int) (*snap.Info, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
@@ -44,7 +54,17 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, ignoreValida
 	}
 
 	if curInfo.SnapID == "" { // covers also trymode
-		return nil, store.ErrLocalSnap
+		if !amend {
+			return nil, store.ErrLocalSnap
+		}
+
+		// in amend mode we need to move to the store rev
+		id, err := snapNameToSnapIDFromStore(st, curInfo.Name(), user)
+		if err != nil {
+			return nil, fmt.Errorf("cannot get snap-id for %q: %v", curInfo.Name(), err)
+		}
+		curInfo.SnapID = id
+		curInfo.Revision = snap.R(1) // we really have no idea
 	}
 
 	refreshCand := &store.RefreshCandidate{

@@ -53,6 +53,10 @@ type Flags struct {
 	// Unaliased is set to request that no automatic aliases are created
 	// installing the snap.
 	Unaliased bool `json:"unaliased,omitempty"`
+
+	// Amend refreshes a snap from an unknown state (e.g. local
+	// install) to the store revision
+	Amend bool `json:"amend,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode confinement (either set or overridden)
