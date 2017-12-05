@@ -120,6 +120,12 @@ func Manager(s *state.State) (*HookManager, error) {
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
+	// Compatibility with snapd between 2.29 and 2.30 in edge only.
+	// We generated a configure-snapd task on core refreshes and
+	// for compatibility we need to handle those.
+	runner.AddHandler("configure-snapd", func(*state.Task, *tomb.Tomb) error {
+		return nil
+	}, nil)
 
 	setupHooks(manager)
 
@@ -201,10 +207,7 @@ func hookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(task.State(), hooksup.Snap, &snapst)
-	if err == state.ErrNoState {
-		return nil, nil, fmt.Errorf("cannot find %q snap", hooksup.Snap)
-	}
-	if err != nil {
+	if err != nil && err != state.ErrNoState {
 		return nil, nil, fmt.Errorf("cannot handle %q snap: %v", hooksup.Snap, err)
 	}
 
@@ -223,15 +226,23 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	info, err := snapst.CurrentInfo()
-	if err != nil {
-		return fmt.Errorf("cannot read %q snap details: %v", hooksup.Snap, err)
-	}
-
 	mustHijack := m.hijacked(hooksup.Hook, hooksup.Snap) != nil
-	hookExists := info.Hooks[hooksup.Hook] != nil
-	if !mustHijack && !hookExists && !hooksup.Optional {
-		return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
+	hookExists := false
+	if !mustHijack {
+		// not hijacked, snap must be installed
+		if !snapst.IsInstalled() {
+			return fmt.Errorf("cannot find %q snap", hooksup.Snap)
+		}
+
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return fmt.Errorf("cannot read %q snap details: %v", hooksup.Snap, err)
+		}
+
+		hookExists = info.Hooks[hooksup.Hook] != nil
+		if !hookExists && !hooksup.Optional {
+			return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
+		}
 	}
 
 	context, err := NewContext(task, task.State(), hooksup, nil, "")

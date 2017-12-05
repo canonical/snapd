@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func init() {
@@ -44,6 +45,27 @@ func ConfigureHookTimeout() time.Duration {
 		}
 	}
 	return timeout
+}
+
+// ConfigureInstalled returns a taskset to apply the given
+// configuration patch for an installed snap. It returns
+// snap.NotInstalledError if the snap is not installed.
+func ConfigureInstalled(st *state.State, snapName string, patch map[string]interface{}, flags int) (*state.TaskSet, error) {
+	// core is handled internally and can be configured before
+	// being installed
+	if snapName != "core" {
+		var snapst snapstate.SnapState
+		err := snapstate.Get(st, snapName, &snapst)
+		if err != nil && err != state.ErrNoState {
+			return nil, err
+		}
+		if !snapst.IsInstalled() {
+			return nil, &snap.NotInstalledError{Snap: snapName}
+		}
+	}
+
+	taskset := Configure(st, snapName, patch, flags)
+	return taskset, nil
 }
 
 // Configure returns a taskset to apply the given configuration patch.

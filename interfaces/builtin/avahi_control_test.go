@@ -32,10 +32,13 @@ import (
 )
 
 type AvahiControlInterfaceSuite struct {
-	iface    interfaces.Interface
-	plug     *interfaces.Plug
-	appSlot  *interfaces.Slot
-	coreSlot *interfaces.Slot
+	iface        interfaces.Interface
+	plug         *interfaces.ConnectedPlug
+	plugInfo     *snap.PlugInfo
+	appSlot      *interfaces.ConnectedSlot
+	appSlotInfo  *snap.SlotInfo
+	coreSlot     *interfaces.ConnectedSlot
+	coreSlotInfo *snap.SlotInfo
 }
 
 var _ = Suite(&AvahiControlInterfaceSuite{
@@ -60,9 +63,9 @@ slots:
 `
 
 func (s *AvahiControlInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, avahiControlConsumerYaml, nil, "avahi-control")
-	s.appSlot = MockSlot(c, avahiControlProducerYaml, nil, "avahi-control")
-	s.coreSlot = MockSlot(c, avahiControlCoreYaml, nil, "avahi-control")
+	s.plug, s.plugInfo = MockConnectedPlug(c, avahiControlConsumerYaml, nil, "avahi-control")
+	s.appSlot, s.appSlotInfo = MockConnectedSlot(c, avahiControlProducerYaml, nil, "avahi-control")
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, avahiControlCoreYaml, nil, "avahi-control")
 }
 
 func (s *AvahiControlInterfaceSuite) TestName(c *C) {
@@ -70,19 +73,19 @@ func (s *AvahiControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *AvahiControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.coreSlot.Sanitize(s.iface), IsNil)
-	c.Assert(s.appSlot.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizeSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(interfaces.SanitizeSlot(s.iface, s.appSlotInfo), IsNil)
 	// avahi-control slot can now be used on snap other than core.
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "avahi-control",
 		Interface: "avahi-control",
-	}}
-	c.Assert(slot.Sanitize(s.iface), IsNil)
+	}
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
 }
 
 func (s *AvahiControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -92,7 +95,7 @@ func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// connected plug to app slot
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.appSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "name=org.freedesktop.Avahi")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
@@ -108,7 +111,7 @@ func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// connected app slot to plug
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.appSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.appSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `interface=org.freedesktop.Avahi`)
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
@@ -122,7 +125,7 @@ func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// permanent app slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot.SlotInfo), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `dbus (bind)
     bus=system
@@ -134,7 +137,7 @@ func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// connected plug to core slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "name=org.freedesktop.Avahi")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(label=unconfined),")
@@ -149,12 +152,12 @@ func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// connected core slot to plug
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent core slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot.SlotInfo), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
@@ -164,7 +167,7 @@ func (s *AvahiControlInterfaceSuite) TestDBusSpec(c *C) {
 	defer restore()
 
 	spec := &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot.SlotInfo), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `<allow own="org.freedesktop.Avahi"/>`)
 
@@ -173,7 +176,7 @@ func (s *AvahiControlInterfaceSuite) TestDBusSpec(c *C) {
 	defer restore()
 
 	spec = &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot.SlotInfo), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
@@ -186,8 +189,9 @@ func (s *AvahiControlInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *AvahiControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plug, s.coreSlot), Equals, true)
-	c.Assert(s.iface.AutoConnect(s.plug, s.appSlot), Equals, true)
+	// FIXME: fix AutoConnect methods
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.coreSlotInfo}), Equals, true)
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.appSlotInfo}), Equals, true)
 }
 
 func (s *AvahiControlInterfaceSuite) TestInterfaces(c *C) {

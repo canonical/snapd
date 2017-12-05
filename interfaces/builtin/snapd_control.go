@@ -22,7 +22,7 @@ package builtin
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
 
 const snapdControlSummary = `allows communicating with snapd`
@@ -51,7 +51,7 @@ type snapControlInterface struct {
 	commonInterface
 }
 
-func (iface *snapControlInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *snapControlInterface) SanitizePlug(plug *snap.PlugInfo) error {
 	if refreshSchedule, ok := plug.Attrs["refresh-schedule"].(string); ok {
 		if refreshSchedule != "managed" {
 			return fmt.Errorf("unsupported refresh-schedule value: %q", refreshSchedule)
