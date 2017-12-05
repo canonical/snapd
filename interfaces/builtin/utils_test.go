@@ -20,26 +20,29 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type utilsSuite struct {
 	iface      interfaces.Interface
-	slotOS     *interfaces.Slot
-	slotApp    *interfaces.Slot
-	slotGadget *interfaces.Slot
+	slotOS     *snap.SlotInfo
+	slotApp    *snap.SlotInfo
+	slotGadget *snap.SlotInfo
 }
 
 var _ = Suite(&utilsSuite{
 	iface:      &ifacetest.TestInterface{InterfaceName: "iface"},
-	slotOS:     &interfaces.Slot{SlotInfo: &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeOS}}},
-	slotApp:    &interfaces.Slot{SlotInfo: &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeApp}}},
-	slotGadget: &interfaces.Slot{SlotInfo: &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeGadget}}},
+	slotOS:     &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeOS}},
+	slotApp:    &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeApp}},
+	slotGadget: &snap.SlotInfo{Snap: &snap.Info{Type: snap.TypeGadget}},
 })
 
 func (s *utilsSuite) TestSanitizeSlotReservedForOS(c *C) {
@@ -69,4 +72,20 @@ func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *interfaces
 
 func MockSlot(c *C, yaml string, si *snap.SideInfo, slotName string) *interfaces.Slot {
 	return builtin.MockSlot(c, yaml, si, slotName)
+}
+
+func MockConnectedPlug(c *C, yaml string, si *snap.SideInfo, plugName string) (*interfaces.ConnectedPlug, *snap.PlugInfo) {
+	info := snaptest.MockInfo(c, yaml, si)
+	if plugInfo, ok := info.Plugs[plugName]; ok {
+		return interfaces.NewConnectedPlug(plugInfo, nil), plugInfo
+	}
+	panic(fmt.Sprintf("cannot find plug %q in snap %q", plugName, info.Name()))
+}
+
+func MockConnectedSlot(c *C, yaml string, si *snap.SideInfo, slotName string) (*interfaces.ConnectedSlot, *snap.SlotInfo) {
+	info := snaptest.MockInfo(c, yaml, si)
+	if slotInfo, ok := info.Slots[slotName]; ok {
+		return interfaces.NewConnectedSlot(slotInfo, nil), slotInfo
+	}
+	panic(fmt.Sprintf("cannot find slot %q in snap %q", slotName, info.Name()))
 }
