@@ -32,9 +32,11 @@ import (
 )
 
 type BrowserSupportInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slot     *interfaces.ConnectedSlot
+	slotInfo *snap.SlotInfo
+	plug     *interfaces.ConnectedPlug
+	plugInfo *snap.PlugInfo
 }
 
 const browserMockPlugSnapInfoYaml = `name: other
@@ -50,15 +52,15 @@ var _ = Suite(&BrowserSupportInterfaceSuite{
 })
 
 func (s *BrowserSupportInterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "browser-support",
-			Interface: "browser-support",
-		},
+	s.slotInfo = &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Name:      "browser-support",
+		Interface: "browser-support",
 	}
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 	plugSnap := snaptest.MockInfo(c, browserMockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["browser-support"]}
+	s.plugInfo = plugSnap.Plugs["browser-support"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestName(c *C) {
@@ -66,11 +68,11 @@ func (s *BrowserSupportInterfaceSuite) TestName(c *C) {
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizePlugNoAttrib(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizePlugWithAttrib(c *C) {
@@ -81,8 +83,8 @@ plugs:
   allow-sandbox: true
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support"]}
-	c.Assert(plug.Sanitize(s.iface), IsNil)
+	plug := info.Plugs["browser-support"]
+	c.Assert(interfaces.SanitizePlug(s.iface, plug), IsNil)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizePlugWithBadAttrib(c *C) {
@@ -93,14 +95,14 @@ plugs:
   allow-sandbox: bad
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support"]}
-	c.Assert(plug.Sanitize(s.iface), ErrorMatches,
+	plug := info.Plugs["browser-support"]
+	c.Assert(interfaces.SanitizePlug(s.iface, plug), ErrorMatches,
 		"browser-support plug requires bool with 'allow-sandbox'")
 }
 
 func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	snippet := apparmorSpec.SnippetForTag("snap.other.app2")
@@ -109,7 +111,7 @@ func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *
 	c.Assert(string(snippet), testutil.Contains, `deny ptrace (trace) peer=snap.@{SNAP_NAME}.**`)
 
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	secCompSnippet := seccompSpec.SnippetForTag("snap.other.app2")
@@ -130,10 +132,10 @@ apps:
 `
 
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support"]}
+	plug := interfaces.NewConnectedPlug(info.Plugs["browser-support"], nil)
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.browser-support-plug-snap.app2"})
 	snippet := apparmorSpec.SnippetForTag("snap.browser-support-plug-snap.app2")
@@ -142,7 +144,7 @@ apps:
 	c.Assert(snippet, testutil.Contains, `deny ptrace (trace) peer=snap.@{SNAP_NAME}.**`)
 
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
+	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.browser-support-plug-snap.app2"})
 	secCompSnippet := seccompSpec.SnippetForTag("snap.browser-support-plug-snap.app2")
@@ -162,10 +164,10 @@ apps:
   plugs: [browser-support]
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support"]}
+	plug := interfaces.NewConnectedPlug(info.Plugs["browser-support"], nil)
 
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.browser-support-plug-snap.app2"})
 	snippet := apparmorSpec.SnippetForTag("snap.browser-support-plug-snap.app2")
@@ -174,7 +176,7 @@ apps:
 	c.Assert(snippet, Not(testutil.Contains), `deny ptrace (trace) peer=snap.@{SNAP_NAME}.**`)
 
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, plug, nil, s.slot, nil)
+	err = seccompSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.browser-support-plug-snap.app2"})
 	secCompSnippet := seccompSpec.SnippetForTag("snap.browser-support-plug-snap.app2")
@@ -185,13 +187,13 @@ apps:
 func (s *BrowserSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 
 	// connected plugs have a non-nil security snippet for apparmor
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 1)
 }
