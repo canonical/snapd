@@ -470,3 +470,71 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
 		{"show", "--property=ActiveState", svc1Name},
 	})
 }
+
+func (s *servicesTestSuite) TestServiceAfterBefore(c *C) {
+	var sysdLog [][]string
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return nil, nil
+	})
+	defer r()
+
+	info := snaptest.MockSnap(c, packageHello+`
+ svc2:
+   daemon: forking
+   after: [svc1]
+ svc3:
+   daemon: forking
+   before: [svc4]
+   after:  [svc2]
+ svc4:
+   daemon: forking
+   after:
+     - svc1
+     - svc2
+     - svc3
+`, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	checks := []struct {
+		file    string
+		kind    string
+		matches []string
+	}{
+		{
+			file:    filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service"),
+			kind:    "After",
+			matches: []string{info.Apps["svc1"].ServiceName()},
+		},
+		{
+			file:    filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"),
+			kind:    "After",
+			matches: []string{info.Apps["svc2"].ServiceName()},
+		},
+		{
+			file:    filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"),
+			kind:    "Before",
+			matches: []string{info.Apps["svc4"].ServiceName()},
+		},
+		{
+			file: filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc4.service"),
+			kind: "After",
+			matches: []string{info.Apps["svc1"].ServiceName(),
+				info.Apps["svc2"].ServiceName(), info.Apps["svc3"].ServiceName()},
+		},
+	}
+
+	err := wrappers.AddSnapServices(info, nil)
+	c.Assert(err, IsNil)
+
+	for _, check := range checks {
+		content, err := ioutil.ReadFile(check.file)
+		c.Assert(err, IsNil)
+
+		for _, m := range check.matches {
+			c.Check(string(content), Matches,
+				"(?ms).*^(?mU)"+check.kind+"=.*\\s?"+regexp.QuoteMeta(m)+"\\s?[^=]*$")
+		}
+	}
+
+}
