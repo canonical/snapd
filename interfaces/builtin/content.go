@@ -68,7 +68,7 @@ func cleanSubPath(path string) bool {
 	return filepath.Clean(path) == path && path != ".." && !strings.HasPrefix(path, "../")
 }
 
-func (iface *contentInterface) SanitizeSlot(slot *snap.SlotInfo) error {
+func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	content, ok := slot.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
 		if slot.Attrs == nil {
@@ -97,7 +97,7 @@ func (iface *contentInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	return nil
 }
 
-func (iface *contentInterface) SanitizePlug(plug *snap.PlugInfo) error {
+func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	content, ok := plug.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
 		if plug.Attrs == nil {

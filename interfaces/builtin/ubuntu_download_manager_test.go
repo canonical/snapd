@@ -66,17 +66,17 @@ func (s *UbuntuDownloadManagerInterfaceSuite) TestName(c *C) {
 }
 
 func (s *UbuntuDownloadManagerInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *UbuntuDownloadManagerInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "ubuntu-download-manager",
 		Interface: "ubuntu-download-manager",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *UbuntuDownloadManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
