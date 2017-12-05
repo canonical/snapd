@@ -32,9 +32,11 @@ import (
 )
 
 type PppInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&PppInterfaceSuite{
@@ -54,8 +56,8 @@ slots:
 `
 
 func (s *PppInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, pppConsumerYaml, nil, "ppp")
-	s.slot = MockSlot(c, pppCoreYaml, nil, "ppp")
+	s.plug, s.plugInfo = MockConnectedPlug(c, pppConsumerYaml, nil, "ppp")
+	s.slot, s.slotInfo = MockConnectedSlot(c, pppCoreYaml, nil, "ppp")
 }
 
 func (s *PppInterfaceSuite) TestName(c *C) {
@@ -63,31 +65,31 @@ func (s *PppInterfaceSuite) TestName(c *C) {
 }
 
 func (s *PppInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "ppp",
 		Interface: "ppp",
-	}}
+	}
 
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
 		"ppp slots are reserved for the core snap")
 }
 
 func (s *PppInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *PppInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/ppp rw,`)
 }
 
 func (s *PppInterfaceSuite) TestKModSpec(c *C) {
 	spec := &kmod.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"ppp_generic": true,
 	})
@@ -95,7 +97,7 @@ func (s *PppInterfaceSuite) TestKModSpec(c *C) {
 
 func (s *PppInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# ppp
 KERNEL=="ppp", TAG+="snap_consumer_app"`)
@@ -110,7 +112,8 @@ func (s *PppInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *PppInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
+	// FIXME: fix AutoConnect methods
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 
 func (s *PppInterfaceSuite) TestInterfaces(c *C) {

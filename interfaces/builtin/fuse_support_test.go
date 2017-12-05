@@ -33,9 +33,11 @@ import (
 )
 
 type FuseSupportInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 const fuseSupportConsumerYaml = `name: consumer
@@ -55,8 +57,8 @@ var _ = Suite(&FuseSupportInterfaceSuite{
 })
 
 func (s *FuseSupportInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, fuseSupportConsumerYaml, nil, "fuse-support")
-	s.slot = MockSlot(c, fuseSupportCoreYaml, nil, "fuse-support")
+	s.plug, s.plugInfo = MockConnectedPlug(c, fuseSupportConsumerYaml, nil, "fuse-support")
+	s.slot, s.slotInfo = MockConnectedSlot(c, fuseSupportCoreYaml, nil, "fuse-support")
 }
 
 func (s *FuseSupportInterfaceSuite) TestName(c *C) {
@@ -64,37 +66,37 @@ func (s *FuseSupportInterfaceSuite) TestName(c *C) {
 }
 
 func (s *FuseSupportInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "fuse-support",
 		Interface: "fuse-support",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
 		"fuse-support slots are reserved for the core snap")
 }
 
 func (s *FuseSupportInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *FuseSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/fuse`)
 }
 
 func (s *FuseSupportInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "mount\n")
 }
 
 func (s *FuseSupportInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	c.Assert(spec.Snippets(), testutil.Contains, `# fuse-support
 KERNEL=="fuse", TAG+="snap_consumer_app"`)
@@ -109,7 +111,8 @@ func (s *FuseSupportInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *FuseSupportInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
+	// FIXME: fix AutoConnect methods
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 
 func (s *FuseSupportInterfaceSuite) TestInterfaces(c *C) {
