@@ -31,7 +31,7 @@ type commonIfaceSuite struct{}
 var _ = Suite(&commonIfaceSuite{})
 
 func (s *commonIfaceSuite) TestUDevSpec(c *C) {
-	plug := MockPlug(c, `
+	plug, _ := MockConnectedPlug(c, `
 name: consumer
 apps:
   app-a:
@@ -40,7 +40,7 @@ apps:
   app-c:
     plugs: [common]
 `, nil, "common")
-	slot := MockSlot(c, `
+	slot, _ := MockConnectedSlot(c, `
 name: producer
 slots:
   common:
@@ -52,7 +52,7 @@ slots:
 		connectedPlugUDev: []string{`KERNEL=="foo"`},
 	}
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(iface, plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{
 		`# common
 KERNEL=="foo", TAG+="snap_consumer_app-a"`,
@@ -66,7 +66,7 @@ KERNEL=="foo", TAG+="snap_consumer_app-c"`,
 		name: "common",
 	}
 	spec = &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(iface, plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
