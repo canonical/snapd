@@ -1,0 +1,53 @@
+summary: Check that timeserver interface works
+
+details: |
+    This test makes sure that a snap using the timeserver-control interface
+    can access timeserver information and update it.
+
+prepare: |
+    . $TESTSLIB/snaps.sh
+
+    # Install a snap declaring a plug on timeserver-control
+    install_local test-snapd-timedate-control-consumer
+
+restore: |
+    # Restore the initial timeserver
+    if [ -f timeserver.txt ]; then
+        timedatectl set-ntp "$(cat timeserver.txt)"
+        rm -f timeserver.txt
+    fi
+    rm -f call.error
+
+execute: |
+    CONNECTED_PATTERN=":timeserver-control +test-snapd-timedate-control-consumer"
+    DISCONNECTED_PATTERN="\- +test-snapd-timedate-control-consumer:timeserver-control"
+
+    # Check the interface is disconnected by detault
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    # Connect the interfaces for both snaps
+    snap connect test-snapd-timedate-control-consumer:timeserver-control
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    # Save the default timeserver to be restored at the end
+    test-snapd-timedate-control-consumer.timedatectl-timeserver status | grep -oP 'Network time on: \K(.*)' > timeserver.txt
+
+    # Set the ntp value and check the status
+    test-snapd-timedate-control-consumer.timedatectl-timeserver set-ntp yes
+    [ "$(test-snapd-timedate-control-consumer.timedatectl-timeserver status | grep -oP 'Network time on: \K(.*)')" = "yes" ]
+
+    # Set the ntp value and check the status
+    test-snapd-timedate-control-consumer.timedatectl-timeserver set-ntp no
+    [ "$(test-snapd-timedate-control-consumer.timedatectl-timeserver status | grep -oP 'Network time on: \K(.*)')" = "no" ]
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    # Disconnect the interface and check access to timedatectl status
+    snap disconnect test-snapd-timedate-control-consumer:timeserver-control
+    if test-snapd-timedate-control-consumer.timedatectl-timeserver status 2>${PWD}/call.error; then
+        echo "Expected permission error calling timedatectl status with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
