@@ -1851,3 +1851,112 @@ slots:
 		{Name: "i2", Summary: "i2 summary"},
 	})
 }
+
+const ifacehooksSnap1 = `
+name: s1
+plugs:
+  consumer:
+    interface: iface2
+    attr0: val0
+`
+
+const ifacehooksSnap2 = `
+name: s2
+slots:
+  producer:
+    interface: iface2
+    attr0: val0
+`
+
+func (s *RepositorySuite) TestBeforeConnectValidation(c *C) {
+	err := s.emptyRepo.AddInterface(&ifacetest.TestInterface{
+		InterfaceName: "iface2",
+		BeforeConnectSlotCallback: func(slot *ConnectedSlot) error {
+			var val string
+			if err := slot.Attr("attr1", &val); err != nil {
+				return err
+			}
+			return slot.SetAttr("attr1", fmt.Sprintf("%s-validated", val))
+		},
+		BeforeConnectPlugCallback: func(plug *ConnectedPlug) error {
+			var val string
+			if err := plug.Attr("attr1", &val); err != nil {
+				return err
+			}
+			return plug.SetAttr("attr1", fmt.Sprintf("%s-validated", val))
+		},
+	})
+	c.Assert(err, IsNil)
+
+	s1 := snaptest.MockInfo(c, ifacehooksSnap1, nil)
+	c.Assert(s.emptyRepo.AddSnap(s1), IsNil)
+	s2 := snaptest.MockInfo(c, ifacehooksSnap2, nil)
+	c.Assert(s.emptyRepo.AddSnap(s2), IsNil)
+
+	plugDynAttrs := map[string]interface{}{"attr1": "val1"}
+	slotDynAttrs := map[string]interface{}{"attr1": "val1"}
+
+	conn, err := s.emptyRepo.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, plugDynAttrs, slotDynAttrs, nil)
+	c.Assert(err, IsNil)
+	c.Assert(conn, NotNil)
+
+	c.Assert(conn.Plug, NotNil)
+	c.Assert(conn.Slot, NotNil)
+
+	c.Assert(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"attr0": "val0"})
+	c.Assert(conn.Plug.DynamicAttrs(), DeepEquals, map[string]interface{}{"attr1": "val1-validated"})
+	c.Assert(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"attr0": "val0"})
+	c.Assert(conn.Slot.DynamicAttrs(), DeepEquals, map[string]interface{}{"attr1": "val1-validated"})
+}
+
+func (s *RepositorySuite) TestBeforeConnectValidationFailure(c *C) {
+	err := s.emptyRepo.AddInterface(&ifacetest.TestInterface{
+		InterfaceName: "iface2",
+		BeforeConnectSlotCallback: func(slot *ConnectedSlot) error {
+			return fmt.Errorf("invalid slot")
+		},
+		BeforeConnectPlugCallback: func(plug *ConnectedPlug) error {
+			return fmt.Errorf("invalid plug")
+		},
+	})
+	c.Assert(err, IsNil)
+
+	s1 := snaptest.MockInfo(c, ifacehooksSnap1, nil)
+	c.Assert(s.emptyRepo.AddSnap(s1), IsNil)
+	s2 := snaptest.MockInfo(c, ifacehooksSnap2, nil)
+	c.Assert(s.emptyRepo.AddSnap(s2), IsNil)
+
+	plugDynAttrs := map[string]interface{}{"attr1": "val1"}
+	slotDynAttrs := map[string]interface{}{"attr1": "val1"}
+
+	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) error { return nil }
+
+	conn, err := s.emptyRepo.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, plugDynAttrs, slotDynAttrs, policyCheck)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `validation failed for snap "s1", plug "consumer": invalid plug`)
+	c.Assert(conn, IsNil)
+}
+
+func (s *RepositorySuite) TestBeforeConnectValidationPolicyCheckFailure(c *C) {
+	err := s.emptyRepo.AddInterface(&ifacetest.TestInterface{
+		InterfaceName:             "iface2",
+		BeforeConnectSlotCallback: func(slot *ConnectedSlot) error { return nil },
+		BeforeConnectPlugCallback: func(plug *ConnectedPlug) error { return nil },
+	})
+	c.Assert(err, IsNil)
+
+	s1 := snaptest.MockInfo(c, ifacehooksSnap1, nil)
+	c.Assert(s.emptyRepo.AddSnap(s1), IsNil)
+	s2 := snaptest.MockInfo(c, ifacehooksSnap2, nil)
+	c.Assert(s.emptyRepo.AddSnap(s2), IsNil)
+
+	plugDynAttrs := map[string]interface{}{"attr1": "val1"}
+	slotDynAttrs := map[string]interface{}{"attr1": "val1"}
+
+	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) error { return fmt.Errorf("policy check failed") }
+
+	conn, err := s.emptyRepo.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, plugDynAttrs, slotDynAttrs, policyCheck)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `policy check failed`)
+	c.Assert(conn, IsNil)
+}
