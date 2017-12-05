@@ -22,6 +22,9 @@ set -o pipefail
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
+# shellcheck source=tests/lib/random.sh
+. "$TESTSLIB/random.sh"
+
 ###
 ### Utility functions reused below.
 ###
@@ -181,6 +184,8 @@ prepare_project() {
         echo "Ongoing reboot upgrade process, please try again when finished"
         exit 1
     fi
+
+    fixup_dev_random
 
     # declare the "quiet" wrapper
 
@@ -350,6 +355,8 @@ restore_project() {
     if [ -n "$GOPATH" ]; then
         rm -rf "${GOPATH%%:*}"
     fi
+
+    restore_dev_random
 }
 
 case "$1" in
