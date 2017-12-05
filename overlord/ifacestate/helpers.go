@@ -246,7 +246,7 @@ type connState struct {
 	Auto             bool                   `json:"auto,omitempty"`
 	Interface        string                 `json:"interface,omitempty"`
 	DynamicPlugAttrs map[string]interface{} `json:"dynamic-plug-attrs,omitempty"`
-	DynamicSlotAttrs map[string]interface{} `json:"dynamic-plug-attrs,omitempty"`
+	DynamicSlotAttrs map[string]interface{} `json:"dynamic-slot-attrs,omitempty"`
 }
 
 type autoConnectChecker struct {
