@@ -31,9 +31,11 @@ import (
 )
 
 type kvmInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&kvmInterfaceSuite{
@@ -53,8 +55,8 @@ slots:
 `
 
 func (s *kvmInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, kvmConsumerYaml, nil, "kvm")
-	s.slot = MockSlot(c, kvmCoreYaml, nil, "kvm")
+	s.plug, s.plugInfo = MockConnectedPlug(c, kvmConsumerYaml, nil, "kvm")
+	s.slot, s.slotInfo = MockConnectedSlot(c, kvmCoreYaml, nil, "kvm")
 }
 
 func (s *kvmInterfaceSuite) TestName(c *C) {
@@ -62,23 +64,23 @@ func (s *kvmInterfaceSuite) TestName(c *C) {
 }
 
 func (s *kvmInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "kvm",
 		Interface: "kvm",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
 		"kvm slots are reserved for the core snap")
 }
 
 func (s *kvmInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *kvmInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, `
 # Description: Allow write access to kvm.
@@ -90,7 +92,7 @@ func (s *kvmInterfaceSuite) TestAppArmorSpec(c *C) {
 
 func (s *kvmInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	c.Assert(spec.Snippets()[0], Equals, `# kvm
 KERNEL=="kvm", TAG+="snap_consumer_app"`)
@@ -105,7 +107,8 @@ func (s *kvmInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *kvmInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
+	// FIXME: fix AutoConnect methods
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 
 func (s *kvmInterfaceSuite) TestInterfaces(c *C) {

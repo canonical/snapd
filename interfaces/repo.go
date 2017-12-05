@@ -579,8 +579,8 @@ func (r *Repository) Connect(ref ConnRef) error {
 	}
 
 	// TODO: store copy of attributes from hooks
-	cplug := &ConnectedPlug{plugInfo: plug}
-	cslot := &ConnectedSlot{slotInfo: slot}
+	cplug := NewConnectedPlug(plug, nil)
+	cslot := NewConnectedSlot(slot, nil)
 
 	conn := &Connection{plug: cplug, slot: cslot}
 	r.slotPlugs[slot][plug] = conn
@@ -770,14 +770,11 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	// slot side
 	for _, slotInfo := range r.slots[snapName] {
 		iface := r.ifaces[slotInfo.Interface]
-		slot := &Slot{SlotInfo: slotInfo}
 		if err := spec.AddPermanentSlot(iface, slotInfo); err != nil {
 			return nil, err
 		}
-		for plugInfo := range r.slotPlugs[slotInfo] {
-			plug := &Plug{PlugInfo: plugInfo}
-			// TODO: pass ConnectedPlug and ConnectedSlot to interfaces
-			if err := spec.AddConnectedSlot(iface, plug, nil, slot, nil); err != nil {
+		for _, conn := range r.slotPlugs[slotInfo] {
+			if err := spec.AddConnectedSlot(iface, conn.plug, conn.slot); err != nil {
 				return nil, err
 			}
 		}
@@ -785,14 +782,11 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	// plug side
 	for _, plugInfo := range r.plugs[snapName] {
 		iface := r.ifaces[plugInfo.Interface]
-		plug := &Plug{PlugInfo: plugInfo}
 		if err := spec.AddPermanentPlug(iface, plugInfo); err != nil {
 			return nil, err
 		}
-		for slotInfo := range r.plugSlots[plugInfo] {
-			slot := &Slot{SlotInfo: slotInfo}
-			// TODO: pass ConnectedPlug and ConnectedSlot to interfaces
-			if err := spec.AddConnectedPlug(iface, plug, nil, slot, nil); err != nil {
+		for _, conn := range r.plugSlots[plugInfo] {
+			if err := spec.AddConnectedPlug(iface, conn.plug, conn.slot); err != nil {
 				return nil, err
 			}
 		}

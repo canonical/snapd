@@ -293,7 +293,7 @@ func getAppArmorSnippet(policy string, bus string, name string) string {
 	return snippet
 }
 
-func (iface *dbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *dbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	bus, name, err := iface.getAttribs(plug.Attrs)
 	if err != nil {
 		return err
@@ -374,7 +374,7 @@ func (iface *dbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, 
 	return nil
 }
 
-func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	bus, name, err := iface.getAttribs(slot.Attrs)
 	if err != nil {
 		return err
@@ -404,12 +404,12 @@ func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, 
 	return nil
 }
 
-func (iface *dbusInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *dbusInterface) SanitizePlug(plug *snap.PlugInfo) error {
 	_, _, err := iface.getAttribs(plug.Attrs)
 	return err
 }
 
-func (iface *dbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *dbusInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	_, _, err := iface.getAttribs(slot.Attrs)
 	return err
 }
