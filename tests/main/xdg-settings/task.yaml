@@ -56,7 +56,7 @@ execute: |
         # run xdg-settings from inside the snap
         test-snapd-xdg-settings.set-default-web-browser browser.desktop
 
-        # verify that the command was transmited corrected via dbus
+        # verify that the command was transmitted corrected via dbus
         test -e /tmp/xdg-settings-output
         test "$(cat /tmp/xdg-settings-output)" = "set default-web-browser test-snapd-xdg-settings_browser.desktop"
     }
