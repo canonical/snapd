@@ -6,15 +6,14 @@
 # for major:minor assignments.
 
 fixup_dev_random() {
-    rm -f /dev/random /dev/real_random
-    # same as /dev/random
-    mknod /dev/real_random c 1 8
+    # keep  the original /dev/random around
+    mv /dev/random /dev/random.orig
     # same as /dev/urandom
     mknod /dev/random c 1 9
 }
 
 restore_dev_random() {
-    rm -f /dev/random /dev/real_random
-    # restore proper /dev/random
-    mknod /dev/random c 1 8
+    if test -c /dev/random.orig ; then
+        mv /dev/random.orig /dev/random
+    fi
 }
