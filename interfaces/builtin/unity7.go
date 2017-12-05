@@ -427,7 +427,7 @@ dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member=NotificationClosed
+    member={ActionInvoked,NotificationClosed}
     peer=(label=unconfined),
 
 dbus (send)
