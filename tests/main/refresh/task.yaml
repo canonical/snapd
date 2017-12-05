@@ -62,6 +62,7 @@ restore: |
         . $TESTSLIB/store.sh
         teardown_fake_store $BLOB_DIR
     fi
+    rm -f test-snapd-tools_*.snap
 
 execute: |
     if [ "$STORE_TYPE" = "fake" ]; then

@@ -1009,7 +1009,7 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
 	if revision.Unset() {
 		// good ol' refresh
-		info, err := updateInfo(st, snapst, channel, flags.IgnoreValidation, userID)
+		info, err := updateInfo(st, snapst, channel, flags.IgnoreValidation, flags.Amend, userID)
 		if err != nil {
 			return nil, err
 		}

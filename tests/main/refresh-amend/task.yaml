@@ -1,0 +1,19 @@
+summary: Ensure that refresh --amend works
+
+execute: |
+    echo "When installing a local snap"
+    snap download test-snapd-tools
+    snap install --dangerous ./test-snapd-tools_*.snap
+    snap list |MATCH "test-snapd-tools.*x1"
+
+    echo "A normal refresh will not refresh it to the store rev"
+    if snap refresh test-snapd-tools 2> stderr.out; then
+        echo "snap refresh should error but did not"
+        exit 1
+    fi
+    cat stderr.out | MATCH 'snap "test-snapd-tools" is local, try the `--amend` flag'
+
+    echo "A refresh with --amend refreshes it to the store revision"
+    snap refresh --amend test-snapd-tools
+    echo "And we have a store revision now"
+    snap info test-snapd-tools | MATCH "^snap-id:.*[a-zA-Z0-9]+$"

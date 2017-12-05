@@ -30,6 +30,7 @@ import (
 )
 
 type SnapOptions struct {
+	Amend            bool   `json:"amend"`
 	Channel          string `json:"channel,omitempty"`
 	Revision         string `json:"revision,omitempty"`
 	DevMode          bool   `json:"devmode,omitempty"`
