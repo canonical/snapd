@@ -83,6 +83,9 @@ apps:
   fwupd:
     command: bin/run
     plugs: [ fwupd ]
+  gpio-memory-control:
+    command: bin/run
+    plugs: [ gpio-memory-control ]
   greengrass-support:
     command: bin/run
     plugs: [ greengrass-support ]

@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func init() {
@@ -46,29 +47,29 @@ func ConfigureHookTimeout() time.Duration {
 	return timeout
 }
 
-// configureSnapd returns the taskset to configure snapd itself
-func configureSnapd(st *state.State, patch map[string]interface{}, flags int) *state.TaskSet {
-	// reuse i18n string here
-	summary := fmt.Sprintf(i18n.G("Run configuration of %q snap"), "core")
+// ConfigureInstalled returns a taskset to apply the given
+// configuration patch for an installed snap. It returns
+// snap.NotInstalledError if the snap is not installed.
+func ConfigureInstalled(st *state.State, snapName string, patch map[string]interface{}, flags int) (*state.TaskSet, error) {
+	// core is handled internally and can be configured before
+	// being installed
+	if snapName != "core" {
+		var snapst snapstate.SnapState
+		err := snapstate.Get(st, snapName, &snapst)
+		if err != nil && err != state.ErrNoState {
+			return nil, err
+		}
+		if !snapst.IsInstalled() {
+			return nil, &snap.NotInstalledError{Snap: snapName}
+		}
+	}
 
-	t := st.NewTask("configure-snapd", summary)
-	t.Set("patch", patch)
-	if flags&snapstate.UseConfigDefaults != 0 {
-		t.Set("use-defaults", true)
-	}
-	if flags&snapstate.IgnoreHookError != 0 {
-		t.Set("ignore-error", true)
-	}
-	if flags&snapstate.TrackHookError != 0 {
-		t.Set("track-error", true)
-	}
-
-	return state.NewTaskSet(t)
+	taskset := Configure(st, snapName, patch, flags)
+	return taskset, nil
 }
 
-// configureHook returns the taskset to configure snaps using the
-// snaps configure hook
-func configureHook(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
+// Configure returns a taskset to apply the given configuration patch.
+func Configure(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
 	summary := fmt.Sprintf(i18n.G("Run configure hook of %q snap"), snapName)
 	// regular configuration hook
 	hooksup := &hookstate.HookSetup{
@@ -93,13 +94,4 @@ func configureHook(st *state.State, snapName string, patch map[string]interface{
 
 	task := hookstate.HookTask(st, summary, hooksup, contextData)
 	return state.NewTaskSet(task)
-}
-
-// Configure returns a taskset to apply the given configuration patch.
-func Configure(st *state.State, snapName string, patch map[string]interface{}, flags int) *state.TaskSet {
-	// configuration for "core" is handled internally
-	if snapName == "core" {
-		return configureSnapd(st, patch, flags)
-	}
-	return configureHook(st, snapName, patch, flags)
 }
