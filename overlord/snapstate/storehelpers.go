@@ -35,7 +35,7 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	return auth.User(st, userID)
 }
 
-func snapNameToSnapIDFromStore(st *state.State, name string, user *auth.UserState) (string, error) {
+func snapNameToID(st *state.State, name string, user *auth.UserState) (string, error) {
 	theStore := Store(st)
 	st.Unlock()
 	info, err := theStore.SnapInfo(store.SnapSpec{Name: name}, user)
@@ -59,12 +59,15 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, ignoreValida
 		}
 
 		// in amend mode we need to move to the store rev
-		id, err := snapNameToSnapIDFromStore(st, curInfo.Name(), user)
+		id, err := snapNameToID(st, curInfo.Name(), user)
 		if err != nil {
-			return nil, fmt.Errorf("cannot get snap-id for %q: %v", curInfo.Name(), err)
+			return nil, fmt.Errorf("cannot get snap ID for %q: %v", curInfo.Name(), err)
 		}
 		curInfo.SnapID = id
-		curInfo.Revision = snap.R(1) // we really have no idea
+		// FIXME: do not send a random revision but instead send
+		//        no revision at all if we don't know it and send
+		//        the epoch only.
+		curInfo.Revision = snap.R(1)
 	}
 
 	refreshCand := &store.RefreshCandidate{

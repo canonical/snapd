@@ -54,8 +54,8 @@ type Flags struct {
 	// installing the snap.
 	Unaliased bool `json:"unaliased,omitempty"`
 
-	// Amend refreshes a snap from an unknown state (e.g. local
-	// install) to the store revision
+	// Amend allows refreshing out of a snap unknown to the store
+	// and into one that is known.
 	Amend bool `json:"amend,omitempty"`
 }
 

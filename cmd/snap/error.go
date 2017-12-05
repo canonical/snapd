@@ -150,7 +150,7 @@ If you understand and want to proceed repeat the command including --classic.
 			msg = fmt.Sprintf(i18n.G(`%s (try with sudo)`), err.Message)
 		}
 	case client.ErrorKindSnapLocal:
-		msg = i18n.G("snap %q is local, try the `--amend` flag")
+		msg = i18n.G("local snap %q is unknown to the store, use --amend to proceed anyway")
 	case client.ErrorKindNoUpdateAvailable:
 		isError = false
 		msg = i18n.G("snap %q has no updates available")

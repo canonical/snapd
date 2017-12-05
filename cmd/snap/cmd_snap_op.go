@@ -1004,7 +1004,7 @@ func init() {
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		waitDescs.also(channelDescs).also(modeDescs).also(map[string]string{
-			"amend":             i18n.G("Amend snap to match the store version"),
+			"amend":             i18n.G("Allow refresh attempt on snap unknown to the store"),
 			"revision":          i18n.G("Refresh to the given revision"),
 			"list":              i18n.G("Show available snaps for refresh but do not perform a refresh"),
 			"time":              i18n.G("Show auto refresh information but do not perform a refresh"),
