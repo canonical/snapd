@@ -46,3 +46,5 @@ if snapctl set :producer consumer-attr4=foo; then
     echo "Expected snapctl set to fail when run from connect-slot hook"
     exit 1
 fi
+
+touch $SNAP_COMMON/connect-slot-producer-done

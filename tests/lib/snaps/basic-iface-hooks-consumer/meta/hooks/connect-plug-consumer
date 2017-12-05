@@ -45,7 +45,6 @@ if [ "$output" != "$expected_output" ]; then
     exit 1
 fi
 
-
 # Failure on unknown plug
 if snapctl get :unknown target; then
     echo "Expected snapctl get to fail on unknown plug"
@@ -57,3 +56,5 @@ if snapctl set :consumer consumer-attr4=foo; then
     echo "Expected snapctl set to fail when run from connect-plug hook"
     exit 1
 fi
+
+touch $SNAP_COMMON/connect-plug-consumer-done
