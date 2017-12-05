@@ -128,7 +128,7 @@ func (iface *unity8PimCommonInterface) DBusPermanentSlot(spec *dbus.Specificatio
 	return nil
 }
 
-func (iface *unity8PimCommonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *unity8PimCommonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 
@@ -150,7 +150,7 @@ func (iface *unity8PimCommonInterface) AppArmorPermanentSlot(spec *apparmor.Spec
 	return nil
 }
 
-func (iface *unity8PimCommonInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *unity8PimCommonInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := unity8PimCommonConnectedSlotAppArmor

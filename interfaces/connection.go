@@ -36,6 +36,8 @@ type ConnectedPlug struct {
 	plugInfo     *snap.PlugInfo
 	staticAttrs  map[string]interface{}
 	dynamicAttrs map[string]interface{}
+	// FIXME temporary
+	Attrs map[string]interface{}
 }
 
 // ConnectedSlot represents a slot that is connected to a plug.
@@ -43,6 +45,8 @@ type ConnectedSlot struct {
 	slotInfo     *snap.SlotInfo
 	staticAttrs  map[string]interface{}
 	dynamicAttrs map[string]interface{}
+	// FIXME temporary
+	Attrs map[string]interface{}
 }
 
 // NewConnectedSlot creates an object representing a connected slot.
@@ -51,6 +55,7 @@ func NewConnectedSlot(slot *snap.SlotInfo, dynamicAttrs map[string]interface{}) 
 		slotInfo:     slot,
 		staticAttrs:  copyAttributes(slot.Attrs),
 		dynamicAttrs: normalize(dynamicAttrs).(map[string]interface{}),
+		Attrs:        slot.Attrs, // FIXME: temporary
 	}
 }
 
@@ -60,6 +65,7 @@ func NewConnectedPlug(plug *snap.PlugInfo, dynamicAttrs map[string]interface{}) 
 		plugInfo:     plug,
 		staticAttrs:  copyAttributes(plug.Attrs),
 		dynamicAttrs: normalize(dynamicAttrs).(map[string]interface{}),
+		Attrs:        plug.Attrs, // FIXME: temporary
 	}
 }
 

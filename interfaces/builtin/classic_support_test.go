@@ -32,9 +32,11 @@ import (
 )
 
 type ClassicSupportInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 const classicSupportMockPlugSnapInfoYaml = `name: other
@@ -50,15 +52,15 @@ var _ = Suite(&ClassicSupportInterfaceSuite{
 })
 
 func (s *ClassicSupportInterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "classic-support",
-			Interface: "classic-support",
-		},
+	s.slotInfo = &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Name:      "classic-support",
+		Interface: "classic-support",
 	}
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 	plugSnap := snaptest.MockInfo(c, classicSupportMockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["classic-support"]}
+	s.plugInfo = plugSnap.Plugs["classic-support"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 }
 
 func (s *ClassicSupportInterfaceSuite) TestName(c *C) {
@@ -66,17 +68,17 @@ func (s *ClassicSupportInterfaceSuite) TestName(c *C) {
 }
 
 func (s *ClassicSupportInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
 }
 
 func (s *ClassicSupportInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *ClassicSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	snippet := apparmorSpec.SnippetForTag("snap.other.app")
@@ -85,7 +87,7 @@ func (s *ClassicSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app"), testutil.Contains, "mount\n")
