@@ -42,14 +42,14 @@ func (t Clock) String() string {
 	return fmt.Sprintf("%02d:%02d", t.Hour, t.Minute)
 }
 
-// Sub subtracts `other` TimeOfDay from current and returns duration
+// Sub returns the duration t - other.
 func (t Clock) Sub(other Clock) time.Duration {
 	t1 := time.Duration(t.Hour)*time.Hour + time.Duration(t.Minute)*time.Minute
 	t2 := time.Duration(other.Hour)*time.Hour + time.Duration(other.Minute)*time.Minute
 	return t1 - t2
 }
 
-// Add adds given duration and returns a new TimeOfDay
+// Add adds given duration to t and returns a new Clock
 func (t Clock) Add(dur time.Duration) Clock {
 	t1 := time.Duration(t.Hour)*time.Hour + time.Duration(t.Minute)*time.Minute
 	t2 := t1 + dur
@@ -60,8 +60,8 @@ func (t Clock) Add(dur time.Duration) Clock {
 	return nt
 }
 
-// Time generates a time.Time using base for information on year, month, day
-// and with hour and minute set from TimeOfDay
+// Time generates a time.Time with hour and minute set from t, while year, month
+// and day are taken from base
 func (t Clock) Time(base time.Time) time.Time {
 	return time.Date(base.Year(), base.Month(), base.Day(),
 		t.Hour, t.Minute, 0, 0, time.Local)
@@ -79,9 +79,9 @@ func IsValidWeekday(s string) bool {
 	return ok
 }
 
-// ParseTime parses a string that contains hour:minute and returns
-// an TimeOfDay type or an error
-func ParseTime(s string) (t Clock, err error) {
+// ParseClock parses a string that contains hour:minute and returns
+// an Clock type or an error
+func ParseClock(s string) (t Clock, err error) {
 	m := validTime.FindStringSubmatch(s)
 	if len(m) == 0 {
 		return t, fmt.Errorf("cannot parse %q", s)
@@ -458,11 +458,11 @@ func parseTimeInterval(s string) (start, end Clock, err error) {
 		return start, end, fmt.Errorf("cannot parse %q: not a valid interval", s)
 	}
 
-	start, err = ParseTime(l[0])
+	start, err = ParseClock(l[0])
 	if err != nil {
 		return start, end, fmt.Errorf("cannot parse %q: not a valid time", l[0])
 	}
-	end, err = ParseTime(l[1])
+	end, err = ParseClock(l[1])
 	if err != nil {
 		return start, end, fmt.Errorf("cannot parse %q: not a valid time", l[1])
 	}
@@ -597,7 +597,7 @@ func parseSpan(spec string) (string, string) {
 }
 
 // parseTime parses a time specification which can either be `<hh>:<mm>` or
-// `<hh>:<mm>-<hh>:<mm>`. Returns corresponding TimeOfDay structs.
+// `<hh>:<mm>-<hh>:<mm>`. Returns corresponding Clock structs.
 func parseTime(start, end string) (Clock, Clock, error) {
 	// is it a time?
 	var err error
@@ -605,7 +605,7 @@ func parseTime(start, end string) (Clock, Clock, error) {
 
 	if start == end {
 		// single time, eg. 10:00
-		tstart, err = ParseTime(start)
+		tstart, err = ParseClock(start)
 		if err == nil {
 			tend = tstart
 		}
