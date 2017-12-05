@@ -19,11 +19,13 @@ subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
-check: check-syntax-c check-unit-tests
+check: check-unit-tests
 
 # Force particular coding style on all source and header files.
 .PHONY: check-syntax-c
 check-syntax-c:
+	echo "WARNING: check-syntax-c produces different results for different version of indent"
+	echo "Your version of indent: `indent --version`"
 	@d=`mktemp -d`; \
 	trap 'rm -rf $d' EXIT; \
 	for f in $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])) ; do \
@@ -324,6 +326,16 @@ else
 # Ensure that snap-confine is u+s,g+s (setuid and setgid)
 	chmod 6755 $(DESTDIR)$(libexecdir)/snap-confine
 endif
+
+##
+## snap-mgmt
+##
+
+libexec_PROGRAMS += snap-mgmt/snap-mgmt
+
+snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile
+	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+
 
 ##
 ## ubuntu-core-launcher

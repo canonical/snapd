@@ -55,6 +55,8 @@ var (
 	pruneMaxChanges = 500
 
 	defaultCachedDownloads = 5
+
+	configstateInit = configstate.Init
 )
 
 // Overlord is the central manager of a snappy system, keeping
@@ -75,7 +77,6 @@ type Overlord struct {
 	assertMgr *assertstate.AssertManager
 	ifaceMgr  *ifacestate.InterfaceManager
 	hookMgr   *hookstate.HookManager
-	configMgr *configstate.ConfigManager
 	deviceMgr *devicestate.DeviceManager
 	cmdMgr    *cmdstate.CommandManager
 }
@@ -125,12 +126,6 @@ func New() (*Overlord, error) {
 	}
 	o.addManager(ifaceMgr)
 
-	configMgr, err := configstate.Manager(s, hookMgr)
-	if err != nil {
-		return nil, err
-	}
-	o.addManager(configMgr)
-
 	deviceMgr, err := devicestate.Manager(s, hookMgr)
 	if err != nil {
 		return nil, err
@@ -138,6 +133,8 @@ func New() (*Overlord, error) {
 	o.addManager(deviceMgr)
 
 	o.addManager(cmdstate.Manager(s))
+
+	configstateInit(hookMgr)
 
 	s.Lock()
 	defer s.Unlock()
@@ -169,8 +166,6 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.deviceMgr = x
 	case *cmdstate.CommandManager:
 		o.cmdMgr = x
-	case *configstate.ConfigManager:
-		o.configMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
@@ -386,12 +381,6 @@ func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
 // jobs.
 func (o *Overlord) CommandManager() *cmdstate.CommandManager {
 	return o.cmdMgr
-}
-
-// ConfigManager returns the manager responsible for doing
-// configuration.
-func (o *Overlord) ConfigManager() *configstate.ConfigManager {
-	return o.configMgr
 }
 
 // Mock creates an Overlord without any managers and with a backend

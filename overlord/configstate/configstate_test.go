@@ -24,9 +24,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -38,7 +38,7 @@ type tasksetsSuite struct {
 }
 
 var _ = Suite(&tasksetsSuite{})
-var _ = Suite(&coreCfgHijackSuite{})
+var _ = Suite(&configcoreHijackSuite{})
 
 func (s *tasksetsSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
@@ -156,32 +156,30 @@ func (s *tasksetsSuite) TestConfigureNotInstalled(c *C) {
 	c.Check(err, IsNil)
 }
 
-type coreCfgHijackSuite struct {
+type configcoreHijackSuite struct {
 	o     *overlord.Overlord
 	state *state.State
 }
 
-func (s *coreCfgHijackSuite) SetUpTest(c *C) {
+func (s *configcoreHijackSuite) SetUpTest(c *C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	hookMgr, err := hookstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.o.AddManager(hookMgr)
-	configMgr, err := configstate.Manager(s.state, hookMgr)
-	c.Assert(err, IsNil)
-	s.o.AddManager(configMgr)
+	configstate.Init(hookMgr)
 }
 
-func (s *coreCfgHijackSuite) TestHijack(c *C) {
-	coreCfgRan := false
-	witnessCoreCfgRun := func(conf corecfg.Conf) error {
+func (s *configcoreHijackSuite) TestHijack(c *C) {
+	configcoreRan := false
+	witnessConfigcoreRun := func(conf configcore.Conf) error {
 		// called with no state lock!
 		conf.State().Lock()
 		defer conf.State().Unlock()
-		coreCfgRan = true
+		configcoreRan = true
 		return nil
 	}
-	r := configstate.MockCorecfgRun(witnessCoreCfgRun)
+	r := configstate.MockConfigcoreRun(witnessConfigcoreRun)
 	defer r()
 
 	s.state.Lock()
@@ -198,5 +196,5 @@ func (s *coreCfgHijackSuite) TestHijack(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(chg.Err(), IsNil)
-	c.Check(coreCfgRan, Equals, true)
+	c.Check(configcoreRan, Equals, true)
 }
