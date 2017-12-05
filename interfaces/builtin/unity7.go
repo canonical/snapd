@@ -47,6 +47,7 @@ const unity7ConnectedPlugAppArmor = `
 #include <abstractions/X>
 
 #include <abstractions/fonts>
+owner @{HOME}/.local/share/fonts/{,**} r,
 /var/cache/fontconfig/   r,
 /var/cache/fontconfig/** mr,
 
