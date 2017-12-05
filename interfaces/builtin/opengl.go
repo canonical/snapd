@@ -56,6 +56,7 @@ const openglConnectedPlugAppArmor = `
 /dev/dri/ r,
 /dev/dri/card0 rw,
 # nvidia
+/etc/vdpau_wrapper.cfg r,
 @{PROC}/driver/nvidia/params r,
 @{PROC}/modules r,
 /dev/nvidia* rw,
