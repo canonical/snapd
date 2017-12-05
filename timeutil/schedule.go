@@ -67,11 +67,6 @@ func (t Clock) Time(base time.Time) time.Time {
 		t.Hour, t.Minute, 0, 0, time.Local)
 }
 
-// isValidTime returns true if given s looks like a valid time specification
-func isValidTime(s string) bool {
-	return validTime.MatchString(s)
-}
-
 // IsValidWeekday returns true if given s looks like a valid weekday. Valid
 // inputs are 3 letter, lowercase abbreviations of week days.
 func IsValidWeekday(s string) bool {
@@ -768,7 +763,7 @@ func parseEventSet(s string) (*Schedule, error) {
 		//     timespan = time ( "-" / "~" ) time [ "/" ( time / count ) ]
 		start, end = parseSpan(event)
 
-		if isValidTime(start) && isValidTime(end) {
+		if validTime.MatchString(start) && validTime.MatchString(end) {
 			// from now on we expect only timespans
 			expectTime = true
 
