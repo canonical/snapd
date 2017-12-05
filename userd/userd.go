@@ -20,7 +20,6 @@
 package userd
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/godbus/dbus"
@@ -60,18 +59,12 @@ func (ud *Userd) Init() error {
 		}
 
 		if reply != dbus.RequestNameReplyPrimaryOwner {
-			err = fmt.Errorf("cannot obtain bus name '%s'", iface.Name())
-			return err
+			return fmt.Errorf("cannot obtain bus name '%s'", iface.Name())
 		}
 
-		var buffer bytes.Buffer
-		buffer.WriteString("<node>")
-		buffer.WriteString(iface.IntrospectionData())
-		buffer.WriteString(introspect.IntrospectDataString)
-		buffer.WriteString("</node>")
-
+		xml := "<node>" + iface.IntrospectionData() + introspect.IntrospectDataString + "</node>"
 		ud.conn.Export(iface, iface.BasePath(), iface.Name())
-		ud.conn.Export(introspect.Introspectable(buffer.String()), iface.BasePath(), "org.freedesktop.DBus.Introspectable")
+		ud.conn.Export(introspect.Introspectable(xml), iface.BasePath(), "org.freedesktop.DBus.Introspectable")
 	}
 	return nil
 }
