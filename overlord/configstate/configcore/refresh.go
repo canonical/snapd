@@ -46,6 +46,6 @@ func validateRefreshSchedule(tr Conf) error {
 		return nil
 	}
 
-	_, err = timeutil.ParseSchedule(refreshScheduleStr)
+	_, err = timeutil.ParseLegacySchedule(refreshScheduleStr)
 	return err
 }

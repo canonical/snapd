@@ -5352,7 +5352,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesDisabledViaSnapdControl(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
-	l, err := timeutil.ParseSchedule(snapstate.DefaultRefreshSchedule)
+	l, err := timeutil.ParseLegacySchedule(snapstate.DefaultRefreshSchedule)
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 4)
 }

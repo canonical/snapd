@@ -404,12 +404,12 @@ func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, 
 	return nil
 }
 
-func (iface *dbusInterface) SanitizePlug(plug *snap.PlugInfo) error {
+func (iface *dbusInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	_, _, err := iface.getAttribs(plug)
 	return err
 }
 
-func (iface *dbusInterface) SanitizeSlot(slot *snap.SlotInfo) error {
+func (iface *dbusInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	_, _, err := iface.getAttribs(slot)
 	return err
 }

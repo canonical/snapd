@@ -56,11 +56,11 @@ func (iface *testSnapdInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *testSnapdInterface) SanitizePlug(plug *snap.PlugInfo) error {
+func (iface *testSnapdInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	return nil
 }
 
-func (iface *testSnapdInterface) SanitizeSlot(slot *snap.SlotInfo) error {
+func (iface *testSnapdInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return nil
 }
 
