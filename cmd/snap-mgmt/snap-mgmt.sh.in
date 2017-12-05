@@ -26,19 +26,17 @@ SNAP_UNIT_PREFIX="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
 
 systemctl_stop() {
     unit="$1"
-    for i in $(seq 10); do
-        if systemctl is-active -q "$unit"; then
-            echo "Stoping $unit"
-            systemctl stop -q "$unit" || true
-        fi
-        echo "Stoping $unit [attempt $i]"
+    if systemctl is-active -q "$unit"; then
+        echo "Stopping $unit"
         systemctl stop -q "$unit" || true
-        sleep .1
-    done
+    fi
 }
 
 purge() {
-    if grep -q CODENAME=trusty /etc/os-release >/dev/null 2>&1 ; then
+    # debian-9, fedora-27, ubuntu-16.04...
+    distribution=$(. /etc/os-release; echo "${ID}-${VERSION_ID}")
+
+    if [ "$distribution" = "ubuntu-14.04" ]; then
         # snap.mount.service is a trusty thing
         systemctl_stop snap.mount.service
     else
@@ -126,6 +124,7 @@ purge() {
     rm -f /var/cache/snapd/*
 
     if test -d /etc/apparmor.d; then
+        # Remove auto-generated rules for snap-confine from the 'core' snap
         echo "Removing extra snap-confine apparmor rules"
         # shellcheck disable=SC2046
         rm -f /etc/apparmor.d/$(echo "$SNAP_UNIT_PREFIX" | tr '-' '.').core.*.usr.lib.snapd.snap-confine
