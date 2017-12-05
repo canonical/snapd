@@ -40,5 +40,5 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name);
  * snap-confine will create a shared bind mount for "/snap" to
  * ensure that "/snap" is mounted shared. See LP:#1668659
  */
-void sc_ensure_shared_snap_mount();
+void sc_ensure_shared_snap_mount(void);
 #endif

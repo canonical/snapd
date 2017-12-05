@@ -20,13 +20,12 @@
 package builtin
 
 import (
-	"strings"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const pulseaudioSummary = `allows operating as or interacting with the pulseaudio service`
@@ -129,12 +128,6 @@ setgroups32
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
-const pulseaudioPermanentSlotUdev = `
-KERNEL=="controlC[0-9]*",        TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="timer",                 TAG+="###CONNECTED_SECURITY_TAGS###"
-`
-
 type pulseAudioInterface struct{}
 
 func (iface *pulseAudioInterface) Name() string {
@@ -149,7 +142,7 @@ func (iface *pulseAudioInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(pulseaudioConnectedPlugAppArmor)
 	if release.OnClassic {
 		spec.AddSnippet(pulseaudioConnectedPlugAppArmorDesktop)
@@ -157,27 +150,24 @@ func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 	return nil
 }
 
-func (iface *pulseAudioInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	old := "###CONNECTED_SECURITY_TAGS###"
-	for appName := range slot.Apps {
-		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
-		udevRule := strings.Replace(pulseaudioPermanentSlotUdev, old, tag, -1)
-		spec.AddSnippet(udevRule)
-	}
+func (iface *pulseAudioInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+	spec.TagDevice(`KERNEL=="controlC[0-9]*"`)
+	spec.TagDevice(`KERNEL=="pcmC[0-9]*D[0-9]*[cp]"`)
+	spec.TagDevice(`KERNEL=="timer"`)
 	return nil
 }
 
-func (iface *pulseAudioInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *pulseAudioInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(pulseaudioPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *pulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *pulseAudioInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(pulseaudioConnectedPlugSecComp)
 	return nil
 }
 
-func (iface *pulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *pulseAudioInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(pulseaudioPermanentSlotSecComp)
 	return nil
 }

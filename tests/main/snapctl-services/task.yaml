@@ -8,7 +8,6 @@ restore: |
     rm -f $SERVICEOPTIONFILE
 
 execute: |
-
     wait_for_service() {
         retry=5
         while ! snap services $1 | MATCH $2; do
@@ -69,3 +68,11 @@ execute: |
 
     echo "And service could get the new service-option set from the hook"
     wait_for_file_change $SERVICEOPTIONFILE "^foo$"
+
+    echo "Reinstalling the snap with configure hook calling snapctl restart works"
+    snap set test-snapd-service command=restart
+    install_local test-snapd-service
+    if journalctl|grep -q "error running snapctl"; then
+        echo "snapctl should not report errors"
+        exit 1
+    fi

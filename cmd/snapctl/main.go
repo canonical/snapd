@@ -24,7 +24,6 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/corecfg"
 	"github.com/snapcore/snapd/dirs"
 )
 
@@ -43,11 +42,8 @@ func main() {
 	if len(os.Args) > 2 && os.Args[1] == "internal" {
 		switch os.Args[2] {
 		case "configure-core":
-			if err := corecfg.Run(); err != nil {
-				fmt.Fprintf(os.Stderr, "core configuration error: %v\n", err)
-				os.Exit(1)
-			}
-			os.Exit(0)
+			fmt.Fprintf(os.Stderr, "no internal core configuration anymore")
+			os.Exit(1)
 		}
 	}
 

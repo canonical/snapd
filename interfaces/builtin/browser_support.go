@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
 )
 
 const browserSupportSummary = `allows access to various APIs needed by modern web browsers`
@@ -35,6 +36,9 @@ const browserSupportBaseDeclarationSlots = `
       slot-snap-type:
         - core
     deny-connection:
+      plug-attributes:
+        allow-sandbox: true
+    deny-auto-connection:
       plug-attributes:
         allow-sandbox: true
 `
@@ -57,6 +61,13 @@ owner /var/tmp/etilqs_* rw,
 # packaging adjusted to use LD_PRELOAD technique from LP: #1577514
 owner /{dev,run}/shm/{,.}org.chromium.* mrw,
 owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
+owner /{dev,run}/shm/.io.nwjs.* mrw,
+
+# Chrome's Singleton API sometimes causes an ouid/fsuid mismatch denial, so
+# for now, allow non-owner read on the singleton socket (LP: #1731012). See
+# https://forum.snapcraft.io/t/electron-snap-killed-when-using-app-makesingleinstance-api/2667/20
+/run/user/[0-9]*/snap.@{SNAP_NAME}/{,.}org.chromium.*/SS r,
+/run/user/[0-9]*/snap.@{SNAP_NAME}/{,.}com.google.Chrome.*/SS r,
 
 # Allow reading platform files
 /run/udev/data/+platform:* r,
@@ -66,6 +77,7 @@ owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
 
 # Chromium content api in gnome-shell reads this
 /etc/opt/chrome/{,**} r,
+/etc/chromium/{,**} r,
 
 # Chrome/Chromium should be adjusted to not use gconf. It is only used with
 # legacy systems that don't have snapd
@@ -76,6 +88,12 @@ deny dbus (send)
 # webbrowser-app/webapp-container tries to read this file to determine if it is
 # confined or not, so explicitly deny to avoid noise in the logs.
 deny @{PROC}/@{pid}/attr/current r,
+
+# This is an information leak but disallowing it leads to developer confusion
+# when using the chromium content api file chooser due to a (harmless) glib
+# warning and the noisy AppArmor denial.
+owner @{PROC}/@{pid}/mounts r,
+owner @{PROC}/@{pid}/mountinfo r,
 `
 
 const browserSupportConnectedPlugAppArmorWithoutSandbox = `
@@ -127,6 +145,7 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /run/udev/data/c89:[0-9]* r,  # /dev/i2c-*
 /run/udev/data/c81:[0-9]* r,  # video4linux (/dev/video*, etc)
 /run/udev/data/c202:[0-9]* r, # /dev/cpu/*/msr
+/run/udev/data/c203:[0-9]* r, # /dev/cuse
 /run/udev/data/+acpi:* r,
 /run/udev/data/+hwmon:hwmon[0-9]* r,
 /run/udev/data/+i2c:* r,
@@ -149,6 +168,7 @@ deny /sys/devices/virtual/block/dm-[0-9]*/dm/name r,
 /run/udev/data/n[0-9]* r,
 /run/udev/data/+bluetooth:hci[0-9]* r,
 /run/udev/data/+rfkill:rfkill[0-9]* r,
+/run/udev/data/c241:[0-9]* r, # /dev/vhost-vsock
 
 # storage
 /run/udev/data/b1:[0-9]* r,   # /dev/ram*
@@ -260,7 +280,7 @@ func (iface *browserSupportInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *browserSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *browserSupportInterface) SanitizePlug(plug *snap.PlugInfo) error {
 	// It's fine if allow-sandbox isn't specified, but it it is,
 	// it needs to be bool
 	if v, ok := plug.Attrs["allow-sandbox"]; ok {
@@ -272,7 +292,7 @@ func (iface *browserSupportInterface) SanitizePlug(plug *interfaces.Plug) error 
 	return nil
 }
 
-func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
 	spec.AddSnippet(browserSupportConnectedPlugAppArmor)
 	if allowSandbox {
@@ -283,7 +303,7 @@ func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	return nil
 }
 
-func (iface *browserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *browserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
 	snippet := browserSupportConnectedPlugSecComp
 	if allowSandbox {

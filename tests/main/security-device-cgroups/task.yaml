@@ -40,6 +40,11 @@ prepare: |
     if [ -e /dev/nvidia254 ]; then
         mv /dev/nvidia254 /dev/nvidia254.spread
     fi
+    # create uhid device if it doesn't exist
+    if [ ! -e /dev/uhid ]; then
+        mknod /dev/uhid c 10 239
+        touch /dev/uhid.spread
+    fi
 
 restore: |
     if [ -e /dev/nvidia0.spread ]; then
@@ -53,6 +58,9 @@ restore: |
     fi
     if [ -e /dev/nvidia254.spread ]; then
         mv /dev/nvidia254.spread /dev/nvidia254
+    fi
+    if [ -e /dev/uhid.spread ]; then
+        rm -f /dev/uhid /dev/uhid.spread
     fi
     rm -f /etc/udev/rules.d/70-snap.test-snapd-tools.rules
     udevadm control --reload-rules
@@ -106,5 +114,8 @@ execute: |
 
     echo "But nonexisting nvidia devices are not"
     MATCH -v "c 195:254 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+
+    echo "But the existing uhid device is in the snap's device cgroup"
+    MATCH "c 10:239 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
 
     # TODO: check device unassociated after removing the udev file and rebooting

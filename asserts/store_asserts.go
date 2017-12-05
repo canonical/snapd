@@ -22,13 +22,15 @@ package asserts
 import (
 	"fmt"
 	"net/url"
+	"time"
 )
 
 // Store holds a store assertion, defining the configuration needed to connect
 // a device to the store.
 type Store struct {
 	assertionBase
-	url *url.URL
+	url       *url.URL
+	timestamp time.Time
 }
 
 // Store returns the identifying name of the operator's store.
@@ -49,6 +51,11 @@ func (store *Store) URL() *url.URL {
 // Location returns a summary of the store's location/purpose.
 func (store *Store) Location() string {
 	return store.HeaderString("location")
+}
+
+// Timestamp returns the time when the store assertion was issued.
+func (store *Store) Timestamp() time.Time {
+	return store.timestamp
 }
 
 func (store *Store) checkConsistency(db RODatabase, acck *AccountKey) error {
@@ -127,5 +134,14 @@ func assembleStore(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	return &Store{assertionBase: assert, url: url}, nil
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	if err != nil {
+		return nil, err
+	}
+
+	return &Store{
+		assertionBase: assert,
+		url:           url,
+		timestamp:     timestamp,
+	}, nil
 }

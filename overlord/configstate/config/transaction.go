@@ -61,6 +61,11 @@ func NewTransaction(st *state.State) *Transaction {
 	return transaction
 }
 
+// State returns the system State
+func (t *Transaction) State() *state.State {
+	return t.state
+}
+
 // Set sets the provided snap's configuration key to the given value.
 // The provided key may be formed as a dotted key path through nested maps.
 // For example, the "a.b.c" key describes the {a: {b: {c: value}}} map.

@@ -201,7 +201,5 @@ func ExecInCoreSnap() {
 	}
 
 	logger.Debugf("restarting into %q", full)
-	// we keep this for e.g. the errtracker
-	env := append(os.Environ(), "SNAP_DID_REEXEC=1")
-	panic(syscallExec(full, os.Args, env))
+	panic(syscallExec(full, os.Args, os.Environ()))
 }

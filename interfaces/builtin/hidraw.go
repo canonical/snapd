@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const hidrawSummary = `allows access to specific hidraw device`
@@ -70,7 +71,7 @@ var hidrawDeviceNodePattern = regexp.MustCompile("^/dev/hidraw[0-9]{1,3}$")
 var hidrawUDevSymlinkPattern = regexp.MustCompile("^/dev/hidraw-[a-z0-9]+$")
 
 // SanitizeSlot checks validity of the defined slot
-func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *hidrawInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
@@ -84,7 +85,7 @@ func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Clean the path before further checks
 	path = filepath.Clean(path)
 
-	if iface.hasUsbAttrs(slot) {
+	if iface.hasUsbAttrs(slot.Attrs) {
 		// Must be path attribute where symlink will be placed and usb vendor and product identifiers
 		// Check the path attribute is in the allowable pattern
 		if !hidrawUDevSymlinkPattern.MatchString(path) {
@@ -116,32 +117,35 @@ func (iface *hidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *hidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-	if !vOk {
+func (iface *hidrawInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+	usbVendor, ok := slot.Attrs["usb-vendor"].(int64)
+	if !ok {
 		return nil
 	}
-	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-	if !pOk {
+	usbProduct, ok := slot.Attrs["usb-product"].(int64)
+	if !ok {
 		return nil
 	}
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
 		return nil
 	}
-	spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/")))
+	spec.AddSnippet(fmt.Sprintf(`# hidraw
+IMPORT{builtin}="usb_id"
+SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", SYMLINK+="%s"`,
+		usbVendor, usbProduct, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 
-func (iface *hidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	if iface.hasUsbAttrs(slot) {
+func (iface *hidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if iface.hasUsbAttrs(slot.Attrs) {
 		// This apparmor rule must match hidrawDeviceNodePattern
 		// UDev tagging and device cgroups will restrict down to the specific device
 		spec.AddSnippet("/dev/hidraw[0-9]{,[0-9],[0-9][0-9]} rw,")
 		return nil
 	}
 
-	// Path to fixed device node (no udev tagging)
+	// Path to fixed device node
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil
@@ -152,18 +156,31 @@ func (iface *hidrawInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 
 }
 
-func (iface *hidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *hidrawInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	hasOnlyPath := true
+	if iface.hasUsbAttrs(slot.Attrs) {
+		hasOnlyPath = false
+	}
+
 	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-	if !vOk {
+	if !vOk && !hasOnlyPath {
 		return nil
 	}
 	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-	if !pOk {
+	if !pOk && !hasOnlyPath {
 		return nil
 	}
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "TAG", tag))
+
+	path, pathOk := slot.Attrs["path"].(string)
+	if !pathOk && hasOnlyPath {
+		return nil
+	}
+
+	if hasOnlyPath {
+		spec.TagDevice(fmt.Sprintf(`SUBSYSTEM=="hidraw", KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
+	} else {
+		spec.TagDevice(fmt.Sprintf(`IMPORT{builtin}="usb_id"
+SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`, usbVendor, usbProduct))
 	}
 	return nil
 }
@@ -173,11 +190,11 @@ func (iface *hidrawInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bo
 	return true
 }
 
-func (iface *hidrawInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
-	if _, ok := slot.Attrs["usb-vendor"]; ok {
+func (iface *hidrawInterface) hasUsbAttrs(attrs map[string]interface{}) bool {
+	if _, ok := attrs["usb-vendor"]; ok {
 		return true
 	}
-	if _, ok := slot.Attrs["usb-product"]; ok {
+	if _, ok := attrs["usb-product"]; ok {
 		return true
 	}
 	return false

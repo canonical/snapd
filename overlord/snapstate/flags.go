@@ -62,7 +62,6 @@ func (f Flags) DevModeAllowed() bool {
 
 // ForSnapSetup returns a copy of the Flags with the flags that we don't need in SnapSetup set to false (so they're not serialized)
 func (f Flags) ForSnapSetup() Flags {
-	f.IgnoreValidation = false
 	f.SkipConfigure = false
 	return f
 }

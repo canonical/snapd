@@ -17,7 +17,9 @@ reset_classic() {
             sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge
             ;;
         fedora-*|opensuse-*)
-            sh -x "${SPREAD_PATH}/packaging/fedora/snap-mgmt.sh" \
+            # We don't know if snap-mgmt was built, so call the *.in file
+            # directly and pass arguments that will override the placeholders
+            sh -x "${SPREAD_PATH}/cmd/snap-mgmt/snap-mgmt.sh.in" \
                 --snap-mount-dir="$SNAP_MOUNT_DIR" \
                 --purge
             # The script above doesn't remove the snapd directory as this
@@ -80,7 +82,7 @@ reset_all_snap() {
     for snap in "$SNAP_MOUNT_DIR"/*; do
         snap="${snap:6}"
         case "$snap" in
-            "bin" | "$gadget_name" | "$kernel_name" | core )
+            "bin" | "$gadget_name" | "$kernel_name" | core | README)
                 ;;
             *)
                 snap remove "$snap"

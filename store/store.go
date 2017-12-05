@@ -69,11 +69,17 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
+type RefreshOptions struct {
+	// RefreshManaged indicates to the store that the refresh is
+	// managed via snapd-control.
+	RefreshManaged bool
+}
+
 // the LimitTime should be slightly more than 3 times of our http.Client
 // Timeout value
-var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(33*time.Second,
+var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
 	retry.Exponential{
-		Initial: 100 * time.Millisecond,
+		Initial: 300 * time.Millisecond,
 		Factor:  2.5,
 	},
 ))
@@ -100,9 +106,11 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.DownloadURL = d.DownloadURL
 	info.Prices = d.Prices
 	info.Private = d.Private
+	info.Paid = len(info.Prices) > 0
 	info.Confinement = snap.ConfinementType(d.Confinement)
 	info.Contact = d.Contact
 	info.License = d.License
+	info.Base = d.Base
 
 	deltas := make([]snap.DeltaInfo, len(d.Deltas))
 	for i, d := range d.Deltas {
@@ -190,7 +198,8 @@ func (cfg *Config) setBaseURL(u *url.URL) error {
 	if err != nil {
 		return err
 	}
-	assertsBaseURI, err := assertsURL(storeBaseURI)
+
+	assertsBaseURI, err := assertsURL()
 	if err != nil {
 		return err
 	}
@@ -317,6 +326,19 @@ func storeURL(api *url.URL) (*url.URL, error) {
 	return api, nil
 }
 
+func assertsURL() (*url.URL, error) {
+	if s := os.Getenv("SNAPPY_FORCE_SAS_URL"); s != "" {
+		u, err := url.Parse(s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid SNAPPY_FORCE_SAS_URL: %s", err)
+		}
+		return u, nil
+	}
+
+	// nil means fallback to store base url
+	return nil, nil
+}
+
 func authLocation() string {
 	if useStaging() {
 		return "login.staging.ubuntu.com"
@@ -329,19 +351,6 @@ func authURL() string {
 		return u
 	}
 	return "https://" + authLocation() + "/api/v2"
-}
-
-func assertsURL(storeBaseURI *url.URL) (*url.URL, error) {
-	if s := os.Getenv("SNAPPY_FORCE_SAS_URL"); s != "" {
-		u, err := url.Parse(s)
-		if err != nil {
-			return nil, fmt.Errorf("invalid SNAPPY_FORCE_SAS_URL: %s", err)
-		}
-		return u, nil
-	}
-	// XXX: This will eventually become endpointURL(storeBaseURI, "v2/", nil)
-	// once new bulk-friendly APIs are designed and implemented.
-	return endpointURL(storeBaseURI, "api/v1/snaps", nil), nil
 }
 
 func myappsURL() string {
@@ -420,13 +429,6 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		deltaFormat = defaultSupportedDeltaFormat
 	}
 
-	var cacher downloadCache
-	if cfg.CacheDownloads > 0 {
-		cacher = NewCacheManager(dirs.SnapDownloadCacheDir, cfg.CacheDownloads)
-	} else {
-		cacher = &nullCache{}
-	}
-
 	store := &Store{
 		cfg:             cfg,
 		series:          series,
@@ -436,13 +438,14 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailFields:    fields,
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
-		cacher:          cacher,
 
 		client: httputil.NewHTTPClient(&httputil.ClientOpts{
 			Timeout:    10 * time.Second,
 			MayLogBody: true,
 		}),
 	}
+	store.SetCacheDownloads(cfg.CacheDownloads)
+
 	return store
 }
 
@@ -466,7 +469,7 @@ const (
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
 
-	assertionsPath = "assertions"
+	assertionsPath = "api/v1/snaps/assertions"
 )
 
 func (s *Store) defaultSnapQuery() url.Values {
@@ -477,12 +480,32 @@ func (s *Store) defaultSnapQuery() url.Values {
 	return q
 }
 
+func (s *Store) baseURL(defaultURL *url.URL) *url.URL {
+	u := defaultURL
+	if s.authContext != nil {
+		var err error
+		_, u, err = s.authContext.ProxyStoreParams(defaultURL)
+		if err != nil {
+			logger.Debugf("cannot get proxy store parameters from state: %v", err)
+		}
+	}
+	if u != nil {
+		return u
+	}
+	return defaultURL
+}
+
 func (s *Store) endpointURL(p string, query url.Values) *url.URL {
-	return endpointURL(s.cfg.StoreBaseURL, p, query)
+	return endpointURL(s.baseURL(s.cfg.StoreBaseURL), p, query)
 }
 
 func (s *Store) assertionsEndpointURL(p string, query url.Values) *url.URL {
-	return endpointURL(s.cfg.AssertionsBaseURL, path.Join(assertionsPath, p), query)
+	defBaseURL := s.cfg.StoreBaseURL
+	// can be overridden separately!
+	if s.cfg.AssertionsBaseURL != nil {
+		defBaseURL = s.cfg.AssertionsBaseURL
+	}
+	return endpointURL(s.baseURL(defBaseURL), path.Join(assertionsPath, p), query)
 }
 
 // LoginUser logs user in the store and returns the authentication macaroons.
@@ -665,6 +688,13 @@ type requestOptions struct {
 	ContentType  string
 	ExtraHeaders map[string]string
 	Data         []byte
+}
+
+func (r *requestOptions) addHeader(k, v string) {
+	if r.ExtraHeaders == nil {
+		r.ExtraHeaders = make(map[string]string)
+	}
+	r.ExtraHeaders[k] = v
 }
 
 func cancelled(ctx context.Context) bool {
@@ -905,7 +935,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 	// Mark every non-free snap as must buy until we know better.
 	hasPriced := false
 	for _, info := range snaps {
-		if len(info.Prices) != 0 {
+		if info.Paid {
 			info.MustBuy = true
 			hasPriced = true
 		}
@@ -947,15 +977,15 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 	}
 
 	for _, info := range snaps {
-		info.MustBuy = mustBuy(info.Prices, bought[info.SnapID])
+		info.MustBuy = mustBuy(info.Paid, bought[info.SnapID])
 	}
 
 	return nil
 }
 
 // mustBuy determines if a snap requires a payment, based on if it is non-free and if the user has already bought it
-func mustBuy(prices map[string]float64, bought bool) bool {
-	if len(prices) == 0 {
+func mustBuy(paid bool, bought bool) bool {
+	if !paid {
 		// If the snap is free, then it doesn't need buying
 		return false
 	}
@@ -1172,8 +1202,13 @@ func (s *Store) WriteCatalogs(names io.Writer) error {
 		Accept: halJsonContentType,
 	}
 
+	// do not log body for catalog updates (its huge)
+	client := httputil.NewHTTPClient(&httputil.ClientOpts{
+		MayLogBody: false,
+		Timeout:    10 * time.Second,
+	})
 	doRequest := func() (*http.Response, error) {
-		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
+		return s.doRequest(context.TODO(), client, reqOptions, nil)
 	}
 	readResponse := func(resp *http.Response) error {
 		return decodeCatalog(resp, names)
@@ -1200,15 +1235,18 @@ type RefreshCandidate struct {
 
 	// the desired channel
 	Channel string
+	// whether validation should be ignored
+	IgnoreValidation bool
 }
 
 // the exact bits that we need to send to the store
 type currentSnapJSON struct {
-	SnapID      string     `json:"snap_id"`
-	Channel     string     `json:"channel"`
-	Revision    int        `json:"revision,omitempty"`
-	Epoch       snap.Epoch `json:"epoch"`
-	Confinement string     `json:"confinement"`
+	SnapID           string     `json:"snap_id"`
+	Channel          string     `json:"channel"`
+	Revision         int        `json:"revision,omitempty"`
+	Epoch            snap.Epoch `json:"epoch"`
+	Confinement      string     `json:"confinement"`
+	IgnoreValidation bool       `json:"ignore_validation,omitempty"`
 }
 
 type metadataWrapper struct {
@@ -1236,16 +1274,21 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 	}
 
 	return &currentSnapJSON{
-		SnapID:   cs.SnapID,
-		Channel:  channel,
-		Epoch:    cs.Epoch,
-		Revision: cs.Revision.N,
+		SnapID:           cs.SnapID,
+		Channel:          channel,
+		Epoch:            cs.Epoch,
+		Revision:         cs.Revision.N,
+		IgnoreValidation: cs.IgnoreValidation,
 		// confinement purposely left empty
 	}
 }
 
 // query the store for the information about currently offered revisions of snaps
-func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth.UserState) ([]*snapDetails, error) {
+func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth.UserState, flags *RefreshOptions) ([]*snapDetails, error) {
+	if flags == nil {
+		flags = &RefreshOptions{}
+	}
+
 	if len(currentSnaps) == 0 {
 		// nothing to do
 		return nil, nil
@@ -1270,9 +1313,10 @@ func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth
 
 	if useDeltas() {
 		logger.Debugf("Deltas enabled. Adding header X-Ubuntu-Delta-Formats: %v", s.deltaFormat)
-		reqOptions.ExtraHeaders = map[string]string{
-			"X-Ubuntu-Delta-Formats": s.deltaFormat,
-		}
+		reqOptions.addHeader("X-Ubuntu-Delta-Formats", s.deltaFormat)
+	}
+	if flags.RefreshManaged {
+		reqOptions.addHeader("X-Ubuntu-Refresh-Managed", "true")
 	}
 
 	var updateData searchResults
@@ -1299,7 +1343,7 @@ func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState)
 		return nil, ErrLocalSnap
 	}
 
-	latest, err := refreshForCandidates(s, []*currentSnapJSON{cur}, user)
+	latest, err := refreshForCandidates(s, []*currentSnapJSON{cur}, user, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1318,8 +1362,7 @@ func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState)
 
 // ListRefresh returns the available updates for a list of refresh candidates.
 // NOTE ListRefresh can return nil, nil if e.g. all local snaps are passed in
-func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState) (snaps []*snap.Info, err error) {
-
+func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState, flags *RefreshOptions) (snaps []*snap.Info, err error) {
 	candidateMap := map[string]*RefreshCandidate{}
 	currentSnaps := make([]*currentSnapJSON, 0, len(installed))
 	for _, cs := range installed {
@@ -1331,7 +1374,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		candidateMap[cs.SnapID] = cs
 	}
 
-	latest, err := s.refreshForCandidates(currentSnaps, user)
+	latest, err := s.refreshForCandidates(currentSnaps, user, flags)
 	if err != nil {
 		return nil, err
 	}
@@ -1932,5 +1975,18 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
 		}
 		return &errors
+	}
+}
+
+func (s *Store) CacheDownloads() int {
+	return s.cfg.CacheDownloads
+}
+
+func (s *Store) SetCacheDownloads(fileCount int) {
+	s.cfg.CacheDownloads = fileCount
+	if fileCount > 0 {
+		s.cacher = NewCacheManager(dirs.SnapDownloadCacheDir, fileCount)
+	} else {
+		s.cacher = &nullCache{}
 	}
 }

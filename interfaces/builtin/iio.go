@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const iioSummary = `allows access to a specific IIO device`
@@ -50,8 +51,6 @@ const iioConnectedPlugAppArmor = `
 /sys/devices/**/###IIO_DEVICE_NAME###/ r,
 /sys/devices/**/###IIO_DEVICE_NAME###/** rwk,
 `
-
-const iioConnectedPlugUDev = `KERNEL=="%s", TAG+="%s"`
 
 // The type for iio interface
 type iioInterface struct{}
@@ -78,7 +77,7 @@ func (iface *iioInterface) String() string {
 var iioControlDeviceNodePattern = regexp.MustCompile("^/dev/iio:device[0-9]+$")
 
 // Check validity of the defined slot
-func (iface *iioInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *iioInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
@@ -98,7 +97,7 @@ func (iface *iioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil
@@ -118,16 +117,12 @@ func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *iioInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *iioInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	path, pathOk := slot.Attrs["path"].(string)
 	if !pathOk {
 		return nil
 	}
-	const pathPrefix = "/dev/"
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(iioConnectedPlugUDev, strings.TrimPrefix(path, pathPrefix), tag))
-	}
+	spec.TagDevice(fmt.Sprintf(`KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
 	return nil
 }
 
