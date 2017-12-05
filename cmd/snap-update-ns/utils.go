@@ -363,6 +363,11 @@ func planWritableMimic(dir string) ([]*Change, error) {
 	return changes, nil
 }
 
+// FatalError is an error that we cannot correct.
+type FatalError struct {
+	error
+}
+
 // execWritableMimic executes the plan for a writable mimic.
 // The result is a transformed mount namespace and a set of fake mount changes
 // that only exist in order to undo the plan.
@@ -384,8 +389,8 @@ func planWritableMimic(dir string) ([]*Change, error) {
 // - the source of each of the bind mounts that re-populate tmpfs.
 //
 // In the event of a failure the undo plan is executed and an error is
-// returned. If the undo plan fails the function panics as it cannot fix the
-// system from an inconsistent state.
+// returned. If the undo plan fails the function returns a FatalError as it
+// cannot fix the system from an inconsistent state.
 func execWritableMimic(plan []*Change) ([]*Change, error) {
 	undoChanges := make([]*Change, 0, len(plan)-2)
 	for i, change := range plan {
@@ -411,7 +416,7 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 				if _, err2 := changePerform(recoveryUndoChange); err2 != nil {
 					// Drat, we failed when trying to recover from an error.
 					// We cannot do anything at this stage.
-					panic(fmt.Errorf("cannot undo change %q while recovering from earlier error %v: %v", recoveryUndoChange, err, err2))
+					return nil, &FatalError{error: fmt.Errorf("cannot undo change %q while recovering from earlier error %v: %v", recoveryUndoChange, err, err2)}
 				}
 			}
 			return nil, err

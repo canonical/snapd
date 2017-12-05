@@ -396,7 +396,7 @@ func (s *utilsSuite) TestExecWirableMimicErrorCannotUndo(c *C) {
 	// Mock the act of performing changes. After performing the first change
 	// correctly we will fail forever (this includes the recovery path) so the
 	// execute function ends up in a situation where it cannot perform the
-	// recovery path and will have to panic.
+	// recovery path and will have to return a fatal error.
 	i := -1
 	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
 		i += 1
@@ -408,8 +408,9 @@ func (s *utilsSuite) TestExecWirableMimicErrorCannotUndo(c *C) {
 	defer restore()
 
 	// The plan partially succeeded and we cannot undo those changes.
-	c.Assert(func() { update.ExecWritableMimic(plan) }, PanicMatches,
-		`cannot undo change ".*" while recovering from earlier error failure-1: failure-2`)
+	_, err := update.ExecWritableMimic(plan)
+	c.Assert(err, ErrorMatches, `cannot undo change ".*" while recovering from earlier error failure-1: failure-2`)
+	c.Assert(err, FitsTypeOf, &update.FatalError{})
 }
 
 // realSystemSuite is not isolated / mocked from the system.
