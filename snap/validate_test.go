@@ -593,38 +593,80 @@ func (s *ValidateSuite) TestValidateSocketName(c *C) {
 	}
 }
 
-func (s *YamlSuite) TestValidateAppStartBeforeBad(c *C) {
-	y := []byte(`
-name: foo
-version: 1.0
-apps:
-  foo:
-    before: [baz]
-  bar:
-
-`)
-	info, err := InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
-
-	err = Validate(info)
-	c.Assert(err, ErrorMatches, `cannot validate app "foo" startup ordering: needs to be started before "baz", but "baz" is not defined`)
-}
-
-func (s *YamlSuite) TestValidateAppStartAfterBad(c *C) {
-	y := []byte(`
+func (s *YamlSuite) TestValidateAppStartupBad(c *C) {
+	fooAfterBaz := []byte(`
 name: foo
 version: 1.0
 apps:
   foo:
     after: [baz]
+    daemon: simple
+  bar:
+    daemon: forking
+
+`)
+	fooBeforeBaz := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    before: [baz]
+    daemon: simple
+  bar:
+    daemon: forking
+
+`)
+
+	fooNotADaemon := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    after: [bar]
+  bar:
+    daemon: forking
+
+`)
+
+	fooBarNotADaemon := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    after: [bar]
+    daemon: forking
   bar:
 
 `)
-	info, err := InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
 
-	err = Validate(info)
-	c.Assert(err, ErrorMatches, `cannot validate app "foo" startup ordering: needs to be started after "baz", but "baz" is not defined`)
+	tcs := []struct {
+		desc []byte
+		err  string
+	}{
+		{
+			desc: fooAfterBaz,
+			err:  `cannot validate app "foo" startup ordering: needs to be started after "baz", but "baz" is not defined`,
+		},
+		{
+			desc: fooBeforeBaz,
+			err:  `cannot validate app "foo" startup ordering: needs to be started before "baz", but "baz" is not defined`,
+		},
+		{
+			desc: fooNotADaemon,
+			err:  `cannot validate app "foo": requires startup ordering, but is not a service`,
+		},
+		{
+			desc: fooBarNotADaemon,
+			err:  `cannot validate app "foo" startup ordering: dependent app "bar" is not a service`,
+		},
+	}
+	for _, tc := range tcs {
+		info, err := InfoFromSnapYaml(tc.desc)
+		c.Assert(err, IsNil)
+
+		err = Validate(info)
+		c.Assert(err, ErrorMatches, tc.err)
+	}
 }
 
 func (s *YamlSuite) TestValidateAppStartSimpleDirectDependencyBad(c *C) {
@@ -633,8 +675,10 @@ version: 42
 apps:
  foo:
    after: [bar]
+   daemon: forking
  bar:
    after: [foo]
+   daemon: forking
 
 `)
 	info, err := InfoFromSnapYaml(y)
@@ -652,11 +696,15 @@ version: 42
 apps:
  foo:
    after: [bar, zed]
+   daemon: oneshot
  bar:
    before: [foo]
+   daemon: dbus
  baz:
    after: [foo]
+   daemon: forking
  zed:
+   daemon: dbus
 
 `)
 	info, err := InfoFromSnapYaml(y)
