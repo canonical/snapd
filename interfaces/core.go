@@ -39,14 +39,14 @@ func (plug *Plug) Ref() PlugRef {
 }
 
 // Sanitize plug with a given snapd interface.
-func (plug *Plug) Sanitize(iface Interface) error {
-	if iface.Name() != plug.Interface {
+func SanitizePlug(iface Interface, plugInfo *snap.PlugInfo) error {
+	if iface.Name() != plugInfo.Interface {
 		return fmt.Errorf("cannot sanitize plug %q (interface %q) using interface %q",
-			plug.Ref(), plug.Interface, iface.Name())
+			PlugRef{Snap: plugInfo.Snap.Name(), Name: plugInfo.Name}, plugInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(PlugSanitizer); ok {
-		err = iface.SanitizePlug(plug)
+		err = iface.SanitizePlug(plugInfo)
 	}
 	return err
 }
@@ -74,14 +74,14 @@ func (slot *Slot) Ref() SlotRef {
 }
 
 // Sanitize slot with a given snapd interface.
-func (slot *Slot) Sanitize(iface Interface) error {
-	if iface.Name() != slot.Interface {
+func SanitizeSlot(iface Interface, slotInfo *snap.SlotInfo) error {
+	if iface.Name() != slotInfo.Interface {
 		return fmt.Errorf("cannot sanitize slot %q (interface %q) using interface %q",
-			slot.Ref(), slot.Interface, iface.Name())
+			SlotRef{Snap: slotInfo.Snap.Name(), Name: slotInfo.Name}, slotInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(SlotSanitizer); ok {
-		err = iface.SanitizeSlot(slot)
+		err = iface.SanitizeSlot(slotInfo)
 	}
 	return err
 }
@@ -167,12 +167,12 @@ type Interface interface {
 
 // PlugSanitizer can be implemented by Interfaces that have reasons to sanitize their plugs.
 type PlugSanitizer interface {
-	SanitizePlug(plug *Plug) error
+	SanitizePlug(plug *snap.PlugInfo) error
 }
 
 // SlotSanitizer can be implemented by Interfaces that have reasons to sanitize their slots.
 type SlotSanitizer interface {
-	SanitizeSlot(slot *Slot) error
+	SanitizeSlot(slot *snap.SlotInfo) error
 }
 
 // StaticInfo describes various static-info of a given interface.
@@ -213,9 +213,9 @@ type Specification interface {
 	// AddPermanentPlug records side-effects of having a plug.
 	AddPermanentPlug(iface Interface, plug *snap.PlugInfo) error
 	// AddConnectedSlot records side-effects of having a connected slot.
-	AddConnectedSlot(iface Interface, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error
+	AddConnectedSlot(iface Interface, plug *ConnectedPlug, slot *ConnectedSlot) error
 	// AddConnectedPlug records side-effects of having a connected plug.
-	AddConnectedPlug(iface Interface, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error
+	AddConnectedPlug(iface Interface, plug *ConnectedPlug, slot *ConnectedSlot) error
 }
 
 // SecuritySystem is a name of a security system.
