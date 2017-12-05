@@ -78,10 +78,8 @@ backends:
             - fedora-26-64:
                 workers: 3
                 kernel: GRUB 2
+                manual: true
             - fedora-27-64:
-                workers: 3
-                kernel: GRUB 2
-            - fedora-rawhide-64:
                 workers: 3
                 kernel: GRUB 2
             - opensuse-42.2-64:
@@ -133,9 +131,6 @@ backends:
                 username: fedora
                 password: fedora
             - fedora-27-64:
-                username: fedora
-                password: fedora
-            - fedora-rawhide-64:
                 username: fedora
                 password: fedora
     autopkgtest:
