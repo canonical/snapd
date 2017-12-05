@@ -46,6 +46,7 @@ const desktopConnectedPlugAppArmor = `
 #include <abstractions/dbus-session-strict>
 
 #include <abstractions/fonts>
+owner @{HOME}/.local/share/fonts/{,**} r,
 /var/cache/fontconfig/   r,
 /var/cache/fontconfig/** mr,
 
