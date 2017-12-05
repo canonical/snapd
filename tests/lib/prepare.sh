@@ -252,30 +252,6 @@ EOF
         systemctl start snapd.socket
     fi
 
-    if [[ "$SPREAD_SYSTEM" == debian-* || "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-            pollinate
-        fi
-
-        # Improve entropy for the whole system quite a lot to get fast
-        # key generation during our test cycles
-        echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
-        /etc/init.d/rng-tools restart
-
-        if systemctl list-units | MATCH "rng-tools.service"; then
-            mkdir -p /etc/systemd/system/rng-tools.service.d/
-            cat <<EOF > /etc/systemd/system/rng-tools.service.d/local.conf
-[Service]
-Restart=always
-RestartSec=2
-RemainAfterExit=no
-PIDFile=/var/run/rngd.pid
-EOF
-        systemctl daemon-reload
-        systemctl restart rng-tools.service
-        fi
-    fi
-
     disable_kernel_rate_limiting
 }
 
