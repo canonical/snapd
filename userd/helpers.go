@@ -31,7 +31,9 @@ import (
 	"github.com/snapcore/snapd/dirs"
 )
 
-func snapFromSender(conn *dbus.Conn, sender dbus.Sender) (string, error) {
+var snapFromSender = snapFromSenderImpl
+
+func snapFromSenderImpl(conn *dbus.Conn, sender dbus.Sender) (string, error) {
 	pid, err := connectionPid(conn, sender)
 	if err != nil {
 		return "", fmt.Errorf("cannot get connection pid: %v", err)
