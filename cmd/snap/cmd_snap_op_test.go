@@ -696,6 +696,20 @@ func (s *SnapOpSuite) TestRefreshAllModeFlags(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify mode or channel flags`)
 }
 
+func (s *SnapOpSuite) TestRefreshOneAmend(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action": "refresh",
+			"amend":  true,
+		})
+	}
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--amend", "one"})
+	c.Assert(err, check.IsNil)
+}
+
 func (s *SnapOpSuite) runTryTest(c *check.C, opts *client.SnapOptions) {
 	// pass relative path to cmd
 	tryDir := "some-dir"

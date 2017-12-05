@@ -130,7 +130,7 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 		SideInfo: snap.SideInfo{
 			RealName: spec.Name,
 			Channel:  spec.Channel,
-			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+			SnapID:   spec.Name + "-id",
 			Revision: spec.Revision,
 		},
 		Version: spec.Name,
