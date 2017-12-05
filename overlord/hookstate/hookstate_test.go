@@ -218,6 +218,90 @@ func (s *hookManagerSuite) TestHookTaskEnsure(c *C) {
 	c.Check(s.change.Status(), Equals, state.DoneStatus)
 }
 
+func (s *hookManagerSuite) TestHookSnapMissing(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", nil)
+	s.state.Unlock()
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.change.Err(), ErrorMatches, `(?s).*cannot find "test-snap" snap.*`)
+}
+
+func (s *hookManagerSuite) TestHookHijackingHappy(c *C) {
+	// this works even if test-snap is not present
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", nil)
+	s.state.Unlock()
+
+	var hijackedContext *hookstate.Context
+	s.manager.RegisterHijack("configure", "test-snap", func(ctx *hookstate.Context) error {
+		hijackedContext = ctx
+		return nil
+	})
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(hijackedContext, DeepEquals, s.context)
+	c.Check(s.command.Calls(), HasLen, 0)
+
+	c.Assert(s.context, NotNil)
+	c.Check(s.context.SnapName(), Equals, "test-snap")
+	c.Check(s.context.SnapRevision(), Equals, snap.R(1))
+	c.Check(s.context.HookName(), Equals, "configure")
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(s.mockHandler.DoneCalled, Equals, true)
+	c.Check(s.mockHandler.ErrorCalled, Equals, false)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+	c.Check(s.change.Status(), Equals, state.DoneStatus)
+}
+
+func (s *hookManagerSuite) TestHookHijackingUnHappy(c *C) {
+	s.manager.RegisterHijack("configure", "test-snap", func(ctx *hookstate.Context) error {
+		return fmt.Errorf("not-happy-at-all")
+	})
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.command.Calls(), HasLen, 0)
+
+	c.Assert(s.context, NotNil)
+	c.Check(s.context.SnapName(), Equals, "test-snap")
+	c.Check(s.context.SnapRevision(), Equals, snap.R(1))
+	c.Check(s.context.HookName(), Equals, "configure")
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(s.mockHandler.DoneCalled, Equals, false)
+	c.Check(s.mockHandler.ErrorCalled, Equals, true)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.ErrorStatus)
+	c.Check(s.change.Status(), Equals, state.ErrorStatus)
+}
+
+func (s *hookManagerSuite) TestHookHijackingVeryUnHappy(c *C) {
+	f := func(ctx *hookstate.Context) error {
+		return nil
+	}
+	s.manager.RegisterHijack("configure", "test-snap", f)
+	c.Check(func() { s.manager.RegisterHijack("configure", "test-snap", f) }, PanicMatches, "hook configure for snap test-snap already hijacked")
+}
+
 func (s *hookManagerSuite) TestHookTaskInitializesContext(c *C) {
 	s.manager.Ensure()
 	s.manager.Wait()
@@ -843,4 +927,23 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 	c.Check(change2.Status(), Equals, state.DoneStatus)
 	c.Assert(testSnap1HookCalls, Equals, 1)
 	c.Assert(testSnap2HookCalls, Equals, 1)
+}
+
+func (s *hookManagerSuite) TestCompatForConfigureSnapd(c *C) {
+	st := s.state
+
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("configure-snapd", "Snapd between 2.29 and 2.30 in edge insertd those tasks")
+	chg := st.NewChange("configure", "configure snapd")
+	chg.AddTask(task)
+
+	st.Unlock()
+	s.manager.Ensure()
+	s.manager.Wait()
+	st.Lock()
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(task.Status(), Equals, state.DoneStatus)
 }

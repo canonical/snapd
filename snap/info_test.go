@@ -631,7 +631,8 @@ func (s *infoSuite) TestMinimalInfoDirAndFileMethods(c *C) {
 
 func (s *infoSuite) TestDirAndFileMethods(c *C) {
 	dirs.SetRootDir("")
-	info := &snap.Info{SuggestedName: "name", SideInfo: snap.SideInfo{Revision: snap.R(1)}}
+	info := &snap.Info{SuggestedName: "name"}
+	info.SideInfo = snap.SideInfo{Revision: snap.R(1)}
 	s.testDirAndFileMethods(c, info)
 }
 

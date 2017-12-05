@@ -31,9 +31,11 @@ import (
 )
 
 type LxdInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&LxdInterfaceSuite{
@@ -53,8 +55,8 @@ slots:
 `
 
 func (s *LxdInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, lxdConsumerYaml, nil, "lxd")
-	s.slot = MockSlot(c, lxdCoreYaml, nil, "lxd")
+	s.plug, s.plugInfo = MockConnectedPlug(c, lxdConsumerYaml, nil, "lxd")
+	s.slot, s.slotInfo = MockConnectedSlot(c, lxdCoreYaml, nil, "lxd")
 }
 
 func (s *LxdInterfaceSuite) TestName(c *C) {
@@ -62,30 +64,30 @@ func (s *LxdInterfaceSuite) TestName(c *C) {
 }
 
 func (s *LxdInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "lxd",
 		Interface: "lxd",
-	}}
+	}
 
-	c.Assert(slot.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
 }
 
 func (s *LxdInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *LxdInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/var/snap/lxd/common/lxd/unix.socket rw,\n")
 }
 
 func (s *LxdInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "shutdown\n")
 }

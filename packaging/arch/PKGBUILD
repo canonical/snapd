@@ -21,6 +21,7 @@ md5sums=('SKIP'
 
 pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd')
+optdepends=('bash-completion: bash completion support')
 provides=($pkgbase)
 # Community package is split into snapd and snap-confine, make sure we replace
 # both bits
