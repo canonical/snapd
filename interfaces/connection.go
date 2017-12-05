@@ -50,9 +50,9 @@ type ConnectedSlot struct {
 	Attrs map[string]interface{}
 }
 
-// AttrGetter is an interface with Attr getter method common
+// Attrer is an interface with Attr getter method common
 // to ConnectedSlot, ConnectedPlug, PlugInfo and SlotInfo types.
-type AttrGetter interface {
+type Attrer interface {
 	Attr(key string, val interface{}) error
 }
 

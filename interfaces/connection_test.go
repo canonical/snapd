@@ -56,11 +56,11 @@ slots:
 	s.slot = producer.Slots["slot"]
 }
 
-// Make sure ConnectedPlug,ConnectedSlot, PlugInfo, SlotInfo implement AttrGetter.
-var _ AttrGetter = (*ConnectedPlug)(nil)
-var _ AttrGetter = (*ConnectedSlot)(nil)
-var _ AttrGetter = (*snap.PlugInfo)(nil)
-var _ AttrGetter = (*snap.SlotInfo)(nil)
+// Make sure ConnectedPlug,ConnectedSlot, PlugInfo, SlotInfo implement Attrer.
+var _ Attrer = (*ConnectedPlug)(nil)
+var _ Attrer = (*ConnectedSlot)(nil)
+var _ Attrer = (*snap.PlugInfo)(nil)
+var _ Attrer = (*snap.SlotInfo)(nil)
 
 func (s *connSuite) TestStaticSlotAttrs(c *C) {
 	slot := NewConnectedSlot(s.slot, nil)
