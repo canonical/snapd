@@ -12,6 +12,7 @@ prepare: |
     fi
 
 restore: |
+    rm -f info.txt
     if [ -e /dev/ttyS4.spread ]; then
         rm -f /dev/ttyS4 /dev/ttyS4.spread
     fi
@@ -25,7 +26,12 @@ execute: |
     install_local test-snapd-tools
 
     echo "Then the device is not assigned to that snap"
-    ! udevadm info /dev/ttyS4 | MATCH "E: TAGS=.*snap_test-snapd-tools_env"
+    if udevadm info /dev/ttyS4 > info.txt; then
+        MATCH "E: TAGS=.*snap_test-snapd-tools_env" < info.txt
+    else
+        echo "No hardware for node /dev/ttyS4"
+        exit 0
+    fi
 
     echo "And the device is not shown in the snap device list"
     # FIXME: this is, apparently, a layered can of worms. Zyga says he needs to fix it.
