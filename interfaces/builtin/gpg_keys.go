@@ -36,7 +36,8 @@ const gpgKeysConnectedPlugAppArmor = `
 /usr/bin/gpg{,2} ixr,
 /usr/share/gnupg/options.skel r,
 owner @{HOME}/.gnupg/{,**} r,
-owner @{HOME}/.gnupg/random_seed w,
+# 'wk' is required for gpg encrypt/decrypt
+owner @{HOME}/.gnupg/random_seed wk,
 `
 
 func init() {
