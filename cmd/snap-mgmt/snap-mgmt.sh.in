@@ -47,7 +47,7 @@ purge() {
         fi
     fi
 
-    units=$(systemctl list-unit-files --full | grep -vF snap.mount.service || true)
+    units=$(systemctl list-unit-files --no-legend --full | grep -vF snap.mount.service || true)
     mounts=$(echo "$units" | grep "^${SNAP_UNIT_PREFIX}[-.].*\.mount" | cut -f1 -d ' ')
     services=$(echo "$units" | grep "^${SNAP_UNIT_PREFIX}[-.].*\.service" | cut -f1 -d ' ')
     for unit in $services $mounts; do
