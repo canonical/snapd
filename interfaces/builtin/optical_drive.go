@@ -19,7 +19,7 @@
 
 package builtin
 
-const opticalDriveSummary = `allows read access to optical drives`
+const opticalDriveSummary = `allows read and write access to optical drives`
 
 const opticalDriveBaseDeclarationSlots = `
   optical-drive:
@@ -29,9 +29,9 @@ const opticalDriveBaseDeclarationSlots = `
 `
 
 const opticalDriveConnectedPlugAppArmor = `
-# Allow read access to optical drives
-/dev/sr[0-9]* r,
-/dev/scd[0-9]* r,
+# Allow read and write access to optical drives
+/dev/sr[0-9]* rw,
+/dev/scd[0-9]* rw,
 @{PROC}/sys/dev/cdrom/info r,
 /run/udev/data/b11:[0-9]* r,
 `
