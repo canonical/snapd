@@ -119,6 +119,9 @@ purge() {
     rm -rf /var/lib/snapd/seccomp/bpf/*
     rm -rf /var/lib/snapd/device/*
     rm -rf /var/lib/snapd/assertions/*
+    rm -rf /var/lib/snapd/cookie/*
+    rm -rf /var/lib/snapd/cache/*
+    rm -f /var/lib/snapd/state.json
 
     echo "Removing snapd catalog cache"
     rm -f /var/cache/snapd/*
