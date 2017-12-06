@@ -60,34 +60,40 @@ purge() {
         echo "Stopping $unit"
         systemctl_stop "$unit"
 
-        # if it is a mount unit, we can find the snap name in the mount
-        # unit (we just ignore unit files)
-        snap=$(grep "Where=${SNAP_MOUNT_DIR}/" "/etc/systemd/system/$unit"|cut -f3 -d/)
-        rev=$(grep "Where=${SNAP_MOUNT_DIR}/" "/etc/systemd/system/$unit"|cut -f4 -d/)
-        if [ -n "$snap" ]; then
-            echo "Removing snap $snap"
-            # aliases
-            if [ -d "${SNAP_MOUNT_DIR}/bin" ]; then
-                find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap" -delete
-                find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap.*" -delete
-            fi
-            # generated binaries
-            rm -f "${SNAP_MOUNT_DIR}/bin/$snap"
-            rm -f "${SNAP_MOUNT_DIR}/bin/$snap".*
-            # snap mount dir
-            umount -l "${SNAP_MOUNT_DIR}/$snap/$rev" 2> /dev/null || true
-            rm -rf "${SNAP_MOUNT_DIR:?}/$snap/$rev"
-            rm -f "${SNAP_MOUNT_DIR}/$snap/current"
-            # snap data dir
-            rm -rf "/var/snap/$snap/$rev"
-            rm -rf "/var/snap/$snap/common"
-            rm -f "/var/snap/$snap/current"
-            # opportunistic remove (may fail if there are still revisions left)
-            for d in "${SNAP_MOUNT_DIR}/$snap" "/var/snap/$snap"; do
-                if [ -d "$d" ]; then
-                    rmdir --ignore-fail-on-non-empty "$d"
+        if echo "$unit" | grep -q ".*\.mount" ; then
+            # Transform ${SNAP_MOUNT_DIR}/core/3440 -> core/3440 removing any
+            # extra / preceding snap name, eg:
+            #  /var/lib/snapd/snap/core/3440  -> core/3440
+            #  /snap/core/3440                -> core/3440
+            #  /snap/core//3440               -> core/3440
+            snap_rev=$(systemctl show "$unit" -p Where --value | sed -e "s#$SNAP_MOUNT_DIR##" -e 's#^/*##')
+            snap=$(echo "$snap_rev" |cut -f1 -d/)
+            rev=$(echo "$snap_rev" |cut -f2 -d/)
+            if [ -n "$snap" ]; then
+                echo "Removing snap $snap"
+                # aliases
+                if [ -d "${SNAP_MOUNT_DIR}/bin" ]; then
+                    find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap" -delete
+                    find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap.*" -delete
                 fi
-            done
+                # generated binaries
+                rm -f "${SNAP_MOUNT_DIR}/bin/$snap"
+                rm -f "${SNAP_MOUNT_DIR}/bin/$snap".*
+                # snap mount dir
+                umount -l "${SNAP_MOUNT_DIR}/$snap/$rev" 2> /dev/null || true
+                rm -rf "${SNAP_MOUNT_DIR:?}/$snap/$rev"
+                rm -f "${SNAP_MOUNT_DIR}/$snap/current"
+                # snap data dir
+                rm -rf "/var/snap/$snap/$rev"
+                rm -rf "/var/snap/$snap/common"
+                rm -f "/var/snap/$snap/current"
+                # opportunistic remove (may fail if there are still revisions left)
+                for d in "${SNAP_MOUNT_DIR}/$snap" "/var/snap/$snap"; do
+                    if [ -d "$d" ]; then
+                        rmdir --ignore-fail-on-non-empty "$d"
+                    fi
+                done
+            fi
         fi
 
         echo "Removing $unit"
