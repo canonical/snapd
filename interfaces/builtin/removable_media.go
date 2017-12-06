@@ -41,7 +41,7 @@ const removableMediaConnectedPlugAppArmor = `
 
 # Mount points could be in /run/media/<user>/* or /media/<user>/*
 /{,run/}media/*/ r,
-/{,run/}media/*/** rw,
+/{,run/}media/*/** rwk,
 `
 
 func init() {
