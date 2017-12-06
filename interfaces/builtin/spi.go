@@ -57,10 +57,10 @@ func (iface *spiInterface) StaticInfo() interfaces.StaticInfo {
 
 var spiDevPattern = regexp.MustCompile("^/dev/spidev[0-9].[0-9]+$")
 
-func (iface *spiInterface) path(attrs map[string]interface{}) (string, error) {
+func (iface *spiInterface) path(slotRef *interfaces.SlotRef, attrs map[string]interface{}) (string, error) {
 	path, ok := attrs["path"].(string)
 	if !ok || path == "" {
-		return "", fmt.Errorf("spi slot must have a path attribute")
+		return "", fmt.Errorf("slot %q must have a path attribute", slotRef)
 	}
 	path = filepath.Clean(path)
 	if !spiDevPattern.MatchString(path) {
@@ -73,12 +73,12 @@ func (iface *spiInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
-	_, err := iface.path(slot.Attrs)
+	_, err := iface.path(&interfaces.SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}, slot.Attrs)
 	return err
 }
 
 func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	path, err := iface.path(slot.Attrs)
+	path, err := iface.path(slot.Ref(), slot.Attrs)
 	if err != nil {
 		return nil
 	}
@@ -88,7 +88,7 @@ func (iface *spiInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 }
 
 func (iface *spiInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	path, err := iface.path(slot.Attrs)
+	path, err := iface.path(slot.Ref(), slot.Attrs)
 	if err != nil {
 		return nil
 	}
