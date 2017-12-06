@@ -32,17 +32,21 @@ const gpgPublicKeysBaseDeclarationSlots = `
 const gpgPublicKeysConnectedPlugAppArmor = `
 # Description: Can read gpg public keys and non-sensitive configuration
 
-/usr/bin/gpg{,2} ixr,
+# Allow gpg encrypt, list-keys, verify, etc
+/usr/bin/gpg{,1,2,v} ixr,
 /usr/share/gnupg/options.skel r,
+
 owner @{HOME}/.gnupg/ r,
 owner @{HOME}/.gnupg/gpg.conf r,
-owner @{HOME}/.gnupg/pubring.gpg{,.lock} r,
-owner @{HOME}/.gnupg/pubring.gpg.lock k,
-owner @{HOME}/.gnupg/pubring.kbx{,.lock} r,
-owner @{HOME}/.gnupg/pubring.kbx.lock k,
-owner @{HOME}/.gnupg/trustdb.gpg{,.lock} r,
-owner @{HOME}/.gnupg/trustdb.gpg.lock k,
 owner @{HOME}/.gnupg/openpgp-revocs.d/{,*} r,
+owner @{HOME}/.gnupg/pubring.gpg r,
+owner @{HOME}/.gnupg/pubring.kbx r,
+owner @{HOME}/.gnupg/trustedkeys.gpg r,
+
+owner @{HOME}/.gnupg/trustdb.gpg r,
+# gpg sometimes updates the trustdb to decide whether or not to update the
+# trustdb. For now, silence the denial since no other policy references this
+deny @{HOME}/.gnupg/trustdb.gpg w,
 `
 
 func init() {

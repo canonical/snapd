@@ -33,10 +33,16 @@ const gpgKeysConnectedPlugAppArmor = `
 # Description: Can read gpg user configuration as well as public and private
 # keys.
 
-/usr/bin/gpg{,2} ixr,
+# Allow gpg encrypt, decrypt, list-keys, verify, sign, etc
+/usr/bin/gpg{,1,2,v} ixr,
 /usr/share/gnupg/options.skel r,
+
 owner @{HOME}/.gnupg/{,**} r,
-# 'wk' is required for gpg encrypt/decrypt
+# gpg sometimes updates the trustdb to decide whether or not to update the
+# trustdb. For now, silence the denial since no other policy references this
+deny @{HOME}/.gnupg/trustdb.gpg w,
+
+# 'wk' is required for gpg encrypt and sign
 owner @{HOME}/.gnupg/random_seed wk,
 `
 
