@@ -593,7 +593,7 @@ func (s *ValidateSuite) TestValidateSocketName(c *C) {
 	}
 }
 
-func (s *YamlSuite) TestValidateAppStartupBad(c *C) {
+func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {
 	fooAfterBaz := []byte(`
 name: foo
 version: 1.0
@@ -638,39 +638,18 @@ apps:
   bar:
 
 `)
+	fooSelfCycle := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    after: [foo]
+    daemon: forking
+  bar:
 
-	tcs := []struct {
-		desc []byte
-		err  string
-	}{
-		{
-			desc: fooAfterBaz,
-			err:  `cannot validate app "foo" startup ordering: needs to be started after "baz", but "baz" is not defined`,
-		},
-		{
-			desc: fooBeforeBaz,
-			err:  `cannot validate app "foo" startup ordering: needs to be started before "baz", but "baz" is not defined`,
-		},
-		{
-			desc: fooNotADaemon,
-			err:  `cannot validate app "foo": requires startup ordering, but is not a service`,
-		},
-		{
-			desc: fooBarNotADaemon,
-			err:  `cannot validate app "foo" startup ordering: dependent app "bar" is not a service`,
-		},
-	}
-	for _, tc := range tcs {
-		info, err := InfoFromSnapYaml(tc.desc)
-		c.Assert(err, IsNil)
-
-		err = Validate(info)
-		c.Assert(err, ErrorMatches, tc.err)
-	}
-}
-
-func (s *YamlSuite) TestValidateAppStartSimpleDirectDependencyBad(c *C) {
-	y := []byte(`name: wat
+`)
+	// cycle between foo and bar
+	badOrder1 := []byte(`name: wat
 version: 42
 apps:
  foo:
@@ -681,17 +660,24 @@ apps:
    daemon: forking
 
 `)
-	info, err := InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	// conflicting schedule for baz
+	badOrder2 := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   before: [bar]
+   daemon: forking
+ bar:
+   after: [foo]
+   daemon: forking
+ baz:
+   before: [foo]
+   after: [bar]
+   daemon: forking
 
-	err = ValidateApp(info.Apps["bar"])
-	c.Assert(err, ErrorMatches, `cannot validate app "bar" startup ordering: needs to be started after "foo", but "foo" is declared to start after "bar"`)
-	err = ValidateApp(info.Apps["foo"])
-	c.Assert(err, ErrorMatches, `cannot validate app "foo" startup ordering: needs to be started after "bar", but "bar" is declared to start after "foo"`)
-}
 
-func (s *YamlSuite) TestValidateAppStartOrderCorrect(c *C) {
-	y := []byte(`name: wat
+`)
+	goodOrder1 := []byte(`name: wat
 version: 42
 apps:
  foo:
@@ -707,9 +693,72 @@ apps:
    daemon: dbus
 
 `)
-	info, err := InfoFromSnapYaml(y)
-	c.Assert(err, IsNil)
+	goodOrder2 := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   after: [baz]
+   daemon: oneshot
+ bar:
+   before: [baz]
+   daemon: dbus
+ baz:
+   daemon: forking
+ zed:
+   daemon: dbus
+   after: [foo, bar, baz]
 
-	err = Validate(info)
-	c.Assert(err, IsNil)
+`)
+
+	tcs := []struct {
+		name string
+		desc []byte
+		err  string
+	}{{
+		name: "foo after baz",
+		desc: fooAfterBaz,
+		err:  `cannot validate app "foo" startup ordering: needs to be started after "baz", but "baz" is not defined`,
+	}, {
+		name: "foo before baz",
+		desc: fooBeforeBaz,
+		err:  `cannot validate app "foo" startup ordering: needs to be started before "baz", but "baz" is not defined`,
+	}, {
+		name: "foo not a daemon",
+		desc: fooNotADaemon,
+		err:  `cannot validate app "foo": requires startup ordering, but is not a service`,
+	}, {
+		name: "foo wants bar, bar not a daemon",
+		desc: fooBarNotADaemon,
+		err:  `cannot validate app "foo" startup ordering: dependent app "bar" is not a service`,
+	}, {
+		name: "bad order 1",
+		desc: badOrder1,
+		err:  `cannot validate app "(foo|bar)" startup ordering: "after" dependencies cannot be satisfied`,
+	}, {
+		name: "bad order 2",
+		desc: badOrder2,
+		err:  `cannot validate app "(bar|baz)" startup ordering: "(after|before)" dependencies cannot be satisfied`,
+	}, {
+		name: "all good, 3 apps",
+		desc: goodOrder1,
+	}, {
+		name: "all good, 4 apps",
+		desc: goodOrder2,
+	}, {
+		name: "self cycle",
+		desc: fooSelfCycle,
+		err:  `cannot validate app "foo" startup ordering: "after" dependencies cannot be satisfied`},
+	}
+	for _, tc := range tcs {
+		c.Logf("trying %q", tc.name)
+		info, err := InfoFromSnapYaml(tc.desc)
+		c.Assert(err, IsNil)
+
+		err = Validate(info)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
 }

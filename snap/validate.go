@@ -207,6 +207,11 @@ func Validate(info *Info) error {
 		}
 	}
 
+	// validate apps ordering according to after/before
+	if err := validateAppsOrdering(info); err != nil {
+		return err
+	}
+
 	// validate aliases
 	for alias, app := range info.LegacyAliases {
 		if !validAlias.MatchString(alias) {
@@ -291,6 +296,96 @@ func appStartupOrdering(app *AppInfo, order appStartupOrder) []string {
 	panic(fmt.Sprintf("unsupported order: %v", order))
 }
 
+func isAppOrdered(app *AppInfo, order appStartupOrder, other *AppInfo) bool {
+	deps := appStartupOrdering(app, order)
+	if len(deps) > 0 && strutil.ListContains(deps, other.Name) {
+		return true
+	}
+	return false
+}
+
+// maybeOrderBeforeAfter does naiive ordering of apps using Before/After
+// criteria and modifies the provided apps list. The caller must verify if all
+// dependencies are satisfied.
+func maybeOrderBeforeAfter(apps []*AppInfo) {
+
+	// perform simple sorting of apps, apps that start before current must
+	// be in the left side of the list, apps that start after current must
+	// be in the right side of the list
+
+	for i := range apps {
+		for j := range apps {
+			if j == i {
+				continue
+			}
+			var swap bool
+			if !swap && i < j && isAppOrdered(apps[i], orderAfter, apps[j]) {
+				// app i in lhs but ordered after j
+				swap = true
+			}
+			if !swap && i > j && isAppOrdered(apps[i], orderBefore, apps[j]) {
+				// app i in rhs but ordered before j
+				swap = true
+			}
+			if !swap && j < i && isAppOrdered(apps[j], orderAfter, apps[i]) {
+				// app j in lhs but ordered after i
+				swap = true
+			}
+			if !swap && j > i && isAppOrdered(apps[j], orderBefore, apps[i]) {
+				// app j in rhs but ordered before i
+				swap = true
+			}
+			if swap {
+				tmp := apps[i]
+				apps[i] = apps[j]
+				apps[j] = tmp
+			}
+		}
+	}
+}
+
+func validateAppsOrdering(snap *Info) error {
+	apps := make([]*AppInfo, 0, len(snap.Apps))
+	for _, app := range snap.Apps {
+		apps = append(apps, app)
+	}
+
+	maybeOrderBeforeAfter(apps)
+
+	appsListContains := func(apps []*AppInfo, names []string) bool {
+		for _, name := range names {
+			var found bool
+			for _, app := range apps {
+				if app.Name == name {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return false
+			}
+		}
+		return true
+	}
+
+	// verify if app dependencies are satisfied
+	for i := range apps {
+		after := appsListContains(apps[0:i], apps[i].After)
+		before := appsListContains(apps[i+1:], apps[i].Before)
+		if !after || !before {
+			whichFailed := "after"
+			if !after && !before {
+				whichFailed = "after,before"
+			} else if !before {
+				whichFailed = "before"
+			}
+			return fmt.Errorf("cannot validate app %q startup ordering: %q dependencies cannot be satisfied",
+				apps[i].Name, whichFailed)
+		}
+	}
+	return nil
+}
+
 func validateAppStartupOrdering(app *AppInfo, order appStartupOrder) error {
 	ordering := appStartupOrdering(app, order)
 
@@ -311,14 +406,6 @@ func validateAppStartupOrdering(app *AppInfo, order appStartupOrder) error {
 		if !other.IsService() {
 			return fmt.Errorf("cannot validate app %q startup ordering: dependent app %q is not a service",
 				app.Name, dep)
-		}
-		// or it depends on us in the same order, eg. foo is
-		// started after bar, but bar is to be started after foo
-		// as well, validate only one dependency step
-		otherDeps := appStartupOrdering(other, order)
-		if strutil.ListContains(otherDeps, app.Name) {
-			return fmt.Errorf("cannot validate app %q startup ordering: needs to be started %s %q, but %q is declared to start %s %q",
-				app.Name, order, other.Name, other.Name, order, app.Name)
 		}
 	}
 	return nil
