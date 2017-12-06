@@ -54,8 +54,16 @@ func ExistingDevices(queue chan Device, errors chan error, matcher netlink.Match
 				}
 
 				if matcher == nil || matcher.EvaluateEnv(env) {
+
+					kObj := filepath.Dir(path)
+
+					// Append to env subsystem if existing
+					if link, err := os.Readlink(kObj + "/subsystem"); err == nil {
+						env["SUBSYSTEM"] = filepath.Base(link)
+					}
+
 					queue <- Device{
-						KObj: strings.TrimSuffix(path, "/uevent"),
+						KObj: kObj,
 						Env:  env,
 					}
 				}
@@ -98,5 +106,6 @@ func getEventFromUEventFile(path string) (rv map[string]string, err error) {
 		}
 		rv[field[0]] = field[1]
 	}
+
 	return
 }
