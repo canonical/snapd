@@ -63,19 +63,19 @@ func (s *DesktopLegacyInterfaceSuite) TestName(c *C) {
 }
 
 func (s *DesktopLegacyInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.coreSlotInfo), IsNil)
 	// desktop-legacy slot currently only used with core
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "desktop-legacy",
 		Interface: "desktop-legacy",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"desktop-legacy slots are reserved for the core snap")
 }
 
 func (s *DesktopLegacyInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *DesktopLegacyInterfaceSuite) TestAppArmorSpec(c *C) {

@@ -75,8 +75,8 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestName(c *C) {
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestSanitize(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {

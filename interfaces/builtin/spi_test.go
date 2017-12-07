@@ -154,28 +154,28 @@ func (s *spiInterfaceSuite) TestName(c *C) {
 }
 
 func (s *spiInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotOs1Info), IsNil)
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotOs2Info), IsNil)
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotGadget1Info), IsNil)
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotGadget2Info), IsNil)
-	err := interfaces.SanitizeSlot(s.iface, s.slotGadgetBad1Info)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotOs1Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotOs2Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotGadget1Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotGadget2Info), IsNil)
+	err := interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad1Info)
 	c.Assert(err, ErrorMatches, `"/dev/spev0.0" is not a valid SPI device`)
-	err = interfaces.SanitizeSlot(s.iface, s.slotGadgetBad2Info)
+	err = interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad2Info)
 	c.Assert(err, ErrorMatches, `"/dev/sidv0.0" is not a valid SPI device`)
-	err = interfaces.SanitizeSlot(s.iface, s.slotGadgetBad3Info)
+	err = interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad3Info)
 	c.Assert(err, ErrorMatches, `"/dev/slpiv0.3" is not a valid SPI device`)
-	err = interfaces.SanitizeSlot(s.iface, s.slotGadgetBad4Info)
+	err = interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad4Info)
 	c.Assert(err, ErrorMatches, `"/dev/sdev-00" is not a valid SPI device`)
-	err = interfaces.SanitizeSlot(s.iface, s.slotGadgetBad5Info)
+	err = interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad5Info)
 	c.Assert(err, ErrorMatches, `"/dev/spi-foo" is not a valid SPI device`)
-	err = interfaces.SanitizeSlot(s.iface, s.slotGadgetBad6Info)
+	err = interfaces.BeforePrepareSlot(s.iface, s.slotGadgetBad6Info)
 	c.Assert(err, ErrorMatches, `slot "gadget:bad-spi-6" must have a path attribute`)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "spi",
 		Interface: "spi",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"spi slots are reserved for the core and gadget snaps")
 }
 

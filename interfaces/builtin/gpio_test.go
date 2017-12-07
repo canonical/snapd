@@ -115,30 +115,30 @@ func (s *GpioInterfaceSuite) TestName(c *C) {
 
 func (s *GpioInterfaceSuite) TestSanitizeSlotGadgetSnap(c *C) {
 	// gpio slot on gadget accepeted
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.gadgetGpioSlotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.gadgetGpioSlotInfo), IsNil)
 
 	// slots without number attribute are rejected
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.gadgetMissingNumberSlotInfo), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.gadgetMissingNumberSlotInfo), ErrorMatches,
 		"gpio slot must have a number attribute")
 
 	// slots with number attribute that isnt a number
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.gadgetBadNumberSlotInfo), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.gadgetBadNumberSlotInfo), ErrorMatches,
 		"gpio slot number attribute must be an int")
 }
 
 func (s *GpioInterfaceSuite) TestSanitizeSlotOsSnap(c *C) {
 	// gpio slot on OS accepeted
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.osGpioSlotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.osGpioSlotInfo), IsNil)
 }
 
 func (s *GpioInterfaceSuite) TestSanitizeSlotAppSnap(c *C) {
 	// gpio slot not accepted on app snap
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.appGpioSlotInfo), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.appGpioSlotInfo), ErrorMatches,
 		"gpio slots are reserved for the core and gadget snaps")
 }
 
 func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.gadgetPlugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.gadgetPlugInfo), IsNil)
 }
 
 func (s *GpioInterfaceSuite) TestSystemdConnectedSlot(c *C) {
