@@ -84,7 +84,11 @@ func (iface *gpioInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 }
 
 func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	path := fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"])
+	var number int64
+	if err := slot.Attr("number", &number); err != nil {
+		return err
+	}
+	path := fmt.Sprint(gpioSysfsGpioBase, number)
 	// Entries in /sys/class/gpio for single GPIO's are just symlinks
 	// to their correct device part in the sysfs tree. Given AppArmor
 	// requires symlinks to be dereferenced, evaluate the GPIO
@@ -99,10 +103,11 @@ func (iface *gpioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 }
 
 func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	gpioNum, ok := slot.Attrs["number"].(int64)
-	if !ok {
-		return fmt.Errorf("gpio slot has invalid number attribute: %q", slot.Attrs["number"])
+	var gpioNum int64
+	if err := slot.Attr("number", &gpioNum); err != nil {
+		return err
 	}
+
 	serviceName := interfaces.InterfaceServiceName(slot.Snap().Name(), fmt.Sprintf("gpio-%d", gpioNum))
 	service := &systemd.Service{
 		Type:            "oneshot",
