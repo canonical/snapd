@@ -213,6 +213,19 @@ type legacyAutoConnect interface {
 	LegacyAutoConnect() bool
 }
 
+type oldSanitizePlug1 interface {
+	SanitizePlug(plug *interfaces.Plug) error
+}
+type oldSanitizePlug2 interface {
+	SanitizePlug(plug *snap.PlugInfo) error
+}
+type oldSanitizeSlot1 interface {
+	SanitizeSlot(slot *interfaces.Slot) error
+}
+type oldSanitizeSlot2 interface {
+	SanitizeSlot(slot *snap.SlotInfo) error
+}
+
 // specification definers before the introduction of connection attributes
 type oldApparmorDefiner1 interface {
 	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
@@ -356,6 +369,11 @@ var allBadDefiners = []reflect.Type{
 	reflect.TypeOf((*snippetDefiner4)(nil)).Elem(),
 	// old auto-connect function
 	reflect.TypeOf((*legacyAutoConnect)(nil)).Elem(),
+	// old sanitize methods
+	reflect.TypeOf((*oldSanitizePlug1)(nil)).Elem(),
+	reflect.TypeOf((*oldSanitizePlug2)(nil)).Elem(),
+	reflect.TypeOf((*oldSanitizeSlot1)(nil)).Elem(),
+	reflect.TypeOf((*oldSanitizeSlot2)(nil)).Elem(),
 	// pre-attribute definers
 	reflect.TypeOf((*oldApparmorDefiner1)(nil)).Elem(),
 	reflect.TypeOf((*oldApparmorDefiner2)(nil)).Elem(),
