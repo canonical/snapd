@@ -64,18 +64,18 @@ func (s *AlsaInterfaceSuite) TestName(c *C) {
 }
 
 func (s *AlsaInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "alsa",
 		Interface: "alsa",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"alsa slots are reserved for the core snap")
 }
 
 func (s *AlsaInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *AlsaInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -102,7 +102,7 @@ func (s *AlsaInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *AlsaInterfaceSuite) TestAutoConnect(c *C) {
-	// FIXME: fix AutoConnect
+	// FIXME: fix AutoConnect methods to use ConnectedPlug/Slot
 	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 
