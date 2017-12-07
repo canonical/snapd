@@ -319,20 +319,13 @@ func maybeOrderBeforeAfter(apps []*AppInfo) {
 				continue
 			}
 			var swap bool
-			if !swap && i < j && isAppOrdered(apps[i], orderAfter, apps[j]) {
-				// app i in lhs but ordered after j
+			if i < j &&
+				(isAppOrdered(apps[i], orderAfter, apps[j]) ||
+					isAppOrdered(apps[j], orderBefore, apps[i])) {
 				swap = true
-			}
-			if !swap && i > j && isAppOrdered(apps[i], orderBefore, apps[j]) {
-				// app i in rhs but ordered before j
-				swap = true
-			}
-			if !swap && j < i && isAppOrdered(apps[j], orderAfter, apps[i]) {
-				// app j in lhs but ordered after i
-				swap = true
-			}
-			if !swap && j > i && isAppOrdered(apps[j], orderBefore, apps[i]) {
-				// app j in rhs but ordered before i
+			} else if i > j &&
+				(isAppOrdered(apps[i], orderBefore, apps[j]) ||
+					isAppOrdered(apps[j], orderAfter, apps[i])) {
 				swap = true
 			}
 			if swap {
