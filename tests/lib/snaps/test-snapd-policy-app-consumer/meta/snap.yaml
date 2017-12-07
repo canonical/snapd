@@ -83,6 +83,9 @@ apps:
   fwupd:
     command: bin/run
     plugs: [ fwupd ]
+  gnome-online-accounts-service:
+    command: bin/run
+    plugs: [ gnome-online-accounts-service ]
   gpio-memory-control:
     command: bin/run
     plugs: [ gpio-memory-control ]
