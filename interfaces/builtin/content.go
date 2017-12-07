@@ -168,6 +168,7 @@ func mountEntry(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, 
 	options = append(options, "bind")
 	options = append(options, extraOptions...)
 	var target string
+	// The 'target' attribute has already been verified in BeforePreparePlug.
 	_ = plug.Attr("target", &target)
 	return mount.Entry{
 		Name:    resolveSpecialVariable(relSrc, slot.Snap()),
