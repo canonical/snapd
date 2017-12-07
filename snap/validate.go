@@ -20,6 +20,7 @@
 package snap
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -304,37 +305,118 @@ func isAppOrdered(app *AppInfo, order appStartupOrder, other *AppInfo) bool {
 	return false
 }
 
-// maybeOrderBeforeAfter does naiive ordering of apps using Before/After
-// criteria and modifies the provided apps list. The caller must verify if all
-// dependencies are satisfied.
-func maybeOrderBeforeAfter(apps []*AppInfo) {
+// orderBeforeAfter will perform a topological sort of apps using Kahn's
+// algorithm. Returns a new slice of sorted elements and an error if a cyclic
+// dependency was found.
+func orderBeforeAfter(apps []*AppInfo) ([]*AppInfo, error) {
 
-	// perform simple sorting of apps, apps that start before current must
-	// be in the left side of the list, apps that start after current must
-	// be in the right side of the list
+	// we need to convert the list of apps into a graph. Graph edges are
+	// defined by 'Before' ordering dependency. 'After' dependencies are
+	// converted to 'Before' in the 'other' node, eg. 'A after B' is
+	// converted to 'B before A'.
 
-	for i := range apps {
-		for j := range apps {
-			if j == i {
-				continue
+	// don't want to modify modify AppInfo's data, make our own copy
+	type auxApp struct {
+		Name   string
+		App    *AppInfo
+		Before []string
+		After  []string
+	}
+
+	sorted := make([]*AppInfo, 0, len(apps))
+
+	// incoming edges keyed by app name
+	indegrees := map[string]int{}
+	// app name -> app data
+	graphAppMap := map[string]*auxApp{}
+	// our 'graph'
+	graph := make([]*auxApp, len(apps))
+	for i, app := range apps {
+		graph[i] = &auxApp{
+			Name:   app.Name,
+			App:    app,
+			Before: append([]string{}, app.Before...),
+			After:  append([]string{}, app.After...),
+		}
+		graphAppMap[graph[i].Name] = graph[i]
+	}
+
+	// convert After dependencies to Before
+	for i := range graph {
+		for _, after := range graph[i].After {
+			if !strutil.ListContains(graphAppMap[after].Before, graph[i].Name) {
+				// add only if the other does not list this one
+				// as Before
+				graphAppMap[after].Before = append(graphAppMap[after].Before,
+					graph[i].Name)
 			}
-			var swap bool
-			if i < j &&
-				(isAppOrdered(apps[i], orderAfter, apps[j]) ||
-					isAppOrdered(apps[j], orderBefore, apps[i])) {
-				swap = true
-			} else if i > j &&
-				(isAppOrdered(apps[i], orderBefore, apps[j]) ||
-					isAppOrdered(apps[j], orderAfter, apps[i])) {
-				swap = true
-			}
-			if swap {
-				tmp := apps[i]
-				apps[i] = apps[j]
-				apps[j] = tmp
+		}
+		graph[i].After = nil
+	}
+
+	// count of all edges in a graph
+	edges := 0
+
+	for i := range graph {
+		// 'before' count as incoming edge of other:
+		//    app --(before)--> other
+		for _, other := range graph[i].Before {
+			indegrees[other] += 1
+			edges += 1
+		}
+	}
+
+	// queue with nodes that have no incoming edges
+	queue := make([]*auxApp, 0, len(graph))
+
+	// fill it
+	for i := 0; i < len(graph); i++ {
+		app := graph[i]
+		if indegrees[app.Name] == 0 {
+			queue = append(queue, app)
+		}
+	}
+
+	// Kahn:
+	// - queue: nodes without incoming edges
+	// - sorted: sorted nodes
+	//
+	// Nodes without incoming edges are 'top' nodes and are appended to
+	// 'sorted'. On each iteration, take the next 'top' node, and decrease
+	// each adjecent node's indegree (count of incoming edges). Once that
+	// adjecent node's indegree is 0 (no incoming edges) is can become a
+	// 'top' node and is put on the queue. While doing so, decrease the edge
+	// count.
+	for len(queue) > 0 {
+		u := queue[0]
+		queue = queue[1:]
+		sorted = append(sorted, u.App)
+		for _, before := range u.Before {
+			indegrees[before] -= 1
+			edges -= 1
+			if indegrees[before] == 0 {
+				queue = append(queue, graphAppMap[before])
 			}
 		}
 	}
+
+	// if our graph is a DAG, then we were able to account for all incoming
+	// edges of each node
+	if edges != 0 {
+		// some edges still left, thus not a DAG, raise an error
+		unsatisifed := bytes.Buffer{}
+		for name, v := range indegrees {
+			if v > 0 {
+				if unsatisifed.Len() > 0 {
+					unsatisifed.WriteString(", ")
+				}
+				unsatisifed.WriteString(name)
+			}
+		}
+		return sorted, fmt.Errorf("dependency cycle detected for apps %q",
+			unsatisifed.String())
+	}
+	return sorted, nil
 }
 
 func validateAppsOrdering(snap *Info) error {
@@ -342,39 +424,10 @@ func validateAppsOrdering(snap *Info) error {
 	for _, app := range snap.Apps {
 		apps = append(apps, app)
 	}
-
-	maybeOrderBeforeAfter(apps)
-
-	appsListContains := func(apps []*AppInfo, names []string) bool {
-		for _, name := range names {
-			var found bool
-			for _, app := range apps {
-				if app.Name == name {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return false
-			}
-		}
-		return true
-	}
-
-	// verify if app dependencies are satisfied
-	for i := range apps {
-		after := appsListContains(apps[0:i], apps[i].After)
-		before := appsListContains(apps[i+1:], apps[i].Before)
-		if !after || !before {
-			whichFailed := "after"
-			if !after && !before {
-				whichFailed = "after,before"
-			} else if !before {
-				whichFailed = "before"
-			}
-			return fmt.Errorf("cannot validate app %q startup ordering: %q dependencies cannot be satisfied",
-				apps[i].Name, whichFailed)
-		}
+	_, err := orderBeforeAfter(apps)
+	if err != nil {
+		return fmt.Errorf("cannot validate app startup ordering: %v",
+			err.Error())
 	}
 	return nil
 }
