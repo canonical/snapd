@@ -213,7 +213,7 @@ func (iface *dbusInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 // Obtain yaml-specified bus well-known name
-func (iface *dbusInterface) getAttribs(attribs interfaces.AttrGetter) (string, string, error) {
+func (iface *dbusInterface) getAttribs(attribs interfaces.Attrer) (string, string, error) {
 	// bus attribute
 	var bus string
 	if err := attribs.Attr("bus", &bus); err != nil {

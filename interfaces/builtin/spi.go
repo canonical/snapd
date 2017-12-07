@@ -57,7 +57,7 @@ func (iface *spiInterface) StaticInfo() interfaces.StaticInfo {
 
 var spiDevPattern = regexp.MustCompile("^/dev/spidev[0-9].[0-9]+$")
 
-func (iface *spiInterface) path(slotRef *interfaces.SlotRef, attrs interfaces.AttrGetter) (string, error) {
+func (iface *spiInterface) path(slotRef *interfaces.SlotRef, attrs interfaces.Attrer) (string, error) {
 	var path string
 	if err := attrs.Attr("path", &path); err != nil || path == "" {
 		return "", fmt.Errorf("slot %q must have a path attribute", slotRef)
