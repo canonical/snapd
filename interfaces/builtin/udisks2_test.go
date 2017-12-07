@@ -100,7 +100,7 @@ func (s *UDisks2InterfaceSuite) TestName(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
 func (s *UDisks2InterfaceSuite) TestAppArmorSpec(c *C) {
@@ -192,7 +192,7 @@ func (s *UDisks2InterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestAutoConnect(c *C) {
-	// FIXME: fix AutoConnect methods
+	// FIXME: fix AutoConnect methods to use ConnectedPlug/Slot
 	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 

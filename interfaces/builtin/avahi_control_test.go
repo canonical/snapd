@@ -73,19 +73,19 @@ func (s *AvahiControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *AvahiControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.coreSlotInfo), IsNil)
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.appSlotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.appSlotInfo), IsNil)
 	// avahi-control slot can now be used on snap other than core.
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "avahi-control",
 		Interface: "avahi-control",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *AvahiControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *AvahiControlInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -189,7 +189,7 @@ func (s *AvahiControlInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *AvahiControlInterfaceSuite) TestAutoConnect(c *C) {
-	// FIXME: fix AutoConnect methods
+	// FIXME: fix AutoConnect methods to use ConnectedPlug/Slot
 	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.coreSlotInfo}), Equals, true)
 	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.appSlotInfo}), Equals, true)
 }

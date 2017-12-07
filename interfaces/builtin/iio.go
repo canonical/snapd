@@ -77,7 +77,7 @@ func (iface *iioInterface) String() string {
 var iioControlDeviceNodePattern = regexp.MustCompile("^/dev/iio:device[0-9]+$")
 
 // Check validity of the defined slot
-func (iface *iioInterface) SanitizeSlot(slot *snap.SlotInfo) error {
+func (iface *iioInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
@@ -98,8 +98,8 @@ func (iface *iioInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 }
 
 func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk {
+	var path string
+	if err := slot.Attr("path", &path); err != nil {
 		return nil
 	}
 
@@ -107,7 +107,7 @@ func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	snippet := strings.Replace(iioConnectedPlugAppArmor, "###IIO_DEVICE_PATH###", cleanedPath, -1)
 
 	// The path is already verified against a regular expression
-	// in SanitizeSlot so we can rely on its structure here and
+	// in BeforePrepareSlot so we can rely on its structure here and
 	// safely strip the '/dev/' prefix to get the actual name of
 	// the IIO device.
 	deviceName := strings.TrimPrefix(path, "/dev/")
@@ -118,8 +118,8 @@ func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 }
 
 func (iface *iioInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk {
+	var path string
+	if err := slot.Attr("path", &path); err != nil {
 		return nil
 	}
 	spec.TagDevice(fmt.Sprintf(`KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
