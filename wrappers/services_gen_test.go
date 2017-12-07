@@ -298,17 +298,17 @@ WantedBy=multi-user.target
 			Version:       "0.3.4",
 			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
 			Apps: map[string]*snap.AppInfo{
-				"foo": &snap.AppInfo{
+				"foo": {
 					Name:   "foo",
 					Snap:   &snap.Info{SuggestedName: "snap"},
 					Daemon: "forking",
 				},
-				"bar": &snap.AppInfo{
+				"bar": {
 					Name:   "bar",
 					Snap:   &snap.Info{SuggestedName: "snap"},
 					Daemon: "forking",
 				},
-				"zed": &snap.AppInfo{
+				"zed": {
 					Name:   "zed",
 					Snap:   &snap.Info{SuggestedName: "snap"},
 					Daemon: "forking",
