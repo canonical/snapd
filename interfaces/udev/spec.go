@@ -68,11 +68,13 @@ func udevTag(securityTag string) string {
 	return strings.Replace(securityTag, ".", "_", -1)
 }
 
-// TagDevice adds an app/hook specific udev tag to devices described by the snippet.
+// TagDevice adds an app/hook specific udev tag to devices described by the
+// snippet and adds an app/hook-specific RUN rule for hotplugging.
 func (spec *Specification) TagDevice(snippet string) {
 	for _, securityTag := range spec.securityTags {
 		tag := udevTag(securityTag)
 		spec.addEntry(fmt.Sprintf("# %s\n%s, TAG+=\"%s\"", spec.iface, snippet, tag), tag)
+		spec.addEntry(fmt.Sprintf("TAG==\"%s\", RUN+=\"/lib/udev/snappy-app-dev $env{ACTION} %s $devpath $major:$minor\"", tag, tag), tag)
 	}
 }
 
