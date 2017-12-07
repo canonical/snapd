@@ -111,7 +111,7 @@ func (s *Settings) Check(setting, check string, sender dbus.Sender) (string, *db
 	// avoid information leak: see https://github.com/snapcore/snapd/pull/4073#discussion_r146682758
 	snap, err := snapFromSender(s.conn, sender)
 	if err != nil {
-		dbus.MakeFailedError(err)
+		return "", dbus.MakeFailedError(err)
 	}
 	if err := settingWhitelisted(setting); err != nil {
 		return "", err
@@ -150,11 +150,12 @@ func (s *Settings) Get(setting string, sender dbus.Sender) (string, *dbus.Error)
 	// avoid information leak: see https://github.com/snapcore/snapd/pull/4073#discussion_r146682758
 	snap, err := snapFromSender(s.conn, sender)
 	if err != nil {
-		dbus.MakeFailedError(err)
+		return "", dbus.MakeFailedError(err)
 	}
 	if !strings.HasPrefix(string(output), snap+"_") {
 		return "NOT_THIS_SNAP.snap.desktop", nil
 	}
+
 	desktopFile := strings.SplitN(string(output), "_", 2)[1]
 	return strings.TrimSpace(desktopFile), nil
 }
@@ -174,7 +175,7 @@ func (s *Settings) Set(setting, new string, sender dbus.Sender) *dbus.Error {
 	// see https://github.com/snapcore/snapd/pull/4073#discussion_r146682758
 	snap, err := snapFromSender(s.conn, sender)
 	if err != nil {
-		dbus.MakeFailedError(err)
+		return dbus.MakeFailedError(err)
 	}
 	new = fmt.Sprintf("%s_%s", snap, new)
 
