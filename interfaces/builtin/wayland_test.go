@@ -63,19 +63,19 @@ func (s *WaylandInterfaceSuite) TestName(c *C) {
 }
 
 func (s *WaylandInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.coreSlotInfo), IsNil)
 	// wayland slot currently only used with core
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "wayland",
 		Interface: "wayland",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"wayland slots are reserved for the core snap")
 }
 
 func (s *WaylandInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *WaylandInterfaceSuite) TestAppArmorSpec(c *C) {

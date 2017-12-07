@@ -594,7 +594,7 @@ func (iface *unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, 
 	return nil
 }
 
-func (iface *unity7Interface) SanitizeSlot(slot *snap.SlotInfo) error {
+func (iface *unity7Interface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 

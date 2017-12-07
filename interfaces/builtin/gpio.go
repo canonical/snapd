@@ -62,8 +62,8 @@ func (iface *gpioInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-// SanitizeSlot checks the slot definition is valid
-func (iface *gpioInterface) SanitizeSlot(slot *snap.SlotInfo) error {
+// BeforePrepareSlot checks the slot definition is valid
+func (iface *gpioInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
