@@ -39,6 +39,7 @@
 #include <unistd.h>
 
 #include "../libsnap-confine-private/cgroup-freezer-support.h"
+#include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/mountinfo.h"
@@ -386,7 +387,14 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 			die("cannot join the mount namespace in order to inspect it");
 		}
 		// Check if the namespace needs to be discarded.
-		bool should_discard = should_discard_current_ns(base_snap_dev);
+		//
+		// TODO: enable this for core distributions. This is complex because on
+		// core the rootfs is mounted in initrd and is _not_ changed (no
+		// pivot_root) and the base snap is again mounted (2nd time) by
+		// systemd. This makes us end up in a situation where the outer base
+		// snap will never match the rootfs inside the mount namespace.
+		bool should_discard = is_running_on_classic_distribution()?
+		    should_discard_current_ns(base_snap_dev) : false;
 
 		// Send this back to the parent: 2 - discard, 1 - keep.
 		// Note that we cannot just use 0 and 1 because of the semantics of eventfd(2).
