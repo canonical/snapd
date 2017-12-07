@@ -194,7 +194,7 @@ func (iface *hidrawInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bo
 	return true
 }
 
-func (iface *hidrawInterface) hasUsbAttrs(attrs interfaces.AttrGetter) bool {
+func (iface *hidrawInterface) hasUsbAttrs(attrs interfaces.Attrer) bool {
 	var v int64
 	if err := attrs.Attr("usb-vendor", &v); err == nil {
 		return true

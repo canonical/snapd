@@ -207,7 +207,7 @@ func (iface *serialPortInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot
 	return true
 }
 
-func (iface *serialPortInterface) hasUsbAttrs(attrs interfaces.AttrGetter) bool {
+func (iface *serialPortInterface) hasUsbAttrs(attrs interfaces.Attrer) bool {
 	var v int64
 	if err := attrs.Attr("usb-vendor", &v); err == nil {
 		return true
