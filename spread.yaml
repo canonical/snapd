@@ -230,17 +230,14 @@ backends:
         environment:
             SPREAD_EXTERNAL_ADDRESS: "$(HOST: echo ${SPREAD_EXTERNAL_ADDRESS:-localhost:8022})"
             MANAGED_DEVICE: "true"
+            TRUST_TEST_KEYS: "false"
         allocate: |
             ADDRESS $SPREAD_EXTERNAL_ADDRESS
         systems:
             - ubuntu-core-16-64:
-                environment:
-                    TRUST_TEST_KEYS: "false"
                 username: test
                 password: ubuntu
             - ubuntu-core-16-32:
-                environment:
-                    TRUST_TEST_KEYS: "false"
                 username: test
                 password: ubuntu
             - ubuntu-core-16-arm-64:
