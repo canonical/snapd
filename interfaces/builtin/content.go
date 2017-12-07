@@ -119,7 +119,7 @@ func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 
 // path is an internal helper that extract the "read" and "write" attribute
 // of the slot
-func (iface *contentInterface) path(attrs interfaces.AttrGetter, name string) []string {
+func (iface *contentInterface) path(attrs interfaces.Attrer, name string) []string {
 	if name != "read" && name != "write" {
 		panic("internal error, path can only be used with read/write")
 	}

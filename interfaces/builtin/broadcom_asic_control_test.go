@@ -117,7 +117,7 @@ func (s *BroadcomAsicControlSuite) TestStaticInfo(c *C) {
 }
 
 func (s *BroadcomAsicControlSuite) TestAutoConnect(c *C) {
-	// FIXME: fix AutoConnect methods
+	// FIXME: fix AutoConnect methods to use ConnectedPlug/Slot
 	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 

@@ -56,11 +56,11 @@ slots:
 	s.slot = producer.Slots["slot"]
 }
 
-// Make sure ConnectedPlug,ConnectedSlot, PlugInfo, SlotInfo implement AttrGetter.
-var _ AttrGetter = (*ConnectedPlug)(nil)
-var _ AttrGetter = (*ConnectedSlot)(nil)
-var _ AttrGetter = (*snap.PlugInfo)(nil)
-var _ AttrGetter = (*snap.SlotInfo)(nil)
+// Make sure ConnectedPlug,ConnectedSlot, PlugInfo, SlotInfo implement Attrer.
+var _ Attrer = (*ConnectedPlug)(nil)
+var _ Attrer = (*ConnectedSlot)(nil)
+var _ Attrer = (*snap.PlugInfo)(nil)
+var _ Attrer = (*snap.SlotInfo)(nil)
 
 func (s *connSuite) TestStaticSlotAttrs(c *C) {
 	slot := NewConnectedSlot(s.slot, nil)
@@ -80,6 +80,18 @@ func (s *connSuite) TestStaticSlotAttrs(c *C) {
 	c.Assert(slot.StaticAttr("unknown", &val), ErrorMatches, `snap "producer" does not have attribute "unknown" for interface "interface"`)
 	c.Check(slot.StaticAttr("attr", &intVal), ErrorMatches, `snap "producer" has interface "interface" with invalid value type for "attr" attribute`)
 	c.Check(slot.StaticAttr("attr", val), ErrorMatches, `internal error: cannot get "attr" attribute of interface "interface" with non-pointer value`)
+}
+
+func (s *connSuite) TestSlotRef(c *C) {
+	slot := NewConnectedSlot(s.slot, nil)
+	c.Assert(slot, NotNil)
+	c.Assert(*slot.Ref(), DeepEquals, SlotRef{Snap: "producer", Name: "slot"})
+}
+
+func (s *connSuite) TestPlugRef(c *C) {
+	plug := NewConnectedPlug(s.plug, nil)
+	c.Assert(plug, NotNil)
+	c.Assert(*plug.Ref(), DeepEquals, PlugRef{Snap: "consumer", Name: "plug"})
 }
 
 func (s *connSuite) TestStaticPlugAttrs(c *C) {
