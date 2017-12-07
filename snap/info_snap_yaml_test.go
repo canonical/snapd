@@ -1592,7 +1592,7 @@ apps:
 			Name:  "baz",
 			After: []string{"foo"},
 		},
-		"zed": &snap.AppInfo{
+		"zed": {
 			Snap: info,
 			Name: "zed",
 		},
