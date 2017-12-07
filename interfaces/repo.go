@@ -963,7 +963,7 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 			}
 			iface := slotInfo.Interface
 
-			// FIXME: use PlugInfo, SlotInfo after updating AutoConnect methods of interfaces.
+			// FIXME: use ConnectedPlug/Slot for AutoConnect (once it's refactored to use tasks).
 			plug := &Plug{PlugInfo: plugInfo}
 			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow
@@ -998,7 +998,7 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 			}
 			iface := slotInfo.Interface
 
-			// FIXME: use PlugInfo, SlotInfo after updating AutoConnect methods of interfaces.
+			// FIXME: use ConnectedPlug/Slot for AutoConnect (once it's refactored to use tasks).
 			plug := &Plug{PlugInfo: plugInfo}
 			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow

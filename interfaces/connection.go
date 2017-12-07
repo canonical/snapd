@@ -46,9 +46,9 @@ type ConnectedSlot struct {
 	dynamicAttrs map[string]interface{}
 }
 
-// AttrGetter is an interface with Attr getter method common
+// Attrer is an interface with Attr getter method common
 // to ConnectedSlot, ConnectedPlug, PlugInfo and SlotInfo types.
-type AttrGetter interface {
+type Attrer interface {
 	Attr(key string, val interface{}) error
 }
 
@@ -160,6 +160,11 @@ func (plug *ConnectedPlug) SetAttr(key string, value interface{}) error {
 	return nil
 }
 
+// Ref returns the PlugRef for this plug.
+func (plug *ConnectedPlug) Ref() *PlugRef {
+	return &PlugRef{Snap: plug.Snap().Name(), Name: plug.Name()}
+}
+
 // Interface returns the name of the interface for this slot.
 func (slot *ConnectedSlot) Interface() string {
 	return slot.slotInfo.Interface
@@ -222,6 +227,11 @@ func (slot *ConnectedSlot) SetAttr(key string, value interface{}) error {
 	}
 	slot.dynamicAttrs[key] = normalize(value)
 	return nil
+}
+
+// Ref returns the SlotRef for this slot.
+func (slot *ConnectedSlot) Ref() *SlotRef {
+	return &SlotRef{Snap: slot.Snap().Name(), Name: slot.Name()}
 }
 
 // Interface returns the name of the interface for this connection.

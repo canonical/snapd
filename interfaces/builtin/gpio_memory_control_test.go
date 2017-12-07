@@ -102,7 +102,7 @@ func (s *GpioMemoryControlInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *GpioMemoryControlInterfaceSuite) TestAutoConnect(c *C) {
-	// FIXME: fix AutoConnect
+	// FIXME: fix AutoConnect to use ConnectedPlug/Slot
 	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 
