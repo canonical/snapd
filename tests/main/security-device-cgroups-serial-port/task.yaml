@@ -27,7 +27,7 @@ execute: |
 
     echo "Then the device is not assigned to that snap"
     if udevadm info /dev/ttyS4 > info.txt; then
-        MATCH "E: TAGS=.*snap_test-snapd-tools_env" < info.txt
+        ! MATCH "E: TAGS=.*snap_test-snapd-tools_env" < info.txt
     else
         echo "No hardware for node /dev/ttyS4"
         exit 0
