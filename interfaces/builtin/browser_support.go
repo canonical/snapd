@@ -313,7 +313,8 @@ func (iface *browserSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) err
 }
 
 func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
+	var allowSandbox bool
+	_ = plug.Attr("allow-sandbox", &allowSandbox)
 	spec.AddSnippet(browserSupportConnectedPlugAppArmor)
 	if allowSandbox {
 		spec.AddSnippet(browserSupportConnectedPlugAppArmorWithSandbox)
@@ -324,7 +325,8 @@ func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 }
 
 func (iface *browserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
+	var allowSandbox bool
+	_ = plug.Attr("allow-sandbox", &allowSandbox)
 	snippet := browserSupportConnectedPlugSecComp
 	if allowSandbox {
 		snippet += browserSupportConnectedPlugSecCompWithSandbox
