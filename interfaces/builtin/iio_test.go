@@ -171,14 +171,14 @@ func (s *IioInterfaceSuite) TestName(c *C) {
 }
 
 func (s *IioInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue1Info), ErrorMatches, "iio path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue2Info), ErrorMatches, "iio path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue3Info), ErrorMatches, "iio path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue4Info), ErrorMatches, "iio path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue5Info), ErrorMatches, "iio path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue6Info), ErrorMatches, "iio path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue7Info), ErrorMatches, "iio slot must have a path attribute")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue8Info), ErrorMatches, "iio slot must have a path attribute")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue1Info), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue2Info), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue3Info), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue4Info), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue5Info), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue6Info), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue7Info), ErrorMatches, "iio slot must have a path attribute")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue8Info), ErrorMatches, "iio slot must have a path attribute")
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
