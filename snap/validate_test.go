@@ -603,7 +603,6 @@ apps:
     daemon: simple
   bar:
     daemon: forking
-
 `)
 	fooBeforeBaz := []byte(`
 name: foo
@@ -614,7 +613,6 @@ apps:
     daemon: simple
   bar:
     daemon: forking
-
 `)
 
 	fooNotADaemon := []byte(`
@@ -625,7 +623,6 @@ apps:
     after: [bar]
   bar:
     daemon: forking
-
 `)
 
 	fooBarNotADaemon := []byte(`
@@ -636,7 +633,6 @@ apps:
     after: [bar]
     daemon: forking
   bar:
-
 `)
 	fooSelfCycle := []byte(`
 name: foo
@@ -646,7 +642,6 @@ apps:
     after: [foo]
     daemon: forking
   bar:
-
 `)
 	// cycle between foo and bar
 	badOrder1 := []byte(`name: wat
@@ -658,7 +653,6 @@ apps:
  bar:
    after: [foo]
    daemon: forking
-
 `)
 	// conflicting schedule for baz
 	badOrder2 := []byte(`name: wat
@@ -674,8 +668,6 @@ apps:
    before: [foo]
    after: [bar]
    daemon: forking
-
-
 `)
 	goodOrder1 := []byte(`name: wat
 version: 42
@@ -691,7 +683,6 @@ apps:
    daemon: forking
  zed:
    daemon: dbus
-
 `)
 	goodOrder2 := []byte(`name: wat
 version: 42
@@ -707,7 +698,6 @@ apps:
  zed:
    daemon: dbus
    after: [foo, bar, baz]
-
 `)
 
 	tcs := []struct {
