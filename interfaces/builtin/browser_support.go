@@ -94,6 +94,15 @@ deny @{PROC}/@{pid}/attr/current r,
 # warning and the noisy AppArmor denial.
 owner @{PROC}/@{pid}/mounts r,
 owner @{PROC}/@{pid}/mountinfo r,
+
+# Since snapd still uses SECCOMP_RET_KILL, we have added a workaround rule to
+# allow mknod on character devices since chromium unconditionally performs
+# a mknod() to create the /dev/nvidiactl device, regardless of if it exists or
+# not or if the process has CAP_MKNOD or not. Since we don't want to actually
+# grant the ability to create character devices, explicitly deny the
+# capability. When snapd uses SECCOMP_RET_ERRNO, we can remove this rule.
+# https://forum.snapcraft.io/t/call-for-testing-chromium-62-0-3202-62/2569/46
+deny capability mknod,
 `
 
 const browserSupportConnectedPlugAppArmorWithoutSandbox = `
@@ -248,6 +257,17 @@ accept4
 # TODO: fine-tune when seccomp arg filtering available in stable distro
 # releases
 setpriority
+
+# Since snapd still uses SECCOMP_RET_KILL, add a workaround rule to allow mknod
+# on character devices since chromium unconditionally performs a mknod() to
+# create the /dev/nvidiactl device, regardless of if it exists or not or if the
+# process has CAP_MKNOD or not. Since we don't want to actually grant the
+# ability to create character devices, we added an explicit deny AppArmor rule
+# for this capability. When snapd uses SECCOMP_RET_ERRNO, we can remove this
+# rule.
+# https://forum.snapcraft.io/t/call-for-testing-chromium-62-0-3202-62/2569/46
+mknod - |S_IFCHR -
+mknodat - - |S_IFCHR -
 `
 
 const browserSupportConnectedPlugSecCompWithSandbox = `
