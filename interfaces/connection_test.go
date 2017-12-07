@@ -82,6 +82,18 @@ func (s *connSuite) TestStaticSlotAttrs(c *C) {
 	c.Check(slot.StaticAttr("attr", val), ErrorMatches, `internal error: cannot get "attr" attribute of interface "interface" with non-pointer value`)
 }
 
+func (s *connSuite) TestSlotRef(c *C) {
+	slot := NewConnectedSlot(s.slot, nil)
+	c.Assert(slot, NotNil)
+	c.Assert(*slot.Ref(), DeepEquals, SlotRef{Snap: "producer", Name: "slot"})
+}
+
+func (s *connSuite) TestPlugRef(c *C) {
+	plug := NewConnectedPlug(s.plug, nil)
+	c.Assert(plug, NotNil)
+	c.Assert(*plug.Ref(), DeepEquals, PlugRef{Snap: "consumer", Name: "plug"})
+}
+
 func (s *connSuite) TestStaticPlugAttrs(c *C) {
 	plug := NewConnectedPlug(s.plug, nil)
 	c.Assert(plug, NotNil)
