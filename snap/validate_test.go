@@ -669,6 +669,23 @@ apps:
    after: [bar]
    daemon: forking
 `)
+	// conflicting schedule for baz
+	badOrder3Cycle := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   before: [bar]
+   after: [zed]
+   daemon: forking
+ bar:
+   before: [baz]
+   daemon: forking
+ baz:
+   before: [zed]
+   daemon: forking
+ zed:
+   daemon: forking
+`)
 	goodOrder1 := []byte(`name: wat
 version: 42
 apps:
@@ -729,6 +746,10 @@ apps:
 		desc: badOrder2,
 		err:  `cannot validate app "(bar|baz)" startup ordering: "(after|before)" dependencies cannot be satisfied`,
 	}, {
+		name: "bad order 3 - cycle",
+		desc: badOrder3Cycle,
+		err:  `cannot validate app "(foo|bar|baz)" startup ordering: "(after|before)" dependencies cannot be satisfied`,
+	}, {
 		name: "all good, 3 apps",
 		desc: goodOrder1,
 	}, {
@@ -746,9 +767,9 @@ apps:
 
 		err = Validate(info)
 		if tc.err != "" {
-			c.Check(err, ErrorMatches, tc.err)
+			c.Assert(err, ErrorMatches, tc.err)
 		} else {
-			c.Check(err, IsNil)
+			c.Assert(err, IsNil)
 		}
 	}
 }
