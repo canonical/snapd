@@ -76,8 +76,8 @@ var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty(USB|ACM|AMA|XRUSB|S|
 // are also specified
 var serialUDevSymlinkPattern = regexp.MustCompile("^/dev/serial-port-[a-z0-9]+$")
 
-// SanitizeSlot checks validity of the defined slot
-func (iface *serialPortInterface) SanitizeSlot(slot *snap.SlotInfo) error {
+// BeforePrepareSlot checks validity of the defined slot
+func (iface *serialPortInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}

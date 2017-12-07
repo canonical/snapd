@@ -74,7 +74,7 @@ func (iface *i2cInterface) String() string {
 var i2cControlDeviceNodePattern = regexp.MustCompile("^/dev/i2c-[0-9]+$")
 
 // Check validity of the defined slot
-func (iface *i2cInterface) SanitizeSlot(slot *snap.SlotInfo) error {
+func (iface *i2cInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}

@@ -69,7 +69,7 @@ func (iface *spiInterface) path(slotRef *interfaces.SlotRef, attrs map[string]in
 	return path, nil
 }
 
-func (iface *spiInterface) SanitizeSlot(slot *snap.SlotInfo) error {
+func (iface *spiInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
