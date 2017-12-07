@@ -63,18 +63,18 @@ func (s *SshPublicKeysInterfaceSuite) TestName(c *C) {
 }
 
 func (s *SshPublicKeysInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slotInfo := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "ssh-public-keys",
 		Interface: "ssh-public-keys",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slotInfo), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slotInfo), ErrorMatches,
 		"ssh-public-keys slots are reserved for the core snap")
 }
 
 func (s *SshPublicKeysInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *SshPublicKeysInterfaceSuite) TestAppArmorSpec(c *C) {
