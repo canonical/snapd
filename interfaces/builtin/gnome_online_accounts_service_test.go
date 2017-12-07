@@ -25,14 +25,16 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type GnomeOnlineAccountsServiceInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slot     *interfaces.ConnectedSlot
+	slotInfo *snap.SlotInfo
+	plug     *interfaces.ConnectedPlug
+	plugInfo *snap.PlugInfo
 }
 
 var _ = Suite(&GnomeOnlineAccountsServiceInterfaceSuite{
@@ -46,16 +48,14 @@ slots:
  gnome-online-accounts-service:
   interface: gnome-online-accounts-service
 `
-	coreInfo := snaptest.MockInfo(c, coreYaml, nil)
-	s.slot = &interfaces.Slot{SlotInfo: coreInfo.Slots["gnome-online-accounts-service"]}
+	s.slot, s.slotInfo = MockConnectedSlot(c, coreYaml, nil, "gnome-online-accounts-service")
 
 	var consumerYaml = `name: consumer
 apps:
  app:
   plugs: [gnome-online-accounts-service]
 `
-	consumerInfo := snaptest.MockInfo(c, consumerYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumerInfo.Plugs["gnome-online-accounts-service"]}
+	s.plug, s.plugInfo = MockConnectedPlug(c, consumerYaml, nil, "gnome-online-accounts-service")
 }
 
 func (s *GnomeOnlineAccountsServiceInterfaceSuite) TestName(c *C) {
@@ -63,13 +63,13 @@ func (s *GnomeOnlineAccountsServiceInterfaceSuite) TestName(c *C) {
 }
 
 func (s *GnomeOnlineAccountsServiceInterfaceSuite) TestSanitize(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
 }
 
 func (s *GnomeOnlineAccountsServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 1)
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.gnome.OnlineAccounts.*`)
 }
