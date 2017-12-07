@@ -307,6 +307,11 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 	die("cannot find mount entry of the root filesystem inside snap namespace");
 }
 
+enum sc_discard_vote {
+	SC_DISCARD_NO = 1,
+	SC_DISCARD_YES = 2,
+};
+
 // The namespace may be stale. To check this we must actually switch into it
 // but then we use up our setns call (the kernel misbehaves if we setns twice).
 // To work around this we'll fork a child and use it to probe. The child will
@@ -387,7 +392,9 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		// Note that we cannot just use 0 and 1 because of the semantics of eventfd(2).
 		debug
 		    ("sending information about the state of the mount namespace");
-		if (eventfd_write(event_fd, should_discard ? 2 : 1) < 0) {
+		if (eventfd_write
+		    (event_fd,
+		     should_discard ? SC_DISCARD_YES : SC_DISCARD_NO) < 0) {
 			die("cannot send information about the state of the mount namespace");
 		}
 		// Exit, we're done.
@@ -418,7 +425,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		die("support process for mount namespace inspection exited abnormally");
 	}
 	// If the namespace is up-to-date then we are done.
-	if (value == 1) {
+	if (value == SC_DISCARD_NO) {
 		return 0;
 	}
 	// The namespace is stale, let's check if we can discard it.
