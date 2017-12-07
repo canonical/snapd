@@ -592,3 +592,184 @@ func (s *ValidateSuite) TestValidateSocketName(c *C) {
 		c.Assert(err, ErrorMatches, `invalid socket name: ".*"`)
 	}
 }
+
+func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {
+	fooAfterBaz := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    after: [baz]
+    daemon: simple
+  bar:
+    daemon: forking
+`)
+	fooBeforeBaz := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    before: [baz]
+    daemon: simple
+  bar:
+    daemon: forking
+`)
+
+	fooNotADaemon := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    after: [bar]
+  bar:
+    daemon: forking
+`)
+
+	fooBarNotADaemon := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    after: [bar]
+    daemon: forking
+  bar:
+`)
+	fooSelfCycle := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    after: [foo]
+    daemon: forking
+  bar:
+`)
+	// cycle between foo and bar
+	badOrder1 := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   after: [bar]
+   daemon: forking
+ bar:
+   after: [foo]
+   daemon: forking
+`)
+	// conflicting schedule for baz
+	badOrder2 := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   before: [bar]
+   daemon: forking
+ bar:
+   after: [foo]
+   daemon: forking
+ baz:
+   before: [foo]
+   after: [bar]
+   daemon: forking
+`)
+	// conflicting schedule for baz
+	badOrder3Cycle := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   before: [bar]
+   after: [zed]
+   daemon: forking
+ bar:
+   before: [baz]
+   daemon: forking
+ baz:
+   before: [zed]
+   daemon: forking
+ zed:
+   daemon: forking
+`)
+	goodOrder1 := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   after: [bar, zed]
+   daemon: oneshot
+ bar:
+   before: [foo]
+   daemon: dbus
+ baz:
+   after: [foo]
+   daemon: forking
+ zed:
+   daemon: dbus
+`)
+	goodOrder2 := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   after: [baz]
+   daemon: oneshot
+ bar:
+   before: [baz]
+   daemon: dbus
+ baz:
+   daemon: forking
+ zed:
+   daemon: dbus
+   after: [foo, bar, baz]
+`)
+
+	tcs := []struct {
+		name string
+		desc []byte
+		err  string
+	}{{
+		name: "foo after baz",
+		desc: fooAfterBaz,
+		err:  `cannot validate app "foo" startup ordering: needs to be started after "baz", but "baz" is not defined`,
+	}, {
+		name: "foo before baz",
+		desc: fooBeforeBaz,
+		err:  `cannot validate app "foo" startup ordering: needs to be started before "baz", but "baz" is not defined`,
+	}, {
+		name: "foo not a daemon",
+		desc: fooNotADaemon,
+		err:  `cannot validate app "foo": requires startup ordering, but is not a service`,
+	}, {
+		name: "foo wants bar, bar not a daemon",
+		desc: fooBarNotADaemon,
+		err:  `cannot validate app "foo" startup ordering: dependent app "bar" is not a service`,
+	}, {
+		name: "bad order 1",
+		desc: badOrder1,
+		err:  `cannot validate app startup ordering: dependency cycle detected for apps "(foo, bar)|(bar, foo)"`,
+	}, {
+		name: "bad order 2",
+		desc: badOrder2,
+		err:  `cannot validate app startup ordering: dependency cycle detected for apps "((foo|bar|baz)(, )?){3}"`,
+	}, {
+		name: "bad order 3 - cycle",
+		desc: badOrder3Cycle,
+		err:  `cannot validate app startup ordering: dependency cycle detected for apps "((foo|bar|baz|zed)(, )?){4}"`,
+	}, {
+		name: "all good, 3 apps",
+		desc: goodOrder1,
+	}, {
+		name: "all good, 4 apps",
+		desc: goodOrder2,
+	}, {
+		name: "self cycle",
+		desc: fooSelfCycle,
+		err:  `cannot validate app startup ordering: dependency cycle detected for apps "foo"`},
+	}
+	for _, tc := range tcs {
+		c.Logf("trying %q", tc.name)
+		info, err := InfoFromSnapYaml(tc.desc)
+		c.Assert(err, IsNil)
+
+		err = Validate(info)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
