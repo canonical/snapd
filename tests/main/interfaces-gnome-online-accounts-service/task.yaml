@@ -32,7 +32,10 @@ execute: |
     eval $(gnome-keyring-daemon --start)
 
     echo "Creating account"
-    gdbus call --session --timeout 120 \
+    # We set a long timeout here because goa-daemon will be activated
+    # by the method call, and this can take a while on heavily loaded
+    # or IO constrianed VMs.
+    gdbus call --session --timeout 300 \
       --dest=org.gnome.OnlineAccounts \
       --object-path=/org/gnome/OnlineAccounts/Manager \
       --method=org.gnome.OnlineAccounts.Manager.AddAccount \
