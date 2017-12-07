@@ -283,7 +283,7 @@ Description=Service for snap application {{.App.Snap.Name}}.{{.App.Name}}
 Requires={{.MountUnit}}
 Wants={{.PrerequisiteTarget}}
 After={{.MountUnit}} {{.PrerequisiteTarget}}{{range .After}} {{.}}{{end}}
-{{if .Before}}Before={{range .Before}}{{.}} {{end}}
+{{if .Before}}Before={{ range .Before -}}{{.}} {{- end}}
 {{end -}}
 X-Snappy=yes
 
