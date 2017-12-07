@@ -26,7 +26,6 @@ const gnomeOnlineAccountsServiceBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - core
-    deny-connection: true
     deny-auto-connection: true
 `
 
