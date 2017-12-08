@@ -10,6 +10,10 @@ fixup_dev_random() {
     mv /dev/random /dev/random.orig
     # same as /dev/urandom
     mknod /dev/random c 1 9
+    # gpg-agent might have started before, need to kill it, normally we would
+    # call gpgconf --kill gpg-agent but this does not seem 100% reliable, try
+    # more direct approach
+    pkill -e gpg-agent || true
 }
 
 restore_dev_random() {
