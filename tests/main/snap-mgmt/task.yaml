@@ -1,0 +1,27 @@
+summary: Check that snap-mgmt.sh works
+
+prepare: |
+    . $TESTSLIB/dirs.sh
+
+    snap install test-snapd-tools
+    snap list | MATCH test-snapd-tools
+    before=$(find ${SNAP_MOUNT_DIR} -type d | wc -l)
+    if [ "$before" -lt 2 ]; then
+        echo "${SNAP_MOUNT_DIR} empty - test setup broken"
+        exit 1
+    fi
+
+execute: |
+    . $TESTSLIB/dirs.sh
+
+    echo "A purge will really purge things"
+    $LIBEXECDIR/snapd/snap-mgmt --purge
+
+    for d in ${SNAP_MOUNT_DIR} /var/snap; do
+        n=$(find $d  | wc -l)
+        if [ "$n" -gt 1 ]; then
+            echo "$d not empty after snap-mgmt.sh purge"
+            ls -lR $d
+            exit 1
+        fi
+    done
