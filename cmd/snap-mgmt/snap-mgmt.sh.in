@@ -66,7 +66,9 @@ purge() {
             #  /var/lib/snapd/snap/core/3440  -> core/3440
             #  /snap/core/3440                -> core/3440
             #  /snap/core//3440               -> core/3440
-            snap_rev=$(systemctl show "$unit" -p Where --value | sed -e "s#$SNAP_MOUNT_DIR##" -e 's#^/*##')
+            # NOTE: we could have used `systemctl show $unit -p Where --value`
+            # but systemd 204 shipped with Ubuntu 14.04 does not support this
+            snap_rev=$(systemctl show "$unit" -p Where | sed -e 's#Where=##' -e "s#$SNAP_MOUNT_DIR##" -e 's#^/*##')
             snap=$(echo "$snap_rev" |cut -f1 -d/)
             rev=$(echo "$snap_rev" |cut -f2 -d/)
             if [ -n "$snap" ]; then
