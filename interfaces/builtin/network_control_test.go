@@ -96,7 +96,7 @@ func (s *NetworkControlInterfaceSuite) TestSecCompSpec(c *C) {
 func (s *NetworkControlInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), HasLen, 3)
 	c.Assert(spec.Snippets(), testutil.Contains, `# network-control
 KERNEL=="tun", TAG+="snap_consumer_app"`)
 }

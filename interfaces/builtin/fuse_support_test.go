@@ -97,7 +97,7 @@ func (s *FuseSupportInterfaceSuite) TestSecCompSpec(c *C) {
 func (s *FuseSupportInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# fuse-support
 KERNEL=="fuse", TAG+="snap_consumer_app"`)
 }

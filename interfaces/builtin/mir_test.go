@@ -146,7 +146,7 @@ func (s *MirInterfaceSuite) TestSecCompOnClassic(c *C) {
 func (s *MirInterfaceSuite) TestUDevSpec(c *C) {
 	udevSpec := &udev.Specification{}
 	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 5)
+	c.Assert(udevSpec.Snippets(), HasLen, 6)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
 KERNEL=="tty[0-9]*", TAG+="snap_mir-server_mir"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir

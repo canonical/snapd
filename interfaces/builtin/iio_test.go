@@ -184,7 +184,7 @@ func (s *IioInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 func (s *IioInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# iio
 KERNEL=="iio:device1", TAG+="snap_client-snap_app-accessing-1-port"`)
 }

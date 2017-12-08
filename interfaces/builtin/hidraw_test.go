@@ -245,7 +245,7 @@ func (s *HidrawInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 	// add the plug for the slot with just path
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	snippet := spec.Snippets()[0]
 	expectedSnippet1 := `# hidraw
 SUBSYSTEM=="hidraw", KERNEL=="hidraw0", TAG+="snap_client-snap_app-accessing-2-devices"`
@@ -254,7 +254,7 @@ SUBSYSTEM=="hidraw", KERNEL=="hidraw0", TAG+="snap_client-snap_app-accessing-2-d
 	// add the plug for the first slot with vendor and product ids
 	spec = &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	snippet = spec.Snippets()[0]
 	expectedSnippet2 := `# hidraw
 IMPORT{builtin}="usb_id"
@@ -264,7 +264,7 @@ SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct
 	// add the plug for the second slot with vendor and product ids
 	spec = &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	snippet = spec.Snippets()[0]
 	expectedSnippet3 := `# hidraw
 IMPORT{builtin}="usb_id"
@@ -304,7 +304,7 @@ SUBSYSTEM=="hidraw", KERNEL=="hidraw0", TAG+="snap_client-snap_app-accessing-2-d
 	udevSpec := &udev.Specification{}
 	err := udevSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1)
 	c.Assert(err, IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 1)
+	c.Assert(udevSpec.Snippets(), HasLen, 2)
 	snippet := udevSpec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet1)
 
@@ -314,7 +314,7 @@ SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct
 	udevSpec = &udev.Specification{}
 	err = udevSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
 	c.Assert(err, IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 1)
+	c.Assert(udevSpec.Snippets(), HasLen, 2)
 	snippet = udevSpec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet2)
 
@@ -324,7 +324,7 @@ SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct
 	udevSpec = &udev.Specification{}
 	err = udevSpec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2)
 	c.Assert(err, IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 1)
+	c.Assert(udevSpec.Snippets(), HasLen, 2)
 	snippet = udevSpec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet3)
 }

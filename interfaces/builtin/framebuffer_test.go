@@ -90,7 +90,7 @@ func (s *FramebufferInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *FramebufferInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], Equals, `# framebuffer
 KERNEL=="fb[0-9]*", TAG+="snap_consumer_app"`)
 }
