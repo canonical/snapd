@@ -89,6 +89,7 @@ func (s *OpenglInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 3)
 	c.Assert(spec.Snippets(), testutil.Contains, `# opengl
 SUBSYSTEM=="drm", KERNEL=="card[0-9]*", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *OpenglInterfaceSuite) TestStaticInfo(c *C) {
