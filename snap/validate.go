@@ -325,10 +325,10 @@ func orderBeforeAfter(apps []*AppInfo) ([]*AppInfo, error) {
 
 	sorted := make([]*AppInfo, 0, len(apps))
 
-	// incoming edges keyed by app name
-	indegrees := map[string]int{}
+	// app name -> number of incoming edges
+	indegrees := make(map[string]int, len(apps))
 	// app name -> app data
-	graphAppMap := map[string]*auxApp{}
+	graphAppMap := make(map[string]*auxApp, len(apps))
 	// our 'graph'
 	graph := make([]*auxApp, len(apps))
 	for i, app := range apps {
