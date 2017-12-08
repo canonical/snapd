@@ -2,7 +2,7 @@ summary: Check snap search
 
 execute: |
     echo "List all featured snaps"
-    expected="(?s)Name +Version +Developer +Notes +Summary *\n\
+    expected="(?s).*Name +Version +Developer +Notes +Summary *\n\
     (.*?\n)?\
     .*"
     snap find | grep -Pzq "$expected"
