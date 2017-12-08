@@ -228,7 +228,7 @@ func (s *BluezInterfaceSuite) TestUDevSpec(c *C) {
 
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.appSlot, nil), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# bluez
 KERNEL=="rfkill", TAG+="snap_consumer_app"`)
 
@@ -238,7 +238,7 @@ KERNEL=="rfkill", TAG+="snap_consumer_app"`)
 
 	spec = &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="rfkill", TAG+="snap_consumer_app"`)
 
 }
