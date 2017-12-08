@@ -185,10 +185,6 @@ prepare_project() {
     # declare the "quiet" wrapper
 
     if [ "$SPREAD_BACKEND" = external ]; then
-        # stop and disable autorefresh
-        if [ -e "$SNAP_MOUNT_DIR/core/current/meta/hooks/configure" ]; then
-            systemctl disable --now snapd.refresh.timer
-        fi
         chown test.test -R "$PROJECT_PATH"
         exit 0
     fi
@@ -333,12 +329,6 @@ restore_project_each() {
 }
 
 restore_project() {
-    # XXX: Why are we enabling autorefresh for external targets?
-    if [ "$SPREAD_BACKEND" = external ] && [ -e /snap/core/current/meta/hooks/configure ]; then
-        systemctl enable --now snapd.refresh.timer
-        snap set core refresh.schedule=""
-    fi
-
     # We use a trick to accelerate prepare/restore code in certain suites. That
     # code uses a tarball to store the vanilla state. Here we just remove this
     # tarball.
