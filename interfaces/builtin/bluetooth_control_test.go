@@ -109,6 +109,7 @@ func (s *BluetoothControlInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# bluetooth-control
 SUBSYSTEM=="bluetooth", TAG+="snap_other_app2"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_other_app2", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_other_app2 $devpath $major:$minor"`)
 }
 
 func (s *BluetoothControlInterfaceSuite) TestInterfaces(c *C) {
