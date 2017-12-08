@@ -377,7 +377,7 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 	spec := &udev.Specification{}
 	err := spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1)
 	c.Assert(err, IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	snippet := spec.Snippets()[0]
 	expectedSnippet1 := `# serial-port
 SUBSYSTEM=="tty", KERNEL=="ttyS0", TAG+="snap_client-snap_app-accessing-2-ports"`
@@ -387,7 +387,7 @@ SUBSYSTEM=="tty", KERNEL=="ttyS0", TAG+="snap_client-snap_app-accessing-2-ports"
 	spec = &udev.Specification{}
 	err = spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
 	c.Assert(err, IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	snippet = spec.Snippets()[0]
 	expectedSnippet2 := `# serial-port
 IMPORT{builtin}="usb_id"
@@ -398,7 +398,7 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}==
 	spec = &udev.Specification{}
 	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2)
 	c.Assert(err, IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	snippet = spec.Snippets()[0]
 	expectedSnippet3 := `# serial-port
 IMPORT{builtin}="usb_id"
@@ -409,7 +409,7 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 	spec = &udev.Specification{}
 	err = spec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev3)
 	c.Assert(err, IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	snippet = spec.Snippets()[0]
 	expectedSnippet4 := `# serial-port
 IMPORT{builtin}="usb_id"
@@ -464,7 +464,7 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippetsForPath(c *C) {
 		err := udevSpec.AddConnectedPlug(s.iface, plug, slot)
 		c.Assert(err, IsNil)
 
-		c.Assert(udevSpec.Snippets(), HasLen, 1)
+		c.Assert(udevSpec.Snippets(), HasLen, 2)
 		snippet := udevSpec.Snippets()[0]
 		c.Assert(snippet, Equals, expectedSnippet)
 	}

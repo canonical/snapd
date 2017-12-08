@@ -168,7 +168,7 @@ func (s *UDisks2InterfaceSuite) TestDBusSpec(c *C) {
 func (s *UDisks2InterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 3)
+	c.Assert(spec.Snippets(), HasLen, 4)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `LABEL="udisks_probe_end"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# udisks2
 SUBSYSTEM=="block", TAG+="snap_producer_app"`)

@@ -89,7 +89,7 @@ func (s *PhysicalMemoryObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *PhysicalMemoryObserveInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# physical-memory-observe
 KERNEL=="mem", TAG+="snap_consumer_app"`)
 }

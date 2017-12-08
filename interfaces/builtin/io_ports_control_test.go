@@ -96,7 +96,7 @@ func (s *ioPortsControlInterfaceSuite) TestSecCompSpec(c *C) {
 func (s *ioPortsControlInterfaceSuite) TestUDevSpec(c *C) {
 	udevSpec := &udev.Specification{}
 	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 1)
+	c.Assert(udevSpec.Snippets(), HasLen, 2)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# io-ports-control
 KERNEL=="port", TAG+="snap_consumer_app"`)
 }
