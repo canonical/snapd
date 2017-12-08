@@ -58,7 +58,7 @@ backends:
                 workers: 4
             - ubuntu-16.04-64:
                 kernel: GRUB 2
-                workers: 4
+                workers: 5
             - ubuntu-16.04-32:
                 kernel: GRUB 2
                 workers: 4
