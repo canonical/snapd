@@ -86,7 +86,7 @@ func (s *JoystickInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *JoystickInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# joystick
 KERNEL=="js[0-9]*", TAG+="snap_consumer_app"`)
 }

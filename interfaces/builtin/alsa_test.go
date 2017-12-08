@@ -86,7 +86,7 @@ func (s *AlsaInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *AlsaInterfaceSuite) TestUDevpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 7)
+	c.Assert(spec.Snippets(), HasLen, 8)
 	c.Assert(spec.Snippets(), testutil.Contains, `# alsa
 KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="snap_consumer_app"`)
 }
