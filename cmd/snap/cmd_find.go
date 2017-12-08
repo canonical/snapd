@@ -113,15 +113,24 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	// magic! `snap find` returns the featured snaps
-	if x.Positional.Query == "" && x.Section == "" {
+	showFeatured := (x.Positional.Query == "" && x.Section == "")
+	if showFeatured {
 		x.Section = "featured"
+		fmt.Fprintf(Stdout, i18n.G("No search term specified, showing the featured snaps:\n\n"))
 	}
 
-	return findSnaps(&client.FindOptions{
+	if err := findSnaps(&client.FindOptions{
 		Private: x.Private,
 		Section: string(x.Section),
 		Query:   x.Positional.Query,
-	})
+	}); err != nil {
+		return err
+	}
+
+	if showFeatured {
+		fmt.Fprintf(Stdout, i18n.G("\nSee `snap find --help` for more granular searches.\n"))
+	}
+	return nil
 }
 
 func findSnaps(opts *client.FindOptions) error {
