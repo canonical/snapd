@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"strings"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -84,15 +82,7 @@ accept4
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
-const waylandConnectedSlotAppArmor = `
-# Description: Permit clients to use Wayland
-unix (receive, send) type=seqpacket addr=none peer=(label=###PLUG_SECURITY_TAGS###),
-`
-
 const waylandConnectedPlugAppArmor = `
-# Description: Permit clients to connect to compositors supporting the Wayland protocol
-unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS###),
-
 # Allow access to the Wayland compositor server socket
 owner /run/user/*/wayland-[0-9]* rw,
 
@@ -118,17 +108,7 @@ func (iface *waylandInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *waylandInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	old := "###SLOT_SECURITY_TAGS###"
-	var new string
-	if release.OnClassic {
-		// If we're running on classic Wayland will be part
-		// of the OS snap and will run unconfined.
-		new = "unconfined"
-	} else {
-		new = slotAppLabelExpr(slot)
-	}
-	snippet := strings.Replace(waylandConnectedPlugAppArmor, old, new, -1)
-	spec.AddSnippet(snippet)
+	spec.AddSnippet(slotAppLabelExpr(slot))
 	return nil
 }
 
@@ -142,16 +122,6 @@ func (iface *waylandInterface) SecCompPermanentSlot(spec *seccomp.Specification,
 func (iface *waylandInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	if !release.OnClassic {
 		spec.AddSnippet(waylandPermanentSlotAppArmor)
-	}
-	return nil
-}
-
-func (iface *waylandInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if !release.OnClassic {
-		old := "###PLUG_SECURITY_TAGS###"
-		new := plugAppLabelExpr(plug)
-		snippet := strings.Replace(waylandConnectedSlotAppArmor, old, new, -1)
-		spec.AddSnippet(snippet)
 	}
 	return nil
 }
