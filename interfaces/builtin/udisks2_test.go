@@ -171,6 +171,7 @@ func (s *UDisks2InterfaceSuite) TestUDevSpec(c *C) {
 SUBSYSTEM=="block", TAG+="snap_producer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# udisks2
 SUBSYSTEM=="usb", TAG+="snap_producer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_producer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_producer_app $devpath $major:$minor"`)
 }
 
 func (s *UDisks2InterfaceSuite) TestSecCompSpec(c *C) {
