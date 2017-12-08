@@ -507,6 +507,11 @@ type AppInfo struct {
 	Sockets map[string]*SocketInfo
 
 	Environment strutil.OrderedMap
+
+	// list of other service names that this service will start after or
+	// before
+	After  []string
+	Before []string
 }
 
 // ScreenshotInfo provides information about a screenshot.
