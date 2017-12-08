@@ -196,6 +196,7 @@ func (s *NetworkManagerInterfaceSuite) TestUDevPermanentSlot(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# network-manager
 KERNEL=="rfkill", TAG+="snap_network-manager_nm"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_network-manager_nm", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_network-manager_nm $devpath $major:$minor"`)
 }
 
 func (s *NetworkManagerInterfaceSuite) TestInterfaces(c *C) {
