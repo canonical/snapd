@@ -38,8 +38,7 @@ const waylandBaseDeclarationSlots = `
       slot-snap-type:
         - app
         - core
-    deny-auto-connection: true
-    deny-connection:
+    deny-auto-connection:
       on-classic: false
 `
 
@@ -47,20 +46,21 @@ const waylandPermanentSlotAppArmor = `
 # Description: Allow operating as a Wayland display server. This gives privileged access
 # to the system.
 
-# needed since Wayland is the display server, to configure tty devices
+# needed since Wayland is a display server and needs to configure tty devices
 capability sys_tty_config,
 /dev/tty[0-9]* rw,
 
-/{dev,run}/shm/\#* mrw,
-
-/run/wayland-[0-9]* rw,
+# Create the Wayland socket and lock file
 /run/user/[0-9]*/wayland-[0-9]* rw,
 
-# XWayland requires access to this
-/run/xwayland-shared-* rw,
+# Allow write access to create XDG_RUNTIME_DIR (until lp:1656340 is fixed)
+/run/user/[0-9]*/ w,
 
 # Needed for mode setting via drmSetMaster() and drmDropMaster()
 capability sys_admin,
+
+# Weston probes this on start
+/sys/devices/pci**/boot_vga r,
 
 # NOTE: this allows reading and inserting all input events
 /dev/input/* rw,
@@ -79,9 +79,7 @@ const waylandPermanentSlotSecComp = `
 bind
 listen
 # Needed by server upon client connect
-accept
 accept4
-shmctl
 # for udev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
@@ -96,7 +94,6 @@ const waylandConnectedPlugAppArmor = `
 unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow access to the Wayland compositor server socket
-owner /run/wayland-[0-9]* rw,
 owner /run/user/*/wayland-[0-9]* rw,
 
 # XWayland needs access to this
