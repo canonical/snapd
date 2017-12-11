@@ -293,27 +293,17 @@ type ScheduleWindow struct {
 	Spread bool
 }
 
-// StartsBefore returns true if the window's start time is before t.
-func (s ScheduleWindow) StartsBefore(t time.Time) bool {
-	return s.Start.Before(t)
-}
-
-// EndsBefore returns true if the window's end time is before t.
-func (s ScheduleWindow) EndsBefore(t time.Time) bool {
-	return s.End.Before(t)
-}
-
-// Returnes true if t falls inside the window.
+// Includes returns whether t falls inside the window.
 func (s ScheduleWindow) Includes(t time.Time) bool {
 	return (t.Equal(s.Start) || t.After(s.Start)) && (t.Equal(s.End) || t.Before(s.End))
 }
 
 // Returns true if window is uninitialized.
 func (s ScheduleWindow) IsZero() bool {
-	return s.Start.IsZero()
+	return s.Start.IsZero() || s.End.IsZero()
 }
 
-// Next returns when the time of the next interval defined in sched.
+// Next returns earliest window after last according to the schedule.
 func (sched *Schedule) Next(last time.Time) ScheduleWindow {
 	now := timeNow()
 
@@ -349,7 +339,7 @@ func (sched *Schedule) Next(last time.Time) ScheduleWindow {
 			newWindow := tspan.Window(t)
 
 			// the time span ends before 'now', try another one
-			if newWindow.EndsBefore(now) {
+			if newWindow.End.Before(now) {
 				continue
 			}
 
@@ -359,12 +349,12 @@ func (sched *Schedule) Next(last time.Time) ScheduleWindow {
 			}
 
 			// if this candidate comes before current candidate use it
-			if window.IsZero() || newWindow.StartsBefore(window.Start) {
+			if window.IsZero() || newWindow.Start.Before(window.Start) {
 				window = newWindow
 			}
 		}
 		// no suitable time span was found this day so try the next day
-		if window.EndsBefore(now) {
+		if window.End.Before(now) {
 			continue
 		}
 		return window
@@ -410,11 +400,11 @@ func Next(schedule []*Schedule, last time.Time) time.Duration {
 
 	for _, sched := range schedule {
 		next := sched.Next(last)
-		if next.StartsBefore(window.Start) {
+		if next.Start.Before(window.Start) {
 			window = next
 		}
 	}
-	if window.StartsBefore(now) {
+	if window.Start.Before(now) {
 		return 0
 	}
 
