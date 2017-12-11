@@ -81,13 +81,9 @@ if [ "$1" = "purge" ]; then
     echo "Final directory cleanup"
     for d in "/snap/bin" "/snap" "/var/snap"; do
         # Force remove due to directories for old revisions could still exist
-        if [ -d "$d" ]; then
-            rm -rf "$d"
-        fi
+        rm -rf "$d"
         if [ -d "$d" ]; then
             echo "Cannot remove directory $d"
-            ls "$d"
-            exit 1
         fi
     done
 
