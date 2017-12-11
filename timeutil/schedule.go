@@ -398,7 +398,7 @@ var (
 	timeNow = time.Now
 
 	// FIMXE: pass in as a parameter for next
-	maxDuration = 31 * 24 * time.Hour
+	maxDuration = 60 * 24 * time.Hour
 )
 
 func init() {
