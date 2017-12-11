@@ -86,9 +86,10 @@ func (s *HardwareRandomControlInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *HardwareRandomControlInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# hardware-random-control
 KERNEL=="hwrng", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *HardwareRandomControlInterfaceSuite) TestStaticInfo(c *C) {

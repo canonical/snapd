@@ -139,7 +139,7 @@ func (s *MirInterfaceSuite) TestSecCompOnClassic(c *C) {
 func (s *MirInterfaceSuite) TestUDevSpec(c *C) {
 	udevSpec := &udev.Specification{}
 	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.coreSlot.SlotInfo), IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 5)
+	c.Assert(udevSpec.Snippets(), HasLen, 6)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
 KERNEL=="tty[0-9]*", TAG+="snap_mir-server_mir"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
@@ -150,6 +150,7 @@ KERNEL=="mouse[0-9]*", TAG+="snap_mir-server_mir"`)
 KERNEL=="event[0-9]*", TAG+="snap_mir-server_mir"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
 KERNEL=="ts[0-9]*", TAG+="snap_mir-server_mir"`)
+	c.Assert(udevSpec.Snippets(), testutil.Contains, `TAG=="snap_mir-server_mir", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_mir-server_mir $devpath $major:$minor"`)
 }
 
 func (s *MirInterfaceSuite) TestInterfaces(c *C) {
