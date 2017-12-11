@@ -160,9 +160,9 @@ func (ws WeekSpan) Match(t time.Time) bool {
 	return t.Weekday() >= wdStart || t.Weekday() <= wdEnd
 }
 
-// TimeSpan represents a time span within 24h, potentially crossing days. For
+// ClockSpan represents a time span within 24h, potentially crossing days. For
 // example, 23:00-1:00 represents a span from 11pm to 1am.
-type TimeSpan struct {
+type ClockSpan struct {
 	Start Clock
 	End   Clock
 	// Split defines the number of subspans this span will be divided into.
@@ -172,7 +172,7 @@ type TimeSpan struct {
 	Spread bool
 }
 
-func (ts TimeSpan) String() string {
+func (ts ClockSpan) String() string {
 	sep := "-"
 	if ts.Spread {
 		sep = "~"
@@ -189,7 +189,7 @@ func (ts TimeSpan) String() string {
 
 // Times generates a start and end times from ts using t as a base. Returned
 // end time is automatically shifted to the next day if End is before Start
-func (ts TimeSpan) Times(t time.Time) (start time.Time, end time.Time) {
+func (ts ClockSpan) Times(t time.Time) (start time.Time, end time.Time) {
 	start = ts.Start.Time(t)
 	end = ts.End.Time(t)
 
@@ -202,18 +202,18 @@ func (ts TimeSpan) Times(t time.Time) (start time.Time, end time.Time) {
 
 // Subspans returns a slice of TimeSpan generated from ts by splitting the time
 // between ts.Start and ts.End into ts.Split equal spans.
-func (ts TimeSpan) Subspans() []TimeSpan {
+func (ts ClockSpan) Subspans() []ClockSpan {
 	if ts.Split == 0 || ts.Split == 1 || ts.End == ts.Start {
-		return []TimeSpan{ts}
+		return []ClockSpan{ts}
 	}
 
 	span := ts.End.Sub(ts.Start)
 	step := span / time.Duration(ts.Split)
 
-	spans := make([]TimeSpan, ts.Split)
+	spans := make([]ClockSpan, ts.Split)
 	for i := uint(0); i < ts.Split; i++ {
 		start := ts.Start.Add(time.Duration(i) * step)
-		spans[i] = TimeSpan{
+		spans[i] = ClockSpan{
 			Start:  start,
 			End:    start.Add(step),
 			Split:  0, // no more subspans
@@ -226,7 +226,7 @@ func (ts TimeSpan) Subspans() []TimeSpan {
 // ScheduleWindow generates a ScheduleWindow corresponding to ts using t as a
 // base. The returned window stars and ends on t.Day() according to the time
 // span's start and end times.
-func (ts TimeSpan) ScheduleWindow(t time.Time) ScheduleWindow {
+func (ts ClockSpan) ScheduleWindow(t time.Time) ScheduleWindow {
 	start, end := ts.Times(t)
 	return ScheduleWindow{
 		Start:  start,
@@ -237,8 +237,8 @@ func (ts TimeSpan) ScheduleWindow(t time.Time) ScheduleWindow {
 
 // Schedule represents a single schedule
 type Schedule struct {
-	WeekSpans []WeekSpan
-	TimeSpans []TimeSpan
+	WeekSpans  []WeekSpan
+	ClockSpans []ClockSpan
 }
 
 func (sched *Schedule) String() string {
@@ -251,11 +251,11 @@ func (sched *Schedule) String() string {
 		buf.WriteString(span.String())
 	}
 
-	if len(sched.WeekSpans) > 0 && len(sched.TimeSpans) > 0 {
+	if len(sched.WeekSpans) > 0 && len(sched.ClockSpans) > 0 {
 		buf.WriteByte(',')
 	}
 
-	for i, span := range sched.TimeSpans {
+	for i, span := range sched.ClockSpans {
 		if i > 0 {
 			buf.WriteByte(',')
 		}
@@ -268,13 +268,13 @@ func (sched *Schedule) weekSpans() []WeekSpan {
 	return sched.WeekSpans
 }
 
-func (sched *Schedule) flattenedTimeSpans() []TimeSpan {
-	baseTimes := sched.TimeSpans
+func (sched *Schedule) flattenedTimeSpans() []ClockSpan {
+	baseTimes := sched.ClockSpans
 	if len(baseTimes) == 0 {
-		baseTimes = []TimeSpan{{}}
+		baseTimes = []ClockSpan{{}}
 	}
 
-	times := make([]TimeSpan, 0, len(baseTimes))
+	times := make([]ClockSpan, 0, len(baseTimes))
 	for _, ts := range baseTimes {
 		times = append(times, ts.Subspans()...)
 	}
@@ -473,7 +473,7 @@ func parseSingleSchedule(s string) (*Schedule, error) {
 	}
 
 	return &Schedule{
-		TimeSpans: []TimeSpan{
+		ClockSpans: []ClockSpan{
 			{
 				Start:  start,
 				End:    end,
@@ -612,14 +612,14 @@ func parseTime(start, end string) (Clock, Clock, error) {
 	return tstart, tend, err
 }
 
-func parseTimeSpan(start, end string) (*TimeSpan, error) {
+func parseTimeSpan(start, end string) (*ClockSpan, error) {
 
 	startTime, endTime, err := parseTime(start, end)
 	if err != nil {
 		return nil, err
 	}
 
-	span := &TimeSpan{
+	span := &ClockSpan{
 		Start: startTime,
 		End:   endTime,
 	}
@@ -773,7 +773,7 @@ func parseEventSet(s string) (*Schedule, error) {
 				span.Split = count
 				span.Spread = randomized
 
-				schedule.TimeSpans = append(schedule.TimeSpans, *span)
+				schedule.ClockSpans = append(schedule.ClockSpans, *span)
 			}
 
 		} else if isValidWeekdaySpec(start) && isValidWeekdaySpec(end) {
