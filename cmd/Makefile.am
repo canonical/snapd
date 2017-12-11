@@ -338,17 +338,11 @@ install-exec-hook::
 ##
 
 EXTRA_DIST += \
-	snap-confine/80-snappy-assign.rules \
 	snap-confine/snappy-app-dev
 
 # NOTE: This makes distcheck fail but it is required for udev, so go figure.
 # http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
 #
-# Install udev rules
-install-data-local::
-	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
-	install -m 644 $(srcdir)/snap-confine/80-snappy-assign.rules $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
-
 # Install support script for udev rules
 install-exec-local::
 	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)

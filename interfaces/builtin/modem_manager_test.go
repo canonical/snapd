@@ -207,10 +207,11 @@ func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 
 	udevSpec := &udev.Specification{}
 	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 2)
+	c.Assert(udevSpec.Snippets(), HasLen, 3)
 	c.Assert(udevSpec.Snippets()[0], testutil.Contains, `SUBSYSTEMS=="usb"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# modem-manager
 KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="snap_modem-manager_mm"`)
+	c.Assert(udevSpec.Snippets(), testutil.Contains, `TAG=="snap_modem-manager_mm", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_modem-manager_mm $devpath $major:$minor"`)
 }
 
 func (s *ModemManagerInterfaceSuite) TestPermanentSlotDBus(c *C) {
