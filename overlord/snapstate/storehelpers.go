@@ -20,10 +20,13 @@
 package snapstate
 
 import (
+	"sort"
+
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
@@ -31,6 +34,23 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 		return nil, nil
 	}
 	return auth.User(st, userID)
+}
+
+func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
+	user, err := userFromUserID(st, userID)
+	if err != nil {
+		return nil, err
+	}
+	theStore := Store(st)
+	st.Unlock() // calls to the store should be done without holding the state lock
+	spec := store.SnapSpec{
+		Name:     name,
+		Channel:  channel,
+		Revision: revision,
+	}
+	snap, err := theStore.SnapInfo(spec, user)
+	st.Lock()
+	return snap, err
 }
 
 func updateInfo(st *state.State, snapst *SnapState, channel string, ignoreValidation bool, userID int) (*snap.Info, error) {
@@ -63,19 +83,78 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, ignoreValida
 	return res, err
 }
 
-func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
-	user, err := userFromUserID(st, userID)
+func updateToRevisionInfo(st *state.State, snapst *SnapState, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
+	return snapInfo(st, name, channel, revision, userID)
+}
+
+func refreshCandidates(st *state.State, names []string, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
+	snapStates, err := All(st)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
+
+	sort.Strings(names)
+
+	stateByID := make(map[string]*SnapState, len(snapStates))
+	candidatesInfo := make([]*store.RefreshCandidate, 0, len(snapStates))
+	ignoreValidation := make(map[string]bool)
+	for _, snapst := range snapStates {
+		if len(names) == 0 && (snapst.TryMode || snapst.DevMode) {
+			// no auto-refresh for trymode nor devmode
+			continue
+		}
+
+		// FIXME: snaps that are not active are skipped for now
+		//        until we know what we want to do
+		if !snapst.Active {
+			continue
+		}
+
+		snapInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			// log something maybe?
+			continue
+		}
+
+		if snapInfo.SnapID == "" {
+			// no refresh for sideloaded
+			continue
+		}
+
+		if len(names) > 0 && !strutil.SortedListContains(names, snapInfo.Name()) {
+			continue
+		}
+
+		stateByID[snapInfo.SnapID] = snapst
+
+		// get confinement preference from the snapstate
+		candidateInfo := &store.RefreshCandidate{
+			// the desired channel (not info.Channel!)
+			Channel:          snapst.Channel,
+			SnapID:           snapInfo.SnapID,
+			Revision:         snapInfo.Revision,
+			Epoch:            snapInfo.Epoch,
+			IgnoreValidation: snapst.IgnoreValidation,
+		}
+
+		if len(names) == 0 {
+			candidateInfo.Block = snapst.Block()
+		}
+
+		candidatesInfo = append(candidatesInfo, candidateInfo)
+		if snapst.IgnoreValidation {
+			ignoreValidation[snapInfo.SnapID] = true
+		}
+	}
+
 	theStore := Store(st)
-	st.Unlock() // calls to the store should be done without holding the state lock
-	spec := store.SnapSpec{
-		Name:     name,
-		Channel:  channel,
-		Revision: revision,
-	}
-	snap, err := theStore.SnapInfo(spec, user)
+
+	st.Unlock()
+	updates, err := theStore.ListRefresh(candidatesInfo, user, flags)
 	st.Lock()
-	return snap, err
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return updates, stateByID, ignoreValidation, nil
 }

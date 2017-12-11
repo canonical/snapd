@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"sort"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -37,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // control flags for doInstall
@@ -562,78 +560,6 @@ func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, err
 	return updates, err
 }
 
-func refreshCandidates(st *state.State, names []string, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
-	snapStates, err := All(st)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	sort.Strings(names)
-
-	stateByID := make(map[string]*SnapState, len(snapStates))
-	candidatesInfo := make([]*store.RefreshCandidate, 0, len(snapStates))
-	ignoreValidation := make(map[string]bool)
-	for _, snapst := range snapStates {
-		if len(names) == 0 && (snapst.TryMode || snapst.DevMode) {
-			// no auto-refresh for trymode nor devmode
-			continue
-		}
-
-		// FIXME: snaps that are not active are skipped for now
-		//        until we know what we want to do
-		if !snapst.Active {
-			continue
-		}
-
-		snapInfo, err := snapst.CurrentInfo()
-		if err != nil {
-			// log something maybe?
-			continue
-		}
-
-		if snapInfo.SnapID == "" {
-			// no refresh for sideloaded
-			continue
-		}
-
-		if len(names) > 0 && !strutil.SortedListContains(names, snapInfo.Name()) {
-			continue
-		}
-
-		stateByID[snapInfo.SnapID] = snapst
-
-		// get confinement preference from the snapstate
-		candidateInfo := &store.RefreshCandidate{
-			// the desired channel (not info.Channel!)
-			Channel:          snapst.Channel,
-			SnapID:           snapInfo.SnapID,
-			Revision:         snapInfo.Revision,
-			Epoch:            snapInfo.Epoch,
-			IgnoreValidation: snapst.IgnoreValidation,
-		}
-
-		if len(names) == 0 {
-			candidateInfo.Block = snapst.Block()
-		}
-
-		candidatesInfo = append(candidatesInfo, candidateInfo)
-		if snapst.IgnoreValidation {
-			ignoreValidation[snapInfo.SnapID] = true
-		}
-	}
-
-	theStore := Store(st)
-
-	st.Unlock()
-	updates, err := theStore.ListRefresh(candidatesInfo, user, flags)
-	st.Lock()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	return updates, stateByID, ignoreValidation, nil
-}
-
 // ValidateRefreshes allows to hook validation into the handling of refresh candidates.
 var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) (validated []*snap.Info, err error)
 
@@ -1033,7 +959,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return snapInfo(st, name, channel, revision, userID)
+		return updateToRevisionInfo(st, snapst, name, channel, revision, userID)
 	}
 
 	// refresh-to-local
