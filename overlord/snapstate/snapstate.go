@@ -438,6 +438,9 @@ func contentAttr(attrs map[string]interface{}) string {
 func contentIfaceAvailable(st *state.State, contentTag string) bool {
 	repo := ifacerepo.Get(st)
 	for _, slot := range repo.AllSlots("content") {
+		if contentAttr(slot.Attrs) == "" {
+			continue
+		}
 		if contentAttr(slot.Attrs) == contentTag {
 			return true
 		}
@@ -451,6 +454,9 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	out := []string{}
 	for _, plug := range info.Plugs {
 		if plug.Interface == "content" {
+			if contentAttr(plug.Attrs) == "" {
+				continue
+			}
 			if !contentIfaceAvailable(st, contentAttr(plug.Attrs)) {
 				dprovider, ok := plug.Attrs["default-provider"].(string)
 				if !ok || dprovider == "" {
