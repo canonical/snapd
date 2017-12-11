@@ -136,8 +136,8 @@ func (ws WeekSpan) Match(t time.Time) bool {
 	start, end := ws.Start, ws.End
 	wdStart, wdEnd := start.Weekday, end.Weekday
 
-	// is it the right week?
 	if start.Pos > 0 {
+		// is it the right week?
 		week := uint(t.Day()/7) + 1
 
 		if start.Pos == 5 {
@@ -312,8 +312,9 @@ func (sched *Schedule) Next(last time.Time) ScheduleWindow {
 
 		var window ScheduleWindow
 
-		// if there's a week schedule, check if we hit that first
 		if len(sched.WeekSpans) > 0 {
+			// if there's a week schedule, check if we hit that
+			// first
 			var weekMatch bool
 			for _, week := range sched.WeekSpans {
 				if week.Match(t) {
@@ -333,23 +334,26 @@ func (sched *Schedule) Next(last time.Time) ScheduleWindow {
 			// 'now', and does not include the 'last' time
 			newWindow := tspan.Window(t)
 
-			// the time span ends before 'now', try another one
 			if newWindow.End.Before(now) {
+				// the time span ends before 'now', try another
+				// one
 				continue
 			}
 
-			// same interval as last update, move forward
 			if newWindow.Includes(last) {
+				// same interval as last update, move forward
 				continue
 			}
 
-			// if this candidate comes before current candidate use it
 			if window.IsZero() || newWindow.Start.Before(window.Start) {
+				// this candidate comes before current
+				// candidate, so use it
 				window = newWindow
 			}
 		}
-		// no suitable time span was found this day so try the next day
 		if window.End.Before(now) {
+			// no suitable time span was found this day so try the
+			// next day
 			continue
 		}
 		return window
