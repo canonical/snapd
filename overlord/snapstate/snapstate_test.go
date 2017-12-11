@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -7640,6 +7641,191 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 		Channel:  "some-channel",
 		Revision: snap.R(42),
 	})
+}
+
+type contentStore struct {
+	*fakeStore
+	state *state.State
+}
+
+func (s contentStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+	info, err := s.fakeStore.SnapInfo(spec, user)
+	switch spec.Name {
+	case "snap-content-plug":
+		info.Plugs = map[string]*snap.PlugInfo{
+			"some-plug": &snap.PlugInfo{
+				Snap:      info,
+				Name:      "shared-content",
+				Interface: "content",
+				Attrs: map[string]interface{}{
+					"default-provider": "snap-content-slot",
+					"content":          "shared-content",
+				},
+			},
+		}
+	case "snap-content-slot":
+		info.Slots = map[string]*snap.SlotInfo{
+			"some-plug": &snap.SlotInfo{
+				Snap:      info,
+				Name:      "shared-content",
+				Interface: "content",
+				Attrs: map[string]interface{}{
+					"content": "shared-content",
+				},
+			},
+		}
+	}
+
+	return info, err
+}
+
+func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Install(s.state, "snap-content-plug", "some-channel", snap.R(42), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+	expected := fakeOps{
+		{
+			op:    "storesvc-snap",
+			name:  "snap-content-plug",
+			revno: snap.R(42),
+		},
+		{
+			op:    "storesvc-snap",
+			name:  "snap-content-slot",
+			revno: snap.R(11),
+		},
+		{
+			op:   "storesvc-download",
+			name: "snap-content-slot",
+		},
+		{
+			op:    "validate-snap:Doing",
+			name:  "snap-content-slot",
+			revno: snap.R(11),
+		},
+		{
+			op:  "current",
+			old: "<no-current>",
+		},
+		{
+			op:   "open-snap-file",
+			name: filepath.Join(dirs.SnapBlobDir, "snap-content-slot_11.snap"),
+			sinfo: snap.SideInfo{
+				RealName: "snap-content-slot",
+				Channel:  "stable",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Revision: snap.R(11),
+			},
+		},
+		{
+			op:    "setup-snap",
+			name:  filepath.Join(dirs.SnapBlobDir, "snap-content-slot_11.snap"),
+			revno: snap.R(11),
+		},
+		{
+			op:   "copy-data",
+			name: filepath.Join(dirs.SnapMountDir, "snap-content-slot/11"),
+			old:  "<no-old>",
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "snap-content-slot",
+			revno: snap.R(11),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "snap-content-slot",
+				Channel:  "stable",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Revision: snap.R(11),
+			},
+		},
+		{
+			op:   "link-snap",
+			name: filepath.Join(dirs.SnapMountDir, "snap-content-slot/11"),
+		},
+		{
+			op: "update-aliases",
+		},
+		{
+			op:   "storesvc-download",
+			name: "snap-content-plug",
+		},
+		{
+			op:    "validate-snap:Doing",
+			name:  "snap-content-plug",
+			revno: snap.R(42),
+		},
+		{
+			op:  "current",
+			old: "<no-current>",
+		},
+		{
+			op:   "open-snap-file",
+			name: filepath.Join(dirs.SnapBlobDir, "snap-content-plug_42.snap"),
+			sinfo: snap.SideInfo{
+				RealName: "snap-content-plug",
+				Channel:  "some-channel",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Revision: snap.R(42),
+			},
+		},
+		{
+			op:    "setup-snap",
+			name:  filepath.Join(dirs.SnapBlobDir, "snap-content-plug_42.snap"),
+			revno: snap.R(42),
+		},
+		{
+			op:   "copy-data",
+			name: filepath.Join(dirs.SnapMountDir, "snap-content-plug/42"),
+			old:  "<no-old>",
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "snap-content-plug",
+			revno: snap.R(42),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "snap-content-plug",
+				Channel:  "some-channel",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Revision: snap.R(42),
+			},
+		},
+		{
+			op:   "link-snap",
+			name: filepath.Join(dirs.SnapMountDir, "snap-content-plug/42"),
+		},
+		{
+			op: "update-aliases",
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	without_trash := len(s.fakeBackend.ops.Ops()) - 2
+	c.Assert(s.fakeBackend.ops.Ops()[:without_trash], DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops[:without_trash], DeepEquals, expected)
+
 }
 
 type canDisableSuite struct{}

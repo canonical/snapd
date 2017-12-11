@@ -65,7 +65,38 @@ func (s *prereqSuite) TearDownTest(c *C) {
 	s.reset()
 }
 
-func (s *prereqSuite) TestDoPrereqSuccess(c *C) {
+func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
+	s.state.Lock()
+
+	si1 := &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+	})
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(s.fakeBackend.ops, HasLen, 0)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *prereqSuite) TestDoPrereqTalksToStore(c *C) {
 	s.state.Lock()
 	t := s.state.NewTask("prerequisites", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
