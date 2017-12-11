@@ -30,7 +30,7 @@ import (
 )
 
 // Match 0:00-24:00, where 24:00 means the later end of the day.
-var validTime = regexp.MustCompile(`^(([0-9]|0[0-9]|1[0-9]|2[0-3]):([0-5][0-9]))|(24:00)$`)
+var validTime = regexp.MustCompile(`^([0-9]|0[0-9]|1[0-9]|2[0-3]):([0-5][0-9])$|^24:00$`)
 
 // Clock represents a hour:minute time within a day.
 type Clock struct {
@@ -82,18 +82,18 @@ func ParseClock(s string) (t Clock, err error) {
 		return t, fmt.Errorf("cannot parse %q", s)
 	}
 
-	if m[4] == "24:00" {
+	if m[0] == "24:00" {
 		t.Hour = 24
 		return t, nil
 	}
 
-	t.Hour, err = strconv.Atoi(m[2])
+	t.Hour, err = strconv.Atoi(m[1])
+	if err != nil {
+		return t, fmt.Errorf("cannot parse %q: %s", m[1], err)
+	}
+	t.Minute, err = strconv.Atoi(m[2])
 	if err != nil {
 		return t, fmt.Errorf("cannot parse %q: %s", m[2], err)
-	}
-	t.Minute, err = strconv.Atoi(m[3])
-	if err != nil {
-		return t, fmt.Errorf("cannot parse %q: %s", m[3], err)
 	}
 	return t, nil
 }
