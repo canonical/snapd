@@ -7,7 +7,8 @@ prepare: |
     . "$TESTSLIB"/mkpinentry.sh
 
 debug: |
-    sysctl kernel.random.entropy_avail || true
+    . "$TESTSLIB"/random.sh
+    debug_random
 
 execute: |
     echo "Creating a new key without a password"
