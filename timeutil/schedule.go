@@ -131,7 +131,7 @@ func (ws WeekSpan) String() string {
 	return ws.Start.String()
 }
 
-// Match checks if t is within the day-span represented by ws.
+// Match checks if t is within the day span represented by ws.
 func (ws WeekSpan) Match(t time.Time) bool {
 	start, end := ws.Start, ws.End
 	wdStart, wdEnd := start.Weekday, end.Weekday
