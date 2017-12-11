@@ -27,3 +27,13 @@ restore_dev_random() {
         mv /dev/random.orig /dev/random
     fi
 }
+
+debug_random() {
+    sysctl kernel.random.entropy_avail || true
+    ls -l /dev/*random*
+    pids=$(pidof gpg-agent)
+    for p in $pids; do
+        ps -q "$p"
+        ls -l "/proc/$p/fd"
+    done
+}
