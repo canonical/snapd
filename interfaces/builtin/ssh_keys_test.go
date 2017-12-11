@@ -26,37 +26,36 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type SshKeysInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&SshKeysInterfaceSuite{
 	iface: builtin.MustInterface("ssh-keys"),
 })
 
-func (s *SshKeysInterfaceSuite) SetUpTest(c *C) {
-	const mockPlugSnapInfoYaml = `name: other
-version: 1.0
+const sshKeysConsumerYaml = `name: consumer
 apps:
  app:
-  command: foo
-  plugs: [ssh-keys]
+   plugs: [ssh-keys]
+   `
+
+const sshKeysCoreYaml = `name: core
+type: os
+slots:
+  ssh-keys:
 `
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "ssh-keys",
-			Interface: "ssh-keys",
-		},
-	}
-	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["ssh-keys"]}
+
+func (s *SshKeysInterfaceSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, sshKeysConsumerYaml, nil, "ssh-keys")
+	s.slot, s.slotInfo = MockConnectedSlot(c, sshKeysCoreYaml, nil, "ssh-keys")
 }
 
 func (s *SshKeysInterfaceSuite) TestName(c *C) {
@@ -64,26 +63,38 @@ func (s *SshKeysInterfaceSuite) TestName(c *C) {
 }
 
 func (s *SshKeysInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slotInfo := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "ssh-keys",
 		Interface: "ssh-keys",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches, "ssh-keys slots are reserved for the core snap")
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slotInfo), ErrorMatches,
+		"ssh-keys slots are reserved for the core snap")
 }
 
 func (s *SshKeysInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *SshKeysInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "owner @{HOME}/.ssh/{,**} r,")
+func (s *SshKeysInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `owner @{HOME}/.ssh/{,**} r,`)
+}
+
+func (s *SshKeysInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows reading ssh user configuration and keys`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "ssh-keys")
+}
+
+func (s *SshKeysInterfaceSuite) TestAutoConnect(c *C) {
+	// FIXME: fix AutoConnect
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 
 func (s *SshKeysInterfaceSuite) TestInterfaces(c *C) {
