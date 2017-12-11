@@ -1,6 +1,7 @@
-snapd (2.30~14.04~rc1) trusty; urgency=medium
+snapd (2.30~14.04~rc2) trusty; urgency=medium
 
   * New upstream release, LP: #1735344
+    - corecfg: also "mask" services when disabling them
     - tests: add support for autopkgtests on s390x
     - snapstate: support for pre-refresh hook
     - many: allow to configure core before it is installed
@@ -218,7 +219,7 @@ snapd (2.30~14.04~rc1) trusty; urgency=medium
     - many: add support for /home on NFS
     - packaging,spread: fix and re-enable opensuse builds
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 30 Nov 2017 08:59:12 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 05 Dec 2017 11:00:41 +0100
 
 snapd (2.29.4~14.04) trusty; urgency=medium
 

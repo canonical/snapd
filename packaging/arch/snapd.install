@@ -22,6 +22,8 @@ _stop_services() {
 
 pre_remove() {
   _stop_services
+
+  /usr/lib/snapd/snap-mgmt --purge || :
 }
 
 pre_upgrade() {
