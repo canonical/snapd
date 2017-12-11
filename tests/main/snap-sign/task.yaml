@@ -5,6 +5,8 @@ systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*]
 
 prepare: |
     . "$TESTSLIB"/mkpinentry.sh
+    . "$TESTSLIB"/random.sh
+    kill_gpg_agent
 
 debug: |
     . "$TESTSLIB"/random.sh
