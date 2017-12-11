@@ -64,7 +64,7 @@ func (t Clock) Add(dur time.Duration) Clock {
 // and day are taken from base
 func (t Clock) Time(base time.Time) time.Time {
 	return time.Date(base.Year(), base.Month(), base.Day(),
-		t.Hour, t.Minute, 0, 0, time.Local)
+		t.Hour, t.Minute, 0, 0, base.Location())
 }
 
 // IsValidWeekday returns true if given s looks like a valid weekday. Valid
