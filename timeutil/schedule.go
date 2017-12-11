@@ -101,7 +101,7 @@ func ParseClock(s string) (t Clock, err error) {
 // Week represents a weekday such as Monday, Tuesday, with optional
 // week-in-the-month position, eg. the first Monday of the month
 type Week struct {
-	Day time.Weekday
+	Weekday time.Weekday
 	// Pos defines which week inside the month the Day refers to, where zero
 	// means every week, 1 means first occurrence of the weekday, and 5
 	// means last occurrence (which might be the fourth or the fifth).
@@ -110,7 +110,7 @@ type Week struct {
 
 func (w Week) String() string {
 	// Wednesday -> wed
-	day := strings.ToLower(w.Day.String()[0:3])
+	day := strings.ToLower(w.Weekday.String()[0:3])
 	if w.Pos == 0 {
 		return day
 	}
@@ -134,7 +134,7 @@ func (ws WeekSpan) String() string {
 // Match checks if t is within the day-span represented by ws.
 func (ws WeekSpan) Match(t time.Time) bool {
 	start, end := ws.Start, ws.End
-	wdStart, wdEnd := start.Day, end.Day
+	wdStart, wdEnd := start.Weekday, end.Weekday
 
 	// is it the right week?
 	if start.Pos > 0 {
@@ -652,8 +652,8 @@ func parseWeekday(s string) (*Week, error) {
 	}
 
 	week := &Week{
-		Day: weekdayMap[day],
-		Pos: pos,
+		Weekday: weekdayMap[day],
+		Pos:     pos,
 	}
 	return week, nil
 }
