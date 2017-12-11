@@ -38,14 +38,25 @@ bind
 socket AF_NETLINK - NETLINK_CONNECTOR
 `
 
+const netlinkConnectorConnectedPlugAppArmor = `
+# Description: Can use netlink to communicate with kernel connector. Because
+# NETLINK_CONNECTOR is not finely mediated and app-specific, use of this
+# interface allows communications via all netlink connectors.
+# https://github.com/torvalds/linux/blob/master/Documentation/connector/connector.txt
+network netlink,
+# CAP_NET_ADMIN required per 'man 7 netlink'
+capability net_admin,
+`
+
 func init() {
 	registerIface(&commonInterface{
-		name:                 "netlink-connector",
-		summary:              netlinkConnectorSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationSlots: netlinkConnectorBaseDeclarationSlots,
-		connectedPlugSecComp: netlinkConnectorConnectedPlugSecComp,
-		reservedForOS:        true,
+		name:                  "netlink-connector",
+		summary:               netlinkConnectorSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  netlinkConnectorBaseDeclarationSlots,
+		connectedPlugSecComp:  netlinkConnectorConnectedPlugSecComp,
+		connectedPlugAppArmor: netlinkConnectorConnectedPlugAppArmor,
+		reservedForOS:         true,
 	})
 }
