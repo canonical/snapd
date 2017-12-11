@@ -257,10 +257,6 @@ func (sched *Schedule) String() string {
 	return buf.String()
 }
 
-func (sched *Schedule) weekSpans() []WeekSpan {
-	return sched.WeekSpans
-}
-
 func (sched *Schedule) flattenedTimeSpans() []ClockSpan {
 	baseTimes := sched.ClockSpans
 	if len(baseTimes) == 0 {
@@ -307,7 +303,6 @@ func (s ScheduleWindow) IsZero() bool {
 func (sched *Schedule) Next(last time.Time) ScheduleWindow {
 	now := timeNow()
 
-	wspans := sched.weekSpans()
 	tspans := sched.flattenedTimeSpans()
 
 	for t := last; ; t = t.Add(24 * time.Hour) {
@@ -318,9 +313,9 @@ func (sched *Schedule) Next(last time.Time) ScheduleWindow {
 		var window ScheduleWindow
 
 		// if there's a week schedule, check if we hit that first
-		if len(wspans) > 0 {
+		if len(sched.WeekSpans) > 0 {
 			var weekMatch bool
-			for _, week := range wspans {
+			for _, week := range sched.WeekSpans {
 				if week.Match(t) {
 					weekMatch = true
 					break
