@@ -67,18 +67,18 @@ func (s *NetlinkAuditInterfaceSuite) TestName(c *C) {
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "netlink-audit",
 		Interface: "netlink-audit",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"netlink-audit slots are reserved for the core snap")
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestUsedSecuritySystems(c *C) {

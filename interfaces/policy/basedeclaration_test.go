@@ -448,7 +448,7 @@ plugs:
 // describe installation rules for slots succinctly for cross-checking,
 // if an interface is not mentioned here a slot of its type can only
 // be installed by a core snap (and this was taken care by
-// SanitizeSlot),
+// BeforePrepareSlot),
 // otherwise the entry for the interface is the list of snap types it
 // can be installed by (using the declaration naming);
 // ATM a nil entry means even stricter rules that would need be tested
@@ -525,7 +525,7 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 		types, ok := slotInstallation[iface.Name()]
 		compareWithSanitize := false
 		if !ok { // common ones, only core can install them,
-			// their plain SanitizeSlot checked for that
+			// their plain BeforePrepareSlot checked for that
 			types = []string{"core"}
 			compareWithSanitize = true
 		}
@@ -545,7 +545,7 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 				c.Check(err, NotNil, comm)
 			}
 			if compareWithSanitize {
-				sanitizeErr := interfaces.SanitizeSlot(iface, slotInfo)
+				sanitizeErr := interfaces.BeforePrepareSlot(iface, slotInfo)
 				if err == nil {
 					c.Check(sanitizeErr, IsNil, comm)
 				} else {
