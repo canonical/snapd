@@ -46,6 +46,7 @@ const desktopConnectedPlugAppArmor = `
 #include <abstractions/dbus-session-strict>
 
 #include <abstractions/fonts>
+owner @{HOME}/.local/share/fonts/{,**} r,
 /var/cache/fontconfig/   r,
 /var/cache/fontconfig/** mr,
 
@@ -96,7 +97,7 @@ dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member=NotificationClosed
+    member={ActionInvoked,NotificationClosed}
     peer=(label=unconfined),
 
 # Allow requesting interest in receiving media key events. This tells Gnome
@@ -132,6 +133,22 @@ dbus (send)
     interface=io.snapcraft.Launcher
     member=OpenURL
     peer=(label=unconfined),
+
+# Allow checking status, activating and locking the screensaver
+# gnome/kde/freedesktop.org
+dbus (send)
+    bus=session
+    path="/{,org/freedesktop/,org/gnome/}ScreenSaver"
+    interface="org.{freedesktop,gnome}.ScreenSaver"
+    member="{GetActive,GetActiveTime,Lock,SetActive}"
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path="/{,org/freedesktop/,org/gnome/}ScreenSaver"
+    interface="org.{freedesktop,gnome}.ScreenSaver"
+    member=ActiveChanged
+    peer=(label=unconfined),
 `
 
 type desktopInterface struct{}
@@ -148,7 +165,7 @@ func (iface *desktopInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *desktopInterface) SanitizeSlot(slot *snap.SlotInfo) error {
+func (iface *desktopInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
