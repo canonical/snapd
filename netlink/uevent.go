@@ -14,6 +14,8 @@ const (
 	MOVE    KObjAction = "move"
 	ONLINE  KObjAction = "online"
 	OFFLINE KObjAction = "offline"
+	BIND    KObjAction = "bind"
+	UNBIND  KObjAction = "unbind"
 )
 
 type KObjAction string
@@ -25,7 +27,7 @@ func (a KObjAction) String() string {
 func ParseKObjAction(raw string) (a KObjAction, err error) {
 	a = KObjAction(raw)
 	switch a {
-	case ADD, REMOVE, CHANGE, MOVE, ONLINE, OFFLINE:
+	case ADD, REMOVE, CHANGE, MOVE, ONLINE, OFFLINE, BIND, UNBIND:
 	default:
 		err = fmt.Errorf("unknow kobject action (got: %s)", raw)
 	}
