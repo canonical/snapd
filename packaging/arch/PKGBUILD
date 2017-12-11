@@ -5,7 +5,7 @@
 
 pkgbase=snapd
 pkgname=snapd-git
-pkgver=2.29.r222.gc6d068254
+pkgver=2.29.4.1.r959.g0d9c50d2c
 pkgrel=1
 arch=('i686' 'x86_64')
 url="https://github.com/snapcore/snapd"
@@ -20,6 +20,7 @@ md5sums=('SKIP')
 
 pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd')
+optdepends=('bash-completion: bash completion support')
 provides=($pkgbase)
 # Community package is split into snapd and snap-confine, make sure we replace
 # both bits
@@ -211,5 +212,4 @@ package_snapd-git() {
   # Install the "info" data file with snapd version
   install -m 644 -D "$GOPATH/src/${_gourl}/data/info" \
           "$pkgdir/usr/lib/snapd/info"
-
 }
