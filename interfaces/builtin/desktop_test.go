@@ -36,9 +36,11 @@ import (
 )
 
 type DesktopInterfaceSuite struct {
-	iface    interfaces.Interface
-	coreSlot *interfaces.Slot
-	plug     *interfaces.Plug
+	iface        interfaces.Interface
+	coreSlotInfo *snap.SlotInfo
+	coreSlot     *interfaces.ConnectedSlot
+	plugInfo     *snap.PlugInfo
+	plug         *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&DesktopInterfaceSuite{
@@ -58,8 +60,8 @@ slots:
 `
 
 func (s *DesktopInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, desktopConsumerYaml, nil, "desktop")
-	s.coreSlot = MockSlot(c, desktopCoreYaml, nil, "desktop")
+	s.plug, s.plugInfo = MockConnectedPlug(c, desktopConsumerYaml, nil, "desktop")
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, desktopCoreYaml, nil, "desktop")
 }
 
 func (s *DesktopInterfaceSuite) TearDownTest(c *C) {
@@ -71,25 +73,26 @@ func (s *DesktopInterfaceSuite) TestName(c *C) {
 }
 
 func (s *DesktopInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.coreSlot.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.coreSlotInfo), IsNil)
+
 	// desktop slot currently only used with core
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "desktop",
 		Interface: "desktop",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"desktop slots are reserved for the core snap")
 }
 
 func (s *DesktopInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	// connected plug to core slot
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access basic graphical desktop resources")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/fonts>")
@@ -97,7 +100,7 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// connected plug to core slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
@@ -113,7 +116,7 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 
 	// On all-snaps systems, no mount entries are added
 	spec := &mount.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Check(spec.MountEntries(), HasLen, 0)
 
 	// On classic systems, a number of font related directories
@@ -121,7 +124,7 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	restore = release.MockOnClassic(true)
 	defer restore()
 	spec = &mount.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 
 	entries := spec.MountEntries()
 	c.Assert(entries, HasLen, 3)

@@ -4,7 +4,7 @@ summary: Run snap sign to sign a model assertion
 systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*]
 
 prepare: |
-    "$TESTSLIB"/mkpinentry.sh
+    . "$TESTSLIB"/mkpinentry.sh
 
 debug: |
     sysctl kernel.random.entropy_avail || true
