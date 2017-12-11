@@ -284,7 +284,7 @@ func isLastWeekdayInMonth(t time.Time) bool {
 }
 
 // ScheduleWindow represents a time window between Start and End times when the
-// scheduled even can happen.
+// scheduled event can happen.
 type ScheduleWindow struct {
 	Start time.Time
 	End   time.Time
