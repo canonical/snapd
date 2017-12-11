@@ -11,7 +11,7 @@ execute: |
         echo "snap refresh should error but did not"
         exit 1
     fi
-    cat stderr.out | MATCH 'snap "test-snapd-tools" is local, try the `--amend` flag'
+    cat stderr.out | MATCH 'local snap "test-snapd-tools" is unknown to the store'
 
     echo "A refresh with --amend refreshes it to the store revision"
     snap refresh --amend test-snapd-tools
