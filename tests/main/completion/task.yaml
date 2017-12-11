@@ -24,6 +24,8 @@ prepare: |
     snap install core
     snap install test-snapd-tools
     . "$TESTSLIB"/mkpinentry.sh
+    . "$TESTSLIB"/random.sh
+    kill_gpg_agent
     expect -d -f key.exp0
 
 restore: |
