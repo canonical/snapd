@@ -459,7 +459,14 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 		cmd = append(cmd, "--base", info.Base)
 	}
 	cmd = append(cmd, securityTag)
-	cmd = append(cmd, filepath.Join(dirs.CoreLibExecDir, "snap-exec"))
+	snapExec := filepath.Join(dirs.CoreLibExecDir, "snap-exec")
+	if info.NeedsClassic() && isReexeced() {
+		// For non-classic snaps, /usr/lib/snapd/snap-exec is always
+		// snap-exec from the core snap. But for classic snaps we may
+		// need to point to that one explicitly.
+		snapExec = filepath.Join(dirs.SnapMountDir, "core/current", dirs.CoreLibExecDir, "snap-exec")
+	}
+	cmd = append(cmd, snapExec)
 
 	if command != "" {
 		cmd = append(cmd, "--command="+command)
