@@ -32,9 +32,11 @@ import (
 )
 
 type KernelModuleControlInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&KernelModuleControlInterfaceSuite{
@@ -54,8 +56,8 @@ slots:
 `
 
 func (s *KernelModuleControlInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, kernelmodctlConsumerYaml, nil, "kernel-module-control")
-	s.slot = MockSlot(c, kernelmodctlCoreYaml, nil, "kernel-module-control")
+	s.plug, s.plugInfo = MockConnectedPlug(c, kernelmodctlConsumerYaml, nil, "kernel-module-control")
+	s.slot, s.slotInfo = MockConnectedSlot(c, kernelmodctlCoreYaml, nil, "kernel-module-control")
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestName(c *C) {
@@ -63,40 +65,41 @@ func (s *KernelModuleControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "kernel-module-control",
 		Interface: "kernel-module-control",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"kernel-module-control slots are reserved for the core snap")
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "capability sys_module,")
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "finit_module\n")
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# kernel-module-control
 KERNEL=="mem", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestStaticInfo(c *C) {
@@ -108,7 +111,8 @@ func (s *KernelModuleControlInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
+	// FIXME: fix AutoConnect methods to use ConnectedPlug/Slot
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestInterfaces(c *C) {
