@@ -269,6 +269,15 @@ func validateAppSocket(socket *SocketInfo) error {
 var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
 var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 
+// ValidateAppName checks if a string can be used as a snap name.
+func ValidateAppName(name string) error {
+	valid := validAppName.MatchString(name)
+	if !valid {
+		return fmt.Errorf("cannot have %q as app name - use letters, digits, and dash as separator", name)
+	}
+	return nil
+}
+
 // ValidateApp verifies the content in the app info.
 func ValidateApp(app *AppInfo) error {
 	switch app.Daemon {
@@ -279,8 +288,9 @@ func ValidateApp(app *AppInfo) error {
 	}
 
 	// Validate app name
-	if !validAppName.MatchString(app.Name) {
-		return fmt.Errorf("cannot have %q as app name - use letters, digits, and dash as separator", app.Name)
+	err := ValidateAppName(app.Name)
+	if err != nil {
+		return err
 	}
 
 	// Validate the rest of the app info
