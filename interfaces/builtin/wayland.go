@@ -50,6 +50,8 @@ capability sys_tty_config,
 
 # Create the Wayland socket and lock file
 /run/user/[0-9]*/wayland-[0-9]* rw,
+/run/user/[0-9]*/wayland-shared-* rw,
+/run/user/[0-9]*/wayland-cursor-shared-* rw,
 
 # Allow write access to create XDG_RUNTIME_DIR (until lp:1656340 is fixed)
 /run/user/[0-9]*/ w,
@@ -77,6 +79,7 @@ const waylandPermanentSlotSecComp = `
 bind
 listen
 # Needed by server upon client connect
+accept
 accept4
 # for udev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
@@ -84,10 +87,9 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 
 const waylandConnectedPlugAppArmor = `
 # Allow access to the Wayland compositor server socket
-owner /run/user/*/wayland-[0-9]* rw,
-
-# XWayland needs access to this
-/run/xwayland-shared-* rw,
+owner /run/user/[0-9]*/wayland-[0-9]* rw,
+owner /run/user/[0-9]*/wayland-shared-* rw,
+owner /run/user/[0-9]*/wayland-cursor-shared-* rw,
 
 # Needed when using QT_QPA_PLATFORM=wayland-egl
 /etc/drirc r,
@@ -127,11 +129,13 @@ func (iface *waylandInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 }
 
 func (iface *waylandInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
-	spec.TagDevice(`KERNEL=="tty[0-9]*"`)
-	spec.TagDevice(`KERNEL=="mice"`)
-	spec.TagDevice(`KERNEL=="mouse[0-9]*"`)
-	spec.TagDevice(`KERNEL=="event[0-9]*"`)
-	spec.TagDevice(`KERNEL=="ts[0-9]*"`)
+	if !release.OnClassic {
+		spec.TagDevice(`KERNEL=="tty[0-9]*"`)
+		spec.TagDevice(`KERNEL=="mice"`)
+		spec.TagDevice(`KERNEL=="mouse[0-9]*"`)
+		spec.TagDevice(`KERNEL=="event[0-9]*"`)
+		spec.TagDevice(`KERNEL=="ts[0-9]*"`)
+	}
 	return nil
 }
 
