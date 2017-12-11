@@ -5,15 +5,21 @@
 # http://elixir.free-electrons.com/linux/latest/source/Documentation/admin-guide/devices.txt
 # for major:minor assignments.
 
+kill_gpg_agent() {
+    # gpg-agent might have started before, need to kill it, normally we would
+    # call gpgconf --kill gpg-agent but this does not seem 100% reliable, try
+    # more direct approach; if gpg-agent gets blocked reading from /dev/random
+    # it will not react to SIGTERM, use SIGKILL instead
+    pkill -9 -e gpg-agent || true
+}
+
 fixup_dev_random() {
     # keep  the original /dev/random around
     mv /dev/random /dev/random.orig
     # same as /dev/urandom
     mknod /dev/random c 1 9
-    # gpg-agent might have started before, need to kill it, normally we would
-    # call gpgconf --kill gpg-agent but this does not seem 100% reliable, try
-    # more direct approach
-    pkill -e gpg-agent || true
+    # make sure that gpg-agent picks up the new device
+    kill_gpg_agent
 }
 
 restore_dev_random() {
