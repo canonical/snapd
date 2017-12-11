@@ -69,9 +69,9 @@ var boolFileAllowedPathPatterns = []*regexp.Regexp{
 	boolFileGPIOValuePattern,
 }
 
-// SanitizeSlot checks and possibly modifies a slot.
+// BeforePrepareSlot checks and possibly modifies a slot.
 // Valid "bool-file" slots must contain the attribute "path".
-func (iface *boolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *boolFileInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
 		return fmt.Errorf("bool-file must contain the path attribute")
@@ -98,7 +98,7 @@ func (iface *boolFileInterface) AppArmorPermanentSlot(spec *apparmor.Specificati
 	return nil
 }
 
-func (iface *boolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *boolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// Allow write and lock on the file designated by the path.
 	// Dereference symbolic links to file path handed out to apparmor since
 	// sysfs is full of symlinks and apparmor requires uses real path for
@@ -111,9 +111,10 @@ func (iface *boolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	return nil
 }
 
-func (iface *boolFileInterface) dereferencedPath(slot *interfaces.Slot) (string, error) {
-	if path, ok := slot.Attrs["path"].(string); ok {
-		path, err := evalSymlinks(path)
+func (iface *boolFileInterface) dereferencedPath(slot *interfaces.ConnectedSlot) (string, error) {
+	var path string
+	if err := slot.Attr("path", &path); err == nil {
+		path, err = evalSymlinks(path)
 		if err != nil {
 			return "", err
 		}
@@ -124,7 +125,8 @@ func (iface *boolFileInterface) dereferencedPath(slot *interfaces.Slot) (string,
 
 // isGPIO checks if a given bool-file slot refers to a GPIO pin.
 func (iface *boolFileInterface) isGPIO(slot *snap.SlotInfo) bool {
-	if path, ok := slot.Attrs["path"].(string); ok {
+	var path string
+	if err := slot.Attr("path", &path); err == nil {
 		path = filepath.Clean(path)
 		return boolFileGPIOValuePattern.MatchString(path)
 	}

@@ -40,6 +40,34 @@ disable_refreshes() {
     snap remove jq
 }
 
+setup_systemd_snapd_overrides() {
+    START_LIMIT_INTERVAL="StartLimitInterval=0"
+    if [[ "$SPREAD_SYSTEM" = opensuse-42.2-* ]]; then
+        # StartLimitInterval is not supported by the systemd version
+        # openSUSE 42.2 ships.
+        START_LIMIT_INTERVAL=""
+    fi
+
+    mkdir -p /etc/systemd/system/snapd.service.d
+    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
+[Unit]
+$START_LIMIT_INTERVAL
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
+ExecStartPre=/bin/touch /dev/iio:device0
+EOF
+    mkdir -p /etc/systemd/system/snapd.socket.d
+    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
+[Unit]
+$START_LIMIT_INTERVAL
+EOF
+
+    # We change the service configuration so reload and restart
+    # the snapd socket unit to get them applied
+    systemctl daemon-reload
+    systemctl restart snapd.socket
+}
+
 update_core_snap_for_classic_reexec() {
     # it is possible to disable this to test that snapd (the deb) works
     # fine with whatever is in the core snap
@@ -153,30 +181,7 @@ prepare_classic() {
         exit 1
     fi
 
-    START_LIMIT_INTERVAL="StartLimitInterval=0"
-    if [[ "$SPREAD_SYSTEM" = opensuse-42.2-* ]]; then
-        # StartLimitInterval is not supported by the systemd version
-        # openSUSE 42.2 ships.
-        START_LIMIT_INTERVAL=""
-    fi
-
-    mkdir -p /etc/systemd/system/snapd.service.d
-    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-[Unit]
-$START_LIMIT_INTERVAL
-[Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
-EOF
-    mkdir -p /etc/systemd/system/snapd.socket.d
-    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-[Unit]
-$START_LIMIT_INTERVAL
-EOF
-
-    # We change the service configuration so reload and restart
-    # the snapd socket unit to get them applied
-    systemctl daemon-reload
-    systemctl restart snapd.socket
+    setup_systemd_snapd_overrides
 
     if [ "$REMOTE_STORE" = staging ]; then
         # shellcheck source=tests/lib/store.sh
@@ -238,7 +243,7 @@ EOF
         done
         snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
         # shellcheck disable=SC2086
-        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount $snapd_env
+        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount $snapd_env
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
@@ -435,20 +440,6 @@ EOF
         (cd /tmp ; unsquashfs -v "$IMAGE_HOME"/core_*.snap etc/systemd/system)
         cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
 
-        # FIXUP silly systemd
-        mkdir -p /mnt/system-data/etc/systemd/system/snapd.service.d
-        cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.service.d/local.conf
-[Unit]
-StartLimitInterval=0
-[Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
-ExecStartPre=/bin/touch /dev/iio:device0
-EOF
-        mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d
-        cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.socket.d/local.conf
-[Unit]
-StartLimitInterval=0
-EOF
 
         umount /mnt
         kpartx -d  "$IMAGE_HOME/$IMAGE"
@@ -517,6 +508,7 @@ prepare_all_snap() {
     done
 
     disable_refreshes
+    setup_systemd_snapd_overrides
 
     # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f "$SPREAD_PATH/snapd-state.tar.gz" ]; then
