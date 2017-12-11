@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -607,8 +608,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	// only set userID if unset in snapst and if we actually have
 	// an associated user
-	if snapst.UserID == 0 && snapsup.UserID > 0 {
-		snapst.UserID = snapsup.UserID
+	if snapsup.UserID > 0 {
+		var user *auth.UserState
+		if snapst.UserID != 0 {
+			user, _ = auth.User(st, snapst.UserID)
+		}
+		if user == nil {
+			snapst.UserID = snapsup.UserID
+		}
 	}
 
 	newInfo, err := readInfo(snapsup.Name(), cand)
