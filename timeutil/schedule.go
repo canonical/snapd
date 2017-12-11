@@ -187,17 +187,22 @@ func (ts ClockSpan) String() string {
 	return ts.Start.String()
 }
 
-// Times generates a start and end times from ts using t as a base. Returned
-// end time is automatically shifted to the next day if End is before Start
-func (ts ClockSpan) Times(t time.Time) (start time.Time, end time.Time) {
-	start = ts.Start.Time(t)
-	end = ts.End.Time(t)
+// Window generates a ScheduleWindow which has the start date same as t. The
+// window's start and end time are set according to Start and End, with the end
+// time possibly crossing into the next day.
+func (ts ClockSpan) Window(t time.Time) ScheduleWindow {
+	start := ts.Start.Time(t)
+	end := ts.End.Time(t)
 
 	// 23:00-1:00
 	if end.Before(start) {
 		end = end.Add(24 * time.Hour)
 	}
-	return start, end
+	return ScheduleWindow{
+		Start:  start,
+		End:    end,
+		Spread: ts.Spread,
+	}
 }
 
 // Subspans returns a slice of TimeSpan generated from ts by splitting the time
@@ -221,18 +226,6 @@ func (ts ClockSpan) Subspans() []ClockSpan {
 		}
 	}
 	return spans
-}
-
-// ScheduleWindow generates a ScheduleWindow corresponding to ts using t as a
-// base. The returned window stars and ends on t.Day() according to the time
-// span's start and end times.
-func (ts ClockSpan) ScheduleWindow(t time.Time) ScheduleWindow {
-	start, end := ts.Times(t)
-	return ScheduleWindow{
-		Start:  start,
-		End:    end,
-		Spread: ts.Spread,
-	}
 }
 
 // Schedule represents a single schedule
@@ -353,7 +346,7 @@ func (sched *Schedule) Next(last time.Time) ScheduleWindow {
 			// consider all time spans for this particular date and
 			// find the earliest possible one that is not before
 			// 'now', and does not include the 'last' time
-			newWindow := tspan.ScheduleWindow(t)
+			newWindow := tspan.Window(t)
 
 			// the time span ends before 'now', try another one
 			if newWindow.EndsBefore(now) {
