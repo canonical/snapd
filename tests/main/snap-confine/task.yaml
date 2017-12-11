@@ -1,7 +1,8 @@
 summary: Test that snap-confine errors in the right way
 
 # the error message can only happen on classic systems
-systems: [-ubuntu-core-16-*]
+# our debian image does not have fully working apprmor
+systems: [-ubuntu-core-16-*, debian-*]
 
 prepare: |
     echo "Install test snap"
@@ -42,7 +43,9 @@ execute: |
 
     echo "Ensure apparmor profile for snap-confine is parsable"
     for f in /etc/apparmor.d/usr.lib.snapd.snap-confine*; do
-        apparmor_parser -QTK $f
+        if which apparmor_parser 2>/dev/null; then
+            apparmor_parser -QTK $f
+        fi
         if which aa-enforce 2>/dev/null; then
             aa-enforce $f
         fi
