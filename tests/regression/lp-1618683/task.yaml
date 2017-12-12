@@ -1,4 +1,8 @@
-summary: Check that user namespace can be unshared within snap apps 
+summary: Check that user namespace can be unshared within snap apps
+systems:
+    # Arch does not have CONFIG_USER_NS in the default kernel (yet!), see
+    # https://bugs.archlinux.org/index.php?do=details&task_id=36969 for details
+    - arch-*
 details: |
     Snap-confine used to "leak" the root filesystem directory across the
     pivot_root call. This caused checks in the kernel to fail and resulted in
