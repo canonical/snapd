@@ -343,6 +343,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	var autoConnect bool
+	if err := task.Get("auto", &autoConnect); err != nil && err != state.ErrNoState {
+		return err
+	}
+
 	conns, err := getConns(st)
 	if err != nil {
 		return err
@@ -425,7 +430,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	conns[connRef.ID()] = connState{Interface: plug.Interface}
+	conns[connRef.ID()] = connState{Interface: plug.Interface, Auto: autoConnect}
 	setConns(st, conns)
 
 	return nil
@@ -493,8 +498,9 @@ func (m *InterfaceManager) doAutoconnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
+	defer st.Unlock()
+
 	err = st.Get("conns", &conns)
-	st.Unlock()
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
@@ -502,9 +508,7 @@ func (m *InterfaceManager) doAutoconnect(task *state.Task, _ *tomb.Tomb) error {
 		conns = make(map[string]connState)
 	}
 
-	st.Lock()
 	snapsup, err := snapstate.TaskSnapSetup(task)
-	st.Unlock()
 	if err != nil {
 		return err
 	}
@@ -548,7 +552,7 @@ func (m *InterfaceManager) doAutoconnect(task *state.Task, _ *tomb.Tomb) error {
 			continue
 		}
 
-		ts, err := Connect(st, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
+		ts, err := AutoConnect(st, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
 		if err != nil {
 			task.Logf("cannot auto connect %s to %s: %s (plug auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
 			continue
@@ -584,7 +588,7 @@ func (m *InterfaceManager) doAutoconnect(task *state.Task, _ *tomb.Tomb) error {
 				// NOTE: we don't log anything here as this is a normal and common condition.
 				continue
 			}
-			ts, err := Connect(st, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
+			ts, err := AutoConnect(st, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
 			if err != nil {
 				task.Logf("cannot auto connect %s to %s: %s (slot auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
 				continue
@@ -592,9 +596,6 @@ func (m *InterfaceManager) doAutoconnect(task *state.Task, _ *tomb.Tomb) error {
 			autoconnectTs = append(autoconnectTs, ts)
 		}
 	}
-
-	st.Lock()
-	defer st.Unlock()
 
 	chg := task.Change()
 	lanes := task.Lanes()
@@ -607,6 +608,8 @@ func (m *InterfaceManager) doAutoconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 		chg.AddAll(ts)
 	}
+
+	st.EnsureBefore(0)
 
 	return nil
 }
