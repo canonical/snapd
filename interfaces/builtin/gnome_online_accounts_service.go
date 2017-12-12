@@ -41,14 +41,14 @@ dbus (receive, send)
     path=/org/gnome/OnlineAccounts
     peer=(label=unconfined),
 
-# Allow access to properties on accounts
+# Allow getting/setting properties on accounts
 dbus (receive, send)
     bus=session
     interface=org.freedesktop.DBus.Properties
     path=/org/gnome/OnlineAccounts{,/**}
     peer=(label=unconfined),
 
-# Allow access to OnlineAccounts methods
+# Allow use of all OnlineAccounts methods
 dbus (receive, send)
     bus=session
     interface=org.gnome.OnlineAccounts.*
