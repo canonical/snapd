@@ -5,7 +5,7 @@ set -e
 systemctl_stop() {
     unit="$1"
 
-    echo "Stoping unit $unit"
+    echo "Stopping unit $unit"
     systemctl stop -q "$unit" || true
 
     for i in $(seq 20); do
