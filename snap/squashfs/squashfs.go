@@ -20,6 +20,7 @@
 package squashfs
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -115,6 +116,98 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	}
 
 	return ioutil.ReadFile(filepath.Join(unpackDir, filePath))
+}
+
+type skipper map[string]struct{}
+
+func (sk skipper) Add(path string) {
+	sk[filepath.Clean(path)] = struct{}{}
+}
+
+func (sk skipper) Has(path string) bool {
+	path = filepath.Clean(path)
+	for path != "." && path != "/" {
+		if _, ok := sk[path]; ok {
+			return true
+		}
+		path = filepath.Dir(path)
+	}
+
+	return false
+}
+
+// Stat returns an os.FileInfo of a single file or directory inside a squashfs snap.
+//
+// The Sys() method of the FileInfo returns a SnapFileOwner
+func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
+	relative = filepath.Clean(relative)
+	if relative == "" || relative == "/" {
+		relative = "."
+	} else if relative[0] == '/' {
+		// I said relative, darn it :-)
+		relative = relative[1:]
+	}
+
+	var cmd *exec.Cmd
+	if relative == "." {
+		cmd = exec.Command("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path)
+	} else {
+		cmd = exec.Command("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path, relative)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return walkFn(relative, nil, err)
+	}
+	if err := cmd.Start(); err != nil {
+		return walkFn(relative, nil, err)
+	}
+	defer cmd.Process.Kill()
+
+	scanner := bufio.NewScanner(stdout)
+	// skip the header
+	for scanner.Scan() {
+		if len(scanner.Bytes()) == 0 {
+			break
+		}
+	}
+
+	skipper := make(skipper)
+	for scanner.Scan() {
+		st, err := fromRaw(scanner.Bytes())
+		if err != nil {
+			err = walkFn(relative, nil, err)
+			if err != nil {
+				return err
+			}
+		} else {
+			path := filepath.Join(relative, st.Path())
+			if skipper.Has(path) {
+				continue
+			}
+			err = walkFn(path, st, nil)
+			if st.IsDir() {
+				switch err {
+				case nil:
+					// nothing to do
+				case filepath.SkipDir:
+					skipper.Add(path)
+				default:
+					return err
+				}
+			} else if err != nil {
+				return err
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return walkFn(relative, nil, err)
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return walkFn(relative, nil, err)
+	}
+	return nil
 }
 
 // ListDir returns the content of a single directory inside a squashfs snap.
