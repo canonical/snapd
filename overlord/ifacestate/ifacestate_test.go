@@ -648,11 +648,17 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChange(c *C, snapsup *snapst
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	task := s.state.NewTask("setup-profiles", "")
-	task.Set("snap-setup", snapsup)
-	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
-	change.AddAll(taskset)
+
+	task1 := s.state.NewTask("setup-profiles", "")
+	task1.Set("snap-setup", snapsup)
+	change.AddTask(task1)
+
+	task2 := s.state.NewTask("auto-connect", "")
+	task2.Set("snap-setup", snapsup)
+	task2.WaitFor(task1)
+	change.AddTask(task2)
+
 	return change
 }
 
@@ -819,9 +825,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 			Revision: snapInfo.Revision,
 		},
 	})
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -869,9 +873,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 			Revision: snapInfo.Revision,
 		},
 	})
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -922,9 +924,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiple
 			Revision: snapInfo.Revision,
 		},
 	})
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -970,7 +970,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlter
 	s.mockSnap(c, producer2Yaml)
 
 	// Initialize the manager. This registers the OS snap.
-	mgr := s.manager(c)
+	_ = s.manager(c)
 
 	// Add a producer snap with a "slot" slot of the "test" interface.
 	snapInfo := s.mockSnap(c, producerYaml)
@@ -982,9 +982,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlter
 			Revision: snapInfo.Revision,
 		},
 	})
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -995,7 +993,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlter
 	// Ensure that no connections were made
 	var conns map[string]interface{}
 	err := s.state.Get("conns", &conns)
-	c.Assert(err, IsNil)
+	c.Assert(err, Equals, state.ErrNoState)
 	c.Check(conns, HasLen, 0)
 }
 
@@ -1054,9 +1052,7 @@ slots:
 			Revision: snapInfo.Revision,
 		},
 	})
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1065,8 +1061,7 @@ slots:
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
 	var conns map[string]interface{}
-	err := s.state.Get("conns", &conns)
-	c.Assert(err, IsNil)
+	_ = s.state.Get("conns", &conns)
 
 	repo := mgr.Repository()
 	plug := repo.Plug("consumer", "plug")
@@ -1082,7 +1077,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	s.mockSnap(c, ubuntuCoreSnapYaml)
 
 	// Initialize the manager. This registers the two snaps.
-	mgr := s.manager(c)
+	_ = s.manager(c)
 
 	// Add a sample snap with a "network" plug which should be auto-connected.
 	snapInfo := s.mockSnap(c, sampleSnapYaml)
@@ -1103,9 +1098,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 			Revision: snapInfo.Revision,
 		},
 	})
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1144,9 +1137,7 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 			Revision: snapInfo.Revision,
 		},
 	})
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1193,9 +1184,7 @@ func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 			Revision: revision,
 		},
 	})
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	// Change succeeds
 	s.state.Lock()
@@ -1216,7 +1205,7 @@ func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 // handler under `old-devmode`.
 func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	// Put the OS snap in place.
-	mgr := s.manager(c)
+	_ = s.manager(c)
 
 	// Initialize the manager. This registers the OS snap.
 	snapInfo := s.mockSnap(c, sampleSnapYaml)
@@ -1230,9 +1219,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 		},
 		Flags: snapstate.Flags{DevMode: true},
 	})
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1266,7 +1253,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 
 	// Initialize the manager. This registers both of the snaps and reloads the
 	// connection between them.
-	mgr := s.manager(c)
+	_ = s.manager(c)
 
 	// Put a new revision of the sample snap in place.
 	newSnapInfo := s.mockUpdatedSnap(c, sampleSnapYaml, 42)
@@ -1282,9 +1269,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 			Revision: newSnapInfo.Revision,
 		},
 	})
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1310,7 +1295,7 @@ func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityForConnectedSlots(c 
 	coreSnapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
 
 	// Initialize the manager. This registers the OS snap.
-	mgr := s.manager(c)
+	_ = s.manager(c)
 
 	// Add a sample snap with a "network" plug which should be auto-connected.
 	snapInfo := s.mockSnap(c, sampleSnapYaml)
@@ -1322,9 +1307,7 @@ func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityForConnectedSlots(c 
 			Revision: snapInfo.Revision,
 		},
 	})
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1334,7 +1317,7 @@ func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityForConnectedSlots(c 
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
 	// Ensure that both snaps were setup correctly.
-	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	c.Assert(s.secBackend.SetupCalls, HasLen, 3)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	// The sample snap was setup, with the correct new revision.
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, snapInfo.Name())
@@ -1714,9 +1697,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 		},
 		Flags: snapstate.Flags{DevMode: true},
 	})
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1812,7 +1793,7 @@ func (s *interfaceManagerSuite) TestCheckInterfacesConsidersImplicitSlots(c *C) 
 // but the installation fails (the security profiles are removed).
 func (s *interfaceManagerSuite) TestUndoSetupProfilesOnInstall(c *C) {
 	// Create the interface manager
-	mgr := s.manager(c)
+	_ = s.manager(c)
 
 	// Mock a snap and remove the side info from the state (it is implicitly
 	// added by mockSnap) so that we can emulate a undo during a fresh
@@ -1830,13 +1811,13 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnInstall(c *C) {
 		},
 	})
 	s.state.Lock()
+	c.Assert(change.Tasks(), HasLen, 2)
 	change.Tasks()[0].SetStatus(state.UndoStatus)
+	change.Tasks()[1].SetStatus(state.UndoneStatus)
 	s.state.Unlock()
 
 	// Turn the crank
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1856,7 +1837,7 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnInstall(c *C) {
 // but the installation fails (the security profiles are restored to the old state).
 func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 	// Create the interface manager
-	mgr := s.manager(c)
+	_ = s.manager(c)
 
 	// Mock a snap. The mockSnap call below also puts the side info into the
 	// state so it seems like it was installed already.
@@ -1870,13 +1851,12 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 		},
 	})
 	s.state.Lock()
-	change.Tasks()[0].SetStatus(state.UndoStatus)
+	c.Assert(change.Tasks(), HasLen, 2)
+	change.Tasks()[1].SetStatus(state.UndoStatus)
 	s.state.Unlock()
 
 	// Turn the crank
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2056,9 +2036,8 @@ func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
 			Revision: snapInfo.Revision,
 		},
 	})
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()

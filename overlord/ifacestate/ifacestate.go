@@ -39,9 +39,17 @@ var noConflictOnConnectTasks = func(task *state.Task) bool {
 	return task.Kind() != "connect" && task.Kind() != "disconnect"
 }
 
+func AutoConnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+	return connect(st, plugSnap, plugName, slotSnap, slotName, true)
+}
+
 // Connect returns a set of tasks for connecting an interface.
 //
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+	return connect(st, plugSnap, plugName, slotSnap, slotName, false)
+}
+
+func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, autoConnect bool) (*state.TaskSet, error) {
 	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
@@ -92,6 +100,7 @@ func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*s
 
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+	connectInterface.Set("auto", autoConnect)
 	if err := setInitialConnectAttributes(connectInterface, plugSnap, plugName, slotSnap, slotName); err != nil {
 		return nil, err
 	}
