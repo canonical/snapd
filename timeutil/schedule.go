@@ -455,13 +455,11 @@ func parseSingleSchedule(s string) (*Schedule, error) {
 	}
 
 	return &Schedule{
-		ClockSpans: []ClockSpan{
-			{
-				Start:  start,
-				End:    end,
-				Spread: true,
-			},
-		},
+		ClockSpans: []ClockSpan{{
+			Start:  start,
+			End:    end,
+			Spread: true,
+		}},
 	}, nil
 }
 
