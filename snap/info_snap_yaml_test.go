@@ -725,6 +725,73 @@ slots:
 	})
 }
 
+func (s *YamlSuite) TestUnmarshalGlobalSlotsBindToHooks(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+slots:
+    test-slot:
+hooks:
+    test-hook:
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 0)
+	c.Check(info.Slots, HasLen, 1)
+	c.Check(info.Apps, HasLen, 0)
+	c.Check(info.Hooks, HasLen, 1)
+
+	slot, ok := info.Slots["test-slot"]
+	c.Assert(ok, Equals, true, Commentf("Expected slots to include 'test-slot'"))
+	hook, ok := info.Hooks["test-hook"]
+	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
+
+	c.Check(slot, DeepEquals, &snap.SlotInfo{
+		Snap:      info,
+		Name:      "test-slot",
+		Interface: "test-slot",
+		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+	})
+	c.Check(hook, DeepEquals, &snap.HookInfo{
+		Snap:  info,
+		Name:  "test-hook",
+		Slots: map[string]*snap.SlotInfo{slot.Name: slot},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalHookWithSlot(c *C) {
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+hooks:
+    test-hook:
+        slots: [test-slot]
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 0)
+	c.Check(info.Slots, HasLen, 1)
+	c.Check(info.Apps, HasLen, 0)
+	c.Check(info.Hooks, HasLen, 1)
+
+	slot, ok := info.Slots["test-slot"]
+	c.Assert(ok, Equals, true, Commentf("Expected slots to include 'test-slot'"))
+	hook, ok := info.Hooks["test-hook"]
+	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
+
+	c.Check(slot, DeepEquals, &snap.SlotInfo{
+		Snap:      info,
+		Name:      "test-slot",
+		Interface: "test-slot",
+		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+	})
+	c.Check(hook, DeepEquals, &snap.HookInfo{
+		Snap:  info,
+		Name:  "test-hook",
+		Slots: map[string]*snap.SlotInfo{slot.Name: slot},
+	})
+}
+
 func (s *YamlSuite) TestUnmarshalCorruptedSlotWithNonStringInterfaceName(c *C) {
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	_, err := snap.InfoFromSnapYaml([]byte(`
@@ -1071,6 +1138,7 @@ apps:
 hooks:
     test-hook:
        plugs: [foo-socket-plug]
+       slots: [foo-socket-slot]
 plugs:
     foo-socket-plug:
         interface: socket
@@ -1139,14 +1207,16 @@ slots:
 	c.Check(app2.Slots, DeepEquals, map[string]*snap.SlotInfo{
 		slot2.Name: slot2})
 
-	// hook1 has two plugs ("foo-socket", "logging"). The plug "logging" is
-	// global while "foo-socket" is hook-bound.
+	// hook1 has two plugs ("foo-socket", "logging") and two slots ("foo-socket", "tracing").
+	// The plug "logging" and slot "tracing" are global while "foo-socket" is hook-bound.
 
 	c.Assert(hook, NotNil)
 	c.Check(hook.Snap, Equals, info)
 	c.Check(hook.Name, Equals, "test-hook")
 	c.Check(hook.Plugs, DeepEquals, map[string]*snap.PlugInfo{
 		plug3.Name: plug3, plug4.Name: plug4})
+	c.Check(hook.Slots, DeepEquals, map[string]*snap.SlotInfo{
+		slot1.Name: slot1, slot2.Name: slot2})
 
 	// plug1 ("network") is implicitly defined and app-bound to "daemon"
 
@@ -1336,22 +1406,82 @@ apps:
    post-stop-command: post-stop-cmd
    restart-condition: on-abnormal
    bus-name: busName
+   sockets:
+     sock1:
+       listen-stream: $SNAP_DATA/sock1.socket
+       socket-mode: 0666
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
+
+	app := snap.AppInfo{
+		Snap:            info,
+		Name:            "svc",
+		Command:         "svc1",
+		Daemon:          "forking",
+		RestartCond:     snap.RestartOnAbnormal,
+		StopTimeout:     timeout.Timeout(25 * time.Second),
+		StopCommand:     "stop-cmd",
+		PostStopCommand: "post-stop-cmd",
+		BusName:         "busName",
+		Sockets:         map[string]*snap.SocketInfo{},
+	}
+
+	app.Sockets["sock1"] = &snap.SocketInfo{
+		App:          &app,
+		Name:         "sock1",
+		ListenStream: "$SNAP_DATA/sock1.socket",
+		SocketMode:   0666,
+	}
+
+	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{"svc": &app})
+}
+
+func (s *YamlSuite) TestDaemonListenStreamAsInteger(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ svc:
+   command: svc
+   sockets:
+     sock:
+       listen-stream: 8080
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	app := snap.AppInfo{
+		Snap:    info,
+		Name:    "svc",
+		Command: "svc",
+		Sockets: map[string]*snap.SocketInfo{},
+	}
+
+	app.Sockets["sock"] = &snap.SocketInfo{
+		App:          &app,
+		Name:         "sock",
+		ListenStream: "8080",
+	}
+
 	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
-		"svc": {
-			Snap:            info,
-			Name:            "svc",
-			Command:         "svc1",
-			Daemon:          "forking",
-			RestartCond:     snap.RestartOnAbnormal,
-			StopTimeout:     timeout.Timeout(25 * time.Second),
-			StopCommand:     "stop-cmd",
-			PostStopCommand: "post-stop-cmd",
-			BusName:         "busName",
-		},
+		"svc": &app,
 	})
+}
+
+func (s *YamlSuite) TestDaemonInvalidSocketMode(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ svc:
+   command: svc
+   sockets:
+     sock:
+       listen-stream: 8080
+       socket-mode: asdfasdf
+`)
+	_, err := snap.InfoFromSnapYaml(y)
+	c.Check(err.Error(), Equals, "info failed to parse: yaml: unmarshal errors:\n"+
+		"  line 9: cannot unmarshal !!str `asdfasdf` into os.FileMode")
 }
 
 func (s *YamlSuite) TestSnapYamlGlobalEnvironment(c *C) {
@@ -1428,4 +1558,43 @@ apps:
 `)
 	_, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, ErrorMatches, `cannot set "bar" as alias for both ("foo" and "bar"|"bar" and "foo")`)
+}
+
+func (s *YamlSuite) TestSnapYamlAppStartOrder(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   after: [bar, zed]
+ bar:
+   before: [foo]
+ baz:
+   after: [foo]
+ zed:
+
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
+		"foo": {
+			Snap:  info,
+			Name:  "foo",
+			After: []string{"bar", "zed"},
+		},
+		"bar": {
+			Snap:   info,
+			Name:   "bar",
+			Before: []string{"foo"},
+		},
+		"baz": {
+			Snap:  info,
+			Name:  "baz",
+			After: []string{"foo"},
+		},
+		"zed": {
+			Snap: info,
+			Name: "zed",
+		},
+	})
 }

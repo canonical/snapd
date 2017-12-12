@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 func Test(t *testing.T) {
@@ -70,7 +71,7 @@ func (s *backendSuite) TestName(c *C) {
 
 func (s *backendSuite) TestInstallingSnapCreatesModulesConf(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.KModPermanentSlotCallback = func(spec *kmod.Specification, slot *interfaces.Slot) error {
+	s.Iface.KModPermanentSlotCallback = func(spec *kmod.Specification, slot *snap.SlotInfo) error {
 		spec.AddModule("module1")
 		spec.AddModule("module2")
 		return nil
@@ -98,7 +99,7 @@ func (s *backendSuite) TestInstallingSnapCreatesModulesConf(c *C) {
 
 func (s *backendSuite) TestRemovingSnapRemovesModulesConf(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.KModPermanentSlotCallback = func(spec *kmod.Specification, slot *interfaces.Slot) error {
+	s.Iface.KModPermanentSlotCallback = func(spec *kmod.Specification, slot *snap.SlotInfo) error {
 		spec.AddModule("module1")
 		spec.AddModule("module2")
 		return nil
@@ -117,7 +118,7 @@ func (s *backendSuite) TestRemovingSnapRemovesModulesConf(c *C) {
 
 func (s *backendSuite) TestSecurityIsStable(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
-	s.Iface.KModPermanentSlotCallback = func(spec *kmod.Specification, slot *interfaces.Slot) error {
+	s.Iface.KModPermanentSlotCallback = func(spec *kmod.Specification, slot *snap.SlotInfo) error {
 		spec.AddModule("module1")
 		spec.AddModule("module2")
 		return nil

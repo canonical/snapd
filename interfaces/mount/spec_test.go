@@ -29,46 +29,46 @@ import (
 )
 
 type specSuite struct {
-	iface *ifacetest.TestInterface
-	spec  *mount.Specification
-	plug  *interfaces.Plug
-	slot  *interfaces.Slot
+	iface    *ifacetest.TestInterface
+	spec     *mount.Specification
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		MountConnectedPlugCallback: func(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		MountConnectedPlugCallback: func(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			return spec.AddMountEntry(mount.Entry{Name: "connected-plug"})
 		},
-		MountConnectedSlotCallback: func(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		MountConnectedSlotCallback: func(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			return spec.AddMountEntry(mount.Entry{Name: "connected-slot"})
 		},
-		MountPermanentPlugCallback: func(spec *mount.Specification, plug *interfaces.Plug) error {
+		MountPermanentPlugCallback: func(spec *mount.Specification, plug *snap.PlugInfo) error {
 			return spec.AddMountEntry(mount.Entry{Name: "permanent-plug"})
 		},
-		MountPermanentSlotCallback: func(spec *mount.Specification, slot *interfaces.Slot) error {
+		MountPermanentSlotCallback: func(spec *mount.Specification, slot *snap.SlotInfo) error {
 			return spec.AddMountEntry(mount.Entry{Name: "permanent-slot"})
 		},
 	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "snap"},
-			Name:      "name",
-			Interface: "test",
-		},
+	plugInfo: &snap.PlugInfo{
+		Snap:      &snap.Info{SuggestedName: "snap"},
+		Name:      "name",
+		Interface: "test",
 	},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "snap"},
-			Name:      "name",
-			Interface: "test",
-		},
+	slotInfo: &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "snap"},
+		Name:      "name",
+		Interface: "test",
 	},
 })
 
 func (s *specSuite) SetUpTest(c *C) {
 	s.spec = &mount.Specification{}
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 }
 
 // AddMountEntry is not broken
@@ -83,10 +83,10 @@ func (s *specSuite) TestSmoke(c *C) {
 // The mount.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
-	c.Assert(r.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []mount.Entry{
 		{Name: "connected-plug"}, {Name: "connected-slot"},
 		{Name: "permanent-plug"}, {Name: "permanent-slot"}})

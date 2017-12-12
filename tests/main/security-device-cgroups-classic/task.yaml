@@ -12,9 +12,9 @@ systems: [-fedora-*, -ubuntu-core-*]
 prepare: |
     # Create framebuffer device node and give it some content we can verify
     # the test snap can read.
-    if [ ! -e /dev/fb255 ]; then
-        mknod /dev/fb255 c 29 255
-        touch /dev/fb255.spread
+    if [ ! -e /dev/fb0 ]; then
+        mknod /dev/fb0 c 29 0
+        touch /dev/fb0.spread
     fi
 
     echo "Given a snap declaring a plug on framebuffer is installed in classic"
@@ -22,8 +22,8 @@ prepare: |
     install_local_classic test-classic-cgroup
 
 restore: |
-    if [ -e /dev/fb255.spread ]; then
-        rm -f /dev/fb255 /dev/fb255.spread
+    if [ -e /dev/fb0.spread ]; then
+        rm -f /dev/fb0 /dev/fb0.spread
     fi
 
 execute: |
@@ -31,7 +31,7 @@ execute: |
 
     # classic snaps don't use 'plugs', so just test the accesses after install
     echo "the classic snap can access the framebuffer"
-    "$SNAP_MOUNT_DIR"/bin/test-classic-cgroup.read-fb 2>&1 | MATCH -v 'Permission denied'
+    "$SNAP_MOUNT_DIR"/bin/test-classic-cgroup.read-fb 2>&1 | MATCH -v '(Permission denied|Operation not permitted)'
 
     echo "the classic snap can access other devices"
     test "`$SNAP_MOUNT_DIR/bin/test-classic-cgroup.read-kmsg`"

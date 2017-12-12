@@ -12,4 +12,34 @@ post_install() {
   echo 'For more informations, see https://wiki.archlinux.org/index.php/Snapd'
 }
 
+_stop_services() {
+  /usr/bin/systemctl stop \
+                     snapd.service \
+                     snapd.socket \
+                     snapd.refresh.timer \
+                     snapd.refresh.service > /dev/null 2>&1
+}
+
+pre_remove() {
+  _stop_services
+
+  /usr/lib/snapd/snap-mgmt --purge || :
+}
+
+pre_upgrade() {
+  _stop_services
+}
+
+post_upgrade() {
+  /usr/bin/systemctl daemon-reload > /dev/null 2>&1 || :
+
+  # restore the services after an upgrade
+  if /usr/bin/systemctl -q is-enabled snapd.socket > /dev/null 2>&1; then
+    /usr/bin/systemctl start snapd.socket > /dev/null 2>&1 || :
+  fi
+  if systemctl -q is-enabled snapd.refresh.timer > /dev/null 2>&1; then
+    systemctl start snapd.refresh.timer > /dev/null 2>&1 || :
+  fi
+}
+
 # vim:set ts=2 sw=2 et:

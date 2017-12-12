@@ -53,6 +53,10 @@ var (
 	abortWait      = 24 * time.Hour * 7
 
 	pruneMaxChanges = 500
+
+	defaultCachedDownloads = 5
+
+	configstateInit = configstate.Init
 )
 
 // Overlord is the central manager of a snappy system, keeping
@@ -73,7 +77,6 @@ type Overlord struct {
 	assertMgr *assertstate.AssertManager
 	ifaceMgr  *ifacestate.InterfaceManager
 	hookMgr   *hookstate.HookManager
-	configMgr *configstate.ConfigManager
 	deviceMgr *devicestate.DeviceManager
 	cmdMgr    *cmdstate.CommandManager
 }
@@ -123,13 +126,6 @@ func New() (*Overlord, error) {
 	}
 	o.addManager(ifaceMgr)
 
-	configMgr, err := configstate.Manager(s, hookMgr)
-	if err != nil {
-		return nil, err
-	}
-	o.addManager(configMgr)
-	o.configMgr = configMgr
-
 	deviceMgr, err := devicestate.Manager(s, hookMgr)
 	if err != nil {
 		return nil, err
@@ -138,15 +134,18 @@ func New() (*Overlord, error) {
 
 	o.addManager(cmdstate.Manager(s))
 
+	configstateInit(hookMgr)
+
 	s.Lock()
 	defer s.Unlock()
 	// setting up the store
 	authContext := auth.NewAuthContext(s, o.deviceMgr)
 	sto := storeNew(nil, authContext)
+	sto.SetCacheDownloads(defaultCachedDownloads)
 
 	snapstate.ReplaceStore(s, sto)
 
-	if err := o.snapMgr.GenerateCookies(s); err != nil {
+	if err := o.snapMgr.SyncCookies(s); err != nil {
 		return nil, fmt.Errorf("failed to generate cookies: %q", err)
 	}
 
@@ -366,18 +365,20 @@ func (o *Overlord) InterfaceManager() *ifacestate.InterfaceManager {
 	return o.ifaceMgr
 }
 
-// HookManager returns the hook manager responsible for running hooks under the
-// overlord.
+// HookManager returns the hook manager responsible for running hooks
+// under the overlord.
 func (o *Overlord) HookManager() *hookstate.HookManager {
 	return o.hookMgr
 }
 
-// DeviceManager returns the device manager responsible for the device identity and policies
+// DeviceManager returns the device manager responsible for the device
+// identity and policies.
 func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
 	return o.deviceMgr
 }
 
-// CommandManager returns the manager responsible for running odd jobs
+// CommandManager returns the manager responsible for running odd
+// jobs.
 func (o *Overlord) CommandManager() *cmdstate.CommandManager {
 	return o.cmdMgr
 }

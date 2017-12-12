@@ -39,14 +39,14 @@ func (plug *Plug) Ref() PlugRef {
 }
 
 // Sanitize plug with a given snapd interface.
-func (plug *Plug) Sanitize(iface Interface) error {
-	if iface.Name() != plug.Interface {
+func BeforePreparePlug(iface Interface, plugInfo *snap.PlugInfo) error {
+	if iface.Name() != plugInfo.Interface {
 		return fmt.Errorf("cannot sanitize plug %q (interface %q) using interface %q",
-			plug.Ref(), plug.Interface, iface.Name())
+			PlugRef{Snap: plugInfo.Snap.Name(), Name: plugInfo.Name}, plugInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(PlugSanitizer); ok {
-		err = iface.SanitizePlug(plug)
+		err = iface.BeforePreparePlug(plugInfo)
 	}
 	return err
 }
@@ -74,14 +74,14 @@ func (slot *Slot) Ref() SlotRef {
 }
 
 // Sanitize slot with a given snapd interface.
-func (slot *Slot) Sanitize(iface Interface) error {
-	if iface.Name() != slot.Interface {
+func BeforePrepareSlot(iface Interface, slotInfo *snap.SlotInfo) error {
+	if iface.Name() != slotInfo.Interface {
 		return fmt.Errorf("cannot sanitize slot %q (interface %q) using interface %q",
-			slot.Ref(), slot.Interface, iface.Name())
+			SlotRef{Snap: slotInfo.Snap.Name(), Name: slotInfo.Name}, slotInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(SlotSanitizer); ok {
-		err = iface.SanitizeSlot(slot)
+		err = iface.BeforePrepareSlot(slotInfo)
 	}
 	return err
 }
@@ -117,15 +117,6 @@ type Info struct {
 type ConnRef struct {
 	PlugRef PlugRef
 	SlotRef SlotRef
-}
-
-type Connection struct {
-	plugInfo *snap.PlugInfo
-	slotInfo *snap.SlotInfo
-}
-
-func (conn *Connection) Interface() string {
-	return conn.plugInfo.Interface
 }
 
 // NewConnRef creates a connection reference for given plug and slot
@@ -176,12 +167,12 @@ type Interface interface {
 
 // PlugSanitizer can be implemented by Interfaces that have reasons to sanitize their plugs.
 type PlugSanitizer interface {
-	SanitizePlug(plug *Plug) error
+	BeforePreparePlug(plug *snap.PlugInfo) error
 }
 
 // SlotSanitizer can be implemented by Interfaces that have reasons to sanitize their slots.
 type SlotSanitizer interface {
-	SanitizeSlot(slot *Slot) error
+	BeforePrepareSlot(slot *snap.SlotInfo) error
 }
 
 // StaticInfo describes various static-info of a given interface.
@@ -218,13 +209,13 @@ func StaticInfoOf(iface Interface) (si StaticInfo) {
 // Specification describes interactions between backends and interfaces.
 type Specification interface {
 	// AddPermanentSlot records side-effects of having a slot.
-	AddPermanentSlot(iface Interface, slot *Slot) error
+	AddPermanentSlot(iface Interface, slot *snap.SlotInfo) error
 	// AddPermanentPlug records side-effects of having a plug.
-	AddPermanentPlug(iface Interface, plug *Plug) error
+	AddPermanentPlug(iface Interface, plug *snap.PlugInfo) error
 	// AddConnectedSlot records side-effects of having a connected slot.
-	AddConnectedSlot(iface Interface, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error
+	AddConnectedSlot(iface Interface, plug *ConnectedPlug, slot *ConnectedSlot) error
 	// AddConnectedPlug records side-effects of having a connected plug.
-	AddConnectedPlug(iface Interface, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error
+	AddConnectedPlug(iface Interface, plug *ConnectedPlug, slot *ConnectedSlot) error
 }
 
 // SecuritySystem is a name of a security system.
