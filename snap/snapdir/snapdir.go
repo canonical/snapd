@@ -21,6 +21,7 @@ package snapdir
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -58,6 +59,93 @@ func (s *SnapDir) Install(targetPath, mountDir string) error {
 
 func (s *SnapDir) ReadFile(file string) (content []byte, err error) {
 	return ioutil.ReadFile(filepath.Join(s.path, file))
+}
+
+func (s *SnapDir) Walk(relative string, walkFn filepath.WalkFunc) error {
+	relative = filepath.Clean(relative)
+	if relative == "" || relative == "/" {
+		relative = "."
+	} else if relative[0] == '/' {
+		// I said relative, darn it :-)
+		relative = relative[1:]
+	}
+	root := filepath.Join(s.path, relative)
+	f, err := os.Open(root)
+	if err != nil {
+		return walkFn(relative, nil, err)
+	}
+	defer func() {
+		if f != nil {
+			f.Close()
+		}
+	}()
+
+	st, err := f.Stat()
+	if err != nil {
+		return walkFn(relative, nil, err)
+	}
+
+	err = walkFn(relative, st, nil)
+	if err != nil {
+		return err
+	}
+	if !st.IsDir() {
+		return nil
+	}
+
+	const numSt = 100
+	var dirstack []string
+	for {
+		sts, err := f.Readdir(numSt)
+		if err != nil {
+			if err != io.EOF {
+				err = walkFn(relative, nil, err)
+				if err != nil {
+					return err
+				}
+			}
+			if len(dirstack) == 0 {
+				// finished
+				break
+			}
+			f.Close()
+			f = nil
+			for f == nil && len(dirstack) > 0 {
+				relative = dirstack[0]
+				f, err = os.Open(filepath.Join(s.path, relative))
+				if err != nil {
+					err = walkFn(relative, nil, err)
+					if err != nil {
+						return err
+					}
+				}
+				dirstack = dirstack[1:]
+			}
+			if f == nil {
+				break
+			}
+			continue
+		}
+
+		for _, st := range sts {
+			path := filepath.Join(relative, st.Name())
+			err = walkFn(path, st, nil)
+			if st.IsDir() {
+				switch err {
+				case nil:
+					dirstack = append(dirstack, path)
+				case filepath.SkipDir:
+					// nothing
+				default:
+					return err
+				}
+			} else if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func (s *SnapDir) ListDir(path string) ([]string, error) {

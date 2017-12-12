@@ -26,10 +26,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -124,6 +126,81 @@ func (s *SquashfsTestSuite) TestListDir(c *C) {
 	c.Check(fileNames[0], Equals, "bar-hook")
 	c.Check(fileNames[1], Equals, "dir")
 	c.Check(fileNames[2], Equals, "foo-hook")
+}
+
+func alike(a, b os.FileInfo, c *C, comment CommentInterface) {
+	c.Check(a, NotNil, comment)
+	c.Check(b, NotNil, comment)
+	if a == nil || b == nil {
+		return
+	}
+
+	// the .Name() of the root will be different on non-squashfs things
+	_, asq := a.(*stat)
+	_, bsq := b.(*stat)
+	if !((asq && a.Name() == "/") || (bsq && b.Name() == "/")) {
+		c.Check(a.Name(), Equals, b.Name(), comment)
+	}
+
+	c.Check(a.Mode(), Equals, b.Mode(), comment)
+	if a.Mode().IsRegular() {
+		c.Check(a.Size(), Equals, b.Size(), comment)
+	}
+	c.Check(a.ModTime().Truncate(time.Minute).Equal(b.ModTime().Truncate(time.Minute)), Equals, true, comment)
+}
+
+func (s *SquashfsTestSuite) TestWalk(c *C) {
+	sub := "."
+	snap := makeSnap(c, "name: foo", "")
+	sqw := map[string]os.FileInfo{}
+	snap.Walk(sub, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		sqw[path] = info
+		return nil
+	})
+
+	base := c.MkDir()
+	c.Assert(snap.Unpack("*", base), IsNil)
+
+	sdw := map[string]os.FileInfo{}
+	snapdir.New(base).Walk(sub, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		sdw[path] = info
+		return nil
+	})
+
+	fpw := map[string]os.FileInfo{}
+	filepath.Walk(filepath.Join(base, sub), func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		path, err = filepath.Rel(base, path)
+		if err != nil {
+			return err
+		}
+		fpw[path] = info
+		return nil
+	})
+
+	for k := range fpw {
+		alike(sqw[k], fpw[k], c, Commentf(k))
+		alike(sdw[k], fpw[k], c, Commentf(k))
+	}
+
+	for k := range sqw {
+		alike(fpw[k], sqw[k], c, Commentf(k))
+		alike(sdw[k], sqw[k], c, Commentf(k))
+	}
+
+	for k := range sdw {
+		alike(fpw[k], sdw[k], c, Commentf(k))
+		alike(sqw[k], sdw[k], c, Commentf(k))
+	}
+
 }
 
 // TestUnpackGlob tests the internal unpack
