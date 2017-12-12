@@ -1800,6 +1800,7 @@ const MockDetailsJSON = `{
     "architecture": [
         "all"
     ],
+    "base": "bare-base",
     "binary_filesize": 20480,
     "channel": "edge",
     "confinement": "strict",
@@ -2015,6 +2016,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(result.Title(), Equals, "Hello World")
 	c.Check(result.License, Equals, "GPL-3.0")
 	c.Assert(result.Prices, DeepEquals, map[string]float64{"EUR": 0.99, "USD": 1.23})
+	c.Assert(result.Paid, Equals, true)
 	c.Assert(result.Screenshots, DeepEquals, []snap.ScreenshotInfo{
 		{
 			URL: "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/screenshot.png",
@@ -2022,6 +2024,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	})
 	c.Check(result.MustBuy, Equals, true)
 	c.Check(result.Contact, Equals, "mailto:snappy-devel@lists.ubuntu.com")
+	c.Check(result.Base, Equals, "bare-base")
 
 	// Make sure the epoch (currently not sent by the store) defaults to "0"
 	c.Check(result.Epoch.String(), Equals, "0")
@@ -2325,7 +2328,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryProxyStoreFromAuthContext
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	nowhereURL, err := url.Parse("http://nowhere.nowhere")
+	nowhereURL, err := url.Parse("http://nowhere.invalid")
 	c.Assert(err, IsNil)
 	cfg := DefaultConfig()
 	cfg.StoreBaseURL = nowhereURL
@@ -3140,7 +3143,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidates(c *C
 			Channel:  "stable",
 			Revision: 1,
 		},
-	}, nil)
+	}, nil, nil)
 
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
@@ -3188,14 +3191,14 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesRetri
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 1,
-	}}, nil)
+	}}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 4)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name, Equals, "hello-world")
 }
 
-func mockRFC(newRFC func(*Store, []*currentSnapJSON, *auth.UserState) ([]*snapDetails, error)) func() {
+func mockRFC(newRFC func(*Store, []*currentSnapJSON, *auth.UserState, *RefreshOptions) ([]*snapDetails, error)) func() {
 	oldRFC := refreshForCandidates
 	refreshForCandidates = newRFC
 	return func() {
@@ -3204,7 +3207,7 @@ func mockRFC(newRFC func(*Store, []*currentSnapJSON, *auth.UserState) ([]*snapDe
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefresh(c *C) {
-	defer mockRFC(func(_ *Store, currentSnaps []*currentSnapJSON, _ *auth.UserState) ([]*snapDetails, error) {
+	defer mockRFC(func(_ *Store, currentSnaps []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		c.Check(currentSnaps, DeepEquals, []*currentSnapJSON{{
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
@@ -3239,7 +3242,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefresh(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshIgnoreValidation(c *C) {
-	defer mockRFC(func(_ *Store, currentSnaps []*currentSnapJSON, _ *auth.UserState) ([]*snapDetails, error) {
+	defer mockRFC(func(_ *Store, currentSnaps []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		c.Check(currentSnaps, DeepEquals, []*currentSnapJSON{{
 			SnapID:           helloWorldSnapID,
 			Channel:          "stable",
@@ -3273,7 +3276,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshIgnoreValida
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshLocalSnap(c *C) {
-	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState) ([]*snapDetails, error) {
+	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		panic("unexpected call to refreshForCandidates")
 	})()
 
@@ -3289,7 +3292,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshLocalSnap(c 
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshRFCError(c *C) {
 	anError := errors.New("ouchie")
-	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState) ([]*snapDetails, error) {
+	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		return nil, anError
 	})()
 
@@ -3305,7 +3308,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshRFCError(c *
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshEmptyResponse(c *C) {
-	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState) ([]*snapDetails, error) {
+	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		return nil, nil
 	})()
 
@@ -3321,7 +3324,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshEmptyRespons
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshNoUpdate(c *C) {
-	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState) ([]*snapDetails, error) {
+	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		return []*snapDetails{{
 			SnapID:   helloWorldDeveloperID,
 			Revision: 1,
@@ -3385,7 +3388,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 			Channel:  "stable",
 			Revision: snap.R(1),
 		},
-	}, nil)
+	}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, "hello-world")
@@ -3444,7 +3447,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshIgnoreValidati
 			Revision:         snap.R(1),
 			IgnoreValidation: true,
 		},
-	}, nil)
+	}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, "hello-world")
@@ -3497,7 +3500,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshDefaultChannel
 			SnapID:   helloWorldSnapID,
 			Revision: snap.R(1),
 		},
-	}, nil)
+	}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, "hello-world")
@@ -3544,7 +3547,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(1),
-	}}, nil)
+	}}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 4)
 	c.Assert(results, HasLen, 1)
@@ -3586,7 +3589,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
 			Revision: 1,
-		}}, nil)
+		}}, nil, nil)
 		return err
 	}
 
@@ -3631,7 +3634,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesEOF(c
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 1,
-	}}, nil)
+	}}, nil, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `^Post http://127.0.0.1:.*?/metadata: EOF$`)
 	c.Assert(n, Equals, 5)
@@ -3663,7 +3666,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesUnaut
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 24,
-	}}, nil)
+	}}, nil, nil)
 	c.Assert(n, Equals, 1)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 401 via POST to "http://.*?/metadata"`)
 }
@@ -3682,7 +3685,7 @@ func (t *remoteRepoTestSuite) TestRefreshForCandidatesFailOnDNS(c *C) {
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 24,
-	}}, nil)
+	}}, nil, nil)
 	// the error differs depending on whether a proxy is in use (e.g. on travis), so don't inspect error message
 	c.Assert(err, NotNil)
 }
@@ -3709,7 +3712,7 @@ func (t *remoteRepoTestSuite) TestRefreshForCandidates500(c *C) {
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 24,
-	}}, nil)
+	}}, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/metadata"`)
 	c.Assert(n, Equals, 5)
 }
@@ -3737,7 +3740,7 @@ func (t *remoteRepoTestSuite) TestRefreshForCandidates500DurationExceeded(c *C) 
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 24,
-	}}, nil)
+	}}, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://.*?/metadata"`)
 	c.Assert(n, Equals, 1)
 }
@@ -3794,7 +3797,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c 
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(26),
-	}}, nil)
+	}}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
 }
@@ -3839,7 +3842,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipBlocked(c 
 		Channel:  "stable",
 		Revision: snap.R(25),
 		Block:    []snap.Revision{snap.R(26)},
-	}}, nil)
+	}}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
 }
@@ -3929,7 +3932,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDefaultsDeltasOnClassicOn
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
 			Revision: 1,
-		}}, nil)
+		}}, nil, nil)
 	}
 }
 
@@ -3978,7 +3981,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(24),
-	}}, nil)
+	}}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Deltas, HasLen, 2)
@@ -4048,7 +4051,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(24),
-	}}, nil)
+	}}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Deltas, HasLen, 0)
@@ -4074,8 +4077,47 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(-2),
-	}}, nil)
+	}}, nil, nil)
 	c.Assert(err, IsNil)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshOptions(c *C) {
+	for _, t := range []struct {
+		flag   *RefreshOptions
+		header string
+	}{
+		{nil, ""},
+		{&RefreshOptions{RefreshManaged: true}, "X-Ubuntu-Refresh-Managed"},
+	} {
+
+		mockServerHit := false
+		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assertRequest(c, r, "POST", metadataPath)
+			if t.header != "" {
+				c.Check(r.Header.Get(t.header), Equals, "true")
+			}
+			mockServerHit = true
+			io.WriteString(w, `{}`)
+		}))
+
+		c.Assert(mockServer, NotNil)
+		defer mockServer.Close()
+
+		mockServerURL, _ := url.Parse(mockServer.URL)
+		cfg := Config{
+			StoreBaseURL: mockServerURL,
+		}
+		repo := New(&cfg, nil)
+		c.Assert(repo, NotNil)
+
+		_, err := repo.ListRefresh([]*RefreshCandidate{{
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(24),
+		}}, nil, t.flag)
+		c.Assert(err, IsNil)
+		c.Check(mockServerHit, Equals, true)
+	}
 }
 
 func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
@@ -4246,7 +4288,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionProxyStoreFromAu
 	defer mockServer.Close()
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
-	nowhereURL, err := url.Parse("http://nowhere.nowhere")
+	nowhereURL, err := url.Parse("http://nowhere.invalid")
 	c.Assert(err, IsNil)
 	cfg := Config{
 		AssertionsBaseURL: nowhereURL,
@@ -4386,14 +4428,17 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrders(c *C) {
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
 	helloWorld.Prices = map[string]float64{"USD": 1.23}
+	helloWorld.Paid = true
 
 	funkyApp := &snap.Info{}
 	funkyApp.SnapID = funkyAppSnapID
 	funkyApp.Prices = map[string]float64{"USD": 2.34}
+	funkyApp.Paid = true
 
 	otherApp := &snap.Info{}
 	otherApp.SnapID = "other"
 	otherApp.Prices = map[string]float64{"USD": 3.45}
+	otherApp.Paid = true
 
 	otherApp2 := &snap.Info{}
 	otherApp2.SnapID = "other2"
@@ -4432,14 +4477,17 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersFailedAccess(c *C) {
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
 	helloWorld.Prices = map[string]float64{"USD": 1.23}
+	helloWorld.Paid = true
 
 	funkyApp := &snap.Info{}
 	funkyApp.SnapID = funkyAppSnapID
 	funkyApp.Prices = map[string]float64{"USD": 2.34}
+	funkyApp.Paid = true
 
 	otherApp := &snap.Info{}
 	otherApp.SnapID = "other"
 	otherApp.Prices = map[string]float64{"USD": 3.45}
+	otherApp.Paid = true
 
 	otherApp2 := &snap.Info{}
 	otherApp2.SnapID = "other2"
@@ -4463,14 +4511,17 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersNoAuth(c *C) {
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
 	helloWorld.Prices = map[string]float64{"USD": 1.23}
+	helloWorld.Paid = true
 
 	funkyApp := &snap.Info{}
 	funkyApp.SnapID = funkyAppSnapID
 	funkyApp.Prices = map[string]float64{"USD": 2.34}
+	funkyApp.Paid = true
 
 	otherApp := &snap.Info{}
 	otherApp.SnapID = "other"
 	otherApp.Prices = map[string]float64{"USD": 3.45}
+	otherApp.Paid = true
 
 	otherApp2 := &snap.Info{}
 	otherApp2.SnapID = "other2"
@@ -4546,6 +4597,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingle(c *C) {
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
 	helloWorld.Prices = map[string]float64{"USD": 1.23}
+	helloWorld.Paid = true
 
 	snaps := []*snap.Info{helloWorld}
 
@@ -4594,6 +4646,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingleNotFound(c *C) 
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
 	helloWorld.Prices = map[string]float64{"USD": 1.23}
+	helloWorld.Paid = true
 
 	snaps := []*snap.Info{helloWorld}
 
@@ -4626,6 +4679,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersTokenExpired(c *C) {
 	helloWorld := &snap.Info{}
 	helloWorld.SnapID = helloWorldSnapID
 	helloWorld.Prices = map[string]float64{"USD": 1.23}
+	helloWorld.Paid = true
 
 	snaps := []*snap.Info{helloWorld}
 
@@ -4635,18 +4689,15 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersTokenExpired(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreMustBuy(c *C) {
-	free := map[string]float64{}
-	priced := map[string]float64{"USD": 2.99}
-
 	// Never need to buy a free snap.
-	c.Check(mustBuy(free, true), Equals, false)
-	c.Check(mustBuy(free, false), Equals, false)
+	c.Check(mustBuy(false, true), Equals, false)
+	c.Check(mustBuy(false, false), Equals, false)
 
 	// Don't need to buy snaps that have been bought.
-	c.Check(mustBuy(priced, true), Equals, false)
+	c.Check(mustBuy(true, true), Equals, false)
 
 	// Need to buy snaps that aren't bought.
-	c.Check(mustBuy(priced, false), Equals, true)
+	c.Check(mustBuy(true, false), Equals, true)
 }
 
 const customersMeValid = `

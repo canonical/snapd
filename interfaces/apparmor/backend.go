@@ -279,7 +279,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	// core on classic is special
-	if snapName == "core" && release.OnClassic && !release.ReleaseInfo.ForceDevMode() {
+	if snapName == "core" && release.OnClassic && release.AppArmorLevel() != release.NoAppArmor {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
 			logger.Noticef("cannot create host snap-confine apparmor configuration: %s", err)
 		}

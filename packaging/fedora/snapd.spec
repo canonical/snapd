@@ -47,17 +47,33 @@
 
 %global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
 
+# Until we have a way to add more extldflags to gobuild macro...
+%if 0%{?fedora} >= 26
+%define gobuild_static(o:) go build -buildmode pie -compiler gc -tags=rpm_crashtraceback -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
+%endif
+%if 0%{?fedora} == 25
+%define gobuild_static(o:) go build -compiler gc -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '-static'" -a -v -x %{?**};
+%endif
+%if 0%{?rhel} == 7
+%define gobuild_static(o:) go build -compiler gc -tags=rpm_crashtraceback -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
+%endif
+
+# These macros are not defined in RHEL 7
+%if 0%{?rhel} == 7
+%define gobuild(o:) go build -compiler gc -tags=rpm_crashtraceback -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags'" -a -v -x %{?**};
+%define gotest() go test -compiler gc -ldflags "${LDFLAGS:-}" %{?**};
+%endif
+
 Name:           snapd
-Version:        2.29.2
+Version:        2.29.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
 License:        GPLv3
 URL:            https://%{provider_prefix}
-%if ! 0%{?with_bundled}
 Source0:        https://%{provider_prefix}/archive/%{version}/%{name}-%{version}.tar.gz
-%else
-Source0:        https://%{provider_prefix}/releases/download/%{version}/%{name}_%{version}.vendor.orig.tar.xz
+%if 0%{?with_bundled}
+Source1:        https://%{provider_prefix}/releases/download/%{version}/%{name}_%{version}.only-vendor.tar.xz
 %endif
 
 %if 0%{?with_goarches}
@@ -75,8 +91,11 @@ BuildRequires:  systemd
 
 Requires:       snap-confine%{?_isa} = %{version}-%{release}
 Requires:       squashfs-tools
-# we need squashfs.ko loaded
-Requires:       kmod(squashfs.ko)
+# snapd will use this in the event that squashfs.ko isn't available (cloud instances, containers, etc.)
+# FIXME: Use rich deps for this once Bodhi is switched to using pungi
+Requires:       squashfuse
+Requires:       fuse
+
 # bash-completion owns /usr/share/bash-completion/completions
 Requires:       bash-completion
 
@@ -130,7 +149,9 @@ BuildRequires:  pkgconfig(systemd)
 BuildRequires:  pkgconfig(udev)
 BuildRequires:  xfsprogs-devel
 BuildRequires:  glibc-static
+%if ! 0%{?rhel}
 BuildRequires:  libseccomp-static
+%endif
 BuildRequires:  valgrind
 BuildRequires:  %{_bindir}/rst2man
 %if 0%{?fedora} >= 25
@@ -249,6 +270,7 @@ Provides:      golang(%{import_path}/interfaces/policy) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/seccomp) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/systemd) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/udev) = %{version}-%{release}
+Provides:      golang(%{import_path}/jsonutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/logger) = %{version}-%{release}
 Provides:      golang(%{import_path}/osutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord) = %{version}-%{release}
@@ -257,27 +279,35 @@ Provides:      golang(%{import_path}/overlord/auth) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/cmdstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate/config) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/configstate/configcore) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/devicestate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate/ctlcmd) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate/hooktest) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/ifacestate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/patch) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/servicestate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/snapstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/snapstate/backend) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/state) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/storestate) = %{version}-%{release}
 Provides:      golang(%{import_path}/partition) = %{version}-%{release}
 Provides:      golang(%{import_path}/partition/androidbootenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/partition/grubenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/partition/ubootenv) = %{version}-%{release}
+Provides:      golang(%{import_path}/polkit) = %{version}-%{release}
 Provides:      golang(%{import_path}/progress) = %{version}-%{release}
+Provides:      golang(%{import_path}/progress/progresstest) = %{version}-%{release}
 Provides:      golang(%{import_path}/release) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap) = %{version}-%{release}
+Provides:      golang(%{import_path}/snap/pack) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/snapdir) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/snapenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/snaptest) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/squashfs) = %{version}-%{release}
+Provides:      golang(%{import_path}/spdx) = %{version}-%{release}
 Provides:      golang(%{import_path}/store) = %{version}-%{release}
+Provides:      golang(%{import_path}/store/storetest) = %{version}-%{release}
 Provides:      golang(%{import_path}/strutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/systemd) = %{version}-%{release}
 Provides:      golang(%{import_path}/tests/lib/fakestore/refresh) = %{version}-%{release}
@@ -285,6 +315,7 @@ Provides:      golang(%{import_path}/tests/lib/fakestore/store) = %{version}-%{r
 Provides:      golang(%{import_path}/testutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/timeout) = %{version}-%{release}
 Provides:      golang(%{import_path}/timeutil) = %{version}-%{release}
+Provides:      golang(%{import_path}/userd) = %{version}-%{release}
 Provides:      golang(%{import_path}/wrappers) = %{version}-%{release}
 Provides:      golang(%{import_path}/x11) = %{version}-%{release}
 
@@ -338,6 +369,9 @@ rm -rf vendor/*
 mkdir -p vendor/gopkg.in/cheggaaa
 ln -s %{gopath}/src/github.com/cheggaaa/pb vendor/gopkg.in/cheggaaa/pb.v1
 
+%else
+# Unpack the vendor tarball too...
+%setup -q -T -D -b 1
 %endif
 
 %build
@@ -365,12 +399,20 @@ GOFLAGS="$GOFLAGS -tags withtestkeys"
 %gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
 %gobuild -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
-# build snap-exec and snap-update-ns completely static for base snaps
-CGO_ENABLED=0 %gobuild -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
-%gobuild -o bin/snap-update-ns  --ldflags '-extldflags "-static"' $GOFLAGS %{import_path}/cmd/snap-update-ns
 
+# To ensure things work correctly with base snaps,
+# snap-exec and snap-update-ns need to be built statically
+%gobuild_static -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
+%gobuild_static -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
+
+%if ! 0%{?with_bundled}
 # We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
 sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
+%endif
+%if 0%{?rhel}
+# There's no static link library for libseccomp in RHEL/CentOS...
+sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
+%endif
 %gobuild -o bin/snap-seccomp $GOFLAGS %{import_path}/cmd/snap-seccomp
 
 # Build SELinux module
@@ -399,16 +441,13 @@ autoreconf --force --install --verbose
 %make_build
 popd
 
-# Build systemd units
-pushd ./data/
+# Build systemd and dbus units, and env files
+pushd ./data
 make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
      SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
      SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
      SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
 popd
-
-# Build environ-tweaking snippet
-make -C data/env SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap"
 
 %install
 install -d -p %{buildroot}%{_bindir}
@@ -464,8 +503,8 @@ rm -rfv %{buildroot}%{_sysconfdir}/apparmor.d
 rm -fv %{buildroot}%{_bindir}/ubuntu-core-launcher
 popd
 
-# Install all systemd units
-pushd ./data/
+# Install all systemd and dbus units, and env files
+pushd ./data
 %make_install SYSTEMDSYSTEMUNITDIR="%{_unitdir}" BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}"
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
@@ -476,19 +515,12 @@ popd
 # Remove snappy core specific scripts
 rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 
-# Install environ-tweaking snippet
-pushd ./data/env
-%make_install
-popd
-
 # Disable re-exec by default
 echo 'SNAP_REEXEC=0' > %{buildroot}%{_sysconfdir}/sysconfig/snapd
 
-# Install snap management script
-install -pm 0755 packaging/fedora/snap-mgmt.sh %{buildroot}%{_libexecdir}/snapd/snap-mgmt
-
-# Create state.json file to be ghosted
+# Create state.json and the README file to be ghosted
 touch %{buildroot}%{_sharedstatedir}/snapd/state.json
+touch %{buildroot}%{_sharedstatedir}/snapd/snap/README
 
 # source codes for building projects
 %if 0%{?with_devel}
@@ -562,6 +594,7 @@ popd
 %{_unitdir}/snapd.autoimport.service
 %{_unitdir}/snapd.refresh.service
 %{_unitdir}/snapd.refresh.timer
+%{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
 %dir %{_sharedstatedir}/snapd/assertions
@@ -574,11 +607,11 @@ popd
 %dir %{_sharedstatedir}/snapd/seccomp/bpf
 %dir %{_sharedstatedir}/snapd/snaps
 %dir %{_sharedstatedir}/snapd/snap
-%dir /var/cache/snapd
 %ghost %dir %{_sharedstatedir}/snapd/snap/bin
+%dir %{_localstatedir}/cache/snapd
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
-%{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
+%ghost %{_sharedstatedir}/snapd/snap/README
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
@@ -586,7 +619,7 @@ popd
 %dir %{_libexecdir}/snapd
 # For now, we can't use caps
 # FIXME: Switch to "%%attr(0755,root,root) %%caps(cap_sys_admin=pe)" asap!
-%attr(4755,root,root) %{_libexecdir}/snapd/snap-confine
+%attr(6755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
@@ -594,7 +627,6 @@ popd
 %{_mandir}/man1/snap-confine.1*
 %{_mandir}/man5/snap-discard-ns.5*
 %{_prefix}/lib/udev/snappy-app-dev
-%{_udevrulesdir}/80-snappy-assign.rules
 %attr(0000,root,root) %{_sharedstatedir}/snapd/void
 
 
@@ -651,6 +683,9 @@ fi
 %selinux_modules_install %{_datadir}/selinux/packages/snappy.pp.bz2
 %selinux_relabel_post
 
+%posttrans selinux
+%selinux_relabel_post
+
 %postun selinux
 %selinux_modules_uninstall snappy
 if [ $1 -eq 0 ]; then
@@ -659,6 +694,32 @@ fi
 
 
 %changelog
+* Fri Nov 17 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.29.4
+ - snap-confine: fix snap-confine under lxd
+ - tests: disable classic-ubuntu-core-transition on i386 temporarily
+ - many: reject bad plugs/slots
+ - interfaces,tests: skip unknown plug/slot interfaces
+ - store: enable "base" field from the store
+ - packaging/fedora: Merge changes from Fedora Dist-Git
+
+* Thu Nov 09 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.29.3
+ - daemon: cherry-picked /v2/logs fixes
+ - cmd/snap-confine: Respect biarch nature of libdirs
+ - cmd/snap-confine: Ensure snap-confine is allowed to access os-
+   release
+ - interfaces: fix udev tagging for hooks
+ - cmd: fix re-exec bug with classic confinement for host snapd
+ - tests: disable xdg-open-compat test
+ - cmd/snap-confine: add slave PTYs and let devpts newinstance
+   perform mediation
+ - interfaces/many: misc policy updates for browser-support, cups-
+   control and network-status
+ - interfaces/raw-usb: match on SUBSYSTEM, not SUBSYSTEMS
+ - tests: fix security-device-cgroup* tests on devices with
+   framebuffer
+
 * Fri Nov 03 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.29.2
   - snapctl: disable stop/start/restart (2.29)
@@ -868,6 +929,14 @@ fi
  - docs: use abolute path in PULL_REQUEST_TEMPLATE.md
  - store: move device auth endpoint uris to config (#3831)
 
+* Sat Oct 14 2017 Neal Gompa <ngompa13@gmail.com> - 2.28.5-2
+- Properly fix the build for Fedora 25
+- Incorporate misc build fixes
+
+* Sat Oct 14 2017 Neal Gompa <ngompa13@gmail.com> - 2.28.5-1
+- Release 2.28.5 to Fedora (RH#1502186)
+- Build snap-exec and snap-update-ns statically to support base snaps
+
 * Fri Oct 13 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.28.5
   - snap-confine: cleanup broken nvidia udev tags
@@ -877,6 +946,10 @@ fi
     exec
   - snap-confine: add support for handling /dev/nvidia-modeset
   - interfaces/network-control: remove incorrect rules for tun
+
+* Thu Oct 12 2017 Neal Gompa <ngompa13@gmail.com> - 2.28.4-1
+- Release 2.28.4 to Fedora (RH#1501141)
+- Drop distro check backport patches (released with 2.28.2)
 
 * Wed Oct 11 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.28.4
@@ -894,6 +967,13 @@ fi
   - interfaces: fix udev rules for tun
   - release,cmd,dirs: Redo the distro checks to take into account
     distribution families
+
+* Sun Oct 08 2017 Neal Gompa <ngompa13@gmail.com> - 2.28.1-1
+- Release 2.28.1 to Fedora (RH#1495852)
+- Drop userd backport patches, they are part of 2.28 release
+- Backport changes to rework distro checks to fix derivative distro usage of snapd
+- Revert import path change for cheggaaa/pb as it breaks build on Fedora
+- Add a posttrans relabel to snapd-selinux to ensure everything is labeled correctly
 
 * Wed Sep 27 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.28.1
@@ -1169,11 +1249,18 @@ fi
  - store: configurable base api
  - tests: fix how package lists are updated for opensuse and fedora
 
+* Sun Sep 10 2017 Neal Gompa <ngompa13@gmail.com> - 2.27.6-1
+- Release 2.27.6 to Fedora (RH#1489437)
+
 * Thu Sep 07 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.27.6
   - interfaces: add udev netlink support to hardware-observe
   - interfaces/network-{control,observe}: allow receiving
     kobject_uevent() messages
+
+* Mon Sep 04 2017 Neal Gompa <ngompa13@gmail.com> - 2.27.5-1
+- Release 2.27.5 to Fedora (RH#1483177)
+- Backport userd from upstream to support xdg-open
 
 * Wed Aug 30 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.27.5

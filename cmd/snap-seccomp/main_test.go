@@ -350,9 +350,6 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 //    {"read >=2", "read;native;1", main.SeccompRetKill},
 //    {"read >=2", "read;native;0", main.SeccompRetKill},
 func (s *snapSeccompSuite) TestCompile(c *C) {
-	// The 'shadow' group is different in different distributions
-	shadowGid, err := osutil.FindGid("shadow")
-	c.Assert(err, IsNil)
 
 	for _, t := range []struct {
 		seccompWhitelist string
@@ -447,11 +444,11 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
 
-		// u:root g:shadow
-		{"fchown - u:root g:shadow", fmt.Sprintf("fchown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
-		{"fchown - u:root g:shadow", fmt.Sprintf("fchown;native;-,99,%d", shadowGid), main.SeccompRetKill},
-		{"chown - u:root g:shadow", fmt.Sprintf("chown;native;-,0,%d", shadowGid), main.SeccompRetAllow},
-		{"chown - u:root g:shadow", fmt.Sprintf("chown;native;-,99,%d", shadowGid), main.SeccompRetKill},
+		// u:root g:root
+		{"fchown - u:root g:root", "fchown;native;-,0,0", main.SeccompRetAllow},
+		{"fchown - u:root g:root", "fchown;native;-,99,0", main.SeccompRetKill},
+		{"chown - u:root g:root", "chown;native;-,0,0", main.SeccompRetAllow},
+		{"chown - u:root g:root", "chown;native;-,99,0", main.SeccompRetKill},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
@@ -741,17 +738,24 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsTermios(c *C) {
 }
 
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
+	// while 'root' user usually has uid 0, 'daemon' user uid may vary
+	// across distributions, best lookup the uid directly
+	daemonUid, err := osutil.FindUid("daemon")
+	c.Assert(err, IsNil)
+
 	for _, t := range []struct {
 		seccompWhitelist string
 		bpfInput         string
 		expected         int
 	}{
-		// good input. 'root' and 'daemon' are guaranteed to be '0' and
-		// '1' respectively
+		// good input. 'root' is guaranteed to be '0' and 'daemon' uid
+		// was determined at runtime
 		{"setuid u:root", "setuid;native;0", main.SeccompRetAllow},
-		{"setuid u:daemon", "setuid;native;1", main.SeccompRetAllow},
+		{"setuid u:daemon", fmt.Sprintf("setuid;native;%v", daemonUid),
+			main.SeccompRetAllow},
 		{"setgid g:root", "setgid;native;0", main.SeccompRetAllow},
-		{"setgid g:daemon", "setgid;native;1", main.SeccompRetAllow},
+		{"setgid g:daemon", fmt.Sprintf("setgid;native;%v", daemonUid),
+			main.SeccompRetAllow},
 		// bad input
 		{"setuid u:root", "setuid;native;99", main.SeccompRetKill},
 		{"setuid u:daemon", "setuid;native;99", main.SeccompRetKill},

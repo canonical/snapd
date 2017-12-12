@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -55,6 +54,9 @@ func (c Change) String() string {
 	return fmt.Sprintf("%s (%s)", c.Action, c.Entry)
 }
 
+// changePerform is Change.Perform that can be mocked for testing.
+var changePerform = (*Change).Perform
+
 // Perform executes the desired mount or unmount change using system calls.
 // Filesystems that depend on helper programs or multiple independent calls to
 // the kernel (--make-shared, for example) are unsupported.
@@ -63,9 +65,11 @@ func (c Change) String() string {
 // this change (such as mounted tmpfs or overlayfs).
 func (c *Change) Perform() ([]*Change, error) {
 	if c.Action == Mount {
-		mode := os.FileMode(0755)
-		uid := 0
-		gid := 0
+		const (
+			mode = 0755
+			uid  = 0
+			gid  = 0
+		)
 		// Create target mount directory if needed.
 		if err := ensureMountPoint(c.Entry.Dir, mode, uid, gid); err != nil {
 			return nil, err
@@ -91,7 +95,7 @@ func (c *Change) lowLevelPerform() error {
 		logger.Debugf("mount %q %q %q %d %q -> %s", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
 		return err
 	case Unmount:
-		err := sysUnmount(c.Entry.Dir, UMOUNT_NOFOLLOW)
+		err := sysUnmount(c.Entry.Dir, umountNoFollow)
 		logger.Debugf("umount %q -> %v", c.Entry.Dir, err)
 		return err
 	case Keep:
@@ -133,25 +137,62 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 		desiredMap[desired[i].Dir] = &desired[i]
 	}
 
+	// Indexed by mount point path.
+	reuse := make(map[string]bool)
+	// Indexed by entry ID
+	desiredIDs := make(map[string]bool)
+	var skipDir string
+
+	// Collect the IDs of desired changes.
+	// We need that below to keep implicit changes from the current profile.
+	for i := range desired {
+		desiredIDs[XSnapdEntryID(&desired[i])] = true
+	}
+
 	// Compute reusable entries: those which are equal in current and desired and which
 	// are not prefixed by another entry that changed.
-	var reuse map[string]bool
-	var skipDir string
 	for i := range current {
 		dir := current[i].Dir
 		if skipDir != "" && strings.HasPrefix(dir, skipDir) {
+			logger.Debugf("skipping entry %q", current[i])
 			continue
 		}
 		skipDir = "" // reset skip prefix as it no longer applies
-		if entry, ok := desiredMap[dir]; ok && current[i].Equal(entry) {
-			if reuse == nil {
-				reuse = make(map[string]bool)
-			}
+
+		// Reuse synthetic entries if their needed-by entry is desired.
+		// Synthetic entries cannot exist on their own and always couple to a
+		// non-synthetic entry.
+
+		// NOTE: Synthetic changes have a special purpose.
+		//
+		// They are a "shadow" of mount events that occurred to allow one of
+		// the desired mount entries to be possible. The changes have only one
+		// goal: tell snap-update-ns how those mount events can be undone in
+		// case they are no longer needed. The actual changes may have been
+		// different and may have involved steps not represented as synthetic
+		// mount entires as long as those synthetic entries can be undone to
+		// reverse the effect. In reality each non-tmpfs synthetic entry was
+		// constructed using a temporary bind mount that contained the original
+		// mount entries of a directory that was hidden with a tmpfs, but this
+		// fact was lost.
+		if XSnapdSynthetic(&current[i]) && desiredIDs[XSnapdNeededBy(&current[i])] {
+			logger.Debugf("reusing synthetic entry %q", current[i])
 			reuse[dir] = true
 			continue
 		}
+
+		// Reuse entries that are desired and identical in the current profile.
+		if entry, ok := desiredMap[dir]; ok && current[i].Equal(entry) {
+			logger.Debugf("reusing unchanged entry %q", current[i])
+			reuse[dir] = true
+			continue
+		}
+
 		skipDir = strings.TrimSuffix(dir, "/") + "/"
 	}
+
+	logger.Debugf("desiredIDs: %v", desiredIDs)
+	logger.Debugf("reuse: %v", reuse)
 
 	// We are now ready to compute the necessary mount changes.
 	var changes []*Change

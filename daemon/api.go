@@ -155,9 +155,9 @@ var (
 	}
 
 	logsCmd = &Command{
-		Path:   "/v2/logs",
-		UserOK: true,
-		GET:    getLogs,
+		Path:     "/v2/logs",
+		PolkitOK: "io.snapcraft.snapd.manage",
+		GET:      getLogs,
 	}
 
 	snapConfCmd = &Command{
@@ -267,7 +267,10 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	st.Lock()
 	nextRefresh := snapMgr.NextRefresh()
 	lastRefresh, _ := snapMgr.LastRefresh()
-	refreshScheduleStr := snapMgr.RefreshSchedule()
+	refreshScheduleStr, err := snapMgr.RefreshSchedule()
+	if err != nil {
+		return InternalError("cannot get refresh schedule: %s", err)
+	}
 	users, err := auth.Users(st)
 	st.Unlock()
 	if err != nil && err != state.ErrNoState {
@@ -1562,16 +1565,13 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &snapst); err != nil {
-		if err == state.ErrNoState {
+	taskset, err := configstate.ConfigureInstalled(st, snapName, patchValues, 0)
+	if err != nil {
+		if _, ok := err.(*snap.NotInstalledError); ok {
 			return SnapNotFound(snapName, err)
-		} else {
-			return InternalError("%v", err)
 		}
+		return InternalError("%v", err)
 	}
-
-	taskset := configstate.Configure(st, snapName, patchValues, 0)
 
 	summary := fmt.Sprintf("Change configuration of %q snap", snapName)
 	change := newChange(st, "configure-snap", summary, []*state.TaskSet{taskset}, []string{snapName})
@@ -2179,13 +2179,9 @@ func setupLocalUser(st *state.State, username, email string) error {
 	if err != nil {
 		return fmt.Errorf("cannot lookup user %q: %s", username, err)
 	}
-	uid, err := strconv.Atoi(user.Uid)
+	uid, gid, err := osutil.UidGid(user)
 	if err != nil {
-		return fmt.Errorf("cannot get uid of user %q: %s", username, err)
-	}
-	gid, err := strconv.Atoi(user.Gid)
-	if err != nil {
-		return fmt.Errorf("cannot get gid of user %q: %s", username, err)
+		return err
 	}
 	authDataFn := filepath.Join(user.HomeDir, ".snap", "auth.json")
 	if err := osutil.MkdirAllChown(filepath.Dir(authDataFn), 0700, uid, gid); err != nil {
@@ -2361,6 +2357,8 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(map[string]interface{}{
 			"base-declaration": string(asserts.Encode(bd)),
 		}, nil)
+	case "can-manage-refreshes":
+		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
@@ -2642,6 +2640,9 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 	if rsp != nil {
 		return rsp
 	}
+	if len(appInfos) == 0 {
+		return AppNotFound("no matching services")
+	}
 
 	serviceNames := make([]string, len(appInfos))
 	for i, appInfo := range appInfos {
@@ -2682,7 +2683,7 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
-	ts, err := servicestate.Control(st, appInfos, &inst)
+	ts, err := servicestate.Control(st, appInfos, &inst, nil)
 	if err != nil {
 		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
 			return Conflict(err.Error())

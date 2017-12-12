@@ -20,7 +20,7 @@
 
 #include <glib.h>
 
-static void test_verify_security_tag()
+static void test_verify_security_tag(void)
 {
 	// First, test the names we know are good
 	g_assert_true(verify_security_tag("snap.name.app", "name"));
@@ -77,7 +77,7 @@ static void test_verify_security_tag()
 
 }
 
-static void test_sc_snap_name_validate()
+static void test_sc_snap_name_validate(void)
 {
 	struct sc_error *err = NULL;
 
@@ -144,7 +144,7 @@ static void test_sc_snap_name_validate()
 		"a0", "a-0", "a-0a",
 		"01game", "1-or-2"
 	};
-	for (int i = 0; i < sizeof valid_names / sizeof *valid_names; ++i) {
+	for (size_t i = 0; i < sizeof valid_names / sizeof *valid_names; ++i) {
 		g_test_message("checking valid snap name: %s", valid_names[i]);
 		sc_snap_name_validate(valid_names[i], &err);
 		g_assert_null(err);
@@ -165,7 +165,8 @@ static void test_sc_snap_name_validate()
 		// identifier must be plain ASCII
 		"日本語", "한글", "ру́сский язы́к",
 	};
-	for (int i = 0; i < sizeof invalid_names / sizeof *invalid_names; ++i) {
+	for (size_t i = 0; i < sizeof invalid_names / sizeof *invalid_names;
+	     ++i) {
 		g_test_message("checking invalid snap name: >%s<",
 			       invalid_names[i]);
 		sc_snap_name_validate(invalid_names[i], &err);
@@ -182,7 +183,7 @@ static void test_sc_snap_name_validate()
 
 }
 
-static void test_sc_snap_name_validate__respects_error_protocol()
+static void test_sc_snap_name_validate__respects_error_protocol(void)
 {
 	if (g_test_subprocess()) {
 		sc_snap_name_validate("hello world", NULL);
@@ -196,7 +197,7 @@ static void test_sc_snap_name_validate__respects_error_protocol()
 	    ("snap name must use lower case letters, digits or dashes\n");
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/snap/verify_security_tag", test_verify_security_tag);
 	g_test_add_func("/snap/sc_snap_name_validate",

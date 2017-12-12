@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const ofonoSummary = `allows operating as the ofono service`
@@ -289,20 +290,6 @@ ATTRS{idVendor}=="1c9e", ATTRS{idProduct}=="9605", ENV{ID_USB_INTERFACE_NUM}=="0
 LABEL="ofono_speedup_end"
 `
 
-/*
-  1.Linux modem drivers set up the modem device /dev/modem as a symbolic link
-    to the actual device to /dev/ttyS*
-  2./dev/socket/rild is just a socket, not device node created by rild daemon.
-    Similar case for chnlat*.
-  So we intetionally skipped modem, rild and chnlat.
-*/
-const ofonoPermanentSlotUDevTag = `
-KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="tun",          TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="tun[0-9]*",    TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="dsp",          TAG+="###CONNECTED_SECURITY_TAGS###"
-`
-
 type ofonoInterface struct{}
 
 func (iface *ofonoInterface) Name() string {
@@ -317,7 +304,7 @@ func (iface *ofonoInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(ofonoConnectedPlugAppArmor, old, new, -1))
@@ -329,36 +316,39 @@ func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 
 }
 
-func (iface *ofonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(ofonoPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(ofonoPermanentSlotDBus)
 	return nil
 }
 
-func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	old := "###CONNECTED_SECURITY_TAGS###"
-	udevRule := ofonoPermanentSlotUDev
-	for appName := range slot.Apps {
-		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
-		udevRule += strings.Replace(ofonoPermanentSlotUDevTag, old, tag, -1)
-		spec.AddSnippet(udevRule)
-	}
-	spec.AddSnippet(udevRule)
+func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+	spec.AddSnippet(ofonoPermanentSlotUDev)
+	/*
+	   1.Linux modem drivers set up the modem device /dev/modem as a symbolic link
+	     to the actual device to /dev/ttyS*
+	   2./dev/socket/rild is just a socket, not device node created by rild daemon.
+	     Similar case for chnlat*.
+	   So we intetionally skipped modem, rild and chnlat.
+	*/
+	spec.TagDevice(`KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*"`)
+	spec.TagDevice(`KERNEL=="tun"`)
+	spec.TagDevice(`KERNEL=="dsp"`)
 	return nil
 }
 
-func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(ofonoConnectedSlotAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *ofonoInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(ofonoPermanentSlotSecComp)
 	return nil
 }

@@ -35,7 +35,7 @@ const tpmConnectedPlugAppArmor = `
 /dev/tpm0 rw,
 `
 
-const tpmConnectedPlugUDev = `KERNEL=="tpm[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"`
+var tpmConnectedPlugUDev = []string{`KERNEL=="tpm[0-9]*"`}
 
 func init() {
 	registerIface(&commonInterface{

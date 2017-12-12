@@ -121,6 +121,10 @@ func run() error {
 		thawSnapProcesses(opts.Positionals.SnapName)
 	}()
 
+	return computeAndSaveChanges(snapName)
+}
+
+func computeAndSaveChanges(snapName string) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
@@ -147,7 +151,7 @@ func run() error {
 	var changesMade []*Change
 	for _, change := range changesNeeded {
 		logger.Debugf("\t * %s", change)
-		synthesised, err := change.Perform()
+		synthesised, err := changePerform(change)
 		// NOTE: we may have done something even if Perform itself has failed.
 		// We need to collect synthesized changes and store them.
 		changesMade = append(changesMade, synthesised...)
