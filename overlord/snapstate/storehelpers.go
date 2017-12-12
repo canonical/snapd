@@ -29,11 +29,32 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
-	if userID == 0 {
-		return nil, nil
+func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
+	userID := snapst.UserID
+	_, err := auth.User(st, userID)
+	if err == nil {
+		return userID, nil
 	}
-	return auth.User(st, userID)
+	if err != auth.ErrInvalidUser {
+		return 0, err
+	}
+	return fallbackUserID, nil
+}
+
+func userFromUserID(st *state.State, userIDs ...int) (*auth.UserState, error) {
+	var user *auth.UserState
+	var err error
+	for _, userID := range userIDs {
+		if userID == 0 {
+			err = nil
+			continue
+		}
+		user, err = auth.User(st, userID)
+		if err != auth.ErrInvalidUser {
+			break
+		}
+	}
+	return user, err
 }
 
 func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
@@ -54,17 +75,9 @@ func snapInfo(st *state.State, name, channel string, revision snap.Revision, use
 }
 
 func updateInfo(st *state.State, snapst *SnapState, channel string, ignoreValidation bool, userID int) (*snap.Info, error) {
-	user, err := userFromUserID(st, userID)
+	curInfo, user, err := preUpdateInfo(st, snapst, userID)
 	if err != nil {
 		return nil, err
-	}
-	curInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return nil, err
-	}
-
-	if curInfo.SnapID == "" { // covers also trymode
-		return nil, store.ErrLocalSnap
 	}
 
 	refreshCand := &store.RefreshCandidate{
@@ -83,8 +96,40 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, ignoreValida
 	return res, err
 }
 
-func updateToRevisionInfo(st *state.State, snapst *SnapState, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
-	return snapInfo(st, name, channel, revision, userID)
+func preUpdateInfo(st *state.State, snapst *SnapState, userID int) (*snap.Info, *auth.UserState, error) {
+	user, err := userFromUserID(st, snapst.UserID, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	curInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if curInfo.SnapID == "" { // covers also trymode
+		return nil, nil, store.ErrLocalSnap
+	}
+
+	return curInfo, user, nil
+}
+
+func updateToRevisionInfo(st *state.State, snapst *SnapState, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
+	curInfo, user, err := preUpdateInfo(st, snapst, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	theStore := Store(st)
+	st.Unlock() // calls to the store should be done without holding the state lock
+	spec := store.SnapSpec{
+		Name:     curInfo.Name(),
+		Channel:  channel,
+		Revision: revision,
+	}
+	snap, err := theStore.SnapInfo(spec, user)
+	st.Lock()
+	return snap, err
 }
 
 func refreshCandidates(st *state.State, names []string, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
@@ -96,7 +141,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState, fl
 	sort.Strings(names)
 
 	stateByID := make(map[string]*SnapState, len(snapStates))
-	candidatesInfo := make([]*store.RefreshCandidate, 0, len(snapStates))
+	candidatesByUserID := make(map[int][]*store.RefreshCandidate)
 	ignoreValidation := make(map[string]bool)
 	for _, snapst := range snapStates {
 		if len(names) == 0 && (snapst.TryMode || snapst.DevMode) {
@@ -141,7 +186,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState, fl
 			candidateInfo.Block = snapst.Block()
 		}
 
-		candidatesInfo = append(candidatesInfo, candidateInfo)
+		candidatesByUserID[snapst.UserID] = append(candidatesByUserID[snapst.UserID], candidateInfo)
 		if snapst.IgnoreValidation {
 			ignoreValidation[snapInfo.SnapID] = true
 		}
@@ -149,11 +194,26 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState, fl
 
 	theStore := Store(st)
 
-	st.Unlock()
-	updates, err := theStore.ListRefresh(candidatesInfo, user, flags)
-	st.Lock()
-	if err != nil {
-		return nil, nil, nil, err
+	var updates []*snap.Info
+	for userID, candidatesInfo := range candidatesByUserID {
+		u := user
+		if userID != 0 {
+			u1, err := auth.User(st, userID)
+			if err != nil && err != auth.ErrInvalidUser {
+				return nil, nil, nil, err
+			}
+			if err == nil {
+				u = u1
+			}
+		}
+		st.Unlock()
+		updatesForUser, err := theStore.ListRefresh(candidatesInfo, u, flags)
+		st.Lock()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		updates = append(updates, updatesForUser...)
 	}
 
 	return updates, stateByID, ignoreValidation, nil

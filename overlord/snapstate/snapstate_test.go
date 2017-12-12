@@ -64,7 +64,8 @@ type snapmgrTestSuite struct {
 	fakeBackend *fakeSnappyBackend
 	fakeStore   *fakeStore
 
-	user *auth.UserState
+	user  *auth.UserState
+	user2 *auth.UserState
 }
 
 func (s *snapmgrTestSuite) settle(c *C) {
@@ -125,6 +126,8 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 	s.user, err = auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	c.Assert(err, IsNil)
+	s.user2, err = auth.NewUser(s.state, "username2", "email2@test.com", "macaroon2", []string{"discharge2"})
+	c.Assert(err, IsNil)
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
@@ -160,6 +163,35 @@ func (s *snapmgrTestSuite) TestStore(c *C) {
 	// cached
 	store2 := snapstate.Store(s.state)
 	c.Check(store2, Equals, sto)
+}
+
+func (s *snapmgrTestSuite) TestUserFromUserID(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tests := []struct {
+		ids     []int
+		u       *auth.UserState
+		invalid bool
+	}{
+		{[]int{0}, nil, false},
+		{[]int{2}, s.user2, false},
+		{[]int{99}, nil, true},
+		{[]int{1, 99}, s.user, false},
+		{[]int{99, 0}, nil, false},
+		{[]int{99, 2}, s.user2, false},
+		{[]int{99, 100}, nil, true},
+	}
+
+	for _, t := range tests {
+		u, err := snapstate.UserFromUserID(s.state, t.ids...)
+		c.Check(u, DeepEquals, t.u)
+		if t.invalid {
+			c.Check(err, Equals, auth.ErrInvalidUser)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
 }
 
 const (
@@ -1497,9 +1529,10 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	}})
 	expected := fakeOps{
 		{
-			op:    "storesvc-snap",
-			name:  "some-snap",
-			revno: snap.R(42),
+			op:     "storesvc-snap",
+			name:   "some-snap",
+			revno:  snap.R(42),
+			userID: 1,
 		},
 		{
 			op:   "storesvc-download",
@@ -1666,7 +1699,8 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				SnapID:   "services-snap-id",
 				Revision: snap.R(7),
 			},
-			revno: snap.R(11),
+			revno:  snap.R(11),
+			userID: 1,
 		},
 		{
 			op:   "storesvc-download",
@@ -1807,6 +1841,250 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestUpdateRememberedUserRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
+		},
+		Current:  snap.R(5),
+		SnapType: "app",
+		UserID:   1,
+	})
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Err(), IsNil)
+
+	for _, op := range s.fakeBackend.ops {
+		switch op.op {
+		case "storesvc-list-refresh":
+			c.Check(op.userID, Equals, 1)
+		case "storesvc-download":
+			snapName := op.name
+			c.Check(s.fakeStore.downloads[0], DeepEquals, fakeDownload{
+				macaroon: "macaroon",
+				name:     "some-snap",
+			}, Commentf(snapName))
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestUpdateToRevisionRememberedUserRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
+		},
+		Current:  snap.R(5),
+		SnapType: "app",
+		UserID:   1,
+	})
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(11), 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Err(), IsNil)
+
+	for _, op := range s.fakeBackend.ops {
+		switch op.op {
+		case "storesvc-snap":
+			c.Check(op.userID, Equals, 1)
+		case "storesvc-download":
+			snapName := op.name
+			c.Check(s.fakeStore.downloads[0], DeepEquals, fakeDownload{
+				macaroon: "macaroon",
+				name:     "some-snap",
+			}, Commentf(snapName))
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
+		},
+		Current:  snap.R(5),
+		SnapType: "app",
+		UserID:   1,
+	})
+	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "services-snap", Revision: snap.R(2), SnapID: "services-snap-id"},
+		},
+		Current:  snap.R(2),
+		SnapType: "app",
+		UserID:   2,
+	})
+
+	chg := s.state.NewChange("refresh", "refresh all snaps")
+	updated, tts, err := snapstate.UpdateMany(s.state, nil, 0)
+	c.Assert(err, IsNil)
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+	c.Check(updated, HasLen, 3)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Err(), IsNil)
+
+	userMap := map[string]int{
+		"core-snap-id":     0,
+		"some-snap-id":     1,
+		"services-snap-id": 2,
+	}
+	macaroonMap := map[string]string{
+		"core":          "",
+		"some-snap":     "macaroon",
+		"services-snap": "macaroon2",
+	}
+
+	di := 0
+	for _, op := range s.fakeBackend.ops {
+		switch op.op {
+		case "storesvc-list-refresh":
+			snapID := op.cand.SnapID
+			c.Check(op.userID, Equals, userMap[snapID], Commentf(snapID))
+		case "storesvc-download":
+			snapName := op.name
+			c.Check(s.fakeStore.downloads[di], DeepEquals, fakeDownload{
+				macaroon: macaroonMap[snapName],
+				name:     snapName,
+			}, Commentf(snapName))
+			di++
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
+		},
+		Current:  snap.R(5),
+		SnapType: "app",
+		UserID:   1,
+	})
+	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "services-snap", Revision: snap.R(2), SnapID: "services-snap-id"},
+		},
+		Current:  snap.R(2),
+		SnapType: "app",
+		UserID:   2,
+	})
+
+	chg := s.state.NewChange("refresh", "refresh all snaps")
+	updated, tts, err := snapstate.UpdateMany(s.state, nil, 2)
+	c.Assert(err, IsNil)
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+	c.Check(updated, HasLen, 3)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Err(), IsNil)
+
+	userMap := map[string]int{
+		"core-snap-id":     2,
+		"some-snap-id":     1,
+		"services-snap-id": 2,
+	}
+	macaroonMap := map[string]string{
+		"core":          "macaroon2",
+		"some-snap":     "macaroon",
+		"services-snap": "macaroon2",
+	}
+
+	di := 0
+	for _, op := range s.fakeBackend.ops {
+		switch op.op {
+		case "storesvc-list-refresh":
+			snapID := op.cand.SnapID
+			c.Check(op.userID, Equals, userMap[snapID], Commentf(snapID))
+		case "storesvc-download":
+			snapName := op.name
+			c.Check(s.fakeStore.downloads[di], DeepEquals, fakeDownload{
+				macaroon: macaroonMap[snapName],
+				name:     snapName,
+			}, Commentf(snapName))
+			di++
+		}
+	}
+
+	var coreState, snapState snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapState)
+	c.Assert(err, IsNil)
+	c.Check(snapState.UserID, Equals, 1)
+	c.Check(snapState.Current, DeepEquals, snap.R(11))
+
+	err = snapstate.Get(s.state, "core", &coreState)
+	c.Assert(err, IsNil)
+	c.Check(coreState.UserID, Equals, 2)
+	c.Check(coreState.Current, DeepEquals, snap.R(11))
+
+}
+
 func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
@@ -1844,7 +2122,8 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
 			},
-			revno: snap.R(11),
+			revno:  snap.R(11),
+			userID: 1,
 		},
 		{
 			op:   "storesvc-download",
@@ -2003,7 +2282,8 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
 			},
-			revno: snap.R(11),
+			revno:  snap.R(11),
+			userID: 1,
 		},
 		{
 			op:   "storesvc-download",
@@ -2234,6 +2514,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
 			},
+			userID: 1,
 		},
 	}
 
@@ -2494,6 +2775,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			Channel:          "stable",
 			IgnoreValidation: true,
 		},
+		userID: 1,
 	})
 
 	chg := s.state.NewChange("refresh", "refresh snap")
@@ -2528,6 +2810,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			Channel:          "stable",
 			IgnoreValidation: true,
 		},
+		userID: 1,
 	})
 
 	chg = s.state.NewChange("refresh", "refresh snaps")
@@ -2567,6 +2850,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			Channel:          "stable",
 			IgnoreValidation: false,
 		},
+		userID: 1,
 	})
 
 	chg = s.state.NewChange("refresh", "refresh snap")
@@ -2619,6 +2903,7 @@ func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 			Revision: snap.R(7),
 			Channel:  "some-channel",
 		},
+		userID: 1,
 	})
 
 }
@@ -2658,6 +2943,7 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
 		},
+		userID: 1,
 	})
 
 }
@@ -2696,6 +2982,7 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 			Revision: snap.R(7),
 			Block:    []snap.Revision{snap.R(11)},
 		},
+		userID: 1,
 	})
 
 }
@@ -4882,9 +5169,10 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 
 	expected := fakeOps{
 		{
-			op:    "storesvc-snap",
-			name:  "some-snap",
-			revno: snap.R(11),
+			op:     "storesvc-snap",
+			name:   "some-snap",
+			revno:  snap.R(11),
+			userID: 1,
 		},
 		{
 			op:   "storesvc-download",
@@ -7405,16 +7693,18 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 	expected := fakeOps{
 		// we check the snap
 		{
-			op:    "storesvc-snap",
-			name:  "some-snap",
-			revno: snap.R(42),
+			op:     "storesvc-snap",
+			name:   "some-snap",
+			revno:  snap.R(42),
+			userID: 1,
 		},
 		// then we check core because its not installed already
 		// and continue with that
 		{
-			op:    "storesvc-snap",
-			name:  "core",
-			revno: snap.R(11),
+			op:     "storesvc-snap",
+			name:   "core",
+			revno:  snap.R(11),
+			userID: 1,
 		},
 		{
 			op:   "storesvc-download",

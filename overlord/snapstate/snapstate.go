@@ -650,9 +650,14 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			return nil, nil, err
 		}
 
+		snapUserID, err := userIDForSnap(st, snapst, userID)
+		if err != nil {
+			return nil, nil, err
+		}
+
 		snapsup := &SnapSetup{
 			Channel:      channel,
-			UserID:       userID,
+			UserID:       snapUserID,
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
@@ -959,7 +964,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return updateToRevisionInfo(st, snapst, name, channel, revision, userID)
+		return updateToRevisionInfo(st, snapst, channel, revision, userID)
 	}
 
 	// refresh-to-local
