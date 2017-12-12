@@ -15,10 +15,10 @@ env:
     - DISTRO=debian-sid-64
     - DISTRO=debian-9-64
     - DISTRO=fedora-26-64
-    - DISTRO=ubuntu-16.04-32 SUITE=tests/unit
-    - DISTRO=ubuntu-16.04-64 SUITE=tests/unit
-    - DISTRO=ubuntu-14.04-64 SUITE=tests/unit
-    - DISTRO=ubuntu-14.04-64 SUITE=tests/unit
+    - DISTRO=ubuntu-16.04-32 SUITE=tests/unit/
+    - DISTRO=ubuntu-16.04-64 SUITE=tests/unit/
+    - DISTRO=ubuntu-14.04-64 SUITE=tests/unit/
+    - DISTRO=ubuntu-14.04-64 SUITE=tests/unit/
 
 git:
     quiet: true
