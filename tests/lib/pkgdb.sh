@@ -389,6 +389,12 @@ distro_install_build_snapd(){
         # shellcheck disable=SC2086
         distro_install_local_package $packages
 
+        if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+            # Arch policy does not allow calling daemon-reloads in package
+            # install scripts
+            systemctl daemon-reload
+        fi
+
         # On some distributions the snapd.socket is not yet automatically
         # enabled as we don't have a systemd present configuration approved
         # by the distribution for it in place yet.
