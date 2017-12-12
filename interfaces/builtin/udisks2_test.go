@@ -100,7 +100,7 @@ func (s *UDisks2InterfaceSuite) TestName(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
 func (s *UDisks2InterfaceSuite) TestAppArmorSpec(c *C) {
@@ -168,12 +168,13 @@ func (s *UDisks2InterfaceSuite) TestDBusSpec(c *C) {
 func (s *UDisks2InterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 3)
+	c.Assert(spec.Snippets(), HasLen, 4)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `LABEL="udisks_probe_end"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# udisks2
 SUBSYSTEM=="block", TAG+="snap_producer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# udisks2
 SUBSYSTEM=="usb", TAG+="snap_producer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_producer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_producer_app $devpath $major:$minor"`)
 }
 
 func (s *UDisks2InterfaceSuite) TestSecCompSpec(c *C) {
@@ -192,7 +193,7 @@ func (s *UDisks2InterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestAutoConnect(c *C) {
-	// FIXME: fix AutoConnect methods
+	// FIXME: fix AutoConnect methods to use ConnectedPlug/Slot
 	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 

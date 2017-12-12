@@ -64,18 +64,18 @@ func (s *JoystickInterfaceSuite) TestName(c *C) {
 }
 
 func (s *JoystickInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "joystick",
 		Interface: "joystick",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"joystick slots are reserved for the core snap")
 }
 
 func (s *JoystickInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *JoystickInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -88,9 +88,10 @@ func (s *JoystickInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *JoystickInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# joystick
 KERNEL=="js[0-9]*", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *JoystickInterfaceSuite) TestStaticInfo(c *C) {
@@ -102,7 +103,7 @@ func (s *JoystickInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *JoystickInterfaceSuite) TestAutoConnect(c *C) {
-	// FIXME: fix AutoConnect methods
+	// FIXME: fix AutoConnect methods to use ConnectedPlug/Slot
 	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
 }
 

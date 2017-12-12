@@ -22,6 +22,9 @@ set -o pipefail
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
+# shellcheck source=tests/lib/random.sh
+. "$TESTSLIB/random.sh"
+
 ###
 ### Utility functions reused below.
 ###
@@ -185,10 +188,6 @@ prepare_project() {
     # declare the "quiet" wrapper
 
     if [ "$SPREAD_BACKEND" = external ]; then
-        # stop and disable autorefresh
-        if [ -e "$SNAP_MOUNT_DIR/core/current/meta/hooks/configure" ]; then
-            systemctl disable --now snapd.refresh.timer
-        fi
         chown test.test -R "$PROJECT_PATH"
         exit 0
     fi
@@ -319,9 +318,13 @@ prepare_project_each() {
 
     # Clear the kernel ring buffer.
     dmesg -c > /dev/null
+
+    fixup_dev_random
 }
 
 restore_project_each() {
+    restore_dev_random
+
     # Udev rules are notoriously hard to write and seemingly correct but subtly
     # wrong rules can pass review. Whenever that happens udev logs an error
     # message. As a last resort from lack of a better mechanism we can try to
@@ -333,12 +336,6 @@ restore_project_each() {
 }
 
 restore_project() {
-    # XXX: Why are we enabling autorefresh for external targets?
-    if [ "$SPREAD_BACKEND" = external ] && [ -e /snap/core/current/meta/hooks/configure ]; then
-        systemctl enable --now snapd.refresh.timer
-        snap set core refresh.schedule=""
-    fi
-
     # We use a trick to accelerate prepare/restore code in certain suites. That
     # code uses a tarball to store the vanilla state. Here we just remove this
     # tarball.
