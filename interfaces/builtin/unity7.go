@@ -47,6 +47,7 @@ const unity7ConnectedPlugAppArmor = `
 #include <abstractions/X>
 
 #include <abstractions/fonts>
+owner @{HOME}/.local/share/fonts/{,**} r,
 /var/cache/fontconfig/   r,
 /var/cache/fontconfig/** mr,
 
@@ -436,7 +437,7 @@ dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member=NotificationClosed
+    member={ActionInvoked,NotificationClosed}
     peer=(label=unconfined),
 
 dbus (send)
@@ -557,6 +558,30 @@ dbus (send)
   path=/org/gnome/SettingsDaemon/MediaKeys
   member="Get{,All}"
   peer=(label=unconfined),
+
+# Allow checking status, activating and locking the screensaver
+# mate
+dbus (send)
+    bus=session
+    path="/{,org/mate/}ScreenSaver"
+    interface=org.mate.ScreenSaver
+    member="{GetActive,GetActiveTime,Lock,SetActive}"
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path="/{,org/mate/}ScreenSaver"
+    interface=org.mate.ScreenSaver
+    member=ActiveChanged
+    peer=(label=unconfined),
+
+# Unity
+dbus (send)
+  bus=session
+  interface=com.canonical.Unity.Session
+  path=/com/canonical/Unity/Session
+  member="{ActivateScreenSaver,IsLocked,Lock}"
+  peer=(label=unconfined),
 `
 
 const unity7ConnectedPlugSeccomp = `
@@ -603,7 +628,7 @@ func (iface *unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, 
 	return nil
 }
 
-func (iface *unity7Interface) SanitizeSlot(slot *snap.SlotInfo) error {
+func (iface *unity7Interface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 

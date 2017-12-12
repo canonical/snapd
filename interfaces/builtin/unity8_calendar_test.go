@@ -82,7 +82,7 @@ func (s *Unity8CalendarInterfaceSuite) TestName(c *C) {
 }
 
 func (s *Unity8CalendarInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *Unity8CalendarInterfaceSuite) TestUsedSecuritySystems(c *C) {

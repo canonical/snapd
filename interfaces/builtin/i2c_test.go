@@ -163,31 +163,32 @@ func (s *I2cInterfaceSuite) TestName(c *C) {
 }
 
 func (s *I2cInterfaceSuite) TestSanitizeCoreSnapSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testSlot1Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlot1Info), IsNil)
 }
 
 func (s *I2cInterfaceSuite) TestSanitizeGadgetSnapSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDev1Info), IsNil)
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDev2Info), IsNil)
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDev3Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDev1Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDev2Info), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDev3Info), IsNil)
 }
 
 func (s *I2cInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue1Info), ErrorMatches, "i2c path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue2Info), ErrorMatches, "i2c path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue3Info), ErrorMatches, "i2c path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue4Info), ErrorMatches, "i2c path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue5Info), ErrorMatches, "i2c path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue6Info), ErrorMatches, "i2c slot must have a path attribute")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue7Info), ErrorMatches, "i2c slot must have a path attribute")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue1Info), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue2Info), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue3Info), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue4Info), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue5Info), ErrorMatches, "i2c path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue6Info), ErrorMatches, "i2c slot must have a path attribute")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue7Info), ErrorMatches, "i2c slot must have a path attribute")
 }
 
 func (s *I2cInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# i2c
 KERNEL=="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_client-snap_app-accessing-1-port", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_client-snap_app-accessing-1-port $devpath $major:$minor"`)
 }
 
 func (s *I2cInterfaceSuite) TestAppArmorSpec(c *C) {

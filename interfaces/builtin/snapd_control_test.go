@@ -65,18 +65,18 @@ func (s *SnapdControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *SnapdControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "snapd-control",
 		Interface: "snapd-control",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"snapd-control slots are reserved for the core snap")
 }
 
 func (s *SnapdControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *SnapdControlInterfaceSuite) TestSanitizePlugWithAttrHappy(c *C) {
@@ -88,7 +88,7 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["snapd-control"]
-	c.Assert(interfaces.SanitizePlug(s.iface, plug), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 }
 
 func (s *SnapdControlInterfaceSuite) TestSanitizePlugWithAttrNotHappy(c *C) {
@@ -100,7 +100,7 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["snapd-control"]
-	c.Assert(interfaces.SanitizePlug(s.iface, plug), ErrorMatches, `unsupported refresh-schedule value: "unsupported-value"`)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, `unsupported refresh-schedule value: "unsupported-value"`)
 }
 
 func (s *SnapdControlInterfaceSuite) TestUsedSecuritySystems(c *C) {

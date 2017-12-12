@@ -68,18 +68,18 @@ func (s *SystemObserveInterfaceSuite) TestName(c *C) {
 }
 
 func (s *SystemObserveInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "system-observe",
 		Interface: "system-observe",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"system-observe slots are reserved for the core snap")
 }
 
 func (s *SystemObserveInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
@@ -89,6 +89,7 @@ func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "ptrace")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "@{PROC}/partitions r,")
 
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := &seccomp.Specification{}
