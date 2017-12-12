@@ -29,6 +29,13 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+func idForUser(user *auth.UserState) int {
+	if user == nil {
+		return 0
+	}
+	return user.ID
+}
+
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID
 	_, err := auth.User(st, userID)
@@ -141,8 +148,9 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState, fl
 	sort.Strings(names)
 
 	stateByID := make(map[string]*SnapState, len(snapStates))
-	candidatesByUserID := make(map[int][]*store.RefreshCandidate)
+	candidatesInfo := make([]*store.RefreshCandidate, 0, len(snapStates))
 	ignoreValidation := make(map[string]bool)
+	userIDs := make(map[int]bool)
 	for _, snapst := range snapStates {
 		if len(names) == 0 && (snapst.TryMode || snapst.DevMode) {
 			// no auto-refresh for trymode nor devmode
@@ -186,7 +194,10 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState, fl
 			candidateInfo.Block = snapst.Block()
 		}
 
-		candidatesByUserID[snapst.UserID] = append(candidatesByUserID[snapst.UserID], candidateInfo)
+		candidatesInfo = append(candidatesInfo, candidateInfo)
+		if snapst.UserID != 0 {
+			userIDs[snapst.UserID] = true
+		}
 		if snapst.IgnoreValidation {
 			ignoreValidation[snapInfo.SnapID] = true
 		}
@@ -194,8 +205,18 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState, fl
 
 	theStore := Store(st)
 
-	var updates []*snap.Info
-	for userID, candidatesInfo := range candidatesByUserID {
+	// TODO: we query for all snaps for each user so that the
+	// store can take into account validation constraints, we can
+	// do better with coming APIs
+	updatesInfo := make(map[string]*snap.Info, len(candidatesInfo))
+	fallbackUsed := false
+	fallbackID := idForUser(user)
+	if len(userIDs) == 0 {
+		// none of the snaps had an installed user set, just
+		// use the fallbackID
+		userIDs[fallbackID] = true
+	}
+	for userID := range userIDs {
 		u := user
 		if userID != 0 {
 			u1, err := auth.User(st, userID)
@@ -206,6 +227,14 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState, fl
 				u = u1
 			}
 		}
+		// consider the fallback user at most once
+		if idForUser(u) == fallbackID {
+			if fallbackUsed {
+				continue
+			}
+			fallbackUsed = true
+		}
+
 		st.Unlock()
 		updatesForUser, err := theStore.ListRefresh(candidatesInfo, u, flags)
 		st.Lock()
@@ -213,7 +242,14 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState, fl
 			return nil, nil, nil, err
 		}
 
-		updates = append(updates, updatesForUser...)
+		for _, snapInfo := range updatesForUser {
+			updatesInfo[snapInfo.SnapID] = snapInfo
+		}
+	}
+
+	updates := make([]*snap.Info, 0, len(updatesInfo))
+	for _, snapInfo := range updatesInfo {
+		updates = append(updates, snapInfo)
 	}
 
 	return updates, stateByID, ignoreValidation, nil

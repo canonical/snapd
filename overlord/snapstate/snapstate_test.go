@@ -1970,23 +1970,23 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Assert(chg.Err(), IsNil)
 
-	userMap := map[string]int{
-		"core-snap-id":     0,
-		"some-snap-id":     1,
-		"services-snap-id": 2,
-	}
 	macaroonMap := map[string]string{
 		"core":          "",
 		"some-snap":     "macaroon",
 		"services-snap": "macaroon2",
 	}
 
+	type snapIDuserID struct {
+		snapID string
+		userID int
+	}
+	seen := make(map[snapIDuserID]bool)
 	di := 0
 	for _, op := range s.fakeBackend.ops {
 		switch op.op {
 		case "storesvc-list-refresh":
 			snapID := op.cand.SnapID
-			c.Check(op.userID, Equals, userMap[snapID], Commentf(snapID))
+			seen[snapIDuserID{snapID: snapID, userID: op.userID}] = true
 		case "storesvc-download":
 			snapName := op.name
 			c.Check(s.fakeStore.downloads[di], DeepEquals, fakeDownload{
@@ -1996,6 +1996,15 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 			di++
 		}
 	}
+	// we check all snaps with each user
+	c.Check(seen, DeepEquals, map[snapIDuserID]bool{
+		snapIDuserID{snapID: "core-snap-id", userID: 1}:     true,
+		snapIDuserID{snapID: "some-snap-id", userID: 1}:     true,
+		snapIDuserID{snapID: "services-snap-id", userID: 1}: true,
+		snapIDuserID{snapID: "core-snap-id", userID: 2}:     true,
+		snapIDuserID{snapID: "some-snap-id", userID: 2}:     true,
+		snapIDuserID{snapID: "services-snap-id", userID: 2}: true,
+	})
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
@@ -2045,23 +2054,23 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Assert(chg.Err(), IsNil)
 
-	userMap := map[string]int{
-		"core-snap-id":     2,
-		"some-snap-id":     1,
-		"services-snap-id": 2,
-	}
 	macaroonMap := map[string]string{
 		"core":          "macaroon2",
 		"some-snap":     "macaroon",
 		"services-snap": "macaroon2",
 	}
 
+	type snapIDuserID struct {
+		snapID string
+		userID int
+	}
+	seen := make(map[snapIDuserID]bool)
 	di := 0
 	for _, op := range s.fakeBackend.ops {
 		switch op.op {
 		case "storesvc-list-refresh":
 			snapID := op.cand.SnapID
-			c.Check(op.userID, Equals, userMap[snapID], Commentf(snapID))
+			seen[snapIDuserID{snapID: snapID, userID: op.userID}] = true
 		case "storesvc-download":
 			snapName := op.name
 			c.Check(s.fakeStore.downloads[di], DeepEquals, fakeDownload{
@@ -2071,6 +2080,15 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 			di++
 		}
 	}
+	// we check all snaps with each user
+	c.Check(seen, DeepEquals, map[snapIDuserID]bool{
+		snapIDuserID{snapID: "core-snap-id", userID: 1}:     true,
+		snapIDuserID{snapID: "some-snap-id", userID: 1}:     true,
+		snapIDuserID{snapID: "services-snap-id", userID: 1}: true,
+		snapIDuserID{snapID: "core-snap-id", userID: 2}:     true,
+		snapIDuserID{snapID: "some-snap-id", userID: 2}:     true,
+		snapIDuserID{snapID: "services-snap-id", userID: 2}: true,
+	})
 
 	var coreState, snapState snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapState)
