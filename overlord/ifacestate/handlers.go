@@ -22,6 +22,7 @@ package ifacestate
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -159,10 +160,10 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	}
 	// FIXME: here we should not reconnect auto-connect plug/slot
 	// pairs that were explicitly disconnected by the user
-	connectedSnaps, err := m.autoConnect(task, snapName, nil)
+	/*connectedSnaps, err := m.autoConnect(task, snapName, nil)
 	if err != nil {
 		return err
-	}
+	}*/
 	if err := m.setupSnapSecurity(task, snapInfo, opts); err != nil {
 		return err
 	}
@@ -170,9 +171,9 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	for _, name := range disconnectedSnaps {
 		affectedSet[name] = true
 	}
-	for _, name := range connectedSnaps {
-		affectedSet[name] = true
-	}
+	//for _, name := range connectedSnaps {
+	//	affectedSet[name] = true
+	//}
 	// The principal snap was already handled above.
 	delete(affectedSet, snapInfo.Name())
 	affectedSnaps := make([]string, 0, len(affectedSet))
@@ -478,6 +479,139 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	delete(conns, conn.ID())
 
 	setConns(st, conns)
+	return nil
+}
+
+func (m *InterfaceManager) doAutoconnect(task *state.Task, _ *tomb.Tomb) error {
+	var conns map[string]connState
+
+	st := task.State()
+
+	autochecker, err := newAutoConnectChecker(task.State())
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
+	err = st.Get("conns", &conns)
+	st.Unlock()
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if conns == nil {
+		conns = make(map[string]connState)
+	}
+
+	st.Lock()
+	snapsup, err := snapstate.TaskSnapSetup(task)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	snapName := snapsup.Name()
+
+	var autoconnectTs []*state.TaskSet
+
+	// Auto-connect all the plugs
+	for _, plug := range m.repo.Plugs(snapName) {
+		candidates := m.repo.AutoConnectCandidateSlots(snapName, plug.Name, autochecker.check)
+		if len(candidates) == 0 {
+			continue
+		}
+		// If we are in a core transition we may have both the old ubuntu-core
+		// snap and the new core snap providing the same interface. In that
+		// situation we want to ignore any candidates in ubuntu-core and simply
+		// go with those from the new core snap.
+		if len(candidates) == 2 {
+			switch {
+			case candidates[0].Snap.Name() == "ubuntu-core" && candidates[1].Snap.Name() == "core":
+				candidates = candidates[1:2]
+			case candidates[1].Snap.Name() == "ubuntu-core" && candidates[0].Snap.Name() == "core":
+				candidates = candidates[0:1]
+			}
+		}
+		if len(candidates) != 1 {
+			crefs := make([]string, 0, len(candidates))
+			for _, candidate := range candidates {
+				crefs = append(crefs, candidate.String())
+			}
+			task.Logf("cannot auto connect %s (plug auto-connection), candidates found: %q", plug, strings.Join(crefs, ", "))
+			continue
+		}
+		slot := candidates[0]
+		connRef := interfaces.NewConnRef(plug, slot)
+		key := connRef.ID()
+		if _, ok := conns[key]; ok {
+			// Suggested connection already exist so don't clobber it.
+			// NOTE: we don't log anything here as this is a normal and common condition.
+			continue
+		}
+
+		ts, err := Connect(st, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
+		if err != nil {
+			task.Logf("cannot auto connect %s to %s: %s (plug auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
+			continue
+		}
+		autoconnectTs = append(autoconnectTs, ts)
+	}
+	// Auto-connect all the slots
+	for _, slot := range m.repo.Slots(snapName) {
+		candidates := m.repo.AutoConnectCandidatePlugs(snapName, slot.Name, autochecker.check)
+		if len(candidates) == 0 {
+			continue
+		}
+
+		for _, plug := range candidates {
+			// make sure slot is the only viable
+			// connection for plug, same check as if we were
+			// considering auto-connections from plug
+			candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.Name(), plug.Name, autochecker.check)
+
+			if len(candSlots) != 1 || candSlots[0].String() != slot.String() {
+				crefs := make([]string, 0, len(candSlots))
+				for _, candidate := range candSlots {
+					crefs = append(crefs, candidate.String())
+				}
+				task.Logf("cannot auto connect %s to %s (slot auto-connection), alternatives found: %q", slot, plug, strings.Join(crefs, ", "))
+				continue
+			}
+
+			connRef := interfaces.NewConnRef(plug, slot)
+			key := connRef.ID()
+			if _, ok := conns[key]; ok {
+				// Suggested connection already exist so don't clobber it.
+				// NOTE: we don't log anything here as this is a normal and common condition.
+				continue
+			}
+			ts, err := Connect(st, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
+			if err != nil {
+				task.Logf("cannot auto connect %s to %s: %s (slot auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
+				continue
+			}
+			autoconnectTs = append(autoconnectTs, ts)
+		}
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	chg := task.Change()
+	lanes := task.Lanes()
+	if len(lanes) == 1 && lanes[0] == 0 {
+		lanes = nil
+	}
+	for _, ts := range autoconnectTs {
+		for _, l := range lanes {
+			ts.JoinLane(l)
+		}
+		chg.AddAll(ts)
+	}
+
+	return nil
+}
+
+func (m *InterfaceManager) undoAutoconnect(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
