@@ -463,7 +463,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+        systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*]
         environment:
             # env vars required for coverage reporting from a spread task
             TRAVIS_BUILD_NUMBER: "$(HOST: echo $TRAVIS_BUILD_NUMBER)"
@@ -500,10 +500,10 @@ suites:
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
         manual: true
-        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*]
+        systems: [-fedora-*, -opensuse-*, -arch-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
