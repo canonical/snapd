@@ -57,7 +57,7 @@ dependent packages will also be available inside `$GOPATH`.
 
 ### Dependencies handling
 
-Dependencies are handled via `govendor`. Get it via:
+Go dependencies are handled via `govendor`. Get it via:
 
     go get -u github.com/kardianos/govendor
 
@@ -74,6 +74,12 @@ You can use the script `get-deps.sh` to run the two previous steps.
 If a dependency need updating
 
     govendor fetch github.com/path/of/dependency
+
+Other dependencies are handled via distribution packages and you should ensure
+that dependencies for your distribution are installed. For example, on Ubuntu,
+run:
+
+    sudo apt-get build-dep ./
 
 ### Building
 
