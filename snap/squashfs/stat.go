@@ -311,6 +311,13 @@ func (st *stat) parseSize(raw []byte) (int, error) {
 		if raw[p] != ' ' {
 			return 0, errBadSize(raw)
 		}
+		// note that, much as it makes very little sense, the arch-
+		// dependent st_size is never an unsigned 64 bit quantity.
+		// It's one of unsigned long, long long, or just off_t.
+		//
+		// Also note os.FileInfo's Size needs to return an int64, and
+		// squashfs's inode->data (where it stores sizes for regular
+		// files) is a long long.
 		sz, err := strconv.ParseInt(string(raw[ni:p]), 10, 64)
 		if err != nil {
 			return 0, err
