@@ -49,7 +49,4 @@ execute: |
         echo "Check they were both refreshed"
         snap list|MATCH "test-snapd-private +2\.0.*private"
         snap list|MATCH "test-snapd-public +2\.0"
-
-        echo "YAY"
-        exit 1
     fi
