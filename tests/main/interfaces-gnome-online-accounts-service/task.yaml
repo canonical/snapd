@@ -1,7 +1,9 @@
 summary: Ensure that the gnome-online-accounts-service interface works
 
 # Only test on classic systems with AppArmor DBus mediation
-systems: [ ubuntu-1* ]
+# Don't test on ubuntu-14.04, since it's gnome-online-accounts daemon
+# seems to be incompatible.
+systems: [ ubuntu-16* ]
 
 environment:
     XDG_CONFIG_HOME: $(pwd)/config
