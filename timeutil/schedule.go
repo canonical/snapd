@@ -518,7 +518,7 @@ func ParseSchedule(scheduleSpec string) ([]*Schedule, error) {
 	return schedule, nil
 }
 
-// parseWeekSpan generates a per day (span) schedule
+// parseWeekSpan parses a weekly span such as "mon-tue" or "mon2-tue3".
 func parseWeekSpan(start string, end string) (*WeekSpan, error) {
 	startWeekday, err := parseWeekday(start)
 	if err != nil {
@@ -540,8 +540,8 @@ func parseWeekSpan(start string, end string) (*WeekSpan, error) {
 	}
 
 	span := &WeekSpan{
-		Start: *startWeekday,
-		End:   *endWeekday,
+		Start: startWeekday,
+		End:   endWeekday,
 	}
 
 	return span, nil
@@ -599,37 +599,30 @@ func parseTimeSpan(start, end string) (*ClockSpan, error) {
 	return span, nil
 }
 
-// parseWeekday will parse a string and extract weekday (eg. wed),
-// MonthWeekday (eg. 1st, 5th in the month).
-func parseWeekday(s string) (*Week, error) {
+// parseWeekday parses a single weekday (eg. wed, mon5),
+func parseWeekday(s string) (week Week, err error) {
 	l := len(s)
 	if l != 3 && l != 4 {
-		return nil, fmt.Errorf("cannot parse %q: invalid format", s)
+		return week, fmt.Errorf("cannot parse %q: invalid format", s)
 	}
 
-	day := s
+	var day = s
 	var pos uint
 	if l == 4 {
 		day = s[0:3]
-		if v, err := strconv.ParseUint(s[3:], 10, 32); err != nil {
-			return nil, fmt.Errorf("cannot parse %q: invalid week", s)
-		} else if v < 1 || v > 5 {
-			return nil, fmt.Errorf("cannot parse %q: incorrect week number", s)
-		} else {
-			pos = uint(v)
+		v, err := strconv.ParseUint(s[3:], 10, 32)
+		if err != nil || v < 1 || v > 5 {
+			return week, fmt.Errorf("cannot parse %q: invalid week", s)
 		}
+		pos = uint(v)
 	}
 
 	weekday, ok := weekdayMap[day]
 	if !ok {
-		return nil, fmt.Errorf("cannot parse %q: invalid weekday", s)
+		return week, fmt.Errorf("cannot parse %q: invalid weekday", s)
 	}
 
-	week := &Week{
-		Weekday: weekday,
-		Pos:     pos,
-	}
-	return week, nil
+	return Week{weekday, pos}, nil
 }
 
 // parseCount will parse the string containing a count token and return the
