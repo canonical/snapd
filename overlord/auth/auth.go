@@ -158,6 +158,8 @@ func NewUser(st *state.State, username, email, macaroon string, discharges []str
 	return &authenticatedUser, nil
 }
 
+var ErrInvalidUser = errors.New("invalid user")
+
 // RemoveUser removes a user from the state given its ID
 func RemoveUser(st *state.State, userID int) error {
 	var authStateData AuthState
@@ -202,8 +204,6 @@ func Users(st *state.State) ([]*UserState, error) {
 	}
 	return users, nil
 }
-
-var ErrInvalidUser = errors.New("invalid user")
 
 // User returns a user from the state given its ID
 func User(st *state.State, id int) (*UserState, error) {
