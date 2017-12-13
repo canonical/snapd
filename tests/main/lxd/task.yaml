@@ -3,6 +3,7 @@ summary: Ensure that lxd works
 # only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
 systems: [ubuntu-16*, ubuntu-core-*]
+manual: true
 
 # lxd downloads can be quite slow
 kill-timeout: 25m
