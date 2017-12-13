@@ -36,6 +36,8 @@ const waylandBaseDeclarationSlots = `
       slot-snap-type:
         - app
         - core
+    deny-connection:
+      on-classic: false
     deny-auto-connection:
       on-classic: false
 `
