@@ -25,16 +25,21 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type WaylandInterfaceSuite struct {
-	iface        interfaces.Interface
-	coreSlotInfo *snap.SlotInfo
-	coreSlot     *interfaces.ConnectedSlot
-	plugInfo     *snap.PlugInfo
-	plug         *interfaces.ConnectedPlug
+	iface           interfaces.Interface
+	coreSlotInfo    *snap.SlotInfo
+	coreSlot        *interfaces.ConnectedSlot
+	classicSlotInfo *snap.SlotInfo
+	classicSlot     *interfaces.ConnectedSlot
+	plugInfo        *snap.PlugInfo
+	plug            *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&WaylandInterfaceSuite{
@@ -47,15 +52,26 @@ apps:
   plugs: [wayland]
 `
 
-const waylandCoreYaml = `name: core
+// a wayland slot on a wayland snap (as installed on a core/all-snap system)
+const waylandCoreYaml = `name: wayland
+apps:
+ app1:
+  command: foo
+  slots: [wayland]
+`
+
+// a wayland slot on the core snap (as automatically added on classic)
+const waylandClassicYaml = `name: core
 type: os
 slots:
-  wayland:
+ wayland:
+  interface: wayland
 `
 
 func (s *WaylandInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, waylandConsumerYaml, nil, "wayland")
 	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, waylandCoreYaml, nil, "wayland")
+	s.classicSlot, s.classicSlotInfo = MockConnectedSlot(c, waylandClassicYaml, nil, "wayland")
 }
 
 func (s *WaylandInterfaceSuite) TestName(c *C) {
@@ -64,14 +80,7 @@ func (s *WaylandInterfaceSuite) TestName(c *C) {
 
 func (s *WaylandInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.coreSlotInfo), IsNil)
-	// wayland slot currently only used with core
-	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "wayland",
-		Interface: "wayland",
-	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
-		"wayland slots are reserved for the core snap")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.classicSlotInfo), IsNil)
 }
 
 func (s *WaylandInterfaceSuite) TestSanitizePlug(c *C) {
@@ -83,12 +92,65 @@ func (s *WaylandInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/*/wayland-[0-9]* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/wayland-[0-9]* rw,")
 
-	// connected plug to core slot
+	// connected core slot to plug
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
+}
+
+func (s *WaylandInterfaceSuite) TestSecCompOnClassic(c *C) {
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, s.classicSlotInfo)
+	c.Assert(err, IsNil)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.classicSlot)
+	c.Assert(err, IsNil)
+	// No SecComp on Classic
+	c.Assert(seccompSpec.SecurityTags(), IsNil)
+}
+
+func (s *WaylandInterfaceSuite) TestSecCompOnCore(c *C) {
+	// on a core system with wayland slot coming from a regular app snap.
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
+	c.Assert(err, IsNil)
+	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
+	c.Assert(err, IsNil)
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.wayland.app1"})
+	c.Assert(seccompSpec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "listen\n")
+}
+
+func (s *WaylandInterfaceSuite) TestUDev(c *C) {
+	// on a core system with wayland slot coming from a regular app snap.
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	spec := &udev.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 6)
+	c.Assert(spec.Snippets(), testutil.Contains, `# wayland
+KERNEL=="event[0-9]*", TAG+="snap_wayland_app1"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# wayland
+KERNEL=="mice", TAG+="snap_wayland_app1"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# wayland
+KERNEL=="mouse[0-9]*", TAG+="snap_wayland_app1"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# wayland
+KERNEL=="ts[0-9]*", TAG+="snap_wayland_app1"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# wayland
+KERNEL=="tty[0-9]*", TAG+="snap_wayland_app1"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_wayland_app1", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_wayland_app1 $devpath $major:$minor"`)
+
+	// on a classic system with wayland slot coming from the core snap.
+	restore = release.MockOnClassic(true)
+	defer restore()
+
+	spec = &udev.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
 func (s *WaylandInterfaceSuite) TestStaticInfo(c *C) {
