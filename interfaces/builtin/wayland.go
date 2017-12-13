@@ -53,7 +53,7 @@ capability sys_tty_config,
 /run/user/[0-9]*/wayland-shared-* rw,
 /run/user/[0-9]*/wayland-cursor-shared-* rw,
 
-# Allow write access to create XDG_RUNTIME_DIR (until lp:1656340 is fixed)
+# Allow write access to create XDG_RUNTIME_DIR for root (until lp:1656340 is fixed) //GERRY??!!
 /run/user/[0-9]*/ w,
 
 # Needed for mode setting via drmSetMaster() and drmDropMaster()
@@ -110,7 +110,7 @@ func (iface *waylandInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *waylandInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(slotAppLabelExpr(slot))
+	spec.AddSnippet(waylandConnectedPlugAppArmor)
 	return nil
 }
 
