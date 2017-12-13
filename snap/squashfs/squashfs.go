@@ -118,6 +118,9 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	return ioutil.ReadFile(filepath.Join(unpackDir, filePath))
 }
 
+// skippper could also be a map[string]bool, but _as it's only supposed to be
+// checkd through its Has method_, the small added complexity of it being a
+// map[string]struct{} lose to the associated space savings.
 type skipper map[string]struct{}
 
 func (sk skipper) Add(path string) {
@@ -125,12 +128,10 @@ func (sk skipper) Add(path string) {
 }
 
 func (sk skipper) Has(path string) bool {
-	path = filepath.Clean(path)
-	for path != "." && path != "/" {
-		if _, ok := sk[path]; ok {
+	for p := filepath.Clean(path); p != "." && p != "/"; p = filepath.Dir(p) {
+		if _, ok := sk[p]; ok {
 			return true
 		}
-		path = filepath.Dir(path)
 	}
 
 	return false

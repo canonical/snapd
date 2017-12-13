@@ -129,18 +129,14 @@ func (s *SnapDir) Walk(relative string, walkFn filepath.WalkFunc) error {
 
 		for _, st := range sts {
 			path := filepath.Join(relative, st.Name())
-			err = walkFn(path, st, nil)
-			if st.IsDir() {
-				switch err {
-				case nil:
-					dirstack = append(dirstack, path)
-				case filepath.SkipDir:
-					// nothing
-				default:
-					return err
+			if err := walkFn(path, st, nil); err != nil {
+				if st.IsDir() && err == filepath.SkipDir {
+					// caller wants to skip this directory
+					continue
 				}
-			} else if err != nil {
 				return err
+			} else if st.IsDir() {
+				dirstack = append(dirstack, path)
 			}
 		}
 	}
