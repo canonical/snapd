@@ -606,6 +606,7 @@ func (m *InterfaceManager) doAutoconnect(task *state.Task, _ *tomb.Tomb) error {
 		for _, l := range lanes {
 			ts.JoinLane(l)
 		}
+		task.WaitAll(ts)
 		chg.AddAll(ts)
 	}
 

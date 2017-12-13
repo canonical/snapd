@@ -184,6 +184,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	// auto-connections
 	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.Name()))
 	addTask(autoConnect)
+	autoConnect.JoinLane(st.NewLane())
 	prev = autoConnect
 
 	// setup aliases
