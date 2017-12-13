@@ -611,7 +611,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if snapsup.UserID > 0 {
 		var user *auth.UserState
 		if snapst.UserID != 0 {
-			user, _ = auth.User(st, snapst.UserID)
+			user, err = auth.User(st, snapst.UserID)
+			if err != nil && err != auth.ErrInvalidUser {
+				return err
+			}
 		}
 		if user == nil {
 			snapst.UserID = snapsup.UserID
