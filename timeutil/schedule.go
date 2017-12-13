@@ -67,13 +67,6 @@ func (t Clock) Time(base time.Time) time.Time {
 		t.Hour, t.Minute, 0, 0, base.Location())
 }
 
-// IsValidWeekday returns true if given s looks like a valid weekday. Valid
-// inputs are 3 letter, lowercase abbreviations of week days.
-func IsValidWeekday(s string) bool {
-	_, ok := weekdayMap[s]
-	return ok
-}
-
 // ParseClock parses a string that contains hour:minute and returns
 // an Clock type or an error
 func ParseClock(s string) (t Clock, err error) {
@@ -627,12 +620,13 @@ func parseWeekday(s string) (*Week, error) {
 		}
 	}
 
-	if !IsValidWeekday(day) {
+	weekday, ok := weekdayMap[day]
+	if !ok {
 		return nil, fmt.Errorf("cannot parse %q: invalid weekday", s)
 	}
 
 	week := &Week{
-		Weekday: weekdayMap[day],
+		Weekday: weekday,
 		Pos:     pos,
 	}
 	return week, nil
