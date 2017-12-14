@@ -636,16 +636,16 @@ func parseCount(s string) (count uint, rest string, err error) {
 	}
 
 	// timespan = time ( "-" / "~" ) time [ "/" ( time / count ) ]
-	ws := strings.Split(s, countToken)
-	if len(ws) != 2 {
+	split := strings.Split(s, countToken)
+	if len(split) != 2 {
 		return 0, "", fmt.Errorf("cannot parse %q: invalid event count", s)
 	}
 
-	rest = ws[0]
-	countStr := ws[1]
+	rest = split[0]
+	countStr := split[1]
 	c, err := strconv.ParseUint(countStr, 10, 32)
 	if err != nil || c == 0 {
-		return 0, "", fmt.Errorf("cannot parse %q: not a valid event interval", s)
+		return 0, "", fmt.Errorf("cannot parse %q: invalid event interval", s)
 	}
 	return uint(c), rest, nil
 }
