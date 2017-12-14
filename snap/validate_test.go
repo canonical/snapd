@@ -724,19 +724,19 @@ apps:
 	}{{
 		name: "foo after baz",
 		desc: fooAfterBaz,
-		err:  `cannot validate app "foo" startup ordering: needs to be started after "baz", but "baz" is not defined`,
+		err:  `cannot validate app "foo" startup ordering: "baz" is not defined`,
 	}, {
 		name: "foo before baz",
 		desc: fooBeforeBaz,
-		err:  `cannot validate app "foo" startup ordering: needs to be started before "baz", but "baz" is not defined`,
+		err:  `cannot validate app "foo" startup ordering: "baz" is not defined`,
 	}, {
 		name: "foo not a daemon",
 		desc: fooNotADaemon,
-		err:  `cannot validate app "foo": requires startup ordering, but is not a service`,
+		err:  `cannot validate app "foo" startup ordering: "foo" is not a service`,
 	}, {
 		name: "foo wants bar, bar not a daemon",
 		desc: fooBarNotADaemon,
-		err:  `cannot validate app "foo" startup ordering: dependent app "bar" is not a service`,
+		err:  `cannot validate app "foo" startup ordering: "bar" is not a service`,
 	}, {
 		name: "bad order 1",
 		desc: badOrder1,

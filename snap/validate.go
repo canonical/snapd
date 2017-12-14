@@ -413,8 +413,7 @@ func orderBeforeAfter(apps []*AppInfo) ([]*AppInfo, error) {
 				unsatisifed.WriteString(name)
 			}
 		}
-		return sorted, fmt.Errorf("dependency cycle detected for apps %q",
-			unsatisifed.String())
+		return sorted, fmt.Errorf("dependency cycle detected for apps %q", unsatisifed.String())
 	}
 	return sorted, nil
 }
@@ -426,8 +425,7 @@ func validateAppsOrdering(snap *Info) error {
 	}
 	_, err := orderBeforeAfter(apps)
 	if err != nil {
-		return fmt.Errorf("cannot validate app startup ordering: %v",
-			err.Error())
+		return fmt.Errorf("cannot validate app startup ordering: %v", err.Error())
 	}
 	return nil
 }
@@ -437,20 +435,20 @@ func validateAppStartupOrdering(app *AppInfo, order appStartupOrder) error {
 
 	// we must be a service to request ordering
 	if len(ordering) > 0 && !app.IsService() {
-		return fmt.Errorf("cannot validate app %q: requires startup ordering, but is not a service",
-			app.Name)
+		return fmt.Errorf("cannot validate app %q startup ordering: %q is not a service",
+			app.Name, app.Name)
 	}
 
 	for _, dep := range ordering {
 		// dependency is not defined
 		other, ok := app.Snap.Apps[dep]
 		if !ok {
-			return fmt.Errorf("cannot validate app %q startup ordering: needs to be started %s %q, but %q is not defined",
-				app.Name, order, dep, dep)
+			return fmt.Errorf("cannot validate app %q startup ordering: %q is not defined",
+				app.Name, dep)
 		}
 
 		if !other.IsService() {
-			return fmt.Errorf("cannot validate app %q startup ordering: dependent app %q is not a service",
+			return fmt.Errorf("cannot validate app %q startup ordering: %q is not a service",
 				app.Name, dep)
 		}
 	}
