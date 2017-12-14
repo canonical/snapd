@@ -477,7 +477,7 @@ install -p -m 0755 bin/snapctl %{buildroot}%{_bindir}/snapctl
 install -p -m 0755 bin/snapd %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd
-install -p -m 0755 bin/snappy-app-dev %{buildroot}%{_prefix}/udev
+install -p -m 0755 bin/snappy-app-dev %{buildroot}%{_prefix}/lib/udev
 
 # Install SELinux module
 install -p -m 0644 data/selinux/snappy.if %{buildroot}%{_datadir}/selinux/devel/include/contrib
