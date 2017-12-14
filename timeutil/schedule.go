@@ -569,12 +569,12 @@ func parseClockSpan(s string) (span ClockSpan, err error) {
 		return span, fmt.Errorf("cannot parse %q: not a valid interval", s)
 	}
 
-	if strings.Contains(rest, randomizedSpanToken) {
+	if strings.Contains(rest, spreadToken) {
 		// timespan uses "~" to indicate that the actual event
-		// time is to be randomized.
+		// time is to be spread.
 		parsed.Spread = true
 		rest = strings.Replace(rest,
-			randomizedSpanToken,
+			spreadToken,
 			spanToken, 1)
 	}
 
@@ -649,15 +649,15 @@ func parseCount(s string) (count uint, rest string, err error) {
 }
 
 const (
-	spanToken           = "-"
-	randomizedSpanToken = "~"
-	countToken          = "/"
+	spanToken   = "-"
+	spreadToken = "~"
+	countToken  = "/"
 )
 
 var shorthandTime = map[string]bool{
 	// shorthand variant of whole day
 	"-": true,
-	// and randomized whole day
+	// and whole day with spreading
 	"~": true,
 }
 
