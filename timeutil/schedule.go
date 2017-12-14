@@ -686,8 +686,6 @@ func parseEventSet(s string) (*Schedule, error) {
 	var expectTime bool
 
 	for _, event := range events {
-		// process events one by one
-
 		if len(event) == 0 {
 			return nil, fmt.Errorf("cannot parse %q: not a valid event", s)
 		}
