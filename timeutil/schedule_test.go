@@ -312,6 +312,7 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 		{"9:00-mon@11:00", nil, `cannot parse "9:00-mon@11:00": not a valid time`},
 		{"9:00,mon", nil, `cannot parse "mon": expected time spec`},
 		{"mon~wed", nil, `cannot parse "mon~wed": "mon~wed" is not a valid weekday`},
+		{"mon--wed", nil, `cannot parse "mon--wed": invalid week span`},
 		{"mon-wed/2..9:00", nil, `cannot parse "mon-wed/2": "wed/2" is not a valid weekday`},
 		{"mon9,9:00", nil, `cannot parse "mon9": "mon9" is not a valid weekday`},
 		{"mon0,9:00", nil, `cannot parse "mon0": "mon0" is not a valid weekday`},
@@ -319,6 +320,11 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 		{"mon-mon2,9:00", nil, `cannot parse "mon-mon2": mixed weekday and nonweekday`},
 		{"mon%,9:00", nil, `cannot parse "mon%": "mon%" is not a valid weekday`},
 		{"foo2,9:00", nil, `cannot parse "foo2": "foo2" is not a valid weekday`},
+		{"9:00---11:00", nil, `cannot parse "9:00---11:00": not a valid time`},
+		{"9:00-11:00/3/3/3", nil, `cannot parse "9:00-11:00/3/3/3": not a valid interval`},
+		{"9:00-11:00///3", nil, `cannot parse "9:00-11:00///3": not a valid interval`},
+		{"9:00-9:00-10:00/3", nil, `cannot parse "9:00-9:00-10:00/3": not a valid time`},
+		{":", nil, `cannot parse ":": not a valid time`},
 		// valid
 		{
 			in: "9:00-11:00",
