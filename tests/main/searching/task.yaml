@@ -44,5 +44,5 @@ execute: |
     if [ $(uname -m) = "x86_64" ]; then
         snap find --section=database cassandra | MATCH cassandra
     else
-        snap find --section=database cassandra | MATCH '0 snaps'
+        snap find --section=database cassandra 2>&1 | MATCH '0 snaps'
     fi
