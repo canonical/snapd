@@ -654,7 +654,7 @@ const (
 	countToken          = "/"
 )
 
-var shortTimeSpec = map[string]bool{
+var shorthandTime = map[string]bool{
 	// shorthand variant of whole day
 	"-": true,
 	// and randomized whole day
@@ -690,7 +690,7 @@ func parseEventSet(s string) (*Schedule, error) {
 			return nil, fmt.Errorf("cannot parse %q: not a valid event", s)
 		}
 
-		if strings.Contains(event, ":") || shortTimeSpec[event[0:1]] {
+		if strings.Contains(event, ":") || shorthandTime[event[0:1]] {
 			// must be a clock span
 			span, err := parseClockSpan(event)
 			if err != nil {
