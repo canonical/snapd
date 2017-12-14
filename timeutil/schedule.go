@@ -556,8 +556,8 @@ func parseWeekSpan(s string) (span WeekSpan, err error) {
 
 // parseClockSpan parses a time specification which can either be `<hh>:<mm>` or
 // `<hh>:<mm>[-~]<hh>:<mm>[/count]`. Alternatively the span can be one of
-// special tokens `-`, `~` that indicate a whole day span, or a whole day span
-// with spread respectively.
+// special tokens `-`, `~` (followed by an optional [/count]) that indicate a
+// whole day span, or a whole day span with spread respectively.
 func parseClockSpan(s string) (span ClockSpan, err error) {
 	var parsed ClockSpan
 	var rest string
