@@ -50,11 +50,15 @@ func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*s
 }
 
 func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, autoConnect bool) (*state.TaskSet, error) {
-	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
-		return nil, err
-	}
-	if err := snapstate.CheckChangeConflict(st, slotSnap, noConflictOnConnectTasks, nil); err != nil {
-		return nil, err
+	// Check conflicts only if it's not autoconnect. Autoconnect can only happen during snap install, so potential
+	// conficts should already be known and prevented beforehand.
+	if !autoConnect {
+		if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
+			return nil, err
+		}
+		if err := snapstate.CheckChangeConflict(st, slotSnap, noConflictOnConnectTasks, nil); err != nil {
+			return nil, err
+		}
 	}
 
 	// TODO: Store the intent-to-connect in the state so that we automatically

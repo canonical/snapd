@@ -158,12 +158,6 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	if err := m.reloadConnections(snapName); err != nil {
 		return err
 	}
-	// FIXME: here we should not reconnect auto-connect plug/slot
-	// pairs that were explicitly disconnected by the user
-	/*connectedSnaps, err := m.autoConnect(task, snapName, nil)
-	if err != nil {
-		return err
-	}*/
 	if err := m.setupSnapSecurity(task, snapInfo, opts); err != nil {
 		return err
 	}
@@ -171,9 +165,6 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	for _, name := range disconnectedSnaps {
 		affectedSet[name] = true
 	}
-	//for _, name := range connectedSnaps {
-	//	affectedSet[name] = true
-	//}
 	// The principal snap was already handled above.
 	delete(affectedSet, snapInfo.Name())
 	affectedSnaps := make([]string, 0, len(affectedSet))
@@ -359,6 +350,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	if plug == nil {
 		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
 	}
+
 	var plugDecl *asserts.SnapDeclaration
 	if plug.Snap.SnapID != "" {
 		var err error
@@ -372,36 +364,40 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	if slot == nil {
 		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	}
-	var slotDecl *asserts.SnapDeclaration
-	if slot.Snap.SnapID != "" {
-		var err error
-		slotDecl, err = assertstate.SnapDeclaration(st, slot.Snap.SnapID)
-		if err != nil {
-			return fmt.Errorf("cannot find snap declaration for %q: %v", slot.Snap.Name(), err)
+
+	// FIXME: check auto connect policy here instead when interface hooks land.
+	if !autoConnect {
+		var slotDecl *asserts.SnapDeclaration
+		if slot.Snap.SnapID != "" {
+			var err error
+			slotDecl, err = assertstate.SnapDeclaration(st, slot.Snap.SnapID)
+			if err != nil {
+				return fmt.Errorf("cannot find snap declaration for %q: %v", slot.Snap.Name(), err)
+			}
 		}
-	}
 
-	baseDecl, err := assertstate.BaseDeclaration(st)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
-	}
-
-	// check the connection against the declarations' rules
-	ic := policy.ConnectCandidate{
-		Plug:                plug,
-		PlugSnapDeclaration: plugDecl,
-		Slot:                slot,
-		SlotSnapDeclaration: slotDecl,
-		BaseDeclaration:     baseDecl,
-	}
-
-	// if either of plug or slot snaps don't have a declaration it
-	// means they were installed with "dangerous", so the security
-	// check should be skipped at this point.
-	if plugDecl != nil && slotDecl != nil {
-		err = ic.Check()
+		baseDecl, err := assertstate.BaseDeclaration(st)
 		if err != nil {
-			return err
+			return fmt.Errorf("internal error: cannot find base declaration: %v", err)
+		}
+
+		// check the connection against the declarations' rules
+		ic := policy.ConnectCandidate{
+			Plug:                plug,
+			PlugSnapDeclaration: plugDecl,
+			Slot:                slot,
+			SlotSnapDeclaration: slotDecl,
+			BaseDeclaration:     baseDecl,
+		}
+
+		// if either of plug or slot snaps don't have a declaration it
+		// means they were installed with "dangerous", so the security
+		// check should be skipped at this point.
+		if plugDecl != nil && slotDecl != nil {
+			err = ic.Check()
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -487,11 +483,13 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *InterfaceManager) doAutoconnect(task *state.Task, _ *tomb.Tomb) error {
+// doAutoConnect creates task(s) to connect the given snap to viable candidates.
+func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
+	// FIXME: here we should not reconnect auto-connect plug/slot
+	// pairs that were explicitly disconnected by the user
+
 	var conns map[string]connState
-
 	st := task.State()
-
 	autochecker, err := newAutoConnectChecker(task.State())
 	if err != nil {
 		return err
@@ -597,6 +595,7 @@ func (m *InterfaceManager) doAutoconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	// add all connect tasks to the change of main "auto-connect" task and to the same lane.
 	chg := task.Change()
 	lanes := task.Lanes()
 	if len(lanes) == 1 && lanes[0] == 0 {
@@ -609,9 +608,7 @@ func (m *InterfaceManager) doAutoconnect(task *state.Task, _ *tomb.Tomb) error {
 		task.WaitAll(ts)
 		chg.AddAll(ts)
 	}
-
 	st.EnsureBefore(0)
-
 	return nil
 }
 
