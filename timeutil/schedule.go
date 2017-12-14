@@ -287,7 +287,7 @@ func (s ScheduleWindow) Includes(t time.Time) bool {
 	return (t.Equal(s.Start) || t.After(s.Start)) && (t.Equal(s.End) || t.Before(s.End))
 }
 
-// Returns true if window is uninitialized.
+// IsZero returns whether s is uninitialized.
 func (s ScheduleWindow) IsZero() bool {
 	return s.Start.IsZero() || s.End.IsZero()
 }
