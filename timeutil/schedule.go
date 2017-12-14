@@ -419,10 +419,9 @@ var weekdayMap = map[string]time.Weekday{
 	"sat": time.Saturday,
 }
 
-// parseTimeInterval gets an input like "9:00-11:00"
-// and extracts the start and end of that schedule string and
-// returns them and any errors.
-func parseTimeInterval(s string) (start, end Clock, err error) {
+// parseClockRange gets an input like "9:00-11:00" and extracts the start and
+// end of that clock range string. Returns them and any errors.
+func parseClockRange(s string) (start, end Clock, err error) {
 	l := strings.SplitN(s, "-", 2)
 	if len(l) != 2 {
 		return start, end, fmt.Errorf("cannot parse %q: not a valid interval", s)
@@ -442,7 +441,7 @@ func parseTimeInterval(s string) (start, end Clock, err error) {
 
 // parseSingleSchedule parses a schedule string like "9:00-11:00"
 func parseSingleSchedule(s string) (*Schedule, error) {
-	start, end, err := parseTimeInterval(s)
+	start, end, err := parseClockRange(s)
 	if err != nil {
 		return nil, err
 	}
@@ -584,7 +583,7 @@ func parseClockSpan(s string) (span ClockSpan, err error) {
 			parsed.Start = Clock{0, 0}
 			parsed.End = Clock{24, 0}
 		} else {
-			parsed.Start, parsed.End, err = parseTimeInterval(rest)
+			parsed.Start, parsed.End, err = parseClockRange(rest)
 		}
 	} else {
 		parsed.Start, err = ParseClock(rest)
