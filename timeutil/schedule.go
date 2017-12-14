@@ -525,7 +525,7 @@ func parseWeekSpan(s string) (*WeekSpan, error) {
 
 	split := strings.Split(s, spanToken)
 	if len(split) > 2 {
-		return nil, fmt.Errorf("cannot parse %q: incorrect format", s)
+		return nil, fmt.Errorf("cannot parse %q: invalid week span", s)
 	}
 
 	span.Start, err = parseWeekday(split[0])
