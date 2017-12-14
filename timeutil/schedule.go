@@ -613,7 +613,7 @@ func parseWeekday(s string) (week Week, err error) {
 		day = s[0:3]
 		v, err := strconv.ParseUint(s[3:], 10, 32)
 		if err != nil || v < 1 || v > 5 {
-			return week, fmt.Errorf("cannot parse %q: invalid week", s)
+			return week, fmt.Errorf("cannot parse %q: invalid week number", s)
 		}
 		pos = uint(v)
 	}
