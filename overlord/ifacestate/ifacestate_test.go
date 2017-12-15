@@ -187,6 +187,11 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(slot.Snap, Equals, "producer")
 	c.Assert(slot.Name, Equals, "slot")
+	var autoconnect bool
+	err = task.Get("auto", &autoconnect)
+	c.Assert(err, IsNil)
+	c.Assert(autoconnect, Equals, false)
+
 	// verify initial attributes are present in connect task
 	var attrs map[string]interface{}
 	err = task.Get("plug-attrs", &attrs)

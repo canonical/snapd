@@ -39,6 +39,8 @@ var noConflictOnConnectTasks = func(task *state.Task) bool {
 	return task.Kind() != "connect" && task.Kind() != "disconnect"
 }
 
+// AutoConnect returns a set of tasks for connection an interface as part of snap installation
+// and auto-connect handling.
 func AutoConnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
 	return connect(st, plugSnap, plugName, slotSnap, slotName, true)
 }
@@ -105,6 +107,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, aut
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
 	connectInterface.Set("auto", autoConnect)
+
 	if err := setInitialConnectAttributes(connectInterface, plugSnap, plugName, slotSnap, slotName); err != nil {
 		return nil, err
 	}
