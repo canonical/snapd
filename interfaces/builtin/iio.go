@@ -98,8 +98,8 @@ func (iface *iioInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 }
 
 func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk {
+	var path string
+	if err := slot.Attr("path", &path); err != nil {
 		return nil
 	}
 
@@ -118,8 +118,8 @@ func (iface *iioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 }
 
 func (iface *iioInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk {
+	var path string
+	if err := slot.Attr("path", &path); err != nil {
 		return nil
 	}
 	spec.TagDevice(fmt.Sprintf(`KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))

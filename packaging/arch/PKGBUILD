@@ -5,7 +5,7 @@
 
 pkgbase=snapd
 pkgname=snapd-git
-pkgver=2.29.r222.gc6d068254
+pkgver=2.29.4.1.r959.g0d9c50d2c
 pkgrel=1
 arch=('i686' 'x86_64')
 url="https://github.com/snapcore/snapd"
@@ -212,5 +212,4 @@ package_snapd-git() {
   # Install the "info" data file with snapd version
   install -m 644 -D "$GOPATH/src/${_gourl}/data/info" \
           "$pkgdir/usr/lib/snapd/info"
-
 }
