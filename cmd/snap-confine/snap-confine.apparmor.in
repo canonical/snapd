@@ -63,12 +63,16 @@
     # querying udev
     /etc/udev/udev.conf r,
     /sys/**/uevent r,
-    /lib/udev/snappy-app-dev ixr, # drop
     /run/udev/** rw,
     /{,usr/}bin/tr ixr,
     /usr/lib/locale/** r,
     /usr/lib/@{multiarch}/gconv/gconv-modules r,
     /usr/lib/@{multiarch}/gconv/gconv-modules.cache r,
+    /lib/udev/snappy-app-dev ixr,
+    # Go snappy-app-dev (perhaps move to child profile?)
+    network inet,
+    network inet6,
+    @{PROC}/sys/net/core/somaxconn r,
 
     # priv dropping
     capability setuid,
