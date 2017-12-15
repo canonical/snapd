@@ -477,7 +477,6 @@ install -p -m 0755 bin/snapctl %{buildroot}%{_bindir}/snapctl
 install -p -m 0755 bin/snapd %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd
-install -p -m 0755 bin/snappy-app-dev %{buildroot}%{_prefix}/lib/udev
 
 # Install SELinux module
 install -p -m 0644 data/selinux/snappy.if %{buildroot}%{_datadir}/selinux/devel/include/contrib
@@ -495,6 +494,8 @@ install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
 install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
 
 # Install snap-confine
+install -d -p %{buildroot}%{_prefix}/lib/udev
+install -p -m 0755 bin/snappy-app-dev %{buildroot}%{_prefix}/lib/udev
 pushd ./cmd
 %make_install
 # Undo the 0000 permissions, they are restored in the files section
