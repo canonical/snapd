@@ -60,7 +60,6 @@ type snapmgrTestSuite struct {
 	o       *overlord.Overlord
 	state   *state.State
 	snapmgr *snapstate.SnapManager
-	hookmgr *hookstate.HookManager
 
 	fakeBackend *fakeSnappyBackend
 	fakeStore   *fakeStore
@@ -109,10 +108,6 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
 	s.o.AddManager(s.snapmgr)
-
-	s.hookmgr, err = hookstate.Manager(s.state)
-	c.Assert(err, IsNil)
-	s.o.AddManager(s.hookmgr)
 
 	s.BaseTest.AddCleanup(snapstate.MockReadInfo(s.fakeBackend.ReadInfo))
 	s.BaseTest.AddCleanup(snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile))
@@ -3094,7 +3089,6 @@ version: 1.0`)
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
-	defer s.hookmgr.Stop()
 	s.settle(c)
 	s.state.Lock()
 
