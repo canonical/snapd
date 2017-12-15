@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+
+import dbus
+import os
+import sys
+
+INTERFACE = 'com.ubuntu.connectivity1.NetworkingStatus'
+PATH = '/com/ubuntu/connectivity1/NetworkingStatus'
+
+
+def _get_obj():
+    return dbus.SystemBus().get_object(INTERFACE, PATH)
+
+
+def get_version():
+    obj = _get_obj()
+    return obj.GetVersion(dbus_interface=INTERFACE)
+
+
+def get_state():
+    obj = _get_obj()
+    return obj.GetState(dbus_interface=INTERFACE)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "GetState":
+        res = get_state()
+    else:
+        res = get_version()
+
+    print(res)
