@@ -337,6 +337,10 @@ func newFakeSnapManager(st *state.State) *fakeSnapManager {
 	return &fakeSnapManager{runner: runner}
 }
 
+func (m *fakeSnapManager) KnownTaskKinds() []string {
+	return m.runner.KnownTaskKinds()
+}
+
 func (m *fakeSnapManager) Ensure() error {
 	m.runner.Ensure()
 	return nil
