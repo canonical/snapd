@@ -83,6 +83,7 @@ func (s *snappyAppDevSuite) TestDevPathAndMajorMinorValid(c *C) {
 	}{
 		{"/devices/virtual/mem/kmsg", "1:11", "c 1:11 rwm"},
 		{"/devices/pci0000:00/0000:00:07.0/virtio2/block/vda", "253:0", "b 253:0 rwm"},
+		{"/dev/pts/slaves", "136:*", "c 136:* rwm"},
 	} {
 		acl, err := main.GetAcl(t.dev, t.mod)
 		c.Assert(err, IsNil)
@@ -99,12 +100,12 @@ func (s *snappyAppDevSuite) TestDevPathOrMajorMinorInvalid(c *C) {
 		{"kmsg", "1:11", "DEVPATH should start with /"},
 		{"/devices/virtual/mem/../foo/kmsg", "1:11", `invalid DEVPATH "/devices/virtual/mem/../foo/kmsg"`},
 		{"/devices/virtual/mem/kmsg", "1", "should be MAJOR:MINOR"},
-		{"/devices/virtual/mem/kmsg", ":1", "MAJOR and MINOR should be uint32"},
-		{"/devices/virtual/mem/kmsg", "1:", "MAJOR and MINOR should be uint32"},
-		{"/devices/virtual/mem/kmsg", "bad:11", "MAJOR and MINOR should be uint32"},
-		{"/devices/virtual/mem/kmsg", "1:bad", "MAJOR and MINOR should be uint32"},
-		{"/devices/virtual/mem/kmsg", "1:-1", "MAJOR and MINOR should be uint32"},
-		{"/devices/virtual/mem/kmsg", "1:1\\01", "MAJOR and MINOR should be uint32"},
+		{"/devices/virtual/mem/kmsg", ":1", "MAJOR and MINOR should be uint32 or '\\*'"},
+		{"/devices/virtual/mem/kmsg", "1:", "MAJOR and MINOR should be uint32 or '\\*'"},
+		{"/devices/virtual/mem/kmsg", "bad:11", "MAJOR and MINOR should be uint32 or '\\*'"},
+		{"/devices/virtual/mem/kmsg", "1:bad", "MAJOR and MINOR should be uint32 or '\\*'"},
+		{"/devices/virtual/mem/kmsg", "1:-1", "MAJOR and MINOR should be uint32 or '\\*'"},
+		{"/devices/virtual/mem/kmsg", "1:1\\01", "MAJOR and MINOR should be uint32 or '\\*'"},
 	} {
 		acl, err := main.GetAcl(t.dev, t.mod)
 		c.Assert(err, NotNil)

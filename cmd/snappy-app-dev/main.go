@@ -82,8 +82,10 @@ func verifyMajorMinor(majmin string) (string, error) {
 	}
 
 	for _, val := range tmp {
-		if _, err := strconv.ParseUint(val, 10, 32); err != nil {
-			return "", fmt.Errorf("MAJOR and MINOR should be uint32")
+		if val == "*" {
+			continue
+		} else if _, err := strconv.ParseUint(val, 10, 32); err != nil {
+			return "", fmt.Errorf("MAJOR and MINOR should be uint32 or '*'")
 		}
 	}
 	return majmin, nil
