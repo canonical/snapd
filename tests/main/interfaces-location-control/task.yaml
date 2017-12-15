@@ -39,16 +39,15 @@ execute: |
 
     echo "Then wait until the dbus name is properly reserved"
     for i in $(seq 10); do
-        if ! test-snapd-location-control-provider.consumer Get | MATCH "location-get"; then
-            sleep 1
-        else
+        if test-snapd-location-control-provider.consumer Get | MATCH "location-get"; then
             break
+        else
+            sleep 1
         fi
     done
 
     echo "Check the location-control is working from the consumer app in the snap"
     test-snapd-location-control-provider.consumer Get | MATCH "location-get"
-    test-snapd-location-control-provider.consumer Set | MATCH "location-set"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
