@@ -215,3 +215,7 @@ corenet_tcp_sendrecv_dns_port(snappy_t)
 corenet_udp_sendrecv_dns_port(snappy_t)
 corenet_tcp_connect_dns_port(snappy_t)
 corenet_sendrecv_dns_client_packets(snappy_t)
+
+# allow polkit to reply to snapd
+gen_require(` type policykit_t; class dbus send_msg; ')
+allow policykit_t snappy_t:dbus send_msg;
