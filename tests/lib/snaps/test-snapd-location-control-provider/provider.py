@@ -6,7 +6,7 @@ import dbus.service
 
 from dbus.mainloop.glib import DBusGMainLoop
 
-INTERFACE = 'com.ubuntu.location.Service'
+INTERFACE = 'org.freedesktop.DBus.Properties'
 PATH = '/com/ubuntu/location/Service'
 
 DBusGMainLoop(set_as_default=True)
@@ -19,12 +19,8 @@ class DBusProvider(dbus.service.Object):
         dbus.service.Object.__init__(self, bus_name, PATH)
 
     @dbus.service.method(dbus_interface=INTERFACE, out_signature="s")
-    def Get(self):
-        return "location-get"
-
-    @dbus.service.method(dbus_interface=INTERFACE, out_signature="s")
-    def Set(self):
-        return "location-set"
+    def Get(self, interface_name, property_name):
+        return 'location-get'
 
 
 if __name__ == "__main__":
