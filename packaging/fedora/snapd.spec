@@ -627,7 +627,6 @@ popd
 %{_mandir}/man1/snap-confine.1*
 %{_mandir}/man5/snap-discard-ns.5*
 %{_prefix}/lib/udev/snappy-app-dev
-%{_udevrulesdir}/80-snappy-assign.rules
 %attr(0000,root,root) %{_sharedstatedir}/snapd/void
 
 

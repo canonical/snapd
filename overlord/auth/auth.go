@@ -158,11 +158,16 @@ func NewUser(st *state.State, username, email, macaroon string, discharges []str
 	return &authenticatedUser, nil
 }
 
+var ErrInvalidUser = errors.New("invalid user")
+
 // RemoveUser removes a user from the state given its ID
 func RemoveUser(st *state.State, userID int) error {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return ErrInvalidUser
+	}
 	if err != nil {
 		return err
 	}
@@ -179,7 +184,7 @@ func RemoveUser(st *state.State, userID int) error {
 		}
 	}
 
-	return fmt.Errorf("invalid user")
+	return ErrInvalidUser
 }
 
 func Users(st *state.State) ([]*UserState, error) {
@@ -205,6 +210,9 @@ func User(st *state.State, id int) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return nil, ErrInvalidUser
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +222,7 @@ func User(st *state.State, id int) (*UserState, error) {
 			return &user, nil
 		}
 	}
-	return nil, fmt.Errorf("invalid user")
+	return nil, ErrInvalidUser
 }
 
 // UpdateUser updates user in state
@@ -222,6 +230,9 @@ func UpdateUser(st *state.State, user *UserState) error {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return ErrInvalidUser
+	}
 	if err != nil {
 		return err
 	}
@@ -234,7 +245,7 @@ func UpdateUser(st *state.State, user *UserState) error {
 		}
 	}
 
-	return fmt.Errorf("invalid user")
+	return ErrInvalidUser
 }
 
 // Device returns the device details from the state.

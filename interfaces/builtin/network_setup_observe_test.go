@@ -31,9 +31,11 @@ import (
 )
 
 type NetworkSetupObserveInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&NetworkSetupObserveInterfaceSuite{
@@ -48,15 +50,16 @@ apps:
   command: foo
   plugs: [network-setup-observe]
 `
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "network-setup-observe",
-			Interface: "network-setup-observe",
-		},
+	s.slotInfo = &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Name:      "network-setup-observe",
+		Interface: "network-setup-observe",
 	}
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+
 	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: snapInfo.Plugs["network-setup-observe"]}
+	s.plugInfo = snapInfo.Plugs["network-setup-observe"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 }
 
 func (s *NetworkSetupObserveInterfaceSuite) TestName(c *C) {
@@ -64,24 +67,24 @@ func (s *NetworkSetupObserveInterfaceSuite) TestName(c *C) {
 }
 
 func (s *NetworkSetupObserveInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "network-setup-observe",
 		Interface: "network-setup-observe",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"network-setup-observe slots are reserved for the core snap")
 }
 
 func (s *NetworkSetupObserveInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *NetworkSetupObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/etc/netplan")

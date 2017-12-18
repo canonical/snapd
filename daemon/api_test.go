@@ -1085,7 +1085,7 @@ func (s *apiSuite) TestLogoutUser(c *check.C) {
 	state.Lock()
 	_, err = auth.User(state, user.ID)
 	state.Unlock()
-	c.Check(err, check.ErrorMatches, "invalid user")
+	c.Check(err, check.Equals, auth.ErrInvalidUser)
 }
 
 func (s *apiSuite) TestLoginUserBadRequest(c *check.C) {
