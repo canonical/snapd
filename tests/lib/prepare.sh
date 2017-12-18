@@ -243,7 +243,7 @@ prepare_classic() {
         done
         snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
         # shellcheck disable=SC2086
-        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount $snapd_env
+        tar cf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount $snapd_env
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
@@ -255,30 +255,6 @@ prepare_classic() {
             systemctl start "$unit"
         done
         systemctl start snapd.socket
-    fi
-
-    if [[ "$SPREAD_SYSTEM" == debian-* || "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-            pollinate
-        fi
-
-        # Improve entropy for the whole system quite a lot to get fast
-        # key generation during our test cycles
-        echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
-        /etc/init.d/rng-tools restart
-
-        if systemctl list-units | MATCH "rng-tools.service"; then
-            mkdir -p /etc/systemd/system/rng-tools.service.d/
-            cat <<EOF > /etc/systemd/system/rng-tools.service.d/local.conf
-[Service]
-Restart=always
-RestartSec=2
-RemainAfterExit=no
-PIDFile=/var/run/rngd.pid
-EOF
-        systemctl daemon-reload
-        systemctl restart rng-tools.service
-        fi
     fi
 
     disable_kernel_rate_limiting
@@ -526,7 +502,7 @@ prepare_all_snap() {
         fi
 
         systemctl stop snapd.service snapd.socket
-        tar czf "$SPREAD_PATH/snapd-state.tar.gz" /var/lib/snapd $BOOT /etc/systemd/system/snap-*core*.mount
+        tar cf "$SPREAD_PATH/snapd-state.tar.gz" /var/lib/snapd $BOOT /etc/systemd/system/snap-*core*.mount
         systemctl start snapd.socket
     fi
 

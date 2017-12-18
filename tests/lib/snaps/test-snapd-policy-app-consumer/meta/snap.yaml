@@ -89,6 +89,9 @@ apps:
   gpg-public-keys:
     command: bin/run
     plugs: [ gpg-public-keys ]
+  gpio-memory-control:
+    command: bin/run
+    plugs: [ gpio-memory-control ]
   greengrass-support:
     command: bin/run
     plugs: [ greengrass-support ]

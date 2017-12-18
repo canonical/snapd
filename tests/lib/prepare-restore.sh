@@ -22,6 +22,9 @@ set -o pipefail
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
+# shellcheck source=tests/lib/random.sh
+. "$TESTSLIB/random.sh"
+
 ###
 ### Utility functions reused below.
 ###
@@ -315,9 +318,13 @@ prepare_project_each() {
 
     # Clear the kernel ring buffer.
     dmesg -c > /dev/null
+
+    fixup_dev_random
 }
 
 restore_project_each() {
+    restore_dev_random
+
     # Udev rules are notoriously hard to write and seemingly correct but subtly
     # wrong rules can pass review. Whenever that happens udev logs an error
     # message. As a last resort from lack of a better mechanism we can try to
