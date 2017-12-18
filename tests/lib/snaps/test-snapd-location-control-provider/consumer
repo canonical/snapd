@@ -4,7 +4,7 @@ import dbus
 import os
 import sys
 
-INTERFACE = 'org.freedesktop.DBus.Properties'
+INTERFACE = 'com.ubuntu.location.Service'
 PATH = '/com/ubuntu/location/Service'
 
 
@@ -12,15 +12,11 @@ def _get_obj():
     return dbus.SystemBus().get_object(INTERFACE, PATH)
 
 
-def get(property_name):
+def add_provider():
     obj = _get_obj()
-    return obj.Get(dbus_interface=INTERFACE, property_name=property_name)
+    return obj.AddProvider()
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "Get":
-        res = get('test')
-        print(res)
-    else:
-        print('Method not supported')
-        exit(1)
+    res = add_provider()
+    print(res)
