@@ -272,7 +272,7 @@ func (as *authSuite) TestUserForNoAuthInState(c *C) {
 	as.state.Lock()
 	userFromState, err := auth.User(as.state, 42)
 	as.state.Unlock()
-	c.Check(err, NotNil)
+	c.Check(err, Equals, auth.ErrInvalidUser)
 	c.Check(userFromState, IsNil)
 }
 
@@ -284,6 +284,7 @@ func (as *authSuite) TestUserForNonExistent(c *C) {
 
 	as.state.Lock()
 	userFromState, err := auth.User(as.state, 42)
+	c.Check(err, Equals, auth.ErrInvalidUser)
 	c.Check(err, ErrorMatches, "invalid user")
 	c.Check(userFromState, IsNil)
 }
@@ -335,7 +336,7 @@ func (as *authSuite) TestUpdateUserInvalid(c *C) {
 	as.state.Lock()
 	err := auth.UpdateUser(as.state, user)
 	as.state.Unlock()
-	c.Assert(err, ErrorMatches, "invalid user")
+	c.Assert(err, Equals, auth.ErrInvalidUser)
 }
 
 func (as *authSuite) TestRemove(c *C) {
@@ -357,12 +358,12 @@ func (as *authSuite) TestRemove(c *C) {
 	as.state.Lock()
 	_, err = auth.User(as.state, user.ID)
 	as.state.Unlock()
-	c.Check(err, ErrorMatches, "invalid user")
+	c.Check(err, Equals, auth.ErrInvalidUser)
 
 	as.state.Lock()
 	err = auth.RemoveUser(as.state, user.ID)
 	as.state.Unlock()
-	c.Assert(err, ErrorMatches, "invalid user")
+	c.Assert(err, Equals, auth.ErrInvalidUser)
 }
 
 func (as *authSuite) TestSetDevice(c *C) {
@@ -447,7 +448,7 @@ func (as *authSuite) TestAuthContextUpdateUserAuthInvalid(c *C) {
 
 	authContext := auth.NewAuthContext(as.state, nil)
 	_, err := authContext.UpdateUserAuth(user, nil)
-	c.Assert(err, ErrorMatches, "invalid user")
+	c.Assert(err, Equals, auth.ErrInvalidUser)
 }
 
 func (as *authSuite) TestAuthContextDeviceForNonExistent(c *C) {
