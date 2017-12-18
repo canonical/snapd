@@ -595,18 +595,22 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	// add all connect tasks to the change of main "auto-connect" task and to the same lane.
 	chg := task.Change()
 	lanes := task.Lanes()
 	if len(lanes) == 1 && lanes[0] == 0 {
 		lanes = nil
 	}
+	ht := task.HaltTasks()
 	for _, ts := range autoconnectTs {
+		// add all connect tasks to the change of main "auto-connect" task and to the same lane.
 		for _, l := range lanes {
 			ts.JoinLane(l)
 		}
-		task.WaitAll(ts)
 		chg.AddAll(ts)
+		// make all halt tasks of the main 'auto-connect' task wait on connect tasks
+		for _, t := range ht {
+			t.WaitAll(ts)
+		}
 	}
 	st.EnsureBefore(0)
 	return nil
