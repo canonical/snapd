@@ -63,7 +63,7 @@ test-snapd-hello-classic.$(snap_arch).bin: test-snapd-hello-classic.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
 
 $(snap_file): test-snapd-hello-classic.$(snap_arch).bin meta/snap.yaml
-	mksquashfs . $@ -e $@ -noappend -no-xattrs -comp xz
+	mksquashfs . $@ -e $@ -noappend -no-xattrs -comp gzip
 
 meta: Makefile
 	mkdir -p $@
