@@ -541,4 +541,44 @@ suites:
             distro_purge_package qemu genisoimage sshpass
             snap remove ubuntu-image
 
+    tests/performance/:
+        summary: Performance tests for snapd
+        manual: true
+        environment:
+            RES_FILE: "$PROJECT_PATH/test.perf"
+        prepare: |
+            . "$TESTSLIB/prepare.sh"
+            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+                prepare_all_snap
+            else
+                prepare_classic
+            fi
+
+            . "$TESTSLIB/perf.sh"
+            create_results_file $RES_FILE
+
+        prepare-each: |
+            "$TESTSLIB/reset.sh" --reuse-core
+            . $TESTSLIB/prepare.sh
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                prepare_each_classic
+            fi
+
+        restore: |
+            "$TESTSLIB/reset.sh" --store
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+                . $TESTSLIB/pkgdb.sh
+                distro_purge_package snapd
+                if [[ "$SPREAD_SYSTEM" != opensuse-* ]]; then
+                    # A snap-confine package never existed on openSUSE
+                    distro_purge_package snap-confine
+                fi
+            fi
+
+            . "$TESTSLIB/perf.sh"
+            finish_results_file $RES_FILE
+            cat $RES_FILE
+            rm -f $RES_FILE
+            exit 1
+
 # vim:ts=4:sw=4:et
