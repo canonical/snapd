@@ -28,7 +28,7 @@ prepare: |
          a: A
          b: B
     EOF
-    mksquashfs squashfs-root pc_x1.snap -comp xz
+    mksquashfs squashfs-root pc_x1.snap -comp gzip
     rm -rf squashfs-root
     cp pc_x1.snap /var/lib/snapd/seed/snaps/
     cp test-snapd-with-configure_*.snap /var/lib/snapd/seed/snaps/
