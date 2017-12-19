@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -382,6 +383,24 @@ func (s *DbusInterfaceSuite) TestPermanentSlotDBusSystem(c *C) {
 	snippet := dbusSpec.SnippetForTag("snap.test-dbus.test-system-provider")
 	c.Check(snippet, testutil.Contains, "<policy user=\"root\">\n    <allow own=\"org.test-system-slot\"/>")
 	c.Check(snippet, testutil.Contains, "<policy context=\"default\">\n    <allow send_destination=\"org.test-system-slot\"/>")
+}
+
+func (s *DbusInterfaceSuite) TestPermanentSlotSecCompSystem(c *C) {
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, s.systemSlotInfo)
+	c.Assert(err, IsNil)
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-system-provider"})
+	snippet := seccompSpec.SnippetForTag("snap.test-dbus.test-system-provider")
+	c.Check(snippet, testutil.Contains, "listen\naccept\naccept4\n")
+}
+
+func (s *DbusInterfaceSuite) TestPermanentSlotSecCompSession(c *C) {
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, s.sessionSlotInfo)
+	c.Assert(err, IsNil)
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-provider"})
+	snippet := seccompSpec.SnippetForTag("snap.test-dbus.test-session-provider")
+	c.Check(snippet, testutil.Contains, "listen\naccept\naccept4\n")
 }
 
 func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {
