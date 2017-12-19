@@ -57,5 +57,8 @@ execute: |
     test-snapd-fuse-consumer.create $MOUNT_POINT
     # use "[f]oo" to search for "foo" in ps output without having to filter yourself out
     PID=$(ps aux | awk '/[t]est-snapd.*create/{print $2}')
+    for p in $PID; do
+        echo "$p command: $(cat /proc/${p}/cmdline | tr '\0' ' ')"
+    done
     MATCH "Hello World!" < /proc/${PID}/root/$MOUNT_POINT/hello
     kill -9 ${PID}
