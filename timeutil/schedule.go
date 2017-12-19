@@ -68,7 +68,7 @@ func (t Clock) Time(base time.Time) time.Time {
 }
 
 // ParseClock parses a string that contains hour:minute and returns
-// an Clock type or an error
+// a Clock type or an error
 func ParseClock(s string) (t Clock, err error) {
 	m := validTime.FindStringSubmatch(s)
 	if len(m) == 0 {
@@ -284,7 +284,7 @@ type ScheduleWindow struct {
 
 // Includes returns whether t falls inside the window.
 func (s ScheduleWindow) Includes(t time.Time) bool {
-	return (t.Equal(s.Start) || t.After(s.Start)) && (t.Equal(s.End) || t.Before(s.End))
+	return !(t.Before(s.Start) || t.After(s.End))
 }
 
 // IsZero returns whether s is uninitialized.
