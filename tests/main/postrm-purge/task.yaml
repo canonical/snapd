@@ -11,6 +11,9 @@ execute: |
 
     . $TESTSLIB/dirs.sh
 
+    # purge is performed while/after removing the package
+    systemctl stop snapd.service snapd.socket
+
     # Ubuntu/Debian packaging has not been migrated to cross-distro snap-mgmt
     # tool
     if [[ "$SPREAD_SYSTEM" = ubuntu-* || "$SPREAD_SYSTEM" = debian-* ]]; then
@@ -31,3 +34,13 @@ execute: |
             exit 1
         fi
     done
+
+    . $TESTSLIB/pkgdb.sh
+
+    # remove the packaged
+    distro_purge_package snapd
+
+restore: |
+    . $TESTSLIB/pkgdb.sh
+    # reinstall the package for subsequent tests
+    distro_install_build_snapd
