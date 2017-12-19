@@ -40,11 +40,11 @@ execute: |
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "Then the snap is not able to create a fuse file system"
-        if test-snapd-fuse-consumer.create $MOUNT_POINT 2>${PWD}/fuse.error; then
+        if test-snapd-fuse-consumer.create -f $MOUNT_POINT 2>${PWD}/fuse.error; then
             echo "Expected permission error creating fuse filesystem with disconnected plug"
             exit 1
         fi
-        MATCH "Permission denied" fuse.error
+        MATCH "Permission denied" < fuse.error
 
         echo "==================================="
     fi
@@ -54,11 +54,31 @@ execute: |
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to create a fuse filesystem"
-    test-snapd-fuse-consumer.create $MOUNT_POINT
-    # use "[f]oo" to search for "foo" in ps output without having to filter yourself out
-    PID=$(ps aux | awk '/[t]est-snapd.*create/{print $2}')
-    for p in $PID; do
-        echo "$p command: $(cat /proc/${p}/cmdline | tr '\0' ' ')"
+    # start fuse consumer in foreground and make it a background job
+    test-snapd-fuse-consumer.create -f $MOUNT_POINT &
+    createpid=$!
+    # cleanup the background job on exit
+    trap 'kill $createpid; wait $createpid' EXIT
+
+    # it may take a while for hello file to appear
+    for i in $(seq 100); do
+        if test -r /proc/${createpid}/root/${MOUNT_POINT}/hello; then
+            break
+        fi
+        sleep .1
     done
-    cat /proc/${PID}/root/$MOUNT_POINT/hello | MATCH "Hello World!"
-    kill -9 ${PID}
+    test -r /proc/${createpid}/root/${MOUNT_POINT}/hello
+    # prefer cat ... | MATCH so that we can see which PID is used
+    cat /proc/${createpid}/root/${MOUNT_POINT}/hello | MATCH "Hello World!"
+
+    # SIGTERM triggers a clean exit
+    kill $createpid
+    trap - EXIT
+
+    # the create app will try to unmount the fuse filesystem while exiting,
+    # if it fails due to apparmor or seccomp rules we'll not by its exit status
+    echo "The snap exited cleanly"
+    wait $createpid
+
+    # verify that the mount_point was removed from mount namespace of the snap
+    ! (nsenter --mount=/run/snapd/ns/test-snapd-fuse-consumer.mnt mount) | MATCH $(basename $MOUNT_POINT)
