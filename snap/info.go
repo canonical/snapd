@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -398,6 +399,27 @@ type PlugInfo struct {
 	Hooks     map[string]*HookInfo
 }
 
+func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
+	if v, ok := attrs[key]; ok {
+		rt := reflect.TypeOf(val)
+		if rt.Kind() != reflect.Ptr || val == nil {
+			return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", key, ifaceName)
+		}
+
+		if reflect.TypeOf(v) != rt.Elem() {
+			return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, key)
+		}
+		rv := reflect.ValueOf(val)
+		rv.Elem().Set(reflect.ValueOf(v))
+		return nil
+	}
+	return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)
+}
+
+func (plug *PlugInfo) Attr(key string, val interface{}) error {
+	return getAttribute(plug.Snap.Name(), plug.Interface, plug.Attrs, key, val)
+}
+
 // SecurityTags returns security tags associated with a given plug.
 func (plug *PlugInfo) SecurityTags() []string {
 	tags := make([]string, 0, len(plug.Apps)+len(plug.Hooks))
@@ -414,6 +436,10 @@ func (plug *PlugInfo) SecurityTags() []string {
 // String returns the representation of the plug as snap:plug string.
 func (plug *PlugInfo) String() string {
 	return fmt.Sprintf("%s:%s", plug.Snap.Name(), plug.Name)
+}
+
+func (slot *SlotInfo) Attr(key string, val interface{}) error {
+	return getAttribute(slot.Snap.Name(), slot.Interface, slot.Attrs, key, val)
 }
 
 // SecurityTags returns security tags associated with a given slot.
@@ -481,6 +507,11 @@ type AppInfo struct {
 	Sockets map[string]*SocketInfo
 
 	Environment strutil.OrderedMap
+
+	// list of other service names that this service will start after or
+	// before
+	After  []string
+	Before []string
 }
 
 // ScreenshotInfo provides information about a screenshot.
