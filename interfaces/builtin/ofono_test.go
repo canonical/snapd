@@ -198,7 +198,7 @@ func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetUDev(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 4)
+	c.Assert(spec.Snippets(), HasLen, 5)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `LABEL="ofono_isi_end"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# ofono
 KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="snap_ofono_app"`)
@@ -206,6 +206,7 @@ KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="snap_ofono_app"`)
 KERNEL=="tun", TAG+="snap_ofono_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# ofono
 KERNEL=="dsp", TAG+="snap_ofono_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_ofono_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_ofono_app $devpath $major:$minor"`)
 }
 
 func (s *OfonoInterfaceSuite) TestInterfaces(c *C) {
