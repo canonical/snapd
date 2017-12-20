@@ -19,6 +19,9 @@ restore: |
 prepare: |
     snap install test-snapd-tools
 
+debug: |
+    grub-editenv list
+
 execute: |
     wait_core_post_boot() {
         # booted
