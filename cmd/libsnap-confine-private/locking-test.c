@@ -36,7 +36,7 @@ static void sc_set_lock_dir(const char *dir)
 //
 // The directory is automatically reset to the real value at the end of the
 // test.
-static const char *sc_test_use_fake_lock_dir()
+static const char *sc_test_use_fake_lock_dir(void)
 {
 	char *lock_dir = NULL;
 	if (g_test_subprocess()) {
@@ -60,7 +60,7 @@ static const char *sc_test_use_fake_lock_dir()
 }
 
 // Check that locking a namespace actually flock's the mutex with LOCK_EX
-static void test_sc_lock_unlock()
+static void test_sc_lock_unlock(void)
 {
 	const char *lock_dir = sc_test_use_fake_lock_dir();
 	int fd = sc_lock("foo");
@@ -86,12 +86,12 @@ static void test_sc_lock_unlock()
 	g_assert_cmpint(err, ==, 0);
 }
 
-static void test_sc_enable_sanity_timeout()
+static void test_sc_enable_sanity_timeout(void)
 {
 	if (g_test_subprocess()) {
 		sc_enable_sanity_timeout();
 		debug("waiting...");
-		usleep(4 * G_USEC_PER_SEC);
+		usleep(7 * G_USEC_PER_SEC);
 		debug("woke up");
 		sc_disable_sanity_timeout();
 		return;
@@ -101,7 +101,7 @@ static void test_sc_enable_sanity_timeout()
 	g_test_trap_assert_failed();
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/locking/sc_lock_unlock", test_sc_lock_unlock);
 	g_test_add_func("/locking/sc_enable_sanity_timeout",

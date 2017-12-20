@@ -23,8 +23,9 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
+	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/store"
 )
 
 // MockEnsureInterval sets the overlord ensure interval for tests.
@@ -59,10 +60,17 @@ func (o *Overlord) Engine() *StateEngine {
 	return o.stateEng
 }
 
-// MockSetupStore mocks storestate.SetupStore as called by overlord.New.
-func MockSetupStore(new func(*state.State, auth.AuthContext) error) (restore func()) {
-	setupStore = new
+// MockStoreNew mocks store.New as called by overlord.New.
+func MockStoreNew(new func(*store.Config, auth.AuthContext) *store.Store) (restore func()) {
+	storeNew = new
 	return func() {
-		setupStore = storestate.SetupStore
+		storeNew = store.New
+	}
+}
+
+func MockConfigstateInit(new func(hookmgr *hookstate.HookManager)) (restore func()) {
+	configstateInit = new
+	return func() {
+		configstateInit = configstate.Init
 	}
 }

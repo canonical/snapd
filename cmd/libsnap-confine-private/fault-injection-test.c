@@ -33,7 +33,7 @@ static bool broken_alter_msg(struct sc_fault_state *state, void *ptr)
 	return true;
 }
 
-static void test_fault_injection()
+static void test_fault_injection(void)
 {
 	g_assert_false(sc_faulty("foo", NULL));
 
@@ -57,7 +57,7 @@ static void test_fault_injection()
 	sc_reset_faults();
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/fault-injection", test_fault_injection);
 }

@@ -26,14 +26,17 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type NetworkStatusSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&NetworkStatusSuite{
@@ -49,7 +52,8 @@ apps:
     slots: [network-status]
 `
 	providerInfo := snaptest.MockInfo(c, providerYaml, nil)
-	s.slot = &interfaces.Slot{SlotInfo: providerInfo.Slots["network-status"]}
+	s.slotInfo = providerInfo.Slots["network-status"]
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 
 	const consumerYaml = `name: consumer
 version: 1.0
@@ -59,7 +63,8 @@ apps:
     plugs: [network-status]
 `
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: consumerInfo.Plugs["network-status"]}
+	s.plugInfo = consumerInfo.Plugs["network-status"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 }
 
 func (s *NetworkStatusSuite) TestName(c *C) {
@@ -68,7 +73,7 @@ func (s *NetworkStatusSuite) TestName(c *C) {
 
 func (s *NetworkStatusSuite) TestAppArmorConnectedPlug(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.provider.app"`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "interface=com.ubuntu.connectivity1.NetworkingStatus{,/**}")
@@ -76,7 +81,7 @@ func (s *NetworkStatusSuite) TestAppArmorConnectedPlug(c *C) {
 
 func (s *NetworkStatusSuite) TestAppArmorConnectedSlot(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "interface=org.freedesktop.DBus.*")
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `peer=(label="snap.consumer.app")`)
@@ -84,7 +89,7 @@ func (s *NetworkStatusSuite) TestAppArmorConnectedSlot(c *C) {
 
 func (s *NetworkStatusSuite) TestAppArmorPermanentSlot(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "dbus (bind)")
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `name="com.ubuntu.connectivity1.NetworkingStatus"`)
@@ -92,7 +97,7 @@ func (s *NetworkStatusSuite) TestAppArmorPermanentSlot(c *C) {
 
 func (s *NetworkStatusSuite) TestDBusPermanentSlot(c *C) {
 	spec := &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `<policy user="root">`)
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `<allow send_destination="com.ubuntu.connectivity1.NetworkingStatus"/>`)

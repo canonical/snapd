@@ -69,6 +69,9 @@ if [ "$1" = "purge" ]; then
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
     done
 
+    # generated readme files
+    rm -f "/snap/README"
+
     echo "Final directory cleanup"
     for d in "/snap/bin" "/snap" "/var/snap"; do
         if [ -d "$d" ]; then

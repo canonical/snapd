@@ -34,6 +34,7 @@ const cupsControlConnectedPlugAppArmor = `
 # privileged access to configure printing.
 
 #include <abstractions/cups-client>
+/run/cups/printcap r,
 `
 
 func init() {

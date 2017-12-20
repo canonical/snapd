@@ -1,0 +1,61 @@
+summary: Ensure that the device cgroup works properly for serial-port.
+
+# We don't run the native kernel on these distributions yet so we can't
+# load kernel modules coming from distribution packages yet.
+systems: [-fedora-*, -opensuse-*, -debian-*]
+
+prepare: |
+    # create serial devices if they don't exist
+    if [ ! -e /dev/ttyS4 ]; then
+        mknod /dev/ttyS4 c 4 68
+        touch /dev/ttyS4.spread
+    fi
+
+restore: |
+    rm -f info.txt
+    if [ -e /dev/ttyS4.spread ]; then
+        rm -f /dev/ttyS4 /dev/ttyS4.spread
+    fi
+
+    udevadm control --reload-rules
+    udevadm trigger
+
+execute: |
+    echo "Given a snap is installed"
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
+
+    echo "Then the device is not assigned to that snap"
+    if udevadm info /dev/ttyS4 > info.txt; then
+        ! MATCH "E: TAGS=.*snap_test-snapd-tools_env" < info.txt
+    else
+        echo "No hardware for node /dev/ttyS4"
+        exit 0
+    fi
+
+    echo "And the device is not shown in the snap device list"
+    # FIXME: this is, apparently, a layered can of worms. Zyga says he needs to fix it.
+    if [ -e /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list ]; then
+        MATCH -v "c 4:68 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+    fi
+
+    echo "================================================="
+
+    echo "When a udev rule assigning the device to the snap is added"
+    content="SUBSYSTEM==\"tty\", KERNEL==\"ttyS4\", TAG+=\"snap_test-snapd-tools_env\""
+    echo "$content" > /etc/udev/rules.d/70-snap.test-snapd-tools.rules
+    udevadm control --reload-rules
+    udevadm settle
+    udevadm trigger
+    udevadm settle
+
+    echo "Then the device is shown as assigned to the snap"
+    udevadm info /dev/ttyS4 | MATCH "E: TAGS=.*snap_test-snapd-tools_env"
+
+    echo "================================================="
+
+    echo "When a snap command is called"
+    test-snapd-tools.env
+
+    echo "Then the device is shown in the snap device list"
+    MATCH "c 4:68 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list

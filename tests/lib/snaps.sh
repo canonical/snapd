@@ -1,6 +1,6 @@
 #!/bin/bash
 
-install_local() {
+make_snap() {
     local SNAP_NAME="$1"
     shift;
     local SNAP_FILE="$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
@@ -8,8 +8,16 @@ install_local() {
     # assigned in a separate step to avoid hiding a failure
     SNAP_DIR="$(dirname "$SNAP_FILE")"
     if [ ! -f "$SNAP_FILE" ]; then
-        snap pack "$SNAP_DIR" "$SNAP_DIR"
+        snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null
     fi
+    echo "$SNAP_FILE"
+}
+
+install_local() {
+    local SNAP_NAME="$1"
+    shift
+    SNAP_FILE=$(make_snap "$SNAP_NAME")
+
     snap install --dangerous "$@" "$SNAP_FILE"
 }
 
@@ -21,6 +29,10 @@ install_local_classic() {
     install_local "$1" --classic
 }
 
+install_local_jailmode() {
+    install_local "$1" --jailmode
+}
+
 # mksnap_fast creates a snap using a faster compress algorithm (gzip)
 # than the regular snaps (which are lzma)
 mksnap_fast() {
@@ -29,9 +41,9 @@ mksnap_fast() {
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         # trusty does not support  -Xcompression-level 1
-        mksquashfs "$dir" "$snap" -comp gzip
+        mksquashfs "$dir" "$snap" -comp gzip -no-fragments
     else
-        mksquashfs "$dir" "$snap" -comp gzip -Xcompression-level 1
+        mksquashfs "$dir" "$snap" -comp gzip -Xcompression-level 1 -no-fragments
     fi
 }
 

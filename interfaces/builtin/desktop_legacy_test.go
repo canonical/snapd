@@ -30,9 +30,11 @@ import (
 )
 
 type DesktopLegacyInterfaceSuite struct {
-	iface    interfaces.Interface
-	coreSlot *interfaces.Slot
-	plug     *interfaces.Plug
+	iface        interfaces.Interface
+	coreSlotInfo *snap.SlotInfo
+	coreSlot     *interfaces.ConnectedSlot
+	plugInfo     *snap.PlugInfo
+	plug         *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&DesktopLegacyInterfaceSuite{
@@ -52,8 +54,8 @@ slots:
 `
 
 func (s *DesktopLegacyInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, desktopLegacyConsumerYaml, nil, "desktop-legacy")
-	s.coreSlot = MockSlot(c, desktopLegacyCoreYaml, nil, "desktop-legacy")
+	s.plug, s.plugInfo = MockConnectedPlug(c, desktopLegacyConsumerYaml, nil, "desktop-legacy")
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, desktopLegacyCoreYaml, nil, "desktop-legacy")
 }
 
 func (s *DesktopLegacyInterfaceSuite) TestName(c *C) {
@@ -61,25 +63,25 @@ func (s *DesktopLegacyInterfaceSuite) TestName(c *C) {
 }
 
 func (s *DesktopLegacyInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.coreSlot.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.coreSlotInfo), IsNil)
 	// desktop-legacy slot currently only used with core
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "desktop-legacy",
 		Interface: "desktop-legacy",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"desktop-legacy slots are reserved for the core snap")
 }
 
 func (s *DesktopLegacyInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *DesktopLegacyInterfaceSuite) TestAppArmorSpec(c *C) {
 	// connected plug to core slot
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access common desktop legacy methods")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/dbus-accessibility-strict>")
@@ -87,7 +89,7 @@ func (s *DesktopLegacyInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// connected plug to core slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 

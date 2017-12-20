@@ -51,15 +51,16 @@ func formatPrice(val float64, currency string) string {
 // Notes encapsulate everything that might be interesting about a
 // snap, in order to present a brief summary of it.
 type Notes struct {
-	Price    string
-	SnapType snap.Type
-	Private  bool
-	DevMode  bool
-	JailMode bool
-	Classic  bool
-	TryMode  bool
-	Disabled bool
-	Broken   bool
+	Price            string
+	SnapType         snap.Type
+	Private          bool
+	DevMode          bool
+	JailMode         bool
+	Classic          bool
+	TryMode          bool
+	Disabled         bool
+	Broken           bool
+	IgnoreValidation bool
 }
 
 func NotesFromChannelSnapInfo(ref *snap.ChannelSnapInfo) *Notes {
@@ -85,14 +86,15 @@ func NotesFromRemote(snp *client.Snap, resInfo *client.ResultInfo) *Notes {
 
 func NotesFromLocal(snp *client.Snap) *Notes {
 	return &Notes{
-		SnapType: snap.Type(snp.Type),
-		Private:  snp.Private,
-		DevMode:  snp.DevMode,
-		Classic:  !snp.JailMode && (snp.Confinement == client.ClassicConfinement),
-		JailMode: snp.JailMode,
-		TryMode:  snp.TryMode,
-		Disabled: snp.Status != client.StatusActive,
-		Broken:   snp.Broken != "",
+		SnapType:         snap.Type(snp.Type),
+		Private:          snp.Private,
+		DevMode:          snp.DevMode,
+		Classic:          !snp.JailMode && (snp.Confinement == client.ClassicConfinement),
+		JailMode:         snp.JailMode,
+		TryMode:          snp.TryMode,
+		Disabled:         snp.Status != client.StatusActive,
+		Broken:           snp.Broken != "",
+		IgnoreValidation: snp.IgnoreValidation,
 	}
 }
 
@@ -153,6 +155,10 @@ func (n *Notes) String() string {
 	if n.Broken {
 		// TRANSLATORS: if possible, a single short word
 		ns = append(ns, i18n.G("broken"))
+	}
+
+	if n.IgnoreValidation {
+		ns = append(ns, i18n.G("ignore-validation"))
 	}
 
 	if len(ns) == 0 {

@@ -94,6 +94,7 @@ type fakeStore struct {
 	storetest.Store
 
 	downloads           []fakeDownload
+	refreshRevnos       map[string]snap.Revision
 	fakeBackend         *fakeSnappyBackend
 	fakeCurrentProgress int
 	fakeTotalProgress   int
@@ -118,12 +119,6 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	}
 
 	confinement := snap.StrictConfinement
-	switch spec.Channel {
-	case "channel-for-devmode":
-		confinement = snap.DevModeConfinement
-	case "channel-for-classic":
-		confinement = snap.ClassicConfinement
-	}
 
 	typ := snap.TypeApp
 	if spec.Name == "some-core" {
@@ -145,6 +140,18 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 		Confinement: confinement,
 		Type:        typ,
 	}
+	switch spec.Channel {
+	case "channel-for-devmode":
+		info.Confinement = snap.DevModeConfinement
+	case "channel-for-classic":
+		info.Confinement = snap.ClassicConfinement
+	case "channel-for-paid":
+		info.Prices = map[string]float64{"USD": 0.77}
+		info.SideInfo.Paid = true
+	case "channel-for-private":
+		info.SideInfo.Private = true
+	}
+
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: spec.Name, revno: spec.Revision})
 
 	return info, nil
@@ -172,11 +179,16 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 		name = "some-snap"
 	case "core-snap-id":
 		name = "core"
+	case "snap-with-snapd-control-id":
+		name = "snap-with-snapd-control"
 	default:
 		panic(fmt.Sprintf("ListRefresh: unknown snap-id: %s", cand.SnapID))
 	}
 
 	revno := snap.R(11)
+	if r := f.refreshRevnos[cand.SnapID]; !r.Unset() {
+		revno = r
+	}
 	confinement := snap.StrictConfinement
 	switch cand.Channel {
 	case "channel-for-7":
@@ -223,7 +235,7 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 	return nil, store.ErrNoUpdateAvailable
 }
 
-func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserState) ([]*snap.Info, error) {
+func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
 	f.pokeStateLock()
 
 	if len(cands) == 0 {

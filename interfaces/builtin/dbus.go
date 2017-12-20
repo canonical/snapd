@@ -28,7 +28,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const dbusSummary = `allows owning a specifc name on DBus`
@@ -136,6 +138,13 @@ const dbusPermanentSlotDBus = `
 </policy>
 `
 
+const dbusPermanentSlotSecComp = `
+# Description: Allow owning a name and listening on DBus public bus
+listen
+accept
+accept4
+`
+
 const dbusConnectedSlotAppArmor = `
 # allow snaps to introspect us. This allows clients to introspect all
 # DBus interfaces of this service (but not use them).
@@ -212,10 +221,10 @@ func (iface *dbusInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 // Obtain yaml-specified bus well-known name
-func (iface *dbusInterface) getAttribs(attribs map[string]interface{}) (string, string, error) {
+func (iface *dbusInterface) getAttribs(attribs interfaces.Attrer) (string, string, error) {
 	// bus attribute
-	bus, ok := attribs["bus"].(string)
-	if !ok {
+	var bus string
+	if err := attribs.Attr("bus", &bus); err != nil {
 		return "", "", fmt.Errorf("cannot find attribute 'bus'")
 	}
 
@@ -224,8 +233,8 @@ func (iface *dbusInterface) getAttribs(attribs map[string]interface{}) (string, 
 	}
 
 	// name attribute
-	name, ok := attribs["name"].(string)
-	if !ok {
+	var name string
+	if err := attribs.Attr("name", &name); err != nil {
 		return "", "", fmt.Errorf("cannot find attribute 'name'")
 	}
 
@@ -292,13 +301,13 @@ func getAppArmorSnippet(policy string, bus string, name string) string {
 	return snippet
 }
 
-func (iface *dbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	bus, name, err := iface.getAttribs(plug.Attrs)
+func (iface *dbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	bus, name, err := iface.getAttribs(plug)
 	if err != nil {
 		return err
 	}
 
-	busSlot, nameSlot, err := iface.getAttribs(slot.Attrs)
+	busSlot, nameSlot, err := iface.getAttribs(slot)
 	if err != nil {
 		return err
 	}
@@ -329,8 +338,8 @@ func (iface *dbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 	return nil
 }
 
-func (iface *dbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
-	bus, name, err := iface.getAttribs(slot.Attrs)
+func (iface *dbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
+	bus, name, err := iface.getAttribs(slot)
 	if err != nil {
 		return err
 	}
@@ -346,8 +355,8 @@ func (iface *dbusInterface) DBusPermanentSlot(spec *dbus.Specification, slot *in
 	return nil
 }
 
-func (iface *dbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	bus, name, err := iface.getAttribs(slot.Attrs)
+func (iface *dbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+	bus, name, err := iface.getAttribs(slot)
 	if err != nil {
 		return err
 	}
@@ -373,13 +382,18 @@ func (iface *dbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, 
 	return nil
 }
 
-func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	bus, name, err := iface.getAttribs(slot.Attrs)
+func (iface *dbusInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
+	spec.AddSnippet(dbusPermanentSlotSecComp)
+	return nil
+}
+
+func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	bus, name, err := iface.getAttribs(slot)
 	if err != nil {
 		return err
 	}
 
-	busPlug, namePlug, err := iface.getAttribs(plug.Attrs)
+	busPlug, namePlug, err := iface.getAttribs(plug)
 	if err != nil {
 		return err
 	}
@@ -403,13 +417,13 @@ func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, 
 	return nil
 }
 
-func (iface *dbusInterface) SanitizePlug(plug *interfaces.Plug) error {
-	_, _, err := iface.getAttribs(plug.Attrs)
+func (iface *dbusInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	_, _, err := iface.getAttribs(plug)
 	return err
 }
 
-func (iface *dbusInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	_, _, err := iface.getAttribs(slot.Attrs)
+func (iface *dbusInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+	_, _, err := iface.getAttribs(slot)
 	return err
 }
 

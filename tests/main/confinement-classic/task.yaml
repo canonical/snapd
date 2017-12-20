@@ -21,6 +21,8 @@ execute: |
     run_install --classic
     $SNAP_MOUNT_DIR/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
 
+    TMPDIR=/tmpdir $SNAP_MOUNT_DIR/bin/test-snapd-hello-classic t | MATCH TMPDIR=/tmpdir
+
     if [ "$(snap debug confinement)" = partial ]; then
         exit 0
     fi

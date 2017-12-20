@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"sort"
 	"strconv"
@@ -157,11 +158,16 @@ func NewUser(st *state.State, username, email, macaroon string, discharges []str
 	return &authenticatedUser, nil
 }
 
+var ErrInvalidUser = errors.New("invalid user")
+
 // RemoveUser removes a user from the state given its ID
 func RemoveUser(st *state.State, userID int) error {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return ErrInvalidUser
+	}
 	if err != nil {
 		return err
 	}
@@ -178,7 +184,7 @@ func RemoveUser(st *state.State, userID int) error {
 		}
 	}
 
-	return fmt.Errorf("invalid user")
+	return ErrInvalidUser
 }
 
 func Users(st *state.State) ([]*UserState, error) {
@@ -204,6 +210,9 @@ func User(st *state.State, id int) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return nil, ErrInvalidUser
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +222,7 @@ func User(st *state.State, id int) (*UserState, error) {
 			return &user, nil
 		}
 	}
-	return nil, fmt.Errorf("invalid user")
+	return nil, ErrInvalidUser
 }
 
 // UpdateUser updates user in state
@@ -221,6 +230,9 @@ func UpdateUser(st *state.State, user *UserState) error {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return ErrInvalidUser
+	}
 	if err != nil {
 		return err
 	}
@@ -233,7 +245,7 @@ func UpdateUser(st *state.State, user *UserState) error {
 		}
 	}
 
-	return fmt.Errorf("invalid user")
+	return ErrInvalidUser
 }
 
 // Device returns the device details from the state.
@@ -360,6 +372,8 @@ type DeviceAssertions interface {
 
 	// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
 	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
+	// ProxyStore returns the store assertion for the proxy store if one is set.
+	ProxyStore() (*asserts.Store, error)
 }
 
 var (
@@ -378,6 +392,7 @@ type AuthContext interface {
 	StoreID(fallback string) (string, error)
 
 	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
+	ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error)
 }
 
 // authContext helps keeping track of auth data in the state and exposing it.
@@ -482,4 +497,20 @@ func (ac *authContext) DeviceSessionRequestParams(nonce string) (*DeviceSessionR
 		return nil, err
 	}
 	return params, nil
+}
+
+// ProxyStoreParams returns the id and URL of the proxy store if one is set. Returns the defaultURL otherwise and id = "".
+func (ac *authContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error) {
+	var sto *asserts.Store
+	if ac.deviceAsserts != nil {
+		var err error
+		sto, err = ac.deviceAsserts.ProxyStore()
+		if err != nil && err != state.ErrNoState {
+			return "", nil, err
+		}
+	}
+	if sto != nil {
+		return sto.Store(), sto.URL(), nil
+	}
+	return "", defaultURL, nil
 }

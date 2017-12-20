@@ -31,7 +31,7 @@ type commonIfaceSuite struct{}
 var _ = Suite(&commonIfaceSuite{})
 
 func (s *commonIfaceSuite) TestUDevSpec(c *C) {
-	plug := MockPlug(c, `
+	plug, _ := MockConnectedPlug(c, `
 name: consumer
 apps:
   app-a:
@@ -40,7 +40,7 @@ apps:
   app-c:
     plugs: [common]
 `, nil, "common")
-	slot := MockSlot(c, `
+	slot, _ := MockConnectedSlot(c, `
 name: producer
 slots:
   common:
@@ -49,14 +49,18 @@ slots:
 	// common interface can define connected plug udev rules
 	iface := &commonInterface{
 		name:              "common",
-		connectedPlugUDev: `KERNEL="foo", TAG+="###CONNECTED_SECURITY_TAGS###"`,
+		connectedPlugUDev: []string{`KERNEL=="foo"`},
 	}
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(iface, plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{
-		`KERNEL="foo", TAG+="snap_consumer_app-a"`,
+		`# common
+KERNEL=="foo", TAG+="snap_consumer_app-a"`,
+		`TAG=="snap_consumer_app-a", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app-a $devpath $major:$minor"`,
 		// NOTE: app-b is unaffected as it doesn't have a plug reference.
-		`KERNEL="foo", TAG+="snap_consumer_app-c"`,
+		`# common
+KERNEL=="foo", TAG+="snap_consumer_app-c"`,
+		`TAG=="snap_consumer_app-c", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app-c $devpath $major:$minor"`,
 	})
 
 	// connected plug udev rules are optional
@@ -64,7 +68,7 @@ slots:
 		name: "common",
 	}
 	spec = &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(iface, plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 

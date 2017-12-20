@@ -130,7 +130,7 @@ func InternalToolPath(tool string) string {
 	}
 
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
-		logger.Noticef("exe doesn't have snap mount dir prefix: %q vs %q", exe, dirs.SnapMountDir)
+		logger.Debugf("exe doesn't have snap mount dir prefix: %q vs %q", exe, dirs.SnapMountDir)
 		return distroTool
 	}
 
@@ -201,7 +201,5 @@ func ExecInCoreSnap() {
 	}
 
 	logger.Debugf("restarting into %q", full)
-	// we keep this for e.g. the errtracker
-	env := append(os.Environ(), "SNAP_DID_REEXEC=1")
-	panic(syscallExec(full, os.Args, env))
+	panic(syscallExec(full, os.Args, os.Environ()))
 }

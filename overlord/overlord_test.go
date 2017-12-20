@@ -21,7 +21,6 @@ package overlord_test
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -36,9 +35,11 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,11 +64,10 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	restore := patch.Mock(42, nil)
 	defer restore()
 
-	var setupStoreAuthContext auth.AuthContext
-	defer overlord.MockSetupStore(func(_ *state.State, ac auth.AuthContext) error {
-		setupStoreAuthContext = ac
-		return nil
-	})()
+	var configstateInitCalled bool
+	overlord.MockConfigstateInit(func(*hookstate.HookManager) {
+		configstateInitCalled = true
+	})
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -79,6 +79,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.HookManager(), NotNil)
 	c.Check(o.DeviceManager(), NotNil)
 	c.Check(o.CommandManager(), NotNil)
+	c.Check(configstateInitCalled, Equals, true)
 
 	s := o.State()
 	c.Check(s, NotNil)
@@ -90,8 +91,10 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	s.Get("patch-level", &patchLevel)
 	c.Check(patchLevel, Equals, 42)
 
-	// store was setup with an auth context
-	c.Check(setupStoreAuthContext, NotNil)
+	// store is setup
+	sto := snapstate.Store(s)
+	c.Check(sto, FitsTypeOf, &store.Store{})
+	c.Check(sto.(*store.Store).CacheDownloads(), Equals, 5)
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
@@ -156,15 +159,6 @@ func (ovs *overlordSuite) TestNewWithPatches(c *C) {
 	err = state.Get("patched", &b)
 	c.Assert(err, IsNil)
 	c.Check(b, Equals, true)
-}
-
-func (ovs *overlordSuite) TestNewWithSetupStoreError(c *C) {
-	defer overlord.MockSetupStore(func(*state.State, auth.AuthContext) error {
-		return errors.New("fake error")
-	})()
-
-	_, err := overlord.New()
-	c.Check(err, ErrorMatches, "fake error")
 }
 
 type witnessManager struct {

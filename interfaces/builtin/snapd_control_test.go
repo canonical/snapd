@@ -31,9 +31,11 @@ import (
 )
 
 type SnapdControlInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&SnapdControlInterfaceSuite{
@@ -48,14 +50,14 @@ apps:
     command: foo
     plugs: [snapd-control]
 `, nil)
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "snapd-control",
-			Interface: "snapd-control",
-		},
+	s.slotInfo = &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Name:      "snapd-control",
+		Interface: "snapd-control",
 	}
-	s.plug = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["snapd-control"]}
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+	s.plugInfo = consumingSnapInfo.Plugs["snapd-control"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 }
 
 func (s *SnapdControlInterfaceSuite) TestName(c *C) {
@@ -63,24 +65,48 @@ func (s *SnapdControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *SnapdControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "snapd-control",
 		Interface: "snapd-control",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"snapd-control slots are reserved for the core snap")
 }
 
 func (s *SnapdControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
+}
+
+func (s *SnapdControlInterfaceSuite) TestSanitizePlugWithAttrHappy(c *C) {
+	const mockSnapYaml = `name: snapd-manager
+version: 1.0
+plugs:
+ snapd-control:
+  refresh-schedule: managed
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["snapd-control"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
+}
+
+func (s *SnapdControlInterfaceSuite) TestSanitizePlugWithAttrNotHappy(c *C) {
+	const mockSnapYaml = `name: snapd-manager
+version: 1.0
+plugs:
+ snapd-control:
+  refresh-schedule: unsupported-value
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["snapd-control"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, `unsupported refresh-schedule value: "unsupported-value"`)
 }
 
 func (s *SnapdControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/run/snapd.socket rw,`)

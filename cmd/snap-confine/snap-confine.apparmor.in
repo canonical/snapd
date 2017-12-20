@@ -8,7 +8,7 @@
     #
     # Those are discussed on https://forum.snapcraft.io/t/snapd-vs-upstream-kernel-vs-apparmor
     # and https://forum.snapcraft.io/t/snaps-and-nfs-home/
-    include "/var/lib/snapd/apparmor/snap-confine.d"
+    #include "/var/lib/snapd/apparmor/snap-confine"
 
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
@@ -17,8 +17,10 @@
     # libc, you are funny
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libreadline{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libncursesw{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
@@ -60,7 +62,7 @@
 
     # querying udev
     /etc/udev/udev.conf r,
-    /sys/devices/**/uevent r,
+    /sys/**/uevent r,
     /lib/udev/snappy-app-dev ixr, # drop
     /run/udev/** rw,
     /{,usr/}bin/tr ixr,
@@ -171,8 +173,8 @@
     mount options=(rw rbind) /run/ -> /tmp/snap.rootfs_*/run/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/run/,
 
-    mount options=(rw rbind) {/usr,}/lib/modules/ -> /tmp/snap.rootfs_*{/usr,}/lib/modules/,
-    mount options=(rw rslave) -> /tmp/snap.rootfs_*{/usr,}/lib/modules/,
+    mount options=(rw rbind) {,/usr}/lib{,32,64,x32}/modules/ -> /tmp/snap.rootfs_*{,/usr}/lib/modules/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*{,/usr}/lib/modules/,
 
     mount options=(rw rbind) /var/log/ -> /tmp/snap.rootfs_*/var/log/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/log/,
@@ -213,6 +215,9 @@
     umount /var/lib/snapd/hostfs/proc/,
     mount options=(rw rslave) -> /var/lib/snapd/hostfs/,
 
+    # Allow reading the os-release file (possibly a symlink to /usr/lib).
+    /{etc/,usr/lib/}os-release r,
+
     # set up snap-specific private /tmp dir
     capability chown,
     /tmp/ w,
@@ -247,7 +252,20 @@
     /dev/nvidiactl r,
     /dev/nvidia-uvm r,
     /usr/** r,
-    mount options=(rw bind) /usr/lib/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl/,
+    mount options=(rw bind) /usr/lib{,32}/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl{,32}/,
+    mount options=(rw bind) /usr/lib{,32}/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl{,32}/,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/* w,
+    mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
+    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
+
+    # Vulkan support
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/* w,
+    mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
+    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
+
+    # create gl dirs as needed
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/ w,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/ w,
 
     # for chroot on steroids, we use pivot_root as a better chroot that makes
     # apparmor rules behave the same on classic and outside of classic.
@@ -336,6 +354,10 @@
     signal (send, receive) set=(alrm, exists) peer=@LIBEXECDIR@/snap-confine,
     signal (receive) set=(exists) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
 
+    # workaround for linux 4.13/upstream, see
+    # https://forum.snapcraft.io/t/snapd-2-27-6-2-in-debian-sid-blocked-on-apparmor-in-kernel-4-13-0-1/2813/3
+    ptrace (trace, tracedby) peer=@LIBEXECDIR@/snapd/snap-confine,
+
     # For aa_change_hat() to go into ^mount-namespace-capture-helper
     @{PROC}/[0-9]*/attr/current w,
 
@@ -347,8 +369,10 @@
         # libc, you are funny
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libreadline{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}librt{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libgcc_s.so* mr,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libncursesw{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libresolv{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libselinux.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpcre.so* mr,
@@ -437,8 +461,8 @@
     profile snap_update_ns (attach_disconnected) {
         # The next four rules mirror those above. We want to be able to read
         # and map snap-update-ns into memory but it may come from a variety of places.
-        /usr/lib{,exec}/snapd/snap-update-ns mr,
-        /var/lib/snapd/hostfs/usr/lib{,exec}/snapd/snap-update-ns mr,
+        /usr/lib{,exec,64}/snapd/snap-update-ns mr,
+        /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-update-ns mr,
         /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
         /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
 
@@ -481,6 +505,9 @@
         # Needed to perform mount/unmounts.
         capability sys_admin,
 
+        # Allow freezing and thawing the per-snap cgroup freezers
+        /sys/fs/cgroup/freezer/snap.*/freezer.state rw,
+
         # Support mount profiles via the content interface. This should correspond
         # to permutations of $SNAP -> $SNAP for reading and $SNAP_{DATA,COMMON} ->
         # $SNAP_{DATA,COMMON} for both reading and writing.
@@ -498,12 +525,22 @@
         mount options=(rw bind) /var/snap/*/** -> /var/snap/*/**,
         mount options=(ro bind) /var/snap/*/** -> /var/snap/*/**,
 
+        # Allow creating missing mount directories under $SNAP_DATA.
+        #
+        # The "tree" of permissions is needed for SecureMkdirAll that uses
+        # open(..., O_NOFOLLOW) and mkdirat() using the resulting file
+        # descriptor.
+        / r,
+        /var/ r,
+        /var/snap/{,*/} r,
+        /var/snap/*/**/ rw,
+
         # Allow the content interface to bind fonts from the host filesystem
         mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/*/*/**,
         # Allow the desktop interface to bind fonts from the host filesystem
-        mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts -> /usr/share/fonts,
-        mount options=(ro bind) /var/lib/snapd/hostfs/usr/local/share/fonts -> /usr/local/share/fonts,
-        mount options=(ro bind) /var/lib/snapd/hostfs/var/cache/fontconfig -> /var/cache/fontconfig,
+        mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /usr/share/fonts/,
+        mount options=(ro bind) /var/lib/snapd/hostfs/usr/local/share/fonts/ -> /usr/local/share/fonts/,
+        mount options=(ro bind) /var/lib/snapd/hostfs/var/cache/fontconfig/ -> /var/cache/fontconfig/,
 
         # Allow unmounts matching possible mounts listed above.
         umount /snap/*/*/**,
