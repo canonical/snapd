@@ -4,9 +4,12 @@ systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
 prepare: |
     . "$TESTSLIB"/mkpinentry.sh
+    . "$TESTSLIB"/random.sh
+    kill_gpg_agent
 
 debug: |
-    sysctl kernel.random.entropy_avail || true
+    . "$TESTSLIB"/random.sh
+    debug_random
 
 execute: |
     echo "Checking passphrase mismatch error"

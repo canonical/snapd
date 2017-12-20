@@ -185,9 +185,10 @@ func (s *I2cInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 func (s *I2cInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# i2c
 KERNEL=="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_client-snap_app-accessing-1-port", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_client-snap_app-accessing-1-port $devpath $major:$minor"`)
 }
 
 func (s *I2cInterfaceSuite) TestAppArmorSpec(c *C) {
