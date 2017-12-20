@@ -46,6 +46,10 @@ execute: |
         snap set core pi-config.hdmi-mode=""
         cat /boot/uboot/config.txt | MATCH ^#hdmi_mode=1
 
+        # Add a new line character at the end of the file before comparing
+        # with the original one.
+        sed -i -e '$a\' /boot/uboot/config.txt
+
         echo "Ensure the config.txt are fully undo when an option is unset"
         if ! diff -u /boot/uboot/config.txt config.txt.save; then
             echo "error: unexpected diff in /boot/uboot/config.txt"
