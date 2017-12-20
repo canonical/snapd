@@ -146,7 +146,9 @@ func alike(a, b os.FileInfo, c *C, comment CommentInterface) {
 	if a.Mode().IsRegular() {
 		c.Check(a.Size(), Equals, b.Size(), comment)
 	}
-	c.Check(a.ModTime().Truncate(time.Minute).Equal(b.ModTime().Truncate(time.Minute)), Equals, true, comment)
+	am := a.ModTime().UTC().Truncate(time.Minute)
+	bm := b.ModTime().UTC().Truncate(time.Minute)
+	c.Check(am.Equal(bm), Equals, true, Commentf("%s != %s (%s)", am, bm, comment))
 }
 
 func (s *SquashfsTestSuite) TestWalk(c *C) {
