@@ -928,3 +928,22 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 	c.Assert(testSnap1HookCalls, Equals, 1)
 	c.Assert(testSnap2HookCalls, Equals, 1)
 }
+
+func (s *hookManagerSuite) TestCompatForConfigureSnapd(c *C) {
+	st := s.state
+
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("configure-snapd", "Snapd between 2.29 and 2.30 in edge insertd those tasks")
+	chg := st.NewChange("configure", "configure snapd")
+	chg.AddTask(task)
+
+	st.Unlock()
+	s.manager.Ensure()
+	s.manager.Wait()
+	st.Lock()
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(task.Status(), Equals, state.DoneStatus)
+}
