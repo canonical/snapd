@@ -18,7 +18,7 @@ func (s *SquashfsTestSuite) TestStatModeBits(c *C) {
 			user:  "user",
 			group: "group",
 			size:  int64(53595),
-			mtime: time.Date(2017, 12, 8, 11, 19, 0, 0, time.UTC),
+			mtime: time.Date(2017, 12, 8, 11, 19, 0, 0, time.Local),
 		}
 
 		com := Commentf("%q vs %o", raw, i)

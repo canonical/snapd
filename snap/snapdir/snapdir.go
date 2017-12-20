@@ -61,6 +61,7 @@ func (s *SnapDir) ReadFile(file string) (content []byte, err error) {
 	return ioutil.ReadFile(filepath.Join(s.path, file))
 }
 
+// Walk (part of snap.Container) is like filepath.Walk, without the ordering guarantee.
 func (s *SnapDir) Walk(relative string, walkFn filepath.WalkFunc) error {
 	relative = filepath.Clean(relative)
 	if relative == "" || relative == "/" {
@@ -70,6 +71,12 @@ func (s *SnapDir) Walk(relative string, walkFn filepath.WalkFunc) error {
 		relative = relative[1:]
 	}
 	root := filepath.Join(s.path, relative)
+	// we could just filepath.Walk(root, walkFn), but that doesn't scale
+	// well to insanely big directories as it reads the whole directory,
+	// in order to sort it. This Walk doesn't do that.
+	//
+	// Also the directory is always relative to the top of the container
+	// for us, which would make it a little more messy to get right.
 	f, err := os.Open(root)
 	if err != nil {
 		return walkFn(relative, nil, err)
