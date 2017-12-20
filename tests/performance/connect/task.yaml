@@ -8,7 +8,7 @@ execute: |
 
     for i in $(seq 30); do
         et=$(execution_time_ms "snap disconnect network-consumer:network")
-        echo "$SPREAD_SYSTEM,interface_disconnect,network,$et,milliseconds" >> $RES_FILE
+        echo "$SPREAD_SYSTEM,disconnect,network,$et,milliseconds" >> $RES_FILE
         et=$(execution_time_ms "snap connect network-consumer:network")
-        echo "$SPREAD_SYSTEM,interface_connect,network,$et,milliseconds" >> $RES_FILE
+        echo "$SPREAD_SYSTEM,connect,network,$et,milliseconds" >> $RES_FILE
     done
