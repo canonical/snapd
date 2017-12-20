@@ -19,11 +19,13 @@ subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
-check: check-syntax-c check-unit-tests
+check: check-unit-tests
 
 # Force particular coding style on all source and header files.
 .PHONY: check-syntax-c
 check-syntax-c:
+	echo "WARNING: check-syntax-c produces different results for different version of indent"
+	echo "Your version of indent: `indent --version`"
 	@d=`mktemp -d`; \
 	trap 'rm -rf $d' EXIT; \
 	for f in $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])) ; do \
@@ -326,6 +328,16 @@ else
 endif
 
 ##
+## snap-mgmt
+##
+
+libexec_PROGRAMS += snap-mgmt/snap-mgmt
+
+snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile
+	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+
+
+##
 ## ubuntu-core-launcher
 ##
 
@@ -338,17 +350,11 @@ install-exec-hook::
 ##
 
 EXTRA_DIST += \
-	snap-confine/80-snappy-assign.rules \
 	snap-confine/snappy-app-dev
 
 # NOTE: This makes distcheck fail but it is required for udev, so go figure.
 # http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
 #
-# Install udev rules
-install-data-local::
-	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
-	install -m 644 $(srcdir)/snap-confine/80-snappy-assign.rules $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
-
 # Install support script for udev rules
 install-exec-local::
 	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)

@@ -30,20 +30,22 @@ import (
 )
 
 type specSuite struct {
-	iface *ifacetest.TestInterface
-	spec  *udev.Specification
-	plug  *interfaces.Plug
-	slot  *interfaces.Slot
+	iface    *ifacetest.TestInterface
+	spec     *udev.Specification
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
-		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			spec.AddSnippet("connected-plug")
 			return nil
 		},
-		UDevConnectedSlotCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		UDevConnectedSlotCallback: func(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			spec.AddSnippet("connected-slot")
 			return nil
 		},
@@ -74,8 +76,10 @@ slots:
     name:
         interface: test
 `, nil)
-	s.plug = &interfaces.Plug{PlugInfo: info1.Plugs["name"]}
-	s.slot = &interfaces.Slot{SlotInfo: info2.Slots["name"]}
+	s.plugInfo = info1.Plugs["name"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.slotInfo = info2.Slots["name"]
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 }
 
 func (s *specSuite) SetUpTest(c *C) {
@@ -93,40 +97,42 @@ func (s *specSuite) TestTagDevice(c *C) {
 	// (with the exception that slots cannot have hooks).
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "iface-1",
-		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			spec.TagDevice(`kernel="voodoo"`)
 			return nil
 		},
 	}
-	c.Assert(s.spec.AddConnectedPlug(iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(s.spec.AddConnectedPlug(iface, s.plug, s.slot), IsNil)
 
 	iface = &ifacetest.TestInterface{
 		InterfaceName: "iface-2",
-		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 			spec.TagDevice(`kernel="hoodoo"`)
 			return nil
 		},
 	}
-	c.Assert(s.spec.AddConnectedPlug(iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(s.spec.AddConnectedPlug(iface, s.plug, s.slot), IsNil)
 
 	c.Assert(s.spec.Snippets(), DeepEquals, []string{
 		`# iface-1
 kernel="voodoo", TAG+="snap_snap1_foo"`,
 		`# iface-2
 kernel="hoodoo", TAG+="snap_snap1_foo"`,
+		`TAG=="snap_snap1_foo", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_snap1_foo $devpath $major:$minor"`,
 		`# iface-1
 kernel="voodoo", TAG+="snap_snap1_hook_configure"`,
 		`# iface-2
 kernel="hoodoo", TAG+="snap_snap1_hook_configure"`,
+		`TAG=="snap_snap1_hook_configure", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_snap1_hook_configure $devpath $major:$minor"`,
 	})
 }
 
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
-	c.Assert(r.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddPermanentPlug(s.iface, s.plug.PlugInfo), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
+	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(s.spec.Snippets(), DeepEquals, []string{"connected-plug", "connected-slot", "permanent-plug", "permanent-slot"})
 }
