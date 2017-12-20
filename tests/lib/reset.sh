@@ -52,7 +52,7 @@ reset_classic() {
         rm -rf /etc/systemd/system/snapd.socket.d
 
         # Restore snapd state and start systemd service units
-        tar -C/ -xzf "$SPREAD_PATH/snapd-state.tar.gz"
+        tar -C/ -xf "$SPREAD_PATH/snapd-state.tar.gz"
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
         mounts="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.mount" | cut -f1 -d ' ')"
         services="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
@@ -93,7 +93,7 @@ reset_all_snap() {
     # ensure we have the same state as initially
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/*
-    tar -C/ -xzf "$SPREAD_PATH/snapd-state.tar.gz"
+    tar -C/ -xf "$SPREAD_PATH/snapd-state.tar.gz"
     rm -rf /root/.snap
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.service snapd.socket

@@ -34,8 +34,15 @@ execute: |
     .*"
     snap find test-snapd- | grep -Pzq "$expected"
 
+    echo "List of snaps in a section works"
+    # NOTE: this probably shows featured snaps, do not
+    # make any assumptions about the contents
+    test $(snap find --section=database | wc -l) -gt 1
+
     # cassandra only available for amd64
+    echo "List of snaps in a section includes architecture"
     if [ $(uname -m) = "x86_64" ]; then
-        echo "List of snaps in a section works"
-        snap find --section=database | MATCH cassandra
+        snap find --section=database cassandra | MATCH cassandra
+    else
+        snap find --section=database cassandra 2>&1 | MATCH '0 snaps'
     fi
