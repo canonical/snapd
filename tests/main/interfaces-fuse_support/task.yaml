@@ -60,5 +60,5 @@ execute: |
     for p in $PID; do
         echo "$p command: $(cat /proc/${p}/cmdline | tr '\0' ' ')"
     done
-    MATCH "Hello World!" < /proc/${PID}/root/$MOUNT_POINT/hello
+    cat /proc/${PID}/root/$MOUNT_POINT/hello | MATCH "Hello World!"
     kill -9 ${PID}
