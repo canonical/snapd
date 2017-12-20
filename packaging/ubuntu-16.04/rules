@@ -117,7 +117,7 @@ endif
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
 	# XXX: hacky^2
-	(cd vendor/github.com/snapcore/squashfuse && rm -f snapfuse && make distclean || true )
+	(cd vendor/github.com/snapcore/squashfuse/src && rm -f snapfuse && make distclean || true )
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -125,8 +125,6 @@ override_dh_auto_build:
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
-	# dh-golang does not copy no-C/go files, do this manually now
-	cp -a vendor/github.com/snapcore/squashfuse/dummy-* _build/src/github.com/snapcore/snapd/vendor/github.com/snapcore/squashfuse/
 
 	# this is the main go build
 	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
@@ -149,7 +147,7 @@ override_dh_auto_build:
 	$(MAKE) -C data all
 
 	# build squashfuse and rename to snapfuse
-	(cd vendor/github.com/snapcore/squashfuse && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse snapfuse)
+	(cd vendor/github.com/snapcore/squashfuse/src && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse snapfuse)
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)

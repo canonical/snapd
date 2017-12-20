@@ -31,4 +31,4 @@ usr/share/man/man5/snap-discard-ns.5
 usr/bin/ubuntu-core-launcher
 
 # install squashfuse as snapfuse to ensure it is available in e.g. lxd
-vendor/github.com/snapcore/squashfuse/snapfuse usr/bin
+vendor/github.com/snapcore/squashfuse/src/snapfuse usr/bin
