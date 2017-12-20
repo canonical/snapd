@@ -137,9 +137,7 @@ func (sk skipper) Has(path string) bool {
 	return false
 }
 
-// Stat returns an os.FileInfo of a single file or directory inside a squashfs snap.
-//
-// The Sys() method of the FileInfo returns a SnapFileOwner
+// Walk (part of snap.Container) is like filepath.Walk, without the ordering guarantee.
 func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 	relative = filepath.Clean(relative)
 	if relative == "" || relative == "/" {
@@ -186,17 +184,12 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 				continue
 			}
 			err = walkFn(path, st, nil)
-			if st.IsDir() {
-				switch err {
-				case nil:
-					// nothing to do
-				case filepath.SkipDir:
+			if err != nil {
+				if err == filepath.SkipDir && st.IsDir() {
 					skipper.Add(path)
-				default:
+				} else {
 					return err
 				}
-			} else if err != nil {
-				return err
 			}
 		}
 	}

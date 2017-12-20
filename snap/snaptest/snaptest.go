@@ -107,7 +107,7 @@ func PopulateDir(dir string, files [][]string) {
 		if err != nil {
 			panic(err)
 		}
-		err = ioutil.WriteFile(fpath, []byte(content), 0644)
+		err = ioutil.WriteFile(fpath, []byte(content), 0755)
 		if err != nil {
 			panic(err)
 		}

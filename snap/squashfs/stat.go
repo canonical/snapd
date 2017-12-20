@@ -146,7 +146,7 @@ func errBadSize(raw []byte) statError {
 }
 
 func (st *stat) parseTime(raw []byte) error {
-	t, err := time.Parse("2006-01-02 15:04", string(raw))
+	t, err := time.ParseInLocation("2006-01-02 15:04", string(raw), time.Local)
 	if err != nil {
 		return err
 	}
