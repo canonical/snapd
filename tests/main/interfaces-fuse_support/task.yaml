@@ -28,7 +28,12 @@ prepare: |
     mkdir -p $MOUNT_POINT
 
 restore: |
-    umount $MOUNT_POINT || true
+    # remove the mount point
+    mounts=$(nsenter --mount=/run/snapd/ns/test-snapd-fuse-consumer.mnt cat /proc/mounts | \
+             grep "$(basename $MOUNT_POINT) fuse" | cut -f2 -d' ')
+    for m in $mounts; do
+        nsenter --mount=/run/snapd/ns/test-snapd-fuse-consumer.mnt umount "$m"
+    done
     rm -rf $MOUNT_POINT fuse.error
 
 execute: |
@@ -76,9 +81,13 @@ execute: |
     trap - EXIT
 
     # the create app will try to unmount the fuse filesystem while exiting,
-    # if it fails due to apparmor or seccomp rules we'll not by its exit status
-    echo "The snap exited cleanly"
-    wait $createpid
+    # it will fail, as seccomp rules are blocking umount2
+    echo "The snap exited with an error"
+    # SIGSYS - 31 on x86, wait exit status if killed by signal = 128 + <signal-number>
+    wait $createpid || test "$?" = "159"
 
-    # verify that the mount_point was removed from mount namespace of the snap
-    ! (nsenter --mount=/run/snapd/ns/test-snapd-fuse-consumer.mnt mount) | MATCH $(basename $MOUNT_POINT)
+    # verify that the mount_point was not removed from mount namespace of the snap
+    mountpath=$(nsenter --mount=/run/snapd/ns/test-snapd-fuse-consumer.mnt cat /proc/mounts | \
+                grep "$(basename $MOUNT_POINT) fuse" | cut -f2 -d' ')
+    test -n "$mountpath"
+
