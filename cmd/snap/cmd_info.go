@@ -341,6 +341,8 @@ func (x *infoCmd) Execute([]string) error {
 				} else {
 					fmt.Fprintf(w, "  broken:\t%t (%s)\n", true, local.Broken)
 				}
+
+				fmt.Fprintf(w, "  ignore-validation:\t%t\n", local.IgnoreValidation)
 			} else {
 				notes = NotesFromLocal(local)
 			}

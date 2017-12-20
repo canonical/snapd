@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
 
 	. "gopkg.in/check.v1"
@@ -177,19 +178,11 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) 
 	c.Assert(err, ErrorMatches, "open .*: file exists")
 }
 
-func (ts *AtomicWriteTestSuite) TestAtomicFileUidGidError(c *C) {
-	d := c.MkDir()
-	p := filepath.Join(d, "foo")
-
-	_, err := osutil.NewAtomicFile(p, 0644, 0, -1, 1)
-	c.Check(err, ErrorMatches, ".*needs none or both of uid and gid set")
-}
-
 func (ts *AtomicWriteTestSuite) TestAtomicFileChownError(c *C) {
-	eUid := 42
-	eGid := 74
+	eUid := sys.UserID(42)
+	eGid := sys.GroupID(74)
 	eErr := errors.New("this didn't work")
-	defer osutil.MockChown(func(fd *os.File, uid int, gid int) error {
+	defer osutil.MockChown(func(fd *os.File, uid sys.UserID, gid sys.GroupID) error {
 		c.Check(uid, Equals, eUid)
 		c.Check(gid, Equals, eGid)
 		return eErr
@@ -211,7 +204,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileChownError(c *C) {
 func (ts *AtomicWriteTestSuite) TestAtomicFileCancelError(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, -1, -1)
+	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
 	c.Assert(err, IsNil)
 
 	c.Assert(aw.File.Close(), IsNil)
@@ -222,7 +215,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancelError(c *C) {
 func (ts *AtomicWriteTestSuite) TestAtomicFileCancelBadError(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, -1, -1)
+	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
 	c.Assert(err, IsNil)
 	defer aw.Close()
 
@@ -234,7 +227,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancelBadError(c *C) {
 func (ts *AtomicWriteTestSuite) TestAtomicFileCancelNoClose(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, -1, -1)
+	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
 	c.Assert(err, IsNil)
 	c.Assert(aw.Close(), IsNil)
 
@@ -245,7 +238,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancel(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
 
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, -1, -1)
+	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
 	c.Assert(err, IsNil)
 	fn := aw.File.Name()
 	c.Check(osutil.FileExists(fn), Equals, true)

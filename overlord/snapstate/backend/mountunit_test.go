@@ -80,12 +80,13 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
 Description=Mount unit for foo
+Before=snapd.service
 
 [Mount]
 What=/var/lib/snapd/snaps/foo_13.snap
 Where=%s/foo/13
 Type=squashfs
-Options=nodev,ro
+Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target

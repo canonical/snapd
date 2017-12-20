@@ -45,6 +45,11 @@ type TestSetupCall struct {
 	Options interfaces.ConfinementOptions
 }
 
+// Initialize does nothing.
+func (b *TestSecurityBackend) Initialize() error {
+	return nil
+}
+
 // Name returns the name of the security backend.
 func (b *TestSecurityBackend) Name() interfaces.SecuritySystem {
 	return b.BackendName

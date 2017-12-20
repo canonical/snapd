@@ -46,15 +46,15 @@ const alsaConnectedPlugAppArmor = `
 @{PROC}/asound/** rw,
 `
 
-const alsaConnectedPlugUDev = `
-KERNEL=="controlC[0-9]*",        TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="hwC[0-9]*D[0-9]*",      TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="midiC[0-9]*D[0-9]*",    TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="timer",                 TAG+="###CONNECTED_SECURITY_TAGS###"
-KERNEL=="seq",                   TAG+="###CONNECTED_SECURITY_TAGS###"
-SUBSYSTEM=="sound", KERNEL=="card[0-9]*", TAG+="###CONNECTED_SECURITY_TAGS###"
-`
+var alsaConnectedPlugUDev = []string{
+	`KERNEL=="controlC[0-9]*"`,
+	`KERNEL=="hwC[0-9]*D[0-9]*"`,
+	`KERNEL=="pcmC[0-9]*D[0-9]*[cp]"`,
+	`KERNEL=="midiC[0-9]*D[0-9]*"`,
+	`KERNEL=="timer"`,
+	`KERNEL=="seq"`,
+	`SUBSYSTEM=="sound", KERNEL=="card[0-9]*"`,
+}
 
 func init() {
 	registerIface(&commonInterface{

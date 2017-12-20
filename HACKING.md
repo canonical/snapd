@@ -57,7 +57,7 @@ dependent packages will also be available inside `$GOPATH`.
 
 ### Dependencies handling
 
-Dependencies are handled via `govendor`. Get it via:
+Go dependencies are handled via `govendor`. Get it via:
 
     go get -u github.com/kardianos/govendor
 
@@ -75,6 +75,12 @@ If a dependency need updating
 
     govendor fetch github.com/path/of/dependency
 
+Other dependencies are handled via distribution packages and you should ensure
+that dependencies for your distribution are installed. For example, on Ubuntu,
+run:
+
+    sudo apt-get build-dep ./
+
 ### Building
 
 To build, once the sources are available and `GOPATH` is set, you can just run
@@ -84,7 +90,7 @@ To build, once the sources are available and `GOPATH` is set, you can just run
 to get the `snap` binary in /tmp (or without -o to get it in the current
 working directory). Alternatively:
 
-    go install github.com/snapcore/snapd/...
+    go install github.com/snapcore/snapd/cmd/snap/...
 
 to have it available in `$GOPATH/bin`
 

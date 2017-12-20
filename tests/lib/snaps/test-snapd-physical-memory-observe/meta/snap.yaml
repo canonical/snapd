@@ -1,0 +1,9 @@
+name: test-snapd-physical-memory-observe
+summary: Basic snap to read the physical memory
+description: A basic snap used to read the head of the physical memory
+version: 1.0
+
+apps:
+  head:
+    command: bin/head-mem
+    plugs: [physical-memory-observe]

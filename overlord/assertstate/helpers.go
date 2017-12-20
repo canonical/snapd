@@ -26,8 +26,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 )
 
 // TODO: snapstate also has this, move to auth, or change a bit the approach now that we have AuthContext in the store?
@@ -104,7 +104,7 @@ func doFetch(s *state.State, userID int, fetching func(asserts.Fetcher) error) e
 		return err
 	}
 
-	sto := storestate.Store(s)
+	sto := snapstate.Store(s)
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		// TODO: ignore errors if already in db?

@@ -49,10 +49,17 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+)
+
+var (
+	procSelfMountInfo = mount.ProcSelfMountInfo
+	procSelfExe       = "/proc/self/exe"
+	etcFstab          = "/etc/fstab"
 )
 
 // Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
@@ -61,6 +68,131 @@ type Backend struct{}
 // Name returns the name of the backend.
 func (b *Backend) Name() interfaces.SecuritySystem {
 	return interfaces.SecurityAppArmor
+}
+
+// Initialize prepares customized apparmor policy for snap-confine.
+func (b *Backend) Initialize() error {
+	// NOTE: It would be nice if we could also generate the profile for
+	// snap-confine executing from the core snap, right here, and not have to
+	// do this in the Setup function below. I sadly don't think this is
+	// possible because snapd must be able to install a new core and only at
+	// that moment generate it.
+
+	// Inspect the system and sets up local apparmor policy for snap-confine.
+	// Local policy is included by the system-wide policy. If the local policy
+	// has changed then the apparmor profile for snap-confine is reloaded.
+
+	// Create the local policy directory if it is not there.
+	if err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755); err != nil {
+		return fmt.Errorf("cannot create snap-confine policy directory: %s", err)
+	}
+
+	// Check the /proc/self/exe symlink, this is needed below but we want to
+	// fail early if this fails for whatever reason.
+	exe, err := os.Readlink(procSelfExe)
+	if err != nil {
+		return fmt.Errorf("cannot read %s: %s", procSelfExe, err)
+	}
+
+	// Location of the generated policy.
+	glob := "*"
+	policy := make(map[string]*osutil.FileState)
+
+	// Check if NFS is mounted at or under $HOME. Because NFS is not
+	// transparent to apparmor we must alter our profile to counter that and
+	// allow snap-confine to work.
+	if nfs, err := isHomeUsingNFS(); err != nil {
+		logger.Noticef("cannot determine if NFS is in use: %v", err)
+	} else if nfs {
+		policy["nfs-support"] = &osutil.FileState{
+			Content: []byte(nfsSnippet),
+			Mode:    0644,
+		}
+		logger.Noticef("snapd enabled NFS support, additional implicit network permissions granted")
+	}
+
+	// Ensure that generated policy is what we computed above.
+	created, removed, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, policy)
+	if err != nil {
+		return fmt.Errorf("cannot synchronize snap-confine policy: %s", err)
+	}
+	if len(created) == 0 && len(removed) == 0 {
+		// If the generated policy didn't change, we're all done.
+		return nil
+	}
+
+	// If snapd is executing from the core snap the it means it has
+	// re-executed. In that case we are no longer using the copy of
+	// snap-confine from the host distribution but our own copy. We don't have
+	// to re-compile and load the updated profile as that is performed by
+	// setupSnapConfineReexec below.
+	if strings.HasPrefix(exe, dirs.SnapMountDir) {
+		return nil
+	}
+
+	// Reload the apparmor profile of snap-confine. This points to the main
+	// file in /etc/apparmor.d/ as that file contains include statements that
+	// load any of the files placed in /var/lib/snapd/apparmor/snap-confine/.
+	// For historical reasons we may have a filename that ends with .real or
+	// not.  If we do then we prefer the file ending with the name .real as
+	// that is the more recent name we use.
+	var profilePath string
+	for _, profileFname := range []string{"usr.lib.snapd.snap-confine.real", "usr.lib.snapd.snap-confine"} {
+		profilePath = filepath.Join(dirs.SystemApparmorDir, profileFname)
+		if _, err := os.Stat(profilePath); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return err
+		}
+		break
+	}
+	if profilePath == "" {
+		return fmt.Errorf("cannot find system apparmor profile for snap-confine")
+	}
+
+	// We are not using apparmor.LoadProfile() because it uses other cache.
+	cmd := exec.Command("apparmor_parser", "--replace",
+		// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
+		"-O", "no-expr-simplify",
+		"--write-cache", "--cache-loc", dirs.SystemApparmorCacheDir,
+		profilePath)
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		// When we cannot reload the profile then let's remove the generated
+		// policy. Maybe we have caused the problem so it's better to let other
+		// things work.
+		osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, nil)
+		return fmt.Errorf("cannot reload snap-confine apparmor profile: %v", osutil.OutputErr(output, err))
+	}
+	return nil
+}
+
+// isHomeUsingNFS returns true if NFS mounts are defined or mounted under /home.
+//
+// Internally /proc/self/mountinfo and /etc/fstab are interrogated (for current
+// and possible mounted filesystems).  If either of those describes NFS
+// filesystem mounted under or beneath /home/ then the return value is true.
+func isHomeUsingNFS() (bool, error) {
+	mountinfo, err := mount.LoadMountInfo(procSelfMountInfo)
+	if err != nil {
+		return false, fmt.Errorf("cannot parse %s: %s", procSelfMountInfo, err)
+	}
+	for _, entry := range mountinfo {
+		if (entry.FsType == "nfs4" || entry.FsType == "nfs") && (strings.HasPrefix(entry.MountDir, "/home/") || entry.MountDir == "/home") {
+			return true, nil
+		}
+	}
+	fstab, err := mount.LoadProfile(etcFstab)
+	if err != nil {
+		return false, fmt.Errorf("cannot parse %s: %s", etcFstab, err)
+	}
+	for _, entry := range fstab.Entries {
+		if (entry.Type == "nfs4" || entry.Type == "nfs") && (strings.HasPrefix(entry.Dir, "/home/") || entry.Dir == "/home") {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // setupSnapConfineReexec will setup apparmor profiles on a classic
@@ -121,7 +253,7 @@ func setupSnapConfineReexec(snapInfo *snap.Info) error {
 	// create for policy extensions for snap-confine. This is required for the
 	// profiles to compile but distribution package may not yet contain this
 	// directory.
-	if err := os.MkdirAll(dirs.SnapAppArmorConfineDir, 0755); err != nil {
+	if err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755); err != nil {
 		return err
 	}
 
@@ -147,9 +279,24 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	// core on classic is special
-	if snapName == "core" && release.OnClassic && !release.ReleaseInfo.ForceDevMode() {
+	if snapName == "core" && release.OnClassic && release.AppArmorLevel() != release.NoAppArmor {
 		if err := setupSnapConfineReexec(snapInfo); err != nil {
 			logger.Noticef("cannot create host snap-confine apparmor configuration: %s", err)
+		}
+	}
+	// core on core devices is also special, the apparmor cache gets
+	// confused too easy, especially at rollbacks, so we delete the cache.
+	// See LP:#1460152 and
+	// https://forum.snapcraft.io/t/core-snap-revert-issues-on-core-devices/
+	if snapName == "core" && !release.OnClassic {
+		if li, err := filepath.Glob(filepath.Join(dirs.SystemApparmorCacheDir, "*")); err == nil {
+			for _, p := range li {
+				if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() {
+					if err := os.Remove(p); err != nil {
+						logger.Noticef("cannot remove %q: %s", p, err)
+					}
+				}
+			}
 		}
 	}
 
@@ -253,7 +400,13 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				// are ignoring all apparmor snippets as they may conflict with
 				// the super-broad template we are starting with.
 			} else {
+				// Check if NFS is mounted at or under $HOME. Because NFS is not
+				// transparent to apparmor we must alter the profile to counter that and
+				// allow access to SNAP_USER_* files.
 				tagSnippets = snippetForTag
+				if nfs, _ := isHomeUsingNFS(); nfs {
+					tagSnippets += nfsSnippet
+				}
 			}
 			return tagSnippets
 		}

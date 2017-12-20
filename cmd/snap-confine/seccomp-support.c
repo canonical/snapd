@@ -38,7 +38,7 @@
 static const char *filter_profile_dir = "/var/lib/snapd/seccomp/bpf/";
 
 // MAX_BPF_SIZE is an arbitrary limit.
-const int MAX_BPF_SIZE = 32 * 1024;
+#define MAX_BPF_SIZE (32 * 1024)
 
 typedef struct sock_filter bpf_instr;
 
@@ -116,7 +116,7 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 {
 	debug("loading bpf program for security tag %s", filter_profile);
 
-	char profile_path[PATH_MAX];
+	char profile_path[PATH_MAX] = { 0 };
 	sc_must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bin",
 			 filter_profile_dir, filter_profile);
 
@@ -154,7 +154,7 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	validate_bpfpath_is_safe(profile_path);
 
 	// load bpf
-	unsigned char bpf[MAX_BPF_SIZE + 1];	// account for EOF
+	char bpf[MAX_BPF_SIZE + 1] = { 0 };	// account for EOF
 	FILE *fp = fopen(profile_path, "rb");
 	if (fp == NULL) {
 		die("cannot read %s", profile_path);
@@ -169,6 +169,10 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 	}
 	fclose(fp);
 	debug("read %zu bytes from %s", num_read, profile_path);
+
+	if (sc_streq(bpf, "@unrestricted\n")) {
+		return 0;
+	}
 
 	uid_t real_uid, effective_uid, saved_uid;
 	if (getresuid(&real_uid, &effective_uid, &saved_uid) < 0) {

@@ -24,7 +24,7 @@ const char *os_release_classic = ""
     "NAME=\"Ubuntu\"\n"
     "VERSION=\"17.04 (Zesty Zapus)\"\n" "ID=ubuntu\n" "ID_LIKE=debian\n";
 
-static void test_is_on_classic()
+static void test_is_on_classic(void)
 {
 	g_file_set_contents("os-release.classic", os_release_classic,
 			    strlen(os_release_classic), NULL);
@@ -36,7 +36,7 @@ static void test_is_on_classic()
 const char *os_release_core = ""
     "NAME=\"Ubuntu Core\"\n" "VERSION=\"16\"\n" "ID=ubuntu-core\n";
 
-static void test_is_on_core()
+static void test_is_on_core(void)
 {
 	g_file_set_contents("os-release.core", os_release_core,
 			    strlen(os_release_core), NULL);
@@ -52,7 +52,7 @@ const char *os_release_classic_with_long_line = ""
     "ID_LIKE=debian\n"
     "LONG=line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.line.";
 
-static void test_is_on_classic_with_long_line()
+static void test_is_on_classic_with_long_line(void)
 {
 	g_file_set_contents("os-release.classic-with-long-line",
 			    os_release_classic, strlen(os_release_classic),
@@ -62,7 +62,7 @@ static void test_is_on_classic_with_long_line()
 	unlink("os-release.classic-with-long-line");
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/classic/on-classic", test_is_on_classic);
 	g_test_add_func("/classic/on-classic-with-long-line",

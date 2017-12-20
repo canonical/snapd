@@ -32,7 +32,7 @@
 
 %define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service snapd.autoimport.service snapd.system-shutdown.service
 Name:           snapd
-Version:        2.28.5
+Version:        2.30
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -74,7 +74,7 @@ BuildRequires: systemd-rpm-macros
 PreReq:         permissions
 
 Requires(post): permissions
-Requires:       apparmor
+Requires:       apparmor-parser
 Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs
@@ -151,7 +151,7 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 CGO_ENABLED=0 %gobuild cmd/snap-exec
 # gobuild --ldflags '-extldflags "-static"' bin/snap-update-ns
 # FIXME: ^ this doesn't work yet, it's going to be fixed with another PR.
-%gobuild bin/snap-update-ns
+%gobuild cmd/snap-update-ns
 
 # This is ok because snap-seccomp only requires static linking when it runs from the core-snap via re-exec.
 sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i %{_builddir}/go/src/%{provider_prefix}/cmd/snap-seccomp/main.go
@@ -250,7 +250,7 @@ esac
 %preun
 %service_del_preun %{systemd_services_list}
 if [ $1 -eq 0 ]; then
-    rm -f /var/cache/snapd/*
+    %{_libexecdir}/snapd/snap-mgmt --purge || :
 fi
 
 %postun
@@ -268,7 +268,7 @@ fi
 %dir /var/lib/snapd
 %dir /var/lib/snapd/apparmor
 %dir /var/lib/snapd/apparmor/profiles
-%dir /var/lib/snapd/apparmor/snap-confine.d
+%dir /var/lib/snapd/apparmor/snap-confine
 %dir /var/lib/snapd/assertions
 %dir /var/lib/snapd/desktop
 %dir /var/lib/snapd/desktop/applications
@@ -279,10 +279,9 @@ fi
 %dir /var/lib/snapd/seccomp/bpf
 %dir /var/lib/snapd/snaps
 %dir /var/cache/snapd
-%verify(not user group mode) %attr(04755,root,root) %{_libexecdir}/snapd/snap-confine
+%verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_mandir}/man1/snap-confine.1.gz
 %{_mandir}/man5/snap-discard-ns.5.gz
-%{_udevrulesdir}/80-snappy-assign.rules
 %{_unitdir}/snapd.refresh.service
 %{_unitdir}/snapd.refresh.timer
 %{_unitdir}/snapd.service
@@ -297,6 +296,7 @@ fi
 %{_libexecdir}/snapd/snap-exec
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snapd
+%{_libexecdir}/snapd/snap-mgmt
 %{_libexecdir}/udev/snappy-app-dev
 /usr/share/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh

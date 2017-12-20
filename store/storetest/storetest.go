@@ -26,7 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/storestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -39,7 +39,7 @@ import (
 type Store struct{}
 
 // ensure we conform
-var _ storestate.StoreService = Store{}
+var _ snapstate.StoreService = Store{}
 
 func (Store) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
 	panic("Store.SnapInfo not expected")
@@ -53,7 +53,7 @@ func (Store) LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info
 	panic("Store.LookupRefresh not expected")
 }
 
-func (Store) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error) {
+func (Store) ListRefresh([]*store.RefreshCandidate, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error) {
 	panic("Store.ListRefresh not expected")
 }
 

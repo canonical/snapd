@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
 
@@ -38,19 +39,31 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 func init() {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
 	httputil.SetUserAgentFromVersion(cmd.Version, "snap")
+
+	if osutil.GetenvBool("SNAPD_DEBUG") || osutil.GetenvBool("SNAPPY_TESTING") {
+		// in tests or when debugging, enforce the "tidy" lint checks
+		noticef = logger.Panicf
+	}
+
+	// plug/slot sanitization not used nor possible from snap command, make it no-op
+	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
 }
 
-// Standard streams, redirected for testing.
 var (
-	Stdin        io.Reader = os.Stdin
-	Stdout       io.Writer = os.Stdout
-	Stderr       io.Writer = os.Stderr
-	ReadPassword           = terminal.ReadPassword
+	// Standard streams, redirected for testing.
+	Stdin  io.Reader = os.Stdin
+	Stdout io.Writer = os.Stdout
+	Stderr io.Writer = os.Stderr
+	// overridden for testing
+	ReadPassword = terminal.ReadPassword
+	// set to logger.Panicf in testing
+	noticef = logger.Noticef
 )
 
 type options struct {
@@ -124,8 +137,15 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 		logger.Panicf("description of %s's %q of %q set from tag (=> no i18n)", cmdName, optName, origDesc)
 	}
 	if len(desc) > 0 {
-		if !unicode.IsUpper(([]rune)(desc)[0]) {
-			logger.Panicf("description of %s's %q not uppercase: %q", cmdName, optName, desc)
+		// decode the first rune instead of converting all of desc into []rune
+		r, _ := utf8.DecodeRuneInString(desc)
+		// note IsLower != !IsUpper for runes with no upper/lower.
+		// Also note that login.u.c. is the only exception we're allowing for
+		// now, but the list of exceptions could grow -- if it does, we might
+		// want to change it to check for urlish things instead of just
+		// login.u.c.
+		if unicode.IsLower(r) && !strings.HasPrefix(desc, "login.ubuntu.com") {
+			noticef("description of %s's %q is lowercase: %q", cmdName, optName, desc)
 		}
 	}
 }
@@ -133,7 +153,7 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 func lintArg(cmdName, optName, desc, origDesc string) {
 	lintDesc(cmdName, optName, desc, origDesc)
 	if optName[0] != '<' || optName[len(optName)-1] != '>' {
-		logger.Panicf("argument %q's %q should have <>s", cmdName, optName)
+		noticef("argument %q's %q should be wrapped in <>s", cmdName, optName)
 	}
 }
 

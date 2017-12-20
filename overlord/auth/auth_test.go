@@ -20,6 +20,7 @@
 package auth_test
 
 import (
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -39,9 +40,17 @@ func Test(t *testing.T) { TestingT(t) }
 
 type authSuite struct {
 	state *state.State
+
+	defURL *url.URL
 }
 
 var _ = Suite(&authSuite{})
+
+func (as *authSuite) SetupSuite(c *C) {
+	var err error
+	as.defURL, err = url.Parse("http://store")
+	c.Assert(err, IsNil)
+}
 
 func (as *authSuite) SetUpTest(c *C) {
 	as.state = state.New(nil)
@@ -263,7 +272,7 @@ func (as *authSuite) TestUserForNoAuthInState(c *C) {
 	as.state.Lock()
 	userFromState, err := auth.User(as.state, 42)
 	as.state.Unlock()
-	c.Check(err, NotNil)
+	c.Check(err, Equals, auth.ErrInvalidUser)
 	c.Check(userFromState, IsNil)
 }
 
@@ -275,6 +284,7 @@ func (as *authSuite) TestUserForNonExistent(c *C) {
 
 	as.state.Lock()
 	userFromState, err := auth.User(as.state, 42)
+	c.Check(err, Equals, auth.ErrInvalidUser)
 	c.Check(err, ErrorMatches, "invalid user")
 	c.Check(userFromState, IsNil)
 }
@@ -326,7 +336,7 @@ func (as *authSuite) TestUpdateUserInvalid(c *C) {
 	as.state.Lock()
 	err := auth.UpdateUser(as.state, user)
 	as.state.Unlock()
-	c.Assert(err, ErrorMatches, "invalid user")
+	c.Assert(err, Equals, auth.ErrInvalidUser)
 }
 
 func (as *authSuite) TestRemove(c *C) {
@@ -348,12 +358,12 @@ func (as *authSuite) TestRemove(c *C) {
 	as.state.Lock()
 	_, err = auth.User(as.state, user.ID)
 	as.state.Unlock()
-	c.Check(err, ErrorMatches, "invalid user")
+	c.Check(err, Equals, auth.ErrInvalidUser)
 
 	as.state.Lock()
 	err = auth.RemoveUser(as.state, user.ID)
 	as.state.Unlock()
-	c.Assert(err, ErrorMatches, "invalid user")
+	c.Assert(err, Equals, auth.ErrInvalidUser)
 }
 
 func (as *authSuite) TestSetDevice(c *C) {
@@ -438,7 +448,7 @@ func (as *authSuite) TestAuthContextUpdateUserAuthInvalid(c *C) {
 
 	authContext := auth.NewAuthContext(as.state, nil)
 	_, err := authContext.UpdateUserAuth(user, nil)
-	c.Assert(err, ErrorMatches, "invalid user")
+	c.Assert(err, Equals, auth.ErrInvalidUser)
 }
 
 func (as *authSuite) TestAuthContextDeviceForNonExistent(c *C) {
@@ -509,12 +519,17 @@ func (as *authSuite) TestAuthContextUpdateDeviceAuthOtherUpdate(c *C) {
 	})
 }
 
-func (as *authSuite) TestAuthContextStoreIDFallback(c *C) {
+func (as *authSuite) TestAuthContextStoreParamsFallback(c *C) {
 	authContext := auth.NewAuthContext(as.state, nil)
 
 	storeID, err := authContext.StoreID("store-id")
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "store-id")
+
+	proxyStoreID, proxyStoreURL, err := authContext.ProxyStoreParams(as.defURL)
+	c.Assert(err, IsNil)
+	c.Check(proxyStoreID, Equals, "")
+	c.Check(proxyStoreURL, Equals, as.defURL)
 }
 
 func (as *authSuite) TestAuthContextStoreIDFromEnv(c *C) {
@@ -580,6 +595,16 @@ timestamp: @TS@
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw=`
+
+	exStore = `type: store
+authority-id: canonical
+store: foo
+operator-id: foo-operator
+url: http://foo.internal
+timestamp: 2017-11-01T10:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw=`
 )
 
 type testDeviceAssertions struct {
@@ -636,6 +661,17 @@ func (da *testDeviceAssertions) DeviceSessionRequestParams(nonce string) (*auth.
 	}, nil
 }
 
+func (da *testDeviceAssertions) ProxyStore() (*asserts.Store, error) {
+	if da.nothing {
+		return nil, state.ErrNoState
+	}
+	a, err := asserts.Decode([]byte(exStore))
+	if err != nil {
+		return nil, err
+	}
+	return a.(*asserts.Store), nil
+}
+
 func (as *authSuite) TestAuthContextMissingDeviceAssertions(c *C) {
 	// no assertions in state
 	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{nothing: true})
@@ -646,6 +682,11 @@ func (as *authSuite) TestAuthContextMissingDeviceAssertions(c *C) {
 	storeID, err := authContext.StoreID("fallback")
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "fallback")
+
+	proxyStoreID, proxyStoreURL, err := authContext.ProxyStoreParams(as.defURL)
+	c.Assert(err, IsNil)
+	c.Check(proxyStoreID, Equals, "")
+	c.Check(proxyStoreURL, Equals, as.defURL)
 }
 
 func (as *authSuite) TestAuthContextWithDeviceAssertions(c *C) {
@@ -673,6 +714,15 @@ func (as *authSuite) TestAuthContextWithDeviceAssertions(c *C) {
 	storeID, err := authContext.StoreID("store-id")
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "my-brand-store-id")
+
+	// proxy store
+	fooURL, err := url.Parse("http://foo.internal")
+	c.Assert(err, IsNil)
+
+	proxyStoreID, proxyStoreURL, err := authContext.ProxyStoreParams(as.defURL)
+	c.Assert(err, IsNil)
+	c.Check(proxyStoreID, Equals, "foo")
+	c.Check(proxyStoreURL, DeepEquals, fooURL)
 }
 
 func (as *authSuite) TestAuthContextWithDeviceAssertionsGenericClassicModel(c *C) {

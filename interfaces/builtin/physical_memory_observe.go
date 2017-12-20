@@ -37,7 +37,7 @@ const physicalMemoryObserveConnectedPlugAppArmor = `
 /dev/mem r,
 `
 
-const physicalMemoryObserveConnectedPlugUDev = `KERNEL=="mem", TAG+="###CONNECTED_SECURITY_TAGS###"`
+var physicalMemoryObserveConnectedPlugUDev = []string{`KERNEL=="mem"`}
 
 func init() {
 	registerIface(&commonInterface{

@@ -83,6 +83,14 @@ var unescape = strings.NewReplacer(
 	`\134`, "\\",
 ).Replace
 
+func Escape(path string) string {
+	return escape(path)
+}
+
+func Unescape(path string) string {
+	return unescape(path)
+}
+
 func (e Entry) String() string {
 	// Name represents name of the device in a mount entry.
 	name := "none"
@@ -141,8 +149,8 @@ func ParseEntry(s string) (Entry, error) {
 	return e, nil
 }
 
-// OptsToFlags converts mount options strings to a mount flag.
-func OptsToFlags(opts []string) (flags int, err error) {
+// OptsToCommonFlags converts mount options strings to a mount flag, returning unparsed flags.
+func OptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 	for _, opt := range opts {
 		switch opt {
 		case "ro":
@@ -192,8 +200,42 @@ func OptsToFlags(opts []string) (flags int, err error) {
 		case "strictatime":
 			flags |= syscall.MS_STRICTATIME
 		default:
+			unparsed = append(unparsed, opt)
+		}
+	}
+	return flags, unparsed
+}
+
+// OptsToFlags converts mount options strings to a mount flag.
+func OptsToFlags(opts []string) (flags int, err error) {
+	flags, unparsed := OptsToCommonFlags(opts)
+	for _, opt := range unparsed {
+		if !strings.HasPrefix(opt, "x-snapd.") {
 			return 0, fmt.Errorf("unsupported mount option: %q", opt)
 		}
 	}
 	return flags, nil
+}
+
+// OptStr returns the value part of a key=value mount option.
+// The name of the option must not contain the trailing "=" character.
+func (e *Entry) OptStr(name string) (string, bool) {
+	prefix := name + "="
+	for _, opt := range e.Options {
+		if strings.HasPrefix(opt, prefix) {
+			kv := strings.SplitN(opt, "=", 2)
+			return kv[1], true
+		}
+	}
+	return "", false
+}
+
+// OptBool returns true if a given mount option is present.
+func (e *Entry) OptBool(name string) bool {
+	for _, opt := range e.Options {
+		if opt == name {
+			return true
+		}
+	}
+	return false
 }

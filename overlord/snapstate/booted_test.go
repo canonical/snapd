@@ -37,23 +37,30 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type bootedSuite struct {
+	testutil.BaseTest
 	bootloader *boottest.MockBootloader
 
 	o           *overlord.Overlord
 	state       *state.State
 	snapmgr     *snapstate.SnapManager
 	fakeBackend *fakeSnappyBackend
+	restore     func()
 }
 
 var _ = Suite(&bootedSuite{})
 
 func (bs *bootedSuite) SetUpTest(c *C) {
+	bs.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
+
+	bs.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	// booted is not running on classic
 	release.MockOnClassic(false)
@@ -79,6 +86,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {
+	bs.BaseTest.TearDownTest(c)
 	snapstate.AutoAliases = nil
 	release.MockOnClassic(true)
 	dirs.SetRootDir("")

@@ -68,6 +68,7 @@ Depends: adduser,
 # only needed on trusty to pull in the right version.
          sudo (>= 1.8.9p5-1ubuntu1.3),
          systemd (>= 204-5ubuntu20.20),
+         udev,
 # only needed on trusty to pull in the right version.
          util-linux (>=2.20.1-5.1ubuntu20.9),
          ${misc:Depends},

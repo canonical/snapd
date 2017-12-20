@@ -19,6 +19,12 @@
 
 package interfaces
 
+type ByConnRef byConnRef
+
+func (c ByConnRef) Len() int           { return byConnRef(c).Len() }
+func (c ByConnRef) Swap(i, j int)      { byConnRef(c).Swap(i, j) }
+func (c ByConnRef) Less(i, j int) bool { return byConnRef(c).Less(i, j) }
+
 type BySlotRef bySlotRef
 
 func (c BySlotRef) Len() int           { return bySlotRef(c).Len() }
@@ -66,3 +72,5 @@ type BySlotInfo bySlotInfo
 func (c BySlotInfo) Len() int           { return bySlotInfo(c).Len() }
 func (c BySlotInfo) Swap(i, j int)      { bySlotInfo(c).Swap(i, j) }
 func (c BySlotInfo) Less(i, j int) bool { return bySlotInfo(c).Less(i, j) }
+
+var CopyAttributes = copyAttributes
