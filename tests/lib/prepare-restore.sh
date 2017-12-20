@@ -285,6 +285,15 @@ prepare_project() {
     # Build additional utilities we need for testing
     go get ./tests/lib/fakedevicesvc
     go get ./tests/lib/systemd-escape
+
+    # disable journald rate limiting
+    mkdir -p /etc/systemd/journald.conf.d/
+    cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
+    [Journal]
+    RateLimitIntervalSec=0
+    RateLimitBurst=0
+EOF
+    systemctl restart systemd-journald.service
 }
 
 prepare_project_each() {
@@ -347,6 +356,9 @@ restore_project() {
     if [ -n "$GOPATH" ]; then
         rm -rf "${GOPATH%%:*}"
     fi
+
+    rm -rf /etc/systemd/journald.conf.d/no-rate-limit.conf
+    rmdir /etc/systemd/journald.conf.d || true
 }
 
 case "$1" in
