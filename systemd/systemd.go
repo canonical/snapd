@@ -31,7 +31,6 @@ import (
 	"time"
 
 	_ "github.com/snapcore/squashfuse"
-	_ "github.com/snapcore/squashfuse/m4"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
