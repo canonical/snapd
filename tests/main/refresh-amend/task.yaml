@@ -1,5 +1,8 @@
 summary: Ensure that refresh --amend works
 
+restore: |
+    rm -f test-snapd-tools_*.snap
+
 execute: |
     echo "When installing a local snap"
     snap download test-snapd-tools
