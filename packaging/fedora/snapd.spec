@@ -378,6 +378,9 @@ ln -s %{gopath}/src/github.com/cheggaaa/pb vendor/gopkg.in/cheggaaa/pb.v1
 # Generate version files
 ./mkversion.sh "%{version}-%{release}"
 
+# We don't want/need squashfuse in the rpm
+sed -e 's:_ "github.com/snapcore/squashfuse"::g' -i systemd/systemd.go
+
 # Build snapd
 mkdir -p src/github.com/snapcore
 ln -s ../../../ src/github.com/snapcore/snapd
