@@ -71,6 +71,7 @@ backends:
             - debian-sid-64:
                 kernel: GRUB 2
                 workers: 4
+                manual: true
             - debian-9-64:
                 kernel: GRUB 2
                 workers: 4

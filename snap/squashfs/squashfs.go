@@ -155,6 +155,7 @@ func (s *Snap) Build(buildDir string) error {
 			"-noappend",
 			"-comp", "xz",
 			"-no-xattrs",
+			"-no-fragments",
 		).Run()
 	})
 }
