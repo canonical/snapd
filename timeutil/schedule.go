@@ -198,9 +198,9 @@ func (ts ClockSpan) Window(t time.Time) ScheduleWindow {
 	}
 }
 
-// Subspans returns a slice of TimeSpan generated from ts by splitting the time
-// between ts.Start and ts.End into ts.Split equal spans.
-func (ts ClockSpan) Subspans() []ClockSpan {
+// ClockSpans returns a slice of ClockSpans generated from ts by splitting the
+// time between ts.Start and ts.End into ts.Split equal spans.
+func (ts ClockSpan) ClockSpans() []ClockSpan {
 	if ts.Split == 0 || ts.Split == 1 || ts.End == ts.Start {
 		return []ClockSpan{ts}
 	}
@@ -258,7 +258,7 @@ func (sched *Schedule) flattenedTimeSpans() []ClockSpan {
 
 	times := make([]ClockSpan, 0, len(baseTimes))
 	for _, ts := range baseTimes {
-		times = append(times, ts.Subspans()...)
+		times = append(times, ts.ClockSpans()...)
 	}
 	return times
 }
