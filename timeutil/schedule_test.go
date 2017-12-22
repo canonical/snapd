@@ -313,7 +313,8 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 		{"9:00,mon", nil, `cannot parse "mon": expected time spec`},
 		{"mon~wed", nil, `cannot parse "mon~wed": "mon~wed" is not a valid weekday`},
 		{"mon--wed", nil, `cannot parse "mon--wed": invalid week span`},
-		{"mon-wed/2..9:00", nil, `cannot parse "mon-wed/2": "wed/2" is not a valid weekday`},
+		{"mon-wed/2,,9:00", nil, `cannot parse "mon-wed/2": "wed/2" is not a valid weekday`},
+		{"mon..wed", nil, `cannot parse "mon..wed": "mon..wed" is not a valid weekday`},
 		{"mon9,9:00", nil, `cannot parse "mon9": "mon9" is not a valid weekday`},
 		{"mon0,9:00", nil, `cannot parse "mon0": "mon0" is not a valid weekday`},
 		{"mon5-mon1,9:00", nil, `cannot parse "mon5-mon1": unsupported schedule`},
@@ -324,6 +325,9 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 		{"9:00-11:00/3/3/3", nil, `cannot parse "9:00-11:00/3/3/3": not a valid interval`},
 		{"9:00-11:00///3", nil, `cannot parse "9:00-11:00///3": not a valid interval`},
 		{"9:00-9:00-10:00/3", nil, `cannot parse "9:00-9:00-10:00/3": not a valid time`},
+		{"9:00,,,9:00-10:00/3", nil, `cannot parse ",9:00-10:00/3": not a valid event`},
+		{",,,", nil, `cannot parse "": not a valid event`},
+		{",,", nil, `cannot parse "": not a valid event`},
 		{":", nil, `cannot parse ":": not a valid time`},
 		// valid
 		{
@@ -354,7 +358,7 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 					{Start: timeutil.Week{Weekday: time.Monday}, End: timeutil.Week{Weekday: time.Monday}}},
 			}},
 		}, {
-			in: "9:00-11:00..20:00-22:00",
+			in: "9:00-11:00,,20:00-22:00",
 			expected: []*timeutil.Schedule{{
 				ClockSpans: []timeutil.ClockSpan{
 					{Start: timeutil.Clock{Hour: 9}, End: timeutil.Clock{Hour: 11}}},
@@ -363,7 +367,7 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 					{Start: timeutil.Clock{Hour: 20}, End: timeutil.Clock{Hour: 22}}}},
 			},
 		}, {
-			in: "mon,9:00-11:00..wed,22:00-23:00",
+			in: "mon,9:00-11:00,,wed,22:00-23:00",
 			expected: []*timeutil.Schedule{{
 				ClockSpans: []timeutil.ClockSpan{
 					{Start: timeutil.Clock{Hour: 9}, End: timeutil.Clock{Hour: 11}}},
@@ -395,7 +399,7 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 			}},
 		}, {
 			// same as above
-			in: "mon..wed",
+			in: "mon,,wed",
 			expected: []*timeutil.Schedule{{
 				WeekSpans: []timeutil.WeekSpan{
 					{Start: timeutil.Week{Weekday: time.Monday}, End: timeutil.Week{Weekday: time.Monday}}},
@@ -498,7 +502,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 		randomized bool
 	}{
 		{
-			schedule: "mon,10:00..fri,15:00",
+			schedule: "mon,10:00,,fri,15:00",
 			// sun 22:00
 			last: "2017-02-05 22:00",
 			// mon 9:00
@@ -579,13 +583,13 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			// of 'spreading'
 			randomized: false,
 		}, {
-			schedule:   "mon,10:00~12:00..fri,15:00",
+			schedule:   "mon,10:00~12:00,,fri,15:00",
 			last:       "2017-02-05 22:00",
 			now:        "2017-02-06 9:00",
 			next:       "1h-3h",
 			randomized: true,
 		}, {
-			schedule: "mon,10:00-12:00..fri,15:00",
+			schedule: "mon,10:00-12:00,,fri,15:00",
 			last:     "2017-02-06 12:00",
 			// tue 12:00
 			now: "2017-02-07 12:00",
