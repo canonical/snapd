@@ -558,43 +558,38 @@ func parseWeekSpan(s string) (span WeekSpan, err error) {
 // special tokens `-`, `~` (followed by an optional [/count]) that indicate a
 // whole day span, or a whole day span with spread respectively.
 func parseClockSpan(s string) (span ClockSpan, err error) {
-	var parsed ClockSpan
 	var rest string
 
 	// timespan = time ( "-" / "~" ) time [ "/" ( time / count ) ]
 
-	parsed.Split, rest, err = parseCount(s)
+	span.Split, rest, err = parseCount(s)
 	if err != nil {
-		return span, fmt.Errorf("cannot parse %q: not a valid interval", s)
+		return ClockSpan{}, fmt.Errorf("cannot parse %q: not a valid interval", s)
 	}
 
 	if strings.Contains(rest, spreadToken) {
 		// timespan uses "~" to indicate that the actual event
 		// time is to be spread.
-		parsed.Spread = true
+		span.Spread = true
 		rest = strings.Replace(rest, spreadToken, spanToken, 1)
 	}
 
-	if strings.Contains(rest, spanToken) {
-		if rest == "-" {
-			// whole day span
-			parsed.Start = Clock{0, 0}
-			parsed.End = Clock{24, 0}
-		} else {
-			parsed.Start, parsed.End, err = parseClockRange(rest)
-		}
+	if rest == "-" {
+		// whole day span
+		span.Start = Clock{0, 0}
+		span.End = Clock{24, 0}
+	} else if strings.Contains(rest, spanToken) {
+		span.Start, span.End, err = parseClockRange(rest)
 	} else {
-		parsed.Start, err = ParseClock(rest)
-		if err == nil {
-			parsed.End = parsed.Start
-		}
+		span.Start, err = ParseClock(rest)
+		span.End = span.Start
 	}
 
 	if err != nil {
-		return span, fmt.Errorf("cannot parse %q: not a valid time", s)
+		return ClockSpan{}, fmt.Errorf("cannot parse %q: not a valid time", s)
 	}
 
-	return parsed, nil
+	return span, nil
 }
 
 // parseWeekday parses a single weekday (eg. wed, mon5),
