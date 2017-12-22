@@ -478,7 +478,7 @@ func ParseLegacySchedule(scheduleSpec string) ([]*Schedule, error) {
 
 // ParseSchedule parses a schedule in V2 format. The format is described as:
 //
-//     eventlist = eventset *( ".." eventset )
+//     eventlist = eventset *( ",," eventset )
 //     eventset = wdaylist / timelist / wdaylist "," timelist
 //
 //     wdaylist = wdayset *( "," wdayset )
@@ -493,22 +493,22 @@ func ParseLegacySchedule(scheduleSpec string) ([]*Schedule, error) {
 //     count = 1*DIGIT
 //
 // Examples:
-// mon,10:00..fri,15:00 (Monday at 10:00, Friday at 15:00)
+// mon,10:00,,fri,15:00 (Monday at 10:00, Friday at 15:00)
 // mon,fri,10:00,15:00 (Monday at 10:00 and 15:00, Friday at 10:00 and 15:00)
 // mon-wed,fri,9:00-11:00/2 (Monday to Wednesday and on Friday, twice between
 //                           9:00 and 11:00)
-// mon,9:00~11:00..wed,22:00~23:00 (Monday, sometime between 9:00 and 11:00, and
+// mon,9:00~11:00,,wed,22:00~23:00 (Monday, sometime between 9:00 and 11:00, and
 //                                  on Wednesday, sometime between 22:00 and 23:00)
 // mon,wed  (Monday and on Wednesday)
-// mon..wed (same as above)
+// mon,,wed (same as above)
 //
 // Returns a slice of schedules or an error if parsing failed
 func ParseSchedule(scheduleSpec string) ([]*Schedule, error) {
 	var schedule []*Schedule
 
-	for _, s := range strings.Split(scheduleSpec, "..") {
+	for _, s := range strings.Split(scheduleSpec, ",,") {
 		// cut the schedule in event sets
-		//     eventlist = eventset *( ".." eventset )
+		//     eventlist = eventset *( ",," eventset )
 		sched, err := parseEventSet(s)
 		if err != nil {
 			return nil, err
