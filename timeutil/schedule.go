@@ -228,7 +228,7 @@ type Schedule struct {
 }
 
 func (sched *Schedule) String() string {
-	buf := &bytes.Buffer{}
+	var buf bytes.Buffer
 
 	for i, span := range sched.WeekSpans {
 		if i > 0 {
@@ -282,7 +282,7 @@ type ScheduleWindow struct {
 	Spread bool
 }
 
-// Includes returns whether t falls inside the window.
+// Includes returns whether t is inside the window.
 func (s ScheduleWindow) Includes(t time.Time) bool {
 	return !(t.Before(s.Start) || t.After(s.End))
 }
@@ -292,7 +292,7 @@ func (s ScheduleWindow) IsZero() bool {
 	return s.Start.IsZero() || s.End.IsZero()
 }
 
-// Next returns earliest window after last according to the schedule.
+// Next returns the earliest window after last according to the schedule.
 func (sched *Schedule) Next(last time.Time) ScheduleWindow {
 	now := timeNow()
 
@@ -419,8 +419,8 @@ var weekdayMap = map[string]time.Weekday{
 	"sat": time.Saturday,
 }
 
-// parseClockRange gets an input like "9:00-11:00" and extracts the start and
-// end of that clock range string. Returns them and any errors.
+// parseClockRange parses a string like "9:00-11:00" and returns the start and
+// end times.
 func parseClockRange(s string) (start, end Clock, err error) {
 	l := strings.SplitN(s, "-", 2)
 	if len(l) != 2 {
@@ -456,7 +456,7 @@ func parseSingleSchedule(s string) (*Schedule, error) {
 	return schedule, nil
 }
 
-// ParseLegacySchedule takes a schedule string in the form of:
+// ParseLegacySchedule takes an obsolete schedule string in the form of:
 //
 // 9:00-15:00 (every day between 9am and 3pm)
 // 9:00-15:00/21:00-22:00 (every day between 9am,5pm and 9pm,10pm)
@@ -547,7 +547,7 @@ func parseWeekSpan(s string) (span WeekSpan, err error) {
 	}
 
 	if (parsed.Start.Pos != 0) != (parsed.End.Pos != 0) {
-		return span, fmt.Errorf("cannot parse %q: mixed weekday and nonweekday", s)
+		return span, fmt.Errorf("cannot parse %q: week number must be present in both or neither", s)
 	}
 
 	return parsed, nil
@@ -572,9 +572,7 @@ func parseClockSpan(s string) (span ClockSpan, err error) {
 		// timespan uses "~" to indicate that the actual event
 		// time is to be spread.
 		parsed.Spread = true
-		rest = strings.Replace(rest,
-			spreadToken,
-			spanToken, 1)
+		rest = strings.Replace(rest, spreadToken, spanToken, 1)
 	}
 
 	if strings.Contains(rest, spanToken) {
@@ -626,7 +624,7 @@ func parseWeekday(s string) (week Week, err error) {
 }
 
 // parseCount will parse the string containing a count token and return the
-// count, the rest of the string with count information removed or an error
+// count count and the rest of the string with count information removed, or an error.
 func parseCount(s string) (count uint, rest string, err error) {
 	if !strings.Contains(s, countToken) {
 		return 0, s, nil
