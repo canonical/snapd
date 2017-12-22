@@ -658,10 +658,10 @@ var shorthandTime = map[string]bool{
 	"~": true,
 }
 
-// Parse each event and return a slice of schedules.
+// Parse event set into a Schedule
 func parseEventSet(s string) (*Schedule, error) {
-	var events []string
-	// split event set into events
+	var fragments []string
+	// split eventset into fragments
 	//     eventset = wdaylist / timelist / wdaylist "," timelist
 	// or wdaysets
 	//     wdaylist = wdayset *( "," wdayset )
@@ -669,27 +669,27 @@ func parseEventSet(s string) (*Schedule, error) {
 	//     timelist = timeset *( "," timeset )
 	//
 	// NOTE: the syntax is ambiguous in the sense the type of a 'set' is now
-	// explicitly indicated, events with : inside are expected to be
+	// explicitly indicated, fragments with : inside are expected to be
 	// timesets
 
 	if els := strings.Split(s, ","); len(els) > 1 {
-		events = els
+		fragments = els
 	} else {
-		events = []string{s}
+		fragments = []string{s}
 	}
 
 	var schedule Schedule
-	// indicates that any further events must be time events
+	// indicates that any further fragment must be timesets
 	var expectTime bool
 
-	for _, event := range events {
-		if len(event) == 0 {
-			return nil, fmt.Errorf("cannot parse %q: not a valid event", s)
+	for _, fragment := range fragments {
+		if len(fragment) == 0 {
+			return nil, fmt.Errorf("cannot parse %q: not a valid fragment", s)
 		}
 
-		if strings.Contains(event, ":") || shorthandTime[event[0:1]] {
+		if strings.Contains(fragment, ":") || shorthandTime[fragment[0:1]] {
 			// must be a clock span
-			span, err := parseClockSpan(event)
+			span, err := parseClockSpan(fragment)
 			if err != nil {
 				return nil, err
 			}
@@ -699,14 +699,14 @@ func parseEventSet(s string) (*Schedule, error) {
 
 		} else if !expectTime {
 			// we're not expecting timeset , so this must be a wdayset
-			span, err := parseWeekSpan(event)
+			span, err := parseWeekSpan(fragment)
 			if err != nil {
 				return nil, err
 			}
 			schedule.WeekSpans = append(schedule.WeekSpans, span)
 		} else {
 			// not a timeset
-			return nil, fmt.Errorf("cannot parse %q: expected time spec", event)
+			return nil, fmt.Errorf("cannot parse %q: invalid schedule fragment", fragment)
 		}
 	}
 
