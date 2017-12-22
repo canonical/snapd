@@ -250,7 +250,7 @@ func (sched *Schedule) String() string {
 	return buf.String()
 }
 
-func (sched *Schedule) flattenedTimeSpans() []ClockSpan {
+func (sched *Schedule) flattenedClockSpans() []ClockSpan {
 	baseTimes := sched.ClockSpans
 	if len(baseTimes) == 0 {
 		baseTimes = []ClockSpan{{}}
@@ -296,7 +296,7 @@ func (s ScheduleWindow) IsZero() bool {
 func (sched *Schedule) Next(last time.Time) ScheduleWindow {
 	now := timeNow()
 
-	tspans := sched.flattenedTimeSpans()
+	tspans := sched.flattenedClockSpans()
 
 	for t := last; ; t = t.Add(24 * time.Hour) {
 		// try to find a matching schedule by moving in 24h jumps, check
