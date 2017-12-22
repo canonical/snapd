@@ -329,6 +329,9 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 		{",,,", nil, `cannot parse "": not a valid fragment`},
 		{",,", nil, `cannot parse "": not a valid fragment`},
 		{":", nil, `cannot parse ":": not a valid time`},
+		{"-", nil, `cannot parse "-": "" is not a valid weekday`},
+		{"-/4", nil, `cannot parse "-/4": "" is not a valid weekday`},
+		{"~/4", nil, `cannot parse "~/4": "~/4" is not a valid weekday`},
 		// valid
 		{
 			in: "9:00-11:00",
@@ -450,20 +453,6 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 			expected: []*timeutil.Schedule{{
 				ClockSpans: []timeutil.ClockSpan{
 					{Start: timeutil.Clock{Hour: 0}, End: timeutil.Clock{Hour: 24}}},
-			}},
-		}, {
-			// 4 events during the whole day - 0:00-24:00/4
-			in: "-/4",
-			expected: []*timeutil.Schedule{{
-				ClockSpans: []timeutil.ClockSpan{
-					{Start: timeutil.Clock{Hour: 0}, End: timeutil.Clock{Hour: 24}, Split: 4}},
-			}},
-		}, {
-			// randomized variant of above
-			in: "~/4",
-			expected: []*timeutil.Schedule{{
-				ClockSpans: []timeutil.ClockSpan{
-					{Start: timeutil.Clock{Hour: 0}, End: timeutil.Clock{Hour: 24}, Spread: true, Split: 4}},
 			}},
 		}, {
 			in: "23:00-01:00",
