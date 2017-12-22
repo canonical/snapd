@@ -439,23 +439,6 @@ func parseClockRange(s string) (start, end Clock, err error) {
 	return start, end, nil
 }
 
-// parseSingleSchedule parses a schedule string like "9:00-11:00"
-func parseSingleSchedule(s string) (*Schedule, error) {
-	start, end, err := parseClockRange(s)
-	if err != nil {
-		return nil, err
-	}
-
-	schedule := &Schedule{
-		ClockSpans: []ClockSpan{{
-			Start:  start,
-			End:    end,
-			Spread: true,
-		}},
-	}
-	return schedule, nil
-}
-
 // ParseLegacySchedule takes an obsolete schedule string in the form of:
 //
 // 9:00-15:00 (every day between 9am and 3pm)
@@ -466,11 +449,17 @@ func ParseLegacySchedule(scheduleSpec string) ([]*Schedule, error) {
 	var schedule []*Schedule
 
 	for _, s := range strings.Split(scheduleSpec, "/") {
-		sched, err := parseSingleSchedule(s)
+		start, end, err := parseClockRange(s)
 		if err != nil {
 			return nil, err
 		}
-		schedule = append(schedule, sched)
+		schedule = append(schedule, &Schedule{
+			ClockSpans: []ClockSpan{{
+				Start:  start,
+				End:    end,
+				Spread: true,
+			}},
+		})
 	}
 
 	return schedule, nil
