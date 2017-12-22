@@ -1109,6 +1109,7 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 
 func (inst *snapInstruction) errToResponse(err error) Response {
 	var kind errorKind
+	var snapName string
 
 	switch err {
 	case store.ErrSnapNotFound:
@@ -1121,14 +1122,19 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		switch err := err.(type) {
 		case *snap.AlreadyInstalledError:
 			kind = errorKindSnapAlreadyInstalled
+			snapName = err.Snap
 		case *snap.NotInstalledError:
 			kind = errorKindSnapNotInstalled
+			snapName = err.Snap
 		case *snapstate.SnapNeedsDevModeError:
 			kind = errorKindSnapNeedsDevMode
+			snapName = err.Snap
 		case *snapstate.SnapNeedsClassicError:
 			kind = errorKindSnapNeedsClassic
+			snapName = err.Snap
 		case *snapstate.SnapNeedsClassicSystemError:
 			kind = errorKindSnapNeedsClassicSystem
+			snapName = err.Snap
 		default:
 			return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
 		}
@@ -1136,7 +1142,7 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 
 	return SyncResponse(&resp{
 		Type:   ResponseTypeError,
-		Result: &errorResult{Message: err.Error(), Kind: kind},
+		Result: &errorResult{Message: err.Error(), Kind: kind, Value: snapName},
 		Status: 400,
 	}, nil)
 }
@@ -1292,7 +1298,7 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unsupported multi-snap operation %q", inst.Action)
 	}
 	if err != nil {
-		return InternalError("cannot %s %q: %v", inst.Action, inst.Snaps, err)
+		return inst.errToResponse(err)
 	}
 
 	var chg *state.Change
