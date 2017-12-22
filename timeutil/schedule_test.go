@@ -318,7 +318,7 @@ func (ts *timeutilSuite) TestParseSchedule(c *C) {
 		{"mon9,9:00", nil, `cannot parse "mon9": "mon9" is not a valid weekday`},
 		{"mon0,9:00", nil, `cannot parse "mon0": "mon0" is not a valid weekday`},
 		{"mon5-mon1,9:00", nil, `cannot parse "mon5-mon1": unsupported schedule`},
-		{"mon-mon2,9:00", nil, `cannot parse "mon-mon2": mixed weekday and nonweekday`},
+		{"mon-mon2,9:00", nil, `cannot parse "mon-mon2": week number must be present in both or neither`},
 		{"mon%,9:00", nil, `cannot parse "mon%": "mon%" is not a valid weekday`},
 		{"foo2,9:00", nil, `cannot parse "foo2": "foo2" is not a valid weekday`},
 		{"9:00---11:00", nil, `cannot parse "9:00---11:00": not a valid time`},
