@@ -1590,6 +1590,18 @@ func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot use 'q' with 'select=refresh'")
 }
 
+func (s *apiSuite) TestFindBadQueryReturnsCorrectErrorKind(c *check.C) {
+	s.err = store.ErrBadQuery
+	req, err := http.NewRequest("GET", "/v2/find?q=return-bad-query-please", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "bad query")
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindBadQuery)
+}
+
 func (s *apiSuite) TestFindPriced(c *check.C) {
 	s.suggestedCurrency = "GBP"
 
