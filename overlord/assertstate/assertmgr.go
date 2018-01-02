@@ -59,6 +59,10 @@ func Manager(s *state.State) (*AssertManager, error) {
 	return &AssertManager{runner: runner}, nil
 }
 
+func (m *AssertManager) KnownTaskKinds() []string {
+	return m.runner.KnownTaskKinds()
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *AssertManager) Ensure() error {
 	m.runner.Ensure()

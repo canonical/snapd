@@ -120,6 +120,12 @@ func Manager(s *state.State) (*HookManager, error) {
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
+	// Compatibility with snapd between 2.29 and 2.30 in edge only.
+	// We generated a configure-snapd task on core refreshes and
+	// for compatibility we need to handle those.
+	runner.AddHandler("configure-snapd", func(*state.Task, *tomb.Tomb) error {
+		return nil
+	}, nil)
 
 	setupHooks(manager)
 
@@ -130,6 +136,10 @@ func Manager(s *state.State) (*HookManager, error) {
 // matching the provided pattern are run.
 func (m *HookManager) Register(pattern *regexp.Regexp, generator HandlerGenerator) {
 	m.repository.addHandlerGenerator(pattern, generator)
+}
+
+func (m *HookManager) KnownTaskKinds() []string {
+	return m.runner.KnownTaskKinds()
 }
 
 // Ensure implements StateManager.Ensure.
