@@ -617,6 +617,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			}
 		}
 		if user == nil {
+			// if the original user installing the snap is
+			// no longer available transfer to to user who
+			// triggered this change
 			snapst.UserID = snapsup.UserID
 		}
 	}
