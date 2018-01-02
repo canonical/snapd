@@ -27,3 +27,17 @@ execute: |
     snap info --verbose $TESTSLIB/snaps/basic-desktop
     snap info --verbose basic_1.0_all.snap|MATCH "sha3-384:"
     snap info --verbose test-snapd-tools|MATCH "  ignore-validation:"
+
+    echo "Ensure we show friendly error messages"
+    snap info no-such-snap > out.stdout 2> out.stderr
+    MATCH 'no snap named "no-such-snap" found' < out.stderr
+
+    snap info no-such-snap no-such-other-snap > out.stdout 2> out.stderr
+    MATCH 'warning: no snap named "no-such-snap" found' < out.stdout
+    MATCH 'warning: no snap named "no-such-other-snap" found' < out.stdout
+    MATCH 'error: no valid snaps given' < out.stderr
+
+    snap info no-such-snap test-snapd-tools > out.stdout 2> out.stderr
+    MATCH 'warning: no snap named "no-such-snap" found' < out.stdout
+    # no error output generated
+    ! test -s out.stderr

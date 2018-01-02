@@ -124,8 +124,7 @@ check("core", res[4],
 )
 
 check("error", res[5],
-   ("argument", equals, "/etc/passwd"),
-   ("warning", equals, "not a valid snap"),
+   ("warning", equals, 'no snap named "/etc/passwd" found'),
 )
 
 # not installed snaps have "contact" information
