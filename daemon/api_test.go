@@ -1484,8 +1484,8 @@ func (s *apiSuite) TestFindRefreshSideloaded(c *check.C) {
 	rsp := searchStore(findCmd, req, nil).(*resp)
 
 	snaps := snapList(rsp.Result)
-	// no ListRefresh calls!
-	c.Assert(snaps, check.HasLen, 0)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(s.refreshCandidates, check.HasLen, 0)
 }
 
