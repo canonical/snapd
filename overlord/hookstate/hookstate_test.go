@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -151,6 +152,12 @@ func (s *hookManagerSuite) settle(c *C) {
 func (s *hookManagerSuite) TestSmoke(c *C) {
 	s.manager.Ensure()
 	s.manager.Wait()
+}
+
+func (s *hookManagerSuite) TestKnownTaskKinds(c *C) {
+	kinds := s.manager.KnownTaskKinds()
+	sort.Strings(kinds)
+	c.Assert(kinds, DeepEquals, []string{"configure-snapd", "run-hook"})
 }
 
 func (s *hookManagerSuite) TestHookSetupJsonMarshal(c *C) {
@@ -927,4 +934,23 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 	c.Check(change2.Status(), Equals, state.DoneStatus)
 	c.Assert(testSnap1HookCalls, Equals, 1)
 	c.Assert(testSnap2HookCalls, Equals, 1)
+}
+
+func (s *hookManagerSuite) TestCompatForConfigureSnapd(c *C) {
+	st := s.state
+
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("configure-snapd", "Snapd between 2.29 and 2.30 in edge insertd those tasks")
+	chg := st.NewChange("configure", "configure snapd")
+	chg.AddTask(task)
+
+	st.Unlock()
+	s.manager.Ensure()
+	s.manager.Wait()
+	st.Lock()
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(task.Status(), Equals, state.DoneStatus)
 }

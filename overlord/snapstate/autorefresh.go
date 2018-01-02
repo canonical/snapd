@@ -179,7 +179,7 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 		return nil, "", err
 	}
 
-	refreshSchedule, err := timeutil.ParseSchedule(refreshScheduleStr)
+	refreshSchedule, err := timeutil.ParseLegacySchedule(refreshScheduleStr)
 	if err != nil {
 		logger.Noticef("cannot use refresh.schedule configuration: %s", err)
 		refreshSchedule, refreshScheduleStr = resetRefreshScheduleToDefault(m.state)
@@ -208,8 +208,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		return nil
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
-	case 2:
-	case 3:
+	case 2, 3:
 		quoted := strutil.Quoted(updated)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
 		msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)
@@ -228,7 +227,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 }
 
 func resetRefreshScheduleToDefault(st *state.State) (ts []*timeutil.Schedule, scheduleStr string) {
-	refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshSchedule)
+	refreshSchedule, err := timeutil.ParseLegacySchedule(defaultRefreshSchedule)
 	if err != nil {
 		panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
 	}

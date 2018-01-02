@@ -31,9 +31,11 @@ import (
 )
 
 type LxdSupportInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&LxdSupportInterfaceSuite{
@@ -53,8 +55,8 @@ slots:
 `
 
 func (s *LxdSupportInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, lxdSupportConsumerYaml, nil, "lxd-support")
-	s.slot = MockSlot(c, lxdSupportCoreYaml, nil, "lxd-support")
+	s.plug, s.plugInfo = MockConnectedPlug(c, lxdSupportConsumerYaml, nil, "lxd-support")
+	s.slot, s.slotInfo = MockConnectedSlot(c, lxdSupportCoreYaml, nil, "lxd-support")
 }
 
 func (s *LxdSupportInterfaceSuite) TestName(c *C) {
@@ -62,31 +64,31 @@ func (s *LxdSupportInterfaceSuite) TestName(c *C) {
 }
 
 func (s *LxdSupportInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "lxd-support",
 		Interface: "lxd-support",
-	}}
+	}
 
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"lxd-support slots are reserved for the core snap")
 }
 
 func (s *LxdSupportInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *LxdSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/usr/sbin/aa-exec ux,\n")
 }
 
 func (s *LxdSupportInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "@unrestricted\n")
 }

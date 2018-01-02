@@ -20,7 +20,6 @@
 package userd
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/godbus/dbus"
@@ -30,13 +29,9 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-const (
-	busName  = "io.snapcraft.Launcher"
-	basePath = "/io/snapcraft/Launcher"
-)
-
 type dbusInterface interface {
 	Name() string
+	BasePath() dbus.ObjectPath
 	IntrospectionData() string
 }
 
@@ -44,23 +39,6 @@ type Userd struct {
 	tomb       tomb.Tomb
 	conn       *dbus.Conn
 	dbusIfaces []dbusInterface
-}
-
-func (ud *Userd) createAndExportInterfaces() {
-	ud.dbusIfaces = []dbusInterface{&Launcher{}}
-
-	var buffer bytes.Buffer
-	buffer.WriteString("<node>")
-
-	for _, iface := range ud.dbusIfaces {
-		ud.conn.Export(iface, basePath, iface.Name())
-		buffer.WriteString(iface.IntrospectionData())
-	}
-
-	buffer.WriteString(introspect.IntrospectDataString)
-	buffer.WriteString("</node>")
-
-	ud.conn.Export(introspect.Introspectable(buffer.String()), basePath, "org.freedesktop.DBus.Introspectable")
 }
 
 func (ud *Userd) Init() error {
@@ -71,17 +49,23 @@ func (ud *Userd) Init() error {
 		return err
 	}
 
-	reply, err := ud.conn.RequestName(busName, dbus.NameFlagDoNotQueue)
-	if err != nil {
-		return err
+	ud.dbusIfaces = []dbusInterface{
+		&Launcher{},
 	}
+	for _, iface := range ud.dbusIfaces {
+		reply, err := ud.conn.RequestName(iface.Name(), dbus.NameFlagDoNotQueue)
+		if err != nil {
+			return err
+		}
 
-	if reply != dbus.RequestNameReplyPrimaryOwner {
-		err = fmt.Errorf("cannot obtain bus name '%s'", busName)
-		return err
+		if reply != dbus.RequestNameReplyPrimaryOwner {
+			return fmt.Errorf("cannot obtain bus name '%s'", iface.Name())
+		}
+
+		xml := "<node>" + iface.IntrospectionData() + introspect.IntrospectDataString + "</node>"
+		ud.conn.Export(iface, iface.BasePath(), iface.Name())
+		ud.conn.Export(introspect.Introspectable(xml), iface.BasePath(), "org.freedesktop.DBus.Introspectable")
 	}
-
-	ud.createAndExportInterfaces()
 	return nil
 }
 
