@@ -22,6 +22,10 @@ package snapstate_test
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -31,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 
@@ -69,7 +74,7 @@ architectures:
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		c.Check(path, Equals, "snap-path")
 		c.Check(si, IsNil)
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -160,7 +165,7 @@ func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
 		c.Assert(err, IsNil)
 
 		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-			return info, nil, nil
+			return info, emptyContainer(c), nil
 		}
 		restore := snapstate.MockOpenSnapFile(openSnapFile)
 		defer restore()
@@ -183,7 +188,7 @@ version: 1.0`
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		info := snaptest.MockInfo(c, yaml, si)
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	r1 := snapstate.MockOpenSnapFile(openSnapFile)
 	defer r1()
@@ -212,7 +217,7 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -260,7 +265,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -302,7 +307,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -343,7 +348,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -384,7 +389,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -426,7 +431,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -454,7 +459,7 @@ version: 1
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -476,7 +481,7 @@ confinement: devmode
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		c.Check(path, Equals, "snap-path")
 		c.Check(si, IsNil)
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -497,7 +502,7 @@ confinement: classic
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		c.Check(path, Equals, "snap-path")
 		c.Check(si, IsNil)
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -521,7 +526,7 @@ confinement: classic
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		c.Check(path, Equals, "snap-path")
 		c.Check(si, IsNil)
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -565,7 +570,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -607,7 +612,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -632,7 +637,7 @@ base: some-base
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -670,7 +675,7 @@ base: some-base
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -678,5 +683,239 @@ base: some-base
 	st.Unlock()
 	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
 	st.Lock()
+	c.Check(err, IsNil)
+}
+
+func (s *checkSnapSuite) TestValidateContainerReallyEmptyFails(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+`
+	d := c.MkDir()
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snapstate.ValidateContainer(info, snapdir.New(d))
+	c.Check(err, Equals, snapstate.ErrMissingPaths)
+}
+
+func (s *checkSnapSuite) TestValidateContainerEmptyButBadPermFails(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+`
+	d := c.MkDir()
+
+	stat, err := os.Stat(d)
+	c.Assert(err, IsNil)
+	c.Check(stat.Mode().Perm(), Equals, os.FileMode(0700)) // just to be sure
+
+	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0444), IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snapstate.ValidateContainer(info, snapdir.New(d))
+	c.Check(err, Equals, snapstate.ErrBadModes)
+}
+
+func (s *checkSnapSuite) TestValidateContainerMissingSnapYamlFails(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+`
+	d := c.MkDir()
+	c.Assert(os.Chmod(d, 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snapstate.ValidateContainer(info, snapdir.New(d))
+	c.Check(err, Equals, snapstate.ErrMissingPaths)
+}
+
+func (s *checkSnapSuite) TestValidateContainerSnapYamlBadPermsFails(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+`
+	d := c.MkDir()
+	c.Assert(os.Chmod(d, 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0), IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snapstate.ValidateContainer(info, snapdir.New(d))
+	c.Check(err, Equals, snapstate.ErrBadModes)
+}
+
+func (s *checkSnapSuite) TestValidateContainerSnapYamlNonRegularFails(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+`
+	d := c.MkDir()
+	c.Assert(os.Chmod(d, 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
+	c.Assert(syscall.Mkfifo(filepath.Join(d, "meta", "snap.yaml"), 0444), IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snapstate.ValidateContainer(info, snapdir.New(d))
+	c.Check(err, Equals, snapstate.ErrBadModes)
+}
+
+func emptyContainer(c *C) *snapdir.SnapDir {
+	d := c.MkDir()
+	c.Assert(os.Chmod(d, 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0444), IsNil)
+	return snapdir.New(d)
+}
+
+func (s *checkSnapSuite) TestValidateContainerMinimalOKPermWorks(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+`
+	d := emptyContainer(c)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snapstate.ValidateContainer(info, d)
+	c.Check(err, IsNil)
+}
+
+func (s *checkSnapSuite) TestValidateContainerMissingAppsFails(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+apps:
+ foo:
+  command: foo
+`
+	d := emptyContainer(c)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snapstate.ValidateContainer(info, d)
+	c.Check(err, Equals, snapstate.ErrMissingPaths)
+}
+
+func (s *checkSnapSuite) TestValidateContainerBadAppPermsFails(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+apps:
+ foo:
+  command: foo
+`
+	d := emptyContainer(c)
+	c.Assert(ioutil.WriteFile(filepath.Join(d.Path(), "foo"), nil, 0444), IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snapstate.ValidateContainer(info, d)
+	c.Check(err, Equals, snapstate.ErrBadModes)
+}
+
+func (s *checkSnapSuite) TestValidateContainerBadAppDirPermsFails(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+apps:
+ foo:
+  command: apps/foo
+`
+	d := emptyContainer(c)
+	c.Assert(os.Mkdir(filepath.Join(d.Path(), "apps"), 0700), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d.Path(), "apps", "foo"), nil, 0555), IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snapstate.ValidateContainer(info, d)
+	c.Check(err, Equals, snapstate.ErrBadModes)
+}
+
+func (s *checkSnapSuite) TestValidateContainerBadSvcPermsFails(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+apps:
+ bar:
+  command: svcs/bar
+  daemon: simple
+`
+	d := emptyContainer(c)
+	c.Assert(os.Mkdir(filepath.Join(d.Path(), "svcs"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d.Path(), "svcs", "bar"), nil, 0), IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snapstate.ValidateContainer(info, d)
+	c.Check(err, Equals, snapstate.ErrBadModes)
+}
+
+func (s *checkSnapSuite) TestValidateContainerCompleterFails(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+apps:
+ foo:
+  command: cmds/foo
+  completer: comp/foo.sh
+`
+	d := emptyContainer(c)
+	c.Assert(os.Mkdir(filepath.Join(d.Path(), "cmds"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d.Path(), "cmds", "foo"), nil, 0555), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d.Path(), "comp"), 0755), IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snapstate.ValidateContainer(info, d)
+	c.Check(err, Equals, snapstate.ErrMissingPaths)
+}
+
+func (s *checkSnapSuite) TestValidateContainerBadAppPathOK(c *C) {
+	// we actually support this, but don't validate it here
+	const yaml = `name: empty-snap
+version: 1
+apps:
+ foo:
+  command: ../../../bin/echo
+`
+	d := emptyContainer(c)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snapstate.ValidateContainer(info, d)
+	c.Check(err, IsNil)
+}
+
+func (s *checkSnapSuite) TestValidateContainerAppsOK(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+apps:
+ foo:
+  command: cmds/foo
+  completer: comp/foo.sh
+ bar:
+  command: svcs/bar
+  daemon: simple
+`
+	d := emptyContainer(c)
+	c.Assert(os.Mkdir(filepath.Join(d.Path(), "cmds"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d.Path(), "cmds", "foo"), nil, 0555), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d.Path(), "comp"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d.Path(), "comp", "foo.sh"), nil, 0555), IsNil)
+
+	c.Assert(os.Mkdir(filepath.Join(d.Path(), "svcs"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d.Path(), "svcs", "bar"), nil, 0555), IsNil)
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snapstate.ValidateContainer(info, d)
 	c.Check(err, IsNil)
 }
