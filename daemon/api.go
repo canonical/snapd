@@ -546,8 +546,12 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 	switch err {
 	case nil:
 		// pass
-	case store.ErrEmptyQuery, store.ErrBadQuery:
-		return BadRequest("%v", err)
+	case store.ErrBadQuery:
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Result: &errorResult{Message: err.Error(), Kind: errorKindBadQuery},
+			Status: 400,
+		}, nil)
 	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized("%v", err)
 	default:
@@ -607,8 +611,12 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	switch err {
 	case nil:
 		// pass
-	case store.ErrEmptyQuery, store.ErrBadQuery:
-		return BadRequest("%v", err)
+	case store.ErrBadQuery:
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Result: &errorResult{Message: err.Error(), Kind: errorKindBadQuery},
+			Status: 400,
+		}, nil)
 	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
 	default:
