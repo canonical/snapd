@@ -21,6 +21,7 @@ package ifacestate_test
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -138,6 +139,20 @@ func (s *interfaceManagerSuite) TestSmoke(c *C) {
 	mgr := s.manager(c)
 	mgr.Ensure()
 	mgr.Wait()
+}
+
+func (s *interfaceManagerSuite) TestKnownTaskKinds(c *C) {
+	mgr, err := ifacestate.Manager(s.state, s.hookManager(c), nil, nil)
+	c.Assert(err, IsNil)
+	kinds := mgr.KnownTaskKinds()
+	sort.Strings(kinds)
+	c.Assert(kinds, DeepEquals, []string{
+		"connect",
+		"discard-conns",
+		"disconnect",
+		"remove-profiles",
+		"setup-profiles",
+		"transition-ubuntu-core"})
 }
 
 func (s *interfaceManagerSuite) TestRepoAvailable(c *C) {
