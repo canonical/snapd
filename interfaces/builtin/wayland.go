@@ -53,7 +53,7 @@ capability sys_tty_config,
 /dev/tty[0-9]* rw,
 
 # Create the Wayland socket and lock file
-/run/user/[0-9]*/wayland-[0-9]* rw,
+owner /run/user/[0-9]*/wayland-[0-9]* rw,
 # Allow access to common client Wayland sockets
 /run/user/[0-9]*/wayland-shared-* rw,
 /run/user/[0-9]*/wayland-cursor-shared-* rw,
@@ -93,16 +93,19 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 
 const waylandConnectedSlotAppArmor = `
 # Allow access to common client Wayland sockets for connected snaps
-/run/user/[0-9]*/###PLUG_SECURITY_TAGS###/wayland-shared-* rw,
-/run/user/[0-9]*/###PLUG_SECURITY_TAGS###/wayland-cursor-shared-* rw,
-/run/user/[0-9]*/###PLUG_SECURITY_TAGS###/xwayland-shared-* rw,
+owner /run/user/[0-9]*/###PLUG_SECURITY_TAGS###/wayland-shared-* rw,
+owner /run/user/[0-9]*/###PLUG_SECURITY_TAGS###/wayland-cursor-shared-* rw,
+owner /run/user/[0-9]*/###PLUG_SECURITY_TAGS###/xwayland-shared-* rw,
 `
 
 const waylandConnectedPlugAppArmor = `
 # Allow access to the Wayland compositor server socket
-owner /run/user/[0-9]*/wayland-[0-9]* rw,
+/run/user/[0-9]*/wayland-[0-9]* rw,
+
+# Allow client create common Wayland sockets to share with compositor
 owner /run/user/[0-9]*/wayland-shared-* rw,
 owner /run/user/[0-9]*/wayland-cursor-shared-* rw,
+owner /run/user/[0-9]*/xwayland-shared-* rw,
 
 # Needed when using QT_QPA_PLATFORM=wayland-egl
 /etc/drirc r,
