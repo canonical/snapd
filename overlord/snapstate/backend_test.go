@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -315,6 +316,7 @@ type fakeSnappyBackend struct {
 
 	linkSnapFailTrigger     string
 	copySnapDataFailTrigger string
+	emptyContainer          snap.Container
 }
 
 func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
@@ -327,8 +329,13 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 		op.sinfo = *si
 	}
 
+	name := filepath.Base(snapFilePath)
+	if idx := strings.IndexByte(name, '_'); idx > -1 {
+		name = name[:idx]
+	}
+
 	f.ops = append(f.ops, op)
-	return &snap.Info{Architectures: []string{"all"}}, nil, nil
+	return &snap.Info{SuggestedName: name, Architectures: []string{"all"}}, f.emptyContainer, nil
 }
 
 func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, p progress.Meter) error {

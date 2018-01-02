@@ -470,8 +470,12 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 
 	// It is ok do open the snap file here because we either
 	// have side info or the user passed --dangerous
-	info, _, err := backend.OpenSnapFile(path, si)
+	info, container, err := backend.OpenSnapFile(path, si)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := validateContainer(info, container); err != nil {
 		return nil, err
 	}
 

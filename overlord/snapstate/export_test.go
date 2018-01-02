@@ -108,6 +108,7 @@ func MockPrerequisitesRetryTimeout(d time.Duration) (restore func()) {
 
 var (
 	CheckSnap              = checkSnap
+	ValidateContainer      = validateContainer
 	CanRemove              = canRemove
 	CanDisable             = canDisable
 	CachedStore            = cachedStore
