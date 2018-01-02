@@ -88,19 +88,78 @@ func (s *WaylandInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *WaylandInterfaceSuite) TestAppArmorSpec(c *C) {
+	// on a core system with wayland slot coming from a regular app snap.
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	// connected plug to core slot
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/wayland-[0-9]* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/user/[0-9]*/wayland-[0-9]* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/wayland-shared-* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/wayland-cursor-shared-* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/xwayland-shared-* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/drirc r,")
 
 	// connected core slot to plug
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.wayland.app1"})
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "owner /run/user/[0-9]*/snap.consumer/wayland-shared-* rw,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "owner /run/user/[0-9]*/snap.consumer/wayland-cursor-shared-* rw,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "owner /run/user/[0-9]*/snap.consumer/xwayland-shared-* rw,")
+
+	// permanent core slot
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.wayland.app1"})
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "capability sys_tty_config,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "capability sys_admin,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "/dev/tty[0-9]* rw,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "/dev/input/* rw,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "/sys/devices/pci**/boot_vga r,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "network netlink raw,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "/run/udev/data/c13:[0-9]* r,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "/run/udev/data/+input:input[0-9]* r,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "/run/udev/data/+platform:* r,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "owner /run/user/[0-9]*/wayland-[0-9]* rw,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "/run/user/[0-9]*/wayland-shared-* rw,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "/run/user/[0-9]*/wayland-cursor-shared-* rw,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "/run/user/[0-9]*/xwayland-shared-* rw,")
+}
+
+func (s *WaylandInterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
+	// on a classic system with wayland slot coming from the core snap.
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	// connected plug to classic slot
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/user/[0-9]*/wayland-[0-9]* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/wayland-shared-* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/wayland-cursor-shared-* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/xwayland-shared-* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/drirc r,")
+
+	// connected classic slot to plug
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
+	c.Assert(spec.SecurityTags(), HasLen, 0)
+
+	// permanent classic slot
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
 func (s *WaylandInterfaceSuite) TestSecCompOnClassic(c *C) {
+	// on a classic system with wayland slot coming from the core snap.
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddPermanentSlot(s.iface, s.classicSlotInfo)
 	c.Assert(err, IsNil)
@@ -159,6 +218,12 @@ func (s *WaylandInterfaceSuite) TestStaticInfo(c *C) {
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows access to compositors supporting wayland protocol`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "wayland")
+}
+
+func (s *WaylandInterfaceSuite) TestAutoConnect(c *C) {
+	// FIXME fix AutoConnect methods to use ConnectedPlug/Slot
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.coreSlotInfo}), Equals, true)
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.classicSlotInfo}), Equals, true)
 }
 
 func (s *WaylandInterfaceSuite) TestInterfaces(c *C) {
