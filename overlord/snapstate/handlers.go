@@ -606,8 +606,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if snapsup.Required { // set only on install and left alone on refresh
 		snapst.Required = true
 	}
-	// only set userID if unset in snapst and if we actually have
-	// an associated user
+	// only set userID if unset or logged out in snapst and if we
+	// actually have an associated user
 	if snapsup.UserID > 0 {
 		var user *auth.UserState
 		if snapst.UserID != 0 {
@@ -618,7 +618,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		if user == nil {
 			// if the original user installing the snap is
-			// no longer available transfer to to user who
+			// no longer available transfer to user who
 			// triggered this change
 			snapst.UserID = snapsup.UserID
 		}
