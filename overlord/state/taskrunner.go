@@ -20,6 +20,7 @@
 package state
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -54,6 +55,9 @@ type TaskRunner struct {
 	cleanups map[string]HandlerFunc
 	stopped  bool
 
+	// task kinds handled by all other runners; available only if instantiated via NewUnknownTaskRunner
+	knownKinds map[string]bool
+
 	blocked     func(t *Task, running []*Task) bool
 	someBlocked bool
 
@@ -75,6 +79,22 @@ func NewTaskRunner(s *State) *TaskRunner {
 	}
 }
 
+// NewUnknownTaskRunner creates a new TaskRunner which handles all tasks *but* those listed in taskKinds.
+// This effectively intercepts all unknown tasks.
+func NewUnknownTaskRunner(s *State, taskKinds []string) *TaskRunner {
+	r := &TaskRunner{
+		state:      s,
+		handlers:   make(map[string]handlerPair),
+		cleanups:   make(map[string]HandlerFunc),
+		tombs:      make(map[string]*tomb.Tomb),
+		knownKinds: make(map[string]bool),
+	}
+	for _, k := range taskKinds {
+		r.knownKinds[k] = true
+	}
+	return r
+}
+
 // AddHandler registers the functions to concurrently call for doing and
 // undoing tasks of the given kind. The undo handler may be nil.
 func (r *TaskRunner) AddHandler(kind string, do, undo HandlerFunc) {
@@ -82,6 +102,22 @@ func (r *TaskRunner) AddHandler(kind string, do, undo HandlerFunc) {
 	defer r.mu.Unlock()
 
 	r.handlers[kind] = handlerPair{do, undo}
+}
+
+func (r *TaskRunner) getHandlerPair(kind string) handlerPair {
+	handlers, ok := r.handlers[kind]
+	if !ok {
+		// Should we capture unknown tasks?
+		if len(r.knownKinds) > 0 && !r.knownKinds[kind] {
+			handlers = handlerPair{
+				do: func(task *Task, tomb *tomb.Tomb) error {
+					return fmt.Errorf("no handler for task %q", kind)
+				},
+				undo: nil,
+			}
+		}
+	}
+	return handlers
 }
 
 // KnownTaskKinds returns all tasks kinds handled by this runner.
@@ -130,13 +166,13 @@ func (r *TaskRunner) run(t *Task) {
 		t.SetStatus(DoingStatus)
 		fallthrough
 	case DoingStatus:
-		handler = r.handlers[t.Kind()].do
+		handler = r.getHandlerPair(t.Kind()).do
 
 	case UndoStatus:
 		t.SetStatus(UndoingStatus)
 		fallthrough
 	case UndoingStatus:
-		handler = r.handlers[t.Kind()].undo
+		handler = r.getHandlerPair(t.Kind()).undo
 
 	default:
 		panic("internal error: attempted to run task in status " + t.Status().String())
@@ -276,7 +312,7 @@ func (r *TaskRunner) abortLanes(chg *Change, lanes []int) {
 
 // tryUndo replaces the status of a knowingly aborted task.
 func (r *TaskRunner) tryUndo(t *Task) {
-	if t.Status() == AbortStatus && r.handlers[t.Kind()].undo == nil {
+	if t.Status() == AbortStatus && r.getHandlerPair(t.Kind()).undo == nil {
 		// Cannot undo but it was stopped in flight.
 		// Hold so it doesn't look like it finished.
 		t.SetStatus(HoldStatus)
@@ -317,8 +353,8 @@ func (r *TaskRunner) Ensure() {
 	ensureTime := timeNow()
 	nextTaskTime := time.Time{}
 	for _, t := range r.state.Tasks() {
-		handlers, ok := r.handlers[t.Kind()]
-		if !ok {
+		handlers := r.getHandlerPair(t.Kind())
+		if handlers.do == nil {
 			// Handled by a different runner instance.
 			continue
 		}
