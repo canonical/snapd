@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 )
 
 var shortFindHelp = i18n.G("Finds packages to install")
@@ -132,6 +133,10 @@ func (x *cmdFind) Execute(args []string) error {
 func findSnaps(opts *client.FindOptions) error {
 	cli := Client()
 	snaps, resInfo, err := cli.Find(opts)
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNetworkTimeout {
+		logger.Debugf("cannot list snaps: %v", e)
+		return fmt.Errorf("unable to contact snap store")
+	}
 	if err != nil {
 		return err
 	}
