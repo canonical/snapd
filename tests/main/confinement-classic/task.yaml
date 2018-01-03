@@ -1,13 +1,22 @@
 summary: trivial snap with classic confinement runs correctly
 
 # Classic confinement isn't working yet on Fedora
-systems: [-ubuntu-core-16-*, -fedora-*]
+systems: [-ubuntu-core-16-*]
 
 details: |
     This test checks that a very much trivial "hello-world"-like snap using
     classic confinement can be executed correctly. There are two variants of
     this test (classic and jailmode) and the snap (this particular one) should
     function correctly in both cases.
+
+prepare: |
+    . $TESTSLIB/dirs.sh
+    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+        # although classic snaps do not work out of the box on fedora,
+        # we still want to verify if the basics do work if the user
+        # symlinks /snap to $SNAP_MOUNT_DIR themselves
+        ln -sf $SNAP_MOUNT_DIR /snap
+    fi
 
 execute: |
     . $TESTSLIB/dirs.sh
@@ -33,3 +42,6 @@ execute: |
 
 restore: |
     make -C test-snapd-hello-classic clean
+    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+        rm -f /snap
+    fi

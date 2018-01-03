@@ -12,6 +12,11 @@ else ifeq ($(arch),x86_64-suse-linux)
 arch := x86_64-linux-gnu
 snap_arch = amd64
 dynamic_linker=ld-linux-x86-64.so.2
+else ifeq ($(arch),x86_64-redhat-linux)
+# NOTE: arch needs to be x86_64-linux-gnu, not x86_64-redhat-linux
+arch := x86_64-linux-gnu
+snap_arch = amd64
+dynamic_linker=ld-linux-x86-64.so.2
 else ifeq ($(arch),i686-linux-gnu)
 # NOTE: arch needs to be i386-linux-gnu, not i686-linux-gnu
 arch := i386-linux-gnu
