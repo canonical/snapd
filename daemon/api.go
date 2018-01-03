@@ -1146,6 +1146,12 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 			kind = errorKindSnapNeedsClassic
 		case *snapstate.SnapNeedsClassicSystemError:
 			kind = errorKindSnapNeedsClassicSystem
+		case net.Error:
+			if err.Timeout() {
+				kind = errorKindNetworkTimeout
+			} else {
+				return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+			}
 		default:
 			return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
 		}
