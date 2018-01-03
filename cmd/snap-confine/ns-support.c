@@ -341,6 +341,10 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	// Find the device that is backing the current revision of the base snap.
 	base_snap_dev = find_base_snap_device(base_snap_name, base_snap_rev);
 
+	// Check if we are running on classic. Do it here because we will always
+	// (seemingly) run on a core system once we are inside a mount namespace.
+	bool is_classic = is_running_on_classic_distribution();
+
 	// Store the PID of this process. This done instead of calls to getppid()
 	// below because then we can reliably track the PID of the parent even if
 	// the child process is re-parented.
@@ -382,6 +386,8 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 				break;
 			}
 		}
+
+		debug("joining the namespace that we are about to probe");
 		// Move to the mount namespace of the snap we're trying to inspect.
 		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
 			die("cannot join the mount namespace in order to inspect it");
@@ -393,13 +399,15 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		// pivot_root) and the base snap is again mounted (2nd time) by
 		// systemd. This makes us end up in a situation where the outer base
 		// snap will never match the rootfs inside the mount namespace.
-		bool should_discard = is_running_on_classic_distribution()?
-		    should_discard_current_ns(base_snap_dev) : false;
+		bool should_discard =
+		    is_classic ? should_discard_current_ns(base_snap_dev) :
+		    false;
 
 		// Send this back to the parent: 2 - discard, 1 - keep.
 		// Note that we cannot just use 0 and 1 because of the semantics of eventfd(2).
 		debug
-		    ("sending information about the state of the mount namespace");
+		    ("sending information about the state of the mount namespace (%s)",
+		     should_discard ? "discard" : "keep");
 		if (eventfd_write
 		    (event_fd,
 		     should_discard ? SC_DISCARD_YES : SC_DISCARD_NO) < 0) {
@@ -434,6 +442,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	}
 	// If the namespace is up-to-date then we are done.
 	if (value == SC_DISCARD_NO) {
+		debug("the mount namespace is up-to-date and can be reused");
 		return 0;
 	}
 	// The namespace is stale, let's check if we can discard it.
