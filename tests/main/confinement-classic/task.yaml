@@ -18,6 +18,7 @@ prepare: |
     fi
 
 execute: |
+    . $TESTSLIB/dirs.sh
 
     snap install --classic test-snapd-hello-classic
     $SNAP_MOUNT_DIR/bin/test-snapd-hello-classic | MATCH 'Hello Classic!'
