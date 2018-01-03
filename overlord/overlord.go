@@ -72,13 +72,15 @@ type Overlord struct {
 	// restarts
 	restartHandler func(t state.RestartType)
 	// managers
-	inited    bool
-	snapMgr   *snapstate.SnapManager
-	assertMgr *assertstate.AssertManager
-	ifaceMgr  *ifacestate.InterfaceManager
-	hookMgr   *hookstate.HookManager
-	deviceMgr *devicestate.DeviceManager
-	cmdMgr    *cmdstate.CommandManager
+	inited         bool
+	snapMgr        *snapstate.SnapManager
+	assertMgr      *assertstate.AssertManager
+	ifaceMgr       *ifacestate.InterfaceManager
+	hookMgr        *hookstate.HookManager
+	deviceMgr      *devicestate.DeviceManager
+	cmdMgr         *cmdstate.CommandManager
+	knownTasks     []string
+	unknownTaskMgr *UnknownTaskManager
 }
 
 var storeNew = store.New
@@ -134,6 +136,9 @@ func New() (*Overlord, error) {
 
 	o.addManager(cmdstate.Manager(s))
 
+	o.addManager(NewUnknownTaskManager(s, o.knownTasks))
+	o.knownTasks = nil // not needed anymore
+
 	configstateInit(hookMgr)
 
 	s.Lock()
@@ -166,6 +171,9 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.deviceMgr = x
 	case *cmdstate.CommandManager:
 		o.cmdMgr = x
+	}
+	for _, k := range mgr.KnownTaskKinds() {
+		o.knownTasks = append(o.knownTasks, k)
 	}
 	o.stateEng.AddManager(mgr)
 }
