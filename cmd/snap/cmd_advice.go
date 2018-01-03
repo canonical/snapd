@@ -52,18 +52,26 @@ func init() {
 	cmd.hidden = true
 }
 
-func outputText(command string, snaps []string) error {
+func outputExactText(command string, result []advisor.Command) error {
 	fmt.Fprintf(Stdout, i18n.G("The program %q can be found in the following snaps:\n"), command)
-	for _, snap := range snaps {
-		fmt.Fprintf(Stdout, " * %s\n", snap)
+	for _, snap := range result {
+		fmt.Fprintf(Stdout, " * %s\n", snap.Snap)
 	}
 	fmt.Fprintf(Stdout, i18n.G("Try: snap install <selected snap>\n"))
 	return nil
 }
 
-func outputJSON(command string, snaps []string) error {
+func outputMispellText(command string, result []advisor.Command) error {
+	fmt.Fprintf(Stdout, i18n.G("No command %q found, did you mean:\n"), command)
+	for _, snap := range result {
+		fmt.Fprintf(Stdout, " Command %q from snap %q\n", snap.Command, snap.Snap)
+	}
+	return nil
+}
+
+func outputJSON(command string, results []advisor.Command) error {
 	enc := json.NewEncoder(Stdout)
-	enc.Encode(snaps)
+	enc.Encode(results)
 	return nil
 }
 
@@ -71,23 +79,41 @@ func (x *cmdAdviceCommand) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	needle := x.Positionals.Command
 
-	snaps, err := advisor.Commands.Find(needle)
+	return adviceCommand(x.Positionals.Command, x.Format)
+}
+
+func adviceCommand(cmd string, format string) error {
+	// find exact matches
+	matches, err := advisor.FindCommand(cmd)
 	if err != nil {
 		return err
 	}
-	if len(snaps) == 0 {
-		return nil
+	if len(matches) > 0 {
+		switch format {
+		case "json":
+			return outputJSON(cmd, matches)
+		case "text", "":
+			return outputExactText(cmd, matches)
+		default:
+			return fmt.Errorf("unsupported format %q", format)
+		}
 	}
 
-	switch x.Format {
-	case "json":
-		return outputJSON(needle, snaps)
-	case "text", "":
-		return outputText(needle, snaps)
-	default:
-		return fmt.Errorf("unsupported format %q", x.Format)
+	// find mispellings
+	matches, err = advisor.FindMispelledCommand(cmd)
+	if err != nil {
+		return err
+	}
+	if len(matches) > 0 {
+		switch format {
+		case "json":
+			return outputJSON(cmd, matches)
+		case "text", "":
+			return outputMispellText(cmd, matches)
+		default:
+			return fmt.Errorf("unsupported format %q", format)
+		}
 	}
 
 	return nil
