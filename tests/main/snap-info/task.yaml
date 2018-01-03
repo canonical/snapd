@@ -29,15 +29,15 @@ execute: |
     snap info --verbose test-snapd-tools|MATCH "  ignore-validation:"
 
     echo "Ensure we show friendly error messages"
-    snap info no-such-snap > out.stdout 2> out.stderr
-    MATCH 'no snap named "no-such-snap" found' < out.stderr
+    snap info no-such-snap > out.stdout 2> out.stderr || true
+    MATCH 'no snap found for "no-such-snap"' < out.stderr
 
-    snap info no-such-snap no-such-other-snap > out.stdout 2> out.stderr
-    MATCH 'warning: no snap named "no-such-snap" found' < out.stdout
-    MATCH 'warning: no snap named "no-such-other-snap" found' < out.stdout
+    snap info no-such-snap no-such-other-snap > out.stdout 2> out.stderr || true
+    MATCH 'warning: no snap found for "no-such-snap"' < out.stdout 
+    MATCH 'warning: no snap found for "no-such-other-snap"' < out.stdout
     MATCH 'error: no valid snaps given' < out.stderr
 
     snap info no-such-snap test-snapd-tools > out.stdout 2> out.stderr
-    MATCH 'warning: no snap named "no-such-snap" found' < out.stdout
+    MATCH 'warning: no snap found for "no-such-snap"' < out.stdout
     # no error output generated
     ! test -s out.stderr
