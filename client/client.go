@@ -374,6 +374,8 @@ const (
 	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
 
 	ErrorKindNotSnap = "snap-not-a-snap"
+
+	ErrorKindNetworkTimeout = "network-timeout"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems

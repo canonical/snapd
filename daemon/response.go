@@ -144,6 +144,8 @@ const (
 	errorKindSnapNeedsClassicSystem = errorKind("snap-needs-classic-system")
 
 	errorKindBadQuery = errorKind("bad-query")
+
+	errorKindNetworkTimeout = errorKind("network-timeout")
 )
 
 type errorValue interface{}
