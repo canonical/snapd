@@ -1,5 +1,6 @@
 name: test-snapd-tools
-version: 1.0
+version: "2.10"
+architectures: ["all"]
 environment:
   EXTRA_GLOBAL: extra-global
   EXTRA_CACHE_DIR: $SNAP_USER_DATA/.cache
