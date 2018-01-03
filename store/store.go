@@ -353,11 +353,11 @@ func authURL() string {
 	return "https://" + authLocation() + "/api/v2"
 }
 
-func myappsURL() string {
+func storeDeveloperURL() string {
 	if useStaging() {
-		return "https://myapps.developer.staging.ubuntu.com/"
+		return "https://dashboard.staging.snapcraft.io/"
 	}
-	return "https://myapps.developer.ubuntu.com/"
+	return "https://dashboard.snapcraft.io/"
 }
 
 var defaultConfig = Config{}
