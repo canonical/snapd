@@ -59,11 +59,13 @@ func (b *stateBackend) EnsureBefore(d time.Duration) {
 
 func (b *stateBackend) RequestRestart(t state.RestartType) {}
 
-func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change) {
+func ensureChange(c *C, sb *stateBackend, chg *state.Change, runners ...*state.TaskRunner) {
 	for i := 0; i < 20; i++ {
 		sb.ensureBefore = time.Hour
-		r.Ensure()
-		r.Wait()
+		for _, r := range runners {
+			r.Ensure()
+			r.Wait()
+		}
 		chg.State().Lock()
 		s := chg.Status()
 		chg.State().Unlock()
@@ -246,7 +248,7 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 		st.Unlock()
 
 		// Run change until final.
-		ensureChange(c, r, sb, chg)
+		ensureChange(c, sb, chg, r)
 
 		// Compute order of events observed.
 		var events []string
@@ -368,7 +370,7 @@ func (ts *taskRunnerSuite) TestExternalAbort(c *C) {
 	st.Unlock()
 
 	// The Abort above must make Ensure kill the task, or this will never end.
-	ensureChange(c, r, sb, chg)
+	ensureChange(c, sb, chg, r)
 }
 
 func (ts *taskRunnerSuite) TestStopHandlerJustFinishing(c *C) {
@@ -727,7 +729,7 @@ func (ts *taskRunnerSuite) TestUndoSequence(c *C) {
 
 	st.Unlock()
 
-	ensureChange(c, r, sb, chg)
+	ensureChange(c, sb, chg, r)
 	r.Stop()
 
 	c.Assert(events, DeepEquals, []string{
@@ -757,6 +759,38 @@ func (ts *taskRunnerSuite) TestKnownTaskKinds(c *C) {
 	kinds := r.KnownTaskKinds()
 	sort.Strings(kinds)
 	c.Assert(kinds, DeepEquals, []string{"task-kind-1", "task-kind-2"})
+}
+
+func (ts *taskRunnerSuite) TestUnknownTasksAreHandled(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+
+	r1 := state.NewTaskRunner(st)
+	r1.AddHandler("task-kind-1", func(t *state.Task, tb *tomb.Tomb) error { return nil }, func(t *state.Task, tb *tomb.Tomb) error { return nil })
+	r2 := state.NewUnknownTaskRunner(st, r1.KnownTaskKinds())
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t1 := st.NewTask("task-kind-1", "...")
+	t2 := st.NewTask("unknown-task-kind-1", "...")
+	t3 := st.NewTask("unknown-task-kind-2", "...")
+	t2.WaitFor(t1)
+	t3.WaitFor(t2)
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+	st.Unlock()
+
+	ensureChange(c, sb, chg, r1, r2)
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(t1.Status(), Equals, state.UndoneStatus)
+	c.Assert(t2.Status(), Equals, state.ErrorStatus)
+	c.Assert(strings.Join(t2.Log(), ""), Matches, `.*ERROR no handler for task "unknown-task-kind-1"`)
+	c.Assert(t3.Status(), Equals, state.HoldStatus)
 }
 
 func (ts *taskRunnerSuite) TestCleanup(c *C) {
@@ -792,7 +826,7 @@ func (ts *taskRunnerSuite) TestCleanup(c *C) {
 	}
 
 	// Mark tasks as done.
-	ensureChange(c, r, sb, chg)
+	ensureChange(c, sb, chg, r)
 
 	// First time it errors, then it works, then it's ignored.
 	c.Assert(chgIsClean(), Equals, false)
