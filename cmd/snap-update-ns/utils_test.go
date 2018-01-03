@@ -321,8 +321,9 @@ func (s *utilsSuite) TestExecWirableMimicErrorWithRecovery(c *C) {
 		{Entry: mount.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
-		{Entry: mount.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"bind", "x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		// NOTE: the next perform will fail. Notably the symlink did not fail.
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
 	}
 
@@ -353,6 +354,7 @@ func (s *utilsSuite) TestExecWirableMimicErrorWithRecovery(c *C) {
 	c.Assert(undoPlan, HasLen, 0)
 	// The changes we managed to perform were undone correctly.
 	c.Assert(recoveryPlan, DeepEquals, []*update.Change{
+		// NOTE: there is no symlink undo entry as it is implicitly undone by unmounting the tmpfs.
 		{Entry: mount.Entry{Name: "/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Unmount},
 		{Entry: mount.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Unmount},
 		{Entry: mount.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Unmount},
