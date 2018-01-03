@@ -151,6 +151,47 @@ func (s *snapmgrTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 }
 
+func (s *snapmgrTestSuite) TestKnownTaskKinds(c *C) {
+	kinds := s.snapmgr.KnownTaskKinds()
+	sort.Strings(kinds)
+	c.Assert(kinds, DeepEquals, []string{
+		"alias",
+		"cleanup",
+		"clear-aliases",
+		"clear-snap",
+		"configure-snapd",
+		"copy-snap-data",
+		"disable-aliases",
+		"discard-conns",
+		"discard-snap",
+		"download-snap",
+		"error-trigger",
+		"link-snap",
+		"mount-snap",
+		"nop",
+		"prefer-aliases",
+		"prepare-snap",
+		"prerequisites",
+		"prune-auto-aliases",
+		"refresh-aliases",
+		"remove-aliases",
+		"remove-profiles",
+		"run-hook",
+		"set-auto-aliases",
+		"setup-aliases",
+		"setup-profiles",
+		"start-snap-services",
+		"stop-snap-services",
+		"switch-snap",
+		"switch-snap-channel",
+		"toggle-snap-flags",
+		"transition-ubuntu-core",
+		"unalias",
+		"unlink-current-snap",
+		"unlink-snap",
+		"validate-snap"})
+}
+
 func (s *snapmgrTestSuite) TestStore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
