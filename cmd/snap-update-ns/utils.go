@@ -395,6 +395,9 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 	undoChanges := make([]*Change, 0, len(plan)-2)
 	for i, change := range plan {
 		if _, err := changePerform(change); err != nil {
+			// Drat, we failed! Let's undo everything according to our own undo
+			// plan, by following it in reverse order.
+
 			recoveryUndoChanges := make([]*Change, 0, len(undoChanges)+1)
 			if i > 0 {
 				// The undo plan doesn't contain the entry for the initial bind
@@ -405,8 +408,6 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 			}
 			recoveryUndoChanges = append(recoveryUndoChanges, undoChanges...)
 
-			// Drat, we failed! Let's undo everything according to our own undo
-			// plan, by following it in reverse order.
 			for j := len(recoveryUndoChanges) - 1; j >= 0; j-- {
 				recoveryUndoChange := recoveryUndoChanges[j]
 				// All the changes mount something, we need to reverse that.
