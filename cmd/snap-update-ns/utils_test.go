@@ -399,7 +399,7 @@ func (s *utilsSuite) TestExecWirableMimicErrorCannotUndo(c *C) {
 	// recovery path and will have to return a fatal error.
 	i := -1
 	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
-		i += 1
+		i++
 		if i > 0 {
 			return nil, fmt.Errorf("failure-%d", i)
 		}
