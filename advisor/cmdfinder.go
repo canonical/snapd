@@ -23,22 +23,89 @@ import (
 	"fmt"
 )
 
+var commandsFinder Finder = &boltFinder{}
+
+type Command struct {
+	Snap    string
+	Command string
+}
+
+func FindCommand(command string) ([]Command, error) {
+	return commandsFinder.Find(command)
+}
+
+const (
+	minLen = 3
+	maxLen = 256
+)
+
+// based on CommandNotFound.py:similar_words.py
+func similarWords(word string) []string {
+	const alphabet = "abcdefghijklmnopqrstuvwxyz-_0123456789"
+	similar := map[string]bool{}
+
+	// deletes
+	for i := range word {
+		similar[word[:i]+word[i+1:]] = true
+	}
+	// transpose
+	for i := 0; i < len(word)-1; i++ {
+		similar[word[:i]+word[i+1:i+2]+word[i:i+1]+word[i+2:]] = true
+	}
+	// replaces
+	for i := range word {
+		for _, r := range alphabet {
+			similar[word[:i]+string(r)+word[i+1:]] = true
+		}
+	}
+	// inserts
+	for i := range word {
+		for _, r := range alphabet {
+			similar[word[:i]+string(r)+word[i:]] = true
+		}
+	}
+
+	// convert for output
+	ret := make([]string, 0, len(similar))
+	for w := range similar {
+		ret = append(ret, w)
+	}
+
+	return ret
+}
+
+func FindMispelledCommand(command string) ([]Command, error) {
+	if len(command) < minLen || len(command) > maxLen {
+		return nil, nil
+	}
+	alternatives := make([]Command, 0, 32)
+	for _, w := range similarWords(command) {
+		res, err := commandsFinder.Find(w)
+		if err != nil {
+			return nil, err
+		}
+		if len(res) > 0 {
+			alternatives = append(alternatives, res...)
+		}
+	}
+
+	return alternatives, nil
+}
+
 type Finder interface {
-	Find(command string) (snaps []string, err error)
+	Find(command string) ([]Command, error)
+}
+
+func ReplaceCommandsFinder(f Finder) (restore func()) {
+	old := commandsFinder
+	commandsFinder = f
+	return func() {
+		commandsFinder = old
+	}
 }
 
 type boltFinder struct{}
 
-func (bf *boltFinder) Find(command string) ([]string, error) {
+func (bf *boltFinder) Find(command string) ([]Command, error) {
 	return nil, fmt.Errorf("not implemented")
-}
-
-var Commands Finder = &boltFinder{}
-
-func ReplaceCommandsFinder(f Finder) (restore func()) {
-	old := Commands
-	Commands = f
-	return func() {
-		Commands = old
-	}
 }

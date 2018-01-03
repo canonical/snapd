@@ -30,10 +30,13 @@ import (
 
 type sillyFinder struct{}
 
-func (sf *sillyFinder) Find(command string) ([]string, error) {
+func (sf *sillyFinder) Find(command string) ([]advisor.Command, error) {
 	switch command {
 	case "hello":
-		return []string{"hello", "hello-wcm"}, nil
+		return []advisor.Command{
+			{Snap: "hello", Command: "hello"},
+			{Snap: "hello-wcm", Command: "hello"},
+		}, nil
 	case "error-please":
 		return nil, fmt.Errorf("get failed")
 	default:
@@ -63,6 +66,24 @@ func (s *SnapSuite) TestAdviceCommandHappyJSON(c *C) {
 	rest, err := snap.Parser().ParseArgs([]string{"advice-command", "--format=json", "hello"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Assert(s.Stdout(), Equals, `["hello","hello-wcm"]`+"\n")
+	c.Assert(s.Stdout(), Equals, `[{"Snap":"hello","Command":"hello"},{"Snap":"hello-wcm","Command":"hello"}]`+"\n")
 	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestAdviceCommandMispellText(c *C) {
+	restore := advisor.ReplaceCommandsFinder(&sillyFinder{})
+	defer restore()
+
+	for _, mispelling := range []string{"helo", "0hello", "hell0", "hello0"} {
+		err := snap.AdviceCommand(mispelling, "text")
+		c.Assert(err, IsNil)
+		c.Assert(s.Stdout(), Equals, fmt.Sprintf(`No command "%s" found, did you mean:
+ Command "hello" from snap "hello"
+ Command "hello" from snap "hello-wcm"
+`, mispelling))
+		c.Assert(s.Stderr(), Equals, "")
+
+		s.stdout.Reset()
+		s.stderr.Reset()
+	}
 }
