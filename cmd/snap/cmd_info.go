@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -300,7 +300,11 @@ func (x *infoCmd) Execute([]string) error {
 		both := coalesce(local, remote)
 
 		if both == nil {
-			fmt.Fprintf(w, "argument:\t%q\nwarning:\t%s\n", snapName, i18n.G("not a valid snap"))
+			if len(x.Positional.Snaps) == 1 {
+				return fmt.Errorf("no snap found for %q", snapName)
+			}
+
+			fmt.Fprintf(w, fmt.Sprintf(i18n.G("warning:\tno snap found for %q\n"), snapName))
 			continue
 		}
 		noneOK = false

@@ -6,6 +6,10 @@ integration test framework for the integration/system level tests.
 
 ## Development
 
+### Supported Go versions
+
+snapd is supported on Go 1.6 onwards.
+
 ### Setting up a GOPATH
 
 When working with the source of Go programs, you should define a path within
