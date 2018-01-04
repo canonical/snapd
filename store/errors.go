@@ -33,6 +33,10 @@ var (
 	// ErrSnapNotFound is returned when a snap can not be found
 	ErrSnapNotFound = errors.New("snap not found")
 
+	// ErrSnapNotFoundInGivenContext is returned when the snap exists
+	// but not in the given context (e.g. in a different channel/track)
+	ErrSnapNotFoundInGivenContext = errors.New("snap not found in given context")
+
 	// ErrUnauthenticated is returned when authentication is needed to complete the query
 	ErrUnauthenticated = errors.New("you need to log in first")
 

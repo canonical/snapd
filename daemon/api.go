@@ -1122,6 +1122,8 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 	switch err {
 	case store.ErrSnapNotFound:
 		return SnapNotFound(inst.Snaps[0], err)
+	case store.ErrSnapNotFoundInGivenContext:
+		return SnapNotFoundInGivenContext(inst.Snaps[0], err)
 	case store.ErrNoUpdateAvailable:
 		kind = errorKindSnapNoUpdateAvailable
 	case store.ErrLocalSnap:
