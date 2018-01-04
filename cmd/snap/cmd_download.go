@@ -129,6 +129,7 @@ func (x *cmdDownload) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Fprintf(Stdout, i18n.G("Check `snap ack --help` and `snap install --help` for more details.\n"))
 
 	return nil
 }
