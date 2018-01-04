@@ -724,19 +724,19 @@ apps:
 	}{{
 		name: "foo after baz",
 		desc: fooAfterBaz,
-		err:  `cannot validate app "foo" startup ordering: "baz" is not defined`,
+		err:  `application "foo" refers to missing application "baz" in before/after`,
 	}, {
 		name: "foo before baz",
 		desc: fooBeforeBaz,
-		err:  `cannot validate app "foo" startup ordering: "baz" is not defined`,
+		err:  `application "foo" refers to missing application "baz" in before/after`,
 	}, {
 		name: "foo not a daemon",
 		desc: fooNotADaemon,
-		err:  `cannot validate app "foo" startup ordering: "foo" is not a service`,
+		err:  `cannot define before/after in application "foo" as it's not a service`,
 	}, {
 		name: "foo wants bar, bar not a daemon",
 		desc: fooBarNotADaemon,
-		err:  `cannot validate app "foo" startup ordering: "bar" is not a service`,
+		err:  `application "foo" refers to non-service application "bar" in before/after`,
 	}, {
 		name: "bad order 1",
 		desc: badOrder1,
