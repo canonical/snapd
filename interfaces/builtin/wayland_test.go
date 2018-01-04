@@ -119,7 +119,7 @@ func (s *WaylandInterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/user/[0-9]*/wayland-[0-9]* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/wayland-[0-9]* rw,")
 
 	// connected classic slot to plug
 	spec = &apparmor.Specification{}
