@@ -1047,7 +1047,7 @@ func (s *SnapOpSuite) TestSnapOpNetworkTimeoutError(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, check.Equals, "POST")
 		w.WriteHeader(202)
-		fmt.Fprintln(w, `
+		w.Write([]byte(`
 {
   "type": "error",
   "result": {
@@ -1056,7 +1056,7 @@ func (s *SnapOpSuite) TestSnapOpNetworkTimeoutError(c *check.C) {
   },
   "status-code": 400
 }
-`)
+`))
 
 	})
 
