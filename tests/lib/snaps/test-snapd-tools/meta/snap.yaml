@@ -1,5 +1,5 @@
 name: test-snapd-tools
-version: "2.10"
+version: 1.0
 architectures: ["all"]
 environment:
   EXTRA_GLOBAL: extra-global
