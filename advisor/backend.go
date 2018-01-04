@@ -31,18 +31,20 @@ import (
 var cmdBucketKey = []byte("Commands")
 
 type writer struct {
-	db *bolt.DB
-	tx *bolt.Tx
-	b  *bolt.Bucket
+	db     *bolt.DB
+	tx     *bolt.Tx
+	bucket *bolt.Bucket
 }
 
 type CommandDB interface {
 	// AddSnap adds the entries for commands pointing to the given
 	// snap name to the commands database.
 	AddSnap(snapName string, commands []string) error
-	// Commit persist the changes, and closes the database.
+	// Commit persist the changes, and closes the database. If the
+	// database has already been committed/rollbacked, does nothing.
 	Commit() error
-	// Rollback aborts the changes, and closes teh database.
+	// Rollback aborts the changes, and closes the database. If the
+	// database has already been committed/rollbacked, does nothing.
 	Rollback() error
 }
 
@@ -64,7 +66,7 @@ func Create() (CommandDB, error) {
 	if err == nil {
 		err = t.tx.DeleteBucket(cmdBucketKey)
 		if err == nil || err == bolt.ErrBucketNotFound {
-			t.b, err = t.tx.CreateBucket(cmdBucketKey)
+			t.bucket, err = t.tx.CreateBucket(cmdBucketKey)
 		}
 		if err != nil {
 			t.tx.Rollback()
@@ -84,13 +86,13 @@ func (t *writer) AddSnap(snapName string, commands []string) error {
 
 	for _, cmd := range commands {
 		bcmd := []byte(cmd)
-		row := t.b.Get(bcmd)
+		row := t.bucket.Get(bcmd)
 		if row == nil {
 			row = bname
 		} else {
 			row = append(append(row, ','), bname...)
 		}
-		if err := t.b.Put(bcmd, row); err != nil {
+		if err := t.bucket.Put(bcmd, row); err != nil {
 			return err
 		}
 	}
@@ -109,7 +111,7 @@ func (t *writer) Rollback() error {
 func (t *writer) done(commit bool) error {
 	var e1, e2 error
 
-	t.b = nil
+	t.bucket = nil
 	if t.tx != nil {
 		if commit {
 			e1 = t.tx.Commit()
