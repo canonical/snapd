@@ -49,7 +49,7 @@ func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int,
 }
 
 // userFromUserID returns the first valid user from a series of userIDs
-// used as succesive fallbacks.
+// used as successive fallbacks.
 func userFromUserID(st *state.State, userIDs ...int) (*auth.UserState, error) {
 	var user *auth.UserState
 	var err error
