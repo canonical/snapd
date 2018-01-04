@@ -41,6 +41,7 @@ var (
 	MaybePrintServices = maybePrintServices
 	MaybePrintCommands = maybePrintCommands
 	SortByPath         = sortByPath
+	AdviceCommand      = adviceCommand
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
