@@ -42,7 +42,7 @@ const (
 // based on CommandNotFound.py:similar_words.py
 func similarWords(word string) []string {
 	const alphabet = "abcdefghijklmnopqrstuvwxyz-_0123456789"
-	similar := map[string]bool{}
+	similar := make(map[string]bool, 2*len(word)+2*len(word)*len(alphabet))
 
 	// deletes
 	for i := range word {

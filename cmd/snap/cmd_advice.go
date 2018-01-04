@@ -34,7 +34,7 @@ type cmdAdviceCommand struct {
 		Command string `required:"yes"`
 	} `positional-args:"true"`
 
-	Format string `long:"format"`
+	Format string `long:"format" default:"pretty"`
 }
 
 var shortAdviceCommandHelp = i18n.G("Advice on available snaps.")
@@ -93,7 +93,7 @@ func adviceCommand(cmd string, format string) error {
 		switch format {
 		case "json":
 			return outputJSON(cmd, matches)
-		case "text", "":
+		case "pretty":
 			return outputExactText(cmd, matches)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
@@ -109,7 +109,7 @@ func adviceCommand(cmd string, format string) error {
 		switch format {
 		case "json":
 			return outputJSON(cmd, matches)
-		case "text", "":
+		case "pretty":
 			return outputMispellText(cmd, matches)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
