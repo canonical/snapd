@@ -88,7 +88,7 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 		return "", e
 	}
 
-	// ensure the "real" error is avaialble if we ask for it
+	// ensure the "real" error is available if we ask for it
 	logger.Debugf("error: %s", err)
 
 	// FIXME: using err.Message in user-facing messaging is not
