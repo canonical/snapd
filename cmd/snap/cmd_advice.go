@@ -52,7 +52,7 @@ func init() {
 	cmd.hidden = true
 }
 
-func outputExactText(command string, result []advisor.Command) error {
+func outputAdviceExactText(command string, result []advisor.Command) error {
 	fmt.Fprintf(Stdout, i18n.G("The program %q can be found in the following snaps:\n"), command)
 	for _, snap := range result {
 		fmt.Fprintf(Stdout, " * %s\n", snap.Snap)
@@ -61,7 +61,7 @@ func outputExactText(command string, result []advisor.Command) error {
 	return nil
 }
 
-func outputMispellText(command string, result []advisor.Command) error {
+func outputAdviceMispellText(command string, result []advisor.Command) error {
 	fmt.Fprintf(Stdout, i18n.G("No command %q found, did you mean:\n"), command)
 	for _, snap := range result {
 		fmt.Fprintf(Stdout, " Command %q from snap %q\n", snap.Command, snap.Snap)
@@ -69,7 +69,7 @@ func outputMispellText(command string, result []advisor.Command) error {
 	return nil
 }
 
-func outputJSON(command string, results []advisor.Command) error {
+func outputAdviceJSON(command string, results []advisor.Command) error {
 	enc := json.NewEncoder(Stdout)
 	enc.Encode(results)
 	return nil
@@ -92,9 +92,9 @@ func adviceCommand(cmd string, format string) error {
 	if len(matches) > 0 {
 		switch format {
 		case "json":
-			return outputJSON(cmd, matches)
+			return outputAdviceJSON(cmd, matches)
 		case "pretty":
-			return outputExactText(cmd, matches)
+			return outputAdviceExactText(cmd, matches)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -108,9 +108,9 @@ func adviceCommand(cmd string, format string) error {
 	if len(matches) > 0 {
 		switch format {
 		case "json":
-			return outputJSON(cmd, matches)
+			return outputAdviceJSON(cmd, matches)
 		case "pretty":
-			return outputMispellText(cmd, matches)
+			return outputAdviceMispellText(cmd, matches)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
