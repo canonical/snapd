@@ -594,9 +594,11 @@ func (s *ValidateSuite) TestValidateSocketName(c *C) {
 }
 
 func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {
-	fooAfterBaz := []byte(`
+	meta := []byte(`
 name: foo
 version: 1.0
+`)
+	fooAfterBaz := []byte(`
 apps:
   foo:
     after: [baz]
@@ -605,8 +607,6 @@ apps:
     daemon: forking
 `)
 	fooBeforeBaz := []byte(`
-name: foo
-version: 1.0
 apps:
   foo:
     before: [baz]
@@ -616,8 +616,6 @@ apps:
 `)
 
 	fooNotADaemon := []byte(`
-name: foo
-version: 1.0
 apps:
   foo:
     after: [bar]
@@ -626,8 +624,6 @@ apps:
 `)
 
 	fooBarNotADaemon := []byte(`
-name: foo
-version: 1.0
 apps:
   foo:
     after: [bar]
@@ -635,8 +631,6 @@ apps:
   bar:
 `)
 	fooSelfCycle := []byte(`
-name: foo
-version: 1.0
 apps:
   foo:
     after: [foo]
@@ -644,8 +638,7 @@ apps:
   bar:
 `)
 	// cycle between foo and bar
-	badOrder1 := []byte(`name: wat
-version: 42
+	badOrder1 := []byte(`
 apps:
  foo:
    after: [bar]
@@ -655,8 +648,7 @@ apps:
    daemon: forking
 `)
 	// conflicting schedule for baz
-	badOrder2 := []byte(`name: wat
-version: 42
+	badOrder2 := []byte(`
 apps:
  foo:
    before: [bar]
@@ -670,8 +662,7 @@ apps:
    daemon: forking
 `)
 	// conflicting schedule for baz
-	badOrder3Cycle := []byte(`name: wat
-version: 42
+	badOrder3Cycle := []byte(`
 apps:
  foo:
    before: [bar]
@@ -686,8 +677,7 @@ apps:
  zed:
    daemon: forking
 `)
-	goodOrder1 := []byte(`name: wat
-version: 42
+	goodOrder1 := []byte(`
 apps:
  foo:
    after: [bar, zed]
@@ -701,8 +691,7 @@ apps:
  zed:
    daemon: dbus
 `)
-	goodOrder2 := []byte(`name: wat
-version: 42
+	goodOrder2 := []byte(`
 apps:
  foo:
    after: [baz]
@@ -762,7 +751,7 @@ apps:
 	}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
-		info, err := InfoFromSnapYaml(tc.desc)
+		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
 		c.Assert(err, IsNil)
 
 		err = Validate(info)
