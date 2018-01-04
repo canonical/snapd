@@ -103,6 +103,7 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 		return err
 	}
 
+	// if all goes well we'll Commit() making this a NOP:
 	defer cmdDB.Rollback()
 
 	if err := theStore.WriteCatalogs(namesFile, cmdDB); err != nil {
