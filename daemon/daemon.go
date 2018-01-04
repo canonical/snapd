@@ -159,12 +159,16 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 	return accessUnauthorized
 }
 
+type restartingTransmitter interface {
+	transmitRestarting(restarting string)
+}
+
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	state := c.d.overlord.State()
-	state.Lock()
+	st := c.d.overlord.State()
+	st.Lock()
 	// TODO Look at the error and fail if there's an attempt to authenticate with invalid data.
-	user, _ := UserFromRequest(state, r)
-	state.Unlock()
+	user, _ := UserFromRequest(st, r)
+	st.Unlock()
 
 	switch c.canAccess(r, user) {
 	case accessOK:
@@ -193,6 +197,16 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if rspf != nil {
 		rsp = rspf(c, r, user)
+	}
+
+	if rstTrasmitter, ok := rsp.(restartingTransmitter); ok {
+		_, rst := st.Restarting()
+		switch rst {
+		case state.RestartSystem:
+			rstTrasmitter.transmitRestarting("system")
+		case state.RestartDaemon:
+			rstTrasmitter.transmitRestarting("daemon")
+		}
 	}
 
 	rsp.ServeHTTP(w, r)

@@ -67,7 +67,7 @@ execute: |
     test-snapd-tools.echo hello | MATCH hello
 
     echo "Ensure the bootloader is correct before reboot"
-    snap list | awk "/^core / {print(\$3)}" > nextBoot
+    readlink /snap/core/current > nextBoot
     test "$(cat prevBoot)" != "$(cat nextBoot)"
     test "$(bootenv snap_try_core)" = "core_$(cat nextBoot).snap"
     test "$(bootenv snap_mode)" = "try"

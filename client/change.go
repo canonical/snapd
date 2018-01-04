@@ -78,16 +78,21 @@ type changeAndData struct {
 	Data map[string]*json.RawMessage `json:"data"`
 }
 
-// Change fetches information about a Change given its ID
+// Change fetches information about a Change given its ID.  It can
+// return both change and ErrRebooting if the daemon transmits that it
+// is about to reboot the system.
 func (client *Client) Change(id string) (*Change, error) {
 	var chgd changeAndData
-	_, err := client.doSync("GET", "/v2/changes/"+id, nil, nil, nil, &chgd)
+	ri, err := client.doSync("GET", "/v2/changes/"+id, nil, nil, nil, &chgd)
 	if err != nil {
 		return nil, err
 	}
+	if ri.Restarting == "system" {
+		err = ErrRebooting
+	}
 
 	chgd.Change.data = chgd.Data
-	return &chgd.Change, nil
+	return &chgd.Change, err
 }
 
 // Abort attempts to abort a change that is in not yet ready.
@@ -148,9 +153,12 @@ func (client *Client) Changes(opts *ChangesOptions) ([]*Change, error) {
 	}
 
 	var chgds []changeAndData
-	_, err := client.doSync("GET", "/v2/changes", query, nil, nil, &chgds)
+	ri, err := client.doSync("GET", "/v2/changes", query, nil, nil, &chgds)
 	if err != nil {
 		return nil, err
+	}
+	if ri.Restarting == "system" {
+		err = ErrRebooting
 	}
 
 	var chgs []*Change

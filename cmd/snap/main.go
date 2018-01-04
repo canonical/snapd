@@ -359,7 +359,7 @@ func run() error {
 			return err
 		}
 
-		fmt.Fprintf(Stderr, msg)
+		fmt.Fprintf(Stderr, "%s\n", msg)
 	}
 
 	return nil

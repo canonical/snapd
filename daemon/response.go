@@ -57,6 +57,11 @@ type resp struct {
 	Type   ResponseType `json:"type"`
 	Result interface{}  `json:"result,omitempty"`
 	*Meta
+	Restarting string `json:"restarting,omitempty"`
+}
+
+func (r *resp) transmitRestarting(restarting string) {
+	r.Restarting = restarting
 }
 
 // TODO This is being done in a rush to get the proper external
@@ -81,6 +86,7 @@ type respJSON struct {
 	StatusText string       `json:"status"`
 	Result     interface{}  `json:"result"`
 	*Meta
+	Restarting string `json:"restarting,omitempty"`
 }
 
 func (r *resp) MarshalJSON() ([]byte, error) {
@@ -90,6 +96,7 @@ func (r *resp) MarshalJSON() ([]byte, error) {
 		StatusText: http.StatusText(r.Status),
 		Result:     r.Result,
 		Meta:       r.Meta,
+		Restarting: r.Restarting,
 	})
 }
 

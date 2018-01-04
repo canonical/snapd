@@ -883,7 +883,9 @@ type: os
 	c.Assert(err, IsNil)
 
 	// final steps will are post poned until we are in the restarted snapd
-	c.Assert(st.Restarting(), Equals, true)
+	ok, rst := st.Restarting()
+	c.Assert(ok, Equals, true)
+	c.Assert(rst, Equals, state.RestartSystem)
 	c.Assert(chg.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	// this is already set
@@ -893,7 +895,7 @@ type: os
 	})
 
 	// simulate successful restart happened
-	state.MockRestarting(st, false)
+	state.MockRestarting(st, state.RestartUnset)
 	bootloader.BootVars["snap_mode"] = ""
 	bootloader.BootVars["snap_core"] = "core_x1.snap"
 

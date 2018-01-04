@@ -81,8 +81,9 @@ func wait(cli *client.Client, id string) (*client.Change, error) {
 	var lastID string
 	lastLog := map[string]string{}
 	for {
+		var rebootingErr error
 		chg, err := cli.Change(id)
-		if err != nil {
+		if err != nil && err != client.ErrRebooting {
 			// a client.Error means we were able to communicate with
 			// the server (got an answer)
 			if e, ok := err.(*client.Error); ok {
@@ -102,6 +103,9 @@ func wait(cli *client.Client, id string) (*client.Change, error) {
 			pb.Spin(i18n.G("Waiting for server to restart"))
 			time.Sleep(pollTime)
 			continue
+		}
+		if err == client.ErrRebooting {
+			rebootingErr = err
 		}
 		if !tMax.IsZero() {
 			pb.Finished()
@@ -138,6 +142,10 @@ func wait(cli *client.Client, id string) (*client.Change, error) {
 			}
 
 			return nil, fmt.Errorf(i18n.G("change finished in status %q with no error message"), chg.Status)
+		}
+
+		if rebootingErr != nil {
+			return nil, rebootingErr
 		}
 
 		// note this very purposely is not a ticker; we want
