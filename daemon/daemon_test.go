@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net"
@@ -138,6 +139,44 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 405)
+}
+
+func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
+	d := newTestDaemon(c)
+
+	cmd := &Command{d: d}
+	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+	req, err := http.NewRequest("GET", "", nil)
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = "pid=100;uid=0;" + req.RemoteAddr
+
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	var rst struct {
+		Restarting string `json:"restarting"`
+	}
+	err = json.Unmarshal(rec.Body.Bytes(), &rst)
+	c.Assert(err, check.IsNil)
+	c.Check(rst.Restarting, check.Equals, "")
+
+	state.MockRestarting(d.overlord.State(), state.RestartSystem)
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	err = json.Unmarshal(rec.Body.Bytes(), &rst)
+	c.Assert(err, check.IsNil)
+	c.Check(rst.Restarting, check.Equals, "system")
+
+	state.MockRestarting(d.overlord.State(), state.RestartDaemon)
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	err = json.Unmarshal(rec.Body.Bytes(), &rst)
+	c.Assert(err, check.IsNil)
+	c.Check(rst.Restarting, check.Equals, "daemon")
 }
 
 func (s *daemonSuite) TestGuestAccess(c *check.C) {

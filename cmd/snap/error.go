@@ -81,7 +81,13 @@ func fill(para string, indent int) string {
 	return strings.TrimSpace(buf.String())
 }
 
+const rebootingMsg = "snapd is in the process of rebooting the system"
+
 func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (string, error) {
+	if e == client.ErrRebooting {
+		return rebootingMsg, nil
+	}
+
 	// do this here instead of in the caller for more DRY
 	err, ok := e.(*client.Error)
 	if !ok {

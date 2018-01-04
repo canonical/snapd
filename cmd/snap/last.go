@@ -62,7 +62,7 @@ func (l *changeIDMixin) GetChangeID(cli *client.Client) (string, error) {
 	if kind == "refresh" || kind == "install" || kind == "remove" || kind == "connect" || kind == "disconnect" || kind == "configure" || kind == "try" {
 		kind += "-snap"
 	}
-	changes, err := cli.Changes(&client.ChangesOptions{Selector: client.ChangesAll})
+	changes, err := queryChanges(cli, &client.ChangesOptions{Selector: client.ChangesAll})
 	if err != nil {
 		return "", err
 	}

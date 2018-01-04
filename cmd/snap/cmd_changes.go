@@ -63,6 +63,17 @@ func (s changesByTime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 var allDigits = regexp.MustCompile(`^[0-9]+$`).MatchString
 
+func queryChanges(cli *client.Client, opts *client.ChangesOptions) ([]*client.Change, error) {
+	chgs, err := cli.Changes(opts)
+	if err != nil && err != client.ErrRebooting {
+		return nil, err
+	}
+	if err == client.ErrRebooting {
+		fmt.Fprintf(Stderr, "WARNING: %s\n", rebootingMsg)
+	}
+	return chgs, nil
+}
+
 func (c *cmdChanges) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -84,7 +95,7 @@ func (c *cmdChanges) Execute(args []string) error {
 	}
 
 	cli := Client()
-	changes, err := cli.Changes(&opts)
+	changes, err := queryChanges(cli, &opts)
 	if err != nil {
 		return err
 	}
@@ -123,8 +134,19 @@ func (c *cmdTasks) Execute([]string) error {
 	return showChange(cli, id)
 }
 
-func showChange(cli *client.Client, chid string) error {
+func queryChange(cli *client.Client, chid string) (*client.Change, error) {
 	chg, err := cli.Change(chid)
+	if err != nil && err != client.ErrRebooting {
+		return nil, err
+	}
+	if err == client.ErrRebooting {
+		fmt.Fprintf(Stderr, "WARNING: %s\n", rebootingMsg)
+	}
+	return chg, nil
+}
+
+func showChange(cli *client.Client, chid string) error {
+	chg, err := queryChange(cli, chid)
 	if err != nil {
 		return err
 	}
