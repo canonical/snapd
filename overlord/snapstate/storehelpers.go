@@ -64,10 +64,8 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, ignoreValida
 			return nil, fmt.Errorf("cannot get snap ID for %q: %v", curInfo.Name(), err)
 		}
 		curInfo.SnapID = id
-		// FIXME: do not send a random revision but instead send
-		//        no revision at all if we don't know it and send
-		//        the epoch only.
-		curInfo.Revision = snap.R(1)
+		// set revision to "unknown"
+		curInfo.Revision = snap.R(0)
 	}
 
 	refreshCand := &store.RefreshCandidate{
@@ -77,6 +75,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, ignoreValida
 		Revision:         curInfo.Revision,
 		Epoch:            curInfo.Epoch,
 		IgnoreValidation: ignoreValidation,
+		Amend:            amend,
 	}
 
 	theStore := Store(st)

@@ -1241,6 +1241,8 @@ type RefreshCandidate struct {
 	Channel string
 	// whether validation should be ignored
 	IgnoreValidation bool
+
+	Amend bool
 }
 
 // the exact bits that we need to send to the store
@@ -1267,7 +1269,7 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 		}
 		return nil
 	}
-	if !cs.Revision.Store() {
+	if !cs.Revision.Store() && !cs.Amend {
 		logger.Noticef("store.currentSnap got given a RefreshCandidate with a non-empty SnapID but a non-store revision!")
 		return nil
 	}
