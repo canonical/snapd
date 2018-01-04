@@ -252,7 +252,7 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, user *auth.User
 		return nil, nil
 	}
 	if len(cands) > 3 {
-		panic("ListRefresh unexpectedly called with more than two candidates")
+		panic("fake ListRefresh unexpectedly called with more than 3 candidates")
 	}
 
 	var res []*snap.Info

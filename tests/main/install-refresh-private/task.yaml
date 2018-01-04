@@ -1,4 +1,4 @@
-summary: Check that install and refresh  work with private snaps.
+summary: Check that install and refresh work with private snaps.
 
 # we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
 systems: [-ubuntu-core-16-*]

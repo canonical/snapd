@@ -48,6 +48,8 @@ func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int,
 	return fallbackUserID, nil
 }
 
+// userFromUserID returns the first valid user from a series of userIDs
+// used as succesive fallbacks.
 func userFromUserID(st *state.State, userIDs ...int) (*auth.UserState, error) {
 	var user *auth.UserState
 	var err error
@@ -62,6 +64,21 @@ func userFromUserID(st *state.State, userIDs ...int) (*auth.UserState, error) {
 		}
 	}
 	return user, err
+}
+
+// userFromUserIDOrFallback returns the user corresponding to userID
+// if valid or otherwise the fallbackUser.
+func userFromUserIDOrFallback(st *state.State, userID int, fallbackUser *auth.UserState) (*auth.UserState, error) {
+	if userID != 0 {
+		u, err := auth.User(st, userID)
+		if err != nil && err != auth.ErrInvalidUser {
+			return nil, err
+		}
+		if err == nil {
+			return u, nil
+		}
+	}
+	return fallbackUser, nil
 }
 
 func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
@@ -217,15 +234,9 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState, fl
 		userIDs[fallbackID] = true
 	}
 	for userID := range userIDs {
-		u := user
-		if userID != 0 {
-			u1, err := auth.User(st, userID)
-			if err != nil && err != auth.ErrInvalidUser {
-				return nil, nil, nil, err
-			}
-			if err == nil {
-				u = u1
-			}
+		u, err := userFromUserIDOrFallback(st, userID, user)
+		if err != nil {
+			return nil, nil, nil, err
 		}
 		// consider the fallback user at most once
 		if idForUser(u) == fallbackID {

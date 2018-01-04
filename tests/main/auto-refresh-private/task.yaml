@@ -1,4 +1,4 @@
-summary: Check that install and refresh  work with private snaps.
+summary: Check that auto-refresh works with private snaps.
 
 # we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
 systems: [-ubuntu-core-16-*]
@@ -9,9 +9,6 @@ details: |
     In order to do the full checks, it also needs the credentials of the owner of that
     snap set in the environment variables SPREAD_STORE_USER and SPREAD_STORE_PASSWORD, if
     they are not present then only the negative check is performed.
-
-prepare: |
-    snap install --devmode jq
 
 restore: |
     snap logout || true
@@ -58,6 +55,7 @@ execute: |
     snap list|MATCH "test-snapd-public +2\.0"
     snap list|MATCH "test-snapd-private +2\.0.*private"
 
+    # XXX actually provide these
     if [ -z "$SPREAD_STORE_EXPIRED_MACAROON" ] || [  -z "$SPREAD_STORE_EXPIRED_DISCHARGE" ]; then
         exit 0
     fi

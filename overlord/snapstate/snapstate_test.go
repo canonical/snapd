@@ -1996,6 +1996,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("refresh", "refresh all snaps")
+	// no user is passed to use for UpdateMany
 	updated, tts, err := snapstate.UpdateMany(s.state, nil, 0)
 	c.Assert(err, IsNil)
 	for _, ts := range tts {
@@ -2080,6 +2081,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("refresh", "refresh all snaps")
+	// do UpdateMany using user 2 as fallback
 	updated, tts, err := snapstate.UpdateMany(s.state, nil, 2)
 	c.Assert(err, IsNil)
 	for _, ts := range tts {
@@ -2132,11 +2134,13 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 	})
 
 	var coreState, snapState snapstate.SnapState
+	// user in SnapState was preserved
 	err = snapstate.Get(s.state, "some-snap", &snapState)
 	c.Assert(err, IsNil)
 	c.Check(snapState.UserID, Equals, 1)
 	c.Check(snapState.Current, DeepEquals, snap.R(11))
 
+	// user in SnapState was set
 	err = snapstate.Get(s.state, "core", &coreState)
 	c.Assert(err, IsNil)
 	c.Check(coreState.UserID, Equals, 2)
