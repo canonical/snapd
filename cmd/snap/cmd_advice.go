@@ -61,7 +61,7 @@ func outputAdviceExactText(command string, result []advisor.Command) error {
 	return nil
 }
 
-func outputAdviceMispellText(command string, result []advisor.Command) error {
+func outputAdviceMisspellText(command string, result []advisor.Command) error {
 	fmt.Fprintf(Stdout, i18n.G("No command %q found, did you mean:\n"), command)
 	for _, snap := range result {
 		fmt.Fprintf(Stdout, " Command %q from snap %q\n", snap.Command, snap.Snap)
@@ -100,8 +100,8 @@ func adviceCommand(cmd string, format string) error {
 		}
 	}
 
-	// find mispellings
-	matches, err = advisor.FindMispelledCommand(cmd)
+	// find misspellings
+	matches, err = advisor.FindMisspelledCommand(cmd)
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func adviceCommand(cmd string, format string) error {
 		case "json":
 			return outputAdviceJSON(cmd, matches)
 		case "pretty":
-			return outputAdviceMispellText(cmd, matches)
+			return outputAdviceMisspellText(cmd, matches)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}

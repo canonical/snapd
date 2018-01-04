@@ -282,7 +282,7 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	return nil
 }
 
-func (f *fakeStore) WriteCatalogs(io.Writer) error {
+func (f *fakeStore) WriteCatalogs(io.Writer, store.SnapAdder) error {
 	f.pokeStateLock()
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
 		op: "x-commands",

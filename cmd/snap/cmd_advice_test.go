@@ -30,6 +30,10 @@ import (
 
 type sillyFinder struct{}
 
+func mkSillyFinder() (advisor.Finder, error) {
+	return &sillyFinder{}, nil
+}
+
 func (sf *sillyFinder) Find(command string) ([]advisor.Command, error) {
 	switch command {
 	case "hello":
@@ -44,8 +48,10 @@ func (sf *sillyFinder) Find(command string) ([]advisor.Command, error) {
 	}
 }
 
+func (*sillyFinder) Close() error { return nil }
+
 func (s *SnapSuite) TestAdviceCommandHappyText(c *C) {
-	restore := advisor.ReplaceCommandsFinder(&sillyFinder{})
+	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
 	defer restore()
 
 	rest, err := snap.Parser().ParseArgs([]string{"advice-command", "hello"})
@@ -60,7 +66,7 @@ Try: snap install <selected snap>
 }
 
 func (s *SnapSuite) TestAdviceCommandHappyJSON(c *C) {
-	restore := advisor.ReplaceCommandsFinder(&sillyFinder{})
+	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
 	defer restore()
 
 	rest, err := snap.Parser().ParseArgs([]string{"advice-command", "--format=json", "hello"})
@@ -71,7 +77,7 @@ func (s *SnapSuite) TestAdviceCommandHappyJSON(c *C) {
 }
 
 func (s *SnapSuite) TestAdviceCommandMisspellText(c *C) {
-	restore := advisor.ReplaceCommandsFinder(&sillyFinder{})
+	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
 	defer restore()
 
 	for _, misspelling := range []string{"helo", "0hello", "hell0", "hello0"} {

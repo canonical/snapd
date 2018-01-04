@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -71,6 +72,8 @@ func (r *catalogRefresh) Ensure() error {
 	return refreshCatalogs(r.state, theStore)
 }
 
+var newCmdDB = advisor.Create
+
 func refreshCatalogs(st *state.State, theStore StoreService) error {
 	st.Unlock()
 	defer st.Lock()
@@ -94,9 +97,24 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 		return err
 	}
 	defer namesFile.Cancel()
-	if err := theStore.WriteCatalogs(namesFile); err != nil {
+
+	cmdDB, err := newCmdDB()
+	if err != nil {
 		return err
 	}
 
-	return namesFile.Commit()
+	defer cmdDB.Rollback()
+
+	if err := theStore.WriteCatalogs(namesFile, cmdDB); err != nil {
+		return err
+	}
+
+	err1 := namesFile.Commit()
+	err2 := cmdDB.Commit()
+
+	if err2 != nil {
+		return err2
+	}
+
+	return err1
 }

@@ -19,19 +19,21 @@
 
 package advisor
 
-import (
-	"fmt"
-)
-
-var commandsFinder Finder = &boltFinder{}
-
 type Command struct {
 	Snap    string
 	Command string
 }
 
+var newFinder = Open
+
 func FindCommand(command string) ([]Command, error) {
-	return commandsFinder.Find(command)
+	finder, err := newFinder()
+	if err != nil {
+		return nil, err
+	}
+	defer finder.Close()
+
+	return finder.Find(command)
 }
 
 const (
@@ -74,13 +76,19 @@ func similarWords(word string) []string {
 	return ret
 }
 
-func FindMispelledCommand(command string) ([]Command, error) {
+func FindMisspelledCommand(command string) ([]Command, error) {
 	if len(command) < minLen || len(command) > maxLen {
 		return nil, nil
 	}
+	finder, err := newFinder()
+	if err != nil {
+		return nil, err
+	}
+	defer finder.Close()
+
 	alternatives := make([]Command, 0, 32)
 	for _, w := range similarWords(command) {
-		res, err := commandsFinder.Find(w)
+		res, err := finder.Find(w)
 		if err != nil {
 			return nil, err
 		}
@@ -94,18 +102,13 @@ func FindMispelledCommand(command string) ([]Command, error) {
 
 type Finder interface {
 	Find(command string) ([]Command, error)
+	Close() error
 }
 
-func ReplaceCommandsFinder(f Finder) (restore func()) {
-	old := commandsFinder
-	commandsFinder = f
+func ReplaceCommandsFinder(constructor func() (Finder, error)) (restore func()) {
+	old := newFinder
+	newFinder = constructor
 	return func() {
-		commandsFinder = old
+		newFinder = old
 	}
-}
-
-type boltFinder struct{}
-
-func (bf *boltFinder) Find(command string) ([]Command, error) {
-	return nil, fmt.Errorf("not implemented")
 }
