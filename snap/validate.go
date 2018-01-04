@@ -29,7 +29,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/spdx"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // Regular expressions describing correct identifiers.
@@ -270,41 +269,6 @@ func validateAppSocket(socket *SocketInfo) error {
 	return validateSocketAddr(socket, "listen-stream", socket.ListenStream)
 }
 
-type appStartupOrder int
-
-const (
-	orderBefore appStartupOrder = iota
-	orderAfter
-)
-
-func (a appStartupOrder) String() string {
-	switch a {
-	case orderBefore:
-		return "before"
-	case orderAfter:
-		return "after"
-	}
-	return fmt.Sprintf("<unsupported order: %v>", int(a))
-}
-
-func appStartupOrdering(app *AppInfo, order appStartupOrder) []string {
-	switch order {
-	case orderBefore:
-		return app.Before
-	case orderAfter:
-		return app.After
-	}
-	panic(fmt.Sprintf("unsupported order: %v", order))
-}
-
-func isAppOrdered(app *AppInfo, order appStartupOrder, other *AppInfo) bool {
-	deps := appStartupOrdering(app, order)
-	if len(deps) > 0 && strutil.ListContains(deps, other.Name) {
-		return true
-	}
-	return false
-}
-
 // validateAppOrderCycles checks for cycles in app ordering dependencies
 func validateAppOrderCycles(apps map[string]*AppInfo) error {
 	// list of successors of given app
@@ -365,15 +329,13 @@ func validateAppOrderCycles(apps map[string]*AppInfo) error {
 	return nil
 }
 
-func validateAppStartupOrdering(app *AppInfo, order appStartupOrder) error {
-	ordering := appStartupOrdering(app, order)
-
+func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 	// we must be a service to request ordering
-	if len(ordering) > 0 && !app.IsService() {
+	if len(dependencies) > 0 && !app.IsService() {
 		return fmt.Errorf("cannot define before/after in application %q as it's not a service", app.Name)
 	}
 
-	for _, dep := range ordering {
+	for _, dep := range dependencies {
 		// dependency is not defined
 		other, ok := app.Snap.Apps[dep]
 		if !ok {
@@ -438,10 +400,10 @@ func ValidateApp(app *AppInfo) error {
 		}
 	}
 
-	if err := validateAppStartupOrdering(app, orderBefore); err != nil {
+	if err := validateAppOrderNames(app, app.Before); err != nil {
 		return err
 	}
-	if err := validateAppStartupOrdering(app, orderAfter); err != nil {
+	if err := validateAppOrderNames(app, app.After); err != nil {
 		return err
 	}
 
