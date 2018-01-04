@@ -740,15 +740,15 @@ apps:
 	}, {
 		name: "bad order 1",
 		desc: badOrder1,
-		err:  `cannot validate app startup ordering: dependency cycle detected for apps "(foo, bar)|(bar, foo)"`,
+		err:  `applications are part of a before/after cycle: (foo, bar)|(bar, foo)`,
 	}, {
 		name: "bad order 2",
 		desc: badOrder2,
-		err:  `cannot validate app startup ordering: dependency cycle detected for apps "((foo|bar|baz)(, )?){3}"`,
+		err:  `applications are part of a before/after cycle: ((foo|bar|baz)(, )?){3}`,
 	}, {
 		name: "bad order 3 - cycle",
 		desc: badOrder3Cycle,
-		err:  `cannot validate app startup ordering: dependency cycle detected for apps "((foo|bar|baz|zed)(, )?){4}"`,
+		err:  `applications are part of a before/after cycle: ((foo|bar|baz|zed)(, )?){4}`,
 	}, {
 		name: "all good, 3 apps",
 		desc: goodOrder1,
@@ -758,7 +758,7 @@ apps:
 	}, {
 		name: "self cycle",
 		desc: fooSelfCycle,
-		err:  `cannot validate app startup ordering: dependency cycle detected for apps "foo"`},
+		err:  `applications are part of a before/after cycle: foo`},
 	}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
