@@ -370,20 +370,19 @@ func validateAppStartupOrdering(app *AppInfo, order appStartupOrder) error {
 
 	// we must be a service to request ordering
 	if len(ordering) > 0 && !app.IsService() {
-		return fmt.Errorf("cannot validate app %q startup ordering: %q is not a service",
-			app.Name, app.Name)
+		return fmt.Errorf("cannot define before/after in application %q as it's not a service", app.Name)
 	}
 
 	for _, dep := range ordering {
 		// dependency is not defined
 		other, ok := app.Snap.Apps[dep]
 		if !ok {
-			return fmt.Errorf("cannot validate app %q startup ordering: %q is not defined",
+			return fmt.Errorf("application %q refers to missing application %q in before/after",
 				app.Name, dep)
 		}
 
 		if !other.IsService() {
-			return fmt.Errorf("cannot validate app %q startup ordering: %q is not a service",
+			return fmt.Errorf("application %q refers to non-service application %q in before/after",
 				app.Name, dep)
 		}
 	}
