@@ -69,6 +69,7 @@ func run() error {
 		// If there is no mount namespace to transition to let's just quit
 		// instantly without any errors as there is nothing to do anymore.
 		if err == ErrNoNamespace {
+			logger.Debugf("no preserved mount namespace, nothing to update")
 			return nil
 		}
 		return err
@@ -87,10 +88,14 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("cannot open lock file for mount namespace of snap %q: %s", snapName, err)
 	}
-	defer lock.Close()
+	defer func() {
+		logger.Debugf("unlocking mount namespace of snap %q", snapName)
+		lock.Close()
+	}()
 
+	logger.Debugf("locking mount namespace of snap %q", snapName)
 	if opts.FromSnapConfine {
-		// When --from-snap-conifne is passed then we just ensure that the
+		// When --from-snap-confine is passed then we just ensure that the
 		// namespace is locked. This is used by snap-confine to use
 		// snap-update-ns to apply mount profiles.
 		if err := lock.TryLock(); err != osutil.ErrAlreadyLocked {
@@ -102,6 +107,24 @@ func run() error {
 		}
 	}
 
+	// Freeze the mount namespace and unfreeze it later. This lets us perform
+	// modifications without snap processes attempting to construct
+	// symlinks or perform other malicious activity (such as attempting to
+	// introduce a symlink that would cause us to mount something other
+	// than what we expected).
+	logger.Debugf("freezing processes of snap %q", snapName)
+	if err := freezeSnapProcesses(opts.Positionals.SnapName); err != nil {
+		return err
+	}
+	defer func() {
+		logger.Debugf("thawing processes of snap %q", snapName)
+		thawSnapProcesses(opts.Positionals.SnapName)
+	}()
+
+	return computeAndSaveChanges(snapName)
+}
+
+func computeAndSaveChanges(snapName string) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
@@ -110,23 +133,35 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("cannot load desired mount profile of snap %q: %s", snapName, err)
 	}
+	debugShowProfile(desired, "desired mount profile")
 
 	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
 	currentBefore, err := mount.LoadProfile(currentProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load current mount profile of snap %q: %s", snapName, err)
 	}
+	debugShowProfile(currentBefore, "current mount profile (before applying changes)")
 
 	// Compute the needed changes and perform each change if needed, collecting
 	// those that we managed to perform or that were performed already.
 	changesNeeded := NeededChanges(currentBefore, desired)
+	debugShowChanges(changesNeeded, "mount changes needed")
+
+	logger.Debugf("performing mount changes:")
 	var changesMade []*Change
 	for _, change := range changesNeeded {
-		if change.Action == Keep {
-			changesMade = append(changesMade, change)
-			continue
+		logger.Debugf("\t * %s", change)
+		synthesised, err := changePerform(change)
+		// NOTE: we may have done something even if Perform itself has failed.
+		// We need to collect synthesized changes and store them.
+		changesMade = append(changesMade, synthesised...)
+		if len(synthesised) > 0 {
+			logger.Debugf("\tsynthesised additional mount changes:")
+			for _, synth := range synthesised {
+				logger.Debugf(" * \t\t%s", synth)
+			}
 		}
-		if err := change.Perform(); err != nil {
+		if err != nil {
 			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			continue
 		}
@@ -141,8 +176,33 @@ func run() error {
 			currentAfter.Entries = append(currentAfter.Entries, change.Entry)
 		}
 	}
+	debugShowProfile(&currentAfter, "current mount profile (after applying changes)")
+
+	logger.Debugf("saving current mount profile of snap %q", snapName)
 	if err := currentAfter.Save(currentProfilePath); err != nil {
 		return fmt.Errorf("cannot save current mount profile of snap %q: %s", snapName, err)
 	}
 	return nil
+}
+
+func debugShowProfile(profile *mount.Profile, header string) {
+	if len(profile.Entries) > 0 {
+		logger.Debugf("%s:", header)
+		for _, entry := range profile.Entries {
+			logger.Debugf("\t%s", entry)
+		}
+	} else {
+		logger.Debugf("%s: (none)", header)
+	}
+}
+
+func debugShowChanges(changes []*Change, header string) {
+	if len(changes) > 0 {
+		logger.Debugf("%s:", header)
+		for _, change := range changes {
+			logger.Debugf("\t%s", change)
+		}
+	} else {
+		logger.Debugf("%s: (none)", header)
+	}
 }

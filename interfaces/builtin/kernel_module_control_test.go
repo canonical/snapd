@@ -94,8 +94,10 @@ func (s *KernelModuleControlInterfaceSuite) TestSecCompSpec(c *C) {
 func (s *KernelModuleControlInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="mem", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), testutil.Contains, `# kernel-module-control
+KERNEL=="mem", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestStaticInfo(c *C) {

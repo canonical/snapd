@@ -1,0 +1,4 @@
+#!/bin/sh
+
+cat /sys/class/misc/hw_random/rng_available
+cat /sys/class/misc/hw_random/rng_current

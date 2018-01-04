@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -46,11 +47,11 @@ var _ = Suite(&specSuite{
 			spec.AddSnippet("connected-slot")
 			return nil
 		},
-		UDevPermanentPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug) error {
+		UDevPermanentPlugCallback: func(spec *udev.Specification, plug *snap.PlugInfo) error {
 			spec.AddSnippet("permanent-plug")
 			return nil
 		},
-		UDevPermanentSlotCallback: func(spec *udev.Specification, slot *interfaces.Slot) error {
+		UDevPermanentSlotCallback: func(spec *udev.Specification, slot *snap.SlotInfo) error {
 			spec.AddSnippet("permanent-slot")
 			return nil
 		},
@@ -91,16 +92,34 @@ func (s *specSuite) TestTagDevice(c *C) {
 	// affects all of the apps and hooks related to the given plug or slot
 	// (with the exception that slots cannot have hooks).
 	iface := &ifacetest.TestInterface{
-		InterfaceName: "test",
+		InterfaceName: "iface-1",
 		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
 			spec.TagDevice(`kernel="voodoo"`)
 			return nil
 		},
 	}
 	c.Assert(s.spec.AddConnectedPlug(iface, s.plug, nil, s.slot, nil), IsNil)
+
+	iface = &ifacetest.TestInterface{
+		InterfaceName: "iface-2",
+		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+			spec.TagDevice(`kernel="hoodoo"`)
+			return nil
+		},
+	}
+	c.Assert(s.spec.AddConnectedPlug(iface, s.plug, nil, s.slot, nil), IsNil)
+
 	c.Assert(s.spec.Snippets(), DeepEquals, []string{
-		`kernel="voodoo", TAG+="snap_snap1_foo"`,
-		`kernel="voodoo", TAG+="snap_snap1_hook_configure"`,
+		`# iface-1
+kernel="voodoo", TAG+="snap_snap1_foo"`,
+		`# iface-2
+kernel="hoodoo", TAG+="snap_snap1_foo"`,
+		`TAG=="snap_snap1_foo", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_snap1_foo $devpath $major:$minor"`,
+		`# iface-1
+kernel="voodoo", TAG+="snap_snap1_hook_configure"`,
+		`# iface-2
+kernel="hoodoo", TAG+="snap_snap1_hook_configure"`,
+		`TAG=="snap_snap1_hook_configure", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_snap1_hook_configure $devpath $major:$minor"`,
 	})
 }
 
@@ -109,7 +128,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	var r interfaces.Specification = s.spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(r.AddPermanentPlug(s.iface, s.plug), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(r.AddPermanentPlug(s.iface, s.plug.PlugInfo), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
 	c.Assert(s.spec.Snippets(), DeepEquals, []string{"connected-plug", "connected-slot", "permanent-plug", "permanent-slot"})
 }

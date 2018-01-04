@@ -33,7 +33,13 @@ const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags)
 {
 	unsigned long used = 0;
 	sc_string_init(buf, buf_size);
-#define F(FLAG, TEXT) do if (flags & (FLAG)) { sc_string_append(buf, buf_size, #TEXT ","); flags ^= (FLAG); } while (0)
+
+#define F(FLAG, TEXT) do {                                         \
+    if (flags & (FLAG)) {                                          \
+      sc_string_append(buf, buf_size, #TEXT ","); flags ^= (FLAG); \
+    }                                                              \
+  } while (0)
+
 	F(MS_RDONLY, ro);
 	F(MS_NOSUID, nosuid);
 	F(MS_NODEV, nodev);
@@ -252,17 +258,10 @@ void sc_do_mount(const char *source, const char *target,
 	char buf[10000] = { 0 };
 	const char *mount_cmd = NULL;
 
-	void ensure_mount_cmd() {
-		if (mount_cmd != NULL) {
-			return;
-		}
-		mount_cmd = sc_mount_cmd(buf, sizeof buf, source,
-					 target, fs_type, mountflags, data);
-	}
-
 	if (sc_is_debug_enabled()) {
 #ifdef SNAP_CONFINE_DEBUG_BUILD
-		ensure_mount_cmd();
+		mount_cmd = sc_mount_cmd(buf, sizeof(buf), source,
+					 target, fs_type, mountflags, data);
 #else
 		mount_cmd = "(disabled) use debug build to see details";
 #endif
@@ -278,8 +277,11 @@ void sc_do_mount(const char *source, const char *target,
 		sc_privs_drop();
 
 		// Compute the equivalent mount command.
-		ensure_mount_cmd();
-
+		if (mount_cmd == NULL) {
+			mount_cmd = sc_mount_cmd(buf, sizeof(buf), source,
+						 target, fs_type, mountflags,
+						 data);
+		}
 		// Restore errno and die.
 		errno = saved_errno;
 		die("cannot perform operation: %s", mount_cmd);
@@ -291,16 +293,9 @@ void sc_do_umount(const char *target, int flags)
 	char buf[10000] = { 0 };
 	const char *umount_cmd = NULL;
 
-	void ensure_umount_cmd() {
-		if (umount_cmd != NULL) {
-			return;
-		}
-		umount_cmd = sc_umount_cmd(buf, sizeof buf, target, flags);
-	}
-
 	if (sc_is_debug_enabled()) {
 #ifdef SNAP_CONFINE_DEBUG_BUILD
-		ensure_umount_cmd();
+		umount_cmd = sc_umount_cmd(buf, sizeof(buf), target, flags);
 #else
 		umount_cmd = "(disabled) use debug build to see details";
 #endif
@@ -315,8 +310,10 @@ void sc_do_umount(const char *target, int flags)
 		sc_privs_drop();
 
 		// Compute the equivalent umount command.
-		ensure_umount_cmd();
-
+		if (umount_cmd == NULL) {
+			umount_cmd = sc_umount_cmd(buf, sizeof(buf),
+						   target, flags);
+		}
 		// Restore errno and die.
 		errno = saved_errno;
 		die("cannot perform operation: %s", umount_cmd);

@@ -201,20 +201,22 @@ func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 1)
 
 	dbusSpec = &dbus.Specification{}
-	err = dbusSpec.AddPermanentSlot(s.iface, s.slot)
+	err = dbusSpec.AddPermanentSlot(s.iface, s.slot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), HasLen, 1)
 
 	udevSpec := &udev.Specification{}
-	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.slot), IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 2)
+	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
+	c.Assert(udevSpec.Snippets(), HasLen, 3)
 	c.Assert(udevSpec.Snippets()[0], testutil.Contains, `SUBSYSTEMS=="usb"`)
-	c.Assert(udevSpec.Snippets(), testutil.Contains, `KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="snap_modem-manager_mm"`)
+	c.Assert(udevSpec.Snippets(), testutil.Contains, `# modem-manager
+KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="snap_modem-manager_mm"`)
+	c.Assert(udevSpec.Snippets(), testutil.Contains, `TAG=="snap_modem-manager_mm", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_modem-manager_mm $devpath $major:$minor"`)
 }
 
 func (s *ModemManagerInterfaceSuite) TestPermanentSlotDBus(c *C) {
 	dbusSpec := &dbus.Specification{}
-	err := dbusSpec.AddPermanentSlot(s.iface, s.slot)
+	err := dbusSpec.AddPermanentSlot(s.iface, s.slot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.modem-manager.mm"})
 	snippet := dbusSpec.SnippetForTag("snap.modem-manager.mm")
@@ -224,7 +226,7 @@ func (s *ModemManagerInterfaceSuite) TestPermanentSlotDBus(c *C) {
 
 func (s *ModemManagerInterfaceSuite) TestPermanentSlotSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
+	err := seccompSpec.AddPermanentSlot(s.iface, s.slot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.modem-manager.mm"})
 	c.Check(seccompSpec.SnippetForTag("snap.modem-manager.mm"), testutil.Contains, "listen\n")

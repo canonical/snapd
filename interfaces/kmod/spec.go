@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
 
 // Specification assists in collecting kernel modules associated with an interface.
@@ -81,9 +82,9 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 }
 
 // AddPermanentPlug records mount-specific side-effects of having a plug.
-func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *interfaces.Plug) error {
+func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
 	type definer interface {
-		KModPermanentPlug(spec *Specification, plug *interfaces.Plug) error
+		KModPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
 		return iface.KModPermanentPlug(spec, plug)
@@ -92,9 +93,9 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *in
 }
 
 // AddPermanentSlot records mount-specific side-effects of having a slot.
-func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *interfaces.Slot) error {
+func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *snap.SlotInfo) error {
 	type definer interface {
-		KModPermanentSlot(spec *Specification, slot *interfaces.Slot) error
+		KModPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
 		return iface.KModPermanentSlot(spec, slot)

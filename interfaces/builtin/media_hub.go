@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
 )
 
 const mediaHubSummary = `allows operating as the media-hub service`
@@ -176,7 +177,7 @@ func (iface *mediaHubInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	return nil
 }
 
-func (iface *mediaHubInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *mediaHubInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(mediaHubPermanentSlotAppArmor)
 	return nil
 }
@@ -188,7 +189,7 @@ func (iface *mediaHubInterface) AppArmorConnectedSlot(spec *apparmor.Specificati
 	return nil
 }
 
-func (iface *mediaHubInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *mediaHubInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(mediaHubPermanentSlotSecComp)
 	return nil
 }

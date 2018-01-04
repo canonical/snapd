@@ -78,13 +78,13 @@ func piConfigFile() string {
 	return filepath.Join(dirs.GlobalRootDir, "/boot/uboot/config.txt")
 }
 
-func handlePiConfiguration() error {
+func handlePiConfiguration(tr Conf) error {
 	if osutil.FileExists(piConfigFile()) {
 		// snapctl can actually give us the whole dict in
 		// JSON, in a single call; use that instead of this.
 		config := map[string]string{}
 		for key := range piConfigKeys {
-			output, err := snapctlGet(fmt.Sprintf("pi-config.%s", strings.Replace(key, "_", "-", -1)))
+			output, err := coreCfg(tr, fmt.Sprintf("pi-config.%s", strings.Replace(key, "_", "-", -1)))
 			if err != nil {
 				return err
 			}

@@ -29,6 +29,8 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -196,4 +198,72 @@ func delayedCrossMgrInit() {
 		snapstate.AddCheckSnapCallback(checkGadgetOrKernel)
 	})
 	snapstate.CanAutoRefresh = canAutoRefresh
+	snapstate.CanManageRefreshes = CanManageRefreshes
+}
+
+// ProxyStore returns the store assertion for the proxy store if one is set.
+func ProxyStore(st *state.State) (*asserts.Store, error) {
+	tr := config.NewTransaction(st)
+	var proxyStore string
+	err := tr.GetMaybe("core", "proxy.store", &proxyStore)
+	if err != nil {
+		return nil, err
+	}
+	if proxyStore == "" {
+		return nil, state.ErrNoState
+	}
+
+	a, err := assertstate.DB(st).Find(asserts.StoreType, map[string]string{
+		"store": proxyStore,
+	})
+	if asserts.IsNotFound(err) {
+		return nil, state.ErrNoState
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return a.(*asserts.Store), nil
+}
+
+// interfaceConnected returns true if the given snap/interface names
+// are connected
+func interfaceConnected(st *state.State, snapName, ifName string) bool {
+	conns, err := ifacerepo.Get(st).Connected(snapName, ifName)
+	return err == nil && len(conns) > 0
+}
+
+// CanManageRefreshes returns true if the device can be
+// switched to the "core.refresh.schedule=managed" mode.
+func CanManageRefreshes(st *state.State) bool {
+	snapStates, err := snapstate.All(st)
+	if err != nil {
+		return false
+	}
+	for _, snapst := range snapStates {
+		if !snapst.Active {
+			continue
+		}
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			continue
+		}
+		// The snap must have a snap declaration (implies that
+		// its from the store)
+		if _, err := assertstate.SnapDeclaration(st, info.SideInfo.SnapID); err != nil {
+			continue
+		}
+
+		for _, plugInfo := range info.Plugs {
+			if plugInfo.Interface == "snapd-control" && plugInfo.Attrs["refresh-schedule"] == "managed" {
+				snapName := info.Name()
+				plugName := plugInfo.Name
+				if interfaceConnected(st, snapName, plugName) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
 }

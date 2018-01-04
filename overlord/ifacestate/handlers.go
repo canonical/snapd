@@ -382,9 +382,9 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	// check the connection against the declarations' rules
 	ic := policy.ConnectCandidate{
-		Plug:                plug.PlugInfo,
+		Plug:                plug,
 		PlugSnapDeclaration: plugDecl,
-		Slot:                slot.SlotInfo,
+		Slot:                slot,
 		SlotSnapDeclaration: slotDecl,
 		BaseDeclaration:     baseDecl,
 	}
@@ -399,6 +399,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	// TODO: pass dynamic attributes from hooks
 	err = m.repo.Connect(connRef)
 	if err != nil {
 		return err

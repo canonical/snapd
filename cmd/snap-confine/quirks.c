@@ -40,7 +40,7 @@
  * (legacy).  The mount point does not depend on build-time configuration and
  * does not differ from distribution to distribution.
  **/
-static const char *sc_get_inner_core_mount_point()
+static const char *sc_get_inner_core_mount_point(void)
 {
 	const char *core_path = "/snap/core/current/";
 	const char *ubuntu_core_path = "/snap/ubuntu-core/current/";
@@ -176,7 +176,7 @@ static void sc_quirk_create_writable_mimic(const char *mimic_dir,
  *
  * See: https://bugs.launchpad.net/snap-confine/+bug/1613845
  **/
-static void sc_setup_lxd_quirk()
+static void sc_setup_lxd_quirk(void)
 {
 	const char *hostfs_lxd_dir = SC_HOSTFS_DIR "/var/lib/lxd";
 	if (access(hostfs_lxd_dir, F_OK) == 0) {
@@ -188,7 +188,7 @@ static void sc_setup_lxd_quirk()
 	}
 }
 
-void sc_setup_quirks()
+void sc_setup_quirks(void)
 {
 	// because /var/lib/snapd is essential let's move it to /tmp/snapd for a sec
 	char snapd_tmp[] = "/tmp/snapd.quirks_XXXXXX";

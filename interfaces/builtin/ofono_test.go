@@ -183,7 +183,7 @@ func (s *OfonoInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 
 func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddPermanentSlot(s.iface, s.slot)
+	err := apparmorSpec.AddPermanentSlot(s.iface, s.slot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.ofono.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.ofono.app"), testutil.Contains, "/dev/net/tun rw,")
@@ -191,7 +191,7 @@ func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 
 func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, s.slot)
+	err := seccompSpec.AddPermanentSlot(s.iface, s.slot.SlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.ofono.app"})
 	c.Assert(seccompSpec.SnippetForTag("snap.ofono.app"), testutil.Contains, "listen\n")
@@ -199,10 +199,16 @@ func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 
 func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetUDev(c *C) {
 	spec := &udev.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slot.SlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 5)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `LABEL="ofono_isi_end"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="snap_ofono_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# ofono
+KERNEL=="tty[A-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="snap_ofono_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# ofono
+KERNEL=="tun", TAG+="snap_ofono_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# ofono
+KERNEL=="dsp", TAG+="snap_ofono_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_ofono_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_ofono_app $devpath $major:$minor"`)
 }
 
 func (s *OfonoInterfaceSuite) TestInterfaces(c *C) {

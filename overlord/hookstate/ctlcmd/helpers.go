@@ -69,20 +69,36 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 
 var servicestateControl = servicestate.Control
 
-func queueCommand(context *hookstate.Context, ts *state.TaskSet) {
-	// queue command task after all existing tasks of the hook's change
+func queueCommand(context *hookstate.Context, ts *state.TaskSet) error {
+	hookTask, ok := context.Task()
+	if !ok {
+		return fmt.Errorf("attempted to queue command with ephemeral context")
+	}
+
 	st := context.State()
 	st.Lock()
 	defer st.Unlock()
 
-	task, ok := context.Task()
-	if !ok {
-		panic("attempted to queue command with ephemeral context")
+	change := hookTask.Change()
+	hookTaskLanes := hookTask.Lanes()
+	tasks := change.LaneTasks(hookTaskLanes...)
+
+	// When installing or updating multiple snaps, there is one lane per snap.
+	// We want service command to join respective lane (it's the lane the hook belongs to).
+	// In case there are no lanes, only the default lane no. 0, there is no need to join it.
+	if len(hookTaskLanes) == 1 && hookTaskLanes[0] == 0 {
+		hookTaskLanes = nil
 	}
-	change := task.Change()
-	tasks := change.Tasks()
+	for _, l := range hookTaskLanes {
+		ts.JoinLane(l)
+	}
 	ts.WaitAll(state.NewTaskSet(tasks...))
 	change.AddAll(ts)
+	// As this can be run from what was originally the last task of a change,
+	// make sure the tasks added to the change are considered immediately.
+	st.EnsureBefore(0)
+
+	return nil
 }
 
 func runServiceCommand(context *hookstate.Context, inst *servicestate.Instruction, serviceNames []string) error {
@@ -96,14 +112,14 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 		return err
 	}
 
-	ts, err := servicestateControl(st, appInfos, inst)
+	// passing context so we can ignore self-conflicts with the current change
+	ts, err := servicestateControl(st, appInfos, inst, context)
 	if err != nil {
 		return err
 	}
 
 	if !context.IsEphemeral() && context.HookName() == "configure" {
-		queueCommand(context, ts)
-		return nil
+		return queueCommand(context, ts)
 	}
 
 	st.Lock()

@@ -20,7 +20,7 @@
 
 #include <glib.h>
 
-static void test_parse_bool()
+static void test_parse_bool(void)
 {
 	int err;
 	bool value;
@@ -71,7 +71,7 @@ static void test_parse_bool()
 	g_assert_cmpint(errno, ==, EFAULT);
 }
 
-static void test_die()
+static void test_die(void)
 {
 	if (g_test_subprocess()) {
 		errno = 0;
@@ -85,7 +85,7 @@ static void test_die()
 	g_test_trap_assert_stderr("death message\n");
 }
 
-static void test_die_with_errno()
+static void test_die_with_errno(void)
 {
 	if (g_test_subprocess()) {
 		errno = EPERM;
@@ -106,7 +106,7 @@ static void test_die_with_errno()
  * operations at the end of the test.  If any additional directories or files
  * are created in this directory they must be removed by the caller.
  **/
-static void g_test_in_ephemeral_dir()
+static void g_test_in_ephemeral_dir(void)
 {
 	gchar *temp_dir = g_dir_make_tmp(NULL, NULL);
 	gchar *orig_dir = g_get_current_dir();
@@ -152,7 +152,7 @@ static void _test_sc_nonfatal_mkpath(const gchar * dirname,
 /**
  * Test that sc_nonfatal_mkpath behaves when using relative paths.
  **/
-static void test_sc_nonfatal_mkpath__relative()
+static void test_sc_nonfatal_mkpath__relative(void)
 {
 	g_test_in_ephemeral_dir();
 	gchar *current_dir = g_get_current_dir();
@@ -167,7 +167,7 @@ static void test_sc_nonfatal_mkpath__relative()
 /**
  * Test that sc_nonfatal_mkpath behaves when using absolute paths.
  **/
-static void test_sc_nonfatal_mkpath__absolute()
+static void test_sc_nonfatal_mkpath__absolute(void)
 {
 	g_test_in_ephemeral_dir();
 	const char *dirname = "foo";
@@ -175,7 +175,7 @@ static void test_sc_nonfatal_mkpath__absolute()
 	_test_sc_nonfatal_mkpath(dirname, subdirname);
 }
 
-static void __attribute__ ((constructor)) init()
+static void __attribute__ ((constructor)) init(void)
 {
 	g_test_add_func("/utils/parse_bool", test_parse_bool);
 	g_test_add_func("/utils/die", test_die);

@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -64,7 +65,6 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/storestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -130,7 +130,7 @@ func (s *apiBaseSuite) LookupRefresh(snap *store.RefreshCandidate, user *auth.Us
 	return s.rsnaps[0], s.err
 }
 
-func (s *apiBaseSuite) ListRefresh(snaps []*store.RefreshCandidate, user *auth.UserState) ([]*snap.Info, error) {
+func (s *apiBaseSuite) ListRefresh(snaps []*store.RefreshCandidate, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
 	s.refreshCandidates = snaps
 	s.user = user
 
@@ -173,7 +173,7 @@ func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
 	s.sysctlArgses = append(s.sysctlArgses, args)
 
-	if args[0] != "show" {
+	if args[0] != "show" && args[0] != "start" && args[0] != "stop" && args[0] != "restart" {
 		panic(fmt.Sprintf("unexpected systemctl call: %v", args))
 	}
 
@@ -279,7 +279,7 @@ func (s *apiBaseSuite) daemon(c *check.C) *Daemon {
 	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	storestate.ReplaceStore(st, s)
+	snapstate.ReplaceStore(st, s)
 	// mark as already seeded
 	st.Set("seeded", true)
 	// registered
@@ -314,7 +314,7 @@ func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *Daemon {
 	assertstate.Manager(st)
 	st.Lock()
 	defer st.Unlock()
-	storestate.ReplaceStore(st, s)
+	snapstate.ReplaceStore(st, s)
 
 	s.d = d
 	return d
@@ -456,7 +456,7 @@ version: %s
 		snapst.Active = active
 		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
 		snapst.Current = snapInfo.SideInfo.Revision
-		snapst.Channel = "beta"
+		snapst.Channel = "stable"
 
 		snapstate.Set(st, name, &snapst)
 	}
@@ -534,6 +534,20 @@ UnitFileState=potatoes
 `),
 	}
 
+	var snapst snapstate.SnapState
+	st := s.d.overlord.State()
+	st.Lock()
+	err := snapstate.Get(st, "foo", &snapst)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	// modify state
+	snapst.Channel = "beta"
+	snapst.IgnoreValidation = true
+	st.Lock()
+	snapstate.Set(st, "foo", &snapst)
+	st.Unlock()
+
 	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
 	c.Assert(err, check.IsNil)
 	rsp, ok := getSnapInfo(snapCmd, req, nil).(*resp)
@@ -555,24 +569,25 @@ UnitFileState=potatoes
 		Type:   ResponseTypeSync,
 		Status: 200,
 		Result: &client.Snap{
-			ID:              "foo-id",
-			Name:            "foo",
-			Revision:        snap.R(10),
-			Version:         "v1",
-			Channel:         "stable",
-			TrackingChannel: "beta",
-			Title:           "title",
-			Summary:         "summary",
-			Description:     "description",
-			Developer:       "bar",
-			Status:          "active",
-			Icon:            "/v2/icons/foo/icon",
-			Type:            string(snap.TypeApp),
-			Private:         false,
-			DevMode:         false,
-			JailMode:        false,
-			Confinement:     string(snap.StrictConfinement),
-			TryMode:         false,
+			ID:               "foo-id",
+			Name:             "foo",
+			Revision:         snap.R(10),
+			Version:          "v1",
+			Channel:          "stable",
+			TrackingChannel:  "beta",
+			IgnoreValidation: true,
+			Title:            "title",
+			Summary:          "summary",
+			Description:      "description",
+			Developer:        "bar",
+			Status:           "active",
+			Icon:             "/v2/icons/foo/icon",
+			Type:             string(snap.TypeApp),
+			Private:          false,
+			DevMode:          false,
+			JailMode:         false,
+			Confinement:      string(snap.StrictConfinement),
+			TryMode:          false,
 			Apps: []client.AppInfo{
 				{
 					Snap: "foo", Name: "cmd",
@@ -780,7 +795,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
 		"refresh": map[string]interface{}{
-			"schedule": "",
+			"schedule": "00:00-05:59/6:00-11:59/12:00-17:59/18:00-23:59",
 		},
 		"confinement": "partial",
 	}
@@ -1404,7 +1419,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
-	c.Check(snaps[0]["screenshots"], check.HasLen, 0)
+	c.Check(snaps[0]["screenshots"], check.IsNil)
 	c.Check(snaps[0]["channels"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
@@ -2617,7 +2632,7 @@ func (s *apiSuite) TestSetConfBadSnap(c *check.C) {
 		"status-code": 404.,
 		"status":      "Not Found",
 		"result": map[string]interface{}{
-			"message": "no state entry for key",
+			"message": `snap "config-snap" is not installed`,
 			"kind":    "snap-not-found",
 			"value":   "config-snap",
 		},
@@ -3319,9 +3334,9 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 // Tests for GET /v2/interfaces
 
 func (s *apiSuite) TestInterfaces(c *check.C) {
+	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	d := s.daemon(c)
 
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -3497,9 +3512,9 @@ func (s *apiSuite) TestInterfaceDetail404(c *check.C) {
 // Test for POST /v2/interfaces
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
+	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	d := s.daemon(c)
 
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -3538,12 +3553,9 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	plug := repo.Plug("consumer", "plug")
-	slot := repo.Slot("producer", "slot")
-	c.Assert(plug.Connections, check.HasLen, 1)
-	c.Assert(slot.Connections, check.HasLen, 1)
-	c.Check(plug.Connections[0], check.DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
-	c.Check(slot.Connections[0], check.DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, check.HasLen, 1)
+	c.Check(ifaces.Connections, check.DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
 }
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
@@ -3579,10 +3591,8 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 		"type":        "error",
 	})
 	repo := d.overlord.InterfaceManager().Repository()
-	plug := repo.Plug("consumer", "plug")
-	slot := repo.Slot("producer", "slot")
-	c.Assert(plug.Connections, check.HasLen, 0)
-	c.Assert(slot.Connections, check.HasLen, 0)
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
@@ -3620,8 +3630,8 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	})
 
 	repo := d.overlord.InterfaceManager().Repository()
-	slot := repo.Slot("producer", "slot")
-	c.Assert(slot.Connections, check.HasLen, 0)
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
@@ -3659,14 +3669,14 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	})
 
 	repo := d.overlord.InterfaceManager().Repository()
-	plug := repo.Plug("consumer", "plug")
-	c.Assert(plug.Connections, check.HasLen, 0)
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slotName string) {
+	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	d := s.daemon(c)
 
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -3711,10 +3721,8 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
-	plug := repo.Plug("consumer", "plug")
-	slot := repo.Slot("producer", "slot")
-	c.Assert(plug.Connections, check.HasLen, 0)
-	c.Assert(slot.Connections, check.HasLen, 0)
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
@@ -3730,9 +3738,9 @@ func (s *apiSuite) TestDisconnectPlugSuccessWithEmptySlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
+	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	s.daemon(c)
 
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	// there is no consumer, no plug defined
 	s.mockSnap(c, producerYaml)
 
@@ -3763,9 +3771,9 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
+	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	s.daemon(c)
 
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	// there is no producer, no slot defined
 
@@ -3797,9 +3805,9 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
+	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	s.daemon(c)
 
-	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -5190,7 +5198,7 @@ func (s *apiSuite) TestAliasErrors(c *check.C) {
 	}{
 		{func(a *aliasAction) { a.Action = "" }, `unsupported alias action: ""`},
 		{func(a *aliasAction) { a.Action = "what" }, `unsupported alias action: "what"`},
-		{func(a *aliasAction) { a.Snap = "lalala" }, `cannot find snap "lalala"`},
+		{func(a *aliasAction) { a.Snap = "lalala" }, `snap "lalala" is not installed`},
 		{func(a *aliasAction) { a.Alias = ".foo" }, `invalid alias name: ".foo"`},
 		{func(a *aliasAction) { a.Aliases = []string{"baz"} }, `cannot interpret request, snaps can no longer be expected to declare their aliases`},
 	}

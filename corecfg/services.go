@@ -44,8 +44,14 @@ func switchDisableService(service, value string) error {
 		if err := sysd.Disable(serviceName); err != nil {
 			return err
 		}
+		if err := sysd.Mask(serviceName); err != nil {
+			return err
+		}
 		return sysd.Stop(serviceName, 5*time.Minute)
 	case "false":
+		if err := sysd.Unmask(serviceName); err != nil {
+			return err
+		}
 		if err := sysd.Enable(serviceName); err != nil {
 			return err
 		}
@@ -58,9 +64,9 @@ func switchDisableService(service, value string) error {
 // services that can be disabled
 var services = []string{"ssh", "rsyslog"}
 
-func handleServiceDisableConfiguration() error {
+func handleServiceDisableConfiguration(tr Conf) error {
 	for _, service := range services {
-		output, err := snapctlGet(fmt.Sprintf("service.%s.disable", service))
+		output, err := coreCfg(tr, fmt.Sprintf("service.%s.disable", service))
 		if err != nil {
 			return err
 		}

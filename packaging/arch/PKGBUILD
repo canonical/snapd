@@ -1,10 +1,11 @@
 # $Id$
 # Maintainer: Timothy Redaelli <timothy.redaelli@gmail.com>
 # Contributor: Zygmunt Krynicki <me at zygoon dot pl>
+# Contributor: Maciej Borzecki <maciek.borzecki@gmail.com>
 
 pkgbase=snapd
-pkgname=snapd
-pkgver=2.26.14.r1445.g3df03f98b
+pkgname=snapd-git
+pkgver=2.30
 pkgrel=1
 arch=('i686' 'x86_64')
 url="https://github.com/snapcore/snapd"
@@ -14,11 +15,17 @@ checkdepends=('python' 'squashfs-tools' 'indent' 'shellcheck')
 
 options=('!strip' 'emptydirs')
 install=snapd.install
-source=("git+https://github.com/snapcore/$pkgname.git")
+source=("git+https://github.com/snapcore/$pkgbase.git")
 md5sums=('SKIP')
 
-_gourl=github.com/snapcore/snapd
+pkgdesc="Service and tools for management of snap packages."
+depends=('squashfs-tools' 'libseccomp' 'libsystemd')
+provides=($pkgbase)
+# Community package is split into snapd and snap-confine, make sure we replace
+# both bits
+conflicts=($pkgbase 'snap-confine')
 
+_gourl=github.com/snapcore/snapd
 
 pkgver() {
     cd "$srcdir/snapd"
@@ -26,7 +33,7 @@ pkgver() {
 }
 
 prepare() {
-  cd "$pkgname"
+  cd "$pkgbase"
 
   # Use $srcdir/go as our GOPATH
   export GOPATH="$srcdir/go"
@@ -35,9 +42,9 @@ prepare() {
   # way we don't have to go get it again and it is exactly what the tag/hash
   # above describes.
   mkdir -p "$(dirname "$GOPATH/src/${_gourl}")"
-  ln --no-target-directory -fs "$srcdir/$pkgname" "$GOPATH/src/${_gourl}"
+  ln --no-target-directory -fs "$srcdir/$pkgbase" "$GOPATH/src/${_gourl}"
   # Patch snap-seccomp build flags not to link libseccomp statically.
-  sed -i -e 's/-Wl,-Bstatic -lseccomp -Wl,-Bdynamic/-lseccomp/' "$srcdir/$pkgname/cmd/snap-seccomp/main.go"
+  sed -i -e 's/-Wl,-Bstatic -lseccomp -Wl,-Bdynamic/-lseccomp/' "$srcdir/$pkgbase/cmd/snap-seccomp/main.go"
 }
 
 build() {
@@ -51,18 +58,35 @@ build() {
   # Get golang dependencies
   XDG_CONFIG_HOME="$srcdir" ./get-deps.sh
 
-  # Generate the real systemd units out of the available templates
-  make -C data/systemd all
+  # Generate data files such as real systemd units, dbus service, environment
+  # setup helpers out of the available templates
+  make -C data \
+       BINDIR=/bin \
+       LIBEXECDIR=/usr/lib \
+       SYSTEMDSYSTEMUNITDIR=/usr/lib/systemd/system \
+       SNAP_MOUNT_DIR=/var/lib/snapd/snap \
+       SNAPD_ENVIRONMENT_FILE=/etc/default/snapd
 
+  export CGO_ENABLED="1"
+  export CGO_CFLAGS="${CFLAGS}"
+  export CGO_CPPFLAGS="${CPPFLAGS}"
+  export CGO_CXXFLAGS="${CXXFLAGS}"
+  export CGO_LDFLAGS="${LDFLAGS}"
+
+  # gobuild="go build -pkgdir $GOPATH/pkg -x -v"
+  gobuild="go build -x -v"
   # Build/install snap and snapd
-  go install "${_gourl}/cmd/snap"
-  go install "${_gourl}/cmd/snapctl"
-  go install "${_gourl}/cmd/snapd"
-  go install "${_gourl}/cmd/snap-update-ns"
-  go install "${_gourl}/cmd/snap-seccomp"
+  $gobuild -o $GOPATH/bin/snap "${_gourl}/cmd/snap"
+  $gobuild -o $GOPATH/bin/snapctl "${_gourl}/cmd/snapctl"
+  $gobuild -o $GOPATH/bin/snapd "${_gourl}/cmd/snapd"
+  $gobuild -o $GOPATH/bin/snap-seccomp "${_gourl}/cmd/snap-seccomp"
+  # build snap-exec and snap-update-ns completely static for base snaps
+  $gobuild -o $GOPATH/bin/snap-update-ns -ldflags '-extldflags "-static"' "${_gourl}/cmd/snap-update-ns"
+  CGO_ENABLED=0 $gobuild -o $GOPATH/bin/snap-exec "${_gourl}/cmd/snap-exec"
 
   # Build snap-confine
   cd cmd
+  # Sync actual parameters with cmd/autogen.sh
   autoreconf -i -f
   ./configure \
     --prefix=/usr \
@@ -71,7 +95,10 @@ build() {
     --disable-apparmor \
     --enable-nvidia-biarch \
     --enable-merged-usr
-  make
+  make $MAKEFLAGS
+
+  # generate man-pages for snap
+  $GOPATH/bin/snap help --man > "$srcdir/snap.1"
 }
 
 check() {
@@ -89,42 +116,100 @@ check() {
   # here as they are designed to pass on a clean tree, before anything else is
   # done, not after building the tree.
   # ./run-checks --static
-   make -C cmd -k check
+  make -C cmd -k check
 
   mv $srcdir/xxx-info data/info
 }
 
-package() {
-  pkgdesc="Service and tools for management of snap packages."
-  depends=('snap-confine' 'squashfs-tools' 'libseccomp' 'libsystemd')
-  replaces=('snap-confine')
-  provides=('snap-confine')
-
+package_snapd-git() {
   export GOPATH="$srcdir/go"
-  # Ensure that we have /var/lib/snapd/{hostfs,lib/gl}/ as they are required by snap-confine
-  # for constructing some bind mounts around.
-  install -d -m 755 "$pkgdir/var/lib/snapd/hostfs/" "$pkgdir/var/lib/snapd/lib/gl/"
-  # Install the refresh timer and service for updating snaps
-  install -d -m 755 "$pkgdir/usr/lib/systemd/system/"
-  install -m 644 "$GOPATH/src/${_gourl}/data/systemd/snapd.refresh.service" "$pkgdir/usr/lib/systemd/system"
-  install -m 644 "$GOPATH/src/${_gourl}/data/systemd/snapd.refresh.timer" "$pkgdir/usr/lib/systemd/system"
-  # Install the snapd socket and service for the main daemon
-  install -m 644 "$GOPATH/src/${_gourl}/data/systemd/snapd.service" "$pkgdir/usr/lib/systemd/system"
-  install -m 644 "$GOPATH/src/${_gourl}/data/systemd/snapd.socket" "$pkgdir/usr/lib/systemd/system"
-  # Install snap, snapctl, snap-update-ns, snap-seccomp and snapd executables
+
+  # Ensure that we have /var/lib/snapd/{hostfs,lib/gl}/ as they are required by
+  # snap-confine for constructing some bind mounts around.
+  install -d -m 755 \
+            "$pkgdir/var/lib/snapd/hostfs/" \
+            "$pkgdir/var/lib/snapd/lib/gl/"
+
+  # Install snap, snapctl, snap-update-ns, snap-seccomp, snap-exec and snapd
+  # executables
   install -d -m 755 "$pkgdir/usr/bin/"
-  install -m 755 "$GOPATH/bin/snap" "$pkgdir/usr/bin/"
-  install -m 755 "$GOPATH/bin/snapctl" "$pkgdir/usr/bin/"
+  install -m 755 -t "$pkgdir/usr/bin" \
+          "$GOPATH/bin/snap" \
+          "$GOPATH/bin/snapctl"
+
   install -d -m 755 "$pkgdir/usr/lib/snapd"
-  install -m 755 "$GOPATH/bin/snap-update-ns" "$pkgdir/usr/lib/snapd/"
-  install -m 755 "$GOPATH/bin/snap-seccomp" "$pkgdir/usr/lib/snapd/"
-  install -m 755 "$GOPATH/bin/snapd" "$pkgdir/usr/lib/snapd/"
+  install -m 755 -t "$pkgdir/usr/lib/snapd" \
+          "$GOPATH/bin/snap-update-ns" \
+          "$GOPATH/bin/snap-exec" \
+          "$GOPATH/bin/snap-seccomp" \
+          "$GOPATH/bin/snapd"
+
   # Install snap-confine
-  make -C "$srcdir/$pkgbase/cmd" install DESTDIR="$pkgdir/"
-  # Install script to export binaries paths of snaps and XDG_DATA_DIRS for their .desktop files
+  make -C "$srcdir/$pkgbase/cmd" install DESTDIR="$pkgdir"
+
+  # Install script to export binaries paths of snaps and XDG_DATA_DIRS for their
+  # .desktop files
   make -C "$srcdir/$pkgbase/data/env" install DESTDIR="$pkgdir"
+
+  # Install D-Bus service files
+  make -C "$srcdir/$pkgbase/data/dbus" install \
+       DBUSSERVICESDIR=/usr/share/dbus-1/services \
+       DESTDIR="$pkgdir"
+
+  # Install systemd units
+  make -C "$srcdir/$pkgbase/data/systemd" install \
+       BINDIR=/bin \
+       SYSTEMDSYSTEMUNITDIR=/usr/lib/systemd/system \
+       DESTDIR="$pkgdir"
+
+  # Remove snappy core specific units
+  rm -fv "$pkgdir/usr/lib/systemd/system/snapd.system-shutdown.service"
+  rm -fv "$pkgdir/usr/lib/systemd/system/snapd.autoimport.service"
+  rm -fv "$pkgdir"/usr/lib/systemd/system/snapd.snap-repair.*
+  rm -fv "$pkgdir"/usr/lib/systemd/system/snapd.core-fixup.*
+  # and scripts
+  rm -fv "$pkgdir/usr/lib/snapd/snapd.core-fixup.sh"
+  rm -fv "$pkgdir/usr/bin/ubuntu-core-launcher"
+  rm -fv "$pkgdir/usr/lib/snapd/system-shutdown"
+
+
   # Install the bash tab completion files
-  install -Dm 755 "$GOPATH/src/${_gourl}/data/completion/snap" "$pkgdir/usr/share/bash-completion/completions/snap"
-  install -Dm 755 "$GOPATH/src/${_gourl}/data/completion/complete.sh" "$pkgdir/usr/lib/snapd/complete.sh"
-  install -Dm 755 "$GOPATH/src/${_gourl}/data/completion/etelpmoc.sh" "$pkgdir/usr/lib/snapd/etelpmoc.sh"
+  install -Dm 755 \
+          "$GOPATH/src/${_gourl}/data/completion/snap" \
+          "$pkgdir/usr/share/bash-completion/completions/snap"
+
+  install -D -m 755 -t "$pkgdir/usr/lib/snapd" \
+          "$GOPATH/src/${_gourl}/data/completion/complete.sh" \
+          "$GOPATH/src/${_gourl}/data/completion/etelpmoc.sh"
+
+  # Symlink /var/lib/snapd/snap to /snap so that --classic snaps work
+  ln -s var/lib/snapd/snap "$pkgdir/snap"
+  # and make sure that target exists so that we don't have dangling symlinks
+  # after installing the package
+  install -d -m 755 "$pkgdir/var/lib/snapd/snap"
+
+  # pre-create directories
+  install -d -m 755 "$pkgdir/var/cache/snapd"
+  install -d -m 755 "$pkgdir/var/lib/snapd/assertions"
+  install -d -m 755 "$pkgdir/var/lib/snapd/desktop/applications"
+  install -d -m 755 "$pkgdir/var/lib/snapd/device"
+  install -d -m 755 "$pkgdir/var/lib/snapd/hostfs"
+  install -d -m 755 "$pkgdir/var/lib/snapd/mount"
+  install -d -m 755 "$pkgdir/var/lib/snapd/seccomp/bpf"
+  install -d -m 755 "$pkgdir/var/lib/snapd/snap/bin"
+  install -d -m 755 "$pkgdir/var/lib/snapd/snaps"
+  install -d -m 755 "$pkgdir/var/lib/snapd/lib/gl"
+  # these dirs have special permissions
+  install -d -m 000 "$pkgdir/var/lib/snapd/void"
+  install -d -m 700 "$pkgdir/var/lib/snapd/cookie"
+  install -d -m 700 "$pkgdir/var/lib/snapd/cache"
+
+  # Install snap(1) man page
+  install -m 644 -D "$srcdir/snap.1" \
+          "$pkgdir/usr/share/man/man1/snap.1"
+
+  # Install the "info" data file with snapd version
+  install -m 644 -D "$GOPATH/src/${_gourl}/data/info" \
+          "$pkgdir/usr/lib/snapd/info"
+
 }

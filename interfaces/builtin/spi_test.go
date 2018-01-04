@@ -158,8 +158,10 @@ func (s *spiInterfaceSuite) TestSanitizeSlot(c *C) {
 func (s *spiInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug1, nil, s.slotGadget1, nil), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], Equals, `KERNEL=="spidev0.0", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), testutil.Contains, `# spi
+KERNEL=="spidev0.0", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *spiInterfaceSuite) TestAppArmorSpec(c *C) {

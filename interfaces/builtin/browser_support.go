@@ -37,6 +37,9 @@ const browserSupportBaseDeclarationSlots = `
     deny-connection:
       plug-attributes:
         allow-sandbox: true
+    deny-auto-connection:
+      plug-attributes:
+        allow-sandbox: true
 `
 
 const browserSupportConnectedPlugAppArmor = `
@@ -57,6 +60,7 @@ owner /var/tmp/etilqs_* rw,
 # packaging adjusted to use LD_PRELOAD technique from LP: #1577514
 owner /{dev,run}/shm/{,.}org.chromium.* mrw,
 owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
+owner /{dev,run}/shm/.io.nwjs.* mrw,
 
 # Chrome's Singleton API sometimes causes an ouid/fsuid mismatch denial, so
 # for now, allow non-owner read on the singleton socket (LP: #1731012). See
@@ -89,6 +93,15 @@ deny @{PROC}/@{pid}/attr/current r,
 # warning and the noisy AppArmor denial.
 owner @{PROC}/@{pid}/mounts r,
 owner @{PROC}/@{pid}/mountinfo r,
+
+# Since snapd still uses SECCOMP_RET_KILL, we have added a workaround rule to
+# allow mknod on character devices since chromium unconditionally performs
+# a mknod() to create the /dev/nvidiactl device, regardless of if it exists or
+# not or if the process has CAP_MKNOD or not. Since we don't want to actually
+# grant the ability to create character devices, explicitly deny the
+# capability. When snapd uses SECCOMP_RET_ERRNO, we can remove this rule.
+# https://forum.snapcraft.io/t/call-for-testing-chromium-62-0-3202-62/2569/46
+deny capability mknod,
 `
 
 const browserSupportConnectedPlugAppArmorWithoutSandbox = `
@@ -243,6 +256,17 @@ accept4
 # TODO: fine-tune when seccomp arg filtering available in stable distro
 # releases
 setpriority
+
+# Since snapd still uses SECCOMP_RET_KILL, add a workaround rule to allow mknod
+# on character devices since chromium unconditionally performs a mknod() to
+# create the /dev/nvidiactl device, regardless of if it exists or not or if the
+# process has CAP_MKNOD or not. Since we don't want to actually grant the
+# ability to create character devices, we added an explicit deny AppArmor rule
+# for this capability. When snapd uses SECCOMP_RET_ERRNO, we can remove this
+# rule.
+# https://forum.snapcraft.io/t/call-for-testing-chromium-62-0-3202-62/2569/46
+mknod - |S_IFCHR -
+mknodat - - |S_IFCHR -
 `
 
 const browserSupportConnectedPlugSecCompWithSandbox = `

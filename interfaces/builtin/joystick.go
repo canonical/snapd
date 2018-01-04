@@ -36,6 +36,12 @@ const joystickConnectedPlugAppArmor = `
 # only js0-js31 is valid so limit the /dev and udev entries to those devices.
 /dev/input/js{[0-9],[12][0-9],3[01]} rw,
 /run/udev/data/c13:{[0-9],[12][0-9],3[01]} r,
+
+# Allow reading for supported event reports for all input devices. See
+# https://www.kernel.org/doc/Documentation/input/event-codes.txt
+# FIXME: this is a very minor information leak and snapd should instead query
+# udev for the specific accesses associated with the above devices.
+/sys/devices/**/input[0-9]*/capabilities/* r,
 `
 
 var joystickConnectedPlugUDev = []string{`KERNEL=="js[0-9]*"`}

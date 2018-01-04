@@ -88,8 +88,10 @@ func (s *FramebufferInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *FramebufferInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], Equals, `KERNEL=="fb[0-9]*", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets()[0], Equals, `# framebuffer
+KERNEL=="fb[0-9]*", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *FramebufferInterfaceSuite) TestStaticInfo(c *C) {

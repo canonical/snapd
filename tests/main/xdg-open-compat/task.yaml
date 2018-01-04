@@ -9,11 +9,7 @@ description: |
     package.
 
 # we must have snapd-xdg-open available
-systems: [ubuntu-16.04-*]
-
-# disabled because the "old" snapd-xdg-open is no longer available in the
-# archive
-manual: true
+systems: [ubuntu-16.04-64]
 
 environment:
     DISPLAY: :0
@@ -32,8 +28,8 @@ execute: |
     . "$TESTSLIB/pkgdb.sh"
     . "$TESTSLIB/dirs.sh"
 
-    # echo apt-get is ok as we only run this test on ubuntu
-    apt download snapd-xdg-open=0.0.0~16.04
+    # download from LP, it is not available in the archive anymore
+    wget https://launchpad.net/ubuntu/+source/snapd-xdg-open/0.0.0~16.04/+build/10503735/+files/snapd-xdg-open_0.0.0~16.04_amd64.deb
     # snapd breaks older version of snapd-xdg-open so we cannot
     # install them together. force things to work!
     dpkg -i --force-all snapd-xdg-open_*.deb
