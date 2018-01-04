@@ -27,7 +27,7 @@ prepare: |
     unsquashfs $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap.orig | tail -1)
     echo 'echo PATH=$PATH > /run/udev/spread-test.out' >> ./squashfs-root/lib/udev/snappy-app-dev
     echo 'echo TESTVAR=$TESTVAR >> /run/udev/spread-test.out' >> ./squashfs-root/lib/udev/snappy-app-dev
-    mksquashfs ./squashfs-root $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap.orig | tail -1 | sed 's/.orig//') -comp xz
+    mksquashfs ./squashfs-root $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap.orig | tail -1 | sed 's/.orig//') -comp xz -no-fragments
     if [ ! -e $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap | tail -1) ]; then exit 1; fi
     echo "Mount modified core snap"
     mount $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap | tail -1) $(ls -1d /snap/ubuntu-core/* | grep -v current | tail -1)

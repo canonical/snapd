@@ -548,15 +548,36 @@ dbus (send)
   path=/org/gnome/SettingsDaemon/MediaKeys
   member="Get{,All}"
   peer=(label=unconfined),
+
+# Allow checking status, activating and locking the screensaver
+# mate
+dbus (send)
+    bus=session
+    path="/{,org/mate/}ScreenSaver"
+    interface=org.mate.ScreenSaver
+    member="{GetActive,GetActiveTime,Lock,SetActive}"
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path="/{,org/mate/}ScreenSaver"
+    interface=org.mate.ScreenSaver
+    member=ActiveChanged
+    peer=(label=unconfined),
+
+# Unity
+dbus (send)
+  bus=session
+  interface=com.canonical.Unity.Session
+  path=/com/canonical/Unity/Session
+  member="{ActivateScreenSaver,IsLocked,Lock}"
+  peer=(label=unconfined),
 `
 
 const unity7ConnectedPlugSeccomp = `
 # Description: Can access Unity7. Note, Unity 7 runs on X and requires access
 # to various DBus services and this environment does not prevent eavesdropping
 # or apps interfering with one another.
-
-# X
-shutdown
 
 # Needed by QtSystems on X to detect mouse and keyboard
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT

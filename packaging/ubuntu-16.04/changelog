@@ -1,6 +1,24 @@
-snapd (2.30~rc2) xenial; urgency=medium
+snapd (2.30) xenial; urgency=medium
 
   * New upstream release, LP: #1735344
+    - tests: set TRUST_TEST_KEYS=false for all the external backends
+    - tests: fix external backend for tests that need DEBUG output
+    - tests: do not disable refresh timer on external backend
+    - client: send all snap related bool json fields
+    - interfaces: interfaces: also add an app/hook-specific udev RUN
+      rule for hotplugging
+    - interfaces/desktop,unity7: allow status/activate/lock of
+      screensavers
+    - tests/main: source mkpinentry.sh
+    - devicestate: use a different nowhere domain
+    - interfaces: add ssh-keys, ssh-public-keys, gpg-keys and gpg-public
+      keys interfaces
+    - interfaces/many: misc updates for default, browser-support, opengl,
+      desktop, unity7, x11
+    - devicestate: fix misbehaving test when using systemd-resolved
+    - interfaces/removable-media: also allow 'k' (lock)
+    - interfaces/many: misc updates for default, browser-support,
+      opengl, desktop, unity7, x11
     - corecfg: also "mask" services when disabling them
     - tests: add support for autopkgtests on s390x
     - snapstate: support for pre-refresh hook
@@ -219,7 +237,7 @@ snapd (2.30~rc2) xenial; urgency=medium
     - many: add support for /home on NFS
     - packaging,spread: fix and re-enable opensuse builds
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 05 Dec 2017 11:00:45 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 18 Dec 2017 15:31:04 +0100
 
 snapd (2.29.4.1) xenial; urgency=medium
 
