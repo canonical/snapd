@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -144,6 +145,10 @@ var (
 
 func MockCatalogRefreshNextRefresh(cr *catalogRefresh, when time.Time) {
 	cr.nextCatalogRefresh = when
+}
+
+func MockCommandDB(constructor func() (advisor.CommandDB, error)) (restore func()) {
+	return nil
 }
 
 func MockRefreshRetryDelay(d time.Duration) func() {

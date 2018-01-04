@@ -714,11 +714,21 @@ var expectedCatalogPreamble = []interface{}{
 	json.Delim('['),
 }
 
-type catalogItem struct {
-	Name string `json:"package_name"`
+type alias struct {
+	Name string `json:"name"`
 }
 
-func decodeCatalog(resp *http.Response, names io.Writer) error {
+type catalogItem struct {
+	Name    string   `json:"package_name"`
+	Aliases []alias  `json:"aliases"`
+	Apps    []string `json:"apps"`
+}
+
+type SnapAdder interface {
+	AddSnap(snapName string, commands []string) error
+}
+
+func decodeCatalog(resp *http.Response, names io.Writer, db SnapAdder) error {
 	const what = "decode new commands catalog"
 	if resp.StatusCode != 200 {
 		return respToError(resp, what)
@@ -739,8 +749,24 @@ func decodeCatalog(resp *http.Response, names io.Writer) error {
 		if err := dec.Decode(&v); err != nil {
 			return fmt.Errorf(what+": %v", err)
 		}
-		if v.Name != "" {
-			fmt.Fprintln(names, v.Name)
+		if v.Name == "" {
+			continue
+		}
+		fmt.Fprintln(names, v.Name)
+		if len(v.Apps) == 0 {
+			continue
+		}
+
+		commands := make([]string, 0, len(v.Aliases)+len(v.Apps))
+
+		for _, alias := range v.Aliases {
+			commands = append(commands, alias.Name)
+		}
+		for _, app := range v.Apps {
+			commands = append(commands, snap.JoinSnapApp(v.Name, app))
+		}
+		if err := db.AddSnap(v.Name, commands); err != nil {
+			return err
 		}
 	}
 
@@ -1185,7 +1211,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 
 // WriteCatalogs queries the "commands" endpoint and writes the
 // command names into the given io.Writer.
-func (s *Store) WriteCatalogs(names io.Writer) error {
+func (s *Store) WriteCatalogs(names io.Writer, adder SnapAdder) error {
 	u := *s.endpointURL(commandsEndpPath, nil)
 
 	q := u.Query()
@@ -1211,7 +1237,7 @@ func (s *Store) WriteCatalogs(names io.Writer) error {
 		return s.doRequest(context.TODO(), client, reqOptions, nil)
 	}
 	readResponse := func(resp *http.Response) error {
-		return decodeCatalog(resp, names)
+		return decodeCatalog(resp, names, adder)
 	}
 
 	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy)
