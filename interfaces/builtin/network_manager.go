@@ -266,7 +266,6 @@ accept4
 bind
 listen
 sethostname
-shutdown
 # netlink
 socket AF_NETLINK - -
 `
