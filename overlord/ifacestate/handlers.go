@@ -151,7 +151,8 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
 
-	if err := m.reloadConnections(snapName); err != nil {
+	reconnectedSnaps, err := m.reloadConnections(snapName)
+	if err != nil {
 		return err
 	}
 	// FIXME: here we should not reconnect auto-connect plug/slot
@@ -165,6 +166,9 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	}
 	affectedSet := make(map[string]bool)
 	for _, name := range disconnectedSnaps {
+		affectedSet[name] = true
+	}
+	for _, name := range reconnectedSnaps {
 		affectedSet[name] = true
 	}
 	for _, name := range connectedSnaps {
@@ -509,10 +513,10 @@ func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, o
 	// on disk are rewriten. This is ok because core/ubuntu-core have
 	// exactly the same profiles and nothing in the generated policies
 	// has the slot-name encoded.
-	if err := m.reloadConnections(oldName); err != nil {
+	if _, err := m.reloadConnections(oldName); err != nil {
 		return err
 	}
-	if err := m.reloadConnections(newName); err != nil {
+	if _, err := m.reloadConnections(newName); err != nil {
 		return err
 	}
 

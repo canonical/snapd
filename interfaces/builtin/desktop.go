@@ -133,6 +133,22 @@ dbus (send)
     interface=io.snapcraft.Launcher
     member=OpenURL
     peer=(label=unconfined),
+
+# Allow checking status, activating and locking the screensaver
+# gnome/kde/freedesktop.org
+dbus (send)
+    bus=session
+    path="/{,org/freedesktop/,org/gnome/}ScreenSaver"
+    interface="org.{freedesktop,gnome}.ScreenSaver"
+    member="{GetActive,GetActiveTime,Lock,SetActive}"
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path="/{,org/freedesktop/,org/gnome/}ScreenSaver"
+    interface="org.{freedesktop,gnome}.ScreenSaver"
+    member=ActiveChanged
+    peer=(label=unconfined),
 `
 
 type desktopInterface struct{}

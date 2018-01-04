@@ -47,12 +47,12 @@ type Snap struct {
 	Version          string        `json:"version"`
 	Channel          string        `json:"channel"`
 	TrackingChannel  string        `json:"tracking-channel,omitempty"`
-	IgnoreValidation bool          `json:"ignore-validation,omitempty"`
+	IgnoreValidation bool          `json:"ignore-validation"`
 	Revision         snap.Revision `json:"revision"`
 	Confinement      string        `json:"confinement"`
-	Private          bool          `json:"private,omitempty"`
-	DevMode          bool          `json:"devmode,omitempty"`
-	JailMode         bool          `json:"jailmode,omitempty"`
+	Private          bool          `json:"private"`
+	DevMode          bool          `json:"devmode"`
+	JailMode         bool          `json:"jailmode"`
 	TryMode          bool          `json:"trymode,omitempty"`
 	Apps             []AppInfo     `json:"apps,omitempty"`
 	Broken           string        `json:"broken,omitempty"`
