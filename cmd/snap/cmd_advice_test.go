@@ -70,17 +70,17 @@ func (s *SnapSuite) TestAdviceCommandHappyJSON(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestAdviceCommandMispellText(c *C) {
+func (s *SnapSuite) TestAdviceCommandMisspellText(c *C) {
 	restore := advisor.ReplaceCommandsFinder(&sillyFinder{})
 	defer restore()
 
-	for _, mispelling := range []string{"helo", "0hello", "hell0", "hello0"} {
-		err := snap.AdviceCommand(mispelling, "text")
+	for _, misspelling := range []string{"helo", "0hello", "hell0", "hello0"} {
+		err := snap.AdviceCommand(misspelling, "pretty")
 		c.Assert(err, IsNil)
 		c.Assert(s.Stdout(), Equals, fmt.Sprintf(`No command "%s" found, did you mean:
  Command "hello" from snap "hello"
  Command "hello" from snap "hello-wcm"
-`, mispelling))
+`, misspelling))
 		c.Assert(s.Stderr(), Equals, "")
 
 		s.stdout.Reset()
