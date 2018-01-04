@@ -22,6 +22,7 @@ package state_test
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -745,6 +746,17 @@ func (ts *taskRunnerSuite) TestUndoSequence(c *C) {
 		"undo:3",
 		"undo:2",
 		"undo:1"})
+}
+
+func (ts *taskRunnerSuite) TestKnownTaskKinds(c *C) {
+	st := state.New(nil)
+	r := state.NewTaskRunner(st)
+	r.AddHandler("task-kind-1", func(t *state.Task, tb *tomb.Tomb) error { return nil }, nil)
+	r.AddHandler("task-kind-2", func(t *state.Task, tb *tomb.Tomb) error { return nil }, nil)
+
+	kinds := r.KnownTaskKinds()
+	sort.Strings(kinds)
+	c.Assert(kinds, DeepEquals, []string{"task-kind-1", "task-kind-2"})
 }
 
 func (ts *taskRunnerSuite) TestCleanup(c *C) {

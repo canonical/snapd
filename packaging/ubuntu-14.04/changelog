@@ -1,4 +1,4 @@
-snapd (2.30~14.04~rc3) trusty; urgency=medium
+snapd (2.30~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1735344
     - tests: set TRUST_TEST_KEYS=false for all the external backends
@@ -235,7 +235,7 @@ snapd (2.30~14.04~rc3) trusty; urgency=medium
     - many: add support for /home on NFS
     - packaging,spread: fix and re-enable opensuse builds
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 11 Dec 2017 08:42:54 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 18 Dec 2017 15:31:24 +0100
 
 snapd (2.29.4~14.04) trusty; urgency=medium
 
