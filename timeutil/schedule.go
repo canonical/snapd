@@ -91,6 +91,11 @@ func ParseClock(s string) (t Clock, err error) {
 	return t, nil
 }
 
+const (
+	EveryWeek uint = 0
+	LastWeek  uint = 5
+)
+
 // Week represents a weekday such as Monday, Tuesday, with optional
 // week-in-the-month position, eg. the first Monday of the month
 type Week struct {
@@ -104,7 +109,7 @@ type Week struct {
 func (w Week) String() string {
 	// Wednesday -> wed
 	day := strings.ToLower(w.Weekday.String()[0:3])
-	if w.Pos == 0 {
+	if w.Pos == EveryWeek {
 		return day
 	}
 	return day + strconv.Itoa(int(w.Pos))
@@ -129,11 +134,11 @@ func (ws WeekSpan) Match(t time.Time) bool {
 	start, end := ws.Start, ws.End
 	wdStart, wdEnd := start.Weekday, end.Weekday
 
-	if start.Pos > 0 {
+	if start.Pos != EveryWeek {
 		// is it the right week?
 		week := uint(t.Day()/7) + 1
 
-		if start.Pos == 5 {
+		if start.Pos == LastWeek {
 			// last week of the month
 			if !isLastWeekdayInMonth(t) {
 				return false
@@ -535,8 +540,8 @@ func parseWeekSpan(s string) (span WeekSpan, err error) {
 		return span, fmt.Errorf("cannot parse %q: unsupported schedule", s)
 	}
 
-	if (parsed.Start.Pos != 0) != (parsed.End.Pos != 0) {
-		return span, fmt.Errorf("cannot parse %q: week number must be present in both or neither", s)
+	if (parsed.Start.Pos != EveryWeek) != (parsed.End.Pos != EveryWeek) {
+		return span, fmt.Errorf("cannot parse %q: week number must be present for both weekdays or neither", s)
 	}
 
 	return parsed, nil
