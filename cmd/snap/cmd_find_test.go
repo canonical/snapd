@@ -362,3 +362,32 @@ func (s *SnapSuite) TestSectionCompletion(c *check.C) {
 		{Item: "foo"},
 	})
 }
+
+const findNetworkTimeoutErrorJSON = `
+{
+  "type": "error",
+  "result": {
+    "message": "Get https://search.apps.ubuntu.com/api/v1/snaps/search?confinement=strict%2Cclassic&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cdeltas%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement%2Cchannel_maps_list&q=test: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)",
+    "kind": "network-timeout"
+  },
+  "status-code": 400
+}`
+
+func (s *SnapSuite) TestFindNetworkTimeoutError(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			fmt.Fprintln(w, findNetworkTimeoutErrorJSON)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	_, err := snap.Parser().ParseArgs([]string{"find", "hello"})
+	c.Assert(err, check.ErrorMatches, `unable to contact snap store`)
+	c.Check(s.Stdout(), check.Equals, "")
+}
