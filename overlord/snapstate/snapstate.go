@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -436,6 +437,47 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 	}
 
 	return nil
+}
+
+// GuardCoreSetupProfilesPhase2 decides for a setup-profiles task that
+// could be a phase 2 security setup for core whether to proceed, wait
+// (via Retry) or there is nothing to do. Helper for ifacestate.
+func GuardCoreSetupProfilesPhase2(task *state.Task, snapsup *SnapSetup, snapInfo *snap.Info) (proceed bool, err error) {
+	var corePhase2 bool
+	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
+		return false, err
+	}
+	if !corePhase2 {
+		// common setup-profiles, proceed
+		return true, nil
+	}
+	// phase 2 setup-profiles
+	if snapInfo.Type != snap.TypeOS {
+		// not the core snap, nothing to do
+		return false, nil
+	}
+	if ok, _ := task.State().Restarting(); ok {
+		// don't continue until we are in the restarted snapd
+		task.Logf("Waiting for restart...")
+		return false, &state.Retry{}
+	}
+	// if not on classic check there was no rollback
+	if !release.OnClassic {
+		// TODO: double check that we really rebooted
+		// otherwise this could be just a spurious restart
+		// of snapd
+		name, rev, err := CurrentBootNameAndRevision(snap.TypeOS)
+		if err == ErrBootNameAndRevisionAgain {
+			return false, &state.Retry{After: 5 * time.Second}
+		}
+		if err != nil {
+			return false, err
+		}
+		if snapsup.Name() != name || snapInfo.Revision != rev {
+			return false, fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
+		}
+	}
+	return true, nil
 }
 
 // InstallPath returns a set of tasks for installing snap from a file path.

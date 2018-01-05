@@ -5708,6 +5708,39 @@ func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
 	c.Assert(l, HasLen, 4)
 }
 
+func (s *snapmgrTestSuite) TestGuardCoreSetupProfilesPhase2Basics(c *C) {
+	r := release.MockOnClassic(true)
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("setup-profiles", "...")
+
+	// not phase 2
+	proceed, err := snapstate.GuardCoreSetupProfilesPhase2(task, nil, nil)
+	c.Check(err, IsNil)
+	c.Check(proceed, Equals, true)
+
+	task.Set("core-phase-2", true)
+	// not core snap
+	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, nil, &snap.Info{Type: snap.TypeApp})
+	c.Check(err, IsNil)
+	c.Check(proceed, Equals, false)
+
+	// core snap, not restarting
+	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, nil, &snap.Info{Type: snap.TypeOS})
+	c.Check(err, IsNil)
+	c.Check(proceed, Equals, true)
+
+	// core snap, restarting ... wait
+	state.MockRestarting(st, state.RestartDaemon)
+	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, nil, &snap.Info{Type: snap.TypeOS})
+	c.Check(err, FitsTypeOf, &state.Retry{})
+	c.Check(proceed, Equals, false)
+}
+
 type snapmgrQuerySuite struct {
 	st      *state.State
 	restore func()
