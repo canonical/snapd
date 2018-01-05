@@ -172,7 +172,7 @@ distro_install_package() {
         ;;
     esac
 
-    set -- $(
+    pkg_names=($(
         for pkg in "$@" ; do
             package_name=$(distro_name_package "$pkg")
             # When we could not find a different package name for the distribution
@@ -182,20 +182,20 @@ distro_install_package() {
             fi
             echo "$package_name"
         done
-        )
+    ))
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             # shellcheck disable=SC2086
-            quiet apt-get install $APT_FLAGS -y "$@"
+            quiet apt-get install $APT_FLAGS -y "${pkg_names[@]}"
             ;;
         fedora-*)
             # shellcheck disable=SC2086
-            dnf -q -y --refresh install $DNF_FLAGS "$@"
+            quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"
                 ;;
         opensuse-*)
             # shellcheck disable=SC2086
-            zypper -q install -y $ZYPPER_FLAGS "$@"
+            quiet zypper install -y $ZYPPER_FLAGS "${pkg_names[@]}"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
