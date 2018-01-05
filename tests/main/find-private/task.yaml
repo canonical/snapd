@@ -26,7 +26,7 @@ execute: |
     # we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
     if [ ! -z "$SPREAD_STORE_USER" ] && [ ! -z "$SPREAD_STORE_PASSWORD" ] && [[ ! "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
         echo "And the user has logged in"
-        expect -f successful_login.exp
+        expect -f $TESTSLIB/successful_login.exp
 
         echo "Then a private snap belonging to that user shows up in the find results and nothing else"
         result=$(snap find test-snapd-private2 --private)

@@ -20,7 +20,7 @@ execute: |
     fi
 
     echo "And the user has logged in"
-    expect -f successful_login.exp
+    expect -f $TESTSLIB/successful_login.exp
 
     echo "Install a private snap together with a public snap"
     snap install test-snapd-private test-snapd-public
