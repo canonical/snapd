@@ -11,7 +11,7 @@ execute: |
     snap whoami | MATCH "email: -"
 
     if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ]; then
-        expect -d -f successful_login.exp
+        expect -d -f $TESTSLIB/successful_login.exp
 
         echo "whoami after login"
         # use -F because the email can contain regexp metachars
