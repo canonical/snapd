@@ -50,11 +50,11 @@ func (sf *sillyFinder) Find(command string) ([]advisor.Command, error) {
 
 func (*sillyFinder) Close() error { return nil }
 
-func (s *SnapSuite) TestAdviceCommandHappyText(c *C) {
+func (s *SnapSuite) TestAdviseCommandHappyText(c *C) {
 	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
 	defer restore()
 
-	rest, err := snap.Parser().ParseArgs([]string{"advice-command", "hello"})
+	rest, err := snap.Parser().ParseArgs([]string{"advise-command", "hello"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, `The program "hello" can be found in the following snaps:
@@ -65,23 +65,23 @@ Try: snap install <selected snap>
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestAdviceCommandHappyJSON(c *C) {
+func (s *SnapSuite) TestAdviseCommandHappyJSON(c *C) {
 	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
 	defer restore()
 
-	rest, err := snap.Parser().ParseArgs([]string{"advice-command", "--format=json", "hello"})
+	rest, err := snap.Parser().ParseArgs([]string{"advise-command", "--format=json", "hello"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, `[{"Snap":"hello","Command":"hello"},{"Snap":"hello-wcm","Command":"hello"}]`+"\n")
 	c.Assert(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestAdviceCommandMisspellText(c *C) {
+func (s *SnapSuite) TestAdviseCommandMisspellText(c *C) {
 	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
 	defer restore()
 
 	for _, misspelling := range []string{"helo", "0hello", "hell0", "hello0"} {
-		err := snap.AdviceCommand(misspelling, "pretty")
+		err := snap.AdviseCommand(misspelling, "pretty")
 		c.Assert(err, IsNil)
 		c.Assert(s.Stdout(), Equals, fmt.Sprintf(`No command "%s" found, did you mean:
  Command "hello" from snap "hello"
