@@ -14,5 +14,6 @@ execute: |
         expect -d -f successful_login.exp
 
         echo "whoami after login"
-        snap whoami | MATCH "email: $SPREAD_STORE_USER"
+        # use -F because the email can contain regexp metachars
+        snap whoami | grep -qF "email: $SPREAD_STORE_USER"
     fi
