@@ -459,7 +459,24 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 		cmd = append(cmd, "--base", info.Base)
 	}
 	cmd = append(cmd, securityTag)
-	cmd = append(cmd, filepath.Join(dirs.CoreLibExecDir, "snap-exec"))
+
+	// when under confinement, snap-exec is run from 'core' snap rootfs
+	snapExecPath := filepath.Join(dirs.CoreLibExecDir, "snap-exec")
+
+	if info.NeedsClassic() {
+		// running with classic confinement, carefully pick snap-exec we
+		// are going to use
+		if isReexeced() {
+			// same rule as when choosing the location of snap-confine
+			snapExecPath = filepath.Join(dirs.SnapMountDir, "core/current",
+				dirs.CoreLibExecDir, "snap-exec")
+		} else {
+			// there is no mount namespace where 'core' is the
+			// rootfs, hence we need to use distro's snap-exec
+			snapExecPath = filepath.Join(dirs.DistroLibExecDir, "snap-exec")
+		}
+	}
+	cmd = append(cmd, snapExecPath)
 
 	if command != "" {
 		cmd = append(cmd, "--command="+command)

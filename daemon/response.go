@@ -142,6 +142,8 @@ const (
 	errorKindSnapNeedsDevMode       = errorKind("snap-needs-devmode")
 	errorKindSnapNeedsClassic       = errorKind("snap-needs-classic")
 	errorKindSnapNeedsClassicSystem = errorKind("snap-needs-classic-system")
+
+	errorKindBadQuery = errorKind("bad-query")
 )
 
 type errorValue interface{}
