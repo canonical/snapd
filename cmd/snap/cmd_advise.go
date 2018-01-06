@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-type cmdAdviceCommand struct {
+type cmdAdviseCommand struct {
 	Positionals struct {
 		Command string `required:"yes"`
 	} `positional-args:"true"`
@@ -37,22 +37,22 @@ type cmdAdviceCommand struct {
 	Format string `long:"format" default:"pretty"`
 }
 
-var shortAdviceCommandHelp = i18n.G("Advice on available snaps.")
-var longAdviceCommandHelp = i18n.G(`
-The advice-command command shows what snaps with the given command are 
+var shortAdviseCommandHelp = i18n.G("Advise on available snaps.")
+var longAdviseCommandHelp = i18n.G(`
+The advise-command command shows what snaps with the given command are 
 available.
 `)
 
 func init() {
-	cmd := addCommand("advice-command", shortAdviceCommandHelp, longAdviceCommandHelp, func() flags.Commander {
-		return &cmdAdviceCommand{}
+	cmd := addCommand("advise-command", shortAdviseCommandHelp, longAdviseCommandHelp, func() flags.Commander {
+		return &cmdAdviseCommand{}
 	}, nil, []argDesc{
 		{name: "<command>"},
 	})
 	cmd.hidden = true
 }
 
-func outputAdviceExactText(command string, result []advisor.Command) error {
+func outputAdviseExactText(command string, result []advisor.Command) error {
 	fmt.Fprintf(Stdout, i18n.G("The program %q can be found in the following snaps:\n"), command)
 	for _, snap := range result {
 		fmt.Fprintf(Stdout, " * %s\n", snap.Snap)
@@ -61,7 +61,7 @@ func outputAdviceExactText(command string, result []advisor.Command) error {
 	return nil
 }
 
-func outputAdviceMispellText(command string, result []advisor.Command) error {
+func outputAdviseMisspellText(command string, result []advisor.Command) error {
 	fmt.Fprintf(Stdout, i18n.G("No command %q found, did you mean:\n"), command)
 	for _, snap := range result {
 		fmt.Fprintf(Stdout, " Command %q from snap %q\n", snap.Command, snap.Snap)
@@ -69,21 +69,21 @@ func outputAdviceMispellText(command string, result []advisor.Command) error {
 	return nil
 }
 
-func outputAdviceJSON(command string, results []advisor.Command) error {
+func outputAdviseJSON(command string, results []advisor.Command) error {
 	enc := json.NewEncoder(Stdout)
 	enc.Encode(results)
 	return nil
 }
 
-func (x *cmdAdviceCommand) Execute(args []string) error {
+func (x *cmdAdviseCommand) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
-	return adviceCommand(x.Positionals.Command, x.Format)
+	return adviseCommand(x.Positionals.Command, x.Format)
 }
 
-func adviceCommand(cmd string, format string) error {
+func adviseCommand(cmd string, format string) error {
 	// find exact matches
 	matches, err := advisor.FindCommand(cmd)
 	if err != nil {
@@ -92,25 +92,25 @@ func adviceCommand(cmd string, format string) error {
 	if len(matches) > 0 {
 		switch format {
 		case "json":
-			return outputAdviceJSON(cmd, matches)
+			return outputAdviseJSON(cmd, matches)
 		case "pretty":
-			return outputAdviceExactText(cmd, matches)
+			return outputAdviseExactText(cmd, matches)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
 	}
 
-	// find mispellings
-	matches, err = advisor.FindMispelledCommand(cmd)
+	// find misspellings
+	matches, err = advisor.FindMisspelledCommand(cmd)
 	if err != nil {
 		return err
 	}
 	if len(matches) > 0 {
 		switch format {
 		case "json":
-			return outputAdviceJSON(cmd, matches)
+			return outputAdviseJSON(cmd, matches)
 		case "pretty":
-			return outputAdviceMispellText(cmd, matches)
+			return outputAdviseMisspellText(cmd, matches)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
