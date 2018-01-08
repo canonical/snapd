@@ -214,6 +214,9 @@ func (client *Client) FindOne(name string) (*Snap, *ResultInfo, error) {
 func (client *Client) snapsFromPath(path string, query url.Values) ([]*Snap, *ResultInfo, error) {
 	var snaps []*Snap
 	ri, err := client.doSync("GET", path, query, nil, nil, &snaps)
+	if e, ok := err.(*Error); ok {
+		return nil, nil, e
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot list snaps: %s", err)
 	}
