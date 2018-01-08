@@ -20,12 +20,14 @@
 package advisor_test
 
 import (
+	"os"
 	"sort"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/advisor"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,6 +37,17 @@ func Test(t *testing.T) { TestingT(t) }
 type cmdfinderSuite struct{}
 
 var _ = Suite(&cmdfinderSuite{})
+
+func (s *cmdfinderSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
+
+	db, err := advisor.Create()
+	c.Assert(err, IsNil)
+	c.Assert(db.AddSnap("foo", []string{"foo", "meh"}), IsNil)
+	c.Assert(db.AddSnap("bar", []string{"bar", "meh"}), IsNil)
+	c.Assert(db.Commit(), IsNil)
+}
 
 func (s *cmdfinderSuite) TestFindSimilarWordsCnf(c *C) {
 	words := advisor.SimilarWords("123")
@@ -80,4 +93,44 @@ func (s *cmdfinderSuite) TestFindSimilarWordsCnf(c *C) {
 func (s *cmdfinderSuite) TestFindSimilarWordsTrivial(c *C) {
 	words := advisor.SimilarWords("hella")
 	c.Check(words, testutil.Contains, "hello")
+}
+
+func (s *cmdfinderSuite) TestFindCommandHit(c *C) {
+	cmds, err := advisor.FindCommand("meh")
+	c.Assert(err, IsNil)
+	c.Check(cmds, DeepEquals, []advisor.Command{
+		{Snap: "foo", Command: "meh"},
+		{Snap: "bar", Command: "meh"},
+	})
+}
+
+func (s *cmdfinderSuite) TestFindCommandMiss(c *C) {
+	cmds, err := advisor.FindCommand("moh")
+	c.Assert(err, IsNil)
+	c.Check(cmds, HasLen, 0)
+}
+
+func (s *cmdfinderSuite) TestFindMisspelledCommandHit(c *C) {
+	cmds, err := advisor.FindMisspelledCommand("moh")
+	c.Assert(err, IsNil)
+	c.Check(cmds, DeepEquals, []advisor.Command{
+		{Snap: "foo", Command: "meh"},
+		{Snap: "bar", Command: "meh"},
+	})
+}
+
+func (s *cmdfinderSuite) TestFindMisspelledCommandMiss(c *C) {
+	cmds, err := advisor.FindMisspelledCommand("hello")
+	c.Assert(err, IsNil)
+	c.Check(cmds, HasLen, 0)
+}
+
+func (s *cmdfinderSuite) TestDump(c *C) {
+	cmds, err := advisor.Dump()
+	c.Assert(err, IsNil)
+	c.Check(cmds, DeepEquals, map[string][]string{
+		"foo": {"foo"},
+		"bar": {"bar"},
+		"meh": {"foo", "bar"},
+	})
 }

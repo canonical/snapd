@@ -4,77 +4,85 @@
 . "$TESTSLIB/quiet.sh"
 
 debian_name_package() {
-    case "$1" in
-        xdelta3|curl|python3-yaml|kpartx|busybox-static|nfs-kernel-server)
-            echo "$1"
-            ;;
-        man)
-            echo "man-db"
-            ;;
-        *)
-            echo "$1"
-            ;;
-    esac
+    for i in "$@"; do
+        case "$i" in
+            xdelta3|curl|python3-yaml|kpartx|busybox-static|nfs-kernel-server)
+                echo "$i"
+                ;;
+            man)
+                echo "man-db"
+                ;;
+            *)
+                echo "$i"
+                ;;
+        esac
+    done
 }
 
 ubuntu_14_04_name_package() {
-    case "$1" in
-        printer-driver-cups-pdf)
-            echo "cups-pdf"
-            ;;
-        *)
-            debian_name_package "$1"
-            ;;
-    esac
+    for i in "$@"; do
+        case "$i" in
+            printer-driver-cups-pdf)
+                echo "cups-pdf"
+                ;;
+            *)
+                debian_name_package "$i"
+                ;;
+        esac
+    done
 }
 
 fedora_name_package() {
-    case "$1" in
-        xdelta3|jq|curl|python3-yaml)
-            echo "$1"
-            ;;
-        openvswitch-switch)
-            echo "openvswitch"
-            ;;
-        printer-driver-cups-pdf)
-            echo "cups-pdf"
-            ;;
-        *)
-            echo "$1"
-            ;;
-    esac
+    for i in "$@"; do
+        case "$i" in
+            xdelta3|jq|curl|python3-yaml)
+                echo "$i"
+                ;;
+            openvswitch-switch)
+                echo "openvswitch"
+                ;;
+            printer-driver-cups-pdf)
+                echo "cups-pdf"
+                ;;
+            *)
+                echo "$i"
+                ;;
+        esac
+    done
 }
 
 opensuse_name_package() {
-    case "$1" in
-        python3-yaml)
-            echo "python3-PyYAML"
-            ;;
-        dbus-x11)
-            echo "dbus-1-x11"
-            ;;
-        printer-driver-cups-pdf)
-            echo "cups-pdf"
-            ;;
-        *)
-            echo "$1"
-            ;;
-    esac
+    for i in "$@"; do
+        case "$i" in
+            python3-yaml)
+                echo "python3-PyYAML"
+                ;;
+            dbus-x11)
+                echo "dbus-1-x11"
+                ;;
+            printer-driver-cups-pdf)
+                echo "cups-pdf"
+                ;;
+            *)
+                echo "$i"
+                ;;
+        esac
+    done
 }
 
 distro_name_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
-            ubuntu_14_04_name_package "$1"
+            ubuntu_14_04_name_package "$@"
             ;;
         ubuntu-*|debian-*)
-            debian_name_package "$1"
+            debian_name_package "$@"
             ;;
         fedora-*)
-            fedora_name_package "$1"
+            fedora_name_package "$@"
             ;;
         opensuse-*)
-            opensuse_name_package "$1"
+            opensuse_name_package "$@"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -164,61 +172,67 @@ distro_install_package() {
         ;;
     esac
 
-    for pkg in "$@" ; do
-        package_name=$(distro_name_package "$pkg")
-        # When we could not find a different package name for the distribution
-        # we're running on we try the package name given as last attempt
-        if [ -z "$package_name" ]; then
-            package_name="$pkg"
-        fi
+    pkg_names=($(
+        for pkg in "$@" ; do
+            package_name=$(distro_name_package "$pkg")
+            # When we could not find a different package name for the distribution
+            # we're running on we try the package name given as last attempt
+            if [ -z "$package_name" ]; then
+                package_name="$pkg"
+            fi
+            echo "$package_name"
+        done
+    ))
 
-        case "$SPREAD_SYSTEM" in
-            ubuntu-*|debian-*)
-                # shellcheck disable=SC2086
-                quiet apt-get install $APT_FLAGS -y "$package_name"
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            # shellcheck disable=SC2086
+            quiet apt-get install $APT_FLAGS -y "${pkg_names[@]}"
+            ;;
+        fedora-*)
+            # shellcheck disable=SC2086
+            quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"
                 ;;
-            fedora-*)
-                # shellcheck disable=SC2086
-                quiet dnf -y --refresh install $DNF_FLAGS "$package_name"
-                ;;
-            opensuse-*)
-                # shellcheck disable=SC2086
-                quiet zypper install -y $ZYPPER_FLAGS "$package_name"
-                ;;
-            *)
-                echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
-                exit 1
-                ;;
-        esac
-    done
+        opensuse-*)
+            # shellcheck disable=SC2086
+            quiet zypper install -y $ZYPPER_FLAGS "${pkg_names[@]}"
+            ;;
+        *)
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
+            exit 1
+            ;;
+    esac
 }
 
 distro_purge_package() {
-    for pkg in "$@" ; do
-        package_name=$(distro_name_package "$pkg")
-        # When we could not find a different package name for the distribution
-        # we're running on we try the package name given as last attempt
-        if [ -z "$package_name" ]; then
-            package_name="$pkg"
-        fi
+    set -- $(
+        for pkg in "$@" ; do
+            package_name=$(distro_name_package "$pkg")
+            # When we could not find a different package name for the distribution
+            # we're running on we try the package name given as last attempt
+            if [ -z "$package_name" ]; then
+                package_name="$pkg"
+            fi
+            echo "$package_name"
+        done
+        )
 
-        case "$SPREAD_SYSTEM" in
-            ubuntu-*|debian-*)
-                quiet apt-get remove -y --purge -y "$package_name"
-                ;;
-            fedora-*)
-                quiet dnf -y remove "$package_name"
-                quiet dnf clean all
-                ;;
-            opensuse-*)
-                quiet zypper remove -y "$package_name"
-                ;;
-            *)
-                echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
-                exit 1
-                ;;
-        esac
-    done
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            quiet apt-get remove -y --purge -y "$@"
+            ;;
+        fedora-*)
+            quiet dnf -y remove "$@"
+            quiet dnf clean all
+            ;;
+        opensuse-*)
+            quiet zypper remove -y "$@"
+            ;;
+        *)
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
+            exit 1
+            ;;
+    esac
 }
 
 distro_update_package_db() {
@@ -227,6 +241,7 @@ distro_update_package_db() {
             quiet apt-get update
             ;;
         fedora-*)
+            quiet dnf clean all
             quiet dnf makecache
             ;;
         opensuse-*)
