@@ -281,7 +281,9 @@ func main() {
 
 	// magic \o/
 	snapApp := filepath.Base(os.Args[0])
-	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, snapApp)) {
+	switch {
+	case osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, snapApp)):
+		// symlink from /snap/bin/$foo to /usr/bin/snap: run snapApp
 		var err error
 		snapApp, err = resolveApp(snapApp)
 		if err != nil {
@@ -297,6 +299,14 @@ func main() {
 		err = cmd.Execute(args)
 		fmt.Fprintf(Stderr, i18n.G("internal error, please report: running %q failed: %v\n"), snapApp, err)
 		os.Exit(46)
+	case snapApp == "command-not-found":
+		// symlink from command-not-found to /usr/bin/snap: run c-n-f
+		cmd := &cmdAdviseCommand{Format: "pretty"}
+		cmd.Positionals.Command = os.Args[1]
+		if err := cmd.Execute(nil); err != nil {
+			fmt.Fprintf(Stderr, "%s\n", err)
+		}
+		return
 	}
 
 	defer func() {
