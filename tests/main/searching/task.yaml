@@ -46,3 +46,9 @@ execute: |
     else
         snap find --section=database cassandra 2>&1 | MATCH '0 snaps'
     fi
+
+    # LP: 1740605
+    if snap find " " | grep "status code 403"; then
+        echo 'snap find " " returns non user friendly error with whitespace query'
+        exit 1
+    fi
