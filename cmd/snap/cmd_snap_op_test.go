@@ -439,7 +439,7 @@ func (s *SnapOpSuite) TestRevertRunthrough(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	// tracking channel is "" in the test server
 	c.Check(s.Stdout(), check.Equals, `foo reverted to 1.0
-This leaves foo tracking .
+Snap foo is no longer tracking .
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
