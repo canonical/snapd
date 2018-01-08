@@ -491,3 +491,17 @@ func ensureMountPoint(path string, mode os.FileMode, uid sys.UserID, gid sys.Gro
 	}
 	return nil
 }
+
+func ensureMountPointUsingMimic(path string, mode os.FileMode, uid sys.UserID, gid sys.GroupID) ([]*Change, error) {
+	var synth []*Change
+	err := ensureMountPoint(path, mode, uid, gid)
+	if err != nil {
+		if err2, ok := err.(*ReadOnlyFsError); ok {
+			synth, err = createWritableMimic(err2.Path)
+		}
+		if err == nil {
+			err = ensureMountPoint(path, mode, uid, gid)
+		}
+	}
+	return synth, err
+}
