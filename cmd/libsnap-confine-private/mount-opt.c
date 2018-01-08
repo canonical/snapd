@@ -251,6 +251,9 @@ const char *sc_umount_cmd(char *buf, size_t buf_size, const char *target,
 	return buf;
 }
 
+static const char *use_debug_build =
+    "(disabled) use debug build to see details";
+
 void sc_do_mount(const char *source, const char *target,
 		 const char *fs_type, unsigned long mountflags,
 		 const void *data)
@@ -262,10 +265,9 @@ void sc_do_mount(const char *source, const char *target,
 #ifdef SNAP_CONFINE_DEBUG_BUILD
 		mount_cmd = sc_mount_cmd(buf, sizeof(buf), source,
 					 target, fs_type, mountflags, data);
-#else
-		mount_cmd = "(disabled) use debug build to see details";
 #endif
-		debug("performing operation: %s", mount_cmd);
+		debug("performing operation: %s",
+		      mount_cmd ? mount_cmd : use_debug_build);
 	}
 	if (sc_faulty("mount", NULL)
 	    || mount(source, target, fs_type, mountflags, data) < 0) {
@@ -296,10 +298,9 @@ void sc_do_umount(const char *target, int flags)
 	if (sc_is_debug_enabled()) {
 #ifdef SNAP_CONFINE_DEBUG_BUILD
 		umount_cmd = sc_umount_cmd(buf, sizeof(buf), target, flags);
-#else
-		umount_cmd = "(disabled) use debug build to see details";
 #endif
-		debug("performing operation: %s", umount_cmd);
+		debug("performing operation: %s",
+		      umount_cmd ? umount_cmd : use_debug_build);
 	}
 	if (sc_faulty("umount", NULL) || umount2(target, flags) < 0) {
 		// Save errno as ensure can clobber it.
