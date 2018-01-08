@@ -1,3 +1,9 @@
+snapd (2.30-2) UNRELEASED; urgency=medium
+
+  * Fix arch-all-only build. (Closes: 886431)
+
+ -- Michael Hudson-Doyle <mwhudson@debian.org>  Tue, 09 Jan 2018 09:28:51 +1300
+
 snapd (2.30-1) unstable; urgency=medium
 
   * New upstream release.
