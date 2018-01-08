@@ -67,8 +67,9 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 			gid  = 0
 		)
 		var err error
-		// Create target mount directory if needed.
-		err = ensureMountPoint(c.Entry.Dir, mode, uid, gid)
+		// Create target mount directory if needed. Use the help of the
+		// writable mimic to create writable spaces over read-only spaces.
+		changes, err = ensureMountPointUsingMimic(c.Entry.Dir, mode, uid, gid)
 		if err != nil {
 			return nil, err
 		}
