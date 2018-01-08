@@ -103,9 +103,15 @@ func (c *Change) Perform() ([]*Change, error) {
 func (c *Change) lowLevelPerform() error {
 	switch c.Action {
 	case Mount:
-		flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
-		err := sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
-		logger.Debugf("mount %q %q %q %d %q -> %s", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
+		if kind, _ := e.OptStr(c.Entry, "x-snapd.kind"); kind == "symlink" {
+			target, _ := e.OptStr(c.Entry, "x-snapd.target")
+			err := osSymlink(target, c.Entry.Dir)
+			logger.Debugf("symlink %s -> %s", c.Entry.Dir, target)
+		} else {
+			flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
+			err := sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+			logger.Debugf("mount %q %q %q %d %q -> %s", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
+		}
 		return err
 	case Unmount:
 		err := sysUnmount(c.Entry.Dir, umountNoFollow)
