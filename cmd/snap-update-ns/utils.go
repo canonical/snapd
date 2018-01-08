@@ -41,6 +41,7 @@ const (
 var (
 	osLstat    = os.Lstat
 	osReadlink = os.Readlink
+	osSymlink  = os.Symlink
 
 	sysClose   = syscall.Close
 	sysMkdirat = syscall.Mkdirat
