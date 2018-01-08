@@ -96,7 +96,7 @@ func (s *Unity7InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other-snap.app2"})
-	c.Check(seccompSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, "shutdown\n")
+	c.Check(seccompSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, "bind\n")
 }
 
 func (s *Unity7InterfaceSuite) TestInterfaces(c *C) {
