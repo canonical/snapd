@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"os"
 	"os/user"
@@ -167,10 +168,11 @@ var (
 	}
 
 	interfacesCmd = &Command{
-		Path:   "/v2/interfaces",
-		UserOK: true,
-		GET:    interfacesConnectionsMultiplexer,
-		POST:   changeInterfaces,
+		Path:     "/v2/interfaces",
+		UserOK:   true,
+		PolkitOK: "io.snapcraft.snapd.manage-interfaces",
+		GET:      interfacesConnectionsMultiplexer,
+		POST:     changeInterfaces,
 	}
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
@@ -608,6 +610,13 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		Private: private,
 		Prefix:  prefix,
 	}, user)
+	if e, ok := err.(net.Error); ok && e.Timeout() {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Result: &errorResult{Message: err.Error(), Kind: errorKindNetworkTimeout},
+			Status: 400,
+		}, nil)
+	}
 	switch err {
 	case nil:
 		// pass
