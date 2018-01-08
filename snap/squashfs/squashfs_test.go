@@ -62,6 +62,10 @@ func makeSnap(c *C, manifest, data string) *Snap {
 	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "dir", "baz"), nil, 0755)
 	c.Assert(err, IsNil)
 
+	// some empty directories
+	err = os.MkdirAll(filepath.Join(tmp, "food", "bard", "bazd"), 0755)
+	c.Assert(err, IsNil)
+
 	// some data
 	err = ioutil.WriteFile(filepath.Join(tmp, "data.bin"), []byte(data), 0644)
 	c.Assert(err, IsNil)
@@ -159,6 +163,9 @@ func (s *SquashfsTestSuite) TestWalk(c *C) {
 		if err != nil {
 			return err
 		}
+		if path == "food" {
+			return filepath.SkipDir
+		}
 		sqw[path] = info
 		return nil
 	})
@@ -170,6 +177,9 @@ func (s *SquashfsTestSuite) TestWalk(c *C) {
 	snapdir.New(base).Walk(sub, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
+		}
+		if path == "food" {
+			return filepath.SkipDir
 		}
 		sdw[path] = info
 		return nil
@@ -183,6 +193,9 @@ func (s *SquashfsTestSuite) TestWalk(c *C) {
 		path, err = filepath.Rel(base, path)
 		if err != nil {
 			return err
+		}
+		if path == "food" {
+			return filepath.SkipDir
 		}
 		fpw[path] = info
 		return nil
