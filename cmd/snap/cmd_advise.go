@@ -87,7 +87,7 @@ func adviseCommand(cmd string, format string) error {
 	// find exact matches
 	matches, err := advisor.FindCommand(cmd)
 	if err != nil {
-		return err
+		return fmt.Errorf("advise-command error: %s", err)
 	}
 	if len(matches) > 0 {
 		switch format {
@@ -116,5 +116,5 @@ func adviseCommand(cmd string, format string) error {
 		}
 	}
 
-	return nil
+	return fmt.Errorf("%s command not found", cmd)
 }
