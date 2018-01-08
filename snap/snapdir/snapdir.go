@@ -61,6 +61,29 @@ func (s *SnapDir) ReadFile(file string) (content []byte, err error) {
 	return ioutil.ReadFile(filepath.Join(s.path, file))
 }
 
+func littleWalk(dirPath string, dirHandle *os.File, dirstack *[]string, walkFn filepath.WalkFunc) error {
+	const numSt = 100
+
+	sts, err := dirHandle.Readdir(numSt)
+	if err != nil {
+		return err
+	}
+	for _, st := range sts {
+		path := filepath.Join(dirPath, st.Name())
+		if err := walkFn(path, st, nil); err != nil {
+			if st.IsDir() && err == filepath.SkipDir {
+				// caller wants to skip this directory
+				continue
+			}
+			return err
+		} else if st.IsDir() {
+			*dirstack = append(*dirstack, path)
+		}
+	}
+
+	return nil
+}
+
 // Walk (part of snap.Container) is like filepath.Walk, without the ordering guarantee.
 func (s *SnapDir) Walk(relative string, walkFn filepath.WalkFunc) error {
 	relative = filepath.Clean(relative)
@@ -100,11 +123,9 @@ func (s *SnapDir) Walk(relative string, walkFn filepath.WalkFunc) error {
 		return nil
 	}
 
-	const numSt = 100
 	var dirstack []string
 	for {
-		sts, err := f.Readdir(numSt)
-		if err != nil {
+		if err := littleWalk(relative, f, &dirstack, walkFn); err != nil {
 			if err != io.EOF {
 				err = walkFn(relative, nil, err)
 				if err != nil {
@@ -132,19 +153,6 @@ func (s *SnapDir) Walk(relative string, walkFn filepath.WalkFunc) error {
 				break
 			}
 			continue
-		}
-
-		for _, st := range sts {
-			path := filepath.Join(relative, st.Name())
-			if err := walkFn(path, st, nil); err != nil {
-				if st.IsDir() && err == filepath.SkipDir {
-					// caller wants to skip this directory
-					continue
-				}
-				return err
-			} else if st.IsDir() {
-				dirstack = append(dirstack, path)
-			}
 		}
 	}
 
