@@ -456,6 +456,18 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 	return undoChanges, nil
 }
 
+func createWritableMimic(dir string) ([]*Change, error) {
+	plan, err := planWritableMimic(dir)
+	if err != nil {
+		return nil, err
+	}
+	changes, err := execWritableMimic(plan)
+	if err != nil {
+		return nil, err
+	}
+	return changes, nil
+}
+
 func ensureMountPoint(path string, mode os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	// If the mount point is not present then create a directory in its
 	// place.  This is very naive, doesn't handle read-only file systems
