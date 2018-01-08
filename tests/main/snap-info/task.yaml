@@ -41,3 +41,6 @@ execute: |
     MATCH 'warning: no snap found for "no-such-snap"' < out.stdout
     # no error output generated
     ! test -s out.stderr
+
+    echo "Ensure we show versions as strings (LP: 1669291)"
+    snap info test-snapd-number-version | MATCH "edge:[ ]+2.10"
