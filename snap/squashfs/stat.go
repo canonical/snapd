@@ -49,7 +49,7 @@ func (s stat) IsDir() bool        { return s.mode.IsDir() }
 func (s stat) Sys() interface{}   { return nil }
 func (s stat) Path() string       { return s.path } // not path of os.FileInfo
 
-const minLen = 57 // "drwxrwxr-x user/user             53595 2017-12-08 11:19 ."
+const minLen = len("drwxrwxr-x u/g             53595 2017-12-08 11:19 .")
 
 func fromRaw(raw []byte) (*stat, error) {
 	if len(raw) < minLen {
@@ -58,44 +58,29 @@ func fromRaw(raw []byte) (*stat, error) {
 
 	st := &stat{}
 
-	// first, the file mode, e.g. "-rwxr-xr-x"; always that length (1+3*3==10)
-	if err := st.parseMode(raw[:10]); err != nil {
-		return nil, err
+	parsers := []func([]byte) (int, error){
+		// first, the file mode, e.g. "-rwxr-xr-x"
+		st.parseMode,
+		// next, user/group info
+		st.parseOwner,
+		// next'll come the size or the node type
+		st.parseSize,
+		// and then the time
+		st.parseTime,
+		// and finally the path
+		st.parsePath,
 	}
-
-	// next, user/group info
-	p := 10
-	if n, err := st.parseOwner(raw[p:]); err != nil {
-		return nil, err
-	} else {
+	p := 0
+	for _, parser := range parsers {
+		n, err := parser(raw[p:])
+		if err != nil {
+			return nil, err
+		}
 		p += n
-	}
-
-	// next'll come the size or the node type
-	if n, err := st.parseSize(raw[p:]); err != nil {
-		return nil, err
-	} else {
-		p += n
-	}
-
-	if err := st.parseTime(raw[p : p+16]); err != nil {
-		return nil, err
-	}
-
-	p += 16
-
-	if raw[p] != ' ' {
-		return nil, errBadLine(raw)
-	}
-	p++
-	if raw[p] != '.' {
-		return nil, errBadLine(raw)
-	}
-	p++
-	if len(raw[p:]) == 0 {
-		st.path = "/"
-	} else {
-		st.path = string(raw[p:])
+		if p < len(raw) && raw[p] != ' ' {
+			return nil, errBadLine(raw)
+		}
+		p++
 	}
 
 	return st, nil
@@ -145,18 +130,33 @@ func errBadSize(raw []byte) statError {
 	}
 }
 
-func (st *stat) parseTime(raw []byte) error {
-	t, err := time.ParseInLocation("2006-01-02 15:04", string(raw), time.Local)
+func errBadTime(raw []byte) statError {
+	return statError{
+		part: "time",
+		raw:  raw,
+	}
+}
+
+func errBadPath(raw []byte) statError {
+	return statError{
+		part: "path",
+		raw:  raw,
+	}
+}
+
+func (st *stat) parseTime(raw []byte) (int, error) {
+	const timelen = 16
+	t, err := time.ParseInLocation("2006-01-02 15:04", string(raw[:timelen]), time.Local)
 	if err != nil {
-		return err
+		return 0, errBadTime(raw)
 	}
 
 	st.mtime = t
 
-	return nil
+	return timelen, nil
 }
 
-func (st *stat) parseMode(raw []byte) error {
+func (st *stat) parseMode(raw []byte) (int, error) {
 	switch raw[0] {
 	case '-':
 		// 0
@@ -173,31 +173,39 @@ func (st *stat) parseMode(raw []byte) error {
 	case 'l':
 		st.mode |= os.ModeSymlink
 	default:
-		return errBadMode(raw)
+		return 0, errBadMode(raw)
 	}
 
 	for i := 0; i < 3; i++ {
-		m, me := modeFromTriplet(raw[1+3*i:4+3*i], uint(2-i))
-		if me != nil {
-			return me
+		m, err := modeFromTriplet(raw[1+3*i:4+3*i], uint(2-i))
+		if err != nil {
+			return 0, err
 		}
 		st.mode |= m
 	}
 
-	return nil
+	// always this length (1+3*3==10)
+	return 10, nil
 }
 
 func (st *stat) parseOwner(raw []byte) (int, error) {
 	var p, ui, uj, gi, gj int
 
-	// first check it's sane (starts with space, and then at least two non-space chars
-	if raw[0] != ' ' || raw[1] == ' ' || raw[2] == ' ' {
+	// first check it's sane (at least two non-space chars)
+	if raw[0] == ' ' || raw[1] == ' ' {
 		return 0, errBadLine(raw)
 	}
 
-	ui = 1
+	ui = 0
+	// from useradd(8): Usernames may only be up to 32 characters long.
+	// from groupadd(8): Groupnames may only be up to 32 characters long.
+	// +1 for the separator, +1 for the ending space
+	maxL := 66
+	if len(raw) < maxL {
+		maxL = len(raw)
+	}
 out:
-	for p = ui; p < 40; p++ {
+	for p = ui; p < maxL; p++ {
 		switch raw[p] {
 		case '/':
 			uj = p
@@ -208,7 +216,7 @@ out:
 		}
 	}
 
-	if uj == gj || gi >= p {
+	if uj == 0 || gj == 0 || gi == gj {
 		return 0, errBadOwner(raw)
 	}
 	st.user, st.group = string(raw[ui:uj]), string(raw[gi:gj])
@@ -260,6 +268,14 @@ func modeFromTriplet(trip []byte, shift uint) (os.FileMode, error) {
 }
 
 func (st *stat) parseSize(raw []byte) (int, error) {
+	// the "size" column, for regular files, is the file size in bytes:
+	//   -rwxr-xr-x user/group            53595 2017-12-08 11:19 ./yadda
+	//                                    ^^^^^ like this
+	// for devices, though, it's the major, minor of the node:
+	//   crw-rw---- root/audio           14,  3 2017-12-05 10:29 ./dev/dsp
+	//                                   ^^^^^^ like so
+	// (for other things it is a size, although what the size is
+	// _of_ is left as an exercise for the reader)
 	isNode := st.mode&(os.ModeDevice|os.ModeCharDevice) != 0
 	p := 0
 	maxP := len(raw) - len("2006-01-02 15:04 .")
@@ -274,7 +290,7 @@ func (st *stat) parseSize(raw []byte) (int, error) {
 	ni := p
 
 	for raw[p] >= '0' && raw[p] <= '9' {
-		if p >= minLen {
+		if p >= maxP {
 			return 0, errBadLine(raw)
 		}
 		p++
@@ -306,7 +322,6 @@ func (st *stat) parseSize(raw []byte) (int, error) {
 		if raw[p] != ' ' {
 			return 0, errBadNode(raw)
 		}
-		p++
 	} else {
 		if raw[p] != ' ' {
 			return 0, errBadSize(raw)
@@ -320,11 +335,23 @@ func (st *stat) parseSize(raw []byte) (int, error) {
 		// files) is a long long.
 		sz, err := strconv.ParseInt(string(raw[ni:p]), 10, 64)
 		if err != nil {
-			return 0, err
+			return 0, errBadSize(raw)
 		}
 		st.size = sz
-		p++
 	}
 
 	return p, nil
+}
+
+func (st *stat) parsePath(raw []byte) (int, error) {
+	if raw[0] != '.' {
+		return 0, errBadPath(raw)
+	}
+	if len(raw[1:]) == 0 {
+		st.path = "/"
+	} else {
+		st.path = string(raw[1:])
+	}
+
+	return len(raw), nil
 }
