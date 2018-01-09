@@ -95,7 +95,6 @@ accept
 accept4
 bind
 listen
-shutdown
 `
 
 type onlineAccountsServiceInterface struct{}

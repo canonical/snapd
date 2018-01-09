@@ -208,8 +208,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 		return nil
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
-	case 2:
-	case 3:
+	case 2, 3:
 		quoted := strutil.Quoted(updated)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
 		msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)

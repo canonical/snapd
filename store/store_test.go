@@ -43,6 +43,7 @@ import (
 	"gopkg.in/macaroon.v1"
 	"gopkg.in/retry.v1"
 
+	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
@@ -2676,10 +2677,14 @@ const mockNamesJSON = `
             "target": "baz"
           }
         ],
+        "apps": ["baz"],
+        "title": "a title",
+        "summary": "oneary plus twoary",
         "package_name": "bar"
       },
       {
-        "aliases": null,
+        "aliases": [{"name": "meh", "target": "foo"}],
+        "apps": ["foo"],
         "package_name": "foo"
       }
     ]
@@ -2695,6 +2700,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreSnapCommandsOnCore(c *C) {
 }
 
 func (t *remoteRepoTestSuite) testUbuntuStoreSnapCommands(c *C, onClassic bool) {
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
 	defer release.MockOnClassic(onClassic)()
 
 	n := 0
@@ -2726,10 +2732,24 @@ func (t *remoteRepoTestSuite) testUbuntuStoreSnapCommands(c *C, onClassic bool) 
 	repo := New(&Config{StoreBaseURL: serverURL}, nil)
 	c.Assert(repo, NotNil)
 
+	db, err := advisor.Create()
+	c.Assert(err, IsNil)
+	defer db.Rollback()
+
 	var bufNames bytes.Buffer
-	err := repo.WriteCatalogs(&bufNames)
-	c.Check(err, IsNil)
+	err = repo.WriteCatalogs(&bufNames, db)
+	c.Assert(err, IsNil)
+	db.Commit()
 	c.Check(bufNames.String(), Equals, "bar\nfoo\n")
+
+	dump, err := advisor.Dump()
+	c.Assert(err, IsNil)
+	c.Check(dump, DeepEquals, map[string][]string{
+		"foo":     {"foo"},
+		"bar.baz": {"bar"},
+		"potato":  {"bar"},
+		"meh":     {"bar", "foo"},
+	})
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
