@@ -119,10 +119,10 @@ distro_install_local_package() {
             apt install $flags "$@"
             ;;
         fedora-*)
-            dnf -q -y install "$@"
+            quiet dnf -y install "$@"
             ;;
         opensuse-*)
-            zypper -q install -y "$@"
+            quiet zypper install -y "$@"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -222,11 +222,11 @@ distro_purge_package() {
             quiet apt-get remove -y --purge -y "$@"
             ;;
         fedora-*)
-            dnf -y -q remove "$@"
-            dnf -q clean all
+            quiet dnf -y remove "$@"
+            quiet dnf clean all
             ;;
         opensuse-*)
-            zypper -q remove -y "$@"
+            quiet zypper remove -y "$@"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -241,11 +241,11 @@ distro_update_package_db() {
             quiet apt-get update
             ;;
         fedora-*)
-            dnf -q clean all
-            dnf -q makecache
+            quiet dnf clean all
+            quiet dnf makecache
             ;;
         opensuse-*)
-            zypper -q refresh
+            quiet zypper refresh
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -275,7 +275,7 @@ distro_auto_remove_packages() {
             quiet apt-get -y autoremove
             ;;
         fedora-*)
-            dnf -q -y autoremove
+            quiet dnf -y autoremove
             ;;
         opensuse-*)
             ;;
