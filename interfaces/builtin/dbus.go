@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -135,6 +136,13 @@ const dbusPermanentSlotDBus = `
 <policy context="default">
     <allow send_destination="###DBUS_NAME###"/>
 </policy>
+`
+
+const dbusPermanentSlotSecComp = `
+# Description: Allow owning a name and listening on DBus public bus
+listen
+accept
+accept4
 `
 
 const dbusConnectedSlotAppArmor = `
@@ -371,6 +379,11 @@ func (iface *dbusInterface) AppArmorPermanentSlot(spec *apparmor.Specification, 
 		// classic-only policy
 		spec.AddSnippet(getAppArmorSnippet(dbusPermanentSlotAppArmorClassic, bus, name))
 	}
+	return nil
+}
+
+func (iface *dbusInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
+	spec.AddSnippet(dbusPermanentSlotSecComp)
 	return nil
 }
 
