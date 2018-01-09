@@ -255,10 +255,10 @@ endif  # APPARMOR
 # an extra build that has additional debugging enabled at compile time
 
 noinst_PROGRAMS += snap-confine/snap-confine-debug
-snap_confine_snap_confine_debug_SOURCES = $(snap_confine_snap_confine_SOURCES) $(libsnap_confine_private_a_SOURCES)
-snap_confine_snap_confine_debug_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(libsnap_confine_private_a_CFLAGS)
+snap_confine_snap_confine_debug_SOURCES = $(snap_confine_snap_confine_SOURCES)
+snap_confine_snap_confine_debug_CFLAGS = $(snap_confine_snap_confine_CFLAGS)
 snap_confine_snap_confine_debug_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
-snap_confine_snap_confine_debug_LDADD = $(filter-out libsnap-confine-private.d,$(snap_confine_snap_confine_LDADD))
+snap_confine_snap_confine_debug_LDADD = libsnap-confine-private-debug.a $(filter-out libsnap-confine-private.a,$(snap_confine_snap_confine_LDADD))
 snap_confine_snap_confine_debug_CFLAGS += -DSNAP_CONFINE_DEBUG_BUILD=1
 snap_confine_snap_confine_debug_STATIC = $(snap_confine_snap_confine_STATIC)
 
