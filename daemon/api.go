@@ -2212,10 +2212,17 @@ func setupLocalUser(st *state.State, username, email string) error {
 	if err != nil {
 		return fmt.Errorf("cannot persist authentication details: %v", err)
 	}
-	// store macaroon auth in auth.json in the new users home dir
+	// store macaroon auth, user's ID, email and username in auth.json in
+	// the new users home dir
 	outStr, err := json.Marshal(struct {
+		ID       int    `json:"id"`
+		Username string `json:"username"`
+		Email    string `json:"email"`
 		Macaroon string `json:"macaroon"`
 	}{
+		ID:       authUser.ID,
+		Username: authUser.Username,
+		Email:    authUser.Email,
 		Macaroon: authUser.Macaroon,
 	})
 	if err != nil {

@@ -4711,30 +4711,33 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	expectedEmail := "popper@lse.ac.uk"
+	expectedUsername := "karl"
+
 	storeUserInfo = func(user string) (*store.User, error) {
-		c.Check(user, check.Equals, "popper@lse.ac.uk")
+		c.Check(user, check.Equals, expectedEmail)
 		return &store.User{
-			Username:         "karl",
+			Username:         expectedUsername,
 			SSHKeys:          []string{"ssh1", "ssh2"},
 			OpenIDIdentifier: "xxyyzz",
 		}, nil
 	}
 	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
-		c.Check(username, check.Equals, "karl")
+		c.Check(username, check.Equals, expectedUsername)
 		c.Check(opts.SSHKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
 		c.Check(opts.Gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
 		c.Check(opts.Sudoer, check.Equals, false)
 		return nil
 	}
 
-	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"email": "%s"}`, expectedEmail))
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	expected := &userResponseData{
-		Username: "karl",
+		Username: expectedUsername,
 		SSHKeys:  []string{"ssh1", "ssh2"},
 	}
 
@@ -4748,15 +4751,17 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 	user, err := auth.User(state, 1)
 	state.Unlock()
 	c.Check(err, check.IsNil)
-	c.Check(user.Username, check.Equals, "karl")
-	c.Check(user.Email, check.Equals, "popper@lse.ac.uk")
+	c.Check(user.Username, check.Equals, expectedUsername)
+	c.Check(user.Email, check.Equals, expectedEmail)
 	c.Check(user.Macaroon, check.NotNil)
 	// auth saved to user home dir
 	outfile := filepath.Join(s.mockUserHome, ".snap", "auth.json")
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
 	content, err := ioutil.ReadFile(outfile)
 	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals, fmt.Sprintf(`{"macaroon":"%s"}`, user.Macaroon))
+	c.Check(string(content), check.Equals,
+		fmt.Sprintf(`{"id":%d,"username":"%s","email":"%s","macaroon":"%s"}`,
+			1, expectedUsername, expectedEmail, user.Macaroon))
 }
 
 func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
