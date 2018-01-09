@@ -179,7 +179,6 @@ accept
 accept4
 bind
 listen
-shutdown
 # libgudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `

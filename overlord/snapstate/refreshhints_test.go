@@ -56,14 +56,28 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 
 	s.store = &recordingStore{}
 	s.state.Lock()
+	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.store)
-	s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
+		},
+		Current:  snap.R(5),
+		SnapType: "app",
+		UserID:   1,
+	})
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
 }
 
 func (s *refreshHintsTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
+	snapstate.AutoAliases = nil
 }
 
 func (s *refreshHintsTestSuite) TestLastRefresh(c *C) {
