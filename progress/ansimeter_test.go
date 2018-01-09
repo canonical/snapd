@@ -151,27 +151,42 @@ func (ansiSuite) TestSetEscapes(c *check.C) {
 	}
 }
 
-func (ansiSuite) TestSpinEscapes(c *check.C) {
+func (ansiSuite) TestSpin(c *check.C) {
+	termWidth := 9
 	var buf bytes.Buffer
 	defer progress.MockStdout(&buf)()
 	defer progress.MockSimpleEscapes()()
-	defer progress.MockTermWidth(func() int { return 100 })()
+	defer progress.MockTermWidth(func() int { return termWidth })()
 
 	p := &progress.ANSIMeter{}
-	msg := strings.Repeat("0123456789", 10)
-	c.Assert(len(msg), check.Equals, 100)
+	msg := "0123456789"
+	c.Assert(len(msg), check.Equals, 10)
 	p.Start(msg, 10)
-	for i := 1; i <= 66; i++ {
+
+	// term too narrow to fit msg
+	for i, s := range progress.Spinner {
 		buf.Reset()
 		p.Spin(msg)
-		expected := "\r" + msg[:i] + "<MR>" + msg[i:i+34] + "<ME>" + msg[i+34:]
-		c.Check(buf.String(), check.Equals, expected, check.Commentf("%d", i))
+		expected := "\r" + msg[:8] + "…"
+		c.Check(buf.String(), check.Equals, expected, check.Commentf("%d (%s)", i, s))
 	}
-	for i := 0; i <= 66; i++ {
+
+	// term fits msg but not spinner
+	termWidth = 11
+	for i, s := range progress.Spinner {
 		buf.Reset()
 		p.Spin(msg)
-		expected := "\r" + msg[:66-i] + "<MR>" + msg[66-i:100-i] + "<ME>" + msg[100-i:]
-		c.Check(buf.String(), check.Equals, expected, check.Commentf("%d", -i))
+		expected := "\r" + msg + " "
+		c.Check(buf.String(), check.Equals, expected, check.Commentf("%d (%s)", i, s))
+	}
+
+	// term fits msg and spinner
+	termWidth = 12
+	for i, s := range progress.Spinner {
+		buf.Reset()
+		p.Spin(msg)
+		expected := "\r" + s + " " + msg
+		c.Check(buf.String(), check.Equals, expected, check.Commentf("%d (%s)", i, s))
 	}
 }
 
@@ -217,20 +232,6 @@ func (ansiSuite) TestNotify(c *check.C) {
 		"\r<ME><CE>hello there\n"+ // first line of the Notify (no wrap!)
 		"\r<MR><ME>working    ages!") // the Set(1)
 
-}
-
-func (ansiSuite) TestSpin(c *check.C) {
-	var buf bytes.Buffer
-	defer progress.MockStdout(&buf)()
-	defer progress.MockEmptyEscapes()()
-	defer progress.MockTermWidth(func() int { return 10 })()
-
-	t := &progress.ANSIMeter{}
-	for i := 0; i < 6; i++ {
-		t.Spin("msg")
-	}
-
-	c.Assert(buf.String(), check.Equals, strings.Repeat(fmt.Sprintf("\r%-10s", "msg"), 6))
 }
 
 func (ansiSuite) TestWrite(c *check.C) {
