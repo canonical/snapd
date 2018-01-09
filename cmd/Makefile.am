@@ -102,6 +102,10 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/utils.h
 libsnap_confine_private_a_CFLAGS = $(CHECK_CFLAGS)
 
+noinst_LIBRARIES += libsnap-confine-private-debug.a
+libsnap_confine_private_debug_a_SOURCES = $(libsnap_confine_private_a_SOURCES)
+libsnap_confine_private_debug_a_CFLAGS = $(CHECK_CFLAGS) -DSNAP_CONFINE_DEBUG_BUILD=1
+
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += libsnap-confine-private/unit-tests
 libsnap_confine_private_unit_tests_SOURCES = \
