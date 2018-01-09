@@ -54,7 +54,7 @@ func (s *SnapSuite) TestAdviseCommandHappyText(c *C) {
 	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
 	defer restore()
 
-	rest, err := snap.Parser().ParseArgs([]string{"advise-command", "hello"})
+	rest, err := snap.Parser().ParseArgs([]string{"advise-snap", "--command", "hello"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, `The program "hello" can be found in the following snaps:
@@ -69,7 +69,7 @@ func (s *SnapSuite) TestAdviseCommandHappyJSON(c *C) {
 	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
 	defer restore()
 
-	rest, err := snap.Parser().ParseArgs([]string{"advise-command", "--format=json", "hello"})
+	rest, err := snap.Parser().ParseArgs([]string{"advise-snap", "--command", "--format=json", "hello"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, `[{"Snap":"hello","Command":"hello"},{"Snap":"hello-wcm","Command":"hello"}]`+"\n")
