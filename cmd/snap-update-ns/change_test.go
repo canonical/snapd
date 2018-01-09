@@ -373,7 +373,7 @@ func (s *changeSuite) TestPerformMountRejectsTargetSymlink(c *C) {
 	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoSymlink)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
 	synth, err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot use "/target" for mounting, not a directory`)
+	c.Assert(err, ErrorMatches, `cannot use "/target" as mount destination, not a directory`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -385,7 +385,7 @@ func (s *changeSuite) TestPerformBindMountRejectsTargetSymlink(c *C) {
 	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoSymlink)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind"}}}
 	synth, err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot use "/target" for mounting, not a directory`)
+	c.Assert(err, ErrorMatches, `cannot use "/target" as mount destination, not a directory`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -398,7 +398,7 @@ func (s *changeSuite) TestPerformBindMountRejectsSourceSymlink(c *C) {
 	s.sys.InsertLstatResult(`lstat "/source"`, update.FileInfoSymlink)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind"}}}
 	synth, err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot use "/source" for mounting, not a directory`)
+	c.Assert(err, ErrorMatches, `cannot use "/source" as bind-mount source, not a directory`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -422,7 +422,7 @@ func (s *changeSuite) TestPerformMountMkdirAllError(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "target" 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
 	synth, err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot mkdir path segment "target": testing`)
+	c.Assert(err, ErrorMatches, `cannot create file/directory "/target": cannot mkdir path segment "target": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -448,23 +448,23 @@ func (s *changeSuite) TestPerformMountError(c *C) {
 
 // Change.Perform passes unrecognized options to mount.
 func (s *changeSuite) TestPerformMountOptions(c *C) {
-	s.sys.InsertLstatResult(`lstat "target"`, update.FileInfoDir)
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type", Options: []string{"funky"}}}
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"funky"}}}
 	synth, err := chg.Perform()
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`lstat "target"`,
-		`mount "source" "target" "type" 0 "funky"`,
+		`lstat "/target"`,
+		`mount "/source" "/target" "type" 0 "funky"`,
 	})
 }
 
 // Change.Perform calls the unmount system call.
 func (s *changeSuite) TestPerformUnmount(c *C) {
-	chg := &update.Change{Action: update.Unmount, Entry: mount.Entry{Name: "source", Dir: "target", Type: "type"}}
+	chg := &update.Change{Action: update.Unmount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
 	synth, err := chg.Perform()
 	c.Assert(err, IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" UMOUNT_NOFOLLOW`})
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "/target" UMOUNT_NOFOLLOW`})
 	c.Assert(synth, HasLen, 0)
 }
 
@@ -485,4 +485,23 @@ func (s *changeSuite) TestPerformUnknownAction(c *C) {
 	c.Assert(err, ErrorMatches, `cannot process mount change, unknown action: .*`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), HasLen, 0)
+}
+
+func (s *changeSuite) TestPerformSymlinkMount(c *C) {
+	s.sys.InsertFault(`lstat "/name"`, os.ErrNotExist)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{
+		Name: "unused", Dir: "/name",
+		Options: []string{"x-snapd.kind=symlink", "x-snapd.target=/target"}}}
+	synth, err := chg.Perform()
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		// check what may be at /name
+		`lstat "/name"`,
+		// create base directory
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`close 3`,
+		// create the symlink
+		`symlink "/name" -> "/target"`,
+	})
 }

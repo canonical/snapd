@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -61,24 +62,135 @@ var changePerform func(*Change) ([]*Change, error)
 func changePerformImpl(c *Change) ([]*Change, error) {
 	var changes []*Change
 	if c.Action == Mount {
+		// We may be asked to bind mount a file, bind mount a directory, mount
+		// a filesystem over a directory or create a symlink (which is abusing
+		// the "mount" concept slightly). That actual operation is performed in
+		// c.lowLevelPerform. Here we just set the stage to make that possible.
+		kind, _ := c.Entry.OptStr("x-snapd.kind")
+		path := c.Entry.Dir
+
+		// Only support absolute paths to avoid bugs in snap-confine when
+		// called from anywhere.
+		if !filepath.IsAbs(path) {
+			return nil, fmt.Errorf("cannot create file/directory with relative path: %q", path)
+		}
+
+		// We use lstat to ensure that we don't follow a symlink in case one
+		// was set up by the snap. Note that at the time this is run, all the
+		// snap's processes are frozen.
+		fi, err := osLstat(path)
+
+		// In case we need to create something, some constants.
 		const (
 			mode = 0755
 			uid  = 0
 			gid  = 0
 		)
-		var err error
-		// Create target mount directory if needed. Use the help of the
-		// writable mimic to create writable spaces over read-only spaces.
-		changes, err = ensureMountPointUsingMimic(c.Entry.Dir, mode, uid, gid)
-		if err != nil {
-			return nil, err
+
+		if err != nil && os.IsNotExist(err) {
+			// If the element doesn't exist we can attempt to create it.
+			// We will create the parent directory and then the final element
+			// relative to it. The traversed space may be writable so we try a
+			// to create the parent directory first.
+			switch kind {
+			case "":
+				err = secureMkdirAll(path, mode, uid, gid)
+			case "file":
+				err = secureMkfileAll(path, mode, uid, gid)
+			case "symlink":
+				// Symlinks are created later in c.lowLevelPerform but we can
+				// create the parent directory here.
+				err = secureMkdirAll(filepath.Dir(path), mode, uid, gid)
+			}
+
+			if err2, ok := err.(*ReadOnlyFsError); err2 != nil && ok {
+				// If the secure variant of mkdir/touch failed it may have done
+				// so because the underlying filesystem is read-only. We have a
+				// remedy for that known as a writable mimic.
+				changes, err = createWritableMimic(err2.Path)
+				if err != nil {
+					return nil, fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
+				}
+				// We can now try again.
+				switch kind {
+				case "":
+					err = secureMkdirAll(path, mode, uid, gid)
+				case "file":
+					err = secureMkfileAll(path, mode, uid, gid)
+				case "symlink":
+					err = secureMkdirAll(filepath.Dir(path), mode, uid, gid)
+				}
+			}
+			// Check if we eventually succeeded.
+			if err != nil {
+				return changes, fmt.Errorf("cannot create file/directory %q: %s", path, err)
+			}
+		} else if err != nil {
+			// If we cannot inspect the element let's just bail out.
+			return nil, fmt.Errorf("cannot inspect %q: %v", path, err)
+		} else {
+			// If the element already existed we just need to ensure it is of
+			// the correct type. The desired type depends on the kind of entry
+			// we are working with.
+			switch kind {
+			case "":
+				if !fi.Mode().IsDir() {
+					return nil, fmt.Errorf("cannot use %q as mount destination, not a directory", path)
+				}
+			case "file":
+				if !fi.Mode().IsRegular() {
+					return nil, fmt.Errorf("cannot use %q as mount destination, not a regular file", path)
+				}
+			case "symlink":
+				// When we want to create a symlink we just need the empty
+				// space so anything that is in the way is a problem.
+				return nil, fmt.Errorf("cannot create symlink in %q, existing file in the way", path)
+			}
 		}
-		// If this is a bind mount then create the source directory as well.
-		// This allows snaps to share a subset of their data easily.
+
+		// At this time we can be sure that the element (for files and
+		// directories) exists and is of the right type or that it (for
+		// symlinks) doesn't exist but the parent directory does.
+
 		flags, _ := mount.OptsToCommonFlags(c.Entry.Options)
 		if flags&syscall.MS_BIND != 0 {
-			if err := ensureMountPoint(c.Entry.Name, mode, uid, gid); err != nil {
-				return nil, err
+			// This is a simplified variant of the code above. Simplified in
+			// that we don't attempt to poke writable holes as those would only
+			// be visible from the originating mount namespace so really
+			// useless in connecting two snaps together. It is also simplified
+			// in that it only handles bind mounts of directories as everything
+			// else makes no sense. Symlinks cannot be bind mounts and files
+			// would be useless as the other snap would have no way of working
+			// with one
+
+			path = c.Entry.Name
+			if !filepath.IsAbs(path) {
+				return nil, fmt.Errorf("cannot create file/directory with relative path: %q", path)
+			}
+			fi, err := osLstat(path)
+			if err != nil && os.IsNotExist(err) {
+				switch kind {
+				case "":
+					err = secureMkdirAll(path, mode, uid, gid)
+				case "file":
+					err = secureMkfileAll(path, mode, uid, gid)
+				}
+				if err != nil {
+					return changes, fmt.Errorf("cannot create file/directory %q: %s", path, err)
+				}
+			} else if err != nil {
+				return changes, fmt.Errorf("cannot inspect %q: %v", path, err)
+			} else {
+				switch kind {
+				case "":
+					if !fi.Mode().IsDir() {
+						return nil, fmt.Errorf("cannot use %q as bind-mount source, not a directory", path)
+					}
+				case "file":
+					if !fi.Mode().IsRegular() {
+						return nil, fmt.Errorf("cannot use %q as bind-mount source, not a regular file", path)
+					}
+				}
 			}
 		}
 	}
@@ -103,14 +215,17 @@ func (c *Change) Perform() ([]*Change, error) {
 func (c *Change) lowLevelPerform() error {
 	switch c.Action {
 	case Mount:
-		if kind, _ := e.OptStr(c.Entry, "x-snapd.kind"); kind == "symlink" {
-			target, _ := e.OptStr(c.Entry, "x-snapd.target")
-			err := osSymlink(target, c.Entry.Dir)
-			logger.Debugf("symlink %s -> %s", c.Entry.Dir, target)
-		} else {
+		var err error
+		kind, _ := c.Entry.OptStr("x-snapd.kind")
+		switch kind {
+		case "symlink":
+			target, _ := c.Entry.OptStr("x-snapd.target")
+			err = osSymlink(target, c.Entry.Dir)
+			logger.Debugf("symlink %s -> %s (error: %s)", c.Entry.Dir, target, err)
+		case "", "file":
 			flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
-			err := sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
-			logger.Debugf("mount %q %q %q %d %q -> %s", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
+			err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+			logger.Debugf("mount %q %q %q %d %q (error: %s)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
 		}
 		return err
 	case Unmount:
