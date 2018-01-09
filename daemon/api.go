@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"os"
 	"os/user"
@@ -609,6 +610,13 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		Private: private,
 		Prefix:  prefix,
 	}, user)
+	if e, ok := err.(net.Error); ok && e.Timeout() {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Result: &errorResult{Message: err.Error(), Kind: errorKindNetworkTimeout},
+			Status: 400,
+		}, nil)
+	}
 	switch err {
 	case nil:
 		// pass
@@ -2208,10 +2216,17 @@ func setupLocalUser(st *state.State, username, email string) error {
 	if err != nil {
 		return fmt.Errorf("cannot persist authentication details: %v", err)
 	}
-	// store macaroon auth in auth.json in the new users home dir
+	// store macaroon auth, user's ID, email and username in auth.json in
+	// the new users home dir
 	outStr, err := json.Marshal(struct {
+		ID       int    `json:"id"`
+		Username string `json:"username"`
+		Email    string `json:"email"`
 		Macaroon string `json:"macaroon"`
 	}{
+		ID:       authUser.ID,
+		Username: authUser.Username,
+		Email:    authUser.Email,
 		Macaroon: authUser.Macaroon,
 	})
 	if err != nil {
