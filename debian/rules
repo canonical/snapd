@@ -167,7 +167,7 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	$(MAKE) -C cmd check
 endif
 
-override_dh_install:
+override_dh_install-indep:
 	# we do not need this in the package, its just needed during build
 	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
 	# toolbelt is not shippable
@@ -177,6 +177,12 @@ override_dh_install:
 	dh_install
 
 override_dh_install-arch:
+	# we do not need this in the package, its just needed during build
+	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
+	# toolbelt is not shippable
+	rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
+	# we do not like /usr/bin/snappy anymore
+	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
 	# i18n stuff
 	mkdir -p debian/snapd/usr/share
 	if [ -d share/locale ]; then \
@@ -196,6 +202,7 @@ override_dh_install-arch:
 
 	# Rename the apparmor profile, see dh_apparmor call above for an explanation.
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+	dh_install
 
 override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
