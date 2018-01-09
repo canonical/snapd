@@ -1,8 +1,8 @@
-snapd (2.30-3) UNRELEASED; urgency=medium
+snapd (2.30-3) unstable; urgency=medium
 
   * Fix arch builds again, sigh,
 
- -- Michael Hudson-Doyle <mwhudson@debian.org>  Tue, 09 Jan 2018 13:54:25 +1300
+ -- Michael Hudson-Doyle <mwhudson@debian.org>  Tue, 09 Jan 2018 13:56:48 +1300
 
 snapd (2.30-2) unstable; urgency=medium
 
