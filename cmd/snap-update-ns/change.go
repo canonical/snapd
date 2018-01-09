@@ -94,7 +94,11 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 			case "symlink":
 				// Symlinks are created later in c.lowLevelPerform but we can
 				// create the parent directory here.
-				err = secureMkdirAll(filepath.Dir(path), mode, uid, gid)
+				path = filepath.Dir(c.Entry.Dir)
+				err = secureMkdirAll(path, mode, uid, gid)
+				if err == nil {
+					err = c.lowLevelPerform()
+				}
 			}
 
 			if err2, ok := err.(*ReadOnlyFsError); err2 != nil && ok {
@@ -112,7 +116,10 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 				case "file":
 					err = secureMkfileAll(path, mode, uid, gid)
 				case "symlink":
-					err = secureMkdirAll(filepath.Dir(path), mode, uid, gid)
+					err = secureMkdirAll(path, mode, uid, gid)
+					if err == nil {
+						err = c.lowLevelPerform()
+					}
 				}
 			}
 			// Check if we eventually succeeded.
@@ -129,11 +136,11 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 			switch kind {
 			case "":
 				if !fi.Mode().IsDir() {
-					return nil, fmt.Errorf("cannot use %q as mount destination, not a directory", path)
+					return nil, fmt.Errorf("cannot use %q as mount point, not a directory", path)
 				}
 			case "file":
 				if !fi.Mode().IsRegular() {
-					return nil, fmt.Errorf("cannot use %q as mount destination, not a regular file", path)
+					return nil, fmt.Errorf("cannot use %q as mount point, not a regular file", path)
 				}
 			case "symlink":
 				// When we want to create a symlink we just need the empty
@@ -179,6 +186,11 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 				}
 			}
 		}
+
+		if kind == "symlink" {
+			return changes, nil
+		}
+
 	}
 	return changes, c.lowLevelPerform()
 }
@@ -208,6 +220,9 @@ func (c *Change) lowLevelPerform() error {
 			target, _ := c.Entry.OptStr("x-snapd.symlink")
 			err = osSymlink(target, c.Entry.Dir)
 			logger.Debugf("symlink %q -> %q (error: %v)", c.Entry.Dir, target, err)
+			if err == syscall.EROFS {
+				return &ReadOnlyFsError{Path: filepath.Dir(c.Entry.Dir)}
+			}
 		case "", "file":
 			flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
 			err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
