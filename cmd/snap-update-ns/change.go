@@ -151,12 +151,7 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 			// This is a simplified variant of the code above. Simplified in
 			// that we don't attempt to poke writable holes as those would only
 			// be visible from the originating mount namespace so really
-			// useless in connecting two snaps together. It is also simplified
-			// in that it only handles bind mounts of directories as everything
-			// else makes no sense. Symlinks cannot be bind mounts and files
-			// would be useless as the other snap would have no way of working
-			// with one
-
+			// useless in connecting two snaps together.
 			path = c.Entry.Name
 			fi, err := osLstat(path)
 			if err != nil && os.IsNotExist(err) {
