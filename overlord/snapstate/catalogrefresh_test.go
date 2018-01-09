@@ -99,7 +99,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 	c.Check(string(content), Equals, "pkg1\npkg2")
 
 	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, true)
-	dump, err := advisor.Dump()
+	dump, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
 	c.Check(dump, DeepEquals, map[string][]string{
 		"foo": {"foo"},
