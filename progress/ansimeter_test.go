@@ -185,7 +185,7 @@ func (ansiSuite) TestSpin(c *check.C) {
 	for i, s := range progress.Spinner {
 		buf.Reset()
 		p.Spin(msg)
-		expected := "\r" + s + " " + msg
+		expected := "\r" + msg + " " + s
 		c.Check(buf.String(), check.Equals, expected, check.Commentf("%d (%s)", i, s))
 	}
 }
