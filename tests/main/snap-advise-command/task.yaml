@@ -1,5 +1,8 @@
 summary: Ensure that `snap advise-command` works
 
+restore: |
+    rm -f /usr/lib/command-not-found
+
 execute: |
     echo "wait for snapd to pull in the commands data"
     echo "(it will do that on startup)"
