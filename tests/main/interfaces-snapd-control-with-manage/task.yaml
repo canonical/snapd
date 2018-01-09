@@ -88,12 +88,12 @@ execute: |
 
     echo "Ensure that last-refresh-hit happens"
     for i in $(seq 120); do
-        if cat /var/lib/snapd/state.json | jq '.data["last-refresh-hints"]' | grep $(date +%Y); then
+        if jq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep $(date +%Y); then
             break
         fi
         sleep 1
     done
-    cat /var/lib/snapd/state.json | jq '.data["last-refresh-hints"]' | grep $(date +%Y)
+    jq '.data["last-refresh-hints"]' /var/lib/snapd/state.json | grep $(date +%Y)
 
     # prevent refreshes again
     systemctl stop snapd.socket snapd.service
