@@ -150,24 +150,20 @@ func (p *ANSIMeter) Set(current float64) {
 	fmt.Fprint(stdout, "\r", enterReverseMode, string(msg[:i]), exitAttributeMode, string(msg[i:]))
 }
 
-func (p *ANSIMeter) Spin(msgstr string) {
-	// spin moves a block a third of the screen's width right and
-	// left across the screen (each call to Spin bummps it left
-	// or right by 1%)
-	col := termWidth()
-	msg := norm(col, []rune(msgstr))
-	p.spin++
-	if p.spin > 66 {
-		p.spin = -p.spin + 1
+var spinner = []string{".", "o", "O", "o"}
 
+func (p *ANSIMeter) Spin(msgstr string) {
+	msg := []rune(msgstr)
+	col := termWidth()
+	if col-2 >= len(msg) {
+		fmt.Fprint(stdout, "\r", string(norm(col-2, msg)), " ", spinner[p.spin])
+		p.spin++
+		if p.spin >= len(spinner) {
+			p.spin = 0
+		}
+	} else {
+		fmt.Fprint(stdout, "\r", string(norm(col, msg)))
 	}
-	spin := p.spin
-	if spin < 0 {
-		spin = -spin
-	}
-	i := spin * col / 100
-	j := 1 + (spin+33)*col/100
-	fmt.Fprint(stdout, "\r", string(msg[:i]), enterReverseMode, string(msg[i:j]), exitAttributeMode, string(msg[j:]))
 }
 
 func (*ANSIMeter) Finished() {
