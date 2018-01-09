@@ -125,8 +125,8 @@ func (s *cmdfinderSuite) TestFindMisspelledCommandMiss(c *C) {
 	c.Check(cmds, HasLen, 0)
 }
 
-func (s *cmdfinderSuite) TestDump(c *C) {
-	cmds, err := advisor.Dump()
+func (s *cmdfinderSuite) TestDumpCommands(c *C) {
+	cmds, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
 	c.Check(cmds, DeepEquals, map[string][]string{
 		"foo": {"foo"},
