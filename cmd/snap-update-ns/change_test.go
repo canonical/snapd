@@ -343,7 +343,7 @@ func (s *changeSuite) TestPerformBindMountFile(c *C) {
 	})
 }
 
-// Change.Perform creates the missing mount target.
+// Change.Perform creates the missing mount target (directory).
 func (s *changeSuite) TestPerformMountAutomaticMkdirTarget(c *C) {
 	s.sys.InsertFault(`lstat "/target"`, os.ErrNotExist)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
@@ -355,6 +355,24 @@ func (s *changeSuite) TestPerformMountAutomaticMkdirTarget(c *C) {
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`mkdirat 3 "target" 0755`,
 		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`fchown 4 0 0`,
+		`close 4`,
+		`close 3`,
+		`mount "/source" "/target" "type" 0 ""`,
+	})
+}
+
+// Change.Perform creates the missing mount target (file).
+func (s *changeSuite) TestPerformMountAutomaticMkfileTarget(c *C) {
+	s.sys.InsertFault(`lstat "/target"`, os.ErrNotExist)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"x-snapd.kind=file"}}}
+	synth, err := chg.Perform()
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`,
 		`fchown 4 0 0`,
 		`close 4`,
 		`close 3`,
@@ -447,6 +465,22 @@ func (s *changeSuite) TestPerformMountMkdirAllError(c *C) {
 	})
 }
 
+// Change.Perform returns errors from os.MkfileAll
+func (s *changeSuite) TestPerformMountMkfileAllError(c *C) {
+	s.sys.InsertFault(`lstat "/target"`, os.ErrNotExist)
+	s.sys.InsertFault(`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, errTesting)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"x-snapd.kind=file"}}}
+	synth, err := chg.Perform()
+	c.Assert(err, ErrorMatches, `cannot create file/directory "/target": cannot open file "target": testing`)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`,
+		`close 3`,
+	})
+}
+
 // Change.Perform returns errors from mount system call
 func (s *changeSuite) TestPerformMountError(c *C) {
 	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
@@ -471,6 +505,19 @@ func (s *changeSuite) TestPerformMountOptions(c *C) {
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
 		`mount "/source" "/target" "type" 0 "funky"`,
+	})
+}
+
+// Change.Perform doesn't pass snapd-specific mount options to the kernel.
+func (s *changeSuite) TestPerformSnapdSpecificMountOptions(c *C) {
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"x-snapd.funky"}}}
+	synth, err := chg.Perform()
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+		`mount "/source" "/target" "type" 0 ""`,
 	})
 }
 
