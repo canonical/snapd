@@ -1,7 +1,16 @@
 summary: Ensure that `snap advise-command` works
 
+# we need https://github.com/snapcore/core/pull/70 landed before
+# we can use this
+systems: [-ubuntu-core-*]
+
+prepare: |
+    mv /usr/lib/command-not-found /usr/lib/command-not-found.orig
+
 restore: |
-    rm -f /usr/lib/command-not-found
+    if [ -e /usr/lib/command-not-found.orig ]; then
+        mv /usr/lib/command-not-found.orig /usr/lib/command-not-found
+    fi
 
 execute: |
     echo "wait for snapd to pull in the commands data"
@@ -10,6 +19,7 @@ execute: |
        if stat /var/cache/snapd/commands.db; then
            break
        fi
+       sleep 1
     done
     stat /var/cache/snapd/commands.db
 
