@@ -89,7 +89,22 @@ func (s *refreshHintsTestSuite) TestLastRefresh(c *C) {
 
 func (s *refreshHintsTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {
 	s.state.Lock()
-	s.state.Set("last-refresh-hints", time.Now().Add(23*time.Hour))
+	s.state.Set("last-refresh-hints", time.Now().Add(-23*time.Hour))
+	s.state.Unlock()
+
+	rh := snapstate.NewRefreshHints(s.state)
+	err := rh.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, HasLen, 0)
+}
+
+func (s *refreshHintsTestSuite) TestLastRefreshNoRefreshNeededBecauseOfFullAutoRefresh(c *C) {
+	s.state.Lock()
+	s.state.Set("last-refresh-hints", time.Now().Add(-48*time.Hour))
+	s.state.Unlock()
+
+	s.state.Lock()
+	s.state.Set("last-refresh", time.Now().Add(-23*time.Hour))
 	s.state.Unlock()
 
 	rh := snapstate.NewRefreshHints(s.state)
