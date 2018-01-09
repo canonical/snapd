@@ -40,7 +40,7 @@ type cmdAdviseSnap struct {
 
 var shortAdviseSnapHelp = i18n.G("Advise on available snaps.")
 var longAdviseSnapHelp = i18n.G(`
-The advise-command command shows what snaps with the given command are 
+The advise-snap command shows what snaps with the given command are
 available.
 `)
 
