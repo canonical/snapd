@@ -401,8 +401,8 @@ func (s *changeSuite) TestPerformMountAutomaticMkdirSource(c *C) {
 	})
 }
 
-// Change.Perform rejects mount target if it is a symlink.
-func (s *changeSuite) TestPerformMountRejectsTargetSymlink(c *C) {
+// Change.Perform wants to mount a filesystem but there's a symlink in the way.
+func (s *changeSuite) TestPerformMountFilesystemWithSymlinkInTheWay(c *C) {
 	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoSymlink)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
 	synth, err := chg.Perform()
@@ -413,10 +413,22 @@ func (s *changeSuite) TestPerformMountRejectsTargetSymlink(c *C) {
 	})
 }
 
-// Change.Perform rejects bind-mount target if it is a symlink.
-func (s *changeSuite) TestPerformBindMountRejectsTargetSymlink(c *C) {
+// Change.Perform wants to bind mount a file but there's a directory in the way.
+func (s *changeSuite) TestPerformBindMountFileWithDirectoryInTheWay(c *C) {
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
+	synth, err := chg.Perform()
+	c.Assert(err, ErrorMatches, `cannot use "/target" as mount destination, not a regular file`)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+	})
+}
+
+// Change.Perform wants to bind mount a directory but there's a symlink in the way.
+func (s *changeSuite) TestPerformBindMountDirWithSymlinkInTheWay(c *C) {
 	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoSymlink)
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind"}}}
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
 	synth, err := chg.Perform()
 	c.Assert(err, ErrorMatches, `cannot use "/target" as mount destination, not a directory`)
 	c.Assert(synth, HasLen, 0)
@@ -425,11 +437,23 @@ func (s *changeSuite) TestPerformBindMountRejectsTargetSymlink(c *C) {
 	})
 }
 
-// Change.Perform rejects bind-mount source if it is a symlink.
-func (s *changeSuite) TestPerformBindMountRejectsSourceSymlink(c *C) {
+// Change.Perform wants to create a symlink but there's a file in the way.
+func (s *changeSuite) TestPerformSymlinkWithFileInTheWay(c *C) {
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoFile)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=oldname"}}}
+	synth, err := chg.Perform()
+	c.Assert(err, ErrorMatches, `cannot create symlink in "/target", existing file in the way`)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+	})
+}
+
+// Change.Perform wants to bind mount a directory but the source is a symlink.
+func (s *changeSuite) TestPerformBindMountDirWithSymlinkSource(c *C) {
 	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
 	s.sys.InsertLstatResult(`lstat "/source"`, update.FileInfoSymlink)
-	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind"}}}
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
 	synth, err := chg.Perform()
 	c.Assert(err, ErrorMatches, `cannot use "/source" as bind-mount source, not a directory`)
 	c.Assert(synth, HasLen, 0)
