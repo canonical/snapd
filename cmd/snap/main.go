@@ -279,7 +279,18 @@ func resolveApp(snapApp string) (string, error) {
 func main() {
 	cmd.ExecInCoreSnap()
 
-	// magic \o/
+	// check for magic symlink to /usr/bin/snap:
+	// 1. symlink from command-not-found to /usr/bin/snap: run c-n-f
+	if os.Args[0] == filepath.Join(dirs.GlobalRootDir, "/usr/lib/command-not-found") {
+		cmd := &cmdAdviseCommand{Format: "pretty"}
+		cmd.Positionals.Command = os.Args[1]
+		if err := cmd.Execute(nil); err != nil {
+			fmt.Fprintf(Stderr, "%s\n", err)
+		}
+		return
+	}
+
+	// 2. symlink from /snap/bin/$foo to /usr/bin/snap: run snapApp
 	snapApp := filepath.Base(os.Args[0])
 	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, snapApp)) {
 		var err error
