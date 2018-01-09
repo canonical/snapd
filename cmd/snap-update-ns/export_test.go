@@ -130,6 +130,7 @@ func formatMountFlags(flags int) string {
 // SystemCalls encapsulates various system interactions performed by this module.
 type SystemCalls interface {
 	Lstat(name string) (os.FileInfo, error)
+	ReadDir(dirname string) ([]os.FileInfo, error)
 
 	Close(fd int) error
 	Fchown(fd int, uid sys.UserID, gid sys.GroupID) error
@@ -142,10 +143,11 @@ type SystemCalls interface {
 
 // SyscallRecorder stores which system calls were invoked.
 type SyscallRecorder struct {
-	calls  []string
-	errors map[string]func() error
-	lstats map[string]*fakeFileInfo
-	fds    map[int]string
+	calls    []string
+	errors   map[string]func() error
+	lstats   map[string]*fakeFileInfo
+	readdirs map[string][]os.FileInfo
+	fds      map[int]string
 }
 
 // InsertFault makes given subsequent call to return the specified error.
@@ -169,6 +171,14 @@ func (sys *SyscallRecorder) InsertLstatResult(call string, fi *fakeFileInfo) {
 		sys.lstats = make(map[string]*fakeFileInfo)
 	}
 	sys.lstats[call] = fi
+}
+
+// InsertReadDirResult makes given subsequent call readdir return the specified fake file infos.
+func (sys *SyscallRecorder) InsertReadDirResult(call string, infos []os.FileInfo) {
+	if sys.readdirs == nil {
+		sys.readdirs = make(map[string][]os.FileInfo)
+	}
+	sys.readdirs[call] = infos
 }
 
 // Calls returns the sequence of mocked calls that have been made.
@@ -269,10 +279,22 @@ func (sys *SyscallRecorder) Lstat(name string) (os.FileInfo, error) {
 	panic(fmt.Sprintf("one of InsertLstatResult() or InsertFault() for %q must be used", call))
 }
 
+func (sys *SyscallRecorder) ReadDir(dirname string) ([]os.FileInfo, error) {
+	call := fmt.Sprintf("readdir %q", dirname)
+	if err := sys.call(call); err != nil {
+		return nil, err
+	}
+	if fi := sys.readdirs[call]; fi != nil {
+		return fi, nil
+	}
+	panic(fmt.Sprintf("one of InsertReadDirResult() or InsertFault() for %q must be used", call))
+}
+
 // MockSystemCalls replaces real system calls with those of the argument.
 func MockSystemCalls(sc SystemCalls) (restore func()) {
-	//save
+	// save
 	oldOsLstat := osLstat
+	oldIoutilReadDir := ioutilReadDir
 
 	oldSysClose := sysClose
 	oldSysFchown := sysFchown
@@ -284,6 +306,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 
 	// override
 	osLstat = sc.Lstat
+	ioutilReadDir = sc.ReadDir
 
 	sysClose = sc.Close
 	sysFchown = sc.Fchown
@@ -296,6 +319,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	return func() {
 		// restore
 		osLstat = oldOsLstat
+		ioutilReadDir = oldIoutilReadDir
 
 		sysClose = oldSysClose
 		sysFchown = oldSysFchown
