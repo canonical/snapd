@@ -263,7 +263,11 @@ snap_confine_snap_confine_debug_CFLAGS += -DSNAP_CONFINE_DEBUG_BUILD=1
 snap_confine_snap_confine_debug_STATIC = $(snap_confine_snap_confine_STATIC)
 
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
-snap-confine/snap-confine-debug$(EXEEXT): $(snap_confine_snap_confine_debug_OBJECTS) $(snap_confine_snap_confine_debug_DEPENDENCIES) $(EXTRA_snap_confine_snap_confine_debug_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
+
+# NOTE: for some reason make/automake in Debian 9 mishandles the dependencies
+# and this particular snap-confine/snap-confine-debug ends up depending on
+# -ludev -lcap .. and so on, need to filter those out
+snap-confine/snap-confine-debug$(EXEEXT): $(snap_confine_snap_confine_debug_OBJECTS) $(filter-out -l%,$(snap_confine_snap_confine_debug_DEPENDENCIES)) $(EXTRA_snap_confine_snap_confine_debug_DEPENDENCIES) libsnap-confine-private/$(am__dirstamp)
 	@rm -f snap-confine/snap-confine-debug$(EXEEXT)
 	$(AM_V_CCLD)$(snap_confine_snap_confine_debug_LINK) $(snap_confine_snap_confine_debug_OBJECTS) $(snap_confine_snap_confine_debug_LDADD) $(LIBS)
 
