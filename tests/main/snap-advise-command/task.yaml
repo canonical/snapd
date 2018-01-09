@@ -1,8 +1,8 @@
 summary: Ensure that `snap advise-command` works
 
 # we need https://github.com/snapcore/core/pull/70 landed before
-# we can use this
-systems: [-ubuntu-core-*]
+# we can use this on ubuntu-core-*
+systems: [ubuntu-16-*, ubuntu-18-*]
 
 prepare: |
     mv /usr/lib/command-not-found /usr/lib/command-not-found.orig
