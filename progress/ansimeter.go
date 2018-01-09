@@ -150,7 +150,7 @@ func (p *ANSIMeter) Set(current float64) {
 	fmt.Fprint(stdout, "\r", enterReverseMode, string(msg[:i]), exitAttributeMode, string(msg[i:]))
 }
 
-var spinner = []string{"⠋", "⠙", "⠸", "⠴", "⠦", "⠇"}
+var spinner = []string{".", "o", "O", "o"}
 
 func (p *ANSIMeter) Spin(msgstr string) {
 	msg := []rune(msgstr)
