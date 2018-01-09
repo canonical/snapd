@@ -219,9 +219,9 @@ func (c *Change) lowLevelPerform() error {
 		kind, _ := c.Entry.OptStr("x-snapd.kind")
 		switch kind {
 		case "symlink":
-			target, _ := c.Entry.OptStr("x-snapd.target")
+			target, _ := c.Entry.OptStr("x-snapd.symlink")
 			err = osSymlink(target, c.Entry.Dir)
-			logger.Debugf("symlink %s -> %s (error: %s)", c.Entry.Dir, target, err)
+			logger.Debugf("symlink %q -> %q (error: %s)", c.Entry.Dir, target, err)
 		case "", "file":
 			flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
 			err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))

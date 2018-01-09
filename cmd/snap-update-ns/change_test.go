@@ -491,7 +491,7 @@ func (s *changeSuite) TestPerformSymlinkMount(c *C) {
 	s.sys.InsertFault(`lstat "/name"`, os.ErrNotExist)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{
 		Name: "unused", Dir: "/name",
-		Options: []string{"x-snapd.kind=symlink", "x-snapd.target=/target"}}}
+		Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/target"}}}
 	synth, err := chg.Perform()
 	c.Assert(err, IsNil)
 	c.Assert(synth, HasLen, 0)
