@@ -45,8 +45,8 @@ type catalogStore struct {
 func (r *catalogStore) WriteCatalogs(w io.Writer, a store.SnapAdder) error {
 	r.ops = append(r.ops, "write-catalog")
 	w.Write([]byte("pkg1\npkg2"))
-	a.AddSnap("foo", []string{"foo", "meh"})
-	a.AddSnap("bar", []string{"bar", "meh"})
+	a.AddSnap("foo", "foo summary", []string{"foo", "meh"})
+	a.AddSnap("bar", "bar summray", []string{"bar", "meh"})
 	return nil
 }
 
