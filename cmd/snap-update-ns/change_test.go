@@ -313,11 +313,26 @@ func (s *changeSuite) TestPerformMount(c *C) {
 	})
 }
 
-// Change.Perform calls the mount system call (for bind mounts).
-func (s *changeSuite) TestPerformBindMount(c *C) {
+// Change.Perform calls the mount system call (for directory bind mounts).
+func (s *changeSuite) TestPerformBindMountDirectory(c *C) {
 	s.sys.InsertLstatResult(`lstat "/source"`, update.FileInfoDir)
 	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoDir)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind"}}}
+	synth, err := chg.Perform()
+	c.Check(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+		`lstat "/source"`,
+		`mount "/source" "/target" "type" MS_BIND ""`,
+	})
+}
+
+// Change.Perform calls the mount system call (for file bind mounts).
+func (s *changeSuite) TestPerformBindMountFile(c *C) {
+	s.sys.InsertLstatResult(`lstat "/source"`, update.FileInfoFile)
+	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoFile)
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform()
 	c.Check(err, IsNil)
 	c.Assert(synth, HasLen, 0)
