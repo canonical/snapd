@@ -11,7 +11,7 @@ prepare: |
 
     echo "Ensure jq is installed"
     if ! which jq; then
-        snap install jq
+        snap install --devmode jq
     fi
 
     snap debug can-manage-refreshes | MATCH false
