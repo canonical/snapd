@@ -69,12 +69,6 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 		kind, _ := c.Entry.OptStr("x-snapd.kind")
 		path := c.Entry.Dir
 
-		// Only support absolute paths to avoid bugs in snap-confine when
-		// called from anywhere.
-		if !filepath.IsAbs(path) {
-			return nil, fmt.Errorf("cannot create file/directory with relative path: %q", path)
-		}
-
 		// We use lstat to ensure that we don't follow a symlink in case one
 		// was set up by the snap. Note that at the time this is run, all the
 		// snap's processes are frozen.
@@ -164,9 +158,6 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 			// with one
 
 			path = c.Entry.Name
-			if !filepath.IsAbs(path) {
-				return nil, fmt.Errorf("cannot create file/directory with relative path: %q", path)
-			}
 			fi, err := osLstat(path)
 			if err != nil && os.IsNotExist(err) {
 				switch kind {
