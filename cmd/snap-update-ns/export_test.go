@@ -117,6 +117,10 @@ func formatMountFlags(flags int) string {
 		flags ^= syscall.MS_BIND
 		fl = append(fl, "MS_BIND")
 	}
+	if flags&syscall.MS_RDONLY == syscall.MS_RDONLY {
+		flags ^= syscall.MS_RDONLY
+		fl = append(fl, "MS_RDONLY")
+	}
 	if flags != 0 {
 		panic(fmt.Errorf("unrecognized mount flags %d", flags))
 	}
