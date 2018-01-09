@@ -44,8 +44,8 @@ func (s *cmdfinderSuite) SetUpTest(c *C) {
 
 	db, err := advisor.Create()
 	c.Assert(err, IsNil)
-	c.Assert(db.AddSnap("foo", []string{"foo", "meh"}), IsNil)
-	c.Assert(db.AddSnap("bar", []string{"bar", "meh"}), IsNil)
+	c.Assert(db.AddSnap("foo", "foo summary", []string{"foo", "meh"}), IsNil)
+	c.Assert(db.AddSnap("bar", "bar summary", []string{"bar", "meh"}), IsNil)
 	c.Assert(db.Commit(), IsNil)
 }
 

@@ -2688,7 +2688,7 @@ const mockNamesJSON = `
         "package_name": "foo"
       }
     ]
-  }
+q  }
 }`
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreSnapCommandsOnClassic(c *C) {
