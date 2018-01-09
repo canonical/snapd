@@ -120,7 +120,7 @@ func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid sys.Use
 
 	if err = sysMkdirat(fd, segment, uint32(perm.Perm())); err != nil {
 		switch err {
-		case syscall.EEXIST:
+		case syscall.EEXIST, os.ErrExist:
 			made = false
 		case syscall.EROFS:
 			// Treat EROFS specially: this is a hint that we have to poke a
