@@ -505,3 +505,13 @@ func (s *changeSuite) TestPerformSymlinkMount(c *C) {
 		`symlink "/name" -> "/target"`,
 	})
 }
+
+func (s *changeSuite) TestPerformSymlinkUnmount(c *C) {
+	chg := &update.Change{Action: update.Unmount, Entry: mount.Entry{
+		Name: "unused", Dir: "/name",
+		Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/target"}}}
+	synth, err := chg.Perform()
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`remove "/name"`})
+}

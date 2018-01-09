@@ -131,6 +131,7 @@ type SystemCalls interface {
 	Lstat(name string) (os.FileInfo, error)
 	ReadDir(dirname string) ([]os.FileInfo, error)
 	Symlink(oldname, newname string) error
+	Remove(name string) error
 
 	Close(fd int) error
 	Fchown(fd int, uid sys.UserID, gid sys.GroupID) error
@@ -295,11 +296,17 @@ func (sys *SyscallRecorder) Symlink(oldname, newname string) error {
 	return sys.call(call)
 }
 
+func (sys *SyscallRecorder) Remove(name string) error {
+	call := fmt.Sprintf("remove %q", name)
+	return sys.call(call)
+}
+
 // MockSystemCalls replaces real system calls with those of the argument.
 func MockSystemCalls(sc SystemCalls) (restore func()) {
 	// save
 	oldOsLstat := osLstat
 	oldSymlink := osSymlink
+	oldRemove := osRemove
 	oldIoutilReadDir := ioutilReadDir
 
 	oldSysClose := sysClose
@@ -313,6 +320,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	// override
 	osLstat = sc.Lstat
 	osSymlink = sc.Symlink
+	osRemove = sc.Remove
 	ioutilReadDir = sc.ReadDir
 
 	sysClose = sc.Close
@@ -327,6 +335,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		// restore
 		osLstat = oldOsLstat
 		osSymlink = oldSymlink
+		osRemove = oldRemove
 		ioutilReadDir = oldIoutilReadDir
 
 		sysClose = oldSysClose

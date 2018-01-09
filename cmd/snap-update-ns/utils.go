@@ -42,6 +42,7 @@ var (
 	osLstat    = os.Lstat
 	osReadlink = os.Readlink
 	osSymlink  = os.Symlink
+	osRemove   = os.Remove
 
 	sysClose   = syscall.Close
 	sysMkdirat = syscall.Mkdirat

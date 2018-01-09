@@ -213,24 +213,31 @@ func (c *Change) Perform() ([]*Change, error) {
 
 // lowLevelPerform is simple bridge from Change to mount / unmount syscall.
 func (c *Change) lowLevelPerform() error {
+	var err error
 	switch c.Action {
 	case Mount:
-		var err error
 		kind, _ := c.Entry.OptStr("x-snapd.kind")
 		switch kind {
 		case "symlink":
 			target, _ := c.Entry.OptStr("x-snapd.symlink")
 			err = osSymlink(target, c.Entry.Dir)
-			logger.Debugf("symlink %q -> %q (error: %s)", c.Entry.Dir, target, err)
+			logger.Debugf("symlink %q -> %q (error: %v)", c.Entry.Dir, target, err)
 		case "", "file":
 			flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
 			err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
-			logger.Debugf("mount %q %q %q %d %q (error: %s)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
+			logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
 		}
 		return err
 	case Unmount:
-		err := sysUnmount(c.Entry.Dir, umountNoFollow)
-		logger.Debugf("umount %q -> %v", c.Entry.Dir, err)
+		kind, _ := c.Entry.OptStr("x-snapd.kind")
+		switch kind {
+		case "symlink":
+			err = osRemove(c.Entry.Dir)
+			logger.Debugf("remove %q (error: %v)", c.Entry.Dir, err)
+		case "", "file":
+			err = sysUnmount(c.Entry.Dir, umountNoFollow)
+			logger.Debugf("umount %q (error: %v)", c.Entry.Dir, err)
+		}
 		return err
 	case Keep:
 		return nil
