@@ -1701,7 +1701,7 @@ func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
-	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
+	MacaroonACLAPI = mockServer.URL + "/acl/"
 
 	discharge, err := makeTestDischarge()
 	c.Assert(err, IsNil)
@@ -1722,14 +1722,14 @@ func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
 	c.Check(userDischarge, Equals, serializedDischarge)
 }
 
-func (t *remoteRepoTestSuite) TestLoginUserMyAppsError(c *C) {
+func (t *remoteRepoTestSuite) TestLoginUserDeveloperAPIError(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		io.WriteString(w, "{}")
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
-	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
+	MacaroonACLAPI = mockServer.URL + "/acl/"
 
 	userMacaroon, userDischarge, err := LoginUser("username", "password", "otp")
 
@@ -1749,7 +1749,7 @@ func (t *remoteRepoTestSuite) TestLoginUserSSOError(c *C) {
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
-	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
+	MacaroonACLAPI = mockServer.URL + "/acl/"
 
 	errorResponse := `{"code": "some-error"}`
 	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -4203,13 +4203,13 @@ func (t *remoteRepoTestSuite) TestStoreURLBadEnvironCPI(c *C) {
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_CPI_URL: parse ://force-cpi.local/: missing protocol scheme")
 }
 
-func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
+func (t *remoteRepoTestSuite) TestStoreDeveloperURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
-	before := myappsURL()
+	before := storeDeveloperURL()
 
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
 	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
-	after := myappsURL()
+	after := storeDeveloperURL()
 
 	c.Check(before, Not(Equals), after)
 }

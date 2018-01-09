@@ -814,13 +814,13 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
-func (s *apiSuite) makeMyAppsServer(statusCode int, data string) *httptest.Server {
-	mockMyAppsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func (s *apiSuite) makeDeveloperAPIServer(statusCode int, data string) *httptest.Server {
+	mockDeveloperAPIServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(statusCode)
 		io.WriteString(w, data)
 	}))
-	store.MyAppsMacaroonACLAPI = mockMyAppsServer.URL + "/acl/"
-	return mockMyAppsServer
+	store.MacaroonACLAPI = mockDeveloperAPIServer.URL + "/acl/"
+	return mockDeveloperAPIServer
 }
 
 func (s *apiSuite) makeSSOServer(statusCode int, data string) *httptest.Server {
@@ -869,8 +869,8 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
-	defer mockMyAppsServer.Close()
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
 
 	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
 	mockSSOServer := s.makeSSOServer(200, discharge)
@@ -921,8 +921,8 @@ func (s *apiSuite) TestLoginUserWithUsername(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
-	defer mockMyAppsServer.Close()
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
 
 	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
 	mockSSOServer := s.makeSSOServer(200, discharge)
@@ -978,8 +978,8 @@ func (s *apiSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
-	defer mockMyAppsServer.Close()
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
 
 	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
 	mockSSOServer := s.makeSSOServer(200, discharge)
@@ -1031,8 +1031,8 @@ func (s *apiSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
-	defer mockMyAppsServer.Close()
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
 
 	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
 	mockSSOServer := s.makeSSOServer(200, discharge)
@@ -1104,9 +1104,9 @@ func (s *apiSuite) TestLoginUserBadRequest(c *check.C) {
 	c.Check(rsp.Result, check.NotNil)
 }
 
-func (s *apiSuite) TestLoginUserMyAppsError(c *check.C) {
-	mockMyAppsServer := s.makeMyAppsServer(200, "{}")
-	defer mockMyAppsServer.Close()
+func (s *apiSuite) TestLoginUserDeveloperAPIError(c *check.C) {
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, "{}")
+	defer mockDeveloperAPIServer.Close()
 
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
@@ -1124,8 +1124,8 @@ func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
-	defer mockMyAppsServer.Close()
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
 
 	discharge := `{"code": "TWOFACTOR_REQUIRED"}`
 	mockSSOServer := s.makeSSOServer(401, discharge)
@@ -1147,8 +1147,8 @@ func (s *apiSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
-	defer mockMyAppsServer.Close()
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
 
 	discharge := `{"code": "TWOFACTOR_FAILURE"}`
 	mockSSOServer := s.makeSSOServer(403, discharge)
@@ -1170,8 +1170,8 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
-	defer mockMyAppsServer.Close()
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
 
 	discharge := `{"code": "INVALID_CREDENTIALS"}`
 	mockSSOServer := s.makeSSOServer(401, discharge)
