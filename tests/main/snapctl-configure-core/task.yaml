@@ -67,12 +67,12 @@ execute: |
 
     echo "Check that the no_proxy config handling works"
     snap set core proxy.no_proxy="example.com,bar.com"
-        cat /etc/environment | MATCH "^no_proxy=example.com,bar.com"
-        snap set core proxy.no_proxy=""
-        if cat /etc/environment | grep "^no_proxy="; then
-            echo "proxy setting was not properly cleaned up"
-            cat /etc/environment
-            exit 1
-        fi
-    done
+    cat /etc/environment | MATCH "^no_proxy=example.com,bar.com"
+    snap set core proxy.no_proxy=""
+    if cat /etc/environment | grep "^no_proxy="; then
+        echo "proxy setting was not properly cleaned up"
+        cat /etc/environment
+        exit 1
+    fi
+
 
