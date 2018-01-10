@@ -117,16 +117,20 @@ func (ic *InstallCandidate) Check() error {
 
 // ConnectCandidate represents a candidate connection.
 type ConnectCandidate struct {
-	Plug                *interfaces.ConnectedPlug
+	Plug *interfaces.ConnectedPlug
+	// Static + dynamic attributes, merged lazily by plugAttrs below (FIXME: remove it)
+	PlugAttrs           map[string]interface{}
 	PlugSnapDeclaration *asserts.SnapDeclaration
 
-	Slot                *interfaces.ConnectedSlot
+	Slot *interfaces.ConnectedSlot
+	// Static + dynamic attributes, merged lazily by slotAttrs below (FIXME: remove it)
+	SlotAttrs           map[string]interface{}
 	SlotSnapDeclaration *asserts.SnapDeclaration
 
 	BaseDeclaration *asserts.BaseDeclaration
 }
 
-func mergedAttributes(staticAttrs, dynamicAttrs map[string]interface{}) (map[string]interface{}, error) {
+func mergedAttributes(staticAttrs, dynamicAttrs map[string]interface{}) map[string]interface{} {
 	merged := make(map[string]interface{})
 	for k, v := range staticAttrs {
 		merged[k] = v
@@ -135,27 +139,27 @@ func mergedAttributes(staticAttrs, dynamicAttrs map[string]interface{}) (map[str
 		if _, ok := merged[k]; ok {
 			// Safeguard. This should never happen as it's prevented
 			// when attributes are populated at higher levels.
-			return nil, fmt.Errorf("internal error: attempted to overwrite static attribute %q", k)
+			panic(fmt.Sprintf("internal error: attempted to overwrite static attribute %q", k))
 		}
 		merged[k] = v
 	}
-	return merged, nil
+	return merged
 }
 
 func (connc *ConnectCandidate) plugAttrs() map[string]interface{} {
-	attrs, err := mergedAttributes(connc.Plug.StaticAttrs(), connc.Plug.DynamicAttrs())
-	if err != nil {
-		panic(fmt.Sprintf("cannot merge attributes of snap %q, plug %q: %s", connc.Plug.Snap().Name(), connc.Plug.Name(), err))
+	// FIXME: change policy code to use Attrer interface, remove merging.
+	if connc.PlugAttrs == nil {
+		connc.PlugAttrs = mergedAttributes(connc.Plug.StaticAttrs(), connc.Plug.DynamicAttrs())
 	}
-	return attrs
+	return connc.PlugAttrs
 }
 
 func (connc *ConnectCandidate) slotAttrs() map[string]interface{} {
-	attrs, err := mergedAttributes(connc.Slot.StaticAttrs(), connc.Slot.DynamicAttrs())
-	if err != nil {
-		panic(fmt.Sprintf("cannot merge attributes of snap %q, plug %q: %s", connc.Plug.Snap().Name(), connc.Plug.Name(), err))
+	// FIXME: change policy code to use Attrer interface, remove merging.
+	if connc.SlotAttrs == nil {
+		connc.SlotAttrs = mergedAttributes(connc.Slot.StaticAttrs(), connc.Slot.DynamicAttrs())
 	}
-	return attrs
+	return connc.SlotAttrs
 }
 
 func nestedGet(which string, attrs map[string]interface{}, path string) (interface{}, error) {
