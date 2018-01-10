@@ -349,7 +349,7 @@ func planWritableMimic(dir string) ([]*Change, error) {
 			changes = append(changes, ch)
 		case m&os.ModeSymlink != 0:
 			if target, err := osReadlink(filepath.Join(dir, fi.Name())); err == nil {
-				ch.Entry.Options = append(ch.Entry.Options, "x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", target))
+				ch.Entry.Options = []string{"x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", target)}
 				changes = append(changes, ch)
 			}
 		default:
