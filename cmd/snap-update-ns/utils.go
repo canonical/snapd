@@ -208,7 +208,7 @@ func splitIntoSegments(name string) ([]string, error) {
 	return segments, nil
 }
 
-// SecureMkdirAll is the secure variant of os.MkdirAll.
+// secureMkdirAll is the secure variant of os.MkdirAll.
 //
 // Unlike the regular version this implementation does not follow any symbolic
 // links. At all times the new directory segment is created using mkdirat(2)
