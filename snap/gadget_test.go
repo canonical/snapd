@@ -51,7 +51,7 @@ volumes:
     bootloader: u-boot
     id:     id,guid
     structure:
-      - label: system-boot
+      - filesystem-label: system-boot
         offset: 12345
         offset-write: 777
         size: 88888
@@ -67,6 +67,39 @@ volumes:
             offset-write: 8888
             size: 88888
             unpack: false
+`)
+
+var mockMultiVolumeGadgetYaml = []byte(`
+device-tree: frobinator-3000.dtb
+device-tree-origin: kernel
+volumes:
+  frobinator-3000-image:
+    bootloader: u-boot
+    schema: mbr
+    structure:
+      - name: system-boot
+        type: 0C
+        filesystem: vfat
+        filesystem-label: system-boot
+        size: 128M
+        role: system-boot
+        content:
+          - source: splash.bmp
+            target: .
+      - name: writable
+        type: 83
+        filesystem: ext4
+        filesystem-label: writable
+        size: 380M
+        role: system-data
+  u-boot-frobinator-3000:
+    structure:
+      - name: u-boot
+        type: bare
+        size: 623000
+        offset: 0
+        content:
+          - image: u-boot.imz
 `)
 
 var mockClassicGadgetYaml = []byte(`
@@ -180,19 +213,56 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 	})
 }
 
-func (s *gadgetYamlTestSuite) TestReadGadgetYamlEmptydBootloader(c *C) {
+func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
-	mockGadgetYamlBroken := []byte(`
-volumes:
- name:
-  bootloader: 
-`)
-
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYamlBroken, 0644)
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockMultiVolumeGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = snap.ReadGadgetInfo(info, false)
-	c.Assert(err, ErrorMatches, "cannot read gadget snap details: bootloader cannot be empty")
+	ginfo, err := snap.ReadGadgetInfo(info, false)
+	c.Assert(err, IsNil)
+	c.Check(ginfo.Volumes, HasLen, 2)
+	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{
+		Volumes: map[string]snap.GadgetVolume{
+			"frobinator-3000-image": {
+				Schema:     "mbr",
+				Bootloader: "u-boot",
+				Structure: []snap.VolumeStructure{
+					{
+						Label:      "system-boot",
+						Size:       "128M",
+						Filesystem: "vfat",
+						Type:       "0C",
+						Content: []snap.VolumeContent{
+							{
+								Source: "splash.bmp",
+								Target: ".",
+							},
+						},
+					},
+					{
+						Label:      "writable",
+						Type:       "83",
+						Filesystem: "ext4",
+						Size:       "380M",
+					},
+				},
+			},
+			"u-boot-frobinator-3000": {
+				Structure: []snap.VolumeStructure{
+					{
+						Type:   "bare",
+						Size:   "623000",
+						Offset: "0",
+						Content: []snap.VolumeContent{
+							{
+								Image: "u-boot.imz",
+							},
+						},
+					},
+				},
+			},
+		},
+	})
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlInvalidBootloader(c *C) {
@@ -208,6 +278,21 @@ volumes:
 
 	_, err = snap.ReadGadgetInfo(info, false)
 	c.Assert(err, ErrorMatches, "cannot read gadget snap details: bootloader must be one of grub, u-boot or android-boot")
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlEmptydBootloader(c *C) {
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
+	mockGadgetYamlBroken := []byte(`
+volumes:
+ name:
+  bootloader:
+`)
+
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYamlBroken, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadGadgetInfo(info, false)
+	c.Assert(err, ErrorMatches, "cannot read gadget snap details: bootloader not declared in any volume")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {

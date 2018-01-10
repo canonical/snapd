@@ -1042,3 +1042,25 @@ func (s *SnapOpSuite) TestSwitchAlsoUnhappy(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"switch", "foo"})
 	c.Assert(err, check.ErrorMatches, `missing --channel=<channel-name> parameter`)
 }
+
+func (s *SnapOpSuite) TestSnapOpNetworkTimeoutError(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		w.WriteHeader(202)
+		w.Write([]byte(`
+{
+  "type": "error",
+  "result": {
+    "message":"Get https://api.snapcraft.io/api/v1/snaps/details/hello?channel=stable&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cdeltas%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Clicense%2Cbase%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement%2Cchannel_maps_list: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)",
+    "kind":"network-timeout"
+  },
+  "status-code": 400
+}
+`))
+
+	})
+
+	cmd := []string{"install", "hello"}
+	_, err := snap.Parser().ParseArgs(cmd)
+	c.Assert(err, check.ErrorMatches, `unable to contact snap store`)
+}
