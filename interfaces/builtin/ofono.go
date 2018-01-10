@@ -195,7 +195,6 @@ accept
 accept4
 bind
 listen
-shutdown
 socket AF_NETLINK - NETLINK_ROUTE
 # libudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
@@ -304,7 +303,7 @@ func (iface *ofonoInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ofonoInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(ofonoConnectedPlugAppArmor, old, new, -1))
@@ -341,7 +340,7 @@ func (iface *ofonoInterface) UDevPermanentSlot(spec *udev.Specification, slot *s
 	return nil
 }
 
-func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *ofonoInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(ofonoConnectedSlotAppArmor, old, new, -1))
