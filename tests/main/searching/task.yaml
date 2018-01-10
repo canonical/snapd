@@ -1,11 +1,22 @@
 summary: Check snap search
 
+restore: |
+    rm -f featured.txt
+
 execute: |
     echo "List all featured snaps"
     expected="(?s).*Name +Version +Developer +Notes +Summary *\n\
     (.*?\n)?\
     .*"
-    snap find | grep -Pzq "$expected"
+    snap find > featured.txt
+    if ! grep -Pzq "$expected" < featured.txt; then
+        echo "expected out put $expected not found in:"
+        cat featured.txt
+        exit 1
+    fi
+    MATCH "No search term specified. Here are some interesting snaps" < featured.txt
+    MATCH "Provide a search term for more specific results." < featured.txt
+
     if [ $(snap find | wc -l) -gt 50 ]; then
         echo "Found more than 50 featured apps, this seems bogus:"
         snap find
@@ -44,5 +55,5 @@ execute: |
     if [ $(uname -m) = "x86_64" ]; then
         snap find --section=database cassandra | MATCH cassandra
     else
-        snap find --section=database cassandra 2>&1 | MATCH '0 snaps'
+        snap find --section=database cassandra 2>&1 | MATCH 'No matching snaps'
     fi
