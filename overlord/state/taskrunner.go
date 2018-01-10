@@ -96,7 +96,7 @@ func (r *TaskRunner) AddOptionalHandler(match func(t *Task) bool, do, undo Handl
 	r.optional = append(r.optional, optionalHandler{match, handlerPair{do, undo}})
 }
 
-func (r *TaskRunner) getHandlerPair(t *Task) handlerPair {
+func (r *TaskRunner) handlerPair(t *Task) handlerPair {
 	if handler, ok := r.handlers[t.Kind()]; ok {
 		return handler
 	}
@@ -154,13 +154,13 @@ func (r *TaskRunner) run(t *Task) {
 		t.SetStatus(DoingStatus)
 		fallthrough
 	case DoingStatus:
-		handler = r.getHandlerPair(t).do
+		handler = r.handlerPair(t).do
 
 	case UndoStatus:
 		t.SetStatus(UndoingStatus)
 		fallthrough
 	case UndoingStatus:
-		handler = r.getHandlerPair(t).undo
+		handler = r.handlerPair(t).undo
 
 	default:
 		panic("internal error: attempted to run task in status " + t.Status().String())
@@ -300,7 +300,7 @@ func (r *TaskRunner) abortLanes(chg *Change, lanes []int) {
 
 // tryUndo replaces the status of a knowingly aborted task.
 func (r *TaskRunner) tryUndo(t *Task) {
-	if t.Status() == AbortStatus && r.getHandlerPair(t).undo == nil {
+	if t.Status() == AbortStatus && r.handlerPair(t).undo == nil {
 		// Cannot undo but it was stopped in flight.
 		// Hold so it doesn't look like it finished.
 		t.SetStatus(HoldStatus)
@@ -341,7 +341,7 @@ func (r *TaskRunner) Ensure() {
 	ensureTime := timeNow()
 	nextTaskTime := time.Time{}
 	for _, t := range r.state.Tasks() {
-		handlers := r.getHandlerPair(t)
+		handlers := r.handlerPair(t)
 		if handlers.do == nil {
 			// Handled by a different runner instance.
 			continue
