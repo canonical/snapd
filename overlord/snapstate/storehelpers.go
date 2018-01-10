@@ -162,6 +162,13 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState, fl
 		return nil, nil, nil, err
 	}
 
+	// check if we have this name at all
+	for _, name := range names {
+		if _, ok := snapStates[name]; !ok {
+			return nil, nil, nil, snap.NotInstalledError{Snap: name}
+		}
+	}
+
 	sort.Strings(names)
 
 	stateByID := make(map[string]*SnapState, len(snapStates))
