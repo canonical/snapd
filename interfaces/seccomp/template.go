@@ -396,6 +396,7 @@ shmat
 shmctl
 shmdt
 shmget
+shutdown
 signal
 sigaction
 signalfd

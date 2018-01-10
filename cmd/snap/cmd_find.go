@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 )
 
 var shortFindHelp = i18n.G("Finds packages to install")
@@ -112,6 +113,11 @@ func (x *cmdFind) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
+	// LP: 1740605
+	if strings.TrimSpace(x.Positional.Query) == "" {
+		x.Positional.Query = ""
+	}
+
 	// magic! `snap find` returns the featured snaps
 	if x.Positional.Query == "" && x.Section == "" {
 		x.Section = "featured"
@@ -127,6 +133,10 @@ func (x *cmdFind) Execute(args []string) error {
 func findSnaps(opts *client.FindOptions) error {
 	cli := Client()
 	snaps, resInfo, err := cli.Find(opts)
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNetworkTimeout {
+		logger.Debugf("cannot list snaps: %v", e)
+		return fmt.Errorf("unable to contact snap store")
+	}
 	if err != nil {
 		return err
 	}
