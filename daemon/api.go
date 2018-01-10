@@ -413,6 +413,8 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		// local user logged-in, set its store macaroons
 		user.StoreMacaroon = macaroon
 		user.StoreDischarges = []string{discharge}
+		// user's email address authenticated by the store
+		user.Email = loginData.Email
 		err = auth.UpdateUser(state, user)
 	} else {
 		user, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
