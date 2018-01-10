@@ -56,10 +56,8 @@ ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
 TimeoutStopSec=10
 Type=%s
 
-
 [Install]
 WantedBy=multi-user.target
-
 `
 
 var (
@@ -67,9 +65,9 @@ var (
 )
 
 var (
-	expectedAppService     = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple\n\n")
-	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\n\nBusName=foo.bar.baz")
-	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "no", "oneshot\nRemainAfterExit=yes\n")
+	expectedAppService     = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple")
+	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\nBusName=foo.bar.baz")
+	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "no", "oneshot\nRemainAfterExit=yes")
 )
 
 var (
@@ -91,9 +89,8 @@ ExecReload=/usr/bin/snap run --command=reload xkcd-webserver
 ExecStopPost=/usr/bin/snap run --command=post-stop xkcd-webserver
 TimeoutStopSec=30
 Type=%s
-%s
-`
-	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, mountUnitPrefix, mountUnitPrefix, "forking", "\n\n\n\n[Install]\nWantedBy=multi-user.target\n")
+%s`
+	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, mountUnitPrefix, mountUnitPrefix, "forking", "\n[Install]\nWantedBy=multi-user.target\n")
 )
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFile(c *C) {
@@ -279,19 +276,14 @@ ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=%s
 WorkingDirectory=/var/snap/snap/44
-
-
-
 TimeoutStopSec=30
 Type=%s
 
-
 [Install]
 WantedBy=multi-user.target
-
 `
 
-	expectedService := fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple\n\n")
+	expectedService := fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple")
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
 			SuggestedName: "snap",
