@@ -70,6 +70,7 @@ func (cs *clientSuite) TestClientLoginWhenLoggedIn(c *check.C) {
 	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
 	err := ioutil.WriteFile(outfile, []byte(`{"email":"foo@bar.com","macaroon":"macaroon"}`), 0600)
+	c.Assert(err, check.IsNil)
 	c.Assert(cs.cli.LoggedInUser(), check.DeepEquals, &client.User{
 		Email:    "foo@bar.com",
 		Macaroon: "macaroon",
