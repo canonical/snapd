@@ -39,7 +39,6 @@ var (
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
 	// utils
-	EnsureMountPoint  = ensureMountPoint
 	PlanWritableMimic = planWritableMimic
 	ExecWritableMimic = execWritableMimic
 	SecureMkdirAll    = secureMkdirAll
