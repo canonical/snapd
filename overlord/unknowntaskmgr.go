@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,21 +20,41 @@
 package overlord
 
 import (
+	"fmt"
+
+	"gopkg.in/tomb.v2"
+
 	"github.com/snapcore/snapd/overlord/state"
 )
 
 type UnknownTaskManager struct {
-	state  *state.State
-	runner *state.TaskRunner
+	state          *state.State
+	runner         *state.TaskRunner
+	knownTaskKinds map[string]bool
 }
 
 func NewUnknownTaskManager(s *state.State, knownTaskKinds []string) *UnknownTaskManager {
-	runner := state.NewUnknownTaskRunner(s, knownTaskKinds)
+	runner := state.NewTaskRunner(s)
 	mgr := &UnknownTaskManager{
-		state:  s,
-		runner: runner,
+		state:          s,
+		runner:         runner,
+		knownTaskKinds: make(map[string]bool),
 	}
+
+	for _, k := range knownTaskKinds {
+		mgr.knownTaskKinds[k] = true
+	}
+
+	runner.AddOptionalHandler(mgr.matchUnknownTasks, handleUnknownTask, nil)
 	return mgr
+}
+
+func (m *UnknownTaskManager) matchUnknownTasks(task *state.Task) bool {
+	return !m.knownTaskKinds[task.Kind()]
+}
+
+func handleUnknownTask(task *state.Task, tomb *tomb.Tomb) error {
+	return fmt.Errorf("no handler for task %q", task.Kind())
 }
 
 // Ensure implements StateManager.Ensure.
