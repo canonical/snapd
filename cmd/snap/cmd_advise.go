@@ -29,25 +29,29 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-type cmdAdviseCommand struct {
+type cmdAdviseSnap struct {
 	Positionals struct {
-		Command string `required:"yes"`
+		CommandOrPkg string `required:"yes"`
 	} `positional-args:"true"`
 
-	Format string `long:"format" default:"pretty"`
+	Format  string `long:"format" default:"pretty"`
+	Command bool   `long:"command"`
 }
 
-var shortAdviseCommandHelp = i18n.G("Advise on available snaps.")
-var longAdviseCommandHelp = i18n.G(`
+var shortAdviseSnapHelp = i18n.G("Advise on available snaps.")
+var longAdviseSnapHelp = i18n.G(`
 The advise-command command shows what snaps with the given command are 
 available.
 `)
 
 func init() {
-	cmd := addCommand("advise-command", shortAdviseCommandHelp, longAdviseCommandHelp, func() flags.Commander {
-		return &cmdAdviseCommand{}
-	}, nil, []argDesc{
-		{name: "<command>"},
+	cmd := addCommand("advise-snap", shortAdviseSnapHelp, longAdviseSnapHelp, func() flags.Commander {
+		return &cmdAdviseSnap{}
+	}, map[string]string{
+		"command": i18n.G("Advise on snaps that provide the given command"),
+		"format":  i18n.G("Use the given output format (pretty or json)"),
+	}, []argDesc{
+		{name: "<command or pkg>"},
 	})
 	cmd.hidden = true
 }
@@ -75,12 +79,16 @@ func outputAdviseJSON(command string, results []advisor.Command) error {
 	return nil
 }
 
-func (x *cmdAdviseCommand) Execute(args []string) error {
+func (x *cmdAdviseSnap) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
-	return adviseCommand(x.Positionals.Command, x.Format)
+	if x.Command {
+		return adviseCommand(x.Positionals.CommandOrPkg, x.Format)
+	}
+
+	return fmt.Errorf("snap advise-snap is only implemented with --command")
 }
 
 func adviseCommand(cmd string, format string) error {

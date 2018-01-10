@@ -282,8 +282,11 @@ func main() {
 	// check for magic symlink to /usr/bin/snap:
 	// 1. symlink from command-not-found to /usr/bin/snap: run c-n-f
 	if os.Args[0] == filepath.Join(dirs.GlobalRootDir, "/usr/lib/command-not-found") {
-		cmd := &cmdAdviseCommand{Format: "pretty"}
-		cmd.Positionals.Command = os.Args[1]
+		cmd := &cmdAdviseSnap{
+			Command: true,
+			Format:  "pretty",
+		}
+		cmd.Positionals.CommandOrPkg = os.Args[1]
 		if err := cmd.Execute(nil); err != nil {
 			fmt.Fprintf(Stderr, "%s\n", err)
 		}
