@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
@@ -52,6 +53,8 @@ type cmdRun struct {
 	Hook     string `long:"hook" hidden:"yes"`
 	Revision string `short:"r" default:"unset" hidden:"yes"`
 	Shell    bool   `long:"shell" `
+	// FIXME: provide a way to pass options to strace
+	Strace bool `long:"strace"`
 }
 
 func init() {
@@ -65,6 +68,7 @@ func init() {
 			"hook":    i18n.G("Hook to run"),
 			"r":       i18n.G("Use a specific snap revision when running hook"),
 			"shell":   i18n.G("Run a shell instead of the command (useful for debugging)"),
+			"strace":  i18n.G("Run the command under strace (useful for debugging"),
 		}, nil)
 }
 
@@ -93,8 +97,11 @@ func (x *cmdRun) Execute(args []string) error {
 	}
 
 	// pass shell as a special command to snap-exec
-	if x.Shell {
+	switch {
+	case x.Shell:
 		x.Command = "shell"
+	case x.Strace:
+		x.Command = "strace"
 	}
 
 	if x.Command == "complete" {
@@ -423,6 +430,35 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	return targetPath, nil
 }
 
+func straceCmd() ([]string, error) {
+	current, err := user.Current()
+	if err != nil {
+		return nil, err
+	}
+	sudoPath, err := exec.LookPath("sudo")
+	if err != nil {
+		return nil, fmt.Errorf("cannot use strace without sudo: %s", err)
+	}
+	stracePath, err := exec.LookPath("strace")
+	if err != nil {
+		// Ubuntu Core devices will need strace from the snap
+		cand := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
+		if osutil.FileExists(cand) {
+			stracePath = cand
+		} else {
+			return nil, err
+		}
+	}
+
+	return []string{
+		sudoPath, "-E",
+		stracePath,
+		"-u", current.Username,
+		"-f",
+		"-e", "!select,pselect6,_newselect,clock_gettime",
+	}, nil
+}
+
 func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
 	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
 	// if we re-exec, we must run the snap-confine from the core snap
@@ -451,7 +487,18 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 		logger.Noticef("WARNING: cannot copy user Xauthority file: %s", err)
 	}
 
-	cmd := []string{snapConfine}
+	var cmd []string
+
+	if command == "strace" {
+		strace, err := straceCmd()
+		if err != nil {
+			return err
+		}
+		cmd = append(cmd, strace...)
+		command = ""
+	}
+	cmd = append(cmd, snapConfine)
+
 	if info.NeedsClassic() {
 		cmd = append(cmd, "--classic")
 	}
