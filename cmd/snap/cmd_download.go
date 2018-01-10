@@ -61,19 +61,19 @@ func init() {
 	}})
 }
 
-func fetchSnapAssertions(tsto *image.ToolingStore, snapPath string, snapInfo *snap.Info) error {
+func fetchSnapAssertions(tsto *image.ToolingStore, snapPath string, snapInfo *snap.Info) (string, error) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   sysdb.Trusted(),
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	assertPath := strings.TrimSuffix(snapPath, filepath.Ext(snapPath)) + ".assert"
 	w, err := os.Create(assertPath)
 	if err != nil {
-		return fmt.Errorf(i18n.G("cannot create assertions file: %v"), err)
+		return "", fmt.Errorf(i18n.G("cannot create assertions file: %v"), err)
 	}
 	defer w.Close()
 
@@ -84,7 +84,7 @@ func fetchSnapAssertions(tsto *image.ToolingStore, snapPath string, snapInfo *sn
 	f := tsto.AssertionFetcher(db, save)
 
 	_, err = image.FetchAndCheckSnapAssertions(snapPath, snapInfo, f, db)
-	return err
+	return assertPath, err
 }
 
 func (x *cmdDownload) Execute(args []string) error {
@@ -125,11 +125,24 @@ func (x *cmdDownload) Execute(args []string) error {
 	}
 
 	fmt.Fprintf(Stderr, i18n.G("Fetching assertions for %q\n"), snapName)
-	err = fetchSnapAssertions(tsto, snapPath, snapInfo)
+	assertPath, err := fetchSnapAssertions(tsto, snapPath, snapInfo)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(Stdout, i18n.G("Check `snap ack --help` and `snap install --help` for more details.\n"))
+
+	// simplify paths
+	wd, _ := os.Getwd()
+	if p, err := filepath.Rel(wd, assertPath); err == nil {
+		assertPath = p
+	}
+	if p, err := filepath.Rel(wd, snapPath); err == nil {
+		snapPath = p
+	}
+	// add a hint what to do with the downloaded snap (LP:1676707)
+	fmt.Fprintf(Stdout, i18n.G(`Install the snap with:
+   snap ack %s
+   snap install %s
+`), assertPath, snapPath)
 
 	return nil
 }
