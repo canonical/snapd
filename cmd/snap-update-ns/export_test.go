@@ -151,7 +151,7 @@ type SystemCalls interface {
 type SyscallRecorder struct {
 	calls    []string
 	errors   map[string]func() error
-	lstats   map[string]*fakeFileInfo
+	lstats   map[string]os.FileInfo
 	readdirs map[string][]os.FileInfo
 	fds      map[int]string
 }
@@ -187,9 +187,9 @@ func (sys *SyscallRecorder) InsertFaultFunc(call string, fn func() error) {
 }
 
 // InsertLstatResult makes given subsequent call lstat return the specified fake file info.
-func (sys *SyscallRecorder) InsertLstatResult(call string, fi *fakeFileInfo) {
+func (sys *SyscallRecorder) InsertLstatResult(call string, fi os.FileInfo) {
 	if sys.lstats == nil {
-		sys.lstats = make(map[string]*fakeFileInfo)
+		sys.lstats = make(map[string]os.FileInfo)
 	}
 	sys.lstats[call] = fi
 }
