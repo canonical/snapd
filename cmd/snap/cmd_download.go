@@ -114,7 +114,7 @@ func (x *cmdDownload) Execute(args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stderr, i18n.G("Fetching snap %q\n"), snapName)
+	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
 	dlOpts := image.DownloadOptions{
 		TargetDir: "", // cwd
 		Channel:   x.Channel,
@@ -124,7 +124,7 @@ func (x *cmdDownload) Execute(args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stderr, i18n.G("Fetching assertions for %q\n"), snapName)
+	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
 	assertPath, err := fetchSnapAssertions(tsto, snapPath, snapInfo)
 	if err != nil {
 		return err
