@@ -130,13 +130,13 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 	if len(snaps) == 0 {
 		// TRANSLATORS: the %q is the (quoted) query the user entered
-		fmt.Fprintf(Stderr, i18n.G("The search %q returned 0 snaps\n"), opts.Query)
+		fmt.Fprintf(Stderr, i18n.G("No matching snaps for %q\n"), opts.Query)
 		return nil
 	}
 
 	// show featured header *after* we checked for errors from the find
 	if showFeatured {
-		fmt.Fprintf(Stdout, i18n.G("No search term specified. Here are some interessting snaps:\n\n"))
+		fmt.Fprintf(Stdout, i18n.G("No search term specified. Here are some interesting snaps:\n\n"))
 	}
 
 	w := tabWriter()
@@ -148,7 +148,7 @@ func (x *cmdFind) Execute(args []string) error {
 	w.Flush()
 
 	if showFeatured {
-		fmt.Fprintf(Stdout, i18n.G("\nSee `snap find --help` for more granular searches.\n"))
+		fmt.Fprintf(Stdout, i18n.G("\nProvide a search term for more specific results.\n"))
 	}
 	return nil
 }
