@@ -68,11 +68,13 @@ func udevTag(securityTag string) string {
 	return strings.Replace(securityTag, ".", "_", -1)
 }
 
-// TagDevice adds an app/hook specific udev tag to devices described by the snippet.
+// TagDevice adds an app/hook specific udev tag to devices described by the
+// snippet and adds an app/hook-specific RUN rule for hotplugging.
 func (spec *Specification) TagDevice(snippet string) {
 	for _, securityTag := range spec.securityTags {
 		tag := udevTag(securityTag)
 		spec.addEntry(fmt.Sprintf("# %s\n%s, TAG+=\"%s\"", spec.iface, snippet, tag), tag)
+		spec.addEntry(fmt.Sprintf("TAG==\"%s\", RUN+=\"/lib/udev/snappy-app-dev $env{ACTION} %s $devpath $major:$minor\"", tag, tag), tag)
 	}
 }
 
@@ -103,31 +105,31 @@ func (spec *Specification) Snippets() (result []string) {
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records udev-specific side-effects of having a connected plug.
-func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	type definer interface {
-		UDevConnectedPlug(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+		UDevConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	ifname := iface.Name()
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = plug.SecurityTags()
 		spec.iface = ifname
 		defer func() { spec.securityTags = nil; spec.iface = "" }()
-		return iface.UDevConnectedPlug(spec, plug, plugAttrs, slot, slotAttrs)
+		return iface.UDevConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
 
 // AddConnectedSlot records mount-specific side-effects of having a connected slot.
-func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	type definer interface {
-		UDevConnectedSlot(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+		UDevConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	ifname := iface.Name()
 	if iface, ok := iface.(definer); ok {
 		spec.securityTags = slot.SecurityTags()
 		spec.iface = ifname
 		defer func() { spec.securityTags = nil; spec.iface = "" }()
-		return iface.UDevConnectedSlot(spec, plug, plugAttrs, slot, slotAttrs)
+		return iface.UDevConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }

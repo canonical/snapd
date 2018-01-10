@@ -337,6 +337,10 @@ func newFakeSnapManager(st *state.State) *fakeSnapManager {
 	return &fakeSnapManager{runner: runner}
 }
 
+func (m *fakeSnapManager) KnownTaskKinds() []string {
+	return m.runner.KnownTaskKinds()
+}
+
 func (m *fakeSnapManager) Ensure() error {
 	m.runner.Ensure()
 	return nil
@@ -810,13 +814,13 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
-func (s *apiSuite) makeMyAppsServer(statusCode int, data string) *httptest.Server {
-	mockMyAppsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func (s *apiSuite) makeDeveloperAPIServer(statusCode int, data string) *httptest.Server {
+	mockDeveloperAPIServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(statusCode)
 		io.WriteString(w, data)
 	}))
-	store.MyAppsMacaroonACLAPI = mockMyAppsServer.URL + "/acl/"
-	return mockMyAppsServer
+	store.MacaroonACLAPI = mockDeveloperAPIServer.URL + "/acl/"
+	return mockDeveloperAPIServer
 }
 
 func (s *apiSuite) makeSSOServer(statusCode int, data string) *httptest.Server {
@@ -865,8 +869,8 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
-	defer mockMyAppsServer.Close()
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
 
 	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
 	mockSSOServer := s.makeSSOServer(200, discharge)
@@ -917,8 +921,8 @@ func (s *apiSuite) TestLoginUserWithUsername(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
-	defer mockMyAppsServer.Close()
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
 
 	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
 	mockSSOServer := s.makeSSOServer(200, discharge)
@@ -974,8 +978,8 @@ func (s *apiSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
-	defer mockMyAppsServer.Close()
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
 
 	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
 	mockSSOServer := s.makeSSOServer(200, discharge)
@@ -1027,8 +1031,8 @@ func (s *apiSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
-	defer mockMyAppsServer.Close()
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
 
 	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
 	mockSSOServer := s.makeSSOServer(200, discharge)
@@ -1085,7 +1089,7 @@ func (s *apiSuite) TestLogoutUser(c *check.C) {
 	state.Lock()
 	_, err = auth.User(state, user.ID)
 	state.Unlock()
-	c.Check(err, check.ErrorMatches, "invalid user")
+	c.Check(err, check.Equals, auth.ErrInvalidUser)
 }
 
 func (s *apiSuite) TestLoginUserBadRequest(c *check.C) {
@@ -1100,9 +1104,9 @@ func (s *apiSuite) TestLoginUserBadRequest(c *check.C) {
 	c.Check(rsp.Result, check.NotNil)
 }
 
-func (s *apiSuite) TestLoginUserMyAppsError(c *check.C) {
-	mockMyAppsServer := s.makeMyAppsServer(200, "{}")
-	defer mockMyAppsServer.Close()
+func (s *apiSuite) TestLoginUserDeveloperAPIError(c *check.C) {
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, "{}")
+	defer mockDeveloperAPIServer.Close()
 
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
@@ -1120,8 +1124,8 @@ func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
-	defer mockMyAppsServer.Close()
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
 
 	discharge := `{"code": "TWOFACTOR_REQUIRED"}`
 	mockSSOServer := s.makeSSOServer(401, discharge)
@@ -1143,8 +1147,8 @@ func (s *apiSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
-	defer mockMyAppsServer.Close()
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
 
 	discharge := `{"code": "TWOFACTOR_FAILURE"}`
 	mockSSOServer := s.makeSSOServer(403, discharge)
@@ -1166,8 +1170,8 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
 	c.Assert(err, check.IsNil)
-	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
-	defer mockMyAppsServer.Close()
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
 
 	discharge := `{"code": "INVALID_CREDENTIALS"}`
 	mockSSOServer := s.makeSSOServer(401, discharge)
@@ -1588,6 +1592,18 @@ func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot use 'q' with 'select=refresh'")
+}
+
+func (s *apiSuite) TestFindBadQueryReturnsCorrectErrorKind(c *check.C) {
+	s.err = store.ErrBadQuery
+	req, err := http.NewRequest("GET", "/v2/find?q=return-bad-query-please", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "bad query")
+	c.Check(rsp.Result.(*errorResult).Kind, check.Equals, errorKindBadQuery)
 }
 
 func (s *apiSuite) TestFindPriced(c *check.C) {
@@ -4695,30 +4711,33 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	expectedEmail := "popper@lse.ac.uk"
+	expectedUsername := "karl"
+
 	storeUserInfo = func(user string) (*store.User, error) {
-		c.Check(user, check.Equals, "popper@lse.ac.uk")
+		c.Check(user, check.Equals, expectedEmail)
 		return &store.User{
-			Username:         "karl",
+			Username:         expectedUsername,
 			SSHKeys:          []string{"ssh1", "ssh2"},
 			OpenIDIdentifier: "xxyyzz",
 		}, nil
 	}
 	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
-		c.Check(username, check.Equals, "karl")
+		c.Check(username, check.Equals, expectedUsername)
 		c.Check(opts.SSHKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
 		c.Check(opts.Gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
 		c.Check(opts.Sudoer, check.Equals, false)
 		return nil
 	}
 
-	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"email": "%s"}`, expectedEmail))
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	expected := &userResponseData{
-		Username: "karl",
+		Username: expectedUsername,
 		SSHKeys:  []string{"ssh1", "ssh2"},
 	}
 
@@ -4732,15 +4751,17 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 	user, err := auth.User(state, 1)
 	state.Unlock()
 	c.Check(err, check.IsNil)
-	c.Check(user.Username, check.Equals, "karl")
-	c.Check(user.Email, check.Equals, "popper@lse.ac.uk")
+	c.Check(user.Username, check.Equals, expectedUsername)
+	c.Check(user.Email, check.Equals, expectedEmail)
 	c.Check(user.Macaroon, check.NotNil)
 	// auth saved to user home dir
 	outfile := filepath.Join(s.mockUserHome, ".snap", "auth.json")
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
 	content, err := ioutil.ReadFile(outfile)
 	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals, fmt.Sprintf(`{"macaroon":"%s"}`, user.Macaroon))
+	c.Check(string(content), check.Equals,
+		fmt.Sprintf(`{"id":%d,"username":"%s","email":"%s","macaroon":"%s"}`,
+			1, expectedUsername, expectedEmail, user.Macaroon))
 }
 
 func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {

@@ -62,6 +62,7 @@ func (s *servicesSuite) TestConfigureServiceNotDisabled(c *C) {
 	err := configcore.SwitchDisableService("ssh", "false")
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"--root", dirs.GlobalRootDir, "unmask", "ssh.service"},
 		{"--root", dirs.GlobalRootDir, "enable", "ssh.service"},
 		{"start", "ssh.service"},
 	})
@@ -72,6 +73,7 @@ func (s *servicesSuite) TestConfigureServiceDisabled(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "disable", "ssh.service"},
+		{"--root", dirs.GlobalRootDir, "mask", "ssh.service"},
 		{"stop", "ssh.service"},
 		{"show", "--property=ActiveState", "ssh.service"},
 	})
@@ -93,6 +95,7 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 		srv := fmt.Sprintf("%s.service", srvName)
 		c.Check(s.systemctlArgs, DeepEquals, [][]string{
 			{"--root", dirs.GlobalRootDir, "disable", srv},
+			{"--root", dirs.GlobalRootDir, "mask", srv},
 			{"stop", srv},
 			{"show", "--property=ActiveState", srv},
 		})
@@ -114,6 +117,7 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 		c.Assert(err, IsNil)
 		srv := fmt.Sprintf("%s.service", srvName)
 		c.Check(s.systemctlArgs, DeepEquals, [][]string{
+			{"--root", dirs.GlobalRootDir, "unmask", srv},
 			{"--root", dirs.GlobalRootDir, "enable", srv},
 			{"start", srv},
 		})
