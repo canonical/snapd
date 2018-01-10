@@ -1,4 +1,4 @@
-summary: Ensure that `snap advise-command` works
+summary: Ensure that `snap advise-snap` works
 
 # we need https://github.com/snapcore/core/pull/70 landed before
 # we can use this on ubuntu-core-*
@@ -23,18 +23,18 @@ execute: |
     done
     stat /var/cache/snapd/commands.db
 
-    echo "Ensure `snap advise-command` lookup works"
-    snap advise-command test-snapd-tools.echo | MATCH test-snapd-tools
+    echo "Ensure `snap advise-snap --command` lookup works"
+    snap advise-snap --command test-snapd-tools.echo | MATCH test-snapd-tools
 
-    echo "Ensure `advise-command` works as command-not-found symlink"
+    echo "Ensure `advise-snap --command` works as command-not-found symlink"
     ln -s /usr/bin/snap /usr/lib/command-not-found
     /usr/lib/command-not-found test-snapd-tools.echo | MATCH test-snapd-tools
 
     echo "Ensure short names are found too"
-    snap advise-command test_snapd_wellknown1 | MATCH 'The program ".*" can be found'
+    snap advise-snap --command test_snapd_wellknown1 | MATCH 'The program ".*" can be found'
 
-    echo "Ensure advise-command without a match returns exit code 1"
-    if snap advise-command no-such-command-for-any-snap; then
+    echo "Ensure advise-snap without a match returns exit code 1"
+    if snap advise-snap --command no-such-command-for-any-snap; then
         echo "A not-found snap command should return an error"
         exit 1
     fi
