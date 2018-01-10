@@ -184,6 +184,16 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 	return nil
 }
 
+// normPath is a helper for validateContainer. It takes a relative path (e.g. an
+// app's RestartCommand, which might be empty to mean there is no such thing),
+// and cleans it.
+//
+// * empty paths are returned as is
+// * if the path is not relative, it's initial / is dropped
+// * if the path goes "outside" (ie starts with ../), the empty string is
+//   returned (i.e. "ignore")
+// * if there's a space in the command, ignore the rest of the string
+//   (see also cmd/snap-exec/main.go's comment about strings.Split)
 func normPath(path string) string {
 	if path == "" {
 		return ""
@@ -194,12 +204,16 @@ func normPath(path string) string {
 		// not something inside the snap
 		return ""
 	}
+	if idx := strings.IndexByte(path, ' '); idx > -1 {
+		return path[:idx]
+	}
+
 	return path
 }
 
 var (
 	ErrBadModes     = errors.New("snap is unusable due to bad permissions; contact develper")
-	ErrMissingPaths = errors.New("snap is unusable due to missing files; contact developr")
+	ErrMissingPaths = errors.New("snap is unusable due to missing files; contact developer")
 )
 
 func validateContainer(s *snap.Info, c snap.Container) error {
@@ -258,6 +272,18 @@ func validateContainer(s *snap.Info, c snap.Container) error {
 	// note all needsr so far need to be regular files
 	for k := range needsr {
 		needsf[k] = true
+	}
+	// thing can get jumbled up
+	for path := range needsrx {
+		delete(needsx, path)
+		delete(needsr, path)
+	}
+	for path := range needsx {
+		if needsr[path] {
+			delete(needsx, path)
+			delete(needsr, path)
+			needsrx[path] = true
+		}
 	}
 	seen := make(map[string]bool, len(needsx)+len(needsrx)+len(needsr))
 
