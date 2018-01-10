@@ -294,7 +294,7 @@ func (sys *SyscallRecorder) Lstat(name string) (os.FileInfo, error) {
 	if err := sys.call(call); err != nil {
 		return nil, err
 	}
-	if fi := sys.lstats[call]; fi != nil {
+	if fi, ok := sys.lstats[call]; ok {
 		return fi, nil
 	}
 	panic(fmt.Sprintf("one of InsertLstatResult() or InsertFault() for %q must be used", call))
@@ -305,7 +305,7 @@ func (sys *SyscallRecorder) ReadDir(dirname string) ([]os.FileInfo, error) {
 	if err := sys.call(call); err != nil {
 		return nil, err
 	}
-	if fi := sys.readdirs[call]; fi != nil {
+	if fi, ok := sys.readdirs[call]; ok {
 		return fi, nil
 	}
 	panic(fmt.Sprintf("one of InsertReadDirResult() or InsertFault() for %q must be used", call))
