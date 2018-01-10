@@ -480,7 +480,7 @@ func (s *servicesTestSuite) TestServiceAfterBefore(c *C) {
 	})
 	defer r()
 
-	info := snaptest.MockSnap(c, packageHello+`
+	snapYaml := packageHello + `
  svc2:
    daemon: forking
    after: [svc1]
@@ -494,35 +494,34 @@ func (s *servicesTestSuite) TestServiceAfterBefore(c *C) {
      - svc1
      - svc2
      - svc3
-`, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
+`
+	info := snaptest.MockSnap(c, snapYaml, contentsHello, &snap.SideInfo{Revision: snap.R(12)})
 
 	checks := []struct {
 		file    string
 		kind    string
 		matches []string
-	}{
-		{
-			file:    filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service"),
-			kind:    "After",
-			matches: []string{info.Apps["svc1"].ServiceName()},
+	}{{
+		file:    filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service"),
+		kind:    "After",
+		matches: []string{info.Apps["svc1"].ServiceName()},
+	}, {
+		file:    filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"),
+		kind:    "After",
+		matches: []string{info.Apps["svc2"].ServiceName()},
+	}, {
+		file:    filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"),
+		kind:    "Before",
+		matches: []string{info.Apps["svc4"].ServiceName()},
+	}, {
+		file: filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc4.service"),
+		kind: "After",
+		matches: []string{
+			info.Apps["svc1"].ServiceName(),
+			info.Apps["svc2"].ServiceName(),
+			info.Apps["svc3"].ServiceName(),
 		},
-		{
-			file:    filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"),
-			kind:    "After",
-			matches: []string{info.Apps["svc2"].ServiceName()},
-		},
-		{
-			file:    filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"),
-			kind:    "Before",
-			matches: []string{info.Apps["svc4"].ServiceName()},
-		},
-		{
-			file: filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc4.service"),
-			kind: "After",
-			matches: []string{info.Apps["svc1"].ServiceName(),
-				info.Apps["svc2"].ServiceName(), info.Apps["svc3"].ServiceName()},
-		},
-	}
+	}}
 
 	err := wrappers.AddSnapServices(info, nil)
 	c.Assert(err, IsNil)
@@ -533,7 +532,19 @@ func (s *servicesTestSuite) TestServiceAfterBefore(c *C) {
 
 		for _, m := range check.matches {
 			c.Check(string(content), Matches,
-				"(?ms).*^(?mU)"+check.kind+"=.*\\s?"+regexp.QuoteMeta(m)+"\\s?[^=]*$")
+				// match:
+				//   ...
+				//   After=other.mount some.target foo.service bar.service
+				//   Before=foo.service bar.service
+				//   ...
+				// but not:
+				//   Foo=something After=foo.service Bar=something else
+				// or:
+				//   After=foo.service
+				//   bar.service
+				// or:
+				//   After=  foo.service    bar.service
+				"(?ms).*^(?U)"+check.kind+"=.*\\s?"+regexp.QuoteMeta(m)+"\\s?[^=]*$")
 		}
 	}
 
