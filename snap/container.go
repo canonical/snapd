@@ -38,6 +38,9 @@ type Container interface {
 	// ReadFile returns the content of a single file from the snap.
 	ReadFile(relative string) ([]byte, error)
 
+	// Walk is like filepath.Walk, without the ordering guarantee.
+	Walk(relative string, walkFn filepath.WalkFunc) error
+
 	// ListDir returns the content of a single directory inside the snap.
 	ListDir(path string) ([]string, error)
 
