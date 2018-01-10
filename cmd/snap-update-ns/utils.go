@@ -41,6 +41,8 @@ const (
 var (
 	osLstat    = os.Lstat
 	osReadlink = os.Readlink
+	osSymlink  = os.Symlink
+	osRemove   = os.Remove
 
 	sysClose   = syscall.Close
 	sysMkdirat = syscall.Mkdirat
@@ -118,7 +120,7 @@ func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid sys.Use
 
 	if err = sysMkdirat(fd, segment, uint32(perm.Perm())); err != nil {
 		switch err {
-		case syscall.EEXIST:
+		case syscall.EEXIST, os.ErrExist:
 			made = false
 		case syscall.EROFS:
 			// Treat EROFS specially: this is a hint that we have to poke a
@@ -349,7 +351,7 @@ func planWritableMimic(dir string) ([]*Change, error) {
 			changes = append(changes, ch)
 		case m&os.ModeSymlink != 0:
 			if target, err := osReadlink(filepath.Join(dir, fi.Name())); err == nil {
-				ch.Entry.Options = append(ch.Entry.Options, "x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", target))
+				ch.Entry.Options = []string{"x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", target)}
 				changes = append(changes, ch)
 			}
 		default:
@@ -456,26 +458,14 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 	return undoChanges, nil
 }
 
-func ensureMountPoint(path string, mode os.FileMode, uid sys.UserID, gid sys.GroupID) error {
-	// If the mount point is not present then create a directory in its
-	// place.  This is very naive, doesn't handle read-only file systems
-	// but it is a good starting point for people working with things like
-	// $SNAP_DATA/subdirectory.
-	//
-	// We use lstat to ensure that we don't follow the symlink in case one
-	// was set up by the snap. Note that at the time this is run, all the
-	// snap's processes are frozen.
-	fi, err := osLstat(path)
-	switch {
-	case err != nil && os.IsNotExist(err):
-		return secureMkdirAll(path, mode, uid, gid)
-	case err != nil:
-		return fmt.Errorf("cannot inspect %q: %v", path, err)
-	case err == nil:
-		// Ensure that mount point is a directory.
-		if !fi.IsDir() {
-			return fmt.Errorf("cannot use %q for mounting, not a directory", path)
-		}
+func createWritableMimic(dir string) ([]*Change, error) {
+	plan, err := planWritableMimic(dir)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	changes, err := execWritableMimic(plan)
+	if err != nil {
+		return nil, err
+	}
+	return changes, nil
 }
