@@ -444,6 +444,80 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 	})
 }
 
+// Change.Perform wants to mount a filesystem but the mount point isn't there and the parent is read-only and mimic fails during planning.
+func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBaseErrorWhilePlanning(c *C) {
+	s.sys.InsertFault(`lstat "/rofs/target"`, os.ErrNotExist)
+	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, os.ErrExist)
+	s.sys.InsertFault(`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, os.ErrNotExist)
+	s.sys.InsertFault(`mkdirat 4 "target" 0755`, syscall.EROFS)
+	s.sys.InsertFault(`lstat "/tmp/.snap/rofs"`, os.ErrNotExist)
+	s.sys.InsertLstatResult(`lstat "/rofs"`, update.FileInfoDir)
+	s.sys.InsertReadDirResult(`readdir "/rofs"`, nil)
+	s.sys.InsertFault(`readdir "/rofs"`, errTesting) // make the writable mimic fail
+
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "device", Dir: "/rofs/target", Type: "type"}}
+	synth, err := chg.Perform()
+	c.Check(err, ErrorMatches, `cannot create writable mimic over "/rofs": testing`)
+	c.Check(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		// sniff mount target
+		`lstat "/rofs/target"`,
+
+		// /rofs/target is missing, create it
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 3 "rofs" 0755`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`close 3`,
+		`mkdirat 4 "target" 0755`,
+		`close 4`,
+
+		// error, read only filesystem, create a mimic
+		`readdir "/rofs"`,
+		// cannot create mimic, that's it
+	})
+}
+
+// Change.Perform wants to mount a filesystem but the mount point isn't there and the parent is read-only and mimic fails during execution.
+func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBaseErrorWhileExecuting(c *C) {
+	s.sys.InsertFault(`lstat "/rofs/target"`, os.ErrNotExist)
+	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, os.ErrExist)
+	s.sys.InsertFault(`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, os.ErrNotExist)
+	s.sys.InsertFault(`mkdirat 4 "target" 0755`, syscall.EROFS)
+	s.sys.InsertFault(`lstat "/tmp/.snap/rofs"`, os.ErrNotExist)
+	s.sys.InsertLstatResult(`lstat "/rofs"`, update.FileInfoDir)
+	s.sys.InsertReadDirResult(`readdir "/rofs"`, nil)
+	s.sys.InsertFault(`mkdirat 4 ".snap" 0755`, errTesting) // make the writable mimic fail
+
+	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "device", Dir: "/rofs/target", Type: "type"}}
+	synth, err := chg.Perform()
+	c.Check(err, ErrorMatches, `cannot create writable mimic over "/rofs": cannot create file/directory "/tmp/.snap/rofs": cannot mkdir path segment ".snap": testing`)
+	c.Check(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		// sniff mount target
+		`lstat "/rofs/target"`,
+
+		// /rofs/target is missing, create it
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 3 "rofs" 0755`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`close 3`,
+		`mkdirat 4 "target" 0755`,
+		`close 4`,
+
+		// error, read only filesystem, create a mimic
+		`readdir "/rofs"`,
+		`lstat "/tmp/.snap/rofs"`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 3 "tmp" 0755`,
+		`openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`fchown 4 0 0`,
+		`mkdirat 4 ".snap" 0755`,
+		`close 4`,
+		`close 3`,
+		// cannot create mimic, that's it
+	})
+}
+
 // Change.Perform wants to mount a filesystem but there's a symlink in mount point.
 func (s *changeSuite) TestPerformFilesystemMountWithSymlinkInMountPoint(c *C) {
 	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoSymlink)
