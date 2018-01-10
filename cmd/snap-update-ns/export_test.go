@@ -157,11 +157,26 @@ type SyscallRecorder struct {
 }
 
 // InsertFault makes given subsequent call to return the specified error.
-func (sys *SyscallRecorder) InsertFault(call string, err error) {
+func (sys *SyscallRecorder) InsertFault(call string, errors ...error) {
 	if sys.errors == nil {
 		sys.errors = make(map[string]func() error)
 	}
-	sys.errors[call] = func() error { return err }
+	if len(errors) == 1 {
+		// deterministic error
+		sys.errors[call] = func() error {
+			return errors[0]
+		}
+	} else {
+		// error sequence
+		sys.errors[call] = func() error {
+			if len(errors) > 0 {
+				err := errors[0]
+				errors = errors[1:]
+				return err
+			}
+			return nil
+		}
+	}
 }
 
 func (sys *SyscallRecorder) InsertFaultFunc(call string, fn func() error) {
