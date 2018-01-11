@@ -136,11 +136,11 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 	if err != nil {
 		return err
 	}
+
+	emptyDynamicAttrs := make(map[string]interface{})
 	if plug, ok := snapInfo.Plugs[plugName]; ok {
-		attrs := make(map[string]interface{})
-		attrs["static"] = plug.Attrs
-		attrs["dynamic"] = make(map[string]interface{})
-		ts.Set("plug-attrs", attrs)
+		ts.Set("plug-static", plug.Attrs)
+		ts.Set("plug-dynamic", emptyDynamicAttrs)
 	} else {
 		return fmt.Errorf("snap %q has no plug named %q", plugSnap, plugName)
 	}
@@ -154,10 +154,8 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 	}
 	addImplicitSlots(snapInfo)
 	if slot, ok := snapInfo.Slots[slotName]; ok {
-		attrs := make(map[string]interface{})
-		attrs["static"] = slot.Attrs
-		attrs["dynamic"] = make(map[string]interface{})
-		ts.Set("slot-attrs", attrs)
+		ts.Set("slot-static", slot.Attrs)
+		ts.Set("slot-dynamic", emptyDynamicAttrs)
 	} else {
 		return fmt.Errorf("snap %q has no slot named %q", slotSnap, slotName)
 	}

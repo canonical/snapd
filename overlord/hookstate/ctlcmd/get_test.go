@@ -181,22 +181,19 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	attrsTask := state.NewTask("connect-task", "my connect task")
 	attrsTask.Set("plug", &interfaces.PlugRef{Snap: "a", Name: "aplug"})
 	attrsTask.Set("slot", &interfaces.SlotRef{Snap: "b", Name: "bslot"})
-	plugAttrs := map[string]interface{}{
-		"static": map[string]interface{}{
-			"aattr":   "foo",
-			"baz":     []string{"a", "b"},
-			"mapattr": map[string]interface{}{"mapattr1": "mapval1", "mapattr2": "mapval2"},
-		},
-		"dynamic": map[string]interface{}{},
+	staticPlugAttrs := map[string]interface{}{
+		"aattr":   "foo",
+		"baz":     []string{"a", "b"},
+		"mapattr": map[string]interface{}{"mapattr1": "mapval1", "mapattr2": "mapval2"},
 	}
-	slotAttrs := map[string]interface{}{
-		"static": map[string]interface{}{
-			"battr": "bar",
-		},
-		"dynamic": map[string]interface{}{},
+	dynamicAttrs := make(map[string]interface{})
+	staticSlotAttrs := map[string]interface{}{
+		"battr": "bar",
 	}
-	attrsTask.Set("plug-attrs", plugAttrs)
-	attrsTask.Set("slot-attrs", slotAttrs)
+	attrsTask.Set("plug-static", staticPlugAttrs)
+	attrsTask.Set("plug-dynamic", dynamicAttrs)
+	attrsTask.Set("slot-static", staticSlotAttrs)
+	attrsTask.Set("slot-dynamic", dynamicAttrs)
 	ch.AddTask(attrsTask)
 	state.Unlock()
 

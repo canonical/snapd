@@ -115,7 +115,7 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	return nil
 }
 
-func setInterfaceAttribute(context *hookstate.Context, attributes map[string]interface{}, key string, value interface{}) error {
+func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, key string, value interface{}) error {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("cannot marshal snap %q option %q: %s", context.SnapName(), key, err)
@@ -128,12 +128,12 @@ func setInterfaceAttribute(context *hookstate.Context, attributes map[string]int
 	}
 
 	var existing interface{}
-	err = config.GetFromChange(context.SnapName(), subkeys[:1], 0, attributes["static"].(map[string]interface{}), &existing)
+	err = config.GetFromChange(context.SnapName(), subkeys[:1], 0, staticAttrs, &existing)
 	if err == nil {
 		return fmt.Errorf(i18n.G("attribute %q cannot be overwritten"), key)
 	}
 
-	_, err = config.PatchConfig(context.SnapName(), subkeys, 0, attributes["dynamic"], &raw)
+	_, err = config.PatchConfig(context.SnapName(), subkeys, 0, dynamicAttrs, &raw)
 	return err
 }
 
@@ -156,17 +156,23 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 
 	var which string
 	if hookType == preparePlugHook {
-		which = "plug-attrs"
+		which = "plug"
 	} else {
-		which = "slot-attrs"
+		which = "slot"
 	}
 
 	context.Lock()
 	defer context.Unlock()
 
-	attributes := make(map[string]interface{})
-	if err := attrsTask.Get(which, &attributes); err != nil {
-		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
+	staticAttrs := make(map[string]interface{})
+	dynamicAttrs := make(map[string]interface{})
+	if err = attrsTask.Get(fmt.Sprintf("%s-static", which), &staticAttrs); err != nil {
+		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task, %s"), which, err)
+	}
+
+	dynKey := fmt.Sprintf("%s-dynamic", which)
+	if err = attrsTask.Get(dynKey, &dynamicAttrs); err != nil {
+		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task, %s"), which, err)
 	}
 
 	for _, attrValue := range s.Positional.ConfValues {
@@ -180,12 +186,12 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 			// Not valid JSON, save the string as-is
 			value = parts[1]
 		}
-		err = setInterfaceAttribute(context, attributes, parts[0], value)
+		err = setInterfaceAttribute(context, staticAttrs, dynamicAttrs, parts[0], value)
 		if err != nil {
 			return fmt.Errorf(i18n.G("cannot set attribute: %v"), err)
 		}
 	}
 
-	attrsTask.Set(which, attributes)
+	attrsTask.Set(dynKey, dynamicAttrs)
 	return nil
 }

@@ -202,24 +202,25 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(slot.Snap, Equals, "producer")
 	c.Assert(slot.Name, Equals, "slot")
+
 	// verify initial attributes are present in connect task
-	var attrs map[string]interface{}
-	err = task.Get("plug-attrs", &attrs)
+	var plugStaticAttrs map[string]interface{}
+	var plugDynamicAttrs map[string]interface{}
+	err = task.Get("plug-static", &plugStaticAttrs)
 	c.Assert(err, IsNil)
-	c.Assert(attrs, DeepEquals, map[string]interface{}{
-		"static": map[string]interface{}{
-			"attr1": "value1",
-		},
-		"dynamic": map[string]interface{}{},
-	})
-	err = task.Get("slot-attrs", &attrs)
+	c.Assert(plugStaticAttrs, DeepEquals, map[string]interface{}{"attr1": "value1"})
+	err = task.Get("plug-dynamic", &plugDynamicAttrs)
 	c.Assert(err, IsNil)
-	c.Assert(attrs, DeepEquals, map[string]interface{}{
-		"static": map[string]interface{}{
-			"attr2": "value2",
-		},
-		"dynamic": map[string]interface{}{},
-	})
+	c.Assert(plugDynamicAttrs, DeepEquals, map[string]interface{}{})
+
+	var slotStaticAttrs map[string]interface{}
+	var slotDynamicAttrs map[string]interface{}
+	err = task.Get("slot-static", &slotStaticAttrs)
+	c.Assert(err, IsNil)
+	c.Assert(slotStaticAttrs, DeepEquals, map[string]interface{}{"attr2": "value2"})
+	err = task.Get("slot-dynamic", &slotDynamicAttrs)
+	c.Assert(err, IsNil)
+	c.Assert(slotDynamicAttrs, DeepEquals, map[string]interface{}{})
 
 	i++
 	task = ts.Tasks()[i]

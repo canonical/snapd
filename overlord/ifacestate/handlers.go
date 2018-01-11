@@ -333,38 +333,24 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
-func getTaskHookAttributes(task *state.Task) (map[string]interface{}, map[string]interface{}, error) {
-	var plugAttrs, slotAttrs map[string]map[string]interface{}
+func getDynamicHookAttributes(task *state.Task) (map[string]interface{}, map[string]interface{}, error) {
+	var plugAttrs, slotAttrs map[string]interface{}
 
 	var err error
-	if err = task.Get("plug-attrs", &plugAttrs); err != nil {
+	if err = task.Get("plug-dynamic", &plugAttrs); err != nil {
 		return nil, nil, err
 	}
-	err = task.Get("slot-attrs", &slotAttrs)
+	err = task.Get("slot-dynamic", &slotAttrs)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return plugAttrs["dynamic"], slotAttrs["dynamic"], nil
+	return plugAttrs, slotAttrs, nil
 }
 
-func setTaskHookAttributes(task *state.Task, dynamicPlugAttrs map[string]interface{}, dynamicSlotAttrs map[string]interface{}) error {
-	var plugAttrs, slotAttrs map[string]interface{}
-
-	if err := task.Get("plug-attrs", &plugAttrs); err != nil {
-		return err
-	}
-	if err := task.Get("slot-attrs", &slotAttrs); err != nil {
-		return err
-	}
-
-	plugAttrs["dynamic"] = dynamicPlugAttrs
-	slotAttrs["dynamic"] = dynamicSlotAttrs
-
-	task.Set("plug-attrs", plugAttrs)
-	task.Set("slot-attrs", slotAttrs)
-
-	return nil
+func setDynamicHookAttributes(task *state.Task, dynamicPlugAttrs map[string]interface{}, dynamicSlotAttrs map[string]interface{}) {
+	task.Set("plug-dynamic", dynamicPlugAttrs)
+	task.Set("slot-dynamic", dynamicSlotAttrs)
 }
 
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
@@ -394,7 +380,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	}
 
-	plugAttrs, slotAttrs, err := getTaskHookAttributes(task)
+	plugDynamicAttrs, slotDynamicAttrs, err := getDynamicHookAttributes(task)
 	if err != nil {
 		return err
 	}
@@ -403,7 +389,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	conn, err := m.repo.Connect(connRef, plugAttrs, slotAttrs, policyCheck.check)
+	conn, err := m.repo.Connect(connRef, plugDynamicAttrs, slotDynamicAttrs, policyCheck.check)
 	if err != nil {
 		return err
 	}
@@ -429,8 +415,9 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	connections[connRef.ID()] = connState{Interface: conn.Interface(), DynamicPlugAttrs: conn.Plug.DynamicAttrs(), DynamicSlotAttrs: conn.Slot.DynamicAttrs()}
 	setConns(st, connections)
+	setDynamicHookAttributes(task, conn.Plug.DynamicAttrs(), conn.Slot.DynamicAttrs())
 
-	return setTaskHookAttributes(task, conn.Plug.DynamicAttrs(), conn.Slot.DynamicAttrs())
+	return nil
 }
 
 func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {

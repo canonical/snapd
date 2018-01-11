@@ -551,7 +551,7 @@ type PlugValidator interface {
 
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
-func (r *Repository) Connect(ref ConnRef, plugAttrs map[string]interface{}, slotAttrs map[string]interface{}, policyCheck func(*ConnectedPlug, *ConnectedSlot) error) (*Connection, error) {
+func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs map[string]interface{}, slotDynamicAttrs map[string]interface{}, policyCheck func(*ConnectedPlug, *ConnectedSlot) error) (*Connection, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -581,8 +581,8 @@ func (r *Repository) Connect(ref ConnRef, plugAttrs map[string]interface{}, slot
 		return r.slotPlugs[slot][plug], nil
 	}
 
-	cplug := NewConnectedPlug(plug, plugAttrs)
-	cslot := NewConnectedSlot(slot, slotAttrs)
+	cplug := NewConnectedPlug(plug, plugDynamicAttrs)
+	cslot := NewConnectedSlot(slot, slotDynamicAttrs)
 
 	if iface, ok := r.ifaces[plug.Interface]; ok {
 		if iface, ok := iface.(PlugValidator); ok {

@@ -179,17 +179,17 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 	attrsTask := state.NewTask("connect-task", "my connect task")
 	attrsTask.Set("plug", &interfaces.PlugRef{Snap: "a", Name: "aplug"})
 	attrsTask.Set("slot", &interfaces.SlotRef{Snap: "b", Name: "bslot"})
-	attrs := map[string]interface{}{
-		"static": map[string]interface{}{
-			"lorem": "ipsum",
-			"nested": map[string]interface{}{
-				"x": "y",
-			},
+	staticAttrs := map[string]interface{}{
+		"lorem": "ipsum",
+		"nested": map[string]interface{}{
+			"x": "y",
 		},
-		"dynamic": map[string]interface{}{},
 	}
-	attrsTask.Set("plug-attrs", attrs)
-	attrsTask.Set("slot-attrs", attrs)
+	dynamicAttrs := make(map[string]interface{})
+	attrsTask.Set("plug-static", staticAttrs)
+	attrsTask.Set("plug-dynamic", dynamicAttrs)
+	attrsTask.Set("slot-static", staticAttrs)
+	attrsTask.Set("slot-dynamic", dynamicAttrs)
 	ch.AddTask(attrsTask)
 	state.Unlock()
 
@@ -238,10 +238,9 @@ func (s *setAttrSuite) TestSetPlugAttributesInPlugHook(c *C) {
 	st := s.mockPlugHookContext.State()
 	st.Lock()
 	defer st.Unlock()
-	attrs := make(map[string]interface{})
-	err = attrsTask.Get("plug-attrs", &attrs)
+	dynattrs := make(map[string]interface{})
+	err = attrsTask.Get("plug-dynamic", &dynattrs)
 	c.Assert(err, IsNil)
-	dynattrs := attrs["dynamic"].(map[string]interface{})
 	c.Check(dynattrs["foo"], Equals, "bar")
 }
 
@@ -256,10 +255,9 @@ func (s *setAttrSuite) TestSetPlugAttributesSupportsDottedSyntax(c *C) {
 	st := s.mockPlugHookContext.State()
 	st.Lock()
 	defer st.Unlock()
-	attrs := make(map[string]interface{})
-	err = attrsTask.Get("plug-attrs", &attrs)
+	dynattrs := make(map[string]interface{})
+	err = attrsTask.Get("plug-dynamic", &dynattrs)
 	c.Assert(err, IsNil)
-	dynattrs := attrs["dynamic"].(map[string]interface{})
 	c.Check(dynattrs["my"], DeepEquals, map[string]interface{}{"attr1": "foo", "attr2": "bar"})
 }
 
