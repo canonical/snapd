@@ -101,7 +101,7 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 				}
 			}
 
-			if err2, ok := err.(*ReadOnlyFsError); err2 != nil && ok {
+			if err2, _ := err.(*ReadOnlyFsError); err2 != nil {
 				// If the secure variant of mkdir/touch failed it may have done
 				// so because the underlying filesystem is read-only. We have a
 				// remedy for that known as a writable mimic.
