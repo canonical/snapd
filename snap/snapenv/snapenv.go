@@ -99,13 +99,14 @@ func basicEnv(info *snap.Info) map[string]string {
 		// shall *either* execute with the new mount namespace where snaps are
 		// always mounted on /snap OR it is a classically confined snap where
 		// /snap is a part of the distribution package.
-		"SNAP":          filepath.Join(dirs.CoreSnapMountDir, info.Name(), info.Revision.String()),
-		"SNAP_COMMON":   info.CommonDataDir(),
-		"SNAP_DATA":     info.DataDir(),
-		"SNAP_NAME":     info.Name(),
-		"SNAP_VERSION":  info.Version,
-		"SNAP_REVISION": info.Revision.String(),
-		"SNAP_ARCH":     arch.UbuntuArchitecture(),
+		"SNAP":              filepath.Join(dirs.CoreSnapMountDir, info.Name(), info.Revision.String()),
+		"SNAP_COMMON":       info.CommonDataDir(),
+		"SNAP_DATA":         info.DataDir(),
+		"SNAP_NAME":         info.Name(),
+		"SNAP_VERSION":      info.Version,
+		"SNAP_REVISION":     info.Revision.String(),
+		"SNAP_ARCH":         arch.UbuntuArchitecture(),
+		"SNAP_ARCH_TRIPLET": arch.UbuntuArchTriplet(),
 		// see https://github.com/snapcore/snapd/pull/2732#pullrequestreview-18827193
 		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
 		"SNAP_REEXEC":       os.Getenv("SNAP_REEXEC"),

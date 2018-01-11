@@ -53,23 +53,52 @@ func UbuntuArchitecture() string {
 	return string(arch)
 }
 
+// UbuntuArchTriplet returns a normalized gnu triplet that is also
+// used by Ubuntu and Debian for its multi-arch locations.
+//
+// Taken from https://wiki.debian.org/Multiarch/Tuples
+func UbuntuArchTriplet() string {
+	switch arch {
+	case "arm64":
+		return "aarch64‑linux‑gnu"
+	case "armhf":
+		return "arm-linux-gnueabihf"
+	case "amd64":
+		return "x86_64-linux-gnu"
+	case "i386":
+		return "i386-linux-gnu"
+		// ppc64 available in debian and other distros
+	case "ppc64":
+		return "powerpc64-linux-gnu"
+	case "ppc64el":
+		return "powerpc64le-linux-gnu"
+	case "powerpc":
+		return "powerpc-linux-gnu"
+	case "s390x":
+		return "s390x-linux-gnu"
+	default:
+		return ""
+	}
+}
+
 // ubuntuArchFromGoArch maps a go architecture string to the coresponding
 // Ubuntu architecture string.
 //
 // E.g. the go "386" architecture string maps to the ubuntu "i386"
 // architecture.
 func ubuntuArchFromGoArch(goarch string) string {
+	// keep in sync with UbuntuArchTriplet
 	goArchMapping := map[string]string{
 		// go      ubuntu
-		"386":     "i386",
-		"amd64":   "amd64",
-		"arm":     "armhf",
-		"arm64":   "arm64",
+		"amd64": "amd64",
+		"arm":   "armhf",
+		"arm64": "arm64",
+		"386":   "i386",
+		// ppc64 available in debian and other distros
+		"ppc64":   "ppc64",
 		"ppc64le": "ppc64el",
-		"s390x":   "s390x",
 		"ppc":     "powerpc",
-		// available in debian and other distros
-		"ppc64": "ppc64",
+		"s390x":   "s390x",
 	}
 
 	// If we are running on an ARM platform we need to have a
