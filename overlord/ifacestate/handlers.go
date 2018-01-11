@@ -363,7 +363,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	connections, err := getConns(st)
+	conns, err := getConns(st)
 	if err != nil {
 		return err
 	}
@@ -413,10 +413,18 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	connections[connRef.ID()] = connState{Interface: conn.Interface(), DynamicPlugAttrs: conn.Plug.DynamicAttrs(), DynamicSlotAttrs: conn.Slot.DynamicAttrs()}
-	setConns(st, connections)
-	setDynamicHookAttributes(task, conn.Plug.DynamicAttrs(), conn.Slot.DynamicAttrs())
+	conns[connRef.ID()] = connState{
+		Interface:        conn.Interface(),
+		StaticPlugAttrs:  conn.Plug.StaticAttrs(),
+		DynamicPlugAttrs: conn.Plug.DynamicAttrs(),
+		StaticSlotAttrs:  conn.Slot.StaticAttrs(),
+		DynamicSlotAttrs: conn.Slot.DynamicAttrs(),
+	}
+	setConns(st, conns)
 
+	// the dynamic attributes might have been updated by interface's BeforeConnectPlug/Slot code,
+	// so we need to update the task for connect-plug- and connect-slot- hooks to see new values.
+	setDynamicHookAttributes(task, conn.Plug.DynamicAttrs(), conn.Slot.DynamicAttrs())
 	return nil
 }
 
