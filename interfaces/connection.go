@@ -133,12 +133,12 @@ func (plug *ConnectedPlug) StaticAttr(key string, val interface{}) error {
 
 // StaticAttrs returns all static attributes.
 func (plug *ConnectedPlug) StaticAttrs() map[string]interface{} {
-	return plug.staticAttrs
+	return copyAttributes(plug.staticAttrs)
 }
 
 // DynamicAttrs returns all dynamic attributes.
 func (plug *ConnectedPlug) DynamicAttrs() map[string]interface{} {
-	return plug.dynamicAttrs
+	return copyAttributes(plug.dynamicAttrs)
 }
 
 // Attr returns a dynamic attribute with the given name. It falls back to returning static
@@ -202,12 +202,12 @@ func (slot *ConnectedSlot) StaticAttr(key string, val interface{}) error {
 
 // StaticAttrs returns all static attributes.
 func (slot *ConnectedSlot) StaticAttrs() map[string]interface{} {
-	return slot.staticAttrs
+	return copyAttributes(slot.staticAttrs)
 }
 
 // DynamicAttrs returns all dynamic attributes.
 func (slot *ConnectedSlot) DynamicAttrs() map[string]interface{} {
-	return slot.dynamicAttrs
+	return copyAttributes(slot.dynamicAttrs)
 }
 
 // Attr returns a dynamic attribute with the given name. It falls back to returning static
