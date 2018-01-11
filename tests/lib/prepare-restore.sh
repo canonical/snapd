@@ -210,6 +210,16 @@ prepare_project() {
         # TODO: zypper proxy, yum proxy
     fi
 
+    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+        # The Fedora archive mirror seems to be unreliable.
+        # Switch to the main archive by commenting out metalink and uncommenting
+        # baseurl with a tweak to go to dl.fedoraproject.org which doens't redirect
+        # to mirrors again.
+        #
+        # https://forum.snapcraft.io/t/issues-with-the-fedora-mirror-network/3489/
+        sed -i -s -E -e 's@^#?baseurl=http://download.fedoraproject.org/@baseurl=http://dl.fedoraproject.org/@g' -e 's@^metalink=@#metalink@g' /etc/yum.repos.d/fedora*.repo
+    fi
+
     create_test_user
 
     distro_update_package_db
