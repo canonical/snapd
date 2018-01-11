@@ -924,6 +924,49 @@ apps:
 	c.Check(err, IsNil)
 }
 
+func (s *checkSnapSuite) TestValidateContainerSymlinksFails(c *C) {
+	c.Skip("checking symlink targets not implemented yet")
+	const yaml = `name: empty-snap
+version: 1
+apps:
+ foo:
+  command: foo
+`
+	d := emptyContainer(c)
+	fn := filepath.Join(d.Path(), "foo")
+	c.Assert(ioutil.WriteFile(fn+".real", nil, 0444), IsNil)
+	c.Assert(os.Symlink(fn+".real", fn), IsNil)
+
+	// snapdir contains a command that's a symlink to a file that's not world-rx
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snapstate.ValidateContainer(info, d)
+	c.Check(err, Equals, snapstate.ErrBadModes)
+}
+
+func (s *checkSnapSuite) TestValidateContainerSymlinksOK(c *C) {
+	const yaml = `name: empty-snap
+version: 1
+apps:
+ foo:
+  command: foo
+`
+	d := emptyContainer(c)
+	fn := filepath.Join(d.Path(), "foo")
+	c.Assert(ioutil.WriteFile(fn+".real", nil, 0555), IsNil)
+	c.Assert(os.Symlink(fn+".real", fn), IsNil)
+
+	// snapdir contains a command that's a symlink to a file that's world-rx
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	err = snapstate.ValidateContainer(info, d)
+	c.Check(err, IsNil)
+}
+
 func (s *checkSnapSuite) TestValidateContainerAppsOK(c *C) {
 	const yaml = `name: empty-snap
 version: 1
