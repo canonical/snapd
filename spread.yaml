@@ -337,7 +337,15 @@ prepare: |
         rm -f gai.conf
     fi
 
-    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+        # The Fedora archive mirror seems to be unreliable.
+        # Switch to the main archive by commenting out metalink and uncommenting
+        # baseurl with a tweak to go to dl.fedoraproject.org which doens't redirect
+        # to mirrors again.
+        #
+        # https://forum.snapcraft.io/t/issues-with-the-fedora-mirror-network/3489/
+        sed -i -s -E -e 's@^#?baseurl=http://download.fedoraproject.org/@baseurl=http://dl.fedoraproject.org/@g' -e 's@^metalink=@#metalink@g' /etc/yum.repos.d/fedora*.repo
+
         echo 'retries=10' >> /etc/dnf/dnf.conf
     fi
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
