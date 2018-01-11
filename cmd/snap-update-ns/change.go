@@ -92,19 +92,21 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 			case "file":
 				err = secureMkfileAll(path, mode, uid, gid)
 			case "symlink":
-				// Symlinks are created later in c.lowLevelPerform but we can
-				// create the parent directory here.
 				path = filepath.Dir(c.Entry.Dir)
 				err = secureMkdirAll(path, mode, uid, gid)
 				if err == nil {
+					// Normally symlinks would be created
+					// later but calling c.lowLevelPerform
+					// now lets us check if the medium is
+					// writable and take advantage of the
+					// code below.
 					err = c.lowLevelPerform()
 				}
 			}
 
 			if err2, _ := err.(*ReadOnlyFsError); err2 != nil {
-				// If the secure variant of mkdir/touch failed it may have done
-				// so because the underlying filesystem is read-only. We have a
-				// remedy for that known as a writable mimic.
+				// If the writing failed because the underlying filesystem
+				// is read-only we can construct a writable mimic to fix that.
 				changes, err = createWritableMimic(err2.Path)
 				if err != nil {
 					return nil, fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
