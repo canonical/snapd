@@ -1,0 +1,22 @@
+summary: check the container validator logs on error
+
+environment:
+    SNAP: test-snapd-validate-container-failures
+
+execute: |
+    echo "Snap refuses to install"
+    snap try $TESTSLIB/snaps/$SNAP 2>error.log && exit 1 || true
+    echo "The error tells you to ask the dev"
+    tr -s "\n " " " < error.log | MATCH 'contact developer'
+
+    # give things time to reach the journal
+    sleep 1
+    
+    echo "And the journal counts the ways"
+    journalctl -u snapd | grep check_snap > journal.log
+    MATCH '"comp.sh" should be world-readable' < journal.log
+    MATCH '"bin/bar" should be executable' < journal.log
+    MATCH '"bin/foo" should be world-readable and -executable' < journal.log
+    MATCH '"meta/unreadable" should be world-readable' < journal.log
+    MATCH '"meta/hooks/what" should be executable' < journal.log
+    MATCH '"bin/stahp" does not exist' < journal.log
