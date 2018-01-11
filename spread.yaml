@@ -345,6 +345,7 @@ prepare: |
         #
         # https://forum.snapcraft.io/t/issues-with-the-fedora-mirror-network/3489/
         sed -i -s -E -e 's@^#?baseurl=http://download.fedoraproject.org/@baseurl=http://dl.fedoraproject.org/@g' -e 's@^metalink=@#metalink@g' /etc/yum.repos.d/fedora*.repo
+        dnf update -y
     fi
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
