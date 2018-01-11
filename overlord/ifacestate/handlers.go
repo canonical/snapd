@@ -492,17 +492,12 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	// FIXME: here we should not reconnect auto-connect plug/slot
 	// pairs that were explicitly disconnected by the user
 
-	var conns map[string]connState
 	st := task.State()
-	autochecker, err := newAutoConnectChecker(task.State())
-	if err != nil {
-		return err
-	}
-
 	st.Lock()
 	defer st.Unlock()
 
-	err = st.Get("conns", &conns)
+	var conns map[string]connState
+	err := st.Get("conns", &conns)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
@@ -517,7 +512,11 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	snapName := snapsup.Name()
 
-	var autoconnectTs []*state.TaskSet
+	autots := state.NewTaskSet()
+	autochecker, err := newAutoConnectChecker(st)
+	if err != nil {
+		return err
+	}
 
 	// Auto-connect all the plugs
 	for _, plug := range m.repo.Plugs(snapName) {
@@ -538,11 +537,11 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			}
 		}
 		if len(candidates) != 1 {
-			crefs := make([]string, 0, len(candidates))
-			for _, candidate := range candidates {
-				crefs = append(crefs, candidate.String())
+			crefs := make([]string, len(candidates))
+			for i, candidate := range candidates {
+				crefs[i] = candidate.String()
 			}
-			task.Logf("cannot auto connect %s (plug auto-connection), candidates found: %q", plug, strings.Join(crefs, ", "))
+			task.Logf("cannot auto-connect plug %s, candidates found: %s", plug, strings.Join(crefs, ", "))
 			continue
 		}
 		slot := candidates[0]
@@ -556,10 +555,10 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 		ts, err := AutoConnect(st, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
 		if err != nil {
-			task.Logf("cannot auto connect %s to %s: %s (plug auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
+			task.Logf("cannot auto-connect plug %s to %s: %s", connRef.PlugRef, connRef.SlotRef, err)
 			continue
 		}
-		autoconnectTs = append(autoconnectTs, ts)
+		autots.AddAll(ts)
 	}
 	// Auto-connect all the slots
 	for _, slot := range m.repo.Slots(snapName) {
@@ -575,11 +574,11 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.Name(), plug.Name, autochecker.check)
 
 			if len(candSlots) != 1 || candSlots[0].String() != slot.String() {
-				crefs := make([]string, 0, len(candSlots))
-				for _, candidate := range candSlots {
-					crefs = append(crefs, candidate.String())
+				crefs := make([]string, len(candSlots))
+				for i, candidate := range candSlots {
+					crefs[i] = candidate.String()
 				}
-				task.Logf("cannot auto connect %s to %s (slot auto-connection), alternatives found: %q", slot, plug, strings.Join(crefs, ", "))
+				task.Logf("cannot auto-connect slot %s to %s, candidates found: %s", slot, plug, strings.Join(crefs, ", "))
 				continue
 			}
 
@@ -592,10 +591,10 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			}
 			ts, err := AutoConnect(st, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
 			if err != nil {
-				task.Logf("cannot auto connect %s to %s: %s (slot auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
+				task.Logf("cannot auto-connect slot %s to %s: %s", connRef.SlotRef, connRef.PlugRef, err)
 				continue
 			}
-			autoconnectTs = append(autoconnectTs, ts)
+			autots.AddAll(ts)
 		}
 	}
 
@@ -605,22 +604,24 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		lanes = nil
 	}
 	ht := task.HaltTasks()
-	for _, ts := range autoconnectTs {
-		// add all connect tasks to the change of main "auto-connect" task and to the same lane.
-		for _, l := range lanes {
-			ts.JoinLane(l)
-		}
-		chg.AddAll(ts)
-		// make all halt tasks of the main 'auto-connect' task wait on connect tasks
-		for _, t := range ht {
-			t.WaitAll(ts)
-		}
+
+	// add all connect tasks to the change of main "auto-connect" task and to the same lane.
+	for _, l := range lanes {
+		autots.JoinLane(l)
 	}
+	chg.AddAll(autots)
+	// make all halt tasks of the main 'auto-connect' task wait on connect tasks
+	for _, t := range ht {
+		t.WaitAll(autots)
+	}
+
 	st.EnsureBefore(0)
 	return nil
 }
 
-func (m *InterfaceManager) undoAutoconnect(task *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) undoAutoConnect(task *state.Task, _ *tomb.Tomb) error {
+	// TODO Introduce disconnection hooks, and run them here as well to give a chance
+	// for the snap to undo whatever it did when the connection was established.
 	return nil
 }
 
