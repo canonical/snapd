@@ -74,7 +74,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 	c.Assert(env, DeepEquals, map[string]string{
 		"SNAP":              fmt.Sprintf("%s/foo/17", dirs.CoreSnapMountDir),
 		"SNAP_ARCH":         arch.UbuntuArchitecture(),
-		"SNAP_ARCH_TRIPLET": arch.UbuntuArchTriplet(),
+		"SNAP_ARCH_TRIPLET": arch.NormalizedGNUArchTriplet(),
 		"SNAP_COMMON":       "/var/snap/foo/common",
 		"SNAP_DATA":         "/var/snap/foo/17",
 		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
@@ -129,7 +129,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"HOME":              fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
 			"SNAP":              fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
 			"SNAP_ARCH":         arch.UbuntuArchitecture(),
-			"SNAP_ARCH_TRIPLET": arch.UbuntuArchTriplet(),
+			"SNAP_ARCH_TRIPLET": arch.NormalizedGNUArchTriplet(),
 			"SNAP_COMMON":       "/var/snap/snapname/common",
 			"SNAP_DATA":         "/var/snap/snapname/42",
 			"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",

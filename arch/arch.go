@@ -57,7 +57,7 @@ func UbuntuArchitecture() string {
 // used by Ubuntu and Debian for its multi-arch locations.
 //
 // Taken from https://wiki.debian.org/Multiarch/Tuples
-func UbuntuArchTriplet() string {
+func NormalizedGNUArchTriplet() string {
 	switch arch {
 	case "arm64":
 		return "aarch64‑linux‑gnu"
