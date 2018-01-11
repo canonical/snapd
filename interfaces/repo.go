@@ -584,20 +584,21 @@ func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs map[string]interface{
 	cplug := NewConnectedPlug(plug, plugDynamicAttrs)
 	cslot := NewConnectedSlot(slot, slotDynamicAttrs)
 
-	if iface, ok := r.ifaces[plug.Interface]; ok {
-		if iface, ok := iface.(PlugValidator); ok {
-			if err := iface.BeforeConnectPlug(cplug); err != nil {
-				return nil, fmt.Errorf("validation failed for snap %q, plug %q: %s", plug.Snap.Name(), plug.Name, err)
-			}
-		}
-		if iface, ok := iface.(SlotValidator); ok {
-			if err := iface.BeforeConnectSlot(cslot); err != nil {
-				return nil, fmt.Errorf("validation failed for snap %q, slot %q: %s", slot.Snap.Name(), slot.Name, err)
-			}
-		}
-	} else {
+	iface, ok := r.ifaces[plug.Interface]
+	if !ok {
 		// This should never happen
 		return nil, fmt.Errorf("internal error: unknown interface %q", plug.Interface)
+	}
+
+	if i, ok := iface.(PlugValidator); ok {
+		if err := i.BeforeConnectPlug(cplug); err != nil {
+			return nil, fmt.Errorf("validation failed for snap %q, plug %q: %s", plug.Snap.Name(), plug.Name, err)
+		}
+	}
+	if i, ok := iface.(SlotValidator); ok {
+		if err := i.BeforeConnectSlot(cslot); err != nil {
+			return nil, fmt.Errorf("validation failed for snap %q, slot %q: %s", slot.Snap.Name(), slot.Name, err)
+		}
 	}
 
 	if policyCheck != nil {
