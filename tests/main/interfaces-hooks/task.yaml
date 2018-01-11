@@ -32,6 +32,11 @@ execute: |
     [ -f "$PRODUCER_DATA/connect-slot-producer-done" ]
 
     systemctl stop snapd.service snapd.socket
-    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["dynamic-plug-attrs"]["consumer-attr3"]' /var/lib/snapd/state.json | MATCH "consumervalue3-validated"
-    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["dynamic-slot-attrs"]["producer-attr3"]' /var/lib/snapd/state.json | MATCH "producervalue3-validated"
+
+    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-static"]["consumer-attr1"]' /var/lib/snapd/state.json | MATCH "consumervalue1"
+    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-static"]["consumer-attr2"]' /var/lib/snapd/state.json | MATCH "consumervalue2"
+    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr1"]' /var/lib/snapd/state.json | MATCH "producervalue1"
+    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr2"]' /var/lib/snapd/state.json | MATCH "producervalue2"
+    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["consumer-attr3"]' /var/lib/snapd/state.json | MATCH "consumervalue3-validated"
+    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-dynamic"]["producer-attr3"]' /var/lib/snapd/state.json | MATCH "producervalue3-validated"
     systemctl start snapd.service

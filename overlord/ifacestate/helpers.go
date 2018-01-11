@@ -254,8 +254,10 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string)
 type connState struct {
 	Auto             bool                   `json:"auto,omitempty"`
 	Interface        string                 `json:"interface,omitempty"`
-	DynamicPlugAttrs map[string]interface{} `json:"dynamic-plug-attrs,omitempty"`
-	DynamicSlotAttrs map[string]interface{} `json:"dynamic-slot-attrs,omitempty"`
+	StaticPlugAttrs  map[string]interface{} `json:"plug-static,omitempty"`
+	DynamicPlugAttrs map[string]interface{} `json:"plug-dynamic,omitempty"`
+	StaticSlotAttrs  map[string]interface{} `json:"slot-static,omitempty"`
+	DynamicSlotAttrs map[string]interface{} `json:"slot-dynamic,omitempty"`
 }
 
 type autoConnectChecker struct {
