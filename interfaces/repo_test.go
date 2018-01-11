@@ -1031,7 +1031,7 @@ func (s *RepositorySuite) TestConnectFailsWhenPlugDoesNotExist(c *C) {
 	// Connecting an unknown plug returns an appropriate error
 	connRef := NewConnRef(s.plug, s.slot)
 	_, err = s.testRepo.Connect(*connRef, nil, nil, nil)
-	c.Assert(err, ErrorMatches, `cannot connect plug "plug" from snap "consumer", no such plug`)
+	c.Assert(err, ErrorMatches, `cannot connect plug "plug" from snap "consumer": no such plug`)
 }
 
 func (s *RepositorySuite) TestConnectFailsWhenSlotDoesNotExist(c *C) {
@@ -1040,7 +1040,7 @@ func (s *RepositorySuite) TestConnectFailsWhenSlotDoesNotExist(c *C) {
 	// Connecting to an unknown slot returns an error
 	connRef := NewConnRef(s.plug, s.slot)
 	_, err = s.testRepo.Connect(*connRef, nil, nil, nil)
-	c.Assert(err, ErrorMatches, `cannot connect plug to slot "slot" from snap "producer", no such slot`)
+	c.Assert(err, ErrorMatches, `cannot connect slot "slot" from snap "producer": no such slot`)
 }
 
 func (s *RepositorySuite) TestConnectSucceedsWhenIdenticalConnectExists(c *C) {
@@ -1938,7 +1938,7 @@ func (s *RepositorySuite) TestBeforeConnectValidationFailure(c *C) {
 
 	conn, err := s.emptyRepo.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, plugDynAttrs, slotDynAttrs, policyCheck)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `validation failed for snap "s1", plug "consumer": invalid plug`)
+	c.Assert(err, ErrorMatches, `cannot connect plug "consumer" from snap "s1": invalid plug`)
 	c.Assert(conn, IsNil)
 }
 

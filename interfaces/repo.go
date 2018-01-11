@@ -539,19 +539,19 @@ func (r *Repository) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slo
 	}
 }
 
-// SlotValidator can be implemented by Interfaces that need to validate the slot before the security is lifted.
-type SlotValidator interface {
+// slotValidator can be implemented by Interfaces that need to validate the slot before the security is lifted.
+type slotValidator interface {
 	BeforeConnectSlot(slot *ConnectedSlot) error
 }
 
-// SlotValidator can be implemented by Interfaces that need to validate the slot before the security is lifted.
-type PlugValidator interface {
-	BeforeConnectPlug(slot *ConnectedPlug) error
+// plugValidator can be implemented by Interfaces that need to validate the plug before the security is lifted.
+type plugValidator interface {
+	BeforeConnectPlug(plug *ConnectedPlug) error
 }
 
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
-func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs map[string]interface{}, slotDynamicAttrs map[string]interface{}, policyCheck func(*ConnectedPlug, *ConnectedSlot) error) (*Connection, error) {
+func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map[string]interface{}, policyCheck func(*ConnectedPlug, *ConnectedSlot) error) (*Connection, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -563,12 +563,12 @@ func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs map[string]interface{
 	// Ensure that such plug exists
 	plug := r.plugs[plugSnapName][plugName]
 	if plug == nil {
-		return nil, fmt.Errorf("cannot connect plug %q from snap %q, no such plug", plugName, plugSnapName)
+		return nil, fmt.Errorf("cannot connect plug %q from snap %q: no such plug", plugName, plugSnapName)
 	}
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return nil, fmt.Errorf("cannot connect plug to slot %q from snap %q, no such slot", slotName, slotSnapName)
+		return nil, fmt.Errorf("cannot connect slot %q from snap %q: no such slot", slotName, slotSnapName)
 	}
 	// Ensure that plug and slot are compatible
 	if slot.Interface != plug.Interface {
@@ -590,14 +590,14 @@ func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs map[string]interface{
 		return nil, fmt.Errorf("internal error: unknown interface %q", plug.Interface)
 	}
 
-	if i, ok := iface.(PlugValidator); ok {
+	if i, ok := iface.(plugValidator); ok {
 		if err := i.BeforeConnectPlug(cplug); err != nil {
-			return nil, fmt.Errorf("validation failed for snap %q, plug %q: %s", plug.Snap.Name(), plug.Name, err)
+			return nil, fmt.Errorf("cannot connect plug %q from snap %q: %s", plug.Name, plug.Snap.Name(), err)
 		}
 	}
-	if i, ok := iface.(SlotValidator); ok {
+	if i, ok := iface.(slotValidator); ok {
 		if err := i.BeforeConnectSlot(cslot); err != nil {
-			return nil, fmt.Errorf("validation failed for snap %q, slot %q: %s", slot.Snap.Name(), slot.Name, err)
+			return nil, fmt.Errorf("cannot connect slot %q from snap %q: %s", slot.Name, slot.Snap.Name(), err)
 		}
 	}
 
