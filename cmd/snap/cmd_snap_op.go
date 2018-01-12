@@ -599,7 +599,8 @@ type cmdRefresh struct {
 
 	Revision         string `long:"revision"`
 	List             bool   `long:"list"`
-	Time             bool   `long:"time"`
+	Time             bool   `long:"time" hidden:"yes"`
+	Timer            bool   `long:"timer"`
 	IgnoreValidation bool   `long:"ignore-validation"`
 	Positional       struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
@@ -658,14 +659,18 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 	return showDone([]string{name}, "refresh")
 }
 
-func (x *cmdRefresh) showRefreshTimes() error {
+func (x *cmdRefresh) showRefreshTimes(legacy bool) error {
 	cli := Client()
 	sysinfo, err := cli.SysInfo()
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, "schedule: %s\n", sysinfo.Refresh.Schedule)
+	timerOrSchedule := "timer"
+	if legacy {
+		timerOrSchedule = "schedule"
+	}
+	fmt.Fprintf(Stdout, "%s: %s\n", timerOrSchedule, sysinfo.Refresh.Schedule)
 	if sysinfo.Refresh.Last != "" {
 		fmt.Fprintf(Stdout, "last: %s\n", sysinfo.Refresh.Last)
 	} else {
@@ -713,12 +718,20 @@ func (x *cmdRefresh) Execute([]string) error {
 		return err
 	}
 
-	if x.Time {
-		if x.asksForMode() || x.asksForChannel() {
-			return errors.New(i18n.G("--time does not take mode nor channel flags"))
+	if x.Time || x.Timer {
+		if x.Time == x.Timer {
+			return errors.New(i18n.G("--time and --timer cannot be used together"))
 		}
 
-		return x.showRefreshTimes()
+		if x.asksForMode() || x.asksForChannel() {
+			err := errors.New(i18n.G("--timer does not take mode nor channel flags"))
+			if x.Time {
+				err = errors.New(i18n.G("--time does not take mode nor channel flags"))
+			}
+			return err
+		}
+
+		return x.showRefreshTimes(x.Time)
 	}
 
 	if x.List {
@@ -1013,7 +1026,8 @@ func init() {
 		waitDescs.also(channelDescs).also(modeDescs).also(map[string]string{
 			"revision":          i18n.G("Refresh to the given revision"),
 			"list":              i18n.G("Show available snaps for refresh but do not perform a refresh"),
-			"time":              i18n.G("Show auto refresh information but do not perform a refresh"),
+			"time":              i18n.G("Show legacy auto refresh information but do not perform a refresh"),
+			"timer":             i18n.G("Show auto refresh information but do not perform a refresh"),
 			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the refresh"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
