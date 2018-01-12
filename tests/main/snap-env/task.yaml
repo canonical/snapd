@@ -18,6 +18,7 @@ execute: |
 
     echo "Ensure that SNAP environment variables are what we expect"
     MATCH '^SNAP_ARCH=(amd64|i386|arm64|armhf|ppc64el)$'                  < snap-vars.txt
+    MATCH '^SNAP_ARCH_TRIPLET=(aarch64‑linux‑gnu|arm-linux-gnueabihf|x86_64-linux-gnu|i386-linux-gnu|powerpc64-linux-gnu|powerpc64le-linux-gnu|powerpc-linux-gnu|s390x-linux-gnu)$' < snap-vars.txt
     MATCH '^SNAP_COMMON=/var/snap/test-snapd-tools/common$'               < snap-vars.txt
     MATCH '^SNAP_DATA=/var/snap/test-snapd-tools/x1$'                     < snap-vars.txt
     MATCH '^SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void$' < snap-vars.txt
@@ -31,7 +32,7 @@ execute: |
     CTX=$(cat /var/lib/snapd/cookie/snap.test-snapd-tools)
     MATCH "^SNAP_COOKIE=$CTX"                                             < snap-vars.txt
     MATCH "^SNAP_CONTEXT=$CTX"                                            < snap-vars.txt
-    test $(wc -l < snap-vars.txt) -eq 12
+    test $(wc -l < snap-vars.txt) -eq 13
 
     echo "Enure that XDG environment variables are what we expect"
     MATCH '^XDG_RUNTIME_DIR=/run/user/0/snap.test-snapd-tools$'  < xdg-vars.txt
