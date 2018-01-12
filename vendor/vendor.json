@@ -7,6 +7,12 @@
 			"revision": ""
 		},
 		{
+			"checksumSHA1": "OeMM9kqd+l7qKt2ebPlkuNTj3iM=",
+			"path": "github.com/Thomasdezeeuw/ini",
+			"revision": "a8267f5250545cad90bcfa172ac4422e2f1afd6a",
+			"revisionTime": "2017-08-26T09:48:33Z"
+		},
+		{
 			"checksumSHA1": "lbE4q2dpUgue10EEx8eutP36vzo=",
 			"path": "github.com/boltdb/bolt",
 			"revision": "9da31745363232bc1e27dbab3569e77383a51585",
