@@ -80,6 +80,7 @@ backends:
                 manual: true
             - fedora-26-64:
                 workers: 3
+                manual: true
             - opensuse-42.2-64:
                 workers: 3
                 manual: true
