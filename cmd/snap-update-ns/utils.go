@@ -41,6 +41,8 @@ const (
 var (
 	osLstat    = os.Lstat
 	osReadlink = os.Readlink
+	osSymlink  = os.Symlink
+	osRemove   = os.Remove
 
 	sysClose   = syscall.Close
 	sysMkdirat = syscall.Mkdirat
@@ -208,7 +210,7 @@ func splitIntoSegments(name string) ([]string, error) {
 	return segments, nil
 }
 
-// SecureMkdirAll is the secure variant of os.MkdirAll.
+// secureMkdirAll is the secure variant of os.MkdirAll.
 //
 // Unlike the regular version this implementation does not follow any symbolic
 // links. At all times the new directory segment is created using mkdirat(2)
@@ -349,7 +351,7 @@ func planWritableMimic(dir string) ([]*Change, error) {
 			changes = append(changes, ch)
 		case m&os.ModeSymlink != 0:
 			if target, err := osReadlink(filepath.Join(dir, fi.Name())); err == nil {
-				ch.Entry.Options = append(ch.Entry.Options, "x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", target))
+				ch.Entry.Options = []string{"x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", target)}
 				changes = append(changes, ch)
 			}
 		default:
