@@ -3,7 +3,26 @@ summary: Check that `snap run` runs
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local basic-run
+    install_local test-snapd-tools
 
+restore: |
+    rm -f stdout stderr
+    
 execute: |
     echo "Test that snap run use environments"
     basic-run.echo-data | MATCH ^/var/snap
+
+    echo "Test snap run --strace"
+    snap run --strace test-snapd-tools.echo "hello-world" >stdout 2>stderr
+    MATCH hello-world < stdout
+    MATCH 'write(1, "Hello-world\n"' < stderr
+
+    echo "Test snap run --strace-opts works"
+    snap run --strace-opts="-tt" test-snapd-tools.echo "hello-world" >stdout 2>stderr
+    MATCH hello-world < stdout
+    MATCH '[0-9:]+ write\(1, "Hello-world\n"' < stderr
+    
+    echo "Test snap --strace-opts invalid works"
+    snap run --strace-opts "invalid" test-snapd-tools.echo hello 2>stderr
+    MATCH "Can't stat 'invalid': No such file or directory" < stderr
+

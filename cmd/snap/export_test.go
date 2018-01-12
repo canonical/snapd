@@ -138,4 +138,8 @@ func MockIsTerminal(t bool) (restore func()) {
 	}
 }
 
+func GetRunOpts(command string) runOptions {
+	return runOptions{command: command}
+}
+
 var Antialias = antialias

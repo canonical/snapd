@@ -50,12 +50,18 @@ var (
 )
 
 type cmdRun struct {
-	Command  string `long:"command" hidden:"yes"`
-	Hook     string `long:"hook" hidden:"yes"`
-	Revision string `short:"r" default:"unset" hidden:"yes"`
-	Shell    bool   `long:"shell" `
-	// FIXME: provide a way to pass options to strace
-	Strace bool `long:"strace"`
+	Command    string `long:"command" hidden:"yes"`
+	Hook       string `long:"hook" hidden:"yes"`
+	Revision   string `short:"r" default:"unset" hidden:"yes"`
+	Shell      bool   `long:"shell" `
+	Strace     bool   `long:"strace"`
+	StraceOpts string `long:"strace-opts"`
+}
+
+type runOptions struct {
+	command    string
+	useStrace  bool
+	straceOpts string
 }
 
 func init() {
@@ -65,11 +71,12 @@ func init() {
 		func() flags.Commander {
 			return &cmdRun{}
 		}, map[string]string{
-			"command": i18n.G("Alternative command to run"),
-			"hook":    i18n.G("Hook to run"),
-			"r":       i18n.G("Use a specific snap revision when running hook"),
-			"shell":   i18n.G("Run a shell instead of the command (useful for debugging)"),
-			"strace":  i18n.G("Run the command under strace (useful for debugging"),
+			"command":     i18n.G("Alternative command to run"),
+			"hook":        i18n.G("Hook to run"),
+			"r":           i18n.G("Use a specific snap revision when running hook"),
+			"shell":       i18n.G("Run a shell instead of the command (useful for debugging)"),
+			"strace":      i18n.G("Run the command under strace (useful for debugging"),
+			"strace-opts": i18n.G("Options to pass to strace (useful for debugging"),
 		}, nil)
 }
 
@@ -97,19 +104,22 @@ func (x *cmdRun) Execute(args []string) error {
 		return snapRunHook(snapApp, x.Revision, x.Hook)
 	}
 
+	opts := runOptions{command: x.Command}
+
 	// pass shell as a special command to snap-exec
 	switch {
 	case x.Shell:
 		x.Command = "shell"
-	case x.Strace:
-		x.Command = "strace"
+	case x.Strace || x.StraceOpts != "":
+		opts.useStrace = true
+		opts.straceOpts = x.StraceOpts
 	}
 
 	if x.Command == "complete" {
 		snapApp, args = antialias(snapApp, args)
 	}
 
-	return snapRunApp(snapApp, x.Command, args)
+	return snapRunApp(snapApp, opts, args)
 }
 
 // antialias changes snapApp and args if snapApp is actually an alias
@@ -253,7 +263,7 @@ func createUserDataDirs(info *snap.Info) error {
 	return createOrUpdateUserDataSymlink(info, usr)
 }
 
-func snapRunApp(snapApp, command string, args []string) error {
+func snapRunApp(snapApp string, opts runOptions, args []string) error {
 	snapName, appName := snap.SplitSnapApp(snapApp)
 	info, err := getSnapInfo(snapName, snap.R(0))
 	if err != nil {
@@ -265,7 +275,7 @@ func snapRunApp(snapApp, command string, args []string) error {
 		return fmt.Errorf(i18n.G("cannot find app %q in %q"), appName, snapName)
 	}
 
-	return runSnapConfine(info, app.SecurityTag(), snapApp, command, "", args)
+	return runSnapConfine(info, app.SecurityTag(), snapApp, opts.command, "", opts, args)
 }
 
 func snapRunHook(snapName, snapRevision, hookName string) error {
@@ -284,7 +294,7 @@ func snapRunHook(snapName, snapRevision, hookName string) error {
 		return fmt.Errorf(i18n.G("cannot find hook %q in %q"), hookName, snapName)
 	}
 
-	return runSnapConfine(info, hook.SecurityTag(), snapName, "", hook.Name, nil)
+	return runSnapConfine(info, hook.SecurityTag(), snapName, "", hook.Name, runOptions{}, nil)
 }
 
 var osReadlink = os.Readlink
@@ -460,11 +470,17 @@ func straceCmd() ([]string, error) {
 	}, nil
 }
 
-func runCmdUnderStrace(origCmd, env []string) error {
+func runCmdUnderStrace(origCmd, env []string, opts runOptions) error {
 	// prepend strace magic
 	cmd, err := straceCmd()
 	if err != nil {
 		return err
+	}
+	// append strace options - TODO: use shlex
+	for _, opt := range strings.Split(opts.straceOpts, " ") {
+		if strings.TrimSpace(opt) != "" {
+			cmd = append(cmd, opt)
+		}
 	}
 	cmd = append(cmd, origCmd...)
 
@@ -477,7 +493,9 @@ func runCmdUnderStrace(origCmd, env []string) error {
 		return err
 	}
 	filterDone := make(chan int)
+	var straceErrorOutput []string
 	go func() {
+		foundStraceStarting := false
 		// the last thing that snap-exec does is to
 		// execve() something inside the snap dir so
 		// we know that from that point on the output
@@ -494,10 +512,15 @@ func runCmdUnderStrace(origCmd, env []string) error {
 				filterDone <- 1
 				return
 			}
-			if foundNeedle {
+			switch {
+			case foundNeedle:
 				fmt.Fprint(Stderr, s)
-			} else if strings.Contains(s, needle) {
+			case strings.Contains(s, needle):
 				foundNeedle = true
+			case strings.Contains(s, "execve"):
+				foundStraceStarting = true
+			case !foundStraceStarting:
+				straceErrorOutput = append(straceErrorOutput, s)
 			}
 		}
 	}()
@@ -506,10 +529,13 @@ func runCmdUnderStrace(origCmd, env []string) error {
 	}
 	err = gcmd.Wait()
 	<-filterDone
+	if err != nil && len(straceErrorOutput) > 0 {
+		fmt.Fprintf(Stderr, "strace failed:\n%s", strings.Join(straceErrorOutput, "\n"))
+	}
 	return err
 }
 
-func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
+func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, opts runOptions, args []string) error {
 	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
 	// if we re-exec, we must run the snap-confine from the core snap
 	// as well, if they get out of sync, havoc will happen
@@ -537,15 +563,7 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 		logger.Noticef("WARNING: cannot copy user Xauthority file: %s", err)
 	}
 
-	var cmd []string
-
-	var useStrace bool
-	if command == "strace" {
-		command = ""
-		useStrace = true
-	}
-	cmd = append(cmd, snapConfine)
-
+	cmd := []string{snapConfine}
 	if info.NeedsClassic() {
 		cmd = append(cmd, "--classic")
 	}
@@ -590,8 +608,8 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	}
 	env := snapenv.ExecEnv(info, extraEnv)
 
-	if useStrace {
-		return runCmdUnderStrace(cmd, env)
+	if opts.useStrace {
+		return runCmdUnderStrace(cmd, env, opts)
 	} else {
 		return syscallExec(cmd[0], cmd, env)
 	}

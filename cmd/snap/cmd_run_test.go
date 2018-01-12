@@ -226,7 +226,8 @@ func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	defer restorer()
 
 	// and run it!
-	err = snaprun.SnapRunApp("snapname.app", "my-command", []string{"arg1", "arg2"})
+	opts := snaprun.GetRunOpts("my-command")
+	err = snaprun.SnapRunApp("snapname.app", opts, []string{"arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
