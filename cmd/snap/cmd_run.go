@@ -483,7 +483,6 @@ func runCmdUnderStrace(origCmd, env []string) error {
 		// we know that from that point on the output
 		// will be interessting to the user
 		needle := fmt.Sprintf(`execve("%s`, dirs.SnapMountDir)
-		foundNeedle := false
 		r := bufio.NewReader(stderr)
 		for {
 			s, err := r.ReadString('\n')
@@ -491,15 +490,18 @@ func runCmdUnderStrace(origCmd, env []string) error {
 				if err != io.EOF {
 					fmt.Fprintf(Stderr, "cannot read strace output: %s", err)
 				}
-				filterDone <- 1
-				return
+				break
 			}
-			if foundNeedle {
+			// ensure we catch the execve but *not* the
+			// exec into
+			// /snap/core/current/usr/lib/snapd/snap-confine
+			if strings.Contains(s, needle) && !strings.Contains(s, "usr/lib/snapd/snap-confine") {
 				fmt.Fprint(Stderr, s)
-			} else if strings.Contains(s, needle) {
-				foundNeedle = true
+				break
 			}
 		}
+		io.Copy(Stderr, stderr)
+		filterDone <- 1
 	}()
 	if err := gcmd.Start(); err != nil {
 		return err
