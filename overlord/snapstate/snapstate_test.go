@@ -2061,12 +2061,12 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 	}
 	// we check all snaps with each user
 	c.Check(seen, DeepEquals, map[snapIDuserID]bool{
-		snapIDuserID{snapID: "core-snap-id", userID: 1}:     true,
-		snapIDuserID{snapID: "some-snap-id", userID: 1}:     true,
-		snapIDuserID{snapID: "services-snap-id", userID: 1}: true,
-		snapIDuserID{snapID: "core-snap-id", userID: 2}:     true,
-		snapIDuserID{snapID: "some-snap-id", userID: 2}:     true,
-		snapIDuserID{snapID: "services-snap-id", userID: 2}: true,
+		{snapID: "core-snap-id", userID: 1}:     true,
+		{snapID: "some-snap-id", userID: 1}:     true,
+		{snapID: "services-snap-id", userID: 1}: true,
+		{snapID: "core-snap-id", userID: 2}:     true,
+		{snapID: "some-snap-id", userID: 2}:     true,
+		{snapID: "services-snap-id", userID: 2}: true,
 	})
 }
 
@@ -2146,12 +2146,12 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 	}
 	// we check all snaps with each user
 	c.Check(seen, DeepEquals, map[snapIDuserID]bool{
-		snapIDuserID{snapID: "core-snap-id", userID: 1}:     true,
-		snapIDuserID{snapID: "some-snap-id", userID: 1}:     true,
-		snapIDuserID{snapID: "services-snap-id", userID: 1}: true,
-		snapIDuserID{snapID: "core-snap-id", userID: 2}:     true,
-		snapIDuserID{snapID: "some-snap-id", userID: 2}:     true,
-		snapIDuserID{snapID: "services-snap-id", userID: 2}: true,
+		{snapID: "core-snap-id", userID: 1}:     true,
+		{snapID: "some-snap-id", userID: 1}:     true,
+		{snapID: "services-snap-id", userID: 1}: true,
+		{snapID: "core-snap-id", userID: 2}:     true,
+		{snapID: "some-snap-id", userID: 2}:     true,
+		{snapID: "services-snap-id", userID: 2}: true,
 	})
 
 	var coreState, snapState snapstate.SnapState

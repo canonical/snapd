@@ -39,7 +39,6 @@ var (
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
 	// utils
-	EnsureMountPoint  = ensureMountPoint
 	PlanWritableMimic = planWritableMimic
 	ExecWritableMimic = execWritableMimic
 	SecureMkdirAll    = secureMkdirAll
@@ -118,6 +117,10 @@ func formatMountFlags(flags int) string {
 		flags ^= syscall.MS_BIND
 		fl = append(fl, "MS_BIND")
 	}
+	if flags&syscall.MS_RDONLY == syscall.MS_RDONLY {
+		flags ^= syscall.MS_RDONLY
+		fl = append(fl, "MS_RDONLY")
+	}
 	if flags != 0 {
 		panic(fmt.Errorf("unrecognized mount flags %d", flags))
 	}
@@ -130,6 +133,9 @@ func formatMountFlags(flags int) string {
 // SystemCalls encapsulates various system interactions performed by this module.
 type SystemCalls interface {
 	Lstat(name string) (os.FileInfo, error)
+	ReadDir(dirname string) ([]os.FileInfo, error)
+	Symlink(oldname, newname string) error
+	Remove(name string) error
 
 	Close(fd int) error
 	Fchown(fd int, uid sys.UserID, gid sys.GroupID) error
@@ -142,18 +148,34 @@ type SystemCalls interface {
 
 // SyscallRecorder stores which system calls were invoked.
 type SyscallRecorder struct {
-	calls  []string
-	errors map[string]func() error
-	lstats map[string]*fakeFileInfo
-	fds    map[int]string
+	calls    []string
+	errors   map[string]func() error
+	lstats   map[string]os.FileInfo
+	readdirs map[string][]os.FileInfo
+	fds      map[int]string
 }
 
 // InsertFault makes given subsequent call to return the specified error.
-func (sys *SyscallRecorder) InsertFault(call string, err error) {
+func (sys *SyscallRecorder) InsertFault(call string, errors ...error) {
 	if sys.errors == nil {
 		sys.errors = make(map[string]func() error)
 	}
-	sys.errors[call] = func() error { return err }
+	if len(errors) == 1 {
+		// deterministic error
+		sys.errors[call] = func() error {
+			return errors[0]
+		}
+	} else {
+		// error sequence
+		sys.errors[call] = func() error {
+			if len(errors) > 0 {
+				err := errors[0]
+				errors = errors[1:]
+				return err
+			}
+			return nil
+		}
+	}
 }
 
 func (sys *SyscallRecorder) InsertFaultFunc(call string, fn func() error) {
@@ -164,11 +186,19 @@ func (sys *SyscallRecorder) InsertFaultFunc(call string, fn func() error) {
 }
 
 // InsertLstatResult makes given subsequent call lstat return the specified fake file info.
-func (sys *SyscallRecorder) InsertLstatResult(call string, fi *fakeFileInfo) {
+func (sys *SyscallRecorder) InsertLstatResult(call string, fi os.FileInfo) {
 	if sys.lstats == nil {
-		sys.lstats = make(map[string]*fakeFileInfo)
+		sys.lstats = make(map[string]os.FileInfo)
 	}
 	sys.lstats[call] = fi
+}
+
+// InsertReadDirResult makes given subsequent call readdir return the specified fake file infos.
+func (sys *SyscallRecorder) InsertReadDirResult(call string, infos []os.FileInfo) {
+	if sys.readdirs == nil {
+		sys.readdirs = make(map[string][]os.FileInfo)
+	}
+	sys.readdirs[call] = infos
 }
 
 // Calls returns the sequence of mocked calls that have been made.
@@ -263,16 +293,40 @@ func (sys *SyscallRecorder) Lstat(name string) (os.FileInfo, error) {
 	if err := sys.call(call); err != nil {
 		return nil, err
 	}
-	if fi := sys.lstats[call]; fi != nil {
+	if fi, ok := sys.lstats[call]; ok {
 		return fi, nil
 	}
 	panic(fmt.Sprintf("one of InsertLstatResult() or InsertFault() for %q must be used", call))
 }
 
+func (sys *SyscallRecorder) ReadDir(dirname string) ([]os.FileInfo, error) {
+	call := fmt.Sprintf("readdir %q", dirname)
+	if err := sys.call(call); err != nil {
+		return nil, err
+	}
+	if fi, ok := sys.readdirs[call]; ok {
+		return fi, nil
+	}
+	panic(fmt.Sprintf("one of InsertReadDirResult() or InsertFault() for %q must be used", call))
+}
+
+func (sys *SyscallRecorder) Symlink(oldname, newname string) error {
+	call := fmt.Sprintf("symlink %q -> %q", newname, oldname)
+	return sys.call(call)
+}
+
+func (sys *SyscallRecorder) Remove(name string) error {
+	call := fmt.Sprintf("remove %q", name)
+	return sys.call(call)
+}
+
 // MockSystemCalls replaces real system calls with those of the argument.
 func MockSystemCalls(sc SystemCalls) (restore func()) {
-	//save
+	// save
 	oldOsLstat := osLstat
+	oldSymlink := osSymlink
+	oldRemove := osRemove
+	oldIoutilReadDir := ioutilReadDir
 
 	oldSysClose := sysClose
 	oldSysFchown := sysFchown
@@ -284,6 +338,9 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 
 	// override
 	osLstat = sc.Lstat
+	osSymlink = sc.Symlink
+	osRemove = sc.Remove
+	ioutilReadDir = sc.ReadDir
 
 	sysClose = sc.Close
 	sysFchown = sc.Fchown
@@ -296,6 +353,9 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	return func() {
 		// restore
 		osLstat = oldOsLstat
+		osSymlink = oldSymlink
+		osRemove = oldRemove
+		ioutilReadDir = oldIoutilReadDir
 
 		sysClose = oldSysClose
 		sysFchown = oldSysFchown

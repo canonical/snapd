@@ -592,3 +592,173 @@ func (s *ValidateSuite) TestValidateSocketName(c *C) {
 		c.Assert(err, ErrorMatches, `invalid socket name: ".*"`)
 	}
 }
+
+func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {
+	meta := []byte(`
+name: foo
+version: 1.0
+`)
+	fooAfterBaz := []byte(`
+apps:
+  foo:
+    after: [baz]
+    daemon: simple
+  bar:
+    daemon: forking
+`)
+	fooBeforeBaz := []byte(`
+apps:
+  foo:
+    before: [baz]
+    daemon: simple
+  bar:
+    daemon: forking
+`)
+
+	fooNotADaemon := []byte(`
+apps:
+  foo:
+    after: [bar]
+  bar:
+    daemon: forking
+`)
+
+	fooBarNotADaemon := []byte(`
+apps:
+  foo:
+    after: [bar]
+    daemon: forking
+  bar:
+`)
+	fooSelfCycle := []byte(`
+apps:
+  foo:
+    after: [foo]
+    daemon: forking
+  bar:
+`)
+	// cycle between foo and bar
+	badOrder1 := []byte(`
+apps:
+ foo:
+   after: [bar]
+   daemon: forking
+ bar:
+   after: [foo]
+   daemon: forking
+`)
+	// conflicting schedule for baz
+	badOrder2 := []byte(`
+apps:
+ foo:
+   before: [bar]
+   daemon: forking
+ bar:
+   after: [foo]
+   daemon: forking
+ baz:
+   before: [foo]
+   after: [bar]
+   daemon: forking
+`)
+	// conflicting schedule for baz
+	badOrder3Cycle := []byte(`
+apps:
+ foo:
+   before: [bar]
+   after: [zed]
+   daemon: forking
+ bar:
+   before: [baz]
+   daemon: forking
+ baz:
+   before: [zed]
+   daemon: forking
+ zed:
+   daemon: forking
+`)
+	goodOrder1 := []byte(`
+apps:
+ foo:
+   after: [bar, zed]
+   daemon: oneshot
+ bar:
+   before: [foo]
+   daemon: dbus
+ baz:
+   after: [foo]
+   daemon: forking
+ zed:
+   daemon: dbus
+`)
+	goodOrder2 := []byte(`
+apps:
+ foo:
+   after: [baz]
+   daemon: oneshot
+ bar:
+   before: [baz]
+   daemon: dbus
+ baz:
+   daemon: forking
+ zed:
+   daemon: dbus
+   after: [foo, bar, baz]
+`)
+
+	tcs := []struct {
+		name string
+		desc []byte
+		err  string
+	}{{
+		name: "foo after baz",
+		desc: fooAfterBaz,
+		err:  `application "foo" refers to missing application "baz" in before/after`,
+	}, {
+		name: "foo before baz",
+		desc: fooBeforeBaz,
+		err:  `application "foo" refers to missing application "baz" in before/after`,
+	}, {
+		name: "foo not a daemon",
+		desc: fooNotADaemon,
+		err:  `cannot define before/after in application "foo" as it's not a service`,
+	}, {
+		name: "foo wants bar, bar not a daemon",
+		desc: fooBarNotADaemon,
+		err:  `application "foo" refers to non-service application "bar" in before/after`,
+	}, {
+		name: "bad order 1",
+		desc: badOrder1,
+		err:  `applications are part of a before/after cycle: (foo, bar)|(bar, foo)`,
+	}, {
+		name: "bad order 2",
+		desc: badOrder2,
+		err:  `applications are part of a before/after cycle: ((foo|bar|baz)(, )?){3}`,
+	}, {
+		name: "bad order 3 - cycle",
+		desc: badOrder3Cycle,
+		err:  `applications are part of a before/after cycle: ((foo|bar|baz|zed)(, )?){4}`,
+	}, {
+		name: "all good, 3 apps",
+		desc: goodOrder1,
+	}, {
+		name: "all good, 4 apps",
+		desc: goodOrder2,
+	}, {
+		name: "self cycle",
+		desc: fooSelfCycle,
+		err:  `applications are part of a before/after cycle: foo`},
+	}
+	for _, tc := range tcs {
+		c.Logf("trying %q", tc.name)
+		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
+		c.Assert(err, IsNil)
+
+		err = Validate(info)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
