@@ -20,6 +20,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -459,6 +460,55 @@ func straceCmd() ([]string, error) {
 	}, nil
 }
 
+func runCmdUnderStrace(origCmd, env []string) error {
+	// prepend strace magic
+	cmd, err := straceCmd()
+	if err != nil {
+		return err
+	}
+	cmd = append(cmd, origCmd...)
+
+	// run with filter
+	gcmd := exec.Command(cmd[0], cmd[1:]...)
+	gcmd.Env = env
+	gcmd.Stdout = Stdout
+	stderr, err := gcmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+	filterDone := make(chan int)
+	go func() {
+		// the last thing that snap-exec does is to
+		// execve() something inside the snap dir so
+		// we know that from that point on the output
+		// will be interessting to the user
+		needle := fmt.Sprintf(`execve("%s`, dirs.SnapMountDir)
+		foundNeedle := false
+		r := bufio.NewReader(stderr)
+		for {
+			s, err := r.ReadString('\n')
+			if err != nil {
+				if err != io.EOF {
+					fmt.Fprintf(Stderr, "cannot read strace output: %s", err)
+				}
+				filterDone <- 1
+				return
+			}
+			if foundNeedle {
+				fmt.Fprint(Stderr, s)
+			} else if strings.Contains(s, needle) {
+				foundNeedle = true
+			}
+		}
+	}()
+	if err := gcmd.Start(); err != nil {
+		return err
+	}
+	err = gcmd.Wait()
+	<-filterDone
+	return err
+}
+
 func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
 	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
 	// if we re-exec, we must run the snap-confine from the core snap
@@ -489,13 +539,10 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 
 	var cmd []string
 
+	var useStrace bool
 	if command == "strace" {
-		strace, err := straceCmd()
-		if err != nil {
-			return err
-		}
-		cmd = append(cmd, strace...)
 		command = ""
+		useStrace = true
 	}
 	cmd = append(cmd, snapConfine)
 
@@ -543,5 +590,9 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	}
 	env := snapenv.ExecEnv(info, extraEnv)
 
-	return syscallExec(cmd[0], cmd, env)
+	if useStrace {
+		return runCmdUnderStrace(cmd, env)
+	} else {
+		return syscallExec(cmd[0], cmd, env)
+	}
 }
