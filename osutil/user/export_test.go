@@ -28,6 +28,5 @@ func Passwds() []string {
 }
 
 var (
-	MinUID = minUID
-	First  = first
+	First = first
 )

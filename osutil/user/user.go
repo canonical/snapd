@@ -31,37 +31,16 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/strutil"
 )
 
-var minUserUID sys.UserID
-var shells = []string{"/bin/sh"}
-
-func init() {
-	setup()
-}
-
-func setup() {
-	minUserUID = minUID()
-
-	shells = nil
-	if f, err := os.Open(filepath.Join(dirs.GlobalRootDir, "/etc/shells")); err == nil {
-		defer f.Close()
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			line := bytes.TrimSpace(scanner.Bytes())
-			if len(line) == 0 || line[0] == '#' {
-				continue
-			}
-			shells = append(shells, string(line))
-		}
-	}
-
-	me, meErr = FromUID(sys.Getuid())
-}
+var minUserUID = sys.UserID(1000)
+var shells = []string(nil)
 
 // Mock is exposed to be called from tests. If in your tests you changed things
 // that impact what users look like you might need to call user.Mock() so it
@@ -78,43 +57,12 @@ func Mock() (restore func()) {
 	oldMe := me
 	oldMeErr := meErr
 
-	setup()
-
 	return func() {
 		minUserUID = oldMinUserUID
 		shells = oldShells
 		me = oldMe
 		meErr = oldMeErr
 	}
-}
-
-// get UID_MIN from /etc/login.defs
-func minUID() sys.UserID {
-	uid := sys.UserID(1000) // default according to login.defs(5)
-
-	f, err := os.Open(filepath.Join(dirs.GlobalRootDir, "/etc/login.defs"))
-	if err != nil {
-		return uid
-	}
-	defer f.Close()
-	prefix := []byte("UID_MIN")
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := bytes.TrimSpace(scanner.Bytes())
-		if !bytes.HasPrefix(line, prefix) {
-			continue
-		}
-		fields := bytes.Fields(line)
-		if len(fields) != 2 || !bytes.Equal(fields[0], prefix) {
-			continue
-		}
-		if u, err := strconv.ParseUint(string(fields[1]), 10, 32); err == nil {
-			uid = sys.UserID(u)
-			break
-		}
-	}
-
-	return uid
 }
 
 // IsNonSystem is a filter that will return true only if the given
@@ -175,10 +123,16 @@ func (u *User) satisfiesAll(conds []func(*User) bool) bool {
 	return true
 }
 
+var mu sync.Mutex
 var me *User
 var meErr error
 
 func Current() (*User, error) {
+	mu.Lock()
+	defer mu.Unlock()
+	if me == nil && meErr == nil {
+		me, meErr = FromUID(sys.Getuid())
+	}
 	return me, meErr
 }
 
@@ -215,10 +169,20 @@ func FromName(name string) (*User, error) {
 	})
 }
 
-var passwds = []string{
-	// order could be important
-	"/var/lib/extrausers/passwd",
-	"/etc/passwd",
+var passwds []string
+
+func init() {
+	if release.OnClassic {
+		passwds = []string{
+			"/etc/passwd",
+		}
+	} else {
+		// order could be important
+		passwds = []string{
+			"/var/lib/extrausers/passwd",
+			"/etc/passwd",
+		}
+	}
 }
 
 // an Iter will iterate over the user database.
