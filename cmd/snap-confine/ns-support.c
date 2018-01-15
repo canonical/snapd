@@ -345,9 +345,9 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	// (seemingly) run on a core system once we are inside a mount namespace.
 	bool is_classic = is_running_on_classic_distribution();
 
-	// Store the PID of this process. This done instead of calls to getppid()
-	// below because then we can reliably track the PID of the parent even if
-	// the child process is re-parented.
+	// Store the PID of this process. This is done instead of calls to
+	// getppid() below because then we can reliably track the PID of the
+	// parent even if the child process is re-parented.
 	parent = getpid();
 
 	// Create an eventfd for the communication with the child.
