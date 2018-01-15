@@ -36,16 +36,6 @@ purge() {
     # debian-9, fedora-27, ubuntu-16.04...
     distribution=$(. /etc/os-release; echo "${ID}-${VERSION_ID}")
 
-    snap_services=$(systemctl list-unit-files --no-legend --type service | \
-                        awk '/^snap\..*\.service/ { print $1 }' || true)
-    for service in $snap_services; do
-        # stop and disable services that are coming from snaps
-        echo "Stopping snap service $service"
-        systemctl_stop $service || true
-        systemctl disable --no-reload $service || true
-        rm -f /etc/systemd/system/$service
-    done
-
     if [ "$distribution" = "ubuntu-14.04" ]; then
         # snap.mount.service is a trusty thing
         systemctl_stop snap.mount.service
@@ -58,8 +48,10 @@ purge() {
     fi
 
     units=$(systemctl list-unit-files --no-legend --full | grep -vF snap.mount.service || true)
+    # *.snap mount points
     mounts=$(echo "$units" | grep "^${SNAP_UNIT_PREFIX}[-.].*\.mount" | cut -f1 -d ' ')
-    services=$(echo "$units" | grep "^${SNAP_UNIT_PREFIX}[-.].*\.service" | cut -f1 -d ' ')
+    # services from snaps
+    services=$(echo "$units" | grep "^snap\..*\.service" | cut -f1 -d ' ')
     for unit in $services $mounts; do
         # ensure its really a snap mount unit or systemd unit
         if ! grep -q 'What=/var/lib/snapd/snaps/' "/etc/systemd/system/$unit" && ! grep -q 'X-Snappy=yes' "/etc/systemd/system/$unit"; then
