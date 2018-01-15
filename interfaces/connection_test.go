@@ -42,6 +42,8 @@ plugs:
     plug:
         interface: interface
         attr: value
+        complex:
+            c: d
 `, nil)
 	s.plug = consumer.Plugs["plug"]
 	producer := snaptest.MockInfo(c, `
@@ -52,6 +54,8 @@ slots:
     slot:
         interface: interface
         attr: value
+        complex:
+            a: b
 `, nil)
 	s.slot = producer.Slots["slot"]
 }
@@ -72,7 +76,8 @@ func (s *connSuite) TestStaticSlotAttrs(c *C) {
 
 	attrs := slot.StaticAttrs()
 	c.Assert(attrs, DeepEquals, map[string]interface{}{
-		"attr": "value",
+		"attr":    "value",
+		"complex": map[string]interface{}{"a": "b"},
 	})
 	slot.StaticAttr("attr", &val)
 	c.Assert(val, Equals, "value")
@@ -104,7 +109,8 @@ func (s *connSuite) TestStaticPlugAttrs(c *C) {
 
 	attrs := plug.StaticAttrs()
 	c.Assert(attrs, DeepEquals, map[string]interface{}{
-		"attr": "value",
+		"attr":    "value",
+		"complex": map[string]interface{}{"c": "d"},
 	})
 	plug.StaticAttr("attr", &val)
 	c.Assert(val, Equals, "value")
@@ -144,6 +150,37 @@ func (s *connSuite) TestDynamicSlotAttrs(c *C) {
 	c.Check(slot.Attr("unknown", &strVal), ErrorMatches, `snap "producer" does not have attribute "unknown" for interface "interface"`)
 	c.Check(slot.Attr("foo", &intVal), ErrorMatches, `snap "producer" has interface "interface" with invalid value type for "foo" attribute`)
 	c.Check(slot.Attr("number", intVal), ErrorMatches, `internal error: cannot get "number" attribute of interface "interface" with non-pointer value`)
+}
+
+func (s *connSuite) TestDottedPath(c *C) {
+	attrs := map[string]interface{}{
+		"nested": map[string]interface{}{
+			"foo": "bar",
+		},
+	}
+	var strVal string
+
+	slot := NewConnectedSlot(s.slot, attrs)
+	c.Assert(slot, NotNil)
+
+	// static attribute complex.a
+	c.Assert(slot.Attr("complex.a", &strVal), IsNil)
+	c.Assert(strVal, Equals, "b")
+
+	// dynamic attribute nested.foo
+	c.Assert(slot.Attr("nested.foo", &strVal), IsNil)
+	c.Assert(strVal, Equals, "bar")
+
+	plug := NewConnectedPlug(s.plug, attrs)
+	c.Assert(plug, NotNil)
+
+	// static attribute complex.c
+	c.Assert(plug.Attr("complex.c", &strVal), IsNil)
+	c.Assert(strVal, Equals, "d")
+
+	// dynamic attribute nested.foo
+	c.Assert(plug.Attr("nested.foo", &strVal), IsNil)
+	c.Assert(strVal, Equals, "bar")
 }
 
 func (s *connSuite) TestDynamicPlugAttrs(c *C) {

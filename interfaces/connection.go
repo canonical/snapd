@@ -22,6 +22,7 @@ package interfaces
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/snapcore/snapd/snap"
 )
@@ -52,26 +53,33 @@ type Attrer interface {
 	Attr(key string, val interface{}) error
 }
 
-func getAttribute(snapName string, ifaceName string, staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, key string, val interface{}) error {
+func getAttribute(snapName string, ifaceName string, staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, path string, val interface{}) error {
 	var v interface{}
-	var ok bool
-
-	v, ok = dynamicAttrs[key]
-	if !ok {
-		v, ok = staticAttrs[key]
+	comps := strings.Split(path, ".")
+	if _, ok := dynamicAttrs[comps[0]]; ok {
+		v = dynamicAttrs
+	} else {
+		v = staticAttrs
 	}
 
-	if !ok {
-		return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)
+	for _, comp := range comps {
+		m, ok := v.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName)
+		}
+		v, ok = m[comp]
+		if !ok {
+			return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName)
+		}
 	}
 
 	rt := reflect.TypeOf(val)
 	if rt.Kind() != reflect.Ptr || val == nil {
-		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", key, ifaceName)
+		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", path, ifaceName)
 	}
 
 	if reflect.TypeOf(v) != rt.Elem() {
-		return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, key)
+		return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, path)
 	}
 	rv := reflect.ValueOf(val)
 	rv.Elem().Set(reflect.ValueOf(v))
