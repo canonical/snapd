@@ -5418,6 +5418,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesLegacyWeekdaySchedules(c *C) 
 	s.state.Lock()
 
 	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule configuration: cannot parse "mon@12:00": not a valid time`)
+	schedule, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00-24:00/4")
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshLegacyScheduleIsLowerPriority(c *C) {
@@ -5442,6 +5445,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshLegacyScheduleIsLowerPriority(c *C) 
 
 	// expecting no log that the schedule cannot be parsed
 	c.Check(logbuf.String(), Not(testutil.Contains), `cannot use refresh.schedule configuration: cannot parse "mon@12:00": not a valid time`)
+	schedule, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00-23:59,,mon,12:00-14:00")
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToLegacySchedule(c *C) {
@@ -5463,6 +5469,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToLegacySchedule(c *C) {
 	s.state.Lock()
 
 	c.Check(logbuf.String(), testutil.Contains, `refresh.timer is not set, fallback to legacy refresh.schedule`)
+	schedule, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00-23:59")
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
