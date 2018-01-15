@@ -168,6 +168,10 @@ type witnessManager struct {
 	ensureCallback func(s *state.State) error
 }
 
+func (m *witnessManager) KnownTaskKinds() []string {
+	return []string{}
+}
+
 func (wm *witnessManager) Ensure() error {
 	if wm.expectedEnsure--; wm.expectedEnsure == 0 {
 		close(wm.ensureCalled)
@@ -533,6 +537,10 @@ func newRunnerManager(s *state.State) *runnerManager {
 	})
 
 	return rm
+}
+
+func (rm *runnerManager) KnownTaskKinds() []string {
+	return rm.runner.KnownTaskKinds()
 }
 
 func (rm *runnerManager) Ensure() error {

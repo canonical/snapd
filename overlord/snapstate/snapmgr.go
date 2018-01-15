@@ -477,8 +477,10 @@ func (m *SnapManager) Ensure() error {
 		m.ensureAliasesV2(),
 		m.ensureForceDevmodeDropsDevmodeFromState(),
 		m.ensureUbuntuCoreTransition(),
-		m.refreshHints.Ensure(),
+		// we should check for full regular refreshes before
+		// considering issuing a hint only refresh request
 		m.autoRefresh.Ensure(),
+		m.refreshHints.Ensure(),
 		m.catalogRefresh.Ensure(),
 	}
 
@@ -492,6 +494,10 @@ func (m *SnapManager) Ensure() error {
 	}
 
 	return nil
+}
+
+func (m *SnapManager) KnownTaskKinds() []string {
+	return m.runner.KnownTaskKinds()
 }
 
 // Wait implements StateManager.Wait.
