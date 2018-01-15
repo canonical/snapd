@@ -72,15 +72,15 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
     # libudev and udevd so we need to link with it dynamically.
     VENDOR_ARGS=--enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp
     BUILT_USING_PACKAGES=libcap-dev libapparmor-dev libseccomp-dev
+    BUILT_USING=$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W $(BUILT_USING_PACKAGES))
 else
 ifeq ($(shell dpkg-vendor --query Vendor),Debian)
     VENDOR_ARGS=--enable-nvidia-multiarch
-    BUILT_USING_PACKAGES=
+    BUILT_USING=
 else
     VENDOR_ARGS=--disable-apparmor
 endif
 endif
-BUILT_USING=$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W $(BUILT_USING_PACKAGES))
 
 %:
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd --builddirectory=_build

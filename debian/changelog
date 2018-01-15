@@ -1,3 +1,9 @@
+snapd (2.30-4) UNRELEASED; urgency=medium
+
+  * Fix Built-Using computation on Debian.
+
+ -- Michael Hudson-Doyle <mwhudson@debian.org>  Tue, 16 Jan 2018 12:06:37 +1300
+
 snapd (2.30-3) unstable; urgency=medium
 
   * Fix arch builds again, sigh,
