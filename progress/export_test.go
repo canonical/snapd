@@ -100,4 +100,7 @@ func MockStdout(w io.Writer) func() {
 	}
 }
 
-var Norm = norm
+var (
+	Norm    = norm
+	Spinner = spinner
+)

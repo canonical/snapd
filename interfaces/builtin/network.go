@@ -66,7 +66,6 @@ dbus send
 const networkConnectedPlugSecComp = `
 # Description: Can access the network as a client.
 bind
-shutdown
 
 # FIXME: some kernels require this with common functions in go's 'net' library.
 # While this should remain in network-bind, network-control and
