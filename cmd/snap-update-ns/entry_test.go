@@ -74,7 +74,7 @@ func (s *entrySuite) TestXSnapdUID(c *C) {
 	c.Assert(uid, Equals, sys.UserID(0))
 
 	// User is parsed from the x-snapd.uid= option.
-	nobodyUID, err := osutil.FindUid("nobody")
+	nobodyUID, err := osutil.FindUID("nobody")
 	c.Assert(err, IsNil)
 	e = &mount.Entry{Options: []string{"x-snapd.uid=nobody"}}
 	uid, err = update.XSnapdUID(e)
@@ -115,7 +115,7 @@ func (s *entrySuite) TestXSnapdGID(c *C) {
 	// 'nobody'
 	for _, grp := range []string{"nogroup", "nobody"} {
 		nogroup = grp
-		if gid, err := osutil.FindGid(grp); err == nil {
+		if gid, err := osutil.FindGID(grp); err == nil {
 			nogroup = grp
 			nogroupGID = gid
 			break

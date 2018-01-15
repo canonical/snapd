@@ -135,25 +135,31 @@ func isSizeReasonable(sz int64) bool {
 
 // end code from https://golang.org/src/os/user/lookup_unix.go
 
-// TODO: add group support to osutil/user, move FindUid and FindGid in there
-// FindUid returns the identifier of the given UNIX user name.
-func FindUid(username string) (sys.UserID, error) {
+// NoUser and NoGroup indicate that the relevant lookup failed
+const (
+	NoUser  = sys.FlagID
+	NoGroup = sys.FlagID
+)
+
+// FindUID returns the identifier of the given UNIX user name.
+// TODO: add group support to osutil/user, move FindUID and FindGID in there
+func FindUID(username string) (sys.UserID, error) {
 	usr, err := user.FromName(username)
 	if err != nil {
-		return sys.FlagID, err
+		return NoUser, err
 	}
 
 	return usr.UID(), nil
 }
 
-// TODO: add group support to osutil/user, move FindUid and FindGid in there
-// FindGid returns the identifier of the given UNIX group name.
-func FindGid(group string) (sys.GroupID, error) {
+// FindGID returns the identifier of the given UNIX group name.
+// TODO: add group support to osutil/user, move FindUID and FindGID in there
+func FindGID(group string) (sys.GroupID, error) {
 	// In golang 1.8 we can use the built-in function like this:
 	//group, err := user.LookupGroup(group)
 	group, err := lookupGroup(group)
 	if err != nil {
-		return sys.FlagID, err
+		return NoGroup, err
 	}
 
 	// In golang 1.8 we can parse the group.Gid string instead.

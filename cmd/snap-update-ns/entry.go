@@ -66,8 +66,8 @@ func XSnapdUID(e *mount.Entry) (uid sys.UserID, err error) {
 			return uid, nil
 		}
 		// Fall-back to system name lookup.
-		if uid, err = osutil.FindUid(opt); err != nil {
-			// The error message from FindUid is not very useful so just skip it.
+		if uid, err = osutil.FindUID(opt); err != nil {
+			// The error message from FindUID is not very useful so just skip it.
 			return math.MaxUint32, fmt.Errorf("cannot resolve user name %q", opt)
 		}
 		return uid, nil
@@ -88,8 +88,8 @@ func XSnapdGID(e *mount.Entry) (gid sys.GroupID, err error) {
 			return gid, nil
 		}
 		// Fall-back to system name lookup.
-		if gid, err = osutil.FindGid(opt); err != nil {
-			// The error message from FindGid is not very useful so just skip it.
+		if gid, err = osutil.FindGID(opt); err != nil {
+			// The error message from FindGID is not very useful so just skip it.
 			return math.MaxUint32, fmt.Errorf("cannot resolve group name %q", opt)
 		}
 		return gid, nil

@@ -740,7 +740,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsTermios(c *C) {
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
 	// while 'root' user usually has uid 0, 'daemon' user uid may vary
 	// across distributions, best lookup the uid directly
-	daemonUid, err := osutil.FindUid("daemon")
+	daemonUid, err := osutil.FindUID("daemon")
 	c.Assert(err, IsNil)
 
 	for _, t := range []struct {

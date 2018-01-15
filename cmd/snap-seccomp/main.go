@@ -673,7 +673,7 @@ func findUid(username string) (uint64, error) {
 	if !userGroupNamePattern.MatchString(username) {
 		return 0, fmt.Errorf("%q must be a valid username", username)
 	}
-	uid, err := osutil.FindUid(username)
+	uid, err := osutil.FindUID(username)
 	if err != nil {
 		return math.MaxUint64, err
 	}
@@ -685,7 +685,7 @@ func findGid(group string) (uint64, error) {
 	if !userGroupNamePattern.MatchString(group) {
 		return 0, fmt.Errorf("%q must be a valid group name", group)
 	}
-	gid, err := osutil.FindGid(group)
+	gid, err := osutil.FindGID(group)
 	if err != nil {
 		return math.MaxUint64, err
 	}

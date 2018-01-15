@@ -83,7 +83,7 @@ type accountControlInterface struct {
 }
 
 func makeAccountControlSecCompSnippet() (string, error) {
-	gid, err := osutil.FindGidOwning("/etc/shadow")
+	gid, err := osutil.FindGIDOwning("/etc/shadow")
 	if err != nil {
 		return "", err
 	}

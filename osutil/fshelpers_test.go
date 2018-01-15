@@ -27,16 +27,16 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-type groupFindGidOwningSuite struct{}
+type groupFindGIDOwningSuite struct{}
 
-var _ = Suite(&groupFindGidOwningSuite{})
+var _ = Suite(&groupFindGIDOwningSuite{})
 
-func (s *groupFindGidOwningSuite) TestSelfOwnedFile(c *C) {
+func (s *groupFindGIDOwningSuite) TestSelfOwnedFile(c *C) {
 	name := filepath.Join(c.MkDir(), "testownedfile")
 	err := ioutil.WriteFile(name, nil, 0644)
 	c.Assert(err, IsNil)
 
-	gid, err := FindGidOwning(name)
+	gid, err := FindGIDOwning(name)
 	c.Check(err, IsNil)
 
 	self, err := RealUser()
@@ -44,7 +44,7 @@ func (s *groupFindGidOwningSuite) TestSelfOwnedFile(c *C) {
 	c.Check(gid, Equals, self.GID())
 }
 
-func (s *groupFindGidOwningSuite) TestNoOwnedFile(c *C) {
-	_, err := FindGidOwning("/tmp/filedoesnotexistbutwhy")
+func (s *groupFindGIDOwningSuite) TestNoOwnedFile(c *C) {
+	_, err := FindGIDOwning("/tmp/filedoesnotexistbutwhy")
 	c.Assert(err, DeepEquals, os.ErrNotExist)
 }
