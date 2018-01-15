@@ -22,6 +22,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -94,6 +95,8 @@ func showSections() error {
 	if err != nil {
 		return err
 	}
+	sort.Strings(sections)
+
 	fmt.Fprintf(Stdout, i18n.G("No section specified. Available sections:\n"))
 	for _, sec := range sections {
 		fmt.Fprintf(Stdout, " * %s\n", sec)

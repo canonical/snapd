@@ -401,7 +401,7 @@ func (s *SnapSuite) TestFindSnapSectionOverview(c *check.C) {
 			c.Check(r.URL.Path, check.Equals, "/v2/sections")
 			EncodeResponseBody(c, w, map[string]interface{}{
 				"type":   "sync",
-				"result": []string{"sec1", "sec2"},
+				"result": []string{"sec2", "sec1"},
 			})
 		default:
 			c.Fatalf("expected to get 2 requests, now on #%d", n+1)
