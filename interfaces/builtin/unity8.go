@@ -24,7 +24,6 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/seccomp"
 )
 
 const unity8Summary = `allows operating as or interacting with Unity 8`
@@ -88,10 +87,6 @@ dbus (receive)
      peer=(name=com.ubuntu.content.dbus.Service,label=###SLOT_SECURITY_TAGS###),
 `
 
-const unity8ConnectedPlugSecComp = `
-shutdown
-`
-
 type unity8Interface struct{}
 
 func (iface *unity8Interface) Name() string {
@@ -110,16 +105,11 @@ func (iface *unity8Interface) String() string {
 	return iface.Name()
 }
 
-func (iface *unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	oldTags := "###SLOT_SECURITY_TAGS###"
 	newTags := slotAppLabelExpr(slot)
 	snippet := strings.Replace(unity8ConnectedPlugAppArmor, oldTags, newTags, -1)
 	spec.AddSnippet(snippet)
-	return nil
-}
-
-func (iface *unity8Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(unity8ConnectedPlugSecComp)
 	return nil
 }
 

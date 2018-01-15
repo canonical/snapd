@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -318,6 +319,12 @@ func (s *deviceMgrSuite) findBecomeOperationalChange(skipIDs ...string) *state.C
 		}
 	}
 	return nil
+}
+
+func (s *deviceMgrSuite) TestKnownTaskKinds(c *C) {
+	kinds := s.mgr.KnownTaskKinds()
+	sort.Strings(kinds)
+	c.Assert(kinds, DeepEquals, []string{"generate-device-key", "mark-seeded", "request-serial"})
 }
 
 func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
@@ -766,7 +773,7 @@ version: gadget
 func (s *deviceMgrSuite) TestDoRequestSerialErrorsOnNoHost(c *C) {
 	privKey, _ := assertstest.GenerateKey(testKeyLength)
 
-	nowhere := "http://nowhere.invalid"
+	nowhere := "http://nowhere.nowhere.test"
 
 	mockRequestIDURL := nowhere + requestIDURLPath
 	restore := devicestate.MockRequestIDURL(mockRequestIDURL)

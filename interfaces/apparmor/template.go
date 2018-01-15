@@ -96,6 +96,7 @@ var defaultTemplate = `
   /bin/dash ixr,
   /etc/bash.bashrc r,
   /etc/{passwd,group,nsswitch.conf} r,  # very common
+  /etc/default/nss r,
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
   /var/lib/extrausers/{passwd,group} r,
   /etc/profile r,

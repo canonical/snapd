@@ -95,7 +95,6 @@ accept
 accept4
 bind
 listen
-shutdown
 `
 
 type onlineAccountsServiceInterface struct{}
@@ -111,14 +110,14 @@ func (iface *onlineAccountsServiceInterface) StaticInfo() interfaces.StaticInfo 
 	}
 }
 
-func (iface *onlineAccountsServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *onlineAccountsServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(onlineAccountsServiceConnectedPlugAppArmor, old, new, -1))
 	return nil
 }
 
-func (iface *onlineAccountsServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *onlineAccountsServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	spec.AddSnippet(strings.Replace(onlineAccountsServiceConnectedSlotAppArmor, old, new, -1))

@@ -1559,3 +1559,42 @@ apps:
 	_, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, ErrorMatches, `cannot set "bar" as alias for both ("foo" and "bar"|"bar" and "foo")`)
 }
+
+func (s *YamlSuite) TestSnapYamlAppStartOrder(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   after: [bar, zed]
+ bar:
+   before: [foo]
+ baz:
+   after: [foo]
+ zed:
+
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	c.Check(info.Apps, DeepEquals, map[string]*snap.AppInfo{
+		"foo": {
+			Snap:  info,
+			Name:  "foo",
+			After: []string{"bar", "zed"},
+		},
+		"bar": {
+			Snap:   info,
+			Name:   "bar",
+			Before: []string{"foo"},
+		},
+		"baz": {
+			Snap:  info,
+			Name:  "baz",
+			After: []string{"foo"},
+		},
+		"zed": {
+			Snap: info,
+			Name: "zed",
+		},
+	})
+}

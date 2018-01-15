@@ -159,9 +159,49 @@ func (s *SnapSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"), "--classic",
 		"snap.snapname.app",
-		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+
+}
+
+func (s *SnapSuite) TestSnapRunClassicAppIntegrationReexeced(c *check.C) {
+	mountedCorePath := filepath.Join(dirs.SnapMountDir, "core/current")
+	mountedCoreLibExecPath := filepath.Join(mountedCorePath, dirs.CoreLibExecDir)
+
+	defer mockSnapConfine(mountedCoreLibExecPath)()
+
+	// mock installed snap
+	si := snaptest.MockSnap(c, string(mockYaml)+"confinement: classic\n", string(mockContents), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
+
+	restore := snaprun.MockOsReadlink(func(name string) (string, error) {
+		// pretend 'snap' is reexeced from 'core'
+		return filepath.Join(mountedCorePath, "usr/bin/snap"), nil
+	})
+	defer restore()
+
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(mountedCoreLibExecPath, "snap-confine"), "--classic",
+		"snap.snapname.app",
+		filepath.Join(mountedCoreLibExecPath, "snap-exec"),
+		"snapname.app", "--arg1", "arg2"})
 }
 
 func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
