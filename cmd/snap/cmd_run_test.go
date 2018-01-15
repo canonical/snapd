@@ -700,5 +700,5 @@ echo "stdout output 2"
 		},
 	})
 	c.Check(s.Stdout(), check.Equals, "stdout output 1\nstdout output 2\n")
-	c.Check(s.Stderr(), check.Equals, "interessting strace output\nand more\n")
+	c.Check(s.Stderr(), check.Equals, fmt.Sprintf("execve(%q)\ninteressting strace output\nand more\n", filepath.Join(dirs.SnapMountDir, "snapName/x2/bin/foo")))
 }

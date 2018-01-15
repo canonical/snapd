@@ -471,6 +471,7 @@ func runCmdUnderStrace(origCmd, env []string) error {
 	// run with filter
 	gcmd := exec.Command(cmd[0], cmd[1:]...)
 	gcmd.Env = env
+	gcmd.Stdin = Stdin
 	gcmd.Stdout = Stdout
 	stderr, err := gcmd.StderrPipe()
 	if err != nil {
@@ -500,7 +501,7 @@ func runCmdUnderStrace(origCmd, env []string) error {
 				break
 			}
 		}
-		io.Copy(Stderr, stderr)
+		io.Copy(Stderr, r)
 		filterDone <- 1
 	}()
 	if err := gcmd.Start(); err != nil {
