@@ -81,14 +81,20 @@ if [ "$1" = "purge" ]; then
 
     echo "Discarding preserved snap namespaces"
     # opportunistic as those might not be actually mounted
-    for mnt in /run/snapd/ns/*.mnt; do
-        umount -l "$mnt" || true
-        rm -f "$mnt"
-    done
-    for fstab in /run/snapd/ns/*.fstab; do
-        rm -f "$fstab"
-    done
-    umount -l /run/snapd/ns/ || true
+    if [ -d /run/snapd/ns ]; then
+        if [ $(ls /run/snapd/ns/*.mnt | wc -l) -gt 0 ]; then
+            for mnt in /run/snapd/ns/*.mnt; do
+                umount -l "$mnt" || true
+                rm -f "$mnt"
+            done
+        fi
+        if [ $(ls /run/snapd/ns/*.fstab | wc -l) -gt 0 ]; then
+            for fstab in /run/snapd/ns/*.fstab; do
+                rm -f "$fstab"
+            done
+        fi
+        umount -l /run/snapd/ns/ || true
+    fi
 
     echo "Removing extra snap-confine apparmor rules"
     rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine
