@@ -509,7 +509,16 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	cli := Client()
 	changeID, err := cli.InstallMany(names, opts)
 	if err != nil {
-		return err
+		var snapName string
+		if err, ok := err.(*client.Error); ok {
+			snapName, _ = err.Value.(string)
+		}
+		msg, err := errorToCmdMessage(snapName, err, opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(Stderr, msg)
+		return nil
 	}
 
 	setupAbortHandler(changeID)
