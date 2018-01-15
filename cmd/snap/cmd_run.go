@@ -440,14 +440,19 @@ func straceCmd() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot use strace without sudo: %s", err)
 	}
-	stracePath, err := exec.LookPath("strace")
-	if err != nil {
-		// Ubuntu Core devices will need strace from the snap
-		cand := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
-		if osutil.FileExists(cand) {
-			stracePath = cand
-		} else {
-			return nil, err
+
+	// try strace from the snap first, we use new syscalls like
+	// "_newselect" that are known to not work with the strace of e.g.
+	// ubuntu 14.04
+	var stracePath string
+	cand := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
+	if osutil.FileExists(cand) {
+		stracePath = cand
+	}
+	if stracePath == "" {
+		stracePath, err = exec.LookPath("strace")
+		if err != nil {
+			return nil, fmt.Errorf("cannot find an installed strace, please try: `snap install strace-static`")
 		}
 	}
 
@@ -504,7 +509,7 @@ func runCmdUnderStrace(origCmd, env []string) error {
 			s, err := r.ReadString('\n')
 			if err != nil {
 				if err != io.EOF {
-					fmt.Fprintf(Stderr, "cannot read strace output: %s", err)
+					fmt.Fprintf(Stderr, "cannot read strace output: %s\n", err)
 				}
 				break
 			}
