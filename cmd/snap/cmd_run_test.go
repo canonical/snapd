@@ -666,6 +666,7 @@ func (s *SnapSuite) TestSnapRunAppWithStraceIntegration(c *check.C) {
 	// normally come from strace
 	sudoCmd := testutil.MockCommand(c, "sudo", fmt.Sprintf(`
 echo "stdout output 1"
+>&2 echo 'execve("/path/to/snap-confine")'
 >&2 echo "snap-confine/snap-exec strace stuff"
 >&2 echo "getuid() = 1000"
 >&2 echo 'execve("%s/snapName/x2/bin/foo")'

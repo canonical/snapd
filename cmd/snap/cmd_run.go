@@ -479,12 +479,27 @@ func runCmdUnderStrace(origCmd, env []string) error {
 	}
 	filterDone := make(chan int)
 	go func() {
+		r := bufio.NewReader(stderr)
+
+		// the first thing from strace if things work is
+		// "exeve" - show everything until we see this to
+		// not swallow real strace errors
+		for {
+			s, err := r.ReadString('\n')
+			if err != nil {
+				break
+			}
+			if strings.Contains(s, "execve(") {
+				break
+			}
+			fmt.Fprint(Stderr, s)
+		}
+
 		// the last thing that snap-exec does is to
 		// execve() something inside the snap dir so
 		// we know that from that point on the output
 		// will be interessting to the user
 		needle := fmt.Sprintf(`execve("%s`, dirs.SnapMountDir)
-		r := bufio.NewReader(stderr)
 		for {
 			s, err := r.ReadString('\n')
 			if err != nil {
