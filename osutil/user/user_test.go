@@ -20,7 +20,7 @@
 package user_test
 
 import (
-	"fmt"
+	//	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -42,21 +42,21 @@ type suite struct {
 	restore func()
 }
 
-var _ = check.Suite(&suite{})
+// var _ = check.Suite(&suite{})
 
 func (s *suite) SetUpTest(c *check.C) {
 	rootDir := c.MkDir()
 	dirs.SetRootDir(rootDir)
 	// create some users
-	passdata := fmt.Sprintf(`
-user1::%d:%d::/home/user1:/bin/sh
-user2::4294967294:4294967294::/home/user2:/bin/sh
-`[1:], sys.Getuid(), sys.Getgid())
+	// 	passdata := fmt.Sprintf(`
+	// user1::%d:%d::/home/user1:/bin/sh
+	// user2::4294967294:4294967294::/home/user2:/bin/sh
+	// `[1:], sys.Getuid(), sys.Getgid())
 
 	for _, dir := range user.Passwds() {
 		c.Assert(os.MkdirAll(filepath.Dir(filepath.Join(rootDir, dir)), 0755), check.IsNil)
 	}
-	c.Assert(ioutil.WriteFile(filepath.Join(rootDir, "/var/lib/extrausers/passwd"), []byte(passdata), 0644), check.IsNil)
+	//	c.Assert(ioutil.WriteFile(filepath.Join(rootDir, "/var/lib/extrausers/passwd"), []byte(passdata), 0644), check.IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(rootDir, "etc/passwd"), []byte("sshd:x:124:65534::/var/run/sshd:/usr/sbin/nologin\n"), 0644), check.IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(rootDir, "etc", "shells"), []byte("/bin/sh\n"), 0644), check.IsNil)
 	s.restore = user.Mock()

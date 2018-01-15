@@ -25,22 +25,18 @@
 package user
 
 import (
-	"bufio"
-	"bytes"
 	"errors"
+	"io"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"sync"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/strutil"
 )
-
-var minUserUID = sys.UserID(1000)
-var shells = []string(nil)
 
 // Mock is exposed to be called from tests. If in your tests you changed things
 // that impact what users look like you might need to call user.Mock() so it
@@ -52,16 +48,7 @@ var shells = []string(nil)
 //  * the list of valid login shells (from /etc/shells; man 5 shells)
 //  * the current user (from getuid(2) and /etc/passwd)
 func Mock() (restore func()) {
-	oldMinUserUID := minUserUID
-	oldShells := shells
-	oldMe := me
-	oldMeErr := meErr
-
 	return func() {
-		minUserUID = oldMinUserUID
-		shells = oldShells
-		me = oldMe
-		meErr = oldMeErr
 	}
 }
 
@@ -95,6 +82,9 @@ func (u *User) UID() sys.UserID {
 func (u *User) GID() sys.GroupID {
 	return u.gid
 }
+
+var minUserUID sys.UserID = 1000
+var shells []string
 
 func (u *User) isSystemUser() bool {
 	if u.uid > 0 && u.uid < minUserUID {
@@ -187,47 +177,14 @@ func init() {
 
 // an Iter will iterate over the user database.
 type Iter struct {
-	pwi     int
-	pwf     *os.File
-	scanner *bufio.Scanner
-	cur     *User
-	err     error
+	pwd *os.File
+	cur *User
+	err error
 }
 
 // User returns the user found by Scan.
 func (it *Iter) User() *User {
 	return it.cur
-}
-
-// nextFile finds the next passwd file and sets up the scanner to read it
-// returns true if it succeeded, false otherwise.
-func (it *Iter) nextFile() bool {
-	for it.scanner == nil {
-		if it.pwi >= len(passwds) {
-			// no more files to scan
-			return false
-		}
-		if it.pwf != nil {
-			it.err = it.pwf.Close()
-		}
-		if it.err != nil {
-			return false
-		}
-		it.pwf, it.err = os.Open(filepath.Join(dirs.GlobalRootDir, passwds[it.pwi]))
-		it.pwi++
-		if it.err != nil {
-			// ignore missing files
-			if !os.IsNotExist(it.err) {
-				return false
-			}
-			it.err = nil
-			// try next file
-			continue
-		}
-		it.scanner = bufio.NewScanner(it.pwf)
-	}
-
-	return true
 }
 
 // Scan advances the iterator until it finds a user that matches all
@@ -237,53 +194,52 @@ func (it *Iter) Scan(conds ...func(*User) bool) bool {
 		return false
 	}
 
-	if it.scanner == nil {
-		if ok := it.nextFile(); !ok {
+	if it.cur == nil {
+		it.cur = &User{
+			name: "root",
+			home: "/root",
+		}
+		return true
+	}
+
+	if it.pwd == nil {
+		it.pwd, it.err = os.Open("/home")
+		if it.err != nil {
 			return false
 		}
 	}
 
-	for it.scanner.Scan() {
-		it.cur = nil
-		line := bytes.TrimSpace(it.scanner.Bytes())
-		if len(line) == 0 || line[0] == '#' {
-			// blank or comment; ignore
-			continue
+	names, err := it.pwd.Readdirnames(1)
+	if err != nil {
+		if err != io.EOF {
+			it.err = err
 		}
-		fields := bytes.SplitN(line, []byte{':'}, 8)
-		if len(fields) != 7 {
-			// bogus line; ignore
-			continue
-		}
-		// root:x:0:0:root:/root:/bin/bash
-		uid, err := strconv.ParseUint(string(fields[2]), 10, 32)
-		if err != nil {
-			continue
-		}
-		gid, err := strconv.ParseUint(string(fields[3]), 10, 32)
-		if err != nil {
-			continue
-		}
-		u := &User{
-			name:  string(fields[0]),
-			home:  string(fields[5]),
-			shell: string(fields[6]),
-			uid:   sys.UserID(uid),
-			gid:   sys.GroupID(gid),
-		}
-		if !u.satisfiesAll(conds) {
-			continue
-		}
-
-		it.cur = u
-		return true
+		return false
 	}
 
-	// reached the end of the current file; try again with the next one
-	it.err = it.scanner.Err()
-	it.scanner = nil
-
-	return it.Scan(conds...)
+	name := filepath.Base(names[0])
+	u, err := user.Lookup(name)
+	if err != nil {
+		it.err = err
+		return false
+	}
+	uid, err := strconv.ParseUint(u.Uid, 10, 32)
+	if err != nil {
+		it.err = err
+		return false
+	}
+	gid, err := strconv.ParseUint(u.Gid, 10, 32)
+	if err != nil {
+		it.err = err
+		return false
+	}
+	it.cur = &User{
+		name: name,
+		home: names[0],
+		uid:  sys.UserID(uid),
+		gid:  sys.GroupID(gid),
+	}
+	return true
 }
 
 // Finish closes down any connections the iterator might have to
@@ -293,12 +249,12 @@ func (it *Iter) Finish() error {
 	if it == nil {
 		return nil
 	}
-	if it.pwf != nil {
-		e := it.pwf.Close()
+	if it.pwd != nil {
+		e := it.pwd.Close()
 		if it.err == nil && e != nil {
 			it.err = e
 		}
-		it.pwf = nil
+		it.pwd = nil
 	}
 	return it.err
 }
