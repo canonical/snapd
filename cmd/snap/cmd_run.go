@@ -74,7 +74,7 @@ func init() {
 			"hook":    i18n.G("Hook to run"),
 			"r":       i18n.G("Use a specific snap revision when running hook"),
 			"shell":   i18n.G("Run a shell instead of the command (useful for debugging)"),
-			"strace":  i18n.G("Run the command under strace (useful for debugging"),
+			"strace":  i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here."),
 		}, nil)
 }
 
@@ -499,13 +499,12 @@ func runCmdUnderStrace(origCmd, env []string, opts runOptions) error {
 		return err
 	}
 	filterDone := make(chan int)
-	var straceErrorOutput []string
 	go func() {
 		r := bufio.NewReader(stderr)
 
-		// the first thing from strace if things work is
-		// "exeve" - show everything until we see this to
-		// not swallow real strace errors
+		// The first thing from strace if things work is
+		// "exeve(" - show everything until we see this to
+		// not swallow real strace errors.
 		for {
 			s, err := r.ReadString('\n')
 			if err != nil {
@@ -517,10 +516,10 @@ func runCmdUnderStrace(origCmd, env []string, opts runOptions) error {
 			fmt.Fprint(Stderr, s)
 		}
 
-		// the last thing that snap-exec does is to
+		// The last thing that snap-exec does is to
 		// execve() something inside the snap dir so
 		// we know that from that point on the output
-		// will be interessting to the user
+		// will be interessting to the user.
 		needle := fmt.Sprintf(`execve("%s`, dirs.SnapMountDir)
 		for {
 			s, err := r.ReadString('\n')
@@ -530,9 +529,11 @@ func runCmdUnderStrace(origCmd, env []string, opts runOptions) error {
 				}
 				break
 			}
-			// ensure we catch the execve but *not* the
+			// Ensure we catch the execve but *not* the
 			// exec into
 			// /snap/core/current/usr/lib/snapd/snap-confine
+			// which is just `snap run` using the core version
+			// snap-confine.
 			if strings.Contains(s, needle) && !strings.Contains(s, "usr/lib/snapd/snap-confine") {
 				fmt.Fprint(Stderr, s)
 				break
@@ -546,9 +547,6 @@ func runCmdUnderStrace(origCmd, env []string, opts runOptions) error {
 	}
 	err = gcmd.Wait()
 	<-filterDone
-	if err != nil && len(straceErrorOutput) > 0 {
-		fmt.Fprintf(Stderr, "strace failed:\n%s", strings.Join(straceErrorOutput, "\n"))
-	}
 	return err
 }
 
