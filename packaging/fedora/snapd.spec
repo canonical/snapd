@@ -110,10 +110,9 @@ BuildRequires: golang(github.com/godbus/dbus)
 BuildRequires: golang(github.com/godbus/dbus/introspect)
 BuildRequires: golang(github.com/gorilla/mux)
 BuildRequires: golang(github.com/jessevdk/go-flags)
-BuildRequires: golang(github.com/mvo5/uboot-go/uenv)
+BuildRequires: golang(github.com/mvo5/goconfigparser)
 BuildRequires: golang(github.com/ojii/gettext.go)
 BuildRequires: golang(github.com/seccomp/libseccomp-golang)
-BuildRequires: golang(github.com/Thomasdezeeuw/ini)
 BuildRequires: golang(golang.org/x/crypto/openpgp/armor)
 BuildRequires: golang(golang.org/x/crypto/openpgp/packet)
 BuildRequires: golang(golang.org/x/crypto/sha3)
@@ -200,10 +199,9 @@ Requires:      golang(github.com/godbus/dbus)
 Requires:      golang(github.com/godbus/dbus/introspect)
 Requires:      golang(github.com/gorilla/mux)
 Requires:      golang(github.com/jessevdk/go-flags)
-Requires:      golang(github.com/mvo5/uboot-go/uenv)
+Requires:      golang(github.com/mvo5/goconfigparser)
 Requires:      golang(github.com/ojii/gettext.go)
 Requires:      golang(github.com/seccomp/libseccomp-golang)
-Requires:      golang(github.com/Thomasdezeeuw/ini)
 Requires:      golang(golang.org/x/crypto/openpgp/armor)
 Requires:      golang(golang.org/x/crypto/openpgp/packet)
 Requires:      golang(golang.org/x/crypto/sha3)
@@ -226,10 +224,9 @@ Provides:      bundled(golang(github.com/godbus/dbus))
 Provides:      bundled(golang(github.com/godbus/dbus/introspect))
 Provides:      bundled(golang(github.com/gorilla/mux))
 Provides:      bundled(golang(github.com/jessevdk/go-flags))
-Provides:      bundled(golang(github.com/mvo5/uboot-go/uenv))
+Provides:      golang(github.com/mvo5/goconfigparser)
 Provides:      bundled(golang(github.com/mvo5/libseccomp-golang))
 Provides:      bundled(golang(github.com/ojii/gettext.go))
-Provides:      bundled(golang(github.com/Thomasdezeeuw/ini))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/armor))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/packet))
 Provides:      bundled(golang(golang.org/x/crypto/sha3))
@@ -339,16 +336,6 @@ Summary:         Unit tests for %{name} package
 %if 0%{?with_check}
 #Here comes all BuildRequires: PACKAGE the unit tests
 #in %%check section need for running
-%endif
-
-%if 0%{?with_check} && ! 0%{?with_bundled}
-BuildRequires: golang(github.com/mvo5/goconfigparser)
-%endif
-
-%if ! 0%{?with_bundled}
-Requires:      golang(github.com/mvo5/goconfigparser)
-%else
-Provides:      bundled(golang(github.com/mvo5/goconfigparser))
 %endif
 
 # test subpackage tests code from devel subpackage
