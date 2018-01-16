@@ -30,6 +30,12 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+type updateInfoOpts struct {
+	channel          string
+	ignoreValidation bool
+	amend            bool
+}
+
 func idForUser(user *auth.UserState) int {
 	if user == nil {
 		return 0
@@ -107,20 +113,24 @@ func snapInfo(st *state.State, name, channel string, revision snap.Revision, use
 	return snap, err
 }
 
-func updateInfo(st *state.State, snapst *SnapState, channel string, ignoreValidation, amend bool, userID int) (*snap.Info, error) {
-	curInfo, user, err := preUpdateInfo(st, snapst, amend, userID)
+func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID int) (*snap.Info, error) {
+	if opts == nil {
+		opts = &updateInfoOpts{}
+	}
+
+	curInfo, user, err := preUpdateInfo(st, snapst, opts.amend, userID)
 	if err != nil {
 		return nil, err
 	}
 
 	refreshCand := &store.RefreshCandidate{
 		// the desired channel
-		Channel:          channel,
+		Channel:          opts.channel,
 		SnapID:           curInfo.SnapID,
 		Revision:         curInfo.Revision,
 		Epoch:            curInfo.Epoch,
-		IgnoreValidation: ignoreValidation,
-		Amend:            amend,
+		IgnoreValidation: opts.ignoreValidation,
+		Amend:            opts.amend,
 	}
 
 	theStore := Store(st)
