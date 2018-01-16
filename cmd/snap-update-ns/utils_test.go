@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -264,7 +265,7 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 		// Create symlinks.
 		// Bad symlinks and all other file types are skipped and not
 		// recorded in mount changes.
-		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"bind", "x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
 		// Unmount the safe-keeping directory
 		{Entry: mount.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
 	})
@@ -284,6 +285,134 @@ func (s *utilsSuite) TestPlanWritableMimicErrors(c *C) {
 	changes, err := update.PlanWritableMimic("/foo")
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(changes, HasLen, 0)
+}
+
+func (s *utilsSuite) TestExecWirableMimicSuccess(c *C) {
+	// This plan is the same as in the test above. This is what comes out of planWritableMimic.
+	plan := []*update.Change{
+		{Entry: mount.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
+	}
+
+	// Mock the act of performing changes, each of the change we perform is coming from the plan.
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
+		c.Assert(plan, testutil.DeepContains, chg)
+		return nil, nil
+	})
+	defer restore()
+
+	// The executed plan leaves us with a simplified view of the plan that is suitable for undo.
+	undoPlan, err := update.ExecWritableMimic(plan)
+	c.Assert(err, IsNil)
+	c.Assert(undoPlan, DeepEquals, []*update.Change{
+		{Entry: mount.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
+	})
+}
+
+func (s *utilsSuite) TestExecWirableMimicErrorWithRecovery(c *C) {
+	// This plan is the same as in the test above. This is what comes out of planWritableMimic.
+	plan := []*update.Change{
+		{Entry: mount.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		// NOTE: the next perform will fail. Notably the symlink did not fail.
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
+	}
+
+	// Mock the act of performing changes. Before we inject a failure we ensure
+	// that each of the change we perform is coming from the plan. For the
+	// purpose of the test the change that bind mounts the "dir" over itself
+	// will fail and will trigger an recovery path. The changes performed in
+	// the recovery path are recorded.
+	var recoveryPlan []*update.Change
+	recovery := false
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
+		if !recovery {
+			c.Assert(plan, testutil.DeepContains, chg)
+			if chg.Entry.Name == "/tmp/.snap/foo/dir" {
+				recovery = true // switch to recovery mode
+				return nil, errTesting
+			}
+		} else {
+			recoveryPlan = append(recoveryPlan, chg)
+		}
+		return nil, nil
+	})
+	defer restore()
+
+	// The executed plan fails, leaving us with the error and an empty undo plan.
+	undoPlan, err := update.ExecWritableMimic(plan)
+	c.Assert(err, Equals, errTesting)
+	c.Assert(undoPlan, HasLen, 0)
+	// The changes we managed to perform were undone correctly.
+	c.Assert(recoveryPlan, DeepEquals, []*update.Change{
+		// NOTE: there is no symlink undo entry as it is implicitly undone by unmounting the tmpfs.
+		{Entry: mount.Entry{Name: "/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Unmount},
+		{Entry: mount.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Unmount},
+		{Entry: mount.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Unmount},
+	})
+}
+
+func (s *utilsSuite) TestExecWirableMimicErrorNothingDone(c *C) {
+	// This plan is the same as in the test above. This is what comes out of planWritableMimic.
+	plan := []*update.Change{
+		{Entry: mount.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
+	}
+
+	// Mock the act of performing changes and just fail on any request.
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
+		return nil, errTesting
+	})
+	defer restore()
+
+	// The executed plan fails, the recovery didn't fail (it's empty) so we just return that error.
+	undoPlan, err := update.ExecWritableMimic(plan)
+	c.Assert(err, Equals, errTesting)
+	c.Assert(undoPlan, HasLen, 0)
+}
+
+func (s *utilsSuite) TestExecWirableMimicErrorCannotUndo(c *C) {
+	// This plan is the same as in the test above. This is what comes out of planWritableMimic.
+	plan := []*update.Change{
+		{Entry: mount.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
+	}
+
+	// Mock the act of performing changes. After performing the first change
+	// correctly we will fail forever (this includes the recovery path) so the
+	// execute function ends up in a situation where it cannot perform the
+	// recovery path and will have to return a fatal error.
+	i := -1
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
+		i++
+		if i > 0 {
+			return nil, fmt.Errorf("failure-%d", i)
+		}
+		return nil, nil
+	})
+	defer restore()
+
+	// The plan partially succeeded and we cannot undo those changes.
+	_, err := update.ExecWritableMimic(plan)
+	c.Assert(err, ErrorMatches, `cannot undo change ".*" while recovering from earlier error failure-1: failure-2`)
+	c.Assert(err, FitsTypeOf, &update.FatalError{})
 }
 
 // realSystemSuite is not isolated / mocked from the system.

@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -180,6 +181,10 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserIDAlreadySet(c *C) {
 		Current: snap.R(1),
 		UserID:  1,
 	})
+	// the user
+	user, err := auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	c.Assert(err, IsNil)
+	c.Assert(user.ID, Equals, 1)
 
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -200,9 +205,44 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserIDAlreadySet(c *C) {
 
 	// check that snapst.UserID was not "transferred"
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	err = snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.UserID, Equals, 1)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSuccessUserLoggedOut(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+		UserID:  1,
+	})
+
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel: "beta",
+		UserID:  2,
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// check that snapst.UserID was transferred
+	// given that user 1 doesn't exist anymore
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.UserID, Equals, 2)
 }
 
 func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {

@@ -138,6 +138,10 @@ func (m *HookManager) Register(pattern *regexp.Regexp, generator HandlerGenerato
 	m.repository.addHandlerGenerator(pattern, generator)
 }
 
+func (m *HookManager) KnownTaskKinds() []string {
+	return m.runner.KnownTaskKinds()
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *HookManager) Ensure() error {
 	m.runner.Ensure()
