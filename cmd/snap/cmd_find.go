@@ -138,7 +138,7 @@ func (x *cmdFind) Execute(args []string) error {
 	// section will be:
 	// - "show-all-sections-please" if the user specified --section
 	//   without any argument
-	// - "no-section-specifie" if "--section" was not specified on
+	// - "no-section-specified" if "--section" was not specified on
 	//   the commandline at all
 	switch x.Section {
 	case "show-all-sections-please":
