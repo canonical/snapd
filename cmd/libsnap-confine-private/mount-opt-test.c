@@ -231,7 +231,9 @@ static void test_sc_do_mount(gconstpointer snap_debug)
 		g_test_trap_assert_stderr
 		    ("cannot perform operation: mount -t ext4 -o ro /foo /bar: Permission denied\n");
 	} else {
-		/* make sure we don't end up hiding the error if debug logging is enabled */
+		/* with snap_debug the debug output hides the actual mount commands *but*
+		 * they are still shown if there was an error
+		 */
 		g_test_trap_assert_stderr
 		    ("DEBUG: performing operation: (disabled) use debug build to see details\n"
 		     "cannot perform operation: mount -t ext4 -o ro /foo /bar: Permission denied\n");
@@ -264,7 +266,9 @@ static void test_sc_do_umount(gconstpointer snap_debug)
 		g_test_trap_assert_stderr
 		    ("cannot perform operation: umount --lazy /foo: Permission denied\n");
 	} else {
-		/* make sure we don't end up hiding the error if debug logging is enabled */
+		/* with snap_debug the debug output hides the actual mount commands *but*
+		 * they are still shown if there was an error
+		 */
 		g_test_trap_assert_stderr
 		    ("DEBUG: performing operation: (disabled) use debug build to see details\n"
 		     "cannot perform operation: umount --lazy /foo: Permission denied\n");
