@@ -1070,6 +1070,60 @@ func (s *apiSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
 }
 
+func (s *apiSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
+	d := s.daemon(c)
+	state := d.overlord.State()
+
+	// setup local-only user
+	state.Lock()
+	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
+
+	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
+	mockSSOServer := s.makeSSOServer(200, discharge)
+	defer mockSSOServer.Close()
+
+	// same local user, but using a new SSO account
+	buf := bytes.NewBufferString(`{"username": "username", "email": "new.email@test.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
+
+	rsp := loginUser(loginCmd, req, localUser).(*resp)
+
+	expected := userResponseData{
+		ID:       1,
+		Username: "username",
+		Email:    "new.email@test.com",
+
+		Macaroon:   localUser.Macaroon,
+		Discharges: localUser.Discharges,
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	state.Lock()
+	user, err := auth.User(state, localUser.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, expected.Email)
+	c.Check(user.Macaroon, check.Equals, localUser.Macaroon)
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, serializedMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+}
+
 func (s *apiSuite) TestLogoutUser(c *check.C) {
 	d := s.daemon(c)
 	state := d.overlord.State()
@@ -4711,30 +4765,33 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	expectedEmail := "popper@lse.ac.uk"
+	expectedUsername := "karl"
+
 	storeUserInfo = func(user string) (*store.User, error) {
-		c.Check(user, check.Equals, "popper@lse.ac.uk")
+		c.Check(user, check.Equals, expectedEmail)
 		return &store.User{
-			Username:         "karl",
+			Username:         expectedUsername,
 			SSHKeys:          []string{"ssh1", "ssh2"},
 			OpenIDIdentifier: "xxyyzz",
 		}, nil
 	}
 	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
-		c.Check(username, check.Equals, "karl")
+		c.Check(username, check.Equals, expectedUsername)
 		c.Check(opts.SSHKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
 		c.Check(opts.Gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
 		c.Check(opts.Sudoer, check.Equals, false)
 		return nil
 	}
 
-	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"email": "%s"}`, expectedEmail))
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	expected := &userResponseData{
-		Username: "karl",
+		Username: expectedUsername,
 		SSHKeys:  []string{"ssh1", "ssh2"},
 	}
 
@@ -4748,15 +4805,17 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 	user, err := auth.User(state, 1)
 	state.Unlock()
 	c.Check(err, check.IsNil)
-	c.Check(user.Username, check.Equals, "karl")
-	c.Check(user.Email, check.Equals, "popper@lse.ac.uk")
+	c.Check(user.Username, check.Equals, expectedUsername)
+	c.Check(user.Email, check.Equals, expectedEmail)
 	c.Check(user.Macaroon, check.NotNil)
 	// auth saved to user home dir
 	outfile := filepath.Join(s.mockUserHome, ".snap", "auth.json")
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
 	content, err := ioutil.ReadFile(outfile)
 	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals, fmt.Sprintf(`{"macaroon":"%s"}`, user.Macaroon))
+	c.Check(string(content), check.Equals,
+		fmt.Sprintf(`{"id":%d,"username":"%s","email":"%s","macaroon":"%s"}`,
+			1, expectedUsername, expectedEmail, user.Macaroon))
 }
 
 func (s *postCreateUserSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
