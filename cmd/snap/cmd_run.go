@@ -50,12 +50,11 @@ var (
 )
 
 type cmdRun struct {
-	Command    string `long:"command" hidden:"yes"`
-	Hook       string `long:"hook" hidden:"yes"`
-	Revision   string `short:"r" default:"unset" hidden:"yes"`
-	Shell      bool   `long:"shell" `
-	Strace     bool   `long:"strace"`
-	StraceOpts string `long:"strace-opts"`
+	Command  string `long:"command" hidden:"yes"`
+	Hook     string `long:"hook" hidden:"yes"`
+	Revision string `short:"r" default:"unset" hidden:"yes"`
+	Shell    bool   `long:"shell" `
+	Strace   string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace"`
 }
 
 type runOptions struct {
@@ -71,12 +70,11 @@ func init() {
 		func() flags.Commander {
 			return &cmdRun{}
 		}, map[string]string{
-			"command":     i18n.G("Alternative command to run"),
-			"hook":        i18n.G("Hook to run"),
-			"r":           i18n.G("Use a specific snap revision when running hook"),
-			"shell":       i18n.G("Run a shell instead of the command (useful for debugging)"),
-			"strace":      i18n.G("Run the command under strace (useful for debugging"),
-			"strace-opts": i18n.G("Options to pass to strace (useful for debugging"),
+			"command": i18n.G("Alternative command to run"),
+			"hook":    i18n.G("Hook to run"),
+			"r":       i18n.G("Use a specific snap revision when running hook"),
+			"shell":   i18n.G("Run a shell instead of the command (useful for debugging)"),
+			"strace":  i18n.G("Run the command under strace (useful for debugging"),
 		}, nil)
 }
 
@@ -110,9 +108,11 @@ func (x *cmdRun) Execute(args []string) error {
 	switch {
 	case x.Shell:
 		x.Command = "shell"
-	case x.Strace || x.StraceOpts != "":
+	case x.Strace != "no-strace":
 		opts.useStrace = true
-		opts.straceOpts = x.StraceOpts
+		if x.Strace != "with-strace" {
+			opts.straceOpts = x.Strace
+		}
 	}
 
 	if x.Command == "complete" {
