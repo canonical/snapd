@@ -251,8 +251,10 @@ const char *sc_umount_cmd(char *buf, size_t buf_size, const char *target,
 	return buf;
 }
 
+#ifndef SNAP_CONFINE_DEBUG_BUILD
 static const char *use_debug_build =
     "(disabled) use debug build to see details";
+#endif
 
 void sc_do_mount(const char *source, const char *target,
 		 const char *fs_type, unsigned long mountflags,
@@ -265,9 +267,10 @@ void sc_do_mount(const char *source, const char *target,
 #ifdef SNAP_CONFINE_DEBUG_BUILD
 		mount_cmd = sc_mount_cmd(buf, sizeof(buf), source,
 					 target, fs_type, mountflags, data);
+#else
+		mount_cmd = use_debug_build;
 #endif
-		debug("performing operation: %s",
-		      mount_cmd ? mount_cmd : use_debug_build);
+		debug("performing operation: %s", mount_cmd);
 	}
 	if (sc_faulty("mount", NULL)
 	    || mount(source, target, fs_type, mountflags, data) < 0) {
@@ -279,11 +282,8 @@ void sc_do_mount(const char *source, const char *target,
 		sc_privs_drop();
 
 		// Compute the equivalent mount command.
-		if (mount_cmd == NULL) {
-			mount_cmd = sc_mount_cmd(buf, sizeof(buf), source,
-						 target, fs_type, mountflags,
-						 data);
-		}
+		mount_cmd = sc_mount_cmd(buf, sizeof(buf), source,
+					 target, fs_type, mountflags, data);
 		// Restore errno and die.
 		errno = saved_errno;
 		die("cannot perform operation: %s", mount_cmd);
@@ -298,9 +298,10 @@ void sc_do_umount(const char *target, int flags)
 	if (sc_is_debug_enabled()) {
 #ifdef SNAP_CONFINE_DEBUG_BUILD
 		umount_cmd = sc_umount_cmd(buf, sizeof(buf), target, flags);
+#else
+		umount_cmd = use_debug_build;
 #endif
-		debug("performing operation: %s",
-		      umount_cmd ? umount_cmd : use_debug_build);
+		debug("performing operation: %s", umount_cmd);
 	}
 	if (sc_faulty("umount", NULL) || umount2(target, flags) < 0) {
 		// Save errno as ensure can clobber it.
@@ -311,10 +312,7 @@ void sc_do_umount(const char *target, int flags)
 		sc_privs_drop();
 
 		// Compute the equivalent umount command.
-		if (umount_cmd == NULL) {
-			umount_cmd = sc_umount_cmd(buf, sizeof(buf),
-						   target, flags);
-		}
+		umount_cmd = sc_umount_cmd(buf, sizeof(buf), target, flags);
 		// Restore errno and die.
 		errno = saved_errno;
 		die("cannot perform operation: %s", umount_cmd);
