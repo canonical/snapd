@@ -41,6 +41,9 @@
 #endif
 
 #ifndef seccomp
+// prototype because we build with -Wstrict-prototypes
+int seccomp(unsigned int operation, unsigned int flags, void *args);
+
 int seccomp(unsigned int operation, unsigned int flags, void *args)
 {
 	errno = 0;
