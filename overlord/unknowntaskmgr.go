@@ -74,5 +74,5 @@ func (m *UnknownTaskManager) Stop() {
 }
 
 func (mgr *UnknownTaskManager) KnownTaskKinds() []string {
-	return []string{}
+	return nil
 }
