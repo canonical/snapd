@@ -9,6 +9,7 @@ debug: |
     cat /proc/cmdline
 
 restore: |
+    systemctl restart snapd
     if [ -f curChg ] ; then
         snap abort $(cat curChg) || true
     fi
@@ -61,7 +62,7 @@ execute: |
     echo ${chg_id} >curChg
 
     # wait for the link task to be done
-    while ! snap change ${chg_id}|grep -q "^Done.*Make snap.*available to the system" ; do sleep 1 ; done
+    while ! journalctl -b -u snapd|grep -q "Waiting for system reboot" ; do sleep 1 ; done
 
     echo "Ensure the test snap still runs"
     test-snapd-tools.echo hello | MATCH hello

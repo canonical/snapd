@@ -46,7 +46,10 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
+	"github.com/snapcore/snapd/systemd"
 )
+
+var systemdSdNotify = systemd.SdNotify
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
@@ -60,6 +63,9 @@ type Daemon struct {
 	router        *mux.Router
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
+	// set to remember we need to restart the system
+	restartSystem bool
+	mu            sync.Mutex
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -414,8 +420,6 @@ func (srv *shutdownServer) finishShutdown() error {
 	return fmt.Errorf("cannot gracefully finish, still active connections on %v after %v", srv.l.Addr(), shutdownTimeout)
 }
 
-var shutdownMsg = i18n.G("reboot scheduled to update the system - temporarily cancel with 'sudo shutdown -c'")
-
 // Start the Daemon
 func (d *Daemon) Start() {
 	// die when asked to restart (systemd should get us back up!)
@@ -424,10 +428,12 @@ func (d *Daemon) Start() {
 		case state.RestartDaemon:
 			d.tomb.Kill(nil)
 		case state.RestartSystem:
-			cmd := exec.Command("shutdown", "+10", "-r", shutdownMsg)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				logger.Noticef("%s", osutil.OutputErr(out, err))
-			}
+			// TODO: schedule a slow reboot already here
+			d.mu.Lock()
+			defer d.mu.Unlock()
+			// remember we need to restart the system
+			d.restartSystem = true
+			d.tomb.Kill(nil)
 		default:
 			logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
 			d.tomb.Kill(nil)
@@ -459,14 +465,32 @@ func (d *Daemon) Start() {
 
 		return nil
 	})
+
+	// notify systemd that we are ready
+	systemdSdNotify("READY=1")
 }
+
+var shutdownMsg = i18n.G("reboot scheduled to update the system")
+
+var execCommand = exec.Command
+var rebootWaitTimeout = 10 * time.Minute
 
 // Stop shuts down the Daemon
 func (d *Daemon) Stop() error {
 	d.tomb.Kill(nil)
+
+	d.mu.Lock()
+	restartSystem := d.restartSystem
+	d.mu.Unlock()
+
 	d.snapdListener.Close()
 	if d.snapListener != nil {
 		d.snapListener.Close()
+	}
+
+	if restartSystem {
+		// give time to polling clients to notice restart
+		time.Sleep(300 * time.Millisecond)
 	}
 
 	d.tomb.Kill(d.snapdServe.finishShutdown())
@@ -474,9 +498,40 @@ func (d *Daemon) Stop() error {
 		d.tomb.Kill(d.snapServe.finishShutdown())
 	}
 
+	if !restartSystem {
+		// tell systemd that we are stopping
+		systemdSdNotify("STOPPING=1")
+
+	}
+	// TODO: else have a timeout for the stopping code here for
+	// the system restart case
+
 	d.overlord.Stop()
 
-	return d.tomb.Wait()
+	err := d.tomb.Wait()
+	if err != nil {
+		return err
+	}
+
+	if restartSystem {
+		// ask for shutdown and wait for it to happen.
+		// if we exit snapd will be restared by systemd
+		rebootDelay := "now"
+		ovr := os.Getenv("SNAPD_REBOOT_DELAY") // for tests
+		if ovr != "" {
+			rebootDelay = ovr
+		}
+		cmd := execCommand("shutdown", rebootDelay, "-r", shutdownMsg)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return osutil.OutputErr(out, err)
+		}
+		// wait for reboot to happen
+		logger.Noticef("Waiting for system reboot")
+		time.Sleep(rebootWaitTimeout)
+		return fmt.Errorf("expected reboot did not happen")
+	}
+
+	return nil
 }
 
 // Dying is a tomb-ish thing
