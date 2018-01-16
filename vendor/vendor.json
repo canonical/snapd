@@ -7,6 +7,12 @@
 			"revision": ""
 		},
 		{
+			"checksumSHA1": "OeMM9kqd+l7qKt2ebPlkuNTj3iM=",
+			"path": "github.com/Thomasdezeeuw/ini",
+			"revision": "a8267f5250545cad90bcfa172ac4422e2f1afd6a",
+			"revisionTime": "2017-08-26T09:48:33Z"
+		},
+		{
 			"checksumSHA1": "lbE4q2dpUgue10EEx8eutP36vzo=",
 			"path": "github.com/boltdb/bolt",
 			"revision": "9da31745363232bc1e27dbab3569e77383a51585",
@@ -149,12 +155,6 @@
 			"path": "golang.org/x/net/context/ctxhttp",
 			"revision": "c81e7f25cb61200d8bf0ae971a0bac8cb638d5bc",
 			"revisionTime": "2017-06-28T23:42:41Z"
-		},
-		{
-			"checksumSHA1": "xJ411WtNO4qnFH8/v1a+HYLhVA4=",
-			"path": "golang.org/x/sys/unix",
-			"revision": "28a7276518d399b9634904daad79e18b44d481bc",
-			"revisionTime": "2018-01-02T11:13:44Z"
 		},
 		{
 			"checksumSHA1": "CEFTYXtWmgSh+3Ik1NmDaJcz4E0=",
