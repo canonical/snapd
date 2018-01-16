@@ -265,7 +265,7 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 		// Create symlinks.
 		// Bad symlinks and all other file types are skipped and not
 		// recorded in mount changes.
-		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"bind", "x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
 		// Unmount the safe-keeping directory
 		{Entry: mount.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
 	})
@@ -294,7 +294,7 @@ func (s *utilsSuite) TestExecWirableMimicSuccess(c *C) {
 		{Entry: mount.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
-		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"bind", "x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
 	}
 
@@ -321,7 +321,7 @@ func (s *utilsSuite) TestExecWirableMimicErrorWithRecovery(c *C) {
 		{Entry: mount.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
-		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"bind", "x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
 		// NOTE: the next perform will fail. Notably the symlink did not fail.
 		{Entry: mount.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
@@ -368,7 +368,7 @@ func (s *utilsSuite) TestExecWirableMimicErrorNothingDone(c *C) {
 		{Entry: mount.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
-		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"bind", "x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
 	}
 
@@ -391,7 +391,7 @@ func (s *utilsSuite) TestExecWirableMimicErrorCannotUndo(c *C) {
 		{Entry: mount.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
-		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"bind", "x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		{Entry: mount.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
 		{Entry: mount.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
 	}
 
