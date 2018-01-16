@@ -1,10 +1,10 @@
-snapd (2.30-4) UNRELEASED; urgency=medium
+snapd (2.30-4) unstable; urgency=medium
 
   * Fix Built-Using computation on Debian.
   * Add d/patches/disable-TestDoRequestSerialErrorsOnNoHost.patch to disable
     a flaky test.
 
- -- Michael Hudson-Doyle <mwhudson@debian.org>  Tue, 16 Jan 2018 12:06:37 +1300
+ -- Michael Hudson-Doyle <mwhudson@debian.org>  Tue, 16 Jan 2018 13:02:31 +1300
 
 snapd (2.30-3) unstable; urgency=medium
 
