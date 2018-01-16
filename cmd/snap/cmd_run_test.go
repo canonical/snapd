@@ -667,6 +667,7 @@ func (s *SnapSuite) TestSnapRunAppWithStraceIntegration(c *check.C) {
 	// normally come from strace
 	sudoCmd := testutil.MockCommand(c, "sudo", fmt.Sprintf(`
 echo "stdout output 1"
+>&2 echo 'execve("/path/to/snap-confine")'
 >&2 echo "snap-confine/snap-exec strace stuff"
 >&2 echo "getuid() = 1000"
 >&2 echo 'execve("%s/snapName/x2/bin/foo")'
@@ -701,5 +702,5 @@ echo "stdout output 2"
 		},
 	})
 	c.Check(s.Stdout(), check.Equals, "stdout output 1\nstdout output 2\n")
-	c.Check(s.Stderr(), check.Equals, "interessting strace output\nand more\n")
+	c.Check(s.Stderr(), check.Equals, fmt.Sprintf("execve(%q)\ninteressting strace output\nand more\n", filepath.Join(dirs.SnapMountDir, "snapName/x2/bin/foo")))
 }

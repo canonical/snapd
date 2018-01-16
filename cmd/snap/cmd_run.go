@@ -450,14 +450,19 @@ func straceCmd() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot use strace without sudo: %s", err)
 	}
-	stracePath, err := exec.LookPath("strace")
-	if err != nil {
-		// Ubuntu Core devices will need strace from the snap
-		cand := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
-		if osutil.FileExists(cand) {
-			stracePath = cand
-		} else {
-			return nil, err
+
+	// try strace from the snap first, we use new syscalls like
+	// "_newselect" that are known to not work with the strace of e.g.
+	// ubuntu 14.04
+	var stracePath string
+	cand := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
+	if osutil.FileExists(cand) {
+		stracePath = cand
+	}
+	if stracePath == "" {
+		stracePath, err = exec.LookPath("strace")
+		if err != nil {
+			return nil, fmt.Errorf("cannot find an installed strace, please try: `snap install strace-static`")
 		}
 	}
 
@@ -487,6 +492,7 @@ func runCmdUnderStrace(origCmd, env []string, opts runOptions) error {
 	// run with filter
 	gcmd := exec.Command(cmd[0], cmd[1:]...)
 	gcmd.Env = env
+	gcmd.Stdin = Stdin
 	gcmd.Stdout = Stdout
 	stderr, err := gcmd.StderrPipe()
 	if err != nil {
@@ -495,34 +501,45 @@ func runCmdUnderStrace(origCmd, env []string, opts runOptions) error {
 	filterDone := make(chan int)
 	var straceErrorOutput []string
 	go func() {
-		foundStraceStarting := false
+		r := bufio.NewReader(stderr)
+
+		// the first thing from strace if things work is
+		// "exeve" - show everything until we see this to
+		// not swallow real strace errors
+		for {
+			s, err := r.ReadString('\n')
+			if err != nil {
+				break
+			}
+			if strings.Contains(s, "execve(") {
+				break
+			}
+			fmt.Fprint(Stderr, s)
+		}
+
 		// the last thing that snap-exec does is to
 		// execve() something inside the snap dir so
 		// we know that from that point on the output
 		// will be interessting to the user
 		needle := fmt.Sprintf(`execve("%s`, dirs.SnapMountDir)
-		foundNeedle := false
-		r := bufio.NewReader(stderr)
 		for {
 			s, err := r.ReadString('\n')
 			if err != nil {
 				if err != io.EOF {
-					fmt.Fprintf(Stderr, "cannot read strace output: %s", err)
+					fmt.Fprintf(Stderr, "cannot read strace output: %s\n", err)
 				}
-				filterDone <- 1
-				return
+				break
 			}
-			switch {
-			case foundNeedle:
+			// ensure we catch the execve but *not* the
+			// exec into
+			// /snap/core/current/usr/lib/snapd/snap-confine
+			if strings.Contains(s, needle) && !strings.Contains(s, "usr/lib/snapd/snap-confine") {
 				fmt.Fprint(Stderr, s)
-			case strings.Contains(s, needle):
-				foundNeedle = true
-			case strings.Contains(s, "execve"):
-				foundStraceStarting = true
-			case !foundStraceStarting:
-				straceErrorOutput = append(straceErrorOutput, s)
+				break
 			}
 		}
+		io.Copy(Stderr, r)
+		filterDone <- 1
 	}()
 	if err := gcmd.Start(); err != nil {
 		return err
