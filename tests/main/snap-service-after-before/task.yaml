@@ -12,8 +12,8 @@ execute: |
 
     echo "Service 'middle' is started after 'before-middle'"
     systemctl list-dependencies --plain --after snap.test-snapd-after-before-service.middle.service | \
-        MATCH "  snap.test-snapd-after-before-service.before-middle.service"
+        MATCH "\s*snap.test-snapd-after-before-service.before-middle.service"
 
     echo "Service 'middle' is started before 'after-middle'"
     systemctl list-dependencies --plain --before snap.test-snapd-after-before-service.middle.service | \
-        MATCH "  snap.test-snapd-after-before-service.after-middle.service"
+        MATCH "\s*snap.test-snapd-after-before-service.after-middle.service"
