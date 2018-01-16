@@ -171,7 +171,6 @@ accept
 accept4
 bind
 listen
-shutdown
 # libudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `

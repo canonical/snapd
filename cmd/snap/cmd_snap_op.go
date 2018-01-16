@@ -379,7 +379,7 @@ func showDone(names []string, op string) error {
 		}
 		if snap.TrackingChannel != snap.Channel {
 			// TRANSLATORS: first %s is a snap name, following %s is a channel name
-			fmt.Fprintf(Stdout, i18n.G("This leaves %s tracking %s.\n"), snap.Name, snap.TrackingChannel)
+			fmt.Fprintf(Stdout, i18n.G("Snap %s is no longer tracking %s.\n"), snap.Name, snap.TrackingChannel)
 		}
 	}
 
@@ -509,7 +509,16 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	cli := Client()
 	changeID, err := cli.InstallMany(names, opts)
 	if err != nil {
-		return err
+		var snapName string
+		if err, ok := err.(*client.Error); ok {
+			snapName, _ = err.Value.(string)
+		}
+		msg, err := errorToCmdMessage(snapName, err, opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(Stderr, msg)
+		return nil
 	}
 
 	setupAbortHandler(changeID)
