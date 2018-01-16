@@ -5,6 +5,7 @@ systems: [-ubuntu-core-16-*]
 prepare: |
     mkdir -p /home/test/.snap
     echo -n "{\"macaroon\":\"yummy\",\"discharges\":[ \"some \"]}" > /home/test/.snap/auth.json
+    chown -R test:test /home/test/.snap
 
 restore: |
     rm -rf /home/test/.snap install.output connect.output

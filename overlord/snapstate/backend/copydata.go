@@ -78,15 +78,7 @@ func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter 
 
 // ClearTrashedData removes the trash. It returns no errors on the assumption that it is called very late in the game.
 func (b Backend) ClearTrashedData(oldSnap *snap.Info) {
-	dirs, err := snapDataDirs(oldSnap)
-	if err != nil {
+	if err := snapDataDirsDo(oldSnap, clearTrash); err != nil {
 		logger.Noticef("Cannot remove previous data for %q: %v", oldSnap.Name(), err)
-		return
-	}
-
-	for _, d := range dirs {
-		if err := clearTrash(d); err != nil {
-			logger.Noticef("Cannot remove %s: %v", d, err)
-		}
 	}
 }

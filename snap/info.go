@@ -63,15 +63,6 @@ type PlaceInfo interface {
 
 	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
 	UserXdgRuntimeDir(userID sys.UserID) string
-
-	// DataHomeDir returns the a glob that matches all per user data directories of a snap.
-	DataHomeDir() string
-
-	// CommonDataHomeDir returns a glob that matches all per user data directories common across revisions of the snap.
-	CommonDataHomeDir() string
-
-	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR directories for all users of the snap.
-	XdgRuntimeDirs() string
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
@@ -274,12 +265,12 @@ func (s *Info) DataDir() string {
 
 // UserDataDir returns the user-specific data directory of the snap.
 func (s *Info) UserDataDir(home string) string {
-	return filepath.Join(home, "snap", s.Name(), s.Revision.String())
+	return filepath.Join(dirs.GlobalRootDir, home, "snap", s.Name(), s.Revision.String())
 }
 
 // UserCommonDataDir returns the user-specific data directory common across revision of the snap.
 func (s *Info) UserCommonDataDir(home string) string {
-	return filepath.Join(home, "snap", s.Name(), "common")
+	return filepath.Join(dirs.GlobalRootDir, home, "snap", s.Name(), "common")
 }
 
 // CommonDataDir returns the data directory common across revisions of the snap.
@@ -287,24 +278,9 @@ func (s *Info) CommonDataDir() string {
 	return filepath.Join(dirs.SnapDataDir, s.Name(), "common")
 }
 
-// DataHomeDir returns the per user data directory of the snap.
-func (s *Info) DataHomeDir() string {
-	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), s.Revision.String())
-}
-
-// CommonDataHomeDir returns the per user data directory common across revisions of the snap.
-func (s *Info) CommonDataHomeDir() string {
-	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), "common")
-}
-
 // UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a particular user.
 func (s *Info) UserXdgRuntimeDir(euid sys.UserID) string {
 	return filepath.Join("/run/user", fmt.Sprintf("%d/snap.%s", euid, s.Name()))
-}
-
-// XdgRuntimeDirs returns the XDG_RUNTIME_DIR directories for all users of the snap.
-func (s *Info) XdgRuntimeDirs() string {
-	return filepath.Join(dirs.XdgRuntimeDirGlob, fmt.Sprintf("snap.%s", s.Name()))
 }
 
 // NeedsDevMode returns whether the snap needs devmode.

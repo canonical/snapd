@@ -38,7 +38,6 @@ var (
 
 	SnapBlobDir               string
 	SnapDataDir               string
-	SnapDataHomeGlob          string
 	SnapDownloadCacheDir      string
 	SnapAppArmorDir           string
 	AppArmorCacheDir          string
@@ -109,6 +108,8 @@ const (
 	// are in the snap confinement environment.
 	CoreLibExecDir   = "/usr/lib/snapd"
 	CoreSnapMountDir = "/snap"
+
+	SnapDataHome = "snap"
 )
 
 var (
@@ -175,7 +176,6 @@ func SetRootDir(rootdir string) {
 	}
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
-	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/snap/")
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	SnapConfineAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine")
 	AppArmorCacheDir = filepath.Join(rootdir, "/var/cache/apparmor")
@@ -238,7 +238,6 @@ func SetRootDir(rootdir string) {
 	}
 
 	XdgRuntimeDirBase = filepath.Join(rootdir, "/run/user")
-	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
 
 	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
 	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")

@@ -21,6 +21,7 @@ package sys
 
 import (
 	"os"
+	"strconv"
 	"syscall"
 	"unsafe"
 )
@@ -36,8 +37,16 @@ const FlagID = 1<<32 - 1
 // first place)
 type UserID uint32
 
+func (u UserID) String() string {
+	return strconv.FormatUint(uint64(u), 10)
+}
+
 // GroupID is the type of the system's group identifiers (in C, gid_t).
 type GroupID uint32
+
+func (g GroupID) String() string {
+	return strconv.FormatUint(uint64(g), 10)
+}
 
 // uid_t is an unsigned 32-bit integer in linux right now.
 // so syscall.Gete?[ug]id are wrong, and break in 32 bits

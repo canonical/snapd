@@ -22,13 +22,13 @@ package snapenv
 import (
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -76,7 +76,7 @@ func snapEnv(info *snap.Info) map[string]string {
 
 	usr, err := user.Current()
 	if err == nil {
-		home = usr.HomeDir
+		home = usr.Home()
 	}
 
 	env := basicEnv(info)

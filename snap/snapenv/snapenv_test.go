@@ -22,7 +22,6 @@ package snapenv
 import (
 	"fmt"
 	"os"
-	"os/user"
 	"strings"
 	"testing"
 
@@ -31,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -125,7 +125,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 
 		env := snapEnv(info)
 		c.Check(env, DeepEquals, map[string]string{
-			"HOME":              fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
+			"HOME":              fmt.Sprintf("%s/snap/snapname/42", usr.Home()),
 			"SNAP":              fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
 			"SNAP_ARCH":         arch.UbuntuArchitecture(),
 			"SNAP_COMMON":       "/var/snap/snapname/common",
@@ -134,8 +134,8 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"SNAP_NAME":         "snapname",
 			"SNAP_REEXEC":       "",
 			"SNAP_REVISION":     "42",
-			"SNAP_USER_COMMON":  fmt.Sprintf("%s/snap/snapname/common", usr.HomeDir),
-			"SNAP_USER_DATA":    fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
+			"SNAP_USER_COMMON":  fmt.Sprintf("%s/snap/snapname/common", usr.Home()),
+			"SNAP_USER_DATA":    fmt.Sprintf("%s/snap/snapname/42", usr.Home()),
 			"SNAP_VERSION":      "1.0",
 			"XDG_RUNTIME_DIR":   fmt.Sprintf("/run/user/%d/snap.snapname", sys.Geteuid()),
 		})

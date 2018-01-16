@@ -83,13 +83,13 @@ type accountControlInterface struct {
 }
 
 func makeAccountControlSecCompSnippet() (string, error) {
-	gid, err := osutil.FindGidOwning("/etc/shadow")
+	gid, err := osutil.FindGIDOwning("/etc/shadow")
 	if err != nil {
 		return "", err
 	}
 
 	snippet := strings.Replace(accountControlConnectedPlugSecCompTemplate,
-		"{{group}}", strconv.FormatUint(gid, 10), -1)
+		"{{group}}", strconv.FormatUint(uint64(gid), 10), -1)
 
 	return snippet, nil
 }

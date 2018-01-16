@@ -17,34 +17,16 @@
  *
  */
 
-package osutil
+package user
 
-import (
-	"io/ioutil"
-	"os"
-	"path/filepath"
+func Shells() []string {
+	return shells
+}
 
-	. "gopkg.in/check.v1"
+func Passwds() []string {
+	return passwds
+}
+
+var (
+	First = first
 )
-
-type groupFindGIDOwningSuite struct{}
-
-var _ = Suite(&groupFindGIDOwningSuite{})
-
-func (s *groupFindGIDOwningSuite) TestSelfOwnedFile(c *C) {
-	name := filepath.Join(c.MkDir(), "testownedfile")
-	err := ioutil.WriteFile(name, nil, 0644)
-	c.Assert(err, IsNil)
-
-	gid, err := FindGIDOwning(name)
-	c.Check(err, IsNil)
-
-	self, err := RealUser()
-	c.Assert(err, IsNil)
-	c.Check(gid, Equals, self.GID())
-}
-
-func (s *groupFindGIDOwningSuite) TestNoOwnedFile(c *C) {
-	_, err := FindGIDOwning("/tmp/filedoesnotexistbutwhy")
-	c.Assert(err, DeepEquals, os.ErrNotExist)
-}

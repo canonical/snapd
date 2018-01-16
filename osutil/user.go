@@ -23,16 +23,15 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
-	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/osutil/user"
 )
 
-var userLookup = user.Lookup
+var userLookup = user.FromName
+var userCurrent = user.Current
 
 var sudoersDotD = "/etc/sudoers.d"
 
@@ -106,12 +105,8 @@ func AddUser(name string, opts *AddUserOptions) error {
 		return fmt.Errorf("cannot find user %q: %s", name, err)
 	}
 
-	uid, gid, err := UidGid(u)
-	if err != nil {
-		return err
-	}
-
-	sshDir := filepath.Join(u.HomeDir, ".ssh")
+	uid, gid := u.UID(), u.GID()
+	sshDir := filepath.Join(u.Home(), ".ssh")
 	if err := MkdirAllChown(sshDir, 0700, uid, gid); err != nil {
 		return fmt.Errorf("cannot create %s: %s", sshDir, err)
 	}
@@ -123,8 +118,6 @@ func AddUser(name string, opts *AddUserOptions) error {
 
 	return nil
 }
-
-var userCurrent = user.Current
 
 // RealUser finds the user behind a sudo invocation when root, if applicable
 // and possible.
@@ -138,7 +131,7 @@ func RealUser() (*user.User, error) {
 	}
 
 	// not root, so no sudo invocation we care about
-	if cur.Uid != "0" {
+	if cur.UID() != 0 {
 		return cur, nil
 	}
 
@@ -148,9 +141,9 @@ func RealUser() (*user.User, error) {
 		return cur, nil
 	}
 
-	real, err := user.Lookup(realName)
+	real, err := userLookup(realName)
 	// can happen when sudo is used to enter a chroot (e.g. pbuilder)
-	if _, ok := err.(user.UnknownUserError); ok {
+	if err == user.NotFound {
 		return cur, nil
 	}
 	if err != nil {
@@ -158,21 +151,4 @@ func RealUser() (*user.User, error) {
 	}
 
 	return real, nil
-}
-
-// UidGid returns the uid and gid of the given user, as uint32s
-//
-// XXX this should go away soon
-func UidGid(u *user.User) (sys.UserID, sys.GroupID, error) {
-	// XXX this will be wrong for high uids on 32-bit arches (for now)
-	uid, err := strconv.Atoi(u.Uid)
-	if err != nil {
-		return sys.FlagID, sys.FlagID, fmt.Errorf("cannot parse user id %s: %s", u.Uid, err)
-	}
-	gid, err := strconv.Atoi(u.Gid)
-	if err != nil {
-		return sys.FlagID, sys.FlagID, fmt.Errorf("cannot parse group id %s: %s", u.Gid, err)
-	}
-
-	return sys.UserID(uid), sys.GroupID(gid), nil
 }

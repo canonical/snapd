@@ -20,11 +20,11 @@
 package main
 
 import (
-	"os/user"
 	"time"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
 )
