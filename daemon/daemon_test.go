@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -44,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -54,6 +56,7 @@ type daemonSuite struct {
 	authorized      bool
 	err             error
 	lastPolkitFlags polkit.CheckFlags
+	notified        []string
 }
 
 var _ = check.Suite(&daemonSuite{})
@@ -68,9 +71,15 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, check.IsNil)
 	polkitCheckAuthorizationForPid = s.checkAuthorizationForPid
+	systemdSdNotify = func(notif string) error {
+		s.notified = append(s.notified, notif)
+		return nil
+	}
+	s.notified = nil
 }
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
+	systemdSdNotify = systemd.SdNotify
 	dirs.SetRootDir("")
 	s.authorized = false
 	s.err = nil
@@ -402,6 +411,8 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 
 	d.Start()
 
+	c.Check(s.notified, check.DeepEquals, []string{"READY=1"})
+
 	snapdDone := make(chan struct{})
 	go func() {
 		select {
@@ -427,6 +438,8 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 
 	err = d.Stop()
 	c.Check(err, check.IsNil)
+
+	c.Check(s.notified, check.DeepEquals, []string{"READY=1", "STOPPING=1"})
 }
 
 func (s *daemonSuite) TestRestartWiring(c *check.C) {
@@ -563,4 +576,88 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 	case <-time.After(2 * time.Second):
 		c.Fatal("never got proper response")
 	}
+}
+
+func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
+	d := newTestDaemon(c)
+	// mark as already seeded
+	s.markSeeded(d)
+
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
+	snapdAccept := make(chan struct{})
+	d.snapdListener = &witnessAcceptListener{Listener: l, accept: snapdAccept}
+
+	snapAccept := make(chan struct{})
+	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
+
+	d.Start()
+	defer d.Stop()
+
+	snapdDone := make(chan struct{})
+	go func() {
+		select {
+		case <-snapdAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd accept was not called")
+		}
+		close(snapdDone)
+	}()
+
+	snapDone := make(chan struct{})
+	go func() {
+		select {
+		case <-snapAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snap accept was not called")
+		}
+		close(snapDone)
+	}()
+
+	<-snapdDone
+	<-snapDone
+
+	d.overlord.State().RequestRestart(state.RestartSystem)
+
+	defer func() {
+		d.mu.Lock()
+		d.restartSystem = false
+		d.mu.Unlock()
+	}()
+
+	select {
+	case <-d.Dying():
+	case <-time.After(2 * time.Second):
+		c.Fatal("RequestRestart -> overlord -> Kill chain didn't work")
+	}
+
+	d.mu.Lock()
+	rs := d.restartSystem
+	d.mu.Unlock()
+
+	c.Check(rs, check.Equals, true)
+
+	oldRebootWaitTimeout := rebootWaitTimeout
+	defer func() {
+		execCommand = exec.Command
+		rebootWaitTimeout = oldRebootWaitTimeout
+	}()
+	rebootWaitTimeout = 100 * time.Millisecond
+
+	var cmdName string
+	var args []string
+	execCommand = func(name string, arg ...string) *exec.Cmd {
+		cmdName = name
+		args = arg
+		return exec.Command("true")
+	}
+
+	err = d.Stop()
+	c.Check(err, check.ErrorMatches, "expected reboot did not happen")
+	c.Check(cmdName, check.Equals, "shutdown")
+	c.Check(args[:2], check.DeepEquals, []string{"now", "-r"})
+
+	// we are not stopping, we wait for the reboot instead
+	c.Check(s.notified, check.DeepEquals, []string{"READY=1"})
 }

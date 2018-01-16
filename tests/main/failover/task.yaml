@@ -80,12 +80,12 @@ execute: |
         snap pack $BUILD_DIR/unpack && mv ${TARGET_SNAP_NAME}_*.snap failing.snap
 
         # install new target snap
-        chg_id=$(snap install --dangerous failing.snap --no-wait)
+        snap install --dangerous failing.snap
 
-        while ! snap change ${chg_id}|grep -q "^Done.*Make snap.*available to the system" ; do sleep 1 ; done
+        while ! journalctl -b -u snapd|grep -q "Waiting for system reboot" ; do sleep 1 ; done
 
         # check boot env vars
-        snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}" > failBoot
+        readlink /snap/core/current > failBoot
         test "$(bootenv snap_${TARGET_SNAP})" = "${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
         test "$(bootenv snap_try_${TARGET_SNAP})" = "${TARGET_SNAP_NAME}_$(cat failBoot).snap"
 

@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/systemd"
 )
 
 func init() {
@@ -67,8 +66,6 @@ func run() error {
 
 	d.Start()
 
-	// notify systemd that we are ready
-	systemd.SdNotify("READY=1")
 	logger.Debugf("activation done in %v", time.Now().Truncate(time.Millisecond).Sub(t0))
 
 	ch := make(chan os.Signal)
@@ -80,6 +77,5 @@ func run() error {
 		// something called Stop()
 	}
 
-	systemd.SdNotify("STOPPING=1")
 	return d.Stop()
 }
