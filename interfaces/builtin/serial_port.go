@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const serialPortSummary = `allows accessing a specific serial port`
@@ -75,8 +76,8 @@ var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty(USB|ACM|AMA|XRUSB|S|
 // are also specified
 var serialUDevSymlinkPattern = regexp.MustCompile("^/dev/serial-port-[a-z0-9]+$")
 
-// SanitizeSlot checks validity of the defined slot
-func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
+// BeforePrepareSlot checks validity of the defined slot
+func (iface *serialPortInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
@@ -127,30 +128,31 @@ func (iface *serialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *serialPortInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-	if !vOk {
+func (iface *serialPortInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+	var usbVendor, usbProduct, usbInterfaceNumber int64
+	var path string
+	if err := slot.Attr("usb-vendor", &usbVendor); err != nil {
 		return nil
 	}
-	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-	if !pOk {
+	if err := slot.Attr("usb-product", &usbProduct); err != nil {
 		return nil
 	}
-	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
-	if !ok {
-		// Set usbInterfaceNumber < 0 causes udevUsbDeviceSnippet to not add
-		// ENV{ID_USB_INTERFACE_NUM} to the udev rule
-		usbInterfaceNumber = -1
-	}
-	path, ok := slot.Attrs["path"].(string)
-	if !ok || path == "" {
+	if err := slot.Attr("path", &path); err != nil || path == "" {
 		return nil
 	}
-	spec.AddSnippet(string(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, usbInterfaceNumber, "SYMLINK", strings.TrimPrefix(path, "/dev/"))))
+	if err := slot.Attr("usb-interface-number", &usbInterfaceNumber); err == nil {
+		spec.AddSnippet(fmt.Sprintf(`# serial-port
+IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", ENV{ID_USB_INTERFACE_NUM}=="%02x", SYMLINK+="%s"`, usbVendor, usbProduct, usbInterfaceNumber, strings.TrimPrefix(path, "/dev/")))
+	} else {
+		spec.AddSnippet(fmt.Sprintf(`# serial-port
+IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", SYMLINK+="%s"`, usbVendor, usbProduct, strings.TrimPrefix(path, "/dev/")))
+	}
 	return nil
 }
 
-func (iface *serialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *serialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if iface.hasUsbAttrs(slot) {
 		// This apparmor rule is an approximation of serialDeviceNodePattern
 		// (AARE is different than regex, so we must approximate).
@@ -160,8 +162,8 @@ func (iface *serialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 	}
 
 	// Path to fixed device node
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk {
+	var path string
+	if err := slot.Attr("path", &path); err != nil {
 		return nil
 	}
 	cleanedPath := filepath.Clean(path)
@@ -169,41 +171,32 @@ func (iface *serialPortInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 	return nil
 }
 
-func (iface *serialPortInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *serialPortInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// For connected plugs, we use vendor and product ids if available,
 	// otherwise add the kernel device
-	hasOnlyPath := true
-	if iface.hasUsbAttrs(slot) {
-		hasOnlyPath = false
-	}
-
-	usbVendor, vOk := slot.Attrs["usb-vendor"].(int64)
-	if !vOk && !hasOnlyPath {
+	hasOnlyPath := !iface.hasUsbAttrs(slot)
+	var usbVendor, usbProduct int64
+	var path string
+	if err := slot.Attr("usb-vendor", &usbVendor); err != nil && !hasOnlyPath {
 		return nil
 	}
-	usbProduct, pOk := slot.Attrs["usb-product"].(int64)
-	if !pOk && !hasOnlyPath {
+	if err := slot.Attr("usb-product", &usbProduct); err != nil && !hasOnlyPath {
 		return nil
 	}
-
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk && hasOnlyPath {
+	if err := slot.Attr("path", &path); err != nil && hasOnlyPath {
 		return nil
 	}
 
-	usbInterfaceNumber, ok := slot.Attrs["usb-interface-number"].(int64)
-	if !ok {
-		// Set usbInterfaceNumber < 0 causes udevUsbDeviceSnippet to not add
-		// ENV{ID_USB_INTERFACE_NUM} to the udev rule
-		usbInterfaceNumber = -1
-	}
-
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		if hasOnlyPath {
-			spec.AddSnippet(fmt.Sprintf("SUBSYSTEM==\"tty\", KERNEL==\"%s\", TAG+=\"%s\"", strings.TrimPrefix(path, "/dev/"), tag))
+	if hasOnlyPath {
+		spec.TagDevice(fmt.Sprintf(`SUBSYSTEM=="tty", KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))
+	} else {
+		var usbInterfaceNumber int64
+		if err := slot.Attr("usb-interface-number", &usbInterfaceNumber); err == nil {
+			spec.TagDevice(fmt.Sprintf(`IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", ENV{ID_USB_INTERFACE_NUM}=="%02x"`, usbVendor, usbProduct, usbInterfaceNumber))
 		} else {
-			spec.AddSnippet(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, usbInterfaceNumber, "TAG", tag))
+			spec.TagDevice(fmt.Sprintf(`IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`, usbVendor, usbProduct))
 		}
 	}
 	return nil
@@ -214,14 +207,15 @@ func (iface *serialPortInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot
 	return true
 }
 
-func (iface *serialPortInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
-	if _, ok := slot.Attrs["usb-vendor"]; ok {
+func (iface *serialPortInterface) hasUsbAttrs(attrs interfaces.Attrer) bool {
+	var v int64
+	if err := attrs.Attr("usb-vendor", &v); err == nil {
 		return true
 	}
-	if _, ok := slot.Attrs["usb-product"]; ok {
+	if err := attrs.Attr("usb-product", &v); err == nil {
 		return true
 	}
-	if _, ok := slot.Attrs["usb-interface-number"]; ok {
+	if err := attrs.Attr("usb-interface-number", &v); err == nil {
 		return true
 	}
 	return false

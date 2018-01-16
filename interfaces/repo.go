@@ -577,7 +577,12 @@ func (r *Repository) Connect(ref ConnRef) error {
 	if r.plugSlots[plug] == nil {
 		r.plugSlots[plug] = make(map[*snap.SlotInfo]*Connection)
 	}
-	conn := &Connection{plugInfo: plug, slotInfo: slot}
+
+	// TODO: store copy of attributes from hooks
+	cplug := NewConnectedPlug(plug, nil)
+	cslot := NewConnectedSlot(slot, nil)
+
+	conn := &Connection{plug: cplug, slot: cslot}
 	r.slotPlugs[slot][plug] = conn
 	r.plugSlots[plug][slot] = conn
 	return nil
@@ -765,14 +770,11 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	// slot side
 	for _, slotInfo := range r.slots[snapName] {
 		iface := r.ifaces[slotInfo.Interface]
-		// FIXME: AddPermanent* methods will take PlugInfo/SlotInfo.
-		slot := &Slot{SlotInfo: slotInfo}
-		if err := spec.AddPermanentSlot(iface, slot); err != nil {
+		if err := spec.AddPermanentSlot(iface, slotInfo); err != nil {
 			return nil, err
 		}
-		for plugInfo := range r.slotPlugs[slotInfo] {
-			plug := &Plug{PlugInfo: plugInfo}
-			if err := spec.AddConnectedSlot(iface, plug, nil, slot, nil); err != nil {
+		for _, conn := range r.slotPlugs[slotInfo] {
+			if err := spec.AddConnectedSlot(iface, conn.plug, conn.slot); err != nil {
 				return nil, err
 			}
 		}
@@ -780,14 +782,11 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 	// plug side
 	for _, plugInfo := range r.plugs[snapName] {
 		iface := r.ifaces[plugInfo.Interface]
-		// FIXME: AddPermanent* methods will take PlugInfo/SlotInfo.
-		plug := &Plug{PlugInfo: plugInfo}
-		if err := spec.AddPermanentPlug(iface, plug); err != nil {
+		if err := spec.AddPermanentPlug(iface, plugInfo); err != nil {
 			return nil, err
 		}
-		for slotInfo := range r.plugSlots[plugInfo] {
-			slot := &Slot{SlotInfo: slotInfo}
-			if err := spec.AddConnectedPlug(iface, plug, nil, slot, nil); err != nil {
+		for _, conn := range r.plugSlots[plugInfo] {
+			if err := spec.AddConnectedPlug(iface, conn.plug, conn.slot); err != nil {
 				return nil, err
 			}
 		}
@@ -824,6 +823,9 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 	}
 
 	for plugName, plugInfo := range snapInfo.Plugs {
+		if _, ok := r.ifaces[plugInfo.Interface]; !ok {
+			continue
+		}
 		if r.plugs[snapName] == nil {
 			r.plugs[snapName] = make(map[string]*snap.PlugInfo)
 		}
@@ -831,6 +833,9 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 	}
 
 	for slotName, slotInfo := range snapInfo.Slots {
+		if _, ok := r.ifaces[slotInfo.Interface]; !ok {
+			continue
+		}
 		if r.slots[snapName] == nil {
 			r.slots[snapName] = make(map[string]*snap.SlotInfo)
 		}
@@ -926,7 +931,7 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 			}
 			iface := slotInfo.Interface
 
-			// FIXME: use PlugInfo, SlotInfo after updating AutoConnect methods of interfaces.
+			// FIXME: use ConnectedPlug/Slot for AutoConnect (once it's refactored to use tasks).
 			plug := &Plug{PlugInfo: plugInfo}
 			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow
@@ -961,7 +966,7 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 			}
 			iface := slotInfo.Interface
 
-			// FIXME: use PlugInfo, SlotInfo after updating AutoConnect methods of interfaces.
+			// FIXME: use ConnectedPlug/Slot for AutoConnect (once it's refactored to use tasks).
 			plug := &Plug{PlugInfo: plugInfo}
 			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow

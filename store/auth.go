@@ -33,10 +33,10 @@ import (
 )
 
 var (
-	myappsAPIBase = myappsURL()
-	// MyAppsMacaroonACLAPI points to MyApps endpoint to get a ACL macaroon
-	MyAppsMacaroonACLAPI = myappsAPIBase + "dev/api/acl/"
-	ubuntuoneAPIBase     = authURL()
+	developerAPIBase = storeDeveloperURL()
+	// macaroonACLAPI points to Developer API endpoint to get an ACL macaroon
+	MacaroonACLAPI   = developerAPIBase + "dev/api/acl/"
+	ubuntuoneAPIBase = authURL()
 	// UbuntuoneLocation is the Ubuntuone location as defined in the store macaroon
 	UbuntuoneLocation = authLocation()
 	// UbuntuoneDischargeAPI points to SSO endpoint to discharge a macaroon
@@ -144,7 +144,7 @@ func requestStoreMacaroon() (string, error) {
 		"Accept":       "application/json",
 		"Content-Type": "application/json",
 	}
-	resp, err := retryPostRequestDecodeJSON(MyAppsMacaroonACLAPI, headers, macaroonJSONData, &responseData, nil)
+	resp, err := retryPostRequestDecodeJSON(MacaroonACLAPI, headers, macaroonJSONData, &responseData, nil)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}

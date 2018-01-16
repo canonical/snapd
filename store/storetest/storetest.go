@@ -53,7 +53,7 @@ func (Store) LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info
 	panic("Store.LookupRefresh not expected")
 }
 
-func (Store) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error) {
+func (Store) ListRefresh([]*store.RefreshCandidate, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error) {
 	panic("Store.ListRefresh not expected")
 }
 
@@ -81,6 +81,6 @@ func (Store) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asser
 	panic("Store.Assertion not expected")
 }
 
-func (Store) WriteCatalogs(io.Writer) error {
+func (Store) WriteCatalogs(io.Writer, store.SnapAdder) error {
 	panic("fakeStore.WriteCatalogs not expected")
 }

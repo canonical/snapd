@@ -9,7 +9,7 @@ debug: |
     cat *-vars.txt
 execute: |
     echo "Collect SNAP and XDG environment variables"
-    test-snapd-tools.env | egrep '^SNAP_' | egrep -v '^SNAP_DID_REEXEC'| sort > snap-vars.txt
+    test-snapd-tools.env | egrep '^SNAP_' | sort > snap-vars.txt
     test-snapd-tools.env | egrep '^XDG_' | sort > xdg-vars.txt
     test-snapd-tools.env | egrep '^EXTRA_' | sort > extra-vars.txt 
 
@@ -20,7 +20,7 @@ execute: |
     MATCH '^SNAP_ARCH=(amd64|i386|arm64|armhf|ppc64el)$'                  < snap-vars.txt
     MATCH '^SNAP_COMMON=/var/snap/test-snapd-tools/common$'               < snap-vars.txt
     MATCH '^SNAP_DATA=/var/snap/test-snapd-tools/x1$'                     < snap-vars.txt
-    MATCH '^SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:/var/lib/snapd/void$' < snap-vars.txt
+    MATCH '^SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void$' < snap-vars.txt
     MATCH '^SNAP_NAME=test-snapd-tools$'                                  < snap-vars.txt
     # XXX: probably not something we ought to test
     # egrep -q '^SNAP_REEXEC=0$' snap-vars.txt
@@ -42,7 +42,8 @@ execute: |
     MATCH '^EXTRA_LOCAL=extra-local'                               < extra-vars.txt
     MATCH '^EXTRA_LOCAL_NESTED=extra-global-nested'                < extra-vars.txt
     MATCH "^EXTRA_CACHE_DIR=$HOME/snap/test-snapd-tools/x1/.cache" < extra-vars.txt
-    test $(wc -l < extra-vars.txt) -eq 4
+    MATCH '^EXTRA_LOCAL_PATH=/snap/test-snapd-tools/x1/bin:/snap/test-snapd-tools/x1/usr/bin:/usr/bin' < extra-vars.txt
+    test $(wc -l < extra-vars.txt) -eq 5
 
     echo "Ensure that TMPDIR is not passed through to a confined snap"
     TMPDIR=/foobar test-snapd-tools.env | grep -qv ^TMPDIR=

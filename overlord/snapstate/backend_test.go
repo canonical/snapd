@@ -52,6 +52,8 @@ type fakeOp struct {
 
 	aliases   []*backend.Alias
 	rmAliases []*backend.Alias
+
+	userID int
 }
 
 type fakeOps []fakeOp
@@ -119,12 +121,6 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	}
 
 	confinement := snap.StrictConfinement
-	switch spec.Channel {
-	case "channel-for-devmode":
-		confinement = snap.DevModeConfinement
-	case "channel-for-classic":
-		confinement = snap.ClassicConfinement
-	}
 
 	typ := snap.TypeApp
 	if spec.Name == "some-core" {
@@ -146,7 +142,23 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 		Confinement: confinement,
 		Type:        typ,
 	}
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: spec.Name, revno: spec.Revision})
+	switch spec.Channel {
+	case "channel-for-devmode":
+		info.Confinement = snap.DevModeConfinement
+	case "channel-for-classic":
+		info.Confinement = snap.ClassicConfinement
+	case "channel-for-paid":
+		info.Prices = map[string]float64{"USD": 0.77}
+		info.SideInfo.Paid = true
+	case "channel-for-private":
+		info.SideInfo.Private = true
+	}
+
+	userID := 0
+	if user != nil {
+		userID = user.ID
+	}
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: spec.Name, revno: spec.Revision, userID: userID})
 
 	return info, nil
 }
@@ -173,6 +185,8 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 		name = "some-snap"
 	case "core-snap-id":
 		name = "core"
+	case "snap-with-snapd-control-id":
+		name = "snap-with-snapd-control"
 	default:
 		panic(fmt.Sprintf("ListRefresh: unknown snap-id: %s", cand.SnapID))
 	}
@@ -217,8 +231,12 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 		}
 	}
 
+	userID := 0
+	if user != nil {
+		userID = user.ID
+	}
 	// TODO: move this back to ListRefresh
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-list-refresh", cand: *cand, revno: hit})
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-list-refresh", cand: *cand, revno: hit, userID: userID})
 
 	if !hit.Unset() {
 		return info, nil
@@ -227,19 +245,19 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 	return nil, store.ErrNoUpdateAvailable
 }
 
-func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserState) ([]*snap.Info, error) {
+func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
 	f.pokeStateLock()
 
 	if len(cands) == 0 {
 		return nil, nil
 	}
-	if len(cands) > 2 {
-		panic("ListRefresh unexpectedly called with more than two candidates")
+	if len(cands) > 3 {
+		panic("fake ListRefresh unexpectedly called with more than 3 candidates")
 	}
 
 	var res []*snap.Info
 	for _, cand := range cands {
-		info, err := f.LookupRefresh(cand, nil)
+		info, err := f.LookupRefresh(cand, user)
 		if err == store.ErrLocalSnap || err == store.ErrNoUpdateAvailable {
 			continue
 		}
@@ -274,7 +292,7 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	return nil
 }
 
-func (f *fakeStore) WriteCatalogs(io.Writer) error {
+func (f *fakeStore) WriteCatalogs(io.Writer, store.SnapAdder) error {
 	f.pokeStateLock()
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
 		op: "x-commands",

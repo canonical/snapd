@@ -84,6 +84,15 @@ func (r *TaskRunner) AddHandler(kind string, do, undo HandlerFunc) {
 	r.handlers[kind] = handlerPair{do, undo}
 }
 
+// KnownTaskKinds returns all tasks kinds handled by this runner.
+func (r *TaskRunner) KnownTaskKinds() []string {
+	kinds := make([]string, 0, len(r.handlers))
+	for h := range r.handlers {
+		kinds = append(kinds, h)
+	}
+	return kinds
+}
+
 // AddCleanup registers a function to be called after the change completes,
 // for cleaning up data left behind by tasks of the specified kind.
 // The provided function will be called no matter what the final status of the
@@ -336,17 +345,20 @@ func (r *TaskRunner) Ensure() {
 			}
 			continue
 		}
+
+		if mustWait(t) {
+			// Dependencies still unhandled.
+			continue
+		}
+
 		if status == UndoStatus && handlers.undo == nil {
+			// Although this has no dependencies itself, it must have waited
+			// above too since follow up tasks may have handlers again.
 			// Cannot undo. Revert to done status.
 			t.SetStatus(DoneStatus)
 			if len(t.WaitTasks()) > 0 {
 				r.state.EnsureBefore(0)
 			}
-			continue
-		}
-
-		if mustWait(t) {
-			// Dependencies still unhandled.
 			continue
 		}
 

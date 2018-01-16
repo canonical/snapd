@@ -22,6 +22,7 @@ package state_test
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -59,7 +60,7 @@ func (b *stateBackend) EnsureBefore(d time.Duration) {
 func (b *stateBackend) RequestRestart(t state.RestartType) {}
 
 func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change) {
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 20; i++ {
 		sb.ensureBefore = time.Hour
 		r.Ensure()
 		r.Wait()
@@ -664,6 +665,98 @@ func (ts *taskRunnerSuite) TestPrematureChangeReady(c *C) {
 	}
 
 	c.Assert(chg.Err(), IsNil)
+}
+
+func (ts *taskRunnerSuite) TestUndoSequence(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+
+	var events []string
+
+	r.AddHandler("do-with-undo",
+		func(t *state.Task, tb *tomb.Tomb) error {
+			events = append(events, fmt.Sprintf("do-with-undo:%s", t.ID()))
+			return nil
+		}, func(t *state.Task, tb *tomb.Tomb) error {
+			events = append(events, fmt.Sprintf("undo:%s", t.ID()))
+			return nil
+		})
+	r.AddHandler("do-no-undo",
+		func(t *state.Task, tb *tomb.Tomb) error {
+			events = append(events, fmt.Sprintf("do-no-undo:%s", t.ID()))
+			return nil
+		}, nil)
+
+	r.AddHandler("error-trigger",
+		func(t *state.Task, tb *tomb.Tomb) error {
+			events = append(events, fmt.Sprintf("do-with-error:%s", t.ID()))
+			return fmt.Errorf("error")
+		}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+
+	var prev *state.Task
+
+	// create a sequence of tasks: 3 tasks with undo handlers, a task with
+	// no undo handler, 3 tasks with undo handler, a task with no undo
+	// handler, finally a task that errors out. Every task waits for previous
+	// taske.
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 3; j++ {
+			t := st.NewTask("do-with-undo", "...")
+			if prev != nil {
+				t.WaitFor(prev)
+			}
+			chg.AddTask(t)
+			prev = t
+		}
+
+		t := st.NewTask("do-no-undo", "...")
+		t.WaitFor(prev)
+		chg.AddTask(t)
+		prev = t
+	}
+
+	terr := st.NewTask("error-trigger", "provoking undo")
+	terr.WaitFor(prev)
+	chg.AddTask(terr)
+
+	c.Check(chg.Tasks(), HasLen, 9) // sanity check
+
+	st.Unlock()
+
+	ensureChange(c, r, sb, chg)
+	r.Stop()
+
+	c.Assert(events, DeepEquals, []string{
+		"do-with-undo:1",
+		"do-with-undo:2",
+		"do-with-undo:3",
+		"do-no-undo:4",
+		"do-with-undo:5",
+		"do-with-undo:6",
+		"do-with-undo:7",
+		"do-no-undo:8",
+		"do-with-error:9",
+		"undo:7",
+		"undo:6",
+		"undo:5",
+		"undo:3",
+		"undo:2",
+		"undo:1"})
+}
+
+func (ts *taskRunnerSuite) TestKnownTaskKinds(c *C) {
+	st := state.New(nil)
+	r := state.NewTaskRunner(st)
+	r.AddHandler("task-kind-1", func(t *state.Task, tb *tomb.Tomb) error { return nil }, nil)
+	r.AddHandler("task-kind-2", func(t *state.Task, tb *tomb.Tomb) error { return nil }, nil)
+
+	kinds := r.KnownTaskKinds()
+	sort.Strings(kinds)
+	c.Assert(kinds, DeepEquals, []string{"task-kind-1", "task-kind-2"})
 }
 
 func (ts *taskRunnerSuite) TestCleanup(c *C) {

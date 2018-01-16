@@ -37,9 +37,9 @@ type StoreService interface {
 	SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
 	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
 	LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error)
-	ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error)
+	ListRefresh([]*store.RefreshCandidate, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error)
 	Sections(user *auth.UserState) ([]string, error)
-	WriteCatalogs(names io.Writer) error
+	WriteCatalogs(names io.Writer, adder store.SnapAdder) error
 	Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)

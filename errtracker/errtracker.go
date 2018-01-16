@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gopkg.in/mgo.v2/bson"
@@ -91,8 +92,13 @@ func snapConfineProfileDigest(suffix string) string {
 	return fmt.Sprintf("%x", md5.Sum(profileText))
 }
 
-func didSnapdReExec() string {
-	if osutil.GetenvBool("SNAP_DID_REEXEC") {
+var didSnapdReExec = func() string {
+	// TODO: move this into osutil.Reexeced() ?
+	exe, err := os.Readlink("/proc/self/exe")
+	if err != nil {
+		return "unknown"
+	}
+	if strings.HasPrefix(exe, dirs.SnapMountDir) {
 		return "yes"
 	}
 	return "no"

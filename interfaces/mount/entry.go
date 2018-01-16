@@ -150,6 +150,8 @@ func ParseEntry(s string) (Entry, error) {
 }
 
 // OptsToCommonFlags converts mount options strings to a mount flag, returning unparsed flags.
+// The unparsed flags will not contain any snapd-specific mount option, those
+// starting with the string "x-snapd."
 func OptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 	for _, opt := range opts {
 		switch opt {
@@ -200,7 +202,9 @@ func OptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 		case "strictatime":
 			flags |= syscall.MS_STRICTATIME
 		default:
-			unparsed = append(unparsed, opt)
+			if !strings.HasPrefix(opt, "x-snapd.") {
+				unparsed = append(unparsed, opt)
+			}
 		}
 	}
 	return flags, unparsed
@@ -215,4 +219,27 @@ func OptsToFlags(opts []string) (flags int, err error) {
 		}
 	}
 	return flags, nil
+}
+
+// OptStr returns the value part of a key=value mount option.
+// The name of the option must not contain the trailing "=" character.
+func (e *Entry) OptStr(name string) (string, bool) {
+	prefix := name + "="
+	for _, opt := range e.Options {
+		if strings.HasPrefix(opt, prefix) {
+			kv := strings.SplitN(opt, "=", 2)
+			return kv[1], true
+		}
+	}
+	return "", false
+}
+
+// OptBool returns true if a given mount option is present.
+func (e *Entry) OptBool(name string) bool {
+	for _, opt := range e.Options {
+		if opt == name {
+			return true
+		}
+	}
+	return false
 }

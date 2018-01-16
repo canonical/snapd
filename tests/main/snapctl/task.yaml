@@ -5,7 +5,7 @@ prepare: |
     snap install --dangerous snapctl-hooks_1.0_all.snap
 
 restore: |
-    rm snapctl-hooks_1.0_all.snap
+    rm -f snapctl-hooks_1.0_all.snap
 
 execute: |
     echo "Verify that snapctl -h runs without a context"

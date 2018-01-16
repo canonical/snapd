@@ -667,7 +667,7 @@ func compile(content []byte, out string) error {
 	}
 
 	// write atomically
-	fout, err := osutil.NewAtomicFile(out, 0644, 0, -1, -1)
+	fout, err := osutil.NewAtomicFile(out, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return err
 	}

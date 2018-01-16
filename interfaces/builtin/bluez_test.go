@@ -29,14 +29,18 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type BluezInterfaceSuite struct {
-	iface    interfaces.Interface
-	appSlot  *interfaces.Slot
-	coreSlot *interfaces.Slot
-	plug     *interfaces.Plug
+	iface        interfaces.Interface
+	appSlot      *interfaces.ConnectedSlot
+	appSlotInfo  *snap.SlotInfo
+	coreSlot     *interfaces.ConnectedSlot
+	coreSlotInfo *snap.SlotInfo
+	plug         *interfaces.ConnectedPlug
+	plugInfo     *snap.PlugInfo
 }
 
 var _ = Suite(&BluezInterfaceSuite{
@@ -95,9 +99,9 @@ slots:
 `
 
 func (s *BluezInterfaceSuite) SetUpTest(c *C) {
-	s.plug = MockPlug(c, bluezConsumerYaml, nil, "bluez")
-	s.appSlot = MockSlot(c, bluezProducerYaml, nil, "bluez")
-	s.coreSlot = MockSlot(c, bluezCoreYaml, nil, "bluez")
+	s.plug, s.plugInfo = MockConnectedPlug(c, bluezConsumerYaml, nil, "bluez")
+	s.appSlot, s.appSlotInfo = MockConnectedSlot(c, bluezProducerYaml, nil, "bluez")
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, bluezCoreYaml, nil, "bluez")
 }
 
 func (s *BluezInterfaceSuite) TestName(c *C) {
@@ -111,48 +115,48 @@ func (s *BluezInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// The label uses short form when exactly one app is bound to the bluez slot
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.appSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
 
 	// The label glob when all apps are bound to the bluez slot
-	slot := MockSlot(c, bluezProducerTwoAppsYaml, nil, "bluez")
+	slot, _ := MockConnectedSlot(c, bluezProducerTwoAppsYaml, nil, "bluez")
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.*"),`)
 
 	// The label uses alternation when some, but not all, apps is bound to the bluez slot
-	slot = MockSlot(c, bluezProducerThreeAppsYaml, nil, "bluez")
+	slot, _ = MockConnectedSlot(c, bluezProducerThreeAppsYaml, nil, "bluez")
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, slot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.{app1,app3}"),`)
 
 	// The label uses short form when exactly one app is bound to the bluez plug
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.appSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.appSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
 
 	// The label glob when all apps are bound to the bluez plug
-	plug := MockPlug(c, bluezConsumerTwoAppsYaml, nil, "bluez")
+	plug, _ := MockConnectedPlug(c, bluezConsumerTwoAppsYaml, nil, "bluez")
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, plug, nil, s.appSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, plug, s.appSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.*"),`)
 
 	// The label uses alternation when some, but not all, apps is bound to the bluez plug
-	plug = MockPlug(c, bluezConsumerThreeAppsYaml, nil, "bluez")
+	plug, _ = MockConnectedPlug(c, bluezConsumerThreeAppsYaml, nil, "bluez")
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, plug, nil, s.appSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, plug, s.appSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.{app1,app2}"),`)
 
 	// permanent slot have a non-nil security snippet for apparmor
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.appSlot, nil), IsNil)
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label=unconfined),`)
@@ -163,7 +167,7 @@ func (s *BluezInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// connected plug to core slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(name=org.bluez, label=unconfined)")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "peer=(name=org.bluez.obex, label=unconfined)")
@@ -173,12 +177,12 @@ func (s *BluezInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// connected core slot to plug
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent core slot
 	spec = &apparmor.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
@@ -188,7 +192,7 @@ func (s *BluezInterfaceSuite) TestDBusSpec(c *C) {
 	defer restore()
 
 	spec := &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `<allow own="org.bluez"/>`)
 
@@ -197,7 +201,7 @@ func (s *BluezInterfaceSuite) TestDBusSpec(c *C) {
 	defer restore()
 
 	spec = &dbus.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
@@ -207,7 +211,7 @@ func (s *BluezInterfaceSuite) TestSecCompSpec(c *C) {
 	defer restore()
 
 	spec := &seccomp.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, "listen\n")
 
@@ -216,7 +220,7 @@ func (s *BluezInterfaceSuite) TestSecCompSpec(c *C) {
 	defer restore()
 
 	spec = &seccomp.Specification{}
-	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlot), IsNil)
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 }
@@ -227,18 +231,21 @@ func (s *BluezInterfaceSuite) TestUDevSpec(c *C) {
 	defer restore()
 
 	spec := &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.appSlot, nil), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
-	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="rfkill", TAG+="snap_consumer_app"`)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), testutil.Contains, `# bluez
+KERNEL=="rfkill", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 
 	// on a classic system with bluez slot coming from the core snap.
 	restore = release.MockOnClassic(true)
 	defer restore()
 
 	spec = &udev.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, nil, s.coreSlot, nil), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="rfkill", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 
 }
 
@@ -251,8 +258,9 @@ func (s *BluezInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *BluezInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plug, s.coreSlot), Equals, true)
-	c.Assert(s.iface.AutoConnect(s.plug, s.appSlot), Equals, true)
+	// FIXME: fix AutoConnect methods to use ConnectedPlug/Slot
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.coreSlotInfo}), Equals, true)
+	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.appSlotInfo}), Equals, true)
 }
 
 func (s *BluezInterfaceSuite) TestInterfaces(c *C) {

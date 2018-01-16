@@ -65,43 +65,16 @@ func appLabelExpr(apps map[string]*snap.AppInfo, snap *snap.Info) string {
 	return buf.String()
 }
 
-func slotAppLabelExpr(slot *interfaces.Slot) string {
-	return appLabelExpr(slot.Apps, slot.Snap)
+func slotAppLabelExpr(slot *interfaces.ConnectedSlot) string {
+	return appLabelExpr(slot.Apps(), slot.Snap())
 }
 
-func plugAppLabelExpr(plug *interfaces.Plug) string {
-	return appLabelExpr(plug.Apps, plug.Snap)
-}
-
-// Function to support creation of udev snippet
-func udevUsbDeviceSnippet(subsystem string, usbVendor int64, usbProduct int64, usbIterfaceNumber int64, key string, data string) string {
-	const udevHeader string = `IMPORT{builtin}="usb_id"`
-	const udevDevicePrefixNoInterface string = `SUBSYSTEM=="%s", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`
-	const udevDevicePrefix string = `SUBSYSTEM=="%s", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x", ENV{ID_USB_INTERFACE_NUM}=="%02x"`
-	const udevSuffix string = `, %s+="%s"`
-
-	var udevSnippet bytes.Buffer
-	udevSnippet.WriteString(udevHeader + "\n")
-	if usbIterfaceNumber < 0 || usbIterfaceNumber >= UsbMaxInterfaces {
-		udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefixNoInterface, subsystem, usbVendor, usbProduct))
-	} else {
-		udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefix, subsystem, usbVendor, usbProduct, usbIterfaceNumber))
-	}
-	udevSnippet.WriteString(fmt.Sprintf(udevSuffix, key, data))
-	return udevSnippet.String()
-}
-
-// Function to create an udev TAG, essentially the cgroup name for
-// the snap application.
-// @param snapName is the name of the snap
-// @param appName is the name of the application
-// @return string "snap_<snap name>_<app name>"
-func udevSnapSecurityName(snapName string, appName string) string {
-	return fmt.Sprintf(`snap_%s_%s`, snapName, appName)
+func plugAppLabelExpr(plug *interfaces.ConnectedPlug) string {
+	return appLabelExpr(plug.Apps(), plug.Snap())
 }
 
 // sanitizeSlotReservedForOS checks if slot is of type os.
-func sanitizeSlotReservedForOS(iface interfaces.Interface, slot *interfaces.Slot) error {
+func sanitizeSlotReservedForOS(iface interfaces.Interface, slot *snap.SlotInfo) error {
 	if slot.Snap.Type != snap.TypeOS {
 		return fmt.Errorf("%s slots are reserved for the core snap", iface.Name())
 	}
@@ -109,7 +82,7 @@ func sanitizeSlotReservedForOS(iface interfaces.Interface, slot *interfaces.Slot
 }
 
 // sanitizeSlotReservedForOSOrGadget checks if the slot is of type os or gadget.
-func sanitizeSlotReservedForOSOrGadget(iface interfaces.Interface, slot *interfaces.Slot) error {
+func sanitizeSlotReservedForOSOrGadget(iface interfaces.Interface, slot *snap.SlotInfo) error {
 	if slot.Snap.Type != snap.TypeOS && slot.Snap.Type != snap.TypeGadget {
 		return fmt.Errorf("%s slots are reserved for the core and gadget snaps", iface.Name())
 	}
@@ -117,7 +90,7 @@ func sanitizeSlotReservedForOSOrGadget(iface interfaces.Interface, slot *interfa
 }
 
 // sanitizeSlotReservedForOSOrApp checks if the slot is of type os or app.
-func sanitizeSlotReservedForOSOrApp(iface interfaces.Interface, slot *interfaces.Slot) error {
+func sanitizeSlotReservedForOSOrApp(iface interfaces.Interface, slot *snap.SlotInfo) error {
 	if slot.Snap.Type != snap.TypeOS && slot.Snap.Type != snap.TypeApp {
 		return fmt.Errorf("%s slots are reserved for the core and app snaps", iface.Name())
 	}

@@ -51,7 +51,7 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.renameCorePlugConnection(); err != nil {
 		return err
 	}
-	if err := m.reloadConnections(""); err != nil {
+	if _, err := m.reloadConnections(""); err != nil {
 		return err
 	}
 	if err := m.regenerateAllSecurityProfiles(); err != nil {
@@ -191,15 +191,18 @@ func (m *InterfaceManager) renameCorePlugConnection() error {
 // reloadConnections reloads connections stored in the state in the repository.
 // Using non-empty snapName the operation can be scoped to connections
 // affecting a given snap.
-func (m *InterfaceManager) reloadConnections(snapName string) error {
+//
+// The return value is the list of affected snap names.
+func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) {
 	conns, err := getConns(m.state)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	affected := make(map[string]bool)
 	for id := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
 			continue
@@ -207,8 +210,14 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 		if err := m.repo.Connect(connRef); err != nil {
 			logger.Noticef("%s", err)
 		}
+		affected[connRef.PlugRef.Snap] = true
+		affected[connRef.SlotRef.Snap] = true
 	}
-	return nil
+	result := make([]string, 0, len(affected))
+	for name := range affected {
+		result = append(result, name)
+	}
+	return result, nil
 }
 
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 	"time"
 
@@ -61,6 +62,14 @@ func generateSnapServiceFile(app *snap.AppInfo) ([]byte, error) {
 func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) error {
 	serviceName := app.ServiceName()
 	tout := serviceStopTimeout(app)
+
+	socketErrors := []error{}
+	for _, socket := range app.Sockets {
+		if err := sysd.Stop(filepath.Base(socket.File()), tout); err != nil {
+			socketErrors = append(socketErrors, err)
+		}
+	}
+
 	if err := sysd.Stop(serviceName, tout); err != nil {
 		if !systemd.IsTimeout(err) {
 			return err
@@ -70,6 +79,11 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 		sysd.Kill(serviceName, "TERM")
 		time.Sleep(killWait)
 		sysd.Kill(serviceName, "KILL")
+
+	}
+
+	if len(socketErrors) > 0 {
+		return socketErrors[0]
 	}
 
 	return nil
@@ -84,9 +98,25 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 		if !app.IsService() {
 			continue
 		}
-		if err := sysd.Start(app.ServiceName()); err != nil {
-			return err
+
+		if len(app.Sockets) == 0 {
+			if err := sysd.Start(app.ServiceName()); err != nil {
+				return err
+			}
 		}
+
+		for _, socket := range app.Sockets {
+			socketService := filepath.Base(socket.File())
+			// enable the socket
+			if err := sysd.Enable(socketService); err != nil {
+				return err
+			}
+
+			if err := sysd.Start(socketService); err != nil {
+				return err
+			}
+		}
+
 		defer func(app *snap.AppInfo) {
 			if err == nil {
 				return
@@ -141,6 +171,20 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 			return err
 		}
 		written = append(written, svcFilePath)
+
+		// Generate systemd .socket files if needed
+		socketFiles, err := generateSnapSocketFiles(app)
+		if err != nil {
+			return err
+		}
+		for path, content := range *socketFiles {
+			os.MkdirAll(filepath.Dir(path), 0755)
+			if err := osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
+				return err
+			}
+			written = append(written, path)
+		}
+
 		svcName := app.ServiceName()
 		if err := sysd.Enable(svcName); err != nil {
 			return err
@@ -188,6 +232,19 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 		nservices++
 
 		serviceName := filepath.Base(app.ServiceFile())
+
+		for _, socket := range app.Sockets {
+			path := socket.File()
+			socketServiceName := filepath.Base(path)
+			if err := sysd.Disable(socketServiceName); err != nil {
+				return err
+			}
+
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				logger.Noticef("Failed to remove socket file %q for %q: %v", path, serviceName, err)
+			}
+		}
+
 		if err := sysd.Disable(serviceName); err != nil {
 			return err
 		}
@@ -196,9 +253,6 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 			logger.Noticef("Failed to remove service file for %q: %v", serviceName, err)
 		}
 
-		if err := os.Remove(app.ServiceSocketFile()); err != nil && !os.IsNotExist(err) {
-			logger.Noticef("Failed to remove socket file for %q: %v", serviceName, err)
-		}
 	}
 
 	// only reload if we actually had services
@@ -211,13 +265,27 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	return nil
 }
 
+func genServiceNames(snap *snap.Info, appNames []string) []string {
+	names := make([]string, 0, len(appNames))
+
+	for _, name := range appNames {
+		if app := snap.Apps[name]; app != nil {
+			names = append(names, app.ServiceName())
+		}
+	}
+	return names
+}
+
 func genServiceFile(appInfo *snap.AppInfo) []byte {
 	serviceTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application {{.App.Snap.Name}}.{{.App.Name}}
 Requires={{.MountUnit}}
 Wants={{.PrerequisiteTarget}}
-After={{.MountUnit}} {{.PrerequisiteTarget}}
+After={{.MountUnit}} {{.PrerequisiteTarget}}{{range .After}} {{.}}{{end}}
+{{- if .Before}}
+Before={{ range .Before -}}{{.}} {{- end}}
+{{- end}}
 X-Snappy=yes
 
 [Service]
@@ -225,16 +293,30 @@ ExecStart={{.App.LauncherCommand}}
 SyslogIdentifier={{.App.Snap.Name}}.{{.App.Name}}
 Restart={{.Restart}}
 WorkingDirectory={{.App.Snap.DataDir}}
-{{if .App.StopCommand}}ExecStop={{.App.LauncherStopCommand}}{{end}}
-{{if .App.ReloadCommand}}ExecReload={{.App.LauncherReloadCommand}}{{end}}
-{{if .App.PostStopCommand}}ExecStopPost={{.App.LauncherPostStopCommand}}{{end}}
-{{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
+{{- if .App.StopCommand}}
+ExecStop={{.App.LauncherStopCommand}}
+{{- end}}
+{{- if .App.ReloadCommand}}
+ExecReload={{.App.LauncherReloadCommand}}
+{{- end}}
+{{- if .App.PostStopCommand}}
+ExecStopPost={{.App.LauncherPostStopCommand}}
+{{- end}}
+{{- if .StopTimeout}}
+TimeoutStopSec={{.StopTimeout.Seconds}}
+{{- end}}
 Type={{.App.Daemon}}
-{{if .Remain}}RemainAfterExit={{.Remain}}{{end}}
-{{if .App.BusName}}BusName={{.App.BusName}}{{end}}
+{{- if .Remain}}
+RemainAfterExit={{.Remain}}
+{{- end}}
+{{- if .App.BusName}}
+BusName={{.App.BusName}}
+{{- end}}
+{{- if not .App.Sockets}}
 
 [Install]
 WantedBy={{.ServicesTarget}}
+{{- end}}
 `
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("service-wrapper").Parse(serviceTemplate))
@@ -264,6 +346,8 @@ WantedBy={{.ServicesTarget}}
 		PrerequisiteTarget string
 		MountUnit          string
 		Remain             string
+		Before             []string
+		After              []string
 
 		Home    string
 		EnvVars string
@@ -276,6 +360,8 @@ WantedBy={{.ServicesTarget}}
 		PrerequisiteTarget: systemd.PrerequisiteTarget,
 		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
 		Remain:             remain,
+		Before:             genServiceNames(appInfo.Snap, appInfo.Before),
+		After:              genServiceNames(appInfo.Snap, appInfo.After),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
@@ -287,4 +373,73 @@ WantedBy={{.ServicesTarget}}
 	}
 
 	return templateOut.Bytes()
+}
+
+func genServiceSocketFile(appInfo *snap.AppInfo, socketName string) []byte {
+	socketTemplate := `[Unit]
+# Auto-generated, DO NO EDIT
+Description=Socket {{.SocketName}} for snap application {{.App.Snap.Name}}.{{.App.Name}}
+Requires={{.MountUnit}}
+Wants={{.PrerequisiteTarget}}
+After={{.MountUnit}} {{.PrerequisiteTarget}}
+X-Snappy=yes
+
+[Socket]
+Service={{.ServiceFileName}}
+FileDescriptorName={{.SocketInfo.Name}}
+ListenStream={{.ListenStream}}
+{{if .SocketInfo.SocketMode}}SocketMode={{.SocketInfo.SocketMode | printf "%04o"}}{{end}}
+
+[Install]
+WantedBy={{.SocketsTarget}}
+`
+	var templateOut bytes.Buffer
+	t := template.Must(template.New("socket-wrapper").Parse(socketTemplate))
+
+	socket := appInfo.Sockets[socketName]
+	listenStream := renderListenStream(socket)
+	wrapperData := struct {
+		App                *snap.AppInfo
+		ServiceFileName    string
+		PrerequisiteTarget string
+		SocketsTarget      string
+		MountUnit          string
+		SocketName         string
+		SocketInfo         *snap.SocketInfo
+		ListenStream       string
+	}{
+		App:                appInfo,
+		ServiceFileName:    filepath.Base(appInfo.ServiceFile()),
+		SocketsTarget:      systemd.SocketsTarget,
+		PrerequisiteTarget: systemd.PrerequisiteTarget,
+		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
+		SocketName:         socketName,
+		SocketInfo:         socket,
+		ListenStream:       listenStream,
+	}
+
+	if err := t.Execute(&templateOut, wrapperData); err != nil {
+		// this can never happen, except we forget a variable
+		logger.Panicf("Unable to execute template: %v", err)
+	}
+
+	return templateOut.Bytes()
+}
+
+func generateSnapSocketFiles(app *snap.AppInfo) (*map[string][]byte, error) {
+	if err := snap.ValidateApp(app); err != nil {
+		return nil, err
+	}
+
+	socketFiles := make(map[string][]byte)
+	for name, socket := range app.Sockets {
+		socketFiles[socket.File()] = genServiceSocketFile(app, name)
+	}
+	return &socketFiles, nil
+}
+
+func renderListenStream(socket *snap.SocketInfo) string {
+	snap := socket.App.Snap
+	listenStream := strings.Replace(socket.ListenStream, "$SNAP_DATA", snap.DataDir(), -1)
+	return strings.Replace(listenStream, "$SNAP_COMMON", snap.CommonDataDir(), -1)
 }

@@ -1,0 +1,17 @@
+summary: Ensure catalog update works
+
+execute: |
+    echo "Ensure that catalog refresh happens on startup"
+    for i in $(seq 60); do
+        if journalctl -u snapd | MATCH "Catalog refresh"; then
+            break
+        fi
+        sleep 1
+    done
+    journalctl -u snapd | MATCH "Catalog refresh"
+
+    echo "Ensure that we don't log all catalog body data"
+    if journalctl -u snapd | MATCH "Tools for testing the snapd application"; then
+        echo "Catalog update is doing verbose http logging (it should not)."
+        exit 1
+    fi

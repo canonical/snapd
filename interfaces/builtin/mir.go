@@ -20,13 +20,13 @@
 package builtin
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const mirSummary = `allows operating as the Mir server`
@@ -49,6 +49,7 @@ capability sys_tty_config,
 
 /{dev,run}/shm/\#* mrw,
 /run/mir_socket rw,
+/run/user/[0-9]*/mir_socket rw,
 
 # Needed for mode setting via drmSetMaster() and drmDropMaster()
 capability sys_admin,
@@ -89,16 +90,6 @@ unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS#
 /run/user/[0-9]*/mir_socket rw,
 `
 
-const mirPermanentSlotUdev = `
-KERNEL=="tty[0-9]*", TAG+="%[1]s"
-
-# input devices
-KERNEL=="mice",   TAG+="%[1]s"
-KERNEL=="mouse[0-9]*", TAG+="%[1]s"
-KERNEL=="event[0-9]*", TAG+="%[1]s"
-KERNEL=="ts[0-9]*",    TAG+="%[1]s"
-`
-
 type mirInterface struct{}
 
 func (iface *mirInterface) Name() string {
@@ -112,7 +103,7 @@ func (iface *mirInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(mirConnectedPlugAppArmor, old, new, -1)
@@ -120,7 +111,7 @@ func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *mirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *mirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(mirConnectedSlotAppArmor, old, new, -1)
@@ -128,21 +119,22 @@ func (iface *mirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *mirInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
+func (iface *mirInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(mirPermanentSlotAppArmor)
 	return nil
 }
 
-func (iface *mirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
+func (iface *mirInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(mirPermanentSlotSecComp)
 	return nil
 }
 
-func (iface *mirInterface) UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error {
-	for appName := range slot.Apps {
-		tag := udevSnapSecurityName(slot.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(mirPermanentSlotUdev, tag))
-	}
+func (iface *mirInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+	spec.TagDevice(`KERNEL=="tty[0-9]*"`)
+	spec.TagDevice(`KERNEL=="mice"`)
+	spec.TagDevice(`KERNEL=="mouse[0-9]*"`)
+	spec.TagDevice(`KERNEL=="event[0-9]*"`)
+	spec.TagDevice(`KERNEL=="ts[0-9]*"`)
 	return nil
 }
 

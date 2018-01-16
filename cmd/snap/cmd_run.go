@@ -25,6 +25,8 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -95,7 +97,65 @@ func (x *cmdRun) Execute(args []string) error {
 		x.Command = "shell"
 	}
 
+	if x.Command == "complete" {
+		snapApp, args = antialias(snapApp, args)
+	}
+
 	return snapRunApp(snapApp, x.Command, args)
+}
+
+// antialias changes snapApp and args if snapApp is actually an alias
+// for something else. If not, or if the args aren't what's expected
+// for completion, it returns them unchanged.
+func antialias(snapApp string, args []string) (string, []string) {
+	if len(args) < 7 {
+		// NOTE if len(args) < 7, Something is Wrong (at least WRT complete.sh and etelpmoc.sh)
+		return snapApp, args
+	}
+
+	actualApp, err := resolveApp(snapApp)
+	if err != nil || actualApp == snapApp {
+		// no alias! woop.
+		return snapApp, args
+	}
+
+	compPoint, err := strconv.Atoi(args[2])
+	if err != nil {
+		// args[2] is not COMP_POINT
+		return snapApp, args
+	}
+
+	if compPoint <= len(snapApp) {
+		// COMP_POINT is inside $0
+		return snapApp, args
+	}
+
+	if compPoint > len(args[5]) {
+		// COMP_POINT is bigger than $#
+		return snapApp, args
+	}
+
+	if args[6] != snapApp {
+		// args[6] is not COMP_WORDS[0]
+		return snapApp, args
+	}
+
+	// it _should_ be COMP_LINE followed by one of
+	// COMP_WORDBREAKS, but that's hard to do
+	re, err := regexp.Compile(`^` + regexp.QuoteMeta(snapApp) + `\b`)
+	if err != nil || !re.MatchString(args[5]) {
+		// (weird regexp error, or) args[5] is not COMP_LINE
+		return snapApp, args
+	}
+
+	argsOut := make([]string, len(args))
+	copy(argsOut, args)
+
+	argsOut[2] = strconv.Itoa(compPoint - len(snapApp) + len(actualApp))
+	argsOut[5] = re.ReplaceAllLiteralString(args[5], actualApp)
+	argsOut[6] = actualApp
+
+	return actualApp, argsOut
 }
 
 func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
@@ -399,7 +459,24 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 		cmd = append(cmd, "--base", info.Base)
 	}
 	cmd = append(cmd, securityTag)
-	cmd = append(cmd, filepath.Join(dirs.CoreLibExecDir, "snap-exec"))
+
+	// when under confinement, snap-exec is run from 'core' snap rootfs
+	snapExecPath := filepath.Join(dirs.CoreLibExecDir, "snap-exec")
+
+	if info.NeedsClassic() {
+		// running with classic confinement, carefully pick snap-exec we
+		// are going to use
+		if isReexeced() {
+			// same rule as when choosing the location of snap-confine
+			snapExecPath = filepath.Join(dirs.SnapMountDir, "core/current",
+				dirs.CoreLibExecDir, "snap-exec")
+		} else {
+			// there is no mount namespace where 'core' is the
+			// rootfs, hence we need to use distro's snap-exec
+			snapExecPath = filepath.Join(dirs.DistroLibExecDir, "snap-exec")
+		}
+	}
+	cmd = append(cmd, snapExecPath)
 
 	if command != "" {
 		cmd = append(cmd, "--command="+command)

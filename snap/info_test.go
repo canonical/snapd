@@ -115,7 +115,7 @@ slots:
 	c.Assert(info.Plugs["plug"].SecurityTags(), DeepEquals, []string{
 		"snap.name.app1", "snap.name.app2", "snap.name.hook.hook1"})
 	c.Assert(info.Slots["slot"].SecurityTags(), DeepEquals, []string{
-		"snap.name.app1", "snap.name.app2"})
+		"snap.name.app1", "snap.name.app2", "snap.name.hook.hook1"})
 }
 
 func (s *infoSuite) TestAppInfoWrapperPath(c *C) {
@@ -567,14 +567,15 @@ func (s *infoSuite) TestReadInfoImplicitAndExplicitHooks(c *C) {
 version: 1.0
 hooks:
   explicit:
-    plugs: [test-plug]`
+    plugs: [test-plug]
+    slots: [test-slot]`
 	s.checkInstalledSnapAndSnapFile(c, yaml, "SNAP", []string{"explicit", "implicit"}, func(c *C, info *snap.Info) {
 		// Verify that the `implicit` hook has now been loaded, and that it has
 		// no associated plugs. Also verify that the `explicit` hook is still
 		// valid.
 		c.Check(info.Hooks, HasLen, 2)
 		verifyImplicitHook(c, info, "implicit")
-		verifyExplicitHook(c, info, "explicit", []string{"test-plug"})
+		verifyExplicitHook(c, info, "explicit", []string{"test-plug"}, []string{"test-slot"})
 	})
 }
 
@@ -585,11 +586,12 @@ func verifyImplicitHook(c *C, info *snap.Info, hookName string) {
 	c.Check(hook.Plugs, IsNil)
 }
 
-func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []string) {
+func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []string, slotNames []string) {
 	hook := info.Hooks[hookName]
 	c.Assert(hook, NotNil, Commentf("Expected hooks to contain %q", hookName))
 	c.Check(hook.Name, Equals, hookName)
 	c.Check(hook.Plugs, HasLen, len(plugNames))
+	c.Check(hook.Slots, HasLen, len(slotNames))
 
 	for _, plugName := range plugNames {
 		// Verify that the HookInfo and PlugInfo point to each other
@@ -604,6 +606,21 @@ func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 		// Verify also that the hook plug made it into info.Plugs
 		c.Check(info.Plugs[plugName], DeepEquals, plug)
 	}
+
+	for _, slotName := range slotNames {
+		// Verify that the HookInfo and SlotInfo point to each other
+		slot := hook.Slots[slotName]
+		c.Assert(slot, NotNil, Commentf("Expected hook slots to contain %q", slotName))
+		c.Check(slot.Name, Equals, slotName)
+		c.Check(slot.Hooks, HasLen, 1)
+		hook = slot.Hooks[hookName]
+		c.Assert(hook, NotNil, Commentf("Expected slot to be associated with hook %q", hookName))
+		c.Check(hook.Name, Equals, hookName)
+
+		// Verify also that the hook plug made it into info.Slots
+		c.Check(info.Slots[slotName], DeepEquals, slot)
+	}
+
 }
 
 func (s *infoSuite) TestMinimalInfoDirAndFileMethods(c *C) {
@@ -614,7 +631,8 @@ func (s *infoSuite) TestMinimalInfoDirAndFileMethods(c *C) {
 
 func (s *infoSuite) TestDirAndFileMethods(c *C) {
 	dirs.SetRootDir("")
-	info := &snap.Info{SuggestedName: "name", SideInfo: snap.SideInfo{Revision: snap.R(1)}}
+	info := &snap.Info{SuggestedName: "name"}
+	info.SideInfo = snap.SideInfo{Revision: snap.R(1)}
 	s.testDirAndFileMethods(c, info)
 }
 
@@ -735,11 +753,27 @@ apps:
 	c.Check(svc.IsService(), Equals, true)
 	c.Check(svc.ServiceName(), Equals, "snap.pans.svc1.service")
 	c.Check(svc.ServiceFile(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.svc1.service")
-	c.Check(svc.ServiceSocketFile(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.svc1.socket")
 
 	c.Check(info.Apps["svc2"].IsService(), Equals, true)
 	c.Check(info.Apps["app1"].IsService(), Equals, false)
 	c.Check(info.Apps["app1"].IsService(), Equals, false)
+}
+
+func (s *infoSuite) TestSocketFile(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: pans
+apps:
+  app1:
+    daemon: true
+    sockets:
+      sock1:
+        listen-stream: /tmp/sock1.socket
+`))
+
+	c.Assert(err, IsNil)
+
+	app := info.Apps["app1"]
+	socket := app.Sockets["sock1"]
+	c.Check(socket.File(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.app1.sock1.socket")
 }
 
 func (s *infoSuite) TestLayoutParsing(c *C) {
@@ -793,4 +827,37 @@ func (s *infoSuite) TestPlugInfoString(c *C) {
 func (s *infoSuite) TestSlotInfoString(c *C) {
 	slot := &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "slot"}
 	c.Assert(slot.String(), Equals, "snap:slot")
+}
+
+func (s *infoSuite) TestPlugInfoAttr(c *C) {
+	var val string
+	var intVal int
+
+	plug := &snap.PlugInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Interface: "interface", Attrs: map[string]interface{}{"key": "value", "number": int(123)}}
+	c.Assert(plug.Attr("key", &val), IsNil)
+	c.Check(val, Equals, "value")
+
+	c.Assert(plug.Attr("number", &intVal), IsNil)
+	c.Check(intVal, Equals, 123)
+
+	c.Check(plug.Attr("key", &intVal), ErrorMatches, `snap "snap" has interface "interface" with invalid value type for "key" attribute`)
+	c.Check(plug.Attr("unknown", &val), ErrorMatches, `snap "snap" does not have attribute "unknown" for interface "interface"`)
+	c.Check(plug.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
+}
+
+func (s *infoSuite) TestSlotInfoAttr(c *C) {
+	var val string
+	var intVal int
+
+	slot := &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Interface: "interface", Attrs: map[string]interface{}{"key": "value", "number": int(123)}}
+
+	c.Assert(slot.Attr("key", &val), IsNil)
+	c.Check(val, Equals, "value")
+
+	c.Assert(slot.Attr("number", &intVal), IsNil)
+	c.Check(intVal, Equals, 123)
+
+	c.Check(slot.Attr("key", &intVal), ErrorMatches, `snap "snap" has interface "interface" with invalid value type for "key" attribute`)
+	c.Check(slot.Attr("unknown", &val), ErrorMatches, `snap "snap" does not have attribute "unknown" for interface "interface"`)
+	c.Check(slot.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
 }

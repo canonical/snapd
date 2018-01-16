@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/check.v1"
 
@@ -157,9 +158,49 @@ func (s *SnapSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"), "--classic",
 		"snap.snapname.app",
-		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		filepath.Join(dirs.DistroLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+
+}
+
+func (s *SnapSuite) TestSnapRunClassicAppIntegrationReexeced(c *check.C) {
+	mountedCorePath := filepath.Join(dirs.SnapMountDir, "core/current")
+	mountedCoreLibExecPath := filepath.Join(mountedCorePath, dirs.CoreLibExecDir)
+
+	defer mockSnapConfine(mountedCoreLibExecPath)()
+
+	// mock installed snap
+	si := snaptest.MockSnap(c, string(mockYaml)+"confinement: classic\n", string(mockContents), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
+
+	restore := snaprun.MockOsReadlink(func(name string) (string, error) {
+		// pretend 'snap' is reexeced from 'core'
+		return filepath.Join(mountedCorePath, "usr/bin/snap"), nil
+	})
+	defer restore()
+
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(mountedCoreLibExecPath, "snap-confine"), "--classic",
+		"snap.snapname.app",
+		filepath.Join(mountedCoreLibExecPath, "snap-exec"),
+		"snapname.app", "--arg1", "arg2"})
 }
 
 func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
@@ -537,4 +578,76 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 
 	err = x11.ValidateXauthorityFile(expectedXauthPath)
 	c.Assert(err, check.IsNil)
+}
+
+// build the args for a hypothetical completer
+func mkCompArgs(compPoint string, argv ...string) []string {
+	out := []string{
+		"99", // COMP_TYPE
+		"99", // COMP_KEY
+		"",   // COMP_POINT
+		"2",  // COMP_CWORD
+		" ",  // COMP_WORDBREAKS
+	}
+	out[2] = compPoint
+	out = append(out, strings.Join(argv, " "))
+	out = append(out, argv...)
+	return out
+}
+
+func (s *SnapSuite) TestAntialiasHappy(c *check.C) {
+	c.Assert(os.MkdirAll(dirs.SnapBinariesDir, 0755), check.IsNil)
+
+	inArgs := mkCompArgs("10", "alias", "alias", "bo-alias")
+
+	// first not so happy because no alias symlink
+	app, outArgs := snaprun.Antialias("alias", inArgs)
+	c.Check(app, check.Equals, "alias")
+	c.Check(outArgs, check.DeepEquals, inArgs)
+
+	c.Assert(os.Symlink("an-app", filepath.Join(dirs.SnapBinariesDir, "alias")), check.IsNil)
+
+	// now really happy
+	app, outArgs = snaprun.Antialias("alias", inArgs)
+	c.Check(app, check.Equals, "an-app")
+	c.Check(outArgs, check.DeepEquals, []string{
+		"99", // COMP_TYPE (no change)
+		"99", // COMP_KEY (no change)
+		"11", // COMP_POINT (+1 because "an-app" is one longer than "alias")
+		"2",  // COMP_CWORD (no change)
+		" ",  // COMP_WORDBREAKS (no change)
+		"an-app alias bo-alias", // COMP_LINE (argv[0] changed)
+		"an-app",                // argv (arv[0] changed)
+		"alias",
+		"bo-alias",
+	})
+}
+
+func (s *SnapSuite) TestAntialiasBailsIfUnhappy(c *check.C) {
+	// alias exists but args are somehow wonky
+	c.Assert(os.MkdirAll(dirs.SnapBinariesDir, 0755), check.IsNil)
+	c.Assert(os.Symlink("an-app", filepath.Join(dirs.SnapBinariesDir, "alias")), check.IsNil)
+
+	// weird1 has COMP_LINE not start with COMP_WORDS[0], argv[0] equal to COMP_WORDS[0]
+	weird1 := mkCompArgs("6", "alias", "")
+	weird1[5] = "xxxxx "
+	// weird2 has COMP_LINE not start with COMP_WORDS[0], argv[0] equal to the first word in COMP_LINE
+	weird2 := mkCompArgs("6", "xxxxx", "")
+	weird2[5] = "alias "
+
+	for desc, inArgs := range map[string][]string{
+		"nil args":                                               nil,
+		"too-short args":                                         {"alias"},
+		"COMP_POINT not a number":                                mkCompArgs("hello", "alias"),
+		"COMP_POINT is inside argv[0]":                           mkCompArgs("2", "alias", ""),
+		"COMP_POINT is outside argv":                             mkCompArgs("99", "alias", ""),
+		"COMP_WORDS[0] is not argv[0]":                           mkCompArgs("10", "not-alias", ""),
+		"mismatch between argv[0], COMP_LINE and COMP_WORDS, #1": weird1,
+		"mismatch between argv[0], COMP_LINE and COMP_WORDS, #2": weird2,
+	} {
+		// antialias leaves args alone if it's too short
+		app, outArgs := snaprun.Antialias("alias", inArgs)
+		c.Check(app, check.Equals, "alias", check.Commentf(desc))
+		c.Check(outArgs, check.DeepEquals, inArgs, check.Commentf(desc))
+	}
 }

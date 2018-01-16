@@ -41,6 +41,7 @@ var (
 	MaybePrintServices = maybePrintServices
 	MaybePrintCommands = maybePrintCommands
 	SortByPath         = sortByPath
+	AdviseCommand      = adviseCommand
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -136,3 +137,5 @@ func MockIsTerminal(t bool) (restore func()) {
 		isTerminal = oldIsTerminal
 	}
 }
+
+var Antialias = antialias

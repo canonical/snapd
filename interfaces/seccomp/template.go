@@ -73,6 +73,7 @@ chown - u:root g:root
 chown32 - u:root g:root
 fchown - u:root g:root
 fchown32 - u:root g:root
+fchownat - - u:root g:root
 lchown - u:root g:root
 lchown32 - u:root g:root
 
@@ -395,6 +396,7 @@ shmat
 shmctl
 shmdt
 shmget
+shutdown
 signal
 sigaction
 signalfd
