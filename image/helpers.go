@@ -133,7 +133,7 @@ func parseSnapcraftLoginFile(authFn string, data []byte) (*authData, error) {
 	errPrefix := fmt.Sprintf("invalid snapcraft login file %q", authFn)
 
 	cfg := goconfigparser.New()
-	if err := cfg.Read(bytes.NewBuffer(data)); err != nil {
+	if err := cfg.ReadString(string(data)); err != nil {
 		return nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
 	sec := snapcraftLoginSection()
@@ -146,7 +146,7 @@ func parseSnapcraftLoginFile(authFn string, data []byte) (*authData, error) {
 		return nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
 	if macaroon == "" || unboundDischarge == "" {
-		return nil, fmt.Errorf("invalid snapcraft login file %q: missing fields", authFn)
+		return nil, fmt.Errorf("invalid snapcraft login file %q: empty fields", authFn)
 	}
 	return &authData{
 		Macaroon:   macaroon,
