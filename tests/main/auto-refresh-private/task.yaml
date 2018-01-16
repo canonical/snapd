@@ -107,4 +107,4 @@ execute: |
     snap list|MATCH "test-snapd-private +1\.0.*private"
 
     # sanity check there is no access
-    snap find --private test-snapd-private 2>&1|MATCH "The search \"test-snapd-private\" returned 0 snaps"
+    snap find --private test-snapd-private 2>&1|MATCH 'No matching snaps for "test-snapd-private"'
