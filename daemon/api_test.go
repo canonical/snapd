@@ -1070,6 +1070,60 @@ func (s *apiSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
 }
 
+func (s *apiSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
+	d := s.daemon(c)
+	state := d.overlord.State()
+
+	// setup local-only user
+	state.Lock()
+	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockDeveloperAPIServer := s.makeDeveloperAPIServer(200, responseData)
+	defer mockDeveloperAPIServer.Close()
+
+	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
+	mockSSOServer := s.makeSSOServer(200, discharge)
+	defer mockSSOServer.Close()
+
+	// same local user, but using a new SSO account
+	buf := bytes.NewBufferString(`{"username": "username", "email": "new.email@test.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
+
+	rsp := loginUser(loginCmd, req, localUser).(*resp)
+
+	expected := userResponseData{
+		ID:       1,
+		Username: "username",
+		Email:    "new.email@test.com",
+
+		Macaroon:   localUser.Macaroon,
+		Discharges: localUser.Discharges,
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	state.Lock()
+	user, err := auth.User(state, localUser.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, expected.Email)
+	c.Check(user.Macaroon, check.Equals, localUser.Macaroon)
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, serializedMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+}
+
 func (s *apiSuite) TestLogoutUser(c *check.C) {
 	d := s.daemon(c)
 	state := d.overlord.State()

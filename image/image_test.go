@@ -710,6 +710,26 @@ func (s *imageSuite) TestNewToolingStoreWithAuth(c *C) {
 	c.Check(user.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
 }
 
+func (s *imageSuite) TestNewToolingStoreWithAuthFromSnapcraftLoginFile(c *C) {
+	tmpdir := c.MkDir()
+	authFn := filepath.Join(tmpdir, "auth.json")
+	err := ioutil.WriteFile(authFn, []byte(`[login.ubuntu.com]
+macaroon = MACAROON
+unbound_discharge = DISCHARGE
+
+`), 0600)
+	c.Assert(err, IsNil)
+
+	os.Setenv("UBUNTU_STORE_AUTH_DATA_FILENAME", authFn)
+	defer os.Unsetenv("UBUNTU_STORE_AUTH_DATA_FILENAME")
+
+	tsto, err := image.NewToolingStore()
+	c.Assert(err, IsNil)
+	user := tsto.User()
+	c.Check(user.StoreMacaroon, Equals, "MACAROON")
+	c.Check(user.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
+}
+
 func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
