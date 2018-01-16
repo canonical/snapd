@@ -228,10 +228,11 @@ func SetRootDir(rootdir string) {
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
 
-	switch release.ReleaseInfo.ID {
-	case "fedora", "centos", "rhel":
+	if release.DistroLike("fedora") {
+		// rhel, centos, fedora and derivatives
+		// both rhel and centos list "fedora" in ID_LIKE
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/libexec/snapd")
-	default:
+	} else {
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
 	}
 
