@@ -22,7 +22,7 @@ package sys
 
 import "syscall"
 
-// these are the contsants for where getuid et al are already 32-bit
+// these are the constants for where getuid et al are already 32-bit
 
 const (
 	_SYS_GETUID  = syscall.SYS_GETUID
