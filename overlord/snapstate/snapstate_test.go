@@ -5428,9 +5428,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshLegacyScheduleIsLowerPriority(c *C) 
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
 	s.state.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, time.UTC))
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "refresh.timer", fmt.Sprintf("00:00-23:59,,mon,12:00-14:00"))
@@ -5443,8 +5440,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshLegacyScheduleIsLowerPriority(c *C) 
 	s.snapmgr.Ensure()
 	s.state.Lock()
 
-	// expecting no log that the schedule cannot be parsed
-	c.Check(logbuf.String(), Not(testutil.Contains), `cannot use refresh.schedule configuration: cannot parse "mon@12:00": not a valid time`)
+	// expecting new refresh.timer to have been used, fallback to legacy was
+	// not attempted otherwise it would get reset to the default due to
+	// refresh.schedule being garbage
 	schedule, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
 	c.Check(schedule, Equals, "00:00-23:59,,mon,12:00-14:00")
@@ -5454,9 +5452,6 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToLegacySchedule(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
-
-	logbuf, restore := logger.MockLogger()
-	defer restore()
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "refresh.timer", "")
@@ -5468,10 +5463,33 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToLegacySchedule(c *C) {
 	s.snapmgr.Ensure()
 	s.state.Lock()
 
-	c.Check(logbuf.String(), testutil.Contains, `refresh.timer is not set, fallback to legacy refresh.schedule`)
+	// refresh.timer is unset, triggering automatic fallback to legacy
+	// schedule if that was set
 	schedule, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
 	c.Check(schedule, Equals, "00:00-23:59")
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshFallbackOnEmptyToDefaultSchedule(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.timer", "")
+	tr.Set("core", "refresh.schedule", "")
+	tr.Commit()
+
+	// Ensure() also runs ensureRefreshes()
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// automatic fallback to default schedule if neither refresh.timer nor
+	// refresh.schedule was set
+	schedule, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00-24:00/4")
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
@@ -8232,7 +8250,9 @@ func (s *snapmgrTestSuite) TestSnapManagerLegacyRefreshSchedule(c *C) {
 		{"", snapstate.DefaultRefreshSchedule},
 		{"invalid schedule", snapstate.DefaultRefreshSchedule},
 		{"8:00-12:00", "8:00-12:00"},
-		// using legacy configuration, this is parsed by the legacy schedule parser
+		// using the legacy configuration option with a new-style
+		// refresh.timer string is rejected (i.e. the legacy parser is
+		// used for the parsing)
 		{"0:00~24:00/24", snapstate.DefaultRefreshSchedule},
 	} {
 		if t.in != "" {
