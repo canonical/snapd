@@ -98,7 +98,7 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.
 	// Compute the contents of the fstab file. It should contain all the mount
 	// rules collected by the backend controller.
 	var buffer bytes.Buffer
-	for _, entry := range spec.mountEntries {
+	for _, entry := range spec.MountEntries() {
 		fmt.Fprintf(&buffer, "%s\n", entry)
 	}
 	fstate := &osutil.FileState{Content: buffer.Bytes(), Mode: 0644}
