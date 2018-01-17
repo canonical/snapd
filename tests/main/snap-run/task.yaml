@@ -42,4 +42,3 @@ execute: |
         exit 1
     fi
     MATCH "Can't stat 'invalid': No such file or directory" < stderr
-    

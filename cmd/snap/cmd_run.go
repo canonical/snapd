@@ -54,7 +54,7 @@ type cmdRun struct {
 	Hook     string `long:"hook" hidden:"yes"`
 	Revision string `short:"r" default:"unset" hidden:"yes"`
 	Shell    bool   `long:"shell" `
-	Strace   string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace"`
+	Strace   string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
 }
 
 type runOptions struct {
