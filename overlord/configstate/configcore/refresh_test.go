@@ -66,7 +66,7 @@ func (s *refreshSuite) TestConfigureLegacyRefreshScheduleRejected(c *C) {
 	})
 	c.Assert(err, ErrorMatches, `cannot parse "invalid": not a valid interval`)
 
-	// verfify that refresh.schedule is verified against legacy parser
+	// check that refresh.schedule is verified against legacy parser
 	err = configcore.Run(&mockConf{
 		conf: map[string]interface{}{
 			"refresh.schedule": "8:00~12:00/2",
