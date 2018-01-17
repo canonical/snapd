@@ -21,10 +21,10 @@ execute: |
 
     systemctl start snapd.{service,socket}
 
-    echo "Ensure that unknown task was aborted"
+    echo "Ensure that unknown task was ignored"
     for i in $(seq 10); do
-        snap changes|MATCH ".*80999.*Error" && break
+        snap changes|MATCH ".*80999.*Done" && break
         sleep 1
     done 
-    snap changes | MATCH ".*80999.*Error"
-    snap change 80999 | MATCH ".*ERROR no handler for task \"alien-task\""
+    snap changes | MATCH ".*80999.*Done"
+    snap change 80999 | MATCH ".*INFO no handler for task \"alien-task\", task ignored"

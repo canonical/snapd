@@ -20,8 +20,6 @@
 package overlord
 
 import (
-	"fmt"
-
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/state"
@@ -33,7 +31,7 @@ type UnknownTaskManager struct {
 	knownTaskKinds map[string]bool
 }
 
-func NewUnknownTaskManager(s *state.State, knownTaskKinds []string) *UnknownTaskManager {
+func NewUnknownTaskManager(s *state.State) *UnknownTaskManager {
 	runner := state.NewTaskRunner(s)
 	mgr := &UnknownTaskManager{
 		state:          s,
@@ -41,12 +39,14 @@ func NewUnknownTaskManager(s *state.State, knownTaskKinds []string) *UnknownTask
 		knownTaskKinds: make(map[string]bool),
 	}
 
-	for _, k := range knownTaskKinds {
-		mgr.knownTaskKinds[k] = true
-	}
-
 	runner.AddOptionalHandler(mgr.matchUnknownTasks, handleUnknownTask, nil)
 	return mgr
+}
+
+func (m *UnknownTaskManager) Ignore(taskKinds []string) {
+	for _, k := range taskKinds {
+		m.knownTaskKinds[k] = true
+	}
 }
 
 func (m *UnknownTaskManager) matchUnknownTasks(task *state.Task) bool {
@@ -54,7 +54,11 @@ func (m *UnknownTaskManager) matchUnknownTasks(task *state.Task) bool {
 }
 
 func handleUnknownTask(task *state.Task, tomb *tomb.Tomb) error {
-	return fmt.Errorf("no handler for task %q", task.Kind())
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+	task.Logf("no handler for task %q, task ignored", task.Kind())
+	return nil
 }
 
 // Ensure implements StateManager.Ensure.

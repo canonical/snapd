@@ -91,7 +91,7 @@ func (r *TaskRunner) AddHandler(kind string, do, undo HandlerFunc) {
 }
 
 // AddOptionalHandler register functions for doing and undoing tasks that match
-// the given predicate if there is no handler registered for task's kind.
+// the given predicate if no explicit handler was registered for the task kind.
 func (r *TaskRunner) AddOptionalHandler(match func(t *Task) bool, do, undo HandlerFunc) {
 	r.optional = append(r.optional, optionalHandler{match, handlerPair{do, undo}})
 }
