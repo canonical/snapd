@@ -183,9 +183,11 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 		if err != nil && !config.IsNoOption(err) {
 			return nil, "", err
 		}
-		ts, err = timeutil.ParseLegacySchedule(scheduleAsStr)
-		if err != nil {
-			logger.Noticef("cannot use refresh.schedule configuration: %s", err)
+		if scheduleAsStr != "" {
+			ts, err = timeutil.ParseLegacySchedule(scheduleAsStr)
+			if err != nil {
+				logger.Noticef("cannot use refresh.schedule configuration: %s", err)
+			}
 		}
 	} else {
 		ts, err = timeutil.ParseSchedule(scheduleAsStr)
