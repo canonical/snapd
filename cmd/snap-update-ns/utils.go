@@ -41,6 +41,8 @@ const (
 var (
 	osLstat    = os.Lstat
 	osReadlink = os.Readlink
+	osSymlink  = os.Symlink
+	osRemove   = os.Remove
 
 	sysClose   = syscall.Close
 	sysMkdirat = syscall.Mkdirat
@@ -349,7 +351,7 @@ func planWritableMimic(dir string) ([]*Change, error) {
 			changes = append(changes, ch)
 		case m&os.ModeSymlink != 0:
 			if target, err := osReadlink(filepath.Join(dir, fi.Name())); err == nil {
-				ch.Entry.Options = append(ch.Entry.Options, "x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", target))
+				ch.Entry.Options = []string{"x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", target)}
 				changes = append(changes, ch)
 			}
 		default:
