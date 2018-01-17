@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -52,7 +53,9 @@ func (spec *Specification) MountEntries() []Entry {
 		path := result[i].Dir
 		count[path] += 1
 		if c := count[path]; c > 1 {
-			result[i].Dir += fmt.Sprintf("-%d", c)
+			newDir := fmt.Sprintf("%s-%d", result[i].Dir, c)
+			logger.Noticef("renaming mount entry for directory %q to %q to avoid a clash", result[i].Dir, newDir)
+			result[i].Dir = newDir
 		}
 	}
 	return result

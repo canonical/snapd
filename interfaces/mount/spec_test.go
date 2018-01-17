@@ -20,11 +20,14 @@
 package mount_test
 
 import (
+	"strings"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -78,6 +81,21 @@ func (s *specSuite) TestSmoke(c *C) {
 	c.Assert(s.spec.AddMountEntry(ent0), IsNil)
 	c.Assert(s.spec.AddMountEntry(ent1), IsNil)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []mount.Entry{ent0, ent1})
+}
+
+// Added entries can clash and are automatically renamed by MountEntries
+func (s *specSuite) TestMountEntriesDeclash(c *C) {
+	buf, restore := logger.MockLogger()
+	defer restore()
+	c.Assert(s.spec.AddMountEntry(mount.Entry{Dir: "foo", Name: "fs1"}), IsNil)
+	c.Assert(s.spec.AddMountEntry(mount.Entry{Dir: "foo", Name: "fs2"}), IsNil)
+	c.Assert(s.spec.MountEntries(), DeepEquals, []mount.Entry{
+		{Dir: "foo", Name: "fs1"},
+		{Dir: "foo-2", Name: "fs2"},
+	})
+	// extract the relevant part of the log
+	msg := strings.SplitAfter(strings.TrimSpace(buf.String()), ": ")[1]
+	c.Assert(msg, Equals, `renaming mount entry for directory "foo" to "foo-2" to avoid a clash`)
 }
 
 // The mount.Specification can be used through the interfaces.Specification interface
