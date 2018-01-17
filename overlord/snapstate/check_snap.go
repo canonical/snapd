@@ -269,7 +269,7 @@ func validateContainer(s *snap.Info, c snap.Container) error {
 			}
 		}
 	}
-	// note all needsr so far need to be regular files
+	// note all needsr so far need to be regular files (or symlinks)
 	for k := range needsr {
 		needsf[k] = true
 	}
@@ -311,7 +311,7 @@ func validateContainer(s *snap.Info, c snap.Container) error {
 
 		if needsrx[path] || mode.IsDir() {
 			if mode.Perm()&0555 != 0555 {
-				logger.Noticef("in snap %q: %q should be world-readable and -executable, and isn't: %s", s.Name(), path, mode)
+				logger.Noticef("in snap %q: %q should be world-readable and executable, and isn't: %s", s.Name(), path, mode)
 				hasBadModes = true
 			}
 		} else {
