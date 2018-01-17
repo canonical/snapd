@@ -2,10 +2,11 @@ summary: Ensure catalog update works
 
 execute: |
     echo "Ensure that catalog refresh happens on startup"
-    for i in seq 60; do
+    for i in $(seq 60); do
         if journalctl -u snapd | MATCH "Catalog refresh"; then
             break
         fi
+        sleep 1
     done
     journalctl -u snapd | MATCH "Catalog refresh"
 

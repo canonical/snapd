@@ -26,7 +26,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
@@ -38,12 +37,7 @@ func ensureGPGHomeDirectory() (string, error) {
 		return "", err
 	}
 
-	uid, err := strconv.Atoi(real.Uid)
-	if err != nil {
-		return "", err
-	}
-
-	gid, err := strconv.Atoi(real.Gid)
+	uid, gid, err := osutil.UidGid(real)
 	if err != nil {
 		return "", err
 	}

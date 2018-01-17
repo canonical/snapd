@@ -113,6 +113,8 @@ var (
 	CachedStore            = cachedStore
 	DefaultRefreshSchedule = defaultRefreshSchedule
 	NameAndRevnoFromSnap   = nameAndRevnoFromSnap
+	DoInstall              = doInstall
+	UserFromUserID         = userFromUserID
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {

@@ -61,18 +61,34 @@ func MustInterface(name string) interfaces.Interface {
 	panic(fmt.Errorf("cannot find interface with name %q", name))
 }
 
-func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *interfaces.Plug {
+func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *snap.PlugInfo {
 	info := snaptest.MockInfo(c, yaml, si)
 	if plugInfo, ok := info.Plugs[plugName]; ok {
-		return &interfaces.Plug{PlugInfo: plugInfo}
+		return plugInfo
 	}
 	panic(fmt.Sprintf("cannot find plug %q in snap %q", plugName, info.Name()))
 }
 
-func MockSlot(c *C, yaml string, si *snap.SideInfo, slotName string) *interfaces.Slot {
+func MockSlot(c *C, yaml string, si *snap.SideInfo, slotName string) *snap.SlotInfo {
 	info := snaptest.MockInfo(c, yaml, si)
 	if slotInfo, ok := info.Slots[slotName]; ok {
-		return &interfaces.Slot{SlotInfo: slotInfo}
+		return slotInfo
+	}
+	panic(fmt.Sprintf("cannot find slot %q in snap %q", slotName, info.Name()))
+}
+
+func MockConnectedPlug(c *C, yaml string, si *snap.SideInfo, plugName string) (*interfaces.ConnectedPlug, *snap.PlugInfo) {
+	info := snaptest.MockInfo(c, yaml, si)
+	if plugInfo, ok := info.Plugs[plugName]; ok {
+		return interfaces.NewConnectedPlug(plugInfo, nil), plugInfo
+	}
+	panic(fmt.Sprintf("cannot find plug %q in snap %q", plugName, info.Name()))
+}
+
+func MockConnectedSlot(c *C, yaml string, si *snap.SideInfo, slotName string) (*interfaces.ConnectedSlot, *snap.SlotInfo) {
+	info := snaptest.MockInfo(c, yaml, si)
+	if slotInfo, ok := info.Slots[slotName]; ok {
+		return interfaces.NewConnectedSlot(slotInfo, nil), slotInfo
 	}
 	panic(fmt.Sprintf("cannot find slot %q in snap %q", slotName, info.Name()))
 }

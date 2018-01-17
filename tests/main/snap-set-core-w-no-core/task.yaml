@@ -1,0 +1,16 @@
+summary: Ensure core can be configure before being installed
+
+systems: [-ubuntu-core-16-*]
+
+warn-timeout: 1m
+kill-timeout: 5m
+
+execute: |
+    . "$TESTSLIB/pkgdb.sh"
+
+    echo "Ensure core is gone"
+    distro_purge_package snapd
+    distro_install_build_snapd
+
+    echo "Check that we can set core config nevertheless"
+    snap set core test-config=true

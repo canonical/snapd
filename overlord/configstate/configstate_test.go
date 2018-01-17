@@ -24,7 +24,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -36,6 +38,7 @@ type tasksetsSuite struct {
 }
 
 var _ = Suite(&tasksetsSuite{})
+var _ = Suite(&configcoreHijackSuite{})
 
 func (s *tasksetsSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
@@ -69,7 +72,17 @@ var configureTests = []struct {
 	useDefaults: true,
 }}
 
-func (s *tasksetsSuite) TestConfigure(c *C) {
+func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "test-snap", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+		Active:  true,
+	})
+	s.state.Unlock()
+
 	for _, test := range configureTests {
 		var flags int
 		if test.ignoreError {
@@ -128,4 +141,60 @@ func (s *tasksetsSuite) TestConfigure(c *C) {
 		}
 		c.Check(useDefaults, Equals, test.useDefaults)
 	}
+}
+
+func (s *tasksetsSuite) TestConfigureNotInstalled(c *C) {
+	patch := map[string]interface{}{"foo": "bar"}
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := configstate.ConfigureInstalled(s.state, "test-snap", patch, 0)
+	c.Check(err, ErrorMatches, `snap "test-snap" is not installed`)
+
+	// core can be configure before being installed
+	_, err = configstate.ConfigureInstalled(s.state, "core", patch, 0)
+	c.Check(err, IsNil)
+}
+
+type configcoreHijackSuite struct {
+	o     *overlord.Overlord
+	state *state.State
+}
+
+func (s *configcoreHijackSuite) SetUpTest(c *C) {
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+	hookMgr, err := hookstate.Manager(s.state)
+	c.Assert(err, IsNil)
+	s.o.AddManager(hookMgr)
+	configstate.Init(hookMgr)
+}
+
+func (s *configcoreHijackSuite) TestHijack(c *C) {
+	configcoreRan := false
+	witnessConfigcoreRun := func(conf configcore.Conf) error {
+		// called with no state lock!
+		conf.State().Lock()
+		defer conf.State().Unlock()
+		configcoreRan = true
+		return nil
+	}
+	r := configstate.MockConfigcoreRun(witnessConfigcoreRun)
+	defer r()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts := configstate.Configure(s.state, "core", nil, 0)
+
+	chg := s.state.NewChange("configure-core", "configure core")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	err := s.o.Settle(5 * time.Second)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	c.Check(chg.Err(), IsNil)
+	c.Check(configcoreRan, Equals, true)
 }

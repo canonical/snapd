@@ -39,24 +39,34 @@ func newRefreshHints(st *state.State) *refreshHints {
 	return &refreshHints{state: st}
 }
 
-func (r *refreshHints) lastRefresh() (time.Time, error) {
+func (r *refreshHints) lastRefresh(timestampKey string) (time.Time, error) {
 	var lastRefresh time.Time
-	if err := r.state.Get("last-refresh-hints", &lastRefresh); err != nil && err != state.ErrNoState {
+	if err := r.state.Get(timestampKey, &lastRefresh); err != nil && err != state.ErrNoState {
 		return time.Time{}, err
 	}
 	return lastRefresh, nil
 }
 
 func (r *refreshHints) needsUpdate() (bool, error) {
-	t, err := r.lastRefresh()
+	tFull, err := r.lastRefresh("last-refresh")
 	if err != nil {
 		return false, err
 	}
-	return t.Before(time.Now().Add(-refreshHintsDelay)), nil
+	tHints, err := r.lastRefresh("last-refresh-hints")
+	if err != nil {
+		return false, err
+	}
+
+	recentEnough := time.Now().Add(-refreshHintsDelay)
+	if tFull.After(recentEnough) || tFull.Equal(recentEnough) {
+		return false, nil
+	}
+	return tHints.Before(recentEnough), nil
 }
 
 func (r *refreshHints) refresh() error {
-	refreshManaged := false
+	var refreshManaged bool
+	refreshManaged = refreshScheduleManaged(r.state)
 
 	_, _, _, err := refreshCandidates(r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
 	// TODO: we currently set last-refresh-hints even when there was an

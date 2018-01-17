@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"os"
 	"os/user"
@@ -167,10 +168,11 @@ var (
 	}
 
 	interfacesCmd = &Command{
-		Path:   "/v2/interfaces",
-		UserOK: true,
-		GET:    interfacesConnectionsMultiplexer,
-		POST:   changeInterfaces,
+		Path:     "/v2/interfaces",
+		UserOK:   true,
+		PolkitOK: "io.snapcraft.snapd.manage-interfaces",
+		GET:      interfacesConnectionsMultiplexer,
+		POST:     changeInterfaces,
 	}
 
 	// TODO: allow to post assertions for UserOK? they are verified anyway
@@ -411,6 +413,8 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		// local user logged-in, set its store macaroons
 		user.StoreMacaroon = macaroon
 		user.StoreDischarges = []string{discharge}
+		// user's email address authenticated by the store
+		user.Email = loginData.Email
 		err = auth.UpdateUser(state, user)
 	} else {
 		user, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
@@ -546,8 +550,12 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 	switch err {
 	case nil:
 		// pass
-	case store.ErrEmptyQuery, store.ErrBadQuery:
-		return BadRequest("%v", err)
+	case store.ErrBadQuery:
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Result: &errorResult{Message: err.Error(), Kind: errorKindBadQuery},
+			Status: 400,
+		}, nil)
 	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized("%v", err)
 	default:
@@ -607,11 +615,23 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	switch err {
 	case nil:
 		// pass
-	case store.ErrEmptyQuery, store.ErrBadQuery:
-		return BadRequest("%v", err)
+	case store.ErrBadQuery:
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Result: &errorResult{Message: err.Error(), Kind: errorKindBadQuery},
+			Status: 400,
+		}, nil)
 	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
 	default:
+		if e, ok := err.(net.Error); ok && e.Timeout() {
+			return SyncResponse(&resp{
+				Type:   ResponseTypeError,
+				Result: &errorResult{Message: err.Error(), Kind: errorKindNetworkTimeout},
+				Status: 400,
+			}, nil)
+		}
+
 		return InternalError("%v", err)
 	}
 
@@ -1109,6 +1129,7 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 
 func (inst *snapInstruction) errToResponse(err error) Response {
 	var kind errorKind
+	var snapName string
 
 	switch err {
 	case store.ErrSnapNotFound:
@@ -1121,14 +1142,25 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		switch err := err.(type) {
 		case *snap.AlreadyInstalledError:
 			kind = errorKindSnapAlreadyInstalled
+			snapName = err.Snap
 		case *snap.NotInstalledError:
 			kind = errorKindSnapNotInstalled
+			snapName = err.Snap
 		case *snapstate.SnapNeedsDevModeError:
 			kind = errorKindSnapNeedsDevMode
+			snapName = err.Snap
 		case *snapstate.SnapNeedsClassicError:
 			kind = errorKindSnapNeedsClassic
+			snapName = err.Snap
 		case *snapstate.SnapNeedsClassicSystemError:
 			kind = errorKindSnapNeedsClassicSystem
+			snapName = err.Snap
+		case net.Error:
+			if err.Timeout() {
+				kind = errorKindNetworkTimeout
+			} else {
+				return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+			}
 		default:
 			return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
 		}
@@ -1136,7 +1168,7 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 
 	return SyncResponse(&resp{
 		Type:   ResponseTypeError,
-		Result: &errorResult{Message: err.Error(), Kind: kind},
+		Result: &errorResult{Message: err.Error(), Kind: kind, Value: snapName},
 		Status: 400,
 	}, nil)
 }
@@ -1292,7 +1324,7 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unsupported multi-snap operation %q", inst.Action)
 	}
 	if err != nil {
-		return InternalError("cannot %s %q: %v", inst.Action, inst.Snaps, err)
+		return inst.errToResponse(err)
 	}
 
 	var chg *state.Change
@@ -1565,16 +1597,13 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &snapst); err != nil {
-		if err == state.ErrNoState {
+	taskset, err := configstate.ConfigureInstalled(st, snapName, patchValues, 0)
+	if err != nil {
+		if _, ok := err.(*snap.NotInstalledError); ok {
 			return SnapNotFound(snapName, err)
-		} else {
-			return InternalError("%v", err)
 		}
+		return InternalError("%v", err)
 	}
-
-	taskset := configstate.Configure(st, snapName, patchValues, 0)
 
 	summary := fmt.Sprintf("Change configuration of %q snap", snapName)
 	change := newChange(st, "configure-snap", summary, []*state.TaskSet{taskset}, []string{snapName})
@@ -2182,13 +2211,9 @@ func setupLocalUser(st *state.State, username, email string) error {
 	if err != nil {
 		return fmt.Errorf("cannot lookup user %q: %s", username, err)
 	}
-	uid, err := strconv.Atoi(user.Uid)
+	uid, gid, err := osutil.UidGid(user)
 	if err != nil {
-		return fmt.Errorf("cannot get uid of user %q: %s", username, err)
-	}
-	gid, err := strconv.Atoi(user.Gid)
-	if err != nil {
-		return fmt.Errorf("cannot get gid of user %q: %s", username, err)
+		return err
 	}
 	authDataFn := filepath.Join(user.HomeDir, ".snap", "auth.json")
 	if err := osutil.MkdirAllChown(filepath.Dir(authDataFn), 0700, uid, gid); err != nil {
@@ -2202,10 +2227,17 @@ func setupLocalUser(st *state.State, username, email string) error {
 	if err != nil {
 		return fmt.Errorf("cannot persist authentication details: %v", err)
 	}
-	// store macaroon auth in auth.json in the new users home dir
+	// store macaroon auth, user's ID, email and username in auth.json in
+	// the new users home dir
 	outStr, err := json.Marshal(struct {
+		ID       int    `json:"id"`
+		Username string `json:"username"`
+		Email    string `json:"email"`
 		Macaroon string `json:"macaroon"`
 	}{
+		ID:       authUser.ID,
+		Username: authUser.Username,
+		Email:    authUser.Email,
 		Macaroon: authUser.Macaroon,
 	})
 	if err != nil {
@@ -2364,6 +2396,8 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(map[string]interface{}{
 			"base-declaration": string(asserts.Encode(bd)),
 		}, nil)
+	case "can-manage-refreshes":
+		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
