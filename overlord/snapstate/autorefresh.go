@@ -119,7 +119,7 @@ func (m *autoRefresh) Ensure() error {
 	if !m.nextRefresh.IsZero() {
 		if m.lastRefreshSchedule != refreshScheduleStr {
 			// the refresh schedule has changed
-			logger.Debugf("Option refresh.timer changed.")
+			logger.Debugf("Refresh timer changed.")
 			m.nextRefresh = time.Time{}
 		}
 	}
@@ -177,9 +177,7 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 	if err != nil && !config.IsNoOption(err) {
 		return nil, "", err
 	}
-
 	if scheduleAsStr == "" {
-		logger.Noticef("refresh.timer is not set, fallback to legacy refresh.schedule")
 		// try legacy refresh schedule config option
 		err = tr.Get("core", "refresh.schedule", &scheduleAsStr)
 		if err != nil && !config.IsNoOption(err) {
