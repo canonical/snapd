@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -520,7 +520,13 @@ func runCmdUnderStrace(origCmd, env []string, opts runOptions) error {
 		// execve() something inside the snap dir so
 		// we know that from that point on the output
 		// will be interessting to the user.
-		needle := fmt.Sprintf(`execve("%s`, dirs.SnapMountDir)
+		//
+		// We need check both /snap (which is where snaps
+		// are located inside the mount namespace) and the
+		// distro snap mount dir (which is different on e.g.
+		// fedora/arch) to fully work with classic snaps.
+		needle1 := fmt.Sprintf(`execve("%s`, dirs.SnapMountDir)
+		needle2 := `execve("/snap`
 		for {
 			s, err := r.ReadString('\n')
 			if err != nil {
@@ -534,7 +540,7 @@ func runCmdUnderStrace(origCmd, env []string, opts runOptions) error {
 			// /snap/core/current/usr/lib/snapd/snap-confine
 			// which is just `snap run` using the core version
 			// snap-confine.
-			if strings.Contains(s, needle) && !strings.Contains(s, "usr/lib/snapd/snap-confine") {
+			if (strings.Contains(s, needle1) || strings.Contains(s, needle2)) && !strings.Contains(s, "usr/lib/snapd/snap-confine") {
 				fmt.Fprint(Stderr, s)
 				break
 			}
