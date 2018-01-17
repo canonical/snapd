@@ -119,19 +119,17 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	// magic! `snap find` returns the featured snaps
-	if x.Positional.Query == "" && x.Section == "" {
+	showFeatured := (x.Positional.Query == "" && x.Section == "")
+	if showFeatured {
 		x.Section = "featured"
 	}
 
-	return findSnaps(&client.FindOptions{
+	cli := Client()
+	opts := &client.FindOptions{
 		Private: x.Private,
 		Section: string(x.Section),
 		Query:   x.Positional.Query,
-	})
-}
-
-func findSnaps(opts *client.FindOptions) error {
-	cli := Client()
+	}
 	snaps, resInfo, err := cli.Find(opts)
 	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNetworkTimeout {
 		logger.Debugf("cannot list snaps: %v", e)
@@ -140,22 +138,27 @@ func findSnaps(opts *client.FindOptions) error {
 	if err != nil {
 		return err
 	}
-
 	if len(snaps) == 0 {
 		// TRANSLATORS: the %q is the (quoted) query the user entered
-		fmt.Fprintf(Stderr, i18n.G("The search %q returned 0 snaps\n"), opts.Query)
+		fmt.Fprintf(Stderr, i18n.G("No matching snaps for %q\n"), opts.Query)
 		return nil
 	}
 
+	// show featured header *after* we checked for errors from the find
+	if showFeatured {
+		fmt.Fprintf(Stdout, i18n.G("No search term specified. Here are some interesting snaps:\n\n"))
+	}
+
 	w := tabWriter()
-	defer w.Flush()
-
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tDeveloper\tNotes\tSummary"))
-
 	for _, snap := range snaps {
 		// TODO: get snap.Publisher, so we can only show snap.Developer if it's different
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer, NotesFromRemote(snap, resInfo), snap.Summary)
 	}
+	w.Flush()
 
+	if showFeatured {
+		fmt.Fprintf(Stdout, i18n.G("\nProvide a search term for more specific results.\n"))
+	}
 	return nil
 }
