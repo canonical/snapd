@@ -103,13 +103,14 @@ Requires:       bash-completion
 Requires:       %{name}-selinux = %{version}-%{release}
 
 %if ! 0%{?with_bundled}
+BuildRequires: golang(github.com/boltdb/bolt)
 BuildRequires: golang(github.com/cheggaaa/pb)
 BuildRequires: golang(github.com/coreos/go-systemd/activation)
 BuildRequires: golang(github.com/godbus/dbus)
 BuildRequires: golang(github.com/godbus/dbus/introspect)
 BuildRequires: golang(github.com/gorilla/mux)
 BuildRequires: golang(github.com/jessevdk/go-flags)
-BuildRequires: golang(github.com/mvo5/uboot-go/uenv)
+BuildRequires: golang(github.com/mvo5/goconfigparser)
 BuildRequires: golang(github.com/ojii/gettext.go)
 BuildRequires: golang(github.com/seccomp/libseccomp-golang)
 BuildRequires: golang(golang.org/x/crypto/openpgp/armor)
@@ -198,7 +199,7 @@ Requires:      golang(github.com/godbus/dbus)
 Requires:      golang(github.com/godbus/dbus/introspect)
 Requires:      golang(github.com/gorilla/mux)
 Requires:      golang(github.com/jessevdk/go-flags)
-Requires:      golang(github.com/mvo5/uboot-go/uenv)
+Requires:      golang(github.com/mvo5/goconfigparser)
 Requires:      golang(github.com/ojii/gettext.go)
 Requires:      golang(github.com/seccomp/libseccomp-golang)
 Requires:      golang(golang.org/x/crypto/openpgp/armor)
@@ -223,7 +224,7 @@ Provides:      bundled(golang(github.com/godbus/dbus))
 Provides:      bundled(golang(github.com/godbus/dbus/introspect))
 Provides:      bundled(golang(github.com/gorilla/mux))
 Provides:      bundled(golang(github.com/jessevdk/go-flags))
-Provides:      bundled(golang(github.com/mvo5/uboot-go/uenv))
+Provides:      bundled(golang(github.com/mvo5/goconfigparser))
 Provides:      bundled(golang(github.com/mvo5/libseccomp-golang))
 Provides:      bundled(golang(github.com/ojii/gettext.go))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/armor))
@@ -335,16 +336,6 @@ Summary:         Unit tests for %{name} package
 %if 0%{?with_check}
 #Here comes all BuildRequires: PACKAGE the unit tests
 #in %%check section need for running
-%endif
-
-%if 0%{?with_check} && ! 0%{?with_bundled}
-BuildRequires: golang(github.com/mvo5/goconfigparser)
-%endif
-
-%if ! 0%{?with_bundled}
-Requires:      golang(github.com/mvo5/goconfigparser)
-%else
-Provides:      bundled(golang(github.com/mvo5/goconfigparser))
 %endif
 
 # test subpackage tests code from devel subpackage
