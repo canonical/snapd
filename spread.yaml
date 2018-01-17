@@ -80,11 +80,9 @@ backends:
                 manual: true
             - fedora-26-64:
                 workers: 3
-                kernel: GRUB 2
                 manual: true
             - fedora-27-64:
                 workers: 3
-                kernel: GRUB 2
             - opensuse-42.2-64:
                 workers: 3
     qemu:
