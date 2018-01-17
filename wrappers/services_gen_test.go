@@ -56,10 +56,8 @@ ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
 TimeoutStopSec=10
 Type=%s
 
-
 [Install]
 WantedBy=multi-user.target
-
 `
 
 var (
@@ -67,9 +65,9 @@ var (
 )
 
 var (
-	expectedAppService     = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple\n\n")
-	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\n\nBusName=foo.bar.baz")
-	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "no", "oneshot\nRemainAfterExit=yes\n")
+	expectedAppService     = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple")
+	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\nBusName=foo.bar.baz")
+	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "no", "oneshot\nRemainAfterExit=yes")
 )
 
 var (
@@ -91,9 +89,8 @@ ExecReload=/usr/bin/snap run --command=reload xkcd-webserver
 ExecStopPost=/usr/bin/snap run --command=post-stop xkcd-webserver
 TimeoutStopSec=30
 Type=%s
-%s
-`
-	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, mountUnitPrefix, mountUnitPrefix, "forking", "\n\n\n\n[Install]\nWantedBy=multi-user.target\n")
+%s`
+	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, mountUnitPrefix, mountUnitPrefix, "forking", "\n[Install]\nWantedBy=multi-user.target\n")
 )
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFile(c *C) {
@@ -262,4 +259,65 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceWithSockets(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(generatedWrapper), "[Install]"), Equals, false)
 	c.Assert(strings.Contains(string(generatedWrapper), "WantedBy=multi-user.target"), Equals, false)
+}
+
+func (s *servicesWrapperGenSuite) TestServiceAfterBefore(c *C) {
+	const expectedServiceFmt = `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+Requires=%s-snap-44.mount
+Wants=network-online.target
+After=%s-snap-44.mount network-online.target snap.snap.bar.service snap.snap.zed.service
+Before=snap.snap.foo.service
+X-Snappy=yes
+
+[Service]
+ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
+Restart=%s
+WorkingDirectory=/var/snap/snap/44
+TimeoutStopSec=30
+Type=%s
+
+[Install]
+WantedBy=multi-user.target
+`
+
+	expectedService := fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple")
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+			Apps: map[string]*snap.AppInfo{
+				"foo": {
+					Name:   "foo",
+					Snap:   &snap.Info{SuggestedName: "snap"},
+					Daemon: "forking",
+				},
+				"bar": {
+					Name:   "bar",
+					Snap:   &snap.Info{SuggestedName: "snap"},
+					Daemon: "forking",
+				},
+				"zed": {
+					Name:   "zed",
+					Snap:   &snap.Info{SuggestedName: "snap"},
+					Daemon: "forking",
+				},
+			},
+		},
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		Before:      []string{"foo"},
+		After:       []string{"bar", "zed"},
+		StopTimeout: timeout.DefaultTimeout,
+	}
+
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+	c.Assert(err, IsNil)
+
+	c.Logf("service: \n%v\n", string(generatedWrapper))
+	c.Assert(string(generatedWrapper), Equals, expectedService)
 }
