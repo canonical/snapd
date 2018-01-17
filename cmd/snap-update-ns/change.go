@@ -81,11 +81,11 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 			gid  = 0
 		)
 
-		// tryIt takes one flag argument
-		type tryItFlag int
-		const createSymlinks tryItFlag = 1
+		// tryCreate takes one flag argument
+		type tryCreateFlag int
+		const createSymlinks tryCreateFlag = 1
 
-		tryIt := func(flags tryItFlag) error {
+		tryCreate := func(flags tryCreateFlag) error {
 			switch kind {
 			case "":
 				return secureMkdirAll(path, mode, uid, gid)
@@ -121,7 +121,7 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 			// We will create the parent directory and then the final element
 			// relative to it. The traversed space may be writable so we just
 			// try to create things first.
-			err = tryIt(createSymlinks)
+			err = tryCreate(createSymlinks)
 
 			if err2, _ := err.(*ReadOnlyFsError); err2 != nil {
 				// If the writing failed because the underlying filesystem
@@ -131,7 +131,7 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 					return nil, fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
 				}
 				// We can now try again.
-				err = tryIt(createSymlinks)
+				err = tryCreate(createSymlinks)
 			}
 			// Check if we eventually succeeded.
 			if err != nil {
@@ -173,7 +173,7 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 			path = c.Entry.Name
 			fi, err := osLstat(path)
 			if err != nil && os.IsNotExist(err) {
-				err = tryIt(0)
+				err = tryCreate(0)
 				if err != nil {
 					return changes, fmt.Errorf("cannot create file/directory %q: %s", path, err)
 				}
