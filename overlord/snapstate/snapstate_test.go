@@ -5394,7 +5394,7 @@ func makeTestRefreshConfig(st *state.State) {
 	st.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, now.Location()))
 
 	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.timer", fmt.Sprintf("00:00-23:59"))
+	tr.Set("core", "refresh.timer", "00:00-23:59")
 	tr.Commit()
 }
 
@@ -5409,7 +5409,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesLegacyWeekdaySchedules(c *C) 
 	s.state.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, time.UTC))
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "refresh.timer", "")
-	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00-23:59/mon@12:00-14:00"))
+	tr.Set("core", "refresh.schedule", "00:00-23:59/mon@12:00-14:00")
 	tr.Commit()
 
 	// Ensure() also runs ensureRefreshes()
@@ -5438,9 +5438,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshLegacyScheduleIsLowerPriority(c *C) 
 
 	s.state.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, time.UTC))
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "refresh.timer", fmt.Sprintf("00:00-23:59,,mon,12:00-14:00"))
+	tr.Set("core", "refresh.timer", "00:00-23:59,,mon,12:00-14:00")
 	// legacy schedule is invalid
-	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00-23:59/mon@12:00-14:00"))
+	tr.Set("core", "refresh.schedule", "00:00-23:59/mon@12:00-14:00")
 	tr.Commit()
 
 	// Ensure() also runs ensureRefreshes()
@@ -5463,7 +5463,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToLegacySchedule(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "refresh.timer", "")
-	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00-23:59"))
+	tr.Set("core", "refresh.schedule", "00:00-23:59")
 	tr.Commit()
 
 	// Ensure() also runs ensureRefreshes()
@@ -5485,7 +5485,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToDefaultOnError(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "refresh.timer", "garbage-in")
-	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00-23:59"))
+	tr.Set("core", "refresh.schedule", "00:00-23:59")
 	tr.Commit()
 
 	// Ensure() also runs ensureRefreshes()
