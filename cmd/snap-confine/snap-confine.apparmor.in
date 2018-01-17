@@ -539,7 +539,8 @@
         # the writable mimic code that can poke holes in arbitrary read-only
         # places using tmpfs and bind mounts.
         /tmp/ r,
-        /tmp/** rw,
+        /tmp/.snap/ rw,
+        /tmp/.snap/** rw,
         # Allow mounting/unmounting any part of $SNAP over to a temporary place
         # in /tmp/.snap/ during the preparation of a writable mimic.
         mount options=(bind, rw) /snap/*/** -> /tmp/.snap/**,
