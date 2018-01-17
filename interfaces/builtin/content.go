@@ -79,11 +79,13 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	}
 
 	// Error if "read" or "write" are present alongside "source".
-	if _, ok := slot.Attrs["source"]; ok {
-		if _, ok := slot.Attrs["read"]; ok {
+	var unused map[string]interface{}
+	if err := slot.Attr("source", &unused); err == nil {
+		var unused []interface{}
+		if err := slot.Attr("read", &unused); err == nil {
 			return fmt.Errorf(`move the "read" attribute into the "source" section`)
 		}
-		if _, ok := slot.Attrs["write"]; ok {
+		if err := slot.Attr("write", &unused); err == nil {
 			return fmt.Errorf(`move the "write" attribute into the "source" section`)
 		}
 	}
