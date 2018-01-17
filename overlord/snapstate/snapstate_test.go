@@ -5421,6 +5421,14 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesLegacyWeekdaySchedules(c *C) 
 	schedule, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
 	c.Check(schedule, Equals, "00:00-24:00/4")
+
+	tr = config.NewTransaction(s.state)
+	refreshTimer := "canary"
+	refreshSchedule := "canary"
+	c.Assert(tr.Get("core", "refresh.timer", &refreshTimer), IsNil)
+	c.Assert(tr.Get("core", "refresh.schedule", &refreshSchedule), IsNil)
+	c.Check(refreshTimer, Equals, "")
+	c.Check(refreshSchedule, Equals, "00:00-23:59/mon@12:00-14:00")
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshLegacyScheduleIsLowerPriority(c *C) {
@@ -5470,6 +5478,36 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToLegacySchedule(c *C) {
 	c.Check(schedule, Equals, "00:00-23:59")
 }
 
+func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToDefaultOnError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.timer", "garbage-in")
+	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00-23:59"))
+	tr.Commit()
+
+	// Ensure() also runs ensureRefreshes()
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// automatic fallback to default schedule if refresh.timer is set but
+	// cannot be parsed
+	schedule, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00-24:00/4")
+
+	tr = config.NewTransaction(s.state)
+	refreshTimer := "canary"
+	refreshSchedule := "canary"
+	c.Assert(tr.Get("core", "refresh.timer", &refreshTimer), IsNil)
+	c.Assert(tr.Get("core", "refresh.schedule", &refreshSchedule), IsNil)
+	c.Check(refreshTimer, Equals, "garbage-in")
+	c.Check(refreshSchedule, Equals, "00:00-23:59")
+}
+
 func (s *snapmgrTestSuite) TestEnsureRefreshFallbackOnEmptyToDefaultSchedule(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -5490,6 +5528,14 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackOnEmptyToDefaultSchedule(c *
 	schedule, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
 	c.Check(schedule, Equals, "00:00-24:00/4")
+
+	tr = config.NewTransaction(s.state)
+	refreshTimer := "canary"
+	refreshSchedule := "canary"
+	c.Assert(tr.Get("core", "refresh.timer", &refreshTimer), IsNil)
+	c.Assert(tr.Get("core", "refresh.schedule", &refreshSchedule), IsNil)
+	c.Check(refreshTimer, Equals, "")
+	c.Check(refreshSchedule, Equals, "")
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {

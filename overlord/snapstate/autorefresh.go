@@ -33,7 +33,6 @@ import (
 
 // the default refresh pattern
 const defaultRefreshSchedule = "00:00-24:00/4"
-const defaultLegacyRefreshSchedule = "00:00-05:59/6:00-11:59/12:00-17:59/18:00-23:59"
 
 // hooks setup by devicestate
 var (
@@ -197,8 +196,10 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 		}
 	}
 
-	if err != nil {
-		ts, scheduleAsStr = resetRefreshScheduleToDefault(m.state)
+	if err != nil || ts == nil {
+		// neither refresh.timer nor refresh.schedule could be used, try
+		// the default instead
+		ts, scheduleAsStr = refreshScheduleDefault()
 	}
 
 	return ts, scheduleAsStr, nil
@@ -242,15 +243,11 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	return nil
 }
 
-func resetRefreshScheduleToDefault(st *state.State) (ts []*timeutil.Schedule, scheduleStr string) {
+func refreshScheduleDefault() (ts []*timeutil.Schedule, scheduleStr string) {
 	refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshSchedule)
 	if err != nil {
 		panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
 	}
-	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.timer", defaultRefreshSchedule)
-	tr.Set("core", "refresh.schedule", defaultLegacyRefreshSchedule)
-	tr.Commit()
 
 	return refreshSchedule, defaultRefreshSchedule
 }
