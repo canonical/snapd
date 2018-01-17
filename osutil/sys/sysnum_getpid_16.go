@@ -22,7 +22,7 @@ package sys
 
 import "syscall"
 
-// these are the contsants for where getuid et al are 16-bit versions
+// these are the constants for where getuid et al are 16-bit versions
 // (and so the 32 bit version is called getuid32 etc)
 
 const (
