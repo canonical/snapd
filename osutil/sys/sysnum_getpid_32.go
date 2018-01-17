@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build arm64 amd64 ppc64le s390x
+// +build arm64 amd64 ppc64le s390x ppc
 
 /*
  * Copyright (C) 2017 Canonical Ltd
@@ -21,6 +21,8 @@
 package sys
 
 import "syscall"
+
+// these are the contsants for where getuid et al are already 32-bit
 
 const (
 	_SYS_GETUID  = syscall.SYS_GETUID

@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build arm 386 ppc
+// +build arm 386
 
 /*
  * Copyright (C) 2017 Canonical Ltd
@@ -21,6 +21,9 @@
 package sys
 
 import "syscall"
+
+// these are the contsants for where getuid et al are 16-bit versions
+// (and so the 32 bit version is called getuid32 etc)
 
 const (
 	_SYS_GETUID  = syscall.SYS_GETUID32
