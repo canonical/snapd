@@ -179,7 +179,6 @@ accept
 accept4
 bind
 listen
-shutdown
 # libgudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
@@ -1203,7 +1202,7 @@ func (iface *modemManagerInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *modemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *modemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	spec.AddSnippet(strings.Replace(modemManagerConnectedPlugAppArmor, old, new, -1))
@@ -1214,7 +1213,7 @@ func (iface *modemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	return nil
 }
 
-func (iface *modemManagerInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *modemManagerInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(modemManagerConnectedPlugDBus)
 	return nil
 }
@@ -1235,7 +1234,7 @@ func (iface *modemManagerInterface) UDevPermanentSlot(spec *udev.Specification, 
 	return nil
 }
 
-func (iface *modemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *modemManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(modemManagerConnectedSlotAppArmor, old, new, -1)

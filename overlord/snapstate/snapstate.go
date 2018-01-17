@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"sort"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -37,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // control flags for doInstall
@@ -61,6 +59,10 @@ func needsMaybeCore(typ snap.Type) int {
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
+	if snapst.IsInstalled() && !snapst.Active {
+		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.Name())
+	}
+
 	if snapsup.Flags.Classic {
 		if !release.OnClassic {
 			return nil, fmt.Errorf("classic confinement is only supported on classic systems")
@@ -129,7 +131,15 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = mount
 	}
 
-	if snapst.Active {
+	// run refresh hooks when updating existing snap, otherwise run install hook further down.
+	runRefreshHooks := (snapst.IsInstalled() && !snapsup.Flags.Revert)
+	if runRefreshHooks {
+		preRefreshHook := SetupPreRefreshHook(st, snapsup.Name())
+		addTask(preRefreshHook)
+		prev = preRefreshHook
+	}
+
+	if snapst.IsInstalled() {
 		// unlink-current-snap (will stop services for copy-data)
 		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), snapsup.Name()))
 		addTask(stop)
@@ -178,11 +188,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupAliases)
 	prev = setupAliases
 
-	// run refresh hook when updating existing snap, otherwise run install hook
-	if snapst.IsInstalled() && !snapsup.Flags.Revert {
-		refreshHook := SetupPostRefreshHook(st, snapsup.Name())
-		addTask(refreshHook)
-		prev = refreshHook
+	if runRefreshHooks {
+		postRefreshHook := SetupPostRefreshHook(st, snapsup.Name())
+		addTask(postRefreshHook)
+		prev = postRefreshHook
 	}
 
 	// only run install hook if installing the snap for the first time
@@ -284,6 +293,10 @@ var Configure = func(st *state.State, snapName string, patch map[string]interfac
 
 var SetupInstallHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupInstallHook is unset")
+}
+
+var SetupPreRefreshHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.SetupPreRefreshHook is unset")
 }
 
 var SetupPostRefreshHook = func(st *state.State, snapName string) *state.Task {
@@ -547,78 +560,6 @@ func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, err
 	return updates, err
 }
 
-func refreshCandidates(st *state.State, names []string, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
-	snapStates, err := All(st)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	sort.Strings(names)
-
-	stateByID := make(map[string]*SnapState, len(snapStates))
-	candidatesInfo := make([]*store.RefreshCandidate, 0, len(snapStates))
-	ignoreValidation := make(map[string]bool)
-	for _, snapst := range snapStates {
-		if len(names) == 0 && (snapst.TryMode || snapst.DevMode) {
-			// no auto-refresh for trymode nor devmode
-			continue
-		}
-
-		// FIXME: snaps that are not active are skipped for now
-		//        until we know what we want to do
-		if !snapst.Active {
-			continue
-		}
-
-		snapInfo, err := snapst.CurrentInfo()
-		if err != nil {
-			// log something maybe?
-			continue
-		}
-
-		if snapInfo.SnapID == "" {
-			// no refresh for sideloaded
-			continue
-		}
-
-		if len(names) > 0 && !strutil.SortedListContains(names, snapInfo.Name()) {
-			continue
-		}
-
-		stateByID[snapInfo.SnapID] = snapst
-
-		// get confinement preference from the snapstate
-		candidateInfo := &store.RefreshCandidate{
-			// the desired channel (not info.Channel!)
-			Channel:          snapst.Channel,
-			SnapID:           snapInfo.SnapID,
-			Revision:         snapInfo.Revision,
-			Epoch:            snapInfo.Epoch,
-			IgnoreValidation: snapst.IgnoreValidation,
-		}
-
-		if len(names) == 0 {
-			candidateInfo.Block = snapst.Block()
-		}
-
-		candidatesInfo = append(candidatesInfo, candidateInfo)
-		if snapst.IgnoreValidation {
-			ignoreValidation[snapInfo.SnapID] = true
-		}
-	}
-
-	theStore := Store(st)
-
-	st.Unlock()
-	updates, err := theStore.ListRefresh(candidatesInfo, user, flags)
-	st.Lock()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	return updates, stateByID, ignoreValidation, nil
-}
-
 // ValidateRefreshes allows to hook validation into the handling of refresh candidates.
 var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int) (validated []*snap.Info, err error)
 
@@ -709,9 +650,14 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			return nil, nil, err
 		}
 
+		snapUserID, err := userIDForSnap(st, snapst, userID)
+		if err != nil {
+			return nil, nil, err
+		}
+
 		snapsup := &SnapSetup{
 			Channel:      channel,
-			UserID:       userID,
+			UserID:       snapUserID,
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
@@ -1018,7 +964,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return snapInfo(st, name, channel, revision, userID)
+		return updateToRevisionInfo(st, snapst, channel, revision, userID)
 	}
 
 	// refresh-to-local
@@ -1072,20 +1018,20 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	prepareSnap.Set("snap-setup", &snapsup)
 
 	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles"), snapsup.Name(), snapst.Current))
-	setupProfiles.Set("snap-setup", &snapsup)
+	setupProfiles.Set("snap-setup-task", prepareSnap.ID())
 	setupProfiles.WaitFor(prepareSnap)
 
 	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system"), snapsup.Name(), snapst.Current))
-	linkSnap.Set("snap-setup", &snapsup)
+	linkSnap.Set("snap-setup-task", prepareSnap.ID())
 	linkSnap.WaitFor(setupProfiles)
 
 	// setup aliases
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.Name()))
-	setupAliases.Set("snap-setup", &snapsup)
+	setupAliases.Set("snap-setup-task", prepareSnap.ID())
 	setupAliases.WaitFor(linkSnap)
 
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q (%s) services"), snapsup.Name(), snapst.Current))
-	startSnapServices.Set("snap-setup", &snapsup)
+	startSnapServices.Set("snap-setup-task", prepareSnap.ID())
 	startSnapServices.WaitFor(setupAliases)
 
 	return state.NewTaskSet(prepareSnap, setupProfiles, linkSnap, setupAliases, startSnapServices), nil

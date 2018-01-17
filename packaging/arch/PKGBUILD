@@ -5,7 +5,7 @@
 
 pkgbase=snapd
 pkgname=snapd-git
-pkgver=2.29.r222.gc6d068254
+pkgver=2.30
 pkgrel=1
 arch=('i686' 'x86_64')
 url="https://github.com/snapcore/snapd"
@@ -20,6 +20,7 @@ md5sums=('SKIP')
 
 pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd')
+optdepends=('bash-completion: bash completion support')
 provides=($pkgbase)
 # Community package is split into snapd and snap-confine, make sure we replace
 # both bits
@@ -96,6 +97,9 @@ build() {
     --enable-nvidia-biarch \
     --enable-merged-usr
   make $MAKEFLAGS
+
+  # generate man-pages for snap
+  $GOPATH/bin/snap help --man > "$srcdir/snap.1"
 }
 
 check() {
@@ -195,4 +199,17 @@ package_snapd-git() {
   install -d -m 755 "$pkgdir/var/lib/snapd/seccomp/bpf"
   install -d -m 755 "$pkgdir/var/lib/snapd/snap/bin"
   install -d -m 755 "$pkgdir/var/lib/snapd/snaps"
+  install -d -m 755 "$pkgdir/var/lib/snapd/lib/gl"
+  # these dirs have special permissions
+  install -d -m 000 "$pkgdir/var/lib/snapd/void"
+  install -d -m 700 "$pkgdir/var/lib/snapd/cookie"
+  install -d -m 700 "$pkgdir/var/lib/snapd/cache"
+
+  # Install snap(1) man page
+  install -m 644 -D "$srcdir/snap.1" \
+          "$pkgdir/usr/share/man/man1/snap.1"
+
+  # Install the "info" data file with snapd version
+  install -m 644 -D "$GOPATH/src/${_gourl}/data/info" \
+          "$pkgdir/usr/lib/snapd/info"
 }

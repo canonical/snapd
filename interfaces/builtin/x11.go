@@ -34,7 +34,7 @@ const x11ConnectedPlugAppArmor = `
 
 #include <abstractions/X>
 #include <abstractions/fonts>
-
+owner @{HOME}/.local/share/fonts/{,**} r,
 /var/cache/fontconfig/   r,
 /var/cache/fontconfig/** mr,
 
@@ -54,8 +54,6 @@ network netlink raw,
 const x11ConnectedPlugSecComp = `
 # Description: Can access the X server. Restricted because X does not prevent
 # eavesdropping or apps interfering with one another.
-
-shutdown
 
 # Needed by QtSystems on X to detect mouse and keyboard
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT

@@ -188,17 +188,17 @@ plugs:
   plug:
     interface: iface
 `, nil)
-	plug := &Plug{PlugInfo: info.Plugs["plug"]}
-	c.Assert(plug.Sanitize(&ifacetest.TestInterface{
+	plug := info.Plugs["plug"]
+	c.Assert(BeforePreparePlug(&ifacetest.TestInterface{
 		InterfaceName: "iface",
-	}), IsNil)
-	c.Assert(plug.Sanitize(&ifacetest.TestInterface{
-		InterfaceName:        "iface",
-		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("broken") },
-	}), ErrorMatches, "broken")
-	c.Assert(plug.Sanitize(&ifacetest.TestInterface{
+	}, plug), IsNil)
+	c.Assert(BeforePreparePlug(&ifacetest.TestInterface{
+		InterfaceName:             "iface",
+		BeforePreparePlugCallback: func(plug *snap.PlugInfo) error { return fmt.Errorf("broken") },
+	}, plug), ErrorMatches, "broken")
+	c.Assert(BeforePreparePlug(&ifacetest.TestInterface{
 		InterfaceName: "other",
-	}), ErrorMatches, `cannot sanitize plug "snap:plug" \(interface "iface"\) using interface "other"`)
+	}, plug), ErrorMatches, `cannot sanitize plug "snap:plug" \(interface "iface"\) using interface "other"`)
 }
 
 func (s *CoreSuite) TestSanitizeSlot(c *C) {
@@ -208,15 +208,15 @@ slots:
   slot:
     interface: iface
 `, nil)
-	slot := &Slot{SlotInfo: info.Slots["slot"]}
-	c.Assert(slot.Sanitize(&ifacetest.TestInterface{
+	slot := info.Slots["slot"]
+	c.Assert(BeforePrepareSlot(&ifacetest.TestInterface{
 		InterfaceName: "iface",
-	}), IsNil)
-	c.Assert(slot.Sanitize(&ifacetest.TestInterface{
-		InterfaceName:        "iface",
-		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("broken") },
-	}), ErrorMatches, "broken")
-	c.Assert(slot.Sanitize(&ifacetest.TestInterface{
+	}, slot), IsNil)
+	c.Assert(BeforePrepareSlot(&ifacetest.TestInterface{
+		InterfaceName:             "iface",
+		BeforePrepareSlotCallback: func(slot *snap.SlotInfo) error { return fmt.Errorf("broken") },
+	}, slot), ErrorMatches, "broken")
+	c.Assert(BeforePrepareSlot(&ifacetest.TestInterface{
 		InterfaceName: "other",
-	}), ErrorMatches, `cannot sanitize slot "snap:slot" \(interface "iface"\) using interface "other"`)
+	}, slot), ErrorMatches, `cannot sanitize slot "snap:slot" \(interface "iface"\) using interface "other"`)
 }

@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -58,15 +59,30 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 
 	s.store = &autoRefreshStore{}
+
 	s.state.Lock()
+	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.store)
-	s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
+		},
+		Current:  snap.R(5),
+		SnapType: "app",
+		UserID:   1,
+	})
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
 }
 
 func (s *autoRefreshTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
+	snapstate.AutoAliases = nil
 }
 
 func (s *autoRefreshTestSuite) TestLastRefresh(c *C) {
@@ -83,13 +99,22 @@ func (s *autoRefreshTestSuite) TestLastRefresh(c *C) {
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
-	snapstate.RefreshScheduleManaged = func(st *state.State) bool {
+	snapstate.CanManageRefreshes = func(st *state.State) bool {
 		return true
 	}
-	defer func() { snapstate.RefreshScheduleManaged = nil }()
+	defer func() { snapstate.CanManageRefreshes = nil }()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.schedule", "managed")
+	tr.Commit()
 
 	af := snapstate.NewAutoRefresh(s.state)
+	s.state.Unlock()
 	err := af.Ensure()
+	s.state.Lock()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 0)
 
