@@ -62,6 +62,7 @@ func (s *packSuite) SetUpTest(c *C) {
 
 func makeExampleSnapSourceDir(c *C, snapYamlContent string) string {
 	tempdir := c.MkDir()
+	c.Assert(os.Chmod(tempdir, 0755), IsNil)
 
 	// use meta/snap.yaml
 	metaDir := filepath.Join(tempdir, "meta")
@@ -104,10 +105,21 @@ printf "hello world"
 }
 
 func (s *packSuite) TestPackNoManifestFails(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, "")
+	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
 	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "snap.yaml")), IsNil)
 	_, err := pack.Snap(sourceDir, "")
-	c.Assert(err, NotNil) // XXX maybe make the error more explicit
+	c.Assert(err, ErrorMatches, ".* no such file or directory") // XXX maybe make the error more explicit
+}
+
+func (s *packSuite) TestPackMissingAppFails(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+apps:
+ foo:
+  command: bin/hello-world
+`)
+	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
+	_, err := pack.Snap(sourceDir, "")
+	c.Assert(err, Equals, snap.ErrMissingPaths)
 }
 
 func (s *packSuite) TestCopyCopies(c *C) {
