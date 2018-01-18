@@ -312,6 +312,9 @@ RemainAfterExit={{.Remain}}
 {{- if .App.BusName}}
 BusName={{.App.BusName}}
 {{- end}}
+{{- if .App.WatchdogTimeout}}
+WatchdogSec={{.App.WatchdogTimeout}}
+{{- end}}
 {{- if not .App.Sockets}}
 
 [Install]
