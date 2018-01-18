@@ -95,7 +95,6 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 				var err error
 				if flags&createSymlinks == createSymlinks {
 					err = secureMkdirAll(path, mode, uid, gid)
-					err = secureMkdirAll(path, mode, uid, gid)
 					if err == nil {
 						// Normally symlinks would be created
 						// later but calling c.lowLevelPerform
