@@ -100,7 +100,7 @@ func Open(path string) (Container, error) {
 
 var (
 	// ErrBadModes is returned by ValidateContainer when the container has files with the wrong file modes for their role
-	ErrBadModes = errors.New("snap is unusable due to bad permissions; contact develper")
+	ErrBadModes = errors.New("snap is unusable due to bad permissions; contact developer")
 	// ErrMissingPaths is returned by ValidateContainer when the container is missing required files or directories
 	ErrMissingPaths = errors.New("snap is unusable due to missing files; contact developer")
 )
