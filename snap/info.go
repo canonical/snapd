@@ -512,6 +512,8 @@ type AppInfo struct {
 	// before
 	After  []string
 	Before []string
+
+	WatchdogTimeout uint
 }
 
 // ScreenshotInfo provides information about a screenshot.
