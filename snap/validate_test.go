@@ -533,8 +533,8 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `cannot accept user "foo" for "/foo/bar"`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo/bar", Type: "tmpfs", Group: "foo"}),
 		ErrorMatches, `cannot accept group "foo" for "/foo/bar"`)
-	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "tmpfs", Mode: 01755}),
-		ErrorMatches, `cannot accept mode 01755 for "/foo"`)
+	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "tmpfs", Mode: 02755}),
+		ErrorMatches, `cannot accept mode 02755 for "/foo"`)
 	c.Check(ValidateLayout(&Layout{Path: "$FOO", Type: "tmpfs"}),
 		ErrorMatches, `cannot accept layout of "\$FOO": reference to unknown variable "\$FOO"`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Bind: "$BAR"}),
@@ -542,6 +542,7 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Symlink: "$BAR"}),
 		ErrorMatches, `cannot accept layout of "/foo": reference to unknown variable "\$BAR"`)
 	// Several valid layouts.
+	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "tmpfs", Mode: 01755}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "/tmp", Type: "tmpfs"}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "/usr", Bind: "$SNAP/usr"}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "/var", Bind: "$SNAP_DATA/var"}), IsNil)
