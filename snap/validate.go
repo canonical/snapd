@@ -471,7 +471,7 @@ func ValidateLayout(li *Layout) error {
 	if li.User != "" && li.User != "root" && li.User != "nobody" {
 		return fmt.Errorf("cannot accept user %q for %q", li.User, li.Path)
 	}
-	if li.Group != "" && li.Group != "root" && li.Group != "nobody" {
+	if li.Group != "" && li.Group != "root" && li.Group != "nogroup" {
 		return fmt.Errorf("cannot accept group %q for %q", li.Group, li.Path)
 	}
 	// "at most" 0777 permissions are allowed.
