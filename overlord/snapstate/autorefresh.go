@@ -204,7 +204,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	var msg string
 	switch len(updated) {
 	case 0:
-		logger.Noticef(i18n.G("No snaps to auto-refresh found"))
+		logger.Noticef(i18n.G("auto-refresh: all snaps are up-to-date"))
 		return nil
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
