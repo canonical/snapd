@@ -226,7 +226,6 @@ Provides:      bundled(golang(github.com/gorilla/mux))
 Provides:      bundled(golang(github.com/jessevdk/go-flags))
 Provides:      bundled(golang(github.com/mvo5/goconfigparser))
 Provides:      bundled(golang(github.com/mvo5/libseccomp-golang))
-Provides:      bundled(golang(github.com/mvo5/uboot-go/uenv))
 Provides:      bundled(golang(github.com/ojii/gettext.go))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/armor))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/packet))
@@ -333,6 +332,11 @@ building other packages which use import path with
 %if 0%{?with_unit_test} && 0%{?with_devel}
 %package unit-test-devel
 Summary:         Unit tests for %{name} package
+
+%if 0%{?with_check}
+#Here comes all BuildRequires: PACKAGE the unit tests
+#in %%check section need for running
+%endif
 
 # test subpackage tests code from devel subpackage
 Requires:        %{name}-devel = %{version}-%{release}
