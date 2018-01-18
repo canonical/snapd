@@ -61,6 +61,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	if err != nil {
 		return fmt.Errorf("cannot obtain mount security snippets for snap %q: %s", snapName, err)
 	}
+	if err = spec.(*Specification).AddSnapLayout(snapInfo); err != nil {
+		return fmt.Errorf("cannot use layout of snap %q: %s", snapName, err)
+	}
 	content := deriveContent(spec.(*Specification), snapInfo)
 	// synchronize the content with the filesystem
 	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
@@ -92,13 +95,14 @@ func (b *Backend) Remove(snapName string) error {
 // deriveContent computes .fstab tables based on requests made to the specification.
 func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.FileState {
 	// No entries? Nothing to do!
-	if len(spec.mountEntries) == 0 {
+	entries := spec.MountEntries()
+	if len(entries) == 0 {
 		return nil
 	}
 	// Compute the contents of the fstab file. It should contain all the mount
 	// rules collected by the backend controller.
 	var buffer bytes.Buffer
-	for _, entry := range spec.mountEntries {
+	for _, entry := range entries {
 		fmt.Fprintf(&buffer, "%s\n", entry)
 	}
 	fstate := &osutil.FileState{Content: buffer.Bytes(), Mode: 0644}

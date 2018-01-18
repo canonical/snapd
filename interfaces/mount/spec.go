@@ -20,7 +20,14 @@
 package mount
 
 import (
+	"fmt"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -30,7 +37,8 @@ import (
 // holds internal state that is used by the mount backend during the interface
 // setup process.
 type Specification struct {
-	mountEntries []Entry
+	layoutMountEntries []Entry
+	mountEntries       []Entry
 }
 
 // AddMountEntry adds a new mount entry.
@@ -39,10 +47,93 @@ func (spec *Specification) AddMountEntry(e Entry) error {
 	return nil
 }
 
+// resolveSpecialVariable resolves one of the three $SNAP* variables at the
+// beginning of a given path.  The variables are $SNAP, $SNAP_DATA and
+// $SNAP_COMMON. If there are no variables then $SNAP is implicitly assumed
+// (this is the behavior that was used before the variables were supporter).
+func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
+	if strings.HasPrefix(path, "$SNAP/") || path == "$SNAP" {
+		// NOTE: We use dirs.CoreSnapMountDir here as the path used will be always
+		// inside the mount namespace snap-confine creates and there we will
+		// always have a /snap directory available regardless if the system
+		// we're running on supports this or not.
+		return strings.Replace(path, "$SNAP", filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String()), 1)
+	}
+	if strings.HasPrefix(path, "$SNAP_DATA/") || path == "$SNAP_DATA" {
+		return strings.Replace(path, "$SNAP_DATA", snapInfo.DataDir(), 1)
+	}
+	if strings.HasPrefix(path, "$SNAP_COMMON/") || path == "$SNAP_COMMON" {
+		return strings.Replace(path, "$SNAP_COMMON", snapInfo.CommonDataDir(), 1)
+	}
+	return path
+}
+
+func mountEntryFromLayout(layout *snap.Layout) (Entry, error) {
+	entry := Entry{Dir: resolveSpecialVariable(layout.Path, layout.Snap)}
+	switch {
+	case layout.Bind != "":
+		// XXX: what about ro mounts?
+		// XXX: what about file mounts, those need x-snapd.kind=file to create correctly?
+		entry.Options = []string{"bind", "rw"}
+		entry.Name = resolveSpecialVariable(layout.Bind, layout.Snap)
+	case layout.Type == "tmpfs":
+		entry.Type = "tmpfs"
+		entry.Name = "tmpfs"
+	case layout.Symlink != "":
+		entry.Options = []string{"x-snapd.kind=symlink",
+			fmt.Sprintf("x-snapd.symlink=%s", resolveSpecialVariable(layout.Symlink, layout.Snap)),
+		}
+	}
+	if layout.User != "" {
+		uid, err := osutil.FindUid(layout.User)
+		if err != nil {
+			return entry, err
+		}
+		if uid != 0 {
+			entry.Options = append(entry.Options, fmt.Sprintf("x-snapd.user=%d", uid))
+		}
+	}
+	if layout.Group != "" {
+		gid, err := osutil.FindGid(layout.Group)
+		if err != nil {
+			return entry, err
+		}
+		if gid != 0 {
+			entry.Options = append(entry.Options, fmt.Sprintf("x-snapd.group=%d", gid))
+		}
+	}
+	if layout.Mode != 0755 {
+		entry.Options = append(entry.Options, fmt.Sprintf("x-snapd.mode=%#o", uint32(layout.Mode)))
+	}
+	return entry, nil
+}
+
+// AddSnapLayout adds mount entries based on the layout of the snap.
+func (spec *Specification) AddSnapLayout(si *snap.Info) error {
+	// TODO: handle layouts in base snaps as well as in this snap.
+
+	// walk the layout elements in deterministic order, by mount point name
+	paths := make([]string, 0, len(si.Layout))
+	for path := range si.Layout {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+
+	for _, path := range paths {
+		entry, err := mountEntryFromLayout(si.Layout[path])
+		if err != nil {
+			return err
+		}
+		spec.layoutMountEntries = append(spec.layoutMountEntries, entry)
+	}
+	return nil
+}
+
 // MountEntries returns a copy of the added mount entries.
 func (spec *Specification) MountEntries() []Entry {
-	result := make([]Entry, len(spec.mountEntries))
-	copy(result, spec.mountEntries)
+	result := make([]Entry, 0, len(spec.layoutMountEntries)+len(spec.mountEntries))
+	result = append(result, spec.layoutMountEntries...)
+	result = append(result, spec.mountEntries...)
 	return result
 }
 
