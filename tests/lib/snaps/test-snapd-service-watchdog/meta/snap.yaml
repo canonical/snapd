@@ -1,0 +1,23 @@
+name: test-snapd-service-watchdog
+version: 1.0
+apps:
+  helper-watchdog-ok:
+    command: bin/with-helper
+    daemon: simple
+    watchdog: 5
+    restart-condition: never
+  helper-watchdog-bad:
+    command: bin/with-helper --bad
+    daemon: simple
+    watchdog: 5
+    restart-condition: never
+  direct-watchdog-ok:
+    command: bin/direct
+    daemon: simple
+    watchdog: 5
+    restart-condition: never
+  direct-watchdog-bad:
+    command: bin/direct --bad
+    daemon: simple
+    watchdog: 5
+    restart-condition: never

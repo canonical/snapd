@@ -1,0 +1,31 @@
+#!/bin/bash
+
+if [ -z "$NOTIFY_SOCKET" ]; then
+    echo "error: NOTIFY_SOCKET is not set"
+    exit
+fi
+
+if [ -z "$WATCHDOG_USEC" ]; then
+    echo "error: WATCHDOG_USEC is not set"
+    exit
+fi
+
+notify="systemd-notify MAINPID=$$"
+
+watchdog_timeout=$((${WATCHDOG_USEC} / 1000000))
+
+echo "-- notify socket $NOTIFY_SOCKET"
+echo "-- watchdog timeout ${watchdog_timeout}s"
+
+sleep_time=$((${watchdog_timeout} / 2))
+if [[ "$1" == "--bad" ]]; then
+    sleep_time=$((${watchdog_timeout} * 2))
+fi
+
+echo "-- watchdog notification every ${sleep_time}s"
+
+while true; do
+    echo "watchdog kick"
+    $notify "WATCHDOG=1"
+    sleep $sleep_time
+done
