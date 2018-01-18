@@ -351,6 +351,13 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 	return nil
 }
 
+func validateAppWatchdog(app *AppInfo) error {
+	if app.WatchdogTimeout != 0 && !app.IsService() {
+		return fmt.Errorf("cannot use watchdog, application %q is not a service", app.Name)
+	}
+	return nil
+}
+
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused.
@@ -404,6 +411,10 @@ func ValidateApp(app *AppInfo) error {
 		return err
 	}
 	if err := validateAppOrderNames(app, app.After); err != nil {
+		return err
+	}
+
+	if err := validateAppWatchdog(app); err != nil {
 		return err
 	}
 
