@@ -2,4 +2,4 @@
 
 cat /sys/class/misc/hw_random/rng_available
 cat /sys/class/misc/hw_random/rng_current
-[ -c /dev/hwrng ] && [ -w /dev/hwrng ]
+[ -c /dev/hwrng ] && [ -r /dev/hwrng ]
