@@ -80,6 +80,9 @@ backends:
                 manual: true
             - fedora-26-64:
                 workers: 3
+                manual: true
+            - fedora-27-64:
+                workers: 3
             - opensuse-42.2-64:
                 workers: 3
     qemu:
@@ -125,6 +128,9 @@ backends:
                 username: fedora
                 password: fedora
             - fedora-26-64:
+                username: fedora
+                password: fedora
+            - fedora-27-64:
                 username: fedora
                 password: fedora
     autopkgtest:
