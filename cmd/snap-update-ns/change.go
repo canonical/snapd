@@ -86,13 +86,13 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 		const createSymlinks tryCreateFlag = 1
 
 		tryCreate := func(flags tryCreateFlag) error {
+			var err error
 			switch kind {
 			case "":
-				return secureMkdirAll(path, mode, uid, gid)
+				err = secureMkdirAll(path, mode, uid, gid)
 			case "file":
-				return secureMkfileAll(path, mode, uid, gid)
+				err = secureMkfileAll(path, mode, uid, gid)
 			case "symlink":
-				var err error
 				if flags&createSymlinks == createSymlinks {
 					err = secureMkdirAll(path, mode, uid, gid)
 					if err == nil {
@@ -104,9 +104,8 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 						err = c.lowLevelPerform()
 					}
 				}
-				return err
 			}
-			return nil
+			return err
 		}
 
 		if err != nil && os.IsNotExist(err) {
