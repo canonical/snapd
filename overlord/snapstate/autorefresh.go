@@ -173,34 +173,41 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 	}
 
 	tr := config.NewTransaction(m.state)
+
+	// try the new refresh.timer config option first
 	err = tr.Get("core", "refresh.timer", &scheduleAsStr)
 	if err != nil && !config.IsNoOption(err) {
 		return nil, "", err
 	}
-	if scheduleAsStr == "" {
-		// try legacy refresh schedule config option
+	if scheduleAsStr != "" {
+		ts, err = timeutil.ParseSchedule(scheduleAsStr)
+		if err == nil {
+			return ts, scheduleAsStr, nil
+		}
+		logger.Noticef("cannot use refresh.timer configuration: %s", err)
+	}
+
+	if err == nil {
+		// fallback to legacy refresh.schedule setting when the new
+		// config option is not set, but do not mask the error if
+		// refresh.timer could not be parsed
+
 		err = tr.Get("core", "refresh.schedule", &scheduleAsStr)
 		if err != nil && !config.IsNoOption(err) {
 			return nil, "", err
 		}
 		if scheduleAsStr != "" {
 			ts, err = timeutil.ParseLegacySchedule(scheduleAsStr)
-			if err != nil {
-				logger.Noticef("cannot use refresh.schedule configuration: %s", err)
+			if err == nil {
+				return ts, scheduleAsStr, nil
 			}
-		}
-	} else {
-		ts, err = timeutil.ParseSchedule(scheduleAsStr)
-		if err != nil {
-			logger.Noticef("cannot use refresh.timer configuration: %s", err)
+			logger.Noticef("cannot use refresh.schedule configuration: %s", err)
 		}
 	}
 
-	if err != nil || ts == nil {
-		// neither refresh.timer nor refresh.schedule could be used, try
-		// the default instead
-		ts, scheduleAsStr = refreshScheduleDefault()
-	}
+	// neither refresh.timer nor refresh.schedule could be used, try
+	// the default instead
+	ts, scheduleAsStr = refreshScheduleDefault()
 
 	return ts, scheduleAsStr, nil
 }
