@@ -85,6 +85,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.fakeBackend = &fakeSnappyBackend{}
+	s.fakeBackend.emptyContainer = emptyContainer(c)
 	s.fakeStore = &fakeStore{
 		fakeCurrentProgress: 75,
 		fakeTotalProgress:   100,
@@ -6066,14 +6067,16 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 	defer s.state.Unlock()
 
 	// make mock try dir
-	tryYaml := filepath.Join(c.MkDir(), "meta", "snap.yaml")
+	d := c.MkDir()
+	c.Assert(os.Chmod(d, 0755), IsNil)
+	tryYaml := filepath.Join(d, "meta", "snap.yaml")
 	err := os.MkdirAll(filepath.Dir(tryYaml), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(tryYaml, []byte("name: foo\nversion: 1.0"), 0644)
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("try", "try snap")
-	ts, err := snapstate.TryPath(s.state, "foo", filepath.Dir(filepath.Dir(tryYaml)), flags)
+	ts, err := snapstate.TryPath(s.state, "foo", d, flags)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
