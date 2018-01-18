@@ -762,3 +762,46 @@ apps:
 		}
 	}
 }
+
+func (s *ValidateSuite) TestValidateAppWatchdog(c *C) {
+	meta := []byte(`
+name: foo
+version: 1.0
+`)
+	fooAllGood := []byte(`
+apps:
+  foo:
+    daemon: simple
+    watchdog: 12
+`)
+	fooNotADaemon := []byte(`
+apps:
+  foo:
+    watchdog: 12
+`)
+
+	tcs := []struct {
+		name string
+		desc []byte
+		err  string
+	}{{
+		name: "foo all good",
+		desc: fooAllGood,
+	}, {
+		name: "foo not a service",
+		desc: fooNotADaemon,
+		err:  `cannot use watchdog, application "foo" is not a service`,
+	}}
+	for _, tc := range tcs {
+		c.Logf("trying %q", tc.name)
+		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
+		c.Assert(err, IsNil)
+
+		err = Validate(info)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
