@@ -80,6 +80,8 @@ type appYaml struct {
 
 	After  []string `yaml:"after,omitempty"`
 	Before []string `yaml:"before,omitempty"`
+
+	WatchdogTimeout uint `yaml:"watchdog,omitempty"`
 }
 
 type hookYaml struct {
@@ -294,6 +296,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			Completer:       yApp.Completer,
 			Before:          yApp.Before,
 			After:           yApp.After,
+			WatchdogTimeout: yApp.WatchdogTimeout,
 		}
 		if len(y.Plugs) > 0 || len(yApp.PlugNames) > 0 {
 			app.Plugs = make(map[string]*PlugInfo)
