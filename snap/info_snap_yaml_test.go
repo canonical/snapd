@@ -1598,3 +1598,17 @@ apps:
 		},
 	})
 }
+
+func (s *YamlSuite) TestSnapYamlWatchdog(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    watchdog: 12
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	c.Check(info.Apps["foo"].WatchdogTimeout, Equals, uint(12))
+}
