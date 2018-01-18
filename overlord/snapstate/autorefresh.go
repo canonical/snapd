@@ -181,35 +181,29 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 	}
 	if scheduleAsStr != "" {
 		ts, err = timeutil.ParseSchedule(scheduleAsStr)
-		if err == nil {
-			return ts, scheduleAsStr, nil
+		if err != nil {
+			logger.Noticef("cannot use refresh.timer configuration: %s", err)
+			return refreshScheduleDefault()
 		}
-		logger.Noticef("cannot use refresh.timer configuration: %s", err)
+		return ts, scheduleAsStr, nil
 	}
 
-	if err == nil {
-		// fallback to legacy refresh.schedule setting when the new
-		// config option is not set, but do not mask the error if
-		// refresh.timer could not be parsed
-
-		err = tr.Get("core", "refresh.schedule", &scheduleAsStr)
-		if err != nil && !config.IsNoOption(err) {
-			return nil, "", err
-		}
-		if scheduleAsStr != "" {
-			ts, err = timeutil.ParseLegacySchedule(scheduleAsStr)
-			if err == nil {
-				return ts, scheduleAsStr, nil
-			}
+	// fallback to legacy refresh.schedule setting when the new
+	// config option is not set
+	err = tr.Get("core", "refresh.schedule", &scheduleAsStr)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, "", err
+	}
+	if scheduleAsStr != "" {
+		ts, err = timeutil.ParseLegacySchedule(scheduleAsStr)
+		if err != nil {
 			logger.Noticef("cannot use refresh.schedule configuration: %s", err)
+			return refreshScheduleDefault()
 		}
+		return ts, scheduleAsStr, nil
 	}
 
-	// neither refresh.timer nor refresh.schedule could be used, try
-	// the default instead
-	ts, scheduleAsStr = refreshScheduleDefault()
-
-	return ts, scheduleAsStr, nil
+	return refreshScheduleDefault()
 }
 
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
@@ -250,13 +244,13 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	return nil
 }
 
-func refreshScheduleDefault() (ts []*timeutil.Schedule, scheduleStr string) {
+func refreshScheduleDefault() (ts []*timeutil.Schedule, scheduleStr string, err error) {
 	refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshSchedule)
 	if err != nil {
 		panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
 	}
 
-	return refreshSchedule, defaultRefreshSchedule
+	return refreshSchedule, defaultRefreshSchedule, nil
 }
 
 func autoRefreshInFlight(st *state.State) bool {
