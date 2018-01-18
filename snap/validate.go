@@ -474,8 +474,8 @@ func ValidateLayout(li *Layout) error {
 	if li.Group != "" && li.Group != "root" && li.Group != "nogroup" {
 		return fmt.Errorf("cannot accept group %q for %q", li.Group, li.Path)
 	}
-	// "at most" 0777 permissions are allowed.
-	if li.Mode&^os.FileMode(0777) != 0 {
+	// "at most" 01777 permissions are allowed.
+	if li.Mode&^os.FileMode(01777) != 0 {
 		return fmt.Errorf("cannot accept mode %#0o for %q", li.Mode, li.Path)
 	}
 	return nil
