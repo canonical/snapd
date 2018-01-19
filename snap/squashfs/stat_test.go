@@ -186,7 +186,7 @@ func (s *SquashfsTestSuite) TestStatSymlink(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(st, DeepEquals, &stat{
 		mode:  0777 | os.ModeSymlink,
-		path:  "/var/run -> /run", // XXX: symlinks are not very well supported
+		path:  "/var/run",
 		user:  "root",
 		group: "root",
 		size:  4,
