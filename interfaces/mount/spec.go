@@ -71,54 +71,27 @@ func isAbsAndClean(path string) bool {
 	return filepath.IsAbs(path) && filepath.Clean(path) == path
 }
 
-func mountEntryFromLayout(layout *snap.Layout) (Entry, error) {
+func mountEntryFromLayout(layout *snap.Layout) Entry {
 	var entry Entry
-	var nused int
-	if layout.Bind != "" {
-		nused += 1
-	}
-	if layout.Type != "" {
-		nused += 1
-	}
-	if layout.Symlink != "" {
-		nused += 1
-	}
-	if nused != 1 {
-		return entry, fmt.Errorf("layout must define a bind mount, a filesystem mount or a symlink")
-	}
 
 	mountPoint := resolveSpecialVariable(layout.Path, layout.Snap)
-	if !isAbsAndClean(mountPoint) {
-		return entry, fmt.Errorf("layout mount point %q must be absolute and clean", mountPoint)
-	}
 	entry.Dir = mountPoint
 
 	if layout.Bind != "" {
 		mountSource := resolveSpecialVariable(layout.Bind, layout.Snap)
-		if !isAbsAndClean(mountSource) {
-			return entry, fmt.Errorf("layout bind mount source %q must be absolute and clean", mountSource)
-		}
 		// XXX: what about ro mounts?
 		// XXX: what about file mounts, those need x-snapd.kind=file to create correctly?
 		entry.Options = []string{"bind", "rw"}
 		entry.Name = mountSource
 	}
 
-	switch layout.Type {
-	case "tmpfs":
+	if layout.Type == "tmpfs" {
 		entry.Type = "tmpfs"
 		entry.Name = "tmpfs"
-	case "":
-		// nothing to do
-	default:
-		return entry, fmt.Errorf("layouts cannot mount the %q filesystem", layout.Type)
 	}
 
 	if layout.Symlink != "" {
 		oldname := resolveSpecialVariable(layout.Symlink, layout.Snap)
-		if !isAbsAndClean(oldname) {
-			return entry, fmt.Errorf("layout symlink old name %q must be absolute and clean", oldname)
-		}
 		entry.Options = []string{"x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", oldname)}
 	}
 
@@ -130,8 +103,6 @@ func mountEntryFromLayout(layout *snap.Layout) (Entry, error) {
 		// The user "nobody" has a fixed value in the Ubuntu core snap.
 		// TODO: load this from an attribute in other bases or require the same ID.
 		uid = 65534
-	default:
-		return entry, fmt.Errorf("cannot use user %q in layout definition", layout.User)
 	}
 	if uid != 0 {
 		entry.Options = append(entry.Options, fmt.Sprintf("x-snapd.user=%d", uid))
@@ -145,8 +116,6 @@ func mountEntryFromLayout(layout *snap.Layout) (Entry, error) {
 		// The group nogroup (aliased as "nobody") has a fixed value in the Ubuntu core snap.
 		// TODO: load this from an attribute in other bases or require the same ID.
 		gid = 65534
-	default:
-		return entry, fmt.Errorf("cannot use group %q in layout definition", layout.Group)
 	}
 	if gid != 0 {
 		entry.Options = append(entry.Options, fmt.Sprintf("x-snapd.group=%d", gid))
@@ -155,11 +124,11 @@ func mountEntryFromLayout(layout *snap.Layout) (Entry, error) {
 	if layout.Mode != 0755 {
 		entry.Options = append(entry.Options, fmt.Sprintf("x-snapd.mode=%#o", uint32(layout.Mode)))
 	}
-	return entry, nil
+	return entry
 }
 
 // AddSnapLayout adds mount entries based on the layout of the snap.
-func (spec *Specification) AddSnapLayout(si *snap.Info) error {
+func (spec *Specification) AddSnapLayout(si *snap.Info) {
 	// TODO: handle layouts in base snaps as well as in this snap.
 
 	// walk the layout elements in deterministic order, by mount point name
@@ -170,13 +139,9 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) error {
 	sort.Strings(paths)
 
 	for _, path := range paths {
-		entry, err := mountEntryFromLayout(si.Layout[path])
-		if err != nil {
-			return err
-		}
+		entry := mountEntryFromLayout(si.Layout[path])
 		spec.layoutMountEntries = append(spec.layoutMountEntries, entry)
 	}
-	return nil
 }
 
 // MountEntries returns a copy of the added mount entries.

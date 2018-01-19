@@ -109,7 +109,7 @@ layout:
 
 func (s *specSuite) TestMountEntryFromLayout(c *C) {
 	snapInfo := snaptest.MockInfo(c, snapWithLayout, &snap.SideInfo{Revision: snap.R(42)})
-	c.Assert(s.spec.AddSnapLayout(snapInfo), IsNil)
+	s.spec.AddSnapLayout(snapInfo)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []mount.Entry{
 		{Dir: "/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/link/target"}},
 		{Name: "tmpfs", Dir: "/mytmp", Type: "tmpfs", Options: []string{"x-snapd.user=65534", "x-snapd.group=65534", "x-snapd.mode=01777"}},
