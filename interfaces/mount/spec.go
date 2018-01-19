@@ -67,6 +67,10 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	return path
 }
 
+func isAbsAndClean(path string) bool {
+	return filepath.IsAbs(path) && filepath.Clean(path) == path
+}
+
 func mountEntryFromLayout(layout *snap.Layout) (Entry, error) {
 	var entry Entry
 	var nused int
@@ -84,12 +88,16 @@ func mountEntryFromLayout(layout *snap.Layout) (Entry, error) {
 	}
 
 	mountPoint := resolveSpecialVariable(layout.Path, layout.Snap)
-	// TODO: mountPoint must be absolute and clean
+	if !isAbsAndClean(mountPoint) {
+		return entry, fmt.Errorf("layout mount point %q must be absolute and clean", mountPoint)
+	}
 	entry.Dir = mountPoint
 
 	if layout.Bind != "" {
 		mountSource := resolveSpecialVariable(layout.Bind, layout.Snap)
-		// TODO: mount source must be absolute and clean
+		if !isAbsAndClean(mountSource) {
+			return entry, fmt.Errorf("layout bind mount source %q must be absolute and clean", mountSource)
+		}
 		// XXX: what about ro mounts?
 		// XXX: what about file mounts, those need x-snapd.kind=file to create correctly?
 		entry.Options = []string{"bind", "rw"}
@@ -108,7 +116,9 @@ func mountEntryFromLayout(layout *snap.Layout) (Entry, error) {
 
 	if layout.Symlink != "" {
 		oldname := resolveSpecialVariable(layout.Symlink, layout.Snap)
-		// TODO: oldname must be absolute and clean
+		if !isAbsAndClean(oldname) {
+			return entry, fmt.Errorf("layout symlink old name %q must be absolute and clean", oldname)
+		}
 		entry.Options = []string{"x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", oldname)}
 	}
 
