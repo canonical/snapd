@@ -48,7 +48,7 @@ execute: |
     snap disconnect test-snapd-hardware-random-observe:hardware-random-observe
 
     echo "Then the snap is not able to read the hardware random information"
-    if ! test-snapd-hardware-random-observe.check 2>hw.error; then
+    if test-snapd-hardware-random-observe.check 2>hw.error; then
         echo "Expected permission error accessing hardware control information with disconnected plug"
         exit 1
     fi
