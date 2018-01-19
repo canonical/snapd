@@ -37,7 +37,7 @@ var (
 
 type attrConstraintsSuite struct{}
 
-func attrs(yml string) map[string]interface{} {
+func attrs(yml string) *snap.PlugInfo {
 	var attrs map[string]interface{}
 	err := yaml.Unmarshal([]byte(yml), &attrs)
 	if err != nil {
@@ -56,7 +56,7 @@ func attrs(yml string) map[string]interface{} {
 	if err != nil {
 		panic(err)
 	}
-	return info.Plugs["plug"].Attrs
+	return info.Plugs["plug"]
 }
 
 func (s *attrConstraintsSuite) TestSimple(c *C) {
@@ -68,24 +68,27 @@ func (s *attrConstraintsSuite) TestSimple(c *C) {
 	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
 	c.Assert(err, IsNil)
 
-	err = cstrs.Check(map[string]interface{}{
+	plug := &snap.PlugInfo{Attrs: map[string]interface{}{
 		"foo": "FOO",
 		"bar": "BAR",
 		"baz": "BAZ",
-	}, nil)
+	}, Snap: &snap.Info{}}
+	err = cstrs.Check(plug, nil)
 	c.Check(err, IsNil)
 
-	err = cstrs.Check(map[string]interface{}{
+	plug = &snap.PlugInfo{Attrs: map[string]interface{}{
 		"foo": "FOO",
 		"bar": "BAZ",
 		"baz": "BAZ",
-	}, nil)
+	}, Snap: &snap.Info{}}
+	err = cstrs.Check(plug, nil)
 	c.Check(err, ErrorMatches, `attribute "bar" value "BAZ" does not match \^\(BAR\)\$`)
 
-	err = cstrs.Check(map[string]interface{}{
+	plug = &snap.PlugInfo{Attrs: map[string]interface{}{
 		"foo": "FOO",
 		"baz": "BAZ",
-	}, nil)
+	}, Snap: &snap.Info{}}
+	err = cstrs.Check(plug, nil)
 	c.Check(err, ErrorMatches, `attribute "bar" has constraints but is unset`)
 }
 
@@ -97,29 +100,34 @@ func (s *attrConstraintsSuite) TestSimpleAnchorsVsRegexpAlt(c *C) {
 	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
 	c.Assert(err, IsNil)
 
-	err = cstrs.Check(map[string]interface{}{
+	plug := &snap.PlugInfo{Attrs: map[string]interface{}{
 		"bar": "BAR",
-	}, nil)
+	}, Snap: &snap.Info{}}
+	err = cstrs.Check(plug, nil)
 	c.Check(err, IsNil)
 
-	err = cstrs.Check(map[string]interface{}{
+	plug = &snap.PlugInfo{Attrs: map[string]interface{}{
 		"bar": "BARR",
-	}, nil)
+	}, Snap: &snap.Info{}}
+	err = cstrs.Check(plug, nil)
 	c.Check(err, ErrorMatches, `attribute "bar" value "BARR" does not match \^\(BAR|BAZ\)\$`)
 
-	err = cstrs.Check(map[string]interface{}{
+	plug = &snap.PlugInfo{Attrs: map[string]interface{}{
 		"bar": "BBAZ",
-	}, nil)
+	}, Snap: &snap.Info{}}
+	err = cstrs.Check(plug, nil)
 	c.Check(err, ErrorMatches, `attribute "bar" value "BAZZ" does not match \^\(BAR|BAZ\)\$`)
 
-	err = cstrs.Check(map[string]interface{}{
+	plug = &snap.PlugInfo{Attrs: map[string]interface{}{
 		"bar": "BABAZ",
-	}, nil)
+	}, Snap: &snap.Info{}}
+	err = cstrs.Check(plug, nil)
 	c.Check(err, ErrorMatches, `attribute "bar" value "BABAZ" does not match \^\(BAR|BAZ\)\$`)
 
-	err = cstrs.Check(map[string]interface{}{
+	plug = &snap.PlugInfo{Attrs: map[string]interface{}{
 		"bar": "BARAZ",
-	}, nil)
+	}, Snap: &snap.Info{}}
+	err = cstrs.Check(plug, nil)
 	c.Check(err, ErrorMatches, `attribute "bar" value "BARAZ" does not match \^\(BAR|BAZ\)\$`)
 }
 
@@ -186,25 +194,28 @@ func (s *attrConstraintsSuite) TestAlternative(c *C) {
 	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].([]interface{}))
 	c.Assert(err, IsNil)
 
-	err = cstrs.Check(map[string]interface{}{
+	plug := &snap.PlugInfo{Attrs: map[string]interface{}{
 		"foo": "FOO",
 		"bar": "BAR",
 		"baz": "BAZ",
-	}, nil)
+	}, Snap: &snap.Info{}}
+	err = cstrs.Check(plug, nil)
 	c.Check(err, IsNil)
 
-	err = cstrs.Check(map[string]interface{}{
+	plug = &snap.PlugInfo{Attrs: map[string]interface{}{
 		"foo": "FOO",
 		"bar": "BAZ",
 		"baz": "BAZ",
-	}, nil)
+	}, Snap: &snap.Info{}}
+	err = cstrs.Check(plug, nil)
 	c.Check(err, IsNil)
 
-	err = cstrs.Check(map[string]interface{}{
+	plug = &snap.PlugInfo{Attrs: map[string]interface{}{
 		"foo": "FOO",
 		"bar": "BARR",
 		"baz": "BAR",
-	}, nil)
+	}, Snap: &snap.Info{}}
+	err = cstrs.Check(plug, nil)
 	c.Check(err, ErrorMatches, `no alternative matches: attribute "bar" value "BARR" does not match \^\(BAR\)\$`)
 }
 
@@ -261,10 +272,11 @@ bar: true
 `), nil)
 	c.Check(err, IsNil)
 
-	err = cstrs.Check(map[string]interface{}{
+	plug := &snap.PlugInfo{Attrs: map[string]interface{}{
 		"foo": int64(1),
 		"bar": true,
-	}, nil)
+	}, Snap: &snap.Info{}}
+	err = cstrs.Check(plug, nil)
 	c.Check(err, IsNil)
 }
 
@@ -448,12 +460,14 @@ func (s *attrConstraintsSuite) TestNeverMatchAttributeConstraints(c *C) {
 type plugSlotRulesSuite struct{}
 
 func checkAttrs(c *C, attrs *asserts.AttributeConstraints, witness, expected string) {
-	c.Check(attrs.Check(map[string]interface{}{
+	plug := &snap.PlugInfo{Attrs: map[string]interface{}{
 		witness: "XYZ",
-	}, nil), ErrorMatches, fmt.Sprintf(`attribute "%s".*does not match.*`, witness))
-	c.Check(attrs.Check(map[string]interface{}{
+	}, Snap: &snap.Info{}}
+	c.Check(attrs.Check(plug, nil), ErrorMatches, fmt.Sprintf(`attribute "%s".*does not match.*`, witness))
+	plug = &snap.PlugInfo{Attrs: map[string]interface{}{
 		witness: expected,
-	}, nil), IsNil)
+	}, Snap: &snap.Info{}}
+	c.Check(attrs.Check(plug, nil), IsNil)
 }
 
 func checkBoolPlugConnConstraints(c *C, cstrs []*asserts.PlugConnectionConstraints, always bool) {

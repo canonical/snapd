@@ -26,6 +26,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
 )
 
 // AttrMatchContext has contextual helpers for evaluating attribute constraints.
@@ -40,7 +42,7 @@ const (
 )
 
 type attrMatcher interface {
-	match(apath string, v interface{}, ctx AttrMatchContext) error
+	match(attrer interfaces.Attrer, apath string, v interface{}, ctx AttrMatchContext) error
 
 	feature(flabel string) bool
 }
@@ -118,21 +120,21 @@ func compileMapAttrMatcher(cc compileContext, m map[string]interface{}) (attrMat
 	return matcher, nil
 }
 
-func matchEntry(apath, k string, matcher1 attrMatcher, v interface{}, ctx AttrMatchContext) error {
+func matchEntry(attrer interfaces.Attrer, apath, k string, matcher1 attrMatcher, v interface{}, ctx AttrMatchContext) error {
 	apath = chain(apath, k)
 	// every entry matcher expects the attribute to be set except for $MISSING
 	if _, ok := matcher1.(missingAttrMatcher); !ok && v == nil {
 		return fmt.Errorf("attribute %q has constraints but is unset", apath)
 	}
-	if err := matcher1.match(apath, v, ctx); err != nil {
+	if err := matcher1.match(attrer, apath, v, ctx); err != nil {
 		return err
 	}
 	return nil
 }
 
-func matchList(apath string, matcher attrMatcher, l []interface{}, ctx AttrMatchContext) error {
+func matchList(attrer interfaces.Attrer, apath string, matcher attrMatcher, l []interface{}, ctx AttrMatchContext) error {
 	for i, elem := range l {
-		if err := matcher.match(chain(apath, strconv.Itoa(i)), elem, ctx); err != nil {
+		if err := matcher.match(attrer, chain(apath, strconv.Itoa(i)), elem, ctx); err != nil {
 			return err
 		}
 	}
@@ -148,16 +150,25 @@ func (matcher mapAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher mapAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher mapAttrMatcher) match(attrer interfaces.Attrer, apath string, v interface{}, ctx AttrMatchContext) error {
+	if apath == "" && attrer != nil {
+		for k, matcher1 := range matcher {
+			v, _ := attrer.Lookup(k)
+			if err := matchEntry(attrer, apath, k, matcher1, v, ctx); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	switch x := v.(type) {
 	case map[string]interface{}: // maps in attributes look like this
 		for k, matcher1 := range matcher {
-			if err := matchEntry(apath, k, matcher1, x[k], ctx); err != nil {
+			if err := matchEntry(attrer, apath, k, matcher1, x[k], ctx); err != nil {
 				return err
 			}
 		}
 	case []interface{}:
-		return matchList(apath, matcher, x, ctx)
+		return matchList(attrer, apath, matcher, x, ctx)
 	default:
 		return fmt.Errorf("attribute %q must be a map", apath)
 	}
@@ -170,7 +181,7 @@ func (matcher missingAttrMatcher) feature(flabel string) bool {
 	return flabel == dollarAttrConstraintsFeature
 }
 
-func (matcher missingAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher missingAttrMatcher) match(attrer interfaces.Attrer, apath string, v interface{}, ctx AttrMatchContext) error {
 	if v != nil {
 		return fmt.Errorf("attribute %q is constrained to be missing but is set", apath)
 	}
@@ -202,7 +213,7 @@ func (matcher evalAttrMatcher) feature(flabel string) bool {
 	return flabel == dollarAttrConstraintsFeature
 }
 
-func (matcher evalAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher evalAttrMatcher) match(attrer interfaces.Attrer, apath string, v interface{}, ctx AttrMatchContext) error {
 	if ctx == nil {
 		return fmt.Errorf("attribute %q cannot be matched without context", apath)
 	}
@@ -239,7 +250,7 @@ func (matcher regexpAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher regexpAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher regexpAttrMatcher) match(attrer interfaces.Attrer, apath string, v interface{}, ctx AttrMatchContext) error {
 	var s string
 	switch x := v.(type) {
 	case string:
@@ -249,7 +260,7 @@ func (matcher regexpAttrMatcher) match(apath string, v interface{}, ctx AttrMatc
 	case int64:
 		s = strconv.FormatInt(x, 10)
 	case []interface{}:
-		return matchList(apath, matcher, x, ctx)
+		return matchList(attrer, apath, matcher, x, ctx)
 	default:
 		return fmt.Errorf("attribute %q must be a scalar or list", apath)
 	}
@@ -286,10 +297,10 @@ func (matcher altAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher altAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher altAttrMatcher) match(attrer interfaces.Attrer, apath string, v interface{}, ctx AttrMatchContext) error {
 	var firstErr error
 	for _, alt := range matcher.alts {
-		err := alt.match(apath, v, ctx)
+		err := alt.match(attrer, apath, v, ctx)
 		if err == nil {
 			return nil
 		}
@@ -331,7 +342,7 @@ func (matcher fixedAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher fixedAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher fixedAttrMatcher) match(attrer interfaces.Attrer, apath string, v interface{}, ctx AttrMatchContext) error {
 	return matcher.result
 }
 
@@ -341,8 +352,9 @@ var (
 )
 
 // Check checks whether attrs don't match the constraints.
-func (c *AttributeConstraints) Check(attrs map[string]interface{}, ctx AttrMatchContext) error {
-	return c.matcher.match("", attrs, ctx)
+func (c *AttributeConstraints) Check(attrer interfaces.Attrer, ctx AttrMatchContext) error {
+	var nm map[string]interface{}
+	return c.matcher.match(attrer, "", nm, ctx)
 }
 
 // OnClassicConstraint specifies a constraint based whether the system is classic and optional specific distros' sets.
