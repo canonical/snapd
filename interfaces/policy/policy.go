@@ -126,8 +126,8 @@ type ConnectCandidate struct {
 }
 
 func nestedGet(which string, attrs interfaces.Attrer, path string) (interface{}, error) {
-	val, err := attrs.Lookup(path)
-	if err != nil {
+	val, ok := attrs.Lookup(path)
+	if !ok {
 		return nil, fmt.Errorf("%s attribute %q not found", which, path)
 	}
 	return val, nil

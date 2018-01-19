@@ -167,9 +167,17 @@ func (s *connSuite) TestDottedPath(c *C) {
 	c.Assert(slot.Attr("complex.a", &strVal), IsNil)
 	c.Assert(strVal, Equals, "b")
 
+	v, ok := slot.Lookup("complex.a")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, Equals, "b")
+
 	// dynamic attribute nested.foo
 	c.Assert(slot.Attr("nested.foo", &strVal), IsNil)
 	c.Assert(strVal, Equals, "bar")
+
+	v, ok = slot.Lookup("nested.foo")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, Equals, "bar")
 
 	plug := NewConnectedPlug(s.plug, attrs)
 	c.Assert(plug, NotNil)
@@ -178,9 +186,34 @@ func (s *connSuite) TestDottedPath(c *C) {
 	c.Assert(plug.Attr("complex.c", &strVal), IsNil)
 	c.Assert(strVal, Equals, "d")
 
+	v, ok = plug.Lookup("complex.c")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, Equals, "d")
+
 	// dynamic attribute nested.foo
 	c.Assert(plug.Attr("nested.foo", &strVal), IsNil)
 	c.Assert(strVal, Equals, "bar")
+
+	v, ok = plug.Lookup("nested.foo")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, Equals, "bar")
+}
+
+func (s *connSuite) TestLookupFailure(c *C) {
+	attrs := map[string]interface{}{}
+
+	slot := NewConnectedSlot(s.slot, attrs)
+	c.Assert(slot, NotNil)
+	plug := NewConnectedPlug(s.plug, attrs)
+	c.Assert(plug, NotNil)
+
+	v, ok := slot.Lookup("a")
+	c.Assert(ok, Equals, false)
+	c.Assert(v, IsNil)
+
+	v, ok = plug.Lookup("a")
+	c.Assert(ok, Equals, false)
+	c.Assert(v, IsNil)
 }
 
 func (s *connSuite) TestDynamicPlugAttrs(c *C) {
