@@ -8,6 +8,9 @@ prepare: |
 restore: |
     rm -f stdout stderr
     
+debug:
+    cat stderr
+
 execute: |
     echo "Test that snap run use environments"
     basic-run.echo-data | MATCH ^/var/snap
@@ -20,7 +23,10 @@ execute: |
     if grep -q 'ID=ubuntu-core' /etc/os-release; then
         snap install --edge strace-static
     fi
-
+    # the strace on opensuse is too old
+    if grep -q 'ID=opensuse' /etc/os-release; then
+        snap install --edge strace-static
+    fi
     echo "Test snap run --strace"
     snap run --strace test-snapd-tools.echo "hello-world" >stdout 2>stderr
     MATCH hello-world < stdout
