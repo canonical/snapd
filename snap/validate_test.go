@@ -518,29 +518,29 @@ func (s *ValidateSuite) TestValidateAlias(c *C) {
 func (s *ValidateSuite) TestValidateLayout(c *C) {
 	// Several invalid layouts.
 	c.Check(ValidateLayout(&Layout{}),
-		ErrorMatches, "cannot accept layout with empty path")
+		ErrorMatches, "layout cannot use an empty path")
 	c.Check(ValidateLayout(&Layout{Path: "/foo"}),
-		ErrorMatches, `cannot determine layout for "/foo"`)
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Bind: "/bar", Type: "tmpfs"}),
-		ErrorMatches, `cannot accept conflicting layout for "/foo"`)
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Bind: "/bar", Symlink: "/froz"}),
-		ErrorMatches, `cannot accept conflicting layout for "/foo"`)
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "tmpfs", Symlink: "/froz"}),
-		ErrorMatches, `cannot accept conflicting layout for "/foo"`)
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "ext4"}),
-		ErrorMatches, `cannot accept filesystem "ext4" for "/foo"`)
+		ErrorMatches, `layout "/foo" uses invalid filesystem "ext4"`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo/bar", Type: "tmpfs", User: "foo"}),
-		ErrorMatches, `cannot accept user "foo" for "/foo/bar"`)
+		ErrorMatches, `layout "/foo/bar" uses invalid user "foo"`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo/bar", Type: "tmpfs", Group: "foo"}),
-		ErrorMatches, `cannot accept group "foo" for "/foo/bar"`)
+		ErrorMatches, `layout "/foo/bar" uses invalid group "foo"`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "tmpfs", Mode: 02755}),
-		ErrorMatches, `cannot accept mode 02755 for "/foo"`)
+		ErrorMatches, `layout "/foo" uses invalid mode 02755`)
 	c.Check(ValidateLayout(&Layout{Path: "$FOO", Type: "tmpfs"}),
-		ErrorMatches, `cannot accept layout of "\$FOO": reference to unknown variable "\$FOO"`)
+		ErrorMatches, `layout "\$FOO" uses invalid mount point: reference to unknown variable "\$FOO"`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Bind: "$BAR"}),
-		ErrorMatches, `cannot accept layout of "/foo": reference to unknown variable "\$BAR"`)
+		ErrorMatches, `layout "/foo" uses invalid bind mount source "\$BAR": reference to unknown variable "\$BAR"`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Symlink: "$BAR"}),
-		ErrorMatches, `cannot accept layout of "/foo": reference to unknown variable "\$BAR"`)
+		ErrorMatches, `layout "/foo" uses invalid symlink old name "\$BAR": reference to unknown variable "\$BAR"`)
 	// Several valid layouts.
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "tmpfs", Mode: 01755}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "/tmp", Type: "tmpfs"}), IsNil)

@@ -433,50 +433,81 @@ func ValidatePathVariables(path string) error {
 	return nil
 }
 
+func isAbsAndClean(path string) bool {
+	return (filepath.IsAbs(path) || strings.HasPrefix(path, "$")) && filepath.Clean(path) == path
+}
+
 // ValidateLayout ensures that the given layout contains only valid subset of constructs.
-func ValidateLayout(li *Layout) error {
-	// The path is used to identify the layout below so validate it first.
-	if li.Path == "" {
-		return fmt.Errorf("cannot accept layout with empty path")
-	} else {
-		if err := ValidatePathVariables(li.Path); err != nil {
-			return fmt.Errorf("cannot accept layout of %q: %s", li.Path, err)
+func ValidateLayout(layout *Layout) error {
+	mountPoint := layout.Path
+
+	if mountPoint == "" {
+		return fmt.Errorf("layout cannot use an empty path")
+	}
+
+	if err := ValidatePathVariables(mountPoint); err != nil {
+		return fmt.Errorf("layout %q uses invalid mount point: %s", layout.Path, err)
+	}
+	if !isAbsAndClean(mountPoint) {
+		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
+	}
+
+	var nused int
+	if layout.Bind != "" {
+		nused += 1
+	}
+	if layout.Type != "" {
+		nused += 1
+	}
+	if layout.Symlink != "" {
+		nused += 1
+	}
+	if nused != 1 {
+		return fmt.Errorf("layout %q must define a bind mount, a filesystem mount or a symlink", layout.Path)
+	}
+
+	if layout.Bind != "" {
+		mountSource := layout.Bind
+		if err := ValidatePathVariables(mountSource); err != nil {
+			return fmt.Errorf("layout %q uses invalid bind mount source %q: %s", layout.Path, mountSource, err)
+		}
+		if !isAbsAndClean(mountSource) {
+			return fmt.Errorf("layout %q uses invalid bind mount source %q: must be absolute and clean", layout.Path, mountSource)
 		}
 	}
-	// Presence of the Bind, Type and Symlink fields implies kind of layout.
-	if li.Bind == "" && li.Type == "" && li.Symlink == "" {
-		return fmt.Errorf("cannot determine layout for %q", li.Path)
+
+	switch layout.Type {
+	case "tmpfs":
+	case "":
+		// nothing to do
+	default:
+		return fmt.Errorf("layout %q uses invalid filesystem %q", layout.Path, layout.Type)
 	}
-	if (li.Bind != "" && li.Type != "") ||
-		(li.Bind != "" && li.Symlink != "") ||
-		(li.Type != "" && li.Symlink != "") {
-		return fmt.Errorf("cannot accept conflicting layout for %q", li.Path)
-	}
-	if li.Bind != "" {
-		if err := ValidatePathVariables(li.Bind); err != nil {
-			return fmt.Errorf("cannot accept layout of %q: %s", li.Path, err)
+
+	if layout.Symlink != "" {
+		oldname := layout.Symlink
+		if err := ValidatePathVariables(oldname); err != nil {
+			return fmt.Errorf("layout %q uses invalid symlink old name %q: %s", layout.Path, oldname, err)
+		}
+		if !isAbsAndClean(oldname) {
+			return fmt.Errorf("layout %q uses invalid symlink old name %q: must be absolute and clean", layout.Path, oldname)
 		}
 	}
-	// Only the "tmpfs" filesystem is allowed.
-	if li.Type != "" && li.Type != "tmpfs" {
-		return fmt.Errorf("cannot accept filesystem %q for %q", li.Type, li.Path)
-	}
-	if li.Symlink != "" {
-		if err := ValidatePathVariables(li.Symlink); err != nil {
-			return fmt.Errorf("cannot accept layout of %q: %s", li.Path, err)
-		}
-	}
-	// Only certain users and groups are allowed.
+
+	switch layout.User {
+	case "root", "", "nobody":
 	// TODO: allow declared snap user and group names.
-	if li.User != "" && li.User != "root" && li.User != "nobody" {
-		return fmt.Errorf("cannot accept user %q for %q", li.User, li.Path)
+	default:
+		return fmt.Errorf("layout %q uses invalid user %q", layout.Path, layout.User)
 	}
-	if li.Group != "" && li.Group != "root" && li.Group != "nogroup" {
-		return fmt.Errorf("cannot accept group %q for %q", li.Group, li.Path)
+	switch layout.Group {
+	case "root", "", "nobody", "nogroup":
+	default:
+		return fmt.Errorf("layout %q uses invalid group %q", layout.Path, layout.Group)
 	}
-	// "at most" 01777 permissions are allowed.
-	if li.Mode&^os.FileMode(01777) != 0 {
-		return fmt.Errorf("cannot accept mode %#0o for %q", li.Mode, li.Path)
+
+	if layout.Mode&01777 != layout.Mode {
+		return fmt.Errorf("layout %q uses invalid mode %#o", layout.Path, layout.Mode)
 	}
 	return nil
 }
