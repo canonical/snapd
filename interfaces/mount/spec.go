@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -69,39 +68,80 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 }
 
 func mountEntryFromLayout(layout *snap.Layout) (Entry, error) {
-	entry := Entry{Dir: resolveSpecialVariable(layout.Path, layout.Snap)}
-	switch {
-	case layout.Bind != "":
+	var entry Entry
+	var nused int
+	if layout.Bind != "" {
+		nused += 1
+	}
+	if layout.Type != "" {
+		nused += 1
+	}
+	if layout.Symlink != "" {
+		nused += 1
+	}
+	if nused != 1 {
+		return entry, fmt.Errorf("layout must define a bind mount, a filesystem mount or a symlink")
+	}
+
+	mountPoint := resolveSpecialVariable(layout.Path, layout.Snap)
+	// TODO: mountPoint must be absolute and clean
+	entry.Dir = mountPoint
+
+	if layout.Bind != "" {
+		mountSource := resolveSpecialVariable(layout.Bind, layout.Snap)
+		// TODO: mount source must be absolute and clean
 		// XXX: what about ro mounts?
 		// XXX: what about file mounts, those need x-snapd.kind=file to create correctly?
 		entry.Options = []string{"bind", "rw"}
-		entry.Name = resolveSpecialVariable(layout.Bind, layout.Snap)
-	case layout.Type == "tmpfs":
+		entry.Name = mountSource
+	}
+
+	switch layout.Type {
+	case "tmpfs":
 		entry.Type = "tmpfs"
 		entry.Name = "tmpfs"
-	case layout.Symlink != "":
-		entry.Options = []string{"x-snapd.kind=symlink",
-			fmt.Sprintf("x-snapd.symlink=%s", resolveSpecialVariable(layout.Symlink, layout.Snap)),
-		}
+	case "":
+		// nothing to do
+	default:
+		return entry, fmt.Errorf("layouts cannot mount the %q filesystem", layout.Type)
 	}
-	if layout.User != "" {
-		uid, err := osutil.FindUid(layout.User)
-		if err != nil {
-			return entry, err
-		}
-		if uid != 0 {
-			entry.Options = append(entry.Options, fmt.Sprintf("x-snapd.user=%d", uid))
-		}
+
+	if layout.Symlink != "" {
+		oldname := resolveSpecialVariable(layout.Symlink, layout.Snap)
+		// TODO: oldname must be absolute and clean
+		entry.Options = []string{"x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", oldname)}
 	}
-	if layout.Group != "" {
-		gid, err := osutil.FindGid(layout.Group)
-		if err != nil {
-			return entry, err
-		}
-		if gid != 0 {
-			entry.Options = append(entry.Options, fmt.Sprintf("x-snapd.group=%d", gid))
-		}
+
+	var uid int
+	switch layout.User {
+	case "root", "":
+		uid = 0
+	case "nobody":
+		// The user "nobody" has a fixed value in the Ubuntu core snap.
+		// TODO: load this from an attribute in other bases or require the same ID.
+		uid = 65534
+	default:
+		return entry, fmt.Errorf("cannot use user %q in layout definition", layout.User)
 	}
+	if uid != 0 {
+		entry.Options = append(entry.Options, fmt.Sprintf("x-snapd.user=%d", uid))
+	}
+
+	var gid int
+	switch layout.Group {
+	case "root", "":
+		gid = 0
+	case "nobody", "nogroup":
+		// The group nogroup (aliased as "nobody") has a fixed value in the Ubuntu core snap.
+		// TODO: load this from an attribute in other bases or require the same ID.
+		gid = 65534
+	default:
+		return entry, fmt.Errorf("cannot use group %q in layout definition", layout.Group)
+	}
+	if gid != 0 {
+		entry.Options = append(entry.Options, fmt.Sprintf("x-snapd.group=%d", gid))
+	}
+
 	if layout.Mode != 0755 {
 		entry.Options = append(entry.Options, fmt.Sprintf("x-snapd.mode=%#o", uint32(layout.Mode)))
 	}
