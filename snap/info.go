@@ -399,25 +399,50 @@ type PlugInfo struct {
 	Hooks     map[string]*HookInfo
 }
 
-func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
-	if v, ok := attrs[key]; ok {
-		rt := reflect.TypeOf(val)
-		if rt.Kind() != reflect.Ptr || val == nil {
-			return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", key, ifaceName)
+func lookupAttr(snapName string, ifaceName string, attrs map[string]interface{}, path string) (interface{}, error) {
+	var v interface{}
+	comps := strings.Split(path, ".")
+	v = attrs
+	for _, comp := range comps {
+		m, ok := v.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName)
 		}
-
-		if reflect.TypeOf(v) != rt.Elem() {
-			return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, key)
+		v, ok = m[comp]
+		if !ok {
+			return nil, fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName)
 		}
-		rv := reflect.ValueOf(val)
-		rv.Elem().Set(reflect.ValueOf(v))
-		return nil
 	}
-	return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)
+
+	return v, nil
+}
+
+func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
+	v, err := lookupAttr(snapName, ifaceName, attrs, key)
+	if err != nil {
+		return err
+	}
+
+	rt := reflect.TypeOf(val)
+	if rt.Kind() != reflect.Ptr || val == nil {
+		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", key, ifaceName)
+	}
+
+	if reflect.TypeOf(v) != rt.Elem() {
+		return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, key)
+	}
+	rv := reflect.ValueOf(val)
+	rv.Elem().Set(reflect.ValueOf(v))
+
+	return nil
 }
 
 func (plug *PlugInfo) Attr(key string, val interface{}) error {
 	return getAttribute(plug.Snap.Name(), plug.Interface, plug.Attrs, key, val)
+}
+
+func (plug *PlugInfo) Lookup(key string) (interface{}, error) {
+	return lookupAttr(plug.Snap.Name(), plug.Interface, plug.Attrs, key)
 }
 
 // SecurityTags returns security tags associated with a given plug.
@@ -440,6 +465,10 @@ func (plug *PlugInfo) String() string {
 
 func (slot *SlotInfo) Attr(key string, val interface{}) error {
 	return getAttribute(slot.Snap.Name(), slot.Interface, slot.Attrs, key, val)
+}
+
+func (slot *SlotInfo) Lookup(key string) (interface{}, error) {
+	return lookupAttr(slot.Snap.Name(), slot.Interface, slot.Attrs, key)
 }
 
 // SecurityTags returns security tags associated with a given slot.
