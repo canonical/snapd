@@ -3,5 +3,5 @@ version: 1.0
 slots:
     producer:
         interface: test-snapd
-        producer-attr1: producervalue1
-        producer-attr2: producervalue2
+        producer-attr-1: producer-value-1
+        producer-attr-2: producer-value-2
