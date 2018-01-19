@@ -336,12 +336,10 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 func getDynamicHookAttributes(task *state.Task) (map[string]interface{}, map[string]interface{}, error) {
 	var plugAttrs, slotAttrs map[string]interface{}
 
-	var err error
-	if err = task.Get("plug-dynamic", &plugAttrs); err != nil {
+	if err := task.Get("plug-dynamic", &plugAttrs); err != nil {
 		return nil, nil, err
 	}
-	err = task.Get("slot-dynamic", &slotAttrs)
-	if err != nil {
+	if err := task.Get("slot-dynamic", &slotAttrs); err != nil {
 		return nil, nil, err
 	}
 

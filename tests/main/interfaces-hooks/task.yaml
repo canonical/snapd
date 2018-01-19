@@ -1,5 +1,9 @@
 summary: Check that `snap connect` runs interface hook
 
+environment:
+    CONSUMER_DATA: /var/snap/basic-iface-hooks-consumer/common
+    PRODUCER_DATA: /var/snap/basic-iface-hooks-producer/common
+
 prepare: |
     snap install --devmode jq
     echo "Build test hooks package"
@@ -16,27 +20,27 @@ restore: |
     rm -f "$CONSUMER_DATA/connect-plug-consumer-done"
     rm -f "$PRODUCER_DATA/connect-slot-producer-done"
 
-environment:
-    CONSUMER_DATA: /var/snap/basic-iface-hooks-consumer/common
-    PRODUCER_DATA: /var/snap/basic-iface-hooks-producer/common
-
 execute: |
     echo "Test that snap connect with plug and slot hooks succeeds"
 
     snap connect basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer
 
     echo "Ensure the hooks were actually executed"
+    # producer/consumer hooks dump marker files, check if they exist to verify hooks were run
     [ -f "$CONSUMER_DATA/prepare-plug-consumer-done" ]
     [ -f "$PRODUCER_DATA/prepare-slot-producer-done" ]
     [ -f "$CONSUMER_DATA/connect-plug-consumer-done" ]
     [ -f "$PRODUCER_DATA/connect-slot-producer-done" ]
 
+    # stop snapd before inspecting state.json
     systemctl stop snapd.service snapd.socket
 
-    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-static"]["consumer-attr1"]' /var/lib/snapd/state.json | MATCH "consumervalue1"
-    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-static"]["consumer-attr2"]' /var/lib/snapd/state.json | MATCH "consumervalue2"
-    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr1"]' /var/lib/snapd/state.json | MATCH "producervalue1"
-    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr2"]' /var/lib/snapd/state.json | MATCH "producervalue2"
-    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["consumer-attr3"]' /var/lib/snapd/state.json | MATCH "consumervalue3-validated"
-    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-dynamic"]["producer-attr3"]' /var/lib/snapd/state.json | MATCH "producervalue3-validated"
-    systemctl start snapd.service
+    echo "Verify static and dynamic attributes have expected values"
+    # static values should have the values defined in snap's yaml
+    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-static"]["consumer-attr-1"]' /var/lib/snapd/state.json | MATCH "consumer-value-1"
+    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-static"]["consumer-attr-2"]' /var/lib/snapd/state.json | MATCH "consumer-value-2"
+    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr-1"]' /var/lib/snapd/state.json | MATCH "producer-value-1"
+    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-static"]["producer-attr-2"]' /var/lib/snapd/state.json | MATCH "producer-value-2"
+    # dynamic attributes have values created by the hooks, the "-validated" suffix is added by our test interface
+    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["consumer-attr-3"]' /var/lib/snapd/state.json | MATCH "consumer-value-3-validated"
+    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-dynamic"]["producer-attr-3"]' /var/lib/snapd/state.json | MATCH "producer-value-3-validated"

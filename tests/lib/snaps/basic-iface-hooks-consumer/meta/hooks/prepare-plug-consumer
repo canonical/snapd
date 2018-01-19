@@ -1,33 +1,35 @@
 #!/bin/sh
 
+set -ue
+
 echo "Setting and getting attribute value from prepare-plug-consumer hook"
 
-# Read the value of static 'consumer-attr1' attribute
-if ! output=$(snapctl get :consumer consumer-attr1); then
+# Read the value of static 'consumer-attr-1' attribute
+if ! output=$(snapctl get :consumer consumer-attr-1); then
     echo "Expected snapctl get to be able to read the value of own 'consumer-attr1' attribute"
     exit 1
 fi
-expected_output="consumervalue1"
+expected_output="consumer-value-1"
 if [ "$output" != "$expected_output" ]; then
     echo "Expected output to be '$expected_output', but it was '$output'"
     exit 1
 fi
 
 # Set a dynamic attribute.
-if ! snapctl set :consumer consumer-attr3=consumervalue3; then
-    echo "Expected snapctl set to be able to set the value of own 'consumer-attr3' attribute"
+if ! snapctl set :consumer consumer-attr-3=consumer-value-3; then
+    echo "Expected snapctl set to be able to set the value of own 'consumer-attr-3' attribute"
     exit 1
 fi
 
 # Read dynamic attribute
-if ! output=$(snapctl get :consumer consumer-attr3); then
+if ! output=$(snapctl get :consumer consumer-attr-3); then
     echo "Expected snapctl get to be able to read the value of own dynamic attribute"
     exit 1
 fi
-expected_output="consumervalue3"
+expected_output="consumer-value-3"
 if [ "$output" != "$expected_output" ]; then
     echo "Expected output to be '$expected_output', but it was '$output'"
     exit 1
 fi
 
-touch $SNAP_COMMON/prepare-plug-consumer-done
+touch "$SNAP_COMMON/prepare-plug-consumer-done"
