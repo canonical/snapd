@@ -92,3 +92,19 @@ func MockConnectedSlot(c *C, yaml string, si *snap.SideInfo, slotName string) (*
 	}
 	panic(fmt.Sprintf("cannot find slot %q in snap %q", slotName, info.Name()))
 }
+
+func MockOsGetenv(mock func(string) string) (restore func()) {
+	old := osGetenv
+	restore = func() {
+		osGetenv = old
+	}
+	osGetenv = mock
+
+	return restore
+}
+
+func ResetCachedSoftwareWatchdogSnippets(iface interfaces.Interface) {
+	if wdIface, _ := iface.(*softwareWatchdogInterface); wdIface != nil {
+		wdIface.resetCachedSnippets()
+	}
+}
