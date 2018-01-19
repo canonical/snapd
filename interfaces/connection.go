@@ -51,10 +51,10 @@ type ConnectedSlot struct {
 // to ConnectedSlot, ConnectedPlug, PlugInfo and SlotInfo types.
 type Attrer interface {
 	Attr(path string, val interface{}) error
-	Lookup(path string) (interface{}, error)
+	Lookup(path string) (interface{}, bool)
 }
 
-func lookupAttr(snapName string, ifaceName string, staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, path string) (interface{}, error) {
+func lookupAttr(staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, path string) (interface{}, bool) {
 	var v interface{}
 	comps := strings.Split(path, ".")
 	if _, ok := dynamicAttrs[comps[0]]; ok {
@@ -66,21 +66,21 @@ func lookupAttr(snapName string, ifaceName string, staticAttrs map[string]interf
 	for _, comp := range comps {
 		m, ok := v.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName)
+			return nil, false
 		}
 		v, ok = m[comp]
 		if !ok {
-			return nil, fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName)
+			return nil, false
 		}
 	}
 
-	return v, nil
+	return v, true
 }
 
 func getAttribute(snapName string, ifaceName string, staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, path string, val interface{}) error {
-	v, err := lookupAttr(snapName, ifaceName, staticAttrs, dynamicAttrs, path)
-	if err != nil {
-		return err
+	v, ok := lookupAttr(staticAttrs, dynamicAttrs, path)
+	if !ok {
+		return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName)
 	}
 
 	rt := reflect.TypeOf(val)
@@ -166,8 +166,8 @@ func (plug *ConnectedPlug) Attr(key string, val interface{}) error {
 	return getAttribute(plug.Snap().Name(), plug.Interface(), plug.staticAttrs, plug.dynamicAttrs, key, val)
 }
 
-func (plug *ConnectedPlug) Lookup(path string) (interface{}, error) {
-	return lookupAttr(plug.Snap().Name(), plug.Interface(), plug.staticAttrs, plug.dynamicAttrs, path)
+func (plug *ConnectedPlug) Lookup(path string) (interface{}, bool) {
+	return lookupAttr(plug.staticAttrs, plug.dynamicAttrs, path)
 }
 
 // SetAttr sets the given dynamic attribute. Error is returned if the key is already used by a static attribute.
@@ -239,8 +239,8 @@ func (slot *ConnectedSlot) Attr(key string, val interface{}) error {
 	return getAttribute(slot.Snap().Name(), slot.Interface(), slot.staticAttrs, slot.dynamicAttrs, key, val)
 }
 
-func (slot *ConnectedSlot) Lookup(path string) (interface{}, error) {
-	return lookupAttr(slot.Snap().Name(), slot.Interface(), slot.staticAttrs, slot.dynamicAttrs, path)
+func (slot *ConnectedSlot) Lookup(path string) (interface{}, bool) {
+	return lookupAttr(slot.staticAttrs, slot.dynamicAttrs, path)
 }
 
 // SetAttr sets the given dynamic attribute. Error is returned if the key is already used by a static attribute.

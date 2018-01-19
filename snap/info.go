@@ -399,28 +399,28 @@ type PlugInfo struct {
 	Hooks     map[string]*HookInfo
 }
 
-func lookupAttr(snapName string, ifaceName string, attrs map[string]interface{}, path string) (interface{}, error) {
+func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
 	var v interface{}
 	comps := strings.Split(path, ".")
 	v = attrs
 	for _, comp := range comps {
 		m, ok := v.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName)
+			return nil, false
 		}
 		v, ok = m[comp]
 		if !ok {
-			return nil, fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName)
+			return nil, false
 		}
 	}
 
-	return v, nil
+	return v, true
 }
 
 func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
-	v, err := lookupAttr(snapName, ifaceName, attrs, key)
-	if err != nil {
-		return err
+	v, ok := lookupAttr(attrs, key)
+	if !ok {
+		return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)
 	}
 
 	rt := reflect.TypeOf(val)
@@ -441,8 +441,8 @@ func (plug *PlugInfo) Attr(key string, val interface{}) error {
 	return getAttribute(plug.Snap.Name(), plug.Interface, plug.Attrs, key, val)
 }
 
-func (plug *PlugInfo) Lookup(key string) (interface{}, error) {
-	return lookupAttr(plug.Snap.Name(), plug.Interface, plug.Attrs, key)
+func (plug *PlugInfo) Lookup(key string) (interface{}, bool) {
+	return lookupAttr(plug.Attrs, key)
 }
 
 // SecurityTags returns security tags associated with a given plug.
@@ -467,8 +467,8 @@ func (slot *SlotInfo) Attr(key string, val interface{}) error {
 	return getAttribute(slot.Snap.Name(), slot.Interface, slot.Attrs, key, val)
 }
 
-func (slot *SlotInfo) Lookup(key string) (interface{}, error) {
-	return lookupAttr(slot.Snap.Name(), slot.Interface, slot.Attrs, key)
+func (slot *SlotInfo) Lookup(key string) (interface{}, bool) {
+	return lookupAttr(slot.Attrs, key)
 }
 
 // SecurityTags returns security tags associated with a given slot.
