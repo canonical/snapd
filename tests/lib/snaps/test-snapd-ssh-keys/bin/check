@@ -1,0 +1,3 @@
+#!/bin/sh
+
+head -n1 /etc/ssh/ssh_config
