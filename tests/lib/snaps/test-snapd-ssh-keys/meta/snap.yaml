@@ -1,0 +1,13 @@
+name: test-snapd-ssh-keys
+version: 1.0
+summary: Basic ssh-keys snap
+description: A basic snap which access to ssh
+
+apps:
+  ssh:
+    command: bin/ssh
+    plugs: [ssh-keys,network-control]
+  check:
+    command: bin/check
+    plugs: [ssh-keys]
+
