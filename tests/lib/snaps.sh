@@ -19,7 +19,6 @@ install_local() {
     SNAP_FILE=$(make_snap "$SNAP_NAME")
 
     snap install --dangerous "$@" "$SNAP_FILE"
-    rm -f "$SNAP_FILE"
 }
 
 install_local_devmode() {
