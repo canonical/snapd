@@ -16,10 +16,12 @@ prepare: |
     install_local test-snapd-ssh-keys
 
     ssh-keygen -b 2048 -t rsa -f "$TESTKEY" -q -N ""
-    if [ -f "$HOME/.ssh/authorized_keys" ]; then
+    if [ -f "$AUTHKEYS" ]; then
         cp "$AUTHKEYS" "$AUTHKEYS".bak
+        cat "$TESTKEY".pub >> "$AUTHKEYS"
+    else
+        cp "$TESTKEY".pub "$AUTHKEYS"
     fi
-    cat "$TESTKEY".pub >> "$AUTHKEYS"    
 
 restore: |
     rm -f call.error
