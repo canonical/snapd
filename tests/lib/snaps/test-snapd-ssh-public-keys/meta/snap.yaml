@@ -1,0 +1,9 @@
+name: test-snapd-ssh-public-keys
+version: 1.0
+summary: Basic ssh-public-keys snap
+description: A basic snap which access to public ssh keys
+
+apps:
+  ssh:
+    command: bin/ssh
+    plugs: [ssh-public-keys,network-control]
