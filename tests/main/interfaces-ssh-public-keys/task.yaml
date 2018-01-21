@@ -1,0 +1,73 @@
+summary: Ensure that the ssh-public-keys interface works.
+
+details: |
+    The ssh-public-keys interface allows to access public keys and
+    make ssh connections.
+
+    The test-snapd-ssh-public-keys snap checks the connection can be
+    stablished.
+
+environment:
+    TESTKEY: "/$HOME/.ssh/testkey"
+    AUTHKEYS: "$HOME/.ssh/authorized_keys"
+
+prepare: |
+    . "$TESTSLIB/snaps.sh"
+
+    install_local test-snapd-ssh-public-keys
+    ssh-keygen -b 2048 -t rsa -f "$TESTKEY" -q -N ""
+    if [ -f "$AUTHKEYS" ]; then
+        cp "$AUTHKEYS" "$AUTHKEYS".bak
+        cat "$TESTKEY".pub >> "$AUTHKEYS"
+    else
+        cp "$TESTKEY".pub "$AUTHKEYS"
+    fi
+
+    # The key is copied with .pub extention to use it with the ssh command,
+    # avoiding the password prompt
+    cp "$TESTKEY" "$TESTKEY.cp.pub"
+
+restore: |
+    rm -f call.error
+    rm -f "$TESTKEY" "$TESTKEY".pub "$TESTKEY.cp.pub"
+    if [ -f "$AUTHKEYS".bak ]; then
+        mv "$AUTHKEYS".bak "$AUTHKEYS"
+    else
+        rm -f "$AUTHKEYS"
+    fi
+
+execute: |
+    CONNECTED_PATTERN=":ssh-public-keys +test-snapd-ssh-public-keys"
+    DISCONNECTED_PATTERN="\- +test-snapd-ssh-public-keys:ssh-public-keys"
+
+    echo "The interface is not connected by default"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    
+    echo "When the interface is connected"
+    snap connect test-snapd-ssh-public-keys:ssh-public-keys
+    snap connect test-snapd-ssh-public-keys:network-control
+    
+    echo "Then the snap is able to make ssh"
+    test-snapd-ssh-public-keys.ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i "$TESTKEY.cp.pub" 127.0.0.1 "echo test123" | MATCH "test123"
+
+    if [ "$(snap debug confinement)" = partial ]; then
+        exit 0
+    fi
+
+    echo "And then the snap is not able to access to non public keys"
+    if test-snapd-ssh-public-keys.ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i "$TESTKEY" 127.0.0.1 "echo test123" 2>${PWD}/call.error; then
+        echo "Expected permission error accessing to ssh"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-ssh-public-keys:ssh-public-keys
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    
+    echo "Then the snap is not able to access the ssh"
+    if test-snapd-ssh-public-keys.ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i "$TESTKEY.cp.pub" 127.0.0.1 "echo test123" 2>${PWD}/call.error; then
+        echo "Expected permission error accessing to ssh"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
