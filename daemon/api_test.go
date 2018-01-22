@@ -6363,5 +6363,5 @@ func (s *appSuite) TestPostAppsConflict(c *check.C) {
 	rsp := postApps(appsCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `snap "snap-a" has changes in progress`)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `snap "snap-a" has "enable" change in progress`)
 }
