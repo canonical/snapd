@@ -6,8 +6,8 @@ details: |
     The test-snapd-netlink-audit snap creates a netlink socket and binds it. 
 
 environment:
-    CONNECTED_PATTERN: ":netlink-audit +test-snapd-netlink-audit"
-    DISCONNECTED_PATTERN: "\- +test-snapd-netlink-audit:netlink-audit"
+    CONNECTED_PATTERN: ':netlink-audit +test-snapd-netlink-audit'
+    DISCONNECTED_PATTERN: '\- +test-snapd-netlink-audit:netlink-audit'
 
 prepare: |
     . $TESTSLIB/snaps.sh
