@@ -12,7 +12,7 @@ prepare: |
     install_local test-snapd-netlink-connector
 
 execute: |
-    CONNECTED_PATTERN=":netlink-connector +test-snapd-netlink-connector"
+    CONNECTED_PATTERN=":netlink-audit +test-snapd-netlink-connector"
     DISCONNECTED_PATTERN="\- +test-snapd-netlink-connector:netlink-connector"
 
     echo "The interface is not connected by default"
@@ -20,7 +20,6 @@ execute: |
 
     echo "When the interface is connected"
     snap connect test-snapd-netlink-connector:netlink-connector
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to create and bind a netlink socket"
     test-snapd-netlink-connector.bind

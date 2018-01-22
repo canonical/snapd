@@ -5,6 +5,10 @@ details: |
 
     The test-snapd-netlink-audit snap creates a netlink socket and binds it. 
 
+environment:
+    CONNECTED_PATTERN=":netlink-audit +test-snapd-netlink-audit"
+    DISCONNECTED_PATTERN="\- +test-snapd-netlink-audit:netlink-audit"
+
 prepare: |
     . $TESTSLIB/snaps.sh
 
@@ -12,9 +16,6 @@ prepare: |
     install_local test-snapd-netlink-audit
 
 execute: |
-    CONNECTED_PATTERN=":netlink-audit +test-snapd-netlink-audit"
-    DISCONNECTED_PATTERN="\- +test-snapd-netlink-audit:netlink-audit"
-
     echo "The interface is not connected by default"
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
