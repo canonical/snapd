@@ -209,10 +209,6 @@ int main(int argc, char **argv)
 			sc_reassociate_with_pid1_mount_ns();
 			// Do global initialization:
 			int global_lock_fd = sc_lock_global();
-			// ensure that "/" or "/snap" is mounted with the
-			// "shared" option, see LP:#1668659
-			debug("ensuring that snap mount directory is shared");
-			sc_ensure_shared_snap_mount();
 			debug("unsharing snap namespace directory");
 			sc_initialize_ns_groups();
 			sc_unlock_global(global_lock_fd);

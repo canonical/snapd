@@ -86,6 +86,8 @@ execute: |
     lxd.lxc exec my-ubuntu -- su -c "/snap/bin/test-snapd-tools.echo from-the-inside" ubuntu | MATCH from-the-inside
     echo "And as root"
     lxd.lxc exec my-ubuntu -- test-snapd-tools.echo from-the-inside | MATCH from-the-inside
+    echo "Ensure we also can remove snaps"
+    lxd.lxc exec my-ubuntu snap remove test-snapd-tools
 
     echo "Install lxd-demo server to exercise the lxd interface"
     snap install lxd-demo-server

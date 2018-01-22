@@ -188,9 +188,6 @@ override_dh_install:
 	# it's a conf file so we're stuck with it
 	mv debian/snapd/etc/profile.d/snapd.sh debian/snapd/etc/profile.d/apps-bin-path.sh
 
-	# trusty needs this to make /snap rshared
-	install --mode=0644 debian/snap.mount.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
 
 	# trusty doesn't need the .real workaround

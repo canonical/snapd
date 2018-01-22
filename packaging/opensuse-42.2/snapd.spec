@@ -284,6 +284,7 @@ fi
 %{_mandir}/man5/snap-discard-ns.5.gz
 %{_unitdir}/snapd.refresh.service
 %{_unitdir}/snapd.refresh.timer
+%{_unitdir}/snapd.unshare.service
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
 /usr/bin/snap

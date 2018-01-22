@@ -126,6 +126,9 @@ purge() {
     rm -rf /var/lib/snapd/snaps/*
 
     echo "Final directory cleanup"
+    if grep -q "${SNAP_MOUNT_DIR} ${SNAP_MOUNT_DIR}" /proc/self/mountinfo; then
+        umount -l "${SNAP_MOUNT_DIR}"
+    fi
     rm -rf "${SNAP_MOUNT_DIR}"
     rm -rf /var/snap
 

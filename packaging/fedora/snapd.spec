@@ -585,6 +585,7 @@ popd
 %{_unitdir}/snapd.autoimport.service
 %{_unitdir}/snapd.refresh.service
 %{_unitdir}/snapd.refresh.timer
+%{_unitdir}/snapd.unshare.service
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
