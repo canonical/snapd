@@ -5,6 +5,10 @@ details: |
 
     The test-snapd-netlink-audit snap creates a netlink socket and binds it. 
 
+# Ubuntu 14.04-64 is skipped due to the capability CAP_AUDIT_READ
+# is not available in its kernel
+systems: [-ubuntu-14.04-*]
+
 environment:
     CONNECTED_PATTERN: ':netlink-audit +test-snapd-netlink-audit'
     DISCONNECTED_PATTERN: '\- +test-snapd-netlink-audit:netlink-audit'
