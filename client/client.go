@@ -364,14 +364,15 @@ const (
 	ErrorKindPaymentDeclined   = "payment-declined"
 	ErrorKindPasswordPolicy    = "password-policy"
 
-	ErrorKindSnapAlreadyInstalled   = "snap-already-installed"
-	ErrorKindSnapNotInstalled       = "snap-not-installed"
-	ErrorKindSnapNotFound           = "snap-not-found"
-	ErrorKindSnapLocal              = "snap-local"
-	ErrorKindSnapNeedsDevMode       = "snap-needs-devmode"
-	ErrorKindSnapNeedsClassic       = "snap-needs-classic"
-	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
-	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
+	ErrorKindSnapAlreadyInstalled       = "snap-already-installed"
+	ErrorKindSnapNotInstalled           = "snap-not-installed"
+	ErrorKindSnapNotFound               = "snap-not-found"
+	ErrorKindSnapNotFoundInGivenContext = "snap-not-found-in-given-context"
+	ErrorKindSnapLocal                  = "snap-local"
+	ErrorKindSnapNeedsDevMode           = "snap-needs-devmode"
+	ErrorKindSnapNeedsClassic           = "snap-needs-classic"
+	ErrorKindSnapNeedsClassicSystem     = "snap-needs-classic-system"
+	ErrorKindNoUpdateAvailable          = "snap-no-update-available"
 
 	ErrorKindNotSnap = "snap-not-a-snap"
 

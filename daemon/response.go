@@ -130,12 +130,13 @@ const (
 	errorKindPaymentDeclined   = errorKind("payment-declined")
 	errorKindPasswordPolicy    = errorKind("password-policy")
 
-	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
-	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
-	errorKindSnapNotFound          = errorKind("snap-not-found")
-	errorKindAppNotFound           = errorKind("app-not-found")
-	errorKindSnapLocal             = errorKind("snap-local")
-	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
+	errorKindSnapAlreadyInstalled       = errorKind("snap-already-installed")
+	errorKindSnapNotInstalled           = errorKind("snap-not-installed")
+	errorKindSnapNotFound               = errorKind("snap-not-found")
+	errorKindSnapNotFoundInGivenContext = errorKind("snap-not-found-in-given-context")
+	errorKindAppNotFound                = errorKind("app-not-found")
+	errorKindSnapLocal                  = errorKind("snap-local")
+	errorKindSnapNoUpdateAvailable      = errorKind("snap-no-update-available")
 
 	errorKindNotSnap = errorKind("snap-not-a-snap")
 
@@ -329,6 +330,20 @@ func SnapNotFound(snapName string, err error) Response {
 		Result: &errorResult{
 			Message: err.Error(),
 			Kind:    errorKindSnapNotFound,
+			Value:   snapName,
+		},
+		Status: 404,
+	}
+}
+
+// SnapNotFoundInGivenContext is an error responder used when an operation is
+// requested on a snap that doesn't exist in the given context.
+func SnapNotFoundInGivenContext(snapName string, err error) Response {
+	return &resp{
+		Type: ResponseTypeError,
+		Result: &errorResult{
+			Message: err.Error(),
+			Kind:    errorKindSnapNotFoundInGivenContext,
 			Value:   snapName,
 		},
 		Status: 404,

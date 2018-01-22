@@ -120,6 +120,12 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 				msg = fmt.Sprintf(i18n.G("snap %%q not found (at least in channel %q)"), opts.Channel)
 			}
 		}
+	case client.ErrorKindSnapNotFoundInGivenContext:
+		// TRANSLATORS: %%q will become a %q for the snap name
+		msg = i18n.G(`
+snap not found in the given context. Please use "snap info %s" to list available releases.
+`)
+
 	case client.ErrorKindSnapAlreadyInstalled:
 		isError = false
 		msg = i18n.G(`snap %q is already installed, see "snap refresh --help"`)

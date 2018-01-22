@@ -1029,6 +1029,36 @@ type SnapSpec struct {
 	Revision snap.Revision
 }
 
+func (s *Store) whyNotFound(snapSpec SnapSpec, user *auth.UserState) error {
+	query := s.defaultSnapQuery()
+	query.Set("channel", "") // AnyChannel
+
+	// FIXME: also add support to query without architecture to given
+	//        meaningful error about this too
+
+	u := s.endpointURL(path.Join(detailsEndpPath, snapSpec.Name), query)
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    u,
+		Accept: halJsonContentType,
+	}
+
+	var remote *snapDetails
+	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &remote, nil)
+	if err != nil {
+		return err
+	}
+
+	switch resp.StatusCode {
+	case 200:
+		return ErrSnapNotFoundInGivenContext
+	case 404:
+		return ErrSnapNotFound
+	}
+	msg := fmt.Sprintf("get details for snap %q", snapSpec.Name)
+	return respToError(resp, msg)
+}
+
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
 func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	query := s.defaultSnapQuery()
@@ -1069,7 +1099,7 @@ func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, e
 	case 200:
 		// OK
 	case 404:
-		return nil, ErrSnapNotFound
+		return nil, s.whyNotFound(snapSpec, user)
 	default:
 		msg := fmt.Sprintf("get details for snap %q%s", snapSpec.Name, sel)
 		return nil, respToError(resp, msg)
