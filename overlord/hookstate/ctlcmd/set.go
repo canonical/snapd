@@ -128,6 +128,9 @@ func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]in
 	}
 
 	var existing interface{}
+	// We're called from setInterfaceSetting, subkeys is derived from key
+	// part of key=value argument and is guaranteed to be non-empty at this
+	// point.
 	err = config.GetFromChange(context.SnapName(), subkeys[:1], 0, staticAttrs, &existing)
 	if err == nil {
 		return fmt.Errorf(i18n.G("attribute %q cannot be overwritten"), key)
