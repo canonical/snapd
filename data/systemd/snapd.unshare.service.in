@@ -5,8 +5,8 @@ RequiresMountsFor=/snap
 [Service]
 Type=oneshot
 ExecStart=/bin/mkdir -p @SNAP_MOUNT_DIR@
-ExecStart=/bin/mount -o rbind @SNAP_MOUNT_DIR@ @SNAP_MOUNT_DIR@
-ExecStart=/bin/mount --make-rshared @SNAP_MOUNT_DIR@
+ExecStart=/bin/mount -o bind @SNAP_MOUNT_DIR@ @SNAP_MOUNT_DIR@
+ExecStart=/bin/mount --make-shared @SNAP_MOUNT_DIR@
 ExecStop=/bin/umount -l @SNAP_MOUNT_DIR@
 ExecStop=/bin/umount -l @SNAP_MOUNT_DIR@
 RemainAfterExit=yes
