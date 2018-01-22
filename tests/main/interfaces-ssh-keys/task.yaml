@@ -4,50 +4,45 @@ details: |
     The ssh-keys interface allows to access ssh configuration, keys and
     make ssh connections.
 
-    The test-snapd-ssh-keys snap checks that the configuration can be 
-    read and the connection can be stablished using the user keys.
-
 environment:
     TESTKEY: "$HOME/.ssh/testkey"
-    AUTHKEYS: "$HOME/.ssh/authorized_keys"
+    CONNECTED_PATTERN: ':ssh-keys +test-snapd-ssh-keys'
+    DISCONNECTED_PATTERN: '\- +test-snapd-ssh-keys:ssh-keys'
 
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-ssh-keys
 
-    ssh-keygen -b 2048 -t rsa -f "$TESTKEY" -q -N ""
-    if [ -f "$AUTHKEYS" ]; then
-        cp "$AUTHKEYS" "$AUTHKEYS".bak
-        cat "$TESTKEY".pub >> "$AUTHKEYS"
+    if [ -d "$KEYSDIR" ]; then
+        cp -rf "$KEYSDIR" "$KEYSDIR".old
     else
-        cp "$TESTKEY".pub "$AUTHKEYS"
+        mkdir "$KEYSDIR"
     fi
+    echo "testkey" > "$TESTKEY"
+    echo "testkey.pub" > "$TESTKEY".pub
 
 restore: |
     rm -f call.error
-    rm -f "$TESTKEY" "$TESTKEY".pub 
-    if [ -f "$AUTHKEYS".bak ]; then
-        mv "$AUTHKEYS".bak "$AUTHKEYS"
-    else
-        rm -f "$AUTHKEYS"
+    rm -rf "$KEYSDIR"
+    if [ -d "$KEYSDIR".old ]; then
+        mv "$KEYSDIR".old "$KEYSDIR"
     fi
 
 execute: |
-    CONNECTED_PATTERN=":ssh-keys +test-snapd-ssh-keys"
-    DISCONNECTED_PATTERN="\- +test-snapd-ssh-keys:ssh-keys"
-
     echo "The interface is not connected by default"
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "When the interface is connected"
     snap connect test-snapd-ssh-keys:ssh-keys
-    snap connect test-snapd-ssh-keys:network-control
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
-    echo "Then the snap is able to make ssh"
-    test-snapd-ssh-keys.ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i "$TESTKEY" 127.0.0.1 "echo test123" | MATCH "test123"
+    echo "Then the snap is able to check the ssh version"
+    test-snapd-ssh-keys.cmd ssh -V
 
-    echo "And the the snap is able to access to the ssh configuration"
-    test-snapd-ssh-keys.check
+    echo "And the snap is able to read public/private keys and ssh configuration files as well"
+    test-snapd-ssh-public-keys.cmd cat "$TESTKEY"
+    test-snapd-ssh-public-keys.cmd cat "$TESTKEY".pub
+    test-snapd-ssh-public-keys.cmd cat /etc/ssh/ssh_config
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -57,8 +52,8 @@ execute: |
     snap disconnect test-snapd-ssh-keys:ssh-keys
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
-    echo "Then the snap is not able to access the ssh"
-    if test-snapd-ssh-keys.ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i "$TESTKEY" 127.0.0.1 "echo test123" 2>${PWD}/call.error; then
+    echo "Then the snap is not able to read a ssh private key"
+    if test-snapd-ssh-public-keys.cmd cat "$TESTKEY" 2>${PWD}/call.error; then
         echo "Expected permission error accessing to ssh"
         exit 1
     fi
