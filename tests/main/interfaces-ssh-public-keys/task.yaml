@@ -8,8 +8,8 @@ details: |
     stablished.
 
 environment:
+    KEYSDIR: "/$HOME/.ssh"
     TESTKEY: "/$HOME/.ssh/testkey"
-    AUTHKEYS: "$HOME/.ssh/authorized_keys"
     CONNECTED_PATTERN: ':ssh-public-keys +test-snapd-ssh-public-keys'
     DISCONNECTED_PATTERN: '\- +test-snapd-ssh-public-keys:ssh-public-keys'
 
@@ -18,25 +18,20 @@ prepare: |
     . "$TESTSLIB/snaps.sh"
 
     install_local test-snapd-ssh-public-keys
-    ssh-keygen -b 2048 -t rsa -f "$TESTKEY" -q -N ""
-    if [ -f "$AUTHKEYS" ]; then
-        cp "$AUTHKEYS" "$AUTHKEYS".bak
-        cat "$TESTKEY".pub >> "$AUTHKEYS"
-    else
-        cp "$TESTKEY".pub "$AUTHKEYS"
-    fi
 
-    # The key is copied with .pub extention to use it with the ssh command,
-    # avoiding the password prompt
-    cp "$TESTKEY" "$TESTKEY.cp.pub"
+    if [ -d "$KEYSDIR" ]; then
+        cp -rf "$KEYSDIR" "$KEYSDIR".old
+    else
+        mkdir "$KEYSDIR"
+    fi
+    echo "testkey" > "$TESTKEY"
+    echo "testkey.pub" > "$TESTKEY".pub
 
 restore: |
     rm -f call.error
-    rm -f "$TESTKEY" "$TESTKEY".pub "$TESTKEY.cp.pub"
-    if [ -f "$AUTHKEYS".bak ]; then
-        mv "$AUTHKEYS".bak "$AUTHKEYS"
-    else
-        rm -f "$AUTHKEYS"
+    rm -rf "$KEYSDIR"
+    if [ -d "$KEYSDIR".old ]; then
+        mv "$KEYSDIR".old "$KEYSDIR"
     fi
 
 execute: |
@@ -45,17 +40,20 @@ execute: |
     
     echo "When the interface is connected"
     snap connect test-snapd-ssh-public-keys:ssh-public-keys
-    snap connect test-snapd-ssh-public-keys:network-control
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
     
-    echo "Then the snap is able to make ssh"
-    test-snapd-ssh-public-keys.ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i "$TESTKEY.cp.pub" 127.0.0.1 "echo test123" | MATCH "test123"
+    echo "Then the snap is able to see ssh version"
+    test-snapd-ssh-public-keys.cmd ssh -V
+
+    echo "And the snap is able to read a public key"
+    test-snapd-ssh-public-keys.cmd cat "$TESTKEY".pub
 
     if [ "$(snap debug confinement)" = partial ]; then
         exit 0
     fi
 
-    echo "And then the snap is not able to access to non public keys"
-    if test-snapd-ssh-public-keys.ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i "$TESTKEY" 127.0.0.1 "echo test123" 2>${PWD}/call.error; then
+    echo "And then the snap is not able to access to private keys"
+    if test-snapd-ssh-public-keys.cmd cat "$TESTKEY" 2>${PWD}/call.error; then
         echo "Expected permission error accessing to ssh"
         exit 1
     fi
@@ -65,8 +63,8 @@ execute: |
     snap disconnect test-snapd-ssh-public-keys:ssh-public-keys
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
     
-    echo "Then the snap is not able to access the ssh"
-    if test-snapd-ssh-public-keys.ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i "$TESTKEY.cp.pub" 127.0.0.1 "echo test123" 2>${PWD}/call.error; then
+    echo "Then the snap is not able to access the ssh public keys"
+    if test-snapd-ssh-public-keys.cmd cat "$TESTKEY".pub 2>${PWD}/call.error; then
         echo "Expected permission error accessing to ssh"
         exit 1
     fi
