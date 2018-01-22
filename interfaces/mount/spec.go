@@ -68,10 +68,6 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	})
 }
 
-func isAbsAndClean(path string) bool {
-	return filepath.IsAbs(path) && filepath.Clean(path) == path
-}
-
 func mountEntryFromLayout(layout *snap.Layout) Entry {
 	var entry Entry
 
