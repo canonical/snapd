@@ -46,10 +46,7 @@ func (spec *Specification) AddMountEntry(e Entry) error {
 	return nil
 }
 
-// resolveSpecialVariable resolves one of the three $SNAP* variables at the
-// beginning of a given path.  The variables are $SNAP, $SNAP_DATA and
-// $SNAP_COMMON. If there are no variables then $SNAP is implicitly assumed
-// (this is the behavior that was used before the variables were supporter).
+// resolveSpecialVariable resolves $SNAP, $SNAP_DATA and $SNAP_COMMON.
 func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	return os.Expand(path, func(v string) string {
 		switch v {
