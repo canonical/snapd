@@ -724,11 +724,10 @@ func (x *cmdRefresh) Execute([]string) error {
 		}
 
 		if x.asksForMode() || x.asksForChannel() {
-			err := errors.New(i18n.G("--timer does not take mode nor channel flags"))
 			if x.Time {
-				err = errors.New(i18n.G("--time does not take mode nor channel flags"))
+				return errors.New(i18n.G("--time does not take mode nor channel flags"))
 			}
-			return err
+			return errors.New(i18n.G("--timer does not take mode nor channel flags"))
 		}
 
 		return x.showRefreshTimes(x.Time)
