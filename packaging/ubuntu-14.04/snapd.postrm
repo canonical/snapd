@@ -19,6 +19,10 @@ systemctl_stop() {
 }
 
 if [ "$1" = "purge" ]; then
+    if grep -q "/snap /snap" /proc/self/mountinfo; then
+        umount -l /snap || true
+    fi
+
     # snap.mount.service is a trusty thing
     systemctl_stop snap.mount.service
 
