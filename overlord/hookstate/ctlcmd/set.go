@@ -167,8 +167,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	context.Lock()
 	defer context.Unlock()
 
-	staticAttrs := make(map[string]interface{})
-	dynamicAttrs := make(map[string]interface{})
+	var staticAttrs, dynamicAttrs map[string]interface{}
 	if err = attrsTask.Get(fmt.Sprintf("%s-static", which), &staticAttrs); err != nil {
 		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task, %s"), which, err)
 	}
