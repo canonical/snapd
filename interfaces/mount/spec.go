@@ -21,9 +21,9 @@ package mount
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -51,20 +51,21 @@ func (spec *Specification) AddMountEntry(e Entry) error {
 // $SNAP_COMMON. If there are no variables then $SNAP is implicitly assumed
 // (this is the behavior that was used before the variables were supporter).
 func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
-	if strings.HasPrefix(path, "$SNAP/") || path == "$SNAP" {
-		// NOTE: We use dirs.CoreSnapMountDir here as the path used will be always
-		// inside the mount namespace snap-confine creates and there we will
-		// always have a /snap directory available regardless if the system
-		// we're running on supports this or not.
-		return strings.Replace(path, "$SNAP", filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String()), 1)
-	}
-	if strings.HasPrefix(path, "$SNAP_DATA/") || path == "$SNAP_DATA" {
-		return strings.Replace(path, "$SNAP_DATA", snapInfo.DataDir(), 1)
-	}
-	if strings.HasPrefix(path, "$SNAP_COMMON/") || path == "$SNAP_COMMON" {
-		return strings.Replace(path, "$SNAP_COMMON", snapInfo.CommonDataDir(), 1)
-	}
-	return path
+	return os.Expand(path, func(v string) string {
+		switch v {
+		case "SNAP":
+			// NOTE: We use dirs.CoreSnapMountDir here as the path used will be always
+			// inside the mount namespace snap-confine creates and there we will
+			// always have a /snap directory available regardless if the system
+			// we're running on supports this or not.
+			return filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String())
+		case "SNAP_DATA":
+			return snapInfo.DataDir()
+		case "SNAP_COMMON":
+			snapInfo.CommonDataDir()
+		}
+		return ""
+	})
 }
 
 func isAbsAndClean(path string) bool {
