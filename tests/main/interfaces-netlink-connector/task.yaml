@@ -6,8 +6,8 @@ details: |
     The test-snapd-netlink-connector snap creates a netlink socket and binds it. 
 
 environment:
-    CONNECTED_PATTERN: ":netlink-connector +test-snapd-netlink-connector"
-    DISCONNECTED_PATTERN: "\- +test-snapd-netlink-connector:netlink-connector"
+    CONNECTED_PATTERN: ':netlink-connector +test-snapd-netlink-connector'
+    DISCONNECTED_PATTERN: '\- +test-snapd-netlink-connector:netlink-connector'
 
 prepare: |
     . $TESTSLIB/snaps.sh
