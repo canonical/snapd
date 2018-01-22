@@ -38,8 +38,13 @@ socket AF_NETLINK - NETLINK_AUDIT
 const netlinkAuditConnectedPlugAppArmor = `
 # Description: Can use netlink to read/write to kernel audit system.
 network netlink,
-# CAP_NET_ADMIN required per 'man 7 netlink'
+
+# CAP_NET_ADMIN required for multicast netlink sockets per 'man 7 netlink'
 capability net_admin,
+
+# CAP_AUDIT_READ required to read the audit log via the netlink multicast socket
+# per 'man 7 capabilities'
+capability audit_read,
 `
 
 func init() {
