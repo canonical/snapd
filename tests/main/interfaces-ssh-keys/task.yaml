@@ -5,6 +5,7 @@ details: |
     make ssh connections.
 
 environment:
+    KEYSDIR: "/$HOME/.ssh"
     TESTKEY: "$HOME/.ssh/testkey"
     CONNECTED_PATTERN: ':ssh-keys +test-snapd-ssh-keys'
     DISCONNECTED_PATTERN: '\- +test-snapd-ssh-keys:ssh-keys'
