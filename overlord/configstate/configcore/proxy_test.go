@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -98,6 +99,21 @@ PATH="/usr/bin"
 		c.Check(string(content), Equals, fmt.Sprintf(`
 PATH="/usr/bin"
 %[1]s_proxy=%[1]s://example.com`, proto))
+	}
+}
+
+func (s *proxySuite) TestConfigureProxyTooLong(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	tooLong := strings.Repeat("x", 1025)
+	for _, proto := range []string{"http", "https", "ftp"} {
+		err := configcore.Run(&mockConf{
+			conf: map[string]interface{}{
+				fmt.Sprintf("proxy.%s", proto): tooLong,
+			},
+		})
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot apply proxy setting %q: longer than 1024 byte`, proto))
 	}
 }
 

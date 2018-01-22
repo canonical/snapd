@@ -53,6 +53,9 @@ func Run(tr Conf) error {
 	if err := validateProxyStore(tr); err != nil {
 		return err
 	}
+	if err := validateProxyLimits(tr); err != nil {
+		return err
+	}
 	if err := validateRefreshSchedule(tr); err != nil {
 		return err
 	}

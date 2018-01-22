@@ -94,3 +94,19 @@ func validateProxyStore(tr Conf) error {
 	}
 	return err
 }
+
+func validateProxyLimits(tr Conf) error {
+	// pam_env (that reads /etc/environment) has a size limit for
+	// the environment vars of 1024 byte. We need to honor this.
+	for _, key := range []string{"http", "https", "ftp"} {
+		s, err := coreCfg(tr, "proxy."+key)
+		if err != nil {
+			return err
+		}
+		if len(s) > 1024 {
+			return fmt.Errorf("cannot apply proxy setting %q: longer than 1024 byte", key)
+		}
+	}
+
+	return nil
+}
