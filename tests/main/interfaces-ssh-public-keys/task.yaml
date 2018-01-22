@@ -10,6 +10,9 @@ details: |
 environment:
     TESTKEY: "/$HOME/.ssh/testkey"
     AUTHKEYS: "$HOME/.ssh/authorized_keys"
+    CONNECTED_PATTERN: ':ssh-public-keys +test-snapd-ssh-public-keys'
+    DISCONNECTED_PATTERN: '\- +test-snapd-ssh-public-keys:ssh-public-keys'
+
 
 prepare: |
     . "$TESTSLIB/snaps.sh"
@@ -37,9 +40,6 @@ restore: |
     fi
 
 execute: |
-    CONNECTED_PATTERN=":ssh-public-keys +test-snapd-ssh-public-keys"
-    DISCONNECTED_PATTERN="\- +test-snapd-ssh-public-keys:ssh-public-keys"
-
     echo "The interface is not connected by default"
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
     
