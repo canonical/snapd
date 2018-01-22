@@ -29,9 +29,9 @@ import (
 
 type testSnapdInterface struct{}
 
-const testSnapdInterfaceSummary = `snapd test interface`
+const testSnapdInterfaceSummary = `snapd dummy test interface`
 const testSnapdInterfaceBaseDeclarationSlots = `
-  test-snapd:
+  dummy:
     allow-installation:
       slot-snap-type:
         - app
@@ -46,7 +46,7 @@ func (iface *testSnapdInterface) String() string {
 
 // Name returns the name of the bool-file interface.
 func (iface *testSnapdInterface) Name() string {
-	return "test-snapd"
+	return "dummy"
 }
 
 func (iface *testSnapdInterface) StaticInfo() interfaces.StaticInfo {
