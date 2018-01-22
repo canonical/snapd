@@ -12,4 +12,4 @@ if __name__ == "__main__":
 
     with socket.socket(socket.AF_NETLINK, socket.SOCK_DGRAM, netlink_audit_protocol) as sock:
         sock.bind((os.getpid(), cn_idx_proc))
-        print('netlink connect bound')
+        print('netlink audit bound')
