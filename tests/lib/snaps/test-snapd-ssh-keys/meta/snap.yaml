@@ -4,10 +4,6 @@ summary: Basic ssh-keys snap
 description: A basic snap which access to ssh
 
 apps:
-  ssh:
-    command: bin/ssh
-    plugs: [ssh-keys,network-control]
-  check:
-    command: bin/check
+  cmd:
+    command: bin/cmd
     plugs: [ssh-keys]
-
