@@ -38,12 +38,12 @@ execute: |
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to check the ssh version"
-    test-snapd-ssh-keys.cmd ssh -V
+    test-snapd-ssh-keys.sh -c "ssh -V"
 
     echo "And the snap is able to read public/private keys and ssh configuration files as well"
-    test-snapd-ssh-keys.cmd cat "$TESTKEY"
-    test-snapd-ssh-keys.cmd cat "$TESTKEY".pub
-    test-snapd-ssh-keys.cmd cat /etc/ssh/ssh_config
+    test-snapd-ssh-keys.sh -c "cat $TESTKEY"
+    test-snapd-ssh-keys.sh -c "cat $TESTKEY.pub"
+    test-snapd-ssh-keys.sh -c "cat /etc/ssh/ssh_config"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -54,7 +54,7 @@ execute: |
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to read a ssh private key"
-    if test-snapd-ssh-keys.cmd cat "$TESTKEY" 2>${PWD}/call.error; then
+    if test-snapd-ssh-keys.sh -c "cat $TESTKEY" 2>${PWD}/call.error; then
         echo "Expected permission error accessing to ssh"
         exit 1
     fi
