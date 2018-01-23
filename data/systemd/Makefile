@@ -20,13 +20,19 @@ LIBEXECDIR := /usr/lib
 SYSTEMDSYSTEMUNITDIR := /lib/systemd/system
 
 SYSTEMD_UNITS_GENERATED := $(patsubst %.service.in,%.service,$(wildcard *.service.in))
-SYSTEMD_UNITS := ${SYSTEMD_UNITS_GENERATED} $(wildcard *.timer) $(wildcard *.socket)
+SYSTEMD_MOUNT_UNITS_GENERATED := $(patsubst %.mount.in,%.mount,$(wildcard *.mount.in))
+SYSTEMD_UNITS := ${SYSTEMD_UNITS_GENERATED} ${SYSTEMD_MOUNT_UNITS_GENERATED} $(wildcard *.timer) $(wildcard *.socket)
 
 %.service: %.service.in
 	cat $< | \
 		sed s:@libexecdir@:${LIBEXECDIR}:g | \
 		sed s:@SNAPD_ENVIRONMENT_FILE@:${SNAPD_ENVIRONMENT_FILE}:g | \
 		sed s:@bindir@:${BINDIR}:g | \
+		sed s:@SNAP_MOUNT_DIR@:${SNAP_MOUNT_DIR}:g  | \
+		cat > $@
+
+%.mount: %.mount.in
+	cat $< | \
 		sed s:@SNAP_MOUNT_DIR@:${SNAP_MOUNT_DIR}:g  | \
 		cat > $@
 
