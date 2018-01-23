@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -42,7 +41,14 @@ var _ = Suite(&SoftwareWatchdogSuite{
 	iface: builtin.MustInterface("software-watchdog"),
 })
 
-const softwareWatchdogMockPlugSnapInfo = `name: other
+const softwareWatchdogMockSlotSnapInfoYaml = `name: software-watchdog
+version: 1.0
+type: os
+slots:
+  software-watchdog:
+    interface: software-watchdog
+`
+const softwareWatchdogMockPlugSnapInfoYaml = `name: software-watchdog-client
 version: 1.0
 apps:
  app2:
@@ -51,45 +57,32 @@ apps:
 `
 
 func (s *SoftwareWatchdogSuite) SetUpTest(c *C) {
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-		Name:      "software-watchdog",
-		Interface: "software-watchdog",
-		Apps: map[string]*snap.AppInfo{
-			"app1": {
-				Snap: &snap.Info{
-					SuggestedName: "core",
-				},
-				Name: "app1"}},
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
-
-	plugSnap := snaptest.MockInfo(c, softwareWatchdogMockPlugSnapInfo, nil)
-	s.plugInfo = plugSnap.Plugs["software-watchdog"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
+	s.slot, s.slotInfo = builtin.MockConnectedSlot(c, softwareWatchdogMockSlotSnapInfoYaml, nil, "software-watchdog")
+	s.plug, s.plugInfo = builtin.MockConnectedPlug(c, softwareWatchdogMockPlugSnapInfoYaml, nil, "software-watchdog")
 }
 
 func (s *SoftwareWatchdogSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "software-watchdog")
 }
 
-func (s *SoftwareWatchdogSuite) TestSanitizeSlot(c *C) {
+func (s *SoftwareWatchdogSuite) TestBeforePrepareSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	si := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "software-watchdog",
-		Interface: "software-watchdog",
-	}
+	nonOsSoftwareWatchdogSlotSnapInfoYaml := `name: non-os-software-watchdog
+version: 1.0
+slots:
+  software-watchdog:
+    interface: software-watchdog
+`
+	si := builtin.MockSlot(c, nonOsSoftwareWatchdogSlotSnapInfoYaml, nil, "software-watchdog")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, si), ErrorMatches,
 		"software-watchdog slots are reserved for the core snap")
 }
 
-func (s *SoftwareWatchdogSuite) TestSanitizePlug(c *C) {
+func (s *SoftwareWatchdogSuite) TestBeforePreparePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *SoftwareWatchdogSuite) TestAppArmorNotifySocketDefault(c *C) {
-
+func (s *SoftwareWatchdogSuite) TestAppArmorConnectedPlugNotifySocketDefault(c *C) {
 	restore := builtin.MockOsGetenv(func(what string) string {
 		c.Assert(what, Equals, "NOTIFY_SOCKET")
 		return ""
@@ -100,12 +93,11 @@ func (s *SoftwareWatchdogSuite) TestAppArmorNotifySocketDefault(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "\n/run/systemd/notify w,")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.software-watchdog-client.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.software-watchdog-client.app2"), testutil.Contains, "\n/run/systemd/notify w,")
 }
 
-func (s *SoftwareWatchdogSuite) TestAppArmorNotifySocketEnv(c *C) {
-
+func (s *SoftwareWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnv(c *C) {
 	restore := builtin.MockOsGetenv(func(what string) string {
 		c.Assert(what, Equals, "NOTIFY_SOCKET")
 		return "/foo/bar"
@@ -116,8 +108,8 @@ func (s *SoftwareWatchdogSuite) TestAppArmorNotifySocketEnv(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "\n/foo/bar w,")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.software-watchdog-client.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.software-watchdog-client.app2"), testutil.Contains, "\n/foo/bar w,")
 }
 
 func (s *SoftwareWatchdogSuite) TestInterfaces(c *C) {
