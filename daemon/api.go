@@ -1133,17 +1133,22 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 
 	switch err {
 	case store.ErrSnapNotFound:
-		if len(inst.Snaps) > 0 {
+		switch len(inst.Snaps) {
+		case 1:
 			return SnapNotFound(inst.Snaps[0], err)
+		// store.ErrSnapNotFound should only be returned for individual
+		// snap queries; in all other cases something's wrong
+		case 0:
+			return InternalError("store.SnapNotFound with no snap given")
+		default:
+			return InternalError("store.SnapNotFound with %d snaps", len(inst.Snaps))
 		}
-		// store.ErrSnapNotFound should only be returned for
-		// individual snap queries; something's wrong
-		return InternalError("store.SnapNotFound with no snap given")
 	case store.ErrNoUpdateAvailable:
 		kind = errorKindSnapNoUpdateAvailable
 	case store.ErrLocalSnap:
 		kind = errorKindSnapLocal
 	default:
+		handled := true
 		switch err := err.(type) {
 		case *snap.AlreadyInstalledError:
 			kind = errorKindSnapAlreadyInstalled
@@ -1164,10 +1169,17 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 			if err.Timeout() {
 				kind = errorKindNetworkTimeout
 			} else {
-				return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps, err)
+				handled = false
 			}
 		default:
-			return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps, err)
+			handled = false
+		}
+
+		if !handled {
+			if len(inst.Snaps) == 0 {
+				return BadRequest("cannot %s: %v", inst.Action, err)
+			}
+			return BadRequest("cannot %s %s: %v", inst.Action, strutil.Quoted(inst.Snaps), err)
 		}
 	}
 
