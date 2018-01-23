@@ -267,6 +267,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	st := c.d.overlord.State()
 	snapMgr := c.d.overlord.SnapManager()
 	st.Lock()
+	defer st.Unlock()
 	nextRefresh := snapMgr.NextRefresh()
 	lastRefresh, _ := snapMgr.LastRefresh()
 	refreshScheduleStr, err := snapMgr.RefreshSchedule()
@@ -274,7 +275,6 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot get refresh schedule: %s", err)
 	}
 	users, err := auth.Users(st)
-	st.Unlock()
 	if err != nil && err != state.ErrNoState {
 		return InternalError("cannot get user auth data: %s", err)
 	}
