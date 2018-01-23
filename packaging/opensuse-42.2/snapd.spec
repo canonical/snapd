@@ -297,7 +297,7 @@ fi
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snapd
 %{_libexecdir}/snapd/snap-mgmt
-%{_libexecdir}/udev/snappy-app-dev
+%{_libexecdir}/snapd/snappy-app-dev
 /usr/share/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh

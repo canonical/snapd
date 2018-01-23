@@ -1,5 +1,5 @@
 #!/bin/sh
-# udev callout (should live in /lib/udev) to allow a snap to access a device node
+# udev callout to allow a snap to access a device node
 set -e
 # debugging
 #exec >>/tmp/snappy-app-dev.log
