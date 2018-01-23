@@ -67,8 +67,6 @@ func (s *SoftwareWatchdogSuite) SetUpTest(c *C) {
 	plugSnap := snaptest.MockInfo(c, softwareWatchdogMockPlugSnapInfo, nil)
 	s.plugInfo = plugSnap.Plugs["software-watchdog"]
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
-
-	builtin.ResetCachedSoftwareWatchdogSnippets(s.iface)
 }
 
 func (s *SoftwareWatchdogSuite) TestName(c *C) {

@@ -102,9 +102,3 @@ func MockOsGetenv(mock func(string) string) (restore func()) {
 
 	return restore
 }
-
-func ResetCachedSoftwareWatchdogSnippets(iface interfaces.Interface) {
-	if wdIface, _ := iface.(*softwareWatchdogInterface); wdIface != nil {
-		wdIface.resetCachedSnippets()
-	}
-}
