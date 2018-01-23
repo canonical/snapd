@@ -46,7 +46,7 @@ environment:
 backends:
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
-        plan: 2GB
+        plan: 8GB
         location: Fremont
         halt-timeout: 2h
         environment:
@@ -62,37 +62,19 @@ backends:
                 image: ubuntu-16.04-64
                 workers: 4
 
-            - unit-ubuntu-14.04-64:
-                image: ubuntu-14.04-64
+            - ubuntu-16.04-64:
                 kernel: GRUB 2
+                workers: 6
+            - ubuntu-16.04-32:
+                kernel: GRUB 2
+                workers: 4
             - ubuntu-14.04-64:
                 kernel: GRUB 2
                 workers: 4
 
-            - unit-ubuntu-16.04-64:
-                image: ubuntu-16.04-64
-                kernel: GRUB 2
-            - gccgo-ubuntu-16.04-64:
-                image: ubuntu-16.04-64
-                kernel: GRUB 2
-            - ubuntu-16.04-64:
-                kernel: GRUB 2
-                workers: 4
-
-            - unit-ubuntu-16.04-32:
-                image: ubuntu-16.04-32
-                kernel: GRUB 2
-            - ubuntu-16.04-32:
-                kernel: GRUB 2
-                workers: 4
-
-            - unit-debian-9-64:
-                image: debian-9-64
-                kernel: GRUB 2
             - debian-9-64:
                 kernel: GRUB 2
                 workers: 4
-
             - debian-sid-64:
                 kernel: GRUB 2
                 workers: 4
@@ -100,11 +82,10 @@ backends:
 
             - fedora-27-64:
                 workers: 4
-
-            - fedora-25-64:
+            - fedora-26-64:
                 workers: 4
                 manual: true
-            - fedora-26-64:
+            - fedora-25-64:
                 workers: 4
                 manual: true
 
@@ -416,7 +397,6 @@ restore-each: |
 
 suites:
     tests/main/:
-        systems: [-unit-*, -gccgo-*]
         summary: Full-system tests for snapd
         prepare: |
             . $TESTSLIB/prepare.sh
@@ -445,7 +425,7 @@ suites:
     tests/completion/:
         summary: completion tests
         # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -unit-*, -gccgo-*]
+        systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
         prepare: |
             . $TESTSLIB/prepare.sh
             prepare_classic
@@ -475,7 +455,6 @@ suites:
 
     tests/regression/:
         summary: Regression tests for snapd
-        systems: [-unit-*, -gccgo-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -497,7 +476,7 @@ suites:
         # Test cases are not yet ported to openSUSE that is why we keep
         # it disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-16-*, -opensuse-*, -unit-*, -gccgo-*]
+        systems: [-ubuntu-core-16-*, -opensuse-*]
         restore: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
@@ -517,7 +496,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -unit-*, -gccgo-*]
+        systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
         environment:
             # env vars required for coverage reporting from a spread task
             TRAVIS_BUILD_NUMBER: "$(HOST: echo $TRAVIS_BUILD_NUMBER)"
@@ -547,7 +526,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*, -unit-*, -gccgo-*]
+        systems: [-fedora-*, -opensuse-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -569,7 +548,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*, -unit-*, -gccgo-*]
+        systems: [-fedora-*, -opensuse-*]
         environment:
             NESTED_ARCH: "$(HOST: echo ${SPREAD_NESTED_ARCH:-amd64})"
             CORE_REFRESH_CHANNEL: "$(HOST: echo ${SPREAD_CORE_REFRESH_CHANNEL:-candidate})"
