@@ -4,7 +4,7 @@ details: |
     The gpg-keys interface allows to access gpg binary and keys.
 
 environment:
-    KEYSDIR: "/$HOME/.gnupg"
+    KEYSDIR: "$HOME/.gnupg"
     TRUSTDB: "$HOME/.gnupg/trustdb.gpg"
     TESTKEY: "$HOME/.gnupg/testkey"
     CONNECTED_PATTERN: ':gpg-keys +test-snapd-gpg-keys'
