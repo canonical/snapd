@@ -1,6 +1,6 @@
 summary: Check that snapd builds with gccgo
 
-systems: [ubuntu-16.04-64-gccgo]
+systems: [gccgo-ubuntu-16.04-64]
 
 prepare: |
     echo Installing gccgo-6 and pretending it is the default go
