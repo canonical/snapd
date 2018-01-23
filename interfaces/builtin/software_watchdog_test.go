@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type SoftwareWatchdogSuite struct {
+type softwareWatchdogSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -37,7 +37,7 @@ type SoftwareWatchdogSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&SoftwareWatchdogSuite{
+var _ = Suite(&softwareWatchdogSuite{
 	iface: builtin.MustInterface("software-watchdog"),
 })
 
@@ -56,16 +56,16 @@ apps:
   plugs: [software-watchdog]
 `
 
-func (s *SoftwareWatchdogSuite) SetUpTest(c *C) {
+func (s *softwareWatchdogSuite) SetUpTest(c *C) {
 	s.slot, s.slotInfo = builtin.MockConnectedSlot(c, softwareWatchdogMockSlotSnapInfoYaml, nil, "software-watchdog")
 	s.plug, s.plugInfo = builtin.MockConnectedPlug(c, softwareWatchdogMockPlugSnapInfoYaml, nil, "software-watchdog")
 }
 
-func (s *SoftwareWatchdogSuite) TestName(c *C) {
+func (s *softwareWatchdogSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "software-watchdog")
 }
 
-func (s *SoftwareWatchdogSuite) TestBeforePrepareSlot(c *C) {
+func (s *softwareWatchdogSuite) TestBeforePrepareSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	nonOsSoftwareWatchdogSlotSnapInfoYaml := `name: non-os-software-watchdog
 version: 1.0
@@ -78,11 +78,11 @@ slots:
 		"software-watchdog slots are reserved for the core snap")
 }
 
-func (s *SoftwareWatchdogSuite) TestBeforePreparePlug(c *C) {
+func (s *softwareWatchdogSuite) TestBeforePreparePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *SoftwareWatchdogSuite) TestAppArmorConnectedPlugNotifySocketDefault(c *C) {
+func (s *softwareWatchdogSuite) TestAppArmorConnectedPlugNotifySocketDefault(c *C) {
 	restore := builtin.MockOsGetenv(func(what string) string {
 		c.Assert(what, Equals, "NOTIFY_SOCKET")
 		return ""
@@ -97,7 +97,7 @@ func (s *SoftwareWatchdogSuite) TestAppArmorConnectedPlugNotifySocketDefault(c *
 	c.Assert(apparmorSpec.SnippetForTag("snap.software-watchdog-client.app2"), testutil.Contains, "\n/run/systemd/notify w,")
 }
 
-func (s *SoftwareWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnv(c *C) {
+func (s *softwareWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnv(c *C) {
 	restore := builtin.MockOsGetenv(func(what string) string {
 		c.Assert(what, Equals, "NOTIFY_SOCKET")
 		return "/foo/bar"
@@ -112,6 +112,6 @@ func (s *SoftwareWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnv(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.software-watchdog-client.app2"), testutil.Contains, "\n/foo/bar w,")
 }
 
-func (s *SoftwareWatchdogSuite) TestInterfaces(c *C) {
+func (s *softwareWatchdogSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
