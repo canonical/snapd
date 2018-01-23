@@ -1133,7 +1133,12 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 
 	switch err {
 	case store.ErrSnapNotFound:
-		return SnapNotFound(inst.Snaps[0], err)
+		if len(inst.Snaps) > 0 {
+			return SnapNotFound(inst.Snaps[0], err)
+		}
+		// store.ErrSnapNotFound should only be returned for
+		// individual snap queries; something's wrong
+		return InternalError("store.SnapNotFound with no snap given")
 	case store.ErrNoUpdateAvailable:
 		kind = errorKindSnapNoUpdateAvailable
 	case store.ErrLocalSnap:
@@ -1159,10 +1164,10 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 			if err.Timeout() {
 				kind = errorKindNetworkTimeout
 			} else {
-				return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+				return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps, err)
 			}
 		default:
-			return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+			return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps, err)
 		}
 	}
 
