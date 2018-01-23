@@ -20,12 +20,14 @@
 package mount
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -145,6 +147,18 @@ func (spec *Specification) MountEntries() []Entry {
 	result := make([]Entry, 0, len(spec.layoutMountEntries)+len(spec.mountEntries))
 	result = append(result, spec.layoutMountEntries...)
 	result = append(result, spec.mountEntries...)
+	// Number each entry, in case we get clashes this will automatically give
+	// them unique names.
+	count := make(map[string]int, len(result))
+	for i := range result {
+		path := result[i].Dir
+		count[path] += 1
+		if c := count[path]; c > 1 {
+			newDir := fmt.Sprintf("%s-%d", result[i].Dir, c)
+			logger.Noticef("renaming mount entry for directory %q to %q to avoid a clash", result[i].Dir, newDir)
+			result[i].Dir = newDir
+		}
+	}
 	return result
 }
 
