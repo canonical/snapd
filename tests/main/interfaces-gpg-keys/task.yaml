@@ -19,11 +19,12 @@ prepare: |
     else
         mkdir "$KEYSDIR"
     fi
-    echo "testkey" > "$TESTKEY"
 
     if ! [ -f $TRUSTDB ]; then
         echo "trustdb" > "$TRUSTDB"
     fi
+
+    echo "testkey" > "$TESTKEY"
 
 restore: |
     rm -f call.error
@@ -65,7 +66,7 @@ execute: |
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to read gpg keys"
-    if test-snapd-ssh-public-keys.sh -c "cat $TESTKEY" 2>${PWD}/call.error; then
+    if test-snapd-gpg-keys.sh -c "cat $TESTKEY" 2>${PWD}/call.error; then
         echo "Expected permission error accessing to gpg keys"
         exit 1
     fi
