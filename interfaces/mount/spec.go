@@ -46,8 +46,8 @@ func (spec *Specification) AddMountEntry(e Entry) error {
 	return nil
 }
 
-// resolveSpecialVariable resolves $SNAP, $SNAP_DATA and $SNAP_COMMON.
-func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
+// expandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON.
+func expandSnapVariables(path string, snapInfo *snap.Info) string {
 	return os.Expand(path, func(v string) string {
 		switch v {
 		case "SNAP":
@@ -68,11 +68,11 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 func mountEntryFromLayout(layout *snap.Layout) Entry {
 	var entry Entry
 
-	mountPoint := resolveSpecialVariable(layout.Path, layout.Snap)
+	mountPoint := expandSnapVariables(layout.Path, layout.Snap)
 	entry.Dir = mountPoint
 
 	if layout.Bind != "" {
-		mountSource := resolveSpecialVariable(layout.Bind, layout.Snap)
+		mountSource := expandSnapVariables(layout.Bind, layout.Snap)
 		// XXX: what about ro mounts?
 		// XXX: what about file mounts, those need x-snapd.kind=file to create correctly?
 		entry.Options = []string{"bind", "rw"}
@@ -85,7 +85,7 @@ func mountEntryFromLayout(layout *snap.Layout) Entry {
 	}
 
 	if layout.Symlink != "" {
-		oldname := resolveSpecialVariable(layout.Symlink, layout.Snap)
+		oldname := expandSnapVariables(layout.Symlink, layout.Snap)
 		entry.Options = []string{"x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", oldname)}
 	}
 
