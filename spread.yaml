@@ -46,7 +46,7 @@ environment:
 backends:
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
-        plan: 8GB
+        plan: 2GB
         location: fremont
         halt-timeout: 2h
         environment:
@@ -59,34 +59,34 @@ backends:
         systems:
             - ubuntu-14.04-64:
                 kernel: GRUB 2
-                workers: 4
+                workers: 8
             - ubuntu-16.04-64:
                 kernel: GRUB 2
-                workers: 4
+                workers: 8
             - ubuntu-16.04-32:
                 kernel: GRUB 2
-                workers: 4
+                workers: 8
             - ubuntu-core-16-64:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
-                workers: 4
+                workers: 8
             - debian-sid-64:
                 kernel: GRUB 2
-                workers: 4
+                workers: 8
                 manual: true
             - debian-9-64:
                 kernel: GRUB 2
-                workers: 4
+                workers: 8
             - fedora-25-64:
-                workers: 3
+                workers: 6
                 manual: true
             - fedora-26-64:
-                workers: 3
+                workers: 6
                 manual: true
             - fedora-27-64:
-                workers: 3
+                workers: 6
             - opensuse-42.2-64:
-                workers: 3
+                workers: 6
     qemu:
         systems:
             - ubuntu-14.04-32:
