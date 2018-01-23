@@ -614,10 +614,10 @@ popd
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
+%{_libexecdir}/snapd/snappy-app-dev
 %{_libexecdir}/snapd/system-shutdown
 %{_mandir}/man1/snap-confine.1*
 %{_mandir}/man5/snap-discard-ns.5*
-%{_prefix}/lib/udev/snappy-app-dev
 %attr(0000,root,root) %{_sharedstatedir}/snapd/void
 
 

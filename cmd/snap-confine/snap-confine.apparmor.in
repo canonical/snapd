@@ -63,7 +63,7 @@
     # querying udev
     /etc/udev/udev.conf r,
     /sys/**/uevent r,
-    /lib/udev/snappy-app-dev ixr, # drop
+    /usr/lib/snapd/snappy-app-dev ixr, # drop
     /run/udev/** rw,
     /{,usr/}bin/tr ixr,
     /usr/lib/locale/** r,

@@ -366,8 +366,8 @@ EXTRA_DIST += \
 #
 # Install support script for udev rules
 install-exec-local::
-	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
-	install -m 755 $(srcdir)/snap-confine/snappy-app-dev $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
+	install -d -m 755 $(DESTDIR)$(libexecdir)
+	install -m 755 $(srcdir)/snap-confine/snappy-app-dev $(DESTDIR)$(libexecdir)
 
 ##
 ## snap-discard-ns
