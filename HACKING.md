@@ -207,4 +207,4 @@ version on your system and reloads the apparmor profile.
 
 ## Submitting patches
 
-Please run `make fmt` before sending your patches.
+Please run `gofmt` before sending your patches.
