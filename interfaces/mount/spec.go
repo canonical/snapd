@@ -20,7 +20,6 @@
 package mount
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -86,7 +85,7 @@ func mountEntryFromLayout(layout *snap.Layout) Entry {
 
 	if layout.Symlink != "" {
 		oldname := expandSnapVariables(layout.Symlink, layout.Snap)
-		entry.Options = []string{"x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", oldname)}
+		entry.Options = []string{XSnapdKindSymlink(), XSnapdSymlink(oldname)}
 	}
 
 	var uid int
@@ -99,7 +98,7 @@ func mountEntryFromLayout(layout *snap.Layout) Entry {
 		uid = 65534
 	}
 	if uid != 0 {
-		entry.Options = append(entry.Options, fmt.Sprintf("x-snapd.user=%d", uid))
+		entry.Options = append(entry.Options, XSnapdUser(uid))
 	}
 
 	var gid int
@@ -112,11 +111,11 @@ func mountEntryFromLayout(layout *snap.Layout) Entry {
 		gid = 65534
 	}
 	if gid != 0 {
-		entry.Options = append(entry.Options, fmt.Sprintf("x-snapd.group=%d", gid))
+		entry.Options = append(entry.Options, XSnapdGroup(gid))
 	}
 
 	if layout.Mode != 0755 {
-		entry.Options = append(entry.Options, fmt.Sprintf("x-snapd.mode=%#o", uint32(layout.Mode)))
+		entry.Options = append(entry.Options, XSnapdMode(uint32(layout.Mode)))
 	}
 	return entry
 }
