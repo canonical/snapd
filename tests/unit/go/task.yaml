@@ -1,5 +1,7 @@
 summary: Run project static and unit tests
 
+systems: ["*-unit"]
+
 restore: |
     rm -rf /tmp/static-unit-tests
 

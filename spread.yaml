@@ -57,36 +57,59 @@ backends:
             HTTP_PROXY: null
             HTTPS_PROXY: null
         systems:
-            - ubuntu-14.04-64:
-                kernel: GRUB 2
-                workers: 8
-            - ubuntu-16.04-64:
-                kernel: GRUB 2
-                workers: 8
-            - ubuntu-16.04-32:
-                kernel: GRUB 2
-                workers: 8
             - ubuntu-core-16-64:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
-                workers: 8
-            - debian-sid-64:
+                workers: 4
+
+            - ubuntu-14.04-64-unit:
+                image: ubuntu-14.04-64
                 kernel: GRUB 2
-                workers: 8
-                manual: true
+            - ubuntu-14.04-64:
+                kernel: GRUB 2
+                workers: 4
+
+            - ubuntu-16.04-64-unit:
+                image: ubuntu-16.04-64
+                kernel: GRUB 2
+            - ubuntu-16.04-64-gccgo:
+                image: ubuntu-16.04-64
+                kernel: GRUB 2
+            - ubuntu-16.04-64:
+                kernel: GRUB 2
+                workers: 4
+
+            - ubuntu-16.04-32-unit:
+                image: ubuntu-16.04-32
+                kernel: GRUB 2
+            - ubuntu-16.04-32:
+                kernel: GRUB 2
+                workers: 4
+
+            - debian-9-64-unit:
+                image: debian-9-64
+                kernel: GRUB 2
             - debian-9-64:
                 kernel: GRUB 2
-                workers: 8
+                workers: 4
+
+            - debian-sid-64:
+                kernel: GRUB 2
+                workers: 4
+                manual: true
+
+            - fedora-27-64:
+                workers: 4
+
             - fedora-25-64:
-                workers: 6
+                workers: 4
                 manual: true
             - fedora-26-64:
-                workers: 6
+                workers: 4
                 manual: true
-            - fedora-27-64:
-                workers: 6
+
             - opensuse-42.2-64:
-                workers: 6
+                workers: 4
     qemu:
         systems:
             - ubuntu-14.04-32:
