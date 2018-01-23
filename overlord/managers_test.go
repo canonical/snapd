@@ -216,6 +216,7 @@ func makeTestSnap(c *C, snapYamlContent string) string {
 
 	var files [][]string
 	for _, app := range info.Apps {
+		// files is a list of (filename, content)
 		files = append(files, []string{app.Command, ""})
 	}
 
