@@ -89,6 +89,7 @@ func mountEntryFromLayout(layout *snap.Layout) Entry {
 	}
 
 	var uid int
+	// Only root and nobody are allowed here. Root is default. This is validated in spec.go.
 	switch layout.User {
 	case "root", "":
 		uid = 0
@@ -102,6 +103,8 @@ func mountEntryFromLayout(layout *snap.Layout) Entry {
 	}
 
 	var gid int
+	// Only root and nobody (with an alias of nogroup) are allowed here. Root is default.
+	// This is validated in spec.go.
 	switch layout.Group {
 	case "root", "":
 		gid = 0
