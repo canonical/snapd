@@ -197,7 +197,7 @@ func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo 
 	}
 
 	if err := snap.ValidateContainer(c, s, logger.Noticef); err != nil {
-		return err
+		return fmt.Errorf("%v; contact developer", err)
 	}
 
 	st.Lock()

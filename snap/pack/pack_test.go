@@ -108,7 +108,7 @@ func (s *packSuite) TestPackNoManifestFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
 	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "snap.yaml")), IsNil)
 	_, err := pack.Snap(sourceDir, "")
-	c.Assert(err, ErrorMatches, ".* no such file or directory") // XXX maybe make the error more explicit
+	c.Assert(err, ErrorMatches, `.*/meta/snap\.yaml: no such file or directory`)
 }
 
 func (s *packSuite) TestPackMissingAppFails(c *C) {
