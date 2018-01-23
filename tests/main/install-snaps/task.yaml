@@ -107,4 +107,13 @@ execute: |
         break
     done
 
+    echo "Check the snap is properly installed"
     snap list | MATCH $SNAP
+
+    echo "Check the snap is properly removed"
+    snap remove $SNAP
+
+    if snap list | MATCH $SNAP; then
+        echo "Snap $SNAP not removed properly"
+        exit 1
+    fi

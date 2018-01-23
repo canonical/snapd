@@ -211,7 +211,15 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 var settleTimeout = 15 * time.Second
 
 func makeTestSnap(c *C, snapYamlContent string) string {
-	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, nil)
+	info, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))
+	c.Assert(err, IsNil)
+
+	var files [][]string
+	for _, app := range info.Apps {
+		files = append(files, []string{app.Command, ""})
+	}
+
+	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, files)
 }
 
 func (ms *mgrsSuite) TestHappyLocalInstall(c *C) {

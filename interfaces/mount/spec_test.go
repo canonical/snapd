@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type specSuite struct {
@@ -110,4 +111,28 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 		{Dir: "dir-b", Name: "connected-slot"},
 		{Dir: "dir-c", Name: "permanent-plug"},
 		{Dir: "dir-d", Name: "permanent-slot"}})
+}
+
+const snapWithLayout = `
+name: vanguard
+layout:
+  /usr:
+    bind: $SNAP/usr
+  /mytmp:
+    type: tmpfs
+    user: nobody
+    group: nogroup
+    mode: 1777
+  /mylink:
+    symlink: /link/target
+`
+
+func (s *specSuite) TestMountEntryFromLayout(c *C) {
+	snapInfo := snaptest.MockInfo(c, snapWithLayout, &snap.SideInfo{Revision: snap.R(42)})
+	s.spec.AddSnapLayout(snapInfo)
+	c.Assert(s.spec.MountEntries(), DeepEquals, []mount.Entry{
+		{Dir: "/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/link/target"}},
+		{Name: "tmpfs", Dir: "/mytmp", Type: "tmpfs", Options: []string{"x-snapd.user=65534", "x-snapd.group=65534", "x-snapd.mode=01777"}},
+		{Name: "/snap/vanguard/42/usr", Dir: "/usr", Options: []string{"bind", "rw"}},
+	})
 }
