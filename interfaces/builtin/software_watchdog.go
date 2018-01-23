@@ -44,38 +44,22 @@ const softwareWatchdogConnectedPlugAppArmorTemplate = `
 
 type softwareWatchdogInterface struct {
 	commonInterface
-	appArmorSnippet string
 }
 
 var osGetenv = os.Getenv
 
-func makeSoftwareWatchdogAppArmorSnippet() string {
+func (iface *softwareWatchdogInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	notifySocket := osGetenv("NOTIFY_SOCKET")
 	if notifySocket == "" {
 		notifySocket = "/run/systemd/notify"
 	}
-
 	snippet := strings.Replace(softwareWatchdogConnectedPlugAppArmorTemplate,
 		"{{notify-socket}}", notifySocket, 1)
-	return snippet
-}
-
-func (iface *softwareWatchdogInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if iface.appArmorSnippet == "" {
-		// Cache the snippet after it's successfully computed once
-		iface.appArmorSnippet = makeSoftwareWatchdogAppArmorSnippet()
-	}
-	spec.AddSnippet(iface.appArmorSnippet)
+	spec.AddSnippet(snippet)
 	return nil
 }
 
-func (iface *softwareWatchdogInterface) resetCachedSnippets() {
-	// for testing
-	iface.appArmorSnippet = ""
-}
-
 func init() {
-
 	registerIface(&softwareWatchdogInterface{commonInterface: commonInterface{
 		name:                 "software-watchdog",
 		summary:              softwareWatchdogSummary,
