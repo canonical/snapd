@@ -47,7 +47,7 @@ backends:
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
         plan: 2GB
-        location: fremont
+        location: Fremont
         halt-timeout: 2h
         environment:
             # Using proxy can help to accelerate testing in local conditions
