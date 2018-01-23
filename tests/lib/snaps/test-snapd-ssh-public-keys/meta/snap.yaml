@@ -4,6 +4,6 @@ summary: Basic ssh-public-keys snap
 description: A basic snap which access to public ssh keys
 
 apps:
-  cmd:
-    command: bin/cmd
+  sh:
+    command: ../../../bin/sh
     plugs: [ssh-public-keys]
