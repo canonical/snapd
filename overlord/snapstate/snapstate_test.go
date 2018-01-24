@@ -65,7 +65,8 @@ type snapmgrTestSuite struct {
 	fakeBackend *fakeSnappyBackend
 	fakeStore   *fakeStore
 
-	user *auth.UserState
+	user  *auth.UserState
+	user2 *auth.UserState
 }
 
 func (s *snapmgrTestSuite) settle(c *C) {
@@ -85,6 +86,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.fakeBackend = &fakeSnappyBackend{}
+	s.fakeBackend.emptyContainer = emptyContainer(c)
 	s.fakeStore = &fakeStore{
 		fakeCurrentProgress: 75,
 		fakeTotalProgress:   100,
@@ -126,6 +128,8 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 	s.user, err = auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	c.Assert(err, IsNil)
+	s.user2, err = auth.NewUser(s.state, "username2", "email2@test.com", "macaroon2", []string{"discharge2"})
+	c.Assert(err, IsNil)
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
@@ -149,6 +153,47 @@ func (s *snapmgrTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 }
 
+func (s *snapmgrTestSuite) TestKnownTaskKinds(c *C) {
+	kinds := s.snapmgr.KnownTaskKinds()
+	sort.Strings(kinds)
+	c.Assert(kinds, DeepEquals, []string{
+		"alias",
+		"cleanup",
+		"clear-aliases",
+		"clear-snap",
+		"configure-snapd",
+		"copy-snap-data",
+		"disable-aliases",
+		"discard-conns",
+		"discard-snap",
+		"download-snap",
+		"error-trigger",
+		"link-snap",
+		"mount-snap",
+		"nop",
+		"prefer-aliases",
+		"prepare-snap",
+		"prerequisites",
+		"prune-auto-aliases",
+		"refresh-aliases",
+		"remove-aliases",
+		"remove-profiles",
+		"run-hook",
+		"set-auto-aliases",
+		"setup-aliases",
+		"setup-profiles",
+		"start-snap-services",
+		"stop-snap-services",
+		"switch-snap",
+		"switch-snap-channel",
+		"toggle-snap-flags",
+		"transition-ubuntu-core",
+		"unalias",
+		"unlink-current-snap",
+		"unlink-snap",
+		"validate-snap"})
+}
+
 func (s *snapmgrTestSuite) TestStore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -161,6 +206,35 @@ func (s *snapmgrTestSuite) TestStore(c *C) {
 	// cached
 	store2 := snapstate.Store(s.state)
 	c.Check(store2, Equals, sto)
+}
+
+func (s *snapmgrTestSuite) TestUserFromUserID(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tests := []struct {
+		ids     []int
+		u       *auth.UserState
+		invalid bool
+	}{
+		{[]int{0}, nil, false},
+		{[]int{2}, s.user2, false},
+		{[]int{99}, nil, true},
+		{[]int{1, 99}, s.user, false},
+		{[]int{99, 0}, nil, false},
+		{[]int{99, 2}, s.user2, false},
+		{[]int{99, 100}, nil, true},
+	}
+
+	for _, t := range tests {
+		u, err := snapstate.UserFromUserID(s.state, t.ids...)
+		c.Check(u, DeepEquals, t.u)
+		if t.invalid {
+			c.Check(err, Equals, auth.ErrInvalidUser)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
 }
 
 const (
@@ -895,7 +969,7 @@ func (s *snapmgrTestSuite) TestSwitchConflict(c *C) {
 	s.state.NewChange("switch-snap", "...").AddAll(ts)
 
 	_, err = snapstate.Switch(s.state, "some-snap", "other-channel")
-	c.Check(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Check(err, ErrorMatches, `snap "some-snap" has "switch-snap" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestSwitchUnhappy(c *C) {
@@ -948,7 +1022,7 @@ func (s *snapmgrTestSuite) TestEnableConflict(c *C) {
 	s.state.NewChange("enable", "...").AddAll(ts)
 
 	_, err = snapstate.Enable(s.state, "some-snap")
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "enable" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestDisableConflict(c *C) {
@@ -969,7 +1043,7 @@ func (s *snapmgrTestSuite) TestDisableConflict(c *C) {
 	s.state.NewChange("install", "...").AddAll(ts)
 
 	_, err = snapstate.Disable(s.state, "some-snap")
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "install" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestDoInstallChannelDefault(c *C) {
@@ -1010,7 +1084,7 @@ func (s *snapmgrTestSuite) TestInstallConflict(c *C) {
 	s.state.NewChange("install", "...").AddAll(ts)
 
 	_, err = snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "install" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestInstallAliasConflict(c *C) {
@@ -1073,7 +1147,7 @@ func (s *snapmgrTestSuite) TestInstallPathConflict(c *C) {
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
 	_, err = snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "install" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestInstallPathMissingName(c *C) {
@@ -1374,7 +1448,7 @@ func (s *snapmgrTestSuite) TestUpdateConflict(c *C) {
 	s.state.NewChange("refresh", "...").AddAll(ts)
 
 	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "refresh" change in progress`)
 }
 
 func (s *snapmgrTestSuite) testChangeConflict(c *C, kind string) {
@@ -1401,10 +1475,10 @@ func (s *snapmgrTestSuite) testChangeConflict(c *C, kind string) {
 	chg.AddTask(t)
 
 	_, err := snapstate.Update(s.state, "producer", "some-channel", snap.R(2), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "producer" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "producer" has "another change" change in progress`)
 
 	_, err = snapstate.Update(s.state, "consumer", "some-channel", snap.R(2), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "consumer" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "consumer" has "another change" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateConflictWithConnect(c *C) {
@@ -1471,7 +1545,7 @@ func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
 	s.state.NewChange("remove", "...").AddAll(ts)
 
 	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0))
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "remove" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
@@ -1498,9 +1572,10 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	}})
 	expected := fakeOps{
 		{
-			op:    "storesvc-snap",
-			name:  "some-snap",
-			revno: snap.R(42),
+			op:     "storesvc-snap",
+			name:   "some-snap",
+			revno:  snap.R(42),
+			userID: 1,
 		},
 		{
 			op:   "storesvc-download",
@@ -1667,7 +1742,8 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				SnapID:   "services-snap-id",
 				Revision: snap.R(7),
 			},
-			revno: snap.R(11),
+			revno:  snap.R(11),
+			userID: 1,
 		},
 		{
 			op:   "storesvc-download",
@@ -1808,6 +1884,272 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestUpdateRememberedUserRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
+		},
+		Current:  snap.R(5),
+		SnapType: "app",
+		UserID:   1,
+	})
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Err(), IsNil)
+
+	for _, op := range s.fakeBackend.ops {
+		switch op.op {
+		case "storesvc-list-refresh":
+			c.Check(op.userID, Equals, 1)
+		case "storesvc-download":
+			snapName := op.name
+			c.Check(s.fakeStore.downloads[0], DeepEquals, fakeDownload{
+				macaroon: "macaroon",
+				name:     "some-snap",
+			}, Commentf(snapName))
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestUpdateToRevisionRememberedUserRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
+		},
+		Current:  snap.R(5),
+		SnapType: "app",
+		UserID:   1,
+	})
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(11), 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Err(), IsNil)
+
+	for _, op := range s.fakeBackend.ops {
+		switch op.op {
+		case "storesvc-snap":
+			c.Check(op.userID, Equals, 1)
+		case "storesvc-download":
+			snapName := op.name
+			c.Check(s.fakeStore.downloads[0], DeepEquals, fakeDownload{
+				macaroon: "macaroon",
+				name:     "some-snap",
+			}, Commentf(snapName))
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
+		},
+		Current:  snap.R(5),
+		SnapType: "app",
+		UserID:   1,
+	})
+	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "services-snap", Revision: snap.R(2), SnapID: "services-snap-id"},
+		},
+		Current:  snap.R(2),
+		SnapType: "app",
+		UserID:   2,
+	})
+
+	chg := s.state.NewChange("refresh", "refresh all snaps")
+	// no user is passed to use for UpdateMany
+	updated, tts, err := snapstate.UpdateMany(s.state, nil, 0)
+	c.Assert(err, IsNil)
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+	c.Check(updated, HasLen, 3)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Err(), IsNil)
+
+	macaroonMap := map[string]string{
+		"core":          "",
+		"some-snap":     "macaroon",
+		"services-snap": "macaroon2",
+	}
+
+	type snapIDuserID struct {
+		snapID string
+		userID int
+	}
+	seen := make(map[snapIDuserID]bool)
+	di := 0
+	for _, op := range s.fakeBackend.ops {
+		switch op.op {
+		case "storesvc-list-refresh":
+			snapID := op.cand.SnapID
+			seen[snapIDuserID{snapID: snapID, userID: op.userID}] = true
+		case "storesvc-download":
+			snapName := op.name
+			c.Check(s.fakeStore.downloads[di], DeepEquals, fakeDownload{
+				macaroon: macaroonMap[snapName],
+				name:     snapName,
+			}, Commentf(snapName))
+			di++
+		}
+	}
+	// we check all snaps with each user
+	c.Check(seen, DeepEquals, map[snapIDuserID]bool{
+		{snapID: "core-snap-id", userID: 1}:     true,
+		{snapID: "some-snap-id", userID: 1}:     true,
+		{snapID: "services-snap-id", userID: 1}: true,
+		{snapID: "core-snap-id", userID: 2}:     true,
+		{snapID: "some-snap-id", userID: 2}:     true,
+		{snapID: "services-snap-id", userID: 2}: true,
+	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
+		},
+		Current:  snap.R(5),
+		SnapType: "app",
+		UserID:   1,
+	})
+	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "services-snap", Revision: snap.R(2), SnapID: "services-snap-id"},
+		},
+		Current:  snap.R(2),
+		SnapType: "app",
+		UserID:   2,
+	})
+
+	chg := s.state.NewChange("refresh", "refresh all snaps")
+	// do UpdateMany using user 2 as fallback
+	updated, tts, err := snapstate.UpdateMany(s.state, nil, 2)
+	c.Assert(err, IsNil)
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+	c.Check(updated, HasLen, 3)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Err(), IsNil)
+
+	macaroonMap := map[string]string{
+		"core":          "macaroon2",
+		"some-snap":     "macaroon",
+		"services-snap": "macaroon2",
+	}
+
+	type snapIDuserID struct {
+		snapID string
+		userID int
+	}
+	seen := make(map[snapIDuserID]bool)
+	di := 0
+	for _, op := range s.fakeBackend.ops {
+		switch op.op {
+		case "storesvc-list-refresh":
+			snapID := op.cand.SnapID
+			seen[snapIDuserID{snapID: snapID, userID: op.userID}] = true
+		case "storesvc-download":
+			snapName := op.name
+			c.Check(s.fakeStore.downloads[di], DeepEquals, fakeDownload{
+				macaroon: macaroonMap[snapName],
+				name:     snapName,
+			}, Commentf(snapName))
+			di++
+		}
+	}
+	// we check all snaps with each user
+	c.Check(seen, DeepEquals, map[snapIDuserID]bool{
+		{snapID: "core-snap-id", userID: 1}:     true,
+		{snapID: "some-snap-id", userID: 1}:     true,
+		{snapID: "services-snap-id", userID: 1}: true,
+		{snapID: "core-snap-id", userID: 2}:     true,
+		{snapID: "some-snap-id", userID: 2}:     true,
+		{snapID: "services-snap-id", userID: 2}: true,
+	})
+
+	var coreState, snapState snapstate.SnapState
+	// user in SnapState was preserved
+	err = snapstate.Get(s.state, "some-snap", &snapState)
+	c.Assert(err, IsNil)
+	c.Check(snapState.UserID, Equals, 1)
+	c.Check(snapState.Current, DeepEquals, snap.R(11))
+
+	// user in SnapState was set
+	err = snapstate.Get(s.state, "core", &coreState)
+	c.Assert(err, IsNil)
+	c.Check(coreState.UserID, Equals, 2)
+	c.Check(coreState.Current, DeepEquals, snap.R(11))
+
+}
+
 func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
@@ -1845,7 +2187,8 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
 			},
-			revno: snap.R(11),
+			revno:  snap.R(11),
+			userID: 1,
 		},
 		{
 			op:   "storesvc-download",
@@ -2004,7 +2347,8 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
 			},
-			revno: snap.R(11),
+			revno:  snap.R(11),
+			userID: 1,
 		},
 		{
 			op:   "storesvc-download",
@@ -2193,7 +2537,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchesChannelConflict(c *C) {
 	s.state.NewChange("refresh", "refresh a snap").AddAll(ts)
 
 	_, err = snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Check(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Check(err, ErrorMatches, `snap "some-snap" has "refresh" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
@@ -2235,6 +2579,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 				SnapID:   "some-snap-id",
 				Revision: snap.R(7),
 			},
+			userID: 1,
 		},
 	}
 
@@ -2319,7 +2664,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionToggleIgnoreValidationConflict(
 	s.state.NewChange("refresh", "refresh a snap").AddAll(ts)
 
 	_, err = snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{IgnoreValidation: true})
-	c.Check(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Check(err, ErrorMatches, `snap "some-snap" has "refresh" change in progress`)
 
 }
 
@@ -2495,6 +2840,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			Channel:          "stable",
 			IgnoreValidation: true,
 		},
+		userID: 1,
 	})
 
 	chg := s.state.NewChange("refresh", "refresh snap")
@@ -2529,6 +2875,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			Channel:          "stable",
 			IgnoreValidation: true,
 		},
+		userID: 1,
 	})
 
 	chg = s.state.NewChange("refresh", "refresh snaps")
@@ -2568,6 +2915,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			Channel:          "stable",
 			IgnoreValidation: false,
 		},
+		userID: 1,
 	})
 
 	chg = s.state.NewChange("refresh", "refresh snap")
@@ -2620,6 +2968,7 @@ func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 			Revision: snap.R(7),
 			Channel:  "some-channel",
 		},
+		userID: 1,
 	})
 
 }
@@ -2659,6 +3008,7 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 			SnapID:   "some-snap-id",
 			Revision: snap.R(7),
 		},
+		userID: 1,
 	})
 
 }
@@ -2697,6 +3047,7 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 			Revision: snap.R(7),
 			Block:    []snap.Revision{snap.R(11)},
 		},
+		userID: 1,
 	})
 
 }
@@ -3001,7 +3352,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		chg := s.state.NewChange("update", "...")
 		chg.AddAll(ts)
 		err = snapstate.CheckChangeConflict(s.state, scenario.names[0], nil, nil)
-		c.Check(err, ErrorMatches, `.* has changes in progress`)
+		c.Check(err, ErrorMatches, `.* has "update" change in progress`)
 		chg.SetStatus(state.DoneStatus)
 	}
 }
@@ -4883,9 +5234,10 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 
 	expected := fakeOps{
 		{
-			op:    "storesvc-snap",
-			name:  "some-snap",
-			revno: snap.R(11),
+			op:     "storesvc-snap",
+			name:   "some-snap",
+			revno:  snap.R(11),
+			userID: 1,
 		},
 		{
 			op:   "storesvc-download",
@@ -5044,11 +5396,11 @@ func makeTestRefreshConfig(st *state.State) {
 	st.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, now.Location()))
 
 	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00-23:59"))
+	tr.Set("core", "refresh.timer", "00:00-23:59")
 	tr.Commit()
 }
 
-func (s *snapmgrTestSuite) TestEnsureRefreshRefusesWeekdaySchedules(c *C) {
+func (s *snapmgrTestSuite) TestEnsureRefreshRefusesLegacyWeekdaySchedules(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
@@ -5058,7 +5410,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesWeekdaySchedules(c *C) {
 
 	s.state.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, time.UTC))
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00-23:59/mon@12:00-14:00"))
+	tr.Set("core", "refresh.timer", "")
+	tr.Set("core", "refresh.schedule", "00:00-23:59/mon@12:00-14:00")
 	tr.Commit()
 
 	// Ensure() also runs ensureRefreshes()
@@ -5067,6 +5420,124 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesWeekdaySchedules(c *C) {
 	s.state.Lock()
 
 	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule configuration: cannot parse "mon@12:00": not a valid time`)
+	schedule, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00-24:00/4")
+
+	tr = config.NewTransaction(s.state)
+	refreshTimer := "canary"
+	refreshSchedule := "canary"
+	c.Assert(tr.Get("core", "refresh.timer", &refreshTimer), IsNil)
+	c.Assert(tr.Get("core", "refresh.schedule", &refreshSchedule), IsNil)
+	c.Check(refreshTimer, Equals, "")
+	c.Check(refreshSchedule, Equals, "00:00-23:59/mon@12:00-14:00")
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshLegacyScheduleIsLowerPriority(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	s.state.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, time.UTC))
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.timer", "00:00-23:59,,mon,12:00-14:00")
+	// legacy schedule is invalid
+	tr.Set("core", "refresh.schedule", "00:00-23:59/mon@12:00-14:00")
+	tr.Commit()
+
+	// Ensure() also runs ensureRefreshes()
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// expecting new refresh.timer to have been used, fallback to legacy was
+	// not attempted otherwise it would get reset to the default due to
+	// refresh.schedule being garbage
+	schedule, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00-23:59,,mon,12:00-14:00")
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToLegacySchedule(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.timer", "")
+	tr.Set("core", "refresh.schedule", "00:00-23:59")
+	tr.Commit()
+
+	// Ensure() also runs ensureRefreshes()
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// refresh.timer is unset, triggering automatic fallback to legacy
+	// schedule if that was set
+	schedule, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00-23:59")
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToDefaultOnError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.timer", "garbage-in")
+	tr.Set("core", "refresh.schedule", "00:00-23:59")
+	tr.Commit()
+
+	// Ensure() also runs ensureRefreshes()
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// automatic fallback to default schedule if refresh.timer is set but
+	// cannot be parsed
+	schedule, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00-24:00/4")
+
+	tr = config.NewTransaction(s.state)
+	refreshTimer := "canary"
+	refreshSchedule := "canary"
+	c.Assert(tr.Get("core", "refresh.timer", &refreshTimer), IsNil)
+	c.Assert(tr.Get("core", "refresh.schedule", &refreshSchedule), IsNil)
+	c.Check(refreshTimer, Equals, "garbage-in")
+	c.Check(refreshSchedule, Equals, "00:00-23:59")
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshFallbackOnEmptyToDefaultSchedule(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.timer", "")
+	tr.Set("core", "refresh.schedule", "")
+	tr.Commit()
+
+	// Ensure() also runs ensureRefreshes()
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// automatic fallback to default schedule if neither refresh.timer nor
+	// refresh.schedule was set
+	schedule, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00-24:00/4")
+
+	tr = config.NewTransaction(s.state)
+	refreshTimer := "canary"
+	refreshSchedule := "canary"
+	c.Assert(tr.Get("core", "refresh.timer", &refreshTimer), IsNil)
+	c.Assert(tr.Get("core", "refresh.schedule", &refreshSchedule), IsNil)
+	c.Check(refreshTimer, Equals, "")
+	c.Check(refreshSchedule, Equals, "")
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
@@ -5104,7 +5575,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
 	s.state.Set("last-refresh", fakeLastRefresh)
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00-%02d:%02d", now.Hour(), now.Minute()))
+	tr.Set("core", "refresh.timer", fmt.Sprintf("00:00-%02d:%02d", now.Hour(), now.Minute()))
 	tr.Commit()
 
 	// Ensure() also runs ensureRefreshes()
@@ -5353,9 +5824,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesDisabledViaSnapdControl(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
-	l, err := timeutil.ParseLegacySchedule(snapstate.DefaultRefreshSchedule)
+	l, err := timeutil.ParseSchedule(snapstate.DefaultRefreshSchedule)
 	c.Assert(err, IsNil)
-	c.Assert(l, HasLen, 4)
+	c.Assert(l, HasLen, 1)
 }
 
 type snapmgrQuerySuite struct {
@@ -5716,14 +6187,16 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 	defer s.state.Unlock()
 
 	// make mock try dir
-	tryYaml := filepath.Join(c.MkDir(), "meta", "snap.yaml")
+	d := c.MkDir()
+	c.Assert(os.Chmod(d, 0755), IsNil)
+	tryYaml := filepath.Join(d, "meta", "snap.yaml")
 	err := os.MkdirAll(filepath.Dir(tryYaml), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(tryYaml, []byte("name: foo\nversion: 1.0"), 0644)
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("try", "try snap")
-	ts, err := snapstate.TryPath(s.state, "foo", filepath.Dir(filepath.Dir(tryYaml)), flags)
+	ts, err := snapstate.TryPath(s.state, "foo", d, flags)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7370,7 +7843,7 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 		{"a-snap", "c-snap"},
 		{"b-snap", "c-snap"},
 	} {
-		c.Check(snapstate.CheckChangeConflictMany(s.state, m, nil), ErrorMatches, `snap "[^"]*" has changes in progress`)
+		c.Check(snapstate.CheckChangeConflictMany(s.state, m, nil), ErrorMatches, `snap "[^"]*" has "enable" change in progress`)
 	}
 }
 
@@ -7406,16 +7879,18 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 	expected := fakeOps{
 		// we check the snap
 		{
-			op:    "storesvc-snap",
-			name:  "some-snap",
-			revno: snap.R(42),
+			op:     "storesvc-snap",
+			name:   "some-snap",
+			revno:  snap.R(42),
+			userID: 1,
 		},
 		// then we check core because its not installed already
 		// and continue with that
 		{
-			op:    "storesvc-snap",
-			name:  "core",
-			revno: snap.R(11),
+			op:     "storesvc-snap",
+			name:   "core",
+			revno:  snap.R(11),
+			userID: 1,
 		},
 		{
 			op:   "storesvc-download",
@@ -7999,6 +8474,34 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 
 }
 
+func (s *snapmgrTestSuite) TestSnapManagerLegacyRefreshSchedule(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, t := range []struct {
+		in  string
+		out string
+	}{
+		{"", snapstate.DefaultRefreshSchedule},
+		{"invalid schedule", snapstate.DefaultRefreshSchedule},
+		{"8:00-12:00", "8:00-12:00"},
+		// using the legacy configuration option with a new-style
+		// refresh.timer string is rejected (i.e. the legacy parser is
+		// used for the parsing)
+		{"0:00~24:00/24", snapstate.DefaultRefreshSchedule},
+	} {
+		if t.in != "" {
+			tr := config.NewTransaction(s.state)
+			tr.Set("core", "refresh.timer", "")
+			tr.Set("core", "refresh.schedule", t.in)
+			tr.Commit()
+		}
+		scheduleStr, err := s.snapmgr.RefreshSchedule()
+		c.Check(err, IsNil)
+		c.Check(scheduleStr, Equals, t.out)
+	}
+}
+
 func (s *snapmgrTestSuite) TestSnapManagerRefreshSchedule(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -8010,10 +8513,12 @@ func (s *snapmgrTestSuite) TestSnapManagerRefreshSchedule(c *C) {
 		{"", snapstate.DefaultRefreshSchedule},
 		{"invalid schedule", snapstate.DefaultRefreshSchedule},
 		{"8:00-12:00", "8:00-12:00"},
+		// this is only valid under the new schedule parser
+		{"9:00~15:00/2,,mon,20:00", "9:00~15:00/2,,mon,20:00"},
 	} {
 		if t.in != "" {
 			tr := config.NewTransaction(s.state)
-			tr.Set("core", "refresh.schedule", t.in)
+			tr.Set("core", "refresh.timer", t.in)
 			tr.Commit()
 		}
 		scheduleStr, err := s.snapmgr.RefreshSchedule()

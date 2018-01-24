@@ -265,13 +265,27 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	return nil
 }
 
+func genServiceNames(snap *snap.Info, appNames []string) []string {
+	names := make([]string, 0, len(appNames))
+
+	for _, name := range appNames {
+		if app := snap.Apps[name]; app != nil {
+			names = append(names, app.ServiceName())
+		}
+	}
+	return names
+}
+
 func genServiceFile(appInfo *snap.AppInfo) []byte {
 	serviceTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application {{.App.Snap.Name}}.{{.App.Name}}
 Requires={{.MountUnit}}
 Wants={{.PrerequisiteTarget}}
-After={{.MountUnit}} {{.PrerequisiteTarget}}
+After={{.MountUnit}} {{.PrerequisiteTarget}}{{range .After}} {{.}}{{end}}
+{{- if .Before}}
+Before={{ range .Before -}}{{.}} {{- end}}
+{{- end}}
 X-Snappy=yes
 
 [Service]
@@ -279,18 +293,30 @@ ExecStart={{.App.LauncherCommand}}
 SyslogIdentifier={{.App.Snap.Name}}.{{.App.Name}}
 Restart={{.Restart}}
 WorkingDirectory={{.App.Snap.DataDir}}
-{{if .App.StopCommand}}ExecStop={{.App.LauncherStopCommand}}{{end}}
-{{if .App.ReloadCommand}}ExecReload={{.App.LauncherReloadCommand}}{{end}}
-{{if .App.PostStopCommand}}ExecStopPost={{.App.LauncherPostStopCommand}}{{end}}
-{{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
+{{- if .App.StopCommand}}
+ExecStop={{.App.LauncherStopCommand}}
+{{- end}}
+{{- if .App.ReloadCommand}}
+ExecReload={{.App.LauncherReloadCommand}}
+{{- end}}
+{{- if .App.PostStopCommand}}
+ExecStopPost={{.App.LauncherPostStopCommand}}
+{{- end}}
+{{- if .StopTimeout}}
+TimeoutStopSec={{.StopTimeout.Seconds}}
+{{- end}}
 Type={{.App.Daemon}}
-{{if .Remain}}RemainAfterExit={{.Remain}}{{end}}
-{{if .App.BusName}}BusName={{.App.BusName}}{{end}}
+{{- if .Remain}}
+RemainAfterExit={{.Remain}}
+{{- end}}
+{{- if .App.BusName}}
+BusName={{.App.BusName}}
+{{- end}}
+{{- if not .App.Sockets}}
 
-{{if not .App.Sockets}}
 [Install]
 WantedBy={{.ServicesTarget}}
-{{end}}
+{{- end}}
 `
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("service-wrapper").Parse(serviceTemplate))
@@ -320,6 +346,8 @@ WantedBy={{.ServicesTarget}}
 		PrerequisiteTarget string
 		MountUnit          string
 		Remain             string
+		Before             []string
+		After              []string
 
 		Home    string
 		EnvVars string
@@ -332,6 +360,8 @@ WantedBy={{.ServicesTarget}}
 		PrerequisiteTarget: systemd.PrerequisiteTarget,
 		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
 		Remain:             remain,
+		Before:             genServiceNames(appInfo.Snap, appInfo.Before),
+		After:              genServiceNames(appInfo.Snap, appInfo.After),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",

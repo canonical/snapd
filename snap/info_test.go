@@ -783,8 +783,6 @@ layout:
     bind: $SNAP/usr
   /mytmp:
     type: tmpfs
-    user: nobody
-    group: nobody
     mode: 1777
   /mylink:
     symlink: /link/target
@@ -805,8 +803,8 @@ layout:
 		Snap:  info,
 		Path:  "/mytmp",
 		Type:  "tmpfs",
-		User:  "nobody",
-		Group: "nobody",
+		User:  "root",
+		Group: "root",
 		Mode:  01777,
 	})
 	c.Check(layout["/mylink"], DeepEquals, &snap.Layout{

@@ -579,9 +579,6 @@ const unity7ConnectedPlugSeccomp = `
 # to various DBus services and this environment does not prevent eavesdropping
 # or apps interfering with one another.
 
-# X
-shutdown
-
 # Needed by QtSystems on X to detect mouse and keyboard
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 bind
