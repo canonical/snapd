@@ -665,13 +665,11 @@ func (x *cmdRefresh) showRefreshTimes() error {
 		return err
 	}
 
-	timerOrSchedulePrefix := "timer"
-	timerOrSchedule := sysinfo.Refresh.Timer
-	if sysinfo.Refresh.Timer == "" && sysinfo.Refresh.Schedule != "" {
-		timerOrSchedulePrefix = "schedule"
-		timerOrSchedule = sysinfo.Refresh.Schedule
+	if sysinfo.Refresh.Schedule != "" {
+		fmt.Fprintf(Stdout, "schedule: %s\n", sysinfo.Refresh.Schedule)
+	} else {
+		fmt.Fprintf(Stdout, "timer: %s\n", sysinfo.Refresh.Timer)
 	}
-	fmt.Fprintf(Stdout, "%s: %s\n", timerOrSchedulePrefix, timerOrSchedule)
 	if sysinfo.Refresh.Last != "" {
 		fmt.Fprintf(Stdout, "last: %s\n", sysinfo.Refresh.Last)
 	} else {
