@@ -125,6 +125,7 @@ var defaultTemplate = `
   /{,usr/}bin/diff{,3} ixr,
   /{,usr/}bin/dir ixr,
   /{,usr/}bin/dirname ixr,
+  /{,usr/}bin/du ixr,
   /{,usr/}bin/echo ixr,
   /{,usr/}bin/{,e,f,r}grep ixr,
   /{,usr/}bin/env ixr,
