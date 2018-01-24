@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -45,6 +46,8 @@ var (
 	syscallExec = syscall.Exec
 	userCurrent = user.Current
 	osGetenv    = os.Getenv
+
+	ErrSnapNotInstalled = errors.New("snap not installed")
 )
 
 type cmdRun struct {
@@ -162,6 +165,11 @@ func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 	if revision.Unset() {
 		curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
 		realFn, err := os.Readlink(curFn)
+		// FIXME: the snap might also be disabled without talking to
+		//        snapd we don't know
+		if os.IsNotExist(err) {
+			return nil, ErrSnapNotInstalled
+		}
 		if err != nil {
 			return nil, fmt.Errorf("cannot find current revision for snap %s: %s", snapName, err)
 		}
@@ -248,6 +256,10 @@ func createUserDataDirs(info *snap.Info) error {
 func snapRunApp(snapApp, command string, args []string) error {
 	snapName, appName := snap.SplitSnapApp(snapApp)
 	info, err := getSnapInfo(snapName, snap.R(0))
+	if err == ErrSnapNotInstalled {
+		adviseCommand(snapApp, "pretty")
+		return err
+	}
 	if err != nil {
 		return err
 	}
