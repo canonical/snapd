@@ -124,9 +124,12 @@ bool sc_cgroup_freezer_occupied(const char *snap_name, uid_t uid)
 		}
 		if (num_read <= 0) {
 			break;
-		}
-		if (num_read > 0 && line_buf[num_read - 1] == '\n') {
-			line_buf[num_read - 1] = '\0';
+		} else {
+			if (line_buf[num_read - 1] == '\n') {
+				line_buf[num_read - 1] = '\0';
+			} else {
+				die("could not find newline in cgroup.procs");
+			}
 		}
 		debug("found process id: %s\n", line_buf);
 
