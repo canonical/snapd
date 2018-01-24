@@ -175,9 +175,9 @@ func execApp(snapApp, revision, command string, args []string) error {
 	}
 	env = append(env, osutil.SubstituteEnv(app.Env())...)
 
-	// strings.Split() is ok here because we validate all app fields
-	// and the whitelist is pretty strict (see
-	// snap/validate.go:appContentWhitelist)
+	// strings.Split() is ok here because we validate all app fields and the
+	// whitelist is pretty strict (see snap/validate.go:appContentWhitelist)
+	// (see also overlord/snapstate/check_snap.go's normPath)
 	tmpArgv := strings.Split(cmdAndArgs, " ")
 	cmd := tmpArgv[0]
 	cmdArgs := expandEnvCmdArgs(tmpArgv[1:], osutil.EnvMap(env))
