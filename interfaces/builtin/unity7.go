@@ -44,6 +44,15 @@ const unity7ConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
+
+# Allow finding the DBus session bus id (eg, via dbus_bus_get_id())
+dbus (send)
+     bus=session
+     path=/org/freedesktop/DBus
+     interface=org.freedesktop.DBus
+     member=GetId
+     peer=(name=org.freedesktop.DBus, label=unconfined),
+
 #include <abstractions/X>
 
 #include <abstractions/fonts>
