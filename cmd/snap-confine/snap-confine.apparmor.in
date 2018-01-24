@@ -55,10 +55,12 @@
     # cgroup: freezer
     # Allow creating per-snap cgroup freezers and adding snap command (task)
     # invocations to the freezer. This allows for reliably enumerating all
-    # running tasks for the snap.
+    # running tasks for the snap. In addition, allow enumerating processes in
+    # the cgroup to determine if it is occupied.
     /sys/fs/cgroup/freezer/ r,
     /sys/fs/cgroup/freezer/snap.*/ w,
     /sys/fs/cgroup/freezer/snap.*/tasks w,
+    /sys/fs/cgroup/freezer/snap.*/cgroup.procs r,
 
     # querying udev
     /etc/udev/udev.conf r,
@@ -303,6 +305,12 @@
     # Allow snap-confine to read snap contexts
     /var/lib/snapd/context/snap.* r,
 
+    # Allow snap-confine to unmount stale mount namespaces.
+    umount /run/snapd/ns/*.mnt,
+    # Required to correctly unmount bound mount namespace.
+    # See LP: #1735459 for details.
+    umount /,
+
     # Support for the quirk system
     /var/ r,
     /var/lib/ r,
@@ -351,7 +359,7 @@
     capability sys_admin,
     signal (send, receive) set=(abrt) peer=@LIBEXECDIR@/snap-confine,
     signal (send) set=(int) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
-    signal (send, receive) set=(alrm, exists) peer=@LIBEXECDIR@/snap-confine,
+    signal (send, receive) set=(int, alrm, exists) peer=@LIBEXECDIR@/snap-confine,
     signal (receive) set=(exists) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
 
     # workaround for linux 4.13/upstream, see

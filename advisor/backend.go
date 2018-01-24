@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/boltdb/bolt"
+	"github.com/snapcore/bolt"
 
 	"github.com/snapcore/snapd/dirs"
 )
