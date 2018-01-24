@@ -366,10 +366,10 @@ func (m *SnapManager) LastRefresh() (time.Time, error) {
 	return m.autoRefresh.LastRefresh()
 }
 
-// RefreshSchedule returns the current refresh schedule as a string
-// suitable to display to a user.
+// RefreshSchedule returns the current refresh schedule as a string suitable to
+// display to a user and a flag indicating whether the schedule is a legacy one.
 // The caller should be holding the state lock.
-func (m *SnapManager) RefreshSchedule() (string, error) {
+func (m *SnapManager) RefreshSchedule() (string, bool, error) {
 	return m.autoRefresh.RefreshSchedule()
 }
 

@@ -118,8 +118,9 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 0)
 
-	refreshScheduleStr, err := af.RefreshSchedule()
+	refreshScheduleStr, legacy, err := af.RefreshSchedule()
 	c.Check(refreshScheduleStr, Equals, "managed")
+	c.Check(legacy, Equals, false)
 	c.Check(err, IsNil)
 
 	c.Check(af.NextRefresh(), DeepEquals, time.Time{})
