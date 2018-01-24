@@ -581,6 +581,13 @@ dbus (send)
   path=/com/canonical/Unity/Session
   member="{ActivateScreenSaver,IsLocked,Lock}"
   peer=(label=unconfined),
+
+# Allow unconfined to introspect us
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
 `
 
 const unity7ConnectedPlugSeccomp = `
