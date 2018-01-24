@@ -327,7 +327,6 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	char mnt_fname[PATH_MAX] = { 0 };
 	dev_t base_snap_dev;
 	int event_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	pid_t parent, child;
 
 	// Read the revision of the base snap by looking at the current symlink.
 	sc_must_snprintf(fname, sizeof fname, "%s/%s/current",
@@ -348,7 +347,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	// Store the PID of this process. This is done instead of calls to
 	// getppid() below because then we can reliably track the PID of the
 	// parent even if the child process is re-parented.
-	parent = getpid();
+	pid_t parent = getpid();
 
 	// Create an eventfd for the communication with the child.
 	event_fd = eventfd(0, EFD_CLOEXEC);
@@ -356,7 +355,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		die("cannot create eventfd for communication with inspection process");
 	}
 	// Fork a child, it will do the inspection for us.
-	child = fork();
+	pid_t child = fork();
 	if (child < 0) {
 		die("cannot fork support process for namespace inspection");
 	}
@@ -433,7 +432,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 
 	// Wait for the child process to exit and collect its exit status.
 	errno = 0;
-	int status;
+	int status = 0;
 	if (waitpid(child, &status, 0) < 0) {
 		die("cannot wait for the support process for mount namespace inspection");
 	}
