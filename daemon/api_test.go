@@ -799,7 +799,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
 		"refresh": map[string]interface{}{
-			"schedule": "00:00-24:00/4",
+			// only the "timer" field
+			"timer": "00:00-24:00/4",
 		},
 		"confinement": "partial",
 	}
@@ -810,6 +811,60 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	// Ensure that we had a kernel-verrsion but don't check the actual value.
 	const kernelVersionKey = "kernel-version"
 	c.Check(rsp.Result.(map[string]interface{})[kernelVersionKey], check.Not(check.Equals), "")
+	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
+	rec := httptest.NewRecorder()
+
+	d := s.daemon(c)
+	d.Version = "42b1"
+
+	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
+	defer restore()
+	restore = release.MockOnClassic(true)
+	defer restore()
+	restore = release.MockForcedDevmode(true)
+	defer restore()
+
+	// set the legacy refresh schedule
+	st := d.overlord.State()
+	st.Lock()
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.schedule", "00:00-9:00/12:00-13:00")
+	tr.Set("core", "refresh.timer", "")
+	tr.Commit()
+	st.Unlock()
+
+	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+
+	expected := map[string]interface{}{
+		"series":  "16",
+		"version": "42b1",
+		"os-release": map[string]interface{}{
+			"id":         "distro-id",
+			"version-id": "1.2",
+		},
+		"on-classic": true,
+		"managed":    false,
+		"locations": map[string]interface{}{
+			"snap-mount-dir": dirs.SnapMountDir,
+			"snap-bin-dir":   dirs.SnapBinariesDir,
+		},
+		"refresh": map[string]interface{}{
+			// only the "schedule" field
+			"schedule": "00:00-9:00/12:00-13:00",
+		},
+		"confinement": "partial",
+	}
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	const kernelVersionKey = "kernel-version"
 	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
