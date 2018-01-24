@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -182,16 +183,28 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 
 var openSnapFile = backend.OpenSnapFile
 
+func validateContainer(c snap.Container, s *snap.Info, logf func(format string, v ...interface{})) error {
+	err := snap.ValidateContainer(c, s, logf)
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%v; contact developer", err)
+}
+
 // checkSnap ensures that the snap can be installed.
 func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo *snap.Info, flags Flags) error {
 	// This assumes that the snap was already verified or --dangerous was used.
 
-	s, _, err := openSnapFile(snapFilePath, si)
+	s, c, err := openSnapFile(snapFilePath, si)
 	if err != nil {
 		return err
 	}
 
 	if err := validateInfoAndFlags(s, nil, flags); err != nil {
+		return err
+	}
+
+	if err := validateContainer(c, s, logger.Noticef); err != nil {
 		return err
 	}
 
