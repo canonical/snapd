@@ -115,14 +115,12 @@ build_rpm() {
 
     # .. and we need all necessary build dependencies available
     deps=()
-    n=0
     IFS=$'\n'
     for dep in $(rpm -qpR "$rpm_dir"/SRPMS/snapd-1337.*.src.rpm); do
       if [[ "$dep" = rpmlib* ]]; then
          continue
       fi
-      deps[$n]=$dep
-      n=$((n+1))
+      deps+=("$dep")
     done
     distro_install_package "${deps[@]}"
 

@@ -103,13 +103,14 @@ Requires:       bash-completion
 Requires:       %{name}-selinux = %{version}-%{release}
 
 %if ! 0%{?with_bundled}
+BuildRequires: golang(github.com/boltdb/bolt)
 BuildRequires: golang(github.com/cheggaaa/pb)
 BuildRequires: golang(github.com/coreos/go-systemd/activation)
 BuildRequires: golang(github.com/godbus/dbus)
 BuildRequires: golang(github.com/godbus/dbus/introspect)
 BuildRequires: golang(github.com/gorilla/mux)
 BuildRequires: golang(github.com/jessevdk/go-flags)
-BuildRequires: golang(github.com/mvo5/uboot-go/uenv)
+BuildRequires: golang(github.com/mvo5/goconfigparser)
 BuildRequires: golang(github.com/ojii/gettext.go)
 BuildRequires: golang(github.com/seccomp/libseccomp-golang)
 BuildRequires: golang(golang.org/x/crypto/openpgp/armor)
@@ -192,13 +193,14 @@ BuildArch:     noarch
 %endif
 
 %if ! 0%{?with_bundled}
+Requires:      golang(github.com/boltdb/bolt)
 Requires:      golang(github.com/cheggaaa/pb)
 Requires:      golang(github.com/coreos/go-systemd/activation)
 Requires:      golang(github.com/godbus/dbus)
 Requires:      golang(github.com/godbus/dbus/introspect)
 Requires:      golang(github.com/gorilla/mux)
 Requires:      golang(github.com/jessevdk/go-flags)
-Requires:      golang(github.com/mvo5/uboot-go/uenv)
+Requires:      golang(github.com/mvo5/goconfigparser)
 Requires:      golang(github.com/ojii/gettext.go)
 Requires:      golang(github.com/seccomp/libseccomp-golang)
 Requires:      golang(golang.org/x/crypto/openpgp/armor)
@@ -217,13 +219,14 @@ Requires:      golang(gopkg.in/yaml.v2)
 # These Provides are unversioned because the sources in
 # the bundled tarball are unversioned (they go by git commit)
 # *sigh*... I hate golang...
+Provides:      bundled(github.com/boltdb/bolt)
 Provides:      bundled(golang(github.com/cheggaaa/pb))
 Provides:      bundled(golang(github.com/coreos/go-systemd/activation))
 Provides:      bundled(golang(github.com/godbus/dbus))
 Provides:      bundled(golang(github.com/godbus/dbus/introspect))
 Provides:      bundled(golang(github.com/gorilla/mux))
 Provides:      bundled(golang(github.com/jessevdk/go-flags))
-Provides:      bundled(golang(github.com/mvo5/uboot-go/uenv))
+Provides:      bundled(golang(github.com/mvo5/goconfigparser))
 Provides:      bundled(golang(github.com/mvo5/libseccomp-golang))
 Provides:      bundled(golang(github.com/ojii/gettext.go))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/armor))
@@ -337,16 +340,6 @@ Summary:         Unit tests for %{name} package
 #in %%check section need for running
 %endif
 
-%if 0%{?with_check} && ! 0%{?with_bundled}
-BuildRequires: golang(github.com/mvo5/goconfigparser)
-%endif
-
-%if ! 0%{?with_bundled}
-Requires:      golang(github.com/mvo5/goconfigparser)
-%else
-Provides:      bundled(golang(github.com/mvo5/goconfigparser))
-%endif
-
 # test subpackage tests code from devel subpackage
 Requires:        %{name}-devel = %{version}-%{release}
 
@@ -396,6 +389,13 @@ GOFLAGS=
 GOFLAGS="$GOFLAGS -tags withtestkeys"
 %endif
 
+%if ! 0%{?with_bundled}
+# We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
+sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
+# We don't need the snapcore fork for bolt - it is just a fix on ppc
+sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go
+%endif
+
 # We have to build snapd first to prevent the build from
 # building various things from the tree without additional
 # set tags.
@@ -408,10 +408,6 @@ GOFLAGS="$GOFLAGS -tags withtestkeys"
 %gobuild_static -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
 %gobuild_static -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
 
-%if ! 0%{?with_bundled}
-# We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
-sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
-%endif
 %if 0%{?rhel}
 # There's no static link library for libseccomp in RHEL/CentOS...
 sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
