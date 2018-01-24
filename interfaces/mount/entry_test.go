@@ -169,6 +169,26 @@ func (s *entrySuite) TestOptsToFlags(c *C) {
 	c.Assert(flags, Equals, 0)
 }
 
+// Test (string) options -> (int, unparsed) flag conversion code.
+func (s *entrySuite) TestOptsToCommonFlags(c *C) {
+	flags, unparsed := mount.OptsToCommonFlags(nil)
+	c.Assert(flags, Equals, 0)
+	c.Assert(unparsed, HasLen, 0)
+	flags, unparsed = mount.OptsToCommonFlags([]string{"ro", "nodev", "nosuid"})
+	c.Assert(flags, Equals, syscall.MS_RDONLY|syscall.MS_NODEV|syscall.MS_NOSUID)
+	c.Assert(unparsed, HasLen, 0)
+	flags, unparsed = mount.OptsToCommonFlags([]string{"bogus"})
+	c.Assert(flags, Equals, 0)
+	c.Assert(unparsed, DeepEquals, []string{"bogus"})
+	// The x-snapd-prefix is reserved for non-kernel parameters that do not
+	// translate to kernel level mount flags. This is similar to systemd or
+	// udisks that use fstab options to convey additional data. Those are not
+	// returned as "unparsed" as we don't want to pass them to the kernel.
+	flags, unparsed = mount.OptsToCommonFlags([]string{"x-snapd.foo"})
+	c.Assert(flags, Equals, 0)
+	c.Assert(unparsed, HasLen, 0)
+}
+
 func (s *entrySuite) TestOptStr(c *C) {
 	e := &mount.Entry{Options: []string{"key=value"}}
 	val, ok := e.OptStr("key")
@@ -187,4 +207,13 @@ func (s *entrySuite) TestOptBool(c *C) {
 
 	val = e.OptBool("missing")
 	c.Assert(val, Equals, false)
+}
+
+func (s *entrySuite) TestOptionHelpers(c *C) {
+	c.Assert(mount.XSnapdKindSymlink(), Equals, "x-snapd.kind=symlink")
+	c.Assert(mount.XSnapdKindFile(), Equals, "x-snapd.kind=file")
+	c.Assert(mount.XSnapdUser(1000), Equals, "x-snapd.user=1000")
+	c.Assert(mount.XSnapdGroup(1000), Equals, "x-snapd.group=1000")
+	c.Assert(mount.XSnapdMode(0755), Equals, "x-snapd.mode=0755")
+	c.Assert(mount.XSnapdSymlink("oldname"), Equals, "x-snapd.symlink=oldname")
 }
