@@ -114,6 +114,7 @@ func (s *SnapSuite) TestInfoPriced(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   GNU Hello, the "hello world" snap
 publisher: canonical
+license:   Proprietary
 price:     1.99GBP
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -144,7 +145,8 @@ const mockInfoJSON = `
       "status": "available",
       "summary": "The GNU Hello snap",
       "type": "app",
-      "version": "2.10"
+      "version": "2.10",
+      "license": "MIT"
     }
   ],
   "sources": [
@@ -178,6 +180,7 @@ func (s *SnapSuite) TestInfoUnquoted(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: canonical
+license:   MIT
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
   https://snapcraft.io/
