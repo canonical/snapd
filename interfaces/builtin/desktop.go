@@ -157,6 +157,13 @@ dbus (receive)
     interface="org.{freedesktop,gnome}.ScreenSaver"
     member=ActiveChanged
     peer=(label=unconfined),
+
+# Allow unconfined to introspect us
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
 `
 
 type desktopInterface struct{}
