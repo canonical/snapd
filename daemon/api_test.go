@@ -6365,3 +6365,39 @@ func (s *appSuite) TestPostAppsConflict(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `snap "snap-a" has "enable" change in progress`)
 }
+
+type fakeNetError struct {
+	message   string
+	timeout   bool
+	temporary bool
+}
+
+func (e fakeNetError) Error() string   { return e.message }
+func (e fakeNetError) Timeout() bool   { return e.timeout }
+func (e fakeNetError) Temporary() bool { return e.temporary }
+
+func (s *appSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
+	si := &snapInstruction{Action: "frobble"}
+	errors := []error{
+		store.ErrSnapNotFound,
+		store.ErrNoUpdateAvailable,
+		store.ErrLocalSnap,
+		&snap.AlreadyInstalledError{Snap: "foo"},
+		&snap.NotInstalledError{Snap: "foo"},
+		&snapstate.SnapNeedsDevModeError{Snap: "foo"},
+		&snapstate.SnapNeedsClassicError{Snap: "foo"},
+		&snapstate.SnapNeedsClassicSystemError{Snap: "foo"},
+		fakeNetError{message: "other"},
+		fakeNetError{message: "timeout", timeout: true},
+		fakeNetError{message: "temp", temporary: true},
+		errors.New("some other error"),
+	}
+
+	for _, err := range errors {
+		rsp := si.errToResponse(err)
+		com := check.Commentf("%v", err)
+		c.Check(rsp, check.NotNil, com)
+		status := rsp.(*resp).Status
+		c.Check(status/100 == 4 || status/100 == 5, check.Equals, true, com)
+	}
+}

@@ -21,7 +21,7 @@ execute: |
     tr -s "\n " " " < error.log | MATCH 'contact developer'
 
     echo "And the journal counts the ways"
-    journalctl -u snapd | grep check_snap > journal.log
+    journalctl -u snapd > journal.log
     MATCH '"comp.sh" should be world-readable' < journal.log
     MATCH '"bin/bar" should be executable' < journal.log
     MATCH '"bin/foo" should be world-readable and executable' < journal.log

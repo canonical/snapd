@@ -479,7 +479,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		return nil, err
 	}
 
-	if err := validateContainer(info, container); err != nil {
+	if err := validateContainer(container, info, logger.Noticef); err != nil {
 		return nil, err
 	}
 
