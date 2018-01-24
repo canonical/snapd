@@ -29,9 +29,11 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
 )
 
@@ -222,6 +224,11 @@ func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error)
 	}
 
 	err = snap.Validate(info)
+	if err != nil {
+		return "", err
+	}
+
+	err = snap.ValidateContainer(snapdir.New(sourceDir), info, logger.Noticef)
 	if err != nil {
 		return "", err
 	}
