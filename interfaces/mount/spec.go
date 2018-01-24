@@ -91,29 +91,21 @@ func mountEntryFromLayout(layout *snap.Layout) Entry {
 	}
 
 	var uid int
-	// Only root and nobody are allowed here. Root is default. This is validated in spec.go.
+	// Only root is allowed here until we support custom users. Root is default.
 	switch layout.User {
 	case "root", "":
 		uid = 0
-	case "nobody":
-		// The user "nobody" has a fixed value in the Ubuntu core snap.
-		// TODO: load this from an attribute in other bases or require the same ID.
-		uid = 65534
 	}
 	if uid != 0 {
 		entry.Options = append(entry.Options, XSnapdUser(uid))
 	}
 
 	var gid int
-	// Only root and nobody (with an alias of nogroup) are allowed here. Root is default.
+	// Only root is allowed here until we support custom groups. Root is default.
 	// This is validated in spec.go.
 	switch layout.Group {
 	case "root", "":
 		gid = 0
-	case "nobody", "nogroup":
-		// The group nogroup (aliased as "nobody") has a fixed value in the Ubuntu core snap.
-		// TODO: load this from an attribute in other bases or require the same ID.
-		gid = 65534
 	}
 	if gid != 0 {
 		entry.Options = append(entry.Options, XSnapdGroup(gid))
