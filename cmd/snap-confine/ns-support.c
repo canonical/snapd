@@ -446,7 +446,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 	}
 	// The namespace is stale, let's check if we can discard it.
 	debug("the mount namespace is stale and should be discarded");
-	if (sc_cgroup_freezer_occupied(snap_name, (uid_t) - 1)) {
+	if (sc_cgroup_freezer_occupied(snap_name)) {
 		// Some processes are still using the namespace so we cannot discard it
 		// as that would fracture the view that the set of processes inside
 		// have on what is mounted.

@@ -66,7 +66,7 @@ void sc_cgroup_freezer_join(const char *snap_name, pid_t pid)
 	      (long)pid, snap_name);
 }
 
-bool sc_cgroup_freezer_occupied(const char *snap_name, uid_t uid)
+bool sc_cgroup_freezer_occupied(const char *snap_name)
 {
 	// Format the name of the cgroup hierarchy.
 	char buf[PATH_MAX] = { 0 };
@@ -140,11 +140,9 @@ bool sc_cgroup_freezer_occupied(const char *snap_name, uid_t uid)
 				die("cannot stat /proc/%s", line_buf);
 			}
 		}
-		if (statbuf.st_uid == uid || uid == (uid_t) - 1) {
-			debug("found process %s belonging to user %d",
-			      line_buf, statbuf.st_uid);
-			return true;
-		}
+		debug("found process %s belonging to user %d",
+		      line_buf, statbuf.st_uid);
+		return true;
 	} while (num_read > 0);
 
 	return false;
