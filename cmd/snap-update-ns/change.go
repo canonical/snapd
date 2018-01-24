@@ -71,7 +71,9 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 
 		// We use lstat to ensure that we don't follow a symlink in case one
 		// was set up by the snap. Note that at the time this is run, all the
-		// snap's processes are frozen.
+		// snap's processes are frozen but if the path is a directory
+		// controlled by the user (typically in /home) then we may still race
+		// with user processes that change it.
 		fi, err := osLstat(path)
 
 		// In case we need to create something, some constants.
@@ -110,7 +112,7 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 
 		if err != nil && os.IsNotExist(err) {
 			if kind == "symlink" {
-				// For symlinks the path shoud refer to the parent directory.
+				// For symlinks the path should refer to the parent directory.
 				// We set it here so that it gets picked up by the error message
 				// below, in case things fail.
 				path = filepath.Dir(c.Entry.Dir)
@@ -161,6 +163,9 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 		// At this time we can be sure that the element (for files and
 		// directories) exists and is of the right type or that it (for
 		// symlinks) doesn't exist but the parent directory does.
+		// This property holds as long as we don't interact with locations that
+		// are under the control of regular (non-snap) processes that are not
+		// suspended and may be racing with us.
 
 		flags, _ := mount.OptsToCommonFlags(c.Entry.Options)
 		if flags&syscall.MS_BIND != 0 {
