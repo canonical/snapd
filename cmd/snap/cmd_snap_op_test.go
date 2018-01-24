@@ -574,14 +574,14 @@ func (s *SnapSuite) TestRefreshTimer(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
-			fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"schedule": "0:00-24:00/4", "last": "2017-04-25T17:35:00+0200", "next": "2017-04-26T00:58:00+0200"}}}`)
+			fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"timer": "0:00-24:00/4", "last": "2017-04-25T17:35:00+0200", "next": "2017-04-26T00:58:00+0200"}}}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--timer"})
+	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--time"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `timer: 0:00-24:00/4
