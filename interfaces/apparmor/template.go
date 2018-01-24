@@ -308,6 +308,7 @@ var defaultTemplate = `
   @{PROC}/sys/kernel/yama/ptrace_scope r,
   @{PROC}/sys/kernel/shmmax r,
   @{PROC}/sys/fs/file-max r,
+  @{PROC}/sys/fs/inotify/max_* r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
   @{PROC}/sys/kernel/random/boot_id r,
