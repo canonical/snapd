@@ -193,6 +193,7 @@ BuildArch:     noarch
 %endif
 
 %if ! 0%{?with_bundled}
+Requires:      golang(github.com/boltdb/bolt)
 Requires:      golang(github.com/cheggaaa/pb)
 Requires:      golang(github.com/coreos/go-systemd/activation)
 Requires:      golang(github.com/godbus/dbus)
@@ -218,6 +219,7 @@ Requires:      golang(gopkg.in/yaml.v2)
 # These Provides are unversioned because the sources in
 # the bundled tarball are unversioned (they go by git commit)
 # *sigh*... I hate golang...
+Provides:      bundled(github.com/boltdb/bolt)
 Provides:      bundled(golang(github.com/cheggaaa/pb))
 Provides:      bundled(golang(github.com/coreos/go-systemd/activation))
 Provides:      bundled(golang(github.com/godbus/dbus))
@@ -384,6 +386,13 @@ GOFLAGS=
 GOFLAGS="$GOFLAGS -tags withtestkeys"
 %endif
 
+%if ! 0%{?with_bundled}
+# We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
+sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
+# We don't need the snapcore fork for bolt - it is just a fix on ppc
+sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go
+%endif
+
 # We have to build snapd first to prevent the build from
 # building various things from the tree without additional
 # set tags.
@@ -396,10 +405,6 @@ GOFLAGS="$GOFLAGS -tags withtestkeys"
 %gobuild_static -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
 %gobuild_static -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
 
-%if ! 0%{?with_bundled}
-# We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
-sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
-%endif
 %if 0%{?rhel}
 # There's no static link library for libseccomp in RHEL/CentOS...
 sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go

@@ -46,6 +46,8 @@ environment:
 backends:
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
+        plan: 8GB
+        location: Fremont
         halt-timeout: 2h
         environment:
             # Using proxy can help to accelerate testing in local conditions
@@ -55,36 +57,40 @@ backends:
             HTTP_PROXY: null
             HTTPS_PROXY: null
         systems:
-            - ubuntu-14.04-64:
-                kernel: GRUB 2
-                workers: 4
             - ubuntu-16.04-64:
                 kernel: GRUB 2
-                workers: 4
+                workers: 8
             - ubuntu-16.04-32:
                 kernel: GRUB 2
-                workers: 4
+                workers: 6
+            - ubuntu-14.04-64:
+                kernel: GRUB 2
+                workers: 6
+
             - ubuntu-core-16-64:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
-                workers: 4
-            - debian-sid-64:
-                kernel: GRUB 2
-                workers: 4
-                manual: true
+                workers: 6
+
             - debian-9-64:
                 kernel: GRUB 2
-                workers: 4
-            - fedora-25-64:
-                workers: 3
+                workers: 6
+            - debian-sid-64:
+                kernel: GRUB 2
+                workers: 6
                 manual: true
-            - fedora-26-64:
-                workers: 3
-                manual: true
+
             - fedora-27-64:
-                workers: 3
+                workers: 4
+            - fedora-26-64:
+                workers: 4
+                manual: true
+            - fedora-25-64:
+                workers: 4
+                manual: true
+
             - opensuse-42.2-64:
-                workers: 3
+                workers: 4
     qemu:
         systems:
             - ubuntu-14.04-32:
