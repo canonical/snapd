@@ -102,6 +102,10 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/utils.h
 libsnap_confine_private_a_CFLAGS = $(CHECK_CFLAGS)
 
+noinst_LIBRARIES += libsnap-confine-private-debug.a
+libsnap_confine_private_debug_a_SOURCES = $(libsnap_confine_private_a_SOURCES)
+libsnap_confine_private_debug_a_CFLAGS = $(CHECK_CFLAGS) -DSNAP_CONFINE_DEBUG_BUILD=1
+
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += libsnap-confine-private/unit-tests
 libsnap_confine_private_unit_tests_SOURCES = \
@@ -205,14 +209,19 @@ snap_confine_snap_confine_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS) -DLIBEXECDIR=\"$
 snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
 snap_confine_snap_confine_LDADD = libsnap-confine-private.a
 snap_confine_snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
-snap_confine_snap_confine_LDADD += $(LIBUDEV_LIBS)
+snap_confine_snap_confine_LDADD += $(snap_confine_snap_confine_extra_libs)
 # _STATIC is where we collect statically linked in libraries
 snap_confine_snap_confine_STATIC =
+# use a separate variable instead of snap_confine_snap_confine_LDADD to collect
+# all external libraries, this way it can be reused in
+# snap_confine_snap_confine_debug_LDADD withouth applying any text
+# transformations
+snap_confine_snap_confine_extra_libs = $(LIBUDEV_LIBS)
 
 if STATIC_LIBCAP
 snap_confine_snap_confine_STATIC += -lcap
 else
-snap_confine_snap_confine_LDADD += -lcap
+snap_confine_snap_confine_extra_libs += -lcap
 endif  # STATIC_LIBCAP
 
 # Use a hacked rule if we're doing static build. This allows us to inject the LIBS += .. rule below.
@@ -235,7 +244,7 @@ snap_confine_snap_confine_CFLAGS += $(SECCOMP_CFLAGS)
 if STATIC_LIBSECCOMP
 snap_confine_snap_confine_STATIC += $(shell pkg-config --static --libs libseccomp)
 else
-snap_confine_snap_confine_LDADD += $(SECCOMP_LIBS)
+snap_confine_snap_confine_extra_libs += $(SECCOMP_LIBS)
 endif  # STATIC_LIBSECCOMP
 endif  # SECCOMP
 
@@ -244,7 +253,7 @@ snap_confine_snap_confine_CFLAGS += $(APPARMOR_CFLAGS)
 if STATIC_LIBAPPARMOR
 snap_confine_snap_confine_STATIC += $(shell pkg-config --static --libs libapparmor)
 else
-snap_confine_snap_confine_LDADD += $(APPARMOR_LIBS)
+snap_confine_snap_confine_extra_libs += $(APPARMOR_LIBS)
 endif  # STATIC_LIBAPPARMOR
 endif  # APPARMOR
 
@@ -254,7 +263,7 @@ noinst_PROGRAMS += snap-confine/snap-confine-debug
 snap_confine_snap_confine_debug_SOURCES = $(snap_confine_snap_confine_SOURCES)
 snap_confine_snap_confine_debug_CFLAGS = $(snap_confine_snap_confine_CFLAGS)
 snap_confine_snap_confine_debug_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
-snap_confine_snap_confine_debug_LDADD = $(snap_confine_snap_confine_LDADD)
+snap_confine_snap_confine_debug_LDADD = libsnap-confine-private-debug.a $(snap_confine_snap_confine_extra_libs)
 snap_confine_snap_confine_debug_CFLAGS += -DSNAP_CONFINE_DEBUG_BUILD=1
 snap_confine_snap_confine_debug_STATIC = $(snap_confine_snap_confine_STATIC)
 
