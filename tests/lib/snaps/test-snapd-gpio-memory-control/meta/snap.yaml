@@ -1,0 +1,9 @@
+name: test-snapd-gpio-memory-control
+version: 1.0
+summary: Basic gpio-memory-control snap
+description: A basic snap which access to public gpiomem device
+
+apps:
+  sh:
+    command: ../../../bin/sh
+    plugs: [gpio-memory-control]
