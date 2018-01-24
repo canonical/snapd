@@ -772,7 +772,17 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	rec := httptest.NewRecorder()
 	c.Check(sysInfoCmd.Path, check.Equals, "/v2/system-info")
 
-	s.daemon(c).Version = "42b1"
+	d := s.daemon(c)
+	d.Version = "42b1"
+
+	// set both legacy and new refresh schedules. new one takes priority
+	st := d.overlord.State()
+	st.Lock()
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.schedule", "00:00-9:00/12:00-13:00")
+	tr.Set("core", "refresh.timer", "8:00~9:00/2")
+	tr.Commit()
+	st.Unlock()
 
 	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
 	defer restore()
@@ -800,7 +810,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		},
 		"refresh": map[string]interface{}{
 			// only the "timer" field
-			"timer": "00:00-24:00/4",
+			"timer": "8:00~9:00/2",
 		},
 		"confinement": "partial",
 	}
