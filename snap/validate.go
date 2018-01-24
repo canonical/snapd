@@ -495,15 +495,16 @@ func ValidateLayout(layout *Layout) error {
 	}
 
 	// When new users and groups are supported those must be added to interfaces/mount/spec.go as well.
+	// For now only "root" is allowed (and default).
 
 	switch layout.User {
-	case "root", "", "nobody":
+	case "root", "":
 	// TODO: allow declared snap user and group names.
 	default:
 		return fmt.Errorf("layout %q uses invalid user %q", layout.Path, layout.User)
 	}
 	switch layout.Group {
-	case "root", "", "nobody", "nogroup":
+	case "root", "":
 	default:
 		return fmt.Errorf("layout %q uses invalid group %q", layout.Path, layout.Group)
 	}
