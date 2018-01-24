@@ -208,3 +208,12 @@ func (s *entrySuite) TestOptBool(c *C) {
 	val = e.OptBool("missing")
 	c.Assert(val, Equals, false)
 }
+
+func (s *entrySuite) TestOptionHelpers(c *C) {
+	c.Assert(mount.XSnapdKindSymlink(), Equals, "x-snapd.kind=symlink")
+	c.Assert(mount.XSnapdKindFile(), Equals, "x-snapd.kind=file")
+	c.Assert(mount.XSnapdUser(1000), Equals, "x-snapd.user=1000")
+	c.Assert(mount.XSnapdGroup(1000), Equals, "x-snapd.group=1000")
+	c.Assert(mount.XSnapdMode(0755), Equals, "x-snapd.mode=0755")
+	c.Assert(mount.XSnapdSymlink("oldname"), Equals, "x-snapd.symlink=oldname")
+}

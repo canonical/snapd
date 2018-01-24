@@ -243,3 +243,33 @@ func (e *Entry) OptBool(name string) bool {
 	}
 	return false
 }
+
+// XSnapdKindSymlink returns the string "x-snapd.kind=symlink".
+func XSnapdKindSymlink() string {
+	return "x-snapd.kind=symlink"
+}
+
+// XSnapdKindFile returns the string "x-snapd.kind=file".
+func XSnapdKindFile() string {
+	return "x-snapd.kind=file"
+}
+
+// XSnapdUser returns the string "x-snapd.user=%d".
+func XSnapdUser(uid int) string {
+	return fmt.Sprintf("x-snapd.user=%d", uid)
+}
+
+// XSnapdGroup returns the string "x-snapd.group=%d".
+func XSnapdGroup(gid int) string {
+	return fmt.Sprintf("x-snapd.group=%d", gid)
+}
+
+// XSnapdMode returns the string "x-snapd.mode=%#o".
+func XSnapdMode(mode uint32) string {
+	return fmt.Sprintf("x-snapd.mode=%#o", mode)
+}
+
+// XSnapdSymlink returns the string "x-snapd.symlink=%s".
+func XSnapdSymlink(oldname string) string {
+	return fmt.Sprintf("x-snapd.symlink=%s", oldname)
+}
