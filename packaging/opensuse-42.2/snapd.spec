@@ -147,6 +147,7 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 
 %gobuild cmd/snap
 %gobuild cmd/snapctl
+%gobuild cmd/snappy-app-dev
 # build snap-exec and snap-update-ns completely static for base snaps
 CGO_ENABLED=0 %gobuild cmd/snap-exec
 # gobuild --ldflags '-extldflags "-static"' bin/snap-update-ns
@@ -178,6 +179,10 @@ mv %{buildroot}/usr/bin/snapd %{buildroot}%{_libexecdir}/snapd/snapd
 mv %{buildroot}/usr/bin/snap-exec %{buildroot}%{_libexecdir}/snapd/snap-exec
 mv %{buildroot}/usr/bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd/snap-update-ns
 mv %{buildroot}/usr/bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd/snap-seccomp
+# Move snappy-app-dev into %{_libexecdir}/snapd
+install -m 755 -d %{buildroot}%{_libexecdir}/udev
+mv %{buildroot}/usr/bin/snappy-app-dev %{buildroot}%{_libexecdir}/udev/snappy-app-dev
+
 # Install profile.d-based PATH integration for /snap/bin
 #   and XDG_DATA_DIRS for /var/lib/snapd/desktop
 make -C data/env install DESTDIR=%{buildroot}

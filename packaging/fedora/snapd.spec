@@ -398,6 +398,7 @@ sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go
 %gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
 %gobuild -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
+%gobuild -o bin/snappy-app-dev $GOFLAGS %{import_path}/cmd/snappy-app-dev
 
 # To ensure things work correctly with base snaps,
 # snap-exec and snap-update-ns need to be built statically
@@ -489,6 +490,8 @@ install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
 install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
 
 # Install snap-confine
+install -d -p %{buildroot}%{_prefix}/lib/udev
+install -p -m 0755 bin/snappy-app-dev %{buildroot}%{_prefix}/lib/udev
 pushd ./cmd
 %make_install
 # Undo the 0000 permissions, they are restored in the files section

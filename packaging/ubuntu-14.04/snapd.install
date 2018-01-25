@@ -20,7 +20,7 @@ data/polkit/io.snapcraft.snapd.policy /usr/share/polkit-1/actions/
 
 # snap-confine stuff
 etc/apparmor.d/usr.lib.snapd.snap-confine
-lib/udev/snappy-app-dev
+usr/bin/snappy-app-dev lib/udev/
 usr/lib/snapd/snap-confine
 usr/lib/snapd/snap-discard-ns
 usr/lib/snapd/snap-mgmt
