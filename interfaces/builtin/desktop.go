@@ -173,6 +173,7 @@ dbus (send)
     path=/io/snapcraft/Settings
     interface=io.snapcraft.Settings
     member={Check,Get,Set},
+    peer=(label=unconfined),
 `
 
 type desktopInterface struct{}
