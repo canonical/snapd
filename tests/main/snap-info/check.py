@@ -72,7 +72,7 @@ check("basic-desktop", res[1],
 
 check("test-snapd-tools", res[2],
    ("name", equals, "test-snapd-tools"),
-   ("publisher", equals, "Canonical"),
+   ("publisher", equals, "canonical"),
    ("contact", equals, "snappy-canonical-storeaccount@canonical.com"),
    ("summary", equals, "Tools for testing the snapd application"),
    ("description", equals, "A tool to test snapd\n"),
