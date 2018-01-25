@@ -56,28 +56,31 @@ func connectionPid(conn *dbus.Conn, sender dbus.Sender) (pid int, err error) {
 
 // FIXME: move to osutil?
 func snapFromPid(pid int) (string, error) {
-	// racy :( - maybe move to use libapparmor but that won't work on
-	// every distro yet
-	m, err := filepath.Glob(filepath.Join(dirs.FreezerCgroupDir, "snap.*"))
+	f, err := os.Open(fmt.Sprintf("%s/proc/%d/cgroup", dirs.GlobalRootDir, pid))
 	if err != nil {
-		return "", fmt.Errorf("cannot lookup snap directory for pid: %v", err)
+		return "", err
 	}
+	defer f.Close()
 
-	needle := fmt.Sprintf("%d", pid)
-	for _, basePath := range m {
-		f, err := os.Open(filepath.Join(basePath, "cgroup.procs"))
-		if err != nil {
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		l := strings.Split(scanner.Text(), ":")
+		if len(l) < 3 {
 			continue
 		}
-		defer f.Close()
-
-		snap := strings.Split(filepath.Base(basePath), ".")[1]
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			if scanner.Text() == needle {
-				return snap, nil
-			}
+		controllerList := l[1]
+		cgroupPath := l[2]
+		if !strings.Contains(controllerList, "freezer") {
+			continue
+		}
+		if strings.HasPrefix(cgroupPath, "/snap.") {
+			snap := strings.SplitN(filepath.Base(cgroupPath), ".", 2)[1]
+			return snap, nil
 		}
 	}
+	if scanner.Err() != nil {
+		return "", scanner.Err()
+	}
+
 	return "", fmt.Errorf("cannot find a snap for pid %v", pid)
 }
