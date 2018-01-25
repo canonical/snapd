@@ -170,7 +170,7 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 			logger.Noticef("refresh.schedule is managed via the snapd-control interface")
 			m.lastRefreshSchedule = "managed"
 		}
-		return nil, "managed", false, nil
+		return nil, "managed", true, nil
 	}
 
 	tr := config.NewTransaction(m.state)
