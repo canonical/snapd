@@ -92,7 +92,7 @@ backends:
             - opensuse-42.2-64:
                 workers: 4
 
-            - arch-2017.07.01:
+            - arch-2018.01.02:
                 workers: 4
                 kernel: GRUB 2
     qemu:
