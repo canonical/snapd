@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/snapcore/snapd/overlord/auth"
@@ -28,6 +29,12 @@ import (
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
+
+type updateInfoOpts struct {
+	channel          string
+	ignoreValidation bool
+	amend            bool
+}
 
 func idForUser(user *auth.UserState) int {
 	if user == nil {
@@ -81,6 +88,14 @@ func userFromUserIDOrFallback(st *state.State, userID int, fallbackUser *auth.Us
 	return fallbackUser, nil
 }
 
+func snapNameToID(st *state.State, name string, user *auth.UserState) (string, error) {
+	theStore := Store(st)
+	st.Unlock()
+	info, err := theStore.SnapInfo(store.SnapSpec{Name: name}, user)
+	st.Lock()
+	return info.SnapID, err
+}
+
 func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
@@ -98,19 +113,24 @@ func snapInfo(st *state.State, name, channel string, revision snap.Revision, use
 	return snap, err
 }
 
-func updateInfo(st *state.State, snapst *SnapState, channel string, ignoreValidation bool, userID int) (*snap.Info, error) {
-	curInfo, user, err := preUpdateInfo(st, snapst, userID)
+func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID int) (*snap.Info, error) {
+	if opts == nil {
+		opts = &updateInfoOpts{}
+	}
+
+	curInfo, user, err := preUpdateInfo(st, snapst, opts.amend, userID)
 	if err != nil {
 		return nil, err
 	}
 
 	refreshCand := &store.RefreshCandidate{
 		// the desired channel
-		Channel:          channel,
+		Channel:          opts.channel,
 		SnapID:           curInfo.SnapID,
 		Revision:         curInfo.Revision,
 		Epoch:            curInfo.Epoch,
-		IgnoreValidation: ignoreValidation,
+		IgnoreValidation: opts.ignoreValidation,
+		Amend:            opts.amend,
 	}
 
 	theStore := Store(st)
@@ -120,7 +140,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, ignoreValida
 	return res, err
 }
 
-func preUpdateInfo(st *state.State, snapst *SnapState, userID int) (*snap.Info, *auth.UserState, error) {
+func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (*snap.Info, *auth.UserState, error) {
 	user, err := userFromUserID(st, snapst.UserID, userID)
 	if err != nil {
 		return nil, nil, err
@@ -132,14 +152,25 @@ func preUpdateInfo(st *state.State, snapst *SnapState, userID int) (*snap.Info, 
 	}
 
 	if curInfo.SnapID == "" { // covers also trymode
-		return nil, nil, store.ErrLocalSnap
+		if !amend {
+			return nil, nil, store.ErrLocalSnap
+		}
+
+		// in amend mode we need to move to the store rev
+		id, err := snapNameToID(st, curInfo.Name(), user)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot get snap ID for %q: %v", curInfo.Name(), err)
+		}
+		curInfo.SnapID = id
+		// set revision to "unknown"
+		curInfo.Revision = snap.R(0)
 	}
 
 	return curInfo, user, nil
 }
 
 func updateToRevisionInfo(st *state.State, snapst *SnapState, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
-	curInfo, user, err := preUpdateInfo(st, snapst, userID)
+	curInfo, user, err := preUpdateInfo(st, snapst, false, userID)
 	if err != nil {
 		return nil, err
 	}
