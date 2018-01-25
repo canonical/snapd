@@ -126,6 +126,8 @@ To run the various tests that we have to ensure a high quality source just run:
 This will check if the source format is consistent, that it builds, all tests
 work as expected and that "go vet" has nothing to complain.
 
+The source format follows the `gofmt -s` formating. Please run this on your sources files if `run-checks` complains about the format.
+
 You can run individual test for a sub-package by changing into that directory and:
 
     go test -check.f $testname
@@ -207,4 +209,4 @@ version on your system and reloads the apparmor profile.
 
 ## Submitting patches
 
-Please run `gofmt` before sending your patches.
+Please run `make fmt` before sending your patches.
