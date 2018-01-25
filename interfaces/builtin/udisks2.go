@@ -131,6 +131,14 @@ dbus (receive, send)
     path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.UDisks2.*
     peer=(label=###PLUG_SECURITY_TAGS###),
+
+# Allow clients to introspect the service
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/UDisks2
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
 const udisks2ConnectedPlugAppArmor = `
@@ -187,6 +195,10 @@ const udisks2PermanentSlotDBus = `
 <policy user="root">
     <allow own="org.freedesktop.UDisks2"/>
     <allow send_destination="org.freedesktop.UDisks2"/>
+</policy>
+
+<policy context="default">
+    <allow send_destination="org.freedesktop.UDisks2" send_interface="org.freedesktop.DBus.Introspectable" />
 </policy>
 `
 
