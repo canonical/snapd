@@ -20,7 +20,6 @@
 package ifacestate_test
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -230,12 +229,12 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true})
 }
 
-func (s *interfaceManagerSuite) testConnectDisconnectConflicts(c *C, f func(*state.State, string, string, string, string) (*state.TaskSet, error), snapName string) {
+func (s *interfaceManagerSuite) testConnectDisconnectConflicts(c *C, f func(*state.State, string, string, string, string) (*state.TaskSet, error), snapName string, otherTaskKind string, expectedErr string) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	chg := s.state.NewChange("other-chg", "...")
-	t := s.state.NewTask("link-snap", "...")
+	t := s.state.NewTask(otherTaskKind, "...")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName},
@@ -243,23 +242,31 @@ func (s *interfaceManagerSuite) testConnectDisconnectConflicts(c *C, f func(*sta
 	chg.AddTask(t)
 
 	_, err := f(s.state, "consumer", "plug", "producer", "slot")
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`snap "%s" has changes in progress`, snapName))
+	c.Assert(err, ErrorMatches, expectedErr)
 }
 
-func (s *interfaceManagerSuite) TestConnectConflictsPugSnap(c *C) {
-	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "consumer")
+func (s *interfaceManagerSuite) TestConnectConflictsPlugSnapWithRetry(c *C) {
+	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "consumer", "link-snap", `task should be retried`)
+}
+
+func (s *interfaceManagerSuite) TestConnectConflictsPlugSnap(c *C) {
+	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "consumer", "unlink-snap", `snap "consumer" has changes in progress`)
 }
 
 func (s *interfaceManagerSuite) TestConnectConflictsSlotSnap(c *C) {
-	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "producer")
+	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "producer", "link-snap", `task should be retried`)
+}
+
+func (s *interfaceManagerSuite) TestConnectConflictsSlotSnapWithRetry(c *C) {
+	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "producer", "unlink-snap", `snap "producer" has changes in progress`)
 }
 
 func (s *interfaceManagerSuite) TestDisconnectConflictsPugSnap(c *C) {
-	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "consumer")
+	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "consumer", "link-snap", `snap "consumer" has changes in progress`)
 }
 
 func (s *interfaceManagerSuite) TestDisconnectConflictsSlotSnap(c *C) {
-	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "producer")
+	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "producer", "link-snap", `snap "producer" has changes in progress`)
 }
 
 func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {
@@ -281,18 +288,25 @@ func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {
 
 	_, err = ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
+}
 
-	// sanity check: verify that CheckChangeConflict would normally fail without extra-predicate passed by Connect/Disconnect internally.
-	reset := ifacestate.MockConflictPredicate(nil)
-	defer reset()
+func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictIfSameChange(c *C) {
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
-	_, err = ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `snap "consumer" has changes in progress`)
+	s.state.Lock()
+	defer s.state.Unlock()
 
-	_, err = ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `snap "consumer" has changes in progress`)
+	chg := s.state.NewChange("other-chg", "...")
+	t := s.state.NewTask("link-snap", "...")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer"},
+	})
+	chg.AddTask(t)
+
+	_, err := ifacestate.AutoConnect(s.state, chg, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
