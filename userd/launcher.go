@@ -54,6 +54,11 @@ func (s *Launcher) Name() string {
 	return "io.snapcraft.Launcher"
 }
 
+// BasePath returns the base path of the object
+func (s *Launcher) BasePath() dbus.ObjectPath {
+	return "/io/snapcraft/Launcher"
+}
+
 // IntrospectionData gives the XML formatted introspection description
 // of the DBus service.
 func (s *Launcher) IntrospectionData() string {

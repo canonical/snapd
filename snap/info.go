@@ -25,10 +25,12 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -60,7 +62,7 @@ type PlaceInfo interface {
 	UserCommonDataDir(home string) string
 
 	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
-	UserXdgRuntimeDir(userID int) string
+	UserXdgRuntimeDir(userID sys.UserID) string
 
 	// DataHomeDir returns the a glob that matches all per user data directories of a snap.
 	DataHomeDir() string
@@ -135,6 +137,7 @@ type SideInfo struct {
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
 	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
+	Paid              bool     `yaml:"paid,omitempty" json:"paid,omitempty"`
 }
 
 // Info provides information about snaps.
@@ -295,7 +298,7 @@ func (s *Info) CommonDataHomeDir() string {
 }
 
 // UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a particular user.
-func (s *Info) UserXdgRuntimeDir(euid int) string {
+func (s *Info) UserXdgRuntimeDir(euid sys.UserID) string {
 	return filepath.Join("/run/user", fmt.Sprintf("%d/snap.%s", euid, s.Name()))
 }
 
@@ -396,6 +399,27 @@ type PlugInfo struct {
 	Hooks     map[string]*HookInfo
 }
 
+func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
+	if v, ok := attrs[key]; ok {
+		rt := reflect.TypeOf(val)
+		if rt.Kind() != reflect.Ptr || val == nil {
+			return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", key, ifaceName)
+		}
+
+		if reflect.TypeOf(v) != rt.Elem() {
+			return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, key)
+		}
+		rv := reflect.ValueOf(val)
+		rv.Elem().Set(reflect.ValueOf(v))
+		return nil
+	}
+	return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)
+}
+
+func (plug *PlugInfo) Attr(key string, val interface{}) error {
+	return getAttribute(plug.Snap.Name(), plug.Interface, plug.Attrs, key, val)
+}
+
 // SecurityTags returns security tags associated with a given plug.
 func (plug *PlugInfo) SecurityTags() []string {
 	tags := make([]string, 0, len(plug.Apps)+len(plug.Hooks))
@@ -412,6 +436,10 @@ func (plug *PlugInfo) SecurityTags() []string {
 // String returns the representation of the plug as snap:plug string.
 func (plug *PlugInfo) String() string {
 	return fmt.Sprintf("%s:%s", plug.Snap.Name(), plug.Name)
+}
+
+func (slot *SlotInfo) Attr(key string, val interface{}) error {
+	return getAttribute(slot.Snap.Name(), slot.Interface, slot.Attrs, key, val)
 }
 
 // SecurityTags returns security tags associated with a given slot.
@@ -479,6 +507,11 @@ type AppInfo struct {
 	Sockets map[string]*SocketInfo
 
 	Environment strutil.OrderedMap
+
+	// list of other service names that this service will start after or
+	// before
+	After  []string
+	Before []string
 }
 
 // ScreenshotInfo provides information about a screenshot.

@@ -107,6 +107,9 @@ type SnapState struct {
 	Aliases             map[string]*AliasTarget `json:"aliases,omitempty"`
 	AutoAliasesDisabled bool                    `json:"auto-aliases-disabled,omitempty"`
 	AliasesPending      bool                    `json:"aliases-pending,omitempty"`
+
+	// UserID of the user requesting the install
+	UserID int `json:"user-id,omitempty"`
 }
 
 // Type returns the type of the snap or an error.
@@ -474,8 +477,10 @@ func (m *SnapManager) Ensure() error {
 		m.ensureAliasesV2(),
 		m.ensureForceDevmodeDropsDevmodeFromState(),
 		m.ensureUbuntuCoreTransition(),
-		m.refreshHints.Ensure(),
+		// we should check for full regular refreshes before
+		// considering issuing a hint only refresh request
 		m.autoRefresh.Ensure(),
+		m.refreshHints.Ensure(),
 		m.catalogRefresh.Ensure(),
 	}
 
@@ -489,6 +494,10 @@ func (m *SnapManager) Ensure() error {
 	}
 
 	return nil
+}
+
+func (m *SnapManager) KnownTaskKinds() []string {
+	return m.runner.KnownTaskKinds()
 }
 
 // Wait implements StateManager.Wait.

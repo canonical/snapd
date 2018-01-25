@@ -22,6 +22,9 @@ set -o pipefail
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
+# shellcheck source=tests/lib/random.sh
+. "$TESTSLIB/random.sh"
+
 ###
 ### Utility functions reused below.
 ###
@@ -56,7 +59,8 @@ create_test_user(){
 
     echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-    chown test.test -R ..
+    chown test.test -R "$SPREAD_PATH"
+    chown test.test "$SPREAD_PATH/../"
 }
 
 build_deb(){
@@ -111,14 +115,12 @@ build_rpm() {
 
     # .. and we need all necessary build dependencies available
     deps=()
-    n=0
     IFS=$'\n'
     for dep in $(rpm -qpR "$rpm_dir"/SRPMS/snapd-1337.*.src.rpm); do
       if [[ "$dep" = rpmlib* ]]; then
          continue
       fi
-      deps[$n]=$dep
-      n=$((n+1))
+      deps+=("$dep")
     done
     distro_install_package "${deps[@]}"
 
@@ -224,10 +226,6 @@ prepare_project() {
     # declare the "quiet" wrapper
 
     if [ "$SPREAD_BACKEND" = external ]; then
-        # stop and disable autorefresh
-        if [ -e "$SNAP_MOUNT_DIR/core/current/meta/hooks/configure" ]; then
-            systemctl disable --now snapd.refresh.timer
-        fi
         chown test.test -R "$PROJECT_PATH"
         exit 0
     fi
@@ -339,6 +337,15 @@ prepare_project() {
     # Build additional utilities we need for testing
     go get ./tests/lib/fakedevicesvc
     go get ./tests/lib/systemd-escape
+
+    # disable journald rate limiting
+    mkdir -p /etc/systemd/journald.conf.d/
+    cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
+    [Journal]
+    RateLimitIntervalSec=0
+    RateLimitBurst=0
+EOF
+    systemctl restart systemd-journald.service
 }
 
 prepare_project_each() {
@@ -372,9 +379,13 @@ prepare_project_each() {
 
     # Clear the kernel ring buffer.
     dmesg -c > /dev/null
+
+    fixup_dev_random
 }
 
 restore_project_each() {
+    restore_dev_random
+
     # Udev rules are notoriously hard to write and seemingly correct but subtly
     # wrong rules can pass review. Whenever that happens udev logs an error
     # message. As a last resort from lack of a better mechanism we can try to
@@ -386,12 +397,6 @@ restore_project_each() {
 }
 
 restore_project() {
-    # XXX: Why are we enabling autorefresh for external targets?
-    if [ "$SPREAD_BACKEND" = external ] && [ -e /snap/core/current/meta/hooks/configure ]; then
-        systemctl enable --now snapd.refresh.timer
-        snap set core refresh.schedule=""
-    fi
-
     # We use a trick to accelerate prepare/restore code in certain suites. That
     # code uses a tarball to store the vanilla state. Here we just remove this
     # tarball.
@@ -403,6 +408,9 @@ restore_project() {
     if [ -n "$GOPATH" ]; then
         rm -rf "${GOPATH%%:*}"
     fi
+
+    rm -rf /etc/systemd/journald.conf.d/no-rate-limit.conf
+    rmdir /etc/systemd/journald.conf.d || true
 }
 
 case "$1" in

@@ -110,6 +110,8 @@ type Systemd interface {
 	Status(services ...string) ([]*ServiceStatus, error)
 	LogReader(services []string, n string, follow bool) (io.ReadCloser, error)
 	WriteMountUnitFile(name, what, where, fstype string) (string, error)
+	Mask(service string) error
+	Unmask(service string) error
 }
 
 // A Log is a single entry in the systemd journal
@@ -152,9 +154,21 @@ func (s *systemd) Enable(serviceName string) error {
 	return err
 }
 
+// Unmask the given service
+func (s *systemd) Unmask(serviceName string) error {
+	_, err := systemctlCmd("--root", s.rootDir, "unmask", serviceName)
+	return err
+}
+
 // Disable the given service
 func (s *systemd) Disable(serviceName string) error {
 	_, err := systemctlCmd("--root", s.rootDir, "disable", serviceName)
+	return err
+}
+
+// Mask the given service
+func (s *systemd) Mask(serviceName string) error {
+	_, err := systemctlCmd("--root", s.rootDir, "mask", serviceName)
 	return err
 }
 
@@ -416,7 +430,7 @@ func MountUnitPath(baseDir string) string {
 func (s *systemd) WriteMountUnitFile(name, what, where, fstype string) (string, error) {
 	options := []string{"nodev"}
 	if fstype == "squashfs" {
-		options = append(options, "ro")
+		options = append(options, "ro", "x-gdu.hide")
 	}
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")

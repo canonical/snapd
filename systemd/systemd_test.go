@@ -351,6 +351,18 @@ func (s *SystemdTestSuite) TestEnable(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
 }
 
+func (s *SystemdTestSuite) TestMask(c *C) {
+	err := New("xyzzy", s.rep).Mask("foo")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "mask", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestUnmask(c *C) {
+	err := New("xyzzy", s.rep).Unmask("foo")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "unmask", "foo"}})
+}
+
 func (s *SystemdTestSuite) TestRestart(c *C) {
 	restore := MockStopDelays(time.Millisecond, 25*time.Second)
 	defer restore()
@@ -459,7 +471,7 @@ Before=snapd.service
 What=%s
 Where=/apps/foo/1.0
 Type=squashfs
-Options=nodev,ro
+Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target
@@ -483,7 +495,7 @@ Before=snapd.service
 What=%s
 Where=/apps/foo/1.0
 Type=none
-Options=nodev,ro,bind
+Options=nodev,ro,x-gdu.hide,bind
 
 [Install]
 WantedBy=multi-user.target
@@ -526,7 +538,7 @@ Before=snapd.service
 What=%s
 Where=/apps/foo/1.0
 Type=fuse.squashfuse
-Options=nodev,ro,allow_other
+Options=nodev,ro,x-gdu.hide,allow_other
 
 [Install]
 WantedBy=multi-user.target
@@ -565,7 +577,7 @@ Before=snapd.service
 What=%s
 Where=/apps/foo/1.0
 Type=squashfs
-Options=nodev,ro
+Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target

@@ -8,7 +8,7 @@
 
 pkgbase=snapd
 pkgname=snapd-git
-pkgver=2.29.r222.gc6d068254
+pkgver=2.30
 pkgrel=1
 arch=('i686' 'x86_64')
 url="https://github.com/snapcore/snapd"
@@ -18,12 +18,13 @@ checkdepends=('python' 'squashfs-tools' 'indent' 'shellcheck')
 
 options=('!strip' 'emptydirs')
 install=snapd.install
-source=("git+https://github.com/snapcore/$pkgbase.git" "snap-mgmt.sh")
+source=("git+https://github.com/snapcore/$pkgbase.git")
 md5sums=('SKIP'
          '3e4bf446e920a285f23c84866c316126')
 
 pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd')
+optdepends=('bash-completion: bash completion support')
 provides=($pkgbase)
 # Community package is split into snapd and snap-confine, make sure we replace
 # both bits
@@ -221,8 +222,4 @@ package_snapd-git() {
   # Install the "info" data file with snapd version
   install -m 644 -D "$GOPATH/src/${_gourl}/data/info" \
           "$pkgdir/usr/lib/snapd/info"
-
-  # Install helper
-  install -m 755 -D "$srcdir/snap-mgmt.sh" \
-          "$pkgdir/usr/lib/snapd/snap-mgmt"
 }

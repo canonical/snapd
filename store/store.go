@@ -106,6 +106,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.DownloadURL = d.DownloadURL
 	info.Prices = d.Prices
 	info.Private = d.Private
+	info.Paid = len(info.Prices) > 0
 	info.Confinement = snap.ConfinementType(d.Confinement)
 	info.Contact = d.Contact
 	info.License = d.License
@@ -352,11 +353,11 @@ func authURL() string {
 	return "https://" + authLocation() + "/api/v2"
 }
 
-func myappsURL() string {
+func storeDeveloperURL() string {
 	if useStaging() {
-		return "https://myapps.developer.staging.ubuntu.com/"
+		return "https://dashboard.staging.snapcraft.io/"
 	}
-	return "https://myapps.developer.ubuntu.com/"
+	return "https://dashboard.snapcraft.io/"
 }
 
 var defaultConfig = Config{}
@@ -428,13 +429,6 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		deltaFormat = defaultSupportedDeltaFormat
 	}
 
-	var cacher downloadCache
-	if cfg.CacheDownloads > 0 {
-		cacher = NewCacheManager(dirs.SnapDownloadCacheDir, cfg.CacheDownloads)
-	} else {
-		cacher = &nullCache{}
-	}
-
 	store := &Store{
 		cfg:             cfg,
 		series:          series,
@@ -444,13 +438,14 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailFields:    fields,
 		authContext:     authContext,
 		deltaFormat:     deltaFormat,
-		cacher:          cacher,
 
 		client: httputil.NewHTTPClient(&httputil.ClientOpts{
 			Timeout:    10 * time.Second,
 			MayLogBody: true,
 		}),
 	}
+	store.SetCacheDownloads(cfg.CacheDownloads)
+
 	return store
 }
 
@@ -719,11 +714,21 @@ var expectedCatalogPreamble = []interface{}{
 	json.Delim('['),
 }
 
-type catalogItem struct {
-	Name string `json:"package_name"`
+type alias struct {
+	Name string `json:"name"`
 }
 
-func decodeCatalog(resp *http.Response, names io.Writer) error {
+type catalogItem struct {
+	Name    string   `json:"package_name"`
+	Aliases []alias  `json:"aliases"`
+	Apps    []string `json:"apps"`
+}
+
+type SnapAdder interface {
+	AddSnap(snapName string, commands []string) error
+}
+
+func decodeCatalog(resp *http.Response, names io.Writer, db SnapAdder) error {
 	const what = "decode new commands catalog"
 	if resp.StatusCode != 200 {
 		return respToError(resp, what)
@@ -744,8 +749,24 @@ func decodeCatalog(resp *http.Response, names io.Writer) error {
 		if err := dec.Decode(&v); err != nil {
 			return fmt.Errorf(what+": %v", err)
 		}
-		if v.Name != "" {
-			fmt.Fprintln(names, v.Name)
+		if v.Name == "" {
+			continue
+		}
+		fmt.Fprintln(names, v.Name)
+		if len(v.Apps) == 0 {
+			continue
+		}
+
+		commands := make([]string, 0, len(v.Aliases)+len(v.Apps))
+
+		for _, alias := range v.Aliases {
+			commands = append(commands, alias.Name)
+		}
+		for _, app := range v.Apps {
+			commands = append(commands, snap.JoinSnapApp(v.Name, app))
+		}
+		if err := db.AddSnap(v.Name, commands); err != nil {
+			return err
 		}
 	}
 
@@ -940,7 +961,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 	// Mark every non-free snap as must buy until we know better.
 	hasPriced := false
 	for _, info := range snaps {
-		if len(info.Prices) != 0 {
+		if info.Paid {
 			info.MustBuy = true
 			hasPriced = true
 		}
@@ -982,15 +1003,15 @@ func (s *Store) decorateOrders(snaps []*snap.Info, user *auth.UserState) error {
 	}
 
 	for _, info := range snaps {
-		info.MustBuy = mustBuy(info.Prices, bought[info.SnapID])
+		info.MustBuy = mustBuy(info.Paid, bought[info.SnapID])
 	}
 
 	return nil
 }
 
 // mustBuy determines if a snap requires a payment, based on if it is non-free and if the user has already bought it
-func mustBuy(prices map[string]float64, bought bool) bool {
-	if len(prices) == 0 {
+func mustBuy(paid bool, bought bool) bool {
+	if !paid {
 		// If the snap is free, then it doesn't need buying
 		return false
 	}
@@ -1190,7 +1211,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 
 // WriteCatalogs queries the "commands" endpoint and writes the
 // command names into the given io.Writer.
-func (s *Store) WriteCatalogs(names io.Writer) error {
+func (s *Store) WriteCatalogs(names io.Writer, adder SnapAdder) error {
 	u := *s.endpointURL(commandsEndpPath, nil)
 
 	q := u.Query()
@@ -1216,7 +1237,7 @@ func (s *Store) WriteCatalogs(names io.Writer) error {
 		return s.doRequest(context.TODO(), client, reqOptions, nil)
 	}
 	readResponse := func(resp *http.Response) error {
-		return decodeCatalog(resp, names)
+		return decodeCatalog(resp, names, adder)
 	}
 
 	resp, err := httputil.RetryRequest(u.String(), doRequest, readResponse, defaultRetryStrategy)
@@ -1242,6 +1263,9 @@ type RefreshCandidate struct {
 	Channel string
 	// whether validation should be ignored
 	IgnoreValidation bool
+
+	// try to refresh a local snap to a store revision
+	Amend bool
 }
 
 // the exact bits that we need to send to the store
@@ -1268,7 +1292,7 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 		}
 		return nil
 	}
-	if !cs.Revision.Store() {
+	if !cs.Revision.Store() && !cs.Amend {
 		logger.Noticef("store.currentSnap got given a RefreshCandidate with a non-empty SnapID but a non-store revision!")
 		return nil
 	}
@@ -1980,5 +2004,18 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
 		}
 		return &errors
+	}
+}
+
+func (s *Store) CacheDownloads() int {
+	return s.cfg.CacheDownloads
+}
+
+func (s *Store) SetCacheDownloads(fileCount int) {
+	s.cfg.CacheDownloads = fileCount
+	if fileCount > 0 {
+		s.cacher = NewCacheManager(dirs.SnapDownloadCacheDir, fileCount)
+	} else {
+		s.cacher = &nullCache{}
 	}
 }

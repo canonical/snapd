@@ -20,7 +20,6 @@
 package main_test
 
 import (
-	"fmt"
 	"math"
 	"os"
 
@@ -28,8 +27,6 @@ import (
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/interfaces/mount"
-	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type entrySuite struct{}
@@ -74,12 +71,10 @@ func (s *entrySuite) TestXSnapdUID(c *C) {
 	c.Assert(uid, Equals, uint64(0))
 
 	// User is parsed from the x-snapd.uid= option.
-	nobodyUID, err := osutil.FindUid("nobody")
-	c.Assert(err, IsNil)
-	e = &mount.Entry{Options: []string{"x-snapd.uid=nobody"}}
+	e = &mount.Entry{Options: []string{"x-snapd.uid=root"}}
 	uid, err = update.XSnapdUID(e)
 	c.Assert(err, IsNil)
-	c.Assert(uid, Equals, nobodyUID)
+	c.Assert(uid, Equals, uint64(0))
 
 	// Numeric names are used as-is.
 	e = &mount.Entry{Options: []string{"x-snapd.uid=123"}}
@@ -107,28 +102,10 @@ func (s *entrySuite) TestXSnapdGID(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(gid, Equals, uint64(0))
 
-	// Group is parsed from the x-snapd-group= option.
-	var nogroup string
-	var nogroupGID uint64
-	// try to cover differences between distributions and find a suitable
-	// 'nogroup' like group, eg. Ubuntu uses 'nogroup' while Arch uses
-	// 'nobody'
-	for _, grp := range []string{"nogroup", "nobody"} {
-		nogroup = grp
-		if gid, err := osutil.FindGid(grp); err == nil {
-			nogroup = grp
-			nogroupGID = gid
-			break
-		}
-	}
-	c.Assert([]string{"nogroup", "nobody"}, testutil.Contains, nogroup)
-
-	e = &mount.Entry{
-		Options: []string{fmt.Sprintf("x-snapd.gid=%s", nogroup)},
-	}
+	e = &mount.Entry{Options: []string{"x-snapd.gid=root"}}
 	gid, err = update.XSnapdGID(e)
 	c.Assert(err, IsNil)
-	c.Assert(gid, Equals, nogroupGID)
+	c.Assert(gid, Equals, uint64(0))
 
 	// Numeric names are used as-is.
 	e = &mount.Entry{Options: []string{"x-snapd.gid=456"}}
@@ -150,23 +127,23 @@ func (s *entrySuite) TestXSnapdGID(c *C) {
 }
 
 func (s *entrySuite) TestXSnapdEntryID(c *C) {
-	// Entry ID is optional.
-	e := &mount.Entry{}
-	c.Assert(update.XSnapdEntryID(e), Equals, "")
+	// Entry ID is optional and defaults to the mount point.
+	e := &mount.Entry{Dir: "/foo"}
+	c.Assert(update.XSnapdEntryID(e), Equals, "/foo")
 
 	// Entry ID is parsed from the x-snapd.id= option.
-	e = &mount.Entry{Options: []string{"x-snapd.id=foo"}}
+	e = &mount.Entry{Dir: "/foo", Options: []string{"x-snapd.id=foo"}}
 	c.Assert(update.XSnapdEntryID(e), Equals, "foo")
 }
 
-func (s *entrySuite) TestXSnapdParentID(c *C) {
-	// Parent entry ID is optional.
+func (s *entrySuite) TestXSnapdNeededBy(c *C) {
+	// The needed-by attribute is optional.
 	e := &mount.Entry{}
-	c.Assert(update.XSnapdParentID(e), Equals, "")
+	c.Assert(update.XSnapdNeededBy(e), Equals, "")
 
-	// Parent entry ID is parsed from the x-snapd.parent-id= option.
-	e = &mount.Entry{Options: []string{"x-snap.id=foo", "x-snapd.parent-id=bar"}}
-	c.Assert(update.XSnapdParentID(e), Equals, "bar")
+	// The needed-by attribute parsed from the x-snapd.needed-by= option.
+	e = &mount.Entry{Options: []string{"x-snap.id=foo", "x-snapd.needed-by=bar"}}
+	c.Assert(update.XSnapdNeededBy(e), Equals, "bar")
 }
 
 func (s *entrySuite) TestXSnapdSynthetic(c *C) {

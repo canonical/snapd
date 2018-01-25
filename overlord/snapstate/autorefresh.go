@@ -32,12 +32,12 @@ import (
 )
 
 // the default refresh pattern
-const defaultRefreshSchedule = "00:00-05:59/6:00-11:59/12:00-17:59/18:00-23:59"
+const defaultRefreshSchedule = "00:00-24:00/4"
 
 // hooks setup by devicestate
 var (
-	CanAutoRefresh         func(st *state.State) (bool, error)
-	RefreshScheduleManaged func(st *state.State) bool
+	CanAutoRefresh     func(st *state.State) (bool, error)
+	CanManageRefreshes func(st *state.State) bool
 )
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
@@ -119,7 +119,7 @@ func (m *autoRefresh) Ensure() error {
 	if !m.nextRefresh.IsZero() {
 		if m.lastRefreshSchedule != refreshScheduleStr {
 			// the refresh schedule has changed
-			logger.Debugf("Option refresh.schedule changed.")
+			logger.Debugf("Refresh timer changed.")
 			m.nextRefresh = time.Time{}
 		}
 	}
@@ -164,7 +164,7 @@ func (m *autoRefresh) Ensure() error {
 // TODO: we can remove the refreshSchedule reset because we have validation
 //       of the schedule now.
 func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, err error) {
-	if RefreshScheduleManaged != nil && RefreshScheduleManaged(m.state) {
+	if refreshScheduleManaged(m.state) {
 		if m.lastRefreshSchedule != "managed" {
 			logger.Noticef("refresh.schedule is managed via the snapd-control interface")
 			m.lastRefreshSchedule = "managed"
@@ -172,20 +172,38 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 		return nil, "managed", nil
 	}
 
-	refreshScheduleStr := defaultRefreshSchedule
 	tr := config.NewTransaction(m.state)
-	err = tr.Get("core", "refresh.schedule", &refreshScheduleStr)
+
+	// try the new refresh.timer config option first
+	err = tr.Get("core", "refresh.timer", &scheduleAsStr)
 	if err != nil && !config.IsNoOption(err) {
 		return nil, "", err
 	}
-
-	refreshSchedule, err := timeutil.ParseSchedule(refreshScheduleStr)
-	if err != nil {
-		logger.Noticef("cannot use refresh.schedule configuration: %s", err)
-		refreshSchedule, refreshScheduleStr = resetRefreshScheduleToDefault(m.state)
+	if scheduleAsStr != "" {
+		ts, err = timeutil.ParseSchedule(scheduleAsStr)
+		if err != nil {
+			logger.Noticef("cannot use refresh.timer configuration: %s", err)
+			return refreshScheduleDefault()
+		}
+		return ts, scheduleAsStr, nil
 	}
 
-	return refreshSchedule, refreshScheduleStr, nil
+	// fallback to legacy refresh.schedule setting when the new
+	// config option is not set
+	err = tr.Get("core", "refresh.schedule", &scheduleAsStr)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, "", err
+	}
+	if scheduleAsStr != "" {
+		ts, err = timeutil.ParseLegacySchedule(scheduleAsStr)
+		if err != nil {
+			logger.Noticef("cannot use refresh.schedule configuration: %s", err)
+			return refreshScheduleDefault()
+		}
+		return ts, scheduleAsStr, nil
+	}
+
+	return refreshScheduleDefault()
 }
 
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
@@ -204,12 +222,11 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	var msg string
 	switch len(updated) {
 	case 0:
-		logger.Noticef(i18n.G("No snaps to auto-refresh found"))
+		logger.Noticef(i18n.G("auto-refresh: all snaps are up-to-date"))
 		return nil
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
-	case 2:
-	case 3:
+	case 2, 3:
 		quoted := strutil.Quoted(updated)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
 		msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)
@@ -227,16 +244,13 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	return nil
 }
 
-func resetRefreshScheduleToDefault(st *state.State) (ts []*timeutil.Schedule, scheduleStr string) {
+func refreshScheduleDefault() (ts []*timeutil.Schedule, scheduleStr string, err error) {
 	refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshSchedule)
 	if err != nil {
 		panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
 	}
-	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.schedule", defaultRefreshSchedule)
-	tr.Commit()
 
-	return refreshSchedule, defaultRefreshSchedule
+	return refreshSchedule, defaultRefreshSchedule, nil
 }
 
 func autoRefreshInFlight(st *state.State) bool {
@@ -246,4 +260,26 @@ func autoRefreshInFlight(st *state.State) bool {
 		}
 	}
 	return false
+}
+
+// refreshScheduleManaged returns true if the refresh schedule of the
+// device is managed by an external snap
+func refreshScheduleManaged(st *state.State) bool {
+	var refreshScheduleStr string
+
+	// this will only be "nil" if running in tests
+	if CanManageRefreshes == nil {
+		return false
+	}
+
+	tr := config.NewTransaction(st)
+	err := tr.Get("core", "refresh.schedule", &refreshScheduleStr)
+	if err != nil {
+		return false
+	}
+	if refreshScheduleStr != "managed" {
+		return false
+	}
+
+	return CanManageRefreshes(st)
 }

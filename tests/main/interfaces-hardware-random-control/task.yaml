@@ -8,14 +8,16 @@ summary: |
     reconnected.
 
     A snap declaring a plug on this interface must be able to read files in
-    /sys/class/misc/hw_random/{rng_available,rng_current}
+    /sys/class/misc/hw_random/{rng_available,rng_current} and write /dev/hwrng
 
 # Execution skipped on debian due to device /dev/hwrng not created by default
-systems: [-debian-unstable-*]
+systems: [-debian-*]
 
 prepare: |
+    . "$TESTSLIB/snaps.sh"
+
     echo "Given a snap declaring a plug on the hardware-random-control interface is installed"
-    snap try $TESTSLIB/snaps/test-snapd-hardware-random-control
+    install_local test-snapd-hardware-random-control
 
 restore: |
     rm -f hw.error
@@ -29,6 +31,7 @@ execute: |
 
     echo "When the plug is connected"
     snap connect test-snapd-hardware-random-control:hardware-random-control
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to read hardware random information"
     test-snapd-hardware-random-control.check 2>hw.error

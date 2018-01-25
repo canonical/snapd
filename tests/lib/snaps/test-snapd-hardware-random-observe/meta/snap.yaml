@@ -1,0 +1,10 @@
+name: test-snapd-hardware-random-observe
+version: 1.0
+summary: Basic hardware-random-observe snap
+description: A basic snap which access to hardware-observe paths
+
+apps:
+  check:
+    command: bin/check
+    plugs: [hardware-random-observe]
+

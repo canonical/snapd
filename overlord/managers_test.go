@@ -211,7 +211,16 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 var settleTimeout = 15 * time.Second
 
 func makeTestSnap(c *C, snapYamlContent string) string {
-	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, nil)
+	info, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))
+	c.Assert(err, IsNil)
+
+	var files [][]string
+	for _, app := range info.Apps {
+		// files is a list of (filename, content)
+		files = append(files, []string{app.Command, ""})
+	}
+
+	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, files)
 }
 
 func (ms *mgrsSuite) TestHappyLocalInstall(c *C) {
@@ -1717,7 +1726,7 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 
 	captureAuthContext := func(_ *store.Config, ac auth.AuthContext) *store.Store {
 		s.ac = ac
-		return nil
+		return store.New(nil, nil)
 	}
 	r := overlord.MockStoreNew(captureAuthContext)
 	defer r()

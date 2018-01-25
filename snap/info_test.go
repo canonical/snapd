@@ -631,7 +631,8 @@ func (s *infoSuite) TestMinimalInfoDirAndFileMethods(c *C) {
 
 func (s *infoSuite) TestDirAndFileMethods(c *C) {
 	dirs.SetRootDir("")
-	info := &snap.Info{SuggestedName: "name", SideInfo: snap.SideInfo{Revision: snap.R(1)}}
+	info := &snap.Info{SuggestedName: "name"}
+	info.SideInfo = snap.SideInfo{Revision: snap.R(1)}
 	s.testDirAndFileMethods(c, info)
 }
 
@@ -782,8 +783,6 @@ layout:
     bind: $SNAP/usr
   /mytmp:
     type: tmpfs
-    user: nobody
-    group: nobody
     mode: 1777
   /mylink:
     symlink: /link/target
@@ -804,8 +803,8 @@ layout:
 		Snap:  info,
 		Path:  "/mytmp",
 		Type:  "tmpfs",
-		User:  "nobody",
-		Group: "nobody",
+		User:  "root",
+		Group: "root",
 		Mode:  01777,
 	})
 	c.Check(layout["/mylink"], DeepEquals, &snap.Layout{
@@ -826,4 +825,37 @@ func (s *infoSuite) TestPlugInfoString(c *C) {
 func (s *infoSuite) TestSlotInfoString(c *C) {
 	slot := &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "slot"}
 	c.Assert(slot.String(), Equals, "snap:slot")
+}
+
+func (s *infoSuite) TestPlugInfoAttr(c *C) {
+	var val string
+	var intVal int
+
+	plug := &snap.PlugInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Interface: "interface", Attrs: map[string]interface{}{"key": "value", "number": int(123)}}
+	c.Assert(plug.Attr("key", &val), IsNil)
+	c.Check(val, Equals, "value")
+
+	c.Assert(plug.Attr("number", &intVal), IsNil)
+	c.Check(intVal, Equals, 123)
+
+	c.Check(plug.Attr("key", &intVal), ErrorMatches, `snap "snap" has interface "interface" with invalid value type for "key" attribute`)
+	c.Check(plug.Attr("unknown", &val), ErrorMatches, `snap "snap" does not have attribute "unknown" for interface "interface"`)
+	c.Check(plug.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
+}
+
+func (s *infoSuite) TestSlotInfoAttr(c *C) {
+	var val string
+	var intVal int
+
+	slot := &snap.SlotInfo{Snap: &snap.Info{SuggestedName: "snap"}, Name: "plug", Interface: "interface", Attrs: map[string]interface{}{"key": "value", "number": int(123)}}
+
+	c.Assert(slot.Attr("key", &val), IsNil)
+	c.Check(val, Equals, "value")
+
+	c.Assert(slot.Attr("number", &intVal), IsNil)
+	c.Check(intVal, Equals, 123)
+
+	c.Check(slot.Attr("key", &intVal), ErrorMatches, `snap "snap" has interface "interface" with invalid value type for "key" attribute`)
+	c.Check(slot.Attr("unknown", &val), ErrorMatches, `snap "snap" does not have attribute "unknown" for interface "interface"`)
+	c.Check(slot.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
 }

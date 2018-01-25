@@ -26,11 +26,13 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 )
 
@@ -40,9 +42,11 @@ type catalogStore struct {
 	ops []string
 }
 
-func (r *catalogStore) WriteCatalogs(w io.Writer) error {
+func (r *catalogStore) WriteCatalogs(w io.Writer, a store.SnapAdder) error {
 	r.ops = append(r.ops, "write-catalog")
 	w.Write([]byte("pkg1\npkg2"))
+	a.AddSnap("foo", []string{"foo", "meh"})
+	a.AddSnap("bar", []string{"bar", "meh"})
 	return nil
 }
 
@@ -93,6 +97,15 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 	content, err = ioutil.ReadFile(dirs.SnapNamesFile)
 	c.Assert(err, IsNil)
 	c.Check(string(content), Equals, "pkg1\npkg2")
+
+	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, true)
+	dump, err := advisor.Dump()
+	c.Assert(err, IsNil)
+	c.Check(dump, DeepEquals, map[string][]string{
+		"foo": {"foo"},
+		"bar": {"bar"},
+		"meh": {"foo", "bar"},
+	})
 }
 
 func (s *catalogRefreshTestSuite) TestCatalogRefreshNotNeeded(c *C) {

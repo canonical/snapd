@@ -29,8 +29,11 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
 )
 
@@ -175,9 +178,9 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 				return err
 			}
 			// ensure that permissions are preserved
-			uid := int(info.Sys().(*syscall.Stat_t).Uid)
-			gid := int(info.Sys().(*syscall.Stat_t).Gid)
-			return os.Chown(dest, uid, gid)
+			uid := sys.UserID(info.Sys().(*syscall.Stat_t).Uid)
+			gid := sys.GroupID(info.Sys().(*syscall.Stat_t).Gid)
+			return sys.ChownPath(dest, uid, gid)
 		}
 
 		// handle char/block devices
@@ -221,6 +224,11 @@ func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error)
 	}
 
 	err = snap.Validate(info)
+	if err != nil {
+		return "", err
+	}
+
+	err = snap.ValidateContainer(snapdir.New(sourceDir), info, logger.Noticef)
 	if err != nil {
 		return "", err
 	}
