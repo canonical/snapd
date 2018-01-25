@@ -515,6 +515,7 @@ var (
 		"unity8-contacts":           {"app"},
 		"upower-observe":            {"app", "core"},
 		"wayland":                   {"app", "core"},
+		"x11":                       {"app", "core"},
 		// snowflakes
 		"classic-support": nil,
 		"docker":          nil,

@@ -19,13 +19,73 @@
 
 package builtin
 
-const x11Summary = `allows interacting with the X11 server`
+import (
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+)
+
+const x11Summary = `allows interacting with an X11 server`
 
 const x11BaseDeclarationSlots = `
   x11:
     allow-installation:
       slot-snap-type:
+        - app
         - core
+    deny-connection:
+      on-classic: false
+    deny-auto-connection:
+      on-classic: false
+`
+
+const x11PermanentSlotAppArmor = `
+# Description: Allow operating as an X11 display server. This gives privileged access
+# to the system.
+
+# needed since X11 is a display server and needs to configure tty devices
+capability sys_tty_config,
+/dev/tty[0-9]* rw,
+
+# Needed for mode setting via drmSetMaster() and drmDropMaster()
+capability sys_admin,
+
+# NOTE: this allows reading and inserting all input events
+/dev/input/* rw,
+
+# For using udev
+network netlink raw,
+/run/udev/data/c13:[0-9]* r,
+/run/udev/data/+input:input[0-9]* r,
+/run/udev/data/+platform:* r,
+
+# the unix socket to use to connect to the display
+unix (bind, listen, accept)
+     type=stream
+     addr="@/tmp/.X11-unix/X[0-9]*",
+unix (bind, listen, accept)
+     type=stream
+     addr="@/tmp/.ICE-unix/[0-9]*",
+
+# For Xorg to detect screens
+/sys/devices/pci**/boot_vga r,
+/sys/devices/pci**/resources r,
+`
+
+const x11PermanentSlotSecComp = `
+# Description: Allow operating as an X11 server. This gives privileged access
+# to the system.
+# Needed for server launch
+bind
+listen
+# Needed by server upon client connect
+accept
+accept4
+# for udev
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const x11ConnectedPlugAppArmor = `
@@ -60,14 +120,67 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 bind
 `
 
+type x11Interface struct{}
+
+func (iface *x11Interface) Name() string {
+	return "x11"
+}
+
+func (iface *x11Interface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              x11Summary,
+		ImplicitOnClassic:    true,
+		BaseDeclarationSlots: x11BaseDeclarationSlots,
+	}
+}
+
+func (iface *x11Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(x11ConnectedPlugSecComp)
+	return nil
+}
+
+func (iface *x11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(x11ConnectedPlugAppArmor)
+	return nil
+}
+
+func (iface *x11Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if !release.OnClassic {
+		// TODO: figure out how to share X11 socket with other snaps
+	}
+	return nil
+}
+
+func (iface *x11Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
+	if !release.OnClassic {
+		spec.AddSnippet(x11PermanentSlotSecComp)
+	}
+	return nil
+}
+
+func (iface *x11Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+	if !release.OnClassic {
+		spec.AddSnippet(x11PermanentSlotAppArmor)
+	}
+	return nil
+}
+
+func (iface *x11Interface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
+	if !release.OnClassic {
+		spec.TagDevice(`KERNEL=="tty[0-9]*"`)
+		spec.TagDevice(`KERNEL=="mice"`)
+		spec.TagDevice(`KERNEL=="mouse[0-9]*"`)
+		spec.TagDevice(`KERNEL=="event[0-9]*"`)
+		spec.TagDevice(`KERNEL=="ts[0-9]*"`)
+	}
+	return nil
+}
+
+func (iface *x11Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "x11",
-		summary:               x11Summary,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  x11BaseDeclarationSlots,
-		connectedPlugAppArmor: x11ConnectedPlugAppArmor,
-		connectedPlugSecComp:  x11ConnectedPlugSecComp,
-		reservedForOS:         true,
-	})
+	registerIface(&x11Interface{})
 }
