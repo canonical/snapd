@@ -544,7 +544,6 @@ pkg_dependencies_arch(){
     python-docutils
     xfsprogs
     squashfs-tools
-    indent
     shellcheck
     python
     jq
