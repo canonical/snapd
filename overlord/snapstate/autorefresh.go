@@ -62,9 +62,9 @@ func newAutoRefresh(st *state.State) *autoRefresh {
 // RefreshSchedule will return a user visible string with the current schedule
 // for the automatic refreshes and a flag indicating whether the schedule is a
 // legacy one.
-func (m *autoRefresh) RefreshSchedule() (string, bool, error) {
-	_, scheduleStr, legacy, err := m.refreshScheduleWithDefaultsFallback()
-	return scheduleStr, legacy, err
+func (m *autoRefresh) RefreshSchedule() (schedule string, legacy bool, err error) {
+	_, schedule, legacy, err = m.refreshScheduleWithDefaultsFallback()
+	return schedule, legacy, err
 }
 
 // NextRefresh returns when the next automatic refresh will happen.
