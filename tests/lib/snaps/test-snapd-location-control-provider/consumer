@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+
+import dbus
+import os
+import sys
+
+INTERFACE = 'com.ubuntu.location.Service'
+PATH = '/com/ubuntu/location/Service'
+
+
+def _get_obj():
+    return dbus.SystemBus().get_object(INTERFACE, PATH)
+
+
+def add_provider():
+    obj = _get_obj()
+    return obj.AddProvider()
+
+
+if __name__ == "__main__":
+    res = add_provider()
+    print(res)
