@@ -22,13 +22,15 @@ package userd
 import (
 	"fmt"
 	"os/exec"
-	"regexp"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/godbus/dbus"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 // Timeout when the confirmation dialog for an xdg-setging
@@ -60,13 +62,19 @@ const settingsIntrospectionXML = `
 	</method>
 </interface>`
 
-// FIXME: allow setting default-url-scheme-handler ?
+// TODO: allow setting default-url-scheme-handler ?
 var settingsWhitelist = []string{
 	"default-web-browser",
 }
 
-// FIXME: too restrictive?
-var allowedSettingsValues = regexp.MustCompile(`^[a-zA-Z0-9._]+$`)
+func allowedSetting(setting string) bool {
+	if !strings.HasSuffix(setting, ".desktop") {
+		return false
+	}
+	base := strings.TrimSuffix(setting, ".desktop")
+
+	return snap.ValidAppName(base)
+}
 
 func settingWhitelisted(setting string) *dbus.Error {
 	for _, whitelisted := range settingsWhitelist {
@@ -116,7 +124,7 @@ func (s *Settings) Check(setting, check string, sender dbus.Sender) (string, *db
 	if err := settingWhitelisted(setting); err != nil {
 		return "", err
 	}
-	if !allowedSettingsValues.MatchString(check) {
+	if !allowedSetting(check) {
 		return "", dbus.MakeFailedError(fmt.Errorf("cannot check setting %q to value %q: value not allowed", setting, check))
 	}
 
@@ -153,7 +161,7 @@ func (s *Settings) Get(setting string, sender dbus.Sender) (string, *dbus.Error)
 		return "", dbus.MakeFailedError(err)
 	}
 	if !strings.HasPrefix(string(output), snap+"_") {
-		return "NOT_THIS_SNAP.snap.desktop", nil
+		return "NOT-THIS-SNAP.snap.desktop", nil
 	}
 
 	desktopFile := strings.SplitN(string(output), "_", 2)[1]
@@ -168,16 +176,20 @@ func (s *Settings) Set(setting, new string, sender dbus.Sender) *dbus.Error {
 	if err := settingWhitelisted(setting); err != nil {
 		return err
 	}
-	if !allowedSettingsValues.MatchString(new) {
-		return dbus.MakeFailedError(fmt.Errorf("cannot set setting %q to value %q: value not allowed", setting, new))
-	}
-
 	// see https://github.com/snapcore/snapd/pull/4073#discussion_r146682758
 	snap, err := snapFromSender(s.conn, sender)
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
+
+	if !allowedSetting(new) {
+		return dbus.MakeFailedError(fmt.Errorf("cannot set setting %q to value %q: value not allowed", setting, new))
+	}
 	new = fmt.Sprintf("%s_%s", snap, new)
+	df := filepath.Join(dirs.SnapDesktopFilesDir, new)
+	if !osutil.FileExists(df) {
+		return dbus.MakeFailedError(fmt.Errorf("cannot find desktop file %q", df))
+	}
 
 	// FIXME: what GUI toolkit to use?
 	// FIXME2: we could support kdialog here as well
@@ -185,7 +197,13 @@ func (s *Settings) Set(setting, new string, sender dbus.Sender) *dbus.Error {
 		return dbus.MakeFailedError(fmt.Errorf("cannot find zenity"))
 	}
 	// FIXME: we need to know the parent PID or our dialog may pop under
-	//        the existing windows
+	//        the existing windows. We might get it with the help of
+	//        the xdg-settings tool inside the core snap. It would have
+	//        to get the PID of the process asking for the settings
+	//        then xdg-settings can sent this to us and we can intospect
+	//        the X windows for _NET_WM_PID and use the windowID to
+	//        attach to zenity - not sure how this translate to the
+	//        wayland world though :/
 	txt := fmt.Sprintf(i18n.G(`
 <big><b>Allow settings change?</b></big>
 
