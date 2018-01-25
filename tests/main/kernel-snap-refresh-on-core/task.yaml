@@ -30,6 +30,15 @@ execute: |
         done
     }
 
+    same=$(snap info pc-kernel | awk "
+        /^  ${KERNEL_CHANNEL}:/ {ch1=\$2}
+        /^  ${NEW_KERNEL_CHANNEL}:/ {ch2=\$2}
+        END { if (ch1 == ch2) print(\"same\") }")
+    if [ "$same" = "same" ]; then
+        echo "SKIPPING: kernel in edge / stable are the same"
+        exit 0
+    fi
+
     . $TESTSLIB/boot.sh
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # ensure we have a good starting place
