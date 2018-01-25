@@ -27,9 +27,6 @@ import (
 )
 
 var (
-	// ErrEmptyQuery is returned from Find when the query, stripped of any prefixes, is empty.
-	ErrEmptyQuery = errors.New("empty query")
-
 	// ErrBadQuery is returned from Find when the query has special characters in strange places.
 	ErrBadQuery = errors.New("bad query")
 

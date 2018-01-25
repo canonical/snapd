@@ -150,6 +150,8 @@ func ParseEntry(s string) (Entry, error) {
 }
 
 // OptsToCommonFlags converts mount options strings to a mount flag, returning unparsed flags.
+// The unparsed flags will not contain any snapd-specific mount option, those
+// starting with the string "x-snapd."
 func OptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 	for _, opt := range opts {
 		switch opt {
@@ -200,7 +202,9 @@ func OptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 		case "strictatime":
 			flags |= syscall.MS_STRICTATIME
 		default:
-			unparsed = append(unparsed, opt)
+			if !strings.HasPrefix(opt, "x-snapd.") {
+				unparsed = append(unparsed, opt)
+			}
 		}
 	}
 	return flags, unparsed
@@ -238,4 +242,34 @@ func (e *Entry) OptBool(name string) bool {
 		}
 	}
 	return false
+}
+
+// XSnapdKindSymlink returns the string "x-snapd.kind=symlink".
+func XSnapdKindSymlink() string {
+	return "x-snapd.kind=symlink"
+}
+
+// XSnapdKindFile returns the string "x-snapd.kind=file".
+func XSnapdKindFile() string {
+	return "x-snapd.kind=file"
+}
+
+// XSnapdUser returns the string "x-snapd.user=%d".
+func XSnapdUser(uid int) string {
+	return fmt.Sprintf("x-snapd.user=%d", uid)
+}
+
+// XSnapdGroup returns the string "x-snapd.group=%d".
+func XSnapdGroup(gid int) string {
+	return fmt.Sprintf("x-snapd.group=%d", gid)
+}
+
+// XSnapdMode returns the string "x-snapd.mode=%#o".
+func XSnapdMode(mode uint32) string {
+	return fmt.Sprintf("x-snapd.mode=%#o", mode)
+}
+
+// XSnapdSymlink returns the string "x-snapd.symlink=%s".
+func XSnapdSymlink(oldname string) string {
+	return fmt.Sprintf("x-snapd.symlink=%s", oldname)
 }

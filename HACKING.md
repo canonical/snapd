@@ -6,6 +6,10 @@ integration test framework for the integration/system level tests.
 
 ## Development
 
+### Supported Go versions
+
+snapd is supported on Go 1.6 onwards.
+
 ### Setting up a GOPATH
 
 When working with the source of Go programs, you should define a path within
@@ -121,6 +125,8 @@ To run the various tests that we have to ensure a high quality source just run:
 
 This will check if the source format is consistent, that it builds, all tests
 work as expected and that "go vet" has nothing to complain.
+
+The source format follows the `gofmt -s` formating. Please run this on your sources files if `run-checks` complains about the format.
 
 You can run individual test for a sub-package by changing into that directory and:
 

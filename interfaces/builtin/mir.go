@@ -49,6 +49,7 @@ capability sys_tty_config,
 
 /{dev,run}/shm/\#* mrw,
 /run/mir_socket rw,
+/run/user/[0-9]*/mir_socket rw,
 
 # Needed for mode setting via drmSetMaster() and drmDropMaster()
 capability sys_admin,
