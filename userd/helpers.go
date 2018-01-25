@@ -64,6 +64,12 @@ func snapFromPid(pid int) (string, error) {
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
+		// we need to find a string like:
+		//   ...
+		//   7:freezer:/snap.hello-world
+		//   ...
+		// See cgroup(7) for details about the /proc/[pid]/cgroup
+		// format.
 		l := strings.Split(scanner.Text(), ":")
 		if len(l) < 3 {
 			continue

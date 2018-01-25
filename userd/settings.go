@@ -161,7 +161,7 @@ func (s *Settings) Get(setting string, sender dbus.Sender) (string, *dbus.Error)
 		return "", dbus.MakeFailedError(err)
 	}
 	if !strings.HasPrefix(string(output), snap+"_") {
-		return "NOT-THIS-SNAP.snap.desktop", nil
+		return "NOT-THIS-SNAP.desktop", nil
 	}
 
 	desktopFile := strings.SplitN(string(output), "_", 2)[1]
