@@ -19,8 +19,7 @@ checkdepends=('python' 'squashfs-tools' 'indent' 'shellcheck')
 options=('!strip' 'emptydirs')
 install=snapd.install
 source=("git+https://github.com/snapcore/$pkgbase.git")
-md5sums=('SKIP'
-         '3e4bf446e920a285f23c84866c316126')
+md5sums=('SKIP')
 
 pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd')
