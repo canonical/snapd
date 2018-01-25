@@ -17,16 +17,17 @@ execute: |
 
     # the strace on 14.04 is too old
     if grep -q 'VERSION_ID="14.04"' /etc/os-release; then
-        snap install --edge strace-static
-    fi
-    # core has no strace
-    if grep -q 'ID=ubuntu-core' /etc/os-release; then
-        snap install --edge strace-static
+        snap install strace-static
     fi
     # the strace on opensuse is too old
     if grep -q 'ID=opensuse' /etc/os-release; then
-        snap install --edge strace-static
+        snap install strace-static
     fi
+    # install the snap if no system strace is found
+    if ! which strace; then
+        snap install strace-static
+    fi
+
     echo "Test snap run --strace"
     snap run --strace test-snapd-tools.echo "hello-world" >stdout 2>stderr
     MATCH hello-world < stdout

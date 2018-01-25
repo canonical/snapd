@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build arm 386 ppc
+// +build arm64 amd64 ppc64le s390x ppc
 
 /*
  * Copyright (C) 2017 Canonical Ltd
@@ -22,9 +22,11 @@ package sys
 
 import "syscall"
 
+// these are the constants for where getuid et al are already 32-bit
+
 const (
-	_SYS_GETUID  = syscall.SYS_GETUID32
-	_SYS_GETGID  = syscall.SYS_GETGID32
-	_SYS_GETEUID = syscall.SYS_GETEUID32
-	_SYS_GETEGID = syscall.SYS_GETEGID32
+	_SYS_GETUID  = syscall.SYS_GETUID
+	_SYS_GETGID  = syscall.SYS_GETGID
+	_SYS_GETEUID = syscall.SYS_GETEUID
+	_SYS_GETEGID = syscall.SYS_GETEGID
 )

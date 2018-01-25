@@ -28,6 +28,7 @@ execute: |
 
     echo "When the plug is connected"
     snap connect hardware-observe-consumer:hardware-observe
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to read hardware information"
     hardware-observe-consumer.consumer

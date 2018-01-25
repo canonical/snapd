@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -81,6 +82,18 @@ func fromRaw(raw []byte) (*stat, error) {
 			return nil, errBadLine(raw)
 		}
 		p++
+	}
+
+	if st.mode&os.ModeSymlink != 0 {
+		// the symlink *could* be from a file called "foo -> bar" to
+		// another called "baz -> quux" in which case the following
+		// would be wrong, but so be it.
+
+		idx := strings.Index(st.path, " -> ")
+		if idx < 0 {
+			return nil, errBadPath(raw)
+		}
+		st.path = st.path[:idx]
 	}
 
 	return st, nil

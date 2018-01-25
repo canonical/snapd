@@ -163,6 +163,7 @@ func (s *UDisks2InterfaceSuite) TestDBusSpec(c *C) {
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `<policy user="root">`)
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `send_interface="org.freedesktop.DBus.Introspectable"`)
 }
 
 func (s *UDisks2InterfaceSuite) TestUDevSpec(c *C) {

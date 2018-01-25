@@ -32,7 +32,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/Thomasdezeeuw/ini"
+	"github.com/mvo5/goconfigparser"
 	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
@@ -130,18 +130,23 @@ func snapcraftLoginSection() string {
 }
 
 func parseSnapcraftLoginFile(authFn string, data []byte) (*authData, error) {
-	cfg, err := ini.Parse(bytes.NewBuffer(data))
+	errPrefix := fmt.Sprintf("invalid snapcraft login file %q", authFn)
+
+	cfg := goconfigparser.New()
+	if err := cfg.ReadString(string(data)); err != nil {
+		return nil, fmt.Errorf("%s: %v", errPrefix, err)
+	}
+	sec := snapcraftLoginSection()
+	macaroon, err := cfg.Get(sec, "macaroon")
 	if err != nil {
-		return nil, fmt.Errorf("cannot parse snapcraft login file %q: %v", authFn, err)
+		return nil, fmt.Errorf("%s: %s", errPrefix, err)
 	}
-	loginSection, ok := cfg[snapcraftLoginSection()]
-	if !ok {
-		return nil, fmt.Errorf("invalid snapcraft login file %q: no credentials section", authFn)
+	unboundDischarge, err := cfg.Get(sec, "unbound_discharge")
+	if err != nil {
+		return nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
-	macaroon := loginSection["macaroon"]
-	unboundDischarge := loginSection["unbound_discharge"]
 	if macaroon == "" || unboundDischarge == "" {
-		return nil, fmt.Errorf("invalid snapcraft login file %q: missing fields", authFn)
+		return nil, fmt.Errorf("invalid snapcraft login file %q: empty fields", authFn)
 	}
 	return &authData{
 		Macaroon:   macaroon,

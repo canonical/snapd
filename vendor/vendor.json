@@ -7,18 +7,6 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "OeMM9kqd+l7qKt2ebPlkuNTj3iM=",
-			"path": "github.com/Thomasdezeeuw/ini",
-			"revision": "a8267f5250545cad90bcfa172ac4422e2f1afd6a",
-			"revisionTime": "2017-08-26T09:48:33Z"
-		},
-		{
-			"checksumSHA1": "lbE4q2dpUgue10EEx8eutP36vzo=",
-			"path": "github.com/boltdb/bolt",
-			"revision": "9da31745363232bc1e27dbab3569e77383a51585",
-			"revisionTime": "2017-11-20T01:03:07Z"
-		},
-		{
 			"checksumSHA1": "RBwpnMpfQt7Jo7YWrRph0Vwe+f0=",
 			"path": "github.com/coreos/go-systemd/activation",
 			"revision": "48702e0da86bd25e76cfef347e2adeb434a0d0a6",
@@ -77,6 +65,13 @@
 			"path": "github.com/ojii/gettext.go/pluralforms",
 			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
 			"revisionTime": "2016-07-14T06:47:45Z"
+		},
+		{
+			"checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
+			"comment": "fork of boltdb/bolt to fix build failure on ppc. upstream: https://github.com/boltdb/bolt/pull/740 and https://github.com/coreos/bbolt/pull/73",
+			"path": "github.com/snapcore/bolt",
+			"revision": "9eca199504ee1299394669820724322b5bfc070a",
+			"revisionTime": "2018-01-18T17:01:45Z"
 		},
 		{
 			"checksumSHA1": "TT1rac6kpQp2vz24m5yDGUNQ/QQ=",
