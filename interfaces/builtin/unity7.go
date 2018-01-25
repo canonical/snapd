@@ -44,6 +44,15 @@ const unity7ConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
+
+# Allow finding the DBus session bus id (eg, via dbus_bus_get_id())
+dbus (send)
+     bus=session
+     path=/org/freedesktop/DBus
+     interface=org.freedesktop.DBus
+     member=GetId
+     peer=(name=org.freedesktop.DBus, label=unconfined),
+
 #include <abstractions/X>
 
 #include <abstractions/fonts>
@@ -420,7 +429,7 @@ dbus (send)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member="{GetCapabilities,GetServerInformation,Notify}"
+    member="{GetCapabilities,GetServerInformation,Notify,CloseNotification}"
     peer=(label=unconfined),
 
 dbus (receive)
@@ -572,6 +581,13 @@ dbus (send)
   path=/com/canonical/Unity/Session
   member="{ActivateScreenSaver,IsLocked,Lock}"
   peer=(label=unconfined),
+
+# Allow unconfined to introspect us
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
 `
 
 const unity7ConnectedPlugSeccomp = `
