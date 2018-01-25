@@ -20,9 +20,14 @@
 package userd_test
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/userd"
 )
@@ -122,7 +127,13 @@ func (s *settingsSuite) TestSetUserDeclined(c *C) {
 	mockZenity := testutil.MockCommand(c, "zenity", "false")
 	defer mockZenity.Restore()
 
-	err := s.settings.Set("default-web-browser", "bar.desktop", ":some-dbus-sender")
+	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_bar.desktop")
+	err := os.MkdirAll(filepath.Dir(df), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(df, nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = s.settings.Set("default-web-browser", "bar.desktop", ":some-dbus-sender")
 	c.Assert(err, ErrorMatches, `cannot set setting: user declined`)
 	c.Check(s.mockXdgSettings.Calls(), IsNil)
 	// FIXME: this needs PR#4342
@@ -137,7 +148,13 @@ func (s *settingsSuite) TestSetUserAccepts(c *C) {
 	mockZenity := testutil.MockCommand(c, "zenity", "true")
 	defer mockZenity.Restore()
 
-	err := s.settings.Set("default-web-browser", "foo.desktop", ":some-dbus-sender")
+	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_foo.desktop")
+	err := os.MkdirAll(filepath.Dir(df), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(df, nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = s.settings.Set("default-web-browser", "foo.desktop", ":some-dbus-sender")
 	c.Assert(err, IsNil)
 	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
 		{"xdg-settings", "set", "default-web-browser", "some-snap_foo.desktop"},

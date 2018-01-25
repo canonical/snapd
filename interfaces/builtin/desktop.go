@@ -172,7 +172,7 @@ dbus (send)
     bus=session
     path=/io/snapcraft/Settings
     interface=io.snapcraft.Settings
-    member={Check,Get,Set},
+    member={Check,Get,Set}
     peer=(label=unconfined),
 `
 
