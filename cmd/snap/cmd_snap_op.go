@@ -665,10 +665,12 @@ func (x *cmdRefresh) showRefreshTimes() error {
 		return err
 	}
 
-	if sysinfo.Refresh.Schedule != "" {
+	if sysinfo.Refresh.Timer != "" {
+		fmt.Fprintf(Stdout, "timer: %s\n", sysinfo.Refresh.Timer)
+	} else if sysinfo.Refresh.Schedule != "" {
 		fmt.Fprintf(Stdout, "schedule: %s\n", sysinfo.Refresh.Schedule)
 	} else {
-		fmt.Fprintf(Stdout, "timer: %s\n", sysinfo.Refresh.Timer)
+		return errors.New("internal error, both refresh.timer and refresh.schedule are empty")
 	}
 	if sysinfo.Refresh.Last != "" {
 		fmt.Fprintf(Stdout, "last: %s\n", sysinfo.Refresh.Last)
