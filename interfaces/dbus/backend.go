@@ -59,10 +59,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 	coreRoot := snapInfo.MountDir()
 	dst := "/usr/share/dbus-1/services/io.snapcraft.Launcher.service"
-	if osutil.FileExists(dst) {
+	src := filepath.Join(coreRoot, dst)
+	if osutil.FilesAreEqual(src, dst) {
 		return nil
 	}
-	return osutil.CopyFile(filepath.Join(coreRoot, dst), dst, osutil.CopyFlagPreserveAll)
+	return osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll)
 }
 
 // Setup creates dbus configuration files specific to a given snap.
