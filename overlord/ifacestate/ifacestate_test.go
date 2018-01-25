@@ -262,11 +262,11 @@ func (s *interfaceManagerSuite) TestConnectConflictsSlotSnapWithRetry(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestDisconnectConflictsPugSnap(c *C) {
-	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "consumer", "link-snap", `snap "consumer" has changes in progress`)
+	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "consumer", "link-snap", `snap "consumer" has "other-chg" change in progress`)
 }
 
 func (s *interfaceManagerSuite) TestDisconnectConflictsSlotSnap(c *C) {
-	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "producer", "link-snap", `snap "producer" has changes in progress`)
+	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "producer", "link-snap", `snap "producer" has "other-chg" change in progress`)
 }
 
 func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {

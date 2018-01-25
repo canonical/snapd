@@ -284,7 +284,7 @@ func (s *servicectlSuite) TestConflictingChange(c *C) {
 
 	_, _, err := ctlcmd.Run(s.mockContext, []string{"start", "test-snap.test-service"})
 	c.Check(err, NotNil)
-	c.Check(err, ErrorMatches, `snap "test-snap" has changes in progress`)
+	c.Check(err, ErrorMatches, `snap "test-snap" has "conflicting change" change in progress`)
 }
 
 func (s *servicectlSuite) TestQueuedCommands(c *C) {
