@@ -183,7 +183,7 @@ ptrace (trace, read) peer=snap.@{SNAP_NAME}.**,
 # AppArmor Limitations #
 ########################
 
-# Games Dev Tycoon reads /proc/$ppid/environ but unfortunately AppArmor
+# Game Dev Tycoon reads /proc/$ppid/environ but unfortunately AppArmor
 # doesn't have any such qualifier.
 @{PROC}/[0-9]*/environ r,
 `
