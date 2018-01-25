@@ -23,6 +23,10 @@ import (
 	"github.com/godbus/dbus"
 )
 
+var (
+	SnapFromPid = snapFromPid
+)
+
 func MockSnapFromSender(f func(*dbus.Conn, dbus.Sender) (string, error)) func() {
 	origSnapFromSender := snapFromSender
 	snapFromSender = f
