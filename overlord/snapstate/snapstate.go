@@ -343,6 +343,13 @@ func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.Slot
 	return &plugRef, &slotRef, nil
 }
 
+func ChangeConflictError(snapName, kind string) *changeConflictError {
+	return &changeConflictError{
+		snapName:   snapName,
+		changeKind: kind,
+	}
+}
+
 type changeConflictError struct {
 	snapName   string
 	changeKind string

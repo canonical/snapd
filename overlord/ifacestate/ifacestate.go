@@ -47,14 +47,6 @@ func noConflictOnConnectTasks(chg *state.Change) func(task *state.Task) bool {
 	return checkConflict
 }
 
-type changeConflictError struct {
-	snapName string
-}
-
-func (e changeConflictError) Error() string {
-	return fmt.Sprintf("snap %q has changes in progress", e.snapName)
-}
-
 var connectRetryTimeout = time.Second * 5
 
 func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slotSnap string) error {
@@ -105,7 +97,7 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 			} else {
 				snap = slotSnap
 			}
-			return &changeConflictError{snapName: snap}
+			return snapstate.ChangeConflictError(snap, task.Change().Kind())
 		case "link-snap":
 			// snap getting installed/refreshed - temporary conflict, retry later
 			return &state.Retry{After: connectRetryTimeout}

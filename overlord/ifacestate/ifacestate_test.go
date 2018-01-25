@@ -250,7 +250,7 @@ func (s *interfaceManagerSuite) TestConnectConflictsPlugSnapWithRetry(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectConflictsPlugSnap(c *C) {
-	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "consumer", "unlink-snap", `snap "consumer" has changes in progress`)
+	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "consumer", "unlink-snap", `snap "consumer" has "other-chg" change in progress`)
 }
 
 func (s *interfaceManagerSuite) TestConnectConflictsSlotSnap(c *C) {
@@ -258,7 +258,7 @@ func (s *interfaceManagerSuite) TestConnectConflictsSlotSnap(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectConflictsSlotSnapWithRetry(c *C) {
-	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "producer", "unlink-snap", `snap "producer" has changes in progress`)
+	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "producer", "unlink-snap", `snap "producer" has "other-chg" change in progress`)
 }
 
 func (s *interfaceManagerSuite) TestDisconnectConflictsPugSnap(c *C) {
