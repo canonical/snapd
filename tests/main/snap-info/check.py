@@ -87,7 +87,6 @@ check("test-snapd-tools", res[2],
     ("edge", matches, verRevNotesRx("-")),
    ),
    ("snap-id", equals, snap_ids["test-snapd-tools"]),
-   ("license", equals, "(undefined)"), # TODO: update once snap licenses are stored locall
 )
 
 check("test-snapd-devmode", res[3],
@@ -106,7 +105,6 @@ check("test-snapd-devmode", res[3],
     ("edge", matches, verRevNotesRx("devmode")),
    ),
    ("snap-id", equals, snap_ids["test-snapd-devmode"]),
-   ("license", equals, "(undefined)"), # TODO: update once snap licenses are stored locall
 )
 
 check("core", res[4],
@@ -123,7 +121,6 @@ check("core", res[4],
       # sideload "core"
       ("contact", maybe),
       ("snap-id", maybe),
-      ("license", equals, "(undefined)"), # TODO: update once snap licenses are stored locall
 )
 
 check("error", res[5],
