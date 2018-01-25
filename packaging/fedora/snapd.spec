@@ -225,7 +225,7 @@ Requires:      golang(gopkg.in/yaml.v2)
 # These Provides are unversioned because the sources in
 # the bundled tarball are unversioned (they go by git commit)
 # *sigh*... I hate golang...
-Provides:      bundled(github.com/boltdb/bolt)
+Provides:      bundled(golang(github.com/boltdb/bolt))
 Provides:      bundled(golang(github.com/cheggaaa/pb))
 Provides:      bundled(golang(github.com/coreos/go-systemd/activation))
 Provides:      bundled(golang(github.com/godbus/dbus))
