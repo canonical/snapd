@@ -75,9 +75,6 @@ backends:
             - debian-9-64:
                 kernel: GRUB 2
                 workers: 4
-            - fedora-25-64:
-                workers: 3
-                manual: true
             - fedora-26-64:
                 workers: 3
                 manual: true
