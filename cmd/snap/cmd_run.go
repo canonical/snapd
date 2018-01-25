@@ -461,7 +461,7 @@ func straceCmd() ([]string, error) {
 		stracePath,
 		"-u", current.Username,
 		"-f",
-		"-e", "!select,pselect6,_newselect,clock_gettime",
+		"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid",
 	}, nil
 }
 
@@ -533,8 +533,8 @@ func runCmdUnderStrace(origCmd, env []string) error {
 	if err := gcmd.Start(); err != nil {
 		return err
 	}
-	err = gcmd.Wait()
 	<-filterDone
+	err = gcmd.Wait()
 	return err
 }
 
