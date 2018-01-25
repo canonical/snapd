@@ -85,6 +85,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.fakeBackend = &fakeSnappyBackend{}
+	s.fakeBackend.emptyContainer = emptyContainer(c)
 	s.fakeStore = &fakeStore{
 		fakeCurrentProgress: 75,
 		fakeTotalProgress:   100,
@@ -978,7 +979,7 @@ func (s *snapmgrTestSuite) TestSwitchConflict(c *C) {
 	s.state.NewChange("switch-snap", "...").AddAll(ts)
 
 	_, err = snapstate.Switch(s.state, "some-snap", "other-channel")
-	c.Check(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Check(err, ErrorMatches, `snap "some-snap" has "switch-snap" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestSwitchUnhappy(c *C) {
@@ -1031,7 +1032,7 @@ func (s *snapmgrTestSuite) TestEnableConflict(c *C) {
 	s.state.NewChange("enable", "...").AddAll(ts)
 
 	_, err = snapstate.Enable(s.state, "some-snap")
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "enable" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestDisableConflict(c *C) {
@@ -1052,7 +1053,7 @@ func (s *snapmgrTestSuite) TestDisableConflict(c *C) {
 	s.state.NewChange("install", "...").AddAll(ts)
 
 	_, err = snapstate.Disable(s.state, "some-snap")
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "install" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestDoInstallChannelDefault(c *C) {
@@ -1093,7 +1094,7 @@ func (s *snapmgrTestSuite) TestInstallConflict(c *C) {
 	s.state.NewChange("install", "...").AddAll(ts)
 
 	_, err = snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "install" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestInstallAliasConflict(c *C) {
@@ -1156,7 +1157,7 @@ func (s *snapmgrTestSuite) TestInstallPathConflict(c *C) {
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
 	_, err = snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "install" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestInstallPathMissingName(c *C) {
@@ -1457,7 +1458,7 @@ func (s *snapmgrTestSuite) TestUpdateConflict(c *C) {
 	s.state.NewChange("refresh", "...").AddAll(ts)
 
 	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "refresh" change in progress`)
 }
 
 func (s *snapmgrTestSuite) testChangeConflict(c *C, kind string) {
@@ -1484,10 +1485,10 @@ func (s *snapmgrTestSuite) testChangeConflict(c *C, kind string) {
 	chg.AddTask(t)
 
 	_, err := snapstate.Update(s.state, "producer", "some-channel", snap.R(2), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "producer" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "producer" has "another change" change in progress`)
 
 	_, err = snapstate.Update(s.state, "consumer", "some-channel", snap.R(2), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "consumer" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "consumer" has "another change" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateConflictWithConnect(c *C) {
@@ -1554,7 +1555,7 @@ func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
 	s.state.NewChange("remove", "...").AddAll(ts)
 
 	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0))
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "remove" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
@@ -2561,7 +2562,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchesChannelConflict(c *C) {
 	s.state.NewChange("refresh", "refresh a snap").AddAll(ts)
 
 	_, err = snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Check(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Check(err, ErrorMatches, `snap "some-snap" has "refresh" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
@@ -2688,7 +2689,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionToggleIgnoreValidationConflict(
 	s.state.NewChange("refresh", "refresh a snap").AddAll(ts)
 
 	_, err = snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{IgnoreValidation: true})
-	c.Check(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Check(err, ErrorMatches, `snap "some-snap" has "refresh" change in progress`)
 
 }
 
@@ -3376,7 +3377,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		chg := s.state.NewChange("update", "...")
 		chg.AddAll(ts)
 		err = snapstate.CheckChangeConflict(s.state, scenario.names[0], nil, nil)
-		c.Check(err, ErrorMatches, `.* has changes in progress`)
+		c.Check(err, ErrorMatches, `.* has "update" change in progress`)
 		chg.SetStatus(state.DoneStatus)
 	}
 }
@@ -5452,11 +5453,11 @@ func makeTestRefreshConfig(st *state.State) {
 	st.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, now.Location()))
 
 	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00-23:59"))
+	tr.Set("core", "refresh.timer", "00:00-23:59")
 	tr.Commit()
 }
 
-func (s *snapmgrTestSuite) TestEnsureRefreshRefusesWeekdaySchedules(c *C) {
+func (s *snapmgrTestSuite) TestEnsureRefreshRefusesLegacyWeekdaySchedules(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
@@ -5466,7 +5467,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesWeekdaySchedules(c *C) {
 
 	s.state.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, time.UTC))
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00-23:59/mon@12:00-14:00"))
+	tr.Set("core", "refresh.timer", "")
+	tr.Set("core", "refresh.schedule", "00:00-23:59/mon@12:00-14:00")
 	tr.Commit()
 
 	// Ensure() also runs ensureRefreshes()
@@ -5475,6 +5477,124 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesWeekdaySchedules(c *C) {
 	s.state.Lock()
 
 	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule configuration: cannot parse "mon@12:00": not a valid time`)
+	schedule, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00-24:00/4")
+
+	tr = config.NewTransaction(s.state)
+	refreshTimer := "canary"
+	refreshSchedule := "canary"
+	c.Assert(tr.Get("core", "refresh.timer", &refreshTimer), IsNil)
+	c.Assert(tr.Get("core", "refresh.schedule", &refreshSchedule), IsNil)
+	c.Check(refreshTimer, Equals, "")
+	c.Check(refreshSchedule, Equals, "00:00-23:59/mon@12:00-14:00")
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshLegacyScheduleIsLowerPriority(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	s.state.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, time.UTC))
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.timer", "00:00-23:59,,mon,12:00-14:00")
+	// legacy schedule is invalid
+	tr.Set("core", "refresh.schedule", "00:00-23:59/mon@12:00-14:00")
+	tr.Commit()
+
+	// Ensure() also runs ensureRefreshes()
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// expecting new refresh.timer to have been used, fallback to legacy was
+	// not attempted otherwise it would get reset to the default due to
+	// refresh.schedule being garbage
+	schedule, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00-23:59,,mon,12:00-14:00")
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToLegacySchedule(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.timer", "")
+	tr.Set("core", "refresh.schedule", "00:00-23:59")
+	tr.Commit()
+
+	// Ensure() also runs ensureRefreshes()
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// refresh.timer is unset, triggering automatic fallback to legacy
+	// schedule if that was set
+	schedule, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00-23:59")
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToDefaultOnError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.timer", "garbage-in")
+	tr.Set("core", "refresh.schedule", "00:00-23:59")
+	tr.Commit()
+
+	// Ensure() also runs ensureRefreshes()
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// automatic fallback to default schedule if refresh.timer is set but
+	// cannot be parsed
+	schedule, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00-24:00/4")
+
+	tr = config.NewTransaction(s.state)
+	refreshTimer := "canary"
+	refreshSchedule := "canary"
+	c.Assert(tr.Get("core", "refresh.timer", &refreshTimer), IsNil)
+	c.Assert(tr.Get("core", "refresh.schedule", &refreshSchedule), IsNil)
+	c.Check(refreshTimer, Equals, "garbage-in")
+	c.Check(refreshSchedule, Equals, "00:00-23:59")
+}
+
+func (s *snapmgrTestSuite) TestEnsureRefreshFallbackOnEmptyToDefaultSchedule(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.timer", "")
+	tr.Set("core", "refresh.schedule", "")
+	tr.Commit()
+
+	// Ensure() also runs ensureRefreshes()
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	// automatic fallback to default schedule if neither refresh.timer nor
+	// refresh.schedule was set
+	schedule, err := s.snapmgr.RefreshSchedule()
+	c.Assert(err, IsNil)
+	c.Check(schedule, Equals, "00:00-24:00/4")
+
+	tr = config.NewTransaction(s.state)
+	refreshTimer := "canary"
+	refreshSchedule := "canary"
+	c.Assert(tr.Get("core", "refresh.timer", &refreshTimer), IsNil)
+	c.Assert(tr.Get("core", "refresh.schedule", &refreshSchedule), IsNil)
+	c.Check(refreshTimer, Equals, "")
+	c.Check(refreshSchedule, Equals, "")
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesNoUpdate(c *C) {
@@ -5512,7 +5632,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAlreadyRanInThisInterval(c *C) {
 	s.state.Set("last-refresh", fakeLastRefresh)
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "refresh.schedule", fmt.Sprintf("00:00-%02d:%02d", now.Hour(), now.Minute()))
+	tr.Set("core", "refresh.timer", fmt.Sprintf("00:00-%02d:%02d", now.Hour(), now.Minute()))
 	tr.Commit()
 
 	// Ensure() also runs ensureRefreshes()
@@ -5761,9 +5881,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesDisabledViaSnapdControl(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
-	l, err := timeutil.ParseLegacySchedule(snapstate.DefaultRefreshSchedule)
+	l, err := timeutil.ParseSchedule(snapstate.DefaultRefreshSchedule)
 	c.Assert(err, IsNil)
-	c.Assert(l, HasLen, 4)
+	c.Assert(l, HasLen, 1)
 }
 
 type snapmgrQuerySuite struct {
@@ -6124,14 +6244,16 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 	defer s.state.Unlock()
 
 	// make mock try dir
-	tryYaml := filepath.Join(c.MkDir(), "meta", "snap.yaml")
+	d := c.MkDir()
+	c.Assert(os.Chmod(d, 0755), IsNil)
+	tryYaml := filepath.Join(d, "meta", "snap.yaml")
 	err := os.MkdirAll(filepath.Dir(tryYaml), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(tryYaml, []byte("name: foo\nversion: 1.0"), 0644)
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("try", "try snap")
-	ts, err := snapstate.TryPath(s.state, "foo", filepath.Dir(filepath.Dir(tryYaml)), flags)
+	ts, err := snapstate.TryPath(s.state, "foo", d, flags)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7793,7 +7915,7 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 		{"a-snap", "c-snap"},
 		{"b-snap", "c-snap"},
 	} {
-		c.Check(snapstate.CheckChangeConflictMany(s.state, m, nil), ErrorMatches, `snap "[^"]*" has changes in progress`)
+		c.Check(snapstate.CheckChangeConflictMany(s.state, m, nil), ErrorMatches, `snap "[^"]*" has "enable" change in progress`)
 	}
 }
 
@@ -8249,6 +8371,34 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestSnapManagerLegacyRefreshSchedule(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, t := range []struct {
+		in  string
+		out string
+	}{
+		{"", snapstate.DefaultRefreshSchedule},
+		{"invalid schedule", snapstate.DefaultRefreshSchedule},
+		{"8:00-12:00", "8:00-12:00"},
+		// using the legacy configuration option with a new-style
+		// refresh.timer string is rejected (i.e. the legacy parser is
+		// used for the parsing)
+		{"0:00~24:00/24", snapstate.DefaultRefreshSchedule},
+	} {
+		if t.in != "" {
+			tr := config.NewTransaction(s.state)
+			tr.Set("core", "refresh.timer", "")
+			tr.Set("core", "refresh.schedule", t.in)
+			tr.Commit()
+		}
+		scheduleStr, err := s.snapmgr.RefreshSchedule()
+		c.Check(err, IsNil)
+		c.Check(scheduleStr, Equals, t.out)
+	}
+}
+
 func (s *snapmgrTestSuite) TestSnapManagerRefreshSchedule(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -8260,10 +8410,12 @@ func (s *snapmgrTestSuite) TestSnapManagerRefreshSchedule(c *C) {
 		{"", snapstate.DefaultRefreshSchedule},
 		{"invalid schedule", snapstate.DefaultRefreshSchedule},
 		{"8:00-12:00", "8:00-12:00"},
+		// this is only valid under the new schedule parser
+		{"9:00~15:00/2,,mon,20:00", "9:00~15:00/2,,mon,20:00"},
 	} {
 		if t.in != "" {
 			tr := config.NewTransaction(s.state)
-			tr.Set("core", "refresh.schedule", t.in)
+			tr.Set("core", "refresh.timer", t.in)
 			tr.Commit()
 		}
 		scheduleStr, err := s.snapmgr.RefreshSchedule()
