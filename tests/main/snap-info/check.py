@@ -91,7 +91,7 @@ check("test-snapd-tools", res[2],
 
 check("test-snapd-devmode", res[3],
    ("name", equals, "test-snapd-devmode"),
-   ("publisher", equals, "Canonical"),
+   ("publisher", equals, "canonical"),
    ("contact", equals, "snappy-canonical-storeaccount@canonical.com"),
    ("summary", equals, "Basic snap with devmode confinement"),
    ("description", equals, "A basic buildable snap that asks for devmode confinement\n"),
