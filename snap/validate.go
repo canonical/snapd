@@ -20,6 +20,7 @@
 package snap
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -206,6 +207,11 @@ func Validate(info *Info) error {
 		}
 	}
 
+	// validate apps ordering according to after/before
+	if err := validateAppOrderCycles(info.Apps); err != nil {
+		return err
+	}
+
 	// validate aliases
 	for alias, app := range info.LegacyAliases {
 		if !validAlias.MatchString(alias) {
@@ -263,6 +269,88 @@ func validateAppSocket(socket *SocketInfo) error {
 	return validateSocketAddr(socket, "listen-stream", socket.ListenStream)
 }
 
+// validateAppOrderCycles checks for cycles in app ordering dependencies
+func validateAppOrderCycles(apps map[string]*AppInfo) error {
+	// list of successors of given app
+	successors := make(map[string][]string, len(apps))
+	// count of predecessors (i.e. incoming edges) of given app
+	predecessors := make(map[string]int, len(apps))
+
+	for _, app := range apps {
+		for _, other := range app.After {
+			predecessors[app.Name]++
+			successors[other] = append(successors[other], app.Name)
+		}
+		for _, other := range app.Before {
+			predecessors[other]++
+			successors[app.Name] = append(successors[app.Name], other)
+		}
+	}
+
+	// list of apps without predecessors (no incoming edges)
+	queue := make([]string, 0, len(apps))
+	for _, app := range apps {
+		if predecessors[app.Name] == 0 {
+			queue = append(queue, app.Name)
+		}
+	}
+
+	// Kahn:
+	//
+	// Apps without predecessors are 'top' nodes. On each iteration, take
+	// the next 'top' node, and decrease the predecessor count of each
+	// successor app. Once that successor app has no more predecessors, take
+	// it out of the predecessors set and add it to the queue of 'top'
+	// nodes.
+	for len(queue) > 0 {
+		app := queue[0]
+		queue = queue[1:]
+		for _, successor := range successors[app] {
+			predecessors[successor] -= 1
+			if predecessors[successor] == 0 {
+				delete(predecessors, successor)
+				queue = append(queue, successor)
+			}
+		}
+	}
+
+	if len(predecessors) != 0 {
+		// apps with predecessors unaccounted for are a part of
+		// dependency cycle
+		unsatisifed := bytes.Buffer{}
+		for name := range predecessors {
+			if unsatisifed.Len() > 0 {
+				unsatisifed.WriteString(", ")
+			}
+			unsatisifed.WriteString(name)
+		}
+		return fmt.Errorf("applications are part of a before/after cycle: %s", unsatisifed.String())
+	}
+	return nil
+}
+
+func validateAppOrderNames(app *AppInfo, dependencies []string) error {
+	// we must be a service to request ordering
+	if len(dependencies) > 0 && !app.IsService() {
+		return fmt.Errorf("cannot define before/after in application %q as it's not a service", app.Name)
+	}
+
+	for _, dep := range dependencies {
+		// dependency is not defined
+		other, ok := app.Snap.Apps[dep]
+		if !ok {
+			return fmt.Errorf("application %q refers to missing application %q in before/after",
+				app.Name, dep)
+		}
+
+		if !other.IsService() {
+			return fmt.Errorf("application %q refers to non-service application %q in before/after",
+				app.Name, dep)
+		}
+	}
+	return nil
+}
+
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused.
@@ -312,6 +400,13 @@ func ValidateApp(app *AppInfo) error {
 		}
 	}
 
+	if err := validateAppOrderNames(app, app.Before); err != nil {
+		return err
+	}
+	if err := validateAppOrderNames(app, app.After); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -338,50 +433,84 @@ func ValidatePathVariables(path string) error {
 	return nil
 }
 
+func isAbsAndClean(path string) bool {
+	return (filepath.IsAbs(path) || strings.HasPrefix(path, "$")) && filepath.Clean(path) == path
+}
+
 // ValidateLayout ensures that the given layout contains only valid subset of constructs.
-func ValidateLayout(li *Layout) error {
-	// The path is used to identify the layout below so validate it first.
-	if li.Path == "" {
-		return fmt.Errorf("cannot accept layout with empty path")
-	} else {
-		if err := ValidatePathVariables(li.Path); err != nil {
-			return fmt.Errorf("cannot accept layout of %q: %s", li.Path, err)
+func ValidateLayout(layout *Layout) error {
+	mountPoint := layout.Path
+
+	if mountPoint == "" {
+		return fmt.Errorf("layout cannot use an empty path")
+	}
+
+	if err := ValidatePathVariables(mountPoint); err != nil {
+		return fmt.Errorf("layout %q uses invalid mount point: %s", layout.Path, err)
+	}
+	if !isAbsAndClean(mountPoint) {
+		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
+	}
+
+	var nused int
+	if layout.Bind != "" {
+		nused += 1
+	}
+	if layout.Type != "" {
+		nused += 1
+	}
+	if layout.Symlink != "" {
+		nused += 1
+	}
+	if nused != 1 {
+		return fmt.Errorf("layout %q must define a bind mount, a filesystem mount or a symlink", layout.Path)
+	}
+
+	if layout.Bind != "" {
+		mountSource := layout.Bind
+		if err := ValidatePathVariables(mountSource); err != nil {
+			return fmt.Errorf("layout %q uses invalid bind mount source %q: %s", layout.Path, mountSource, err)
+		}
+		if !isAbsAndClean(mountSource) {
+			return fmt.Errorf("layout %q uses invalid bind mount source %q: must be absolute and clean", layout.Path, mountSource)
 		}
 	}
-	// Presence of the Bind, Type and Symlink fields implies kind of layout.
-	if li.Bind == "" && li.Type == "" && li.Symlink == "" {
-		return fmt.Errorf("cannot determine layout for %q", li.Path)
+
+	switch layout.Type {
+	case "tmpfs":
+	case "":
+		// nothing to do
+	default:
+		return fmt.Errorf("layout %q uses invalid filesystem %q", layout.Path, layout.Type)
 	}
-	if (li.Bind != "" && li.Type != "") ||
-		(li.Bind != "" && li.Symlink != "") ||
-		(li.Type != "" && li.Symlink != "") {
-		return fmt.Errorf("cannot accept conflicting layout for %q", li.Path)
-	}
-	if li.Bind != "" {
-		if err := ValidatePathVariables(li.Bind); err != nil {
-			return fmt.Errorf("cannot accept layout of %q: %s", li.Path, err)
+
+	if layout.Symlink != "" {
+		oldname := layout.Symlink
+		if err := ValidatePathVariables(oldname); err != nil {
+			return fmt.Errorf("layout %q uses invalid symlink old name %q: %s", layout.Path, oldname, err)
+		}
+		if !isAbsAndClean(oldname) {
+			return fmt.Errorf("layout %q uses invalid symlink old name %q: must be absolute and clean", layout.Path, oldname)
 		}
 	}
-	// Only the "tmpfs" filesystem is allowed.
-	if li.Type != "" && li.Type != "tmpfs" {
-		return fmt.Errorf("cannot accept filesystem %q for %q", li.Type, li.Path)
-	}
-	if li.Symlink != "" {
-		if err := ValidatePathVariables(li.Symlink); err != nil {
-			return fmt.Errorf("cannot accept layout of %q: %s", li.Path, err)
-		}
-	}
-	// Only certain users and groups are allowed.
+
+	// When new users and groups are supported those must be added to interfaces/mount/spec.go as well.
+	// For now only "root" is allowed (and default).
+
+	switch layout.User {
+	case "root", "":
 	// TODO: allow declared snap user and group names.
-	if li.User != "" && li.User != "root" && li.User != "nobody" {
-		return fmt.Errorf("cannot accept user %q for %q", li.User, li.Path)
+	default:
+		return fmt.Errorf("layout %q uses invalid user %q", layout.Path, layout.User)
 	}
-	if li.Group != "" && li.Group != "root" && li.Group != "nobody" {
-		return fmt.Errorf("cannot accept group %q for %q", li.Group, li.Path)
+	switch layout.Group {
+	case "root", "":
+	default:
+		return fmt.Errorf("layout %q uses invalid group %q", layout.Path, layout.Group)
 	}
-	// "at most" 0777 permissions are allowed.
-	if li.Mode&^os.FileMode(0777) != 0 {
-		return fmt.Errorf("cannot accept mode %#0o for %q", li.Mode, li.Path)
+
+	if layout.Mode&01777 != layout.Mode {
+		return fmt.Errorf("layout %q uses invalid mode %#o", layout.Path, layout.Mode)
 	}
 	return nil
 }

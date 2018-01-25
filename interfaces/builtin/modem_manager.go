@@ -179,7 +179,6 @@ accept
 accept4
 bind
 listen
-shutdown
 # libgudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
@@ -745,6 +744,9 @@ LABEL="mm_telit_port_types_end"
 ACTION!="add|change|move", GOTO="mm_usb_device_blacklist_end"
 SUBSYSTEM!="usb", GOTO="mm_usb_device_blacklist_end"
 ENV{DEVTYPE}!="usb_device",  GOTO="mm_usb_device_blacklist_end"
+
+# Telegesis zigbee dongle
+ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="0003", ENV{ID_MM_DEVICE_IGNORE}="1"
 
 # APC UPS devices
 ATTRS{idVendor}=="051d", ENV{ID_MM_DEVICE_IGNORE}="1"

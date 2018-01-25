@@ -518,38 +518,37 @@ func (s *ValidateSuite) TestValidateAlias(c *C) {
 func (s *ValidateSuite) TestValidateLayout(c *C) {
 	// Several invalid layouts.
 	c.Check(ValidateLayout(&Layout{}),
-		ErrorMatches, "cannot accept layout with empty path")
+		ErrorMatches, "layout cannot use an empty path")
 	c.Check(ValidateLayout(&Layout{Path: "/foo"}),
-		ErrorMatches, `cannot determine layout for "/foo"`)
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Bind: "/bar", Type: "tmpfs"}),
-		ErrorMatches, `cannot accept conflicting layout for "/foo"`)
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Bind: "/bar", Symlink: "/froz"}),
-		ErrorMatches, `cannot accept conflicting layout for "/foo"`)
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "tmpfs", Symlink: "/froz"}),
-		ErrorMatches, `cannot accept conflicting layout for "/foo"`)
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "ext4"}),
-		ErrorMatches, `cannot accept filesystem "ext4" for "/foo"`)
+		ErrorMatches, `layout "/foo" uses invalid filesystem "ext4"`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo/bar", Type: "tmpfs", User: "foo"}),
-		ErrorMatches, `cannot accept user "foo" for "/foo/bar"`)
+		ErrorMatches, `layout "/foo/bar" uses invalid user "foo"`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo/bar", Type: "tmpfs", Group: "foo"}),
-		ErrorMatches, `cannot accept group "foo" for "/foo/bar"`)
-	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "tmpfs", Mode: 01755}),
-		ErrorMatches, `cannot accept mode 01755 for "/foo"`)
+		ErrorMatches, `layout "/foo/bar" uses invalid group "foo"`)
+	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "tmpfs", Mode: 02755}),
+		ErrorMatches, `layout "/foo" uses invalid mode 02755`)
 	c.Check(ValidateLayout(&Layout{Path: "$FOO", Type: "tmpfs"}),
-		ErrorMatches, `cannot accept layout of "\$FOO": reference to unknown variable "\$FOO"`)
+		ErrorMatches, `layout "\$FOO" uses invalid mount point: reference to unknown variable "\$FOO"`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Bind: "$BAR"}),
-		ErrorMatches, `cannot accept layout of "/foo": reference to unknown variable "\$BAR"`)
+		ErrorMatches, `layout "/foo" uses invalid bind mount source "\$BAR": reference to unknown variable "\$BAR"`)
 	c.Check(ValidateLayout(&Layout{Path: "/foo", Symlink: "$BAR"}),
-		ErrorMatches, `cannot accept layout of "/foo": reference to unknown variable "\$BAR"`)
+		ErrorMatches, `layout "/foo" uses invalid symlink old name "\$BAR": reference to unknown variable "\$BAR"`)
 	// Several valid layouts.
+	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "tmpfs", Mode: 01755}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "/tmp", Type: "tmpfs"}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "/usr", Bind: "$SNAP/usr"}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "/var", Bind: "$SNAP_DATA/var"}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "/var", Bind: "$SNAP_COMMON/var"}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "/etc/foo.conf", Symlink: "$SNAP_DATA/etc/foo.conf"}), IsNil)
-	c.Check(ValidateLayout(&Layout{Path: "/a/b", Type: "tmpfs", User: "nobody"}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "/a/b", Type: "tmpfs", User: "root"}), IsNil)
-	c.Check(ValidateLayout(&Layout{Path: "/a/b", Type: "tmpfs", Group: "nobody"}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "/a/b", Type: "tmpfs", Group: "root"}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "/a/b", Type: "tmpfs", Mode: 0655}), IsNil)
 	c.Check(ValidateLayout(&Layout{Path: "/usr", Symlink: "$SNAP/usr"}), IsNil)
@@ -590,5 +589,175 @@ func (s *ValidateSuite) TestValidateSocketName(c *C) {
 	for _, name := range invalidNames {
 		err := ValidateSocketName(name)
 		c.Assert(err, ErrorMatches, `invalid socket name: ".*"`)
+	}
+}
+
+func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {
+	meta := []byte(`
+name: foo
+version: 1.0
+`)
+	fooAfterBaz := []byte(`
+apps:
+  foo:
+    after: [baz]
+    daemon: simple
+  bar:
+    daemon: forking
+`)
+	fooBeforeBaz := []byte(`
+apps:
+  foo:
+    before: [baz]
+    daemon: simple
+  bar:
+    daemon: forking
+`)
+
+	fooNotADaemon := []byte(`
+apps:
+  foo:
+    after: [bar]
+  bar:
+    daemon: forking
+`)
+
+	fooBarNotADaemon := []byte(`
+apps:
+  foo:
+    after: [bar]
+    daemon: forking
+  bar:
+`)
+	fooSelfCycle := []byte(`
+apps:
+  foo:
+    after: [foo]
+    daemon: forking
+  bar:
+`)
+	// cycle between foo and bar
+	badOrder1 := []byte(`
+apps:
+ foo:
+   after: [bar]
+   daemon: forking
+ bar:
+   after: [foo]
+   daemon: forking
+`)
+	// conflicting schedule for baz
+	badOrder2 := []byte(`
+apps:
+ foo:
+   before: [bar]
+   daemon: forking
+ bar:
+   after: [foo]
+   daemon: forking
+ baz:
+   before: [foo]
+   after: [bar]
+   daemon: forking
+`)
+	// conflicting schedule for baz
+	badOrder3Cycle := []byte(`
+apps:
+ foo:
+   before: [bar]
+   after: [zed]
+   daemon: forking
+ bar:
+   before: [baz]
+   daemon: forking
+ baz:
+   before: [zed]
+   daemon: forking
+ zed:
+   daemon: forking
+`)
+	goodOrder1 := []byte(`
+apps:
+ foo:
+   after: [bar, zed]
+   daemon: oneshot
+ bar:
+   before: [foo]
+   daemon: dbus
+ baz:
+   after: [foo]
+   daemon: forking
+ zed:
+   daemon: dbus
+`)
+	goodOrder2 := []byte(`
+apps:
+ foo:
+   after: [baz]
+   daemon: oneshot
+ bar:
+   before: [baz]
+   daemon: dbus
+ baz:
+   daemon: forking
+ zed:
+   daemon: dbus
+   after: [foo, bar, baz]
+`)
+
+	tcs := []struct {
+		name string
+		desc []byte
+		err  string
+	}{{
+		name: "foo after baz",
+		desc: fooAfterBaz,
+		err:  `application "foo" refers to missing application "baz" in before/after`,
+	}, {
+		name: "foo before baz",
+		desc: fooBeforeBaz,
+		err:  `application "foo" refers to missing application "baz" in before/after`,
+	}, {
+		name: "foo not a daemon",
+		desc: fooNotADaemon,
+		err:  `cannot define before/after in application "foo" as it's not a service`,
+	}, {
+		name: "foo wants bar, bar not a daemon",
+		desc: fooBarNotADaemon,
+		err:  `application "foo" refers to non-service application "bar" in before/after`,
+	}, {
+		name: "bad order 1",
+		desc: badOrder1,
+		err:  `applications are part of a before/after cycle: (foo, bar)|(bar, foo)`,
+	}, {
+		name: "bad order 2",
+		desc: badOrder2,
+		err:  `applications are part of a before/after cycle: ((foo|bar|baz)(, )?){3}`,
+	}, {
+		name: "bad order 3 - cycle",
+		desc: badOrder3Cycle,
+		err:  `applications are part of a before/after cycle: ((foo|bar|baz|zed)(, )?){4}`,
+	}, {
+		name: "all good, 3 apps",
+		desc: goodOrder1,
+	}, {
+		name: "all good, 4 apps",
+		desc: goodOrder2,
+	}, {
+		name: "self cycle",
+		desc: fooSelfCycle,
+		err:  `applications are part of a before/after cycle: foo`},
+	}
+	for _, tc := range tcs {
+		c.Logf("trying %q", tc.name)
+		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
+		c.Assert(err, IsNil)
+
+		err = Validate(info)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Assert(err, IsNil)
+		}
 	}
 }

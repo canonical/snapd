@@ -500,6 +500,7 @@ var (
 		"unity8-calendar":           {"app"},
 		"unity8-contacts":           {"app"},
 		"upower-observe":            {"app", "core"},
+		"wayland":                   {"app", "core"},
 		// snowflakes
 		"classic-support": nil,
 		"docker":          nil,
@@ -706,6 +707,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"lxd-support":           true,
 		"snapd-control":         true,
 		"unity8":                true,
+		"wayland":               true,
 	}
 
 	for _, iface := range all {
