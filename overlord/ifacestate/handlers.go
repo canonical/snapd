@@ -158,8 +158,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	if err != nil {
 		return err
 	}
-	// FIXME: here we should not reconnect auto-connect plug/slot
-	// pairs that were explicitly disconnected by the user
+
 	connectedSnaps, err := m.autoConnect(task, snapName, nil)
 	if err != nil {
 		return err
@@ -430,8 +429,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	conns[connRef.ID()] = connState{Interface: plug.Interface}
 	setConns(st, conns)
-
-	return nil
+	return reenableAutoconnect(st, connRef.ID())
 }
 
 func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
@@ -479,9 +477,16 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	conn := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
-	delete(conns, conn.ID())
+	if cs, ok := conns[conn.ID()]; ok && cs.Auto {
+		err := disableAutoconnect(st, conn.ID())
+		if err != nil {
+			return err
+		}
+	}
 
+	delete(conns, conn.ID())
 	setConns(st, conns)
+
 	return nil
 }
 

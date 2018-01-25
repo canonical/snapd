@@ -375,6 +375,14 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 			// NOTE: we don't log anything here as this is a normal and common condition.
 			continue
 		}
+		disabled, err := isAutoconnectDisabled(task.State(), connRef.ID())
+		if err != nil {
+			return nil, err
+		}
+		if disabled {
+			// Suggested connection was disconnected by the user, so skip it.
+			continue
+		}
 		if err := m.repo.Connect(*connRef); err != nil {
 			task.Logf("cannot auto connect %s to %s: %s (plug auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
 			continue
@@ -415,6 +423,14 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 				// NOTE: we don't log anything here as this is a normal and common condition.
 				continue
 			}
+			disabled, err := isAutoconnectDisabled(task.State(), connRef.ID())
+			if err != nil {
+				return nil, err
+			}
+			if disabled {
+				// Suggested connection was disconnected by the user, so skip it.
+				continue
+			}
 			if err := m.repo.Connect(*connRef); err != nil {
 				task.Logf("cannot auto connect %s to %s: %s (slot auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
 				continue
@@ -427,6 +443,57 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 
 	task.State().Set("conns", conns)
 	return affectedSnapNames, nil
+}
+
+func getAutoconnectDisabled(st *state.State) (map[string]bool, error) {
+	var conns map[string]bool
+	err := st.Get("autoconnect-disabled", &conns)
+	if err != nil {
+		if err != state.ErrNoState {
+			return nil, err
+		}
+		conns = make(map[string]bool)
+	}
+	return conns, nil
+}
+
+// disableAutoconnect adds the given connRef to "autoconnect-disabled" map in the state, flagging it
+// as disabled for autoconnect.
+func disableAutoconnect(st *state.State, connID string) error {
+	// state must be locked by the caller
+	conns, err := getAutoconnectDisabled(st)
+	if err != nil {
+		return err
+	}
+	conns[connID] = true
+	st.Set("autoconnect-disable", conns)
+	return nil
+}
+
+// reenableAutoconnect removes the given connRef from "autoconnect-disabled" map in the state if it's there,
+// making it available for autoconnect.
+func reenableAutoconnect(st *state.State, connID string) error {
+	// state must be locked by the caller
+	conns, err := getAutoconnectDisabled(st)
+	if err != nil {
+		return err
+	}
+	if len(conns) == 0 {
+		return nil
+	}
+	delete(conns, connID)
+	st.Set("autoconnect-disable", conns)
+	return nil
+}
+
+// isAutoconnectDisabled checks if the given connRef is present in the "autoconnect-disabled" map in the state.
+func isAutoconnectDisabled(st *state.State, connID string) (bool, error) {
+	conns, err := getAutoconnectDisabled(st)
+	if err != nil {
+		return false, err
+	}
+	_, ok := conns[connID]
+	return ok, nil
 }
 
 func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRef, error) {
