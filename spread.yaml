@@ -109,9 +109,6 @@ backends:
                 image: ubuntu-16.04-64
                 username: ubuntu
                 password: ubuntu
-            - ubuntu-16.10-64:
-                username: ubuntu
-                password: ubuntu
             - ubuntu-17.10-64:
                 username: ubuntu
                 password: ubuntu
@@ -170,22 +167,6 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-16.04-s390x:
-                username: ubuntu
-                password: ubuntu
-            # Yakkety
-            - ubuntu-16.10-amd64:
-                username: ubuntu
-                password: ubuntu
-            - ubuntu-16.10-i386:
-                username: ubuntu
-                password: ubuntu
-            - ubuntu-16.10-ppc64el:
-                username: ubuntu
-                password: ubuntu
-            - ubuntu-16.10-armhf:
-                username: ubuntu
-                password: ubuntu
-            - ubuntu-16.10-s390x:
                 username: ubuntu
                 password: ubuntu
             # Artful
@@ -251,9 +232,6 @@ backends:
                 kernel: GRUB 2
                 workers: 2
             - ubuntu-16.04-64:
-                kernel: GRUB 2
-                workers: 2
-            - ubuntu-16.10-64:
                 kernel: GRUB 2
                 workers: 2
             - ubuntu-17.10-64:
