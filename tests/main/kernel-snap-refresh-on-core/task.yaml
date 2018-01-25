@@ -55,7 +55,12 @@ execute: |
         snap list | awk "/^pc-kernel / {print(\$3)}" > nextBoot
 
         test "$(bootenv snap_kernel)" = "pc-kernel_$(cat prevBoot).snap"
-        test "$(bootenv snap_try_kernel)" = "pc-kernel_$(cat nextBoot).snap"
+
+        if [ "$(cat prevBoot)" = "$(cat nextBoot)" ]; then
+            echo "WARNING: kernel in edge / stable are the same"
+        else
+            test "$(bootenv snap_try_kernel)" = "pc-kernel_$(cat nextBoot).snap"
+        fi
 
         # test-snapd-tools works
         test-snapd-tools.echo hello | MATCH hello
