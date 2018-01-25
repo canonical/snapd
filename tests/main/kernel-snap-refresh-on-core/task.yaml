@@ -7,7 +7,7 @@ details: |
     revision to a new one. It expects to find a new snap revision in the
     channel pointed by the NEW_CORE_CHANNEL env var.
 
-#manual: true
+manual: true
 
 environment:
     KERNEL_CHANNEL: stable
