@@ -24,6 +24,7 @@ package ifacestate
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
@@ -35,32 +36,99 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var noConflictOnConnectTasks = func(task *state.Task) bool {
-	return task.Kind() != "connect" && task.Kind() != "disconnect"
+func noConflictOnConnectTasks(chg *state.Change) func(task *state.Task) bool {
+	checkConflict := func(task *state.Task) bool {
+		if chg != nil && task.Change() != nil {
+			// if same change, then return false (no conflict)
+			return chg.ID() != task.Change().ID()
+		}
+		return task.Kind() != "connect" && task.Kind() != "disconnect"
+	}
+	return checkConflict
+}
+
+type changeConflictError struct {
+	snapName string
+}
+
+func (e changeConflictError) Error() string {
+	return fmt.Sprintf("snap %q has changes in progress", e.snapName)
+}
+
+var connectRetryTimeout = time.Second * 5
+
+func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slotSnap string) error {
+	for _, chg := range st.Changes() {
+		if chg.Status().Ready() {
+			continue
+		}
+		if chg.Kind() == "transition-ubuntu-core" {
+			return fmt.Errorf("ubuntu-core to core transition in progress, no other changes allowed until this is done")
+		}
+	}
+
+	for _, task := range st.Tasks() {
+		k := task.Kind()
+		chg := task.Change()
+
+		// there is no conflict if same change
+		if change != nil && chg != nil && change.ID() == chg.ID() {
+			continue
+		}
+
+		if k == "connect" || k == "disconnect" {
+			continue
+		}
+
+		// task already executed, no conflict
+		if task.Status() == state.DoneStatus || task.Status() == state.ErrorStatus {
+			continue
+		}
+
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		if err != nil {
+			return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
+		}
+
+		snapName := snapsup.Name()
+		// different snaps - no conflict
+		if snapName != plugSnap && snapName != slotSnap {
+			continue
+		}
+
+		switch k {
+		case "unlink-snap":
+			// snap getting removed - conflict
+			var snap string
+			if snapName == plugSnap {
+				snap = plugSnap
+			} else {
+				snap = slotSnap
+			}
+			return &changeConflictError{snapName: snap}
+		case "link-snap":
+			// snap getting installed/refreshed - temporary conflict, retry later
+			return &state.Retry{After: connectRetryTimeout}
+		}
+	}
+	return nil
 }
 
 // AutoConnect returns a set of tasks for connection an interface as part of snap installation
 // and auto-connect handling.
-func AutoConnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	return connect(st, plugSnap, plugName, slotSnap, slotName, true)
+func AutoConnect(st *state.State, change *state.Change, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+	return connect(st, change, plugSnap, plugName, slotSnap, slotName, true)
 }
 
 // Connect returns a set of tasks for connecting an interface.
 //
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	return connect(st, plugSnap, plugName, slotSnap, slotName, false)
+	return connect(st, nil, plugSnap, plugName, slotSnap, slotName, false)
 }
 
-func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, autoConnect bool) (*state.TaskSet, error) {
-	// Check conflicts only if it's not autoconnect. Autoconnect can only happen during snap install, so potential
-	// conficts should already be known and prevented beforehand.
-	if !autoConnect {
-		if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
-			return nil, err
-		}
-		if err := snapstate.CheckChangeConflict(st, slotSnap, noConflictOnConnectTasks, nil); err != nil {
-			return nil, err
-		}
+func connect(st *state.State, change *state.Change, plugSnap, plugName, slotSnap, slotName string, autoConnect bool) (*state.TaskSet, error) {
+	if err := checkConnectConflicts(st, change, plugSnap, slotSnap); err != nil {
+		return nil, err
 	}
 
 	// TODO: Store the intent-to-connect in the state so that we automatically
@@ -174,10 +242,10 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
 func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
+	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks(nil), nil); err != nil {
 		return nil, err
 	}
-	if err := snapstate.CheckChangeConflict(st, slotSnap, noConflictOnConnectTasks, nil); err != nil {
+	if err := snapstate.CheckChangeConflict(st, slotSnap, noConflictOnConnectTasks(nil), nil); err != nil {
 		return nil, err
 	}
 

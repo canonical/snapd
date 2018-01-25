@@ -518,6 +518,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	chg := task.Change()
+
 	// Auto-connect all the plugs
 	for _, plug := range m.repo.Plugs(snapName) {
 		candidates := m.repo.AutoConnectCandidateSlots(snapName, plug.Name, autochecker.check)
@@ -553,7 +555,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			continue
 		}
 
-		ts, err := AutoConnect(st, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
+		ts, err := AutoConnect(st, chg, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
 		if err != nil {
 			task.Logf("cannot auto-connect plug %s to %s: %s", connRef.PlugRef, connRef.SlotRef, err)
 			continue
@@ -589,7 +591,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				// NOTE: we don't log anything here as this is a normal and common condition.
 				continue
 			}
-			ts, err := AutoConnect(st, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
+			ts, err := AutoConnect(st, chg, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
 			if err != nil {
 				task.Logf("cannot auto-connect slot %s to %s: %s", connRef.SlotRef, connRef.PlugRef, err)
 				continue
@@ -598,7 +600,6 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	chg := task.Change()
 	lanes := task.Lanes()
 	if len(lanes) == 1 && lanes[0] == 0 {
 		lanes = nil
