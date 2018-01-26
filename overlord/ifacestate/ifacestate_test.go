@@ -777,8 +777,7 @@ plugs:
 // explicitly disconnected by the user.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
 	s.state.Lock()
-	disabledAutoconnect := map[string]bool{"snap:network ubuntu-core:network": true}
-	s.state.Set("autoconnect-disabled", disabledAutoconnect)
+	s.state.Set("autoconnect-disabled", map[string]bool{"snap:network ubuntu-core:network": true})
 	s.state.Unlock()
 
 	// Add an OS snap as well as a sample snap with a "network" plug.
@@ -1567,6 +1566,11 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	_ = s.manager(c)
 
 	s.state.Lock()
+	s.state.Set("autoconnect-disabled", map[string]bool{
+		"consumer:plug producer:slot": true,
+		"other:plug yetanother:slot":  true,
+	})
+
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 5)
@@ -1595,6 +1599,13 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 		},
+	})
+
+	var autoconnectDisabled map[string]bool
+	err = s.state.Get("autoconnect-disabled", &autoconnectDisabled)
+	c.Assert(err, IsNil)
+	c.Check(autoconnectDisabled, DeepEquals, map[string]bool{
+		"other:plug yetanother:slot": true,
 	})
 }
 
