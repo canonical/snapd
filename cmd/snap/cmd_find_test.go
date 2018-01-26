@@ -423,3 +423,59 @@ Please try: snap find --section=<selected section>
 
 	s.ResetStdStreams()
 }
+
+func (s *SnapSuite) TestFindSnapInvalidSection(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/sections")
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type":   "sync",
+				"result": []string{"sec1"},
+			})
+		default:
+			c.Fatalf("expected to get 1 request, now on %d", n+1)
+		}
+
+		n++
+	})
+	_, err := snap.Parser().ParseArgs([]string{"find", "--section=foobar", "hello"})
+	c.Assert(err, check.ErrorMatches, `No matching section "foobar", use --section to list existing sections`)
+}
+
+func (s *SnapSuite) TestFindSnapNotFoundInSection(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/sections")
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type":   "sync",
+				"result": []string{"foobar"},
+			})
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			v, ok := r.URL.Query()["section"]
+			c.Check(ok, check.Equals, true)
+			c.Check(v, check.DeepEquals, []string{"foobar"})
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type":   "sync",
+				"result": []string{},
+			})
+		default:
+			c.Fatalf("expected to get 2 requests, now on #%d", n+1)
+		}
+		n++
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"find", "--section=foobar", "hello"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stderr(), check.Equals, "No matching snaps for \"hello\" in section \"foobar\"\n")
+	c.Check(s.Stdout(), check.Equals, "")
+
+	s.ResetStdStreams()
+}
