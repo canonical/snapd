@@ -397,11 +397,9 @@ type OSRelease struct {
 
 // RefreshInfo contains information about refreshes.
 type RefreshInfo struct {
-	// Timer contains the refresh.timer setting. The field is omitted when
-	// the new setting is not used.
+	// Timer contains the refresh.timer setting.
 	Timer string `json:"timer,omitempty"`
-	// Schedule contains the legacy refresh.schedule setting. The field is
-	// omitted when the legacy setting is not used.
+	// Schedule contains the legacy refresh.schedule setting.
 	Schedule string `json:"schedule,omitempty"`
 	Last     string `json:"last,omitempty"`
 	Next     string `json:"next,omitempty"`
