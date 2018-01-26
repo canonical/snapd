@@ -600,7 +600,7 @@ func (s *SnapSuite) TestRefreshNoTimerNoSchedule(c *check.C) {
 		fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"last": "2017-04-25T17:35:00+0200", "next": "2017-04-26T00:58:00+0200"}}}`)
 	})
 	_, err := snap.Parser().ParseArgs([]string{"refresh", "--time"})
-	c.Assert(err, check.ErrorMatches, `internal error, both refresh.timer and refresh.schedule are empty`)
+	c.Assert(err, check.ErrorMatches, `internal error: both refresh.timer and refresh.schedule are empty`)
 }
 
 func (s *SnapSuite) TestRefreshListErr(c *check.C) {
