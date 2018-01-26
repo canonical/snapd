@@ -2003,7 +2003,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(result.Architectures, DeepEquals, []string{"all"})
 	c.Check(result.Revision, Equals, snap.R(27))
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
-	c.Check(result.Publisher, Equals, "canonical")
+	c.Check(result.Publisher, Equals, "Canonical")
 	c.Check(result.Version, Equals, "6.3")
 	c.Check(result.Sha3_384, Matches, `[[:xdigit:]]{96}`)
 	c.Check(result.Size, Equals, int64(20480))
@@ -3054,6 +3054,19 @@ func (t *remoteRepoTestSuite) TestCurrentSnapNilLocalRevisionNoID(c *C) {
 	}
 	cs := currentSnap(cand)
 	c.Assert(cs, IsNil)
+	c.Check(t.logbuf.String(), Equals, "")
+}
+
+func (t *remoteRepoTestSuite) TestCurrentSnapRevLocalRevWithAmendHappy(c *C) {
+	cand := &RefreshCandidate{
+		SnapID:   helloWorldSnapID,
+		Revision: snap.R("x1"),
+		Amend:    true,
+	}
+	cs := currentSnap(cand)
+	c.Assert(cs, NotNil)
+	c.Check(cs.SnapID, Equals, cand.SnapID)
+	c.Check(cs.Revision, Equals, cand.Revision.N)
 	c.Check(t.logbuf.String(), Equals, "")
 }
 

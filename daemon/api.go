@@ -831,6 +831,7 @@ func (*licenseData) Error() string {
 type snapInstruction struct {
 	progress.NullMeter
 	Action           string        `json:"action"`
+	Amend            bool          `json:"amend"`
 	Channel          string        `json:"channel"`
 	Revision         snap.Revision `json:"revision"`
 	DevMode          bool          `json:"devmode"`
@@ -1004,6 +1005,9 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 	if inst.IgnoreValidation {
 		flags.IgnoreValidation = true
+	}
+	if inst.Amend {
+		flags.Amend = true
 	}
 
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can

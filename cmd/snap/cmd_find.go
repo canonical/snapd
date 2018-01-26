@@ -22,6 +22,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -88,9 +89,25 @@ func (s SectionName) Complete(match string) []flags.Completion {
 	return ret
 }
 
+func showSections() error {
+	cli := Client()
+	sections, err := cli.Sections()
+	if err != nil {
+		return err
+	}
+	sort.Strings(sections)
+
+	fmt.Fprintf(Stdout, i18n.G("No section specified. Available sections:\n"))
+	for _, sec := range sections {
+		fmt.Fprintf(Stdout, " * %s\n", sec)
+	}
+	fmt.Fprintf(Stdout, i18n.G("Please try: snap find --section=<selected section>\n"))
+	return nil
+}
+
 type cmdFind struct {
 	Private    bool        `long:"private"`
-	Section    SectionName `long:"section"`
+	Section    SectionName `long:"section" optional:"true" optional-value:"show-all-sections-please" default:"no-section-specified"`
 	Positional struct {
 		Query string
 	} `positional-args:"yes"`
@@ -116,6 +133,18 @@ func (x *cmdFind) Execute(args []string) error {
 	// LP: 1740605
 	if strings.TrimSpace(x.Positional.Query) == "" {
 		x.Positional.Query = ""
+	}
+
+	// section will be:
+	// - "show-all-sections-please" if the user specified --section
+	//   without any argument
+	// - "no-section-specified" if "--section" was not specified on
+	//   the commandline at all
+	switch x.Section {
+	case "show-all-sections-please":
+		return showSections()
+	case "no-section-specified":
+		x.Section = ""
 	}
 
 	// magic! `snap find` returns the featured snaps
