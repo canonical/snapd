@@ -46,16 +46,16 @@ execute: |
     snap find test-snapd- | grep -Pzq "$expected"
 
     echo "List of snaps in a section works"
-    # NOTE: this probably shows featured snaps, do not
+    # NOTE: this shows featured snaps which change all the time, do not
     # make any assumptions about the contents
-    test $(snap find --section=database | wc -l) -gt 1
+    test $(snap find --section=featured | wc -l) -gt 1
 
-    # cassandra only available for amd64
-    echo "List of snaps in a section includes architecture"
+    # TODO: discuss with the store how we can make this test stable, i.e.
+    #       that section/snap changes do not break us
     if [ $(uname -m) = "x86_64" ]; then
-        snap find --section=database cassandra | MATCH cassandra
+        snap find --section=video vlc | MATCH vlc
     else
-        snap find --section=database cassandra 2>&1 | MATCH 'No matching snaps'
+        snap find --section=video vlc 2>&1 | MATCH 'No matching snaps'
     fi
 
     # LP: 1740605
