@@ -1729,6 +1729,57 @@ func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{})
+
+	var autoconnectDisabled map[string]bool
+	err = s.state.Get("autoconnect-disabled", &autoconnectDisabled)
+	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test", "auto": true},
+	})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
+	change := s.state.NewChange("disconnect", "")
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+	var conns map[string]interface{}
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{})
+
+	var autoconnectDisabled map[string]bool
+	err = s.state.Get("autoconnect-disabled", &autoconnectDisabled)
+	c.Assert(err, IsNil)
+	c.Check(autoconnectDisabled, DeepEquals, map[string]bool{
+		"consumer:plug producer:slot": true,
+	})
 }
 
 func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
