@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var shortFindHelp = i18n.G("Finds packages to install")
@@ -154,6 +155,18 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	cli := Client()
+
+	if x.Section != "" && x.Section != "featured" {
+		sections, err := cli.Sections()
+		if err != nil {
+			return err
+		}
+		if !strutil.ListContains(sections, string(x.Section)) {
+			// TRANSLATORS: the %q is the (quoted) name of the section the user entered
+			return fmt.Errorf(i18n.G("No matching section %q, use --section to list existing sections"), x.Section)
+		}
+	}
+
 	opts := &client.FindOptions{
 		Private: x.Private,
 		Section: string(x.Section),
@@ -168,8 +181,15 @@ func (x *cmdFind) Execute(args []string) error {
 		return err
 	}
 	if len(snaps) == 0 {
-		// TRANSLATORS: the %q is the (quoted) query the user entered
-		fmt.Fprintf(Stderr, i18n.G("No matching snaps for %q\n"), opts.Query)
+		if x.Section == "" {
+			// TRANSLATORS: the %q is the (quoted) query the user entered
+			fmt.Fprintf(Stderr, i18n.G("No matching snaps for %q\n"), opts.Query)
+		} else {
+			// TRANSLATORS: the first %q is the (quoted) query, the
+			// second %q is the (quoted) name of the section the
+			// user entered
+			fmt.Fprintf(Stderr, i18n.G("No matching snaps for %q in section %q\n"), opts.Query, x.Section)
+		}
 		return nil
 	}
 
