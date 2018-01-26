@@ -375,7 +375,7 @@ func showDone(names []string, op string) error {
 			// TRANSLATORS: first %s is a snap name, second %s is a revision
 			fmt.Fprintf(Stdout, i18n.G("%s reverted to %s\n"), snap.Name, snap.Version)
 		default:
-			fmt.Fprintf(Stdout, "internal error, unknown op %q", op)
+			fmt.Fprintf(Stdout, "internal error: unknown op %q", op)
 		}
 		if snap.TrackingChannel != snap.Channel {
 			// TRANSLATORS: first %s is a snap name, following %s is a channel name
@@ -671,7 +671,7 @@ func (x *cmdRefresh) showRefreshTimes() error {
 	} else if sysinfo.Refresh.Schedule != "" {
 		fmt.Fprintf(Stdout, "schedule: %s\n", sysinfo.Refresh.Schedule)
 	} else {
-		return errors.New("internal error, both refresh.timer and refresh.schedule are empty")
+		return errors.New("internal error: both refresh.timer and refresh.schedule are empty")
 	}
 	if sysinfo.Refresh.Last != "" {
 		fmt.Fprintf(Stdout, "last: %s\n", sysinfo.Refresh.Last)
