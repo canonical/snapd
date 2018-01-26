@@ -135,10 +135,10 @@ owner /{dev,run}/shm/mono.@{pid} mrw,
 # Steam requires +x permissions on the partitions and will perform
 # such a test:
 # sh: /run/media/bigdisk/games//steamapps/.steam_exec_test.sh: /bin/sh: bad interpreter: Permission denied
-/run/media/**/.steam_exec_test.sh ixmrw,
+/{,run/}media/**/.steam_exec_test.sh ixmrw,
 
 # Libraries and executables on other partitions require map + execute permissions
-/run/media/**/steamapps/common/** ixm,
+/{,run/}media/**/steamapps/common/** ixm,
 
 ########################
 # Udev / PCI Support   #
