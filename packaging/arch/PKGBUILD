@@ -13,8 +13,10 @@ pkgrel=1
 arch=('i686' 'x86_64')
 url="https://github.com/snapcore/snapd"
 license=('GPL3')
-makedepends=('git' 'go' 'go-tools' 'libseccomp' 'libcap' 'python-docutils' 'systemd' 'xfsprogs' 'libseccomp')
-checkdepends=('python' 'squashfs-tools' 'indent' 'shellcheck')
+makedepends=('git' 'go-pie' 'go-tools' 'libseccomp' 'libcap' 'python-docutils' 'systemd' 'xfsprogs' 'libseccomp')
+# the following checkdepends are only required for static checks and unit tests,
+# both are currently disabled
+# checkdepends=('python' 'squashfs-tools' 'indent' 'shellcheck')
 
 options=('!strip' 'emptydirs')
 install=snapd.install
@@ -171,6 +173,10 @@ package_snapd-git() {
        BINDIR=/bin \
        SYSTEMDSYSTEMUNITDIR=/usr/lib/systemd/system \
        DESTDIR="$pkgdir"
+
+  # Install polkit policy
+  install -Dm644 "$srcdir/$pkgbase/data/polkit/io.snapcraft.snapd.policy" \
+    "$pkgdir/usr/share/polkit-1/actions/io.snapcraft.snapd.policy"
 
   # Remove snappy core specific units
   rm -fv "$pkgdir/usr/lib/systemd/system/snapd.system-shutdown.service"
