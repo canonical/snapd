@@ -461,7 +461,7 @@ func straceCmd() ([]string, error) {
 		stracePath,
 		"-u", current.Username,
 		"-f",
-		"-e", "!select,pselect6,_newselect,clock_gettime",
+		"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid",
 	}, nil
 }
 
@@ -482,8 +482,10 @@ func runCmdUnderStrace(origCmd, env []string) error {
 	if err != nil {
 		return err
 	}
-	filterDone := make(chan int)
+	filterDone := make(chan bool, 1)
 	go func() {
+		defer func() { filterDone <- true }()
+
 		r := bufio.NewReader(stderr)
 
 		// the first thing from strace if things work is
@@ -528,13 +530,12 @@ func runCmdUnderStrace(origCmd, env []string) error {
 			}
 		}
 		io.Copy(Stderr, r)
-		filterDone <- 1
 	}()
 	if err := gcmd.Start(); err != nil {
 		return err
 	}
-	err = gcmd.Wait()
 	<-filterDone
+	err = gcmd.Wait()
 	return err
 }
 
