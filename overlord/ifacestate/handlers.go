@@ -319,6 +319,7 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 	task.Set("removed", removed)
 	if len(disabled) > 0 {
 		task.Set("disabled", disabled)
+		setAutoConnectDisabled(st, autoConnectDisabled)
 	}
 	setConns(st, conns)
 	return nil

@@ -1403,6 +1403,13 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 	s.state.Set("conns", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
 	})
+
+	// Store information about disabled auto-connections
+	s.state.Set("autoconnect-disabled", map[string]bool{
+		"consumer:plug producer:slot":    true,
+		"othersnap:plug yetanother:slot": true,
+	})
+
 	// Store empty snap state. This snap has an empty sequence now.
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{})
 	s.state.Unlock()
@@ -1424,6 +1431,13 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{})
+
+	var autoconnectDisabled map[string]bool
+	err = s.state.Get("autoconnect-disabled", &autoconnectDisabled)
+	c.Assert(err, IsNil)
+	c.Check(autoconnectDisabled, DeepEquals, map[string]bool{
+		"othersnap:plug yetanother:slot": true,
+	})
 
 	// But removed connections are preserved in the task for undo.
 	var removed map[string]interface{}
