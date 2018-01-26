@@ -43,3 +43,4 @@ Get news and stay up to date on [Twitter](https://twitter.com/snapcraftio),
 
 [codecov-url]: https://codecov.io/gh/snapcore/snapd
 [codecov-image]: https://codecov.io/gh/snapcore/snapd/branch/master/graph/badge.svg
+
