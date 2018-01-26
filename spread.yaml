@@ -124,9 +124,6 @@ backends:
             - debian-sid-64:
                 username: debian
                 password: debian
-            - fedora-25-64:
-                username: fedora
-                password: fedora
             - fedora-26-64:
                 username: fedora
                 password: fedora
