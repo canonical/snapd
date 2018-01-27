@@ -611,6 +611,8 @@ popd
 %dir %{_localstatedir}/cache/snapd
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
+%{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
+%{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %ghost %{_sharedstatedir}/snapd/snap/README
 
 %files -n snap-confine
