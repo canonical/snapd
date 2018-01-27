@@ -303,6 +303,7 @@ fi
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_mandir}/man1/snap.1.gz
 /usr/share/dbus-1/services/io.snapcraft.Launcher.service
+/usr/share/dbus-1/services/io.snapcraft.Settings.service
 
 %changelog
 
