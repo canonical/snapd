@@ -96,6 +96,10 @@ static const char *nvidia_globs[] = {
 	"/usr/lib/libnvidia-ptxjitcompiler.so*",
 	"/usr/lib/libnvidia-tls.so*",
 	"/usr/lib/vdpau/libvdpau_nvidia.so*",
+	"/usr/lib/nvidia*/libGL.so*",
+	"/usr/lib/nvidia*/libEGL.so*",
+	"/usr/lib/nvidia*/libGLESv1_CM.so*",
+	"/usr/lib/nvidia*/libGLESv2.so*",
 };
 
 static const size_t nvidia_globs_len =
@@ -133,6 +137,10 @@ static const char *nvidia_globs32[] = {
 	"/usr/lib32/libnvidia-ptxjitcompiler.so*",
 	"/usr/lib32/libnvidia-tls.so*",
 	"/usr/lib32/vdpau/libvdpau_nvidia.so*",
+	"/usr/lib32/nvidia*/libGL.so*",
+	"/usr/lib32/nvidia*/libEGL.so*",
+	"/usr/lib32/nvidia*/libGLESv1_CM.so*",
+	"/usr/lib32/nvidia*/libGLESv2.so*",
 };
 
 static const size_t nvidia_globs32_len =
@@ -216,6 +224,14 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 				 "%s/%s", libgl_dir, filename);
 		debug("creating symbolic link %s -> %s", symlink_name,
 		      symlink_target);
+
+		// Make sure we don't have some link already (merged GLVND systems)
+		if (lstat(symlink_name, &stat_buf) == 0) {
+			if (unlink(symlink_name) != 0) {
+				die("cannot remove symbolic link target %s", symlink_name);
+			}
+		}
+
 		if (symlink(symlink_target, symlink_name) != 0) {
 			die("cannot create symbolic link %s -> %s",
 			    symlink_name, symlink_target);
