@@ -597,6 +597,7 @@ type cmdRefresh struct {
 	channelMixin
 	modeMixin
 
+	Amend            bool   `long:"amend"`
 	Revision         string `long:"revision"`
 	List             bool   `long:"list"`
 	Time             bool   `long:"time"`
@@ -740,6 +741,7 @@ func (x *cmdRefresh) Execute([]string) error {
 	}
 	if len(x.Positional.Snaps) == 1 {
 		opts := &client.SnapOptions{
+			Amend:            x.Amend,
 			Channel:          x.Channel,
 			IgnoreValidation: x.IgnoreValidation,
 			Revision:         x.Revision,
@@ -1011,6 +1013,7 @@ func init() {
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		waitDescs.also(channelDescs).also(modeDescs).also(map[string]string{
+			"amend":             i18n.G("Allow refresh attempt on snap unknown to the store"),
 			"revision":          i18n.G("Refresh to the given revision"),
 			"list":              i18n.G("Show available snaps for refresh but do not perform a refresh"),
 			"time":              i18n.G("Show auto refresh information but do not perform a refresh"),

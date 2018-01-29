@@ -30,7 +30,7 @@
 %global with_test_keys 0
 %endif
 
-%define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service snapd.autoimport.service snapd.system-shutdown.service
+%define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service
 Name:           snapd
 Version:        2.30
 Release:        0
@@ -303,6 +303,7 @@ fi
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_mandir}/man1/snap.1.gz
 /usr/share/dbus-1/services/io.snapcraft.Launcher.service
+/usr/share/dbus-1/services/io.snapcraft.Settings.service
 
 %changelog
 
