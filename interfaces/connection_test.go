@@ -197,6 +197,13 @@ func (s *connSuite) TestDottedPath(c *C) {
 	v, ok = plug.Lookup("nested.foo")
 	c.Assert(ok, Equals, true)
 	c.Assert(v, Equals, "bar")
+
+	_, ok = plug.Lookup("nested.x")
+	c.Assert(ok, Equals, false)
+
+	// consecutive dots
+	v, ok = plug.Lookup("..")
+	c.Assert(ok, Equals, false)
 }
 
 func (s *connSuite) TestLookupFailure(c *C) {

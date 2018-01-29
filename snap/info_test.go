@@ -861,3 +861,32 @@ func (s *infoSuite) TestSlotInfoAttr(c *C) {
 	c.Check(slot.Attr("unknown", &val), ErrorMatches, `snap "snap" does not have attribute "unknown" for interface "interface"`)
 	c.Check(slot.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
 }
+
+func (s *infoSuite) TestDottedPath(c *C) {
+	attrs := map[string]interface{}{
+		"nested": map[string]interface{}{
+			"foo": "bar",
+		},
+	}
+
+	slot := &snap.SlotInfo{Attrs: attrs}
+	c.Assert(slot, NotNil)
+
+	v, ok := slot.Lookup("nested.foo")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, Equals, "bar")
+
+	_, ok = slot.Lookup("nested.x")
+	c.Assert(ok, Equals, false)
+
+	plug := &snap.PlugInfo{Attrs: attrs}
+	c.Assert(plug, NotNil)
+
+	v, ok = plug.Lookup("nested.foo")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, Equals, "bar")
+
+	// consecutive dots
+	v, ok = plug.Lookup("..")
+	c.Assert(ok, Equals, false)
+}

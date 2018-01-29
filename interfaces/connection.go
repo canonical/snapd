@@ -56,7 +56,10 @@ type Attrer interface {
 
 func lookupAttr(staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, path string) (interface{}, bool) {
 	var v interface{}
-	comps := strings.Split(path, ".")
+	comps := strings.FieldsFunc(path, func(r rune) bool { return r == '.' })
+	if len(comps) == 0 {
+		return nil, false
+	}
 	if _, ok := dynamicAttrs[comps[0]]; ok {
 		v = dynamicAttrs
 	} else {

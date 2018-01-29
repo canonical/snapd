@@ -401,7 +401,10 @@ type PlugInfo struct {
 
 func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
 	var v interface{}
-	comps := strings.Split(path, ".")
+	comps := strings.FieldsFunc(path, func(r rune) bool { return r == '.' })
+	if len(comps) == 0 {
+		return nil, false
+	}
 	v = attrs
 	for _, comp := range comps {
 		m, ok := v.(map[string]interface{})
