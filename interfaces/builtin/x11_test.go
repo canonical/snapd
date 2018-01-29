@@ -32,9 +32,11 @@ import (
 )
 
 type X11InterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 const x11MockPlugSnapInfoYaml = `name: other
@@ -50,15 +52,15 @@ var _ = Suite(&X11InterfaceSuite{
 })
 
 func (s *X11InterfaceSuite) SetUpTest(c *C) {
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
-			Name:      "x11",
-			Interface: "x11",
-		},
+	s.slotInfo = &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
+		Name:      "x11",
+		Interface: "x11",
 	}
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 	plugSnap := snaptest.MockInfo(c, x11MockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["x11"]}
+	s.plugInfo = plugSnap.Plugs["x11"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 }
 
 func (s *X11InterfaceSuite) TestName(c *C) {
@@ -66,24 +68,24 @@ func (s *X11InterfaceSuite) TestName(c *C) {
 }
 
 func (s *X11InterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(s.slot.Sanitize(s.iface), IsNil)
-	slot := &interfaces.Slot{SlotInfo: &snap.SlotInfo{
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "x11",
 		Interface: "x11",
-	}}
-	c.Assert(slot.Sanitize(s.iface), ErrorMatches,
+	}
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"x11 slots are reserved for the core snap")
 }
 
 func (s *X11InterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(s.plug.Sanitize(s.iface), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *X11InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `fontconfig`)
@@ -92,10 +94,10 @@ func (s *X11InterfaceSuite) TestUsedSecuritySystems(c *C) {
 // The shutdown system call is allowed
 func (s *X11InterfaceSuite) TestLP1574526(c *C) {
 	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "shutdown\n")
+	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "bind\n")
 }
 
 func (s *X11InterfaceSuite) TestInterfaces(c *C) {

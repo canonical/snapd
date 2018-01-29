@@ -12,16 +12,27 @@ post_install() {
   echo 'For more informations, see https://wiki.archlinux.org/index.php/Snapd'
 }
 
-_stop_services() {
-  /usr/bin/systemctl stop \
+_systemctl_do_for_all() {
+  /usr/bin/systemctl "$@" \
                      snapd.service \
                      snapd.socket \
                      snapd.refresh.timer \
                      snapd.refresh.service > /dev/null 2>&1
 }
 
+_stop_services() {
+  _systemctl_do_for_all stop
+}
+
+_disable_services() {
+  _systemctl_do_for_all --no-reload disable
+}
+
 pre_remove() {
   _stop_services
+  _disable_services
+
+  /usr/lib/snapd/snap-mgmt --purge || :
 }
 
 pre_upgrade() {

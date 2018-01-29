@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -318,6 +319,12 @@ func (s *deviceMgrSuite) findBecomeOperationalChange(skipIDs ...string) *state.C
 		}
 	}
 	return nil
+}
+
+func (s *deviceMgrSuite) TestKnownTaskKinds(c *C) {
+	kinds := s.mgr.KnownTaskKinds()
+	sort.Strings(kinds)
+	c.Assert(kinds, DeepEquals, []string{"generate-device-key", "mark-seeded", "request-serial"})
 }
 
 func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
@@ -766,7 +773,7 @@ version: gadget
 func (s *deviceMgrSuite) TestDoRequestSerialErrorsOnNoHost(c *C) {
 	privKey, _ := assertstest.GenerateKey(testKeyLength)
 
-	nowhere := "http://nowhere.invalid"
+	nowhere := "http://nowhere.nowhere.test"
 
 	mockRequestIDURL := nowhere + requestIDURLPath
 	restore := devicestate.MockRequestIDURL(mockRequestIDURL)
@@ -2106,8 +2113,8 @@ func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.
 	err = repo.AddSnap(core11)
 	c.Assert(err, IsNil)
 	err = repo.Connect(interfaces.ConnRef{
-		interfaces.PlugRef{Snap: info11.Name(), Name: ifname},
-		interfaces.SlotRef{Snap: core11.Name(), Name: ifname},
+		PlugRef: interfaces.PlugRef{Snap: info11.Name(), Name: ifname},
+		SlotRef: interfaces.SlotRef{Snap: core11.Name(), Name: ifname},
 	})
 	c.Assert(err, IsNil)
 	conns, err := repo.Connected("snap-with-snapd-control", "snapd-control")

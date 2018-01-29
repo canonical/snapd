@@ -43,6 +43,7 @@ import (
 	"gopkg.in/macaroon.v1"
 	"gopkg.in/retry.v1"
 
+	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
@@ -1700,7 +1701,7 @@ func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
-	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
+	MacaroonACLAPI = mockServer.URL + "/acl/"
 
 	discharge, err := makeTestDischarge()
 	c.Assert(err, IsNil)
@@ -1721,14 +1722,14 @@ func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
 	c.Check(userDischarge, Equals, serializedDischarge)
 }
 
-func (t *remoteRepoTestSuite) TestLoginUserMyAppsError(c *C) {
+func (t *remoteRepoTestSuite) TestLoginUserDeveloperAPIError(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		io.WriteString(w, "{}")
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
-	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
+	MacaroonACLAPI = mockServer.URL + "/acl/"
 
 	userMacaroon, userDischarge, err := LoginUser("username", "password", "otp")
 
@@ -1748,7 +1749,7 @@ func (t *remoteRepoTestSuite) TestLoginUserSSOError(c *C) {
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
-	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
+	MacaroonACLAPI = mockServer.URL + "/acl/"
 
 	errorResponse := `{"code": "some-error"}`
 	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2002,7 +2003,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(result.Architectures, DeepEquals, []string{"all"})
 	c.Check(result.Revision, Equals, snap.R(27))
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
-	c.Check(result.Publisher, Equals, "canonical")
+	c.Check(result.Publisher, Equals, "Canonical")
 	c.Check(result.Version, Equals, "6.3")
 	c.Check(result.Sha3_384, Matches, `[[:xdigit:]]{96}`)
 	c.Check(result.Size, Equals, int64(20480))
@@ -2676,10 +2677,14 @@ const mockNamesJSON = `
             "target": "baz"
           }
         ],
+        "apps": ["baz"],
+        "title": "a title",
+        "summary": "oneary plus twoary",
         "package_name": "bar"
       },
       {
-        "aliases": null,
+        "aliases": [{"name": "meh", "target": "foo"}],
+        "apps": ["foo"],
         "package_name": "foo"
       }
     ]
@@ -2695,6 +2700,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreSnapCommandsOnCore(c *C) {
 }
 
 func (t *remoteRepoTestSuite) testUbuntuStoreSnapCommands(c *C, onClassic bool) {
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
 	defer release.MockOnClassic(onClassic)()
 
 	n := 0
@@ -2726,10 +2732,24 @@ func (t *remoteRepoTestSuite) testUbuntuStoreSnapCommands(c *C, onClassic bool) 
 	repo := New(&Config{StoreBaseURL: serverURL}, nil)
 	c.Assert(repo, NotNil)
 
+	db, err := advisor.Create()
+	c.Assert(err, IsNil)
+	defer db.Rollback()
+
 	var bufNames bytes.Buffer
-	err := repo.WriteCatalogs(&bufNames)
-	c.Check(err, IsNil)
+	err = repo.WriteCatalogs(&bufNames, db)
+	c.Assert(err, IsNil)
+	db.Commit()
 	c.Check(bufNames.String(), Equals, "bar\nfoo\n")
+
+	dump, err := advisor.Dump()
+	c.Assert(err, IsNil)
+	c.Check(dump, DeepEquals, map[string][]string{
+		"foo":     {"foo"},
+		"bar.baz": {"bar"},
+		"potato":  {"bar"},
+		"meh":     {"bar", "foo"},
+	})
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
@@ -3034,6 +3054,19 @@ func (t *remoteRepoTestSuite) TestCurrentSnapNilLocalRevisionNoID(c *C) {
 	}
 	cs := currentSnap(cand)
 	c.Assert(cs, IsNil)
+	c.Check(t.logbuf.String(), Equals, "")
+}
+
+func (t *remoteRepoTestSuite) TestCurrentSnapRevLocalRevWithAmendHappy(c *C) {
+	cand := &RefreshCandidate{
+		SnapID:   helloWorldSnapID,
+		Revision: snap.R("x1"),
+		Amend:    true,
+	}
+	cs := currentSnap(cand)
+	c.Assert(cs, NotNil)
+	c.Check(cs.SnapID, Equals, cand.SnapID)
+	c.Check(cs.Revision, Equals, cand.Revision.N)
 	c.Check(t.logbuf.String(), Equals, "")
 }
 
@@ -4183,13 +4216,13 @@ func (t *remoteRepoTestSuite) TestStoreURLBadEnvironCPI(c *C) {
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_CPI_URL: parse ://force-cpi.local/: missing protocol scheme")
 }
 
-func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
+func (t *remoteRepoTestSuite) TestStoreDeveloperURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
-	before := myappsURL()
+	before := storeDeveloperURL()
 
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
 	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
-	after := myappsURL()
+	after := storeDeveloperURL()
 
 	c.Check(before, Not(Equals), after)
 }

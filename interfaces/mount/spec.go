@@ -20,7 +20,14 @@
 package mount
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -30,7 +37,8 @@ import (
 // holds internal state that is used by the mount backend during the interface
 // setup process.
 type Specification struct {
-	mountEntries []Entry
+	layoutMountEntries []Entry
+	mountEntries       []Entry
 }
 
 // AddMountEntry adds a new mount entry.
@@ -39,33 +47,133 @@ func (spec *Specification) AddMountEntry(e Entry) error {
 	return nil
 }
 
+// expandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON.
+func expandSnapVariables(path string, snapInfo *snap.Info) string {
+	return os.Expand(path, func(v string) string {
+		switch v {
+		case "SNAP":
+			// NOTE: We use dirs.CoreSnapMountDir here as the path used will be always
+			// inside the mount namespace snap-confine creates and there we will
+			// always have a /snap directory available regardless if the system
+			// we're running on supports this or not.
+			return filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String())
+		case "SNAP_DATA":
+			return snapInfo.DataDir()
+		case "SNAP_COMMON":
+			snapInfo.CommonDataDir()
+		}
+		return ""
+	})
+}
+
+func mountEntryFromLayout(layout *snap.Layout) Entry {
+	var entry Entry
+
+	mountPoint := expandSnapVariables(layout.Path, layout.Snap)
+	entry.Dir = mountPoint
+
+	if layout.Bind != "" {
+		mountSource := expandSnapVariables(layout.Bind, layout.Snap)
+		// XXX: what about ro mounts?
+		// XXX: what about file mounts, those need x-snapd.kind=file to create correctly?
+		entry.Options = []string{"bind", "rw"}
+		entry.Name = mountSource
+	}
+
+	if layout.Type == "tmpfs" {
+		entry.Type = "tmpfs"
+		entry.Name = "tmpfs"
+	}
+
+	if layout.Symlink != "" {
+		oldname := expandSnapVariables(layout.Symlink, layout.Snap)
+		entry.Options = []string{XSnapdKindSymlink(), XSnapdSymlink(oldname)}
+	}
+
+	var uid int
+	// Only root is allowed here until we support custom users. Root is default.
+	switch layout.User {
+	case "root", "":
+		uid = 0
+	}
+	if uid != 0 {
+		entry.Options = append(entry.Options, XSnapdUser(uid))
+	}
+
+	var gid int
+	// Only root is allowed here until we support custom groups. Root is default.
+	// This is validated in spec.go.
+	switch layout.Group {
+	case "root", "":
+		gid = 0
+	}
+	if gid != 0 {
+		entry.Options = append(entry.Options, XSnapdGroup(gid))
+	}
+
+	if layout.Mode != 0755 {
+		entry.Options = append(entry.Options, XSnapdMode(uint32(layout.Mode)))
+	}
+	return entry
+}
+
+// AddSnapLayout adds mount entries based on the layout of the snap.
+func (spec *Specification) AddSnapLayout(si *snap.Info) {
+	// TODO: handle layouts in base snaps as well as in this snap.
+
+	// walk the layout elements in deterministic order, by mount point name
+	paths := make([]string, 0, len(si.Layout))
+	for path := range si.Layout {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+
+	for _, path := range paths {
+		entry := mountEntryFromLayout(si.Layout[path])
+		spec.layoutMountEntries = append(spec.layoutMountEntries, entry)
+	}
+}
+
 // MountEntries returns a copy of the added mount entries.
 func (spec *Specification) MountEntries() []Entry {
-	result := make([]Entry, len(spec.mountEntries))
-	copy(result, spec.mountEntries)
+	result := make([]Entry, 0, len(spec.layoutMountEntries)+len(spec.mountEntries))
+	result = append(result, spec.layoutMountEntries...)
+	result = append(result, spec.mountEntries...)
+	// Number each entry, in case we get clashes this will automatically give
+	// them unique names.
+	count := make(map[string]int, len(result))
+	for i := range result {
+		path := result[i].Dir
+		count[path] += 1
+		if c := count[path]; c > 1 {
+			newDir := fmt.Sprintf("%s-%d", result[i].Dir, c)
+			logger.Noticef("renaming mount entry for directory %q to %q to avoid a clash", result[i].Dir, newDir)
+			result[i].Dir = newDir
+		}
+	}
 	return result
 }
 
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records mount-specific side-effects of having a connected plug.
-func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	type definer interface {
-		MountConnectedPlug(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+		MountConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.MountConnectedPlug(spec, plug, plugAttrs, slot, slotAttrs)
+		return iface.MountConnectedPlug(spec, plug, slot)
 	}
 	return nil
 }
 
 // AddConnectedSlot records mount-specific side-effects of having a connected slot.
-func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	type definer interface {
-		MountConnectedSlot(spec *Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
+		MountConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		return iface.MountConnectedSlot(spec, plug, plugAttrs, slot, slotAttrs)
+		return iface.MountConnectedSlot(spec, plug, slot)
 	}
 	return nil
 }

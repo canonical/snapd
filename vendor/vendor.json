@@ -67,6 +67,13 @@
 			"revisionTime": "2016-07-14T06:47:45Z"
 		},
 		{
+			"checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
+			"comment": "fork of boltdb/bolt to fix build failure on ppc. upstream: https://github.com/boltdb/bolt/pull/740 and https://github.com/coreos/bbolt/pull/73",
+			"path": "github.com/snapcore/bolt",
+			"revision": "9eca199504ee1299394669820724322b5bfc070a",
+			"revisionTime": "2018-01-18T17:01:45Z"
+		},
+		{
 			"checksumSHA1": "TT1rac6kpQp2vz24m5yDGUNQ/QQ=",
 			"path": "golang.org/x/crypto/cast5",
 			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d"

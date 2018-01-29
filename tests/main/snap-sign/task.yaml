@@ -4,10 +4,13 @@ summary: Run snap sign to sign a model assertion
 systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*]
 
 prepare: |
-    "$TESTSLIB"/mkpinentry.sh
+    . "$TESTSLIB"/mkpinentry.sh
+    . "$TESTSLIB"/random.sh
+    kill_gpg_agent
 
 debug: |
-    sysctl kernel.random.entropy_avail || true
+    . "$TESTSLIB"/random.sh
+    debug_random
 
 execute: |
     echo "Creating a new key without a password"

@@ -40,15 +40,15 @@ type MockCmd struct {
 // generates \0 to separate args
 // generates \00 to separate commands
 var scriptTpl = `#!/bin/bash
-echo -n "$(basename "$0")" >> %[1]q
-echo -n -e "\0" >> %[1]q
+printf "%%s" "$(basename "$0")" >> %[1]q
+printf "\0" >> %[1]q
 
 for arg in "$@"; do
-     echo -n "$arg" >> %[1]q
-     echo -n -e "\0"  >> %[1]q
+     printf "%%s" "$arg" >> %[1]q
+     printf "\0"  >> %[1]q
 done
 
-echo -n -e "\0" >> %[1]q
+printf "\0" >> %[1]q
 %s
 `
 

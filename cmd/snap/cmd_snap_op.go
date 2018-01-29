@@ -379,7 +379,7 @@ func showDone(names []string, op string) error {
 		}
 		if snap.TrackingChannel != snap.Channel {
 			// TRANSLATORS: first %s is a snap name, following %s is a channel name
-			fmt.Fprintf(Stdout, i18n.G("This leaves %s tracking %s.\n"), snap.Name, snap.TrackingChannel)
+			fmt.Fprintf(Stdout, i18n.G("Snap %s is no longer tracking %s.\n"), snap.Name, snap.TrackingChannel)
 		}
 	}
 
@@ -509,7 +509,16 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	cli := Client()
 	changeID, err := cli.InstallMany(names, opts)
 	if err != nil {
-		return err
+		var snapName string
+		if err, ok := err.(*client.Error); ok {
+			snapName, _ = err.Value.(string)
+		}
+		msg, err := errorToCmdMessage(snapName, err, opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(Stderr, msg)
+		return nil
 	}
 
 	setupAbortHandler(changeID)
@@ -588,6 +597,7 @@ type cmdRefresh struct {
 	channelMixin
 	modeMixin
 
+	Amend            bool   `long:"amend"`
 	Revision         string `long:"revision"`
 	List             bool   `long:"list"`
 	Time             bool   `long:"time"`
@@ -731,6 +741,7 @@ func (x *cmdRefresh) Execute([]string) error {
 	}
 	if len(x.Positional.Snaps) == 1 {
 		opts := &client.SnapOptions{
+			Amend:            x.Amend,
 			Channel:          x.Channel,
 			IgnoreValidation: x.IgnoreValidation,
 			Revision:         x.Revision,
@@ -1002,6 +1013,7 @@ func init() {
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		waitDescs.also(channelDescs).also(modeDescs).also(map[string]string{
+			"amend":             i18n.G("Allow refresh attempt on snap unknown to the store"),
 			"revision":          i18n.G("Refresh to the given revision"),
 			"list":              i18n.G("Show available snaps for refresh but do not perform a refresh"),
 			"time":              i18n.G("Show auto refresh information but do not perform a refresh"),

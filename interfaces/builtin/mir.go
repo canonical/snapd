@@ -49,6 +49,7 @@ capability sys_tty_config,
 
 /{dev,run}/shm/\#* mrw,
 /run/mir_socket rw,
+/run/user/[0-9]*/mir_socket rw,
 
 # Needed for mode setting via drmSetMaster() and drmDropMaster()
 capability sys_admin,
@@ -102,7 +103,7 @@ func (iface *mirInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slotAppLabelExpr(slot)
 	snippet := strings.Replace(mirConnectedPlugAppArmor, old, new, -1)
@@ -110,7 +111,7 @@ func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	return nil
 }
 
-func (iface *mirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *mirInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
 	new := plugAppLabelExpr(plug)
 	snippet := strings.Replace(mirConnectedSlotAppArmor, old, new, -1)

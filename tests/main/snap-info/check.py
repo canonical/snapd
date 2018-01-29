@@ -124,14 +124,13 @@ check("core", res[4],
 )
 
 check("error", res[5],
-   ("argument", equals, "/etc/passwd"),
-   ("warning", equals, "not a valid snap"),
+   ("warning", equals, 'no snap found for "/etc/passwd"'),
 )
 
 # not installed snaps have "contact" information
 check("test-snapd-python-webserver", res[6],
    ("name", equals, "test-snapd-python-webserver"),
-   ("publisher", equals, "canonical"),
+   ("publisher", equals, "Canonical"),
    ("contact", equals, "snappy-canonical-storeaccount@canonical.com"),
    ("summary", exists),
    ("description", exists),
