@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
 )
 
 const unity7Summary = `allows interacting with Unity 7 services`
@@ -43,9 +44,19 @@ const unity7ConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
+
+# Allow finding the DBus session bus id (eg, via dbus_bus_get_id())
+dbus (send)
+     bus=session
+     path=/org/freedesktop/DBus
+     interface=org.freedesktop.DBus
+     member=GetId
+     peer=(name=org.freedesktop.DBus, label=unconfined),
+
 #include <abstractions/X>
 
 #include <abstractions/fonts>
+owner @{HOME}/.local/share/fonts/{,**} r,
 /var/cache/fontconfig/   r,
 /var/cache/fontconfig/** mr,
 
@@ -102,6 +113,16 @@ dbus (send)
     path=/io/snapcraft/Launcher
     interface=io.snapcraft.Launcher
     member=OpenURL
+    peer=(label=unconfined),
+
+# Allow use of snapd's internal 'xdg-settings'
+/usr/bin/xdg-settings ixr,
+/usr/bin/dbus-send ixr,
+dbus (send)
+    bus=session
+    path=/io/snapcraft/Settings
+    interface=io.snapcraft.Settings
+    member={Check,Get,Set}
     peer=(label=unconfined),
 
 # input methods (ibus)
@@ -418,14 +439,14 @@ dbus (send)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member="{GetCapabilities,GetServerInformation,Notify}"
+    member="{GetCapabilities,GetServerInformation,Notify,CloseNotification}"
     peer=(label=unconfined),
 
 dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member=NotificationClosed
+    member={ActionInvoked,NotificationClosed}
     peer=(label=unconfined),
 
 dbus (send)
@@ -546,15 +567,43 @@ dbus (send)
   path=/org/gnome/SettingsDaemon/MediaKeys
   member="Get{,All}"
   peer=(label=unconfined),
+
+# Allow checking status, activating and locking the screensaver
+# mate
+dbus (send)
+    bus=session
+    path="/{,org/mate/}ScreenSaver"
+    interface=org.mate.ScreenSaver
+    member="{GetActive,GetActiveTime,Lock,SetActive}"
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path="/{,org/mate/}ScreenSaver"
+    interface=org.mate.ScreenSaver
+    member=ActiveChanged
+    peer=(label=unconfined),
+
+# Unity
+dbus (send)
+  bus=session
+  interface=com.canonical.Unity.Session
+  path=/com/canonical/Unity/Session
+  member="{ActivateScreenSaver,IsLocked,Lock}"
+  peer=(label=unconfined),
+
+# Allow unconfined to introspect us
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
 `
 
 const unity7ConnectedPlugSeccomp = `
 # Description: Can access Unity7. Note, Unity 7 runs on X and requires access
 # to various DBus services and this environment does not prevent eavesdropping
 # or apps interfering with one another.
-
-# X
-shutdown
 
 # Needed by QtSystems on X to detect mouse and keyboard
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
@@ -575,24 +624,24 @@ func (iface *unity7Interface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *unity7Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// Unity7 will take the desktop filename and convert all '-' (and '.',
 	// but we don't care about that here because the rule above already
 	// does that) to '_'. Since we know that the desktop filename starts
 	// with the snap name, perform this conversion on the snap name.
-	new := strings.Replace(plug.Snap.Name(), "-", "_", -1)
+	new := strings.Replace(plug.Snap().Name(), "-", "_", -1)
 	old := "###UNITY_SNAP_NAME###"
 	snippet := strings.Replace(unity7ConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
 }
 
-func (iface *unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *unity7Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(unity7ConnectedPlugSeccomp)
 	return nil
 }
 
-func (iface *unity7Interface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *unity7Interface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 

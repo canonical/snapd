@@ -68,7 +68,7 @@ func cleanSubPath(path string) bool {
 	return filepath.Clean(path) == path && path != ".." && !strings.HasPrefix(path, "../")
 }
 
-func (iface *contentInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	content, ok := slot.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
 		if slot.Attrs == nil {
@@ -76,6 +76,19 @@ func (iface *contentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		}
 		// content defaults to "slot" name if unspecified
 		slot.Attrs["content"] = slot.Name
+	}
+
+	// Error if "read" or "write" are present alongside "source".
+	// TODO: use slot.Lookup() once PR 4510 lands.
+	var unused map[string]interface{}
+	if err := slot.Attr("source", &unused); err == nil {
+		var unused []interface{}
+		if err := slot.Attr("read", &unused); err == nil {
+			return fmt.Errorf(`move the "read" attribute into the "source" section`)
+		}
+		if err := slot.Attr("write", &unused); err == nil {
+			return fmt.Errorf(`move the "write" attribute into the "source" section`)
+		}
 	}
 
 	// check that we have either a read or write path
@@ -93,11 +106,10 @@ func (iface *contentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 			return fmt.Errorf("content interface path is not clean: %q", p)
 		}
 	}
-
 	return nil
 }
 
-func (iface *contentInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	content, ok := plug.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
 		if plug.Attrs == nil {
@@ -119,18 +131,30 @@ func (iface *contentInterface) SanitizePlug(plug *interfaces.Plug) error {
 
 // path is an internal helper that extract the "read" and "write" attribute
 // of the slot
-func (iface *contentInterface) path(slot *interfaces.Slot, name string) []string {
+func (iface *contentInterface) path(attrs interfaces.Attrer, name string) []string {
 	if name != "read" && name != "write" {
 		panic("internal error, path can only be used with read/write")
 	}
 
-	paths, ok := slot.Attrs[name].([]interface{})
-	if !ok {
-		return nil
+	var paths []interface{}
+	var source map[string]interface{}
+
+	if err := attrs.Attr("source", &source); err == nil {
+		// Access either "source.read" or "source.write" attribute.
+		var ok bool
+		if paths, ok = source[name].([]interface{}); !ok {
+			return nil
+		}
+	} else {
+		// Access either "read" or "write" attribute directly (legacy).
+		if err := attrs.Attr(name, &paths); err != nil {
+			return nil
+		}
 	}
 
 	out := make([]string, len(paths))
 	for i, p := range paths {
+		var ok bool
 		out[i], ok = p.(string)
 		if !ok {
 			return nil
@@ -161,18 +185,32 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	return filepath.Join(filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String()), path)
 }
 
-func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, extraOptions ...string) mount.Entry {
+func mountEntry(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string, extraOptions ...string) mount.Entry {
 	options := make([]string, 0, len(extraOptions)+1)
 	options = append(options, "bind")
 	options = append(options, extraOptions...)
+
+	var target string
+	// The 'target' attribute has already been verified in BeforePreparePlug.
+	_ = plug.Attr("target", &target)
+	source := resolveSpecialVariable(relSrc, slot.Snap())
+	target = resolveSpecialVariable(target, plug.Snap())
+
+	// Check if the "source" section is present.
+	var unused map[string]interface{}
+	if err := slot.Attr("source", &unused); err == nil {
+		_, sourceName := filepath.Split(source)
+		target = filepath.Join(target, sourceName)
+	}
+
 	return mount.Entry{
-		Name:    resolveSpecialVariable(relSrc, slot.Snap),
-		Dir:     resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap),
+		Name:    source,
+		Dir:     target,
 		Options: options,
 	}
 }
 
-func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	contentSnippet := bytes.NewBuffer(nil)
 	writePaths := iface.path(slot, "write")
 	if len(writePaths) > 0 {
@@ -185,7 +223,7 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 `)
 		for _, w := range writePaths {
 			fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
-				resolveSpecialVariable(w, slot.Snap))
+				resolveSpecialVariable(w, slot.Snap()))
 		}
 	}
 
@@ -198,7 +236,7 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 `)
 		for _, r := range readPaths {
 			fmt.Fprintf(contentSnippet, "%s/** mrkix,\n",
-				resolveSpecialVariable(r, slot.Snap))
+				resolveSpecialVariable(r, slot.Snap()))
 		}
 	}
 
@@ -213,7 +251,7 @@ func (iface *contentInterface) AutoConnect(plug *interfaces.Plug, slot *interfac
 
 // Interactions with the mount backend.
 
-func (iface *contentInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *contentInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	for _, r := range iface.path(slot, "read") {
 		err := spec.AddMountEntry(mountEntry(plug, slot, r, "ro"))
 		if err != nil {

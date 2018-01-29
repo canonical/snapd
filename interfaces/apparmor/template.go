@@ -96,6 +96,7 @@ var defaultTemplate = `
   /bin/dash ixr,
   /etc/bash.bashrc r,
   /etc/{passwd,group,nsswitch.conf} r,  # very common
+  /etc/default/nss r,
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
   /var/lib/extrausers/{passwd,group} r,
   /etc/profile r,
@@ -124,6 +125,7 @@ var defaultTemplate = `
   /{,usr/}bin/diff{,3} ixr,
   /{,usr/}bin/dir ixr,
   /{,usr/}bin/dirname ixr,
+  /{,usr/}bin/du ixr,
   /{,usr/}bin/echo ixr,
   /{,usr/}bin/{,e,f,r}grep ixr,
   /{,usr/}bin/env ixr,
@@ -306,6 +308,7 @@ var defaultTemplate = `
   @{PROC}/sys/kernel/yama/ptrace_scope r,
   @{PROC}/sys/kernel/shmmax r,
   @{PROC}/sys/fs/file-max r,
+  @{PROC}/sys/fs/inotify/max_* r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
   @{PROC}/sys/kernel/random/boot_id r,

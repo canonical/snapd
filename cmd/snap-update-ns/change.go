@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -56,19 +55,16 @@ func (c Change) String() string {
 }
 
 // changePerform is Change.Perform that can be mocked for testing.
-var changePerform = (*Change).Perform
+var changePerform func(*Change) ([]*Change, error)
 
-// Perform executes the desired mount or unmount change using system calls.
-// Filesystems that depend on helper programs or multiple independent calls to
-// the kernel (--make-shared, for example) are unsupported.
-//
-// Perform may synthesize *additional* changes that were necessary to perform
-// this change (such as mounted tmpfs or overlayfs).
-func (c *Change) Perform() ([]*Change, error) {
+// changePerformImpl is the real implementation of Change.Perform
+func changePerformImpl(c *Change) ([]*Change, error) {
 	if c.Action == Mount {
-		mode := os.FileMode(0755)
-		uid := 0
-		gid := 0
+		const (
+			mode = 0755
+			uid  = 0
+			gid  = 0
+		)
 		// Create target mount directory if needed.
 		if err := ensureMountPoint(c.Entry.Dir, mode, uid, gid); err != nil {
 			return nil, err
@@ -83,6 +79,20 @@ func (c *Change) Perform() ([]*Change, error) {
 		}
 	}
 	return nil, c.lowLevelPerform()
+}
+
+func init() {
+	changePerform = changePerformImpl
+}
+
+// Perform executes the desired mount or unmount change using system calls.
+// Filesystems that depend on helper programs or multiple independent calls to
+// the kernel (--make-shared, for example) are unsupported.
+//
+// Perform may synthesize *additional* changes that were necessary to perform
+// this change (such as mounted tmpfs or overlayfs).
+func (c *Change) Perform() ([]*Change, error) {
+	return changePerform(c)
 }
 
 // lowLevelPerform is simple bridge from Change to mount / unmount syscall.

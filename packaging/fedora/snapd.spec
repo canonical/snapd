@@ -65,7 +65,7 @@
 %endif
 
 Name:           snapd
-Version:        2.29.4
+Version:        2.30
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -91,10 +91,16 @@ BuildRequires:  systemd
 
 Requires:       snap-confine%{?_isa} = %{version}-%{release}
 Requires:       squashfs-tools
-# snapd will use this in the event that squashfs.ko isn't available (cloud instances, containers, etc.)
-# FIXME: Use rich deps for this once Bodhi is switched to using pungi
+
+%if 0%{?fedora} >= 26 || 0%{?rhel} >= 8
+# snapd will use squashfuse in the event that squashfs.ko isn't available (cloud instances, containers, etc.)
+Requires:       ((squashfuse and fuse) or kmod(squashfs.ko))
+%else
+# Rich dependencies not available, always pull in squashfuse
+# snapd will use squashfs.ko instead of squashfuse if it's on the system
 Requires:       squashfuse
 Requires:       fuse
+%endif
 
 # bash-completion owns /usr/share/bash-completion/completions
 Requires:       bash-completion
@@ -103,13 +109,14 @@ Requires:       bash-completion
 Requires:       %{name}-selinux = %{version}-%{release}
 
 %if ! 0%{?with_bundled}
+BuildRequires: golang(github.com/boltdb/bolt)
 BuildRequires: golang(github.com/cheggaaa/pb)
 BuildRequires: golang(github.com/coreos/go-systemd/activation)
 BuildRequires: golang(github.com/godbus/dbus)
 BuildRequires: golang(github.com/godbus/dbus/introspect)
 BuildRequires: golang(github.com/gorilla/mux)
 BuildRequires: golang(github.com/jessevdk/go-flags)
-BuildRequires: golang(github.com/mvo5/uboot-go/uenv)
+BuildRequires: golang(github.com/mvo5/goconfigparser)
 BuildRequires: golang(github.com/ojii/gettext.go)
 BuildRequires: golang(github.com/seccomp/libseccomp-golang)
 BuildRequires: golang(golang.org/x/crypto/openpgp/armor)
@@ -192,13 +199,14 @@ BuildArch:     noarch
 %endif
 
 %if ! 0%{?with_bundled}
+Requires:      golang(github.com/boltdb/bolt)
 Requires:      golang(github.com/cheggaaa/pb)
 Requires:      golang(github.com/coreos/go-systemd/activation)
 Requires:      golang(github.com/godbus/dbus)
 Requires:      golang(github.com/godbus/dbus/introspect)
 Requires:      golang(github.com/gorilla/mux)
 Requires:      golang(github.com/jessevdk/go-flags)
-Requires:      golang(github.com/mvo5/uboot-go/uenv)
+Requires:      golang(github.com/mvo5/goconfigparser)
 Requires:      golang(github.com/ojii/gettext.go)
 Requires:      golang(github.com/seccomp/libseccomp-golang)
 Requires:      golang(golang.org/x/crypto/openpgp/armor)
@@ -217,13 +225,14 @@ Requires:      golang(gopkg.in/yaml.v2)
 # These Provides are unversioned because the sources in
 # the bundled tarball are unversioned (they go by git commit)
 # *sigh*... I hate golang...
+Provides:      bundled(golang(github.com/boltdb/bolt))
 Provides:      bundled(golang(github.com/cheggaaa/pb))
 Provides:      bundled(golang(github.com/coreos/go-systemd/activation))
 Provides:      bundled(golang(github.com/godbus/dbus))
 Provides:      bundled(golang(github.com/godbus/dbus/introspect))
 Provides:      bundled(golang(github.com/gorilla/mux))
 Provides:      bundled(golang(github.com/jessevdk/go-flags))
-Provides:      bundled(golang(github.com/mvo5/uboot-go/uenv))
+Provides:      bundled(golang(github.com/mvo5/goconfigparser))
 Provides:      bundled(golang(github.com/mvo5/libseccomp-golang))
 Provides:      bundled(golang(github.com/ojii/gettext.go))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/armor))
@@ -252,7 +261,6 @@ Provides:      golang(%{import_path}/boot) = %{version}-%{release}
 Provides:      golang(%{import_path}/boot/boottest) = %{version}-%{release}
 Provides:      golang(%{import_path}/client) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd) = %{version}-%{release}
-Provides:      golang(%{import_path}/corecfg) = %{version}-%{release}
 Provides:      golang(%{import_path}/daemon) = %{version}-%{release}
 Provides:      golang(%{import_path}/dirs) = %{version}-%{release}
 Provides:      golang(%{import_path}/errtracker) = %{version}-%{release}
@@ -280,6 +288,7 @@ Provides:      golang(%{import_path}/overlord/auth) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/cmdstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/configstate/config) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/configstate/configcore) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/devicestate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate/ctlcmd) = %{version}-%{release}
@@ -319,7 +328,6 @@ Provides:      golang(%{import_path}/userd) = %{version}-%{release}
 Provides:      golang(%{import_path}/wrappers) = %{version}-%{release}
 Provides:      golang(%{import_path}/x11) = %{version}-%{release}
 
-
 %description devel
 %{summary}
 
@@ -335,16 +343,6 @@ Summary:         Unit tests for %{name} package
 %if 0%{?with_check}
 #Here comes all BuildRequires: PACKAGE the unit tests
 #in %%check section need for running
-%endif
-
-%if 0%{?with_check} && ! 0%{?with_bundled}
-BuildRequires: golang(github.com/mvo5/goconfigparser)
-%endif
-
-%if ! 0%{?with_bundled}
-Requires:      golang(github.com/mvo5/goconfigparser)
-%else
-Provides:      bundled(golang(github.com/mvo5/goconfigparser))
 %endif
 
 # test subpackage tests code from devel subpackage
@@ -363,12 +361,6 @@ providing packages with %{import_path} prefix.
 %if ! 0%{?with_bundled}
 # Ensure there's no bundled stuff accidentally leaking in...
 rm -rf vendor/*
-
-# XXX: HACK: Fake that we have the right import path because bad testing
-# did not verify that this path was actually valid on all supported systems.
-mkdir -p vendor/gopkg.in/cheggaaa
-ln -s %{gopath}/src/github.com/cheggaaa/pb vendor/gopkg.in/cheggaaa/pb.v1
-
 %else
 # Unpack the vendor tarball too...
 %setup -q -T -D -b 1
@@ -393,6 +385,13 @@ GOFLAGS=
 GOFLAGS="$GOFLAGS -tags withtestkeys"
 %endif
 
+%if ! 0%{?with_bundled}
+# We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
+sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
+# We don't need the snapcore fork for bolt - it is just a fix on ppc
+sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go
+%endif
+
 # We have to build snapd first to prevent the build from
 # building various things from the tree without additional
 # set tags.
@@ -405,10 +404,6 @@ GOFLAGS="$GOFLAGS -tags withtestkeys"
 %gobuild_static -o bin/snap-exec $GOFLAGS %{import_path}/cmd/snap-exec
 %gobuild_static -o bin/snap-update-ns $GOFLAGS %{import_path}/cmd/snap-update-ns
 
-%if ! 0%{?with_bundled}
-# We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
-sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
-%endif
 %if 0%{?rhel}
 # There's no static link library for libseccomp in RHEL/CentOS...
 sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
@@ -466,6 +461,7 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/snaps
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/snap/bin
 install -d -p %{buildroot}%{_localstatedir}/snap
 install -d -p %{buildroot}%{_localstatedir}/cache/snapd
+install -d -p %{buildroot}%{_datadir}/polkit-1/actions
 install -d -p %{buildroot}%{_datadir}/selinux/devel/include/contrib
 install -d -p %{buildroot}%{_datadir}/selinux/packages
 
@@ -515,11 +511,11 @@ popd
 # Remove snappy core specific scripts
 rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 
+# Install Polkit configuration
+install -m 644 -D data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
+
 # Disable re-exec by default
 echo 'SNAP_REEXEC=0' > %{buildroot}%{_sysconfdir}/sysconfig/snapd
-
-# Install snap management script
-install -pm 0755 packaging/fedora/snap-mgmt.sh %{buildroot}%{_libexecdir}/snapd/snap-mgmt
 
 # Create state.json and the README file to be ghosted
 touch %{buildroot}%{_sharedstatedir}/snapd/state.json
@@ -598,6 +594,7 @@ popd
 %{_unitdir}/snapd.refresh.service
 %{_unitdir}/snapd.refresh.timer
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
+%{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
 %dir %{_sharedstatedir}/snapd/assertions
@@ -614,6 +611,8 @@ popd
 %dir %{_localstatedir}/cache/snapd
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
+%{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
+%{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %ghost %{_sharedstatedir}/snapd/snap/README
 
 %files -n snap-confine
@@ -630,7 +629,6 @@ popd
 %{_mandir}/man1/snap-confine.1*
 %{_mandir}/man5/snap-discard-ns.5*
 %{_prefix}/lib/udev/snappy-app-dev
-%{_udevrulesdir}/80-snappy-assign.rules
 %attr(0000,root,root) %{_sharedstatedir}/snapd/void
 
 
@@ -698,6 +696,260 @@ fi
 
 
 %changelog
+* Thu Jan 25 2018 Neal Gompa <ngompa13@gmail.com> - 2.30-1
+- Release 2.30 to Fedora (RH#1527519)
+- Backport fix to correctly locate snapd libexecdir on Fedora derivatives (RH#1536895)
+- Refresh SELinux policy fix patches with upstream backport version
+
+* Mon Dec 18 2017 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.30
+ - tests: set TRUST_TEST_KEYS=false for all the external backends
+ - tests: fix external backend for tests that need DEBUG output
+ - tests: do not disable refresh timer on external backend
+ - client: send all snap related bool json fields
+ - interfaces: interfaces: also add an app/hook-specific udev RUN
+   rule for hotplugging
+ - interfaces/desktop,unity7: allow status/activate/lock of
+   screensavers
+ - tests/main: source mkpinentry.sh
+ - devicestate: use a different nowhere domain
+ - interfaces: add ssh-keys, ssh-public-keys, gpg-keys and gpg-public
+   keys interfaces
+ - interfaces/many: misc updates for default, browser-support, opengl,
+   desktop, unity7, x11
+ - devicestate: fix misbehaving test when using systemd-resolved
+ - interfaces/removable-media: also allow 'k' (lock)
+ - interfaces/many: misc updates for default, browser-support,
+   opengl, desktop, unity7, x11
+ - corecfg: also "mask" services when disabling them
+ - tests: add support for autopkgtests on s390x
+ - snapstate: support for pre-refresh hook
+ - many: allow to configure core before it is installed
+ - devicestate: fix unkeyed fields error
+ - snap-confine: create mount target for lib32,vulkan on demand
+ - snapstate: add support for refresh.schedule=managed
+ - cmd/snap-update-ns: teach update logic to handle synthetic changes
+ - many: remove configure-snapd task again and handle internally
+ - snap: fix TestDirAndFileMethods() test to work with gccgo
+ - debian: ensure /var/lib/snapd/lib/vulkan is available
+ - cmd/snap-confine: use #include instead of bare include
+ - snapstate: store userID in snapstate
+ - snapd.dirs: add var/lib/snapd/lib/gl32
+ - timeutil, overlod/snapstate: cleanup remaining pieces of timeutil
+   weekday support
+ - packaging/arch: install missing directories, manpages and version
+   info
+ - snapstate,store: store if a snap is a paid snap in the sideinfo
+ - packaging/arch: pre-create snapd directories when packaging
+ - tests/main/manpages: set LC_ALL=C as man may complain if the
+   locale is unset or unsupported
+ - repo: ConnectedPlug and ConnectedSlot types
+ - snapd: fix handling of undo in the taskrunner
+ - store: fix download caching and add integration test
+ - snapstate: move autorefresh code into autoRefresh helper
+ - snapctl: don't error out on start/stop/restart from configure hook
+   during install or refresh
+ - cmd/snap-update-ns: add planWritableMimic
+ - deamon: don't omit responses, even if null
+ - tests: add test for frame buffer interface
+ - tests/lib: fix shellcheck errors
+ - apparmor: generate the snap-confine re-exec profile for
+   AppArmor{Partial,Full}
+ - tests: remove obsolete workaround
+ - snap: use existing files in `snap download` if digest/size matches
+ - tests: merge pepare-project.sh into prepare-restore.sh
+ - tests: cache snaps to $TESTSLIB/cache
+ - tests: set -e, -o pipefail in prepare-restore.sh
+ - apparmor: generate the snap-confine re-exec profile for
+   AppArmor{Partial,Full}
+ - cmd/snap-seccomp: fix uid/gid restrictions tests on Arch
+ - tests: document and slightly refactor prepare/restore code
+ - snapstate: ensure RefreshSchedule() gives accurate results
+ - snapstate: add new refresh-hints helper and use it
+ - spread.yaml,tests: move most of project-wide prepare/restore to
+   separate file
+ - timeutil: introduce helpers for weekdays and TimeOfDay
+ - tests: adding new test for uhid interface
+ - cmd/libsnap: fix parsing of empty mountinfo fields
+ - overlord/devicestate:  best effort to go to early full retries for
+   registration on the like of DNS no host
+ - spread.yaml: bump delta ref to 2.29
+ - tests: adding test to test physical memory observe interface
+ - cmd, errtracker: get rid of SNAP_DID_REEXEC environment
+ - timeutil: remove support to parse weekday schedules
+ - snap-confine: add workaround for snap-confine on 4.13/upstream
+ - store: do not log the http body for catalog updates
+ - snapstate: move catalogRefresh into its own helper
+ - spread.yaml: fix shellcheck issues and trivial refactor
+ - spread.yaml: move prepare-each closer to restore-each
+ - spread.yaml: increase workers for opensuse to 3
+ - tests: force delete when tests are restore to avoid suite failure
+ - test: ignore /snap/README
+ - interfaces/opengl: also allow read on 'revision' in
+   /sys/devices/pci...
+ - interfaces/screen-inhibit-control: fix case in screen inhibit
+   control
+ - asserts/sysdb: panic early if pointed to staging but staging keys
+   are not compiled-in
+ - interfaces: allow /bin/chown and fchownat to root:root
+ - timeutil: include test input in error message in
+   TestParseSchedule()
+ - interfaces/browser-support: adjust base declaration for auto-
+   connection
+ - snap-confine: fix snap-confine under lxd
+ - store: bit less aggressive retry strategy
+ - tests: add new `fakestore new-snap-{declaration,revision}` helpers
+ - cmd/snap-update-ns: add secureMkfileAll
+ - snap: use field names when initializing composite literals
+ - HACKING: fix path in snap install
+ - store: add support for flags in ListRefresh()
+ - interfaces: remove invalid plugs/slots from SnapInfo on
+   sanitization.
+ - debian: add missing udev dependency
+ - snap/validate: extend socket validation tests
+ - interfaces: add "refresh-schedule" attribute to snapd-control
+ - interfaces/builtin/account_control: use gid owning /etc/shadow to
+   setup seccomp rules
+ - cmd/snap-update-ns: tweak changePerform
+ - interfaces,tests: skip unknown plug/slot interfaces
+ - tests: disable interfaces-network-control-tuntap
+ - cmd: use a preinit_array function rather than parsing
+   /proc/self/cmdline
+ - interfaces/time*_control: explicitly deny noisy read on
+   /proc/1/environ
+ - cmd/snap-update-ns: misc cleanups
+ - snapd: allow hooks to have slots
+ - fakestore: add go-flags to prepare for `new-snap-declaration` cmd
+ - interfaces/browser-support: add shm path for nwjs
+ - many: add magic /snap/README file
+ - overlord/snapstate: support completion for command aliases
+ - tests: re-enable tun/tap test on Debian
+ - snap,wrappers: add support for socket activation
+ - repo: use PlugInfo and SlotInfo for permanent plugs/slots
+ - tests/interfaces-network-control-tuntap: disable on debian-
+   unstable for now
+ - cmd/snap-confine: Loosen the NVIDIA Vulkan ICD glob
+ - cmd/snap-update-ns: detect and report read-only filesystems
+ - cmd/snap-update-ns: re-factor secureMkdirAll into
+   secureMk{Prefix,Dir}
+ - run-checks, tests/lib/snaps/: shellcheck fixes
+ - corecfg: validate refresh.schedule when it is applied
+ - tests: adjust test to match stderr
+ - snapd: fix snap cookie bugs
+ - packaging/arch: do not quote MAKEFLAGS
+ - state: add change.LaneTasks helper
+ - cmd/snap-update-ns: do not assume 'nogroup' exists
+ - tests/lib: handle distro specific grub-editenv naming
+ - cmd/snap-confine: Add missing bi-arch NVIDIA filesthe
+   `/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl/vdpau` paths within
+ - cmd: Support exposing NVIDIA Vulkan ICD files to the snaps
+ - cmd/snap-confine: Implement full 32-bit NVIDIA driver support
+ - packaging/arch: packaging update
+ - cmd/snap-confine: Support bash as base runtime entry
+ - wrappers: do not error on incorrect Exec= lines
+ - interfaces: fix udev tagging for hooks
+ - tests/set-proxy-store: exclude ubuntu-core-16 via systems: key
+ - tests: new tests for network setup control and observe interfaces
+ - osutil: add helper for obtaining group ID of given file path
+ - daemon,overlord/snapstate: return snap-not-installed error in more
+   cases
+ - interfaces/builtin/lxd_support: allow discovering of host's os-
+   release
+ - configstate: add support for configure-snapd for
+   snapstate.IgnoreHookError
+ - tests:  add a spread test for proxy.store setting together with
+   store assertion
+ - cmd/snap-seccomp: do not use group 'shadow' in tests
+ - asserts/assertstest:  fix use of hardcoded value when the passed
+   or default keys should be used
+ - interfaces/many: misc policy updates for browser-support, cups-
+   control and network-status
+ - tests: fix xdg-open-compat
+ - daemon: for /v2/logs, 404 when no services are found
+ - packaging/fedora: Merge changes from Fedora Dist-Git
+ - cmd/snap-update-ns: add new helpers for mount entries
+ - cmd/snap-confine: Respect biarch nature of libdirs
+ - cmd/snap-confine: Ensure snap-confine is allowed to access os-
+   release
+ - cmd: fix re-exec bug with classic confinement for host snapd <
+   2.28
+ - interfaces/kmod: simplify loadModules now that errors are ignored
+ - tests: disable xdg-open-compat test
+ - tests: add test that checks core reverts on core devices
+ - dirs: use alt root when checking classic confinement support
+   without …
+ - interfaces/kmod: treat failure to load module as non-fatal
+ - cmd/snap-update-ns: fix golint and some stale comments
+ - corecfg:  support setting proxy.store if there's a matching store
+   assertion
+ - overlord/snapstate: toggle ignore-validation as needed as we do
+   for channel
+ - tests: fix security-device-cgroup* tests on devices with
+   framebuffer
+ - interfaces/raw-usb: match on SUBSYSTEM, not SUBSYSTEMS
+ - interfaces: add USB interface number attribute in udev rule for
+   serial-port interface
+ - overlord/devicestate: switch to the new endpoints for registration
+ - snap-update-ns: add missing unit test for desired/current profile
+   handling
+ - cmd/{snap-confine,libsnap-confine-private,snap-shutdown}: cleanup
+   low-level C bits
+ - ifacestate: make interfaces.Repository available via state cache
+ - overlord/snapstate: cleanups around switch-snap*
+ - cmd/snapd,client,daemon: display ignore-validation flag through
+   the notes mechanism
+ - cmd/snap-update-ns: add logging to snap-update-ns
+ - many: have a timestamp on store assertions
+ - many: lookup and use the URL from a store assertion if one is set
+   for use
+ - tests/test-snapd-service: fix shellcheck issues
+ - tests: new test for hardware-random-control interface
+ - tests: use `snap change --last=install` in snapd-reexec test
+ - repo, daemon: use PlugInfo, SlotInfo
+ - many: handle core configuration internally instead of using the
+   core configure hook
+ - tests: refactor and expand content interface test
+ - snap-seccomp: skip in-kernel bpf tests for socket() in trusty/i386
+ - cmd/snap-update-ns: allow Change.Perform to return changes
+ - snap-confine: Support biarch Linux distribution confinement
+ - partition/ubootenv: don't panic when uboot.env is missing the eof
+   marker
+ - cmd/snap-update-ns: allow fault injection to provide dynamic
+   result
+ - interfaces/mount: exspose mount.{Escape,Unescape}
+ - snapctl: added long help to stop/start/restart command
+ - cmd/snap-update-ns: create missing mount points automatically.
+ - cmd: downgrade log message in InternalToolPath to Debugf()
+ - tests: wait for service status change & file update in the test to
+   avoid races
+ - daemon, store: forward SSO invalid credentials errors as 401
+   Unauthorized responses
+ - spdx: fix for WITH syntax, require a license name before the
+   operator
+ - many: reorg things in preparation to make handling of the base url
+   in store dynamic
+ - hooks/configure: queue service restarts
+ - cmd/snap: warn when a snap is not from the tracking channel
+ - interfaces/mount: add support for parsing x-snapd.{mode,uid,gid}=
+ - cmd/snap-confine: add detection of stale mount namespace
+ - interfaces: add plugRef/slotRef helpers for PlugInfo/SlotInfo
+ - tests: check for invalid udev files during all tests
+ - daemon: use newChange() in changeAliases for consistency
+ - servicestate: use taskset
+ - many: add support for /home on NFS
+ - packaging,spread: fix and re-enable opensuse builds
+
+* Sun Dec 17 2017 Neal Gompa <ngompa13@gmail.com> - 2.29.4-3
+- Add patch to SELinux policy to allow snapd to receive replies from polkit
+
+* Sun Nov 19 2017 Neal Gompa <ngompa13@gmail.com> - 2.29.4-2
+- Add missing bash completion files and cache directory
+
+* Sun Nov 19 2017 Neal Gompa <ngompa13@gmail.com> - 2.29.4-1
+- Release 2.29.4 to Fedora (RH#1508433)
+- Install Polkit configuration (RH#1509586)
+- Drop changes to revert cheggaaa/pb import path used
+
 * Fri Nov 17 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.29.4
  - snap-confine: fix snap-confine under lxd
@@ -1034,7 +1286,7 @@ fi
  - interfaces/opengl: use == to compare, not =
  - cmd/snap-seccomp/main_test.go: add syscalls for armhf and arm64
  - cmd/snap-repair: track and use a lower bound for the time for
-   TLS checks
+   TLS checks
  - interfaces: expose bluez interface on classic OS
  - snap-seccomp: add in-kernel bpf tests
  - overlord: always try to get a serial, lazily on classic

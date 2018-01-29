@@ -1245,7 +1245,7 @@ var testInterface = &ifacetest.TestInterface{
 		spec.AddSnippet("static plug snippet")
 		return nil
 	},
-	TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error {
+	TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *ConnectedPlug, slot *ConnectedSlot) error {
 		spec.AddSnippet("connection-specific plug snippet")
 		return nil
 	},
@@ -1253,7 +1253,7 @@ var testInterface = &ifacetest.TestInterface{
 		spec.AddSnippet("static slot snippet")
 		return nil
 	},
-	TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error {
+	TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *ConnectedPlug, slot *ConnectedSlot) error {
 		spec.AddSnippet("connection-specific slot snippet")
 		return nil
 	},
@@ -1302,10 +1302,10 @@ func (s *RepositorySuite) TestSnapSpecificationFailureWithConnectionSnippets(c *
 	backend := &ifacetest.TestSecurityBackend{BackendName: testSecurity}
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "interface",
-		TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error {
+		TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *ConnectedPlug, slot *ConnectedSlot) error {
 			return fmt.Errorf("cannot compute snippet for provider")
 		},
-		TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error {
+		TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *ConnectedPlug, slot *ConnectedSlot) error {
 			return fmt.Errorf("cannot compute snippet for consumer")
 		},
 	}
@@ -1472,9 +1472,9 @@ func (s *AddRemoveSuite) SetUpTest(c *C) {
 	err := s.repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface"})
 	c.Assert(err, IsNil)
 	err = s.repo.AddInterface(&ifacetest.TestInterface{
-		InterfaceName:        "invalid",
-		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
-		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
+		InterfaceName:             "invalid",
+		BeforePreparePlugCallback: func(plug *snap.PlugInfo) error { return fmt.Errorf("plug is invalid") },
+		BeforePrepareSlotCallback: func(slot *snap.SlotInfo) error { return fmt.Errorf("slot is invalid") },
 	})
 	c.Assert(err, IsNil)
 }

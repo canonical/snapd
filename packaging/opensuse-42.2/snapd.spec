@@ -30,9 +30,9 @@
 %global with_test_keys 0
 %endif
 
-%define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service snapd.autoimport.service snapd.system-shutdown.service
+%define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service
 Name:           snapd
-Version:        2.29.4
+Version:        2.30
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -250,7 +250,7 @@ esac
 %preun
 %service_del_preun %{systemd_services_list}
 if [ $1 -eq 0 ]; then
-    rm -f /var/cache/snapd/*
+    %{_libexecdir}/snapd/snap-mgmt --purge || :
 fi
 
 %postun
@@ -282,7 +282,6 @@ fi
 %verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_mandir}/man1/snap-confine.1.gz
 %{_mandir}/man5/snap-discard-ns.5.gz
-%{_udevrulesdir}/80-snappy-assign.rules
 %{_unitdir}/snapd.refresh.service
 %{_unitdir}/snapd.refresh.timer
 %{_unitdir}/snapd.service
@@ -297,12 +296,14 @@ fi
 %{_libexecdir}/snapd/snap-exec
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snapd
+%{_libexecdir}/snapd/snap-mgmt
 %{_libexecdir}/udev/snappy-app-dev
 /usr/share/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
 %{_mandir}/man1/snap.1.gz
 /usr/share/dbus-1/services/io.snapcraft.Launcher.service
+/usr/share/dbus-1/services/io.snapcraft.Settings.service
 
 %changelog
 

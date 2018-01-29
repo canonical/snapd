@@ -55,10 +55,12 @@
     # cgroup: freezer
     # Allow creating per-snap cgroup freezers and adding snap command (task)
     # invocations to the freezer. This allows for reliably enumerating all
-    # running tasks for the snap.
+    # running tasks for the snap. In addition, allow enumerating processes in
+    # the cgroup to determine if it is occupied.
     /sys/fs/cgroup/freezer/ r,
     /sys/fs/cgroup/freezer/snap.*/ w,
     /sys/fs/cgroup/freezer/snap.*/tasks w,
+    /sys/fs/cgroup/freezer/snap.*/cgroup.procs r,
 
     # querying udev
     /etc/udev/udev.conf r,
@@ -303,6 +305,12 @@
     # Allow snap-confine to read snap contexts
     /var/lib/snapd/context/snap.* r,
 
+    # Allow snap-confine to unmount stale mount namespaces.
+    umount /run/snapd/ns/*.mnt,
+    # Required to correctly unmount bound mount namespace.
+    # See LP: #1735459 for details.
+    umount /,
+
     # Support for the quirk system
     /var/ r,
     /var/lib/ r,
@@ -351,7 +359,7 @@
     capability sys_admin,
     signal (send, receive) set=(abrt) peer=@LIBEXECDIR@/snap-confine,
     signal (send) set=(int) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
-    signal (send, receive) set=(alrm, exists) peer=@LIBEXECDIR@/snap-confine,
+    signal (send, receive) set=(int, alrm, exists) peer=@LIBEXECDIR@/snap-confine,
     signal (receive) set=(exists) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
 
     # workaround for linux 4.13/upstream, see
@@ -534,6 +542,30 @@
         /var/ r,
         /var/snap/{,*/} r,
         /var/snap/*/**/ rw,
+
+        # Allow creating placeholder directory in /tmp/.snap/ as support for
+        # the writable mimic code that can poke holes in arbitrary read-only
+        # places using tmpfs and bind mounts.
+        /tmp/ r,
+        /tmp/.snap/{,**} rw,
+        # Allow mounting/unmounting any part of $SNAP over to a temporary place
+        # in /tmp/.snap/ during the preparation of a writable mimic.
+        mount options=(bind, rw) /snap/*/** -> /tmp/.snap/**,
+        # Allow mounting tmpfs over the original $SNAP/** directory.
+        mount fstype=tmpfs options=(rw) tmpfs -> /snap/*/**,
+        # Allow bind mounting anything from the temporary place in /tmp/.snap/
+        # back to $SNAP/** (to re-construct the data that was there before).
+        mount options=(bind, rw) /tmp/.snap/** -> /snap/*/**,
+        # Allow unmounting the temporary directory in /tmp once it is no longer
+        # necessary.
+        umount /tmp/.snap/**,
+
+        # Allow creating missing directories under $SNAP once the writable
+        # mimic is ready.
+        / r,
+        /snap/ r,
+        /snap/{,**} r,
+        /snap/*/** w,
 
         # Allow the content interface to bind fonts from the host filesystem
         mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/*/*/**,
