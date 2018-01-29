@@ -19,8 +19,8 @@ BINDIR := /usr/bin
 LIBEXECDIR := /usr/lib
 SYSTEMDSYSTEMUNITDIR := /lib/systemd/system
 
-SYSTEMD_UNITS_GENERATED := $(patsubst %.service.in,%.service,$(wildcard *.service.in))
-SYSTEMD_UNITS := ${SYSTEMD_UNITS_GENERATED} $(wildcard *.timer) $(wildcard *.socket)
+SYSTEMD_UNITS_GENERATED := $(wildcard *.service.in) $(wildcard *.mount.in)
+SYSTEMD_UNITS := ${SYSTEMD_UNITS_GENERATED:.in=} $(wildcard *.timer) $(wildcard *.socket)
 
 %.service: %.service.in
 	cat $< | \
@@ -28,6 +28,11 @@ SYSTEMD_UNITS := ${SYSTEMD_UNITS_GENERATED} $(wildcard *.timer) $(wildcard *.soc
 		sed s:@SNAPD_ENVIRONMENT_FILE@:${SNAPD_ENVIRONMENT_FILE}:g | \
 		sed s:@bindir@:${BINDIR}:g | \
 		sed s:@SNAP_MOUNT_DIR@:${SNAP_MOUNT_DIR}:g  | \
+		cat > $@
+
+%.mount: %.mount.in
+	cat $< | \
+		sed s:@SNAP_MOUNT_DIR@:${SNAP_MOUNT_DIR}:g | \
 		cat > $@
 
 all: ${SYSTEMD_UNITS}
@@ -39,4 +44,4 @@ install: $(SYSTEMD_UNITS)
 	install -m 0755 -t ${DESTDIR}/${LIBEXECDIR}/snapd snapd.core-fixup.sh
 
 clean:
-	rm -f ${SYSTEMD_UNITS_GENERATED}
+	rm -f ${SYSTEMD_UNITS_GENERATED:.in=}
