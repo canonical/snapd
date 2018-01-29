@@ -707,7 +707,6 @@ void sc_ensure_shared_snap_mount(void)
 {
 	if (!is_mounted_with_shared_option("/")
 	    && !is_mounted_with_shared_option(SNAP_MOUNT_DIR)) {
-		die("cannot proceed, %s is not mounted with shared option",
-		    SNAP_MOUNT_DIR);
+		die("%s is not mounted with shared option", SNAP_MOUNT_DIR);
 	}
 }
