@@ -707,6 +707,13 @@ void sc_ensure_shared_snap_mount(void)
 {
 	if (!is_mounted_with_shared_option("/")
 	    && !is_mounted_with_shared_option(SNAP_MOUNT_DIR)) {
-		die("%s is not mounted with shared option", SNAP_MOUNT_DIR);
+		// TODO: We could be more aggressive and refuse to function but since
+		// we have no data on actual environments that happen to limp along in
+		// this configuration let's start with printing a simple warning. This
+		// should be removed once we have a measurement and feedback mechanism
+		// that lets us decide based on measurable data.
+		fprintf(stderr,
+			"the directory %s is not mounted with shared option\n",
+			SNAP_MOUNT_DIR);
 	}
 }
