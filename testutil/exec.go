@@ -37,8 +37,12 @@ type MockCmd struct {
 	logFile string
 }
 
-// generates \0 to separate args
-// generates \00 to separate commands
+// The top of the script generate the output to capture the
+// command that was run and the arguments used. To support
+// mocking commands that need "\n" in their args (like zenity)
+// we use the following convention:
+// - generate \0 to separate args
+// - generate \0\0 to separate commands
 var scriptTpl = `#!/bin/bash
 printf "%%s" "$(basename "$0")" >> %[1]q
 printf "\0" >> %[1]q

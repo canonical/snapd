@@ -22,36 +22,44 @@ package ui
 import (
 	"fmt"
 	"os/exec"
-	"strconv"
+	"time"
 )
 
-type Zenity struct{}
+type Kdialog struct{}
 
-func (*Zenity) YesNo(primary, secondary string, options *Options) bool {
+func (*Kdialog) YesNo(primary, secondary string, options *Options) bool {
 	if options == nil {
 		options = &Options{}
 	}
 
-	txt := fmt.Sprintf(`<big><b>%s</b></big>
-
-%s`, primary, secondary)
+	txt := fmt.Sprintf(`<p><big><b>%s</b></big></p><p>%s</p>`, primary, secondary)
 	if options.Footer != "" {
-		txt += fmt.Sprintf(`
-
-<span size="x-small">%s</span>`, options.Footer)
+		txt += fmt.Sprintf(`<p><small>%s</small></p>`, options.Footer)
 	}
-	args := []string{"--question", "--modal", "--text=" + txt}
-	if options.Timeout > 0 {
-		args = append(args, "--timeout="+strconv.Itoa(options.Timeout))
-	}
-	cmd := exec.Command("zenity", args...)
+	cmd := exec.Command("kdialog", "--yesno="+txt)
 	if err := cmd.Start(); err != nil {
 		return false
 	}
 
-	if err := cmd.Wait(); err != nil {
-		return false
+	var err error
+	if options.Timeout > 0 {
+		done := make(chan error, 1)
+		go func() { done <- cmd.Wait() }()
+		select {
+		case err = <-done:
+			// normal exit
+		case <-time.After(time.Duration(options.Timeout) * time.Second):
+			// timeout do nothing, the other side will have timed
+			// out as well, no need to send a reply.
+			cmd.Process.Kill()
+			return false
+		}
+	} else {
+		err = cmd.Wait()
+	}
+	if err == nil {
+		return true
 	}
 
-	return true
+	return false
 }
