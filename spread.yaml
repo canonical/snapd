@@ -46,7 +46,7 @@ environment:
 backends:
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
-        plan: 8GB
+        plan: 4GB
         location: Fremont
         halt-timeout: 2h
         environment:
@@ -124,9 +124,6 @@ backends:
             - debian-sid-64:
                 username: debian
                 password: debian
-            - fedora-25-64:
-                username: fedora
-                password: fedora
             - fedora-26-64:
                 username: fedora
                 password: fedora

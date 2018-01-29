@@ -47,7 +47,9 @@ var (
 )
 
 // Launcher implements the 'io.snapcraft.Launcher' DBus interface.
-type Launcher struct{}
+type Launcher struct {
+	conn *dbus.Conn
+}
 
 // Name returns the name of the interface this object implements
 func (s *Launcher) Name() string {
@@ -72,7 +74,7 @@ func makeAccessDeniedError(err error) *dbus.Error {
 	}
 }
 
-// OpenURL implements the 'OpenURL' method of the 'com.canonical.Launcher'
+// OpenURL implements the 'OpenURL' method of the 'io.snapcraft.Launcher'
 // DBus interface. Before the provided url is passed to xdg-open the scheme is
 // validated against a list of allowed schemes. All other schemes are denied.
 func (s *Launcher) OpenURL(addr string) *dbus.Error {
