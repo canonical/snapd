@@ -355,7 +355,12 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused.
 var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
-var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
+
+func ValidAppName(n string) bool {
+	var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
+
+	return validAppName.MatchString(n)
+}
 
 // ValidateApp verifies the content in the app info.
 func ValidateApp(app *AppInfo) error {
@@ -367,7 +372,7 @@ func ValidateApp(app *AppInfo) error {
 	}
 
 	// Validate app name
-	if !validAppName.MatchString(app.Name) {
+	if !ValidAppName(app.Name) {
 		return fmt.Errorf("cannot have %q as app name - use letters, digits, and dash as separator", app.Name)
 	}
 
