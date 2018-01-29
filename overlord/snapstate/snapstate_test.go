@@ -1606,7 +1606,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				Channel:  "some-channel",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "some-snap-id",
 				Revision: snap.R(42),
 			},
 		},
@@ -1630,7 +1630,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				Channel:  "some-channel",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "some-snap-id",
 				Revision: snap.R(42),
 			},
 		},
@@ -1687,7 +1687,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		RealName: "some-snap",
 		Revision: snap.R(42),
 		Channel:  "some-channel",
-		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		SnapID:   "some-snap-id",
 	})
 
 	// verify snaps in the system state
@@ -1701,7 +1701,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "some-channel",
-		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		SnapID:   "some-snap-id",
 		Revision: snap.R(42),
 	})
 	c.Assert(snapst.Required, Equals, false)
@@ -2958,6 +2958,56 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	c.Check(snapst.Current, Equals, snap.R(11))
 }
 
+func (s *snapmgrTestSuite) TestUpdateFromLocal(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R("x1"),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Channel:  "channel-for-7",
+		Current:  si.Revision,
+	})
+
+	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, Equals, store.ErrLocalSnap)
+}
+
+func (s *snapmgrTestSuite) TestUpdateAmend(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R("x1"),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Channel:  "channel-for-7",
+		Current:  si.Revision,
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{Amend: true})
+	c.Assert(err, IsNil)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 0, ts, s.state)
+
+	// ensure we go from local to store revision-7
+	var snapsup snapstate.SnapSetup
+	tasks := ts.Tasks()
+	c.Check(tasks[1].Kind(), Equals, "download-snap")
+	err = tasks[1].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Revision(), Equals, snap.R(7))
+
+}
+
 func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 	// single updates should *not* set the block list
 	si7 := snap.SideInfo{
@@ -3740,7 +3790,7 @@ version: 1.0`)
 
 	si := &snap.SideInfo{
 		RealName: "some-snap",
-		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		SnapID:   "some-snap-id",
 		Revision: snap.R(42),
 	}
 	ts, err := snapstate.InstallPath(s.state, si, someSnap, "", snapstate.Flags{Required: true})
@@ -5312,7 +5362,7 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 			name: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "some-snap-id",
 				Channel:  "some-channel",
 				Revision: snap.R(11),
 			},
@@ -7346,7 +7396,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			name: filepath.Join(dirs.SnapBlobDir, "core_11.snap"),
 			sinfo: snap.SideInfo{
 				RealName: "core",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "core-id",
 				Revision: snap.R(11),
 			},
 		},
@@ -7369,7 +7419,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "core",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "core-id",
 				Revision: snap.R(11),
 			},
 		},
@@ -7983,7 +8033,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "core",
 				Channel:  "stable",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "core-id",
 				Revision: snap.R(11),
 			},
 		},
@@ -8007,7 +8057,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "core",
 				Channel:  "stable",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "core-id",
 				Revision: snap.R(11),
 			},
 		},
@@ -8043,7 +8093,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				Channel:  "some-channel",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "some-snap-id",
 				Revision: snap.R(42),
 			},
 		},
@@ -8067,7 +8117,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				Channel:  "some-channel",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "some-snap-id",
 				Revision: snap.R(42),
 			},
 		},
@@ -8113,7 +8163,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "core",
 		Channel:  "stable",
-		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		SnapID:   "core-id",
 		Revision: snap.R(11),
 	})
 }
@@ -8225,7 +8275,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 		c.Assert(snapst.Sequence, HasLen, 1)
 		c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 			RealName: "core",
-			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+			SnapID:   "core-id",
 			Channel:  "stable",
 			Revision: snap.R(11),
 		})
@@ -8236,7 +8286,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 		c.Assert(snapst.Sequence, HasLen, 1)
 		c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 			RealName: "snap2",
-			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+			SnapID:   "snap2-id",
 			Channel:  "some-other-channel",
 			Revision: snap.R(21),
 		})
@@ -8365,7 +8415,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
-		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		SnapID:   "some-snap-id",
 		Channel:  "some-channel",
 		Revision: snap.R(42),
 	})
