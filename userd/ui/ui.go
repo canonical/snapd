@@ -21,7 +21,6 @@ package ui
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -33,19 +32,21 @@ type UI interface {
 	// be printed in a small font.
 	//
 	// The value "true" is returned if the user clicks "yes",
-	// other wise "false".
+	// otherwise "false".
 	YesNo(primary, secondary string, options *Options) bool
 }
 
 type Options struct {
 	Footer  string
-	Timeout time.Duration
+	Timeout int
 }
 
 func New() (UI, error) {
 	switch {
 	case osutil.ExecutableExists("zenity"):
 		return &Zenity{}, nil
+	case osutil.ExecutableExists("kdialog"):
+		return &Kdialog{}, nil
 	default:
 		return nil, fmt.Errorf("cannot create a suitable UI")
 	}
