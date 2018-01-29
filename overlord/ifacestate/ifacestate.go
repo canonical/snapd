@@ -51,7 +51,7 @@ var connectRetryTimeout = time.Second * 5
 
 func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slotSnap string) error {
 	for _, chg := range st.Changes() {
-		if chg.Status().Ready() {
+		if chg.Status().Ready() || (change != nil && change.ID() == chg.ID()) {
 			continue
 		}
 		if chg.Kind() == "transition-ubuntu-core" {
@@ -106,7 +106,7 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 	return nil
 }
 
-// AutoConnect returns a set of tasks for connection an interface as part of snap installation
+// AutoConnect returns a set of tasks for connecting an interface as part of snap installation
 // and auto-connect handling.
 func AutoConnect(st *state.State, change *state.Change, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
 	return connect(st, change, plugSnap, plugName, slotSnap, slotName, true)
