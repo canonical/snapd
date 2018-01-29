@@ -354,8 +354,7 @@ var (
 
 // Check checks whether attrs don't match the constraints.
 func (c *AttributeConstraints) Check(attrer interfaces.Attrer, ctx AttrMatchContext) error {
-	var nm map[string]interface{}
-	return c.matcher.match(attrer, "", nm, ctx)
+	return c.matcher.match(attrer, "", nil, ctx)
 }
 
 // OnClassicConstraint specifies a constraint based whether the system is classic and optional specific distros' sets.
