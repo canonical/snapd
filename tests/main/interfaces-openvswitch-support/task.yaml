@@ -1,0 +1,40 @@
+summary: Ensure that the openvswitch-support interface works.
+
+details: |
+    The openvswitch-support interface allows to access to /run/uuidd/request
+
+environment:
+    CONNECTED_PATTERN: ':openvswitch-support +test-snapd-openvswitch-support'
+    DISCONNECTED_PATTERN: '\- +test-snapd-openvswitch-support:openvswitch-support'
+
+prepare: |
+    snap install test-snapd-openvswitch-support
+
+restore: |
+    rm -f call.error
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    echo "When the interface is connected"
+    snap connect test-snapd-openvswitch-support:openvswitch-support
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    echo "Then the snap is able to get a random uuid"
+    test-snapd-openvswitch-support.random-uuid
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-openvswitch-support:openvswitch-support
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    echo "Then the snap is not able to get a random uuid"
+    if test-snapd-openvswitch-support.random-uuid 2>${PWD}/call.error; then
+        echo "Expected permission error getting random uuid"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
