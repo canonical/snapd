@@ -377,9 +377,9 @@ EOF
             # the passwd from core without root
             tail -n +2 "$UNPACKD/etc/$f" > /mnt/system-data/var/lib/extrausers/$f
             # append this systems root user so that linode can connect
-            head -n1 /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
+            grep "^root:" /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
             # append ubuntu, test user for the testing
-            tail -n2 /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
+            grep "^test:"  /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
 
             # now bind mount those passwd files on boot
             cat <<EOF > /mnt/system-data/etc/systemd/system/etc-$f.mount
