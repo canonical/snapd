@@ -1,4 +1,4 @@
-# ensure @SNAP_MOUNT_DIR@ MS_SHARED so that lxd works correctly (LP: #1668659)
+# Ensure @SNAP_MOUNT_DIR@ is mounted "shared" so lxd works correctly (LP: #1668759).
 [Unit]
 Description=Ensure that the snap directory shares mount events.
 ConditionVirtualization=lxc
