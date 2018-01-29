@@ -151,6 +151,7 @@ func (matcher mapAttrMatcher) feature(flabel string) bool {
 }
 
 func (matcher mapAttrMatcher) match(attrer interfaces.Attrer, apath string, v interface{}, ctx AttrMatchContext) error {
+	// if we're starting at root path then use attrer to obtain top-level values
 	if apath == "" {
 		for k, matcher1 := range matcher {
 			v, _ := attrer.Lookup(k)
