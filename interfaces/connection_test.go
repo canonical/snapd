@@ -202,7 +202,7 @@ func (s *connSuite) TestDottedPath(c *C) {
 	c.Assert(ok, Equals, false)
 
 	// consecutive dots
-	v, ok = plug.Lookup("..")
+	_, ok = plug.Lookup("..")
 	c.Assert(ok, Equals, false)
 }
 
