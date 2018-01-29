@@ -20,8 +20,10 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -90,9 +92,28 @@ func (s SectionName) Complete(match string) []flags.Completion {
 	return ret
 }
 
-func showSections() error {
+func getSections() (sections []string, err error) {
+	if cachedSections, err := os.Open(dirs.SnapSectionsFile); err == nil {
+		// try loading from cached sections file
+		defer cachedSections.Close()
+
+		r := bufio.NewScanner(cachedSections)
+		sections = make([]string, 0, 10)
+		for r.Scan() {
+			sections = append(sections, r.Text())
+		}
+		if r.Err() == nil && len(sections) > 0 {
+			return sections, nil
+		}
+	}
+
+	// fallback to listing from the daemon
 	cli := Client()
-	sections, err := cli.Sections()
+	return cli.Sections()
+}
+
+func showSections() error {
+	sections, err := getSections()
 	if err != nil {
 		return err
 	}
@@ -157,7 +178,7 @@ func (x *cmdFind) Execute(args []string) error {
 	cli := Client()
 
 	if x.Section != "" && x.Section != "featured" {
-		sections, err := cli.Sections()
+		sections, err := getSections()
 		if err != nil {
 			return err
 		}

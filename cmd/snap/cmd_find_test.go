@@ -21,12 +21,16 @@ package main_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os"
+	"path"
 
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/dirs"
 )
 
 const findJSON = `
@@ -476,6 +480,35 @@ func (s *SnapSuite) TestFindSnapNotFoundInSection(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(s.Stderr(), check.Equals, "No matching snaps for \"hello\" in section \"foobar\"\n")
 	c.Check(s.Stdout(), check.Equals, "")
+
+	s.ResetStdStreams()
+}
+
+func (s *SnapSuite) TestFindSnapCachedSection(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatalf("not expecting any requests")
+	})
+
+	os.MkdirAll(path.Dir(dirs.SnapSectionsFile), 0755)
+	ioutil.WriteFile(dirs.SnapSectionsFile, []byte("sec1\nsec2\nsec3"), 0644)
+
+	_, err := snap.Parser().ParseArgs([]string{"find", "--section=foobar", "hello"})
+	c.Logf("stdout: %s", s.Stdout())
+	c.Assert(err, check.ErrorMatches, `No matching section "foobar", use --section to list existing sections`)
+
+	s.ResetStdStreams()
+
+	rest, err := snap.Parser().ParseArgs([]string{"find", "--section"})
+
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+
+	c.Check(s.Stdout(), check.Equals, `No section specified. Available sections:
+ * sec1
+ * sec2
+ * sec3
+Please try: snap find --section=<selected section>
+`)
 
 	s.ResetStdStreams()
 }
