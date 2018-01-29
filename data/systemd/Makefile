@@ -70,5 +70,8 @@ Options=bind,shared
 WantedBy=local-fs.target
 endef
 
+.ONESHELL: $(snap_mount_unit)
 $(snap_mount_unit):
-	$(file >$@,$(snap_mount_unit_text))
+	cat >$@ <<__UNIT__
+	$(snap_mount_unit_text)
+	__UNIT__
