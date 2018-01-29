@@ -593,7 +593,7 @@ popd
 %{_unitdir}/snapd.autoimport.service
 %{_unitdir}/snapd.refresh.service
 %{_unitdir}/snapd.refresh.timer
-%{_unitdir}/snap.mount
+%{_unitdir}/var-lib-snapd-snap.mount
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
