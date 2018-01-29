@@ -31,10 +31,10 @@ snap_mount_unit=$(subst /,-,$(patsubst %/,%,$(patsubst /%,%,$(SNAP_MOUNT_DIR))))
 SYSTEMD_UNITS += $(snap_mount_unit)
 
 .PHONY: all
-all: ${SYSTEMD_UNITS}
+all: $(SYSTEMD_UNITS)
 
 .PHONY: install
-install: $(SYSTEMD_UNITS)
+install: $(filter-out snap.mount,$(SYSTEMD_UNITS)) $(snap_mount_unit)
 	# NOTE: old (e.g. 14.04) GNU coreutils doesn't -D with -t
 	install -d -m 0755 $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR)
 	install -m 0644 -t $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR) $^
@@ -53,25 +53,9 @@ clean:
 		sed s:@SNAP_MOUNT_DIR@:$(SNAP_MOUNT_DIR):g  | \
 		cat > $@
 
-# Text of the snap.mount unit (the actual name depends on SNAP_MOUNT_DIR)
-define snap_mount_unit_text
-# Ensure $(SNAP_MOUNT_DIR) is mounted "shared" so lxd works correctly (LP: #1668759).
-[Unit]
-Description=Ensure that the snap directory shares mount events.
-ConditionVirtualization=container
-
-[Mount]
-What=$(SNAP_MOUNT_DIR)
-Where=$(SNAP_MOUNT_DIR)
-Type=none
-Options=bind,shared
-
-[Install]
-WantedBy=local-fs.target
-endef
-
-.ONESHELL: $(snap_mount_unit)
-$(snap_mount_unit):
-	cat >$@ <<__UNIT__
-	$(snap_mount_unit_text)
-	__UNIT__
+# If SNAP_MOUNT_DIR uses non-default location then just copy the file.
+# This lets us reuse the sed rule above and get the right dependencies.
+ifneq ($(snap_mount_unit),snap.mount)
+$(snap_mount_unit): snap.mount
+	cp $< $@
+endif
