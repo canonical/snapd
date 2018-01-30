@@ -3,15 +3,15 @@ summary: Ensure that the gpio physical memory control interface works.
 details: |
     The gpio-memory-control interface allows read/write access to all gpio memory.
 
+systems: [ubuntu-core-16-arm-*]
+
 environment:
     CONNECTED_PATTERN: ':gpio-memory-control +test-snapd-gpio-memory-control'
     DISCONNECTED_PATTERN: '\- +test-snapd-gpio-memory-control:gpio-memory-control'
 
 prepare: |
-    . $TESTSLIB/snaps.sh
-
     echo "Given the test-snapd-gpio-memory-control snap is installed"
-    install_local test-snapd-gpio-memory-control
+    snap install test-snapd-gpio-memory-control
 
 restore: |
     rm -f call.error
@@ -29,8 +29,17 @@ execute: |
     snap connect test-snapd-gpio-memory-control:gpio-memory-control
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
-    echo "Then the snap is able access to the physical memory"
-    test-snapd-gpio-memory-control.sh -c "dd if=/dev/gpiomem of=/dev/null bs=1024 count=1"
+    mem_address=$(journalctl | grep -E 'gpiomem.*Registers at' | sed 's/^.*at //')
+    if [ -n $mem_address ]; then
+        echo "Memory address not registered"
+        exit 1
+    fimem_address=$(cat /var/log/syslog | grep -m1 'gpiomem.*Registers at' | sed 's/^.*at //')
+
+    echo "Then the snap is able read the physical memory"
+    test-snapd-gpio-memory-control.gpiomem $mem_address w
+
+    echo "Then the snap is able to write the physical memory"
+    test-snapd-gpio-memory-control.gpiomem $mem_address w test
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -41,8 +50,8 @@ execute: |
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to access the gpio physical memory"
-    if test-snapd-gpio-memory-control.sh -c "dd if=/dev/gpiomem of=/dev/null bs=1024 count=1" 2>${PWD}/call.error; then
-        echo "Expected permission error accessing to gpio physical memory with disconnected plug"
+    if test-snapd-gpio-memory-control.gpiomem $mem_address w 2>${PWD}/call.error; then
+        echo "Expected permission error reading the gpio physical memory with disconnected plug"
         exit 1
     fi
     MATCH "Permission denied" < call.error
