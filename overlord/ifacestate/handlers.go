@@ -477,6 +477,49 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// doReconnect creates a set of task for connecting the interface and running its hooks
+func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, err := snapstate.TaskSnapSetup(task)
+	if err != nil {
+		return err
+	}
+
+	connections, err := m.repo.Connections(snapsup.Name())
+
+	connectts := state.NewTaskSet()
+	chg := task.Change()
+	for _, conn := range connections {
+		ts, err := Connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
+		if err != nil {
+			return err
+		}
+		connectts.AddAll(ts)
+	}
+
+	lanes := task.Lanes()
+	if len(lanes) == 1 && lanes[0] == 0 {
+		lanes = nil
+	}
+	ht := task.HaltTasks()
+
+	// add all connect tasks to the change of main "reconnect" task and to the same lane.
+	for _, l := range lanes {
+		connectts.JoinLane(l)
+	}
+	chg.AddAll(connectts)
+	// make all halt tasks of the main 'reconnect' task wait on connect tasks
+	for _, t := range ht {
+		t.WaitAll(connectts)
+	}
+
+	st.EnsureBefore(0)
+	return nil
+}
+
 // transitionConnectionsCoreMigration will transition all connections
 // from oldName to newName. Note that this is only useful when you
 // know that newName supports everything that oldName supports,
