@@ -87,7 +87,7 @@ retry:
 		target, _ := c.Entry.OptStr("x-snapd.symlink")
 		err = secureMklinkAll(path, mode, uid, gid, target)
 	}
-	if err2, _ := err.(*ReadOnlyFsError); err2 != nil && pokeHoles {
+	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
 		// If the writing failed because the underlying filesystem is read-only
 		// we can construct a writable mimic to fix that.
 		changes, err = createWritableMimic(err2.Path)
