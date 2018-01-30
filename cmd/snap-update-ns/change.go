@@ -58,7 +58,7 @@ func (c Change) String() string {
 // changePerform is Change.Perform that can be mocked for testing.
 var changePerform func(*Change) ([]*Change, error)
 
-func (c *Change) createInodes(path, kind string, pokeHoles bool) ([]*Change, error) {
+func (c *Change) createPath(path, kind string, pokeHoles bool) ([]*Change, error) {
 	var err error
 	var changes []*Change
 
@@ -134,7 +134,7 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 			err = fmt.Errorf("cannot create symlink in %q: existing file in the way", path)
 		}
 	} else if os.IsNotExist(err) {
-		changes, err = c.createInodes(path, kind, true)
+		changes, err = c.createPath(path, kind, true)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
@@ -169,7 +169,7 @@ func (c *Change) ensureSource() error {
 			}
 		}
 	} else if os.IsNotExist(err) {
-		_, err = c.createInodes(path, kind, false)
+		_, err = c.createPath(path, kind, false)
 		if err != nil {
 			err = fmt.Errorf("cannot create file/directory %q: %s", path, err)
 		}
