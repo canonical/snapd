@@ -59,12 +59,14 @@ func (c Change) String() string {
 var changePerform func(*Change) ([]*Change, error)
 
 // tryCreate takes one flag argument
-type tryCreateFlag int
+type createFlags int
 
-const createSymlinks tryCreateFlag = 1
-const createMimics tryCreateFlag = 2
+const (
+	createSymlinks createFlags = 1 << iota
+	createMimics
+)
 
-func (c *Change) createComponent(path, kind string, flags tryCreateFlag) ([]*Change, error) {
+func (c *Change) createInodes(path, kind string, flags createFlags) ([]*Change, error) {
 	var err error
 	var changes []*Change
 
@@ -154,7 +156,7 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 			// below, in case things fail.
 			path = filepath.Dir(c.Entry.Dir)
 		}
-		changes, err = c.createComponent(path, kind, createSymlinks|createMimics)
+		changes, err = c.createInodes(path, kind, createSymlinks|createMimics)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
@@ -189,7 +191,7 @@ func (c *Change) ensureSource() error {
 			}
 		}
 	} else if os.IsNotExist(err) {
-		_, err = c.createComponent(path, kind, 0)
+		_, err = c.createInodes(path, kind, 0)
 		if err != nil {
 			err = fmt.Errorf("cannot create file/directory %q: %s", path, err)
 		}
