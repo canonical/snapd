@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@ package ui
 
 import (
 	"fmt"
+	"html"
 	"os/exec"
 	"time"
 )
@@ -32,9 +33,9 @@ func (*Kdialog) YesNo(primary, secondary string, options *Options) bool {
 		options = &Options{}
 	}
 
-	txt := fmt.Sprintf(`<p><big><b>%s</b></big></p><p>%s</p>`, primary, secondary)
+	txt := fmt.Sprintf(`<p><big><b>%s</b></big></p><p>%s</p>`, html.EscapeString(primary), html.EscapeString(secondary))
 	if options.Footer != "" {
-		txt += fmt.Sprintf(`<p><small>%s</small></p>`, options.Footer)
+		txt += fmt.Sprintf(`<p><small>%s</small></p>`, html.EscapeString(options.Footer))
 	}
 	cmd := exec.Command("kdialog", "--yesno="+txt)
 	if err := cmd.Start(); err != nil {
