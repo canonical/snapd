@@ -85,7 +85,11 @@ func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
 		err = secureMkfileAll(path, mode, uid, gid)
 	case "symlink":
 		target, _ := c.Entry.OptStr("x-snapd.symlink")
-		err = secureMklinkAll(path, mode, uid, gid, target)
+		if target == "" {
+			err = fmt.Errorf("cannot create symlink with empty target")
+		} else {
+			err = secureMklinkAll(path, mode, uid, gid, target)
+		}
 	}
 	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
 		// If the writing failed because the underlying filesystem is read-only
