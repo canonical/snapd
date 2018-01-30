@@ -22,7 +22,7 @@ package patch
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/state"
 )
 

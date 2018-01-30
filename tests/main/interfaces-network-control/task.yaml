@@ -23,7 +23,7 @@ prepare: |
     . "$TESTSLIB/systemd.sh"
 
     echo "Given a snap declaring a plug on the network-control interface is installed"
-    snapbuild $TESTSLIB/snaps/network-control-consumer .
+    snap pack $TESTSLIB/snaps/network-control-consumer
     snap install --dangerous network-control-consumer_1.0_all.snap
 
     echo "And a network service is up"

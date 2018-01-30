@@ -30,14 +30,15 @@ import (
 
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
 type cmdSuite struct {
 	restoreExec   func()
+	restoreLogger func()
 	execCalled    int
 	lastExecArgv0 string
 	lastExecArgv  []string
@@ -51,19 +52,21 @@ var _ = Suite(&cmdSuite{})
 
 func (s *cmdSuite) SetUpTest(c *C) {
 	s.restoreExec = cmd.MockSyscallExec(s.syscallExec)
+	_, s.restoreLogger = logger.MockLogger()
 	s.execCalled = 0
 	s.lastExecArgv0 = ""
 	s.lastExecArgv = nil
 	s.lastExecEnvv = nil
 	s.fakeroot = c.MkDir()
 	dirs.SetRootDir(s.fakeroot)
-	s.newCore = filepath.Join(s.fakeroot, "/snap/core/42")
-	s.oldCore = filepath.Join(s.fakeroot, "/snap/ubuntu-core/21")
+	s.newCore = filepath.Join(dirs.SnapMountDir, "/core/42")
+	s.oldCore = filepath.Join(dirs.SnapMountDir, "/ubuntu-core/21")
 	c.Assert(os.MkdirAll(filepath.Join(s.fakeroot, "proc/self"), 0755), IsNil)
 }
 
 func (s *cmdSuite) TearDownTest(c *C) {
 	s.restoreExec()
+	s.restoreLogger()
 }
 
 func (s *cmdSuite) syscallExec(argv0 string, argv []string, envv []string) (err error) {
@@ -145,7 +148,7 @@ func (s *cmdSuite) TestNonClassicDistroNoSupportsReExec(c *C) {
 	// no distro supports re-exec when not on classic :-)
 	for _, id := range []string{
 		"fedora", "centos", "rhel", "opensuse", "suse", "poky",
-		"debian", "ubuntu",
+		"debian", "ubuntu", "arch",
 	} {
 		restore = release.MockReleaseInfo(&release.OS{ID: id})
 		defer restore()
@@ -232,7 +235,6 @@ func (s *cmdSuite) TestExecInCoreSnap(c *C) {
 	c.Check(s.execCalled, Equals, 1)
 	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.newCore, "/usr/lib/snapd/potato"))
 	c.Check(s.lastExecArgv, DeepEquals, os.Args)
-	c.Check(s.lastExecEnvv, testutil.Contains, "SNAP_DID_REEXEC=1")
 }
 
 func (s *cmdSuite) TestExecInOldCoreSnap(c *C) {
@@ -242,7 +244,6 @@ func (s *cmdSuite) TestExecInOldCoreSnap(c *C) {
 	c.Check(s.execCalled, Equals, 1)
 	c.Check(s.lastExecArgv0, Equals, filepath.Join(s.oldCore, "/usr/lib/snapd/potato"))
 	c.Check(s.lastExecArgv, DeepEquals, os.Args)
-	c.Check(s.lastExecEnvv, testutil.Contains, "SNAP_DID_REEXEC=1")
 }
 
 func (s *cmdSuite) TestExecInCoreSnapBailsNoCoreSupport(c *C) {
@@ -289,6 +290,7 @@ func (s *cmdSuite) TestExecInCoreSnapNoDouble(c *C) {
 	selfExe := filepath.Join(s.fakeroot, "proc/self/exe")
 	err := os.Symlink(filepath.Join(s.fakeroot, "/snap/core/42/usr/lib/snapd"), selfExe)
 	c.Assert(err, IsNil)
+	cmd.MockSelfExe(selfExe)
 
 	cmd.ExecInCoreSnap()
 	c.Check(s.execCalled, Equals, 0)

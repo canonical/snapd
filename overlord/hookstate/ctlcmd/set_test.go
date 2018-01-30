@@ -20,7 +20,7 @@
 package ctlcmd_test
 
 import (
-	"reflect"
+	"encoding/json"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -114,6 +114,27 @@ func (s *setSuite) TestSetConfigOptionWithColon(c *C) {
 	tr := config.NewTransaction(s.mockContext.State())
 	c.Check(tr.Get("test-snap", "device-service.url", &value), IsNil)
 	c.Check(value, Equals, "192.168.0.1:5555")
+}
+
+func (s *setSuite) TestSetNumbers(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=1234567890", "bar=123456.7890"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify that the global config has been updated.
+	var value interface{}
+	tr := config.NewTransaction(s.mockContext.State())
+	c.Check(tr.Get("test-snap", "foo", &value), IsNil)
+	c.Check(value, Equals, json.Number("1234567890"))
+
+	c.Check(tr.Get("test-snap", "bar", &value), IsNil)
+	c.Check(value, Equals, json.Number("123456.7890"))
 }
 
 func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
@@ -257,36 +278,4 @@ func (s *setAttrSuite) TestSetCommandFailsOutsideOfValidContext(c *C) {
 	c.Check(err.Error(), Equals, `interface attributes can only be set during the execution of prepare hooks`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
-}
-
-func (s *setAttrSuite) TestCopyAttributes(c *C) {
-	orig := map[string]interface{}{
-		"a": "A",
-		"b": true,
-		"c": int(100),
-		"d": []interface{}{"x", "y", true},
-		"e": map[string]interface{}{
-			"e1": "E1",
-		},
-	}
-
-	cpy, err := ctlcmd.CopyAttributes(orig)
-	c.Assert(err, IsNil)
-	// verify that int is converted into int64
-	c.Check(reflect.TypeOf(cpy["c"]).Kind(), Equals, reflect.Int64)
-	c.Check(reflect.TypeOf(orig["c"]).Kind(), Equals, reflect.Int)
-	// change the type of orig's value to int64 to make DeepEquals happy in the test
-	orig["c"] = int64(100)
-	c.Check(cpy, DeepEquals, orig)
-
-	cpy["d"].([]interface{})[0] = 999
-	c.Check(orig["d"].([]interface{})[0], Equals, "x")
-	cpy["e"].(map[string]interface{})["e1"] = "x"
-	c.Check(orig["e"].(map[string]interface{})["e1"], Equals, "E1")
-
-	type unsupported struct{}
-	var x unsupported
-	_, err = ctlcmd.CopyAttributes(map[string]interface{}{"x": x})
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, "unsupported attribute type 'ctlcmd_test.unsupported', value '{}'")
 }

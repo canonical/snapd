@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,11 +20,15 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -50,6 +54,8 @@ type cmdRun struct {
 	Hook     string `long:"hook" hidden:"yes"`
 	Revision string `short:"r" default:"unset" hidden:"yes"`
 	Shell    bool   `long:"shell" `
+	// FIXME: provide a way to pass options to strace
+	Strace bool `long:"strace"`
 }
 
 func init() {
@@ -63,6 +69,7 @@ func init() {
 			"hook":    i18n.G("Hook to run"),
 			"r":       i18n.G("Use a specific snap revision when running hook"),
 			"shell":   i18n.G("Run a shell instead of the command (useful for debugging)"),
+			"strace":  i18n.G("Run the command under strace (useful for debugging"),
 		}, nil)
 }
 
@@ -91,11 +98,72 @@ func (x *cmdRun) Execute(args []string) error {
 	}
 
 	// pass shell as a special command to snap-exec
-	if x.Shell {
+	switch {
+	case x.Shell:
 		x.Command = "shell"
+	case x.Strace:
+		x.Command = "strace"
+	}
+
+	if x.Command == "complete" {
+		snapApp, args = antialias(snapApp, args)
 	}
 
 	return snapRunApp(snapApp, x.Command, args)
+}
+
+// antialias changes snapApp and args if snapApp is actually an alias
+// for something else. If not, or if the args aren't what's expected
+// for completion, it returns them unchanged.
+func antialias(snapApp string, args []string) (string, []string) {
+	if len(args) < 7 {
+		// NOTE if len(args) < 7, Something is Wrong (at least WRT complete.sh and etelpmoc.sh)
+		return snapApp, args
+	}
+
+	actualApp, err := resolveApp(snapApp)
+	if err != nil || actualApp == snapApp {
+		// no alias! woop.
+		return snapApp, args
+	}
+
+	compPoint, err := strconv.Atoi(args[2])
+	if err != nil {
+		// args[2] is not COMP_POINT
+		return snapApp, args
+	}
+
+	if compPoint <= len(snapApp) {
+		// COMP_POINT is inside $0
+		return snapApp, args
+	}
+
+	if compPoint > len(args[5]) {
+		// COMP_POINT is bigger than $#
+		return snapApp, args
+	}
+
+	if args[6] != snapApp {
+		// args[6] is not COMP_WORDS[0]
+		return snapApp, args
+	}
+
+	// it _should_ be COMP_LINE followed by one of
+	// COMP_WORDBREAKS, but that's hard to do
+	re, err := regexp.Compile(`^` + regexp.QuoteMeta(snapApp) + `\b`)
+	if err != nil || !re.MatchString(args[5]) {
+		// (weird regexp error, or) args[5] is not COMP_LINE
+		return snapApp, args
+	}
+
+	argsOut := make([]string, len(args))
+	copy(argsOut, args)
+
+	argsOut[2] = strconv.Itoa(compPoint - len(snapApp) + len(actualApp))
+	argsOut[5] = re.ReplaceAllLiteralString(args[5], actualApp)
+	argsOut[6] = actualApp
+
+	return actualApp, argsOut
 }
 
 func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
@@ -363,6 +431,114 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	return targetPath, nil
 }
 
+func straceCmd() ([]string, error) {
+	current, err := user.Current()
+	if err != nil {
+		return nil, err
+	}
+	sudoPath, err := exec.LookPath("sudo")
+	if err != nil {
+		return nil, fmt.Errorf("cannot use strace without sudo: %s", err)
+	}
+
+	// try strace from the snap first, we use new syscalls like
+	// "_newselect" that are known to not work with the strace of e.g.
+	// ubuntu 14.04
+	var stracePath string
+	cand := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
+	if osutil.FileExists(cand) {
+		stracePath = cand
+	}
+	if stracePath == "" {
+		stracePath, err = exec.LookPath("strace")
+		if err != nil {
+			return nil, fmt.Errorf("cannot find an installed strace, please try: `snap install strace-static`")
+		}
+	}
+
+	return []string{
+		sudoPath, "-E",
+		stracePath,
+		"-u", current.Username,
+		"-f",
+		"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid",
+	}, nil
+}
+
+func runCmdUnderStrace(origCmd, env []string) error {
+	// prepend strace magic
+	cmd, err := straceCmd()
+	if err != nil {
+		return err
+	}
+	cmd = append(cmd, origCmd...)
+
+	// run with filter
+	gcmd := exec.Command(cmd[0], cmd[1:]...)
+	gcmd.Env = env
+	gcmd.Stdin = Stdin
+	gcmd.Stdout = Stdout
+	stderr, err := gcmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+	filterDone := make(chan bool, 1)
+	go func() {
+		defer func() { filterDone <- true }()
+
+		r := bufio.NewReader(stderr)
+
+		// the first thing from strace if things work is
+		// "exeve" - show everything until we see this to
+		// not swallow real strace errors
+		for {
+			s, err := r.ReadString('\n')
+			if err != nil {
+				break
+			}
+			if strings.Contains(s, "execve(") {
+				break
+			}
+			fmt.Fprint(Stderr, s)
+		}
+
+		// The last thing that snap-exec does is to
+		// execve() something inside the snap dir so
+		// we know that from that point on the output
+		// will be interessting to the user.
+		//
+		// We need check both /snap (which is where snaps
+		// are located inside the mount namespace) and the
+		// distro snap mount dir (which is different on e.g.
+		// fedora/arch) to fully work with classic snaps.
+		needle1 := fmt.Sprintf(`execve("%s`, dirs.SnapMountDir)
+		needle2 := `execve("/snap`
+		for {
+			s, err := r.ReadString('\n')
+			if err != nil {
+				if err != io.EOF {
+					fmt.Fprintf(Stderr, "cannot read strace output: %s\n", err)
+				}
+				break
+			}
+			// ensure we catch the execve but *not* the
+			// exec into
+			// /snap/core/current/usr/lib/snapd/snap-confine
+			if (strings.Contains(s, needle1) || strings.Contains(s, needle2)) && !strings.Contains(s, "usr/lib/snapd/snap-confine") {
+				fmt.Fprint(Stderr, s)
+				break
+			}
+		}
+		io.Copy(Stderr, r)
+	}()
+	if err := gcmd.Start(); err != nil {
+		return err
+	}
+	<-filterDone
+	err = gcmd.Wait()
+	return err
+}
+
 func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
 	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
 	// if we re-exec, we must run the snap-confine from the core snap
@@ -391,12 +567,40 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 		logger.Noticef("WARNING: cannot copy user Xauthority file: %s", err)
 	}
 
-	cmd := []string{snapConfine}
+	var cmd []string
+
+	var useStrace bool
+	if command == "strace" {
+		command = ""
+		useStrace = true
+	}
+	cmd = append(cmd, snapConfine)
+
 	if info.NeedsClassic() {
 		cmd = append(cmd, "--classic")
 	}
+	if info.Base != "" {
+		cmd = append(cmd, "--base", info.Base)
+	}
 	cmd = append(cmd, securityTag)
-	cmd = append(cmd, filepath.Join(dirs.CoreLibExecDir, "snap-exec"))
+
+	// when under confinement, snap-exec is run from 'core' snap rootfs
+	snapExecPath := filepath.Join(dirs.CoreLibExecDir, "snap-exec")
+
+	if info.NeedsClassic() {
+		// running with classic confinement, carefully pick snap-exec we
+		// are going to use
+		if isReexeced() {
+			// same rule as when choosing the location of snap-confine
+			snapExecPath = filepath.Join(dirs.SnapMountDir, "core/current",
+				dirs.CoreLibExecDir, "snap-exec")
+		} else {
+			// there is no mount namespace where 'core' is the
+			// rootfs, hence we need to use distro's snap-exec
+			snapExecPath = filepath.Join(dirs.DistroLibExecDir, "snap-exec")
+		}
+	}
+	cmd = append(cmd, snapExecPath)
 
 	if command != "" {
 		cmd = append(cmd, "--command="+command)
@@ -416,5 +620,9 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	}
 	env := snapenv.ExecEnv(info, extraEnv)
 
-	return syscallExec(cmd[0], cmd, env)
+	if useStrace {
+		return runCmdUnderStrace(cmd, env)
+	} else {
+		return syscallExec(cmd[0], cmd, env)
+	}
 }

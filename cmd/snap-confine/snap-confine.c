@@ -18,13 +18,16 @@
 #include "config.h"
 #endif
 
+#include <errno.h>
+#include <glob.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
+#include "../libsnap-confine-private/cgroup-freezer-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/locking.h"
@@ -46,7 +49,7 @@
 // sc_maybe_fixup_permissions fixes incorrect permissions
 // inside the mount namespace for /var/lib. Before 1ccce4
 // this directory was created with permissions 1777.
-void sc_maybe_fixup_permissions()
+static void sc_maybe_fixup_permissions(void)
 {
 	struct stat buf;
 	if (stat("/var/lib", &buf) != 0) {
@@ -62,11 +65,39 @@ void sc_maybe_fixup_permissions()
 	}
 }
 
+// sc_maybe_fixup_udev will remove incorrectly created udev tags
+// that cause libudev on 16.04 to fail with "udev_enumerate_scan failed".
+// See also:
+// https://forum.snapcraft.io/t/weird-udev-enumerate-error/2360/17
+static void sc_maybe_fixup_udev(void)
+{
+	glob_t glob_res SC_CLEANUP(globfree) = {
+	.gl_pathv = NULL,.gl_pathc = 0,.gl_offs = 0,};
+	const char *glob_pattern = "/run/udev/tags/snap_*/*nvidia*";
+	int err = glob(glob_pattern, 0, NULL, &glob_res);
+	if (err == GLOB_NOMATCH) {
+		return;
+	}
+	if (err != 0) {
+		die("cannot search using glob pattern %s: %d",
+		    glob_pattern, err);
+	}
+	// kill bogus udev tags for nvidia. They confuse udev, this
+	// undoes the damage from github.com/snapcore/snapd/pull/3671.
+	//
+	// The udev tagging of nvidia got reverted in:
+	// https://github.com/snapcore/snapd/pull/4022
+	// but leftover files need to get removed or apps won't start
+	for (size_t i = 0; i < glob_res.gl_pathc; ++i) {
+		unlink(glob_res.gl_pathv[i]);
+	}
+}
+
 int main(int argc, char **argv)
 {
 	// Use our super-defensive parser to figure out what we've been asked to do.
 	struct sc_error *err = NULL;
-	struct sc_args *args __attribute__ ((cleanup(sc_cleanup_args))) = NULL;
+	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
 	args = sc_nonfatal_parse_args(&argc, &argv, &err);
 	sc_die_on_error(err);
 
@@ -101,9 +132,23 @@ int main(int argc, char **argv)
 	debug("base snap:    %s", base_snap_name);
 
 	// Who are we?
-	uid_t real_uid = getuid();
-	gid_t real_gid = getgid();
+	uid_t real_uid, effective_uid, saved_uid;
+	gid_t real_gid, effective_gid, saved_gid;
+	getresuid(&real_uid, &effective_uid, &saved_uid);
+	getresgid(&real_gid, &effective_gid, &saved_gid);
+	debug("ruid: %d, euid: %d, suid: %d",
+	      real_uid, effective_uid, saved_uid);
+	debug("rgid: %d, egid: %d, sgid: %d",
+	      real_gid, effective_gid, saved_gid);
 
+	// snap-confine runs as both setuid root and setgid root.
+	// Temporarily drop group privileges here and reraise later
+	// as needed.
+	if (effective_gid == 0 && real_gid != 0) {
+		if (setegid(real_gid) != 0) {
+			die("cannot set effective group id to %d", real_gid);
+		}
+	}
 #ifndef CAPS_OVER_SETUID
 	// this code always needs to run as root for the cgroup/udev setup,
 	// however for the tests we allow it to run as non-root
@@ -112,11 +157,10 @@ int main(int argc, char **argv)
 	}
 #endif
 
-	char *snap_context __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *snap_context SC_CLEANUP(sc_cleanup_string) = NULL;
 	// Do no get snap context value if running a hook (we don't want to overwrite hook's SNAP_COOKIE)
 	if (!sc_is_hook_security_tag(security_tag)) {
-		struct sc_error *err
-		    __attribute__ ((cleanup(sc_cleanup_error))) = NULL;
+		struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 		snap_context = sc_cookie_get_from_snapd(snap_name, &err);
 		if (err != NULL) {
 			error("%s\n", sc_error_msg(err));
@@ -179,7 +223,19 @@ int main(int argc, char **argv)
 			debug("initializing mount namespace: %s", snap_name);
 			struct sc_ns_group *group = NULL;
 			group = sc_open_ns_group(snap_name, 0);
-			sc_create_or_join_ns_group(group, &apparmor);
+			if (sc_create_or_join_ns_group(group, &apparmor,
+						       base_snap_name,
+						       snap_name) == EAGAIN) {
+				// If the namespace was stale and was discarded we just need to
+				// try again. Since this is done with the per-snap lock held
+				// there are no races here.
+				if (sc_create_or_join_ns_group(group, &apparmor,
+							       base_snap_name,
+							       snap_name) ==
+				    EAGAIN) {
+					die("unexpectedly the namespace needs to be discarded again");
+				}
+			}
 			if (sc_should_populate_ns_group(group)) {
 				sc_populate_mount_ns(base_snap_name, snap_name);
 				sc_preserve_populated_ns_group(group);
@@ -190,6 +246,27 @@ int main(int argc, char **argv)
 			// for systems that had their NS created with an
 			// old version
 			sc_maybe_fixup_permissions();
+			sc_maybe_fixup_udev();
+
+			// Associate each snap process with a dedicated snap freezer
+			// control group. This simplifies testing if any processes
+			// belonging to a given snap are still alive.
+			// See the documentation of the function for details.
+
+			if (getegid() != 0 && saved_gid == 0) {
+				// Temporarily raise egid so we can chown the freezer cgroup
+				// under LXD.
+				if (setegid(0) != 0) {
+					die("cannot set effective group id to root");
+				}
+			}
+			sc_cgroup_freezer_join(snap_name, getpid());
+			if (geteuid() == 0 && real_gid != 0) {
+				if (setegid(real_gid) != 0) {
+					die("cannot set effective group id to %d", real_gid);
+				}
+			}
+
 			sc_unlock(snap_name, snap_lock_fd);
 
 			// Reset path as we cannot rely on the path from the host OS to

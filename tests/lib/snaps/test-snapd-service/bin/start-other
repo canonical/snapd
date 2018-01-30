@@ -1,0 +1,6 @@
+#!/bin/sh
+snapctl get service-option > "$SNAP_DATA/service-option"
+while true; do
+    echo "running"
+    sleep 10
+done

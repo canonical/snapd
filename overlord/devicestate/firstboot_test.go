@@ -40,9 +40,12 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -97,9 +100,7 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	s.brandPrivKey, _ = assertstest.GenerateKey(752)
@@ -108,6 +109,10 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
 	s.overlord = ovld
+
+	// don't actually try to talk to the store on snapstate.Ensure
+	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
+	snapstate.CanAutoRefresh = nil
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
@@ -277,7 +282,7 @@ type: gadget`
 	return coreFname, kernelFname, gadgetFname
 }
 
-func (s *FirstBootTestSuite) makeBecomeOpertionalChange(c *C) *state.Change {
+func (s *FirstBootTestSuite) makeBecomeOperationalChange(c *C, st *state.State) *state.Change {
 	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, false)
 
 	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
@@ -337,7 +342,6 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
@@ -363,11 +367,6 @@ snaps:
 	chg1 := st.NewChange("become-operational", "init device")
 	chg1.SetStatus(state.DoingStatus)
 
-	st.Unlock()
-	s.overlord.Settle()
-	st.Lock()
-	// unlocked by defer
-
 	return chg
 }
 
@@ -380,8 +379,11 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 		"snap_kernel": "pc-kernel_1.snap",
 	})
 
-	chg := s.makeBecomeOpertionalChange(c)
 	st := s.overlord.State()
+	chg := s.makeBecomeOperationalChange(c, st)
+	err := s.overlord.Settle(settleTimeout)
+	c.Assert(err, IsNil)
+
 	st.Lock()
 	defer st.Unlock()
 
@@ -443,11 +445,39 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
-	chg := s.makeBecomeOpertionalChange(c)
-	st := s.overlord.State()
+	st0 := s.overlord.State()
+	st0.Lock()
+	db := assertstate.DB(st0)
+	st0.Unlock()
+
+	// we run only with the relevant managers to produce the error
+	// situation
+	o := overlord.Mock()
+	st := o.State()
+	snapmgr, err := snapstate.Manager(st)
+	c.Assert(err, IsNil)
+	o.AddManager(snapmgr)
+
+	ifacemgr, err := ifacestate.Manager(st, nil, nil, nil)
+	c.Assert(err, IsNil)
+	o.AddManager(ifacemgr)
+	st.Lock()
+	assertstate.ReplaceDB(st, db.(*asserts.Database))
+	st.Unlock()
+
+	chg := s.makeBecomeOperationalChange(c, st)
+
+	// we cannot use Settle because the Change will not become Clean
+	// under the subset of managers
+	for i := 0; i < 25 && !chg.IsReady(); i++ {
+		snapmgr.Ensure()
+		ifacemgr.Ensure()
+		snapmgr.Wait()
+		ifacemgr.Wait()
+	}
+
 	st.Lock()
 	defer st.Unlock()
-
 	c.Assert(chg.Err(), ErrorMatches, `(?s).* cannot determine bootloader.*`)
 }
 
@@ -536,9 +566,10 @@ snaps:
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	s.overlord.Settle()
+	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(chg.Err(), IsNil)
+	c.Assert(err, IsNil)
 
 	// and check the snap got correctly installed
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
@@ -714,14 +745,22 @@ snaps:
 	rhk := hookstate.MockRunHook(hookInvoke)
 	defer rhk()
 
+	// ensure we have something that captures the core config
+	restore := configstate.MockConfigcoreRun(func(configcore.Conf) error {
+		configured = append(configured, "configcore")
+		return nil
+	})
+	defer restore()
+
 	// avoid device reg
 	chg1 := st.NewChange("become-operational", "init device")
 	chg1.SetStatus(state.DoingStatus)
 
 	st.Unlock()
-	s.overlord.Settle()
+	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(chg.Err(), IsNil)
+	c.Assert(err, IsNil)
 
 	// and check the snap got correctly installed
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
@@ -770,7 +809,7 @@ snaps:
 	c.Assert(err, IsNil)
 	c.Check(val, Equals, "foo.")
 
-	c.Check(configured, DeepEquals, []string{"core", "pc-kernel", "pc", "foo"})
+	c.Check(configured, DeepEquals, []string{"configcore", "pc-kernel", "pc", "foo"})
 
 	// and ensure state is now considered seeded
 	var seeded bool
@@ -883,7 +922,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
 	// try import and verify that its rejects because other assertions are
 	// missing
 	_, err := devicestate.ImportAssertionsFromSeed(st)
-	c.Assert(err, ErrorMatches, "cannot find account-key .*: assertion not found")
+	c.Assert(err, ErrorMatches, "cannot find account-key .*")
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {

@@ -66,8 +66,7 @@ func distroSupportsReExec() bool {
 	if !release.OnClassic {
 		return false
 	}
-	switch release.ReleaseInfo.ID {
-	case "fedora", "centos", "rhel", "opensuse", "suse", "poky":
+	if !release.DistroLike("debian", "ubuntu") {
 		logger.Debugf("re-exec not supported on distro %q yet", release.ReleaseInfo.ID)
 		return false
 	}
@@ -131,7 +130,7 @@ func InternalToolPath(tool string) string {
 	}
 
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
-		logger.Noticef("exe doesn't have snap mount dir prefix: %q vs %q", exe, dirs.SnapMountDir)
+		logger.Debugf("exe doesn't have snap mount dir prefix: %q vs %q", exe, dirs.SnapMountDir)
 		return distroTool
 	}
 
@@ -140,7 +139,8 @@ func InternalToolPath(tool string) string {
 	return filepath.Join(filepath.Dir(exe), tool)
 }
 
-// mustUnsetenv will os.Unsetenv the for or panic if it cannot do that
+// mustUnsetenv will unset the given environment key or panic if it
+// cannot do that
 func mustUnsetenv(key string) {
 	if err := os.Unsetenv(key); err != nil {
 		log.Panicf("cannot unset %s: %s", key, err)
@@ -201,7 +201,5 @@ func ExecInCoreSnap() {
 	}
 
 	logger.Debugf("restarting into %q", full)
-	// we keep this for e.g. the errtracker
-	env := append(os.Environ(), "SNAP_DID_REEXEC=1")
-	panic(syscallExec(full, os.Args, env))
+	panic(syscallExec(full, os.Args, os.Environ()))
 }

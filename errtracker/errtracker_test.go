@@ -36,6 +36,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
@@ -48,7 +49,11 @@ func Test(t *testing.T) { TestingT(t) }
 type ErrtrackerTestSuite struct {
 	testutil.BaseTest
 
-	snapConfineProfile string
+	tmpdir string
+
+	hostBuildID   string
+	coreBuildID   string
+	distroRelease string
 }
 
 var _ = Suite(&ErrtrackerTestSuite{})
@@ -59,35 +64,47 @@ var falsePath = osutil.LookPathDefault("false", "/bin/false")
 func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
-	d := c.MkDir()
-	p := filepath.Join(d, "machine-id")
+	s.tmpdir = c.MkDir()
+	dirs.SetRootDir(s.tmpdir)
+
+	p := filepath.Join(s.tmpdir, "machine-id")
 	err := ioutil.WriteFile(p, []byte("bbb1a6a5bcdb418380056a2d759c3f7c"), 0644)
 	c.Assert(err, IsNil)
 	s.AddCleanup(errtracker.MockMachineIDPaths([]string{p}))
 	s.AddCleanup(errtracker.MockHostSnapd(truePath))
 	s.AddCleanup(errtracker.MockCoreSnapd(falsePath))
-	s.AddCleanup(errtracker.MockReExec(true))
+	s.AddCleanup(errtracker.MockReExec(func() string {
+		return "yes"
+	}))
+	mockDetectVirt := testutil.MockCommand(c, "systemd-detect-virt", "echo none")
+	s.AddCleanup(mockDetectVirt.Restore)
 
-	p = filepath.Join(d, "usr.lib.snapd.snap-confine")
-	err = ioutil.WriteFile(p, []byte("# fake profile of snap-confine"), 0644)
+	s.hostBuildID, err = osutil.ReadBuildID(truePath)
 	c.Assert(err, IsNil)
-	s.AddCleanup(errtracker.MockSnapConfineApparmorProfile(p))
-	s.snapConfineProfile = p
+	s.coreBuildID, err = osutil.ReadBuildID(falsePath)
+	c.Assert(err, IsNil)
+	if release.ReleaseInfo.ID == "ubuntu" {
+		s.distroRelease = fmt.Sprintf("%s %s", strings.Title(release.ReleaseInfo.ID), release.ReleaseInfo.VersionID)
+	} else {
+		s.distroRelease = fmt.Sprintf("%s %s", release.ReleaseInfo.ID, release.ReleaseInfo.VersionID)
+	}
 }
 
 func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	n := 0
 	identifier := ""
-	hostBuildID, err := osutil.ReadBuildID(truePath)
+
+	snapConfineProfile := filepath.Join(s.tmpdir, "/etc/apparmor.d/usr.lib.snapd.snap-confine")
+	err := os.MkdirAll(filepath.Dir(snapConfineProfile), 0755)
 	c.Assert(err, IsNil)
-	coreBuildID, err := osutil.ReadBuildID(falsePath)
+	err = ioutil.WriteFile(snapConfineProfile, []byte("# fake profile of snap-confine"), 0644)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(s.snapConfineProfile+".dpkg-new", []byte{0}, 0644)
+	err = ioutil.WriteFile(snapConfineProfile+".dpkg-new", []byte{0}, 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(s.snapConfineProfile+".real", []byte{0}, 0644)
+	err = ioutil.WriteFile(snapConfineProfile+".real", []byte{0}, 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(s.snapConfineProfile+".real.dpkg-new", []byte{0}, 0644)
+	err = ioutil.WriteFile(snapConfineProfile+".real.dpkg-new", []byte{0}, 0644)
 	c.Assert(err, IsNil)
 
 	prev := errtracker.SnapdVersion
@@ -106,32 +123,27 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 			var data map[string]string
 			err = bson.Unmarshal(b, &data)
 			c.Assert(err, IsNil)
-			var distroRelease string
-			if release.ReleaseInfo.ID == "ubuntu" {
-				distroRelease = fmt.Sprintf("%s %s", strings.Title(release.ReleaseInfo.ID), release.ReleaseInfo.VersionID)
-			} else {
-				distroRelease = fmt.Sprintf("%s %s", release.ReleaseInfo.ID, release.ReleaseInfo.VersionID)
-			}
 			c.Check(data, DeepEquals, map[string]string{
-				"ProblemType":        "Snap",
-				"DistroRelease":      distroRelease,
-				"HostSnapdBuildID":   hostBuildID,
-				"CoreSnapdBuildID":   coreBuildID,
+				"DistroRelease":      s.distroRelease,
+				"HostSnapdBuildID":   s.hostBuildID,
+				"CoreSnapdBuildID":   s.coreBuildID,
 				"SnapdVersion":       "some-snapd-version",
-				"Snap":               "some-snap",
 				"Date":               "Fri Feb 17 09:51:00 2017",
-				"Channel":            "beta",
 				"KernelVersion":      release.KernelVersion(),
 				"ErrorMessage":       "failed to do stuff",
 				"DuplicateSignature": "[failed to do stuff]",
 				"Architecture":       arch.UbuntuArchitecture(),
+				"DidSnapdReExec":     "yes",
+
+				"ProblemType":  "Snap",
+				"Snap":         "some-snap",
+				"Channel":      "beta",
+				"DetectedVirt": "none",
 
 				"MD5SumSnapConfineAppArmorProfile":            "7a7aa5f21063170c1991b84eb8d86de1",
 				"MD5SumSnapConfineAppArmorProfileDpkgNew":     "93b885adfe0da089cdf634904fd59f71",
 				"MD5SumSnapConfineAppArmorProfileReal":        "93b885adfe0da089cdf634904fd59f71",
 				"MD5SumSnapConfineAppArmorProfileRealDpkgNew": "93b885adfe0da089cdf634904fd59f71",
-
-				"DidSnapdReExec": "yes",
 			})
 			fmt.Fprintf(w, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
 		case 1:
@@ -221,4 +233,61 @@ func (s *ErrtrackerTestSuite) TestTriesAllKnownMachineIDs(c *C) {
 	c.Check(err, IsNil)
 	c.Check(n, Equals, 1)
 	c.Check(identifiers, DeepEquals, []string{fmt.Sprintf("/%x", sha512.Sum512(machineID))})
+}
+
+func (s *ErrtrackerTestSuite) TestReportRepair(c *C) {
+	n := 0
+	prev := errtracker.SnapdVersion
+	defer func() { errtracker.SnapdVersion = prev }()
+	errtracker.SnapdVersion = "some-snapd-version"
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Matches, "/[a-z0-9]+")
+			b, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+
+			var data map[string]string
+			err = bson.Unmarshal(b, &data)
+			c.Assert(err, IsNil)
+			c.Check(data, DeepEquals, map[string]string{
+				"DistroRelease":    s.distroRelease,
+				"HostSnapdBuildID": s.hostBuildID,
+				"CoreSnapdBuildID": s.coreBuildID,
+				"SnapdVersion":     "some-snapd-version",
+				"Date":             "Fri Feb 17 09:51:00 2017",
+				"KernelVersion":    release.KernelVersion(),
+				"Architecture":     arch.UbuntuArchitecture(),
+				"DidSnapdReExec":   "yes",
+
+				"ProblemType":        "Repair",
+				"Repair":             `"repair (1; brand-id:canonical)"`,
+				"ErrorMessage":       "failure in script",
+				"DuplicateSignature": "[dupSig]",
+				"BrandID":            "canonical",
+				"DetectedVirt":       "none",
+			})
+			fmt.Fprintf(w, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
+		default:
+			c.Fatalf("expected one request, got %d", n+1)
+		}
+
+		n++
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+	restorer := errtracker.MockCrashDbURL(server.URL)
+	defer restorer()
+	restorer = errtracker.MockTimeNow(func() time.Time { return time.Date(2017, 2, 17, 9, 51, 0, 0, time.UTC) })
+	defer restorer()
+
+	id, err := errtracker.ReportRepair(`"repair (1; brand-id:canonical)"`, "failure in script", "[dupSig]", map[string]string{
+		"BrandID": "canonical",
+	})
+	c.Check(err, IsNil)
+	c.Check(id, Equals, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
+	c.Check(n, Equals, 1)
 }

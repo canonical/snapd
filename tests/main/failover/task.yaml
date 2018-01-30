@@ -2,6 +2,9 @@ summary: check that the core and kernel snaps roll back correctly after a failed
 
 systems: [ubuntu-core-16-*]
 
+# Start early as it takes a long time.
+priority: 100
+
 details: |
     This test ensures that the system can survive to a failed upgrade of a fundamental
     snap, rolling back to the last good known version.
@@ -21,10 +24,14 @@ environment:
     TARGET_SNAP/rclocalcrash: core
     TARGET_SNAP/emptysystemd: core
     #TARGET_SNAP/emptyinitrd: kernel
+    BUILD_DIR: /home/tmp
+
+prepare: |
+    mkdir -p $BUILD_DIR
 
 restore: |
     rm -f failing.snap failBoot currentBoot prevBoot
-    rm -rf /tmp/unpack
+    rm -rf $BUILD_DIR
 
     # FIXME: remove the unset when we reset properly snap_try_{core,kernel} on rollback
     . $TESTSLIB/boot.sh
@@ -39,19 +46,19 @@ debug: |
 
 execute: |
     inject_rclocalcrash_failure(){
-        chmod a+x /tmp/unpack/etc/rc.local
-        cat <<EOF > /tmp/unpack/etc/rc.local
+        chmod a+x $BUILD_DIR/unpack/etc/rc.local
+        cat <<EOF > $BUILD_DIR/unpack/etc/rc.local
     #!bin/sh
     printf c > /proc/sysrq-trigger
     EOF
     }
 
     inject_emptysystemd_failure(){
-        truncate -s 0 /tmp/unpack/lib/systemd/systemd
+        truncate -s 0 $BUILD_DIR/unpack/lib/systemd/systemd
     }
 
     inject_emptyinitrd_failure(){
-        truncate -s 0 /tmp/unpack/initrd.img
+        truncate -s 0 $BUILD_DIR/unpack/initrd.img
     }
 
     . $TESTSLIB/names.sh
@@ -67,13 +74,13 @@ execute: |
         snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}" > prevBoot
 
         # unpack current target snap
-        unsquashfs -d /tmp/unpack /var/lib/snapd/snaps/${TARGET_SNAP_NAME}_$(cat prevBoot).snap
+        unsquashfs -d $BUILD_DIR/unpack /var/lib/snapd/snaps/${TARGET_SNAP_NAME}_$(cat prevBoot).snap
 
         # set failure condition
         eval ${INJECT_FAILURE}
 
         # repack new target snap
-        snapbuild /tmp/unpack . && mv ${TARGET_SNAP_NAME}_*.snap failing.snap
+        snap pack $BUILD_DIR/unpack && mv ${TARGET_SNAP_NAME}_*.snap failing.snap
 
         # install new target snap
         chg_id=$(snap install --dangerous failing.snap --no-wait)

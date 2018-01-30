@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -46,7 +46,7 @@ type infoCmd struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-var shortInfoHelp = i18n.G("show detailed information about a snap")
+var shortInfoHelp = i18n.G("Show detailed information about a snap")
 var longInfoHelp = i18n.G(`
 The info command shows detailed information about a snap, be it by name or by path.`)
 
@@ -160,12 +160,13 @@ func coalesce(snaps ...*client.Snap) *client.Snap {
 // in a user friendly way.
 //
 // The rules are (intentionally) very simple:
+// - trim whitespace
 // - word wrap at "max" chars
 // - keep \n intact and break here
 // - ignore \r
 func formatDescr(descr string, max int) string {
 	out := bytes.NewBuffer(nil)
-	for _, line := range strings.Split(descr, "\n") {
+	for _, line := range strings.Split(strings.TrimSpace(descr), "\n") {
 		if len(line) > max {
 			for _, chunk := range strutil.WordWrap(line, max) {
 				fmt.Fprintf(out, "  %s\n", chunk)
@@ -242,7 +243,7 @@ func displayChannels(w io.Writer, remote *client.Snap) {
 	fmt.Fprintf(w, "channels:\t\t\t\n")
 
 	// order by tracks
-	for i, tr := range remote.Tracks {
+	for _, tr := range remote.Tracks {
 		trackHasOpenChannel := false
 		for _, risk := range []string{"stable", "candidate", "beta", "edge"} {
 			chName := fmt.Sprintf("%s/%s", tr, risk)
@@ -265,10 +266,6 @@ func displayChannels(w io.Writer, remote *client.Snap) {
 				}
 			}
 			fmt.Fprintf(w, "  %s:\t%s\t%s\t%s\t%s\n", chName, version, revision, size, notes)
-		}
-		// add separator between tracks
-		if i < len(remote.Tracks)-1 {
-			fmt.Fprintf(w, "  \t\t\t\t\n")
 		}
 	}
 }
@@ -303,7 +300,11 @@ func (x *infoCmd) Execute([]string) error {
 		both := coalesce(local, remote)
 
 		if both == nil {
-			fmt.Fprintf(w, "argument:\t%q\nwarning:\t%s\n", snapName, i18n.G("not a valid snap"))
+			if len(x.Positional.Snaps) == 1 {
+				return fmt.Errorf("no snap found for %q", snapName)
+			}
+
+			fmt.Fprintf(w, fmt.Sprintf(i18n.G("warning:\tno snap found for %q\n"), snapName))
 			continue
 		}
 		noneOK = false
@@ -344,6 +345,8 @@ func (x *infoCmd) Execute([]string) error {
 				} else {
 					fmt.Fprintf(w, "  broken:\t%t (%s)\n", true, local.Broken)
 				}
+
+				fmt.Fprintf(w, "  ignore-validation:\t%t\n", local.IgnoreValidation)
 			} else {
 				notes = NotesFromLocal(local)
 			}

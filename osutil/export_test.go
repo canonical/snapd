@@ -21,10 +21,13 @@ package osutil
 
 import (
 	"io"
+	"os"
 	"os/exec"
 	"os/user"
 	"syscall"
 	"time"
+
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 func MockUserLookup(mock func(name string) (*user.User, error)) func() {
@@ -86,9 +89,27 @@ func MockCmdWaitTimeout(timeout time.Duration) func() {
 	}
 }
 
-var KillProcessGroup = killProcessGroup
-
 func WaitingReaderGuts(r io.Reader) (io.Reader, *exec.Cmd) {
 	wr := r.(*waitingReader)
 	return wr.reader, wr.cmd
+}
+
+func MockChown(f func(*os.File, sys.UserID, sys.GroupID) error) func() {
+	oldChown := chown
+	chown = f
+	return func() {
+		chown = oldChown
+	}
+}
+
+func SetAtomicFileRenamed(aw *AtomicFile, renamed bool) {
+	aw.renamed = renamed
+}
+
+func SetUnsafeIO(b bool) func() {
+	oldSnapdUnsafeIO := snapdUnsafeIO
+	snapdUnsafeIO = b
+	return func() {
+		snapdUnsafeIO = oldSnapdUnsafeIO
+	}
 }

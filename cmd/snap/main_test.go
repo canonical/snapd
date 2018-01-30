@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	snapdsnap "github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -61,6 +62,8 @@ func (s *BaseSnapSuite) readPassword(fd int) ([]byte, error) {
 
 func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	dirs.SetRootDir(c.MkDir())
+
 	s.stdin = bytes.NewBuffer(nil)
 	s.stdout = bytes.NewBuffer(nil)
 	s.stderr = bytes.NewBuffer(nil)
@@ -72,6 +75,8 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	snap.ReadPassword = s.readPassword
 	s.AuthFile = filepath.Join(c.MkDir(), "json")
 	os.Setenv(TestAuthFileEnvKey, s.AuthFile)
+
+	snapdsnap.MockSanitizePlugsSlots(func(snapInfo *snapdsnap.Info) {})
 }
 
 func (s *BaseSnapSuite) TearDownTest(c *C) {
@@ -83,6 +88,7 @@ func (s *BaseSnapSuite) TearDownTest(c *C) {
 	c.Assert(s.AuthFile == "", Equals, false)
 	err := os.Unsetenv(TestAuthFileEnvKey)
 	c.Assert(err, IsNil)
+	dirs.SetRootDir("/")
 	s.BaseTest.TearDownTest(c)
 }
 
@@ -128,6 +134,7 @@ var _ = Suite(&SnapSuite{})
 func DecodedRequestBody(c *C, r *http.Request) map[string]interface{} {
 	var body map[string]interface{}
 	decoder := json.NewDecoder(r.Body)
+	decoder.UseNumber()
 	err := decoder.Decode(&body)
 	c.Assert(err, IsNil)
 	return body
@@ -240,9 +247,6 @@ func (s *SnapSuite) TestUnknownCommand(c *C) {
 }
 
 func (s *SnapSuite) TestResolveApp(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("/")
-
 	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
 	c.Assert(err, IsNil)
 

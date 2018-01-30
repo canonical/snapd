@@ -53,10 +53,14 @@ func init() {
 		return &cmdKnown{}
 	}, nil, []argDesc{
 		{
+			// TRANSLATORS: This needs to be wrapped in <>s.
 			name: i18n.G("<assertion type>"),
+			// TRANSLATORS: This should probably not start with a lowercase letter.
 			desc: i18n.G("Assertion type name"),
 		}, {
+			// TRANSLATORS: This needs to be wrapped in <>s.
 			name: i18n.G("<header filter>"),
+			// TRANSLATORS: This should probably not start with a lowercase letter.
 			desc: i18n.G("Constrain listing to those matching header=value"),
 		},
 	})
@@ -76,13 +80,9 @@ func downloadAssertion(typeName string, headers map[string]string) ([]asserts.As
 	if at == nil {
 		return nil, fmt.Errorf("cannot find assertion type %q", typeName)
 	}
-	primaryKeys := make([]string, len(at.PrimaryKey))
-	for i, k := range at.PrimaryKey {
-		pk, ok := headers[k]
-		if !ok {
-			return nil, fmt.Errorf("missing primary header %q to query remote assertion", k)
-		}
-		primaryKeys[i] = pk
+	primaryKeys, err := asserts.PrimaryKeyFromHeaders(at, headers)
+	if err != nil {
+		return nil, fmt.Errorf("cannot query remote assertion: %v", err)
 	}
 
 	sto := storeNew(nil, authContext)

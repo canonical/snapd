@@ -31,7 +31,7 @@
  *
  * This function should be called before sc_initialize_ns_groups().
  **/
-void sc_reassociate_with_pid1_mount_ns();
+void sc_reassociate_with_pid1_mount_ns(void);
 
 /**
  * Initialize namespace sharing.
@@ -54,7 +54,7 @@ void sc_reassociate_with_pid1_mount_ns();
  *
  * For more details see namespaces(7).
  **/
-void sc_initialize_ns_groups();
+void sc_initialize_ns_groups(void);
 
 /**
  * Data required to manage namespaces amongst a group of processes.
@@ -105,10 +105,13 @@ void sc_close_ns_group(struct sc_ns_group *group);
  * the parent process unshares the mount namespace and sets a flag so that
  * sc_should_populate_ns_group() returns true.
  *
- * @returns true if the mount namespace needs to be populated
+ * @returns 0 on success and EAGAIN if the namespace was stale and needs
+ * to be re-made.
  **/
-void sc_create_or_join_ns_group(struct sc_ns_group *group,
-				struct sc_apparmor *apparmor);
+int sc_create_or_join_ns_group(struct sc_ns_group *group,
+			       struct sc_apparmor *apparmor,
+			       const char *base_snap_name,
+			       const char *snap_name);
 
 /**
  * Check if the namespace needs to be populated.

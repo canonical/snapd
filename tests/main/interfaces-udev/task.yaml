@@ -12,7 +12,7 @@ details: |
 
 prepare: |
     echo "Given a snap declaring a slot with associated udev rules is installed"
-    snapbuild $TESTSLIB/snaps/modem-manager-consumer .
+    snap pack $TESTSLIB/snaps/modem-manager-consumer
     snap install --dangerous modem-manager-consumer_1.0_all.snap
 
 restore: |

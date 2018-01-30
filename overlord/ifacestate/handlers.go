@@ -148,13 +148,14 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		return err
 	}
 	if err := m.repo.AddSnap(snapInfo); err != nil {
-		if _, ok := err.(*interfaces.BadInterfacesError); ok {
-			task.Logf("%s", err)
-		} else {
-			return err
-		}
+		return err
 	}
-	if err := m.reloadConnections(snapName); err != nil {
+	if len(snapInfo.BadInterfaces) > 0 {
+		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
+	}
+
+	reconnectedSnaps, err := m.reloadConnections(snapName)
+	if err != nil {
 		return err
 	}
 	// FIXME: here we should not reconnect auto-connect plug/slot
@@ -168,6 +169,9 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	}
 	affectedSet := make(map[string]bool)
 	for _, name := range disconnectedSnaps {
+		affectedSet[name] = true
+	}
+	for _, name := range reconnectedSnaps {
 		affectedSet[name] = true
 	}
 	for _, name := range connectedSnaps {
@@ -382,9 +386,9 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	// check the connection against the declarations' rules
 	ic := policy.ConnectCandidate{
-		Plug:                plug.PlugInfo,
+		Plug:                plug,
 		PlugSnapDeclaration: plugDecl,
-		Slot:                slot.SlotInfo,
+		Slot:                slot,
 		SlotSnapDeclaration: slotDecl,
 		BaseDeclaration:     baseDecl,
 	}
@@ -399,6 +403,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	// TODO: pass dynamic attributes from hooks
 	err = m.repo.Connect(connRef)
 	if err != nil {
 		return err
@@ -509,10 +514,10 @@ func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, o
 	// on disk are rewriten. This is ok because core/ubuntu-core have
 	// exactly the same profiles and nothing in the generated policies
 	// has the slot-name encoded.
-	if err := m.reloadConnections(oldName); err != nil {
+	if _, err := m.reloadConnections(oldName); err != nil {
 		return err
 	}
-	if err := m.reloadConnections(newName); err != nil {
+	if _, err := m.reloadConnections(newName); err != nil {
 		return err
 	}
 

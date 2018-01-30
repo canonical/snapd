@@ -1,15 +1,25 @@
 #include "config.h"
 #include "classic.h"
+#include "../libsnap-confine-private/cleanup-funcs.h"
 
+#include <string.h>
+#include <stdio.h>
 #include <unistd.h>
+
+char *os_release = "/etc/os-release";
 
 bool is_running_on_classic_distribution()
 {
-	// NOTE: keep this list sorted please
-	return false
-	    || access("/var/lib/dpkg/status", F_OK) == 0
-	    || access("/var/lib/pacman", F_OK) == 0
-	    || access("/var/lib/portage", F_OK) == 0
-	    || access("/var/lib/rpm", F_OK) == 0
-	    || access("/sbin/procd", F_OK) == 0;
+	FILE *f SC_CLEANUP(sc_cleanup_file) = fopen(os_release, "r");
+	if (f == NULL) {
+		return true;
+	}
+
+	char buf[255] = { 0 };
+	while (fgets(buf, sizeof buf, f) != NULL) {
+		if (strcmp(buf, "ID=ubuntu-core\n") == 0) {
+			return false;
+		}
+	}
+	return true;
 }

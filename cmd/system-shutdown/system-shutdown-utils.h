@@ -23,7 +23,7 @@
 
 // tries to umount all (well, most) things. Returns whether in the last pass it
 // no longer found writable.
-bool umount_all();
+bool umount_all(void);
 
 __attribute__ ((noreturn))
 void die(const char *msg);

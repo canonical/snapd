@@ -1,3 +1,4 @@
 # -*- sh -*-
 
-complete -A directory -o filenames complexion
+complete -A directory -o filenames test-snapd-complexion
+complete -A directory -o filenames test-snapd-complexion.two

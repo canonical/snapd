@@ -140,6 +140,8 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these simply auto-connect, anything else doesn't
 	autoconnect := map[string]bool{
 		"browser-support":         true,
+		"desktop":                 true,
+		"desktop-legacy":          true,
 		"gsettings":               true,
 		"media-hub":               true,
 		"mir":                     true,
@@ -155,6 +157,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"unity7":                  true,
 		"unity8":                  true,
 		"upower-observe":          true,
+		"wayland":                 true,
 		"x11":                     true,
 	}
 
@@ -445,7 +448,7 @@ plugs:
 // describe installation rules for slots succinctly for cross-checking,
 // if an interface is not mentioned here a slot of its type can only
 // be installed by a core snap (and this was taken care by
-// SanitizeSlot),
+// BeforePrepareSlot),
 // otherwise the entry for the interface is the list of snap types it
 // can be installed by (using the declaration naming);
 // ATM a nil entry means even stricter rules that would need be tested
@@ -456,7 +459,9 @@ var (
 	slotInstallation = map[string][]string{
 		// other
 		"autopilot-introspection": {"core"},
-		"bluez":                   {"app"},
+		"avahi-control":           {"app", "core"},
+		"avahi-observe":           {"app", "core"},
+		"bluez":                   {"app", "core"},
 		"bool-file":               {"core", "gadget"},
 		"browser-support":         {"core"},
 		"content":                 {"app", "gadget"},
@@ -482,9 +487,10 @@ var (
 		"network-status":          {"app"},
 		"ofono":                   {"app", "core"},
 		"online-accounts-service": {"app"},
-		"ppp":                       {"core"},
-		"pulseaudio":                {"app", "core"},
-		"serial-port":               {"core", "gadget"},
+		"ppp":         {"core"},
+		"pulseaudio":  {"app", "core"},
+		"serial-port": {"core", "gadget"},
+		"spi":         {"core", "gadget"},
 		"storage-framework-service": {"app"},
 		"thumbnailer-service":       {"app"},
 		"ubuntu-download-manager":   {"app"},
@@ -494,6 +500,7 @@ var (
 		"unity8-calendar":           {"app"},
 		"unity8-contacts":           {"app"},
 		"upower-observe":            {"app", "core"},
+		"wayland":                   {"app", "core"},
 		// snowflakes
 		"classic-support": nil,
 		"docker":          nil,
@@ -519,7 +526,7 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 		types, ok := slotInstallation[iface.Name()]
 		compareWithSanitize := false
 		if !ok { // common ones, only core can install them,
-			// their plain SanitizeSlot checked for that
+			// their plain BeforePrepareSlot checked for that
 			types = []string{"core"}
 			compareWithSanitize = true
 		}
@@ -539,7 +546,7 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 				c.Check(err, NotNil, comm)
 			}
 			if compareWithSanitize {
-				sanitizeErr := iface.SanitizeSlot(&interfaces.Slot{SlotInfo: slotInfo})
+				sanitizeErr := interfaces.BeforePrepareSlot(iface, slotInfo)
 				if err == nil {
 					c.Check(sanitizeErr, IsNil, comm)
 				} else {
@@ -612,7 +619,6 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// connecting with these interfaces needs to be allowed on
 	// case-by-case basis
 	noconnect := map[string]bool{
-		"bluez":                     true,
 		"content":                   true,
 		"docker":                    true,
 		"fwupd":                     true,
@@ -701,6 +707,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"lxd-support":           true,
 		"snapd-control":         true,
 		"unity8":                true,
+		"wayland":               true,
 	}
 
 	for _, iface := range all {
@@ -784,4 +791,18 @@ authority-id: canonical
 series: 16
 revision: 0
 `)
+}
+
+func (s *baseDeclSuite) TestBrowserSupportAllowSandbox(c *C) {
+	const plugYaml = `name: plug-snap
+plugs:
+  browser-support:
+   allow-sandbox: true
+`
+	cand := s.connectCand(c, "browser-support", "", plugYaml)
+	err := cand.Check()
+	c.Check(err, NotNil)
+
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
 }

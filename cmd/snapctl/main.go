@@ -38,6 +38,16 @@ var clientConfig = client.Config{
 }
 
 func main() {
+	// check for internal commands
+	if len(os.Args) > 2 && os.Args[1] == "internal" {
+		switch os.Args[2] {
+		case "configure-core":
+			fmt.Fprintf(os.Stderr, "no internal core configuration anymore")
+			os.Exit(1)
+		}
+	}
+
+	// no internal command, route via snapd
 	stdout, stderr, err := run()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)

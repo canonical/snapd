@@ -163,13 +163,6 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 	return about, firstErr
 }
 
-// screenshotJSON contains the json for snap.ScreenshotInfo
-type screenshotJSON struct {
-	URL    string `json:"url"`
-	Width  int64  `json:"width,omitempty"`
-	Height int64  `json:"height,omitempty"`
-}
-
 type bySnapApp []*snap.AppInfo
 
 func (a bySnapApp) Len() int      { return len(a) }
@@ -269,7 +262,7 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 	for k := range requested {
 		if !found[k] {
 			if snapNames[k] {
-				return nil, SnapNotFound(fmt.Errorf("snap %q not found", k))
+				return nil, SnapNotFound(k, fmt.Errorf("snap %q not found", k))
 			} else {
 				snap, app := splitAppName(k)
 				return nil, AppNotFound("snap %q has no %s %q", snap, opts, app)
@@ -282,14 +275,14 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 	return appInfos, nil
 }
 
-func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []*client.AppInfo {
+func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []client.AppInfo {
 	// TODO: pass in an actual notifier here instead of null
 	//       (Status doesn't _need_ it, but benefits from it)
-	sysd := systemd.New(dirs.GlobalRootDir, &progress.NullProgress{})
+	sysd := systemd.New(dirs.GlobalRootDir, progress.Null)
 
-	out := make([]*client.AppInfo, len(apps))
+	out := make([]client.AppInfo, len(apps))
 	for i, app := range apps {
-		out[i] = &client.AppInfo{
+		out[i] = client.AppInfo{
 			Snap: app.Snap.Name(),
 			Name: app.Name,
 		}
@@ -314,7 +307,7 @@ func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []*client.AppInfo {
 	return out
 }
 
-func mapLocal(about aboutSnap) map[string]interface{} {
+func mapLocal(about aboutSnap) *client.Snap {
 	localSnap, snapst := about.info, about.snapst
 	status := "installed"
 	if snapst.Active && localSnap.Revision == snapst.Current {
@@ -331,39 +324,38 @@ func mapLocal(about aboutSnap) map[string]interface{} {
 
 	// TODO: expose aliases information and state?
 
-	result := map[string]interface{}{
-		"description":      localSnap.Description(),
-		"developer":        about.publisher,
-		"icon":             snapIcon(localSnap),
-		"id":               localSnap.SnapID,
-		"install-date":     snapDate(localSnap),
-		"installed-size":   localSnap.Size,
-		"name":             localSnap.Name(),
-		"revision":         localSnap.Revision,
-		"status":           status,
-		"summary":          localSnap.Summary(),
-		"type":             string(localSnap.Type),
-		"version":          localSnap.Version,
-		"channel":          localSnap.Channel,
-		"tracking-channel": snapst.Channel,
-		"confinement":      localSnap.Confinement,
-		"devmode":          snapst.DevMode,
-		"trymode":          snapst.TryMode,
-		"jailmode":         snapst.JailMode,
-		"private":          localSnap.Private,
-		"apps":             apps,
-		"broken":           localSnap.Broken,
-		"contact":          localSnap.Contact,
-	}
-
-	if localSnap.Title() != "" {
-		result["title"] = localSnap.Title()
+	result := &client.Snap{
+		Description:      localSnap.Description(),
+		Developer:        about.publisher,
+		Icon:             snapIcon(localSnap),
+		ID:               localSnap.SnapID,
+		InstallDate:      snapDate(localSnap),
+		InstalledSize:    localSnap.Size,
+		Name:             localSnap.Name(),
+		Revision:         localSnap.Revision,
+		Status:           status,
+		Summary:          localSnap.Summary(),
+		Type:             string(localSnap.Type),
+		Version:          localSnap.Version,
+		Channel:          localSnap.Channel,
+		TrackingChannel:  snapst.Channel,
+		IgnoreValidation: snapst.IgnoreValidation,
+		Confinement:      string(localSnap.Confinement),
+		DevMode:          snapst.DevMode,
+		TryMode:          snapst.TryMode,
+		JailMode:         snapst.JailMode,
+		Private:          localSnap.Private,
+		Apps:             apps,
+		Broken:           localSnap.Broken,
+		Contact:          localSnap.Contact,
+		Title:            localSnap.Title(),
+		License:          localSnap.License,
 	}
 
 	return result
 }
 
-func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
+func mapRemote(remoteSnap *snap.Info) *client.Snap {
 	status := "available"
 	if remoteSnap.MustBuy {
 		status = "priced"
@@ -374,51 +366,37 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 		confinement = snap.StrictConfinement
 	}
 
-	screenshots := make([]screenshotJSON, len(remoteSnap.Screenshots))
+	screenshots := make([]client.Screenshot, len(remoteSnap.Screenshots))
 	for i, screenshot := range remoteSnap.Screenshots {
-		screenshots[i] = screenshotJSON{
+		screenshots[i] = client.Screenshot{
 			URL:    screenshot.URL,
 			Width:  screenshot.Width,
 			Height: screenshot.Height,
 		}
 	}
 
-	result := map[string]interface{}{
-		"description":   remoteSnap.Description(),
-		"developer":     remoteSnap.Publisher,
-		"download-size": remoteSnap.Size,
-		"icon":          snapIcon(remoteSnap),
-		"id":            remoteSnap.SnapID,
-		"name":          remoteSnap.Name(),
-		"revision":      remoteSnap.Revision,
-		"status":        status,
-		"summary":       remoteSnap.Summary(),
-		"type":          string(remoteSnap.Type),
-		"version":       remoteSnap.Version,
-		"channel":       remoteSnap.Channel,
-		"private":       remoteSnap.Private,
-		"confinement":   confinement,
-		"contact":       remoteSnap.Contact,
-	}
-
-	if remoteSnap.Title() != "" {
-		result["title"] = remoteSnap.Title()
-	}
-
-	if len(screenshots) > 0 {
-		result["screenshots"] = screenshots
-	}
-
-	if len(remoteSnap.Prices) > 0 {
-		result["prices"] = remoteSnap.Prices
-	}
-
-	if len(remoteSnap.Channels) > 0 {
-		result["channels"] = remoteSnap.Channels
-	}
-
-	if len(remoteSnap.Tracks) > 0 {
-		result["tracks"] = remoteSnap.Tracks
+	result := &client.Snap{
+		Description:  remoteSnap.Description(),
+		Developer:    remoteSnap.Publisher,
+		DownloadSize: remoteSnap.Size,
+		Icon:         snapIcon(remoteSnap),
+		ID:           remoteSnap.SnapID,
+		Name:         remoteSnap.Name(),
+		Revision:     remoteSnap.Revision,
+		Status:       status,
+		Summary:      remoteSnap.Summary(),
+		Type:         string(remoteSnap.Type),
+		Version:      remoteSnap.Version,
+		Channel:      remoteSnap.Channel,
+		Private:      remoteSnap.Private,
+		Confinement:  string(confinement),
+		Contact:      remoteSnap.Contact,
+		Title:        remoteSnap.Title(),
+		License:      remoteSnap.License,
+		Screenshots:  screenshots,
+		Prices:       remoteSnap.Prices,
+		Channels:     remoteSnap.Channels,
+		Tracks:       remoteSnap.Tracks,
 	}
 
 	return result

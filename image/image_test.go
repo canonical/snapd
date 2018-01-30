@@ -58,7 +58,7 @@ func (s *emptyStore) Download(ctx context.Context, name, targetFn string, downlo
 }
 
 func (s *emptyStore) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
-	return nil, &store.AssertionNotFoundError{Ref: &asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
+	return nil, &asserts.NotFoundError{Type: assertType}
 }
 
 func Test(t *testing.T) { TestingT(t) }
@@ -95,9 +95,7 @@ func (s *imageSuite) SetUpTest(c *C) {
 	s.storeSnapInfo = make(map[string]*snap.Info)
 	s.tsto = image.MockToolingStore(s)
 
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-	s.storeSigning = assertstest.NewStoreStack("canonical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 
 	brandPrivKey, _ := assertstest.GenerateKey(752)
 	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
@@ -566,9 +564,6 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(m["snap_core"], Equals, "core_x1.snap")
 
-	// check that cloud-init is setup correctly
-	c.Check(osutil.FileExists(filepath.Join(rootdir, "etc/cloud/cloud-init.disabled")), Equals, true)
-
 	c.Check(s.stderr.String(), Equals, "WARNING: \"core\", \"required-snap1\" were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n")
 }
 
@@ -677,7 +672,7 @@ func (s *imageSuite) TestInstallCloudConfigNoConfig(c *C) {
 	dirs.SetRootDir(targetDir)
 	err := image.InstallCloudConfig(emptyGadgetDir)
 	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(filepath.Join(targetDir, "etc/cloud/cloud-init.disabled")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(targetDir, "etc/cloud")), Equals, true)
 }
 
 func (s *imageSuite) TestInstallCloudConfigWithCloudConfig(c *C) {
@@ -703,6 +698,26 @@ func (s *imageSuite) TestNewToolingStoreWithAuth(c *C) {
 "macaroon": "MACAROON",
 "discharges": ["DISCHARGE"]
 }`), 0600)
+	c.Assert(err, IsNil)
+
+	os.Setenv("UBUNTU_STORE_AUTH_DATA_FILENAME", authFn)
+	defer os.Unsetenv("UBUNTU_STORE_AUTH_DATA_FILENAME")
+
+	tsto, err := image.NewToolingStore()
+	c.Assert(err, IsNil)
+	user := tsto.User()
+	c.Check(user.StoreMacaroon, Equals, "MACAROON")
+	c.Check(user.StoreDischarges, DeepEquals, []string{"DISCHARGE"})
+}
+
+func (s *imageSuite) TestNewToolingStoreWithAuthFromSnapcraftLoginFile(c *C) {
+	tmpdir := c.MkDir()
+	authFn := filepath.Join(tmpdir, "auth.json")
+	err := ioutil.WriteFile(authFn, []byte(`[login.ubuntu.com]
+macaroon = MACAROON
+unbound_discharge = DISCHARGE
+
+`), 0600)
 	c.Assert(err, IsNil)
 
 	os.Setenv("UBUNTU_STORE_AUTH_DATA_FILENAME", authFn)
@@ -828,9 +843,6 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 	c.Check(m["snap_kernel"], Equals, "pc-kernel_2.snap")
 	c.Assert(err, IsNil)
 	c.Check(m["snap_core"], Equals, "core_3.snap")
-
-	// check that cloud-init is setup correctly
-	c.Check(osutil.FileExists(filepath.Join(rootdir, "etc/cloud/cloud-init.disabled")), Equals, true)
 
 	c.Check(s.stderr.String(), Equals, "")
 }

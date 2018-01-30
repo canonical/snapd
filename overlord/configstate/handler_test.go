@@ -43,6 +43,7 @@ type configureHandlerSuite struct {
 	state   *state.State
 	context *hookstate.Context
 	handler hookstate.Handler
+	restore func()
 }
 
 var _ = Suite(&configureHandlerSuite{})
@@ -52,6 +53,8 @@ func (s *configureHandlerSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	s.restore = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
@@ -60,6 +63,10 @@ func (s *configureHandlerSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.handler = configstate.NewConfigureHandler(s.context)
+}
+
+func (s *configureHandlerSuite) TearDownTest(c *C) {
+	s.restore()
 }
 
 func (s *configureHandlerSuite) TestBeforeInitializesTransaction(c *C) {

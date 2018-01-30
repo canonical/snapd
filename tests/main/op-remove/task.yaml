@@ -9,11 +9,11 @@ execute: |
 
     snap_revisions(){
         local snap_name=$1
-        echo -n $(find $SNAPMOUNTDIR/"$snap_name"/ -maxdepth 1 -type d -name "x*" | wc -l)
+        echo -n $(find $SNAP_MOUNT_DIR/"$snap_name"/ -maxdepth 1 -type d -name "x*" | wc -l)
     }
 
     echo "Given two revisions of a snap have been installed"
-    snapbuild $TESTSLIB/snaps/basic .
+    snap pack $TESTSLIB/snaps/basic
     snap install --dangerous basic_1.0_all.snap
     snap install --dangerous basic_1.0_all.snap
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,14 +28,13 @@ const x11BaseDeclarationSlots = `
         - core
 `
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/x
 const x11ConnectedPlugAppArmor = `
 # Description: Can access the X server. Restricted because X does not prevent
 # eavesdropping or apps interfering with one another.
 
 #include <abstractions/X>
 #include <abstractions/fonts>
-
+owner @{HOME}/.local/share/fonts/{,**} r,
 /var/cache/fontconfig/   r,
 /var/cache/fontconfig/** mr,
 
@@ -43,14 +42,22 @@ const x11ConnectedPlugAppArmor = `
 # in the XAUTHORITY environment variable, that "snap run" creates on
 # startup.
 owner /run/user/[0-9]*/.Xauthority r,
+
+# Needed by QtSystems on X to detect mouse and keyboard. Note, the 'netlink
+# raw' rule is not finely mediated by apparmor so we mediate with seccomp arg
+# filtering.
+network netlink raw,
+/run/udev/data/c13:[0-9]* r,
+/run/udev/data/+input:* r,
 `
 
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/x
 const x11ConnectedPlugSecComp = `
 # Description: Can access the X server. Restricted because X does not prevent
 # eavesdropping or apps interfering with one another.
 
-shutdown
+# Needed by QtSystems on X to detect mouse and keyboard
+socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+bind
 `
 
 func init() {

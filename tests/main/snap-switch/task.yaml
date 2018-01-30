@@ -1,0 +1,8 @@
+summary: Ensure that the snap switch command works
+
+execute: |
+    snap install test-snapd-tools
+    snap info test-snapd-tools|MATCH "tracking: +stable"
+
+    snap switch --edge test-snapd-tools
+    snap info test-snapd-tools|MATCH "tracking: +edge"

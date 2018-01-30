@@ -39,6 +39,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+type hijackFunc func(ctx *Context) error
+type hijackKey struct{ hook, snap string }
+
 // HookManager is responsible for the maintenance of hooks in the system state.
 // It runs hooks when they're requested, assuming they're present in the given
 // snap. Otherwise they're skipped with no error.
@@ -49,6 +52,8 @@ type HookManager struct {
 
 	contextsMutex sync.RWMutex
 	contexts      map[string]*Context
+
+	hijackMap map[hijackKey]hijackFunc
 }
 
 // Handler is the interface a client must satify to handle hooks.
@@ -111,9 +116,16 @@ func Manager(s *state.State) (*HookManager, error) {
 		runner:     runner,
 		repository: newRepository(),
 		contexts:   make(map[string]*Context),
+		hijackMap:  make(map[hijackKey]hijackFunc),
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
+	// Compatibility with snapd between 2.29 and 2.30 in edge only.
+	// We generated a configure-snapd task on core refreshes and
+	// for compatibility we need to handle those.
+	runner.AddHandler("configure-snapd", func(*state.Task, *tomb.Tomb) error {
+		return nil
+	}, nil)
 
 	setupHooks(manager)
 
@@ -124,6 +136,10 @@ func Manager(s *state.State) (*HookManager, error) {
 // matching the provided pattern are run.
 func (m *HookManager) Register(pattern *regexp.Regexp, generator HandlerGenerator) {
 	m.repository.addHandlerGenerator(pattern, generator)
+}
+
+func (m *HookManager) KnownTaskKinds() []string {
+	return m.runner.KnownTaskKinds()
 }
 
 // Ensure implements StateManager.Ensure.
@@ -140,6 +156,17 @@ func (m *HookManager) Wait() {
 // Stop implements StateManager.Stop.
 func (m *HookManager) Stop() {
 	m.runner.Stop()
+}
+
+func (m *HookManager) hijacked(hookName, snapName string) hijackFunc {
+	return m.hijackMap[hijackKey{hookName, snapName}]
+}
+
+func (m *HookManager) RegisterHijack(hookName, snapName string, f hijackFunc) {
+	if _, ok := m.hijackMap[hijackKey{hookName, snapName}]; ok {
+		panic(fmt.Sprintf("hook %s for snap %s already hijacked", hookName, snapName))
+	}
+	m.hijackMap[hijackKey{hookName, snapName}] = f
 }
 
 func (m *HookManager) ephemeralContext(cookieID string) (context *Context, err error) {
@@ -184,10 +211,7 @@ func hookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(task.State(), hooksup.Snap, &snapst)
-	if err == state.ErrNoState {
-		return nil, nil, fmt.Errorf("cannot find %q snap", hooksup.Snap)
-	}
-	if err != nil {
+	if err != nil && err != state.ErrNoState {
 		return nil, nil, fmt.Errorf("cannot handle %q snap: %v", hooksup.Snap, err)
 	}
 
@@ -206,14 +230,23 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	info, err := snapst.CurrentInfo()
-	if err != nil {
-		return fmt.Errorf("cannot read %q snap details: %v", hooksup.Snap, err)
-	}
+	mustHijack := m.hijacked(hooksup.Hook, hooksup.Snap) != nil
+	hookExists := false
+	if !mustHijack {
+		// not hijacked, snap must be installed
+		if !snapst.IsInstalled() {
+			return fmt.Errorf("cannot find %q snap", hooksup.Snap)
+		}
 
-	hookExists := info.Hooks[hooksup.Hook] != nil
-	if !hookExists && !hooksup.Optional {
-		return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return fmt.Errorf("cannot read %q snap details: %v", hooksup.Snap, err)
+		}
+
+		hookExists = info.Hooks[hooksup.Hook] != nil
+		if !hookExists && !hooksup.Optional {
+			return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
+		}
 	}
 
 	context, err := NewContext(task, task.State(), hooksup, nil, "")
@@ -227,12 +260,17 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	handlers := m.repository.generateHandlers(context)
 	handlersCount := len(handlers)
 	if handlersCount == 0 {
+		// Do not report error if hook handler doesn't exist as long as the hook is optional.
+		// This is to avoid issues when downgrading to an old core snap that doesn't know about
+		// particular hook type and a task for it exists (e.g. "post-refresh" hook).
+		if hooksup.Optional {
+			return nil
+		}
 		return fmt.Errorf("internal error: no registered handlers for hook %q", hooksup.Hook)
 	}
 	if handlersCount > 1 {
 		return fmt.Errorf("internal error: %d handlers registered for hook %q, expected 1", handlersCount, hooksup.Hook)
 	}
-
 	context.handler = handlers[0]
 
 	contextID := context.ID()
@@ -250,24 +288,28 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	if hookExists {
-		output, err := runHook(context, tomb)
-		if err != nil {
-			if hooksup.TrackError {
-				trackHookError(context, output, err)
+	// some hooks get hijacked, e.g. the core configuration
+	var output []byte
+	if f := m.hijacked(hooksup.Hook, hooksup.Snap); f != nil {
+		err = f(context)
+	} else if hookExists {
+		output, err = runHook(context, tomb)
+	}
+	if err != nil {
+		if hooksup.TrackError {
+			trackHookError(context, output, err)
+		}
+		err = osutil.OutputErr(output, err)
+		if hooksup.IgnoreError {
+			task.State().Lock()
+			task.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
+			task.State().Unlock()
+		} else {
+			if handlerErr := context.Handler().Error(err); handlerErr != nil {
+				return handlerErr
 			}
-			err = osutil.OutputErr(output, err)
-			if hooksup.IgnoreError {
-				task.State().Lock()
-				task.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
-				task.State().Unlock()
-			} else {
-				if handlerErr := context.Handler().Error(err); handlerErr != nil {
-					return handlerErr
-				}
 
-				return fmt.Errorf("run hook %q: %v", hooksup.Hook, err)
-			}
+			return fmt.Errorf("run hook %q: %v", hooksup.Hook, err)
 		}
 	}
 

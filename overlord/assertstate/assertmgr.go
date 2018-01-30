@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/store"
 )
 
 // AssertManager is responsible for the enforcement of assertions in
@@ -42,6 +41,8 @@ type AssertManager struct {
 
 // Manager returns a new assertion manager.
 func Manager(s *state.State) (*AssertManager, error) {
+	delayedCrossMgrInit()
+
 	runner := state.NewTaskRunner(s)
 
 	runner.AddHandler("validate-snap", doValidateSnap, nil)
@@ -56,6 +57,10 @@ func Manager(s *state.State) (*AssertManager, error) {
 	s.Unlock()
 
 	return &AssertManager{runner: runner}, nil
+}
+
+func (m *AssertManager) KnownTaskKinds() []string {
+	return m.runner.KnownTaskKinds()
 }
 
 // Ensure implements StateManager.Ensure.
@@ -112,8 +117,8 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	err = doFetch(t.State(), snapsup.UserID, func(f asserts.Fetcher) error {
 		return snapasserts.FetchSnapAssertions(f, sha3_384)
 	})
-	if notFound, ok := err.(*store.AssertionNotFoundError); ok {
-		if notFound.Ref.Type == asserts.SnapRevisionType {
+	if notFound, ok := err.(*asserts.NotFoundError); ok {
+		if notFound.Type == asserts.SnapRevisionType {
 			return fmt.Errorf("cannot verify snap %q, no matching signatures found", snapsup.Name())
 		} else {
 			return fmt.Errorf("cannot find supported signatures to verify snap %q and its hash (%v)", snapsup.Name(), notFound)

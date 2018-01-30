@@ -1,3 +1,4 @@
 # -*- sh -*-
 
-complete -A hostname -o plusdirs complexion
+complete -A hostname -o plusdirs test-snapd-complexion
+complete -A hostname -o plusdirs test-snapd-complexion.two

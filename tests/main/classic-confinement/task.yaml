@@ -3,11 +3,20 @@ summary: Ensure that classic confinement works
 environment:
     CLASSIC_SNAP: test-snapd-classic-confinement
 
-systems: [-ubuntu-core-*, -fedora-*]
+# Classic confinement isn't working yet on Fedora
+systems: [-ubuntu-core-*]
 
 prepare: |
     . $TESTSLIB/snaps.sh
-    snapbuild "$TESTSLIB/snaps/$CLASSIC_SNAP/" .
+    . $TESTSLIB/dirs.sh
+    snap pack "$TESTSLIB/snaps/$CLASSIC_SNAP/"
+
+    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+        # although classic snaps do not work out of the box on fedora,
+        # we still want to verify if the basics do work if the user
+        # symlinks /snap to $SNAP_MOUNT_DIR themselves
+        ln -sf $SNAP_MOUNT_DIR /snap
+    fi
 
 execute: |
     echo "Check that classic snaps work only with --classic"
@@ -39,3 +48,7 @@ execute: |
     snap info "$CLASSIC_SNAP"|MATCH "installed:.* 2.0 .*classic"
     "$CLASSIC_SNAP" | MATCH lala
 
+restore: |
+    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+        rm -f /snap
+    fi

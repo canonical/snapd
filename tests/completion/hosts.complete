@@ -1,3 +1,4 @@
 # -*- sh -*-
 
-complete -A hostname complexion
+complete -A hostname test-snapd-complexion
+complete -A hostname test-snapd-complexion.two

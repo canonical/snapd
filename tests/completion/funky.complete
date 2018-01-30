@@ -1,3 +1,4 @@
 # -*- sh -*-
 
-complete -W "this 'that one' 'which one'" complexion
+complete -W "this 'that one' 'which one'" test-snapd-complexion
+complete -W "this 'that one' 'which one'" test-snapd-complexion.two

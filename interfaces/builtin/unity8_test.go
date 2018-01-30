@@ -20,52 +20,28 @@
 package builtin_test
 
 import (
-	"io/ioutil"
-	"os"
-	"path/filepath"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type unity8InterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	iface    interfaces.Interface
+	slotInfo *snap.SlotInfo
+	slot     *interfaces.ConnectedSlot
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&unity8InterfaceSuite{
 	iface: builtin.MustInterface("unity8"),
 })
-
-func createMockFooPlug(c *C, content string) *interfaces.Plug {
-	info := snaptest.MockSnap(c, content, "", &snap.SideInfo{Revision: snap.R(3)})
-
-	desktopDir := filepath.Join(info.MountDir(), "meta", "gui")
-	err := os.MkdirAll(desktopDir, 0755)
-	c.Assert(err, IsNil)
-
-	desktopPath := filepath.Join(desktopDir, "foo.desktop")
-	err = ioutil.WriteFile(desktopPath, []byte(""), 0644)
-	c.Assert(err, IsNil)
-
-	return &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      info,
-			Name:      info.Name(),
-			Interface: "unity8",
-			Apps:      info.Apps,
-		},
-	}
-}
 
 func (s *unity8InterfaceSuite) SetUpTest(c *C) {
 	const mockPlugSnapInfoYaml = `name: other
@@ -76,15 +52,15 @@ apps:
   plugs: [unity8]
 `
 	dirs.SetRootDir(c.MkDir())
-	s.slot = &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "unity8-session"},
-			Name:      "unity8-session",
-			Interface: "unity8",
-		},
+	s.slotInfo = &snap.SlotInfo{
+		Snap:      &snap.Info{SuggestedName: "unity8-session"},
+		Name:      "unity8-session",
+		Interface: "unity8",
 	}
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plug = &interfaces.Plug{PlugInfo: plugSnap.Plugs["unity8"]}
+	s.plugInfo = plugSnap.Plugs["unity8"]
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 
 }
 
@@ -99,22 +75,15 @@ func (s *unity8InterfaceSuite) TestName(c *C) {
 func (s *unity8InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.unity8-app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.unity8-app"), testutil.Contains, "name=com.canonical.URLDispatcher")
-
-	// connected plugs have a non-nil security snippet for seccomp
-	seccompSpec := &seccomp.Specification{}
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
-	c.Assert(err, IsNil)
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.unity8-app"})
-	c.Check(seccompSpec.SnippetForTag("snap.other.unity8-app"), testutil.Contains, "shutdown\n")
 }
 
 func (s *unity8InterfaceSuite) TestSecurityTags(c *C) {
 	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, nil, s.slot, nil)
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.unity8-app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.unity8-app"), testutil.Contains, "label=\"snap.unity8-session.*\"")

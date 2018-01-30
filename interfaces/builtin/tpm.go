@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,6 +35,8 @@ const tpmConnectedPlugAppArmor = `
 /dev/tpm0 rw,
 `
 
+var tpmConnectedPlugUDev = []string{`KERNEL=="tpm[0-9]*"`}
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "tpm",
@@ -43,6 +45,7 @@ func init() {
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  tpmBaseDeclarationSlots,
 		connectedPlugAppArmor: tpmConnectedPlugAppArmor,
+		connectedPlugUDev:     tpmConnectedPlugUDev,
 		reservedForOS:         true,
 	})
 }

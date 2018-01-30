@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/jsonutil"
 )
 
 func unixDialer(socketPath string) func(string, string) (net.Conn, error) {
@@ -58,6 +59,11 @@ type Config struct {
 	// Authorization header from reading the auth.json data.
 	DisableAuth bool
 
+	// Interactive controls whether the client runs in interactive mode.
+	// At present, this only affects whether interactive polkit
+	// authorisation is requested.
+	Interactive bool
+
 	// Socket is the path to the unix socket to use
 	Socket string
 }
@@ -68,6 +74,7 @@ type Client struct {
 	doer    doer
 
 	disableAuth bool
+	interactive bool
 }
 
 // New returns a new instance of Client
@@ -87,6 +94,7 @@ func New(config *Config) *Client {
 				Transport: &http.Transport{Dial: unixDialer(config.Socket)},
 			},
 			disableAuth: config.DisableAuth,
+			interactive: config.Interactive,
 		}
 	}
 
@@ -98,6 +106,7 @@ func New(config *Config) *Client {
 		baseURL:     *baseURL,
 		doer:        &http.Client{},
 		disableAuth: config.DisableAuth,
+		interactive: config.Interactive,
 	}
 }
 
@@ -149,6 +158,10 @@ func (e ConnectionError) Error() string {
 	return fmt.Sprintf("cannot communicate with server: %v", e.error)
 }
 
+// AllowInteractionHeader is the HTTP request header used to indicate
+// that the client is willing to allow interaction.
+const AllowInteractionHeader = "X-Allow-Interaction"
+
 // raw performs a request and returns the resulting http.Response and
 // error you usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
@@ -172,6 +185,10 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 		if err != nil {
 			return nil, AuthorizationError{err}
 		}
+	}
+
+	if client.interactive {
+		req.Header.Set(AllowInteractionHeader, "true")
 	}
 
 	rsp, err := client.doer.Do(req)
@@ -256,7 +273,7 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 	}
 
 	if v != nil {
-		if err := json.Unmarshal(rsp.Result, v); err != nil {
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(rsp.Result), v); err != nil {
 			return nil, fmt.Errorf("cannot unmarshal: %v", err)
 		}
 	}
@@ -357,6 +374,8 @@ const (
 	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
 
 	ErrorKindNotSnap = "snap-not-a-snap"
+
+	ErrorKindNetworkTimeout = "network-timeout"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
@@ -376,8 +395,12 @@ type OSRelease struct {
 	VersionID string `json:"version-id,omitempty"`
 }
 
+// RefreshInfo contains information about refreshes.
 type RefreshInfo struct {
-	Schedule string `json:"schedule"`
+	// Timer contains the refresh.timer setting.
+	Timer string `json:"timer,omitempty"`
+	// Schedule contains the legacy refresh.schedule setting.
+	Schedule string `json:"schedule,omitempty"`
 	Last     string `json:"last,omitempty"`
 	Next     string `json:"next,omitempty"`
 }

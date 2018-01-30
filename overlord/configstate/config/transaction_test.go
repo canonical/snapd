@@ -20,15 +20,17 @@
 package config_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
-	"strings"
 )
 
 func TestT(t *testing.T) { TestingT(t) }
@@ -62,8 +64,7 @@ func (op setGetOp) args() map[string]interface{} {
 		}
 		kv := strings.SplitN(pair, "=", 2)
 		var v interface{}
-		err := json.Unmarshal([]byte(kv[1]), &v)
-		if err != nil {
+		if err := jsonutil.DecodeWithNumber(strings.NewReader(kv[1]), &v); err != nil {
 			v = kv[1]
 		}
 		m[kv[0]] = v
@@ -85,14 +86,15 @@ func (op setGetOp) fails() bool {
 var setGetTests = [][]setGetOp{{
 	// Basics.
 	`set one=1 two=2`,
-	`setunder three=3`,
-	`get one=1 two=2 three=-`,
-	`getunder one=- two=- three=3`,
+	`set big=1234567890`,
+	`setunder three=3 big=9876543210`,
+	`get one=1 big=1234567890 two=2 three=-`,
+	`getunder one=- two=- three=3 big=9876543210`,
 	`commit`,
 	`getunder one=1 two=2 three=3`,
 	`get one=1 two=2 three=3`,
-	`set two=22 four=4`,
-	`get one=1 two=22 three=3 four=4`,
+	`set two=22 four=4 big=1234567890`,
+	`get one=1 two=22 three=3 four=4 big=1234567890`,
 	`getunder one=1 two=2 three=3 four=-`,
 	`commit`,
 	`getunder one=1 two=22 three=3 four=4`,
@@ -100,6 +102,13 @@ var setGetTests = [][]setGetOp{{
 	// Trivial full doc.
 	`set doc={"one":1,"two":2}`,
 	`get doc={"one":1,"two":2}`,
+}, {
+	// Root doc
+	`set doc={"one":1,"two":2}`,
+	`getroot ={"doc":{"one":1,"two":2}}`,
+	`commit`,
+	`getroot ={"doc":{"one":1,"two":2}}`,
+	`getrootunder ={"doc":{"one":1,"two":2}}`,
 }, {
 	// Nested mutations.
 	`set one.two.three=3`,
@@ -232,7 +241,7 @@ func (s *transactionSuite) TestSetGet(c *C) {
 				s.state.Set("config", config)
 
 			case "getunder":
-				var config map[string]map[string]interface{}
+				var config map[string]map[string]*json.RawMessage
 				s.state.Get("config", &config)
 				for k, expected := range op.args() {
 					obtained, ok := config[snap][k]
@@ -242,9 +251,24 @@ func (s *transactionSuite) TestSetGet(c *C) {
 						}
 						continue
 					}
-					c.Assert(obtained, DeepEquals, expected)
+					var cfg interface{}
+					c.Assert(jsonutil.DecodeWithNumber(bytes.NewReader(*obtained), &cfg), IsNil)
+					c.Assert(cfg, DeepEquals, expected)
 				}
-
+			case "getroot":
+				var obtained interface{}
+				c.Assert(t.Get(snap, "", &obtained), IsNil)
+				c.Assert(obtained, DeepEquals, op.args()[""])
+			case "getrootunder":
+				var config map[string]*json.RawMessage
+				s.state.Get("config", &config)
+				for _, expected := range op.args() {
+					obtained, ok := config[snap]
+					c.Assert(ok, Equals, true)
+					var cfg interface{}
+					c.Assert(jsonutil.DecodeWithNumber(bytes.NewReader(*obtained), &cfg), IsNil)
+					c.Assert(cfg, DeepEquals, expected)
+				}
 			default:
 				panic("unknown test op kind: " + op.kind())
 			}
@@ -281,4 +305,24 @@ func (s *transactionSuite) TestGetUnmarshalError(c *C) {
 	tr.Commit()
 	err = tr.Get("test-snap", "foo", &broken)
 	c.Assert(err, ErrorMatches, ".*BAM!.*")
+}
+
+func (s *transactionSuite) TestNoConfiguration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var res interface{}
+	tr := config.NewTransaction(s.state)
+	err := tr.Get("some-snap", "", &res)
+	c.Assert(err, NotNil)
+	c.Assert(config.IsNoOption(err), Equals, true)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has no configuration`)
+}
+
+func (s *transactionSuite) TestState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Check(tr.State(), DeepEquals, s.state)
 }

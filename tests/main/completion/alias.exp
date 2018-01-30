@@ -1,0 +1,13 @@
+source lib.exp0
+
+# alias completes binaries, not just any istalled snap
+# (here, "core" isn't offered for completion)
+chat "snap alias \t" "test-snapd-tools."
+chat "env myenv\n" "test-snapd-tools.env as myenv"
+
+# unalias completes aliases and snaps that have aliases
+chat "snap unalias \t\t" "myenv *test-snapd-tools"
+chat "m\t\n" "test-snapd-tools.env as myenv"
+
+cancel
+brexit

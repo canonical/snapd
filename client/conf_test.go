@@ -75,6 +75,17 @@ func (cs *clientSuite) TestClientGetConf(c *check.C) {
 	c.Check(value, check.DeepEquals, map[string]interface{}{"test-key": "test-value"})
 }
 
+func (cs *clientSuite) TestClientGetConfBigInt(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"status-code": 200,
+		"result": {"test-key": 1234567890}
+	}`
+	value, err := cs.cli.Conf("snap-name", []string{"test-key"})
+	c.Assert(err, check.IsNil)
+	c.Check(value, check.DeepEquals, map[string]interface{}{"test-key": json.Number("1234567890")})
+}
+
 func (cs *clientSuite) TestClientGetConfMultipleKeys(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",

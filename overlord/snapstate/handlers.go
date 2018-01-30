@@ -22,7 +22,6 @@ package snapstate
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -30,16 +29,14 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
@@ -114,6 +111,107 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
     SnapManger.blockedTask and TaskRunner.SetBlocked
 
 */
+
+const defaultCoreSnapName = "core"
+const defaultBaseSnapsChannel = "stable"
+
+func changeInFlight(st *state.State, snapName string) (bool, error) {
+	for _, chg := range st.Changes() {
+		if chg.Status().Ready() {
+			continue
+		}
+		for _, tc := range chg.Tasks() {
+			if tc.Kind() == "link-snap" || tc.Kind() == "discard-snap" {
+				snapsup, err := TaskSnapSetup(tc)
+				if err != nil {
+					return false, err
+				}
+				// some other change aleady inflight
+				if snapsup.Name() == snapName {
+					return true, nil
+				}
+			}
+		}
+	}
+
+	return false, nil
+}
+
+// timeout for tasks to check if the prerequisites are ready
+var prerequisitesRetryTimeout = 30 * time.Second
+
+func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// check if we need to inject tasks to install core
+	snapsup, _, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	// core/ubuntu-core can not have prerequisites
+	snapName := snapsup.Name()
+	if snapName == defaultCoreSnapName || snapName == "ubuntu-core" {
+		return nil
+	}
+
+	// check prereqs
+	prereqName := defaultCoreSnapName
+	if snapsup.Base != "" {
+		prereqName = snapsup.Base
+	}
+
+	var prereqState SnapState
+	err = Get(st, prereqName, &prereqState)
+	// we have the prereq already
+	if err == nil {
+		return nil
+	}
+	// if it is a real error, report
+	if err != state.ErrNoState {
+		return err
+	}
+
+	// check that there is no task that installs the prereq already
+	prereqPending, err := changeInFlight(st, prereqName)
+	if err != nil {
+		return err
+	}
+	if prereqPending {
+		// if something else installs core already we need to
+		// wait for that to either finish successfully or fail
+		return &state.Retry{After: prerequisitesRetryTimeout}
+	}
+
+	// not installed, nor queued for install -> install it
+	ts, err := Install(st, prereqName, defaultBaseSnapsChannel, snap.R(0), snapsup.UserID, Flags{})
+	// something might have triggered an explicit install of core while
+	// the state was unlocked -> deal with that here
+	if _, ok := err.(changeDuringInstallError); ok {
+		return &state.Retry{After: prerequisitesRetryTimeout}
+	}
+	if _, ok := err.(changeConflictError); ok {
+		return &state.Retry{After: prerequisitesRetryTimeout}
+	}
+	if err != nil {
+		return err
+	}
+	ts.JoinLane(st.NewLane())
+
+	// inject install for core into this change
+	chg := t.Change()
+	for _, t := range chg.Tasks() {
+		t.WaitAll(ts)
+	}
+	chg.AddAll(ts)
+	// make sure that the new change is committed to the state
+	// together with marking this task done
+	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
 
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
@@ -295,6 +393,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+
 	t.State().Lock()
 	t.Set("snap-type", newInfo.Type)
 	t.State().Unlock()
@@ -377,10 +476,6 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	oldInfo, err := snapst.CurrentInfo()
 	if err != nil {
 		return err
-	}
-
-	if err := m.createSnapCookie(st, snapsup.Name()); err != nil {
-		return fmt.Errorf("cannot create snap cookie: %v", err)
 	}
 
 	snapst.Active = true
@@ -468,49 +563,6 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) createSnapCookie(st *state.State, snapName string) error {
-	cookieID := strutil.MakeRandomString(44)
-	path := filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", snapName))
-	err := osutil.AtomicWriteFile(path, []byte(cookieID), 0600, 0)
-	if err != nil {
-		return err
-	}
-
-	var contexts map[string]string
-	err = st.Get("snap-cookies", &contexts)
-	if err != nil {
-		if err != state.ErrNoState {
-			return fmt.Errorf("cannot get snap cookies: %v", err)
-		}
-		contexts = make(map[string]string)
-	}
-	contexts[cookieID] = snapName
-	st.Set("snap-cookies", &contexts)
-	return nil
-}
-
-func (m *SnapManager) removeSnapCookie(st *state.State, snapName string) error {
-	var contexts map[string]string
-	err := st.Get("snap-cookies", &contexts)
-	if err != nil {
-		if err != state.ErrNoState {
-			return fmt.Errorf("cannot get snap cookies: %v", err)
-		}
-		contexts = make(map[string]string)
-	}
-
-	for cookieID, snap := range contexts {
-		if snapName == snap {
-			delete(contexts, cookieID)
-			st.Set("snap-cookies", contexts)
-			// error on removing the context file is not fatal
-			_ = os.Remove(filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", snapName)))
-			break
-		}
-	}
-	return nil
-}
-
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -541,6 +593,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if snapsup.Channel != "" {
 		snapst.Channel = snapsup.Channel
 	}
+	oldIgnoreValidation := snapst.IgnoreValidation
+	snapst.IgnoreValidation = snapsup.IgnoreValidation
 	oldTryMode := snapst.TryMode
 	snapst.TryMode = snapsup.TryMode
 	oldDevMode := snapst.DevMode
@@ -551,6 +605,23 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Classic = snapsup.Classic
 	if snapsup.Required { // set only on install and left alone on refresh
 		snapst.Required = true
+	}
+	// only set userID if unset or logged out in snapst and if we
+	// actually have an associated user
+	if snapsup.UserID > 0 {
+		var user *auth.UserState
+		if snapst.UserID != 0 {
+			user, err = auth.User(st, snapst.UserID)
+			if err != nil && err != auth.ErrInvalidUser {
+				return err
+			}
+		}
+		if user == nil {
+			// if the original user installing the snap is
+			// no longer available transfer to user who
+			// triggered this change
+			snapst.UserID = snapsup.UserID
+		}
 	}
 
 	newInfo, err := readInfo(snapsup.Name(), cand)
@@ -592,6 +663,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-devmode", oldDevMode)
 	t.Set("old-jailmode", oldJailMode)
 	t.Set("old-classic", oldClassic)
+	t.Set("old-ignore-validation", oldIgnoreValidation)
 	t.Set("old-channel", oldChannel)
 	t.Set("old-current", oldCurrent)
 	t.Set("old-candidate-index", oldCandidateIndex)
@@ -636,6 +708,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	var oldIgnoreValidation bool
+	err = t.Get("old-ignore-validation", &oldIgnoreValidation)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
 	var oldTryMode bool
 	err = t.Get("old-trymode", &oldTryMode)
 	if err != nil {
@@ -668,7 +745,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	if len(snapst.Sequence) == 1 {
 		if err := m.removeSnapCookie(st, snapsup.Name()); err != nil {
-			return fmt.Errorf("cannot remove snap context: %v", err)
+			return fmt.Errorf("cannot remove snap cookie: %v", err)
 		}
 	}
 
@@ -690,6 +767,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Current = oldCurrent
 	snapst.Active = false
 	snapst.Channel = oldChannel
+	snapst.IgnoreValidation = oldIgnoreValidation
 	snapst.TryMode = oldTryMode
 	snapst.DevMode = oldDevMode
 	snapst.JailMode = oldJailMode
@@ -715,6 +793,16 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, snapsup.Name(), snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.UndoneStatus)
+
+	// If we are on classic and have no previous version of core
+	// we may have restarted from a distro package into the core
+	// snap. We need to undo that restart here. Instead of in
+	// doUnlinkCurrentSnap() like we usually do when going from
+	// core snap -> next core snap
+	if release.OnClassic && newInfo.Type == snap.TypeOS && oldCurrent.Unset() {
+		t.Logf("Requested daemon restart (undo classic initial core install)")
+		st.RequestRestart(state.RestartDaemon)
+	}
 	return nil
 }
 
@@ -736,6 +824,38 @@ func (m *SnapManager) doSwitchSnapChannel(t *state.Task, _ *tomb.Tomb) error {
 	if snapsup.SideInfo.Channel != "" {
 		snapst.CurrentSideInfo().Channel = snapsup.Channel
 	}
+
+	Set(st, snapsup.Name(), snapst)
+	return nil
+}
+
+func (m *SnapManager) doSwitchSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapst.Channel = snapsup.Channel
+
+	Set(st, snapsup.Name(), snapst)
+	return nil
+}
+
+func (m *SnapManager) doToggleSnapFlags(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	// for now we support toggling only ignore-validation
+	snapst.IgnoreValidation = snapsup.IgnoreValidation
 
 	Set(st, snapsup.Name(), snapst)
 	return nil
@@ -905,7 +1025,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			return &state.Retry{After: 3 * time.Minute}
 		}
 		if err := m.removeSnapCookie(st, snapsup.Name()); err != nil {
-			return fmt.Errorf("cannot remove snap context: %v", err)
+			return fmt.Errorf("cannot remove snap cookie: %v", err)
 		}
 	}
 	if err = config.DiscardRevisionConfig(st, snapsup.Name(), snapsup.Revision()); err != nil {

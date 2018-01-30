@@ -20,6 +20,7 @@
 package squashfs
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -27,7 +28,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -88,23 +88,8 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	return osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
 }
 
-var runCommandWithOutput = func(args ...string) ([]byte, error) {
-	cmd := exec.Command(args[0], args[1:]...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("cmd: %q failed: %v (%q)", strings.Join(args, " "), err, output)
-	}
-
-	return output, nil
-}
-
-var runCommand = func(args ...string) error {
-	_, err := runCommandWithOutput(args...)
-	return err
-}
-
 func (s *Snap) Unpack(src, dstDir string) error {
-	return runCommand("unsquashfs", "-f", "-i", "-d", dstDir, s.path, src)
+	return exec.Command("unsquashfs", "-f", "-i", "-d", dstDir, s.path, src).Run()
 }
 
 // Size returns the size of a squashfs snap.
@@ -126,19 +111,111 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
-	if err := runCommand("unsquashfs", "-i", "-d", unpackDir, s.path, filePath); err != nil {
+	if err := exec.Command("unsquashfs", "-i", "-d", unpackDir, s.path, filePath).Run(); err != nil {
 		return nil, err
 	}
 
 	return ioutil.ReadFile(filepath.Join(unpackDir, filePath))
 }
 
+// skipper is used to track directories that should be skipped
+//
+// Given sk := make(skipper), if you sk.Add("foo/bar"), then
+// sk.Has("foo/bar") is true, but also sk.Has("foo/bar/baz")
+//
+// It could also be a map[string]bool, but because it's only supposed
+// to be checked through its Has method as above, the small added
+// complexity of it being a map[string]struct{} lose to the associated
+// space savings.
+type skipper map[string]struct{}
+
+func (sk skipper) Add(path string) {
+	sk[filepath.Clean(path)] = struct{}{}
+}
+
+func (sk skipper) Has(path string) bool {
+	for p := filepath.Clean(path); p != "." && p != "/"; p = filepath.Dir(p) {
+		if _, ok := sk[p]; ok {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Walk (part of snap.Container) is like filepath.Walk, without the ordering guarantee.
+func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
+	relative = filepath.Clean(relative)
+	if relative == "" || relative == "/" {
+		relative = "."
+	} else if relative[0] == '/' {
+		// I said relative, darn it :-)
+		relative = relative[1:]
+	}
+
+	var cmd *exec.Cmd
+	if relative == "." {
+		cmd = exec.Command("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path)
+	} else {
+		cmd = exec.Command("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path, relative)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return walkFn(relative, nil, err)
+	}
+	if err := cmd.Start(); err != nil {
+		return walkFn(relative, nil, err)
+	}
+	defer cmd.Process.Kill()
+
+	scanner := bufio.NewScanner(stdout)
+	// skip the header
+	for scanner.Scan() {
+		if len(scanner.Bytes()) == 0 {
+			break
+		}
+	}
+
+	skipper := make(skipper)
+	for scanner.Scan() {
+		st, err := fromRaw(scanner.Bytes())
+		if err != nil {
+			err = walkFn(relative, nil, err)
+			if err != nil {
+				return err
+			}
+		} else {
+			path := filepath.Join(relative, st.Path())
+			if skipper.Has(path) {
+				continue
+			}
+			err = walkFn(path, st, nil)
+			if err != nil {
+				if err == filepath.SkipDir && st.IsDir() {
+					skipper.Add(path)
+				} else {
+					return err
+				}
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return walkFn(relative, nil, err)
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return walkFn(relative, nil, err)
+	}
+	return nil
+}
+
 // ListDir returns the content of a single directory inside a squashfs snap.
 func (s *Snap) ListDir(dirPath string) ([]string, error) {
-	output, err := runCommandWithOutput(
-		"unsquashfs", "-no-progress", "-dest", "_", "-l", s.path, dirPath)
+	output, err := exec.Command(
+		"unsquashfs", "-no-progress", "-dest", "_", "-l", s.path, dirPath).CombinedOutput()
 	if err != nil {
-		return nil, err
+		return nil, osutil.OutputErr(output, err)
 	}
 
 	prefixPath := path.Join("_", dirPath)
@@ -165,12 +242,13 @@ func (s *Snap) Build(buildDir string) error {
 	}
 
 	return osutil.ChDir(buildDir, func() error {
-		return runCommand(
+		return exec.Command(
 			"mksquashfs",
 			".", fullSnapPath,
 			"-noappend",
 			"-comp", "xz",
 			"-no-xattrs",
-		)
+			"-no-fragments",
+		).Run()
 	})
 }

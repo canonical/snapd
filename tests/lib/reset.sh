@@ -10,6 +10,18 @@ reset_classic() {
     # have changed on the disk.
     systemctl daemon-reload
 
+    echo "Ensure the service is active before stopping it"
+    retries=20
+    systemctl status snapd.service || true
+    while systemctl status snapd.service | grep "Active: activating"; do
+        if [ $retries -eq 0 ]; then
+            echo "snapd service not active"
+            exit 1
+        fi
+        retries=$(( $retries - 1 ))
+        sleep 1
+    done
+
     systemctl stop snapd.service snapd.socket
 
     case "$SPREAD_SYSTEM" in
@@ -17,8 +29,10 @@ reset_classic() {
             sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge
             ;;
         fedora-*|opensuse-*)
-            sh -x "${SPREAD_PATH}/packaging/fedora/snap-mgmt.sh" \
-                --snap-mount-dir="$SNAPMOUNTDIR" \
+            # We don't know if snap-mgmt was built, so call the *.in file
+            # directly and pass arguments that will override the placeholders
+            sh -x "${SPREAD_PATH}/cmd/snap-mgmt/snap-mgmt.sh.in" \
+                --snap-mount-dir="$SNAP_MOUNT_DIR" \
                 --purge
             # The script above doesn't remove the snapd directory as this
             # is normally done by the rpm packaging system.
@@ -29,11 +43,11 @@ reset_classic() {
             ;;
     esac
     # extra purge
-    rm -rvf /var/snap "${SNAPMOUNTDIR:?}/bin"
-    mkdir -p "$SNAPMOUNTDIR" /var/snap /var/lib/snapd
-    if [ "$(find "$SNAPMOUNTDIR" /var/snap -mindepth 1 -print -quit)" ]; then
+    rm -rvf /var/snap "${SNAP_MOUNT_DIR:?}/bin"
+    mkdir -p "$SNAP_MOUNT_DIR" /var/snap /var/lib/snapd
+    if [ "$(find "$SNAP_MOUNT_DIR" /var/snap -mindepth 1 -print -quit)" ]; then
         echo "postinst purge failed"
-        ls -lR "$SNAPMOUNTDIR"/ /var/snap/
+        ls -lR "$SNAP_MOUNT_DIR"/ /var/snap/
         exit 1
     fi
 
@@ -50,8 +64,8 @@ reset_classic() {
         rm -rf /etc/systemd/system/snapd.socket.d
 
         # Restore snapd state and start systemd service units
-        tar -C/ -xzf "$SPREAD_PATH/snapd-state.tar.gz"
-        escaped_snap_mount_dir="$(systemd-escape --path "$SNAPMOUNTDIR")"
+        tar -C/ -xf "$SPREAD_PATH/snapd-state.tar.gz"
+        escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
         mounts="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.mount" | cut -f1 -d ' ')"
         services="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
@@ -77,10 +91,10 @@ reset_all_snap() {
     # shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
 
-    for snap in "$SNAPMOUNTDIR"/*; do
+    for snap in "$SNAP_MOUNT_DIR"/*; do
         snap="${snap:6}"
         case "$snap" in
-            "bin" | "$gadget_name" | "$kernel_name" | core )
+            "bin" | "$gadget_name" | "$kernel_name" | core | README)
                 ;;
             *)
                 snap remove "$snap"
@@ -91,7 +105,7 @@ reset_all_snap() {
     # ensure we have the same state as initially
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/*
-    tar -C/ -xzf "$SPREAD_PATH/snapd-state.tar.gz"
+    tar -C/ -xf "$SPREAD_PATH/snapd-state.tar.gz"
     rm -rf /root/.snap
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.service snapd.socket

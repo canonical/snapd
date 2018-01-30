@@ -39,9 +39,11 @@ var (
 	SnapBlobDir               string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
+	SnapDownloadCacheDir      string
 	SnapAppArmorDir           string
 	AppArmorCacheDir          string
 	SnapAppArmorAdditionalDir string
+	SnapConfineAppArmorDir    string
 	SnapSeccompDir            string
 	SnapMountPolicyDir        string
 	SnapUdevRulesDir          string
@@ -65,6 +67,17 @@ var (
 	SnapStateFile     string
 	SnapSystemKeyFile string
 
+	SnapRepairDir        string
+	SnapRepairStateFile  string
+	SnapRepairRunDir     string
+	SnapRepairAssertsDir string
+	SnapRunRepairDir     string
+
+	SnapCacheDir     string
+	SnapNamesFile    string
+	SnapSectionsFile string
+	SnapCommandsDB   string
+
 	SnapBinariesDir     string
 	SnapServicesDir     string
 	SnapDesktopFilesDir string
@@ -81,6 +94,14 @@ var (
 	XdgRuntimeDirGlob string
 
 	CompletionHelper string
+	CompletersDir    string
+	CompleteSh       string
+
+	SystemFontsDir           string
+	SystemLocalFontsDir      string
+	SystemFontconfigCacheDir string
+
+	FreezerCgroupDir string
 )
 
 const (
@@ -122,7 +143,24 @@ func StripRootDir(dir string) string {
 
 // SupportsClassicConfinement returns true if the current directory layout supports classic confinement.
 func SupportsClassicConfinement() bool {
-	return SnapMountDir == defaultSnapMountDir
+	smd := filepath.Join(GlobalRootDir, defaultSnapMountDir)
+	if SnapMountDir == smd {
+		return true
+	}
+
+	// distros with a non-default /snap location may still be good
+	// if there is a symlink in place that links from the
+	// defaultSnapMountDir (/snap) to the distro specific mount dir
+	fi, err := os.Lstat(smd)
+	if err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		if target, err := filepath.EvalSymlinks(smd); err == nil {
+			if target == SnapMountDir {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // SetRootDir allows settings a new global root directory, this is useful
@@ -133,18 +171,19 @@ func SetRootDir(rootdir string) {
 	}
 	GlobalRootDir = rootdir
 
-	switch release.ReleaseInfo.ID {
-	case "fedora", "centos", "rhel", "arch":
+	if release.DistroLike("fedora", "arch", "manjaro") {
 		SnapMountDir = filepath.Join(rootdir, "/var/lib/snapd/snap")
-	default:
+	} else {
 		SnapMountDir = filepath.Join(rootdir, defaultSnapMountDir)
 	}
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/snap/")
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
+	SnapConfineAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine")
 	AppArmorCacheDir = filepath.Join(rootdir, "/var/cache/apparmor")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
+	SnapDownloadCacheDir = filepath.Join(rootdir, snappyDir, "cache")
 	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
@@ -165,8 +204,19 @@ func SetRootDir(rootdir string) {
 	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")
 	SnapSystemKeyFile = filepath.Join(rootdir, snappyDir, "system-key")
 
+	SnapCacheDir = filepath.Join(rootdir, "/var/cache/snapd")
+	SnapNamesFile = filepath.Join(SnapCacheDir, "names")
+	SnapSectionsFile = filepath.Join(SnapCacheDir, "sections")
+	SnapCommandsDB = filepath.Join(SnapCacheDir, "commands.db")
+
 	SnapSeedDir = filepath.Join(rootdir, snappyDir, "seed")
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
+
+	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
+	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")
+	SnapRepairRunDir = filepath.Join(SnapRepairDir, "run")
+	SnapRepairAssertsDir = filepath.Join(SnapRepairDir, "assertions")
+	SnapRunRepairDir = filepath.Join(SnapRunDir, "repair")
 
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
@@ -184,10 +234,11 @@ func SetRootDir(rootdir string) {
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
 
-	switch release.ReleaseInfo.ID {
-	case "fedora", "centos", "rhel":
+	if release.DistroLike("fedora") {
+		// rhel, centos, fedora and derivatives
+		// both rhel and centos list "fedora" in ID_LIKE
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/libexec/snapd")
-	default:
+	} else {
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
 	}
 
@@ -195,4 +246,12 @@ func SetRootDir(rootdir string) {
 	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
 
 	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
+	CompletersDir = filepath.Join(rootdir, "/usr/share/bash-completion/completions/")
+	CompleteSh = filepath.Join(SnapMountDir, "core/current/usr/lib/snapd/complete.sh")
+
+	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")
+	SystemLocalFontsDir = filepath.Join(rootdir, "/usr/local/share/fonts")
+	SystemFontconfigCacheDir = filepath.Join(rootdir, "/var/cache/fontconfig")
+
+	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
 }

@@ -20,11 +20,13 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -57,6 +59,11 @@ func NewTransaction(st *state.State) *Transaction {
 		panic(fmt.Errorf("internal error: cannot unmarshal configuration: %v", err))
 	}
 	return transaction
+}
+
+// State returns the system State
+func (t *Transaction) State() *state.State {
+	return t.state
 }
 
 // Set sets the provided snap's configuration key to the given value.
@@ -124,6 +131,7 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 	if IsNoOption(err) {
 		err = getFromPristine(snapName, subkeys, 0, t.pristine[snapName], result)
 	}
+
 	return err
 }
 
@@ -140,6 +148,18 @@ func (t *Transaction) GetMaybe(snapName, key string, result interface{}) error {
 }
 
 func getFromPristine(snapName string, subkeys []string, pos int, config map[string]*json.RawMessage, result interface{}) error {
+	// special case - get root document
+	if len(subkeys) == 0 {
+		if len(config) == 0 {
+			return &NoOptionError{SnapName: snapName}
+		}
+		raw := jsonRaw(config)
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
+			return fmt.Errorf("internal error: cannot unmarshal snap %q root document: %s", snapName, err)
+		}
+		return nil
+	}
+
 	raw, ok := config[subkeys[pos]]
 	if !ok {
 		return &NoOptionError{SnapName: snapName, Key: strings.Join(subkeys[:pos+1], ".")}
@@ -153,8 +173,7 @@ func getFromPristine(snapName string, subkeys []string, pos int, config map[stri
 	}
 
 	if pos+1 == len(subkeys) {
-		err := json.Unmarshal([]byte(*raw), result)
-		if err != nil {
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
 			key := strings.Join(subkeys, ".")
 			return fmt.Errorf("internal error: cannot unmarshal snap %q option %q into %T: %s, json: %s", snapName, key, result, err, *raw)
 		}
@@ -162,8 +181,7 @@ func getFromPristine(snapName string, subkeys []string, pos int, config map[stri
 	}
 
 	var configm map[string]*json.RawMessage
-	err := json.Unmarshal([]byte(*raw), &configm)
-	if err != nil {
+	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &configm); err != nil {
 		return fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos+1], "."))
 	}
 	return getFromPristine(snapName, subkeys, pos+1, configm, result)
@@ -225,7 +243,7 @@ func commitChange(pristine *json.RawMessage, change interface{}) *json.RawMessag
 			return jsonRaw(change)
 		}
 		var pristinem map[string]*json.RawMessage
-		if err := json.Unmarshal([]byte(*pristine), &pristinem); err != nil {
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*pristine), &pristinem); err != nil {
 			// Not a map. Overwrite with the change.
 			return jsonRaw(change)
 		}
@@ -250,5 +268,8 @@ type NoOptionError struct {
 }
 
 func (e *NoOptionError) Error() string {
+	if e.Key == "" {
+		return fmt.Sprintf("snap %q has no configuration", e.SnapName)
+	}
 	return fmt.Sprintf("snap %q has no %q configuration option", e.SnapName, e.Key)
 }

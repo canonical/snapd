@@ -22,6 +22,9 @@ package snapstate_test
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -31,23 +34,29 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 )
 
 type checkSnapSuite struct {
+	testutil.BaseTest
 	st *state.State
 }
 
 var _ = Suite(&checkSnapSuite{})
 
 func (s *checkSnapSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 }
 
 func (s *checkSnapSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
 }
 
@@ -64,7 +73,7 @@ architectures:
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		c.Check(path, Equals, "snap-path")
 		c.Check(si, IsNil)
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -155,7 +164,7 @@ func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
 		c.Assert(err, IsNil)
 
 		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-			return info, nil, nil
+			return info, emptyContainer(c), nil
 		}
 		restore := snapstate.MockOpenSnapFile(openSnapFile)
 		defer restore()
@@ -178,7 +187,7 @@ version: 1.0`
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		info := snaptest.MockInfo(c, yaml, si)
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	r1 := snapstate.MockOpenSnapFile(openSnapFile)
 	defer r1()
@@ -207,7 +216,7 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -255,7 +264,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -297,7 +306,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -338,7 +347,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -379,7 +388,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -421,7 +430,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -449,7 +458,7 @@ version: 1
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -471,7 +480,7 @@ confinement: devmode
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		c.Check(path, Equals, "snap-path")
 		c.Check(si, IsNil)
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -492,7 +501,7 @@ confinement: classic
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		c.Check(path, Equals, "snap-path")
 		c.Check(si, IsNil)
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -516,7 +525,7 @@ confinement: classic
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		c.Check(path, Equals, "snap-path")
 		c.Check(si, IsNil)
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -560,7 +569,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -602,7 +611,7 @@ version: 2
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -627,7 +636,7 @@ base: some-base
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -665,7 +674,7 @@ base: some-base
 	c.Assert(err, IsNil)
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
-		return info, nil, nil
+		return info, emptyContainer(c), nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
@@ -674,4 +683,15 @@ base: some-base
 	err = snapstate.CheckSnap(st, "snap-path", nil, nil, snapstate.Flags{})
 	st.Lock()
 	c.Check(err, IsNil)
+}
+
+// emptyContainer returns a minimal container that passes
+// ValidateContainer: / and /meta exist and are 0755, and
+// /meta/snap.yaml is a regular world-readable file.
+func emptyContainer(c *C) *snapdir.SnapDir {
+	d := c.MkDir()
+	c.Assert(os.Chmod(d, 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0444), IsNil)
+	return snapdir.New(d)
 }

@@ -25,11 +25,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
 	"golang.org/x/crypto/sha3"
-	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
 
@@ -37,19 +37,20 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/storetest"
 )
 
 func TestAssertManager(t *testing.T) { TestingT(t) }
 
 type assertMgrSuite struct {
+	o     *overlord.Overlord
 	state *state.State
 	mgr   *assertstate.AssertManager
 
@@ -63,6 +64,7 @@ type assertMgrSuite struct {
 var _ = Suite(&assertMgrSuite{})
 
 type fakeStore struct {
+	storetest.Store
 	state *state.State
 	db    asserts.RODatabase
 }
@@ -77,55 +79,13 @@ func (sto *fakeStore) pokeStateLock() {
 func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string, _ *auth.UserState) (asserts.Assertion, error) {
 	sto.pokeStateLock()
 	ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
-	a, err := ref.Resolve(sto.db.Find)
-	if err != nil {
-		return nil, &store.AssertionNotFoundError{Ref: ref}
-	}
-	return a, nil
-}
-
-func (*fakeStore) SnapInfo(store.SnapSpec, *auth.UserState) (*snap.Info, error) {
-	panic("fakeStore.SnapInfo not expected")
-}
-
-func (sto *fakeStore) Find(*store.Search, *auth.UserState) ([]*snap.Info, error) {
-	panic("fakeStore.Find not expected")
-}
-
-func (sto *fakeStore) LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error) {
-	panic("fakeStore.LookupRefresh not expected")
-}
-
-func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error) {
-	panic("fakeStore.ListRefresh not expected")
-}
-
-func (sto *fakeStore) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
-	panic("fakeStore.Download not expected")
-}
-
-func (sto *fakeStore) SuggestedCurrency() string {
-	panic("fakeStore.SuggestedCurrency not expected")
-}
-
-func (sto *fakeStore) Buy(*store.BuyOptions, *auth.UserState) (*store.BuyResult, error) {
-	panic("fakeStore.Buy not expected")
-}
-
-func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
-	panic("fakeStore.ReadyToBuy not expected")
-}
-
-func (sto *fakeStore) Sections(*auth.UserState) ([]string, error) {
-	panic("fakeStore.Sections not expected")
+	return ref.Resolve(sto.db.Find)
 }
 
 func (s *assertMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
-	storePrivKey, _ := assertstest.GenerateKey(752)
-	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	dev1PrivKey, _ := assertstest.GenerateKey(752)
@@ -140,10 +100,12 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 
 	s.dev1Signing = assertstest.NewSigningDB(s.dev1Acct.AccountID(), dev1PrivKey)
 
-	s.state = state.New(nil)
+	s.o = overlord.Mock()
+	s.state = s.o.State()
 	mgr, err := assertstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.mgr = mgr
+	s.o.AddManager(s.mgr)
 
 	s.state.Lock()
 	snapstate.ReplaceStore(s.state, &fakeStore{
@@ -163,6 +125,12 @@ func (s *assertMgrSuite) TestDB(c *C) {
 
 	db := assertstate.DB(s.state)
 	c.Check(db, FitsTypeOf, (*asserts.Database)(nil))
+}
+
+func (s *assertMgrSuite) TestKnownTaskKinds(c *C) {
+	kinds := s.mgr.KnownTaskKinds()
+	sort.Strings(kinds)
+	c.Assert(kinds, DeepEquals, []string{"validate-snap"})
 }
 
 func (s *assertMgrSuite) TestAdd(c *C) {
@@ -300,6 +268,7 @@ func (s *assertMgrSuite) TestBatchCommitRefusesSelfSignedKey(c *C) {
 		"authority-id": "can0nical",
 		"brand-id":     "can0nical",
 		"repair-id":    "2",
+		"summary":      "repair two",
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}
 	repair, err := aSignDB.Sign(asserts.RepairType, headers, []byte("#script"), "")
@@ -444,12 +413,9 @@ func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
 	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 11)
 }
 
-func (s *assertMgrSuite) settle() {
-	// XXX: would like to use Overlord.Settle but not enough control there
-	for i := 0; i < 50; i++ {
-		s.mgr.Ensure()
-		s.mgr.Wait()
-	}
+func (s *assertMgrSuite) settle(c *C) {
+	err := s.o.Settle(5 * time.Second)
+	c.Assert(err, IsNil)
 }
 
 func (s *assertMgrSuite) TestValidateSnap(c *C) {
@@ -479,7 +445,7 @@ func (s *assertMgrSuite) TestValidateSnap(c *C) {
 
 	s.state.Unlock()
 	defer s.mgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(chg.Err(), IsNil)
@@ -517,7 +483,7 @@ func (s *assertMgrSuite) TestValidateSnapNotFound(c *C) {
 
 	s.state.Unlock()
 	defer s.mgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot verify snap "foo", no matching signatures found.*`)
@@ -550,7 +516,7 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 
 	s.state.Unlock()
 	defer s.mgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install snap "f" that is undergoing a rename to "foo".*`)
@@ -604,7 +570,7 @@ func (s *assertMgrSuite) TestValidateSnapSnapDeclIsTooNewFirstInstall(c *C) {
 
 	s.state.Unlock()
 	defer s.mgr.Stop()
-	s.settle()
+	s.settle(c)
 	s.state.Lock()
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*proposed "snap-declaration" assertion has format 999 but 0 is latest supported.*`)
@@ -749,7 +715,7 @@ func (s *assertMgrSuite) TestValidateRefreshesNothing(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	validated, err := assertstate.ValidateRefreshes(s.state, nil, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, nil, nil, 0)
 	c.Assert(err, IsNil)
 	c.Check(validated, HasLen, 0)
 }
@@ -776,7 +742,7 @@ func (s *assertMgrSuite) TestValidateRefreshesNoControl(c *C) {
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0)
 	c.Assert(err, IsNil)
 	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh})
 }
@@ -805,9 +771,38 @@ func (s *assertMgrSuite) TestValidateRefreshesMissingValidation(c *C) {
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0)
 	c.Assert(err, ErrorMatches, `cannot refresh "foo" to revision 9: no validation by "bar"`)
 	c.Check(validated, HasLen, 0)
+}
+
+func (s *assertMgrSuite) TestValidateRefreshesMissingValidationButIgnore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	snapDeclBar := s.snapDecl(c, "bar", map[string]interface{}{
+		"refresh-control": []interface{}{"foo-id"},
+	})
+	s.stateFromDecl(snapDeclFoo, snap.R(7))
+	s.stateFromDecl(snapDeclBar, snap.R(3))
+
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclBar)
+	c.Assert(err, IsNil)
+
+	fooRefresh := &snap.Info{
+		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
+	}
+
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, map[string]bool{"foo-id": true}, 0)
+	c.Assert(err, IsNil)
+	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh})
 }
 
 func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
@@ -873,7 +868,7 @@ func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0)
 	c.Assert(err, IsNil)
 	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh})
 }
@@ -942,7 +937,7 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
 	}
 
-	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, nil, 0)
 	c.Assert(err, ErrorMatches, `(?s).*cannot refresh "foo" to revision 9: validation by "baz" \(id "baz-id"\) revoked.*`)
 	c.Check(validated, HasLen, 0)
 }
@@ -955,7 +950,7 @@ func (s *assertMgrSuite) TestBaseSnapDeclaration(c *C) {
 	defer r1()
 
 	baseDecl, err := assertstate.BaseDeclaration(s.state)
-	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Assert(asserts.IsNotFound(err), Equals, true)
 	c.Check(baseDecl, IsNil)
 
 	r2 := assertstest.MockBuiltinBaseDeclaration([]byte(`
@@ -987,7 +982,7 @@ func (s *assertMgrSuite) TestSnapDeclaration(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
-	c.Check(err, Equals, asserts.ErrNotFound)
+	c.Check(asserts.IsNotFound(err), Equals, true)
 
 	snapDecl, err := assertstate.SnapDeclaration(s.state, "foo-id")
 	c.Assert(err, IsNil)
@@ -1016,7 +1011,7 @@ func (s *assertMgrSuite) TestAutoAliasesTemporaryFallback(c *C) {
 			SnapID:   "baz-id",
 		},
 	})
-	c.Check(err, ErrorMatches, `internal error: cannot find snap-declaration for installed snap "baz": assertion not found`)
+	c.Check(err, ErrorMatches, `internal error: cannot find snap-declaration for installed snap "baz": snap-declaration \(baz-id; series:16\) not found`)
 
 	info := snaptest.MockInfo(c, `
 name: foo
@@ -1076,7 +1071,7 @@ func (s *assertMgrSuite) TestAutoAliasesExplicit(c *C) {
 			SnapID:   "baz-id",
 		},
 	})
-	c.Check(err, ErrorMatches, `internal error: cannot find snap-declaration for installed snap "baz": assertion not found`)
+	c.Check(err, ErrorMatches, `internal error: cannot find snap-declaration for installed snap "baz": snap-declaration \(baz-id; series:16\) not found`)
 
 	// empty list
 	// have a declaration in the system db
@@ -1135,10 +1130,36 @@ func (s *assertMgrSuite) TestPublisher(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
-	c.Check(err, Equals, asserts.ErrNotFound)
+	c.Check(asserts.IsNotFound(err), Equals, true)
 
 	acct, err := assertstate.Publisher(s.state, "foo-id")
 	c.Assert(err, IsNil)
 	c.Check(acct.AccountID(), Equals, s.dev1Acct.AccountID())
 	c.Check(acct.Username(), Equals, "developer1")
+}
+
+func (s *assertMgrSuite) TestStore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	storeHeaders := map[string]interface{}{
+		"store":       "foo",
+		"operator-id": s.dev1Acct.AccountID(),
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}
+	fooStore, err := s.storeSigning.Sign(asserts.StoreType, storeHeaders, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, fooStore)
+	c.Assert(err, IsNil)
+
+	_, err = assertstate.Store(s.state, "bar")
+	c.Check(asserts.IsNotFound(err), Equals, true)
+
+	store, err := assertstate.Store(s.state, "foo")
+	c.Assert(err, IsNil)
+	c.Check(store.Store(), Equals, "foo")
 }

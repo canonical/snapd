@@ -38,6 +38,19 @@ func (plug *Plug) Ref() PlugRef {
 	return PlugRef{Snap: plug.Snap.Name(), Name: plug.Name}
 }
 
+// Sanitize plug with a given snapd interface.
+func BeforePreparePlug(iface Interface, plugInfo *snap.PlugInfo) error {
+	if iface.Name() != plugInfo.Interface {
+		return fmt.Errorf("cannot sanitize plug %q (interface %q) using interface %q",
+			PlugRef{Snap: plugInfo.Snap.Name(), Name: plugInfo.Name}, plugInfo.Interface, iface.Name())
+	}
+	var err error
+	if iface, ok := iface.(PlugSanitizer); ok {
+		err = iface.BeforePreparePlug(plugInfo)
+	}
+	return err
+}
+
 // PlugRef is a reference to a plug.
 type PlugRef struct {
 	Snap string `json:"snap"`
@@ -60,6 +73,19 @@ func (slot *Slot) Ref() SlotRef {
 	return SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}
 }
 
+// Sanitize slot with a given snapd interface.
+func BeforePrepareSlot(iface Interface, slotInfo *snap.SlotInfo) error {
+	if iface.Name() != slotInfo.Interface {
+		return fmt.Errorf("cannot sanitize slot %q (interface %q) using interface %q",
+			SlotRef{Snap: slotInfo.Snap.Name(), Name: slotInfo.Name}, slotInfo.Interface, iface.Name())
+	}
+	var err error
+	if iface, ok := iface.(SlotSanitizer); ok {
+		err = iface.BeforePrepareSlot(slotInfo)
+	}
+	return err
+}
+
 // SlotRef is a reference to a slot.
 type SlotRef struct {
 	Snap string `json:"snap"`
@@ -73,8 +99,9 @@ func (ref SlotRef) String() string {
 
 // Interfaces holds information about a list of plugs, slots and their connections.
 type Interfaces struct {
-	Plugs []*Plug `json:"plugs"`
-	Slots []*Slot `json:"slots"`
+	Plugs       []*snap.PlugInfo
+	Slots       []*snap.SlotInfo
+	Connections []*ConnRef
 }
 
 // Info holds information about a given interface and its instances.
@@ -90,6 +117,14 @@ type Info struct {
 type ConnRef struct {
 	PlugRef PlugRef
 	SlotRef SlotRef
+}
+
+// NewConnRef creates a connection reference for given plug and slot
+func NewConnRef(plug *snap.PlugInfo, slot *snap.SlotInfo) *ConnRef {
+	return &ConnRef{
+		PlugRef: PlugRef{Snap: plug.Snap.Name(), Name: plug.Name},
+		SlotRef: SlotRef{Snap: slot.Snap.Name(), Name: slot.Name},
+	}
 }
 
 // ID returns a string identifying a given connection.
@@ -123,17 +158,21 @@ type Interface interface {
 	// Unique and public name of this interface.
 	Name() string
 
-	// SanitizePlug checks if a plug is correct, altering if necessary.
-	SanitizePlug(plug *Plug) error
-
-	// SanitizeSlot checks if a slot is correct, altering if necessary.
-	SanitizeSlot(slot *Slot) error
-
 	// AutoConnect returns whether plug and slot should be
 	// implicitly auto-connected assuming they will be an
 	// unambiguous connection candidate and declaration-based checks
 	// allow.
 	AutoConnect(plug *Plug, slot *Slot) bool
+}
+
+// PlugSanitizer can be implemented by Interfaces that have reasons to sanitize their plugs.
+type PlugSanitizer interface {
+	BeforePreparePlug(plug *snap.PlugInfo) error
+}
+
+// SlotSanitizer can be implemented by Interfaces that have reasons to sanitize their slots.
+type SlotSanitizer interface {
+	BeforePrepareSlot(slot *snap.SlotInfo) error
 }
 
 // StaticInfo describes various static-info of a given interface.
@@ -170,13 +209,13 @@ func StaticInfoOf(iface Interface) (si StaticInfo) {
 // Specification describes interactions between backends and interfaces.
 type Specification interface {
 	// AddPermanentSlot records side-effects of having a slot.
-	AddPermanentSlot(iface Interface, slot *Slot) error
+	AddPermanentSlot(iface Interface, slot *snap.SlotInfo) error
 	// AddPermanentPlug records side-effects of having a plug.
-	AddPermanentPlug(iface Interface, plug *Plug) error
+	AddPermanentPlug(iface Interface, plug *snap.PlugInfo) error
 	// AddConnectedSlot records side-effects of having a connected slot.
-	AddConnectedSlot(iface Interface, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error
+	AddConnectedSlot(iface Interface, plug *ConnectedPlug, slot *ConnectedSlot) error
 	// AddConnectedPlug records side-effects of having a connected plug.
-	AddConnectedPlug(iface Interface, plug *Plug, plugAttrs map[string]interface{}, slot *Slot, slotAttrs map[string]interface{}) error
+	AddConnectedPlug(iface Interface, plug *ConnectedPlug, slot *ConnectedSlot) error
 }
 
 // SecuritySystem is a name of a security system.

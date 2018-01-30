@@ -14,7 +14,7 @@ summary: |
 
 prepare: |
     echo "Given a snap declaring a plug on the process-control interface is installed"
-    snapbuild $TESTSLIB/snaps/process-control-consumer .
+    snap pack $TESTSLIB/snaps/process-control-consumer
     snap install --dangerous process-control-consumer_1.0_all.snap
 
 restore: |

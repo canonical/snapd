@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -53,6 +53,10 @@ var (
 	abortWait      = 24 * time.Hour * 7
 
 	pruneMaxChanges = 500
+
+	defaultCachedDownloads = 5
+
+	configstateInit = configstate.Init
 )
 
 // Overlord is the central manager of a snappy system, keeping
@@ -68,13 +72,14 @@ type Overlord struct {
 	// restarts
 	restartHandler func(t state.RestartType)
 	// managers
-	snapMgr   *snapstate.SnapManager
-	assertMgr *assertstate.AssertManager
-	ifaceMgr  *ifacestate.InterfaceManager
-	hookMgr   *hookstate.HookManager
-	configMgr *configstate.ConfigManager
-	deviceMgr *devicestate.DeviceManager
-	cmdMgr    *cmdstate.CommandManager
+	inited     bool
+	snapMgr    *snapstate.SnapManager
+	assertMgr  *assertstate.AssertManager
+	ifaceMgr   *ifacestate.InterfaceManager
+	hookMgr    *hookstate.HookManager
+	deviceMgr  *devicestate.DeviceManager
+	cmdMgr     *cmdstate.CommandManager
+	unknownMgr *UnknownTaskManager
 }
 
 var storeNew = store.New
@@ -83,6 +88,7 @@ var storeNew = store.New
 func New() (*Overlord, error) {
 	o := &Overlord{
 		loopTomb: new(tomb.Tomb),
+		inited:   true,
 	}
 
 	backend := &overlordStateBackend{
@@ -96,62 +102,76 @@ func New() (*Overlord, error) {
 	}
 
 	o.stateEng = NewStateEngine(s)
+	o.unknownMgr = NewUnknownTaskManager(s)
+	o.stateEng.AddManager(o.unknownMgr)
 
 	hookMgr, err := hookstate.Manager(s)
 	if err != nil {
 		return nil, err
 	}
-	o.hookMgr = hookMgr
-	o.stateEng.AddManager(o.hookMgr)
+	o.addManager(hookMgr)
 
 	snapMgr, err := snapstate.Manager(s)
 	if err != nil {
 		return nil, err
 	}
-	o.snapMgr = snapMgr
-	o.stateEng.AddManager(o.snapMgr)
+	o.addManager(snapMgr)
 
 	assertMgr, err := assertstate.Manager(s)
 	if err != nil {
 		return nil, err
 	}
-	o.assertMgr = assertMgr
-	o.stateEng.AddManager(o.assertMgr)
+	o.addManager(assertMgr)
 
 	ifaceMgr, err := ifacestate.Manager(s, hookMgr, nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	o.ifaceMgr = ifaceMgr
-	o.stateEng.AddManager(o.ifaceMgr)
-
-	configMgr, err := configstate.Manager(s, hookMgr)
-	if err != nil {
-		return nil, err
-	}
-	o.configMgr = configMgr
+	o.addManager(ifaceMgr)
 
 	deviceMgr, err := devicestate.Manager(s, hookMgr)
 	if err != nil {
 		return nil, err
 	}
-	o.deviceMgr = deviceMgr
-	o.stateEng.AddManager(o.deviceMgr)
+	o.addManager(deviceMgr)
 
-	o.cmdMgr = cmdstate.Manager(s)
-	o.stateEng.AddManager(o.cmdMgr)
+	o.addManager(cmdstate.Manager(s))
 
+	configstateInit(hookMgr)
+
+	s.Lock()
+	defer s.Unlock()
 	// setting up the store
 	authContext := auth.NewAuthContext(s, o.deviceMgr)
 	sto := storeNew(nil, authContext)
-	s.Lock()
+	sto.SetCacheDownloads(defaultCachedDownloads)
+
 	snapstate.ReplaceStore(s, sto)
-	if err := o.snapMgr.GenerateCookies(s); err != nil {
+
+	if err := o.snapMgr.SyncCookies(s); err != nil {
 		return nil, fmt.Errorf("failed to generate cookies: %q", err)
 	}
-	s.Unlock()
 
 	return o, nil
+}
+
+func (o *Overlord) addManager(mgr StateManager) {
+	switch x := mgr.(type) {
+	case *hookstate.HookManager:
+		o.hookMgr = x
+	case *snapstate.SnapManager:
+		o.snapMgr = x
+	case *assertstate.AssertManager:
+		o.assertMgr = x
+	case *ifacestate.InterfaceManager:
+		o.ifaceMgr = x
+	case *devicestate.DeviceManager:
+		o.deviceMgr = x
+	case *cmdstate.CommandManager:
+		o.cmdMgr = x
+	}
+	o.stateEng.AddManager(mgr)
+	o.unknownMgr.Ignore(mgr.KnownTaskKinds())
 }
 
 func loadState(backend state.Backend) (*state.State, error) {
@@ -263,9 +283,10 @@ func (o *Overlord) Stop() error {
 
 // Settle runs first a state engine Ensure and then wait for activities to settle.
 // That's done by waiting for all managers activities to settle while
-// making sure no immediate further Ensure is scheduled. Chiefly for tests.
-// Cannot be used in conjunction with Loop.
-func (o *Overlord) Settle() error {
+// making sure no immediate further Ensure is scheduled. Chiefly for
+// tests.  Cannot be used in conjunction with Loop. If timeout is
+// non-zero and settling takes longer than timeout, returns an error.
+func (o *Overlord) Settle(timeout time.Duration) error {
 	func() {
 		o.ensureLock.Lock()
 		defer o.ensureLock.Unlock()
@@ -282,9 +303,17 @@ func (o *Overlord) Settle() error {
 		o.ensureTimer = nil
 	}()
 
+	t0 := time.Now()
 	done := false
 	var errs []error
 	for !done {
+		if timeout > 0 && time.Since(t0) > timeout {
+			err := fmt.Errorf("Settle is not converging")
+			if len(errs) != 0 {
+				return &ensureError{append(errs, err)}
+			}
+			return err
+		}
 		next := o.ensureTimerReset()
 		err := o.stateEng.Ensure()
 		switch ee := err.(type) {
@@ -298,6 +327,18 @@ func (o *Overlord) Settle() error {
 		o.ensureLock.Lock()
 		done = o.ensureNext.Equal(next)
 		o.ensureLock.Unlock()
+		if done {
+			// we should wait also for cleanup handlers
+			st := o.State()
+			st.Lock()
+			for _, chg := range st.Changes() {
+				if chg.IsReady() && !chg.IsClean() {
+					done = false
+					break
+				}
+			}
+			st.Unlock()
+		}
 	}
 	if len(errs) != 0 {
 		return &ensureError{errs}
@@ -328,18 +369,72 @@ func (o *Overlord) InterfaceManager() *ifacestate.InterfaceManager {
 	return o.ifaceMgr
 }
 
-// HookManager returns the hook manager responsible for running hooks under the
-// overlord.
+// HookManager returns the hook manager responsible for running hooks
+// under the overlord.
 func (o *Overlord) HookManager() *hookstate.HookManager {
 	return o.hookMgr
 }
 
-// DeviceManager returns the device manager responsible for the device identity and policies
+// DeviceManager returns the device manager responsible for the device
+// identity and policies.
 func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
 	return o.deviceMgr
 }
 
-// CommandManager returns the manager responsible for running odd jobs
+// CommandManager returns the manager responsible for running odd
+// jobs.
 func (o *Overlord) CommandManager() *cmdstate.CommandManager {
 	return o.cmdMgr
+}
+
+// UnknownTaskManager returns the manager responsible for handling of
+// unknown tasks.
+func (o *Overlord) UnknownTaskManager() *UnknownTaskManager {
+	return o.unknownMgr
+}
+
+// Mock creates an Overlord without any managers and with a backend
+// not using disk. Managers can be added with AddManager. For testing.
+func Mock() *Overlord {
+	o := &Overlord{
+		loopTomb: new(tomb.Tomb),
+		inited:   false,
+	}
+	o.stateEng = NewStateEngine(state.New(mockBackend{o: o}))
+	o.unknownMgr = NewUnknownTaskManager(o.stateEng.State())
+	o.stateEng.AddManager(o.unknownMgr)
+
+	return o
+}
+
+// AddManager adds a manager to the overlord created with Mock. For
+// testing.
+func (o *Overlord) AddManager(mgr StateManager) {
+	if o.inited {
+		panic("internal error: cannot add managers to a fully initialized Overlord")
+	}
+	o.addManager(mgr)
+}
+
+type mockBackend struct {
+	o *Overlord
+}
+
+func (mb mockBackend) Checkpoint(data []byte) error {
+	return nil
+}
+
+func (mb mockBackend) EnsureBefore(d time.Duration) {
+	mb.o.ensureLock.Lock()
+	timer := mb.o.ensureTimer
+	mb.o.ensureLock.Unlock()
+	if timer == nil {
+		return
+	}
+
+	mb.o.ensureBefore(d)
+}
+
+func (mb mockBackend) RequestRestart(t state.RestartType) {
+	mb.o.requestRestart(t)
 }

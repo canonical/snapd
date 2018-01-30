@@ -20,12 +20,14 @@
 package hookstate
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -76,6 +78,12 @@ func (c *Context) SnapName() string {
 // SnapRevision returns the revision of the snap containing the hook.
 func (c *Context) SnapRevision() snap.Revision {
 	return c.setup.Revision
+}
+
+// Task returns the task associated with the hook or (nil, false) if the context is ephemeral
+// and task is not available.
+func (c *Context) Task() (*state.Task, bool) {
+	return c.task, c.task != nil
 }
 
 // HookName returns the name of the hook in this context.
@@ -180,7 +188,7 @@ func (c *Context) Get(key string, value interface{}) error {
 		return state.ErrNoState
 	}
 
-	err := json.Unmarshal([]byte(*raw), &value)
+	err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &value)
 	if err != nil {
 		return fmt.Errorf("cannot unmarshal context value for %q: %s", key, err)
 	}

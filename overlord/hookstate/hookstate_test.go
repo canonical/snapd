@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -32,6 +33,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -46,6 +48,7 @@ func TestHookManager(t *testing.T) { TestingT(t) }
 type hookManagerSuite struct {
 	testutil.BaseTest
 
+	o           *overlord.Overlord
 	state       *state.State
 	manager     *hookstate.HookManager
 	context     *hookstate.Context
@@ -85,10 +88,14 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
-	s.state = state.New(nil)
+	s.o = overlord.Mock()
+	s.state = s.o.State()
 	manager, err := hookstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.manager = manager
+	s.o.AddManager(s.manager)
+
+	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	hooksup := &hookstate.HookSetup{
 		Snap:     "test-snap",
@@ -137,16 +144,20 @@ func (s *hookManagerSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-func (s *hookManagerSuite) settle() {
-	for i := 0; i < 50; i++ {
-		s.manager.Ensure()
-		s.manager.Wait()
-	}
+func (s *hookManagerSuite) settle(c *C) {
+	err := s.o.Settle(5 * time.Second)
+	c.Assert(err, IsNil)
 }
 
 func (s *hookManagerSuite) TestSmoke(c *C) {
 	s.manager.Ensure()
 	s.manager.Wait()
+}
+
+func (s *hookManagerSuite) TestKnownTaskKinds(c *C) {
+	kinds := s.manager.KnownTaskKinds()
+	sort.Strings(kinds)
+	c.Assert(kinds, DeepEquals, []string{"configure-snapd", "run-hook"})
 }
 
 func (s *hookManagerSuite) TestHookSetupJsonMarshal(c *C) {
@@ -212,6 +223,90 @@ func (s *hookManagerSuite) TestHookTaskEnsure(c *C) {
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.DoneStatus)
 	c.Check(s.change.Status(), Equals, state.DoneStatus)
+}
+
+func (s *hookManagerSuite) TestHookSnapMissing(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", nil)
+	s.state.Unlock()
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.change.Err(), ErrorMatches, `(?s).*cannot find "test-snap" snap.*`)
+}
+
+func (s *hookManagerSuite) TestHookHijackingHappy(c *C) {
+	// this works even if test-snap is not present
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", nil)
+	s.state.Unlock()
+
+	var hijackedContext *hookstate.Context
+	s.manager.RegisterHijack("configure", "test-snap", func(ctx *hookstate.Context) error {
+		hijackedContext = ctx
+		return nil
+	})
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(hijackedContext, DeepEquals, s.context)
+	c.Check(s.command.Calls(), HasLen, 0)
+
+	c.Assert(s.context, NotNil)
+	c.Check(s.context.SnapName(), Equals, "test-snap")
+	c.Check(s.context.SnapRevision(), Equals, snap.R(1))
+	c.Check(s.context.HookName(), Equals, "configure")
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(s.mockHandler.DoneCalled, Equals, true)
+	c.Check(s.mockHandler.ErrorCalled, Equals, false)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+	c.Check(s.change.Status(), Equals, state.DoneStatus)
+}
+
+func (s *hookManagerSuite) TestHookHijackingUnHappy(c *C) {
+	s.manager.RegisterHijack("configure", "test-snap", func(ctx *hookstate.Context) error {
+		return fmt.Errorf("not-happy-at-all")
+	})
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.command.Calls(), HasLen, 0)
+
+	c.Assert(s.context, NotNil)
+	c.Check(s.context.SnapName(), Equals, "test-snap")
+	c.Check(s.context.SnapRevision(), Equals, snap.R(1))
+	c.Check(s.context.HookName(), Equals, "configure")
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(s.mockHandler.DoneCalled, Equals, false)
+	c.Check(s.mockHandler.ErrorCalled, Equals, true)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.ErrorStatus)
+	c.Check(s.change.Status(), Equals, state.ErrorStatus)
+}
+
+func (s *hookManagerSuite) TestHookHijackingVeryUnHappy(c *C) {
+	f := func(ctx *hookstate.Context) error {
+		return nil
+	}
+	s.manager.RegisterHijack("configure", "test-snap", f)
+	c.Check(func() { s.manager.RegisterHijack("configure", "test-snap", f) }, PanicMatches, "hook configure for snap test-snap already hijacked")
 }
 
 func (s *hookManagerSuite) TestHookTaskInitializesContext(c *C) {
@@ -594,6 +689,31 @@ func (s *hookManagerSuite) TestHookWithoutHookOptional(c *C) {
 	c.Logf("Task log:\n%s\n", s.task.Log())
 }
 
+func (s *hookManagerSuite) TestOptionalHookWithMissingHandler(c *C) {
+	hooksup := &hookstate.HookSetup{
+		Snap:     "test-snap",
+		Hook:     "missing-hook-and-no-handler",
+		Optional: true,
+	}
+	s.state.Lock()
+	s.task.Set("hook-setup", hooksup)
+	s.state.Unlock()
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	c.Check(s.command.Calls(), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+	c.Check(s.change.Status(), Equals, state.DoneStatus)
+
+	c.Logf("Task log:\n%s\n", s.task.Log())
+}
+
 func checkTaskLogContains(c *C, task *state.Task, pattern string) {
 	exp := regexp.MustCompile(pattern)
 	found := false
@@ -701,7 +821,7 @@ func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
 	}
 	s.state.Unlock()
 
-	s.settle()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -803,7 +923,7 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 
 	s.state.Unlock()
 
-	s.settle()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -814,4 +934,23 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 	c.Check(change2.Status(), Equals, state.DoneStatus)
 	c.Assert(testSnap1HookCalls, Equals, 1)
 	c.Assert(testSnap2HookCalls, Equals, 1)
+}
+
+func (s *hookManagerSuite) TestCompatForConfigureSnapd(c *C) {
+	st := s.state
+
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("configure-snapd", "Snapd between 2.29 and 2.30 in edge insertd those tasks")
+	chg := st.NewChange("configure", "configure snapd")
+	chg.AddTask(task)
+
+	st.Unlock()
+	s.manager.Ensure()
+	s.manager.Wait()
+	st.Lock()
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(task.Status(), Equals, state.DoneStatus)
 }

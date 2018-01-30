@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -38,6 +39,8 @@ type InterfaceManager struct {
 // Manager returns a new InterfaceManager.
 // Extra interfaces can be provided for testing.
 func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces []interfaces.Interface, extraBackends []interfaces.SecurityBackend) (*InterfaceManager, error) {
+	delayedCrossMgrInit()
+
 	// NOTE: hookManager is nil only when testing.
 	if hookManager != nil {
 		setupHooks(hookManager)
@@ -49,9 +52,14 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces
 		runner: runner,
 		repo:   interfaces.NewRepository(),
 	}
+
 	if err := m.initialize(extraInterfaces, extraBackends); err != nil {
 		return nil, err
 	}
+
+	s.Lock()
+	ifacerepo.Replace(s, m.repo)
+	s.Unlock()
 
 	// interface tasks might touch more than the immediate task target snap, serialize them
 	runner.SetBlocked(func(_ *state.Task, running []*state.Task) bool {
@@ -70,6 +78,10 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces
 	return m, nil
 }
 
+func (m *InterfaceManager) KnownTaskKinds() []string {
+	return m.runner.KnownTaskKinds()
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *InterfaceManager) Ensure() error {
 	m.runner.Ensure()
@@ -84,7 +96,6 @@ func (m *InterfaceManager) Wait() {
 // Stop implements StateManager.Stop.
 func (m *InterfaceManager) Stop() {
 	m.runner.Stop()
-
 }
 
 // Repository returns the interface repository used internally by the manager.

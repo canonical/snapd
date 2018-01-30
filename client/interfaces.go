@@ -98,7 +98,7 @@ type InterfaceOptions struct {
 	Connected bool
 }
 
-func (client *Client) Interfaces(opts *InterfaceOptions) (interfaces []*Interface, err error) {
+func (client *Client) Interfaces(opts *InterfaceOptions) ([]*Interface, error) {
 	query := url.Values{}
 	if opts != nil && len(opts.Names) > 0 {
 		query.Set("names", strings.Join(opts.Names, ",")) // Return just those specific interfaces.
@@ -120,8 +120,10 @@ func (client *Client) Interfaces(opts *InterfaceOptions) (interfaces []*Interfac
 	} else {
 		query.Set("select", "all") // Return all interfaces.
 	}
-	_, err = client.doSync("GET", "/v2/interfaces", query, nil, nil, &interfaces)
-	return
+	var interfaces []*Interface
+	_, err := client.doSync("GET", "/v2/interfaces", query, nil, nil, &interfaces)
+
+	return interfaces, err
 }
 
 // performInterfaceAction performs a single action on the interface system.

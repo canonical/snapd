@@ -71,7 +71,7 @@ func (wmx *waitMixin) wait(cli *client.Client, id string) (*client.Change, error
 }
 
 func wait(cli *client.Client, id string) (*client.Change, error) {
-	pb := progress.NewTextProgress()
+	pb := progress.MakeProgressBar()
 	defer func() {
 		pb.Finished()
 	}()
@@ -122,7 +122,7 @@ func wait(cli *client.Client, id string) (*client.Change, error) {
 			case t.ID == lastID:
 				pb.Set(float64(t.Progress.Done))
 			default:
-				pb.Start(t.Progress.Label, float64(t.Progress.Total))
+				pb.Start(t.Summary, float64(t.Progress.Total))
 				lastID = t.ID
 			}
 			break
@@ -357,20 +357,32 @@ func showDone(names []string, op string) error {
 		switch op {
 		case "install":
 			if snap.Developer != "" {
+				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' installed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' installed\n"), snap.Name, channelStr, snap.Version, snap.Developer)
 			} else {
+				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 installed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
 			}
 		case "refresh":
 			if snap.Developer != "" {
+				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version, then the developer name (e.g. "some-snap (beta) 1.3 from 'alice' refreshed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' refreshed\n"), snap.Name, channelStr, snap.Version, snap.Developer)
 			} else {
+				// TRANSLATORS: the args are a snap name optionally followed by a channel, then a version (e.g. "some-snap (beta) 1.3 refreshed")
 				fmt.Fprintf(Stdout, i18n.G("%s%s %s refreshed\n"), snap.Name, channelStr, snap.Version)
 			}
+		case "revert":
+			// TRANSLATORS: first %s is a snap name, second %s is a revision
+			fmt.Fprintf(Stdout, i18n.G("%s reverted to %s\n"), snap.Name, snap.Version)
 		default:
-			fmt.Fprintf(Stdout, "internal error, unknown op %q", op)
+			fmt.Fprintf(Stdout, "internal error: unknown op %q", op)
+		}
+		if snap.TrackingChannel != snap.Channel {
+			// TRANSLATORS: first %s is a snap name, following %s is a channel name
+			fmt.Fprintf(Stdout, i18n.G("Snap %s is no longer tracking %s.\n"), snap.Name, snap.TrackingChannel)
 		}
 	}
+
 	return nil
 }
 
@@ -497,7 +509,16 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	cli := Client()
 	changeID, err := cli.InstallMany(names, opts)
 	if err != nil {
-		return err
+		var snapName string
+		if err, ok := err.(*client.Error); ok {
+			snapName, _ = err.Value.(string)
+		}
+		msg, err := errorToCmdMessage(snapName, err, opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(Stderr, msg)
+		return nil
 	}
 
 	setupAbortHandler(changeID)
@@ -576,6 +597,7 @@ type cmdRefresh struct {
 	channelMixin
 	modeMixin
 
+	Amend            bool   `long:"amend"`
 	Revision         string `long:"revision"`
 	List             bool   `long:"list"`
 	Time             bool   `long:"time"`
@@ -644,7 +666,13 @@ func (x *cmdRefresh) showRefreshTimes() error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, "schedule: %s\n", sysinfo.Refresh.Schedule)
+	if sysinfo.Refresh.Timer != "" {
+		fmt.Fprintf(Stdout, "timer: %s\n", sysinfo.Refresh.Timer)
+	} else if sysinfo.Refresh.Schedule != "" {
+		fmt.Fprintf(Stdout, "schedule: %s\n", sysinfo.Refresh.Schedule)
+	} else {
+		return errors.New("internal error: both refresh.timer and refresh.schedule are empty")
+	}
 	if sysinfo.Refresh.Last != "" {
 		fmt.Fprintf(Stdout, "last: %s\n", sysinfo.Refresh.Last)
 	} else {
@@ -696,7 +724,6 @@ func (x *cmdRefresh) Execute([]string) error {
 		if x.asksForMode() || x.asksForChannel() {
 			return errors.New(i18n.G("--time does not take mode nor channel flags"))
 		}
-
 		return x.showRefreshTimes()
 	}
 
@@ -719,6 +746,7 @@ func (x *cmdRefresh) Execute([]string) error {
 	}
 	if len(x.Positional.Snaps) == 1 {
 		opts := &client.SnapOptions{
+			Amend:            x.Amend,
 			Channel:          x.Channel,
 			IgnoreValidation: x.IgnoreValidation,
 			Revision:         x.Revision,
@@ -934,17 +962,47 @@ func (x *cmdRevert) Execute(args []string) error {
 		return err
 	}
 
-	// show output as speced
-	snaps, err := cli.List([]string{name}, nil)
+	return showDone([]string{name}, "revert")
+}
+
+var shortSwitchHelp = i18n.G("Switches snap to a different channel")
+var longSwitchHelp = i18n.G(`
+The switch command switches the given snap to a different channel without
+doing a refresh.
+`)
+
+type cmdSwitch struct {
+	channelMixin
+
+	Positional struct {
+		Snap installedSnapName `positional-arg-name:"<snap>" required:"1"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+func (x cmdSwitch) Execute(args []string) error {
+	if err := x.setChannelFromCommandline(); err != nil {
+		return err
+	}
+	if x.Channel == "" {
+		return fmt.Errorf("missing --channel=<channel-name> parameter")
+	}
+
+	cli := Client()
+	name := string(x.Positional.Snap)
+	channel := string(x.Channel)
+	opts := &client.SnapOptions{
+		Channel: channel,
+	}
+	changeID, err := cli.Switch(name, opts)
 	if err != nil {
 		return err
 	}
-	if len(snaps) != 1 {
-		// TRANSLATORS: %q gets the snap name, %v the list of things found when trying to list it
-		return fmt.Errorf(i18n.G("cannot get data for %q: %v"), name, snaps)
+
+	if _, err = wait(cli, changeID); err != nil {
+		return err
 	}
-	snap := snaps[0]
-	fmt.Fprintf(Stdout, i18n.G("%s reverted to %s\n"), name, snap.Version)
+
+	fmt.Fprintf(Stdout, i18n.G("%q switched to the %q channel\n"), name, channel)
 	return nil
 }
 
@@ -960,6 +1018,7 @@ func init() {
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		waitDescs.also(channelDescs).also(modeDescs).also(map[string]string{
+			"amend":             i18n.G("Allow refresh attempt on snap unknown to the store"),
 			"revision":          i18n.G("Refresh to the given revision"),
 			"list":              i18n.G("Show available snaps for refresh but do not perform a refresh"),
 			"time":              i18n.G("Show auto refresh information but do not perform a refresh"),
@@ -971,4 +1030,6 @@ func init() {
 	addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} }, waitDescs.also(modeDescs).also(map[string]string{
 		"revision": "Revert to the given revision",
 	}), nil)
+	addCommand("switch", shortSwitchHelp, longSwitchHelp, func() flags.Commander { return &cmdSwitch{} }, nil, nil)
+
 }

@@ -207,8 +207,9 @@ func (s *execSuite) TestStreamCommandHappy(c *C) {
 
 	wrf, wrc := osutil.WaitingReaderGuts(stdout)
 	c.Assert(wrf, FitsTypeOf, &os.File{})
-	c.Check(wrf.(*os.File).Close(), Equals, syscall.EINVAL) // i.e. already closed
-	c.Check(wrc.ProcessState, NotNil)                       // i.e. already waited for
+	// Depending on golang version the error is one of the two.
+	c.Check(wrf.(*os.File).Close(), ErrorMatches, "invalid argument|file already closed")
+	c.Check(wrc.ProcessState, NotNil) // i.e. already waited for
 }
 
 func (s *execSuite) TestStreamCommandSad(c *C) {
@@ -221,6 +222,7 @@ func (s *execSuite) TestStreamCommandSad(c *C) {
 
 	wrf, wrc := osutil.WaitingReaderGuts(stdout)
 	c.Assert(wrf, FitsTypeOf, &os.File{})
-	c.Check(wrf.(*os.File).Close(), Equals, syscall.EINVAL) // i.e. already closed
-	c.Check(wrc.ProcessState, NotNil)                       // i.e. already waited for
+	// Depending on golang version the error is one of the two.
+	c.Check(wrf.(*os.File).Close(), ErrorMatches, "invalid argument|file already closed")
+	c.Check(wrc.ProcessState, NotNil) // i.e. already waited for
 }

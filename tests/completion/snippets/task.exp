@@ -1,0 +1,17 @@
+source "$::env(SPREAD_PATH)/$::env(SPREAD_SUITE)/lib.exp0"
+send "source $::env(SPREAD_PATH)/$::env(SPREAD_SUITE)/$::env(SPREAD_VARIANT).sh\n"
+next
+send "source /usr/share/bash-completion/bash_completion\n"
+next
+# compared to indirect/, this one does not source complete.sh
+chat "test-snapd-complexion \t\t" $::env(_OUT0)
+cancel
+# completion when the cursor is not at the end of the line:
+set back1 [string repeat "\b" [string length $::env(_KEY1)]]
+chat "test-snapd-complexion $::env(_KEY1)$back1\t\t" $::env(_OUT0)
+cancel
+chat "test-snapd-complexion $::env(_KEY1)\t" $::env(_OUT1)
+cancel
+chat "test-snapd-complexion $::env(_KEY2)\t\t" $::env(_OUT2)
+cancel
+brexit

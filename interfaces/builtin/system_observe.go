@@ -56,6 +56,7 @@ deny ptrace (trace),
 @{PROC}/vmstat r,
 @{PROC}/diskstats r,
 @{PROC}/kallsyms r,
+@{PROC}/partitions r,
 
 # These are not process-specific (/proc/*/... and /proc/*/task/*/...)
 @{PROC}/*/{,task/,task/*/} r,
@@ -65,6 +66,10 @@ deny ptrace (trace),
 @{PROC}/*/{,task/*/}stat r,
 @{PROC}/*/{,task/*/}statm r,
 @{PROC}/*/{,task/*/}status r,
+
+# Allow discovering the os-release of the host
+/var/lib/snapd/hostfs/etc/os-release rk,
+/var/lib/snapd/hostfs/usr/lib/os-release rk,
 
 #include <abstractions/dbus-strict>
 
@@ -81,6 +86,14 @@ dbus (send)
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
+    peer=(label=unconfined),
+
+# Allow clients to enumerate DBus connection names on common buses
+dbus (send)
+    bus={session,system}
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member=ListNames
     peer=(label=unconfined),
 `
 

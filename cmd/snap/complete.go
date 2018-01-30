@@ -1,13 +1,36 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2016 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snap"
 )
 
 type installedSnapName string
@@ -28,9 +51,46 @@ func (s installedSnapName) Complete(match string) []flags.Completion {
 	return ret
 }
 
+func completeFromSortedFile(filename, match string) ([]flags.Completion, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var ret []flags.Completion
+
+	// TODO: look into implementing binary search
+	//       e.g. https://github.com/pts/pts-line-bisect/
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line < match {
+			continue
+		}
+		if !strings.HasPrefix(line, match) {
+			break
+		}
+		ret = append(ret, flags.Completion{Item: line})
+		if len(ret) > 10000 {
+			// too many matches; slow machines could take too long to process this
+			// e.g. the bbb takes ~1s to process ~2M entries (i.e. to reach the
+			// point of asking the user if they actually want to see that many
+			// results). 10k ought to be enough for anybody.
+			break
+		}
+	}
+
+	return ret, nil
+}
+
 type remoteSnapName string
 
 func (s remoteSnapName) Complete(match string) []flags.Completion {
+	if ret, err := completeFromSortedFile(dirs.SnapNamesFile, match); err == nil {
+		return ret
+	}
+
 	if len(match) < 3 {
 		return nil
 	}
@@ -323,6 +383,30 @@ func (s interfaceName) Complete(match string) []flags.Completion {
 	return ret
 }
 
+type appName string
+
+func (s appName) Complete(match string) []flags.Completion {
+	cli := Client()
+	apps, err := cli.Apps(nil, client.AppOptions{})
+	if err != nil {
+		return nil
+	}
+
+	var ret []flags.Completion
+	for _, app := range apps {
+		if app.IsService() {
+			continue
+		}
+		name := snap.JoinSnapApp(app.Snap, app.Name)
+		if !strings.HasPrefix(name, match) {
+			continue
+		}
+		ret = append(ret, flags.Completion{Item: name})
+	}
+
+	return ret
+}
+
 type serviceName string
 
 func (s serviceName) Complete(match string) []flags.Completion {
@@ -345,5 +429,29 @@ func (s serviceName) Complete(match string) []flags.Completion {
 		ret = append(ret, flags.Completion{Item: app.Snap + "." + app.Name})
 	}
 
+	return ret
+}
+
+type aliasOrSnap string
+
+func (s aliasOrSnap) Complete(match string) []flags.Completion {
+	aliases, err := Client().Aliases()
+	if err != nil {
+		return nil
+	}
+	var ret []flags.Completion
+	for snap, aliases := range aliases {
+		if strings.HasPrefix(snap, match) {
+			ret = append(ret, flags.Completion{Item: snap})
+		}
+		for alias, status := range aliases {
+			if status.Status == "disabled" {
+				continue
+			}
+			if strings.HasPrefix(alias, match) {
+				ret = append(ret, flags.Completion{Item: alias})
+			}
+		}
+	}
 	return ret
 }

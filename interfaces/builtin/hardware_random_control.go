@@ -19,15 +19,6 @@
 
 package builtin
 
-import (
-	"fmt"
-
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/snap"
-)
-
 const hardwareRandomControlSummary = `allows control over the hardware random number generator`
 
 const hardwareRandomControlBaseDeclarationSlots = `
@@ -54,63 +45,17 @@ const hardwareRandomControlConnectedPlugAppArmor = `
 /sys/devices/virtual/misc/hw_random/rng_current w,
 `
 
-// The type for physical-memory-control interface
-type hardwareRandomControlInterface struct{}
-
-// Getter for the name of the physical-memory-control interface
-func (iface *hardwareRandomControlInterface) Name() string {
-	return "hardware-random-control"
-}
-
-func (iface *hardwareRandomControlInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              hardwareRandomControlSummary,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
-		BaseDeclarationSlots: hardwareRandomControlBaseDeclarationSlots,
-	}
-}
-
-// Check validity of the defined slot
-func (iface *hardwareRandomControlInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	// Does it have right type?
-	if iface.Name() != slot.Interface {
-		panic(fmt.Sprintf("slot is not of interface %q", iface.Name()))
-	}
-	if slot.Snap.Type != snap.TypeOS {
-		return fmt.Errorf("%s slots are reserved for the operating system snap", iface.Name())
-	}
-	return nil
-}
-
-// Checks and possibly modifies a plug
-func (iface *hardwareRandomControlInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if iface.Name() != plug.Interface {
-		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
-	}
-	// Currently nothing is checked on the plug side
-	return nil
-}
-
-func (iface *hardwareRandomControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	spec.AddSnippet(hardwareRandomControlConnectedPlugAppArmor)
-	return nil
-}
-
-func (iface *hardwareRandomControlInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	const udevRule = `KERNEL=="hwrng", TAG+="%s"`
-	for appName := range plug.Apps {
-		tag := udevSnapSecurityName(plug.Snap.Name(), appName)
-		spec.AddSnippet(fmt.Sprintf(udevRule, tag))
-	}
-	return nil
-}
-
-func (iface *hardwareRandomControlInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	// Allow what is allowed in the declarations
-	return true
-}
+var hardwareRandomControlConnectedPlugUDev = []string{`KERNEL=="hwrng"`}
 
 func init() {
-	registerIface(&hardwareRandomControlInterface{})
+	registerIface(&commonInterface{
+		name:                  "hardware-random-control",
+		summary:               hardwareRandomControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  hardwareRandomControlBaseDeclarationSlots,
+		connectedPlugAppArmor: hardwareRandomControlConnectedPlugAppArmor,
+		connectedPlugUDev:     hardwareRandomControlConnectedPlugUDev,
+		reservedForOS:         true,
+	})
 }

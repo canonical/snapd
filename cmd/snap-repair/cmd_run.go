@@ -21,6 +21,12 @@ package main
 
 import (
 	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
+
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 func init() {
@@ -37,7 +43,60 @@ func init() {
 
 type cmdRun struct{}
 
+var baseURL *url.URL
+
+func init() {
+	var baseurl string
+	if osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
+		baseurl = "https://api.staging.snapcraft.io/v2/"
+	} else {
+		baseurl = "https://api.snapcraft.io/v2/"
+	}
+
+	var err error
+	baseURL, err = url.Parse(baseurl)
+	if err != nil {
+		panic(fmt.Sprintf("cannot setup base url: %v", err))
+	}
+}
+
 func (c *cmdRun) Execute(args []string) error {
-	fmt.Fprintf(Stdout, "run is not implemented yet\n")
+	if err := os.MkdirAll(dirs.SnapRunRepairDir, 0755); err != nil {
+		return err
+	}
+	flock, err := osutil.NewFileLock(filepath.Join(dirs.SnapRunRepairDir, "lock"))
+	if err != nil {
+		return err
+	}
+	err = flock.TryLock()
+	if err == osutil.ErrAlreadyLocked {
+		return fmt.Errorf("cannot run, another snap-repair run already executing")
+	}
+	if err != nil {
+		return err
+	}
+	defer flock.Unlock()
+
+	run := NewRunner()
+	run.BaseURL = baseURL
+	err = run.LoadState()
+	if err != nil {
+		return err
+	}
+
+	for {
+		repair, err := run.Next("canonical")
+		if err == ErrRepairNotFound {
+			// no more repairs
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		if err := repair.Run(); err != nil {
+			return err
+		}
+	}
 	return nil
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,12 +22,15 @@ package main
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 )
 
 var shortFindHelp = i18n.G("Finds packages to install")
@@ -68,6 +71,10 @@ func getPrice(prices map[string]float64, currency string) (float64, string, erro
 type SectionName string
 
 func (s SectionName) Complete(match string) []flags.Completion {
+	if ret, err := completeFromSortedFile(dirs.SnapSectionsFile, match); err == nil {
+		return ret
+	}
+
 	cli := Client()
 	sections, err := cli.Sections()
 	if err != nil {
@@ -82,9 +89,25 @@ func (s SectionName) Complete(match string) []flags.Completion {
 	return ret
 }
 
+func showSections() error {
+	cli := Client()
+	sections, err := cli.Sections()
+	if err != nil {
+		return err
+	}
+	sort.Strings(sections)
+
+	fmt.Fprintf(Stdout, i18n.G("No section specified. Available sections:\n"))
+	for _, sec := range sections {
+		fmt.Fprintf(Stdout, " * %s\n", sec)
+	}
+	fmt.Fprintf(Stdout, i18n.G("Please try: snap find --section=<selected section>\n"))
+	return nil
+}
+
 type cmdFind struct {
 	Private    bool        `long:"private"`
-	Section    SectionName `long:"section"`
+	Section    SectionName `long:"section" optional:"true" optional-value:"show-all-sections-please" default:"no-section-specified"`
 	Positional struct {
 		Query string
 	} `positional-args:"yes"`
@@ -96,7 +119,10 @@ func init() {
 	}, map[string]string{
 		"private": i18n.G("Search private snaps"),
 		"section": i18n.G("Restrict the search to a given section"),
-	}, []argDesc{{name: i18n.G("<query>")}}).alias = "search"
+	}, []argDesc{{
+		// TRANSLATORS: This needs to be wrapped in <>s.
+		name: i18n.G("<query>"),
+	}}).alias = "search"
 }
 
 func (x *cmdFind) Execute(args []string) error {
@@ -104,40 +130,64 @@ func (x *cmdFind) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
+	// LP: 1740605
+	if strings.TrimSpace(x.Positional.Query) == "" {
+		x.Positional.Query = ""
+	}
+
+	// section will be:
+	// - "show-all-sections-please" if the user specified --section
+	//   without any argument
+	// - "no-section-specified" if "--section" was not specified on
+	//   the commandline at all
+	switch x.Section {
+	case "show-all-sections-please":
+		return showSections()
+	case "no-section-specified":
+		x.Section = ""
+	}
+
 	// magic! `snap find` returns the featured snaps
-	if x.Positional.Query == "" && x.Section == "" {
+	showFeatured := (x.Positional.Query == "" && x.Section == "")
+	if showFeatured {
 		x.Section = "featured"
 	}
 
-	return findSnaps(&client.FindOptions{
+	cli := Client()
+	opts := &client.FindOptions{
 		Private: x.Private,
 		Section: string(x.Section),
 		Query:   x.Positional.Query,
-	})
-}
-
-func findSnaps(opts *client.FindOptions) error {
-	cli := Client()
+	}
 	snaps, resInfo, err := cli.Find(opts)
+	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNetworkTimeout {
+		logger.Debugf("cannot list snaps: %v", e)
+		return fmt.Errorf("unable to contact snap store")
+	}
 	if err != nil {
 		return err
 	}
-
 	if len(snaps) == 0 {
 		// TRANSLATORS: the %q is the (quoted) query the user entered
-		fmt.Fprintf(Stderr, i18n.G("The search %q returned 0 snaps\n"), opts.Query)
+		fmt.Fprintf(Stderr, i18n.G("No matching snaps for %q\n"), opts.Query)
 		return nil
 	}
 
+	// show featured header *after* we checked for errors from the find
+	if showFeatured {
+		fmt.Fprintf(Stdout, i18n.G("No search term specified. Here are some interesting snaps:\n\n"))
+	}
+
 	w := tabWriter()
-	defer w.Flush()
-
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tDeveloper\tNotes\tSummary"))
-
 	for _, snap := range snaps {
 		// TODO: get snap.Publisher, so we can only show snap.Developer if it's different
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer, NotesFromRemote(snap, resInfo), snap.Summary)
 	}
+	w.Flush()
 
+	if showFeatured {
+		fmt.Fprintf(Stdout, i18n.G("\nProvide a search term for more specific results.\n"))
+	}
 	return nil
 }

@@ -29,9 +29,10 @@ import (
 )
 
 type Finder interface {
-	// Find an assertion based on arbitrary headers.
-	// Provided headers must contain the primary key for the assertion type.
-	// It returns ErrNotFound if the assertion cannot be found.
+	// Find an assertion based on arbitrary headers.  Provided
+	// headers must contain the primary key for the assertion
+	// type.  It returns a asserts.NotFoundError if the assertion
+	// cannot be found.
 	Find(assertionType *asserts.AssertionType, headers map[string]string) (asserts.Assertion, error)
 }
 
@@ -85,7 +86,7 @@ func CrossCheck(name, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo, d
 	return nil
 }
 
-// DeriveSideInfo tries to construct a SideInfo for the given snap using its digest to find the relevant snap assertions with the information in the given database. It will fail with asserts.ErrNotFound if it cannot find them.
+// DeriveSideInfo tries to construct a SideInfo for the given snap using its digest to find the relevant snap assertions with the information in the given database. It will fail with an asserts.NotFoundError if it cannot find them.
 func DeriveSideInfo(snapPath string, db Finder) (*snap.SideInfo, error) {
 	snapSHA3_384, snapSize, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {

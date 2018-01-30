@@ -1,0 +1,36 @@
+summary: Check that `snap run` runs
+
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local basic-run
+    install_local test-snapd-tools
+
+debug:
+    cat stderr
+
+execute: |
+    echo "Test that snap run use environments"
+    basic-run.echo-data | MATCH ^/var/snap
+
+    # the strace on 14.04 is too old
+    if grep -q 'VERSION_ID="14.04"' /etc/os-release; then
+        snap install strace-static
+    fi
+    # the strace on opensuse is too old
+    if grep -q 'ID=opensuse' /etc/os-release; then
+        snap install strace-static
+    fi
+    # install the snap if no system strace is found
+    if ! which strace; then
+        snap install strace-static
+    fi
+
+    echo "Test snap run --strace"
+    snap run --strace test-snapd-tools.echo "hello-world" >stdout 2>stderr
+    MATCH hello-world < stdout
+    MATCH 'write\(1, \"hello-world\\n\",' < stderr
+    if grep "snap-confine" stderr; then
+       echo "the snap-confine calls should be filtered out, something is wrong
+       cat stderr"
+       exit 1
+    fi

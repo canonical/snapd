@@ -44,8 +44,8 @@ type mountSnapSuite struct {
 var _ = Suite(&mountSnapSuite{})
 
 func (s *mountSnapSuite) SetUpTest(c *C) {
-	oldDir := dirs.SnapCookieDir
-	dirs.SnapCookieDir = c.MkDir()
+	oldDir := dirs.GlobalRootDir
+	dirs.SetRootDir(c.MkDir())
 
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(nil)
@@ -60,7 +60,7 @@ func (s *mountSnapSuite) SetUpTest(c *C) {
 	reset1 := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
 	s.reset = func() {
 		reset1()
-		dirs.SnapCookieDir = oldDir
+		dirs.SetRootDir(oldDir)
 	}
 }
 
@@ -138,7 +138,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:  "current",
-			old: filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "core/1"),
+			old: filepath.Join(dirs.SnapMountDir, "core/1"),
 		},
 		{
 			op:    "setup-snap",
@@ -147,7 +147,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "core/2"),
+			name:  filepath.Join(dirs.SnapMountDir, "core/2"),
 			stype: "os",
 		},
 	})

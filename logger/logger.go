@@ -20,6 +20,7 @@
 package logger
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -84,6 +85,21 @@ func Debugf(format string, v ...interface{}) {
 	defer lock.Unlock()
 
 	logger.Debug(msg)
+}
+
+// MockLogger replaces the exiting logger with a buffer and returns
+// the log buffer and a restore function.
+func MockLogger() (buf *bytes.Buffer, restore func()) {
+	buf = &bytes.Buffer{}
+	oldLogger := logger
+	l, err := New(buf, DefaultFlags)
+	if err != nil {
+		panic(err)
+	}
+	SetLogger(l)
+	return buf, func() {
+		SetLogger(oldLogger)
+	}
 }
 
 // SetLogger sets the global logger to the given one

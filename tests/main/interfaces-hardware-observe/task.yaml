@@ -11,7 +11,7 @@ summary: |
 
 prepare: |
     echo "Given a snap declaring a plug on the hardware-observe interface is installed"
-    snapbuild $TESTSLIB/snaps/hardware-observe-consumer .
+    snap pack $TESTSLIB/snaps/hardware-observe-consumer
     snap install --dangerous hardware-observe-consumer_1.0_all.snap
 
 restore: |
@@ -28,6 +28,7 @@ execute: |
 
     echo "When the plug is connected"
     snap connect hardware-observe-consumer:hardware-observe
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to read hardware information"
     hardware-observe-consumer.consumer

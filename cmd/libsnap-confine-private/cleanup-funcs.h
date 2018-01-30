@@ -27,6 +27,10 @@
 #include <sys/types.h>
 #include <dirent.h>
 
+// SC_CLEANUP will run the given cleanup function when the variable next
+// to it goes out of scope.
+#define SC_CLEANUP(n) __attribute__((cleanup(n)))
+
 /**
  * Free a dynamically allocated string.
  *

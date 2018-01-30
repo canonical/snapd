@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,6 +30,7 @@ import (
 )
 
 type SnapOptions struct {
+	Amend            bool   `json:"amend,omitempty"`
 	Channel          string `json:"channel,omitempty"`
 	Revision         string `json:"revision,omitempty"`
 	DevMode          bool   `json:"devmode,omitempty"`
@@ -115,6 +116,11 @@ func (client *Client) Disable(name string, options *SnapOptions) (changeID strin
 // Revert rolls the snap back to the previous on-disk state
 func (client *Client) Revert(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("revert", name, options)
+}
+
+// Switch moves the snap to a different channel without a refresh
+func (client *Client) Switch(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("switch", name, options)
 }
 
 var ErrDangerousNotApplicable = fmt.Errorf("dangerous option only meaningful when installing from a local file")

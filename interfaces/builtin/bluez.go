@@ -26,6 +26,9 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const bluezSummary = `allows operating as the bluez service`
@@ -35,8 +38,10 @@ const bluezBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - app
-    deny-connection: true
+        - core
     deny-auto-connection: true
+    deny-connection:
+      on-classic: false
 `
 
 const bluezPermanentSlotAppArmor = `
@@ -87,11 +92,12 @@ const bluezPermanentSlotAppArmor = `
       bus=system
       name="org.bluez.obex",
 
-  # Allow traffic to/from our path and interface with any method for unconfined
-  # cliens to talk to our bluez services.
+  # Allow traffic to/from our interface with any method for unconfined clients
+  # to talk to our bluez services. For the org.bluez interface we don't specify
+  # an Object Path since according to the bluez specification these can be
+  # anything (https://git.kernel.org/pub/scm/bluetooth/bluez.git/tree/doc).
   dbus (receive, send)
       bus=system
-      path=/org/bluez{,/**}
       interface=org.bluez.*
       peer=(label=unconfined),
   dbus (receive, send)
@@ -165,7 +171,6 @@ accept
 accept4
 bind
 listen
-shutdown
 # libudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
@@ -177,6 +182,8 @@ const bluezPermanentSlotDBus = `
     <allow send_destination="org.bluez"/>
     <allow send_destination="org.bluez.obex"/>
     <allow send_interface="org.bluez.Agent1"/>
+    <allow send_interface="org.bluez.MediaEndpoint1"/>
+    <allow send_interface="org.bluez.MediaPlayer1"/>
     <allow send_interface="org.bluez.ThermometerWatcher1"/>
     <allow send_interface="org.bluez.AlertAgent1"/>
     <allow send_interface="org.bluez.Profile1"/>
@@ -201,46 +208,57 @@ func (iface *bluezInterface) Name() string {
 func (iface *bluezInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
 		Summary:              bluezSummary,
+		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: bluezBaseDeclarationSlots,
 	}
 }
 
-func (iface *bluezInterface) DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(bluezPermanentSlotDBus)
+func (iface *bluezInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
+	if !release.OnClassic {
+		spec.AddSnippet(bluezPermanentSlotDBus)
+	}
 	return nil
 }
 
-func (iface *bluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
+func (iface *bluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
-	new := slotAppLabelExpr(slot)
+	var new string
+	if release.OnClassic {
+		new = "unconfined"
+	} else {
+		new = slotAppLabelExpr(slot)
+	}
 	snippet := strings.Replace(bluezConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
 }
 
-func (iface *bluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error {
-	old := "###PLUG_SECURITY_TAGS###"
-	new := plugAppLabelExpr(plug)
-	snippet := strings.Replace(bluezConnectedSlotAppArmor, old, new, -1)
-	spec.AddSnippet(snippet)
+func (iface *bluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if !release.OnClassic {
+		old := "###PLUG_SECURITY_TAGS###"
+		new := plugAppLabelExpr(plug)
+		snippet := strings.Replace(bluezConnectedSlotAppArmor, old, new, -1)
+		spec.AddSnippet(snippet)
+	}
 	return nil
 }
 
-func (iface *bluezInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(bluezPermanentSlotAppArmor)
+func (iface *bluezInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.TagDevice(`KERNEL=="rfkill"`)
 	return nil
 }
 
-func (iface *bluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error {
-	spec.AddSnippet(bluezPermanentSlotSecComp)
+func (iface *bluezInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+	if !release.OnClassic {
+		spec.AddSnippet(bluezPermanentSlotAppArmor)
+	}
 	return nil
 }
 
-func (iface *bluezInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
-func (iface *bluezInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *bluezInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
+	if !release.OnClassic {
+		spec.AddSnippet(bluezPermanentSlotSecComp)
+	}
 	return nil
 }
 

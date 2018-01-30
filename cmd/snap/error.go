@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -87,9 +88,11 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 		return "", e
 	}
 
+	// ensure the "real" error is available if we ask for it
+	logger.Debugf("error: %s", err)
+
 	// FIXME: using err.Message in user-facing messaging is not
 	// l10n-friendly, and probably means we're missing ad-hoc messaging.
-
 	isError := true
 	usesSnapName := true
 	var msg string
@@ -100,6 +103,12 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 		// arch/channel/revision. Surface that here somehow!
 
 		msg = i18n.G("snap %q not found")
+		if snapName == "" {
+			errValStr, ok := err.Value.(string)
+			if ok && errValStr != "" {
+				snapName = errValStr
+			}
+		}
 		if opts != nil {
 			if opts.Revision != "" {
 				// TRANSLATORS: %%q will become a %q for the snap name; %q is whatever foo the user used for --revision=foo
@@ -144,7 +153,7 @@ If you understand and want to proceed repeat the command including --classic.
 			msg = fmt.Sprintf(i18n.G(`%s (try with sudo)`), err.Message)
 		}
 	case client.ErrorKindSnapLocal:
-		msg = i18n.G("snap %q is local")
+		msg = i18n.G("local snap %q is unknown to the store, use --amend to proceed anyway")
 	case client.ErrorKindNoUpdateAvailable:
 		isError = false
 		msg = i18n.G("snap %q has no updates available")
@@ -152,6 +161,10 @@ If you understand and want to proceed repeat the command including --classic.
 		isError = false
 		usesSnapName = false
 		msg = err.Message
+	case client.ErrorKindNetworkTimeout:
+		isError = true
+		usesSnapName = false
+		msg = i18n.G("unable to contact snap store")
 	default:
 		usesSnapName = false
 		msg = err.Message

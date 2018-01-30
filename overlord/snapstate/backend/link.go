@@ -88,11 +88,14 @@ func generateWrappers(s *snap.Info) error {
 		return err
 	}
 	// add the daemons from the snap.yaml
-	if err := wrappers.AddSnapServices(s, &progress.NullProgress{}); err != nil {
+	if err := wrappers.AddSnapServices(s, progress.Null); err != nil {
+		wrappers.RemoveSnapBinaries(s)
 		return err
 	}
 	// add the desktop files
 	if err := wrappers.AddSnapDesktopFiles(s); err != nil {
+		wrappers.RemoveSnapServices(s, progress.Null)
+		wrappers.RemoveSnapBinaries(s)
 		return err
 	}
 

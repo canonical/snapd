@@ -34,7 +34,7 @@ type snapDetails struct {
 	Deltas           []snapDeltaDetail  `json:"deltas,omitempty"`
 	DownloadSize     int64              `json:"binary_filesize,omitempty"`
 	DownloadURL      string             `json:"download_url,omitempty"`
-	Epoch            string             `json:"epoch"`
+	Epoch            snap.Epoch         `json:"epoch"`
 	IconURL          string             `json:"icon_url"`
 	LastUpdated      string             `json:"last_updated,omitempty"`
 	Name             string             `json:"package_name"`
@@ -44,6 +44,8 @@ type snapDetails struct {
 	Revision         int                `json:"revision"` // store revisions are ints starting at 1
 	ScreenshotURLs   []string           `json:"screenshot_urls,omitempty"`
 	SnapID           string             `json:"snap_id"`
+	License          string             `json:"license,omitempty"`
+	Base             string             `json:"base,omitempty"`
 
 	// FIXME: the store should send "contact" here, once it does we
 	//        can remove support_url
@@ -83,11 +85,11 @@ type snapDeltaDetail struct {
 // channelSnapInfoDetails is the subset of snapDetails we need to get
 // information about the snaps in the various channels
 type channelSnapInfoDetails struct {
-	Revision     int    `json:"revision"` // store revisions are ints starting at 1
-	Confinement  string `json:"confinement"`
-	Version      string `json:"version"`
-	Channel      string `json:"channel"`
-	Epoch        string `json:"epoch"`
-	DownloadSize int64  `json:"binary_filesize"`
-	Info         string `json:"info"`
+	Revision     int        `json:"revision"` // store revisions are ints starting at 1
+	Confinement  string     `json:"confinement"`
+	Version      string     `json:"version"`
+	Channel      string     `json:"channel"`
+	Epoch        snap.Epoch `json:"epoch"`
+	DownloadSize int64      `json:"binary_filesize"`
+	Info         string     `json:"info"`
 }

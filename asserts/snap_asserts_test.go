@@ -595,14 +595,12 @@ func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
-func makeStoreAndCheckDB(c *C) (storeDB *assertstest.SigningDB, checkDB *asserts.Database) {
-	trustedPrivKey := testPrivKey0
-	storePrivKey := testPrivKey1
-
-	store := assertstest.NewStoreStack("canonical", trustedPrivKey, storePrivKey)
+func makeStoreAndCheckDB(c *C) (store *assertstest.StoreStack, checkDB *asserts.Database) {
+	store = assertstest.NewStoreStack("canonical", nil)
 	cfg := &asserts.DatabaseConfig{
-		Backstore: asserts.NewMemoryBackstore(),
-		Trusted:   store.Trusted,
+		Backstore:       asserts.NewMemoryBackstore(),
+		Trusted:         store.Trusted,
+		OtherPredefined: store.Generic,
 	}
 	checkDB, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -610,11 +608,14 @@ func makeStoreAndCheckDB(c *C) (storeDB *assertstest.SigningDB, checkDB *asserts
 	// add store key
 	err = checkDB.Add(store.StoreAccountKey(""))
 	c.Assert(err, IsNil)
+	// add generic key
+	err = checkDB.Add(store.GenericKey)
+	c.Assert(err, IsNil)
 
-	return store.SigningDB, checkDB
+	return store, checkDB
 }
 
-func setup3rdPartySigning(c *C, username string, storeDB *assertstest.SigningDB, checkDB *asserts.Database) (signingDB *assertstest.SigningDB) {
+func setup3rdPartySigning(c *C, username string, storeDB assertstest.SignerDB, checkDB *asserts.Database) (signingDB *assertstest.SigningDB) {
 	privKey := testPrivKey2
 
 	acct := assertstest.NewAccount(storeDB, username, map[string]interface{}{
@@ -809,7 +810,9 @@ func (srs *snapRevSuite) TestSnapRevisionCheckUntrustedAuthority(c *C) {
 
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 
-	headers := srs.makeHeaders(nil)
+	headers := srs.makeHeaders(map[string]interface{}{
+		"authority-id": "other",
+	})
 	snapRev, err := otherDB.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
 
@@ -997,7 +1000,9 @@ func (vs *validationSuite) TestValidationCheckWrongAuthority(c *C) {
 	prereqSnapDecl(c, storeDB, db)
 	prereqSnapDecl2(c, storeDB, db)
 
-	headers := vs.makeHeaders(nil)
+	headers := vs.makeHeaders(map[string]interface{}{
+		"authority-id": "canonical", // not the publisher
+	})
 	validation, err := storeDB.Sign(asserts.ValidationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
@@ -1062,11 +1067,10 @@ func (vs *validationSuite) TestRevokedInvalid(c *C) {
 
 func (vs *validationSuite) TestMissingGatedSnapDeclaration(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
-
-	prereqDevAccount(c, storeDB, db)
+	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
 
 	headers := vs.makeHeaders(nil)
-	a, err := storeDB.Sign(asserts.ValidationType, headers, nil, "")
+	a, err := devDB.Sign(asserts.ValidationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
 	err = db.Check(a)
@@ -1075,12 +1079,12 @@ func (vs *validationSuite) TestMissingGatedSnapDeclaration(c *C) {
 
 func (vs *validationSuite) TestMissingGatingSnapDeclaration(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
+	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
 
-	prereqDevAccount(c, storeDB, db)
 	prereqSnapDecl2(c, storeDB, db)
 
 	headers := vs.makeHeaders(nil)
-	a, err := storeDB.Sign(asserts.ValidationType, headers, nil, "")
+	a, err := devDB.Sign(asserts.ValidationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
 	err = db.Check(a)

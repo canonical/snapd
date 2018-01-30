@@ -33,7 +33,7 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    rm /dev/iio:device0
+    rm -f /dev/iio:device0
 
 execute: |
     . $TESTSLIB/dirs.sh
@@ -42,7 +42,7 @@ execute: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    test "`$SNAPMOUNTDIR/bin/iio-consumer.read`" = "iio-0"
+    test "`$SNAP_MOUNT_DIR/bin/iio-consumer.read`" = "iio-0"
 
-    $SNAPMOUNTDIR/bin/iio-consumer.write "hello"
-    test "`$SNAPMOUNTDIR/bin/iio-consumer.read`" = "hello"
+    $SNAP_MOUNT_DIR/bin/iio-consumer.write "hello"
+    test "`$SNAP_MOUNT_DIR/bin/iio-consumer.read`" = "hello"

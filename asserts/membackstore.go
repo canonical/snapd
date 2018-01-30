@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"errors"
 	"sync"
 )
 
@@ -80,11 +81,15 @@ func (leaf memBSLeaf) put(assertType *AssertionType, key []string, assert Assert
 	return nil
 }
 
+// errNotFound is used internally by backends, it is converted to the richer
+// NotFoundError only at their public interface boundary
+var errNotFound = errors.New("assertion not found")
+
 func (br memBSBranch) get(key []string, maxFormat int) (Assertion, error) {
 	key0 := key[0]
 	down := br[key0]
 	if down == nil {
-		return nil, ErrNotFound
+		return nil, errNotFound
 	}
 	return down.get(key[1:], maxFormat)
 }
@@ -93,7 +98,7 @@ func (leaf memBSLeaf) get(key []string, maxFormat int) (Assertion, error) {
 	key0 := key[0]
 	cur := leaf.cur(key0, maxFormat)
 	if cur == nil {
-		return nil, ErrNotFound
+		return nil, errNotFound
 	}
 	return cur, nil
 }
@@ -142,11 +147,9 @@ func (mbs *memoryBackstore) Put(assertType *AssertionType, assert Assertion) err
 	mbs.mu.Lock()
 	defer mbs.mu.Unlock()
 
-	internalKey := make([]string, 1+len(assertType.PrimaryKey))
+	internalKey := make([]string, 1, 1+len(assertType.PrimaryKey))
 	internalKey[0] = assertType.Name
-	for i, name := range assertType.PrimaryKey {
-		internalKey[1+i] = assert.HeaderString(name)
-	}
+	internalKey = append(internalKey, assert.Ref().PrimaryKey...)
 
 	err := mbs.top.put(assertType, internalKey, assert)
 	return err
@@ -160,7 +163,11 @@ func (mbs *memoryBackstore) Get(assertType *AssertionType, key []string, maxForm
 	internalKey[0] = assertType.Name
 	copy(internalKey[1:], key)
 
-	return mbs.top.get(internalKey, maxFormat)
+	a, err := mbs.top.get(internalKey, maxFormat)
+	if err == errNotFound {
+		return nil, &NotFoundError{Type: assertType}
+	}
+	return a, err
 }
 
 func (mbs *memoryBackstore) Search(assertType *AssertionType, headers map[string]string, foundCb func(Assertion), maxFormat int) error {

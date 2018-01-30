@@ -16,6 +16,14 @@ test_snapctl_set_foo() {
 	fi
 }
 
+test_snapctl_set_bar_doc() {
+  echo "Setting bar document"
+  if ! snapctl set bar="{\"a\":{\"aa\":1,\"ab\":2},\"b\":3}"; then
+    echo "snapctl set unexpectedly failed"
+    exit 1
+  fi
+}
+
 test_snapctl_get_foo() {
 	echo "Getting foo"
 	if ! output="$(snapctl get foo)"; then
@@ -27,6 +35,28 @@ test_snapctl_get_foo() {
 	if [ "$output" != "$expected_output" ]; then
 		echo "Expected output to be '$expected_output', but it was '$output'"
 		exit 1
+	fi
+}
+
+test_get_int_number() {
+  echo "Getting int number"
+  if ! output="$(snapctl get intnumber)"; then
+		echo "Expected snapctl get to be able to retrieve value just set"
+		exit 1
+	fi
+	expected_output="1234567890"
+	if [ "$output" != "$expected_output" ]; then
+		  echo "Expected output to be '$expected_output', but it was '$output'"
+		  exit 1
+	fi
+  if ! output="$(snapctl get intnumber2)"; then
+		  echo "Expected snapctl get to be able to retrieve value just set"
+		  exit 1
+	fi
+	expected_output="\"a\": 9876543210"
+	if ! echo "$output" | grep -q -e "$expected_output"; then
+		  echo "Expected output to be '$expected_output', but it was '$output'"
+		  exit 1
 	fi
 }
 
@@ -56,6 +86,9 @@ case $command in
 	"test-nonexisting")
 		test_nonexisting
 		;;
+  "test-snapctl-set-bar-doc")
+    test_snapctl_set_bar_doc
+    ;;
 	"test-snapctl-set-foo")
 		test_snapctl_set_foo
 		;;
@@ -63,11 +96,14 @@ case $command in
 		test_snapctl_get_foo
 		;;
 	"test-snapctl-get-foo-null")
-		  test_snapctl_get_foo_null
-		  ;;
+    test_snapctl_get_foo_null
+    ;;
 	"test-exit-one")
 		test_exit_one
 		;;
+  "test-get-int")
+    test_get_int_number
+    ;;
 	*)
 		echo "Invalid command: '$command'"
 		exit 1

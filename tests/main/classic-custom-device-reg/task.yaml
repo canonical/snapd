@@ -10,7 +10,7 @@ prepare: |
     fi
     . "$TESTSLIB/systemd.sh"
 
-    snapbuild "$TESTSLIB/snaps/classic-gadget" .
+    snap pack "$TESTSLIB/snaps/classic-gadget"
     snap download "--$CORE_CHANNEL" core
 
     "$TESTSLIB/reset.sh" --keep-stopped
@@ -46,7 +46,7 @@ restore: |
     systemctl stop snapd.service snapd.socket
     systemd_stop_and_destroy_unit fakedevicesvc
 
-    rm -r "$SEED_DIR"
+    rm -rf "$SEED_DIR"
     rm -f -- *.snap
     rm -f -- *.assert
     systemctl start snapd.socket snapd.service

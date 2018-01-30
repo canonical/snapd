@@ -58,14 +58,19 @@ func (mbss *memBackstoreSuite) TestPutAndGet(c *C) {
 
 func (mbss *memBackstoreSuite) TestGetNotFound(c *C) {
 	a, err := mbss.bs.Get(asserts.TestOnlyType, []string{"foo"}, 0)
-	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Assert(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+		// Headers can be omitted by Backstores
+	})
 	c.Check(a, IsNil)
 
 	err = mbss.bs.Put(asserts.TestOnlyType, mbss.a)
 	c.Assert(err, IsNil)
 
 	a, err = mbss.bs.Get(asserts.TestOnlyType, []string{"bar"}, 0)
-	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Assert(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+	})
 	c.Check(a, IsNil)
 }
 
@@ -247,13 +252,13 @@ func (mbss *memBackstoreSuite) TestGetFormat(c *C) {
 	c.Check(a.Revision(), Equals, 0)
 
 	a, err = bs.Get(asserts.TestOnlyType, []string{"zoo"}, 0)
-	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Assert(err, FitsTypeOf, &asserts.NotFoundError{})
 
 	err = bs.Put(asserts.TestOnlyType, af2)
 	c.Assert(err, IsNil)
 
 	a, err = bs.Get(asserts.TestOnlyType, []string{"zoo"}, 1)
-	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Assert(err, FitsTypeOf, &asserts.NotFoundError{})
 
 	a, err = bs.Get(asserts.TestOnlyType, []string{"zoo"}, 2)
 	c.Assert(err, IsNil)

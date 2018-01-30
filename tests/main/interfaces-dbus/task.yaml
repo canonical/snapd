@@ -15,7 +15,6 @@ systems: [-ubuntu-core-16-*]
 
 prepare: |
     . "$TESTSLIB/dirs.sh"
-    . "$TESTSLIB/pkgdb.sh"
 
     echo "Give a snap declaring a dbus slot in installed"
     snap install --edge test-snapd-dbus-provider
@@ -24,41 +23,19 @@ prepare: |
     snap install --edge test-snapd-dbus-consumer
 
     echo "And the provider dbus loop is started"
-    dbus-launch > dbus.env
-    export $(cat dbus.env | xargs)
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        cat <<EOF > /etc/init/dbus-provider.conf
-    env DISPLAY="$DISPLAY"
-    env DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS"
-    env DBUS_SESSION_BUS_PID="$DBUS_SESSION_BUS_PID"
-    script
-        $SNAPMOUNTDIR/bin/test-snapd-dbus-provider.provider
-    end script
-    EOF
-        initctl reload-configuration
-        start dbus-provider
-    else
-        systemd-run --unit dbus-provider \
-                    --setenv=DISPLAY=$DISPLAY \
-                    --setenv=DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS \
-                    --setenv=DBUS_SESSION_BUS_PID=$DBUS_SESSION_BUS_PID \
-                    $SNAPMOUNTDIR/bin/test-snapd-dbus-provider.provider
-    fi
+    . "$TESTSLIB/dbus.sh"
+    start_dbus_unit $SNAP_MOUNT_DIR/bin/test-snapd-dbus-provider.provider
 
 restore: |
-    . "$TESTSLIB/pkgdb.sh"
-    rm -f call.error dbus.env
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        stop dbus-provider
-        rm -f /etc/init/dbus-provider.conf
-    else
-        systemctl stop dbus-provider
-    fi
+    rm -f call.error
+    . "$TESTSLIB/dbus.sh"
+    stop_dbus_unit
 
 execute: |
     CONNECTED_PATTERN="test-snapd-dbus-provider:dbus-test +test-snapd-dbus-consumer"
     DISCONNECTED_PATTERN="^\- +test-snapd-dbus-consumer:dbus-test"
-    export $(cat dbus.env | xargs)
+
+    export $(cat dbus.env)
 
     echo "Then the dbus name is properly reserved by the provider and the method is accessible"
     while ! dbus-send --print-reply --dest=com.dbustest.HelloWorld /com/dbustest/HelloWorld com.dbustest.HelloWorld.SayHello | MATCH "hello world"; do

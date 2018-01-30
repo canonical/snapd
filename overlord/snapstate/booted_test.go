@@ -24,33 +24,43 @@ package snapstate_test
 import (
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type bootedSuite struct {
+	testutil.BaseTest
 	bootloader *boottest.MockBootloader
 
+	o           *overlord.Overlord
 	state       *state.State
 	snapmgr     *snapstate.SnapManager
 	fakeBackend *fakeSnappyBackend
+	restore     func()
 }
 
 var _ = Suite(&bootedSuite{})
 
 func (bs *bootedSuite) SetUpTest(c *C) {
+	bs.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
+
+	bs.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	// booted is not running on classic
 	release.MockOnClassic(false)
@@ -61,10 +71,13 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	partition.ForceBootloader(bs.bootloader)
 
 	bs.fakeBackend = &fakeSnappyBackend{}
-	bs.state = state.New(nil)
+	bs.o = overlord.Mock()
+	bs.state = bs.o.State()
 	bs.snapmgr, err = snapstate.Manager(bs.state)
 	c.Assert(err, IsNil)
 	bs.snapmgr.AddForeignTaskHandlers(bs.fakeBackend)
+
+	bs.o.AddManager(bs.snapmgr)
 
 	snapstate.SetSnapManagerBackend(bs.snapmgr, bs.fakeBackend)
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
@@ -73,6 +86,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {
+	bs.BaseTest.TearDownTest(c)
 	snapstate.AutoAliases = nil
 	release.MockOnClassic(true)
 	dirs.SetRootDir("")
@@ -85,10 +99,7 @@ var kernelSI1 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(
 var kernelSI2 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(2)}
 
 func (bs *bootedSuite) settle() {
-	for i := 0; i < 50; i++ {
-		bs.snapmgr.Ensure()
-		bs.snapmgr.Wait()
-	}
+	bs.o.Settle(5 * time.Second)
 }
 
 func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {

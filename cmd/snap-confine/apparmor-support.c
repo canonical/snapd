@@ -56,6 +56,7 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 		case ENOENT:
 			debug
 			    ("apparmor is available but the interface but the interface is not available");
+			break;
 		case EPERM:
 			// NOTE: fall-through
 		case EACCES:
@@ -73,7 +74,7 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 	// Use aa_getcon() to check the label of the current process and
 	// confinement type. Note that the returned label must be released with
 	// free() but the mode is a constant string that must not be freed.
-	char *label __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	char *label SC_CLEANUP(sc_cleanup_string) = NULL;
 	char *mode = NULL;
 	if (aa_getcon(&label, &mode) < 0) {
 		die("cannot query current apparmor profile");

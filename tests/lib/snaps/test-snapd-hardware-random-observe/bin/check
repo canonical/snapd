@@ -1,0 +1,5 @@
+#!/bin/sh
+
+cat /run/udev/data/c10:183
+cat /sys/class/misc/hw_random/rng_available
+cat /sys/class/misc/hw_random/rng_current

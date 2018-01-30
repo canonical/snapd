@@ -3,16 +3,19 @@ send "source $::env(SPREAD_PATH)/$::env(SPREAD_SUITE)/$::env(SPREAD_VARIANT).sh\
 next
 send "source /usr/share/bash-completion/bash_completion\n"
 next
-send "source $::env(SPREAD_PATH)/data/completion/complete.sh\n"
-next
-chat "complexion \t\t" $::env(_OUT0)
+if {$::env(_COMPLETE_SH)} {
+    # because this sources complete.sh, it won't be using the snippets
+    send "source $::env(SPREAD_PATH)/data/completion/complete.sh\n"
+    next
+}
+chat "$::env(CMD) \t\t" $::env(_OUT0)
 cancel
 # completion when the cursor is not at the end of the line:
 set back1 [string repeat "\b" [string length $::env(_KEY1)]]
-chat "complexion $::env(_KEY1)$back1\t\t" $::env(_OUT0)
+chat "$::env(CMD) $::env(_KEY1)$back1\t\t" $::env(_OUT0)
 cancel
-chat "complexion $::env(_KEY1)\t" $::env(_OUT1)
+chat "$::env(CMD) $::env(_KEY1)\t" $::env(_OUT1)
 cancel
-chat "complexion $::env(_KEY2)\t\t" $::env(_OUT2)
+chat "$::env(CMD) $::env(_KEY2)\t\t" $::env(_OUT2)
 cancel
 brexit

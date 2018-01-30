@@ -53,7 +53,9 @@ func init() {
 	addCommand("disconnect", shortDisconnectHelp, longDisconnectHelp, func() flags.Commander {
 		return &cmdDisconnect{}
 	}, nil, []argDesc{
+		// TRANSLATORS: This needs to be wrapped in <>s.
 		{name: i18n.G("<snap>:<plug>")},
+		// TRANSLATORS: This needs to be wrapped in <>s.
 		{name: i18n.G("<snap>:<slot>")},
 	})
 }

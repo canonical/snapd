@@ -1,2 +1,2 @@
 #!/bin/sh
-snapctl get $@
+snapctl get "$@"

@@ -1,10 +1,14 @@
 summary: Check that upgrade works
+
+systems: [-debian-sid-*]
+
 restore: |
     if [ "$REMOTE_STORE" = staging ]; then
         echo "skip upgrade tests while talking to the staging store"
         exit 0
     fi
     rm -f /var/tmp/myevil.txt
+
 execute: |
     if [ "$REMOTE_STORE" = staging ]; then
         echo "skip upgrade tests while talking to the staging store"
@@ -13,9 +17,11 @@ execute: |
     . "$TESTSLIB/pkgdb.sh"
     . "$TESTSLIB/snaps.sh"
 
-    echo Install previous version...
-    dpkg -l snapd snap-confine || true
-    apt-get install -y snapd
+    echo "Remove snapd and snap-confine"
+    distro_purge_package snapd snapd-selinux snap-confine || true
+
+    echo "Install previous snapd version from the store"
+    distro_install_package snap-confine snapd
 
     prevsnapdver=$(snap --version|grep "snapd ")
 
@@ -25,31 +31,39 @@ execute: |
         snap install core
     fi
 
-    echo Install sanity check snaps with it
+    echo "Install sanity check snaps with it"
     snap install test-snapd-tools
     snap install test-snapd-auto-aliases
-    install_local_classic test-snapd-classic-confinement
+    # transitional: drop the "snap pack" check once it's released
+    do_classic=no
+    if is_classic_confinement_supported && snap pack --help >&/dev/null ; then
+        install_local_classic test-snapd-classic-confinement
+        do_classic=yes
+    fi
 
-    echo Sanity check installs
+    echo "Sanity check installs"
     test-snapd-tools.echo Hello | grep Hello
     test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
     test_snapd_wellknown1|MATCH "ok wellknown 1"
     test_snapd_wellknown2|MATCH "ok wellknown 2"
 
-    echo Do upgrade
+    echo "Do upgrade"
     # allow-downgrades prevents errors when new versions hit the archive, for instance,
     # trying to install 2.11ubuntu1 over 2.11+0.16.04
-    distro_install_local_package --allow-downgrades "$GOHOME"/snapd*.deb
+    pkg_extension="$(distro_get_package_extension)"
+    distro_install_local_package --allow-downgrades "$GOHOME"/snap*."$pkg_extension"
 
     snapdver=$(snap --version|grep "snapd ")
     [ "$snapdver" != "$prevsnapdver" ]
 
-    echo Sanity check already installed snaps after upgrade
+    echo "Sanity check already installed snaps after upgrade"
     snap list | grep core
     snap list | grep test-snapd-tools
     test-snapd-tools.echo Hello | grep Hello
     test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
-    test-snapd-classic-confinement.recurse 5
+    if [ "$do_classic" = yes ]; then
+        test-snapd-classic-confinement.recurse 5
+    fi
 
     # only test if confinement works and we actually have apparmor available
     # FIXME: this will be converted to a better check once we added the
@@ -67,7 +81,7 @@ execute: |
     snap aliases|MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1 +-"
     snap aliases|MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +-"
 
-    echo Check migrating to types in state
+    echo "Check migrating to types in state"
     coreType=$(jq -r '.data.snaps["core"].type' /var/lib/snapd/state.json)
     testSnapType=$(jq -r '.data.snaps["test-snapd-tools"].type' /var/lib/snapd/state.json)
     [ "$coreType" = "os" ]

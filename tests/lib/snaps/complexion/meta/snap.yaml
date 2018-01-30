@@ -1,7 +1,0 @@
-name: complexion
-version: 1.0
-apps:
-  complexion:
-    command: bin/complexion
-    completer: complexion.bash-completer
-    plugs: [home]

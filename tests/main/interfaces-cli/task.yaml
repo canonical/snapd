@@ -7,7 +7,7 @@ environment:
 
 prepare: |
     echo "Given a snap with the $PLUG plug is installed"
-    snapbuild $TESTSLIB/snaps/$SNAP_NAME .
+    snap pack $TESTSLIB/snaps/$SNAP_NAME
     snap install --dangerous $SNAP_FILE
 
 restore: |

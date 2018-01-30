@@ -23,8 +23,9 @@ package ifacestate
 
 import (
 	"fmt"
+	"sync"
 
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -34,8 +35,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var noConflictOnConnectTasks = func(kind string) bool {
-	return kind != "connect" && kind != "disconnect"
+var noConflictOnConnectTasks = func(task *state.Task) bool {
+	return task.Kind() != "connect" && task.Kind() != "disconnect"
 }
 
 // Connect returns a set of tasks for connecting an interface.
@@ -201,9 +202,13 @@ func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
 	return ic.Check()
 }
 
-func init() {
+var once sync.Once
+
+func delayedCrossMgrInit() {
 	// hook interface checks into snapstate installation logic
-	snapstate.AddCheckSnapCallback(func(st *state.State, snapInfo, _ *snap.Info, _ snapstate.Flags) error {
-		return CheckInterfaces(st, snapInfo)
+	once.Do(func() {
+		snapstate.AddCheckSnapCallback(func(st *state.State, snapInfo, _ *snap.Info, _ snapstate.Flags) error {
+			return CheckInterfaces(st, snapInfo)
+		})
 	})
 }

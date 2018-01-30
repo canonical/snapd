@@ -42,7 +42,8 @@ func openDatabaseAt(path string, cfg *asserts.DatabaseConfig) (*asserts.Database
 // Open opens the system-wide assertion database with the trusted assertions set configured.
 func Open() (*asserts.Database, error) {
 	cfg := &asserts.DatabaseConfig{
-		Trusted: Trusted(),
+		Trusted:         Trusted(),
+		OtherPredefined: Generic(),
 	}
 	return openDatabaseAt(dirs.SnapAssertsDBDir, cfg)
 }

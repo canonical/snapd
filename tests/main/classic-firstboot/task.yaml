@@ -8,7 +8,7 @@ prepare: |
         exit
     fi
 
-    snapbuild "$TESTSLIB/snaps/basic" .
+    snap pack "$TESTSLIB/snaps/basic"
     snap download "--$CORE_CHANNEL" core
 
     "$TESTSLIB/reset.sh" --keep-stopped
@@ -39,7 +39,7 @@ restore: |
         exit
     fi
 
-    rm -r "$SEED_DIR"
+    rm -rf "$SEED_DIR"
     rm -f -- *.snap
     rm -f -- *.assert
     systemctl start snapd.socket snapd.service

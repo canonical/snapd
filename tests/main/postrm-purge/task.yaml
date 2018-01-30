@@ -11,24 +11,23 @@ execute: |
 
     . $TESTSLIB/dirs.sh
 
-    # For now we use the Fedora specific snap-mgmt script but as soon
-    # as we have a generic one we can use cross-distro we need to
-    # change this.
-    echo "And snapd is purged"
-    if [[ "$SPREAD_SYSTEM" = fedora-* ]] ; then
-        sh ${SPREAD_PATH}/packaging/fedora/snap-mgmt.sh \
-            --snap-mount-dir=$SNAPMOUNTDIR \
-            --purge
-    else
+    # purge is performed while/after removing the package
+    systemctl stop snapd.service snapd.socket
+
+    # Ubuntu/Debian packaging has not been migrated to cross-distro snap-mgmt
+    # tool
+    if [[ "$SPREAD_SYSTEM" = ubuntu-* || "$SPREAD_SYSTEM" = debian-* ]]; then
         # only available on trusty
         if [ -x ${SPREAD_PATH}/debian/snapd.prerm ]; then
             sh -x ${SPREAD_PATH}/debian/snapd.prerm
         fi
         sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
+    else
+        ${LIBEXECDIR}/snapd/snap-mgmt --purge
     fi
 
     echo "Nothing is left"
-    for d in $SNAPMOUNTDIR /var/snap; do
+    for d in $SNAP_MOUNT_DIR /var/snap; do
         if [ -d "$d" ]; then
             echo "$d is not removed"
             ls -lR $d

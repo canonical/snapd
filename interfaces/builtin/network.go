@@ -32,17 +32,40 @@ const networkBaseDeclarationSlots = `
 const networkConnectedPlugAppArmor = `
 # Description: Can access the network as a client.
 #include <abstractions/nameservice>
+/run/systemd/resolve/stub-resolv.conf r,
+
+# systemd-resolved (not yet included in nameservice abstraction)
+#
+# Allow access to the safe members of the systemd-resolved D-Bus API:
+#
+#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#
+# This API may be used directly over the D-Bus system bus or it may be used
+# indirectly via the nss-resolve plugin:
+#
+#   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
+#
+#include <abstractions/dbus-strict>
+dbus send
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="Resolve{Address,Hostname,Record,Service}"
+     peer=(name="org.freedesktop.resolve1"),
+
 #include <abstractions/ssl_certs>
 
 @{PROC}/sys/net/core/somaxconn r,
 @{PROC}/sys/net/ipv4/tcp_fastopen r,
+
+# Allow using netcat as client
+/{,usr/}bin/nc{,.openbsd} ixr,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network
 const networkConnectedPlugSecComp = `
 # Description: Can access the network as a client.
 bind
-shutdown
 
 # FIXME: some kernels require this with common functions in go's 'net' library.
 # While this should remain in network-bind, network-control and

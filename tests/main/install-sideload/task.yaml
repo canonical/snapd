@@ -3,7 +3,7 @@ summary: Checks for snap sideload install
 prepare: |
     for snap in basic test-snapd-tools basic-desktop test-snapd-devmode
     do
-        snapbuild $TESTSLIB/snaps/$snap .
+        snap pack $TESTSLIB/snaps/$snap
     done
 
 environment:
@@ -15,7 +15,7 @@ environment:
 restore: |
     for snap in basic test-snapd-tools basic-desktop
     do
-        rm ./${snap}_1.0_all.snap
+        rm -f ./${snap}_1.0_all.snap
     done
 
 execute: |
@@ -40,7 +40,7 @@ execute: |
     expected="\[Desktop Entry\]\n\
     Name=Echo\n\
     Comment=It echos stuff\n\
-    Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_echo.desktop $SNAPMOUNTDIR/bin/basic-desktop.echo\n"
+    Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop.echo\n"
     cat /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop | grep -Pzq "$expected"
 
     echo "Sideload devmode snap fails without flags"
@@ -74,4 +74,4 @@ execute: |
     echo "Remove --revision works"
     snap remove --revision x1 test-snapd-tools
     test-snapd-tools.success
-    test ! -d $SNAPMOUNTDIR/test-snapd-tools/x1
+    test ! -d $SNAP_MOUNT_DIR/test-snapd-tools/x1

@@ -2,4 +2,4 @@
 
 RETVAL=$(snapctl get exitcode)
 echo "$RETVAL" > /root/remove-hook-executed
-exit $RETVAL
+exit "$RETVAL"

@@ -8,6 +8,10 @@ systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*]
 
 warn-timeout: 1m
 kill-timeout: 5m
+debug: |
+    snap changes
+    . "$TESTSLIB/changes.sh"
+    snap change "$(change_id 'Transition ubuntu-core to core')" || true
 execute: |
     . "$TESTSLIB/pkgdb.sh"
     echo "Ensure core is gone and we have ubuntu-core instead"
@@ -24,12 +28,35 @@ execute: |
     echo '{}' > /home/test/.snap/auth.json
 
     echo "Ensure transition is triggered"
+    # wait for steady state or ensure-state-soon will be pointless
+    ok=0
+    for i in $(seq 40); do
+        if ! snap changes|grep -q ".*.Doing.*" ; then
+            ok=1
+            break
+        fi
+        sleep .5
+    done
+    if [ $ok -ne 1 ] ; then
+        echo "Did not reach steady state"
+        exit 1
+    fi
     snap debug ensure-state-soon
 
-    while ! snap changes|grep ".*Done.*Transition ubuntu-core to core"; do
-        snap changes
+
+    # wait for transition
+    ok=0
+    for i in $(seq 240); do
+        if snap changes|grep -q ".*Done.*Transition ubuntu-core to core" ; then
+            ok=1
+            break
+        fi
         sleep 1
     done
+    if [ $ok -ne 1 ] ; then
+        echo "Transition did not start or finish"
+        exit 1
+    fi
 
     if snap list|grep ubuntu-core; then
         echo "ubuntu-core still installed, transition failed"

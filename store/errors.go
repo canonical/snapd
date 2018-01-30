@@ -24,14 +24,9 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-
-	"github.com/snapcore/snapd/asserts"
 )
 
 var (
-	// ErrEmptyQuery is returned from Find when the query, stripped of any prefixes, is empty.
-	ErrEmptyQuery = errors.New("empty query")
-
 	// ErrBadQuery is returned from Find when the query has special characters in strange places.
 	ErrBadQuery = errors.New("bad query")
 
@@ -48,6 +43,8 @@ var (
 	Err2faFailed = errors.New("two factor authentication failed")
 
 	// ErrInvalidCredentials is returned on login error
+	// It can also be returned when refreshing the discharge
+	// macaroon if the user has changed their password.
 	ErrInvalidCredentials = errors.New("invalid credentials")
 
 	// ErrTOSNotAccepted is returned when the user has not accepted the store's terms of service.
@@ -109,13 +106,4 @@ func (e InvalidAuthDataError) Error() string {
 	//      full sentences (with periods and capitalization)
 	//      (empirically this checks out)
 	return strings.Join(es, "  ")
-}
-
-// AssertionNotFoundError is returned when an assertion can not be found
-type AssertionNotFoundError struct {
-	Ref *asserts.Ref
-}
-
-func (e *AssertionNotFoundError) Error() string {
-	return fmt.Sprintf("%v not found", e.Ref)
 }

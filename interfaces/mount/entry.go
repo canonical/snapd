@@ -83,6 +83,14 @@ var unescape = strings.NewReplacer(
 	`\134`, "\\",
 ).Replace
 
+func Escape(path string) string {
+	return escape(path)
+}
+
+func Unescape(path string) string {
+	return unescape(path)
+}
+
 func (e Entry) String() string {
 	// Name represents name of the device in a mount entry.
 	name := "none"
@@ -141,8 +149,10 @@ func ParseEntry(s string) (Entry, error) {
 	return e, nil
 }
 
-// OptsToFlags converts mount options strings to a mount flag.
-func OptsToFlags(opts []string) (flags int, err error) {
+// OptsToCommonFlags converts mount options strings to a mount flag, returning unparsed flags.
+// The unparsed flags will not contain any snapd-specific mount option, those
+// starting with the string "x-snapd."
+func OptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 	for _, opt := range opts {
 		switch opt {
 		case "ro":
@@ -192,8 +202,74 @@ func OptsToFlags(opts []string) (flags int, err error) {
 		case "strictatime":
 			flags |= syscall.MS_STRICTATIME
 		default:
+			if !strings.HasPrefix(opt, "x-snapd.") {
+				unparsed = append(unparsed, opt)
+			}
+		}
+	}
+	return flags, unparsed
+}
+
+// OptsToFlags converts mount options strings to a mount flag.
+func OptsToFlags(opts []string) (flags int, err error) {
+	flags, unparsed := OptsToCommonFlags(opts)
+	for _, opt := range unparsed {
+		if !strings.HasPrefix(opt, "x-snapd.") {
 			return 0, fmt.Errorf("unsupported mount option: %q", opt)
 		}
 	}
 	return flags, nil
+}
+
+// OptStr returns the value part of a key=value mount option.
+// The name of the option must not contain the trailing "=" character.
+func (e *Entry) OptStr(name string) (string, bool) {
+	prefix := name + "="
+	for _, opt := range e.Options {
+		if strings.HasPrefix(opt, prefix) {
+			kv := strings.SplitN(opt, "=", 2)
+			return kv[1], true
+		}
+	}
+	return "", false
+}
+
+// OptBool returns true if a given mount option is present.
+func (e *Entry) OptBool(name string) bool {
+	for _, opt := range e.Options {
+		if opt == name {
+			return true
+		}
+	}
+	return false
+}
+
+// XSnapdKindSymlink returns the string "x-snapd.kind=symlink".
+func XSnapdKindSymlink() string {
+	return "x-snapd.kind=symlink"
+}
+
+// XSnapdKindFile returns the string "x-snapd.kind=file".
+func XSnapdKindFile() string {
+	return "x-snapd.kind=file"
+}
+
+// XSnapdUser returns the string "x-snapd.user=%d".
+func XSnapdUser(uid int) string {
+	return fmt.Sprintf("x-snapd.user=%d", uid)
+}
+
+// XSnapdGroup returns the string "x-snapd.group=%d".
+func XSnapdGroup(gid int) string {
+	return fmt.Sprintf("x-snapd.group=%d", gid)
+}
+
+// XSnapdMode returns the string "x-snapd.mode=%#o".
+func XSnapdMode(mode uint32) string {
+	return fmt.Sprintf("x-snapd.mode=%#o", mode)
+}
+
+// XSnapdSymlink returns the string "x-snapd.symlink=%s".
+func XSnapdSymlink(oldname string) string {
+	return fmt.Sprintf("x-snapd.symlink=%s", oldname)
 }

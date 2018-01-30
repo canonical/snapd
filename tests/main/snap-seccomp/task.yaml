@@ -4,6 +4,9 @@ summary: Ensure that the snap-seccomp bpf handling works
 #        the systems line
 systems: [ubuntu-*]
 
+# Start early as it takes a long time.
+priority: 100
+
 environment:
     PROFILE: /var/lib/snapd/seccomp/bpf/snap.test-snapd-tools.echo
     SNAP_SECCOMP: /usr/lib/snapd/snap-seccomp
@@ -125,3 +128,14 @@ execute: |
     ( (sleep 3; $SNAP_SECCOMP compile ${PROFILE}.src ${PROFILE}.bin) &)
     echo "Ensure the code still runs"
     test-snapd-tools.echo hello | MATCH hello
+
+    if [ "$(uname -p)" = "x86_64" ]; then
+        echo "Ensure secondary arch works for amd64 with i386 binaries"
+        snap install --edge test-snapd-hello-multi-arch
+        test-snapd-hello-multi-arch.hello-i386
+
+        echo "Ensure secondary arch works in @complain mode too"
+        snap remove test-snapd-hello-multi-arch
+        snap install --devmode --edge test-snapd-hello-multi-arch
+        test-snapd-hello-multi-arch.hello-i386
+    fi

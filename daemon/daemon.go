@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	unix "syscall"
@@ -35,14 +36,16 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
-	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/polkit"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -77,44 +80,83 @@ type Command struct {
 	// is this path accessible on the snapd-snap socket?
 	SnapOK bool
 
+	// can polkit grant access? set to polkit action ID if so
+	PolkitOK string
+
 	d *Daemon
 }
 
-func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
+type accessResult int
+
+const (
+	accessOK accessResult = iota
+	accessUnauthorized
+	accessForbidden
+)
+
+var polkitCheckAuthorizationForPid = polkit.CheckAuthorizationForPid
+
+func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult {
 	if user != nil {
 		// Authenticated users do anything for now.
-		return true
+		return accessOK
 	}
 
 	isUser := false
-	uid, err := ucrednetGetUID(r.RemoteAddr)
+	pid, uid, err := ucrednetGet(r.RemoteAddr)
 	if err == nil {
-		if uid == 0 {
-			// Superuser does anything.
-			return true
+		isUser = true
+	} else if err != errNoID {
+		logger.Noticef("unexpected error when attempting to get UID: %s", err)
+		return accessForbidden
+	} else if c.SnapOK {
+		return accessOK
+	}
+
+	if r.Method == "GET" {
+		// Guest and user access restricted to GET requests
+		if c.GuestOK {
+			return accessOK
 		}
 
-		isUser = true
-	} else if err != errNoUID {
-		logger.Noticef("unexpected error when attempting to get UID: %s", err)
-		return false
-	} else if c.SnapOK {
-		return true
+		if isUser && c.UserOK {
+			return accessOK
+		}
 	}
 
-	if r.Method != "GET" {
-		return false
+	// Remaining admin checks rely on identifying peer uid
+	if !isUser {
+		return accessUnauthorized
 	}
 
-	if isUser && c.UserOK {
-		return true
+	if uid == 0 {
+		// Superuser does anything.
+		return accessOK
 	}
 
-	if c.GuestOK {
-		return true
+	if c.PolkitOK != "" {
+		var flags polkit.CheckFlags
+		allowHeader := r.Header.Get(client.AllowInteractionHeader)
+		if allowHeader != "" {
+			if allow, err := strconv.ParseBool(allowHeader); err != nil {
+				logger.Noticef("error parsing %s header: %s", client.AllowInteractionHeader, err)
+			} else if allow {
+				flags |= polkit.CheckAllowInteraction
+			}
+		}
+		if authorized, err := polkitCheckAuthorizationForPid(pid, c.PolkitOK, nil, flags); err == nil {
+			if authorized {
+				// polkit says user is authorised
+				return accessOK
+			}
+		} else if err == polkit.ErrDismissed {
+			return accessForbidden
+		} else {
+			logger.Noticef("polkit error: %s", err)
+		}
 	}
 
-	return false
+	return accessUnauthorized
 }
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -124,8 +166,14 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	user, _ := UserFromRequest(state, r)
 	state.Unlock()
 
-	if !c.canAccess(r, user) {
+	switch c.canAccess(r, user) {
+	case accessOK:
+		// nothing
+	case accessUnauthorized:
 		Unauthorized("access denied").ServeHTTP(w, r)
+		return
+	case accessForbidden:
+		Forbidden("forbidden").ServeHTTP(w, r)
 		return
 	}
 
@@ -166,6 +214,12 @@ func (w *wrappedWriter) Write(bs []byte) (int, error) {
 func (w *wrappedWriter) WriteHeader(s int) {
 	w.w.WriteHeader(s)
 	w.s = s
+}
+
+func (w *wrappedWriter) Flush() {
+	if f, ok := w.w.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func logit(handler http.Handler) http.Handler {
