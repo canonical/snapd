@@ -58,6 +58,60 @@ func (c Change) String() string {
 // changePerform is Change.Perform that can be mocked for testing.
 var changePerform func(*Change) ([]*Change, error)
 
+// tryCreate takes one flag argument
+type tryCreateFlag int
+
+const createSymlinks tryCreateFlag = 1
+const createMimics tryCreateFlag = 2
+
+func (c *Change) createComponent(path, kind string, flags tryCreateFlag) ([]*Change, error) {
+	var err error
+	var changes []*Change
+
+	// In case we need to create something, some constants.
+	const (
+		mode = 0755
+		uid  = 0
+		gid  = 0
+	)
+
+	// If the element doesn't exist we can attempt to create it.
+	// We will create the parent directory and then the final element
+	// relative to it. The traversed space may be writable so we just
+	// try to create things first.
+retry:
+	switch kind {
+	case "":
+		err = secureMkdirAll(path, mode, uid, gid)
+	case "file":
+		err = secureMkfileAll(path, mode, uid, gid)
+	case "symlink":
+		if flags&createSymlinks == createSymlinks {
+			err = secureMkdirAll(path, mode, uid, gid)
+			if err == nil {
+				// Normally symlinks would be created
+				// later but calling c.lowLevelPerform
+				// now lets us check if the medium is
+				// writable and take advantage of the
+				// code below.
+				err = c.lowLevelPerform()
+			}
+		}
+	}
+	if err2, _ := err.(*ReadOnlyFsError); err2 != nil && flags&createMimics == createMimics {
+		// If the writing failed because the underlying filesystem
+		// is read-only we can construct a writable mimic to fix that.
+		changes, err = createWritableMimic(err2.Path)
+		if err != nil {
+			return changes, fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
+		}
+		// Clear the flag and try again.
+		flags ^= createMimics
+		goto retry
+	}
+	return changes, err
+}
+
 // changePerformImpl is the real implementation of Change.Perform
 func changePerformImpl(c *Change) ([]*Change, error) {
 	var changes []*Change
@@ -73,58 +127,6 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 	// c.lowLevelPerform. Here we just set the stage to make that possible.
 	kind, _ := c.Entry.OptStr("x-snapd.kind")
 	path := c.Entry.Dir
-
-	// tryCreate takes one flag argument
-	type tryCreateFlag int
-
-	const createSymlinks tryCreateFlag = 1
-	const createMimics tryCreateFlag = 2
-
-	tryCreate := func(flags tryCreateFlag) error {
-		var err error
-		// In case we need to create something, some constants.
-		const (
-			mode = 0755
-			uid  = 0
-			gid  = 0
-		)
-
-		// If the element doesn't exist we can attempt to create it.
-		// We will create the parent directory and then the final element
-		// relative to it. The traversed space may be writable so we just
-		// try to create things first.
-	retry:
-		switch kind {
-		case "":
-			err = secureMkdirAll(path, mode, uid, gid)
-		case "file":
-			err = secureMkfileAll(path, mode, uid, gid)
-		case "symlink":
-			if flags&createSymlinks == createSymlinks {
-				err = secureMkdirAll(path, mode, uid, gid)
-				if err == nil {
-					// Normally symlinks would be created
-					// later but calling c.lowLevelPerform
-					// now lets us check if the medium is
-					// writable and take advantage of the
-					// code below.
-					err = c.lowLevelPerform()
-				}
-			}
-		}
-		if err2, _ := err.(*ReadOnlyFsError); err2 != nil && flags&createMimics == createMimics {
-			// If the writing failed because the underlying filesystem
-			// is read-only we can construct a writable mimic to fix that.
-			changes, err = createWritableMimic(err2.Path)
-			if err != nil {
-				return fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
-			}
-			// Clear the flag and try again.
-			flags ^= createMimics
-			goto retry
-		}
-		return err
-	}
 
 	checkKind := func(fi os.FileInfo) error {
 		// If the element already exists we just need to ensure it is of
@@ -166,7 +168,8 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 			// below, in case things fail.
 			path = filepath.Dir(c.Entry.Dir)
 		}
-		if err := tryCreate(createSymlinks | createMimics); err != nil {
+		changes, err = c.createComponent(path, kind, createSymlinks|createMimics)
+		if err != nil {
 			return changes, err
 		}
 	}
@@ -187,7 +190,7 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 		path = c.Entry.Name
 		fi, err := osLstat(path)
 		if err != nil && os.IsNotExist(err) {
-			err = tryCreate(0)
+			_, err = c.createComponent(path, kind, 0)
 			if err != nil {
 				return changes, fmt.Errorf("cannot create file/directory %q: %s", path, err)
 			}
