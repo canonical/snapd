@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -36,32 +37,33 @@ type UI interface {
 	//
 	// The value "true" is returned if the user clicks "yes",
 	// otherwise "false".
-	YesNo(primary, secondary string, options *Options) bool
+	YesNo(primary, secondary string, options *DialogOptions) bool
 }
 
 // Options for the UI interface
-type Options struct {
-	Footer string
-	// Timeout in seconds. We do not use time.Duration because
-	// this gets passed to zenity and that only supports seconds.
-	Timeout int
+type DialogOptions struct {
+	Footer  string
+	Timeout time.Duration
 }
 
 // New returns the best matching UI interface for the given system
 // or an error if no ui can be created.
 func New() (UI, error) {
+	hasZenity := osutil.ExecutableExists("zenity")
+	hasKDialog := osutil.ExecutableExists("kdialog")
+
 	switch {
-	case osutil.ExecutableExists("zenity") && osutil.ExecutableExists("kdialog"):
+	case hasZenity && hasKDialog:
 		// prefer kdialog on KDE, otherwise use zenity
 		currentDesktop := os.Getenv("XDG_CURRENT_DESKTOP")
-		if strings.Contains("KDE", currentDesktop) || strings.Contains("kde", currentDesktop) {
-			return &Kdialog{}, nil
+		if strings.Contains("kde", strings.ToLower(currentDesktop)) {
+			return &KDialog{}, nil
 		}
 		return &Zenity{}, nil
-	case osutil.ExecutableExists("zenity"):
+	case hasZenity:
 		return &Zenity{}, nil
-	case osutil.ExecutableExists("kdialog"):
-		return &Kdialog{}, nil
+	case hasKDialog:
+		return &KDialog{}, nil
 	default:
 		return nil, fmt.Errorf("cannot create a UI: please install zenity or kdialog")
 	}

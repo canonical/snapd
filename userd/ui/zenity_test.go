@@ -20,6 +20,8 @@
 package ui_test
 
 import (
+	"time"
+
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -65,7 +67,7 @@ func (s *zenitySuite) TestYesNoSimpleFooter(c *C) {
 	defer mock.Restore()
 
 	z := &ui.Zenity{}
-	answeredYes := z.YesNo("primary", "secondary", &ui.Options{Footer: "footer"})
+	answeredYes := z.YesNo("primary", "secondary", &ui.DialogOptions{Footer: "footer"})
 	c.Check(answeredYes, Equals, true)
 	c.Check(mock.Calls(), DeepEquals, [][]string{
 		{"zenity", "--question", "--modal", `--text=<big><b>primary</b></big>
@@ -81,7 +83,7 @@ func (s *zenitySuite) TestYesNoSimpleTimeout(c *C) {
 	defer mock.Restore()
 
 	z := &ui.Zenity{}
-	answeredYes := z.YesNo("primary", "secondary", &ui.Options{Timeout: 60})
+	answeredYes := z.YesNo("primary", "secondary", &ui.DialogOptions{Timeout: 60 * time.Second})
 	c.Check(answeredYes, Equals, true)
 	c.Check(mock.Calls(), DeepEquals, [][]string{
 		{"zenity", "--question", "--modal", "--text=<big><b>primary</b></big>\n\nsecondary", "--timeout=60"},
