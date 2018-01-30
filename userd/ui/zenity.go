@@ -22,15 +22,16 @@ package ui
 import (
 	"fmt"
 	"os/exec"
+	"time"
 )
 
 // Zenity provides a zenity based UI interface
 type Zenity struct{}
 
 // YesNo asks a yes/no question using zenity
-func (*Zenity) YesNo(primary, secondary string, options *Options) bool {
+func (*Zenity) YesNo(primary, secondary string, options *DialogOptions) bool {
 	if options == nil {
-		options = &Options{}
+		options = &DialogOptions{}
 	}
 
 	txt := fmt.Sprintf("<big><b>%s</b></big>\n\n%s", primary, secondary)
@@ -39,7 +40,7 @@ func (*Zenity) YesNo(primary, secondary string, options *Options) bool {
 	}
 	args := []string{"--question", "--modal", "--text=" + txt}
 	if options.Timeout > 0 {
-		args = append(args, fmt.Sprintf("--timeout=%d", options.Timeout))
+		args = append(args, fmt.Sprintf("--timeout=%d", int(options.Timeout/time.Second)))
 	}
 	cmd := exec.Command("zenity", args...)
 	if err := cmd.Start(); err != nil {

@@ -20,6 +20,8 @@
 package ui_test
 
 import (
+	"time"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/testutil"
@@ -36,7 +38,7 @@ func (s *kdialogSuite) TestYesNoSimpleYes(c *C) {
 	mock := testutil.MockCommand(c, "kdialog", "")
 	defer mock.Restore()
 
-	z := &ui.Kdialog{}
+	z := &ui.KDialog{}
 	answeredYes := z.YesNo("primary", "secondary", nil)
 	c.Check(answeredYes, Equals, true)
 	c.Check(mock.Calls(), DeepEquals, [][]string{
@@ -48,7 +50,7 @@ func (s *kdialogSuite) TestYesNoSimpleNo(c *C) {
 	mock := testutil.MockCommand(c, "kdialog", "false")
 	defer mock.Restore()
 
-	z := &ui.Kdialog{}
+	z := &ui.KDialog{}
 	answeredYes := z.YesNo("primary", "secondary", nil)
 	c.Check(answeredYes, Equals, false)
 	c.Check(mock.Calls(), DeepEquals, [][]string{
@@ -60,8 +62,8 @@ func (s *kdialogSuite) TestYesNoSimpleFooter(c *C) {
 	mock := testutil.MockCommand(c, "kdialog", "")
 	defer mock.Restore()
 
-	z := &ui.Kdialog{}
-	answeredYes := z.YesNo("primary", "secondary", &ui.Options{Footer: "footer"})
+	z := &ui.KDialog{}
+	answeredYes := z.YesNo("primary", "secondary", &ui.DialogOptions{Footer: "footer"})
 	c.Check(answeredYes, Equals, true)
 	c.Check(mock.Calls(), DeepEquals, [][]string{
 		{"kdialog", "--yesno=<p><big><b>primary</b></big></p><p>secondary</p><p><small>footer</small></p>"},
@@ -72,8 +74,8 @@ func (s *kdialogSuite) TestYesNoSimpleTimeout(c *C) {
 	mock := testutil.MockCommand(c, "kdialog", "sleep 9999999")
 	defer mock.Restore()
 
-	z := &ui.Kdialog{}
-	answeredYes := z.YesNo("primary", "secondary", &ui.Options{Timeout: 1})
+	z := &ui.KDialog{}
+	answeredYes := z.YesNo("primary", "secondary", &ui.DialogOptions{Timeout: 1 * time.Second})
 	// this got auto-canceled after 1sec
 	c.Check(answeredYes, Equals, false)
 	c.Check(mock.Calls(), DeepEquals, [][]string{

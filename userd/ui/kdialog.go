@@ -26,13 +26,13 @@ import (
 	"time"
 )
 
-// Kdialog provides a kdialog based UI interface
-type Kdialog struct{}
+// KDialog provides a kdialog based UI interface
+type KDialog struct{}
 
 // YesNo asks a yes/no question using kdialog
-func (*Kdialog) YesNo(primary, secondary string, options *Options) bool {
+func (*KDialog) YesNo(primary, secondary string, options *DialogOptions) bool {
 	if options == nil {
-		options = &Options{}
+		options = &DialogOptions{}
 	}
 
 	txt := fmt.Sprintf(`<p><big><b>%s</b></big></p><p>%s</p>`, html.EscapeString(primary), html.EscapeString(secondary))
@@ -51,7 +51,7 @@ func (*Kdialog) YesNo(primary, secondary string, options *Options) bool {
 		select {
 		case err = <-done:
 			// normal exit
-		case <-time.After(time.Duration(options.Timeout) * time.Second):
+		case <-time.After(options.Timeout):
 			// timeout do nothing, the other side will have timed
 			// out as well, no need to send a reply.
 			cmd.Process.Kill()
