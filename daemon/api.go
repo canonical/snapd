@@ -267,6 +267,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	st := c.d.overlord.State()
 	snapMgr := c.d.overlord.SnapManager()
 	st.Lock()
+	defer st.Unlock()
 	nextRefresh := snapMgr.NextRefresh()
 	lastRefresh, _ := snapMgr.LastRefresh()
 	refreshScheduleStr, err := snapMgr.RefreshSchedule()
@@ -274,7 +275,6 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot get refresh schedule: %s", err)
 	}
 	users, err := auth.Users(st)
-	st.Unlock()
 	if err != nil && err != state.ErrNoState {
 		return InternalError("cannot get user auth data: %s", err)
 	}
@@ -825,6 +825,7 @@ func (*licenseData) Error() string {
 type snapInstruction struct {
 	progress.NullMeter
 	Action           string        `json:"action"`
+	Amend            bool          `json:"amend"`
 	Channel          string        `json:"channel"`
 	Revision         snap.Revision `json:"revision"`
 	DevMode          bool          `json:"devmode"`
@@ -999,6 +1000,9 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	if inst.IgnoreValidation {
 		flags.IgnoreValidation = true
 	}
+	if inst.Amend {
+		flags.Amend = true
+	}
 
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can
 	if err = assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
@@ -1133,12 +1137,22 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 
 	switch err {
 	case store.ErrSnapNotFound:
-		return SnapNotFound(inst.Snaps[0], err)
+		switch len(inst.Snaps) {
+		case 1:
+			return SnapNotFound(inst.Snaps[0], err)
+		// store.ErrSnapNotFound should only be returned for individual
+		// snap queries; in all other cases something's wrong
+		case 0:
+			return InternalError("store.SnapNotFound with no snap given")
+		default:
+			return InternalError("store.SnapNotFound with %d snaps", len(inst.Snaps))
+		}
 	case store.ErrNoUpdateAvailable:
 		kind = errorKindSnapNoUpdateAvailable
 	case store.ErrLocalSnap:
 		kind = errorKindSnapLocal
 	default:
+		handled := true
 		switch err := err.(type) {
 		case *snap.AlreadyInstalledError:
 			kind = errorKindSnapAlreadyInstalled
@@ -1159,10 +1173,17 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 			if err.Timeout() {
 				kind = errorKindNetworkTimeout
 			} else {
-				return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+				handled = false
 			}
 		default:
-			return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+			handled = false
+		}
+
+		if !handled {
+			if len(inst.Snaps) == 0 {
+				return BadRequest("cannot %s: %v", inst.Action, err)
+			}
+			return BadRequest("cannot %s %s: %v", inst.Action, strutil.Quoted(inst.Snaps), err)
 		}
 	}
 

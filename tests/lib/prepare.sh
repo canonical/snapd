@@ -356,7 +356,7 @@ EOF
         echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /mnt/system-data/etc/sudoers.d/99-ubuntu-user
         # modify sshd so that we can connect as root
         mkdir -p /mnt/system-data/etc/ssh
-        cp -a "$UNPACKD/etc/ssh/sshd_config" /mnt/system-data/etc/ssh/
+        cp -a "$UNPACKD"/etc/ssh/* /mnt/system-data/etc/ssh/
         sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /mnt/system-data/etc/ssh/sshd_config
 
         # build the user database - this is complicated because:
