@@ -21,7 +21,6 @@ package httputil
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
@@ -61,10 +60,10 @@ func SetUserAgentFromVersion(version string, extraProds ...string) {
 	// xxx this assumes ReleaseInfo's ID and VersionID don't have weird characters
 	// (see rfc 7231 for values of weird)
 	// assumption checks out in practice, q.v. https://github.com/zyga/os-release-zoo
-	userAgent = fmt.Sprintf("snapd/%v (%s)%s %s/%s (%s) linux/%s %s", version,
+	userAgent = fmt.Sprintf("snapd/%v (%s)%s %s/%s (%s) linux/%s", version,
 		strings.Join(extras, "; "), extraProdStr, release.ReleaseInfo.ID,
 		release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()),
-		sanitizeKernelVersion(release.KernelVersion()), runtime.Version())
+		sanitizeKernelVersion(release.KernelVersion()))
 }
 
 func sanitizeKernelVersion(in string) string {
