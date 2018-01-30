@@ -114,7 +114,28 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 	// controlled by the user (typically in /home) then we may still race
 	// with user processes that change it.
 	fi, err := osLstat(path)
-	if err != nil && os.IsNotExist(err) {
+	if err == nil {
+		// If the element already exists we just need to ensure it is of
+		// the correct type. The desired type depends on the kind of entry
+		// we are working with.
+		switch kind {
+		case "":
+			if !fi.Mode().IsDir() {
+				return nil, fmt.Errorf("cannot use %q for mounting, not a directory", path)
+			}
+		case "file":
+			if !fi.Mode().IsRegular() {
+				return nil, fmt.Errorf("cannot use %q for mounting, not a regular file", path)
+			}
+		case "symlink":
+			// When we want to create a symlink we just need the empty
+			// space so anything that is in the way is a problem.
+			return nil, fmt.Errorf("cannot create symlink in %q, existing file in the way", path)
+		}
+	} else if !os.IsNotExist(err) {
+		// If we cannot inspect the element let's just bail out.
+		return nil, fmt.Errorf("cannot inspect %q: %v", path, err)
+	} else {
 		if kind == "symlink" {
 			// For symlinks the path should refer to the parent directory.
 			// We set it here so that it gets picked up by the error message
@@ -140,27 +161,6 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 		// Check if we eventually succeeded.
 		if err != nil {
 			return changes, err
-		}
-	} else if err != nil {
-		// If we cannot inspect the element let's just bail out.
-		return nil, fmt.Errorf("cannot inspect %q: %v", path, err)
-	} else {
-		// If the element already existed we just need to ensure it is of
-		// the correct type. The desired type depends on the kind of entry
-		// we are working with.
-		switch kind {
-		case "":
-			if !fi.Mode().IsDir() {
-				return nil, fmt.Errorf("cannot use %q for mounting, not a directory", path)
-			}
-		case "file":
-			if !fi.Mode().IsRegular() {
-				return nil, fmt.Errorf("cannot use %q for mounting, not a regular file", path)
-			}
-		case "symlink":
-			// When we want to create a symlink we just need the empty
-			// space so anything that is in the way is a problem.
-			return nil, fmt.Errorf("cannot create symlink in %q, existing file in the way", path)
 		}
 	}
 
