@@ -249,7 +249,7 @@ func (s *interfaceManagerSuite) testConnectDisconnectConflicts(c *C, f func(*sta
 	chg.AddTask(t)
 
 	_, err := f(s.state, "consumer", "plug", "producer", "slot")
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`snap "%s" has changes in progress`, snapName))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`snap "%s" has "other-chg" change in progress`, snapName))
 }
 
 func (s *interfaceManagerSuite) TestConnectConflictsPugSnap(c *C) {
@@ -294,11 +294,11 @@ func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {
 
 	_, err = ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `snap "consumer" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "consumer" has "other-connect" change in progress`)
 
 	_, err = ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `snap "consumer" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "consumer" has "other-connect" change in progress`)
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {

@@ -581,14 +581,14 @@ func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map
 		return r.slotPlugs[slot][plug], nil
 	}
 
-	cplug := NewConnectedPlug(plug, plugDynamicAttrs)
-	cslot := NewConnectedSlot(slot, slotDynamicAttrs)
-
 	iface, ok := r.ifaces[plug.Interface]
 	if !ok {
 		// This should never happen
 		return nil, fmt.Errorf("internal error: unknown interface %q", plug.Interface)
 	}
+
+	cplug := NewConnectedPlug(plug, plugDynamicAttrs)
+	cslot := NewConnectedSlot(slot, slotDynamicAttrs)
 
 	if i, ok := iface.(plugValidator); ok {
 		if err := i.BeforeConnectPlug(cplug); err != nil {
