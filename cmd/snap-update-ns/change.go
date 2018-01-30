@@ -97,10 +97,11 @@ func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
 		changes, err = createWritableMimic(err2.Path)
 		if err != nil {
 			err = fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
+		} else {
+			// Try once again. Note that we care *just* about the error. We have already
+			// performed the hole poking and thus additional changes must be nil.
+			_, err = c.createPath(path, false)
 		}
-		// Try once again. Note that we care *just* about the error. We have already
-		// performed the hole poking and thus additional changes must be nil.
-		_, err = c.createPath(path, false)
 	}
 	return changes, err
 }
