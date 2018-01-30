@@ -87,3 +87,10 @@ func (ctxSuite) TestRunSuccess(c *check.C) {
 	err := osutil.RunWithContext(ctx, cmd)
 	c.Check(err, check.IsNil)
 }
+
+func (ctxSuite) TestRunSuccessfulFailure(c *check.C) {
+	ctx, _ := context.WithTimeout(context.Background(), time.Second)
+	cmd := exec.Command("not/something/you/can/run")
+	err := osutil.RunWithContext(ctx, cmd)
+	c.Check(err, check.ErrorMatches, `fork/exec \S+: no such file or directory`)
+}
