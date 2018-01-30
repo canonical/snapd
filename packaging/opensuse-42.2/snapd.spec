@@ -286,6 +286,7 @@ fi
 %{_unitdir}/snapd.refresh.timer
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
+%{_unitdir}/snap.mount
 /usr/bin/snap
 /usr/bin/snapctl
 /usr/sbin/rcsnapd
