@@ -26,8 +26,10 @@ import (
 	"time"
 )
 
+// Kdialog provides a kdialog based UI interface
 type Kdialog struct{}
 
+// YesNo asks a yes/no question using kdialog
 func (*Kdialog) YesNo(primary, secondary string, options *Options) bool {
 	if options == nil {
 		options = &Options{}
