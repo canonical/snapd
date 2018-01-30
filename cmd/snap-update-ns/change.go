@@ -75,7 +75,7 @@ func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
 	// first.
 	kind, _ := c.Entry.OptStr("x-snapd.kind")
 
-	// TODO: refactor this, if possible, with inspection and pre-emptive
+	// TODO: re-factor this, if possible, with inspection and preemptive
 	// creation after the current release ships. This should be possible but
 	// will affect tests heavily (churn, not safe before release).
 	switch kind {
@@ -92,7 +92,7 @@ func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
 		}
 	}
 	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
-		// If the writing failed because the underlying filesystem is read-only
+		// If the writing failed because the underlying file-system is read-only
 		// we can construct a writable mimic to fix that.
 		changes, err = createWritableMimic(err2.Path)
 		if err != nil {
