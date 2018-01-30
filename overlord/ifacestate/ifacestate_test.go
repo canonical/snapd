@@ -150,6 +150,7 @@ func (s *interfaceManagerSuite) TestKnownTaskKinds(c *C) {
 		"connect",
 		"discard-conns",
 		"disconnect",
+		"reconnect",
 		"remove-profiles",
 		"setup-profiles",
 		"transition-ubuntu-core"})
