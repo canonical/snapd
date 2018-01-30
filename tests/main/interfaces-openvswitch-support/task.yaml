@@ -3,6 +3,10 @@ summary: Ensure that the openvswitch-support interface works.
 details: |
     The openvswitch-support interface allows to access to /run/uuidd/request
 
+# ubuntu-core, ubuntu-14 and fedora are skipped due to /run/uuidd/request file does not
+# exist. On those systems different files are being used instead.
+systems: [-ubuntu-14.04-*,-ubuntu-core-16-*,-fedora-*]
+
 environment:
     CONNECTED_PATTERN: ':openvswitch-support +test-snapd-openvswitch-support'
     DISCONNECTED_PATTERN: '\- +test-snapd-openvswitch-support:openvswitch-support'
