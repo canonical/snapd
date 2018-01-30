@@ -210,4 +210,8 @@ AC_ARG_ENABLE([static-libseccomp],
 AM_CONDITIONAL([STATIC_LIBSECCOMP], [test "x$enable_static_libseccomp" = "xyes"])
 
 AC_CONFIG_FILES([Makefile])
+
+AC_CONFIG_SUBDIRS([../data])
+
 AC_OUTPUT
+
