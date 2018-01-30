@@ -1,33 +1,35 @@
 #!/bin/sh
 
+set -ue
+
 echo "Getting and setting attribute value from prepare-slot-producer hook"
 
 # Set own (slot's) attribute
-if ! snapctl set :producer producer-attr3=producervalue3; then
-    echo "Expected prepare-slot-producer hook to be able to set the value of 'producer-attr3' attribute"
+if ! snapctl set :producer producer-attr-3=producer-value-3; then
+    echo "Expected prepare-slot-producer hook to be able to set the value of 'producer-attr-3' attribute"
     exit 1
 fi
 
-# Read own 'producer-attr3' attribute
-if ! output=$(snapctl get :producer producer-attr3); then
-    echo "Expected prepare-slot-producer hook to be able to read the value of own 'producer-attr3' attribute"
+# Read own 'producer-attr-3' attribute
+if ! output=$(snapctl get :producer producer-attr-3); then
+    echo "Expected prepare-slot-producer hook to be able to read the value of own 'producer-attr-3' attribute"
     exit 1
 fi
-expected_output="producervalue3"
+expected_output="producer-value-3"
 if [ "$output" != "$expected_output" ]; then
     echo "Expected output to be '$expected_output', but it was '$output'"
     exit 1
 fi
 
 # Read attribute of the plug set by prepare-plug- hook
-if ! output=$(snapctl get --plug :producer consumer-attr3); then
-    echo "Expected prepare-slot-producer hook to be able to read the value of 'consumer-attr3' attribute of the plug"
+if ! output=$(snapctl get --plug :producer consumer-attr-3); then
+    echo "Expected prepare-slot-producer hook to be able to read the value of 'consumer-attr-3' attribute of the plug"
     exit 1
 fi
-expected_output="consumervalue3"
+expected_output="consumer-value-3"
 if [ "$output" != "$expected_output" ]; then
     echo "Expected output to be '$expected_output', but it was '$output'"
     exit 1
 fi
 
-touch $SNAP_COMMON/prepare-slot-producer-done
+touch "$SNAP_COMMON/prepare-slot-producer-done"
