@@ -62,8 +62,7 @@ var changePerform func(*Change) ([]*Change, error)
 type createFlags int
 
 const (
-	createSymlinks createFlags = 1 << iota
-	createMimics
+	createMimics createFlags = 1 << iota
 )
 
 func (c *Change) createInodes(path, kind string, flags createFlags) ([]*Change, error) {
@@ -92,14 +91,12 @@ retry:
 	case "file":
 		err = secureMkfileAll(path, mode, uid, gid)
 	case "symlink":
-		if flags&createSymlinks == createSymlinks {
-			err = secureMkdirAll(path, mode, uid, gid)
-			if err == nil {
-				// Normally symlinks would be created later but calling
-				// c.lowLevelPerform now lets us check if the medium is
-				// writable and take advantage of the code below.
-				err = c.lowLevelPerform()
-			}
+		err = secureMkdirAll(path, mode, uid, gid)
+		if err == nil {
+			// Normally symlinks would be created later but calling
+			// c.lowLevelPerform now lets us check if the medium is
+			// writable and take advantage of the code below.
+			err = c.lowLevelPerform()
 		}
 	}
 	if err2, _ := err.(*ReadOnlyFsError); err2 != nil && flags&createMimics == createMimics {
@@ -156,7 +153,7 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 			// below, in case things fail.
 			path = filepath.Dir(c.Entry.Dir)
 		}
-		changes, err = c.createInodes(path, kind, createSymlinks|createMimics)
+		changes, err = c.createInodes(path, kind, createMimics)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
