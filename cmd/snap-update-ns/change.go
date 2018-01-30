@@ -74,13 +74,6 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 	kind, _ := c.Entry.OptStr("x-snapd.kind")
 	path := c.Entry.Dir
 
-	// In case we need to create something, some constants.
-	const (
-		mode = 0755
-		uid  = 0
-		gid  = 0
-	)
-
 	// tryCreate takes one flag argument
 	type tryCreateFlag int
 
@@ -89,6 +82,13 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 
 	tryCreate := func(flags tryCreateFlag) error {
 		var err error
+		// In case we need to create something, some constants.
+		const (
+			mode = 0755
+			uid  = 0
+			gid  = 0
+		)
+
 		// If the element doesn't exist we can attempt to create it.
 		// We will create the parent directory and then the final element
 		// relative to it. The traversed space may be writable so we just
