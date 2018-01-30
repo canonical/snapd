@@ -186,36 +186,34 @@ func (c *Change) ensureSource() error {
 }
 
 // changePerformImpl is the real implementation of Change.Perform
-func changePerformImpl(c *Change) ([]*Change, error) {
-	if c.Action != Mount {
-		// Short circuit for the uncomplicated case.
-		return nil, c.lowLevelPerform()
+func changePerformImpl(c *Change) (changes []*Change, err error) {
+	if c.Action == Mount {
+		// We may be asked to bind mount a file, bind mount a directory, mount
+		// a filesystem over a directory, or create a symlink (which is abusing
+		// the "mount" concept slightly). That actual operation is performed in
+		// c.lowLevelPerform. Here we just set the stage to make that possible.
+		//
+		// As a result of this ensure call we may need to make the medium writable
+		// and that's why we may return more changes as a result of performing this
+		// one.
+		changes, err = c.ensureTarget()
+		if err != nil {
+			return changes, err
+		}
+
+		// At this time we can be sure that the target element (for files and
+		// directories) exists and is of the right type or that it (for
+		// symlinks) doesn't exist but the parent directory does.
+		// This property holds as long as we don't interact with locations that
+		// are under the control of regular (non-snap) processes that are not
+		// suspended and may be racing with us.
+		err = c.ensureSource()
+		if err != nil {
+			return changes, err
+		}
 	}
 
-	// We may be asked to bind mount a file, bind mount a directory, mount
-	// a filesystem over a directory, or create a symlink (which is abusing
-	// the "mount" concept slightly). That actual operation is performed in
-	// c.lowLevelPerform. Here we just set the stage to make that possible.
-	//
-	// As a result of this ensure call we may need to make the medium writable
-	// and that's why we may return more changes as a result of performing this
-	// one.
-	changes, err := c.ensureTarget()
-	if err != nil {
-		return changes, err
-	}
-
-	// At this time we can be sure that the target element (for files and
-	// directories) exists and is of the right type or that it (for
-	// symlinks) doesn't exist but the parent directory does.
-	// This property holds as long as we don't interact with locations that
-	// are under the control of regular (non-snap) processes that are not
-	// suspended and may be racing with us.
-	err = c.ensureSource()
-	if err != nil {
-		return changes, err
-	}
-
+	// Perform the underlying mount / unmount / unlink call.
 	err = c.lowLevelPerform()
 	return changes, err
 }
