@@ -58,14 +58,7 @@ func (c Change) String() string {
 // changePerform is Change.Perform that can be mocked for testing.
 var changePerform func(*Change) ([]*Change, error)
 
-// tryCreate takes one flag argument
-type createFlags int
-
-const (
-	createMimics createFlags = 1 << iota
-)
-
-func (c *Change) createInodes(path, kind string, flags createFlags) ([]*Change, error) {
+func (c *Change) createInodes(path, kind string, pokeHoles bool) ([]*Change, error) {
 	var err error
 	var changes []*Change
 
@@ -99,7 +92,7 @@ retry:
 			err = c.lowLevelPerform()
 		}
 	}
-	if err2, _ := err.(*ReadOnlyFsError); err2 != nil && flags&createMimics == createMimics {
+	if err2, _ := err.(*ReadOnlyFsError); err2 != nil && pokeHoles {
 		// If the writing failed because the underlying filesystem is read-only
 		// we can construct a writable mimic to fix that.
 		changes, err = createWritableMimic(err2.Path)
@@ -107,7 +100,7 @@ retry:
 			err = fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
 		} else {
 			// Clear the flag and try again.
-			flags ^= createMimics
+			pokeHoles = false
 			goto retry
 		}
 	}
@@ -153,7 +146,7 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 			// below, in case things fail.
 			path = filepath.Dir(c.Entry.Dir)
 		}
-		changes, err = c.createInodes(path, kind, createMimics)
+		changes, err = c.createInodes(path, kind, true)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
@@ -188,7 +181,7 @@ func (c *Change) ensureSource() error {
 			}
 		}
 	} else if os.IsNotExist(err) {
-		_, err = c.createInodes(path, kind, 0)
+		_, err = c.createInodes(path, kind, false)
 		if err != nil {
 			err = fmt.Errorf("cannot create file/directory %q: %s", path, err)
 		}
