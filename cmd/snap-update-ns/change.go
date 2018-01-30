@@ -77,7 +77,6 @@ func (c *Change) createPath(path, kind string, pokeHoles bool) ([]*Change, error
 	// TODO: refactor this, if possible, with inspection and pre-emptive
 	// creation after the current release ships. This should be possible but
 	// will affect tests heavily (churn, not safe before release).
-retry:
 	switch kind {
 	case "":
 		err = secureMkdirAll(path, mode, uid, gid)
@@ -93,11 +92,9 @@ retry:
 		changes, err = createWritableMimic(err2.Path)
 		if err != nil {
 			err = fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
-		} else {
-			// Clear the flag and try again.
-			pokeHoles = false
-			goto retry
 		}
+		// Try once again.
+		return c.createPath(path, kind, false)
 	}
 	return changes, err
 }
