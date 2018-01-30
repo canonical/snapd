@@ -84,13 +84,8 @@ retry:
 	case "file":
 		err = secureMkfileAll(path, mode, uid, gid)
 	case "symlink":
-		err = secureMkdirAll(path, mode, uid, gid)
-		if err == nil {
-			// Normally symlinks would be created later but calling
-			// c.lowLevelPerform now lets us check if the medium is
-			// writable and take advantage of the code below.
-			err = c.lowLevelPerform()
-		}
+		target, _ := c.Entry.OptStr("x-snapd.symlink")
+		err = secureMklinkAll(path, mode, uid, gid, target)
 	}
 	if err2, _ := err.(*ReadOnlyFsError); err2 != nil && pokeHoles {
 		// If the writing failed because the underlying filesystem is read-only
@@ -139,13 +134,6 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 			err = fmt.Errorf("cannot create symlink in %q: existing file in the way", path)
 		}
 	} else if os.IsNotExist(err) {
-		// No such file or directory, create it
-		if kind == "symlink" {
-			// For symlinks the path should refer to the parent directory.
-			// We set it here so that it gets picked up by the error message
-			// below, in case things fail.
-			path = filepath.Dir(c.Entry.Dir)
-		}
 		changes, err = c.createInodes(path, kind, true)
 	} else {
 		// If we cannot inspect the element let's just bail out.
@@ -223,14 +211,7 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 		return changes, err
 	}
 
-	// Finally perform the low-level operation (mount, unmount, but not
-	// symlink) Symlink is handled earlier in, ensureTarget, as it doesn't rely
-	// on existing inodes to operate.
-	kind, _ := c.Entry.OptStr("x-snapd.kind")
-	if kind != "symlink" {
-		err = c.lowLevelPerform()
-	}
-
+	err = c.lowLevelPerform()
 	return changes, err
 }
 
@@ -256,12 +237,7 @@ func (c *Change) lowLevelPerform() error {
 		kind, _ := c.Entry.OptStr("x-snapd.kind")
 		switch kind {
 		case "symlink":
-			target, _ := c.Entry.OptStr("x-snapd.symlink")
-			err = osSymlink(target, c.Entry.Dir)
-			logger.Debugf("symlink %q -> %q (error: %v)", c.Entry.Dir, target, err)
-			if err == syscall.EROFS {
-				return &ReadOnlyFsError{Path: filepath.Dir(c.Entry.Dir)}
-			}
+			// symlinks are handled in createInode directly, nothing to do here.
 		case "", "file":
 			flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
 			err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
