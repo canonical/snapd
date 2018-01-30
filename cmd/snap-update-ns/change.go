@@ -112,6 +112,27 @@ retry:
 	return changes, err
 }
 
+func (c *Change) checkLocation(path, kind string, fi os.FileInfo) error {
+	// If the element already exists we just need to ensure it is of
+	// the correct type. The desired type depends on the kind of entry
+	// we are working with.
+	switch kind {
+	case "":
+		if !fi.Mode().IsDir() {
+			return fmt.Errorf("cannot use %q for mounting, not a directory", path)
+		}
+	case "file":
+		if !fi.Mode().IsRegular() {
+			return fmt.Errorf("cannot use %q for mounting, not a regular file", path)
+		}
+	case "symlink":
+		// When we want to create a symlink we just need the empty
+		// space so anything that is in the way is a problem.
+		return fmt.Errorf("cannot create symlink in %q, existing file in the way", path)
+	}
+	return nil
+}
+
 // changePerformImpl is the real implementation of Change.Perform
 func changePerformImpl(c *Change) ([]*Change, error) {
 	var changes []*Change
@@ -128,34 +149,13 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 	kind, _ := c.Entry.OptStr("x-snapd.kind")
 	path := c.Entry.Dir
 
-	checkKind := func(fi os.FileInfo) error {
-		// If the element already exists we just need to ensure it is of
-		// the correct type. The desired type depends on the kind of entry
-		// we are working with.
-		switch kind {
-		case "":
-			if !fi.Mode().IsDir() {
-				return fmt.Errorf("cannot use %q for mounting, not a directory", path)
-			}
-		case "file":
-			if !fi.Mode().IsRegular() {
-				return fmt.Errorf("cannot use %q for mounting, not a regular file", path)
-			}
-		case "symlink":
-			// When we want to create a symlink we just need the empty
-			// space so anything that is in the way is a problem.
-			return fmt.Errorf("cannot create symlink in %q, existing file in the way", path)
-		}
-		return nil
-	}
-
 	// We use lstat to ensure that we don't follow a symlink in case one
 	// was set up by the snap. Note that at the time this is run, all the
 	// snap's processes are frozen but if the path is a directory
 	// controlled by the user (typically in /home) then we may still race
 	// with user processes that change it.
 	if fi, err := osLstat(path); err == nil {
-		if err := checkKind(fi); err != nil {
+		if err := c.checkLocation(path, kind, fi); err != nil {
 			return nil, err
 		}
 	} else if !os.IsNotExist(err) {
@@ -197,7 +197,7 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 		} else if err != nil {
 			return changes, fmt.Errorf("cannot inspect %q: %v", path, err)
 		} else {
-			if err := checkKind(fi); err != nil {
+			if err := c.checkLocation(path, kind, fi); err != nil {
 				return nil, err
 			}
 		}
