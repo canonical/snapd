@@ -706,6 +706,34 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 	return conns, nil
 }
 
+func (r *Repository) Connections(snapName string) ([]ConnRef, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	if snapName == "" {
+		snapName, _ = r.guessCoreSnapName()
+		if snapName == "" {
+			return nil, fmt.Errorf("snap name is empty")
+		}
+	}
+
+	var conns []ConnRef
+	for _, plugInfo := range r.plugs[snapName] {
+		for slotInfo, _ := range r.plugSlots[plugInfo] {
+			connRef := *NewConnRef(plugInfo, slotInfo)
+			conns = append(conns, connRef)
+		}
+	}
+	for _, slotInfo := range r.slots[snapName] {
+		for plugInfo, _ := range r.slotPlugs[slotInfo] {
+			connRef := *NewConnRef(plugInfo, slotInfo)
+			conns = append(conns, connRef)
+		}
+	}
+
+	return conns, nil
+}
+
 // coreSnapName returns the name of the core snap if one exists
 func (r *Repository) guessCoreSnapName() (string, error) {
 	switch {
