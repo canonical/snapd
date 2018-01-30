@@ -83,10 +83,17 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 
 	// tryCreate takes one flag argument
 	type tryCreateFlag int
+
 	const createSymlinks tryCreateFlag = 1
+	const createMimics tryCreateFlag = 2
 
 	tryCreate := func(flags tryCreateFlag) error {
 		var err error
+		// If the element doesn't exist we can attempt to create it.
+		// We will create the parent directory and then the final element
+		// relative to it. The traversed space may be writable so we just
+		// try to create things first.
+	retry:
 		switch kind {
 		case "":
 			err = secureMkdirAll(path, mode, uid, gid)
@@ -104,6 +111,17 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 					err = c.lowLevelPerform()
 				}
 			}
+		}
+		if err2, _ := err.(*ReadOnlyFsError); err2 != nil && flags&createMimics == createMimics {
+			// If the writing failed because the underlying filesystem
+			// is read-only we can construct a writable mimic to fix that.
+			changes, err = createWritableMimic(err2.Path)
+			if err != nil {
+				return fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
+			}
+			// Clear the flag and try again.
+			flags ^= createMimics
+			goto retry
 		}
 		return err
 	}
@@ -142,22 +160,8 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 			// below, in case things fail.
 			path = filepath.Dir(c.Entry.Dir)
 		}
-		// If the element doesn't exist we can attempt to create it.
-		// We will create the parent directory and then the final element
-		// relative to it. The traversed space may be writable so we just
-		// try to create things first.
-		err = tryCreate(createSymlinks)
+		err = tryCreate(createSymlinks | createMimics)
 
-		if err2, _ := err.(*ReadOnlyFsError); err2 != nil {
-			// If the writing failed because the underlying filesystem
-			// is read-only we can construct a writable mimic to fix that.
-			changes, err = createWritableMimic(err2.Path)
-			if err != nil {
-				return nil, fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
-			}
-			// We can now try again.
-			err = tryCreate(createSymlinks)
-		}
 		// Check if we eventually succeeded.
 		if err != nil {
 			return changes, err
