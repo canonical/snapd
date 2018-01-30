@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,7 +22,6 @@ package ui
 import (
 	"fmt"
 	"os/exec"
-	"strconv"
 )
 
 type Zenity struct{}
@@ -32,17 +31,13 @@ func (*Zenity) YesNo(primary, secondary string, options *Options) bool {
 		options = &Options{}
 	}
 
-	txt := fmt.Sprintf(`<big><b>%s</b></big>
-
-%s`, primary, secondary)
+	txt := fmt.Sprintf("<big><b>%s</b></big>\n\n%s", primary, secondary)
 	if options.Footer != "" {
-		txt += fmt.Sprintf(`
-
-<span size="x-small">%s</span>`, options.Footer)
+		txt += fmt.Sprintf("\n\n<span size=\"x-small\">%s</span>", options.Footer)
 	}
 	args := []string{"--question", "--modal", "--text=" + txt}
 	if options.Timeout > 0 {
-		args = append(args, "--timeout="+strconv.Itoa(options.Timeout))
+		args = append(args, fmt.Sprintf("--timeout=%d", options.Timeout))
 	}
 	cmd := exec.Command("zenity", args...)
 	if err := cmd.Start(); err != nil {

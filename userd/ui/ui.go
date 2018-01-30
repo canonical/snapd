@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,7 +37,9 @@ type UI interface {
 }
 
 type Options struct {
-	Footer  string
+	Footer string
+	// Timeout in seconds. We do not use time.Duration because
+	// this gets passed to zenity and that only supports seconds.
 	Timeout int
 }
 
