@@ -88,6 +88,9 @@ const mirConnectedPlugAppArmor = `
 unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS###),
 /run/mir_socket rw,
 /run/user/[0-9]*/mir_socket rw,
+
+# Mir uses /dev/shm for sharing memory with clients
+/{dev,run}/shm/\#* mrw,
 `
 
 type mirInterface struct{}
