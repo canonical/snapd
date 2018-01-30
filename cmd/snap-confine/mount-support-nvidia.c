@@ -26,6 +26,7 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <stdint.h>
 #include <unistd.h>
 
 #include "../libsnap-confine-private/classic.h"
@@ -272,17 +273,20 @@ static void sc_glob_files_only(const char *rootfs_dir,
 static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 {
 	// Primary arch
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, "/usr/lib", SC_LIBGL_DIR,
-					  nvidia_globs, nvidia_globs_len);
-	sc_glob_files_only(rootfs_dir, "/usr/lib/nvidia*",
-			   SC_LIBGL_DIR, nvidia_globs, nvidia_globs_len);
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, NATIVE_LIBDIR,
+					  SC_LIBGL_DIR, nvidia_globs,
+					  nvidia_globs_len);
+	sc_glob_files_only(rootfs_dir, NATIVE_LIBDIR "/nvidia*", SC_LIBGL_DIR,
+			   nvidia_globs, nvidia_globs_len);
 
+#if UINTPTR_MAX == 0xffffffffffffffff
 	// Alternative 32-bit support
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, "/usr/lib32",
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, LIB32_DIR,
 					  SC_LIBGL32_DIR, nvidia_globs,
 					  nvidia_globs_len);
-	sc_glob_files_only(rootfs_dir, "/usr/lib32/nvidia*",
+	sc_glob_files_only(rootfs_dir, LIB32_DIR "/nvidia*",
 			   SC_LIBGL32_DIR, nvidia_globs, nvidia_globs_len);
+#endif
 }
 
 #endif				// ifdef NVIDIA_BIARCH
