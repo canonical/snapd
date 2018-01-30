@@ -51,6 +51,7 @@ type TaskRunner struct {
 	// locking
 	mu       sync.Mutex
 	handlers map[string]handlerPair
+	optional []optionalHandler
 	cleanups map[string]HandlerFunc
 	stopped  bool
 
@@ -63,6 +64,11 @@ type TaskRunner struct {
 
 type handlerPair struct {
 	do, undo HandlerFunc
+}
+
+type optionalHandler struct {
+	match func(t *Task) bool
+	handlerPair
 }
 
 // NewTaskRunner creates a new TaskRunner
@@ -82,6 +88,24 @@ func (r *TaskRunner) AddHandler(kind string, do, undo HandlerFunc) {
 	defer r.mu.Unlock()
 
 	r.handlers[kind] = handlerPair{do, undo}
+}
+
+// AddOptionalHandler register functions for doing and undoing tasks that match
+// the given predicate if no explicit handler was registered for the task kind.
+func (r *TaskRunner) AddOptionalHandler(match func(t *Task) bool, do, undo HandlerFunc) {
+	r.optional = append(r.optional, optionalHandler{match, handlerPair{do, undo}})
+}
+
+func (r *TaskRunner) handlerPair(t *Task) handlerPair {
+	if handler, ok := r.handlers[t.Kind()]; ok {
+		return handler
+	}
+	for _, h := range r.optional {
+		if h.match(t) {
+			return h.handlerPair
+		}
+	}
+	return handlerPair{}
 }
 
 // KnownTaskKinds returns all tasks kinds handled by this runner.
@@ -130,13 +154,13 @@ func (r *TaskRunner) run(t *Task) {
 		t.SetStatus(DoingStatus)
 		fallthrough
 	case DoingStatus:
-		handler = r.handlers[t.Kind()].do
+		handler = r.handlerPair(t).do
 
 	case UndoStatus:
 		t.SetStatus(UndoingStatus)
 		fallthrough
 	case UndoingStatus:
-		handler = r.handlers[t.Kind()].undo
+		handler = r.handlerPair(t).undo
 
 	default:
 		panic("internal error: attempted to run task in status " + t.Status().String())
@@ -276,7 +300,7 @@ func (r *TaskRunner) abortLanes(chg *Change, lanes []int) {
 
 // tryUndo replaces the status of a knowingly aborted task.
 func (r *TaskRunner) tryUndo(t *Task) {
-	if t.Status() == AbortStatus && r.handlers[t.Kind()].undo == nil {
+	if t.Status() == AbortStatus && r.handlerPair(t).undo == nil {
 		// Cannot undo but it was stopped in flight.
 		// Hold so it doesn't look like it finished.
 		t.SetStatus(HoldStatus)
@@ -317,8 +341,8 @@ func (r *TaskRunner) Ensure() {
 	ensureTime := timeNow()
 	nextTaskTime := time.Time{}
 	for _, t := range r.state.Tasks() {
-		handlers, ok := r.handlers[t.Kind()]
-		if !ok {
+		handlers := r.handlerPair(t)
+		if handlers.do == nil {
 			// Handled by a different runner instance.
 			continue
 		}

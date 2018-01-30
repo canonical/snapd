@@ -47,7 +47,8 @@ var mockConfigTxt = `
 # uncomment this if your display has a black border of unused pixels visible
 # and your display can output without overscan
 #disable_overscan=1
-unrelated_options=are-kept`
+unrelated_options=are-kept
+`
 
 func (s *piCfgSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
@@ -83,12 +84,12 @@ func (s *piCfgSuite) TestConfigurePiConfigUncommentExisting(c *C) {
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigCommentExisting(c *C) {
-	s.mockConfig(c, mockConfigTxt+"\navoid_warnings=1\n")
+	s.mockConfig(c, mockConfigTxt+"avoid_warnings=1\n")
 
 	err := configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"avoid_warnings": ""})
 	c.Assert(err, IsNil)
 
-	expected := mockConfigTxt + "\n" + "#avoid_warnings=1"
+	expected := mockConfigTxt + "#avoid_warnings=1\n"
 	s.checkMockConfig(c, expected)
 }
 
@@ -96,13 +97,13 @@ func (s *piCfgSuite) TestConfigurePiConfigAddNewOption(c *C) {
 	err := configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"framebuffer_depth": "16"})
 	c.Assert(err, IsNil)
 
-	expected := mockConfigTxt + "\n" + "framebuffer_depth=16"
+	expected := mockConfigTxt + "framebuffer_depth=16\n"
 	s.checkMockConfig(c, expected)
 
 	// add again, verify its not added twice but updated
 	err = configcore.UpdatePiConfig(s.mockConfigPath, map[string]string{"framebuffer_depth": "32"})
 	c.Assert(err, IsNil)
-	expected = mockConfigTxt + "\n" + "framebuffer_depth=32"
+	expected = mockConfigTxt + "framebuffer_depth=32\n"
 	s.checkMockConfig(c, expected)
 }
 

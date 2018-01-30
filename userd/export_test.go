@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build arm64 amd64 ppc64le s390x
 
 /*
  * Copyright (C) 2017 Canonical Ltd
@@ -18,13 +17,20 @@
  *
  */
 
-package sys
+package userd
 
-import "syscall"
-
-const (
-	_SYS_GETUID  = syscall.SYS_GETUID
-	_SYS_GETGID  = syscall.SYS_GETGID
-	_SYS_GETEUID = syscall.SYS_GETEUID
-	_SYS_GETEGID = syscall.SYS_GETEGID
+import (
+	"github.com/godbus/dbus"
 )
+
+var (
+	SnapFromPid = snapFromPid
+)
+
+func MockSnapFromSender(f func(*dbus.Conn, dbus.Sender) (string, error)) func() {
+	origSnapFromSender := snapFromSender
+	snapFromSender = f
+	return func() {
+		snapFromSender = origSnapFromSender
+	}
+}

@@ -40,7 +40,7 @@ type MockCmd struct {
 var scriptTpl = `#!/bin/sh
 echo "$(basename "$0")" >> %[1]q
 for arg in "$@"; do
-    echo "$arg" >> %[1]q
+    printf "%%s\n" "$arg" >> %[1]q
 done
 echo >> %[1]q
 %s
