@@ -166,10 +166,7 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 			// below, in case things fail.
 			path = filepath.Dir(c.Entry.Dir)
 		}
-		err = tryCreate(createSymlinks | createMimics)
-
-		// Check if we eventually succeeded.
-		if err != nil {
+		if err := tryCreate(createSymlinks | createMimics); err != nil {
 			return changes, err
 		}
 	}
