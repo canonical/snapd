@@ -19,7 +19,7 @@ test -f configure.ac
 
 # Regenerate the build system
 rm -f config.status
-autoreconf -i -f
+autoreconf -i -f -v
 
 # Configure the build
 extra_opts=
