@@ -24,8 +24,10 @@ import (
 	"os/exec"
 )
 
+// Zenity provides a zenity based UI interface
 type Zenity struct{}
 
+// YesNo asks a yes/no question using zenity
 func (*Zenity) YesNo(primary, secondary string, options *Options) bool {
 	if options == nil {
 		options = &Options{}

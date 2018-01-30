@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// UI is an interface for user interaction
 type UI interface {
 	// YesNo asks a yes/no question. The primary text
 	// will be printed in a larger font, the secondary text
@@ -36,6 +37,7 @@ type UI interface {
 	YesNo(primary, secondary string, options *Options) bool
 }
 
+// Options for the UI interface
 type Options struct {
 	Footer string
 	// Timeout in seconds. We do not use time.Duration because
@@ -43,6 +45,8 @@ type Options struct {
 	Timeout int
 }
 
+// New returns the best matching UI interface for the given system
+// or an error if no ui can be created.
 func New() (UI, error) {
 	switch {
 	case osutil.ExecutableExists("zenity"):
@@ -50,6 +54,6 @@ func New() (UI, error) {
 	case osutil.ExecutableExists("kdialog"):
 		return &Kdialog{}, nil
 	default:
-		return nil, fmt.Errorf("cannot create a suitable UI")
+		return nil, fmt.Errorf("cannot create a UI: please install zenity or kdialog")
 	}
 }
