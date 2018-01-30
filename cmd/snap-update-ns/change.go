@@ -127,16 +127,16 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 		switch kind {
 		case "":
 			if !fi.Mode().IsDir() {
-				err = fmt.Errorf("cannot use %q for mounting, not a directory", path)
+				err = fmt.Errorf("cannot use %q for mounting: not a directory", path)
 			}
 		case "file":
 			if !fi.Mode().IsRegular() {
-				err = fmt.Errorf("cannot use %q for mounting, not a regular file", path)
+				err = fmt.Errorf("cannot use %q for mounting: not a regular file", path)
 			}
 		case "symlink":
 			// When we want to create a symlink we just need the empty
 			// space so anything that is in the way is a problem.
-			err = fmt.Errorf("cannot create symlink in %q, existing file in the way", path)
+			err = fmt.Errorf("cannot create symlink in %q: existing file in the way", path)
 		}
 	} else if os.IsNotExist(err) {
 		// No such file or directory, create it
@@ -173,11 +173,11 @@ func (c *Change) ensureSource() error {
 		switch kind {
 		case "":
 			if !fi.Mode().IsDir() {
-				err = fmt.Errorf("cannot use %q for mounting, not a directory", path)
+				err = fmt.Errorf("cannot use %q for mounting: not a directory", path)
 			}
 		case "file":
 			if !fi.Mode().IsRegular() {
-				err = fmt.Errorf("cannot use %q for mounting, not a regular file", path)
+				err = fmt.Errorf("cannot use %q for mounting: not a regular file", path)
 			}
 		}
 	} else if os.IsNotExist(err) {
@@ -282,7 +282,7 @@ func (c *Change) lowLevelPerform() error {
 	case Keep:
 		return nil
 	}
-	return fmt.Errorf("cannot process mount change, unknown action: %q", c.Action)
+	return fmt.Errorf("cannot process mount change: unknown action: %q", c.Action)
 }
 
 // NeededChanges computes the changes required to change current to desired mount entries.
