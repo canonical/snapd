@@ -26,6 +26,8 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+
+	"strings"
 )
 
 const x11Summary = `allows interacting with an X11 server`
@@ -88,10 +90,25 @@ accept4
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
+const x11ConnectedSlotAppArmor = `
+# Description: Allow clients access to the X11 server socket
+unix (connect, receive, send, accept)
+    type=stream
+    addr="@/tmp/.X11-unix/X[0-9]*"
+    peer=(label=###PLUG_SECURITY_TAGS###),
+unix (connect, receive, send, accept)
+    type=stream
+    addr="@/tmp/.ICE-unix/[0-9]*"
+    peer=(label=###PLUG_SECURITY_TAGS###),
+`
+
 const x11ConnectedPlugAppArmor = `
 # Description: Can access the X server. Restricted because X does not prevent
 # eavesdropping or apps interfering with one another.
 
+# The X abstraction doesn't check the peer label, but in this case that's
+# ok because x11ConnectedSlotAppArmor will limit which clients can connect
+# to the slot implementation.
 #include <abstractions/X>
 #include <abstractions/fonts>
 owner @{HOME}/.local/share/fonts/{,**} r,
@@ -146,7 +163,10 @@ func (iface *x11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 
 func (iface *x11Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if !release.OnClassic {
-		// TODO: figure out how to share X11 socket with other snaps
+		old := "###PLUG_SECURITY_TAGS###"
+		new := plugAppLabelExpr(plug)
+		snippet := strings.Replace(x11ConnectedSlotAppArmor, old, new, -1)
+		spec.AddSnippet(snippet)
 	}
 	return nil
 }
