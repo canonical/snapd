@@ -21,6 +21,8 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -49,6 +51,13 @@ type Options struct {
 // or an error if no ui can be created.
 func New() (UI, error) {
 	switch {
+	case osutil.ExecutableExists("zenity") && osutil.ExecutableExists("kdialog"):
+		// prefer kdialog on KDE, otherwise use zenity
+		currentDesktop := os.Getenv("XDG_CURRENT_DESKTOP")
+		if strings.Contains("KDE", currentDesktop) || strings.Contains("kde", currentDesktop) {
+			return &Kdialog{}, nil
+		}
+		return &Zenity{}, nil
 	case osutil.ExecutableExists("zenity"):
 		return &Zenity{}, nil
 	case osutil.ExecutableExists("kdialog"):
