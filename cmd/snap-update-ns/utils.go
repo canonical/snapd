@@ -294,6 +294,20 @@ func secureMkfileAll(name string, perm os.FileMode, uid sys.UserID, gid sys.Grou
 	return err
 }
 
+func secureMklinkAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
+	parent := filepath.Dir(name)
+	err := secureMkdirAll(parent, perm, uid, gid)
+	if err != nil {
+		return err
+	}
+	// TODO: roll this uber securely like the code above does using linkat(2).
+	err = osSymlink(oldname, name)
+	if err == syscall.EROFS {
+		return &ReadOnlyFsError{Path: parent}
+	}
+	return err
+}
+
 // planWritableMimic plans how to transform a given directory from read-only to writable.
 //
 // The algorithm is designed to be universally reversible so that it can be
