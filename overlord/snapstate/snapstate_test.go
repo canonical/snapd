@@ -5469,9 +5469,10 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesLegacyWeekdaySchedules(c *C) 
 	s.state.Lock()
 
 	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule configuration: cannot parse "mon@12:00": not a valid time`)
-	schedule, err := s.snapmgr.RefreshSchedule()
+	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
 	c.Check(schedule, Equals, "00:00-24:00/4")
+	c.Check(legacy, Equals, false)
 
 	tr = config.NewTransaction(s.state)
 	refreshTimer := "canary"
@@ -5502,9 +5503,10 @@ func (s *snapmgrTestSuite) TestEnsureRefreshLegacyScheduleIsLowerPriority(c *C) 
 	// expecting new refresh.timer to have been used, fallback to legacy was
 	// not attempted otherwise it would get reset to the default due to
 	// refresh.schedule being garbage
-	schedule, err := s.snapmgr.RefreshSchedule()
+	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
 	c.Check(schedule, Equals, "00:00-23:59,,mon,12:00-14:00")
+	c.Check(legacy, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToLegacySchedule(c *C) {
@@ -5524,9 +5526,10 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToLegacySchedule(c *C) {
 
 	// refresh.timer is unset, triggering automatic fallback to legacy
 	// schedule if that was set
-	schedule, err := s.snapmgr.RefreshSchedule()
+	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
 	c.Check(schedule, Equals, "00:00-23:59")
+	c.Check(legacy, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToDefaultOnError(c *C) {
@@ -5546,9 +5549,10 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToDefaultOnError(c *C) {
 
 	// automatic fallback to default schedule if refresh.timer is set but
 	// cannot be parsed
-	schedule, err := s.snapmgr.RefreshSchedule()
+	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
 	c.Check(schedule, Equals, "00:00-24:00/4")
+	c.Check(legacy, Equals, false)
 
 	tr = config.NewTransaction(s.state)
 	refreshTimer := "canary"
@@ -5576,9 +5580,10 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackOnEmptyToDefaultSchedule(c *
 
 	// automatic fallback to default schedule if neither refresh.timer nor
 	// refresh.schedule was set
-	schedule, err := s.snapmgr.RefreshSchedule()
+	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
 	c.Check(schedule, Equals, "00:00-24:00/4")
+	c.Check(legacy, Equals, false)
 
 	tr = config.NewTransaction(s.state)
 	refreshTimer := "canary"
@@ -8343,16 +8348,17 @@ func (s *snapmgrTestSuite) TestSnapManagerLegacyRefreshSchedule(c *C) {
 	defer s.state.Unlock()
 
 	for _, t := range []struct {
-		in  string
-		out string
+		in     string
+		out    string
+		legacy bool
 	}{
-		{"", snapstate.DefaultRefreshSchedule},
-		{"invalid schedule", snapstate.DefaultRefreshSchedule},
-		{"8:00-12:00", "8:00-12:00"},
+		{"", snapstate.DefaultRefreshSchedule, false},
+		{"invalid schedule", snapstate.DefaultRefreshSchedule, false},
+		{"8:00-12:00", "8:00-12:00", true},
 		// using the legacy configuration option with a new-style
 		// refresh.timer string is rejected (i.e. the legacy parser is
 		// used for the parsing)
-		{"0:00~24:00/24", snapstate.DefaultRefreshSchedule},
+		{"0:00~24:00/24", snapstate.DefaultRefreshSchedule, false},
 	} {
 		if t.in != "" {
 			tr := config.NewTransaction(s.state)
@@ -8360,9 +8366,10 @@ func (s *snapmgrTestSuite) TestSnapManagerLegacyRefreshSchedule(c *C) {
 			tr.Set("core", "refresh.schedule", t.in)
 			tr.Commit()
 		}
-		scheduleStr, err := s.snapmgr.RefreshSchedule()
+		scheduleStr, legacy, err := s.snapmgr.RefreshSchedule()
 		c.Check(err, IsNil)
 		c.Check(scheduleStr, Equals, t.out)
+		c.Check(legacy, Equals, t.legacy)
 	}
 }
 
@@ -8385,9 +8392,10 @@ func (s *snapmgrTestSuite) TestSnapManagerRefreshSchedule(c *C) {
 			tr.Set("core", "refresh.timer", t.in)
 			tr.Commit()
 		}
-		scheduleStr, err := s.snapmgr.RefreshSchedule()
+		scheduleStr, legacy, err := s.snapmgr.RefreshSchedule()
 		c.Check(err, IsNil)
 		c.Check(scheduleStr, Equals, t.out)
+		c.Check(legacy, Equals, false)
 	}
 }
 
