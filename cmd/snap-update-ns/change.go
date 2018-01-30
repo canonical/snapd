@@ -61,89 +61,133 @@ var changePerform func(*Change) ([]*Change, error)
 // changePerformImpl is the real implementation of Change.Perform
 func changePerformImpl(c *Change) ([]*Change, error) {
 	var changes []*Change
-	if c.Action == Mount {
-		// We may be asked to bind mount a file, bind mount a directory, mount
-		// a filesystem over a directory or create a symlink (which is abusing
-		// the "mount" concept slightly). That actual operation is performed in
-		// c.lowLevelPerform. Here we just set the stage to make that possible.
-		kind, _ := c.Entry.OptStr("x-snapd.kind")
-		path := c.Entry.Dir
 
-		// We use lstat to ensure that we don't follow a symlink in case one
-		// was set up by the snap. Note that at the time this is run, all the
-		// snap's processes are frozen but if the path is a directory
-		// controlled by the user (typically in /home) then we may still race
-		// with user processes that change it.
-		fi, err := osLstat(path)
+	// Short circuit for the uncomplicated case.
+	if c.Action != Mount {
+		return nil, c.lowLevelPerform()
+	}
 
-		// In case we need to create something, some constants.
-		const (
-			mode = 0755
-			uid  = 0
-			gid  = 0
-		)
+	// We may be asked to bind mount a file, bind mount a directory, mount
+	// a filesystem over a directory or create a symlink (which is abusing
+	// the "mount" concept slightly). That actual operation is performed in
+	// c.lowLevelPerform. Here we just set the stage to make that possible.
+	kind, _ := c.Entry.OptStr("x-snapd.kind")
+	path := c.Entry.Dir
 
-		// tryCreate takes one flag argument
-		type tryCreateFlag int
-		const createSymlinks tryCreateFlag = 1
+	// We use lstat to ensure that we don't follow a symlink in case one
+	// was set up by the snap. Note that at the time this is run, all the
+	// snap's processes are frozen but if the path is a directory
+	// controlled by the user (typically in /home) then we may still race
+	// with user processes that change it.
+	fi, err := osLstat(path)
 
-		tryCreate := func(flags tryCreateFlag) error {
-			var err error
-			switch kind {
-			case "":
+	// In case we need to create something, some constants.
+	const (
+		mode = 0755
+		uid  = 0
+		gid  = 0
+	)
+
+	// tryCreate takes one flag argument
+	type tryCreateFlag int
+	const createSymlinks tryCreateFlag = 1
+
+	tryCreate := func(flags tryCreateFlag) error {
+		var err error
+		switch kind {
+		case "":
+			err = secureMkdirAll(path, mode, uid, gid)
+		case "file":
+			err = secureMkfileAll(path, mode, uid, gid)
+		case "symlink":
+			if flags&createSymlinks == createSymlinks {
 				err = secureMkdirAll(path, mode, uid, gid)
-			case "file":
-				err = secureMkfileAll(path, mode, uid, gid)
-			case "symlink":
-				if flags&createSymlinks == createSymlinks {
-					err = secureMkdirAll(path, mode, uid, gid)
-					if err == nil {
-						// Normally symlinks would be created
-						// later but calling c.lowLevelPerform
-						// now lets us check if the medium is
-						// writable and take advantage of the
-						// code below.
-						err = c.lowLevelPerform()
-					}
+				if err == nil {
+					// Normally symlinks would be created
+					// later but calling c.lowLevelPerform
+					// now lets us check if the medium is
+					// writable and take advantage of the
+					// code below.
+					err = c.lowLevelPerform()
 				}
 			}
-			return err
 		}
+		return err
+	}
 
-		if err != nil && os.IsNotExist(err) {
-			if kind == "symlink" {
-				// For symlinks the path should refer to the parent directory.
-				// We set it here so that it gets picked up by the error message
-				// below, in case things fail.
-				path = filepath.Dir(c.Entry.Dir)
-			}
-			// If the element doesn't exist we can attempt to create it.
-			// We will create the parent directory and then the final element
-			// relative to it. The traversed space may be writable so we just
-			// try to create things first.
-			err = tryCreate(createSymlinks)
+	if err != nil && os.IsNotExist(err) {
+		if kind == "symlink" {
+			// For symlinks the path should refer to the parent directory.
+			// We set it here so that it gets picked up by the error message
+			// below, in case things fail.
+			path = filepath.Dir(c.Entry.Dir)
+		}
+		// If the element doesn't exist we can attempt to create it.
+		// We will create the parent directory and then the final element
+		// relative to it. The traversed space may be writable so we just
+		// try to create things first.
+		err = tryCreate(createSymlinks)
 
-			if err2, _ := err.(*ReadOnlyFsError); err2 != nil {
-				// If the writing failed because the underlying filesystem
-				// is read-only we can construct a writable mimic to fix that.
-				changes, err = createWritableMimic(err2.Path)
-				if err != nil {
-					return nil, fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
-				}
-				// We can now try again.
-				err = tryCreate(createSymlinks)
-			}
-			// Check if we eventually succeeded.
+		if err2, _ := err.(*ReadOnlyFsError); err2 != nil {
+			// If the writing failed because the underlying filesystem
+			// is read-only we can construct a writable mimic to fix that.
+			changes, err = createWritableMimic(err2.Path)
 			if err != nil {
-				return changes, err
+				return nil, fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
+			}
+			// We can now try again.
+			err = tryCreate(createSymlinks)
+		}
+		// Check if we eventually succeeded.
+		if err != nil {
+			return changes, err
+		}
+	} else if err != nil {
+		// If we cannot inspect the element let's just bail out.
+		return nil, fmt.Errorf("cannot inspect %q: %v", path, err)
+	} else {
+		// If the element already existed we just need to ensure it is of
+		// the correct type. The desired type depends on the kind of entry
+		// we are working with.
+		switch kind {
+		case "":
+			if !fi.Mode().IsDir() {
+				return nil, fmt.Errorf("cannot use %q for mounting, not a directory", path)
+			}
+		case "file":
+			if !fi.Mode().IsRegular() {
+				return nil, fmt.Errorf("cannot use %q for mounting, not a regular file", path)
+			}
+		case "symlink":
+			// When we want to create a symlink we just need the empty
+			// space so anything that is in the way is a problem.
+			return nil, fmt.Errorf("cannot create symlink in %q, existing file in the way", path)
+		}
+	}
+
+	// At this time we can be sure that the element (for files and
+	// directories) exists and is of the right type or that it (for
+	// symlinks) doesn't exist but the parent directory does.
+	// This property holds as long as we don't interact with locations that
+	// are under the control of regular (non-snap) processes that are not
+	// suspended and may be racing with us.
+
+	flags, _ := mount.OptsToCommonFlags(c.Entry.Options)
+	if flags&syscall.MS_BIND != 0 {
+		// This is a simplified variant of the code above. Simplified in
+		// that we don't attempt to poke writable holes as those would only
+		// be visible from the originating mount namespace so really
+		// useless in connecting two snaps together.
+		path = c.Entry.Name
+		fi, err := osLstat(path)
+		if err != nil && os.IsNotExist(err) {
+			err = tryCreate(0)
+			if err != nil {
+				return changes, fmt.Errorf("cannot create file/directory %q: %s", path, err)
 			}
 		} else if err != nil {
-			// If we cannot inspect the element let's just bail out.
-			return nil, fmt.Errorf("cannot inspect %q: %v", path, err)
+			return changes, fmt.Errorf("cannot inspect %q: %v", path, err)
 		} else {
-			// If the element already existed we just need to ensure it is of
-			// the correct type. The desired type depends on the kind of entry
-			// we are working with.
 			switch kind {
 			case "":
 				if !fi.Mode().IsDir() {
@@ -153,54 +197,14 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 				if !fi.Mode().IsRegular() {
 					return nil, fmt.Errorf("cannot use %q for mounting, not a regular file", path)
 				}
-			case "symlink":
-				// When we want to create a symlink we just need the empty
-				// space so anything that is in the way is a problem.
-				return nil, fmt.Errorf("cannot create symlink in %q, existing file in the way", path)
 			}
 		}
-
-		// At this time we can be sure that the element (for files and
-		// directories) exists and is of the right type or that it (for
-		// symlinks) doesn't exist but the parent directory does.
-		// This property holds as long as we don't interact with locations that
-		// are under the control of regular (non-snap) processes that are not
-		// suspended and may be racing with us.
-
-		flags, _ := mount.OptsToCommonFlags(c.Entry.Options)
-		if flags&syscall.MS_BIND != 0 {
-			// This is a simplified variant of the code above. Simplified in
-			// that we don't attempt to poke writable holes as those would only
-			// be visible from the originating mount namespace so really
-			// useless in connecting two snaps together.
-			path = c.Entry.Name
-			fi, err := osLstat(path)
-			if err != nil && os.IsNotExist(err) {
-				err = tryCreate(0)
-				if err != nil {
-					return changes, fmt.Errorf("cannot create file/directory %q: %s", path, err)
-				}
-			} else if err != nil {
-				return changes, fmt.Errorf("cannot inspect %q: %v", path, err)
-			} else {
-				switch kind {
-				case "":
-					if !fi.Mode().IsDir() {
-						return nil, fmt.Errorf("cannot use %q for mounting, not a directory", path)
-					}
-				case "file":
-					if !fi.Mode().IsRegular() {
-						return nil, fmt.Errorf("cannot use %q for mounting, not a regular file", path)
-					}
-				}
-			}
-		}
-
-		if kind == "symlink" {
-			return changes, nil
-		}
-
 	}
+
+	if kind == "symlink" {
+		return changes, nil
+	}
+
 	return changes, c.lowLevelPerform()
 }
 
