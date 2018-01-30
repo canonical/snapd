@@ -186,7 +186,7 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 	}
 
 	// We may be asked to bind mount a file, bind mount a directory, mount
-	// a filesystem over a directory or create a symlink (which is abusing
+	// a filesystem over a directory, or create a symlink (which is abusing
 	// the "mount" concept slightly). That actual operation is performed in
 	// c.lowLevelPerform. Here we just set the stage to make that possible.
 	//
