@@ -76,6 +76,8 @@ setns_into_snap(const char* snap_name)
     return err;
 }
 
+// switch_to_privileged_user drops to the real user ID while retaining
+// CAP_SYS_ADMIN, to operations such as mount().
 static int
 switch_to_privileged_user()
 {
@@ -87,6 +89,8 @@ switch_to_privileged_user()
         return 0;
     }
 
+    // _LINUX_CAPABILITY_VERSION_3 valid for kernel >= 2.6.26. See
+    // https://github.com/torvalds/linux/blob/master/kernel/capability.c
     struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
     struct __user_cap_data_struct data[2] = { { 0 } };
 
