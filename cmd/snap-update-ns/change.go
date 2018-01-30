@@ -171,7 +171,7 @@ func (c *Change) ensureSource() error {
 	} else if os.IsNotExist(err) {
 		_, err = c.createPath(path, kind, false)
 		if err != nil {
-			err = fmt.Errorf("cannot create file/directory %q: %s", path, err)
+			err = fmt.Errorf("cannot create path %q: %s", path, err)
 		}
 	} else {
 		// If we cannot inspect the element let's just bail out.
