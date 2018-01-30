@@ -137,6 +137,9 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 		}
 	} else if os.IsNotExist(err) {
 		changes, err = c.createPath(path, true)
+		if err != nil {
+			err = fmt.Errorf("cannot create path %q: %s", path, err)
+		}
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
