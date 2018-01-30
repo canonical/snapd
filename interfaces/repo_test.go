@@ -1204,6 +1204,26 @@ func (s *RepositorySuite) TestConnectedFindsCoreSnap(c *C) {
 	c.Check(conns, DeepEquals, []ConnRef{*NewConnRef(s.plug, slot)})
 }
 
+// Connected finds connections when asked from plug or from slot side
+func (s *RepositorySuite) TestConnections(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+	_, err := s.testRepo.Connect(*NewConnRef(s.plug, s.slot), nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	conns, err := s.testRepo.Connections(s.plug.Snap.Name())
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, []ConnRef{*NewConnRef(s.plug, s.slot)})
+
+	conns, err = s.testRepo.Connections(s.slot.Snap.Name())
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, []ConnRef{*NewConnRef(s.plug, s.slot)})
+
+	conns, err = s.testRepo.Connections("abc")
+	c.Assert(err, IsNil)
+	c.Assert(conns, HasLen, 0)
+}
+
 // Tests for Repository.DisconnectAll()
 
 func (s *RepositorySuite) TestDisconnectAll(c *C) {
