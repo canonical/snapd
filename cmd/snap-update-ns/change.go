@@ -58,7 +58,7 @@ func (c Change) String() string {
 // changePerform is Change.Perform that can be mocked for testing.
 var changePerform func(*Change) ([]*Change, error)
 
-func (c *Change) createPath(path, kind string, pokeHoles bool) ([]*Change, error) {
+func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
 	var err error
 	var changes []*Change
 
@@ -73,6 +73,7 @@ func (c *Change) createPath(path, kind string, pokeHoles bool) ([]*Change, error
 	// create the parent directory and then the final element relative to it.
 	// The traversed space may be writable so we just try to create things
 	// first.
+	kind, _ := c.Entry.OptStr("x-snapd.kind")
 
 	// TODO: refactor this, if possible, with inspection and pre-emptive
 	// creation after the current release ships. This should be possible but
@@ -94,7 +95,7 @@ func (c *Change) createPath(path, kind string, pokeHoles bool) ([]*Change, error
 			err = fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
 		}
 		// Try once again.
-		return c.createPath(path, kind, false)
+		return c.createPath(path, false)
 	}
 	return changes, err
 }
@@ -131,7 +132,7 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 			err = fmt.Errorf("cannot create symlink in %q: existing file in the way", path)
 		}
 	} else if os.IsNotExist(err) {
-		changes, err = c.createPath(path, kind, true)
+		changes, err = c.createPath(path, true)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
@@ -166,7 +167,7 @@ func (c *Change) ensureSource() error {
 			}
 		}
 	} else if os.IsNotExist(err) {
-		_, err = c.createPath(path, kind, false)
+		_, err = c.createPath(path, false)
 		if err != nil {
 			err = fmt.Errorf("cannot create path %q: %s", path, err)
 		}
