@@ -131,8 +131,7 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 	// snap's processes are frozen but if the path is a directory
 	// controlled by the user (typically in /home) then we may still race
 	// with user processes that change it.
-	fi, err := osLstat(path)
-	if err == nil {
+	if fi, err := osLstat(path); err == nil {
 		// If the element already exists we just need to ensure it is of
 		// the correct type. The desired type depends on the kind of entry
 		// we are working with.
