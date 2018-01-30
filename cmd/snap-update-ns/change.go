@@ -74,13 +74,6 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 	kind, _ := c.Entry.OptStr("x-snapd.kind")
 	path := c.Entry.Dir
 
-	// We use lstat to ensure that we don't follow a symlink in case one
-	// was set up by the snap. Note that at the time this is run, all the
-	// snap's processes are frozen but if the path is a directory
-	// controlled by the user (typically in /home) then we may still race
-	// with user processes that change it.
-	fi, err := osLstat(path)
-
 	// In case we need to create something, some constants.
 	const (
 		mode = 0755
@@ -115,6 +108,12 @@ func changePerformImpl(c *Change) ([]*Change, error) {
 		return err
 	}
 
+	// We use lstat to ensure that we don't follow a symlink in case one
+	// was set up by the snap. Note that at the time this is run, all the
+	// snap's processes are frozen but if the path is a directory
+	// controlled by the user (typically in /home) then we may still race
+	// with user processes that change it.
+	fi, err := osLstat(path)
 	if err != nil && os.IsNotExist(err) {
 		if kind == "symlink" {
 			// For symlinks the path should refer to the parent directory.
