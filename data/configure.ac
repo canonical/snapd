@@ -14,6 +14,7 @@ AC_SUBST(SNAP_MOUNT_DIR)
 AC_DEFINE_UNQUOTED([SNAP_MOUNT_DIR], "${SNAP_MOUNT_DIR}", [Location of the snap mount points])
 
 AC_CONFIG_FILES([Makefile
-                 systemd/Makefile])
+                 systemd/Makefile
+                 env/Makefile])
 AC_OUTPUT
 
