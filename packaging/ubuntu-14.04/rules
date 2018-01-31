@@ -139,7 +139,7 @@ override_dh_auto_build:
 
 	# Build C bits, sadly manually
 	cd cmd && ( autoreconf -i -f )
-	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
+	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd --with-systemd-system-unit-dir=$(SYSTEMD_UNITS_DESTDIR) $(VENDOR_ARGS))
 	$(MAKE) -C cmd all
 
 	# Generate the real systemd/dbus/env config files
@@ -182,8 +182,8 @@ override_dh_install:
 	# install snapd's systemd units / upstart jobs, done
 	# here instead of debian/snapd.install because the
 	# ubuntu/14.04 release branch adds/changes bits here
-	$(MAKE) -C data install DESTDIR=$(CURDIR)/debian/snapd/ \
-		SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
+	$(MAKE) -C data install DESTDIR=$(CURDIR)/debian/snapd/
+
 	# we called this apps-bin-path.sh instead of snapd.sh, and
 	# it's a conf file so we're stuck with it
 	mv debian/snapd/etc/profile.d/snapd.sh debian/snapd/etc/profile.d/apps-bin-path.sh
