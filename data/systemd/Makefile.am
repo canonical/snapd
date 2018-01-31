@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-systemdsystemunitdir = /lib/systemd/system
+systemdsystemunitdir = $(SYSTEMD_SYSTEM_UNIT_DIR)
 
 SYSTEMD_UNITS_GENERATED := \
 	snapd.autoimport.service.in	\

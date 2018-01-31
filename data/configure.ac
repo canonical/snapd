@@ -19,6 +19,12 @@ AC_ARG_WITH([snapd-environment-file],
   [SNAPD_ENVIRONMENT_FILE="$withval"])
 AC_SUBST(SNAPD_ENVIRONMENT_FILE)
 
+SYSTEMD_SYSTEM_UNIT_DIR="/lib/systemd/system"
+AC_ARG_WITH([systemd-system-unit-dir],
+  AS_HELP_STRING([--with-systemd-system-unit-dir=DIR], [Location of systemd system units directory]),
+  [SYSTEMD_SYSTEM_UNIT_DIR="$withval"])
+AC_SUBST(SYSTEMD_SYSTEM_UNIT_DIR)
+
 AC_CONFIG_FILES([Makefile
                  systemd/Makefile
                  env/Makefile
