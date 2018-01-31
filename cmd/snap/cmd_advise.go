@@ -92,15 +92,13 @@ func (x *cmdAdviseSnap) Execute(args []string) error {
 }
 
 func advisePkg(pkgName string) error {
-	matches, err := advisor.FindPackage(pkgName)
+	match, err := advisor.FindPackage(pkgName)
 	if err != nil {
 		return fmt.Errorf("advise for pkgname failed: %s", err)
 	}
-	if len(matches) > 0 {
+	if match != nil {
 		fmt.Fprintf(Stdout, i18n.G("Packages matching %q:\n"), pkgName)
-		for _, m := range matches {
-			fmt.Fprintf(Stdout, " * %s - %s\n", m.Snap, m.Summary)
-		}
+		fmt.Fprintf(Stdout, " * %s - %s\n", match.Snap, match.Summary)
 		fmt.Fprintf(Stdout, i18n.G("Try: snap install <selected snap>\n"))
 	}
 

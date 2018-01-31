@@ -48,12 +48,10 @@ func (sf *sillyFinder) FindCommand(command string) ([]advisor.Command, error) {
 	}
 }
 
-func (sf *sillyFinder) FindPackage(pkgName string) ([]advisor.Package, error) {
+func (sf *sillyFinder) FindPackage(pkgName string) (*advisor.Package, error) {
 	switch pkgName {
 	case "hello":
-		return []advisor.Package{
-			{Snap: "hello", Summary: "summary for hello"},
-		}, nil
+		return &advisor.Package{Snap: "hello", Summary: "summary for hello"}, nil
 	case "error-please":
 		return nil, fmt.Errorf("find-pkg failed")
 	default:
