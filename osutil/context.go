@@ -73,8 +73,10 @@ func RunWithContext(ctx context.Context, cmd *exec.Cmd) error {
 	close(waitDone)
 	if atomic.LoadUint32(&ctxDone) != 0 {
 		// do one last check to make sure the error from Wait is what we expect from Kill
-		if err, ok := err.(*exec.ExitError); ok && err.ProcessState.Sys() == syscall.WaitStatus(0x9) {
-			return ctx.Err()
+		if err, ok := err.(*exec.ExitError); ok {
+			if ws, ok := err.ProcessState.Sys().(syscall.WaitStatus); ok && ws.Signal() == syscall.SIGKILL {
+				return ctx.Err()
+			}
 		}
 	}
 	return err
