@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/capability.h>
+#include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -109,6 +110,12 @@ switch_to_privileged_user()
     if (capset(&hdr, data) != 0) {
         bootstrap_errno = errno;
         bootstrap_msg = "cannot set permitted capabilities mask";
+        return -1;
+    }
+
+    if (prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) != 0) {
+        bootstrap_errno = errno;
+        bootstrap_msg = "cannot tell kernel to keep capabilities over setuid";
         return -1;
     }
 
