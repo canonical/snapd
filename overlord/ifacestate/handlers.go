@@ -555,7 +555,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			continue
 		}
 
-		ts, err := AutoConnect(st, chg, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
+		ts, err := AutoConnect(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
 		if err != nil {
 			task.Logf("cannot auto-connect plug %s to %s: %s", connRef.PlugRef, connRef.SlotRef, err)
 			continue
@@ -591,7 +591,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				// NOTE: we don't log anything here as this is a normal and common condition.
 				continue
 			}
-			ts, err := AutoConnect(st, chg, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
+			ts, err := AutoConnect(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
 			if err != nil {
 				task.Logf("cannot auto-connect slot %s to %s: %s", connRef.SlotRef, connRef.PlugRef, err)
 				continue
@@ -599,6 +599,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			autots.AddAll(ts)
 		}
 	}
+
+	task.SetStatus(state.DoneStatus)
 
 	lanes := task.Lanes()
 	if len(lanes) == 1 && lanes[0] == 0 {
@@ -615,8 +617,6 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	for _, t := range ht {
 		t.WaitAll(autots)
 	}
-
-	task.SetStatus(state.DoneStatus)
 
 	st.EnsureBefore(0)
 	return nil

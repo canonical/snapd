@@ -245,27 +245,27 @@ func (s *interfaceManagerSuite) testConnectDisconnectConflicts(c *C, f func(*sta
 	c.Assert(err, ErrorMatches, expectedErr)
 }
 
-func (s *interfaceManagerSuite) TestConnectConflictsPlugSnapWithRetry(c *C) {
-	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "consumer", "link-snap", `task should be retried`)
+func (s *interfaceManagerSuite) TestConnectConflictsPlugSnapOnLinkSnap(c *C) {
+	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "consumer", "link-snap", `snap "consumer" has "other-chg" change in progress`)
 }
 
-func (s *interfaceManagerSuite) TestConnectConflictsPlugSnap(c *C) {
+func (s *interfaceManagerSuite) TestConnectConflictsPlugSnapOnUnlink(c *C) {
 	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "consumer", "unlink-snap", `snap "consumer" has "other-chg" change in progress`)
 }
 
 func (s *interfaceManagerSuite) TestConnectConflictsSlotSnap(c *C) {
-	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "producer", "link-snap", `task should be retried`)
+	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "producer", "link-snap", `snap "producer" has "other-chg" change in progress`)
 }
 
-func (s *interfaceManagerSuite) TestConnectConflictsSlotSnapWithRetry(c *C) {
+func (s *interfaceManagerSuite) TestConnectConflictsSlotSnapOnUnlink(c *C) {
 	s.testConnectDisconnectConflicts(c, ifacestate.Connect, "producer", "unlink-snap", `snap "producer" has "other-chg" change in progress`)
 }
 
-func (s *interfaceManagerSuite) TestDisconnectConflictsPugSnap(c *C) {
+func (s *interfaceManagerSuite) TestDisconnectConflictsPlugSnapOnLink(c *C) {
 	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "consumer", "link-snap", `snap "consumer" has "other-chg" change in progress`)
 }
 
-func (s *interfaceManagerSuite) TestDisconnectConflictsSlotSnap(c *C) {
+func (s *interfaceManagerSuite) TestDisconnectConflictsSlotSnapOnLink(c *C) {
 	s.testConnectDisconnectConflicts(c, ifacestate.Disconnect, "producer", "link-snap", `snap "producer" has "other-chg" change in progress`)
 }
 
@@ -290,23 +290,66 @@ func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictIfSameChange(c *C) {
+func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstalledSnap(c *C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	chg := s.state.NewChange("other-chg", "...")
+	sup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer"},
+	}
+
+	chg := s.state.NewChange("install", "...")
 	t := s.state.NewTask("link-snap", "...")
-	t.Set("snap-setup", &snapstate.SnapSetup{
+	t.Set("snap-setup", sup)
+	chg.AddTask(t)
+
+	t = s.state.NewTask("auto-connect", "...")
+	t.Set("snap-setup", sup)
+	chg.AddTask(t)
+
+	_, err := ifacestate.AutoConnect(s.state, chg, t, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+}
+
+func (s *interfaceManagerSuite) testAutoConnectConflicts(c *C, conflictingKind string) {
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg1 := s.state.NewChange("a change", "...")
+	t1 := s.state.NewTask(conflictingKind, "...")
+	t1.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "consumer"},
 	})
-	chg.AddTask(t)
+	chg1.AddTask(t1)
 
-	_, err := ifacestate.AutoConnect(s.state, chg, "consumer", "plug", "producer", "slot")
-	c.Assert(err, IsNil)
+	chg := s.state.NewChange("other-chg", "...")
+	t2 := s.state.NewTask("auto-connect", "...")
+	t2.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "producer"},
+	})
+
+	chg.AddTask(t2)
+
+	_, err := ifacestate.AutoConnect(s.state, chg, t2, "consumer", "plug", "producer", "slot")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `task should be retried`)
+}
+
+func (s *interfaceManagerSuite) TestAutoconnectConflictOnUnlink(c *C) {
+	s.testAutoConnectConflicts(c, "unlink-snap")
+}
+
+func (s *interfaceManagerSuite) TestAutoconnectConflictOnLink(c *C) {
+	s.testAutoConnectConflicts(c, "link-snap")
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
