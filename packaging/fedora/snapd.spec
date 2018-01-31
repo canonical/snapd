@@ -19,6 +19,11 @@
 # For the moment, we don't support all golang arches...
 %global with_goarches 0
 
+# Set if multilib is enabled for supported arches
+%ifarch x86_64 aarch64 %{power64} s390x
+%global with_multilib 1
+%endif
+
 %if ! %{with vendorized}
 %global with_bundled 0
 %else
@@ -91,10 +96,16 @@ BuildRequires:  systemd
 
 Requires:       snap-confine%{?_isa} = %{version}-%{release}
 Requires:       squashfs-tools
-# snapd will use this in the event that squashfs.ko isn't available (cloud instances, containers, etc.)
-# FIXME: Use rich deps for this once Bodhi is switched to using pungi
+
+%if 0%{?fedora} >= 26 || 0%{?rhel} >= 8
+# snapd will use squashfuse in the event that squashfs.ko isn't available (cloud instances, containers, etc.)
+Requires:       ((squashfuse and fuse) or kmod(squashfs.ko))
+%else
+# Rich dependencies not available, always pull in squashfuse
+# snapd will use squashfs.ko instead of squashfuse if it's on the system
 Requires:       squashfuse
 Requires:       fuse
+%endif
 
 # bash-completion owns /usr/share/bash-completion/completions
 Requires:       bash-completion
@@ -219,7 +230,7 @@ Requires:      golang(gopkg.in/yaml.v2)
 # These Provides are unversioned because the sources in
 # the bundled tarball are unversioned (they go by git commit)
 # *sigh*... I hate golang...
-Provides:      bundled(github.com/boltdb/bolt)
+Provides:      bundled(golang(github.com/boltdb/bolt))
 Provides:      bundled(golang(github.com/cheggaaa/pb))
 Provides:      bundled(golang(github.com/coreos/go-systemd/activation))
 Provides:      bundled(golang(github.com/godbus/dbus))
@@ -322,7 +333,6 @@ Provides:      golang(%{import_path}/userd) = %{version}-%{release}
 Provides:      golang(%{import_path}/wrappers) = %{version}-%{release}
 Provides:      golang(%{import_path}/x11) = %{version}-%{release}
 
-
 %description devel
 %{summary}
 
@@ -356,12 +366,6 @@ providing packages with %{import_path} prefix.
 %if ! 0%{?with_bundled}
 # Ensure there's no bundled stuff accidentally leaking in...
 rm -rf vendor/*
-
-# XXX: HACK: Fake that we have the right import path because bad testing
-# did not verify that this path was actually valid on all supported systems.
-mkdir -p vendor/gopkg.in/cheggaaa
-ln -s %{gopath}/src/github.com/cheggaaa/pb vendor/gopkg.in/cheggaaa/pb.v1
-
 %else
 # Unpack the vendor tarball too...
 %setup -q -T -D -b 1
@@ -431,6 +435,8 @@ autoreconf --force --install --verbose
 %configure \
     --disable-apparmor \
     --libexecdir=%{_libexecdir}/snapd/ \
+    --enable-nvidia-biarch \
+    %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
     --with-snap-mount-dir=%{_sharedstatedir}/snapd/snap \
     --with-merged-usr
 
@@ -462,6 +468,7 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/snaps
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/snap/bin
 install -d -p %{buildroot}%{_localstatedir}/snap
 install -d -p %{buildroot}%{_localstatedir}/cache/snapd
+install -d -p %{buildroot}%{_datadir}/polkit-1/actions
 install -d -p %{buildroot}%{_datadir}/selinux/devel/include/contrib
 install -d -p %{buildroot}%{_datadir}/selinux/packages
 
@@ -510,6 +517,9 @@ popd
 
 # Remove snappy core specific scripts
 rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
+
+# Install Polkit configuration
+install -m 644 -D data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
 
 # Disable re-exec by default
 echo 'SNAP_REEXEC=0' > %{buildroot}%{_sysconfdir}/sysconfig/snapd
@@ -590,7 +600,9 @@ popd
 %{_unitdir}/snapd.autoimport.service
 %{_unitdir}/snapd.refresh.service
 %{_unitdir}/snapd.refresh.timer
+%{_unitdir}/var-lib-snapd-snap.mount
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
+%{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
 %dir %{_sharedstatedir}/snapd/assertions
@@ -607,6 +619,8 @@ popd
 %dir %{_localstatedir}/cache/snapd
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
+%{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
+%{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %ghost %{_sharedstatedir}/snapd/snap/README
 
 %files -n snap-confine
@@ -690,6 +704,11 @@ fi
 
 
 %changelog
+* Thu Jan 25 2018 Neal Gompa <ngompa13@gmail.com> - 2.30-1
+- Release 2.30 to Fedora (RH#1527519)
+- Backport fix to correctly locate snapd libexecdir on Fedora derivatives (RH#1536895)
+- Refresh SELinux policy fix patches with upstream backport version
+
 * Mon Dec 18 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.30
  - tests: set TRUST_TEST_KEYS=false for all the external backends
@@ -927,6 +946,17 @@ fi
  - servicestate: use taskset
  - many: add support for /home on NFS
  - packaging,spread: fix and re-enable opensuse builds
+
+* Sun Dec 17 2017 Neal Gompa <ngompa13@gmail.com> - 2.29.4-3
+- Add patch to SELinux policy to allow snapd to receive replies from polkit
+
+* Sun Nov 19 2017 Neal Gompa <ngompa13@gmail.com> - 2.29.4-2
+- Add missing bash completion files and cache directory
+
+* Sun Nov 19 2017 Neal Gompa <ngompa13@gmail.com> - 2.29.4-1
+- Release 2.29.4 to Fedora (RH#1508433)
+- Install Polkit configuration (RH#1509586)
+- Drop changes to revert cheggaaa/pb import path used
 
 * Fri Nov 17 2017 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.29.4
@@ -1264,7 +1294,7 @@ fi
  - interfaces/opengl: use == to compare, not =
  - cmd/snap-seccomp/main_test.go: add syscalls for armhf and arm64
  - cmd/snap-repair: track and use a lower bound for the time for
-   TLS checks
+   TLS checks
  - interfaces: expose bluez interface on classic OS
  - snap-seccomp: add in-kernel bpf tests
  - overlord: always try to get a serial, lazily on classic

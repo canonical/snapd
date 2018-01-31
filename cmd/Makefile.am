@@ -205,7 +205,7 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/user-support.c \
 	snap-confine/user-support.h
 
-snap_confine_snap_confine_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\"
+snap_confine_snap_confine_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\" -DNATIVE_LIBDIR=\"$(libdir)\"
 snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
 snap_confine_snap_confine_LDADD = libsnap-confine-private.a
 snap_confine_snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
@@ -342,7 +342,7 @@ endif
 
 libexec_PROGRAMS += snap-mgmt/snap-mgmt
 
-snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile
+snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile snap-mgmt/$(am__dirstamp)
 	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
 
 

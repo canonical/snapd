@@ -35,9 +35,6 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/lib/gl{,32}/ r,
 /var/lib/snapd/lib/gl{,32}/** rm,
 
-# Supports linux-driver-management from Solus (staged symlink trees into libdirs)
-/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}glx-provider/**.so{,.*}  rm,
-
 # Bi-arch distribution nvidia support
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcuda*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvidia*.so{,.*} rm,
@@ -51,7 +48,7 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/hostfs/usr/share/vulkan/icd.d/*nvidia*.json r,
 
 # Main bi-arch GL libraries
-/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,EGL}.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{GL,EGL,GLX}.so{,.*} rm,
 
 /dev/dri/ r,
 /dev/dri/card0 rw,
