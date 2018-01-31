@@ -15,6 +15,7 @@ AC_DEFINE_UNQUOTED([SNAP_MOUNT_DIR], "${SNAP_MOUNT_DIR}", [Location of the snap 
 
 AC_CONFIG_FILES([Makefile
                  systemd/Makefile
-                 env/Makefile])
+                 env/Makefile
+                 dbus/Makefile])
 AC_OUTPUT
 
