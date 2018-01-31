@@ -732,7 +732,7 @@ func (s *SnapSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime",
+			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid",
 			"-tt",
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
