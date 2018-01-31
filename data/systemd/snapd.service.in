@@ -7,7 +7,7 @@ Requires=snapd.socket
 # (https://bugs.launchpad.net/snapd/+bug/1709536)
 #Nice=-5
 OOMScoreAdjust=-900
-ExecStart=@libexecdir@/snapd/snapd
+ExecStart=@libexecdir@/snapd
 EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
 Restart=always
 Type=notify

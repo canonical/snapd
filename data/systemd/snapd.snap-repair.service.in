@@ -6,5 +6,5 @@ ConditionKernelCommandLine=snap_core
 
 [Service]
 Type=oneshot
-ExecStart=@libexecdir@/snapd/snap-repair run
+ExecStart=@libexecdir@/snap-repair run
 Environment=SNAP_REAPIR_FROM_TIMER=1

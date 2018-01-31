@@ -8,7 +8,7 @@ Documentation=man:snap(1)
 
 [Service]
 Type=oneshot
-ExecStart=@libexecdir@/snapd/snapd.core-fixup.sh
+ExecStart=@libexecdir@/snapd.core-fixup.sh
 RemainAfterExit=true
 
 [Install]
