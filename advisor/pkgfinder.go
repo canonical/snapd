@@ -24,7 +24,7 @@ type Package struct {
 	Summary string
 }
 
-func FindPackage(pkgName string) ([]Package, error) {
+func FindPackage(pkgName string) (*Package, error) {
 	finder, err := newFinder()
 	if err != nil {
 		return nil, err

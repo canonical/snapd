@@ -23,7 +23,7 @@ var newFinder = Open
 
 type Finder interface {
 	FindCommand(command string) ([]Command, error)
-	FindPackage(pkgName string) ([]Package, error)
+	FindPackage(pkgName string) (*Package, error)
 	Close() error
 }
 

@@ -228,7 +228,7 @@ func (f *boltFinder) FindCommand(command string) ([]Command, error) {
 	return cmds, nil
 }
 
-func (f *boltFinder) FindPackage(pkgName string) ([]Package, error) {
+func (f *boltFinder) FindPackage(pkgName string) (*Package, error) {
 	tx, err := f.Begin(false)
 	if err != nil {
 		return nil, err
@@ -245,7 +245,5 @@ func (f *boltFinder) FindPackage(pkgName string) ([]Package, error) {
 		return nil, nil
 	}
 
-	pkg := Package{Snap: pkgName, Summary: string(bsummary)}
-
-	return []Package{pkg}, nil
+	return &Package{Snap: pkgName, Summary: string(bsummary)}, nil
 }
