@@ -20,6 +20,8 @@
 package config_test
 
 import (
+	"encoding/json"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -135,4 +137,19 @@ func (s *configHelpersSuite) TestConfigSnapshotNoConfigs(c *C) {
 
 	// no configuration to restore in revision-config
 	c.Assert(config.RestoreRevisionConfig(s.state, "snap1", snap.R(1)), IsNil)
+}
+
+func (s *configHelpersSuite) TestSnapConfig(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	rawCfg, err := config.GetSnapConfig(s.state, "snap1")
+	c.Assert(err, IsNil)
+	c.Check(rawCfg, IsNil)
+
+	c.Assert(config.SetSnapConfig(s.state, "snap1", json.RawMessage(`{"foo":"bar"}`)), IsNil)
+
+	rawCfg, err = config.GetSnapConfig(s.state, "snap1")
+	c.Assert(err, IsNil)
+	c.Check(rawCfg, DeepEquals, json.RawMessage(`{"foo":"bar"}`))
 }
