@@ -99,6 +99,8 @@ var (
 	SystemFontsDir           string
 	SystemLocalFontsDir      string
 	SystemFontconfigCacheDir string
+
+	FreezerCgroupDir string
 )
 
 const (
@@ -248,4 +250,6 @@ func SetRootDir(rootdir string) {
 	SystemFontsDir = filepath.Join(rootdir, "/usr/share/fonts")
 	SystemLocalFontsDir = filepath.Join(rootdir, "/usr/local/share/fonts")
 	SystemFontconfigCacheDir = filepath.Join(rootdir, "/var/cache/fontconfig")
+
+	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
 }

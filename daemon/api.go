@@ -270,13 +270,23 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	defer st.Unlock()
 	nextRefresh := snapMgr.NextRefresh()
 	lastRefresh, _ := snapMgr.LastRefresh()
-	refreshScheduleStr, err := snapMgr.RefreshSchedule()
+	refreshScheduleStr, legacySchedule, err := snapMgr.RefreshSchedule()
 	if err != nil {
 		return InternalError("cannot get refresh schedule: %s", err)
 	}
 	users, err := auth.Users(st)
 	if err != nil && err != state.ErrNoState {
 		return InternalError("cannot get user auth data: %s", err)
+	}
+
+	refreshInfo := client.RefreshInfo{
+		Last: formatRefreshTime(lastRefresh),
+		Next: formatRefreshTime(nextRefresh),
+	}
+	if !legacySchedule {
+		refreshInfo.Timer = refreshScheduleStr
+	} else {
+		refreshInfo.Schedule = refreshScheduleStr
 	}
 
 	m := map[string]interface{}{
@@ -290,11 +300,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
-		"refresh": client.RefreshInfo{
-			Schedule: refreshScheduleStr,
-			Last:     formatRefreshTime(lastRefresh),
-			Next:     formatRefreshTime(nextRefresh),
-		},
+		"refresh": refreshInfo,
 	}
 	// NOTE: Right now we don't have a good way to differentiate if we
 	// only have partial confinement (ala AppArmor disabled and Seccomp
@@ -825,6 +831,7 @@ func (*licenseData) Error() string {
 type snapInstruction struct {
 	progress.NullMeter
 	Action           string        `json:"action"`
+	Amend            bool          `json:"amend"`
 	Channel          string        `json:"channel"`
 	Revision         snap.Revision `json:"revision"`
 	DevMode          bool          `json:"devmode"`
@@ -998,6 +1005,9 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 	if inst.IgnoreValidation {
 		flags.IgnoreValidation = true
+	}
+	if inst.Amend {
+		flags.Amend = true
 	}
 
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can

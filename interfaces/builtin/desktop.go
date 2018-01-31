@@ -164,6 +164,16 @@ dbus (receive)
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
     peer=(label=unconfined),
+
+# Allow use of snapd's internal 'xdg-settings'
+/usr/bin/xdg-settings ixr,
+/usr/bin/dbus-send ixr,
+dbus (send)
+    bus=session
+    path=/io/snapcraft/Settings
+    interface=io.snapcraft.Settings
+    member={Check,Get,Set}
+    peer=(label=unconfined),
 `
 
 type desktopInterface struct{}

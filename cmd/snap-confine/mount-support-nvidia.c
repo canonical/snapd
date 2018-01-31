@@ -26,6 +26,7 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <stdint.h>
 #include <unistd.h>
 
 #include "../libsnap-confine-private/classic.h"
@@ -42,9 +43,11 @@
 #define SC_LIBGL32_DIR "/var/lib/snapd/lib/gl32"
 #define SC_VULKAN_DIR  "/var/lib/snapd/lib/vulkan"
 
+#define SC_VULKAN_SOURCE_DIR "/usr/share/vulkan"
+
 // Location for NVIDIA vulkan files (including _wayland)
 static const char *vulkan_globs[] = {
-	"/usr/share/vulkan/icd.d/*nvidia*.json",
+	"icd.d/*nvidia*.json",
 };
 
 static const size_t vulkan_globs_len =
@@ -65,78 +68,41 @@ static const size_t vulkan_globs_len =
 // FIXME: this doesn't yet work with libGLX and libglvnd redirector
 // FIXME: this still doesn't work with the 361 driver
 static const char *nvidia_globs[] = {
-	"/usr/lib/libEGL.so*",
-	"/usr/lib/libEGL_nvidia.so*",
-	"/usr/lib/libGL.so*",
-	"/usr/lib/libOpenGL.so*",
-	"/usr/lib/libGLESv1_CM.so*",
-	"/usr/lib/libGLESv1_CM_nvidia.so*",
-	"/usr/lib/libGLESv2.so*",
-	"/usr/lib/libGLESv2_nvidia.so*",
-	"/usr/lib/libGLX_indirect.so*",
-	"/usr/lib/libGLX_nvidia.so*",
-	"/usr/lib/libGLX.so*",
-	"/usr/lib/libGLdispatch.so*",
-	"/usr/lib/libGLU.so*",
-	"/usr/lib/libXvMCNVIDIA.so*",
-	"/usr/lib/libXvMCNVIDIA_dynamic.so*",
-	"/usr/lib/libcuda.so*",
-	"/usr/lib/libnvcuvid.so*",
-	"/usr/lib/libnvidia-cfg.so*",
-	"/usr/lib/libnvidia-compiler.so*",
-	"/usr/lib/libnvidia-eglcore.so*",
-	"/usr/lib/libnvidia-egl-wayland*",
-	"/usr/lib/libnvidia-encode.so*",
-	"/usr/lib/libnvidia-fatbinaryloader.so*",
-	"/usr/lib/libnvidia-fbc.so*",
-	"/usr/lib/libnvidia-glcore.so*",
-	"/usr/lib/libnvidia-glsi.so*",
-	"/usr/lib/libnvidia-ifr.so*",
-	"/usr/lib/libnvidia-ml.so*",
-	"/usr/lib/libnvidia-ptxjitcompiler.so*",
-	"/usr/lib/libnvidia-tls.so*",
-	"/usr/lib/vdpau/libvdpau_nvidia.so*",
+	"libEGL.so*",
+	"libEGL_nvidia.so*",
+	"libGL.so*",
+	"libOpenGL.so*",
+	"libGLESv1_CM.so*",
+	"libGLESv1_CM_nvidia.so*",
+	"libGLESv2.so*",
+	"libGLESv2_nvidia.so*",
+	"libGLX_indirect.so*",
+	"libGLX_nvidia.so*",
+	"libGLX.so*",
+	"libGLdispatch.so*",
+	"libGLU.so*",
+	"libXvMCNVIDIA.so*",
+	"libXvMCNVIDIA_dynamic.so*",
+	"libcuda.so*",
+	"libnvcuvid.so*",
+	"libnvidia-cfg.so*",
+	"libnvidia-compiler.so*",
+	"libnvidia-eglcore.so*",
+	"libnvidia-egl-wayland*",
+	"libnvidia-encode.so*",
+	"libnvidia-fatbinaryloader.so*",
+	"libnvidia-fbc.so*",
+	"libnvidia-glcore.so*",
+	"libnvidia-glsi.so*",
+	"libnvidia-ifr.so*",
+	"libnvidia-ml.so*",
+	"libnvidia-ptxjitcompiler.so*",
+	"libnvidia-tls.so*",
+	"vdpau/libvdpau_nvidia.so*",
 };
 
 static const size_t nvidia_globs_len =
     sizeof nvidia_globs / sizeof *nvidia_globs;
-
-// 32-bit variants of the NVIDIA driver libraries
-static const char *nvidia_globs32[] = {
-	"/usr/lib32/libEGL.so*",
-	"/usr/lib32/libEGL_nvidia.so*",
-	"/usr/lib32/libGL.so*",
-	"/usr/lib32/libOpenGL.so*",
-	"/usr/lib32/libGLESv1_CM.so*",
-	"/usr/lib32/libGLESv1_CM_nvidia.so*",
-	"/usr/lib32/libGLESv2.so*",
-	"/usr/lib32/libGLESv2_nvidia.so*",
-	"/usr/lib32/libGLX_indirect.so*",
-	"/usr/lib32/libGLX_nvidia.so*",
-	"/usr/lib32/libGLX.so*",
-	"/usr/lib32/libGLdispatch.so*",
-	"/usr/lib32/libGLU.so*",
-	"/usr/lib32/libXvMCNVIDIA.so*",
-	"/usr/lib32/libXvMCNVIDIA_dynamic.so*",
-	"/usr/lib32/libcuda.so*",
-	"/usr/lib32/libnvcuvid.so*",
-	"/usr/lib32/libnvidia-cfg.so*",
-	"/usr/lib32/libnvidia-compiler.so*",
-	"/usr/lib32/libnvidia-eglcore.so*",
-	"/usr/lib32/libnvidia-encode.so*",
-	"/usr/lib32/libnvidia-fatbinaryloader.so*",
-	"/usr/lib32/libnvidia-fbc.so*",
-	"/usr/lib32/libnvidia-glcore.so*",
-	"/usr/lib32/libnvidia-glsi.so*",
-	"/usr/lib32/libnvidia-ifr.so*",
-	"/usr/lib32/libnvidia-ml.so*",
-	"/usr/lib32/libnvidia-ptxjitcompiler.so*",
-	"/usr/lib32/libnvidia-tls.so*",
-	"/usr/lib32/vdpau/libvdpau_nvidia.so*",
-};
-
-static const size_t nvidia_globs32_len =
-    sizeof nvidia_globs32 / sizeof *nvidia_globs32;
 
 #endif				// ifdef NVIDIA_BIARCH
 
@@ -147,7 +113,11 @@ static const size_t nvidia_globs32_len =
 // If the library is a symbolic link then relative links are kept as-is but
 // absolute links are translated to have "/path/to/hostfs" up front so that
 // they work after the pivot_root elsewhere.
+//
+// The glob list passed to us is produced with paths relative to source dir,
+// to simplify the various tie-in points with this function.
 static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
+						   const char *source_dir,
 						   const char *glob_list[],
 						   size_t glob_list_len)
 {
@@ -156,13 +126,17 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 	// Find all the entries matching the list of globs
 	for (size_t i = 0; i < glob_list_len; ++i) {
 		const char *glob_pattern = glob_list[i];
-		int err =
-		    glob(glob_pattern, i ? GLOB_APPEND : 0, NULL, &glob_res);
+		char glob_pattern_full[512] = { 0 };
+		sc_must_snprintf(glob_pattern_full, sizeof glob_pattern_full,
+				 "%s/%s", source_dir, glob_pattern);
+
+		int err = glob(glob_pattern_full, i ? GLOB_APPEND : 0, NULL,
+			       &glob_res);
 		// Not all of the files have to be there (they differ depending on the
 		// driver version used). Ignore all errors that are not GLOB_NOMATCH.
 		if (err != 0 && err != GLOB_NOMATCH) {
 			die("cannot search using glob pattern %s: %d",
-			    glob_pattern, err);
+			    glob_pattern_full, err);
 		}
 	}
 	// Symlink each file found
@@ -216,6 +190,15 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 				 "%s/%s", libgl_dir, filename);
 		debug("creating symbolic link %s -> %s", symlink_name,
 		      symlink_target);
+
+		// Make sure we don't have some link already (merged GLVND systems)
+		if (lstat(symlink_name, &stat_buf) == 0) {
+			if (unlink(symlink_name) != 0) {
+				die("cannot remove symbolic link target %s",
+				    symlink_name);
+			}
+		}
+
 		if (symlink(symlink_target, symlink_name) != 0) {
 			die("cannot create symbolic link %s -> %s",
 			    symlink_name, symlink_target);
@@ -224,6 +207,7 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 }
 
 static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
+					      const char *source_dir,
 					      const char *tgt_dir,
 					      const char *glob_list[],
 					      size_t glob_list_len)
@@ -243,7 +227,7 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 		die("cannot mount tmpfs at %s", libgl_dir);
 	};
 	// Populate libgl_dir with symlinks to libraries from hostfs
-	sc_populate_libgl_with_hostfs_symlinks(libgl_dir, glob_list,
+	sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source_dir, glob_list,
 					       glob_list_len);
 	// Remount $tgt_dir (i.e. .../lib/gl) read only
 	debug("remounting tmpfs as read-only %s", libgl_dir);
@@ -254,12 +238,55 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 
 #ifdef NVIDIA_BIARCH
 
+// Copy the symlink farm to an already mounted/constructed target
+static void sc_glob_files_only(const char *rootfs_dir,
+			       const char *source_dir,
+			       const char *tgt_dir,
+			       const char *glob_list[], size_t glob_list_len)
+{
+	char buf[512] = { 0 };
+	sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir, tgt_dir);
+	const char *libgl_dir = buf;
+
+	// Populate libgl_dir with symlinks to libraries from hostfs
+	sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source_dir, glob_list,
+					       glob_list_len);
+}
+
+// Expose host NVIDIA drivers to the snap on biarch systems.
+//
+// Order is absolutely imperative here. We'll attempt to find the
+// primary files for the architecture in the main directory, and end
+// up copying any files across. However it is possible we're using a
+// GLVND enabled host, in which case we copied libGL* to the farm.
+// The next step in the list is to look within the private nvidia
+// directory, exposed using ld.so.conf tricks within the host OS.
+// In some distros (i.e. Solus) only the private libGL/libEGL files
+// may be found here, and they'll clobber the existing GLVND files from
+// the previous run.
+// In other distros (like Fedora) all NVIDIA libraries are contained
+// within the private directory, so we clobber the GLVND files and we
+// also grab all the private NVIDIA libraries.
+//
+// In non GLVND cases we just copy across the exposed libGLs and NVIDIA
+// libraries from wherever we find, and clobbering is also harmless.
 static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 {
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_LIBGL_DIR,
-					  nvidia_globs, nvidia_globs_len);
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_LIBGL32_DIR,
-					  nvidia_globs32, nvidia_globs32_len);
+	// Primary arch
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, NATIVE_LIBDIR,
+					  SC_LIBGL_DIR, nvidia_globs,
+					  nvidia_globs_len);
+	sc_glob_files_only(rootfs_dir, NATIVE_LIBDIR "/nvidia*", SC_LIBGL_DIR,
+			   nvidia_globs, nvidia_globs_len);
+
+#if UINTPTR_MAX == 0xffffffffffffffff
+	// Alternative 32-bit support
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, LIB32_DIR,
+					  SC_LIBGL32_DIR, nvidia_globs,
+					  nvidia_globs_len);
+	sc_glob_files_only(rootfs_dir, LIB32_DIR "/nvidia*",
+			   SC_LIBGL32_DIR, nvidia_globs, nvidia_globs_len);
+#endif
 }
 
 #endif				// ifdef NVIDIA_BIARCH
@@ -361,6 +388,7 @@ void sc_mount_nvidia_driver(const char *rootfs_dir)
 #endif				// ifdef NVIDIA_BIARCH
 
 	// Common for both driver mechanisms
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_VULKAN_DIR,
-					  vulkan_globs, vulkan_globs_len);
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_VULKAN_SOURCE_DIR,
+					  SC_VULKAN_DIR, vulkan_globs,
+					  vulkan_globs_len);
 }
