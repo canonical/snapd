@@ -616,6 +616,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		t.WaitAll(autots)
 	}
 
+	task.SetStatus(state.DoneStatus)
+
 	st.EnsureBefore(0)
 	return nil
 }
