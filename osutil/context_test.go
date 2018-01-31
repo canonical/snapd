@@ -70,7 +70,38 @@ func (ctxSuite) TestRun(c *check.C) {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second/100)
 	cmd := exec.Command("/bin/sleep", "1")
 	err := osutil.RunWithContext(ctx, cmd)
-	c.Check(err, check.ErrorMatches, "signal: killed")
+	c.Check(err, check.Equals, context.DeadlineExceeded)
+}
+
+func (ctxSuite) TestRunRace(c *check.C) {
+	// first, time how long /bin/false takes
+	t0 := time.Now()
+	cmderr := exec.Command("/bin/false").Run()
+	dt := time.Since(t0)
+
+	// note in particular the error is not "killed"
+	c.Assert(cmderr, check.ErrorMatches, "exit status 1")
+	failedstr := cmderr.Error()
+	killedstr := context.DeadlineExceeded.Error()
+
+	// now run it in a loop with a deadline of exactly that
+	nkilled := 0
+	nfailed := 0
+	for nfailed == 0 || nkilled == 0 {
+		cmd := exec.Command("/bin/false")
+		ctx, _ := context.WithTimeout(context.Background(), dt)
+		err := osutil.RunWithContext(ctx, cmd)
+		switch err.Error() {
+		case killedstr:
+			nkilled++
+		case failedstr:
+			nfailed++
+		default:
+			// if the error is anything other than due to the context
+			// being done, or the command failing, there's a bug.
+			c.Fatalf("expected %q or %q, got %q", failedstr, killedstr, err)
+		}
+	}
 }
 
 func (ctxSuite) TestRunDone(c *check.C) {
