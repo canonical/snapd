@@ -124,5 +124,5 @@ func adviseCommand(cmd string, format string) error {
 		}
 	}
 
-	return fmt.Errorf("%s command not found", cmd)
+	return fmt.Errorf("%s: command not found", cmd)
 }
