@@ -46,7 +46,7 @@ type infoCmd struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-var shortInfoHelp = i18n.G("show detailed information about a snap")
+var shortInfoHelp = i18n.G("Show detailed information about a snap")
 var longInfoHelp = i18n.G(`
 The info command shows detailed information about a snap, be it by name or by path.`)
 

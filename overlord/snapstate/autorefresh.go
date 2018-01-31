@@ -59,11 +59,12 @@ func newAutoRefresh(st *state.State) *autoRefresh {
 	}
 }
 
-// RefreshSchedule will return a user visible string with the current
-// schedule for the automatic refreshes.
-func (m *autoRefresh) RefreshSchedule() (string, error) {
-	_, scheduleStr, err := m.refreshScheduleWithDefaultsFallback()
-	return scheduleStr, err
+// RefreshSchedule will return a user visible string with the current schedule
+// for the automatic refreshes and a flag indicating whether the schedule is a
+// legacy one.
+func (m *autoRefresh) RefreshSchedule() (schedule string, legacy bool, err error) {
+	_, schedule, legacy, err = m.refreshScheduleWithDefaultsFallback()
+	return schedule, legacy, err
 }
 
 // NextRefresh returns when the next automatic refresh will happen.
@@ -107,7 +108,7 @@ func (m *autoRefresh) Ensure() error {
 		return err
 	}
 
-	refreshSchedule, refreshScheduleStr, err := m.refreshScheduleWithDefaultsFallback()
+	refreshSchedule, refreshScheduleStr, _, err := m.refreshScheduleWithDefaultsFallback()
 	if err != nil {
 		return err
 	}
@@ -163,13 +164,13 @@ func (m *autoRefresh) Ensure() error {
 //
 // TODO: we can remove the refreshSchedule reset because we have validation
 //       of the schedule now.
-func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, err error) {
+func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, legacy bool, err error) {
 	if refreshScheduleManaged(m.state) {
 		if m.lastRefreshSchedule != "managed" {
 			logger.Noticef("refresh.schedule is managed via the snapd-control interface")
 			m.lastRefreshSchedule = "managed"
 		}
-		return nil, "managed", nil
+		return nil, "managed", true, nil
 	}
 
 	tr := config.NewTransaction(m.state)
@@ -177,7 +178,7 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 	// try the new refresh.timer config option first
 	err = tr.Get("core", "refresh.timer", &scheduleAsStr)
 	if err != nil && !config.IsNoOption(err) {
-		return nil, "", err
+		return nil, "", false, err
 	}
 	if scheduleAsStr != "" {
 		ts, err = timeutil.ParseSchedule(scheduleAsStr)
@@ -185,14 +186,14 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 			logger.Noticef("cannot use refresh.timer configuration: %s", err)
 			return refreshScheduleDefault()
 		}
-		return ts, scheduleAsStr, nil
+		return ts, scheduleAsStr, false, nil
 	}
 
 	// fallback to legacy refresh.schedule setting when the new
 	// config option is not set
 	err = tr.Get("core", "refresh.schedule", &scheduleAsStr)
 	if err != nil && !config.IsNoOption(err) {
-		return nil, "", err
+		return nil, "", false, err
 	}
 	if scheduleAsStr != "" {
 		ts, err = timeutil.ParseLegacySchedule(scheduleAsStr)
@@ -200,7 +201,7 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 			logger.Noticef("cannot use refresh.schedule configuration: %s", err)
 			return refreshScheduleDefault()
 		}
-		return ts, scheduleAsStr, nil
+		return ts, scheduleAsStr, true, nil
 	}
 
 	return refreshScheduleDefault()
@@ -244,13 +245,13 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	return nil
 }
 
-func refreshScheduleDefault() (ts []*timeutil.Schedule, scheduleStr string, err error) {
+func refreshScheduleDefault() (ts []*timeutil.Schedule, scheduleStr string, legacy bool, err error) {
 	refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshSchedule)
 	if err != nil {
 		panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
 	}
 
-	return refreshSchedule, defaultRefreshSchedule, nil
+	return refreshSchedule, defaultRefreshSchedule, false, nil
 }
 
 func autoRefreshInFlight(st *state.State) bool {
