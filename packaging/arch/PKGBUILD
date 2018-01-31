@@ -59,15 +59,6 @@ build() {
   # Get golang dependencies
   XDG_CONFIG_HOME="$srcdir" ./get-deps.sh
 
-  # Generate data files such as real systemd units, dbus service, environment
-  # setup helpers out of the available templates
-  make -C data \
-       BINDIR=/bin \
-       LIBEXECDIR=/usr/lib \
-       SYSTEMDSYSTEMUNITDIR=/usr/lib/systemd/system \
-       SNAP_MOUNT_DIR=/var/lib/snapd/snap \
-       SNAPD_ENVIRONMENT_FILE=/etc/default/snapd
-
   export CGO_ENABLED="1"
   export CGO_CFLAGS="${CFLAGS}"
   export CGO_CPPFLAGS="${CPPFLAGS}"
@@ -86,7 +77,7 @@ build() {
   CGO_ENABLED=0 $gobuild -o $GOPATH/bin/snap-exec "${_gourl}/cmd/snap-exec"
 
   # Build snap-confine
-  cd cmd
+  pushd cmd
   # Sync actual parameters with cmd/autogen.sh
   autoreconf -i -f
   ./configure \
@@ -95,8 +86,13 @@ build() {
     --with-snap-mount-dir=/var/lib/snapd/snap \
     --disable-apparmor \
     --enable-nvidia-biarch \
-    --enable-merged-usr
+    --enable-merged-usr \
+    --with-systemd-system-unit-dir=/lib/systemd/system \
+    --with-snapd-environment-file=/etc/default/snapd
   make $MAKEFLAGS
+  popd
+
+  make -C data
 
   # generate man-pages for snap
   $GOPATH/bin/snap help --man > "$srcdir/snap.1"
@@ -154,13 +150,10 @@ package_snapd-git() {
 
   # Install D-Bus service files
   make -C "$srcdir/$pkgbase/data/dbus" install \
-       DBUSSERVICESDIR=/usr/share/dbus-1/services \
        DESTDIR="$pkgdir"
 
   # Install systemd units
   make -C "$srcdir/$pkgbase/data/systemd" install \
-       BINDIR=/bin \
-       SYSTEMDSYSTEMUNITDIR=/usr/lib/systemd/system \
        DESTDIR="$pkgdir"
 
   # Remove snappy core specific units
