@@ -13,6 +13,12 @@ AC_ARG_WITH([snap-mount-dir],
 AC_SUBST(SNAP_MOUNT_DIR)
 AC_DEFINE_UNQUOTED([SNAP_MOUNT_DIR], "${SNAP_MOUNT_DIR}", [Location of the snap mount points])
 
+SNAPD_ENVIRONMENT_FILE="/etc/environment"
+AC_ARG_WITH([snapd-environment-file],
+  AS_HELP_STRING([--with-snapd-environment-file=DIR], [Use this file to set-up environment of snapd.service]),
+  [SNAPD_ENVIRONMENT_FILE="$withval"])
+AC_SUBST(SNAPD_ENVIRONMENT_FILE)
+
 AC_CONFIG_FILES([Makefile
                  systemd/Makefile
                  env/Makefile
