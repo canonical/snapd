@@ -431,17 +431,16 @@ autoreconf --force --install --verbose
     --disable-apparmor \
     --libexecdir=%{_libexecdir}/snapd/ \
     --with-snap-mount-dir=%{_sharedstatedir}/snapd/snap \
-    --with-merged-usr
+    --with-merged-usr \
+    --with-systemd-system-unit-dir=%{_unitdir} \
+    --with-snapd-environment-file=%{_sysconfdir}/sysconfig/snapd
 
 %make_build
 popd
 
 # Build systemd and dbus units, and env files
 pushd ./data
-make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
-     SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
-     SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
-     SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
+make
 popd
 
 %install
@@ -501,7 +500,7 @@ popd
 
 # Install all systemd and dbus units, and env files
 pushd ./data
-%make_install SYSTEMDSYSTEMUNITDIR="%{_unitdir}" BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}"
+%make_install
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
 rm -fv %{buildroot}%{_unitdir}/snapd.snap-repair.*
