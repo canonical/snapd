@@ -47,7 +47,7 @@ const mirPermanentSlotAppArmor = `
 capability sys_tty_config,
 /dev/tty[0-9]* rw,
 
-/{dev,run}/shm/\#* mrw,
+/{dev,run}/shm/\#[0-9]* mrw,
 /run/mir_socket rw,
 /run/user/[0-9]*/mir_socket rw,
 
@@ -90,7 +90,7 @@ unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS#
 /run/user/[0-9]*/mir_socket rw,
 
 # Mir uses /dev/shm for sharing memory with clients
-/{dev,run}/shm/\#* mrw,
+/{dev,run}/shm/\#[0-9]* mrw,
 `
 
 type mirInterface struct{}
