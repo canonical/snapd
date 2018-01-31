@@ -79,7 +79,7 @@ setns_into_snap(const char* snap_name)
 }
 
 // switch_to_privileged_user drops to the real user ID while retaining
-// CAP_SYS_ADMIN, to operations such as mount().
+// CAP_SYS_ADMIN, for operations such as mount().
 static int
 switch_to_privileged_user()
 {
@@ -119,7 +119,7 @@ switch_to_privileged_user()
         return -1;
     }
 
-    if (setgroups(0, NULL) != 0) {
+    if (setgroups(1, &real_gid) != 0) {
         bootstrap_errno = errno;
         bootstrap_msg = "cannot drop supplementary groups";
         return -1;
@@ -137,7 +137,7 @@ switch_to_privileged_user()
         return -1;
     }
 
-    // After changing uid, are effective capabilities were dropped.
+    // After changing uid, our effective capabilities were dropped.
     // Reacquire CAP_SYS_ADMIN, and discard CAP_SETUID/CAP_SETGID.
     data[0].effective = CAP_TO_MASK(CAP_SYS_ADMIN);
     data[0].permitted = data[0].effective;
