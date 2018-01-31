@@ -33,6 +33,8 @@ Build-Depends: autoconf,
                squashfs-tools,
                udev,
                xfslibs-dev
+Recommends: gnupg1 | gnupg
+Suggests: zenity | kdialog
 Standards-Version: 3.9.7
 Homepage: https://github.com/snapcore/snapd
 Vcs-Browser: https://github.com/snapcore/snapd
