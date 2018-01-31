@@ -36,15 +36,8 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func noConflictOnConnectTasks(chg *state.Change) func(task *state.Task) bool {
-	checkConflict := func(task *state.Task) bool {
-		if chg != nil && task.Change() != nil {
-			// if same change, then return false (no conflict)
-			return chg.ID() != task.Change().ID()
-		}
-		return task.Kind() != "connect" && task.Kind() != "disconnect"
-	}
-	return checkConflict
+var noConflictOnConnectTasks = func(task *state.Task) bool {
+	return task.Kind() != "connect" && task.Kind() != "disconnect"
 }
 
 var connectRetryTimeout = time.Second * 5
@@ -234,10 +227,10 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
 func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks(nil), nil); err != nil {
+	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
-	if err := snapstate.CheckChangeConflict(st, slotSnap, noConflictOnConnectTasks(nil), nil); err != nil {
+	if err := snapstate.CheckChangeConflict(st, slotSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
 
