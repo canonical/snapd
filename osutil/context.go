@@ -22,6 +22,8 @@ package osutil
 import (
 	"io"
 	"os/exec"
+	"sync/atomic"
+	"syscall"
 
 	"golang.org/x/net/context"
 )
@@ -56,10 +58,12 @@ func RunWithContext(ctx context.Context, cmd *exec.Cmd) error {
 		return err
 	}
 
+	var ctxDone uint32
 	waitDone := make(chan struct{})
 	go func() {
 		select {
 		case <-ctx.Done():
+			atomic.StoreUint32(&ctxDone, 1)
 			cmd.Process.Kill()
 		case <-waitDone:
 		}
@@ -67,5 +71,11 @@ func RunWithContext(ctx context.Context, cmd *exec.Cmd) error {
 
 	err := cmd.Wait()
 	close(waitDone)
+	if atomic.LoadUint32(&ctxDone) != 0 {
+		// do one last check to make sure the error from Wait is what we expect from Kill
+		if err, ok := err.(*exec.ExitError); ok && err.ProcessState.Sys() == syscall.WaitStatus(0x9) {
+			return ctx.Err()
+		}
+	}
 	return err
 }
