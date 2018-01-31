@@ -26,6 +26,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <grp.h>
 #include <limits.h>
 #include <sched.h>
 #include <stdbool.h>
@@ -82,12 +83,14 @@ static int
 switch_to_privileged_user()
 {
     uid_t real_uid;
+    gid_t real_gid;
 
     real_uid = getuid();
     if (real_uid == 0) {
         // We're running as root: no need to switch IDs
         return 0;
     }
+    real_gid = getgid();
 
     // _LINUX_CAPABILITY_VERSION_3 valid for kernel >= 2.6.26. See
     // https://github.com/torvalds/linux/blob/master/kernel/capability.c
@@ -107,7 +110,19 @@ switch_to_privileged_user()
         return -1;
     }
 
-    if (seteuid(real_uid) != 0) {
+    if (setgroups(0, NULL) != 0) {
+        bootstrap_errno = errno;
+        bootstrap_msg = "cannot drop supplementary groups";
+        return -1;
+    }
+
+    if (setgid(real_gid) != 0) {
+        bootstrap_errno = errno;
+        bootstrap_msg = "cannot switch to real group ID";
+        return -1;
+    }
+
+    if (setuid(real_uid) != 0) {
         bootstrap_errno = errno;
         bootstrap_msg = "cannot switch to real user ID";
         return -1;
