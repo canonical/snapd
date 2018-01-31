@@ -123,7 +123,8 @@ export CXXFLAGS
 # apparmor kernel available in SUSE and Debian. The generated apparmor profiles
 # cannot be loaded into a vanilla kernel. As a temporary measure we just switch
 # it all off.
-%configure --disable-apparmor --libexecdir=%{_libexecdir}/snapd
+%configure --disable-apparmor --libexecdir=%{_libexecdir}/snapd \
+           --with-systemd-system-unit-dir=%{_unitdir}
 
 %build
 # Build golang executables
@@ -212,7 +213,7 @@ install -d %buildroot/snap/bin
 install -m 644 -D packaging/opensuse-42.2/permissions %buildroot/%{_sysconfdir}/permissions.d/snapd
 install -m 644 -D packaging/opensuse-42.2/permissions.paranoid %buildroot/%{_sysconfdir}/permissions.d/snapd.paranoid
 # Install the systemd units
-make -C data install DESTDIR=%{buildroot} SYSTEMDSYSTEMUNITDIR=%{_unitdir}
+make -C data install DESTDIR=%{buildroot}
 for s in snapd.autoimport.service snapd.system-shutdown.service snapd.snap-repair.timer snapd.snap-repair.service snapd.core-fixup.service; do
     rm -f %buildroot/%{_unitdir}/$s
 done
