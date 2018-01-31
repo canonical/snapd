@@ -102,12 +102,14 @@ func (x *cmdRun) Execute(args []string) error {
 		return snapRunHook(snapApp, x.Revision, x.Hook)
 	}
 
+	// FIXME: make this nicer
 	opts := runOptions{command: x.Command}
 
 	// pass shell as a special command to snap-exec
 	switch {
 	case x.Shell:
 		x.Command = "shell"
+		opts.command = "shell"
 	case x.Strace != "no-strace":
 		opts.useStrace = true
 		if x.Strace != "with-strace" {
