@@ -97,7 +97,9 @@ switch_to_privileged_user()
     struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
     struct __user_cap_data_struct data[2] = { { 0 } };
 
-    data[0].effective = CAP_TO_MASK (CAP_SYS_ADMIN);;
+    data[0].effective = (CAP_TO_MASK(CAP_SYS_ADMIN) |
+                         CAP_TO_MASK(CAP_SETUID) |
+                         CAP_TO_MASK(CAP_SETGID));
     data[0].permitted = data[0].effective;
     data[0].inheritable = 0;
     data[1].effective = 0;
@@ -128,6 +130,10 @@ switch_to_privileged_user()
         return -1;
     }
 
+    // After changing uid, are effective capabilities were dropped.
+    // Reacquire CAP_SYS_ADMIN, and discard CAP_SETUID/CAP_SETGID.
+    data[0].effective = CAP_TO_MASK(CAP_SYS_ADMIN);
+    data[0].permitted = data[0].effective;
     if (capset(&hdr, data) != 0) {
         bootstrap_errno = errno;
         bootstrap_msg = "cannot enable capabilities after switching to real user";
