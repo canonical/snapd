@@ -25,6 +25,12 @@ execute: |
     snap connect test-snapd-openvswitch-support:openvswitch-support
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
+    # This is to start the uuidd daemon in case it not active. By default in opensuse the
+    # daemon is not automatically started as it happens in the other systems.
+    if [[ "$SPREAD_SYSTEM" == opensuse-* ]] && ! systemctl is-active uuidd.service; then
+        systemctl start uuidd.service;
+    fi
+
     echo "Then the snap is able to get a random uuid"
     test-snapd-openvswitch-support.random-uuid
 
