@@ -56,4 +56,4 @@ esac
 echo "Configuring in build directory $BUILD_DIR with: $extra_opts"
 mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
 # shellcheck disable=SC2086
-"${SRC_DIR}/configure" --enable-maintainer-mode --prefix=/usr $extra_opts
+"${SRC_DIR}/configure" --enable-maintainer-mode --prefix=/usr --sysconfdir=/etc $extra_opts
