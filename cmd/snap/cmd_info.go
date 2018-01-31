@@ -317,6 +317,11 @@ func (x *infoCmd) Execute([]string) error {
 		if both.Contact != "" {
 			fmt.Fprintf(w, "contact:\t%s\n", strings.TrimPrefix(both.Contact, "mailto:"))
 		}
+		license := both.License
+		if license == "" {
+			license = "unknown"
+		}
+		fmt.Fprintf(w, "license:\t%s\n", license)
 		maybePrintPrice(w, remote, resInfo)
 		// FIXME: find out for real
 		termWidth := 77
