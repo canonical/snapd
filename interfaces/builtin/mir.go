@@ -47,7 +47,13 @@ const mirPermanentSlotAppArmor = `
 capability sys_tty_config,
 /dev/tty[0-9]* rw,
 
-/{dev,run}/shm/\#* mrw,
+# mir uses open("/dev/shm", O_TMPFILE...) which shows up in AppArmor
+# as /dev/shm/#NUMBER. This is then fed to mmap with MAP_SHARED
+# for communication with the client (note that the file doesn't actually
+# exist and isn't accessible by other processes). Also see:
+# https://www.kernel.org/doc/gorman/html/understand/understand015.html
+/{dev,run}/shm/\#[0-9]* mrw,
+
 /run/mir_socket rw,
 /run/user/[0-9]*/mir_socket rw,
 
@@ -88,6 +94,9 @@ const mirConnectedPlugAppArmor = `
 unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS###),
 /run/mir_socket rw,
 /run/user/[0-9]*/mir_socket rw,
+
+# Mir uses /dev/shm for sharing memory with clients
+/{dev,run}/shm/\#[0-9]* mrw,
 `
 
 type mirInterface struct{}
