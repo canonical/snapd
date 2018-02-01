@@ -277,6 +277,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err != nil {
 		return fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
+	spec.(*Specification).AddSnapLayout(snapInfo)
 
 	// core on classic is special
 	if snapName == "core" && release.OnClassic && release.AppArmorLevel() != release.NoAppArmor {
@@ -332,8 +333,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 // Remove removes and unloads apparmor profiles of a given snap.
 func (b *Backend) Remove(snapName string) error {
-	glob := interfaces.SecurityTagGlob(snapName)
-	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, nil)
+	glob1 := fmt.Sprintf("snap*.%s*", snapName)
+	glob2 := fmt.Sprintf("snap-update-ns.%s", snapName)
+	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dirs.SnapAppArmorDir, []string{glob1, glob2}, nil)
 	errUnload := unloadProfiles(removed)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
