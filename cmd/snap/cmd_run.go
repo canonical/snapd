@@ -55,6 +55,10 @@ type cmdRun struct {
 	Revision string `short:"r" default:"unset" hidden:"yes"`
 	Shell    bool   `long:"shell" `
 	Strace   string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
+
+	// not a real option, used to check if cmdRun is initialized by
+	// the parser
+	ParserRan int `long:"parser-ran" default:"1" hidden:"yes"`
 }
 
 func init() {
@@ -64,11 +68,12 @@ func init() {
 		func() flags.Commander {
 			return &cmdRun{}
 		}, map[string]string{
-			"command": i18n.G("Alternative command to run"),
-			"hook":    i18n.G("Hook to run"),
-			"r":       i18n.G("Use a specific snap revision when running hook"),
-			"shell":   i18n.G("Run a shell instead of the command (useful for debugging)"),
-			"strace":  i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here."),
+			"command":    i18n.G("Alternative command to run"),
+			"hook":       i18n.G("Hook to run"),
+			"r":          i18n.G("Use a specific snap revision when running hook"),
+			"shell":      i18n.G("Run a shell instead of the command (useful for debugging)"),
+			"strace":     i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here."),
+			"parser-ran": "",
 		}, nil)
 }
 
@@ -245,7 +250,7 @@ func createUserDataDirs(info *snap.Info) error {
 }
 
 func (x *cmdRun) useStrace() bool {
-	return x.Strace != "no-strace"
+	return x.ParserRan == 1 && x.Strace != "no-strace"
 }
 
 func (x *cmdRun) straceOpts() []string {
@@ -254,7 +259,7 @@ func (x *cmdRun) straceOpts() []string {
 	}
 
 	var opts []string
-	// TODO: use shlex
+	// TODO: use shlex?
 	for _, opt := range strings.Split(x.Strace, " ") {
 		if strings.TrimSpace(opt) != "" {
 			opts = append(opts, opt)
