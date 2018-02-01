@@ -305,6 +305,27 @@ func SnapDeclaration(s *state.State, snapID string) (*asserts.SnapDeclaration, e
 	return a.(*asserts.SnapDeclaration), nil
 }
 
+// Developer return the the account assertion for the developer of the snap
+// with the given sha3 if present in the system assertion database.
+func Developer(s *state.State, sha3_384 string) (*asserts.Account, error) {
+	db := DB(s)
+	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
+		"snap-sha3-384": sha3_384,
+	})
+	if err != nil {
+		return nil, err
+	}
+	snapRev := a.(*asserts.SnapRevision)
+	a, err = db.Find(asserts.AccountType, map[string]string{
+		"account-id": snapRev.DeveloperID(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot find account assertion for the developer of snap %q: %v", snapRev.SnapID(), err)
+	}
+	return a.(*asserts.Account), nil
+
+}
+
 // Publisher returns the account assertion for publisher of the given snap-id if it is present in the system assertion database.
 func Publisher(s *state.State, snapID string) (*asserts.Account, error) {
 	db := DB(s)

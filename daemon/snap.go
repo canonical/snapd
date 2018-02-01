@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -72,13 +73,34 @@ func publisherName(st *state.State, info *snap.Info) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot find publisher details: %v", err)
 	}
+	// FIXME: use DisplayName here?
 	return pubAcct.Username(), nil
+}
+
+// developerName will display the developer name taken from the
+// snap-revision assertion.
+//
+// TODO: As of 2018-02-01 this will be signed by the publisher
+// and not the developer. This will get fixed on the store side.
+func developerName(st *state.State, info *snap.Info) (string, error) {
+	if info.SnapID == "" {
+		return "", nil
+	}
+
+	sha3_384, _, err := asserts.SnapFileSHA3_384(info.MountFile())
+	devAcct, err := assertstate.Developer(st, sha3_384)
+	if err != nil {
+		return "", fmt.Errorf("cannot find developer details: %v", err)
+	}
+	// FIXME: use DisplayName here?
+	return devAcct.Username(), nil
 }
 
 type aboutSnap struct {
 	info      *snap.Info
 	snapst    *snapstate.SnapState
 	publisher string
+	developer string
 }
 
 // localSnapInfo returns the information about the current snap for the given name plus the SnapState with the active flag and other snap revisions.
@@ -104,11 +126,16 @@ func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 	if err != nil {
 		return aboutSnap{}, err
 	}
+	developer, err := developerName(st, info)
+	if err != nil {
+		return aboutSnap{}, err
+	}
 
 	return aboutSnap{
 		info:      info,
 		snapst:    &snapst,
 		publisher: publisher,
+		developer: developer,
 	}, nil
 }
 
@@ -130,7 +157,7 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		}
 		var aboutThis []aboutSnap
 		var info *snap.Info
-		var publisher string
+		var publisher, developer string
 		var err error
 		if all {
 			for _, seq := range snapst.Sequence {
@@ -139,14 +166,17 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 					break
 				}
 				publisher, err = publisherName(st, info)
-				aboutThis = append(aboutThis, aboutSnap{info, snapst, publisher})
+				if err == nil {
+					developer, err = developerName(st, info)
+				}
+				aboutThis = append(aboutThis, aboutSnap{info, snapst, publisher, developer})
 			}
 		} else {
 			info, err = snapst.CurrentInfo()
 			if err == nil {
 				var publisher string
 				publisher, err = publisherName(st, info)
-				aboutThis = append(aboutThis, aboutSnap{info, snapst, publisher})
+				aboutThis = append(aboutThis, aboutSnap{info, snapst, publisher, developer})
 			}
 		}
 
@@ -326,7 +356,8 @@ func mapLocal(about aboutSnap) *client.Snap {
 
 	result := &client.Snap{
 		Description:      localSnap.Description(),
-		Developer:        about.publisher,
+		Developer:        about.developer,
+		Publisher:        about.publisher,
 		Icon:             snapIcon(localSnap),
 		ID:               localSnap.SnapID,
 		InstallDate:      snapDate(localSnap),
@@ -376,8 +407,11 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 	}
 
 	result := &client.Snap{
-		Description:  remoteSnap.Description(),
+		Description: remoteSnap.Description(),
+		// FIXME: make this remoteSnap.Developer once the store
+		//        actually sends this to us
 		Developer:    remoteSnap.Publisher,
+		Publisher:    remoteSnap.Publisher,
 		DownloadSize: remoteSnap.Size,
 		Icon:         snapIcon(remoteSnap),
 		ID:           remoteSnap.SnapID,

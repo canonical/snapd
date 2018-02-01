@@ -440,7 +440,9 @@ version: %s
 			c.Assert(err, check.IsNil)
 		}
 
-		h := sha3.Sum384([]byte(fmt.Sprintf("%s%s", name, revision)))
+		content, err := ioutil.ReadFile(snapInfo.MountFile())
+		c.Assert(err, check.IsNil)
+		h := sha3.Sum384(content)
 		dgst, err := asserts.EncodeDigest(crypto.SHA3_384, h[:])
 		c.Assert(err, check.IsNil)
 		snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
@@ -583,6 +585,7 @@ UnitFileState=potatoes
 			Title:            "title",
 			Summary:          "summary",
 			Description:      "description",
+			Publisher:        "bar",
 			Developer:        "bar",
 			Status:           "active",
 			Icon:             "/v2/icons/foo/icon",

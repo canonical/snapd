@@ -56,9 +56,11 @@ type snapDetails struct {
 	Type    snap.Type `json:"content,omitempty"`
 	Version string    `json:"version"`
 
-	// TODO: have the store return a 'developer_username' for this
-	Developer   string `json:"origin"`
-	DeveloperID string `json:"developer_id"`
+	// FIXME: The store does not actually send the developer,
+	//        it sends the publisher/publisher_id. This will
+	//        get fixed when the store switches to the new API.
+	Developer   string `json:"developer_name,omitempty"`
+	DeveloperID string `json:"developer_id,omitempty"`
 
 	Private     bool   `json:"private"`
 	Confinement string `json:"confinement"`

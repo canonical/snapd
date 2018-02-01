@@ -96,7 +96,9 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.EditedTitle = d.Title
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
-	// FIXME: should this be publisherID?
+	// TODO: The store sends the "publisher" instead of the
+	// developer currently. This will get fixed when the store
+	// moves to the new API
 	info.PublisherID = d.DeveloperID
 	info.Publisher = d.Publisher
 	info.Channel = d.Channel

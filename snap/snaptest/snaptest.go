@@ -21,6 +21,7 @@
 package snaptest
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -56,6 +57,8 @@ func MockSnap(c *check.C, yamlText string, snapContents string, sideInfo *snap.S
 	// Write the .snap to disk
 	err = os.MkdirAll(filepath.Dir(snapInfo.MountFile()), 0755)
 	c.Assert(err, check.IsNil)
+	// FIXME: kill input "snapContents" from above, it only ever passes SNAP
+	snapContents = fmt.Sprintf("%s-%s-%s-%s-%s", snapContents, sideInfo.RealName, sideInfo.SnapID, sideInfo.Revision)
 	err = ioutil.WriteFile(snapInfo.MountFile(), []byte(snapContents), 0644)
 	c.Assert(err, check.IsNil)
 	snapInfo.Size = int64(len(snapContents))

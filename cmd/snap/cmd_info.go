@@ -311,9 +311,15 @@ func (x *infoCmd) Execute([]string) error {
 
 		fmt.Fprintf(w, "name:\t%s\n", both.Name)
 		fmt.Fprintf(w, "summary:\t%s\n", formatSummary(both.Summary))
-		// TODO: have publisher; use publisher here,
+		// have publisher; use publisher here,
 		// and additionally print developer if publisher != developer
-		fmt.Fprintf(w, "publisher:\t%s\n", both.Developer)
+		if both.Publisher != "" {
+			fmt.Fprintf(w, "publisher:\t%s\n", both.Publisher)
+		}
+		if both.Publisher != "" && both.Publisher != both.Developer {
+			fmt.Fprintf(w, "developer:\t%s\n", both.Developer)
+		}
+
 		if both.Contact != "" {
 			fmt.Fprintf(w, "contact:\t%s\n", strings.TrimPrefix(both.Contact, "mailto:"))
 		}
