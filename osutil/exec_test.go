@@ -133,7 +133,7 @@ func (s *execSuite) TestRunAndWaitRunsAndKillsOnTimeout(c *C) {
 
 func (s *execSuite) TestRunAndWaitRunsOutputLimitExceeded(c *C) {
 	_, err := osutil.RunAndWait([]string{"sh", "-c", "while true; do echo \".......\"; done"}, nil, time.Minute, &tomb.Tomb{})
-	c.Check(err, ErrorMatches, "signal: broken pipe.*")
+	c.Check(err, ErrorMatches, "buffer capacity exceeded")
 }
 
 func (s *execSuite) TestRunAndWaitRunsAndKillsOnAbort(c *C) {

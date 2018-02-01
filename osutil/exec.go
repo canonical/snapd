@@ -209,6 +209,8 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 	case <-commandCompleted:
 		// Command completed; it may or may not have been successful.
 		return buffer.Bytes(), commandError
+	case <-buffer.BufferLimitReached:
+		abortOrTimeoutError = &BufferLimitError{}
 	case <-tomb.Dying():
 		// Hook was aborted, process will get killed below
 		abortOrTimeoutError = fmt.Errorf("aborted")
