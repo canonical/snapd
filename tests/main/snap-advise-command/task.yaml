@@ -38,3 +38,6 @@ execute: |
         echo "A not-found snap command should return an error"
         exit 1
     fi
+
+    echo "Ensure advise on snap pkg name advise also works"
+    snap advise-snap test-snapd-tools | MATCH "Tools for testing the snapd application"
