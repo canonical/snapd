@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -53,7 +53,7 @@ func (s *systemKeySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func (s *systemKeySuite) TestInterfaceSystemKeyEmpty(c *C) {
+func (s *systemKeySuite) TestInterfaceSystemKeyNoApparmor(c *C) {
 	systemKey := interfaces.SystemKey()
 	c.Check(systemKey, Equals, fmt.Sprintf(`build-id: %s
 apparmor-features: []

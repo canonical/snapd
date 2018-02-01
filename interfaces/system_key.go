@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -48,7 +48,10 @@ func generateSystemKey() *systemKey {
 	}
 	mySystemKey.BuildID = buildID
 
-	// add apparmor-feature, note that ioutil.ReadDir() is already sorted
+	// Add apparmor-feature, note that ioutil.ReadDir() is already sorted.
+	//
+	// We prefix the dirs.GlobalRootDir (which is usually "/") to make
+	// this testable.
 	if dentries, err := ioutil.ReadDir(filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor/features")); err == nil {
 		mySystemKey.AppArmorFeatures = make([]string, len(dentries))
 		for i, f := range dentries {
