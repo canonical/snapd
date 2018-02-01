@@ -30,12 +30,15 @@ func (e BufferLimitError) Error() string {
 }
 
 type LimitedWriter struct {
-	buf []byte
+	buf                []byte
+	limitReached       bool
+	BufferLimitReached chan struct{}
 }
 
 func NewLimitedWriter(capacity int) *LimitedWriter {
 	return &LimitedWriter{
-		buf: make([]byte, 0, capacity),
+		buf:                make([]byte, 0, capacity),
+		BufferLimitReached: make(chan struct{}),
 	}
 }
 
@@ -43,6 +46,10 @@ func (wr *LimitedWriter) Write(p []byte) (int, error) {
 	m := len(wr.buf)
 	n := len(p) + m
 	if n > cap(wr.buf) {
+		if !wr.limitReached {
+			close(wr.BufferLimitReached)
+		}
+		wr.limitReached = true
 		return 0, &BufferLimitError{}
 	}
 	wr.buf = wr.buf[0:n]

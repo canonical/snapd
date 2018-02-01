@@ -1,5 +1,6 @@
 #!/bin/sh
 set -x
+trap "" PIPE
 while true
 do
     echo "noisy output....................................."
