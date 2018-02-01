@@ -184,9 +184,9 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.
-	var buffer bytes.Buffer
-	command.Stdout = &buffer
-	command.Stderr = &buffer
+	buffer := NewLimitedWriter(512 * 1024)
+	command.Stdout = buffer
+	command.Stderr = buffer
 
 	// Actually run the command.
 	if err := command.Start(); err != nil {
@@ -233,7 +233,7 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 		// cmd.Wait came back from waiting the killed process
 		break
 	}
-	fmt.Fprintf(&buffer, "\n<%s>", abortOrTimeoutError)
+	fmt.Fprintf(buffer, "\n<%s>", abortOrTimeoutError)
 
 	return buffer.Bytes(), abortOrTimeoutError
 }
