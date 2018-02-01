@@ -222,8 +222,7 @@ func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	defer restorer()
 
 	// and run it!
-	opts := snaprun.GetRunOpts("my-command")
-	err = snaprun.SnapRunApp("snapname.app", opts, []string{"arg1", "arg2"})
+	_, err = snaprun.Parser().ParseArgs([]string{"run", "--command=my-command", "snapname.app", "arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
@@ -397,7 +396,7 @@ func (s *SnapSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	})
 	defer restorer()
 
-	err = snaprun.SnapRunHook("snapname", "unset", "missing-hook")
+	_, err = snaprun.Parser().ParseArgs([]string{"run", "--hook=missing-hook", "snapname"})
 	c.Assert(err, check.ErrorMatches, `cannot find hook "missing-hook" in "snapname"`)
 	c.Check(called, check.Equals, false)
 }
@@ -740,4 +739,39 @@ func (s *SnapSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 			"snapname.app", "--arg1", "arg2",
 		},
 	})
+}
+
+func (s *SnapSuite) TestSnapRunShellIntegration(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	// and run it!
+	rest, err := snaprun.Parser().ParseArgs([]string{"run", "--shell", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		"snap.snapname.app",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"--command=shell", "snapname.app", "--arg1", "arg2"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }
