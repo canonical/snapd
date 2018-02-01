@@ -30,7 +30,7 @@ import (
 	"strings"
 )
 
-const x11Summary = `allows interacting with an X11 server`
+const x11Summary = `allows interacting with or running as an X11 server`
 
 const x11BaseDeclarationSlots = `
   x11:
