@@ -21,14 +21,18 @@ package ifacestate
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -54,8 +58,10 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if _, err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if err := m.regenerateAllSecurityProfiles(); err != nil {
-		return err
+	if m.profilesNeedRegeneration() {
+		if err := m.regenerateAllSecurityProfiles(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -108,6 +114,20 @@ func (m *InterfaceManager) addSnaps() error {
 	return nil
 }
 
+func (m *InterfaceManager) profilesNeedRegeneration() bool {
+	raw, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	if os.IsNotExist(err) {
+		return true
+	}
+	if err != nil {
+		logger.Noticef("cannot read system-key file: %s", err)
+		return true
+	}
+
+	onDiskSystemKey := string(raw)
+	return onDiskSystemKey != interfaces.SystemKey()
+}
+
 // regenerateAllSecurityProfiles will regenerate the security profiles
 // for apparmor and seccomp. This is needed because:
 // - for seccomp we may have "terms" on disk that the current snap-confine
@@ -156,7 +176,8 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 		}
 	}
 
-	return nil
+	sk := interfaces.SystemKey()
+	return osutil.AtomicWriteFile(dirs.SnapSystemKeyFile, []byte(sk), 0644, 0)
 }
 
 // renameCorePlugConnection renames one connection from "core-support" plug to
