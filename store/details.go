@@ -39,7 +39,6 @@ type snapDetails struct {
 	LastUpdated      string             `json:"last_updated,omitempty"`
 	Name             string             `json:"package_name"`
 	Prices           map[string]float64 `json:"prices,omitempty"`
-	Publisher        string             `json:"publisher,omitempty"`
 	RatingsAverage   float64            `json:"ratings_average,omitempty"`
 	Revision         int                `json:"revision"` // store revisions are ints starting at 1
 	ScreenshotURLs   []string           `json:"screenshot_urls,omitempty"`
@@ -56,9 +55,12 @@ type snapDetails struct {
 	Type    snap.Type `json:"content,omitempty"`
 	Version string    `json:"version"`
 
-	// TODO: have the store return a 'developer_username' for this
-	Developer   string `json:"origin"`
-	DeveloperID string `json:"developer_id"`
+	Developer   string `json:"developer_name,omitempty"`
+	DeveloperID string `json:"developer_id,omitempty"`
+
+	Publisher string `json:"publisher,omitempty"`
+	// TODO: the store is not sending publisher_id currently
+	PublisherID string `json:"publisher_id,omitempty"`
 
 	Private     bool   `json:"private"`
 	Confinement string `json:"confinement"`

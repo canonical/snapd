@@ -96,9 +96,9 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.EditedTitle = d.Title
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
-	// FIXME: should this be publisherID?
-	info.PublisherID = d.DeveloperID
+	info.DeveloperID = d.DeveloperID
 	info.Publisher = d.Publisher
+	info.Developer = d.Developer
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize

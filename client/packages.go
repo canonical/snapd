@@ -42,6 +42,7 @@ type Snap struct {
 	InstallDate      time.Time     `json:"install-date,omitempty"`
 	Name             string        `json:"name"`
 	Developer        string        `json:"developer"`
+	Publisher        string        `json:"publisher"`
 	Status           string        `json:"status"`
 	Type             string        `json:"type"`
 	Version          string        `json:"version"`
