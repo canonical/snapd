@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -471,5 +472,23 @@ func (s aliasOrSnap) Complete(match string) []flags.Completion {
 			}
 		}
 	}
+	return ret
+}
+
+type snapshotID uint64
+
+func (snapshotID) Complete(match string) []flags.Completion {
+	shots, err := Client().Snapshots(0, nil)
+	if err != nil {
+		return nil
+	}
+	var ret []flags.Completion
+	for _, sg := range shots {
+		sid := strconv.FormatUint(sg.ID, 10)
+		if strings.HasPrefix(sid, match) {
+			ret = append(ret, flags.Completion{Item: sid})
+		}
+	}
+
 	return ret
 }
