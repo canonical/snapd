@@ -185,9 +185,6 @@ type Info struct {
 	PublisherID string
 	Publisher   string
 
-	DeveloperID string
-	Developer   string
-
 	Screenshots []ScreenshotInfo
 
 	// The flattended channel map with $track/$risk

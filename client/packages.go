@@ -32,17 +32,22 @@ import (
 
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
-	ID               string        `json:"id"`
-	Title            string        `json:"title,omitempty"`
-	Summary          string        `json:"summary"`
-	Description      string        `json:"description"`
-	DownloadSize     int64         `json:"download-size,omitempty"`
-	Icon             string        `json:"icon,omitempty"`
-	InstalledSize    int64         `json:"installed-size,omitempty"`
-	InstallDate      time.Time     `json:"install-date,omitempty"`
-	Name             string        `json:"name"`
-	Developer        string        `json:"developer"`
-	Publisher        string        `json:"publisher"`
+	ID            string    `json:"id"`
+	Title         string    `json:"title,omitempty"`
+	Summary       string    `json:"summary"`
+	Description   string    `json:"description"`
+	DownloadSize  int64     `json:"download-size,omitempty"`
+	Icon          string    `json:"icon,omitempty"`
+	InstalledSize int64     `json:"installed-size,omitempty"`
+	InstallDate   time.Time `json:"install-date,omitempty"`
+	Name          string    `json:"name"`
+
+	// Right now Developer and Publisher are always the same because
+	// the store does not give us the right data yet. Have both
+	// fields so that in the future we can have both.
+	Developer string `json:"developer"`
+	Publisher string `json:"publisher"`
+
 	Status           string        `json:"status"`
 	Type             string        `json:"type"`
 	Version          string        `json:"version"`

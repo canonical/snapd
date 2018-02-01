@@ -77,6 +77,11 @@ func publisherName(st *state.State, info *snap.Info) (string, error) {
 	return pubAcct.Username(), nil
 }
 
+// developerName will display the developer name taken from the
+// snap-revision assertion.
+//
+// TODO: As of 2018-02-01 this will be signed by the publisher
+// and not the developer. This will get fixed on the store side.
 func developerName(st *state.State, info *snap.Info) (string, error) {
 	if info.SnapID == "" {
 		return "", nil
@@ -87,6 +92,7 @@ func developerName(st *state.State, info *snap.Info) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot find developer details: %v", err)
 	}
+	// FIXME: use DisplayName here?
 	return devAcct.Username(), nil
 }
 
@@ -401,8 +407,10 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 	}
 
 	result := &client.Snap{
-		Description:  remoteSnap.Description(),
-		Developer:    remoteSnap.Developer,
+		Description: remoteSnap.Description(),
+		// FIXME: make this remoteSnap.Developer once the store
+		//        actually sends this to us
+		Developer:    remoteSnap.Publisher,
 		Publisher:    remoteSnap.Publisher,
 		DownloadSize: remoteSnap.Size,
 		Icon:         snapIcon(remoteSnap),
