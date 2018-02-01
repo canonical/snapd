@@ -90,18 +90,23 @@ func buySnap(snapName string) error {
 		return fmt.Errorf(i18n.G("cannot buy snap: it has already been bought"))
 	}
 
+	sysinfo, err := cli.SysInfo()
+	if err != nil {
+		return err
+	}
+
 	err = cli.ReadyToBuy()
 	if err != nil {
 		if e, ok := err.(*client.Error); ok {
 			switch e.Kind {
 			case client.ErrorKindNoPaymentMethods:
-				return fmt.Errorf(i18n.G(`You need to have a payment method associated with your account in order to buy a snap, please visit https://my.ubuntu.com/payment/edit to add one.
+				return fmt.Errorf(i18n.G(`You need to have a payment method associated with your account in order to buy a snap, please visit %q to add one.
 
-Once you’ve added your payment details, you just need to run 'snap buy %s' again.`), snap.Name)
+Once you’ve added your payment details, you just need to run 'snap buy %s' again.`), sysinfo.URLs.paymentSetup, snap.Name)
 			case client.ErrorKindTermsNotAccepted:
-				return fmt.Errorf(i18n.G(`In order to buy %q, you need to agree to the latest terms and conditions. Please visit https://my.ubuntu.com/payment/edit to do this.
+				return fmt.Errorf(i18n.G(`In order to buy %q, you need to agree to the latest terms and conditions. Please visit %q to do this.
 
-Once completed, return here and run 'snap buy %s' again.`), snap.Name, snap.Name)
+Once completed, return here and run 'snap buy %s' again.`), snap.Name, sysinfo.URLs.paymentTOS, snap.Name)
 			}
 		}
 		return err
@@ -123,7 +128,7 @@ for %s. Press ctrl-c to cancel.`), snap.Name, snap.Developer, formatPrice(opts.P
 			switch e.Kind {
 			case client.ErrorKindPaymentDeclined:
 				return fmt.Errorf(i18n.G(`Sorry, your payment method has been declined by the issuer. Please review your
-payment details at https://my.ubuntu.com/payment/edit and try again.`))
+payment details at %q and try again.`), sysinfo.URLs.paymentSetup)
 			}
 		}
 		return err

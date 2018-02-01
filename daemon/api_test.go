@@ -812,6 +812,12 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			// only the "timer" field
 			"timer": "8:00~9:00/2",
 		},
+		"urls": map[string]interface{}{
+			"account-create":          "https://login.ubuntu.com/+login",
+			"account-forgot-password": "https://login.ubuntu.com/+forgot_password",
+			"payment-setup":           "https://my.ubuntu.com/payment/edit",
+			"payment-tos":             "https://my.ubuntu.com/payment/edit",
+		},
 		"confinement": "partial",
 	}
 	var rsp resp
@@ -867,6 +873,12 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 		"refresh": map[string]interface{}{
 			// only the "schedule" field
 			"schedule": "00:00-9:00/12:00-13:00",
+		},
+		"urls": map[string]interface{}{
+			"account-create":          "https://login.ubuntu.com/+login",
+			"account-forgot-password": "https://login.ubuntu.com/+forgot_password",
+			"payment-setup":           "https://my.ubuntu.com/payment/edit",
+			"payment-tos":             "https://my.ubuntu.com/payment/edit",
 		},
 		"confinement": "partial",
 	}

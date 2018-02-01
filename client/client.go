@@ -405,6 +405,14 @@ type RefreshInfo struct {
 	Next     string `json:"next,omitempty"`
 }
 
+// URLInfo contains information about URLs the client might need the user to use.
+type URLInfo struct {
+	AccountCreate         string `json:"account-create"`
+	AccountForgotPassword string `json:"account-forgot-password"`
+	PaymentSetup          string `json:"payment-setup"`
+	PaymentTOS            string `json:"payment-tos"`
+}
+
 // SysInfo holds system information
 type SysInfo struct {
 	Series    string    `json:"series,omitempty"`
@@ -416,6 +424,7 @@ type SysInfo struct {
 	KernelVersion string `json:"kernel-version,omitempty"`
 
 	Refresh     RefreshInfo `json:"refresh,omitempty"`
+	URLs        URLInfo     `json:"urls,omitempty"`
 	Confinement string      `json:"confinement"`
 }
 
