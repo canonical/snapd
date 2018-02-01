@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
@@ -80,6 +81,7 @@ type Overlord struct {
 	deviceMgr  *devicestate.DeviceManager
 	cmdMgr     *cmdstate.CommandManager
 	unknownMgr *UnknownTaskManager
+	shotMgr    *snapshotstate.SnapshotManager
 }
 
 var storeNew = store.New
@@ -136,6 +138,7 @@ func New() (*Overlord, error) {
 	o.addManager(deviceMgr)
 
 	o.addManager(cmdstate.Manager(s))
+	o.addManager(snapshotstate.Manager(s))
 
 	configstateInit(hookMgr)
 

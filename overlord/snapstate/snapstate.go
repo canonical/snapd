@@ -323,6 +323,8 @@ var snapTopicalTasks = map[string]bool{
 	"prefer-aliases":      true,
 	"connect":             true,
 	"disconnect":          true,
+	"snapshot-snap":       true,
+	"restore-snapshot":    true,
 }
 
 func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
