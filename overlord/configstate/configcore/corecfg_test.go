@@ -50,6 +50,17 @@ func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
 	return cfg.err
 }
 
+func (cfg *mockConf) Set(snapName, key string, v interface{}) error {
+	if snapName != "core" {
+		return fmt.Errorf("mockConf only knows about core")
+	}
+	if cfg.conf == nil {
+		cfg.conf = make(map[string]interface{})
+	}
+	cfg.conf[key] = v
+	return nil
+}
+
 func (cfg *mockConf) State() *state.State {
 	return cfg.state
 }
