@@ -33,8 +33,6 @@ var RunMain = run
 
 var (
 	CreateUserDataDirs = createUserDataDirs
-	SnapRunApp         = snapRunApp
-	SnapRunHook        = snapRunHook
 	Wait               = wait
 	ResolveApp         = resolveApp
 	IsReexeced         = isReexeced
@@ -136,10 +134,6 @@ func MockIsTerminal(t bool) (restore func()) {
 	return func() {
 		isTerminal = oldIsTerminal
 	}
-}
-
-func GetRunOpts(command string) runOptions {
-	return runOptions{command: command}
 }
 
 var Antialias = antialias
