@@ -137,28 +137,8 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 bind
 `
 
-type x11Interface struct{}
-
-func (iface *x11Interface) Name() string {
-	return "x11"
-}
-
-func (iface *x11Interface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              x11Summary,
-		ImplicitOnClassic:    true,
-		BaseDeclarationSlots: x11BaseDeclarationSlots,
-	}
-}
-
-func (iface *x11Interface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(x11ConnectedPlugSecComp)
-	return nil
-}
-
-func (iface *x11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(x11ConnectedPlugAppArmor)
-	return nil
+type x11Interface struct {
+	commonInterface
 }
 
 func (iface *x11Interface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -196,11 +176,14 @@ func (iface *x11Interface) UDevPermanentSlot(spec *udev.Specification, slot *sna
 	return nil
 }
 
-func (iface *x11Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
-	// allow what declarations allowed
-	return true
-}
-
 func init() {
-	registerIface(&x11Interface{})
+	registerIface(&x11Interface{commonInterface{
+		name:                   "x11",
+		summary:                x11Summary,
+		implicitOnClassic:      true,
+		baseDeclarationSlots:   x11BaseDeclarationSlots,
+		connectedPlugAppArmor:  x11ConnectedPlugAppArmor,
+		connectedPlugSecComp:   x11ConnectedPlugSecComp,
+		rejectAutoConnectPairs: false,
+	}})
 }

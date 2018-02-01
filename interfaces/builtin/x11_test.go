@@ -198,7 +198,7 @@ func (s *X11InterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows interacting with an X11 server`)
+	c.Assert(si.Summary, Equals, `allows interacting with or running as an X11 server`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "x11")
 }
 
