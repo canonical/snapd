@@ -289,7 +289,7 @@ func (s *deviceMgrSuite) setupGadget(c *C, snapYaml string, snapContents string)
 		RealName: "gadget",
 		Revision: snap.R(2),
 	}
-	snaptest.MockSnap(c, snapYaml, snapContents, sideInfoGadget)
+	snaptest.MockSnap(c, snapYaml, sideInfoGadget)
 	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
@@ -303,7 +303,7 @@ func (s *deviceMgrSuite) setupCore(c *C, name, snapYaml string, snapContents str
 		RealName: name,
 		Revision: snap.R(3),
 	}
-	snaptest.MockSnap(c, snapYaml, snapContents, sideInfoCore)
+	snaptest.MockSnap(c, snapYaml, sideInfoCore)
 	snapstate.Set(s.state, name, &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
@@ -2067,7 +2067,7 @@ name: core
 version: 1.0
 slots:
  snapd-control:
-`, "", sideInfoCore11)
+`, sideInfoCore11)
 	c.Assert(core11.Slots, HasLen, 1)
 
 	return core11
@@ -2096,7 +2096,7 @@ func makeInstalledMockSnap(c *C, st *state.State, yml string) *snap.Info {
 		Current:  sideInfo11.Revision,
 		SnapType: "app",
 	})
-	info11 := snaptest.MockSnap(c, yml, "", sideInfo11)
+	info11 := snaptest.MockSnap(c, yml, sideInfo11)
 	c.Assert(info11.Plugs, HasLen, 1)
 
 	return info11
