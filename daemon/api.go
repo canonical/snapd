@@ -40,6 +40,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/jessevdk/go-flags"
+	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -58,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -93,6 +95,7 @@ var api = []*Command{
 	appsCmd,
 	logsCmd,
 	debugCmd,
+	snapshotCmd,
 }
 
 var (
@@ -249,6 +252,14 @@ var (
 		UserOK: true,
 		GET:    getAliases,
 		POST:   changeAliases,
+	}
+
+	snapshotCmd = &Command{
+		// TODO: also support /v2/snapshots/<id>
+		Path:   "/v2/snapshots",
+		UserOK: true,
+		GET:    listSnapshots,
+		POST:   changeSnapshots,
 	}
 )
 
@@ -844,6 +855,7 @@ type snapInstruction struct {
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
 	License  *licenseData `json:"license"`
 	Snaps    []string     `json:"snaps"`
+	Homes    []string     `json:"homes"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -868,6 +880,7 @@ type snapInstructionResult struct {
 	summary  string
 	affected []string
 	tasksets []*state.TaskSet
+	apiData  map[string]interface{}
 }
 
 var (
@@ -882,6 +895,12 @@ var (
 	snapstateRevert            = snapstate.Revert
 	snapstateRevertToRevision  = snapstate.RevertToRevision
 	snapstateSwitch            = snapstate.Switch
+
+	snapshotList    = snapshotstate.List
+	snapshotCheck   = snapshotstate.Check
+	snapshotLose    = snapshotstate.Lose
+	snapshotRestore = snapshotstate.Restore
+	snapshotSave    = snapshotstate.Save
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -1139,6 +1158,45 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	return msg, []*state.TaskSet{ts}, nil
 }
 
+func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+	if len(inst.Homes) == 0 {
+		homes, err := filepath.Glob(filepath.Join(dirs.GlobalRootDir, "home/*"))
+		if err != nil {
+			// can't happen
+			return nil, err
+		}
+		homes = append(homes, filepath.Join(dirs.GlobalRootDir, "root"))
+		inst.Homes = make([]string, 0, len(homes))
+		for _, home := range homes {
+			home, err = filepath.EvalSymlinks(home)
+			if err != nil {
+				continue
+			}
+			inst.Homes = append(inst.Homes, home)
+		}
+	}
+
+	shID, snapshotted, ts, err := snapshotSave(st, inst.Snaps, inst.Homes)
+	if err != nil {
+		return nil, err
+	}
+
+	var msg string
+	if len(inst.Snaps) == 0 {
+		msg = i18n.G("Snapshot all snaps")
+	} else {
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Snapshot snaps %s"), strutil.Quoted(inst.Snaps))
+	}
+
+	return &snapInstructionResult{
+		summary:  msg,
+		affected: snapshotted,
+		tasksets: []*state.TaskSet{ts},
+		apiData:  map[string]interface{}{"snapshot-id": shID},
+	}, nil
+}
+
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
@@ -1366,6 +1424,8 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		op = snapInstallMany
 	case "remove":
 		op = snapRemoveMany
+	case "snapshot":
+		op = snapshotMany
 	default:
 		return BadRequest("unsupported multi-snap operation %q", inst.Action)
 	}
@@ -1383,7 +1443,11 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		ensureStateSoon(st)
 	}
 
-	chg.Set("api-data", map[string]interface{}{"snap-names": res.affected})
+	if res.apiData == nil {
+		res.apiData = map[string]interface{}{}
+	}
+	res.apiData["snap-names"] = res.affected
+	chg.Set("api-data", res.apiData)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
@@ -2782,5 +2846,84 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	defer st.Unlock()
 	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), []*state.TaskSet{ts}, inst.Names)
 	st.EnsureBefore(0)
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
+func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	var id uint64
+	sid := query.Get("id")
+	if sid != "" {
+		var err error
+		id, err = strconv.ParseUint(sid, 10, 64)
+		if err != nil {
+			return BadRequest("'id', if given, must be a positive base 10 number; got %q", sid)
+		}
+	}
+
+	shots, err := snapshotList(context.TODO(), id, splitQS(r.URL.Query().Get("snaps")))
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	return SyncResponse(shots, nil)
+}
+
+func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
+	var op client.SnapshotOp
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&op); err != nil {
+		return BadRequest("cannot decode request body into snapshot operation: %v", err)
+	}
+	if decoder.More() {
+		return BadRequest("extra content found after snapshot operation")
+	}
+
+	if op.ID == 0 {
+		return BadRequest("snapshot operation requires snapshot ID")
+	}
+
+	var affected []string
+	var ts *state.TaskSet
+	var err error
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	switch op.Action {
+	case "":
+		return BadRequest("snapshot operation requires action")
+	case "check":
+		affected, ts, err = snapshotCheck(st, op.ID, op.Snaps, op.Homes)
+	case "restore":
+		affected, ts, err = snapshotRestore(st, op.ID, op.Snaps, op.Homes)
+	case "lose":
+		if len(op.Homes) != 0 {
+			return BadRequest(`snapshot "lose" operation cannot specify homes`)
+		}
+		affected, ts, err = snapshotLose(st, op.ID, op.Snaps)
+	default:
+		return BadRequest("unknown snapshot operation %q", op.Action)
+	}
+
+	switch err {
+	case nil:
+		// woo
+	case client.ErrSnapshotNotFound, client.ErrSnapshotSnapsNotFound:
+		return NotFound(err.Error())
+	case client.ErrSnapshotUnsupported, client.ErrSnapshotSizeMismatch, client.ErrSnapshotHashMismatch:
+		// TODO: something more specific?
+		fallthrough
+	default:
+		return InternalError("%v", err)
+	}
+
+	chg := st.NewChange(op.Action+"-snapshot", op.String())
+	chg.AddAll(ts)
+	// TODO: look at dropping this duplication
+	chg.Set("snap-names", affected)
+	chg.Set("api-data", map[string]interface{}{"snap-names": affected})
+	ensureStateSoon(st)
+
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }

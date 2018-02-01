@@ -736,6 +736,12 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"storeUserInfo",
 		"postCreateUserUcrednetGet",
 		"ensureStateSoon",
+		// snapshot ops:
+		"snapshotList",
+		"snapshotCheck",
+		"snapshotLose",
+		"snapshotRestore",
+		"snapshotSave",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
