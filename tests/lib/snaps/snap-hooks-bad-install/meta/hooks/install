@@ -1,0 +1,6 @@
+#!/bin/sh
+set -x
+while true
+do
+    echo "noisy output....................................."
+done

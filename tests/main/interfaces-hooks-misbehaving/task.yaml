@@ -1,0 +1,5 @@
+summary: Check that noisy install hook is aborted
+
+execute: |
+    snap try $TESTSLIB/snaps/snap-hooks-bad-install
+    snap changes|MATCH "Error.*Try .snap-hooks-bad-install. snap.*"
