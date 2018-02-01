@@ -302,9 +302,7 @@ func main() {
 			fmt.Fprintf(Stderr, i18n.G("cannot resolve snap app %q: %v"), snapApp, err)
 			os.Exit(46)
 		}
-		cmd := &cmdRun{
-			Strace: "no-strace",
-		}
+		cmd := &cmdRun{}
 		args := []string{snapApp}
 		args = append(args, os.Args[1:]...)
 		// this will call syscall.Exec() so it does not return
