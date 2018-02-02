@@ -667,6 +667,32 @@ func (ts *taskRunnerSuite) TestPrematureChangeReady(c *C) {
 	c.Assert(chg.Err(), IsNil)
 }
 
+func (ts *taskRunnerSuite) TestOptionalHandler(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+
+	r.AddOptionalHandler(func(t *state.Task) bool { return true },
+		func(t *state.Task, tomb *tomb.Tomb) error {
+			return fmt.Errorf("optional handler error for %q", t.Kind())
+		}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t1 := st.NewTask("an unknown task", "...")
+	chg.AddTask(t1)
+	st.Unlock()
+
+	// Mark tasks as done.
+	ensureChange(c, r, sb, chg)
+	r.Stop()
+
+	st.Lock()
+	defer st.Unlock()
+	c.Assert(t1.Status(), Equals, state.ErrorStatus)
+	c.Assert(strings.Join(t1.Log(), ""), Matches, `.*optional handler error for "an unknown task"`)
+}
+
 func (ts *taskRunnerSuite) TestUndoSequence(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)

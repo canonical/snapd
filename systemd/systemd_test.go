@@ -148,6 +148,12 @@ func (s *SystemdTestSuite) TestStart(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo"}})
 }
 
+func (s *SystemdTestSuite) TestStartMany(c *C) {
+	err := New("", s.rep).Start("foo", "bar", "baz")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo", "bar", "baz"}})
+}
+
 func (s *SystemdTestSuite) TestStop(c *C) {
 	restore := MockStopDelays(time.Millisecond, 25*time.Second)
 	defer restore()

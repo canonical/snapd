@@ -169,7 +169,7 @@ type witnessManager struct {
 }
 
 func (m *witnessManager) KnownTaskKinds() []string {
-	return []string{}
+	return []string{"foo"}
 }
 
 func (wm *witnessManager) Ensure() error {
@@ -424,6 +424,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 	o := overlord.Mock()
+	o.UnknownTaskManager().Ignore([]string{"foo"})
 
 	// create two changes, one that can be pruned now, one in progress
 	st := o.State()
