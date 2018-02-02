@@ -21,6 +21,7 @@ package osutil
 
 import (
 	"fmt"
+	"io"
 )
 
 type BufferLimitError struct{}
@@ -30,33 +31,34 @@ func (e BufferLimitError) Error() string {
 }
 
 type LimitedWriter struct {
-	buf                []byte
+	writer             io.Writer
+	limit              int
 	limitReached       bool
+	written            int
 	BufferLimitReached chan struct{}
 }
 
-func NewLimitedWriter(capacity int) *LimitedWriter {
+func NewLimitedWriter(writer io.Writer, limit int) *LimitedWriter {
 	return &LimitedWriter{
-		buf:                make([]byte, 0, capacity),
+		writer:             writer,
+		limit:              limit,
 		BufferLimitReached: make(chan struct{}),
 	}
 }
 
-func (wr *LimitedWriter) Write(p []byte) (int, error) {
-	m := len(wr.buf)
-	n := len(p) + m
-	if n > cap(wr.buf) {
+func (wr *LimitedWriter) Write(data []byte) (int, error) {
+	n := len(data) + wr.written
+	if n > wr.limit {
+		// in case Write is called after error - closing channel again
+		// would panic
 		if !wr.limitReached {
 			close(wr.BufferLimitReached)
 		}
 		wr.limitReached = true
 		return 0, &BufferLimitError{}
 	}
-	wr.buf = wr.buf[0:n]
-	copy(wr.buf[m:], p)
-	return len(p), nil
-}
 
-func (wr *LimitedWriter) Bytes() []byte {
-	return wr.buf
+	sz, err := wr.writer.Write(data)
+	wr.written += sz
+	return sz, err
 }

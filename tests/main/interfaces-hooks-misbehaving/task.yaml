@@ -1,14 +1,9 @@
 summary: Check that noisy install hook is aborted
 
 execute: |
-    snap try $TESTSLIB/snaps/snap-hooks-bad-install
-
-    for i in $(seq 10); do
-        if snap changes|MATCH ".*Error.*Try .snap-hooks-bad-install. snap.*"; then
-            break
-        fi
-        sleep 1
-    done
+    if snap try $TESTSLIB/snaps/snap-hooks-bad-install; then
+        echo "Expected snap try to fail"
+    fi
 
     snap changes|MATCH ".*Error.*Try .snap-hooks-bad-install. snap.*"
-    snap change --last=try|MATCH "<buffer capacity exceeded>"
+    snap change --last=try|MATCH ".*<buffer capacity exceeded>.*"
