@@ -23,7 +23,12 @@ execute: |
     done
     stat /var/cache/snapd/commands.db
     echo "Ensure the database is readable by a regular user"
-    su -l -c "test -r /var/cache/snapd/commands.db" test
+    if [ $(stat -c "%a" /var/cache/snapd/commands.db) != "644" ]; then
+        echo "incorrect permissions for /var/cache/snapd/commands.db"
+        echo "expected 0644 got:"
+        stat /var/cache/snapd/commands.db
+        exit 1
+    fi
 
     echo "Ensure `snap advise-snap --command` lookup works"
     snap advise-snap --command test-snapd-tools.echo | MATCH test-snapd-tools
