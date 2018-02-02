@@ -3,6 +3,7 @@ summary: Check that noisy install hook is aborted
 execute: |
     if snap try $TESTSLIB/snaps/snap-hooks-bad-install; then
         echo "Expected snap try to fail"
+        exit 1
     fi
 
     snap changes|MATCH ".*Error.*Try .snap-hooks-bad-install. snap.*"

@@ -47,8 +47,10 @@ func (s *limitedWriterSuite) TestWriter(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 4)
 
-	n, err = w.Write([]byte{'x'})
-	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `buffer capacity exceeded`)
-	c.Assert(buffer.Bytes(), DeepEquals, []byte("abcde"))
+	for i := 0; i < 2; i++ {
+		n, err = w.Write([]byte{'x'})
+		c.Assert(err, NotNil)
+		c.Assert(err, ErrorMatches, `buffer capacity exceeded`)
+		c.Assert(buffer.Bytes(), DeepEquals, []byte("abcde"))
+	}
 }
