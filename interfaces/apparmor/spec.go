@@ -149,7 +149,6 @@ func snippetFromLayout(layout *snap.Layout) string {
 		return fmt.Sprintf("# Layout path: %s\n%s mrwklix,", mountPoint, mountPoint)
 	}
 	return fmt.Sprintf("# Layout path: %s\n# (no extra permissions required for symlink)", mountPoint)
-
 }
 
 func copySnippets(m map[string][]string) map[string][]string {
