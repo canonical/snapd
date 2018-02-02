@@ -1696,14 +1696,33 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 		return nil, err
 	}
 
+	core, err := CoreInfo(st)
+	if err != nil {
+		return nil, err
+	}
+	isCoreDefaults := core.Name() == snapName
+
 	si := snapst.CurrentSideInfo()
-	if si.SnapID == "" {
+	// core snaps can be addressed even without a snap-id via the special
+	// $core value in the config
+	if si.SnapID == "" && !isCoreDefaults {
 		return nil, state.ErrNoState
 	}
 
 	gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
 	if err != nil {
 		return nil, err
+	}
+
+	// we support setting core defaults via "$core"
+	if isCoreDefaults {
+		if defaults, ok := gadgetInfo.Defaults["$core"]; ok {
+			if _, ok := gadgetInfo.Defaults[si.SnapID]; ok && si.SnapID != "" {
+				return nil, fmt.Errorf("cannot have both $core and core-snap-id defaults")
+			}
+
+			return defaults, nil
+		}
 	}
 
 	defaults, ok := gadgetInfo.Defaults[si.SnapID]
