@@ -20,6 +20,8 @@
 package osutil_test
 
 import (
+	"bytes"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
@@ -30,13 +32,15 @@ type limitedWriterSuite struct{}
 var _ = Suite(&limitedWriterSuite{})
 
 func (s *limitedWriterSuite) TestWriter(c *C) {
-	w := osutil.NewLimitedWriter(5)
+	var buffer bytes.Buffer
+
+	w := osutil.NewLimitedWriter(&buffer, 5)
 
 	data := []byte{'a'}
 	n, err := w.Write(data)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 1)
-	c.Assert(w.Bytes(), DeepEquals, []byte{'a'})
+	c.Assert(buffer.Bytes(), DeepEquals, []byte{'a'})
 
 	data = []byte("bcde")
 	n, err = w.Write(data)
@@ -46,4 +50,5 @@ func (s *limitedWriterSuite) TestWriter(c *C) {
 	n, err = w.Write([]byte{'x'})
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `buffer capacity exceeded`)
+	c.Assert(buffer.Bytes(), DeepEquals, []byte("abcde"))
 }

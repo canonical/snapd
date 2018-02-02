@@ -184,9 +184,10 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.
-	buffer := NewLimitedWriter(512 * 1024)
-	command.Stdout = buffer
-	command.Stderr = buffer
+	var buffer bytes.Buffer
+	limwriter := NewLimitedWriter(&buffer, 512*1024)
+	command.Stdout = limwriter
+	command.Stderr = limwriter
 
 	// Actually run the command.
 	if err := command.Start(); err != nil {
@@ -209,7 +210,8 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 	case <-commandCompleted:
 		// Command completed; it may or may not have been successful.
 		return buffer.Bytes(), commandError
-	case <-buffer.BufferLimitReached:
+	case <-limwriter.BufferLimitReached:
+		buffer.Truncate(512)
 		abortOrTimeoutError = &BufferLimitError{}
 	case <-tomb.Dying():
 		// Hook was aborted, process will get killed below
@@ -235,7 +237,7 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 		// cmd.Wait came back from waiting the killed process
 		break
 	}
-	fmt.Fprintf(buffer, "\n<%s>", abortOrTimeoutError)
+	fmt.Fprintf(&buffer, "\n<%s>", abortOrTimeoutError)
 
 	return buffer.Bytes(), abortOrTimeoutError
 }
