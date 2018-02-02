@@ -22,6 +22,8 @@ execute: |
        sleep 1
     done
     stat /var/cache/snapd/commands.db
+    echo "Ensure the database is readable by a regular user"
+    su -l -c "test -r /var/cache/snapd/commands.db" test
 
     echo "Ensure `snap advise-snap --command` lookup works"
     snap advise-snap --command test-snapd-tools.echo | MATCH test-snapd-tools
