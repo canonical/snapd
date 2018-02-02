@@ -162,7 +162,7 @@ func KillProcessGroup(cmd *exec.Cmd) error {
 	return syscallKill(-pgid, syscall.SIGKILL)
 }
 
-// truncateOutput truncates input data by maxLines and maxBytes (whatever is reached first).
+// truncateOutput truncates input data by maxLines, imposing maxBytes limit (total) for them.
 func truncateOutput(data []byte, maxLines, maxBytes int) bytes.Buffer {
 	truncdata := bytes.Buffer{}
 	if maxBytes > len(data) {
