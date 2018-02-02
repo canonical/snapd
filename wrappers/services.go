@@ -93,6 +93,7 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
+	services := make([]string, 0, len(apps))
 	for _, app := range apps {
 		// they're *supposed* to be all services, but checking doesn't hurt
 		if !app.IsService() {
@@ -100,9 +101,7 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 		}
 
 		if len(app.Sockets) == 0 {
-			if err := sysd.Start(app.ServiceName()); err != nil {
-				return err
-			}
+			services = append(services, app.ServiceName())
 		}
 
 		for _, socket := range app.Sockets {
@@ -125,6 +124,13 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 				inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
 			}
 		}(app)
+	}
+
+	if len(services) > 0 {
+		if err := sysd.Start(services...); err != nil {
+			// cleanup was set up by iterating over apps
+			return err
+		}
 	}
 
 	return nil
