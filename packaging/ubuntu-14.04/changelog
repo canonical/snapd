@@ -1,6 +1,44 @@
-snapd (2.31~14.04) trusty; urgency=medium
+snapd (2.31~rc2~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1745217
+    - userd: add support for a simple UI that can be used from userd
+    - snap-confine/nvidia: Support legacy biarch trees for GLVND systems
+    - tests: generic detection of gadget and kernel snaps
+    - cmd/snap-update-ns: refactor and improve Change.Perform to handle
+      EROFS
+    - cmd/snap: improve output when snaps were found in a section or the
+      section is invalid
+    - cmd/snap-confine,tests: hide message about stale base snap
+    - cmd/snap-mgmt: fix out of source tree build
+    - strutil/quantity: new package that exports formatFoo (from
+      progress)
+    - cmd/snap: snap refresh --time with new and legacy schedules
+    - state: unknown tasks handler
+    - cmd/snap-confine,data/systemd: fix removal of snaps inside LXD
+    - snap: add io.snapcraft.Settings to `snap userd`
+    - spread: remove more EOLed releases
+    - snap: tidy up top-level help output
+    - snap: fix race in `snap run --strace`
+    - tests: update "searching" test to match store changes
+    - store: use the "publisher" when populating the "publisher" field
+    - snap: make `snap find --section` show all sections
+    - tests: new test to validate location control interface
+    - many: add new `snap refresh --amend <snap>` command
+    - tests/main/kernel-snap-refresh-on-core: skip the whole test if
+      edge and stable are the same version
+    - tests: set test kernel-snap-refresh-on-core to manual
+    - tests: new spread test for interface gpg-keys
+    - packaging/fedora: Merge changes from Fedora Dist-Git plus trivial
+      fix
+    - interfaces: miscellaneous policy updates
+    - interfaces/builtin: Replace Solus support with GLVND support
+    - tests/main/kernel-snap-refresh-on-core: do not fail if edge and
+      stable kernels are the same version
+    - snap: add `snap run --strace` to be able to strace snap apps
+    - tests: new spread test for ssh-keys interface
+    - errtracker: include detected virtualisation
+    - tests: add new kernel refresh/revert test for spread-cron
+    - interfaces/builtin: blacklist zigbee dongle
     - cmd/snap-confine: discard stale mount namespaces
     - cmd: remove unused execArg0/execEnv
     - snap,interfaces/mount: disallow nobody/nogroup

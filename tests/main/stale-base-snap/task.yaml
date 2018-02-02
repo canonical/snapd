@@ -53,15 +53,6 @@ execute: |
     test-snapd-sh -c "test -e /tmp/stamp"
     test-snapd-sh -c "test ! -e /customized"
 
-    # We are even very vocal about this and leave a message to the
-    # administrator.
-    if test-snapd-sh -c "true" | grep "snap test-snapd-sh cannot use current base snap core because existing process are still using the old revision"; then
-        echo "Expected a warning, got none"
-        kill "$pid" || true
-        wait -n || true
-        exit 1
-    fi
-
     # Kill our helper process.
     kill "$pid" || true
     wait -n || true
