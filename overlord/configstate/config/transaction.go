@@ -66,6 +66,28 @@ func (t *Transaction) State() *state.State {
 	return t.state
 }
 
+func changes(cfgStr string, cfg map[string]interface{}) []string {
+	var out []string
+	for k := range cfg {
+		switch subCfg := cfg[k].(type) {
+		case map[string]interface{}:
+			out = append(out, changes(cfgStr+"."+k, subCfg)...)
+		case *json.RawMessage:
+			return []string{cfgStr + "." + k}
+		}
+	}
+	return out
+}
+
+// Changes returns the changing keys associated with this transaction
+func (t *Transaction) Changes() []string {
+	var out []string
+	for k := range t.changes {
+		out = append(out, changes(k, t.changes[k])...)
+	}
+	return out
+}
+
 // Set sets the provided snap's configuration key to the given value.
 // The provided key may be formed as a dotted key path through nested maps.
 // For example, the "a.b.c" key describes the {a: {b: {c: value}}} map.

@@ -50,6 +50,10 @@ func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
 	return cfg.err
 }
 
+func (cfg *mockConf) Changes() []string {
+	return nil
+}
+
 func (cfg *mockConf) State() *state.State {
 	return cfg.state
 }

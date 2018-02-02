@@ -35,6 +35,7 @@ var (
 
 type Conf interface {
 	Get(snapName, key string, result interface{}) error
+	Changes() []string
 	State() *state.State
 }
 
@@ -49,12 +50,60 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 	return fmt.Sprintf("%v", v), nil
 }
 
+var supportedConfigurations = map[string]bool{
+	// FIMXE: duplicated with picfg.go fix by building piConfigKeys
+	//        dynamically from this array and check config prefix
+	//        and s/-/_/ in the option names.
+	"core.pi-config.disable-overscan":         true,
+	"core.pi-config.framebuffer-width":        true,
+	"core.pi-config.framebuffer-height":       true,
+	"core.pi-config.framebuffer-depth":        true,
+	"core.pi-config.framebuffer-ignore-alpha": true,
+	"core.pi-config.overscan-left":            true,
+	"core.pi-config.overscan-right":           true,
+	"core.pi-config.overscan-top":             true,
+	"core.pi-config.overscan-bottom":          true,
+	"core.pi-config.overscan-scale":           true,
+	"core.pi-config.display-rotate":           true,
+	"core.pi-config.hdmi-group":               true,
+	"core.pi-config.hdmi-mode":                true,
+	"core.pi-config.hdmi-drive":               true,
+	"core.pi-config.avoid-warnings":           true,
+	"core.pi-config.gpu-mem-256":              true,
+	"core.pi-config.gpu-mem-512":              true,
+	"core.pi-config.gpu-mem":                  true,
+	"core.pi-config.sdtv-aspect":              true,
+	"core.pi-config.config-hdmi-boost":        true,
+	"core.pi-config.hdmi-force-hotplug":       true,
+	// proxy
+	"core.proxy.http":     true,
+	"core.proxy.https":    true,
+	"core.proxy.ftp":      true,
+	"core.proxy.no-proxy": true,
+	"core.proxy.store":    true,
+	// refresh
+	"core.refresh.timer":    true,
+	"core.refresh.schedule": true,
+	// services
+	"core.service.rsyslog.disable": true,
+	"core.service.ssh.disable":     true,
+	// powerbtn
+	"core.system.power-key-action": true,
+}
+
 func Run(tr Conf) error {
 	if err := validateProxyStore(tr); err != nil {
 		return err
 	}
 	if err := validateRefreshSchedule(tr); err != nil {
 		return err
+	}
+
+	// check if the changes
+	for _, k := range tr.Changes() {
+		if !supportedConfigurations[k] {
+			return fmt.Errorf("cannot set %q: unsupported core config option", k)
+		}
 	}
 
 	// see if it makes sense to run at all
