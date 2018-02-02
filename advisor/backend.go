@@ -132,7 +132,7 @@ func (t *writer) done(commit bool) error {
 
 // Dump returns the whole database as a map. For use in testing and debugging.
 func Dump() (map[string][]string, error) {
-	db, err := bolt.Open(dirs.SnapCommandsDB, 0600, &bolt.Options{
+	db, err := bolt.Open(dirs.SnapCommandsDB, 0644, &bolt.Options{
 		ReadOnly: true,
 		Timeout:  1 * time.Second,
 	})
@@ -167,7 +167,7 @@ type boltFinder struct {
 
 // Open the database for reading.
 func Open() (Finder, error) {
-	db, err := bolt.Open(dirs.SnapCommandsDB, 0600, &bolt.Options{
+	db, err := bolt.Open(dirs.SnapCommandsDB, 0644, &bolt.Options{
 		ReadOnly: true,
 		Timeout:  1 * time.Second,
 	})
