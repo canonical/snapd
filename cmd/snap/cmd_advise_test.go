@@ -34,7 +34,7 @@ func mkSillyFinder() (advisor.Finder, error) {
 	return &sillyFinder{}, nil
 }
 
-func (sf *sillyFinder) Find(command string) ([]advisor.Command, error) {
+func (sf *sillyFinder) FindCommand(command string) ([]advisor.Command, error) {
 	switch command {
 	case "hello":
 		return []advisor.Command{
@@ -43,6 +43,17 @@ func (sf *sillyFinder) Find(command string) ([]advisor.Command, error) {
 		}, nil
 	case "error-please":
 		return nil, fmt.Errorf("get failed")
+	default:
+		return nil, nil
+	}
+}
+
+func (sf *sillyFinder) FindPackage(pkgName string) (*advisor.Package, error) {
+	switch pkgName {
+	case "hello":
+		return &advisor.Package{Snap: "hello", Summary: "summary for hello"}, nil
+	case "error-please":
+		return nil, fmt.Errorf("find-pkg failed")
 	default:
 		return nil, nil
 	}

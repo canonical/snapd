@@ -859,3 +859,14 @@ func (s *infoSuite) TestSlotInfoAttr(c *C) {
 	c.Check(slot.Attr("unknown", &val), ErrorMatches, `snap "snap" does not have attribute "unknown" for interface "interface"`)
 	c.Check(slot.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
 }
+
+func (s *infoSuite) TestExpandSnapVariables(c *C) {
+	dirs.SetRootDir("")
+	info, err := snap.InfoFromSnapYaml([]byte(`name: foo`))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(42)
+	c.Assert(info.ExpandSnapVariables("$SNAP/stuff"), Equals, "/snap/foo/42/stuff")
+	c.Assert(info.ExpandSnapVariables("$SNAP_DATA/stuff"), Equals, "/var/snap/foo/42/stuff")
+	c.Assert(info.ExpandSnapVariables("$SNAP_COMMON/stuff"), Equals, "/var/snap/foo/common/stuff")
+	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
+}

@@ -17,18 +17,18 @@
  *
  */
 
-package progress_test
+package quantity_test
 
 import (
 	"fmt"
 	"math"
 	"time"
 
-	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/strutil/quantity"
 )
 
 func ExampleFormatAmount_short() {
-	fmt.Printf("%q\n", progress.FormatAmount(12345, -1))
+	fmt.Printf("%q\n", quantity.FormatAmount(12345, -1))
 	// Output: "12.3k"
 }
 
@@ -42,9 +42,9 @@ func ExampleFormatAmount_long() {
 	} {
 		fmt.Printf("- %5d: 3: %q  5: %q  7: %q\n",
 			amount,
-			progress.FormatAmount(amount, 3),
-			progress.FormatAmount(amount, -1),
-			progress.FormatAmount(amount, 7),
+			quantity.FormatAmount(amount, 3),
+			quantity.FormatAmount(amount, -1),
+			quantity.FormatAmount(amount, 7),
 		)
 	}
 	// Output:
@@ -60,7 +60,7 @@ func ExampleFormatAmount_long() {
 }
 
 func ExampleFormatBPS() {
-	fmt.Printf("%q\n", progress.FormatBPS(12345, (10*time.Millisecond).Seconds(), -1))
+	fmt.Printf("%q\n", quantity.FormatBPS(12345, (10*time.Millisecond).Seconds(), -1))
 	// Output: "1.23MB/s"
 }
 
@@ -84,10 +84,10 @@ func ExampleFormatDuration() {
 		math.MaxInt64 / 10,
 		math.MaxInt64,
 	} {
-		fmt.Printf("%q\n", progress.FormatDuration(dt.Seconds()))
+		fmt.Printf("%q\n", quantity.FormatDuration(dt.Seconds()))
 	}
-	fmt.Printf("%q\n", progress.FormatDuration(float64(math.MaxUint64)*365*24*60*60))
-	fmt.Printf("%q\n", progress.FormatDuration(math.MaxFloat64))
+	fmt.Printf("%q\n", quantity.FormatDuration(float64(math.MaxUint64)*365*24*60*60))
+	fmt.Printf("%q\n", quantity.FormatDuration(math.MaxFloat64))
 
 	// Output:
 	// "3.0ns"
