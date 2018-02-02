@@ -21,11 +21,8 @@ package mount
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
@@ -47,33 +44,14 @@ func (spec *Specification) AddMountEntry(e Entry) error {
 	return nil
 }
 
-// expandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON.
-func expandSnapVariables(path string, snapInfo *snap.Info) string {
-	return os.Expand(path, func(v string) string {
-		switch v {
-		case "SNAP":
-			// NOTE: We use dirs.CoreSnapMountDir here as the path used will be always
-			// inside the mount namespace snap-confine creates and there we will
-			// always have a /snap directory available regardless if the system
-			// we're running on supports this or not.
-			return filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String())
-		case "SNAP_DATA":
-			return snapInfo.DataDir()
-		case "SNAP_COMMON":
-			snapInfo.CommonDataDir()
-		}
-		return ""
-	})
-}
-
 func mountEntryFromLayout(layout *snap.Layout) Entry {
 	var entry Entry
 
-	mountPoint := expandSnapVariables(layout.Path, layout.Snap)
+	mountPoint := layout.Snap.ExpandSnapVariables(layout.Path)
 	entry.Dir = mountPoint
 
 	if layout.Bind != "" {
-		mountSource := expandSnapVariables(layout.Bind, layout.Snap)
+		mountSource := layout.Snap.ExpandSnapVariables(layout.Bind)
 		// XXX: what about ro mounts?
 		// XXX: what about file mounts, those need x-snapd.kind=file to create correctly?
 		entry.Options = []string{"bind", "rw"}
@@ -86,7 +64,7 @@ func mountEntryFromLayout(layout *snap.Layout) Entry {
 	}
 
 	if layout.Symlink != "" {
-		oldname := expandSnapVariables(layout.Symlink, layout.Snap)
+		oldname := layout.Snap.ExpandSnapVariables(layout.Symlink)
 		entry.Options = []string{XSnapdKindSymlink(), XSnapdSymlink(oldname)}
 	}
 

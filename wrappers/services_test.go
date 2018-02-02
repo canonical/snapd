@@ -434,20 +434,16 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
 	var sysdLog [][]string
 	svc1Name := "snap.hello-snap.svc1.service"
 	svc2Name := "snap.hello-snap.svc2.service"
-	numStarts := 0
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
-		if len(cmd) >= 2 && cmd[len(cmd)-2] == "start" {
-			numStarts++
-			if numStarts == 2 {
-				name := cmd[len(cmd)-1]
-				if name == svc1Name {
-					// the services are being iterated in the "wrong" order
-					svc1Name, svc2Name = svc2Name, svc1Name
-				}
-				return nil, fmt.Errorf("failed")
+		if len(cmd) >= 2 && cmd[0] == "start" {
+			name := cmd[len(cmd)-1]
+			if name == svc1Name {
+				// the services are being iterated in the "wrong" order
+				svc1Name, svc2Name = svc2Name, svc1Name
 			}
+			return nil, fmt.Errorf("failed")
 		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
@@ -462,10 +458,11 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
 	err := wrappers.StartServices(info.Services(), nil)
 	c.Assert(err, ErrorMatches, "failed")
 
-	c.Assert(sysdLog, HasLen, 4)
+	c.Assert(sysdLog, HasLen, 5)
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"start", svc1Name},
-		{"start", svc2Name}, // this one fails
+		{"start", svc1Name, svc2Name}, // one of the services fails
+		{"stop", svc2Name},
+		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
 	})

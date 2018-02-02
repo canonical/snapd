@@ -115,6 +115,16 @@ dbus (send)
     member=OpenURL
     peer=(label=unconfined),
 
+# Allow use of snapd's internal 'xdg-settings'
+/usr/bin/xdg-settings ixr,
+/usr/bin/dbus-send ixr,
+dbus (send)
+    bus=session
+    path=/io/snapcraft/Settings
+    interface=io.snapcraft.Settings
+    member={Check,Get,Set}
+    peer=(label=unconfined),
+
 # input methods (ibus)
 # subset of ibus abstraction
 /usr/lib/@{multiarch}/gtk-2.0/[0-9]*/immodules/im-ibus.so mr,
@@ -588,6 +598,18 @@ dbus (receive)
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
     peer=(label=unconfined),
+
+# gtk2/gvfs gtk_show_uri()
+dbus (send)
+    bus=session
+    path=/org/gtk/vfs/mounttracker
+    interface=org.gtk.vfs.MountTracker
+    member=ListMountableInfo,
+dbus (send)
+    bus=session
+    path=/org/gtk/vfs/mounttracker
+    interface=org.gtk.vfs.MountTracker
+    member=LookupMount,
 `
 
 const unity7ConnectedPlugSeccomp = `

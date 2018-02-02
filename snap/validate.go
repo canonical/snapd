@@ -232,10 +232,12 @@ func Validate(info *Info) error {
 		return err
 	}
 
+	blacklist := make([]string, 0, len(info.Layout))
 	for _, layout := range info.Layout {
-		if err := ValidateLayout(layout); err != nil {
+		if err := ValidateLayout(layout, blacklist); err != nil {
 			return err
 		}
+		blacklist = append(blacklist, info.ExpandSnapVariables(layout.Path))
 	}
 	return nil
 }
@@ -355,7 +357,12 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused.
 var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
-var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
+
+func ValidAppName(n string) bool {
+	var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
+
+	return validAppName.MatchString(n)
+}
 
 // ValidateApp verifies the content in the app info.
 func ValidateApp(app *AppInfo) error {
@@ -367,7 +374,7 @@ func ValidateApp(app *AppInfo) error {
 	}
 
 	// Validate app name
-	if !validAppName.MatchString(app.Name) {
+	if !ValidAppName(app.Name) {
 		return fmt.Errorf("cannot have %q as app name - use letters, digits, and dash as separator", app.Name)
 	}
 
@@ -438,7 +445,14 @@ func isAbsAndClean(path string) bool {
 }
 
 // ValidateLayout ensures that the given layout contains only valid subset of constructs.
-func ValidateLayout(layout *Layout) error {
+func ValidateLayout(layout *Layout, blacklist []string) error {
+	si := layout.Snap
+	// Rules for validating layouts:
+	//
+	// * source of mount --bind must be in on of $SNAP, $SNAP_DATA or $SNAP_COMMON
+	// * target of symlink must in in one of $SNAP, $SNAP_DATA, or $SNAP_COMMON
+	// * may not mount on top of an existing layout mountpoint
+
 	mountPoint := layout.Path
 
 	if mountPoint == "" {
@@ -448,8 +462,14 @@ func ValidateLayout(layout *Layout) error {
 	if err := ValidatePathVariables(mountPoint); err != nil {
 		return fmt.Errorf("layout %q uses invalid mount point: %s", layout.Path, err)
 	}
+	mountPoint = si.ExpandSnapVariables(mountPoint)
 	if !isAbsAndClean(mountPoint) {
 		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
+	}
+	for i := range blacklist {
+		if strings.HasPrefix(mountPoint, blacklist[i]) {
+			return fmt.Errorf("layout %q underneath prior layout item %q", layout.Path, blacklist[i])
+		}
 	}
 
 	var nused int
@@ -471,8 +491,17 @@ func ValidateLayout(layout *Layout) error {
 		if err := ValidatePathVariables(mountSource); err != nil {
 			return fmt.Errorf("layout %q uses invalid bind mount source %q: %s", layout.Path, mountSource, err)
 		}
+		mountSource = si.ExpandSnapVariables(mountSource)
 		if !isAbsAndClean(mountSource) {
 			return fmt.Errorf("layout %q uses invalid bind mount source %q: must be absolute and clean", layout.Path, mountSource)
+		}
+		// Bind mounts *must* use $SNAP, $SNAP_DATA or $SNAP_COMMON as bind
+		// mount source. This is done so that snaps cannot bypass restrictions
+		// by mounting something outside into their own space.
+		if !strings.HasPrefix(mountSource, si.ExpandSnapVariables("$SNAP")) &&
+			!strings.HasPrefix(mountSource, si.ExpandSnapVariables("$SNAP_DATA")) &&
+			!strings.HasPrefix(mountSource, si.ExpandSnapVariables("$SNAP_COMMON")) {
+			return fmt.Errorf("layout %q uses invalid bind mount source %q: must start with $SNAP, $SNAP_DATA or $SNAP_COMMON", layout.Path, mountSource)
 		}
 	}
 
@@ -489,8 +518,17 @@ func ValidateLayout(layout *Layout) error {
 		if err := ValidatePathVariables(oldname); err != nil {
 			return fmt.Errorf("layout %q uses invalid symlink old name %q: %s", layout.Path, oldname, err)
 		}
+		oldname = si.ExpandSnapVariables(oldname)
 		if !isAbsAndClean(oldname) {
 			return fmt.Errorf("layout %q uses invalid symlink old name %q: must be absolute and clean", layout.Path, oldname)
+		}
+		// Symlinks *must* use $SNAP, $SNAP_DATA or $SNAP_COMMON as oldname.
+		// This is done so that snaps cannot attempt to bypass restrictions
+		// by mounting something outside into their own space.
+		if !strings.HasPrefix(oldname, si.ExpandSnapVariables("$SNAP")) &&
+			!strings.HasPrefix(oldname, si.ExpandSnapVariables("$SNAP_DATA")) &&
+			!strings.HasPrefix(oldname, si.ExpandSnapVariables("$SNAP_COMMON")) {
+			return fmt.Errorf("layout %q uses invalid symlink old name %q: must start with $SNAP, $SNAP_DATA or $SNAP_COMMON", layout.Path, oldname)
 		}
 	}
 

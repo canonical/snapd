@@ -19,6 +19,11 @@
 # For the moment, we don't support all golang arches...
 %global with_goarches 0
 
+# Set if multilib is enabled for supported arches
+%ifarch x86_64 aarch64 %{power64} s390x
+%global with_multilib 1
+%endif
+
 %if ! %{with vendorized}
 %global with_bundled 0
 %else
@@ -430,6 +435,8 @@ autoreconf --force --install --verbose
 %configure \
     --disable-apparmor \
     --libexecdir=%{_libexecdir}/snapd/ \
+    --enable-nvidia-biarch \
+    %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
     --with-snap-mount-dir=%{_sharedstatedir}/snapd/snap \
     --with-merged-usr
 
@@ -593,6 +600,7 @@ popd
 %{_unitdir}/snapd.autoimport.service
 %{_unitdir}/snapd.refresh.service
 %{_unitdir}/snapd.refresh.timer
+%{_unitdir}/var-lib-snapd-snap.mount
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
@@ -611,6 +619,8 @@ popd
 %dir %{_localstatedir}/cache/snapd
 %dir %{_localstatedir}/snap
 %ghost %{_sharedstatedir}/snapd/state.json
+%{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
+%{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %ghost %{_sharedstatedir}/snapd/snap/README
 
 %files -n snap-confine
