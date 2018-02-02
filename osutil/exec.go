@@ -162,6 +162,26 @@ func KillProcessGroup(cmd *exec.Cmd) error {
 	return syscallKill(-pgid, syscall.SIGKILL)
 }
 
+// truncateOutput truncates input data by maxLines and maxBytes (whatever is reached first).
+func truncateOutput(data []byte, maxLines, maxBytes int) bytes.Buffer {
+	truncdata := bytes.Buffer{}
+	if maxBytes > len(data) {
+		maxBytes = len(data)
+	}
+	scanner := bufio.NewScanner(bytes.NewReader(data[:maxBytes]))
+	for i := 0; scanner.Scan(); i++ {
+		line := scanner.Bytes()
+		if i == maxLines {
+			break
+		}
+		truncdata.Write(line)
+		if truncdata.Len() < maxBytes {
+			truncdata.WriteString("\n")
+		}
+	}
+	return truncdata
+}
+
 // RunAndWait runs a command for the given argv with the given environ added to
 // os.Environ, killing it if it reaches timeout, or if the tomb is dying.
 func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.Tomb) ([]byte, error) {
@@ -211,7 +231,7 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 		// Command completed; it may or may not have been successful.
 		return buffer.Bytes(), commandError
 	case <-limwriter.BufferLimitReached:
-		buffer.Truncate(512)
+		buffer = truncateOutput(buffer.Bytes(), 10, 1024)
 		abortOrTimeoutError = &BufferLimitError{}
 	case <-tomb.Dying():
 		// Hook was aborted, process will get killed below
