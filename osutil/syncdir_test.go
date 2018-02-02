@@ -62,6 +62,39 @@ func (s *EnsureDirStateSuite) TestVerifiesExpectedFiles(c *C) {
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
+func (s *EnsureDirStateSuite) TestTwoPatterns(c *C) {
+	name1 := filepath.Join(s.dir, "expected.snap")
+	err := ioutil.WriteFile(name1, []byte("expected-1"), 0600)
+	c.Assert(err, IsNil)
+
+	name2 := filepath.Join(s.dir, "expected.snap-update-ns")
+	err = ioutil.WriteFile(name2, []byte("expected-2"), 0600)
+	c.Assert(err, IsNil)
+
+	changed, removed, err := osutil.EnsureDirStateMany(s.dir, []string{"*.snap", "*.snap-update-ns"}, map[string]*osutil.FileState{
+		"expected.snap":           {Content: []byte("expected-1"), Mode: 0600},
+		"expected.snap-update-ns": {Content: []byte("expected-2"), Mode: 0600},
+	})
+	c.Assert(err, IsNil)
+	// Report says that nothing has changed
+	c.Assert(changed, HasLen, 0)
+	c.Assert(removed, HasLen, 0)
+	// The content is correct
+	content, err := ioutil.ReadFile(name1)
+	c.Assert(err, IsNil)
+	c.Assert(content, DeepEquals, []byte("expected-1"))
+	content, err = ioutil.ReadFile(name2)
+	c.Assert(err, IsNil)
+	c.Assert(content, DeepEquals, []byte("expected-2"))
+	// The permissions are correct
+	stat, err := os.Stat(name1)
+	c.Assert(err, IsNil)
+	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
+	stat, err = os.Stat(name2)
+	c.Assert(err, IsNil)
+	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
+}
+
 func (s *EnsureDirStateSuite) TestCreatesMissingFiles(c *C) {
 	name := filepath.Join(s.dir, "missing.snap")
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{
