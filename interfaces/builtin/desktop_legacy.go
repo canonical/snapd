@@ -212,6 +212,18 @@ dbus send
     interface=org.freedesktop.DBus.Properties
     member=GetAll
     peer=(label=unconfined),
+
+# gtk2/gvfs gtk_show_uri()
+dbus (send)
+    bus=session
+    path=/org/gtk/vfs/mounttracker
+    interface=org.gtk.vfs.MountTracker
+    member=ListMountableInfo,
+dbus (send)
+    bus=session
+    path=/org/gtk/vfs/mounttracker
+    interface=org.gtk.vfs.MountTracker
+    member=LookupMount,
 `
 
 const desktopLegacyConnectedPlugSecComp = `
