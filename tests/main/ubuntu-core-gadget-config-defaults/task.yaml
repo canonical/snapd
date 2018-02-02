@@ -27,6 +27,10 @@ prepare: |
        ${TEST_SNAP_ID}:
          a: A
          b: B
+       \$core:
+         service:
+           rsyslog:
+             disable: true
     EOF
     mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments
     rm -rf squashfs-root
@@ -47,6 +51,11 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+    echo "Undo the rsyslog disable"
+    systemctl unmask rsyslog.service || true
+    systemctl enable rsyslog.service || true
+    systemctl start rsyslog.service || true
+
     . $TESTSLIB/systemd.sh
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/assertions/*
@@ -100,3 +109,8 @@ execute: |
     echo "The configuration defaults from the gadget where applied"
     snap get test-snapd-with-configure a|MATCH "^A$"
     snap get test-snapd-with-configure b|MATCH "^B$"
+
+    echo "The configuration for core is applied"
+    snap get core service.rsyslog.disable|MATCH true
+    echo "And the service is masked"
+    systemctl status rsyslog.service|MATCH masked
