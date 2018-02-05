@@ -185,10 +185,9 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.
-	var buffer bytes.Buffer
-	limwriter := strutil.NewLimitedWriter(&buffer, 2*10*1024)
-	command.Stdout = limwriter
-	command.Stderr = limwriter
+	buffer := strutil.NewLimitedWriter(100, 10*1024)
+	command.Stdout = buffer
+	command.Stderr = buffer
 
 	// Actually run the command.
 	if err := command.Start(); err != nil {
@@ -210,7 +209,7 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 	select {
 	case <-commandCompleted:
 		// Command completed; it may or may not have been successful.
-		return strutil.TruncateOutput(buffer.Bytes(), 100, 10*1024), commandError
+		return buffer.Bytes(), commandError
 	case <-tomb.Dying():
 		// Hook was aborted, process will get killed below
 		abortOrTimeoutError = fmt.Errorf("aborted")
@@ -235,7 +234,7 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 		// cmd.Wait came back from waiting the killed process
 		break
 	}
-	fmt.Fprintf(&buffer, "\n<%s>", abortOrTimeoutError)
+	fmt.Fprintf(buffer, "\n<%s>", abortOrTimeoutError)
 
 	return buffer.Bytes(), abortOrTimeoutError
 }
