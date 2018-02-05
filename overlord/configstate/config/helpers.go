@@ -157,11 +157,19 @@ func SetSnapConfig(st *state.State, snapName string, snapcfg json.RawMessage) er
 	var config map[string]*json.RawMessage
 	err := st.Get("config", &config)
 	if err == state.ErrNoState {
+		if len(snapcfg) == 0 {
+			// bail out early
+			return nil
+		}
 		config = make(map[string]*json.RawMessage, 1)
 	} else if err != nil {
 		return err
 	}
-	config[snapName] = &snapcfg
+	if len(snapcfg) == 0 {
+		delete(config, snapName)
+	} else {
+		config[snapName] = &snapcfg
+	}
 	st.Set("config", config)
 	return nil
 }

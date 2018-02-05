@@ -143,13 +143,28 @@ func (s *configHelpersSuite) TestSnapConfig(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	rawCfg, err := config.GetSnapConfig(s.state, "snap1")
-	c.Assert(err, IsNil)
-	c.Check(rawCfg, IsNil)
+	for _, emptyCfg := range [][]byte{nil, {}} {
+		rawCfg, err := config.GetSnapConfig(s.state, "snap1")
+		c.Assert(err, IsNil)
+		c.Check(rawCfg, IsNil)
 
-	c.Assert(config.SetSnapConfig(s.state, "snap1", json.RawMessage(`{"foo":"bar"}`)), IsNil)
+		// can set to empty when empty and it's fine
+		c.Assert(config.SetSnapConfig(s.state, "snap1", emptyCfg), IsNil)
+		rawCfg, err = config.GetSnapConfig(s.state, "snap1")
+		c.Assert(err, IsNil)
+		c.Check(rawCfg, IsNil)
 
-	rawCfg, err = config.GetSnapConfig(s.state, "snap1")
-	c.Assert(err, IsNil)
-	c.Check(rawCfg, DeepEquals, json.RawMessage(`{"foo":"bar"}`))
+		c.Assert(config.SetSnapConfig(s.state, "snap1", json.RawMessage(`{"foo":"bar"}`)), IsNil)
+
+		// the set sets it
+		rawCfg, err = config.GetSnapConfig(s.state, "snap1")
+		c.Assert(err, IsNil)
+		c.Check(rawCfg, DeepEquals, json.RawMessage(`{"foo":"bar"}`))
+
+		// empty or nil clears it
+		c.Assert(config.SetSnapConfig(s.state, "snap1", emptyCfg), IsNil)
+		rawCfg, err = config.GetSnapConfig(s.state, "snap1")
+		c.Assert(err, IsNil)
+		c.Check(rawCfg, IsNil)
+	}
 }
