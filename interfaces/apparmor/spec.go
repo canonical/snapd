@@ -29,9 +29,22 @@ import (
 
 // Specification assists in collecting apparmor entries associated with an interface.
 type Specification struct {
-	// snippets are indexed by security tag.
-	snippets     map[string][]string
+	// context for various Add{...}Snippet functions
 	securityTags []string
+	snapName     string
+
+	// snippets are indexed by security tag.
+	snippets map[string][]string
+}
+
+// setScope sets the scope of subsequent AddSnippet family functions.
+func (spec *Specification) setScope(securityTags []string, snapName string) (restore func()) {
+	spec.securityTags = securityTags
+	spec.snapName = snapName
+	return func() {
+		spec.securityTags = nil
+		spec.snapName = ""
+	}
 }
 
 // AddSnippet adds a new apparmor snippet.
@@ -81,8 +94,8 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 		AppArmorConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = plug.SecurityTags()
-		defer func() { spec.securityTags = nil }()
+		restore := spec.setScope(plug.SecurityTags(), plug.Snap().Name())
+		defer restore()
 		return iface.AppArmorConnectedPlug(spec, plug, slot)
 	}
 	return nil
@@ -94,8 +107,8 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 		AppArmorConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = slot.SecurityTags()
-		defer func() { spec.securityTags = nil }()
+		restore := spec.setScope(slot.SecurityTags(), slot.Snap().Name())
+		defer restore()
 		return iface.AppArmorConnectedSlot(spec, plug, slot)
 	}
 	return nil
@@ -107,8 +120,8 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 		AppArmorPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = plug.SecurityTags()
-		defer func() { spec.securityTags = nil }()
+		restore := spec.setScope(plug.SecurityTags(), plug.Snap.Name())
+		defer restore()
 		return iface.AppArmorPermanentPlug(spec, plug)
 	}
 	return nil
@@ -120,8 +133,8 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		AppArmorPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = slot.SecurityTags()
-		defer func() { spec.securityTags = nil }()
+		restore := spec.setScope(slot.SecurityTags(), slot.Snap.Name())
+		defer restore()
 		return iface.AppArmorPermanentSlot(spec, slot)
 	}
 	return nil
