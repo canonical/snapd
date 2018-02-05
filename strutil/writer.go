@@ -17,48 +17,37 @@
  *
  */
 
-package osutil
+package strutil
 
 import (
-	"fmt"
-	"io"
+	"bytes"
 )
 
-type BufferLimitError struct{}
-
-func (e BufferLimitError) Error() string {
-	return fmt.Sprintf("buffer capacity exceeded")
-}
-
 type LimitedWriter struct {
-	writer             io.Writer
-	limit              int
-	limitReached       bool
-	written            int
-	BufferLimitReached chan struct{}
+	buffer   *bytes.Buffer
+	maxBytes int
+	written  int
 }
 
-func NewLimitedWriter(writer io.Writer, limit int) *LimitedWriter {
+func NewLimitedWriter(buffer *bytes.Buffer, maxBytes int) *LimitedWriter {
 	return &LimitedWriter{
-		writer:             writer,
-		limit:              limit,
-		BufferLimitReached: make(chan struct{}),
+		buffer:   buffer,
+		maxBytes: maxBytes,
 	}
 }
 
 func (wr *LimitedWriter) Write(data []byte) (int, error) {
-	n := len(data) + wr.written
-	if n > wr.limit {
-		// in case Write is called after error - closing channel again
-		// would panic
-		if !wr.limitReached {
-			close(wr.BufferLimitReached)
-		}
-		wr.limitReached = true
-		return 0, &BufferLimitError{}
+	sz, err := wr.buffer.Write(data)
+	if err != nil {
+		return 0, err
 	}
-
-	sz, err := wr.writer.Write(data)
 	wr.written += sz
+	if wr.written > wr.maxBytes {
+		data := wr.buffer.Bytes()
+		data = TruncateOutput(data, 0, wr.maxBytes)
+		copy(wr.buffer.Bytes(), data)
+		wr.written = len(data)
+		wr.buffer.Truncate(wr.written)
+	}
 	return sz, err
 }

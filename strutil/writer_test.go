@@ -17,14 +17,14 @@
  *
  */
 
-package osutil_test
+package strutil_test
 
 import (
 	"bytes"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type limitedWriterSuite struct{}
@@ -34,7 +34,7 @@ var _ = Suite(&limitedWriterSuite{})
 func (s *limitedWriterSuite) TestWriter(c *C) {
 	var buffer bytes.Buffer
 
-	w := osutil.NewLimitedWriter(&buffer, 5)
+	w := strutil.NewLimitedWriter(&buffer, 6)
 
 	data := []byte{'a'}
 	n, err := w.Write(data)
@@ -47,10 +47,13 @@ func (s *limitedWriterSuite) TestWriter(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 4)
 
-	for i := 0; i < 2; i++ {
-		n, err = w.Write([]byte{'x'})
-		c.Assert(err, NotNil)
-		c.Assert(err, ErrorMatches, `buffer capacity exceeded`)
-		c.Assert(buffer.Bytes(), DeepEquals, []byte("abcde"))
-	}
+	n, err = w.Write([]byte("xyz"))
+	c.Assert(err, IsNil)
+	c.Assert(buffer.Bytes(), DeepEquals, []byte("cdexyz"))
+	c.Assert(n, Equals, 3)
+
+	n, err = w.Write([]byte("12"))
+	c.Assert(err, IsNil)
+	c.Assert(buffer.Bytes(), DeepEquals, []byte("exyz12"))
+	c.Assert(n, Equals, 2)
 }
