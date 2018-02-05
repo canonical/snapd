@@ -3,8 +3,14 @@ version: 1.0
 apps:
     test-snapd-service:
         command: bin/start
+        stop-command: bin/stop
         daemon: simple
         reload-command: bin/reload
     test-snapd-other-service:
         command: bin/start-other
         daemon: simple
+    test-snapd-surviving-service:
+        command: bin/start-survive
+        stop-command: bin/stop-survive
+        daemon: simple
+        refresh-mode: survive

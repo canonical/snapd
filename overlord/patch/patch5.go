@@ -62,7 +62,7 @@ func patch5(st *state.State) error {
 			continue
 		}
 
-		err = wrappers.StopServices(svcs, log)
+		err = wrappers.StopServices(svcs, "restart", log)
 		if err != nil {
 			return err
 		}
