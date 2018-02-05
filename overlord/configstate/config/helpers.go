@@ -136,7 +136,7 @@ func GetFromChange(snapName string, subkeys []string, pos int, config map[string
 }
 
 // GetSnapConfig retrieves the raw configuration of a given snap.
-func GetSnapConfig(st *state.State, snapName string) (json.RawMessage, error) {
+func GetSnapConfig(st *state.State, snapName string) (*json.RawMessage, error) {
 	var config map[string]*json.RawMessage
 	err := st.Get("config", &config)
 	if err == state.ErrNoState {
@@ -149,15 +149,16 @@ func GetSnapConfig(st *state.State, snapName string) (json.RawMessage, error) {
 	if !ok {
 		return nil, nil
 	}
-	return *snapcfg, nil
+	return snapcfg, nil
 }
 
 // SetSnapConfig replaces the configuration of a given snap.
-func SetSnapConfig(st *state.State, snapName string, snapcfg json.RawMessage) error {
+func SetSnapConfig(st *state.State, snapName string, snapcfg *json.RawMessage) error {
 	var config map[string]*json.RawMessage
 	err := st.Get("config", &config)
+	isNil := snapcfg == nil || len(*snapcfg) == 0
 	if err == state.ErrNoState {
-		if len(snapcfg) == 0 {
+		if isNil {
 			// bail out early
 			return nil
 		}
@@ -165,10 +166,10 @@ func SetSnapConfig(st *state.State, snapName string, snapcfg json.RawMessage) er
 	} else if err != nil {
 		return err
 	}
-	if len(snapcfg) == 0 {
+	if isNil {
 		delete(config, snapName)
 	} else {
-		config[snapName] = &snapcfg
+		config[snapName] = snapcfg
 	}
 	st.Set("config", config)
 	return nil
