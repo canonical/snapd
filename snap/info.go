@@ -515,6 +515,7 @@ type AppInfo struct {
 	PostStopCommand string
 	RestartCond     RestartCondition
 	Completer       string
+	RefreshMode     string
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor

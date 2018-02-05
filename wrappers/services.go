@@ -208,13 +208,17 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 }
 
 // StopServices stops service units for the applications from the snap which are services.
-func StopServices(apps []*snap.AppInfo, inter interacter) error {
+func StopServices(apps []*snap.AppInfo, reason string, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
 	for _, app := range apps {
 		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
 		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
 		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
+			continue
+		}
+		// Skip stop on refresh when refresh mode is "survive"
+		if app.RefreshMode == "survive" && reason == "refresh" {
 			continue
 		}
 		if err := stopService(sysd, app, inter); err != nil {
