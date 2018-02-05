@@ -65,23 +65,14 @@ var ErrSameState = fmt.Errorf("file state has not changed")
 // In all cases, the function returns the first error it has encountered.
 func EnsureDirStateGlobs(dir string, globs []string, content map[string]*FileState) (changed, removed []string, err error) {
 	// Check syntax before doing anything.
-	for _, glob := range globs {
-		if _, err := filepath.Match(glob, "foo"); err != nil {
-			return nil, nil, fmt.Errorf("internal error: EnsureDirState got invalid pattern %q: %s", glob, err)
-		}
+	if _, index, err := matchAny(globs, "foo"); err != nil {
+		return nil, nil, fmt.Errorf("internal error: EnsureDirState got invalid pattern %q: %s", globs[index], err)
 	}
 	for baseName := range content {
 		if filepath.Base(baseName) != baseName {
 			return nil, nil, fmt.Errorf("internal error: EnsureDirState got filename %q which has a path component", baseName)
 		}
-		sane := false
-		for _, glob := range globs {
-			if ok, _ := filepath.Match(glob, baseName); ok {
-				sane = true
-				break
-			}
-		}
-		if !sane {
+		if ok, _, _ := matchAny(globs, baseName); !ok {
 			if len(globs) == 1 {
 				return nil, nil, fmt.Errorf("internal error: EnsureDirState got filename %q which doesn't match the glob pattern %q", baseName, globs[0])
 			}
@@ -135,6 +126,15 @@ func EnsureDirStateGlobs(dir string, globs []string, content map[string]*FileSta
 	sort.Strings(changed)
 	sort.Strings(removed)
 	return changed, removed, firstErr
+}
+
+func matchAny(globs []string, path string) (ok bool, index int, err error) {
+	for index, glob := range globs {
+		if ok, err := filepath.Match(glob, path); ok || err != nil {
+			return ok, index, err
+		}
+	}
+	return false, 0, nil
 }
 
 // EnsureDirState ensures that directory content matches expectations.
