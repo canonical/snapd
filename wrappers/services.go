@@ -111,6 +111,15 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 				return err
 			}
 
+			defer func(socketService string) {
+				if err == nil {
+					return
+				}
+				if e := sysd.Disable(socketService); e != nil {
+					inter.Notify(fmt.Sprintf("While trying to disable previously enabled socket service %q: %v", socketService, e))
+				}
+			}(socketService)
+
 			if err := sysd.Start(socketService); err != nil {
 				return err
 			}
