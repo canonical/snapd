@@ -62,7 +62,10 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces
 	s.Unlock()
 
 	// interface tasks might touch more than the immediate task target snap, serialize them
-	runner.SetBlocked(func(_ *state.Task, running []*state.Task) bool {
+	runner.SetBlocked(func(t *state.Task, running []*state.Task) bool {
+		if t.Kind() == "auto-connect" {
+			return false
+		}
 		return len(running) != 0
 	})
 
