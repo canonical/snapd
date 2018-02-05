@@ -23,23 +23,27 @@ import (
 	"strings"
 	"time"
 
-	"github.com/boltdb/bolt"
+	"github.com/snapcore/bolt"
 
 	"github.com/snapcore/snapd/dirs"
 )
 
-var cmdBucketKey = []byte("Commands")
+var (
+	cmdBucketKey = []byte("Commands")
+	pkgBucketKey = []byte("Snaps")
+)
 
 type writer struct {
-	db     *bolt.DB
-	tx     *bolt.Tx
-	bucket *bolt.Bucket
+	db        *bolt.DB
+	tx        *bolt.Tx
+	cmdBucket *bolt.Bucket
+	pkgBucket *bolt.Bucket
 }
 
 type CommandDB interface {
 	// AddSnap adds the entries for commands pointing to the given
 	// snap name to the commands database.
-	AddSnap(snapName string, commands []string) error
+	AddSnap(snapName, summary string, commands []string) error
 	// Commit persist the changes, and closes the database. If the
 	// database has already been committed/rollbacked, does nothing.
 	Commit() error
@@ -64,12 +68,23 @@ func Create() (CommandDB, error) {
 
 	t.tx, err = t.db.Begin(true)
 	if err == nil {
-		err = t.tx.DeleteBucket(cmdBucketKey)
+		err := t.tx.DeleteBucket(cmdBucketKey)
 		if err == nil || err == bolt.ErrBucketNotFound {
-			t.bucket, err = t.tx.CreateBucket(cmdBucketKey)
+			t.cmdBucket, err = t.tx.CreateBucket(cmdBucketKey)
 		}
 		if err != nil {
 			t.tx.Rollback()
+
+		}
+
+		if err == nil {
+			err := t.tx.DeleteBucket(pkgBucketKey)
+			if err == nil || err == bolt.ErrBucketNotFound {
+				t.pkgBucket, err = t.tx.CreateBucket(pkgBucketKey)
+			}
+			if err != nil {
+				t.tx.Rollback()
+			}
 		}
 	}
 
@@ -81,20 +96,24 @@ func Create() (CommandDB, error) {
 	return t, nil
 }
 
-func (t *writer) AddSnap(snapName string, commands []string) error {
+func (t *writer) AddSnap(snapName, summary string, commands []string) error {
 	bname := []byte(snapName)
 
 	for _, cmd := range commands {
 		bcmd := []byte(cmd)
-		row := t.bucket.Get(bcmd)
+		row := t.cmdBucket.Get(bcmd)
 		if row == nil {
 			row = bname
 		} else {
 			row = append(append(row, ','), bname...)
 		}
-		if err := t.bucket.Put(bcmd, row); err != nil {
+		if err := t.cmdBucket.Put(bcmd, row); err != nil {
 			return err
 		}
+	}
+
+	if err := t.pkgBucket.Put([]byte(snapName), []byte(summary)); err != nil {
+		return err
 	}
 
 	return nil
@@ -111,7 +130,8 @@ func (t *writer) Rollback() error {
 func (t *writer) done(commit bool) error {
 	var e1, e2 error
 
-	t.bucket = nil
+	t.cmdBucket = nil
+	t.pkgBucket = nil
 	if t.tx != nil {
 		if commit {
 			e1 = t.tx.Commit()
@@ -130,9 +150,10 @@ func (t *writer) done(commit bool) error {
 	return e1
 }
 
-// Dump returns the whole database as a map. For use in testing and debugging.
-func Dump() (map[string][]string, error) {
-	db, err := bolt.Open(dirs.SnapCommandsDB, 0600, &bolt.Options{
+// DumpCommands returns the whole database as a map. For use in
+// testing and debugging.
+func DumpCommands() (map[string][]string, error) {
+	db, err := bolt.Open(dirs.SnapCommandsDB, 0644, &bolt.Options{
 		ReadOnly: true,
 		Timeout:  1 * time.Second,
 	})
@@ -167,7 +188,7 @@ type boltFinder struct {
 
 // Open the database for reading.
 func Open() (Finder, error) {
-	db, err := bolt.Open(dirs.SnapCommandsDB, 0600, &bolt.Options{
+	db, err := bolt.Open(dirs.SnapCommandsDB, 0644, &bolt.Options{
 		ReadOnly: true,
 		Timeout:  1 * time.Second,
 	})
@@ -178,7 +199,7 @@ func Open() (Finder, error) {
 	return &boltFinder{*db}, nil
 }
 
-func (f *boltFinder) Find(command string) ([]Command, error) {
+func (f *boltFinder) FindCommand(command string) ([]Command, error) {
 	tx, err := f.Begin(false)
 	if err != nil {
 		return nil, err
@@ -205,4 +226,24 @@ func (f *boltFinder) Find(command string) ([]Command, error) {
 	}
 
 	return cmds, nil
+}
+
+func (f *boltFinder) FindPackage(pkgName string) (*Package, error) {
+	tx, err := f.Begin(false)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	b := tx.Bucket(pkgBucketKey)
+	if b == nil {
+		return nil, nil
+	}
+
+	bsummary := b.Get([]byte(pkgName))
+	if bsummary == nil {
+		return nil, nil
+	}
+
+	return &Package{Snap: pkgName, Summary: string(bsummary)}, nil
 }

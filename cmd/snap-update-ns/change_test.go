@@ -373,7 +373,7 @@ func (s *changeSuite) TestPerformMountRejectsTargetSymlink(c *C) {
 	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoSymlink)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
 	synth, err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot use "/target" for mounting, not a directory`)
+	c.Assert(err, ErrorMatches, `cannot use "/target" for mounting: not a directory`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -385,7 +385,7 @@ func (s *changeSuite) TestPerformBindMountRejectsTargetSymlink(c *C) {
 	s.sys.InsertLstatResult(`lstat "/target"`, update.FileInfoSymlink)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind"}}}
 	synth, err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot use "/target" for mounting, not a directory`)
+	c.Assert(err, ErrorMatches, `cannot use "/target" for mounting: not a directory`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -398,7 +398,7 @@ func (s *changeSuite) TestPerformBindMountRejectsSourceSymlink(c *C) {
 	s.sys.InsertLstatResult(`lstat "/source"`, update.FileInfoSymlink)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type", Options: []string{"bind"}}}
 	synth, err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot use "/source" for mounting, not a directory`)
+	c.Assert(err, ErrorMatches, `cannot use "/source" for mounting: not a directory`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -422,7 +422,7 @@ func (s *changeSuite) TestPerformMountMkdirAllError(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "target" 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: mount.Entry{Name: "/source", Dir: "/target", Type: "type"}}
 	synth, err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot mkdir path segment "target": testing`)
+	c.Assert(err, ErrorMatches, `cannot create path "/target": cannot mkdir path segment "target": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -482,7 +482,7 @@ func (s *changeSuite) TestPerformUnountError(c *C) {
 func (s *changeSuite) TestPerformUnknownAction(c *C) {
 	chg := &update.Change{Action: update.Action(42)}
 	synth, err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot process mount change, unknown action: .*`)
+	c.Assert(err, ErrorMatches, `cannot process mount change: unknown action: .*`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), HasLen, 0)
 }

@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build arm 386 ppc
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,13 +17,20 @@
  *
  */
 
-package sys
+package advisor
 
-import "syscall"
+var newFinder = Open
 
-const (
-	_SYS_GETUID  = syscall.SYS_GETUID32
-	_SYS_GETGID  = syscall.SYS_GETGID32
-	_SYS_GETEUID = syscall.SYS_GETEUID32
-	_SYS_GETEGID = syscall.SYS_GETEGID32
-)
+type Finder interface {
+	FindCommand(command string) ([]Command, error)
+	FindPackage(pkgName string) (*Package, error)
+	Close() error
+}
+
+func ReplaceCommandsFinder(constructor func() (Finder, error)) (restore func()) {
+	old := newFinder
+	newFinder = constructor
+	return func() {
+		newFinder = old
+	}
+}

@@ -45,6 +45,14 @@ const desktopConnectedPlugAppArmor = `
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
 
+# Allow finding the DBus session bus id (eg, via dbus_bus_get_id())
+dbus (send)
+     bus=session
+     path=/org/freedesktop/DBus
+     interface=org.freedesktop.DBus
+     member=GetId
+     peer=(name=org.freedesktop.DBus, label=unconfined),
+
 #include <abstractions/fonts>
 owner @{HOME}/.local/share/fonts/{,**} r,
 /var/cache/fontconfig/   r,
@@ -90,7 +98,7 @@ dbus (send)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member="{GetCapabilities,GetServerInformation,Notify}"
+    member="{GetCapabilities,GetServerInformation,Notify,CloseNotification}"
     peer=(label=unconfined),
 
 dbus (receive)
@@ -148,6 +156,23 @@ dbus (receive)
     path="/{,org/freedesktop/,org/gnome/}ScreenSaver"
     interface="org.{freedesktop,gnome}.ScreenSaver"
     member=ActiveChanged
+    peer=(label=unconfined),
+
+# Allow unconfined to introspect us
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
+
+# Allow use of snapd's internal 'xdg-settings'
+/usr/bin/xdg-settings ixr,
+/usr/bin/dbus-send ixr,
+dbus (send)
+    bus=session
+    path=/io/snapcraft/Settings
+    interface=io.snapcraft.Settings
+    member={Check,Get,Set}
     peer=(label=unconfined),
 `
 

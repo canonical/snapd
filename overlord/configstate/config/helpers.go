@@ -135,6 +135,37 @@ func GetFromChange(snapName string, subkeys []string, pos int, config map[string
 	return GetFromChange(snapName, subkeys, pos+1, configm, result)
 }
 
+// GetSnapConfig retrieves the raw configuration of a given snap.
+func GetSnapConfig(st *state.State, snapName string) (json.RawMessage, error) {
+	var config map[string]*json.RawMessage
+	err := st.Get("config", &config)
+	if err == state.ErrNoState {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	snapcfg, ok := config[snapName]
+	if !ok {
+		return nil, nil
+	}
+	return *snapcfg, nil
+}
+
+// SetSnapConfig replaces the configuration of a given snap.
+func SetSnapConfig(st *state.State, snapName string, snapcfg json.RawMessage) error {
+	var config map[string]*json.RawMessage
+	err := st.Get("config", &config)
+	if err == state.ErrNoState {
+		config = make(map[string]*json.RawMessage, 1)
+	} else if err != nil {
+		return err
+	}
+	config[snapName] = &snapcfg
+	st.Set("config", config)
+	return nil
+}
+
 // SaveRevisionConfig makes a copy of config -> snapSnape configuration into the versioned config.
 // It doesn't do anything if there is no configuration for given snap in the state.
 // The caller is responsible for locking the state.

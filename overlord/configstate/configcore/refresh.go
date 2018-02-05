@@ -27,6 +27,18 @@ import (
 )
 
 func validateRefreshSchedule(tr Conf) error {
+	refreshTimerStr, err := coreCfg(tr, "refresh.timer")
+	if err != nil {
+		return err
+	}
+	if refreshTimerStr != "" {
+		// try legacy refresh.schedule setting if new-style
+		// refresh.timer is not set
+		if _, err = timeutil.ParseSchedule(refreshTimerStr); err != nil {
+			return err
+		}
+	}
+
 	refreshScheduleStr, err := coreCfg(tr, "refresh.schedule")
 	if err != nil {
 		return err

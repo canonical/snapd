@@ -87,6 +87,7 @@ check("test-snapd-tools", res[2],
     ("edge", matches, verRevNotesRx("-")),
    ),
    ("snap-id", equals, snap_ids["test-snapd-tools"]),
+   ("license", equals, "unknown"), # TODO: update once snap.yaml contains the right license
 )
 
 check("test-snapd-devmode", res[3],
@@ -105,6 +106,7 @@ check("test-snapd-devmode", res[3],
     ("edge", matches, verRevNotesRx("devmode")),
    ),
    ("snap-id", equals, snap_ids["test-snapd-devmode"]),
+   ("license", equals, "unknown"), # TODO: update once snap.yaml contains the right license
 )
 
 check("core", res[4],
@@ -121,6 +123,7 @@ check("core", res[4],
       # sideload "core"
       ("contact", maybe),
       ("snap-id", maybe),
+      ("license", equals, "unknown"), # TODO: update once snap.yaml contains the right license
 )
 
 check("error", res[5],
@@ -130,11 +133,11 @@ check("error", res[5],
 # not installed snaps have "contact" information
 check("test-snapd-python-webserver", res[6],
    ("name", equals, "test-snapd-python-webserver"),
-   ("publisher", equals, "canonical"),
+   ("publisher", equals, "Canonical"),
    ("contact", equals, "snappy-canonical-storeaccount@canonical.com"),
    ("summary", exists),
    ("description", exists),
    ("channels", exists),
    ("snap-id", equals, snap_ids["test-snapd-python-webserver"]),
-
+   ("license", equals, "Other Open Source"),
 )
