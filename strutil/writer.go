@@ -25,13 +25,15 @@ import (
 
 type LimitedWriter struct {
 	buffer   *bytes.Buffer
+	maxLines int
 	maxBytes int
 	written  int
 }
 
-func NewLimitedWriter(buffer *bytes.Buffer, maxBytes int) *LimitedWriter {
+func NewLimitedWriter(maxLines, maxBytes int) *LimitedWriter {
 	return &LimitedWriter{
-		buffer:   buffer,
+		buffer:   &bytes.Buffer{},
+		maxLines: maxLines,
 		maxBytes: maxBytes,
 	}
 }
@@ -50,4 +52,8 @@ func (wr *LimitedWriter) Write(data []byte) (int, error) {
 		wr.buffer.Truncate(wr.written)
 	}
 	return sz, err
+}
+
+func (wr *LimitedWriter) Bytes() []byte {
+	return TruncateOutput(wr.buffer.Bytes(), wr.maxLines, wr.maxBytes)
 }

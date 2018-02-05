@@ -20,8 +20,6 @@
 package strutil_test
 
 import (
-	"bytes"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/strutil"
@@ -32,15 +30,13 @@ type limitedWriterSuite struct{}
 var _ = Suite(&limitedWriterSuite{})
 
 func (s *limitedWriterSuite) TestWriter(c *C) {
-	var buffer bytes.Buffer
-
-	w := strutil.NewLimitedWriter(&buffer, 6)
+	w := strutil.NewLimitedWriter(100, 6)
 
 	data := []byte{'a'}
 	n, err := w.Write(data)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 1)
-	c.Assert(buffer.Bytes(), DeepEquals, []byte{'a'})
+	c.Assert(w.Bytes(), DeepEquals, []byte{'a'})
 
 	data = []byte("bcde")
 	n, err = w.Write(data)
@@ -49,11 +45,11 @@ func (s *limitedWriterSuite) TestWriter(c *C) {
 
 	n, err = w.Write([]byte("xyz"))
 	c.Assert(err, IsNil)
-	c.Assert(buffer.Bytes(), DeepEquals, []byte("cdexyz"))
+	c.Assert(w.Bytes(), DeepEquals, []byte("cdexyz"))
 	c.Assert(n, Equals, 3)
 
 	n, err = w.Write([]byte("12"))
 	c.Assert(err, IsNil)
-	c.Assert(buffer.Bytes(), DeepEquals, []byte("exyz12"))
+	c.Assert(w.Bytes(), DeepEquals, []byte("exyz12"))
 	c.Assert(n, Equals, 2)
 }
