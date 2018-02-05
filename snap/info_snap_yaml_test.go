@@ -1598,3 +1598,33 @@ apps:
 		},
 	})
 }
+
+func (s *YamlSuite) TestLayout(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+layout:
+  /usr/share/foo:
+    bind: $SNAP/usr/share/foo
+  /usr/share/bar:
+    symlink: $SNAP/usr/share/bar
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout["/usr/share/foo"], DeepEquals, &snap.Layout{
+		Snap:  info,
+		Path:  "/usr/share/foo",
+		Bind:  "$SNAP/usr/share/foo",
+		User:  "root",
+		Group: "root",
+		Mode:  0755,
+	})
+	c.Assert(info.Layout["/usr/share/bar"], DeepEquals, &snap.Layout{
+		Snap:    info,
+		Path:    "/usr/share/bar",
+		Symlink: "$SNAP/usr/share/bar",
+		User:    "root",
+		Group:   "root",
+		Mode:    0755,
+	})
+}

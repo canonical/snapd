@@ -96,8 +96,9 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.EditedTitle = d.Title
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
+	// FIXME: should this be publisherID?
 	info.PublisherID = d.DeveloperID
-	info.Publisher = d.Developer
+	info.Publisher = d.Publisher
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
@@ -720,12 +721,13 @@ type alias struct {
 
 type catalogItem struct {
 	Name    string   `json:"package_name"`
+	Summary string   `json:"summary"`
 	Aliases []alias  `json:"aliases"`
 	Apps    []string `json:"apps"`
 }
 
 type SnapAdder interface {
-	AddSnap(snapName string, commands []string) error
+	AddSnap(snapName, summary string, commands []string) error
 }
 
 func decodeCatalog(resp *http.Response, names io.Writer, db SnapAdder) error {
@@ -765,7 +767,8 @@ func decodeCatalog(resp *http.Response, names io.Writer, db SnapAdder) error {
 		for _, app := range v.Apps {
 			commands = append(commands, snap.JoinSnapApp(v.Name, app))
 		}
-		if err := db.AddSnap(v.Name, commands); err != nil {
+
+		if err := db.AddSnap(v.Name, v.Summary, commands); err != nil {
 			return err
 		}
 	}
@@ -1263,6 +1266,9 @@ type RefreshCandidate struct {
 	Channel string
 	// whether validation should be ignored
 	IgnoreValidation bool
+
+	// try to refresh a local snap to a store revision
+	Amend bool
 }
 
 // the exact bits that we need to send to the store
@@ -1289,7 +1295,7 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 		}
 		return nil
 	}
-	if !cs.Revision.Store() {
+	if !cs.Revision.Store() && !cs.Amend {
 		logger.Noticef("store.currentSnap got given a RefreshCandidate with a non-empty SnapID but a non-store revision!")
 		return nil
 	}

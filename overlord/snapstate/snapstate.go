@@ -339,10 +339,14 @@ func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.Slot
 }
 
 type changeConflictError struct {
-	snapName string
+	snapName   string
+	changeKind string
 }
 
 func (e changeConflictError) Error() string {
+	if e.changeKind != "" {
+		return fmt.Sprintf("snap %q has %q change in progress", e.snapName, e.changeKind)
+	}
 	return fmt.Sprintf("snap %q has changes in progress", e.snapName)
 }
 
@@ -383,7 +387,7 @@ func CheckChangeConflictMany(st *state.State, snapNames []string, checkConflictP
 					} else {
 						snapName = slotRef.Snap
 					}
-					return changeConflictError{snapName}
+					return changeConflictError{snapName, chg.Kind()}
 				}
 			} else {
 				snapsup, err := TaskSnapSetup(task)
@@ -392,7 +396,7 @@ func CheckChangeConflictMany(st *state.State, snapNames []string, checkConflictP
 				}
 				snapName := snapsup.Name()
 				if (snapMap[snapName]) && (checkConflictPredicate == nil || checkConflictPredicate(task)) {
-					return changeConflictError{snapName}
+					return changeConflictError{snapName, chg.Kind()}
 				}
 			}
 		}
@@ -512,8 +516,12 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 
 	// It is ok do open the snap file here because we either
 	// have side info or the user passed --dangerous
-	info, _, err := backend.OpenSnapFile(path, si)
+	info, container, err := backend.OpenSnapFile(path, si)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := validateContainer(container, info, logger.Noticef); err != nil {
 		return nil, err
 	}
 
@@ -982,7 +990,12 @@ func Update(st *state.State, name, channel string, revision snap.Revision, userI
 func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
 	if revision.Unset() {
 		// good ol' refresh
-		info, err := updateInfo(st, snapst, channel, flags.IgnoreValidation, userID)
+		opts := &updateInfoOpts{
+			channel:          channel,
+			ignoreValidation: flags.IgnoreValidation,
+			amend:            flags.Amend,
+		}
+		info, err := updateInfo(st, snapst, opts, userID)
 		if err != nil {
 			return nil, err
 		}

@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -127,6 +128,15 @@ func ReportRepair(repair, errMsg, dupSig string, extra map[string]string) (strin
 	return report(errMsg, dupSig, extra)
 }
 
+func detectVirt() string {
+	cmd := exec.Command("systemd-detect-virt")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
+
 func report(errMsg, dupSig string, extra map[string]string) (string, error) {
 	if CrashDbURLBase == "" {
 		return "", nil
@@ -160,6 +170,7 @@ func report(errMsg, dupSig string, extra map[string]string) (string, error) {
 	if coreBuildID == "" {
 		coreBuildID = "unknown"
 	}
+	detectedVirt := detectVirt()
 
 	report := map[string]string{
 		"Architecture":       arch.UbuntuArchitecture(),
@@ -180,6 +191,7 @@ func report(errMsg, dupSig string, extra map[string]string) (string, error) {
 			report[k] = v
 		}
 	}
+	report["DetectedVirt"] = detectedVirt
 
 	// include md5 hashes of the apparmor conffile for easier debbuging
 	// of not-updated snap-confine apparmor profiles

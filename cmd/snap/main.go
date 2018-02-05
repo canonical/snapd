@@ -286,7 +286,15 @@ func main() {
 			Command: true,
 			Format:  "pretty",
 		}
-		cmd.Positionals.CommandOrPkg = os.Args[1]
+		// the bash.bashrc handler runs:
+		//    /usr/lib/command-not-found -- "$1"
+		// so skip over any "--"
+		for _, arg := range os.Args[1:] {
+			if arg != "--" {
+				cmd.Positionals.CommandOrPkg = arg
+				break
+			}
+		}
 		if err := cmd.Execute(nil); err != nil {
 			fmt.Fprintf(Stderr, "%s\n", err)
 		}

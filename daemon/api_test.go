@@ -772,7 +772,17 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	rec := httptest.NewRecorder()
 	c.Check(sysInfoCmd.Path, check.Equals, "/v2/system-info")
 
-	s.daemon(c).Version = "42b1"
+	d := s.daemon(c)
+	d.Version = "42b1"
+
+	// set both legacy and new refresh schedules. new one takes priority
+	st := d.overlord.State()
+	st.Lock()
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.schedule", "00:00-9:00/12:00-13:00")
+	tr.Set("core", "refresh.timer", "8:00~9:00/2")
+	tr.Commit()
+	st.Unlock()
 
 	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
 	defer restore()
@@ -799,7 +809,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
 		"refresh": map[string]interface{}{
-			"schedule": "00:00-05:59/6:00-11:59/12:00-17:59/18:00-23:59",
+			// only the "timer" field
+			"timer": "8:00~9:00/2",
 		},
 		"confinement": "partial",
 	}
@@ -810,6 +821,60 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	// Ensure that we had a kernel-verrsion but don't check the actual value.
 	const kernelVersionKey = "kernel-version"
 	c.Check(rsp.Result.(map[string]interface{})[kernelVersionKey], check.Not(check.Equals), "")
+	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
+	rec := httptest.NewRecorder()
+
+	d := s.daemon(c)
+	d.Version = "42b1"
+
+	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
+	defer restore()
+	restore = release.MockOnClassic(true)
+	defer restore()
+	restore = release.MockForcedDevmode(true)
+	defer restore()
+
+	// set the legacy refresh schedule
+	st := d.overlord.State()
+	st.Lock()
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.schedule", "00:00-9:00/12:00-13:00")
+	tr.Set("core", "refresh.timer", "")
+	tr.Commit()
+	st.Unlock()
+
+	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+
+	expected := map[string]interface{}{
+		"series":  "16",
+		"version": "42b1",
+		"os-release": map[string]interface{}{
+			"id":         "distro-id",
+			"version-id": "1.2",
+		},
+		"on-classic": true,
+		"managed":    false,
+		"locations": map[string]interface{}{
+			"snap-mount-dir": dirs.SnapMountDir,
+			"snap-bin-dir":   dirs.SnapBinariesDir,
+		},
+		"refresh": map[string]interface{}{
+			// only the "schedule" field
+			"schedule": "00:00-9:00/12:00-13:00",
+		},
+		"confinement": "partial",
+	}
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	const kernelVersionKey = "kernel-version"
 	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
@@ -6363,5 +6428,41 @@ func (s *appSuite) TestPostAppsConflict(c *check.C) {
 	rsp := postApps(appsCmd, req, nil).(*resp)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `snap "snap-a" has changes in progress`)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `snap "snap-a" has "enable" change in progress`)
+}
+
+type fakeNetError struct {
+	message   string
+	timeout   bool
+	temporary bool
+}
+
+func (e fakeNetError) Error() string   { return e.message }
+func (e fakeNetError) Timeout() bool   { return e.timeout }
+func (e fakeNetError) Temporary() bool { return e.temporary }
+
+func (s *appSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
+	si := &snapInstruction{Action: "frobble"}
+	errors := []error{
+		store.ErrSnapNotFound,
+		store.ErrNoUpdateAvailable,
+		store.ErrLocalSnap,
+		&snap.AlreadyInstalledError{Snap: "foo"},
+		&snap.NotInstalledError{Snap: "foo"},
+		&snapstate.SnapNeedsDevModeError{Snap: "foo"},
+		&snapstate.SnapNeedsClassicError{Snap: "foo"},
+		&snapstate.SnapNeedsClassicSystemError{Snap: "foo"},
+		fakeNetError{message: "other"},
+		fakeNetError{message: "timeout", timeout: true},
+		fakeNetError{message: "temp", temporary: true},
+		errors.New("some other error"),
+	}
+
+	for _, err := range errors {
+		rsp := si.errToResponse(err)
+		com := check.Commentf("%v", err)
+		c.Check(rsp, check.NotNil, com)
+		status := rsp.(*resp).Status
+		c.Check(status/100 == 4 || status/100 == 5, check.Equals, true, com)
+	}
 }
