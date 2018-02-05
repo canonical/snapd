@@ -207,7 +207,8 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 }
 
 static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
-					      const char *source_dir,
+					      const char *source_dir[],
+					      size_t source_dir_len,
 					      const char *tgt_dir,
 					      const char *glob_list[],
 					      size_t glob_list_len)
@@ -226,9 +227,13 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 	if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
 		die("cannot mount tmpfs at %s", libgl_dir);
 	};
-	// Populate libgl_dir with symlinks to libraries from hostfs
-	sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source_dir, glob_list,
-					       glob_list_len);
+
+	for (size_t i = 0; i < source_dir_len; i++) {
+		// Populate libgl_dir with symlinks to libraries from hostfs
+		sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source_dir[i],
+						       glob_list,
+						       glob_list_len);
+	}
 	// Remount $tgt_dir (i.e. .../lib/gl) read only
 	debug("remounting tmpfs as read-only %s", libgl_dir);
 	if (mount(NULL, buf, NULL, MS_REMOUNT | MS_RDONLY, NULL) != 0) {
@@ -237,21 +242,6 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 }
 
 #ifdef NVIDIA_BIARCH
-
-// Copy the symlink farm to an already mounted/constructed target
-static void sc_glob_files_only(const char *rootfs_dir,
-			       const char *source_dir,
-			       const char *tgt_dir,
-			       const char *glob_list[], size_t glob_list_len)
-{
-	char buf[512] = { 0 };
-	sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir, tgt_dir);
-	const char *libgl_dir = buf;
-
-	// Populate libgl_dir with symlinks to libraries from hostfs
-	sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source_dir, glob_list,
-					       glob_list_len);
-}
 
 // Expose host NVIDIA drivers to the snap on biarch systems.
 //
@@ -272,20 +262,34 @@ static void sc_glob_files_only(const char *rootfs_dir,
 // libraries from wherever we find, and clobbering is also harmless.
 static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 {
+
+	const char *native_sources[] = {
+		NATIVE_LIBDIR,
+		NATIVE_LIBDIR "/nvidia*",
+	};
+	const size_t native_sources_len =
+	    sizeof native_sources / sizeof *native_sources;
+
+#if UINTPTR_MAX == 0xffffffffffffffff
+	const char *lib32_sources[] = {
+		LIB32_DIR,
+		LIB32_DIR "/nvidia*",
+	};
+	const size_t lib32_sources_len =
+	    sizeof lib32_sources / sizeof *lib32_sources;
+#endif
+
 	// Primary arch
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, NATIVE_LIBDIR,
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir,
+					  native_sources, native_sources_len,
 					  SC_LIBGL_DIR, nvidia_globs,
 					  nvidia_globs_len);
-	sc_glob_files_only(rootfs_dir, NATIVE_LIBDIR "/nvidia*", SC_LIBGL_DIR,
-			   nvidia_globs, nvidia_globs_len);
 
 #if UINTPTR_MAX == 0xffffffffffffffff
 	// Alternative 32-bit support
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, LIB32_DIR,
-					  SC_LIBGL32_DIR, nvidia_globs,
-					  nvidia_globs_len);
-	sc_glob_files_only(rootfs_dir, LIB32_DIR "/nvidia*",
-			   SC_LIBGL32_DIR, nvidia_globs, nvidia_globs_len);
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, lib32_sources,
+					  lib32_sources_len, SC_LIBGL32_DIR,
+					  nvidia_globs, nvidia_globs_len);
 #endif
 }
 
@@ -374,6 +378,19 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 
 #endif				// ifdef NVIDIA_MULTIARCH
 
+static void sc_mount_vulkan(const char *rootfs_dir)
+{
+	const char *vulkan_sources[] = {
+		SC_VULKAN_SOURCE_DIR,
+	};
+	const size_t vulkan_sources_len =
+	    sizeof vulkan_sources / sizeof *vulkan_sources;
+
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, vulkan_sources,
+					  vulkan_sources_len, SC_VULKAN_DIR,
+					  vulkan_globs, vulkan_globs_len);
+}
+
 void sc_mount_nvidia_driver(const char *rootfs_dir)
 {
 	/* If NVIDIA module isn't loaded, don't attempt to mount the drivers */
@@ -388,7 +405,5 @@ void sc_mount_nvidia_driver(const char *rootfs_dir)
 #endif				// ifdef NVIDIA_BIARCH
 
 	// Common for both driver mechanisms
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_VULKAN_SOURCE_DIR,
-					  SC_VULKAN_DIR, vulkan_globs,
-					  vulkan_globs_len);
+	sc_mount_vulkan(rootfs_dir);
 }
