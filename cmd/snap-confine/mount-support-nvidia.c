@@ -366,9 +366,9 @@ static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir,
 	if (res != 0 && errno != EEXIST) {
 		die("cannot create directory %s", dst);
 	}
-	if (res == 0 && (chown(libgl_dir, 0, 0) < 0)) {
+	if (res == 0 && (chown(dst, 0, 0) < 0)) {
 		// Adjust the ownership only if we created the directory.
-		die("cannot change ownership of %s", libgl_dir);
+		die("cannot change ownership of %s", dst);
 	}
 	// Bind mount the binary nvidia driver into $tgt_dir (i.e. /var/lib/snapd/lib/gl).
 	debug("bind mounting nvidia driver %s -> %s", src, dst);
