@@ -143,7 +143,9 @@ func (s *configHelpersSuite) TestSnapConfig(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	for _, emptyCfg := range [][]byte{nil, {}} {
+	empty1 := json.RawMessage(nil)
+
+	for _, emptyCfg := range []*json.RawMessage{nil, &empty1, {}} {
 		rawCfg, err := config.GetSnapConfig(s.state, "snap1")
 		c.Assert(err, IsNil)
 		c.Check(rawCfg, IsNil)
@@ -154,12 +156,14 @@ func (s *configHelpersSuite) TestSnapConfig(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(rawCfg, IsNil)
 
-		c.Assert(config.SetSnapConfig(s.state, "snap1", json.RawMessage(`{"foo":"bar"}`)), IsNil)
+		cfg := json.RawMessage(`{"foo":"bar"}`)
+		c.Assert(config.SetSnapConfig(s.state, "snap1", &cfg), IsNil)
 
 		// the set sets it
 		rawCfg, err = config.GetSnapConfig(s.state, "snap1")
 		c.Assert(err, IsNil)
-		c.Check(rawCfg, DeepEquals, json.RawMessage(`{"foo":"bar"}`))
+		c.Assert(rawCfg, NotNil)
+		c.Check(*rawCfg, DeepEquals, json.RawMessage(`{"foo":"bar"}`))
 
 		// empty or nil clears it
 		c.Assert(config.SetSnapConfig(s.state, "snap1", emptyCfg), IsNil)
