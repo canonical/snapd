@@ -699,11 +699,7 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 
 	// check that the tasks are in non-default lane
 	for _, t := range ts.Tasks() {
-		if t.Kind() == "auto-connect" {
-			c.Assert(t.Lanes(), DeepEquals, []int{1, 2})
-		} else {
-			c.Assert(t.Lanes(), DeepEquals, []int{2})
-		}
+		c.Assert(t.Lanes(), DeepEquals, []int{1})
 	}
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
@@ -6999,11 +6995,7 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 		verifyInstallTasks(c, 0, 0, ts, s.state)
 		// check that tasksets are in separate lanes
 		for _, t := range ts.Tasks() {
-			if t.Kind() == "auto-connect" {
-				c.Assert(t.Lanes(), DeepEquals, []int{1 + i*2, 2 * (i + 1)})
-			} else {
-				c.Assert(t.Lanes(), DeepEquals, []int{(i + 1) * 2})
-			}
+			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
 		}
 	}
 }
