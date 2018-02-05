@@ -512,6 +512,8 @@
 
         # Needed to perform mount/unmounts.
         capability sys_admin,
+        # Needed to chown files for writable mimic.
+        capability chown,
 
         # Allow freezing and thawing the per-snap cgroup freezers
         /sys/fs/cgroup/freezer/snap.*/freezer.state rw,
