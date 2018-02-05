@@ -71,9 +71,7 @@ apps:
    command: svc
    daemon: simple
 `
-	const contents = ""
-
-	info := snaptest.MockSnap(c, yaml, contents, &snap.SideInfo{Revision: snap.R(11)})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -103,7 +101,7 @@ version: 1.0
 `
 	const contents = ""
 
-	info := snaptest.MockSnap(c, yaml, contents, &snap.SideInfo{Revision: snap.R(11)})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -145,7 +143,7 @@ apps:
 `
 	const contents = ""
 
-	info := snaptest.MockSnap(c, yaml, contents, &snap.SideInfo{Revision: snap.R(11)})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -187,7 +185,7 @@ apps:
 `
 	const contents = ""
 
-	info := snaptest.MockSnap(c, yaml, contents, &snap.SideInfo{Revision: snap.R(11)})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -245,7 +243,7 @@ apps:
    command: svc
    daemon: simple
 `
-	s.info = snaptest.MockSnap(c, yaml, "", &snap.SideInfo{Revision: snap.R(11)})
+	s.info = snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	guiDir := filepath.Join(s.info.MountDir(), "meta", "gui")
 	c.Assert(os.MkdirAll(guiDir, 0755), IsNil)
