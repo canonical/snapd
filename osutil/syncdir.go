@@ -67,12 +67,12 @@ func EnsureDirStateGlobs(dir string, globs []string, content map[string]*FileSta
 	// Check syntax before doing anything.
 	for _, glob := range globs {
 		if _, err := filepath.Match(glob, "foo"); err != nil {
-			panic(fmt.Sprintf("EnsureDirState got invalid pattern %q: %s", glob, err))
+			panic(fmt.Sprintf("internal error: EnsureDirState got invalid pattern %q: %s", glob, err))
 		}
 	}
 	for baseName := range content {
 		if filepath.Base(baseName) != baseName {
-			panic(fmt.Sprintf("EnsureDirState got filename %q which has a path component", baseName))
+			panic(fmt.Sprintf("internal error: EnsureDirState got filename %q which has a path component", baseName))
 		}
 		sane := false
 		for _, glob := range globs {
@@ -83,9 +83,9 @@ func EnsureDirStateGlobs(dir string, globs []string, content map[string]*FileSta
 		}
 		if !sane {
 			if len(globs) == 1 {
-				panic(fmt.Sprintf("EnsureDirState got filename %q which doesn't match the glob pattern %q", baseName, globs[0]))
+				panic(fmt.Sprintf("internal error: EnsureDirState got filename %q which doesn't match the glob pattern %q", baseName, globs[0]))
 			}
-			panic(fmt.Sprintf("EnsureDirState got filename %q which doesn't match any glob patterns %q", baseName, globs))
+			panic(fmt.Sprintf("internal error: EnsureDirState got filename %q which doesn't match any glob patterns %q", baseName, globs))
 		}
 	}
 	// Change phase (create/change files described by content)
