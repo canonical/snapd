@@ -71,7 +71,7 @@ func (s *EnsureDirStateSuite) TestTwoPatterns(c *C) {
 	err = ioutil.WriteFile(name2, []byte("expected-2"), 0600)
 	c.Assert(err, IsNil)
 
-	changed, removed, err := osutil.EnsureDirStateMany(s.dir, []string{"*.snap", "*.snap-update-ns"}, map[string]*osutil.FileState{
+	changed, removed, err := osutil.EnsureDirStateGlobs(s.dir, []string{"*.snap", "*.snap-update-ns"}, map[string]*osutil.FileState{
 		"expected.snap":           {Content: []byte("expected-1"), Mode: 0600},
 		"expected.snap-update-ns": {Content: []byte("expected-2"), Mode: 0600},
 	})

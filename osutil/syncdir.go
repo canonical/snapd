@@ -37,15 +37,15 @@ type FileState struct {
 // ErrSameState is returned when the state of a file has not changed.
 var ErrSameState = fmt.Errorf("file state has not changed")
 
-// EnsureDirStateMany ensures that directory content matches expectations.
+// EnsureDirStateGlobs ensures that directory content matches expectations.
 //
-// EnsureDirStateMany enumerates all the files in the specified directory that
+// EnsureDirStateGlobs enumerates all the files in the specified directory that
 // match the provided set of pattern (globs). Each enumerated file is checked
 // to ensure that the contents, permissions are what is desired. Unexpected
 // files are removed. Missing files are created and differing files are
 // corrected. Files not matching any pattern are ignored.
 //
-// Note that EnsureDirStateMany only checks for permissions and content. Other
+// Note that EnsureDirStateGlobs only checks for permissions and content. Other
 // security mechanisms, including file ownership and extended attributes are
 // *not* supported.
 //
@@ -53,7 +53,7 @@ var ErrSameState = fmt.Errorf("file state has not changed")
 // the directory.  Map keys must be file names relative to the directory.
 // Sub-directories in the name are not allowed.
 //
-// If writing any of the files fails, EnsureDirStateMany switches to erase mode
+// If writing any of the files fails, EnsureDirStateGlobs switches to erase mode
 // where *all* of the files managed by the glob pattern are removed (including
 // those that may have been already written). The return value is an empty list
 // of changed files, the real list of removed files and the first error.
@@ -63,7 +63,7 @@ var ErrSameState = fmt.Errorf("file state has not changed")
 // exhausted.
 //
 // In all cases, the function returns the first error it has encountered.
-func EnsureDirStateMany(dir string, globs []string, content map[string]*FileState) (changed, removed []string, err error) {
+func EnsureDirStateGlobs(dir string, globs []string, content map[string]*FileState) (changed, removed []string, err error) {
 	// Check syntax before doing anything.
 	for _, glob := range globs {
 		if _, err := filepath.Match(glob, "foo"); err != nil {
@@ -139,9 +139,9 @@ func EnsureDirStateMany(dir string, globs []string, content map[string]*FileStat
 
 // EnsureDirState ensures that directory content matches expectations.
 //
-// This is like EnsureDirStateMany but it only supports one glob at a time.
+// This is like EnsureDirStateGlobs but it only supports one glob at a time.
 func EnsureDirState(dir string, glob string, content map[string]*FileState) (changed, removed []string, err error) {
-	return EnsureDirStateMany(dir, []string{glob}, content)
+	return EnsureDirStateGlobs(dir, []string{glob}, content)
 }
 
 // EnsureFileState ensures that the file is in the expected state. It will not attempt
