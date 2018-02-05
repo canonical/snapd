@@ -64,6 +64,7 @@ var ErrSameState = fmt.Errorf("file state has not changed")
 //
 // In all cases, the function returns the first error it has encountered.
 func EnsureDirStateMany(dir string, globs []string, content map[string]*FileState) (changed, removed []string, err error) {
+	// Check syntax before doing anything.
 	for _, glob := range globs {
 		if _, err := filepath.Match(glob, "foo"); err != nil {
 			panic(fmt.Sprintf("EnsureDirState got invalid pattern %q: %s", glob, err))
