@@ -208,20 +208,18 @@ func (s *EnsureDirStateSuite) TestFixesFilesWithBadPermissions(c *C) {
 }
 
 func (s *EnsureDirStateSuite) TestReportsAbnormalFileLocation(c *C) {
-	c.Assert(func() {
-		osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"subdir/file.snap": {}})
-	}, PanicMatches, `internal error: EnsureDirState got filename "subdir/file.snap" which has a path component`)
+	_, _, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"subdir/file.snap": {}})
+	c.Assert(err, ErrorMatches, `internal error: EnsureDirState got filename "subdir/file.snap" which has a path component`)
 }
 
 func (s *EnsureDirStateSuite) TestReportsAbnormalFileName(c *C) {
-	c.Assert(func() {
-		osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"without-namespace": {}})
-	}, PanicMatches, `internal error: EnsureDirState got filename "without-namespace" which doesn't match the glob pattern "\*\.snap"`)
+	_, _, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{"without-namespace": {}})
+	c.Assert(err, ErrorMatches, `internal error: EnsureDirState got filename "without-namespace" which doesn't match the glob pattern "\*\.snap"`)
 }
 
 func (s *EnsureDirStateSuite) TestReportsAbnormalPatterns(c *C) {
-	c.Assert(func() { osutil.EnsureDirState(s.dir, "[", nil) },
-		PanicMatches, `internal error: EnsureDirState got invalid pattern "\[": syntax error in pattern`)
+	_, _, err := osutil.EnsureDirState(s.dir, "[", nil)
+	c.Assert(err, ErrorMatches, `internal error: EnsureDirState got invalid pattern "\[": syntax error in pattern`)
 }
 
 func (s *EnsureDirStateSuite) TestRemovesAllManagedFilesOnError(c *C) {
