@@ -36,6 +36,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/strutil"
 )
 
 func parseCoreLdSoConf(confPath string) []string {
@@ -162,26 +163,6 @@ func KillProcessGroup(cmd *exec.Cmd) error {
 	return syscallKill(-pgid, syscall.SIGKILL)
 }
 
-// truncateOutput truncates input data by maxLines, imposing maxBytes limit (total) for them.
-func truncateOutput(data []byte, maxLines, maxBytes int) bytes.Buffer {
-	truncdata := bytes.Buffer{}
-	if maxBytes > len(data) {
-		maxBytes = len(data)
-	}
-	scanner := bufio.NewScanner(bytes.NewReader(data[:maxBytes]))
-	for i := 0; scanner.Scan(); i++ {
-		line := scanner.Bytes()
-		if i == maxLines {
-			break
-		}
-		truncdata.Write(line)
-		if truncdata.Len() < maxBytes {
-			truncdata.WriteString("\n")
-		}
-	}
-	return truncdata
-}
-
 // RunAndWait runs a command for the given argv with the given environ added to
 // os.Environ, killing it if it reaches timeout, or if the tomb is dying.
 func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.Tomb) ([]byte, error) {
@@ -205,7 +186,7 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.
 	var buffer bytes.Buffer
-	limwriter := NewLimitedWriter(&buffer, 512*1024)
+	limwriter := strutil.NewLimitedWriter(&buffer, 2*10*1024)
 	command.Stdout = limwriter
 	command.Stderr = limwriter
 
@@ -229,10 +210,7 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 	select {
 	case <-commandCompleted:
 		// Command completed; it may or may not have been successful.
-		return buffer.Bytes(), commandError
-	case <-limwriter.BufferLimitReached:
-		buffer = truncateOutput(buffer.Bytes(), 10, 1024)
-		abortOrTimeoutError = &BufferLimitError{}
+		return strutil.TruncateOutput(buffer.Bytes(), 100, 10*1024), commandError
 	case <-tomb.Dying():
 		// Hook was aborted, process will get killed below
 		abortOrTimeoutError = fmt.Errorf("aborted")

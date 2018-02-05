@@ -131,29 +131,6 @@ func (s *execSuite) TestRunAndWaitRunsAndKillsOnTimeout(c *C) {
 	c.Check(string(buf), Matches, "(?s).*exceeded maximum runtime.*")
 }
 
-func (s *execSuite) TestRunAndWaitRunsOutputLimitExceeded(c *C) {
-	_, err := osutil.RunAndWait([]string{"sh", "-c", "while true; do echo \".......\"; done"}, nil, time.Minute, &tomb.Tomb{})
-	c.Check(err, ErrorMatches, "buffer capacity exceeded")
-}
-
-func (*execSuite) TestTruncateOutput(c *C) {
-	data := []byte("ab\ncd\nef\ngh\nij")
-	out := osutil.TruncateOutput(data, 3, 500)
-	c.Assert(out.Bytes(), DeepEquals, []byte("ab\ncd\nef\n"))
-
-	out = osutil.TruncateOutput(data, 99, 5)
-	c.Assert(out.Bytes(), DeepEquals, []byte("ab\ncd"))
-
-	out = osutil.TruncateOutput(data, 99, 6)
-	c.Assert(out.Bytes(), DeepEquals, []byte("ab\ncd\n"))
-
-	out = osutil.TruncateOutput(data, 1000, 1000)
-	c.Assert(out.Bytes(), DeepEquals, []byte("ab\ncd\nef\ngh\nij"))
-
-	out = osutil.TruncateOutput(data, 0, 0)
-	c.Assert(out.Bytes(), HasLen, 0)
-}
-
 func (s *execSuite) TestRunAndWaitRunsAndKillsOnAbort(c *C) {
 	tmb := &tomb.Tomb{}
 	go func() {

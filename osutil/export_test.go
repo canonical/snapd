@@ -30,8 +30,6 @@ import (
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
-var TruncateOutput = truncateOutput
-
 func MockUserLookup(mock func(name string) (*user.User, error)) func() {
 	realUserLookup := userLookup
 	userLookup = mock
