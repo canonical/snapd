@@ -33,11 +33,17 @@ type Specification struct {
 	securityTags []string
 	snapName     string
 
-	// snippets are indexed by security tag.
+	// snippets are indexed by security tag and describe parts of apparmor policy
+	// for snap application and hook processes. The security tag encodes the identify
+	// of the application or hook.
 	snippets map[string][]string
+	// sunSnippets are indexed by snap name and describe parts of apparmor policy
+	// for snap-update-ns executing on behalf of a given snap.
+	sunSnippets map[string][]string
 }
 
 // setScope sets the scope of subsequent AddSnippet family functions.
+// The returned function resets the scope to an empty scope.
 func (spec *Specification) setScope(securityTags []string, snapName string) (restore func()) {
 	spec.securityTags = securityTags
 	spec.snapName = snapName
@@ -47,7 +53,7 @@ func (spec *Specification) setScope(securityTags []string, snapName string) (res
 	}
 }
 
-// AddSnippet adds a new apparmor snippet.
+// AddSnippet adds a new apparmor snippet to all applications using the interface.
 func (spec *Specification) AddSnippet(snippet string) {
 	if len(spec.securityTags) == 0 {
 		return
@@ -61,13 +67,28 @@ func (spec *Specification) AddSnippet(snippet string) {
 	}
 }
 
-// Snippets returns a deep copy of all the added snippets.
-func (spec *Specification) Snippets() map[string][]string {
-	result := make(map[string][]string, len(spec.snippets))
-	for k, v := range spec.snippets {
+// AddSunSnippet adds a new apparmor snippet for the snap-update-ns program.
+func (spec *Specification) AddSunSnippet(snippet string) {
+	if spec.snapName == "" {
+		return
+	}
+	if spec.sunSnippets == nil {
+		spec.sunSnippets = make(map[string][]string)
+	}
+	spec.sunSnippets[spec.snapName] = append(spec.sunSnippets[spec.snapName], snippet)
+}
+
+func copySnippets(m map[string][]string) map[string][]string {
+	result := make(map[string][]string, len(m))
+	for k, v := range m {
 		result[k] = append([]string(nil), v...)
 	}
 	return result
+}
+
+// Snippets returns a deep copy of all the added application snippets.
+func (spec *Specification) Snippets() map[string][]string {
+	return copySnippets(spec.snippets)
 }
 
 // SnippetForTag returns a combined snippet for given security tag with individual snippets
@@ -84,6 +105,11 @@ func (spec *Specification) SecurityTags() []string {
 	}
 	sort.Strings(tags)
 	return tags
+}
+
+// SunSnippets returns a deep copy of all the added snap-update-ns snippets.
+func (spec *Specification) SunSnippets() map[string][]string {
+	return copySnippets(spec.sunSnippets)
 }
 
 // Implementation of methods required by interfaces.Specification
