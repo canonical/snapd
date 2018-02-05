@@ -271,6 +271,7 @@ static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 	    sizeof native_sources / sizeof *native_sources;
 
 #if UINTPTR_MAX == 0xffffffffffffffff
+	// Alternative 32-bit support
 	const char *lib32_sources[] = {
 		LIB32_DIR,
 		LIB32_DIR "/nvidia*",
