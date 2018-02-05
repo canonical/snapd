@@ -284,8 +284,7 @@ EOF
 	snap := makeSnap(c, "", data)
 	err := snap.Unpack("*", "some-output-dir")
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot extract \"*\" to \"some-output-dir\": \"writer: failed to write data block 0\\n\\nFailed to write /tmp/1/snap/manifest.yaml, skipping\\n\\nWrite on output file failed because No space left on device\\n\\nwriter: failed to write data block 0\\n\\nFailed to write /tmp/1/snap/snapcraft.yaml, skipping\\n\"")
-
+	c.Check(err.Error(), Equals, "cannot extract \"*\" to \"some-output-dir\": \"Failed to write /tmp/1/modules/4.4.0-112-generic/modules.symbols, skipping\\nWrite on output file failed because No space left on device\\nwriter: failed to write data block 0\\nFailed to write /tmp/1/modules/4.4.0-112-generic/modules.symbols.bin, skipping\\nWrite on output file failed because No space left on device\\nwriter: failed to write data block 0\\nFailed to write /tmp/1/modules/4.4.0-112-generic/vdso/vdso32.so, skipping\\nWrite on output file failed because No space left on device\\nwriter: failed to write data block 0\\nFailed to write /tmp/1/modules/4.4.0-112-generic/vdso/vdso64.so, skipping\\nWrite on output file failed because No space left on device\"")
 }
 
 func (s *SquashfsTestSuite) TestBuild(c *C) {
@@ -311,4 +310,34 @@ squashfs-root/data.bin
 squashfs-root/random
 squashfs-root/random/dir
 `)
+}
+
+func (s *SquashfsTestSuite) TestUnsquashfsStderrWriter(c *C) {
+	for _, t := range []struct {
+		inp         []string
+		expectedErr string
+	}{
+		{
+			inp:         []string{"failed to write something\n"},
+			expectedErr: "failed to write something",
+		},
+		{
+			inp:         []string{"fai", "led to write", " something\nunrelated\n"},
+			expectedErr: "failed to write something",
+		},
+		{
+			inp:         []string{"failed to write\nfailed to read\n"},
+			expectedErr: "failed to write\nfailed to read",
+		},
+	} {
+		usw := &unsquashfsStderrWriter{}
+		for _, l := range t.inp {
+			usw.Write([]byte(l))
+		}
+		if t.expectedErr != "" {
+			c.Check(usw.Err(), ErrorMatches, t.expectedErr)
+		} else {
+			c.Check(usw.Err(), IsNil)
+		}
+	}
 }

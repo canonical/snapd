@@ -21,6 +21,7 @@ package squashfs
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -89,26 +90,84 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	return osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
 }
 
+// unsquashfsStderrWriter is a helper that captures errors from
+// unsquashfs on stderr. Because unsquashfs will potentially
+// (e.g. on out-of-diskspace) report an error on every single
+// file we limit the reported error lines to 10.
+//
+// unsquashfs does not exit with an exit code for write errors
+// (e.g. no space left on device). There is an upstream PR
+// to fix this https://github.com/plougher/squashfs-tools/pull/46
+//
+// However in the meantime we can detect errors by looking
+// on stderr for "failed" which is pretty consistently used in
+// the unsquashfs.c source in case of errors.
+type unsquashfsStderrWriter struct {
+	firstErrs []string
+
+	prevLine string
+}
+
+func (u *unsquashfsStderrWriter) pushFailedLine(l string) {
+	if len(u.firstErrs) > 10 {
+		return
+	}
+	u.firstErrs = append(u.firstErrs, l)
+}
+
+func (u *unsquashfsStderrWriter) Write(data []byte) (int, error) {
+	// check incomplete lines
+	if u.prevLine != "" {
+		if idx := bytes.IndexByte(data, '\n'); idx > -1 {
+			u.prevLine += string(data[:idx])
+			if strings.Contains(u.prevLine, "failed") {
+				u.pushFailedLine(u.prevLine)
+				data = data[idx:]
+			}
+			u.prevLine = ""
+		} else {
+			// line too long
+			u.prevLine += string(data)
+			return len(data), nil
+		}
+	}
+	if idx := bytes.LastIndex(data, []byte("\n")); idx > -1 {
+		u.prevLine = string(data[idx:])
+	} else {
+		u.prevLine = string(data)
+	}
+
+	// check for "[Ff]ailed"
+	if !bytes.Contains(data, []byte("ailed ")) {
+		return len(data), nil
+	}
+
+	for _, rl := range bytes.Split(data, []byte("\n")) {
+		if bytes.Contains(rl, []byte("failed")) || bytes.Contains(rl, []byte("Failed")) {
+			u.pushFailedLine(string(rl))
+		}
+	}
+	return len(data), nil
+}
+
+func (u *unsquashfsStderrWriter) Err() error {
+	if len(u.firstErrs) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s", strings.Join(u.firstErrs, "\n"))
+
+}
+
 func (s *Snap) Unpack(src, dstDir string) error {
+	usw := &unsquashfsStderrWriter{}
+
 	cmd := exec.Command("unsquashfs", "-f", "-d", dstDir, s.path, src)
-	bo, err := cmd.CombinedOutput()
-	if err != nil {
+	cmd.Stderr = usw
+	if err := cmd.Run(); err != nil {
 		return err
 	}
-	// unsquashfs does not exit with an exit code for write errors
-	// (e.g. no space left on device). There is an upstream PR
-	// to fix this https://github.com/plougher/squashfs-tools/pull/46
-	//
-	// However in the meantime we can detect errors by looking
-	// on stderr for "failed" which is pretty consistently used in
-	// the unsquashfs.c source in case of errors.
-	output := string(bo)
-	if strings.Contains(output, "failed") {
-		truncatedOutput := strings.Split(output, "\n")
-		if len(truncatedOutput) > 10 {
-			truncatedOutput = truncatedOutput[len(truncatedOutput)-10:]
-		}
-		return fmt.Errorf("cannot extract %q to %q: %q", src, dstDir, strings.Join(truncatedOutput, "\n"))
+	if usw.Err() != nil {
+		return fmt.Errorf("cannot extract %q to %q: %q", src, dstDir, usw.Err())
 	}
 	return nil
 }
