@@ -333,9 +333,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 // Remove removes and unloads apparmor profiles of a given snap.
 func (b *Backend) Remove(snapName string) error {
-	glob1 := fmt.Sprintf("snap*.%s*", snapName)
-	glob2 := fmt.Sprintf("snap-update-ns.%s", snapName)
-	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dirs.SnapAppArmorDir, []string{glob1, glob2}, nil)
+	glob := fmt.Sprintf("snap*.%s*", snapName)
+	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, nil)
 	errUnload := unloadProfiles(removed)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
