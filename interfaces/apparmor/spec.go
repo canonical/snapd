@@ -38,9 +38,9 @@ type Specification struct {
 	// for snap application and hook processes. The security tag encodes the identity
 	// of the application or hook.
 	snippets map[string][]string
-	// sunSnippets are indexed by snap name and describe parts of apparmor policy
+	// updateNS are indexed by snap name and describe parts of apparmor policy
 	// for snap-update-ns executing on behalf of a given snap.
-	sunSnippets map[string][]string
+	updateNS map[string][]string
 }
 
 // setScope sets the scope of subsequent AddSnippet family functions.
@@ -68,15 +68,15 @@ func (spec *Specification) AddSnippet(snippet string) {
 	}
 }
 
-// AddSunSnippet adds a new apparmor snippet for the snap-update-ns program.
-func (spec *Specification) AddSunSnippet(snippet string) {
+// AddUpdateNS adds a new apparmor snippet for the snap-update-ns program.
+func (spec *Specification) AddUpdateNS(snippet string) {
 	if spec.snapName == "" {
 		return
 	}
-	if spec.sunSnippets == nil {
-		spec.sunSnippets = make(map[string][]string)
+	if spec.updateNS == nil {
+		spec.updateNS = make(map[string][]string)
 	}
-	spec.sunSnippets[spec.snapName] = append(spec.sunSnippets[spec.snapName], snippet)
+	spec.updateNS[spec.snapName] = append(spec.updateNS[spec.snapName], snippet)
 }
 
 // AddSnapLayout adds apparmor snippets based on the layout of the snap.
@@ -136,9 +136,9 @@ func (spec *Specification) SecurityTags() []string {
 	return tags
 }
 
-// SunSnippets returns a deep copy of all the added snap-update-ns snippets.
-func (spec *Specification) SunSnippets() map[string][]string {
-	return copySnippets(spec.sunSnippets)
+// UpdateNS returns a deep copy of all the added snap-update-ns snippets.
+func (spec *Specification) UpdateNS() map[string][]string {
+	return copySnippets(spec.updateNS)
 }
 
 func snippetFromLayout(layout *snap.Layout) string {
