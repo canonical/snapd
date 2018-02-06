@@ -101,6 +101,42 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	})
 }
 
+// AddSnippet adds a snippet for the given security tag.
+func (s *specSuite) TestAddSnippet(c *C) {
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"}, "demo")
+	defer restore()
+
+	// Add two snippets in the context we are in.
+	s.spec.AddSnippet("snippet 1")
+	s.spec.AddSnippet("snippet 2")
+
+	// The snippets were recorded correctly.
+	c.Assert(s.spec.UpdateNS(), HasLen, 0)
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
+		"snap.demo.command": {"snippet 1", "snippet 2"},
+		"snap.demo.service": {"snippet 1", "snippet 2"},
+	})
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "snippet 1\nsnippet 2")
+	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.demo.command", "snap.demo.service"})
+}
+
+// AddUpdateNS adds a snippet for the snap-update-ns profile for a given snap.
+func (s *specSuite) TestAddUpdateNS(c *C) {
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"}, "demo")
+	defer restore()
+
+	// Add a two snap-update-ns snippets in the context we are in.
+	s.spec.AddUpdateNS("s-u-n snippet 1")
+	s.spec.AddUpdateNS("s-u-n snippet 2")
+
+	// The snippets were recorded correctly and in the right place.
+	c.Assert(s.spec.UpdateNS(), DeepEquals, map[string][]string{
+		"demo": {"s-u-n snippet 1", "s-u-n snippet 2"},
+	})
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "")
+	c.Assert(s.spec.SecurityTags(), HasLen, 0)
+}
+
 const snapWithLayout = `
 name: vanguard
 apps:
