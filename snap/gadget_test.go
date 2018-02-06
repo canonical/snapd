@@ -111,8 +111,6 @@ defaults:
       bar: baz
 `)
 
-var mockGadgetSnapContents = "SNAP"
-
 func (s *gadgetYamlTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
@@ -130,20 +128,20 @@ name: other
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissing(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 	_, err := snap.ReadGadgetInfo(info, false)
 	c.Assert(err, ErrorMatches, ".*meta/gadget.yaml: no such file or directory")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOptional(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 	gi, err := snap.ReadGadgetInfo(info, true)
 	c.Assert(err, IsNil)
 	c.Check(gi, NotNil)
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicEmptyIsValid(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
 
@@ -153,7 +151,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicEmptyIsValid(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockClassicGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
@@ -168,7 +166,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
@@ -214,7 +212,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockMultiVolumeGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
@@ -266,7 +264,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlInvalidBootloader(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 	mockGadgetYamlBroken := []byte(`
 volumes:
  name:
@@ -281,7 +279,7 @@ volumes:
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlEmptydBootloader(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 	mockGadgetYamlBroken := []byte(`
 volumes:
  name:
@@ -296,7 +294,7 @@ volumes:
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, mockGadgetSnapContents, &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), nil, 0644)
 	c.Assert(err, IsNil)

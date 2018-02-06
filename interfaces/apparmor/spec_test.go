@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type specSuite struct {
@@ -97,5 +98,32 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.snap1.app1": {"connected-plug", "permanent-plug"},
 		"snap.snap2.app2": {"connected-slot", "permanent-slot"},
+	})
+}
+
+const snapWithLayout = `
+name: vanguard
+apps:
+  vanguard:
+    command: vanguard
+layout:
+  /usr:
+    bind: $SNAP/usr
+  /mytmp:
+    type: tmpfs
+    mode: 1777
+  /mylink:
+    symlink: $SNAP/link/target
+`
+
+func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
+	snapInfo := snaptest.MockInfo(c, snapWithLayout, &snap.SideInfo{Revision: snap.R(42)})
+	s.spec.AddSnapLayout(snapInfo)
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
+		"snap.vanguard.vanguard": {
+			"# Layout path: /mylink\n/mylink{,/**} mrwklix,",
+			"# Layout path: /mytmp\n/mytmp{,/**} mrwklix,",
+			"# Layout path: /usr\n/usr{,/**} mrwklix,",
+		},
 	})
 }

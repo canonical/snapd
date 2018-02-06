@@ -229,11 +229,7 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 }
 
 func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
-	names := make([]string, len(x.Positional.Snaps))
-	for i, s := range x.Positional.Snaps {
-		names[i] = string(s)
-	}
-
+	names := installedSnapNames(x.Positional.Snaps)
 	cli := Client()
 	changeID, err := cli.RemoveMany(names, opts)
 	if err != nil {
@@ -575,11 +571,7 @@ func (x *cmdInstall) Execute([]string) error {
 	}
 	x.setModes(opts)
 
-	names := make([]string, len(x.Positional.Snaps))
-	for i, name := range x.Positional.Snaps {
-		names[i] = string(name)
-	}
-
+	names := remoteSnapNames(x.Positional.Snaps)
 	if len(names) == 1 {
 		return x.installOne(names[0], opts)
 	}
@@ -740,11 +732,8 @@ func (x *cmdRefresh) Execute([]string) error {
 		return nil
 	}
 
-	names := make([]string, len(x.Positional.Snaps))
-	for i, name := range x.Positional.Snaps {
-		names[i] = string(name)
-	}
-	if len(x.Positional.Snaps) == 1 {
+	names := installedSnapNames(x.Positional.Snaps)
+	if len(names) == 1 {
 		opts := &client.SnapOptions{
 			Amend:            x.Amend,
 			Channel:          x.Channel,
