@@ -35,6 +35,7 @@ var (
 
 type Conf interface {
 	Get(snapName, key string, result interface{}) error
+	Set(snapName, key string, value interface{}) error
 	State() *state.State
 }
 
@@ -54,6 +55,11 @@ func Run(tr Conf) error {
 		return err
 	}
 	if err := validateRefreshSchedule(tr); err != nil {
+		return err
+	}
+
+	// capture cloud information
+	if err := setCloudInfoWhenSeeding(tr); err != nil {
 		return err
 	}
 
