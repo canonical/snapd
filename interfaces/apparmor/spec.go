@@ -115,19 +115,6 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 	}
 }
 
-func snippetFromLayout(layout *snap.Layout) string {
-	mountPoint := layout.Snap.ExpandSnapVariables(layout.Path)
-	return fmt.Sprintf("# Layout path: %[1]s\n%[1]s{,/**} mrwklix,", mountPoint)
-}
-
-func copySnippets(m map[string][]string) map[string][]string {
-	result := make(map[string][]string, len(m))
-	for k, v := range m {
-		result[k] = append([]string(nil), v...)
-	}
-	return result
-}
-
 // Snippets returns a deep copy of all the added application snippets.
 func (spec *Specification) Snippets() map[string][]string {
 	return copySnippets(spec.snippets)
@@ -152,6 +139,19 @@ func (spec *Specification) SecurityTags() []string {
 // SunSnippets returns a deep copy of all the added snap-update-ns snippets.
 func (spec *Specification) SunSnippets() map[string][]string {
 	return copySnippets(spec.sunSnippets)
+}
+
+func snippetFromLayout(layout *snap.Layout) string {
+	mountPoint := layout.Snap.ExpandSnapVariables(layout.Path)
+	return fmt.Sprintf("# Layout path: %[1]s\n%[1]s{,/**} mrwklix,", mountPoint)
+}
+
+func copySnippets(m map[string][]string) map[string][]string {
+	result := make(map[string][]string, len(m))
+	for k, v := range m {
+		result[k] = append([]string(nil), v...)
+	}
+	return result
 }
 
 // Implementation of methods required by interfaces.Specification
