@@ -35,7 +35,7 @@ type Specification struct {
 	snapName     string
 
 	// snippets are indexed by security tag and describe parts of apparmor policy
-	// for snap application and hook processes. The security tag encodes the identify
+	// for snap application and hook processes. The security tag encodes the identity
 	// of the application or hook.
 	snippets map[string][]string
 	// sunSnippets are indexed by snap name and describe parts of apparmor policy
