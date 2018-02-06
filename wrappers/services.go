@@ -208,7 +208,7 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 }
 
 // StopServices stops service units for the applications from the snap which are services.
-func StopServices(apps []*snap.AppInfo, reason string, inter interacter) error {
+func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
 	for _, app := range apps {
@@ -218,7 +218,7 @@ func StopServices(apps []*snap.AppInfo, reason string, inter interacter) error {
 			continue
 		}
 		// Skip stop on refresh when refresh mode is "survive"
-		if app.RefreshMode == "survive" && reason == "refresh" {
+		if app.RefreshMode == "survive" && reason == snap.ServiceStopReasonRefresh {
 			continue
 		}
 		if err := stopService(sysd, app, inter); err != nil {
