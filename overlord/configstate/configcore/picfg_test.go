@@ -51,6 +51,7 @@ unrelated_options=are-kept
 `
 
 func (s *piCfgSuite) SetUpTest(c *C) {
+	s.configcoreSuite.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
 
@@ -134,6 +135,7 @@ func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
 	defer restore()
 
 	err := configcore.Run(&mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": 1,
 		},
@@ -144,6 +146,7 @@ func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
 	s.checkMockConfig(c, expected)
 
 	err = configcore.Run(&mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": "",
 		},

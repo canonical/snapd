@@ -100,6 +100,21 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 			continue
 		}
 
+		defer func(app *snap.AppInfo) {
+			if err == nil {
+				return
+			}
+			if e := stopService(sysd, app, inter); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
+			}
+			for _, socket := range app.Sockets {
+				socketService := filepath.Base(socket.File())
+				if e := sysd.Disable(socketService); e != nil {
+					inter.Notify(fmt.Sprintf("While trying to disable previously enabled socket service %q: %v", socketService, e))
+				}
+			}
+		}(app)
+
 		if len(app.Sockets) == 0 {
 			services = append(services, app.ServiceName())
 		}
@@ -116,14 +131,6 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 			}
 		}
 
-		defer func(app *snap.AppInfo) {
-			if err == nil {
-				return
-			}
-			if e := stopService(sysd, app, inter); e != nil {
-				inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
-			}
-		}(app)
 	}
 
 	if len(services) > 0 {

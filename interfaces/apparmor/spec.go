@@ -20,18 +20,32 @@
 package apparmor
 
 import (
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/snap"
-
+	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
 
 // Specification assists in collecting apparmor entries associated with an interface.
 type Specification struct {
-	// snippets are indexed by security tag.
-	snippets     map[string][]string
+	// context for various Add{...}Snippet functions
 	securityTags []string
+	snapName     string
+
+	// snippets are indexed by security tag.
+	snippets map[string][]string
+}
+
+// setScope sets the scope of subsequent AddSnippet family functions.
+func (spec *Specification) setScope(securityTags []string, snapName string) (restore func()) {
+	spec.securityTags = securityTags
+	spec.snapName = snapName
+	return func() {
+		spec.securityTags = nil
+		spec.snapName = ""
+	}
 }
 
 // AddSnippet adds a new apparmor snippet.
@@ -44,6 +58,47 @@ func (spec *Specification) AddSnippet(snippet string) {
 	}
 	for _, tag := range spec.securityTags {
 		spec.snippets[tag] = append(spec.snippets[tag], snippet)
+		sort.Strings(spec.snippets[tag])
+	}
+}
+
+func snippetFromLayout(layout *snap.Layout) string {
+	mountPoint := layout.Snap.ExpandSnapVariables(layout.Path)
+	return fmt.Sprintf("# Layout path: %[1]s\n%[1]s{,/**} mrwklix,", mountPoint)
+}
+
+// AddSnapLayout adds apparmor snippets based on the layout of the snap.
+func (spec *Specification) AddSnapLayout(si *snap.Info) {
+	if len(si.Layout) == 0 {
+		return
+	}
+
+	// walk the layout elements in deterministic order, by mount point name
+	paths := make([]string, 0, len(si.Layout))
+	for path := range si.Layout {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+
+	// get tags describing all apps and hooks
+	tags := make([]string, 0, len(si.Apps)+len(si.Hooks))
+	for _, app := range si.Apps {
+		tags = append(tags, app.SecurityTag())
+	}
+	for _, hook := range si.Hooks {
+		tags = append(tags, hook.SecurityTag())
+	}
+
+	// append layout snippets to all tags; the layout applies equally to the
+	// entire snap as the entire snap uses one mount namespace.
+	if spec.snippets == nil {
+		spec.snippets = make(map[string][]string)
+	}
+	for _, tag := range tags {
+		for _, path := range paths {
+			snippet := snippetFromLayout(si.Layout[path])
+			spec.snippets[tag] = append(spec.snippets[tag], snippet)
+		}
 		sort.Strings(spec.snippets[tag])
 	}
 }
@@ -81,8 +136,8 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 		AppArmorConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = plug.SecurityTags()
-		defer func() { spec.securityTags = nil }()
+		restore := spec.setScope(plug.SecurityTags(), plug.Snap().Name())
+		defer restore()
 		return iface.AppArmorConnectedPlug(spec, plug, slot)
 	}
 	return nil
@@ -94,8 +149,8 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 		AppArmorConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = slot.SecurityTags()
-		defer func() { spec.securityTags = nil }()
+		restore := spec.setScope(slot.SecurityTags(), slot.Snap().Name())
+		defer restore()
 		return iface.AppArmorConnectedSlot(spec, plug, slot)
 	}
 	return nil
@@ -107,8 +162,8 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 		AppArmorPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = plug.SecurityTags()
-		defer func() { spec.securityTags = nil }()
+		restore := spec.setScope(plug.SecurityTags(), plug.Snap.Name())
+		defer restore()
 		return iface.AppArmorPermanentPlug(spec, plug)
 	}
 	return nil
@@ -120,8 +175,8 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		AppArmorPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = slot.SecurityTags()
-		defer func() { spec.securityTags = nil }()
+		restore := spec.setScope(slot.SecurityTags(), slot.Snap.Name())
+		defer restore()
 		return iface.AppArmorPermanentSlot(spec, slot)
 	}
 	return nil
