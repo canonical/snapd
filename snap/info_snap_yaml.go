@@ -94,6 +94,8 @@ type layoutYaml struct {
 	Group   string `yaml:"group,omitempty"`
 	Mode    string `yaml:"mode,omitempty"`
 	Symlink string `yaml:"symlink,omitempty"`
+
+	BindFile string `yaml:"bind-file,omitempty"`
 }
 
 type socketsYaml struct {
@@ -166,7 +168,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			}
 			snap.Layout[path] = &Layout{
 				Snap: snap, Path: path,
-				Bind: l.Bind, Type: l.Type, Symlink: l.Symlink,
+				Bind: l.Bind, Type: l.Type, Symlink: l.Symlink, BindFile: l.BindFile,
 				User: user, Group: group, Mode: mode,
 			}
 		}

@@ -1608,6 +1608,8 @@ layout:
     bind: $SNAP/usr/share/foo
   /usr/share/bar:
     symlink: $SNAP/usr/share/bar
+  /etc/froz:
+    bind-file: $SNAP/etc/froz
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
@@ -1626,5 +1628,13 @@ layout:
 		User:    "root",
 		Group:   "root",
 		Mode:    0755,
+	})
+	c.Assert(info.Layout["/etc/froz"], DeepEquals, &snap.Layout{
+		Snap:     info,
+		Path:     "/etc/froz",
+		BindFile: "$SNAP/etc/froz",
+		User:     "root",
+		Group:    "root",
+		Mode:     0755,
 	})
 }
