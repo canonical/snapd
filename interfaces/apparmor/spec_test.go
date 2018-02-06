@@ -103,7 +103,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 
 // AddSnippet adds a snippet for the given security tag.
 func (s *specSuite) TestAddSnippet(c *C) {
-	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.demo", "snap.demo.service"}, "demo")
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"}, "demo")
 	defer restore()
 
 	// Add two snippets in the context we are in.
@@ -111,27 +111,30 @@ func (s *specSuite) TestAddSnippet(c *C) {
 	s.spec.AddSnippet("snippet 2")
 
 	// The snippets were recorded correctly.
+	c.Assert(s.spec.SunSnippets(), HasLen, 0)
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
-		"snap.demo.demo":    {"snippet 1", "snippet 2"},
+		"snap.demo.command": {"snippet 1", "snippet 2"},
 		"snap.demo.service": {"snippet 1", "snippet 2"},
 	})
-	c.Assert(s.spec.SnippetForTag("snap.demo.demo"), Equals, "snippet 1\nsnippet 2")
-	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.demo.demo", "snap.demo.service"})
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "snippet 1\nsnippet 2")
+	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.demo.command", "snap.demo.service"})
 }
 
 // AddSunSnippet adds a snippet for the snap-update-ns profile for a given snap.
 func (s *specSuite) TestAddSunSnippet(c *C) {
-	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.demo", "snap.demo.service"}, "demo")
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"}, "demo")
 	defer restore()
 
 	// Add a two snap-update-ns snippets in the context we are in.
-	s.spec.AddSunSnippet("snippet 1")
-	s.spec.AddSunSnippet("snippet 2")
+	s.spec.AddSunSnippet("s-u-n snippet 1")
+	s.spec.AddSunSnippet("s-u-n snippet 2")
 
-	// The snippets were recorded correctly.
+	// The snippets were recorded correctly and in the right place.
 	c.Assert(s.spec.SunSnippets(), DeepEquals, map[string][]string{
-		"demo": {"snippet 1", "snippet 2"},
+		"demo": {"s-u-n snippet 1", "s-u-n snippet 2"},
 	})
+	c.Assert(s.spec.SnippetForTag("snap.demo.demo"), Equals, "")
+	c.Assert(s.spec.SecurityTags(), HasLen, 0)
 }
 
 const snapWithLayout = `
