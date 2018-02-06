@@ -472,6 +472,7 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 	svc1Name := "snap.hello-snap.svc1.service"
 	svc2Name := "snap.hello-snap.svc2.service"
 	svc2SocketName := "snap.hello-snap.svc2.sock1.socket"
+	svc3Name := "snap.hello-snap.svc3.service"
 	svc3SocketName := "snap.hello-snap.svc3.sock1.socket"
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
@@ -508,12 +509,16 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 	err := wrappers.StartServices(apps, nil)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Logf("sysdlog: %v", sysdLog)
-	c.Assert(sysdLog, HasLen, 12, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 16, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--root", s.tempdir, "enable", svc2SocketName},
 		{"start", svc2SocketName},
 		{"--root", s.tempdir, "enable", svc3SocketName},
 		{"start", svc3SocketName}, // start failed, what follows is the cleanup
+		{"stop", svc3SocketName},
+		{"show", "--property=ActiveState", svc3SocketName},
+		{"stop", svc3Name},
+		{"show", "--property=ActiveState", svc3Name},
 		{"--root", s.tempdir, "disable", svc3SocketName},
 		{"stop", svc2SocketName},
 		{"show", "--property=ActiveState", svc2SocketName},
