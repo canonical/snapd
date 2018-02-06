@@ -54,7 +54,7 @@ func (spec *Specification) setScope(securityTags []string, snapName string) (res
 	}
 }
 
-// AddSnippet adds a new apparmor snippet to all applications using the interface.
+// AddSnippet adds a new apparmor snippet to all applications and hooks using the interface.
 func (spec *Specification) AddSnippet(snippet string) {
 	if len(spec.securityTags) == 0 {
 		return
