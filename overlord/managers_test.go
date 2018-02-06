@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -180,6 +181,32 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.serveIDtoName[fakeSnapID("core")] = "core"
 	err = ms.storeSigning.Add(a)
 	c.Assert(err, IsNil)
+
+	// add "snap1" snap declaration
+	headers = map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "snap1",
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	headers["snap-id"] = fakeSnapID(headers["snap-name"].(string))
+	a2, err := ms.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, a2), IsNil)
+	c.Assert(ms.storeSigning.Add(a2), IsNil)
+
+	// add "snap2" snap declaration
+	headers = map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "snap2",
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	headers["snap-id"] = fakeSnapID(headers["snap-name"].(string))
+	a3, err := ms.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, a3), IsNil)
+	c.Assert(ms.storeSigning.Add(a3), IsNil)
 
 	// add core itself
 	snapstate.Set(st, "core", &snapstate.SnapState{
@@ -1898,4 +1925,66 @@ func (s *authContextSetupSuite) TestProxyStoreParams(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(proxyStoreID, Equals, "foo")
 	c.Check(proxyStoreURL, DeepEquals, fooURL)
+}
+
+func (ms *mgrsSuite) TestTwoInstallsWithAutoconnect(c *C) {
+	snapYamlContent1 := `name: snap1
+plugs:
+ shared-data-plug:
+  interface: content
+  target: import
+  content: mylib
+apps:
+ bar:
+  command: bin/bar
+`
+	snapYamlContent2 := `name: snap2
+slots:
+ shared-data-slot:
+  interface: content
+  content: mylib
+  read:
+   - /
+apps:
+ bar:
+  command: bin/bar
+`
+	snapPath1 := makeTestSnap(c, snapYamlContent1+"version: 1.0")
+	snapPath2 := makeTestSnap(c, snapYamlContent2+"version: 1.0")
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts1, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "snap1", SnapID: fakeSnapID("snap1"), Revision: snap.R(3)}, snapPath1, "", snapstate.Flags{DevMode: true})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts1)
+
+	ts2, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "snap2", SnapID: fakeSnapID("snap2"), Revision: snap.R(3)}, snapPath2, "", snapstate.Flags{DevMode: true})
+	c.Assert(err, IsNil)
+
+	// using same change and simulating InstallMany, so need to wait for first taskset
+	ts2.WaitAll(ts1)
+	chg.AddAll(ts2)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	tasks := chg.Tasks()
+	connectTask := tasks[len(tasks)-3]
+	c.Assert(connectTask.Kind(), Equals, "connect")
+
+	var plugRef interfaces.PlugRef
+	var slotRef interfaces.SlotRef
+	c.Assert(connectTask.Get("plug", &plugRef), IsNil)
+	c.Assert(connectTask.Get("slot", &slotRef), IsNil)
+	c.Assert(plugRef.Snap, Equals, "snap1")
+	c.Assert(plugRef.Name, Equals, "shared-data-plug")
+	c.Assert(slotRef.Snap, Equals, "snap2")
+	c.Assert(slotRef.Name, Equals, "shared-data-slot")
 }
