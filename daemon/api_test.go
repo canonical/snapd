@@ -4779,8 +4779,8 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
 	s.daemon(c)
-	postCreateUserUcrednetGet = func(string) (uint32, uint32, error) {
-		return 100, 0, nil
+	postCreateUserUcrednetGet = func(string) (uint32, uint32, string, error) {
+		return 100, 0, dirs.SnapdSocket, nil
 	}
 	s.mockUserHome = c.MkDir()
 	userLookup = mkUserLookup(s.mockUserHome)
@@ -5145,8 +5145,8 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownClassicErro
 
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
-	postCreateUserUcrednetGet = func(string) (uint32, uint32, error) {
-		return 100, 0, nil
+	postCreateUserUcrednetGet = func(string) (uint32, uint32, string, error) {
+		return 100, 0, dirs.SnapdSocket, nil
 	}
 	defer func() {
 		postCreateUserUcrednetGet = ucrednetGet
