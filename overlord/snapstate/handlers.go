@@ -906,7 +906,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	var stopReason string
+	var stopReason snap.ServiceStopReason
 	if err := t.Get("stop-reason", &stopReason); err != nil && err != state.ErrNoState {
 		return err
 	}

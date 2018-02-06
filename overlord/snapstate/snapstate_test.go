@@ -1777,7 +1777,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op:   "stop-snap-services",
+			op:   "stop-snap-services:refresh",
 			name: filepath.Join(dirs.SnapMountDir, "services-snap/7"),
 		},
 		{
