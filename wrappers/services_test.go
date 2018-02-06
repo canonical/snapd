@@ -457,15 +457,77 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
 
 	err := wrappers.StartServices(info.Services(), nil)
 	c.Assert(err, ErrorMatches, "failed")
-
-	c.Assert(sysdLog, HasLen, 5)
+	c.Assert(sysdLog, HasLen, 5, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"start", svc1Name, svc2Name}, // one of the services fails
 		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
+	}, Commentf("calls: %v", sysdLog))
+}
+
+func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSockets(c *C) {
+	var sysdLog [][]string
+	svc1Name := "snap.hello-snap.svc1.service"
+	svc2Name := "snap.hello-snap.svc2.service"
+	svc2SocketName := "snap.hello-snap.svc2.sock1.socket"
+	svc3Name := "snap.hello-snap.svc3.service"
+	svc3SocketName := "snap.hello-snap.svc3.sock1.socket"
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		c.Logf("call: %v", cmd)
+		if len(cmd) >= 2 && cmd[0] == "start" && cmd[1] == svc3SocketName {
+			// svc2 socket fails
+			return nil, fmt.Errorf("failed")
+		}
+		return []byte("ActiveState=inactive\n"), nil
 	})
+	defer r()
+
+	info := snaptest.MockSnap(c, packageHello+`
+ svc2:
+  command: bin/hello
+  daemon: simple
+  sockets:
+    sock1:
+      listen-stream: $SNAP_COMMON/sock1.socket
+      socket-mode: 0666
+ svc3:
+  command: bin/hello
+  daemon: simple
+  sockets:
+    sock1:
+      listen-stream: $SNAP_COMMON/sock1.socket
+      socket-mode: 0666
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	// ensure desired order
+	apps := []*snap.AppInfo{info.Apps["svc1"], info.Apps["svc2"], info.Apps["svc3"]}
+
+	err := wrappers.StartServices(apps, nil)
+	c.Assert(err, ErrorMatches, "failed")
+	c.Logf("sysdlog: %v", sysdLog)
+	c.Assert(sysdLog, HasLen, 16, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--root", s.tempdir, "enable", svc2SocketName},
+		{"start", svc2SocketName},
+		{"--root", s.tempdir, "enable", svc3SocketName},
+		{"start", svc3SocketName}, // start failed, what follows is the cleanup
+		{"stop", svc3SocketName},
+		{"show", "--property=ActiveState", svc3SocketName},
+		{"stop", svc3Name},
+		{"show", "--property=ActiveState", svc3Name},
+		{"--root", s.tempdir, "disable", svc3SocketName},
+		{"stop", svc2SocketName},
+		{"show", "--property=ActiveState", svc2SocketName},
+		{"stop", svc2Name},
+		{"show", "--property=ActiveState", svc2Name},
+		{"--root", s.tempdir, "disable", svc2SocketName},
+		{"stop", svc1Name},
+		{"show", "--property=ActiveState", svc1Name},
+	}, Commentf("calls: %v", sysdLog))
 }
 
 func (s *servicesTestSuite) TestServiceAfterBefore(c *C) {
