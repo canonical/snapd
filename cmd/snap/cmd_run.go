@@ -461,7 +461,7 @@ func straceCmd() ([]string, error) {
 		stracePath,
 		"-u", current.Username,
 		"-f",
-		"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid",
+		"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
 	}, nil
 }
 
