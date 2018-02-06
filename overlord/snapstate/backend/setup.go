@@ -33,11 +33,9 @@ import (
 func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter progress.Meter) (err error) {
 	// This assumes that the snap was already verified or --dangerous was used.
 
-	var s *snap.Info
-	var snapf snap.Container
-	s, snapf, err = OpenSnapFile(snapFilePath, sideInfo)
-	if err != nil {
-		return err
+	s, snapf, oErr := OpenSnapFile(snapFilePath, sideInfo)
+	if oErr != nil {
+		return oErr
 	}
 	instdir := s.MountDir()
 
