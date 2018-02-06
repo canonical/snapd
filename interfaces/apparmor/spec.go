@@ -20,11 +20,12 @@
 package apparmor
 
 import (
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/snap"
-
+	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
 
 // Specification assists in collecting apparmor entries associated with an interface.
@@ -76,6 +77,47 @@ func (spec *Specification) AddSunSnippet(snippet string) {
 		spec.sunSnippets = make(map[string][]string)
 	}
 	spec.sunSnippets[spec.snapName] = append(spec.sunSnippets[spec.snapName], snippet)
+}
+
+// AddSnapLayout adds apparmor snippets based on the layout of the snap.
+func (spec *Specification) AddSnapLayout(si *snap.Info) {
+	if len(si.Layout) == 0 {
+		return
+	}
+
+	// walk the layout elements in deterministic order, by mount point name
+	paths := make([]string, 0, len(si.Layout))
+	for path := range si.Layout {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+
+	// get tags describing all apps and hooks
+	tags := make([]string, 0, len(si.Apps)+len(si.Hooks))
+	for _, app := range si.Apps {
+		tags = append(tags, app.SecurityTag())
+	}
+	for _, hook := range si.Hooks {
+		tags = append(tags, hook.SecurityTag())
+	}
+
+	// append layout snippets to all tags; the layout applies equally to the
+	// entire snap as the entire snap uses one mount namespace.
+	if spec.snippets == nil {
+		spec.snippets = make(map[string][]string)
+	}
+	for _, tag := range tags {
+		for _, path := range paths {
+			snippet := snippetFromLayout(si.Layout[path])
+			spec.snippets[tag] = append(spec.snippets[tag], snippet)
+		}
+		sort.Strings(spec.snippets[tag])
+	}
+}
+
+func snippetFromLayout(layout *snap.Layout) string {
+	mountPoint := layout.Snap.ExpandSnapVariables(layout.Path)
+	return fmt.Sprintf("# Layout path: %[1]s\n%[1]s{,/**} mrwklix,", mountPoint)
 }
 
 func copySnippets(m map[string][]string) map[string][]string {

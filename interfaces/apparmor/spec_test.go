@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type specSuite struct {
@@ -130,5 +131,32 @@ func (s *specSuite) TestAddSunSnippet(c *C) {
 	// The snippets were recorded correctly.
 	c.Assert(s.spec.SunSnippets(), DeepEquals, map[string][]string{
 		"demo": {"snippet 1", "snippet 2"},
+	})
+}
+
+const snapWithLayout = `
+name: vanguard
+apps:
+  vanguard:
+    command: vanguard
+layout:
+  /usr:
+    bind: $SNAP/usr
+  /mytmp:
+    type: tmpfs
+    mode: 1777
+  /mylink:
+    symlink: $SNAP/link/target
+`
+
+func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
+	snapInfo := snaptest.MockInfo(c, snapWithLayout, &snap.SideInfo{Revision: snap.R(42)})
+	s.spec.AddSnapLayout(snapInfo)
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
+		"snap.vanguard.vanguard": {
+			"# Layout path: /mylink\n/mylink{,/**} mrwklix,",
+			"# Layout path: /mytmp\n/mytmp{,/**} mrwklix,",
+			"# Layout path: /usr\n/usr{,/**} mrwklix,",
+		},
 	})
 }
