@@ -1949,20 +1949,20 @@ apps:
   command: bin/bar
 `
 
-func (ms *mgrsSuite) TestTwoInstallsWithAutoconnect(c *C) {
-	snapPath1 := makeTestSnap(c, snapYamlContent1+"version: 1.0")
-	snapPath2 := makeTestSnap(c, snapYamlContent2+"version: 1.0")
+func (ms *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snapYaml2 string) {
+	snapPath1 := makeTestSnap(c, snapYaml1+"version: 1.0")
+	snapPath2 := makeTestSnap(c, snapYaml2+"version: 1.0")
 
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
 
-	ts1, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "snap1", SnapID: fakeSnapID("snap1"), Revision: snap.R(3)}, snapPath1, "", snapstate.Flags{DevMode: true})
+	ts1, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName1, SnapID: fakeSnapID(snapName1), Revision: snap.R(3)}, snapPath1, "", snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts1)
 
-	ts2, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "snap2", SnapID: fakeSnapID("snap2"), Revision: snap.R(3)}, snapPath2, "", snapstate.Flags{DevMode: true})
+	ts2, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName2, SnapID: fakeSnapID(snapName2), Revision: snap.R(3)}, snapPath2, "", snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 
 	// using same change and simulating InstallMany, so need to wait for first taskset
@@ -1988,6 +1988,14 @@ func (ms *mgrsSuite) TestTwoInstallsWithAutoconnect(c *C) {
 	c.Assert(plugRef.Name, Equals, "shared-data-plug")
 	c.Assert(slotRef.Snap, Equals, "snap2")
 	c.Assert(slotRef.Name, Equals, "shared-data-slot")
+}
+
+func (ms *mgrsSuite) TestTwoInstallsWithAutoconnectPlugSnapFirst(c *C) {
+	ms.testTwoInstalls(c, "snap1", snapYamlContent1, "snap2", snapYamlContent2)
+}
+
+func (ms *mgrsSuite) TestTwoInstallsWithAutoconnectSlotSnapFirst(c *C) {
+	ms.testTwoInstalls(c, "snap2", snapYamlContent2, "snap1", snapYamlContent1)
 }
 
 func (ms *mgrsSuite) TestRemoveAndInstallWithAutoconnectHappy(c *C) {
