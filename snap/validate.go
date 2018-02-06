@@ -455,9 +455,17 @@ type LayoutConstraint interface {
 // mountedTree represents a mounted file-system tree or a bind-mounted directory.
 type mountedTree string
 
-// IsOffLimits returns true if the mount point s a prefix of a given path.
+// IsOffLimits returns true if the mount point is a prefix of a given path.
 func (mountPoint mountedTree) IsOffLimits(path string) bool {
 	return strings.HasPrefix(path, string(mountPoint)+"/")
+}
+
+// mountedFile represents a bind-mounted file.
+type mountedFile string
+
+// IsOffLimits returns true if the mount point is a prefix of a given path.
+func (mountPoint mountedFile) IsOffLimits(path string) bool {
+	return strings.HasPrefix(path, string(mountPoint)+"/") || path == string(mountPoint)
 }
 
 // symlinkFile represents a layout using symbolic link.
@@ -472,6 +480,8 @@ func (layout *Layout) constraint() LayoutConstraint {
 	path := layout.Snap.ExpandSnapVariables(layout.Path)
 	if layout.Symlink != "" {
 		return symlinkFile(path)
+	} else if layout.BindFile != "" {
+		return mountedFile(path)
 	}
 	return mountedTree(path)
 }
@@ -509,6 +519,9 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 	if layout.Bind != "" {
 		nused++
 	}
+	if layout.BindFile != "" {
+		nused++
+	}
 	if layout.Type != "" {
 		nused++
 	}
@@ -519,8 +532,8 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 		return fmt.Errorf("layout %q must define a bind mount, a filesystem mount or a symlink", layout.Path)
 	}
 
-	if layout.Bind != "" {
-		mountSource := layout.Bind
+	if layout.Bind != "" || layout.BindFile != "" {
+		mountSource := layout.Bind + layout.BindFile
 		if err := ValidatePathVariables(mountSource); err != nil {
 			return fmt.Errorf("layout %q uses invalid bind mount source %q: %s", layout.Path, mountSource, err)
 		}

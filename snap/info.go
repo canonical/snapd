@@ -207,6 +207,8 @@ type Layout struct {
 	Group   string      `json:"group,omitempty"`
 	Mode    os.FileMode `json:"mode,omitempty"`
 	Symlink string      `json:"symlink,omitempty"`
+
+	BindFile string `json:"bind-file,omitempty"`
 }
 
 // ChannelSnapInfo is the minimum information that can be used to clearly
