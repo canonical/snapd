@@ -1927,8 +1927,7 @@ func (s *authContextSetupSuite) TestProxyStoreParams(c *C) {
 	c.Check(proxyStoreURL, DeepEquals, fooURL)
 }
 
-func (ms *mgrsSuite) TestTwoInstallsWithAutoconnect(c *C) {
-	snapYamlContent1 := `name: snap1
+const snapYamlContent1 = `name: snap1
 plugs:
  shared-data-plug:
   interface: content
@@ -1938,7 +1937,7 @@ apps:
  bar:
   command: bin/bar
 `
-	snapYamlContent2 := `name: snap2
+const snapYamlContent2 = `name: snap2
 slots:
  shared-data-slot:
   interface: content
@@ -1949,6 +1948,8 @@ apps:
  bar:
   command: bin/bar
 `
+
+func (ms *mgrsSuite) TestTwoInstallsWithAutoconnect(c *C) {
 	snapPath1 := makeTestSnap(c, snapYamlContent1+"version: 1.0")
 	snapPath2 := makeTestSnap(c, snapYamlContent2+"version: 1.0")
 
@@ -1987,4 +1988,31 @@ apps:
 	c.Assert(plugRef.Name, Equals, "shared-data-plug")
 	c.Assert(slotRef.Snap, Equals, "snap2")
 	c.Assert(slotRef.Name, Equals, "shared-data-slot")
+}
+
+func (ms *mgrsSuite) TestRemoveAndInstallWithAutoconnectHappy(c *C) {
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	_ = ms.installLocalTestSnap(c, snapYamlContent1+"version: 1.0")
+
+	ts, err := snapstate.Remove(st, "snap1", snap.R(0))
+	c.Assert(err, IsNil)
+	chg := st.NewChange("remove-snap", "...")
+	chg.AddAll(ts)
+
+	snapPath := makeTestSnap(c, snapYamlContent2+"version: 1.0")
+	chg2 := st.NewChange("install-snap", "...")
+	ts2, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "snap2", SnapID: fakeSnapID("snap2"), Revision: snap.R(3)}, snapPath, "", snapstate.Flags{DevMode: true})
+	chg2.AddAll(ts2)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("remove-snap change failed with: %v", chg.Err()))
+	c.Assert(chg2.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 }
