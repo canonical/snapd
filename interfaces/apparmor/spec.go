@@ -30,7 +30,7 @@ import (
 
 // Specification assists in collecting apparmor entries associated with an interface.
 type Specification struct {
-	// context for various Add{...}Snippet functions
+	// scope for various Add{...}Snippet functions
 	securityTags []string
 	snapName     string
 
