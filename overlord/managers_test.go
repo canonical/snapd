@@ -1980,6 +1980,7 @@ func (ms *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snap
 	connectTask := tasks[len(tasks)-3]
 	c.Assert(connectTask.Kind(), Equals, "connect")
 
+	// verify connect task data
 	var plugRef interfaces.PlugRef
 	var slotRef interfaces.SlotRef
 	c.Assert(connectTask.Get("plug", &plugRef), IsNil)
@@ -1988,6 +1989,20 @@ func (ms *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snap
 	c.Assert(plugRef.Name, Equals, "shared-data-plug")
 	c.Assert(slotRef.Snap, Equals, "snap2")
 	c.Assert(slotRef.Name, Equals, "shared-data-slot")
+
+	// verify that connection was made
+	var conns map[string]interface{}
+	c.Assert(st.Get("conns", &conns), IsNil)
+	c.Assert(conns, HasLen, 1)
+
+	repo := ms.o.InterfaceManager().Repository()
+	cn, err := repo.Connected("snap1", "shared-data-plug")
+	c.Assert(err, IsNil)
+	c.Assert(cn, HasLen, 1)
+	c.Assert(cn, DeepEquals, []interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "snap1", Name: "shared-data-plug"},
+		SlotRef: interfaces.SlotRef{Snap: "snap2", Name: "shared-data-slot"},
+	}})
 }
 
 func (ms *mgrsSuite) TestTwoInstallsWithAutoconnectPlugSnapFirst(c *C) {
