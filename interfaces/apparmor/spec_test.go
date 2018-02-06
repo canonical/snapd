@@ -133,7 +133,7 @@ func (s *specSuite) TestAddUpdateNS(c *C) {
 	c.Assert(s.spec.UpdateNS(), DeepEquals, map[string][]string{
 		"demo": {"s-u-n snippet 1", "s-u-n snippet 2"},
 	})
-	c.Assert(s.spec.SnippetForTag("snap.demo.demo"), Equals, "")
+	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "")
 	c.Assert(s.spec.SecurityTags(), HasLen, 0)
 }
 
