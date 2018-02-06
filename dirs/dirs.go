@@ -85,7 +85,8 @@ var (
 	SystemApparmorDir      string
 	SystemApparmorCacheDir string
 
-	CloudMetaDataFile string
+	CloudMetaDataFile     string
+	CloudInstanceDataFile string
 
 	ClassicDir string
 
@@ -224,6 +225,7 @@ func SetRootDir(rootdir string) {
 	SystemApparmorCacheDir = filepath.Join(rootdir, "/etc/apparmor.d/cache")
 
 	CloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
+	CloudInstanceDataFile = filepath.Join(rootdir, "/run/cloud-init/instance-data.json")
 
 	SnapUdevRulesDir = filepath.Join(rootdir, "/etc/udev/rules.d")
 
