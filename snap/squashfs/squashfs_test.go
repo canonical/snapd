@@ -329,6 +329,18 @@ func (s *SquashfsTestSuite) TestUnsquashfsStderrWriter(c *C) {
 			inp:         []string{"failed to write\nfailed to read\n"},
 			expectedErr: `failed: "failed to write", and "failed to read"`,
 		},
+		{
+			inp:         []string{"failed 1\nfailed 2\n3 failed\n"},
+			expectedErr: `"failed: "failed 1", "failed 2", and "3 failed"`,
+		},
+		{
+			inp:         []string{"failed 1\nfailed 2\n3 Failed\n4 Failed\n"},
+			expectedErr: `failed: "failed 1", "failed 2", "3 Failed", and "4 Failed"`,
+		},
+		{
+			inp:         []string{"failed 1\nfailed 2\n3 Failed\n4 Failed\nfailed #5\n"},
+			expectedErr: `failed: "failed 1", "failed 2", "3 Failed", "4 Failed", and 1 more`,
+		},
 	} {
 		usw := newUnsquashfsStderrWriter()
 		for _, l := range t.inp {
