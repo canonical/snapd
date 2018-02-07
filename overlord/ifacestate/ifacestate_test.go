@@ -777,7 +777,7 @@ plugs:
 // explicitly disconnected by the user.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
 	s.state.Lock()
-	s.state.Set("autoconnect-disabled", map[string]bool{"snap:network ubuntu-core:network": true})
+	s.state.Set("autoconnect-disabled", []string{"snap:network ubuntu-core:network"})
 	s.state.Unlock()
 
 	// Add an OS snap as well as a sample snap with a "network" plug.
@@ -1404,9 +1404,9 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 	})
 
 	// Store information about disabled auto-connections
-	s.state.Set("autoconnect-disabled", map[string]bool{
-		"consumer:plug producer:slot":    true,
-		"othersnap:plug yetanother:slot": true,
+	s.state.Set("autoconnect-disabled", []string{
+		"consumer:plug producer:slot",
+		"othersnap:plug yetanother:slot",
 	})
 
 	// Store empty snap state. This snap has an empty sequence now.
@@ -1431,12 +1431,10 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{})
 
-	var autoconnectDisabled map[string]bool
+	var autoconnectDisabled []string
 	err = s.state.Get("autoconnect-disabled", &autoconnectDisabled)
 	c.Assert(err, IsNil)
-	c.Check(autoconnectDisabled, DeepEquals, map[string]bool{
-		"othersnap:plug yetanother:slot": true,
-	})
+	c.Check(autoconnectDisabled, DeepEquals, []string{"othersnap:plug yetanother:slot"})
 
 	// But removed connections are preserved in the task for undo.
 	var removed map[string]interface{}
@@ -1455,9 +1453,9 @@ func (s *interfaceManagerSuite) testUndoDicardConns(c *C, snapName string) {
 	})
 
 	// Store information about disabled auto-connections
-	s.state.Set("autoconnect-disabled", map[string]bool{
-		"consumer:plug producer:slot":    true,
-		"othersnap:plug yetanother:slot": true,
+	s.state.Set("autoconnect-disabled", []string{
+		"consumer:plug producer:slot",
+		"othersnap:plug yetanother:slot",
 	})
 
 	// Store empty snap state. This snap has an empty sequence now.
@@ -1500,12 +1498,13 @@ func (s *interfaceManagerSuite) testUndoDicardConns(c *C, snapName string) {
 	})
 
 	// Information about diabled auto-connections is intact
-	var autoconnectDisabled map[string]bool
+	var autoconnectDisabled []string
 	err = s.state.Get("autoconnect-disabled", &autoconnectDisabled)
 	c.Assert(err, IsNil)
-	c.Check(autoconnectDisabled, DeepEquals, map[string]bool{
-		"consumer:plug producer:slot":    true,
-		"othersnap:plug yetanother:slot": true,
+	sort.Strings(autoconnectDisabled)
+	c.Check(autoconnectDisabled, DeepEquals, []string{
+		"consumer:plug producer:slot",
+		"othersnap:plug yetanother:slot",
 	})
 
 	var removed map[string]interface{}
@@ -1566,9 +1565,9 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	_ = s.manager(c)
 
 	s.state.Lock()
-	s.state.Set("autoconnect-disabled", map[string]bool{
-		"consumer:plug producer:slot": true,
-		"other:plug yetanother:slot":  true,
+	s.state.Set("autoconnect-disabled", []string{
+		"consumer:plug producer:slot",
+		"other:plug yetanother:slot",
 	})
 
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
@@ -1601,11 +1600,11 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 		},
 	})
 
-	var autoconnectDisabled map[string]bool
+	var autoconnectDisabled []string
 	err = s.state.Get("autoconnect-disabled", &autoconnectDisabled)
 	c.Assert(err, IsNil)
-	c.Check(autoconnectDisabled, DeepEquals, map[string]bool{
-		"other:plug yetanother:slot": true,
+	c.Check(autoconnectDisabled, DeepEquals, []string{
+		"other:plug yetanother:slot",
 	})
 }
 
@@ -1730,7 +1729,7 @@ func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{})
 
-	var autoconnectDisabled map[string]bool
+	var autoconnectDisabled []string
 	err = s.state.Get("autoconnect-disabled", &autoconnectDisabled)
 	c.Assert(err, Equals, state.ErrNoState)
 }
@@ -1774,12 +1773,10 @@ func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{})
 
-	var autoconnectDisabled map[string]bool
+	var autoconnectDisabled []string
 	err = s.state.Get("autoconnect-disabled", &autoconnectDisabled)
 	c.Assert(err, IsNil)
-	c.Check(autoconnectDisabled, DeepEquals, map[string]bool{
-		"consumer:plug producer:slot": true,
-	})
+	c.Check(autoconnectDisabled, DeepEquals, []string{"consumer:plug producer:slot"})
 }
 
 func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {

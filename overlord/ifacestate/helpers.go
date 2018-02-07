@@ -442,19 +442,26 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 	return affectedSnapNames, nil
 }
 
-func getAutoconnectDisabled(st *state.State) (connFlags map[string]bool, err error) {
-	err = st.Get("autoconnect-disabled", &connFlags)
-	if err != nil {
-		if err != state.ErrNoState {
-			return nil, err
-		}
-		connFlags = make(map[string]bool)
+func getAutoconnectDisabled(st *state.State) (map[string]bool, error) {
+	var connRefs []string
+	err := st.Get("autoconnect-disabled", &connRefs)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	connFlags := make(map[string]bool)
+	for _, c := range connRefs {
+		connFlags[c] = true
 	}
 	return connFlags, nil
 }
 
 func setAutoConnectDisabled(st *state.State, connFlags map[string]bool) {
-	st.Set("autoconnect-disabled", connFlags)
+	connRefs := make([]string, 0, len(connFlags))
+	for k, _ := range connFlags {
+		connRefs = append(connRefs, k)
+	}
+	st.Set("autoconnect-disabled", connRefs)
 }
 
 func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRef, error) {
