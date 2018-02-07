@@ -453,6 +453,9 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
  svc2:
   command: bin/hello
   daemon: simple
+ svc3:
+  command: bin/oneshot
+  daemon: oneshot
 `, &snap.SideInfo{Revision: snap.R(12)})
 
 	err := wrappers.StartServices(info.Services(), nil)

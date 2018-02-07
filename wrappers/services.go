@@ -100,6 +100,14 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 			continue
 		}
 
+		// skip oneshot services, as:
+		// - they may hang indefinitely
+		// - they have TimeoutStartSec disabled by default
+		// - we do not really know when is the good time to start them
+		if app.Daemon == "oneshot" {
+			continue
+		}
+
 		defer func(app *snap.AppInfo) {
 			if err == nil {
 				return
