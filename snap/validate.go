@@ -138,18 +138,11 @@ func validateSocketAddrNet(socket *SocketInfo, fieldName string, address string)
 		if err := validateSocketAddrNetHost(socket, fieldName, address[:lastIndex]); err != nil {
 			return err
 		}
-		if err := validateSocketAddrNetPort(socket, fieldName, address[lastIndex+1:]); err != nil {
-			return err
-		}
-		return nil
+		return validateSocketAddrNetPort(socket, fieldName, address[lastIndex+1:])
 	}
 
 	// Address only contains a port
-	if err := validateSocketAddrNetPort(socket, fieldName, address); err != nil {
-		return err
-	}
-
-	return nil
+	return validateSocketAddrNetPort(socket, fieldName, address)
 }
 
 func validateSocketAddrNetHost(socket *SocketInfo, fieldName string, address string) error {
@@ -308,7 +301,7 @@ func validateAppOrderCycles(apps map[string]*AppInfo) error {
 		app := queue[0]
 		queue = queue[1:]
 		for _, successor := range successors[app] {
-			predecessors[successor] -= 1
+			predecessors[successor]--
 			if predecessors[successor] == 0 {
 				delete(predecessors, successor)
 				queue = append(queue, successor)
@@ -358,6 +351,7 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 // will get confused.
 var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
 
+// ValidAppName tells whether a string is a valid application name.
 func ValidAppName(n string) bool {
 	var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 
@@ -410,11 +404,7 @@ func ValidateApp(app *AppInfo) error {
 	if err := validateAppOrderNames(app, app.Before); err != nil {
 		return err
 	}
-	if err := validateAppOrderNames(app, app.After); err != nil {
-		return err
-	}
-
-	return nil
+	return validateAppOrderNames(app, app.After)
 }
 
 // ValidatePathVariables ensures that given path contains only $SNAP, $SNAP_DATA or $SNAP_COMMON.
@@ -474,13 +464,13 @@ func ValidateLayout(layout *Layout, blacklist []string) error {
 
 	var nused int
 	if layout.Bind != "" {
-		nused += 1
+		nused++
 	}
 	if layout.Type != "" {
-		nused += 1
+		nused++
 	}
 	if layout.Symlink != "" {
-		nused += 1
+		nused++
 	}
 	if nused != 1 {
 		return fmt.Errorf("layout %q must define a bind mount, a filesystem mount or a symlink", layout.Path)
