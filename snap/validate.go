@@ -242,7 +242,7 @@ func ValidateLayoutAll(info *Info) error {
 		if err := ValidateLayout(layout, blacklist); err != nil {
 			return err
 		}
-		blacklist = append(blacklist, info.ExpandSnapVariables(layout.Path))
+		blacklist = append(blacklist, layout.effectivePath())
 	}
 	return nil
 }
@@ -446,6 +446,14 @@ func isAbsAndClean(path string) bool {
 	return (filepath.IsAbs(path) || strings.HasPrefix(path, "$")) && filepath.Clean(path) == path
 }
 
+func (layout *Layout) effectivePath() string {
+	path := layout.Snap.ExpandSnapVariables(layout.Path)
+	if (layout.Bind != "" || layout.Type != "") && !strings.HasSuffix(path, "/") {
+		path += "/"
+	}
+	return path
+}
+
 // ValidateLayout ensures that the given layout contains only valid subset of constructs.
 func ValidateLayout(layout *Layout, blacklist []string) error {
 	si := layout.Snap
@@ -468,8 +476,11 @@ func ValidateLayout(layout *Layout, blacklist []string) error {
 	if !isAbsAndClean(mountPoint) {
 		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
 	}
+
+	// effective path contains a trailing slash for directory-like mount entries.
+	effectivePath := layout.effectivePath()
 	for i := range blacklist {
-		if strings.HasPrefix(mountPoint, blacklist[i]) {
+		if (strings.HasSuffix(blacklist[i], "/") && strings.HasPrefix(effectivePath, blacklist[i])) || effectivePath == blacklist[i] {
 			return fmt.Errorf("layout %q underneath prior layout item %q", layout.Path, blacklist[i])
 		}
 	}
