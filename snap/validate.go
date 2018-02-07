@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -225,8 +226,19 @@ func Validate(info *Info) error {
 		return err
 	}
 
+	return ValidateLayoutAll(info)
+}
+
+// ValidateLayoutAll validates the consistency of all the layout elements in a snap.
+func ValidateLayoutAll(info *Info) error {
 	blacklist := make([]string, 0, len(info.Layout))
+	paths := make([]string, 0, len(info.Layout))
 	for _, layout := range info.Layout {
+		paths = append(paths, layout.Path)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		layout := info.Layout[path]
 		if err := ValidateLayout(layout, blacklist); err != nil {
 			return err
 		}
