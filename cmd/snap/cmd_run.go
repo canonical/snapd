@@ -55,6 +55,7 @@ type cmdRun struct {
 	Revision string `short:"r" default:"unset" hidden:"yes"`
 	Shell    bool   `long:"shell" `
 	Strace   string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
+	Gdb      bool   `long:"gdb"`
 
 	// not a real option, used to check if cmdRun is initialized by
 	// the parser
@@ -73,6 +74,7 @@ func init() {
 			"r":          i18n.G("Use a specific snap revision when running hook"),
 			"shell":      i18n.G("Run a shell instead of the command (useful for debugging)"),
 			"strace":     i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here."),
+			"gdb":        i18n.G("Run the command with gdb"),
 			"parser-ran": "",
 		}, nil)
 }
@@ -482,6 +484,20 @@ func straceCmd() ([]string, error) {
 	}, nil
 }
 
+func (x *cmdRun) runCmdUnderGdb(origCmd, env []string) error {
+	env = append(env, "SNAP_CONFINE_RUN_UNDER_GDB=1")
+
+	cmd := []string{"sudo", "-E", "gdb", "-ex=r", "-ex=catch exec", "-ex=cont", "--args"}
+	cmd = append(cmd, origCmd...)
+
+	gcmd := exec.Command(cmd[0], cmd[1:]...)
+	gcmd.Stdin = os.Stdin
+	gcmd.Stdout = os.Stdout
+	gcmd.Stderr = os.Stderr
+	gcmd.Env = env
+	return gcmd.Run()
+}
+
 func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 	// prepend strace magic
 	cmd, err := straceCmd()
@@ -617,6 +633,9 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	if x.Shell {
 		cmd = append(cmd, "--command=shell")
 	}
+	if x.Gdb {
+		cmd = append(cmd, "--command=gdb")
+	}
 	if x.Command != "" {
 		cmd = append(cmd, "--command="+x.Command)
 	}
@@ -635,7 +654,9 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 	env := snapenv.ExecEnv(info, extraEnv)
 
-	if x.useStrace() {
+	if x.Gdb {
+		return x.runCmdUnderGdb(cmd, env)
+	} else if x.useStrace() {
 		return x.runCmdUnderStrace(cmd, env)
 	} else {
 		return syscallExec(cmd[0], cmd, env)

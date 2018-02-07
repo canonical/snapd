@@ -305,6 +305,7 @@ fi
 %{_libexecdir}/snapd/snapd
 %{_libexecdir}/snapd/snap-mgmt
 %{_libexecdir}/udev/snappy-app-dev
+%{_libexecdir}/snapd/snap-gdb-shim
 /usr/share/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
