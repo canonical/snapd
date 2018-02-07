@@ -864,6 +864,12 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 	return flags, nil
 }
 
+type snapInstructionResult struct {
+	summary  string
+	affected []string
+	tasksets []*state.TaskSet
+}
+
 var (
 	snapstateInstall           = snapstate.Install
 	snapstateInstallPath       = snapstate.InstallPath
@@ -912,17 +918,18 @@ func modeFlags(devMode, jailMode, classic bool) (snapstate.Flags, error) {
 	return flags, nil
 }
 
-func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
+func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can, this also ensures that snap-declarations and their prerequisite assertions are updated regularly
 	if err := assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
-		return "", nil, nil, err
+		return nil, err
 	}
 
-	updated, tasksets, err = snapstateUpdateMany(st, inst.Snaps, inst.userID)
+	updated, tasksets, err := snapstateUpdateMany(st, inst.Snaps, inst.userID)
 	if err != nil {
-		return "", nil, nil, err
+		return nil, err
 	}
 
+	var msg string
 	switch len(updated) {
 	case 0:
 		if len(inst.Snaps) != 0 {
@@ -939,7 +946,11 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), quoted)
 	}
 
-	return msg, updated, tasksets, nil
+	return &snapInstructionResult{
+		summary:  msg,
+		affected: updated,
+		tasksets: tasksets,
+	}, nil
 }
 
 func verifySnapInstructions(inst *snapInstruction) error {
@@ -957,15 +968,16 @@ func verifySnapInstructions(inst *snapInstruction) error {
 	return nil
 }
 
-func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, installed []string, tasksets []*state.TaskSet, err error) {
-	installed, tasksets, err = snapstateInstallMany(st, inst.Snaps, inst.userID)
+func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID)
 	if err != nil {
-		return "", nil, nil, err
+		return nil, err
 	}
 
+	var msg string
 	switch len(inst.Snaps) {
 	case 0:
-		return "", nil, nil, fmt.Errorf("cannot install zero snaps")
+		return nil, fmt.Errorf("cannot install zero snaps")
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Install snap %q"), inst.Snaps[0])
 	default:
@@ -974,7 +986,11 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, instal
 		msg = fmt.Sprintf(i18n.G("Install snaps %s"), quoted)
 	}
 
-	return msg, installed, tasksets, nil
+	return &snapInstructionResult{
+		summary:  msg,
+		affected: installed,
+		tasksets: tasksets,
+	}, nil
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
@@ -1028,15 +1044,16 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	return msg, []*state.TaskSet{ts}, nil
 }
 
-func snapRemoveMany(inst *snapInstruction, st *state.State) (msg string, removed []string, tasksets []*state.TaskSet, err error) {
-	removed, tasksets, err = snapstateRemoveMany(st, inst.Snaps)
+func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+	removed, tasksets, err := snapstateRemoveMany(st, inst.Snaps)
 	if err != nil {
-		return "", nil, nil, err
+		return nil, err
 	}
 
+	var msg string
 	switch len(inst.Snaps) {
 	case 0:
-		return "", nil, nil, fmt.Errorf("cannot remove zero snaps")
+		return nil, fmt.Errorf("cannot remove zero snaps")
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Remove snap %q"), inst.Snaps[0])
 	default:
@@ -1045,7 +1062,11 @@ func snapRemoveMany(inst *snapInstruction, st *state.State) (msg string, removed
 		msg = fmt.Sprintf(i18n.G("Remove snaps %s"), quoted)
 	}
 
-	return msg, removed, tasksets, nil
+	return &snapInstructionResult{
+		summary:  msg,
+		affected: removed,
+		tasksets: tasksets,
+	}, nil
 }
 
 func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
@@ -1336,33 +1357,33 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		inst.userID = user.ID
 	}
 
-	var msg string
-	var affected []string
-	var tsets []*state.TaskSet
-	var err error
+	var op func(*snapInstruction, *state.State) (*snapInstructionResult, error)
+
 	switch inst.Action {
 	case "refresh":
-		msg, affected, tsets, err = snapUpdateMany(&inst, st)
+		op = snapUpdateMany
 	case "install":
-		msg, affected, tsets, err = snapInstallMany(&inst, st)
+		op = snapInstallMany
 	case "remove":
-		msg, affected, tsets, err = snapRemoveMany(&inst, st)
+		op = snapRemoveMany
 	default:
 		return BadRequest("unsupported multi-snap operation %q", inst.Action)
 	}
+	res, err := op(&inst, st)
 	if err != nil {
 		return inst.errToResponse(err)
 	}
 
 	var chg *state.Change
-	if len(tsets) == 0 {
-		chg = st.NewChange(inst.Action+"-snap", msg)
+	if len(res.tasksets) == 0 {
+		chg = st.NewChange(inst.Action+"-snap", res.summary)
 		chg.SetStatus(state.DoneStatus)
 	} else {
-		chg = newChange(st, inst.Action+"-snap", msg, tsets, affected)
+		chg = newChange(st, inst.Action+"-snap", res.summary, res.tasksets, res.affected)
 		ensureStateSoon(st)
 	}
-	chg.Set("api-data", map[string]interface{}{"snap-names": affected})
+
+	chg.Set("api-data", map[string]interface{}{"snap-names": res.affected})
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
@@ -2278,7 +2299,7 @@ func setupLocalUser(st *state.State, username, email string) error {
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, err := postCreateUserUcrednetGet(r.RemoteAddr)
+	_, uid, _, err := postCreateUserUcrednetGet(r.RemoteAddr)
 	if err != nil {
 		return BadRequest("cannot get ucrednet uid: %v", err)
 	}
@@ -2499,7 +2520,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, err := postCreateUserUcrednetGet(r.RemoteAddr)
+	_, uid, _, err := postCreateUserUcrednetGet(r.RemoteAddr)
 	if err != nil {
 		return BadRequest("cannot get ucrednet uid: %v", err)
 	}
@@ -2733,6 +2754,7 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err := decoder.Decode(&inst); err != nil {
 		return BadRequest("cannot decode request body into service operation: %v", err)
 	}
+	// XXX: decoder.More()
 	if len(inst.Names) == 0 {
 		// on POST, don't allow empty to mean all
 		return BadRequest("cannot perform operation on services without a list of services to operate on")
