@@ -20,13 +20,10 @@
 package interfaces
 
 import (
-	"io/ioutil"
-	"path/filepath"
-
 	"gopkg.in/yaml.v2"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 )
 
 // systemKey describes the environment for which security profiles
@@ -52,12 +49,7 @@ func generateSystemKey() *systemKey {
 	//
 	// We prefix the dirs.GlobalRootDir (which is usually "/") to make
 	// this testable.
-	if dentries, err := ioutil.ReadDir(filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor/features")); err == nil {
-		mySystemKey.AppArmorFeatures = make([]string, len(dentries))
-		for i, f := range dentries {
-			mySystemKey.AppArmorFeatures[i] = f.Name()
-		}
-	}
+	mySystemKey.AppArmorFeatures = release.AppArmorFeatures()
 
 	return &mySystemKey
 }
