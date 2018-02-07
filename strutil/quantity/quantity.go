@@ -17,7 +17,7 @@
  *
  */
 
-package progress
+package quantity
 
 import (
 	"fmt"
@@ -28,7 +28,7 @@ import (
 
 // these are taken from github.com/chipaca/quantity with permission :-)
 
-func formatAmount(amount uint64, width int) string {
+func FormatAmount(amount uint64, width int) string {
 	if width < 0 {
 		width = 5
 	}
@@ -81,11 +81,11 @@ func formatAmount(amount uint64, width int) string {
 	return s
 }
 
-func formatBPS(n, sec float64, width int) string {
+func FormatBPS(n, sec float64, width int) string {
 	if sec < 0 {
 		sec = -sec
 	}
-	return formatAmount(uint64(n/sec), width-2) + "B/s"
+	return FormatAmount(uint64(n/sec), width-2) + "B/s"
 }
 
 const (
@@ -112,7 +112,7 @@ var (
 )
 
 // dt is seconds (as in the output of time.Now().Seconds())
-func formatDuration(dt float64) string {
+func FormatDuration(dt float64) string {
 	if dt < 60 {
 		if dt >= 9.995 {
 			return fmt.Sprintf("%.1f%s", dt, secs)
@@ -198,5 +198,5 @@ func formatDuration(dt float64) string {
 		return "ages!"
 	}
 
-	return formatAmount(uint64(dt), 4) + years
+	return FormatAmount(uint64(dt), 4) + years
 }

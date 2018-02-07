@@ -20,21 +20,41 @@
 package apparmor
 
 import (
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/snap"
-
+	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
 
 // Specification assists in collecting apparmor entries associated with an interface.
 type Specification struct {
-	// snippets are indexed by security tag.
-	snippets     map[string][]string
+	// scope for various Add{...}Snippet functions
 	securityTags []string
+	snapName     string
+
+	// snippets are indexed by security tag and describe parts of apparmor policy
+	// for snap application and hook processes. The security tag encodes the identity
+	// of the application or hook.
+	snippets map[string][]string
+	// updateNS are indexed by snap name and describe parts of apparmor policy
+	// for snap-update-ns executing on behalf of a given snap.
+	updateNS map[string][]string
 }
 
-// AddSnippet adds a new apparmor snippet.
+// setScope sets the scope of subsequent AddSnippet family functions.
+// The returned function resets the scope to an empty scope.
+func (spec *Specification) setScope(securityTags []string, snapName string) (restore func()) {
+	spec.securityTags = securityTags
+	spec.snapName = snapName
+	return func() {
+		spec.securityTags = nil
+		spec.snapName = ""
+	}
+}
+
+// AddSnippet adds a new apparmor snippet to all applications and hooks using the interface.
 func (spec *Specification) AddSnippet(snippet string) {
 	if len(spec.securityTags) == 0 {
 		return
@@ -48,13 +68,56 @@ func (spec *Specification) AddSnippet(snippet string) {
 	}
 }
 
-// Snippets returns a deep copy of all the added snippets.
-func (spec *Specification) Snippets() map[string][]string {
-	result := make(map[string][]string, len(spec.snippets))
-	for k, v := range spec.snippets {
-		result[k] = append([]string(nil), v...)
+// AddUpdateNS adds a new apparmor snippet for the snap-update-ns program.
+func (spec *Specification) AddUpdateNS(snippet string) {
+	if spec.snapName == "" {
+		return
 	}
-	return result
+	if spec.updateNS == nil {
+		spec.updateNS = make(map[string][]string)
+	}
+	spec.updateNS[spec.snapName] = append(spec.updateNS[spec.snapName], snippet)
+}
+
+// AddSnapLayout adds apparmor snippets based on the layout of the snap.
+func (spec *Specification) AddSnapLayout(si *snap.Info) {
+	if len(si.Layout) == 0 {
+		return
+	}
+
+	// walk the layout elements in deterministic order, by mount point name
+	paths := make([]string, 0, len(si.Layout))
+	for path := range si.Layout {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+
+	// get tags describing all apps and hooks
+	tags := make([]string, 0, len(si.Apps)+len(si.Hooks))
+	for _, app := range si.Apps {
+		tags = append(tags, app.SecurityTag())
+	}
+	for _, hook := range si.Hooks {
+		tags = append(tags, hook.SecurityTag())
+	}
+
+	// append layout snippets to all tags; the layout applies equally to the
+	// entire snap as the entire snap uses one mount namespace.
+	if spec.snippets == nil {
+		spec.snippets = make(map[string][]string)
+	}
+	for _, tag := range tags {
+		for _, path := range paths {
+			snippet := snippetFromLayout(si.Layout[path])
+			spec.snippets[tag] = append(spec.snippets[tag], snippet)
+		}
+		sort.Strings(spec.snippets[tag])
+	}
+}
+
+// Snippets returns a deep copy of all the added application snippets.
+func (spec *Specification) Snippets() map[string][]string {
+	return copySnippets(spec.snippets)
 }
 
 // SnippetForTag returns a combined snippet for given security tag with individual snippets
@@ -73,6 +136,24 @@ func (spec *Specification) SecurityTags() []string {
 	return tags
 }
 
+// UpdateNS returns a deep copy of all the added snap-update-ns snippets.
+func (spec *Specification) UpdateNS() map[string][]string {
+	return copySnippets(spec.updateNS)
+}
+
+func snippetFromLayout(layout *snap.Layout) string {
+	mountPoint := layout.Snap.ExpandSnapVariables(layout.Path)
+	return fmt.Sprintf("# Layout path: %[1]s\n%[1]s{,/**} mrwklix,", mountPoint)
+}
+
+func copySnippets(m map[string][]string) map[string][]string {
+	result := make(map[string][]string, len(m))
+	for k, v := range m {
+		result[k] = append([]string(nil), v...)
+	}
+	return result
+}
+
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records apparmor-specific side-effects of having a connected plug.
@@ -81,8 +162,8 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 		AppArmorConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = plug.SecurityTags()
-		defer func() { spec.securityTags = nil }()
+		restore := spec.setScope(plug.SecurityTags(), plug.Snap().Name())
+		defer restore()
 		return iface.AppArmorConnectedPlug(spec, plug, slot)
 	}
 	return nil
@@ -94,8 +175,8 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 		AppArmorConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = slot.SecurityTags()
-		defer func() { spec.securityTags = nil }()
+		restore := spec.setScope(slot.SecurityTags(), slot.Snap().Name())
+		defer restore()
 		return iface.AppArmorConnectedSlot(spec, plug, slot)
 	}
 	return nil
@@ -107,8 +188,8 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 		AppArmorPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = plug.SecurityTags()
-		defer func() { spec.securityTags = nil }()
+		restore := spec.setScope(plug.SecurityTags(), plug.Snap.Name())
+		defer restore()
 		return iface.AppArmorPermanentPlug(spec, plug)
 	}
 	return nil
@@ -120,8 +201,8 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		AppArmorPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = slot.SecurityTags()
-		defer func() { spec.securityTags = nil }()
+		restore := spec.setScope(slot.SecurityTags(), slot.Snap.Name())
+		defer restore()
 		return iface.AppArmorPermanentSlot(spec, slot)
 	}
 	return nil

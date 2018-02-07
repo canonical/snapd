@@ -19,6 +19,11 @@
 # For the moment, we don't support all golang arches...
 %global with_goarches 0
 
+# Set if multilib is enabled for supported arches
+%ifarch x86_64 aarch64 %{power64} s390x
+%global with_multilib 1
+%endif
+
 %if ! %{with vendorized}
 %global with_bundled 0
 %else
@@ -430,6 +435,8 @@ autoreconf --force --install --verbose
 %configure \
     --disable-apparmor \
     --libexecdir=%{_libexecdir}/snapd/ \
+    --enable-nvidia-biarch \
+    %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
     --with-snap-mount-dir=%{_sharedstatedir}/snapd/snap \
     --with-merged-usr \
     --with-systemd-system-unit-dir=%{_unitdir} \
@@ -457,6 +464,9 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/hostfs
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/mount
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/seccomp/bpf
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/snaps
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/gl
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/gl32
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/vulkan
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/snap/bin
 install -d -p %{buildroot}%{_localstatedir}/snap
 install -d -p %{buildroot}%{_localstatedir}/cache/snapd
@@ -605,6 +615,10 @@ popd
 %dir %{_sharedstatedir}/snapd/mount
 %dir %{_sharedstatedir}/snapd/seccomp
 %dir %{_sharedstatedir}/snapd/seccomp/bpf
+%dir %{_sharedstatedir}/snapd/lib
+%dir %{_sharedstatedir}/snapd/lib/gl
+%dir %{_sharedstatedir}/snapd/lib/gl32
+%dir %{_sharedstatedir}/snapd/lib/vulkan
 %dir %{_sharedstatedir}/snapd/snaps
 %dir %{_sharedstatedir}/snapd/snap
 %ghost %dir %{_sharedstatedir}/snapd/snap/bin

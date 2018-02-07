@@ -93,16 +93,30 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
+	services := make([]string, 0, len(apps))
 	for _, app := range apps {
 		// they're *supposed* to be all services, but checking doesn't hurt
 		if !app.IsService() {
 			continue
 		}
 
-		if len(app.Sockets) == 0 {
-			if err := sysd.Start(app.ServiceName()); err != nil {
-				return err
+		defer func(app *snap.AppInfo) {
+			if err == nil {
+				return
 			}
+			if e := stopService(sysd, app, inter); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
+			}
+			for _, socket := range app.Sockets {
+				socketService := filepath.Base(socket.File())
+				if e := sysd.Disable(socketService); e != nil {
+					inter.Notify(fmt.Sprintf("While trying to disable previously enabled socket service %q: %v", socketService, e))
+				}
+			}
+		}(app)
+
+		if len(app.Sockets) == 0 {
+			services = append(services, app.ServiceName())
 		}
 
 		for _, socket := range app.Sockets {
@@ -117,14 +131,13 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 			}
 		}
 
-		defer func(app *snap.AppInfo) {
-			if err == nil {
-				return
-			}
-			if e := stopService(sysd, app, inter); e != nil {
-				inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
-			}
-		}(app)
+	}
+
+	if len(services) > 0 {
+		if err := sysd.Start(services...); err != nil {
+			// cleanup was set up by iterating over apps
+			return err
+		}
 	}
 
 	return nil
