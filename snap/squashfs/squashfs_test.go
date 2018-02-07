@@ -284,7 +284,7 @@ EOF
 	snap := makeSnap(c, "", data)
 	err := snap.Unpack("*", "some-output-dir")
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot extract \"*\" to \"some-output-dir\": \"Failed to write /tmp/1/modules/4.4.0-112-generic/modules.symbols, skipping\\nWrite on output file failed because No space left on device\\nwriter: failed to write data block 0\\nFailed to write /tmp/1/modules/4.4.0-112-generic/modules.symbols.bin, skipping\\nWrite on output file failed because No space left on device\\nwriter: failed to write data block 0\\nFailed to write /tmp/1/modules/4.4.0-112-generic/vdso/vdso32.so, skipping\\nWrite on output file failed because No space left on device\\nwriter: failed to write data block 0\\nFailed to write /tmp/1/modules/4.4.0-112-generic/vdso/vdso64.so, skipping\\nWrite on output file failed because No space left on device\"")
+	c.Check(err.Error(), Equals, `cannot extract "*" to "some-output-dir": failed: "Failed to write /tmp/1/modules/4.4.0-112-generic/modules.symbols, skipping", "Write on output file failed because No space left on device", "writer: failed to write data block 0", "Failed to write /tmp/1/modules/4.4.0-112-generic/modules.symbols.bin, skipping", and 15 more`)
 }
 
 func (s *SquashfsTestSuite) TestBuild(c *C) {
@@ -319,18 +319,18 @@ func (s *SquashfsTestSuite) TestUnsquashfsStderrWriter(c *C) {
 	}{
 		{
 			inp:         []string{"failed to write something\n"},
-			expectedErr: "failed to write something",
+			expectedErr: `failed: "failed to write something"`,
 		},
 		{
 			inp:         []string{"fai", "led to write", " something\nunrelated\n"},
-			expectedErr: "failed to write something",
+			expectedErr: `failed: "failed to write something"`,
 		},
 		{
 			inp:         []string{"failed to write\nfailed to read\n"},
-			expectedErr: "failed to write\nfailed to read",
+			expectedErr: `failed: "failed to write", and "failed to read"`,
 		},
 	} {
-		usw := &unsquashfsStderrWriter{}
+		usw := newUnsquashfsStderrWriter()
 		for _, l := range t.inp {
 			usw.Write([]byte(l))
 		}
