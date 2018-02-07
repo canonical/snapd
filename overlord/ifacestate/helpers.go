@@ -458,7 +458,7 @@ func getAutoconnectDisabled(st *state.State) (map[string]bool, error) {
 
 func setAutoConnectDisabled(st *state.State, connFlags map[string]bool) {
 	connRefs := make([]string, 0, len(connFlags))
-	for k, _ := range connFlags {
+	for k := range connFlags {
 		connRefs = append(connRefs, k)
 	}
 	st.Set("autoconnect-disabled", connRefs)
