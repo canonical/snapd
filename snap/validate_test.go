@@ -379,7 +379,7 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 
 	// non-services cannot have a refresh-mode
 	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", RefreshMode: "survive"})
-	c.Check(err, ErrorMatches, `"refresh-mode" can only be used for services not in "foo"`)
+	c.Check(err, ErrorMatches, `"refresh-mode" cannot be used for "foo", only for services`)
 }
 
 func (s *ValidateSuite) TestAppWhitelistError(c *C) {

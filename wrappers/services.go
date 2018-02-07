@@ -218,7 +218,7 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 			continue
 		}
 		// Skip stop on refresh when refresh mode is "survive"
-		if app.RefreshMode == "survive" && reason == snap.ServiceStopReasonRefresh {
+		if app.RefreshMode == "survive" && reason == snap.StopReasonRefresh {
 			continue
 		}
 		if err := stopService(sysd, app, inter); err != nil {

@@ -122,6 +122,7 @@ func (confinementType *ConfinementType) fromString(str string) error {
 type ServiceStopReason string
 
 const (
-	ServiceStopReasonRefresh ServiceStopReason = "refresh"
-	ServiceStopReasonRemove  ServiceStopReason = "remove"
+	StopReasonRefresh ServiceStopReason = "refresh"
+	StopReasonRemove  ServiceStopReason = "remove"
+	StopReasonDisable ServiceStopReason = "disable"
 )

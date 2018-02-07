@@ -27,4 +27,4 @@ execute: |
 
     echo "Once the snap is removed, the service is stopped"
     snap remove test-snapd-service
-    systemctl status snap.test-snapd-service.test-snapd-surviving-service|MATCH "inactive"
+    journalctl | MATCH "stop survive"

@@ -422,7 +422,7 @@ func ValidateApp(app *AppInfo) error {
 		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.RefreshMode)
 	}
 	if app.RefreshMode != "" && app.Daemon == "" {
-		return fmt.Errorf(`"refresh-mode" can only be used for services not in %q`, app.Name)
+		return fmt.Errorf(`"refresh-mode" cannot be used for %q, only for services`, app.Name)
 	}
 
 	return nil

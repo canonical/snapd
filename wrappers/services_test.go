@@ -558,42 +558,30 @@ func (s *servicesTestSuite) TestStopServiceSurvive(c *C) {
 	const surviveYaml = `name: survive-snap
 version: 1.0
 apps:
- svc1:
-  command: bin/svc1
-  daemon: simple
  survivor:
   command: bin/survivor
   refresh-mode: survive
   daemon: simple
 `
 	info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.survive-snap.svc1.service")
 	survivorFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.survive-snap.survivor.service")
 
 	err := wrappers.AddSnapServices(info, nil)
 	c.Assert(err, IsNil)
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)},
 		{"--root", dirs.GlobalRootDir, "enable", filepath.Base(survivorFile)},
 		{"daemon-reload"},
 	})
 
 	sysdLog = nil
-	err = wrappers.StopServices(info.Services(), "refresh", progress.Null)
+	err = wrappers.StopServices(info.Services(), snap.StopReasonRefresh, progress.Null)
 	c.Assert(err, IsNil)
-	c.Assert(sysdLog, HasLen, 2)
-	c.Check(sysdLog, DeepEquals, [][]string{
-		{"stop", filepath.Base(svcFile)},
-		{"show", "--property=ActiveState", "snap.survive-snap.svc1.service"},
-	})
+	c.Assert(sysdLog, HasLen, 0)
 
 	sysdLog = nil
-	err = wrappers.StopServices(info.Services(), "remove", progress.Null)
+	err = wrappers.StopServices(info.Services(), snap.StopReasonRemove, progress.Null)
 	c.Assert(err, IsNil)
-	c.Assert(sysdLog, HasLen, 4)
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"stop", filepath.Base(svcFile)},
-		{"show", "--property=ActiveState", "snap.survive-snap.svc1.service"},
 		{"stop", filepath.Base(survivorFile)},
 		{"show", "--property=ActiveState", "snap.survive-snap.survivor.service"},
 	})
