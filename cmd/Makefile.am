@@ -443,3 +443,12 @@ system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
 system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
+
+##
+## snap-gdb-shim
+##
+
+libexec_PROGRAMS += snap-gdb-shim/snap-gdb-shim
+
+snap_gdb_shim_snap_gdb_shim_SOURCES = \
+	snap-gdb-shim/snap-gdb-shim.c
