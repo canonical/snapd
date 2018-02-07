@@ -114,7 +114,7 @@ ifneq (,$(TEST_GITHUB_AUTOPKGTEST))
         )
 endif
 	dh_clean
-	$(MAKE) -C data clean
+	$(MAKE) -C data distclean || true
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
 
