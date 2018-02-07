@@ -25,12 +25,12 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-type limitedWriterSuite struct{}
+type limitedBufferSuite struct{}
 
-var _ = Suite(&limitedWriterSuite{})
+var _ = Suite(&limitedBufferSuite{})
 
-func (s *limitedWriterSuite) TestWriter(c *C) {
-	w := strutil.NewLimitedWriter(100, 6)
+func (s *limitedBufferSuite) TestLimitedBuffer(c *C) {
+	w := strutil.NewLimitedBuffer(100, 6)
 
 	data := []byte{'a'}
 	n, err := w.Write(data)
