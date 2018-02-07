@@ -43,9 +43,11 @@ var noConflictOnConnectTasks = func(task *state.Task) bool {
 var connectRetryTimeout = time.Second * 5
 
 func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slotSnap string, autoConnectTask *state.Task) error {
-	for _, chg := range st.Changes() {
-		if chg.Kind() == "transition-ubuntu-core" {
-			return fmt.Errorf("ubuntu-core to core transition in progress, no other changes allowed until this is done")
+	if autoConnectTask == nil {
+		for _, chg := range st.Changes() {
+			if chg.Kind() == "transition-ubuntu-core" {
+				return fmt.Errorf("ubuntu-core to core transition in progress, no other changes allowed until this is done")
+			}
 		}
 	}
 
