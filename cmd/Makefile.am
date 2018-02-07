@@ -1,6 +1,7 @@
 
 EXTRA_DIST = VERSION snap-confine/PORTING
 CLEANFILES =
+DISTCLEANFILES =
 TESTS =
 libexec_PROGRAMS =
 dist_man_MANS =
@@ -344,7 +345,10 @@ libexec_SCRIPTS = snap-mgmt/snap-mgmt
 
 snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile snap-mgmt/$(am__dirstamp)
 	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
-
+snap-mgmt/$(am__dirstamp):
+	@$(MKDIR_P) snap-mgmt
+	@: > snap-mgmt/$(am__dirstamp)
+DISTCLEANFILES += snap-mgmt/$(am__dirstamp)
 
 ##
 ## ubuntu-core-launcher
