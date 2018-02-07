@@ -500,6 +500,13 @@ type SocketInfo struct {
 	SocketMode   os.FileMode
 }
 
+// TimerInfo provides information on application timer.
+type TimerInfo struct {
+	App *AppInfo
+
+	Timer string
+}
+
 // AppInfo provides information about a app.
 type AppInfo struct {
 	Snap *Info
@@ -531,6 +538,8 @@ type AppInfo struct {
 	// before
 	After  []string
 	Before []string
+
+	Timer *TimerInfo
 }
 
 // ScreenshotInfo provides information about a screenshot.
@@ -552,6 +561,11 @@ type HookInfo struct {
 // File returns the path to the *.socket file
 func (socket *SocketInfo) File() string {
 	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
+}
+
+// File returns the path to the *.timer file
+func (timer *TimerInfo) File() string {
+	return filepath.Join(dirs.SnapServicesDir, timer.App.SecurityTag()+".timer")
 }
 
 // SecurityTag returns application-specific security tag.

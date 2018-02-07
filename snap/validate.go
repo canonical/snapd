@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/spdx"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 // Regular expressions describing correct identifiers.
@@ -346,6 +347,22 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 	return nil
 }
 
+func validateAppTimer(app *AppInfo) error {
+	if app.Timer == nil {
+		return nil
+	}
+
+	if !app.IsService() {
+		return fmt.Errorf("cannot use timer with application %q as it's not a service", app.Name)
+	}
+
+	if _, err := timeutil.ParseSchedule(app.Timer.Timer); err != nil {
+		return fmt.Errorf("application %q timer has invalid format: %v", app.Name, err)
+	}
+
+	return nil
+}
+
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused.
@@ -404,7 +421,12 @@ func ValidateApp(app *AppInfo) error {
 	if err := validateAppOrderNames(app, app.Before); err != nil {
 		return err
 	}
-	return validateAppOrderNames(app, app.After)
+
+	if err := validateAppOrderNames(app, app.After); err != nil {
+		return err
+	}
+
+	return validateAppTimer(app)
 }
 
 // ValidatePathVariables ensures that given path contains only $SNAP, $SNAP_DATA or $SNAP_COMMON.

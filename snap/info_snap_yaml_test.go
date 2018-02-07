@@ -1628,3 +1628,18 @@ layout:
 		Mode:    0755,
 	})
 }
+
+func (s *YamlSuite) TestSnapYamlAppTimer(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   daemon: oneshot
+   timer: mon,10:00-12:00
+
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	app := info.Apps["foo"]
+	c.Check(app.Timer, DeepEquals, &snap.TimerInfo{App: app, Timer: "mon,10:00-12:00"})
+}
