@@ -465,6 +465,9 @@ install -d -p %{buildroot}%{_sharedstatedir}/snapd/hostfs
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/mount
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/seccomp/bpf
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/snaps
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/gl
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/gl32
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/lib/vulkan
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/snap/bin
 install -d -p %{buildroot}%{_localstatedir}/snap
 install -d -p %{buildroot}%{_localstatedir}/cache/snapd
@@ -613,6 +616,10 @@ popd
 %dir %{_sharedstatedir}/snapd/mount
 %dir %{_sharedstatedir}/snapd/seccomp
 %dir %{_sharedstatedir}/snapd/seccomp/bpf
+%dir %{_sharedstatedir}/snapd/lib
+%dir %{_sharedstatedir}/snapd/lib/gl
+%dir %{_sharedstatedir}/snapd/lib/gl32
+%dir %{_sharedstatedir}/snapd/lib/vulkan
 %dir %{_sharedstatedir}/snapd/snaps
 %dir %{_sharedstatedir}/snapd/snap
 %ghost %dir %{_sharedstatedir}/snapd/snap/bin

@@ -33,6 +33,7 @@ var _ = Suite(&refreshSuite{})
 
 func (s *refreshSuite) TestConfigureRefreshTimerHappy(c *C) {
 	err := configcore.Run(&mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.timer": "8:00~12:00/2",
 		},
@@ -42,6 +43,7 @@ func (s *refreshSuite) TestConfigureRefreshTimerHappy(c *C) {
 
 func (s *refreshSuite) TestConfigureRefreshTimerRejected(c *C) {
 	err := configcore.Run(&mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.timer": "invalid",
 		},
@@ -51,6 +53,7 @@ func (s *refreshSuite) TestConfigureRefreshTimerRejected(c *C) {
 
 func (s *refreshSuite) TestConfigureLegacyRefreshScheduleHappy(c *C) {
 	err := configcore.Run(&mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.schedule": "8:00-12:00",
 		},
@@ -60,6 +63,7 @@ func (s *refreshSuite) TestConfigureLegacyRefreshScheduleHappy(c *C) {
 
 func (s *refreshSuite) TestConfigureLegacyRefreshScheduleRejected(c *C) {
 	err := configcore.Run(&mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.schedule": "invalid",
 		},
@@ -68,6 +72,7 @@ func (s *refreshSuite) TestConfigureLegacyRefreshScheduleRejected(c *C) {
 
 	// check that refresh.schedule is verified against legacy parser
 	err = configcore.Run(&mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.schedule": "8:00~12:00/2",
 		},

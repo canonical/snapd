@@ -127,6 +127,22 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
+func checkTrivialSeeding(c *C, tsAll []*state.TaskSet) {
+	// run internal core config and  mark seeded
+	c.Check(tsAll, HasLen, 2)
+	tasks := tsAll[0].Tasks()
+	c.Check(tasks, HasLen, 1)
+	c.Assert(tasks[0].Kind(), Equals, "run-hook")
+	var hooksup hookstate.HookSetup
+	err := tasks[0].Get("hook-setup", &hooksup)
+	c.Assert(err, IsNil)
+	c.Check(hooksup.Hook, Equals, "configure")
+	c.Check(hooksup.Snap, Equals, "core")
+	tasks = tsAll[1].Tasks()
+	c.Check(tasks, HasLen, 1)
+	c.Check(tasks[0].Kind(), Equals, "mark-seeded")
+}
+
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	release.OnClassic = true
 
@@ -139,11 +155,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoop(c *C) {
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
 	c.Assert(err, IsNil)
-	// only mark seeded
-	c.Check(tsAll, HasLen, 1)
-	tasks := tsAll[0].Tasks()
-	c.Check(tasks, HasLen, 1)
-	c.Check(tasks[0].Kind(), Equals, "mark-seeded")
+	checkTrivialSeeding(c, tsAll)
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
@@ -169,16 +181,89 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
 	c.Assert(err, IsNil)
-	// only mark seeded
-	c.Check(tsAll, HasLen, 1)
-	tasks := tsAll[0].Tasks()
-	c.Check(tasks, HasLen, 1)
-	c.Check(tasks[0].Kind(), Equals, "mark-seeded")
+	checkTrivialSeeding(c, tsAll)
 
 	ds, err := auth.Device(st)
 	c.Assert(err, IsNil)
 	c.Check(ds.Brand, Equals, "my-brand")
 	c.Check(ds.Model, Equals, "my-model-classic")
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInstanceData(c *C) {
+	release.OnClassic = true
+
+	st := s.overlord.State()
+
+	// add a bunch of assert files
+	assertsChain := s.makeModelAssertionChain(c, "my-model-classic")
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
+	c.Assert(err, IsNil)
+
+	// write cloud instance data
+	const instData = `{
+ "v1": {
+  "availability-zone": "us-east-2b",
+  "cloud-name": "aws",
+  "instance-id": "i-03bdbe0d89f4c8ec9",
+  "local-hostname": "ip-10-41-41-143",
+  "region": "us-east-2"
+ }
+}`
+	err = os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dirs.CloudInstanceDataFile, []byte(instData), 0600)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(st)
+	c.Assert(err, IsNil)
+	checkTrivialSeeding(c, tsAll)
+
+	ds, err := auth.Device(st)
+	c.Assert(err, IsNil)
+	c.Check(ds.Brand, Equals, "my-brand")
+	c.Check(ds.Model, Equals, "my-model-classic")
+
+	// now run the change and check the result
+	// use the expected kind otherwise settle will start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	c.Assert(st.Changes(), HasLen, 1)
+
+	// avoid device reg
+	chg1 := st.NewChange("become-operational", "init device")
+	chg1.SetStatus(state.DoingStatus)
+
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(err, IsNil)
+
+	// check marked seeded
+	var seeded bool
+	err = st.Get("seeded", &seeded)
+	c.Assert(err, IsNil)
+	c.Check(seeded, Equals, true)
+
+	// check captured cloud information
+	tr := config.NewTransaction(st)
+	var cloud configcore.CloudInfo
+	err = tr.Get("core", "cloud", &cloud)
+	c.Assert(err, IsNil)
+	c.Check(cloud.Name, Equals, "aws")
+	c.Check(cloud.Region, Equals, "us-east-2")
+	c.Check(cloud.AvailabilityZone, Equals, "us-east-2b")
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
