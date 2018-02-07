@@ -21,6 +21,7 @@ package release
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -114,4 +115,20 @@ func probeAppArmor() (AppArmorLevelType, string) {
 		return PartialAppArmor, fmt.Sprintf("apparmor is enabled but some features are missing: %s", strings.Join(missing, ", "))
 	}
 	return FullAppArmor, "apparmor is enabled and all features are available"
+}
+
+// AppArmorFeatures returns a sorted list of apparmor features like
+// []string{"dbus", "network"}.
+func AppArmorFeatures() []string {
+	dentries, err := ioutil.ReadDir(appArmorFeaturesSysPath)
+	if err != nil {
+		return nil
+	}
+	appArmorFeatures := make([]string, 0, len(dentries))
+	for _, f := range dentries {
+		if isDirectory(filepath.Join(appArmorFeaturesSysPath, f.Name())) {
+			appArmorFeatures = append(appArmorFeatures, f.Name())
+		}
+	}
+	return appArmorFeatures
 }

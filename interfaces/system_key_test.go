@@ -21,14 +21,15 @@ package interfaces_test
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 )
 
 type systemKeySuite struct {
@@ -53,22 +54,12 @@ func (s *systemKeySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func (s *systemKeySuite) TestInterfaceSystemKeyNoApparmor(c *C) {
-	systemKey := interfaces.SystemKey()
-	c.Check(systemKey, Equals, fmt.Sprintf(`build-id: %s
-apparmor-features: []
-`, s.buildID))
-}
-
 func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
-	err := os.MkdirAll(s.apparmorFeatures, 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(s.apparmorFeatures, "policy"), 0755)
-	c.Assert(err, IsNil)
+	apparmorFeatures := release.AppArmorFeatures()
 
 	systemKey := interfaces.SystemKey()
 	c.Check(systemKey, Equals, fmt.Sprintf(`build-id: %s
 apparmor-features:
-- policy
-`, s.buildID))
+- %s
+`, s.buildID, strings.Join(apparmorFeatures, "\n- ")))
 }
