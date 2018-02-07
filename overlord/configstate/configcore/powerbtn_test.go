@@ -41,6 +41,7 @@ type powerbtnSuite struct {
 var _ = Suite(&powerbtnSuite{})
 
 func (s *powerbtnSuite) SetUpTest(c *C) {
+	s.configcoreSuite.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
 
@@ -63,6 +64,7 @@ func (s *powerbtnSuite) TestConfigurePowerIntegration(c *C) {
 	for _, action := range []string{"ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "lock"} {
 
 		err := configcore.Run(&mockConf{
+			state: s.state,
 			conf: map[string]interface{}{
 				"system.power-key-action": action,
 			},
