@@ -230,7 +230,8 @@ const findPricedJSON = `
       "status": "priced",
       "summary": "GNU Hello, the \"hello world\" snap",
       "type": "app",
-      "version": "2.10"
+      "version": "2.10",
+      "license": "Proprietary"
     }
   ],
   "sources": [
