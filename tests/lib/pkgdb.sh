@@ -382,6 +382,7 @@ pkg_dependencies_ubuntu_generic(){
         python3-docutils
         rng-tools
         udev
+        uuid-runtime
         "
 }
 
@@ -472,6 +473,7 @@ pkg_dependencies_opensuse(){
         netcat-openbsd
         osc
         rng-tools
+        uuidd
         xdg-utils
         xdg-user-dirs
         "
