@@ -185,7 +185,7 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.
-	buffer := strutil.NewLimitedWriter(100, 10*1024)
+	buffer := strutil.NewLimitedBuffer(100, 10*1024)
 	command.Stdout = buffer
 	command.Stderr = buffer
 
