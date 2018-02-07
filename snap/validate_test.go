@@ -564,6 +564,36 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/data", Symlink: "$SNAP_DATA"}, nil), IsNil)
 }
 
+func (s *ValidateSuite) TestValidateLayoutAll(c *C) {
+	// /foo prevents /foo/bar from being valid (tmpfs)
+	const yaml1 = `
+name: broken-layout-1
+layout:
+  /usr/foo:
+    type: tmpfs
+  /usr/foo/bar:
+    type: tmpfs
+`
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml1), &SideInfo{Revision: R(42)})
+	c.Assert(err, IsNil)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
+
+	// Same as above but with bind-mounts instead of filesystem mounts.
+	const yaml2 = `
+name: broken-layout-2
+layout:
+  /usr/foo:
+    bind: $SNAP
+  /usr/foo/bar:
+    bind: $SNAP
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml2), &SideInfo{Revision: R(42)})
+	c.Assert(err, IsNil)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
+}
+
 func (s *ValidateSuite) TestValidateSocketName(c *C) {
 	validNames := []string{
 		"a", "aa", "aaa", "aaaa",
