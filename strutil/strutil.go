@@ -134,13 +134,17 @@ func TruncateOutput(data []byte, maxLines, maxBytes int) []byte {
 	if maxBytes > len(data) {
 		maxBytes = len(data)
 	}
+	// optimize for the simple case with no limit on lines
+	if maxLines == 0 {
+		return data[len(data)-maxBytes:]
+	}
 	lines := maxLines
 	bytes := maxBytes
 	for i := len(data) - 1; i >= 0; i-- {
 		if data[i] == '\n' {
 			lines--
 		}
-		if (maxLines > 0 && lines == 0) || bytes == 0 {
+		if lines == 0 || bytes == 0 {
 			return data[i+1:]
 		}
 		bytes--

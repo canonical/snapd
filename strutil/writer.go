@@ -46,6 +46,7 @@ func (wr *LimitedWriter) Write(data []byte) (int, error) {
 	wr.written += sz
 	if wr.written > wr.maxBytes {
 		data := wr.buffer.Bytes()
+		// don't limit by number of lines at this point; we will apply both limits in Bytes().
 		data = TruncateOutput(data, 0, wr.maxBytes)
 		copy(wr.buffer.Bytes(), data)
 		wr.written = len(data)
