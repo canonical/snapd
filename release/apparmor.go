@@ -120,6 +120,7 @@ func probeAppArmor() (AppArmorLevelType, string) {
 // AppArmorFeatures returns a sorted list of apparmor features like
 // []string{"dbus", "network"}.
 func AppArmorFeatures() []string {
+	// note that ioutil.ReadDir() is already sorted
 	dentries, err := ioutil.ReadDir(appArmorFeaturesSysPath)
 	if err != nil {
 		return nil
