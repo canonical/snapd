@@ -102,6 +102,8 @@ func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
 			// performed the hole poking and thus additional changes must be nil.
 			_, err = c.createPath(path, false)
 		}
+	} else if err != nil {
+		err = fmt.Errorf("cannot create path %q: %s", path, err)
 	}
 	return changes, err
 }
@@ -126,11 +128,11 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 		switch kind {
 		case "":
 			if !fi.Mode().IsDir() {
-				err = fmt.Errorf("cannot use %q for mounting: not a directory", path)
+				err = fmt.Errorf("cannot use %q as mount point: not a directory", path)
 			}
 		case "file":
 			if !fi.Mode().IsRegular() {
-				err = fmt.Errorf("cannot use %q for mounting: not a regular file", path)
+				err = fmt.Errorf("cannot use %q as mount point: not a regular file", path)
 			}
 		case "symlink":
 			// When we want to create a symlink we just need the empty
@@ -139,9 +141,6 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 		}
 	} else if os.IsNotExist(err) {
 		changes, err = c.createPath(path, true)
-		if err != nil {
-			err = fmt.Errorf("cannot create path %q: %s", path, err)
-		}
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
@@ -168,18 +167,15 @@ func (c *Change) ensureSource() error {
 		switch kind {
 		case "":
 			if !fi.Mode().IsDir() {
-				err = fmt.Errorf("cannot use %q for mounting: not a directory", path)
+				err = fmt.Errorf("cannot use %q as bind-mount source: not a directory", path)
 			}
 		case "file":
 			if !fi.Mode().IsRegular() {
-				err = fmt.Errorf("cannot use %q for mounting: not a regular file", path)
+				err = fmt.Errorf("cannot use %q as bind-mount source: not a regular file", path)
 			}
 		}
 	} else if os.IsNotExist(err) {
 		_, err = c.createPath(path, false)
-		if err != nil {
-			err = fmt.Errorf("cannot create path %q: %s", path, err)
-		}
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
