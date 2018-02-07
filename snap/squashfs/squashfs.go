@@ -21,7 +21,6 @@ package squashfs
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -29,9 +28,9 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Magic is the magic prefix of squashfs snap files.
@@ -93,7 +92,7 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 // unsquashfsStderrWriter is a helper that captures errors from
 // unsquashfs on stderr. Because unsquashfs will potentially
 // (e.g. on out-of-diskspace) report an error on every single
-// file we limit the reported error lines to 10.
+// file we limit the reported error lines to 4.
 //
 // unsquashfs does not exit with an exit code for write errors
 // (e.g. no space left on device). There is an upstream PR
@@ -103,63 +102,35 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 // on stderr for "failed" which is pretty consistently used in
 // the unsquashfs.c source in case of errors.
 type unsquashfsStderrWriter struct {
-	firstErrs []string
-
-	prevLine string
+	strutil.MatchCounter
 }
 
-func (u *unsquashfsStderrWriter) pushFailedLine(l string) {
-	if len(u.firstErrs) > 10 {
-		return
-	}
-	u.firstErrs = append(u.firstErrs, l)
-}
-
-func (u *unsquashfsStderrWriter) Write(data []byte) (int, error) {
-	// check incomplete lines
-	if u.prevLine != "" {
-		if idx := bytes.IndexByte(data, '\n'); idx > -1 {
-			u.prevLine += string(data[:idx])
-			if strings.Contains(u.prevLine, "failed") {
-				u.pushFailedLine(u.prevLine)
-				data = data[idx:]
-			}
-			u.prevLine = ""
-		} else {
-			// line too long
-			u.prevLine += string(data)
-			return len(data), nil
-		}
-	}
-	if idx := bytes.LastIndex(data, []byte("\n")); idx > -1 {
-		u.prevLine = string(data[idx:])
-	} else {
-		u.prevLine = string(data)
-	}
-
-	// check for "[Ff]ailed"
-	if !bytes.Contains(data, []byte("ailed ")) {
-		return len(data), nil
-	}
-
-	for _, rl := range bytes.Split(data, []byte("\n")) {
-		if bytes.Contains(rl, []byte("failed")) || bytes.Contains(rl, []byte("Failed")) {
-			u.pushFailedLine(string(rl))
-		}
-	}
-	return len(data), nil
+func newUnsquashfsStderrWriter() *unsquashfsStderrWriter {
+	return &unsquashfsStderrWriter{strutil.MatchCounter{
+		Regexp: regexp.MustCompile(`(?m).*\b[Ff]ailed\b.*`),
+		N:      4, // note Err below uses this value
+	}}
 }
 
 func (u *unsquashfsStderrWriter) Err() error {
-	if len(u.firstErrs) == 0 {
+	// here we use that our N is 4.
+	errors, count := u.Matches()
+	switch count {
+	case 0:
 		return nil
+	case 1:
+		return fmt.Errorf("failed: %q", errors[0])
+	case 2, 3, 4:
+		return fmt.Errorf("failed: %s, and %q", strutil.Quoted(errors[:len(errors)-1]), errors[len(errors)-1])
+	default:
+		// count > len(matches)
+		extra := count - len(errors)
+		return fmt.Errorf("failed: %s, and %d more", strutil.Quoted(errors), extra)
 	}
-	return fmt.Errorf("%s", strings.Join(u.firstErrs, "\n"))
-
 }
 
 func (s *Snap) Unpack(src, dstDir string) error {
-	usw := &unsquashfsStderrWriter{}
+	usw := newUnsquashfsStderrWriter()
 
 	cmd := exec.Command("unsquashfs", "-f", "-d", dstDir, s.path, src)
 	cmd.Stderr = usw
@@ -167,7 +138,7 @@ func (s *Snap) Unpack(src, dstDir string) error {
 		return err
 	}
 	if usw.Err() != nil {
-		return fmt.Errorf("cannot extract %q to %q: %q", src, dstDir, usw.Err())
+		return fmt.Errorf("cannot extract %q to %q: %v", src, dstDir, usw.Err())
 	}
 	return nil
 }
