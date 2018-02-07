@@ -55,11 +55,15 @@ func (s *systemKeySuite) TearDownTest(c *C) {
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
-	apparmorFeatures := release.AppArmorFeatures()
-
 	systemKey := interfaces.SystemKey()
+
+	apparmorFeatures := release.AppArmorFeatures()
+	var apparmorFeaturesStr string
+	if len(apparmorFeatures) == 0 {
+		apparmorFeaturesStr = " []\n"
+	} else {
+		apparmorFeaturesStr = "\n- " + strings.Join(apparmorFeatures, "\n- ") + "\n"
+	}
 	c.Check(systemKey, Equals, fmt.Sprintf(`build-id: %s
-apparmor-features:
-- %s
-`, s.buildID, strings.Join(apparmorFeatures, "\n- ")))
+apparmor-features:%s`, s.buildID, apparmorFeaturesStr))
 }
