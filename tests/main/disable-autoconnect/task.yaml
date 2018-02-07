@@ -50,4 +50,4 @@ execute: |
     snap interfaces|MATCH "$CONNECTED_PATTERN"
 
     systemctl stop snapd.{service,socket}
-    jq -r '.data["autoconnect-disabled"]' /var/lib/snapd/state.json | MATCH "{}"
+    jq -r '.data["autoconnect-disabled"]' /var/lib/snapd/state.json | MATCH "\[\]"
