@@ -141,7 +141,7 @@ endif
 
 	# Build C bits, sadly manually
 	cd cmd && ( autoreconf -i -f )
-	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd --with-systemd-system-unit-dir=$(SYSTEMD_UNITS_DESTDIR) $(VENDOR_ARGS))
+	cd cmd && ( ./configure --prefix=/usr --sysconfdir=/etc --libexecdir=/usr/lib/snapd --with-systemd-system-unit-dir=$(SYSTEMD_UNITS_DESTDIR) $(VENDOR_ARGS))
 	$(MAKE) -C cmd all
 
 	# Generate the real systemd/dbus/env config files
