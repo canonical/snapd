@@ -549,7 +549,7 @@ type HookInfo struct {
 	Slots map[string]*SlotInfo
 }
 
-// File returns the path to the file
+// File returns the path to the *.socket file
 func (socket *SocketInfo) File() string {
 	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
 }
