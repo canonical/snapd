@@ -574,10 +574,21 @@ layout:
   /usr/foo/bar:
     type: tmpfs
 `
-	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml1), &SideInfo{Revision: R(42)})
-	c.Assert(err, IsNil)
-	err = ValidateLayoutAll(info)
-	c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
+	const yaml1rev = `
+name: broken-layout-1
+layout:
+  /usr/foo/bar:
+    type: tmpfs
+  /usr/foo:
+    type: tmpfs
+`
+
+	for _, yaml := range []string{yaml1, yaml1rev} {
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		c.Assert(err, IsNil)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
+	}
 
 	// Same as above but with bind-mounts instead of filesystem mounts.
 	const yaml2 = `
@@ -588,10 +599,20 @@ layout:
   /usr/foo/bar:
     bind: $SNAP
 `
-	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml2), &SideInfo{Revision: R(42)})
-	c.Assert(err, IsNil)
-	err = ValidateLayoutAll(info)
-	c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
+	const yaml2rev = `
+name: broken-layout-2
+layout:
+  /usr/foo/bar:
+    bind: $SNAP
+  /usr/foo:
+    bind: $SNAP
+`
+	for _, yaml := range []string{yaml2, yaml2rev} {
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		c.Assert(err, IsNil)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
+	}
 }
 
 func (s *ValidateSuite) TestValidateSocketName(c *C) {
