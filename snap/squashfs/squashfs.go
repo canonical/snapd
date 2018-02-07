@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,6 +28,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -89,7 +90,27 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 }
 
 func (s *Snap) Unpack(src, dstDir string) error {
-	return exec.Command("unsquashfs", "-f", "-i", "-d", dstDir, s.path, src).Run()
+	cmd := exec.Command("unsquashfs", "-f", "-d", dstDir, s.path, src)
+	bo, err := cmd.CombinedOutput()
+	if err != nil {
+		return err
+	}
+	// unsquashfs does not exit with an exit code for write errors
+	// (e.g. no space left on device). There is an upstream PR
+	// to fix this https://github.com/plougher/squashfs-tools/pull/46
+	//
+	// However in the meantime we can detect errors by looking
+	// on stderr for "failed" which is pretty consistently used in
+	// the unsquashfs.c source in case of errors.
+	output := string(bo)
+	if strings.Contains(output, "failed") {
+		truncatedOutput := strings.Split(output, "\n")
+		if len(truncatedOutput) > 10 {
+			truncatedOutput = truncatedOutput[len(truncatedOutput)-10:]
+		}
+		return fmt.Errorf("cannot extract %q to %q: %q", src, dstDir, strings.Join(truncatedOutput, "\n"))
+	}
+	return nil
 }
 
 // Size returns the size of a squashfs snap.
