@@ -80,6 +80,8 @@ type appYaml struct {
 
 	After  []string `yaml:"after,omitempty"`
 	Before []string `yaml:"before,omitempty"`
+
+	Timer string `yaml:"timer,omitempty"`
 }
 
 type hookYaml struct {
@@ -348,6 +350,12 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 				Name:         name,
 				ListenStream: data.ListenStream,
 				SocketMode:   data.SocketMode,
+			}
+		}
+		if yApp.Timer != "" {
+			app.Timer = &TimerInfo{
+				App:   app,
+				Timer: yApp.Timer,
 			}
 		}
 	}

@@ -768,3 +768,56 @@ apps:
 		}
 	}
 }
+
+func (s *YamlSuite) TestValidateAppTimer(c *C) {
+	meta := []byte(`
+name: foo
+version: 1.0
+`)
+	allGood := []byte(`
+apps:
+  foo:
+    daemon: simple
+    timer: 10:00-12:00
+`)
+	notAService := []byte(`
+apps:
+  foo:
+    timer: 10:00-12:00
+`)
+	badTimer := []byte(`
+apps:
+  foo:
+    daemon: oneshot
+    timer: mon,10:00-12:00,mon2-wed3
+`)
+
+	tcs := []struct {
+		name string
+		desc []byte
+		err  string
+	}{{
+		name: "all correct",
+		desc: allGood,
+	}, {
+		name: "not a service",
+		desc: notAService,
+		err:  `cannot use timer with application "foo" as it's not a service`,
+	}, {
+		name: "invalid timer",
+		desc: badTimer,
+		err:  `application "foo" timer has invalid format: cannot parse "mon2-wed3": invalid schedule fragment`,
+	}}
+	for _, tc := range tcs {
+		c.Logf("trying %q", tc.name)
+		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
+		c.Assert(err, IsNil)
+
+		err = Validate(info)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
