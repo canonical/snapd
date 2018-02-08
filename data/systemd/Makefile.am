@@ -51,5 +51,5 @@ libexec_SCRIPTS = snapd.core-fixup.sh
 
 $(snap_mount_unit): snap.mount.in
 	cat $< | \
-		sed s:@SNAP_MOUNT_DIR@:$(SNAP_MOUNT_DIR):g  | \
+		sed s:[@]SNAP_MOUNT_DIR[@]:$(SNAP_MOUNT_DIR):g  | \
 		cat > $@
