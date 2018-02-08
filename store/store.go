@@ -271,8 +271,7 @@ func useDeltas() bool {
 		return false
 	}
 
-	deltasDefault := release.OnClassic
-	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault)
+	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", true)
 }
 
 func useStaging() bool {
