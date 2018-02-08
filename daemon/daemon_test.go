@@ -163,15 +163,58 @@ func (s *daemonSuite) TestGuestAccess(c *check.C) {
 	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
 	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
 	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
+}
 
-	// Since this request has no RemoteAddr, it must be coming from the snap
-	// socket instead of the snapd one. In that case, if SnapOK is true, this
-	// command should be wide open for all HTTP methods.
-	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
+func (s *daemonSuite) TestSnapctlAccessSnapOKWithUser(c *check.C) {
+	remoteAddr := "pid=100;uid=1000;socket=" + dirs.SnapSocket
+	get := &http.Request{Method: "GET", RemoteAddr: remoteAddr}
+	put := &http.Request{Method: "PUT", RemoteAddr: remoteAddr}
+	pst := &http.Request{Method: "POST", RemoteAddr: remoteAddr}
+	del := &http.Request{Method: "DELETE", RemoteAddr: remoteAddr}
+
+	cmd := &Command{d: newTestDaemon(c), SnapOK: true, UserOK: true}
+	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
+	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
+
+	cmd = &Command{d: newTestDaemon(c), SnapOK: true, UserOK: false}
+	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
+
+	cmd = &Command{d: newTestDaemon(c), SnapOK: false, UserOK: true}
+	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
+}
+
+func (s *daemonSuite) TestSnapctlAccessSnapOKWithRoot(c *check.C) {
+	remoteAddr := "pid=100;uid=0;socket=" + dirs.SnapSocket
+	get := &http.Request{Method: "GET", RemoteAddr: remoteAddr}
+	put := &http.Request{Method: "PUT", RemoteAddr: remoteAddr}
+	pst := &http.Request{Method: "POST", RemoteAddr: remoteAddr}
+	del := &http.Request{Method: "DELETE", RemoteAddr: remoteAddr}
+
+	cmd := &Command{d: newTestDaemon(c), SnapOK: true, UserOK: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
 	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
 	c.Check(cmd.canAccess(pst, nil), check.Equals, accessOK)
 	c.Check(cmd.canAccess(del, nil), check.Equals, accessOK)
+
+	cmd = &Command{d: newTestDaemon(c), SnapOK: true, UserOK: false}
+	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
+	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
+	c.Check(cmd.canAccess(pst, nil), check.Equals, accessOK)
+	c.Check(cmd.canAccess(del, nil), check.Equals, accessOK)
+
+	cmd = &Command{d: newTestDaemon(c), SnapOK: false, UserOK: true}
+	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
 }
 
 func (s *daemonSuite) TestUserAccess(c *check.C) {

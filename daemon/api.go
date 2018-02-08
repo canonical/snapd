@@ -2299,7 +2299,7 @@ func setupLocalUser(st *state.State, username, email string) error {
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, err := postCreateUserUcrednetGet(r.RemoteAddr)
+	_, uid, _, err := postCreateUserUcrednetGet(r.RemoteAddr)
 	if err != nil {
 		return BadRequest("cannot get ucrednet uid: %v", err)
 	}
@@ -2520,7 +2520,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, err := postCreateUserUcrednetGet(r.RemoteAddr)
+	_, uid, _, err := postCreateUserUcrednetGet(r.RemoteAddr)
 	if err != nil {
 		return BadRequest("cannot get ucrednet uid: %v", err)
 	}

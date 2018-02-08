@@ -198,6 +198,9 @@ backends:
             - ubuntu-18.04-s390x:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-18.04-arm64:
+                username: ubuntu
+                password: ubuntu
     external:
         type: adhoc
         environment:
