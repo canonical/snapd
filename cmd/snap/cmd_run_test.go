@@ -703,7 +703,7 @@ func (s *SnapSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -744,7 +744,7 @@ func (s *SnapSuite) TestSnapRunShellIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
