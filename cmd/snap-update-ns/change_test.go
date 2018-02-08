@@ -64,16 +64,16 @@ func (s *changeSuite) TestString(c *C) {
 
 // When there are no profiles we don't do anything.
 func (s *changeSuite) TestNeededChangesNoProfiles(c *C) {
-	current := &osutil.Profile{}
-	desired := &osutil.Profile{}
+	current := &osutil.MountProfile{}
+	desired := &osutil.MountProfile{}
 	changes := update.NeededChanges(current, desired)
 	c.Assert(changes, IsNil)
 }
 
 // When the profiles are the same we don't do anything.
 func (s *changeSuite) TestNeededChangesNoChange(c *C) {
-	current := &osutil.Profile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
-	desired := &osutil.Profile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
 	changes := update.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: osutil.MountEntry{Dir: "/common/stuff"}, Action: update.Keep},
@@ -82,8 +82,8 @@ func (s *changeSuite) TestNeededChangesNoChange(c *C) {
 
 // When the content interface is connected we should mount the new entry.
 func (s *changeSuite) TestNeededChangesTrivialMount(c *C) {
-	current := &osutil.Profile{}
-	desired := &osutil.Profile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
+	current := &osutil.MountProfile{}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
 	changes := update.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: desired.Entries[0], Action: update.Mount},
@@ -92,8 +92,8 @@ func (s *changeSuite) TestNeededChangesTrivialMount(c *C) {
 
 // When the content interface is disconnected we should unmount the mounted entry.
 func (s *changeSuite) TestNeededChangesTrivialUnmount(c *C) {
-	current := &osutil.Profile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
-	desired := &osutil.Profile{}
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
+	desired := &osutil.MountProfile{}
 	changes := update.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: current.Entries[0], Action: update.Unmount},
@@ -102,11 +102,11 @@ func (s *changeSuite) TestNeededChangesTrivialUnmount(c *C) {
 
 // When umounting we unmount children before parents.
 func (s *changeSuite) TestNeededChangesUnmountOrder(c *C) {
-	current := &osutil.Profile{Entries: []osutil.MountEntry{
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
 		{Dir: "/common/stuff/extra"},
 		{Dir: "/common/stuff"},
 	}}
-	desired := &osutil.Profile{}
+	desired := &osutil.MountProfile{}
 	changes := update.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: osutil.MountEntry{Dir: "/common/stuff/extra"}, Action: update.Unmount},
@@ -116,8 +116,8 @@ func (s *changeSuite) TestNeededChangesUnmountOrder(c *C) {
 
 // When mounting we mount the parents before the children.
 func (s *changeSuite) TestNeededChangesMountOrder(c *C) {
-	current := &osutil.Profile{}
-	desired := &osutil.Profile{Entries: []osutil.MountEntry{
+	current := &osutil.MountProfile{}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{
 		{Dir: "/common/stuff/extra"},
 		{Dir: "/common/stuff"},
 	}}
@@ -130,12 +130,12 @@ func (s *changeSuite) TestNeededChangesMountOrder(c *C) {
 
 // When parent changes we don't reuse its children
 func (s *changeSuite) TestNeededChangesChangedParentSameChild(c *C) {
-	current := &osutil.Profile{Entries: []osutil.MountEntry{
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
 		{Dir: "/common/stuff", Name: "/dev/sda1"},
 		{Dir: "/common/stuff/extra"},
 		{Dir: "/common/unrelated"},
 	}}
-	desired := &osutil.Profile{Entries: []osutil.MountEntry{
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{
 		{Dir: "/common/stuff", Name: "/dev/sda2"},
 		{Dir: "/common/stuff/extra"},
 		{Dir: "/common/unrelated"},
@@ -152,12 +152,12 @@ func (s *changeSuite) TestNeededChangesChangedParentSameChild(c *C) {
 
 // When child changes we don't touch the unchanged parent
 func (s *changeSuite) TestNeededChangesSameParentChangedChild(c *C) {
-	current := &osutil.Profile{Entries: []osutil.MountEntry{
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
 		{Dir: "/common/stuff"},
 		{Dir: "/common/stuff/extra", Name: "/dev/sda1"},
 		{Dir: "/common/unrelated"},
 	}}
-	desired := &osutil.Profile{Entries: []osutil.MountEntry{
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{
 		{Dir: "/common/stuff"},
 		{Dir: "/common/stuff/extra", Name: "/dev/sda2"},
 		{Dir: "/common/unrelated"},
@@ -173,7 +173,7 @@ func (s *changeSuite) TestNeededChangesSameParentChangedChild(c *C) {
 
 // Unused bind mount farms are unmounted.
 func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
-	current := &osutil.Profile{Entries: []osutil.MountEntry{{
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{{
 		// The tmpfs that lets us write into immutable squashfs. We mock
 		// x-snapd.needed-by to the last entry in the current profile (the bind
 		// mount). Mark it synthetic since it is a helper mount that is needed
@@ -199,7 +199,7 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
 		Options: []string{"bind", "ro"},
 	}}}
 
-	desired := &osutil.Profile{}
+	desired := &osutil.MountProfile{}
 
 	changes := update.NeededChanges(current, desired)
 
@@ -226,7 +226,7 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUnused(c *C) {
 func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUsed(c *C) {
 	// NOTE: the current profile is the same as in the test
 	// TestNeededChangesTmpfsBindMountFarmUnused written above.
-	current := &osutil.Profile{Entries: []osutil.MountEntry{{
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{{
 		Name:    "tmpfs",
 		Dir:     "/snap/name/42/subdir",
 		Type:    "tmpfs",
@@ -241,7 +241,7 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUsed(c *C) {
 		Options: []string{"bind", "ro"},
 	}}}
 
-	desired := &osutil.Profile{Entries: []osutil.MountEntry{{
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{{
 		// This is the only entry that we explicitly want but in order to
 		// support it we need to keep the remaining implicit entries.
 		Name:    "/snap/other/123/libs",
@@ -277,13 +277,13 @@ func (s *changeSuite) TestNeededChangesTmpfsBindMountFarmUsed(c *C) {
 // We are smart about comparing entries as directories. Here even though "/a/b"
 // is a prefix of "/a/b-1" it is correctly reused.
 func (s *changeSuite) TestNeededChangesSmartEntryComparison(c *C) {
-	current := &osutil.Profile{Entries: []osutil.MountEntry{
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
 		{Dir: "/a/b", Name: "/dev/sda1"},
 		{Dir: "/a/b-1"},
 		{Dir: "/a/b-1/3"},
 		{Dir: "/a/b/c"},
 	}}
-	desired := &osutil.Profile{Entries: []osutil.MountEntry{
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{
 		{Dir: "/a/b", Name: "/dev/sda2"},
 		{Dir: "/a/b-1"},
 		{Dir: "/a/b/c"},

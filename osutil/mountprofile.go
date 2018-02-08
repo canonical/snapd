@@ -28,29 +28,29 @@ import (
 	"strings"
 )
 
-// Profile represents an array of mount entries.
-type Profile struct {
+// MountProfile represents an array of mount entries.
+type MountProfile struct {
 	Entries []MountEntry
 }
 
-// LoadProfile loads a mount profile from a given file.
+// LoadMountProfile loads a mount profile from a given file.
 //
 // The file may be absent, in such case an empty profile is returned without errors.
-func LoadProfile(fname string) (*Profile, error) {
+func LoadMountProfile(fname string) (*MountProfile, error) {
 	f, err := os.Open(fname)
 	if err != nil && os.IsNotExist(err) {
-		return &Profile{}, nil
+		return &MountProfile{}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	return ReadProfile(f)
+	return ReadMountProfile(f)
 }
 
 // Save saves a mount profile (fstab-like) to a given file.
 // The profile is saved with an atomic write+rename+sync operation.
-func (p *Profile) Save(fname string) error {
+func (p *MountProfile) Save(fname string) error {
 	var buf bytes.Buffer
 	if _, err := p.WriteTo(&buf); err != nil {
 		return err
@@ -58,11 +58,11 @@ func (p *Profile) Save(fname string) error {
 	return AtomicWriteFile(fname, buf.Bytes(), 0644, AtomicWriteFlags(0))
 }
 
-// ReadProfile reads and parses a mount profile.
+// ReadMountProfile reads and parses a mount profile.
 //
 // The supported format is described by fstab(5).
-func ReadProfile(reader io.Reader) (*Profile, error) {
-	var p Profile
+func ReadMountProfile(reader io.Reader) (*MountProfile, error) {
+	var p MountProfile
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		s := scanner.Text()
@@ -89,7 +89,7 @@ func ReadProfile(reader io.Reader) (*Profile, error) {
 //
 // The supported format is described by fstab(5).
 // Note that there is no support for comments.
-func (p *Profile) WriteTo(writer io.Writer) (int64, error) {
+func (p *MountProfile) WriteTo(writer io.Writer) (int64, error) {
 	var written int64
 	for i := range p.Entries {
 		var n int
