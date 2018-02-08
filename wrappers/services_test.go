@@ -622,7 +622,7 @@ version: 1.0
 apps:
  survivor:
   command: bin/survivor
-  refresh-mode: survive
+  refresh-mode: keep
   daemon: simple
 `
 	info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})

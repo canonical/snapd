@@ -365,8 +365,8 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 	}{
 		// good
 		{"", true},
+		{"keep", true},
 		{"restart", true},
-		{"survive", true},
 		// bad
 		{"invalid-thing", false},
 	} {
@@ -378,7 +378,7 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 	}
 
 	// non-services cannot have a refresh-mode
-	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", RefreshMode: "survive"})
+	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", RefreshMode: "keep"})
 	c.Check(err, ErrorMatches, `"refresh-mode" cannot be used for "foo", only for services`)
 }
 

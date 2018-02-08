@@ -422,7 +422,7 @@ func ValidateApp(app *AppInfo) error {
 
 	// validate refresh-mode
 	switch app.RefreshMode {
-	case "", "restart", "survive":
+	case "", "keep", "restart":
 		// valid
 	default:
 		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.RefreshMode)
