@@ -1,0 +1,11 @@
+#!/bin/bash
+
+trap "echo got sigusr1" SIGUSR1
+trap "echo got sighup" SIGHUP
+trap "echo got sigterm" SIGTERM
+
+while true; do
+    echo "running $1 process"
+    sleep 1
+done
+

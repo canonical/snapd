@@ -1,0 +1,41 @@
+summary: "Check that refresh-mode: keep works"
+
+kill-timeout: 5m
+
+execute: |
+    echo "When the service snap is installed"
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-service
+
+    echo "We can see it running"
+    systemctl status snap.test-snapd-service.test-snapd-keep-service|MATCH "running"
+
+    echo "When it is re-installed"
+    install_local test-snapd-service
+
+    refresh_modes="keep sigterm sigterm-all sighup sighup-all sigusr1 sigusr1-all"
+    for s in $refresh_modes; do
+        echo "We can still see it running"
+        systemctl status snap.test-snapd-service.test-snapd-${s}-service|MATCH "running"
+
+        echo "And it is not re-started"
+        if journalctl -u snap.test-snapd-service.test-snapd-${s}-service | grep "stop ${s}"; then
+            echo "reinstall did stop a service that should keep"
+            exit 1
+        fi
+
+        if [[ "$s" == sig* ]]; then
+            echo "checking that the right signal was sent"
+            sleep 1
+            journalctl -u snap.test-snapd-service.test-snapd-${s}-service | MATCH "got ${s%%-all}"
+        fi
+    done
+
+    echo "But regular services are restarted"
+    journalctl -u snap.test-snapd-service.test-snapd-service | MATCH "stop service"
+
+    echo "Once the snap is removed, the service is stopped"
+    snap remove test-snapd-service
+    for s in $refresh_modes; do
+        journalctl | MATCH "stop ${s}"
+    done

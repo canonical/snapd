@@ -367,6 +367,12 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 		{"", true},
 		{"keep", true},
 		{"restart", true},
+		{"sigterm", true},
+		{"sigterm-all", true},
+		{"sighup", true},
+		{"sighup-all", true},
+		{"sigusr1", true},
+		{"sigusr1-all", true},
 		// bad
 		{"invalid-thing", false},
 	} {
