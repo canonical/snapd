@@ -44,3 +44,12 @@ execute: |
     # dynamic attributes have values created by the hooks, the "-validated" suffix is added by our test interface
     jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["consumer-attr-3"]' /var/lib/snapd/state.json | MATCH "consumer-value-3-validated"
     jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["slot-dynamic"]["producer-attr-3"]' /var/lib/snapd/state.json | MATCH "producer-value-3-validated"
+
+    systemctl start snapd.service snapd.socket
+    echo "Verify that hooks are re-run on update and attributes in the state get updated"
+    snap install --dangerous basic-iface-hooks-consumer_1.0_all.snap
+
+    # stop snapd before inspecting state.json
+    systemctl stop snapd.service snapd.socket
+
+    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["exec-count"]' /var/lib/snapd/state.json | MATCH "2"

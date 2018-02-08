@@ -32,4 +32,10 @@ if [ "$output" != "$expected_output" ]; then
     exit 1
 fi
 
+# Count executions of the hook using snap config; store execcount in the config and in the dynamic attribute of the interface
+count=$(snapctl get execcount)
+count=$(expr $count + 1)
+snapctl set execcount=$count
+snapctl set :consumer execcount=$count
+
 touch "$SNAP_COMMON/prepare-plug-consumer-done"
