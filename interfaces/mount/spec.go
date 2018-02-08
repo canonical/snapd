@@ -35,18 +35,18 @@ import (
 // holds internal state that is used by the mount backend during the interface
 // setup process.
 type Specification struct {
-	layoutMountEntries []osutil.Entry
-	mountEntries       []osutil.Entry
+	layoutMountEntries []osutil.MountEntry
+	mountEntries       []osutil.MountEntry
 }
 
 // AddMountEntry adds a new mount entry.
-func (spec *Specification) AddMountEntry(e osutil.Entry) error {
+func (spec *Specification) AddMountEntry(e osutil.MountEntry) error {
 	spec.mountEntries = append(spec.mountEntries, e)
 	return nil
 }
 
-func mountEntryFromLayout(layout *snap.Layout) osutil.Entry {
-	var entry osutil.Entry
+func mountEntryFromLayout(layout *snap.Layout) osutil.MountEntry {
+	var entry osutil.MountEntry
 
 	mountPoint := layout.Snap.ExpandSnapVariables(layout.Path)
 	entry.Dir = mountPoint
@@ -114,8 +114,8 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 }
 
 // MountEntries returns a copy of the added mount entries.
-func (spec *Specification) MountEntries() []osutil.Entry {
-	result := make([]osutil.Entry, 0, len(spec.layoutMountEntries)+len(spec.mountEntries))
+func (spec *Specification) MountEntries() []osutil.MountEntry {
+	result := make([]osutil.MountEntry, 0, len(spec.layoutMountEntries)+len(spec.mountEntries))
 	result = append(result, spec.layoutMountEntries...)
 	result = append(result, spec.mountEntries...)
 	// Number each entry, in case we get clashes this will automatically give

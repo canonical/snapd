@@ -26,7 +26,7 @@ import (
 	"syscall"
 )
 
-// Entry describes an /etc/fstab-like mount entry.
+// MountEntry describes an /etc/fstab-like mount entry.
 //
 // Fields are named after names in struct returned by getmntent(3).
 //
@@ -38,7 +38,7 @@ import (
 //     int   mnt_freq;     /* dump frequency in days */
 //     int   mnt_passno;   /* pass number on parallel fsck */
 // };
-type Entry struct {
+type MountEntry struct {
 	Name    string
 	Dir     string
 	Type    string
@@ -61,7 +61,7 @@ func equalStrings(a, b []string) bool {
 }
 
 // Equal checks if one entry is equal to another
-func (e *Entry) Equal(o *Entry) bool {
+func (e *MountEntry) Equal(o *MountEntry) bool {
 	return (e.Name == o.Name && e.Dir == o.Dir && e.Type == o.Type &&
 		equalStrings(e.Options, o.Options) && e.DumpFrequency == o.DumpFrequency &&
 		e.CheckPassNumber == o.CheckPassNumber)
@@ -91,7 +91,7 @@ func Unescape(path string) string {
 	return unescape(path)
 }
 
-func (e Entry) String() string {
+func (e MountEntry) String() string {
 	// Name represents name of the device in a mount entry.
 	name := "none"
 	if e.Name != "" {
@@ -116,9 +116,9 @@ func (e Entry) String() string {
 		name, dir, fsType, options, e.DumpFrequency, e.CheckPassNumber)
 }
 
-// ParseEntry parses a fstab-like entry.
-func ParseEntry(s string) (Entry, error) {
-	var e Entry
+// ParseMountEntry parses a fstab-like entry.
+func ParseMountEntry(s string) (MountEntry, error) {
+	var e MountEntry
 	var err error
 	var df, cpn int
 	fields := strings.FieldsFunc(s, func(r rune) bool { return r == ' ' || r == '\t' })
@@ -223,7 +223,7 @@ func OptsToFlags(opts []string) (flags int, err error) {
 
 // OptStr returns the value part of a key=value mount option.
 // The name of the option must not contain the trailing "=" character.
-func (e *Entry) OptStr(name string) (string, bool) {
+func (e *MountEntry) OptStr(name string) (string, bool) {
 	prefix := name + "="
 	for _, opt := range e.Options {
 		if strings.HasPrefix(opt, prefix) {
@@ -235,7 +235,7 @@ func (e *Entry) OptStr(name string) (string, bool) {
 }
 
 // OptBool returns true if a given mount option is present.
-func (e *Entry) OptBool(name string) bool {
+func (e *MountEntry) OptBool(name string) bool {
 	for _, opt := range e.Options {
 		if opt == name {
 			return true

@@ -47,7 +47,7 @@ const (
 
 // Change describes a change to the mount table (action and the entry to act on).
 type Change struct {
-	Entry  osutil.Entry
+	Entry  osutil.MountEntry
 	Action Action
 }
 
@@ -271,9 +271,9 @@ func (c *Change) lowLevelPerform() error {
 // desired profile.
 func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 	// Copy both profiles as we will want to mutate them.
-	current := make([]osutil.Entry, len(currentProfile.Entries))
+	current := make([]osutil.MountEntry, len(currentProfile.Entries))
 	copy(current, currentProfile.Entries)
-	desired := make([]osutil.Entry, len(desiredProfile.Entries))
+	desired := make([]osutil.MountEntry, len(desiredProfile.Entries))
 	copy(desired, desiredProfile.Entries)
 
 	// Clean the directory part of both profiles. This is done so that we can
@@ -291,7 +291,7 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 	sort.Sort(byMagicDir(desired))
 
 	// Construct a desired directory map.
-	desiredMap := make(map[string]*osutil.Entry)
+	desiredMap := make(map[string]*osutil.MountEntry)
 	for i := range desired {
 		desiredMap[desired[i].Dir] = &desired[i]
 	}
