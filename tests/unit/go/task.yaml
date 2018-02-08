@@ -13,7 +13,7 @@ execute: |
 
     # remove leftovers
     rm -r /tmp/static-unit-tests/src/github.com/snapcore/snapd/vendor/*/
-    rm -rf /tmp/static-unit-tests/src/github.com/snapcore/snapd/cmd/{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
+    rm -rf /tmp/static-unit-tests/src/github.com/snapcore/snapd/{cmd,data}/{autom4te.cache,configure,test-driver,config.status,config.guess,config.sub,config.h.in,compile,install-sh,depcomp,build,missing,aclocal.m4,Makefile,Makefile.in}
 
     su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && PATH=$PATH GOPATH=/tmp/static-unit-tests ./run-checks --static" test
     su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
