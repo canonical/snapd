@@ -229,11 +229,7 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 }
 
 func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
-	names := make([]string, len(x.Positional.Snaps))
-	for i, s := range x.Positional.Snaps {
-		names[i] = string(s)
-	}
-
+	names := installedSnapNames(x.Positional.Snaps)
 	cli := Client()
 	changeID, err := cli.RemoveMany(names, opts)
 	if err != nil {
@@ -375,7 +371,7 @@ func showDone(names []string, op string) error {
 			// TRANSLATORS: first %s is a snap name, second %s is a revision
 			fmt.Fprintf(Stdout, i18n.G("%s reverted to %s\n"), snap.Name, snap.Version)
 		default:
-			fmt.Fprintf(Stdout, "internal error, unknown op %q", op)
+			fmt.Fprintf(Stdout, "internal error: unknown op %q", op)
 		}
 		if snap.TrackingChannel != snap.Channel {
 			// TRANSLATORS: first %s is a snap name, following %s is a channel name
@@ -575,11 +571,7 @@ func (x *cmdInstall) Execute([]string) error {
 	}
 	x.setModes(opts)
 
-	names := make([]string, len(x.Positional.Snaps))
-	for i, name := range x.Positional.Snaps {
-		names[i] = string(name)
-	}
-
+	names := remoteSnapNames(x.Positional.Snaps)
 	if len(names) == 1 {
 		return x.installOne(names[0], opts)
 	}
@@ -666,7 +658,13 @@ func (x *cmdRefresh) showRefreshTimes() error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, "schedule: %s\n", sysinfo.Refresh.Schedule)
+	if sysinfo.Refresh.Timer != "" {
+		fmt.Fprintf(Stdout, "timer: %s\n", sysinfo.Refresh.Timer)
+	} else if sysinfo.Refresh.Schedule != "" {
+		fmt.Fprintf(Stdout, "schedule: %s\n", sysinfo.Refresh.Schedule)
+	} else {
+		return errors.New("internal error: both refresh.timer and refresh.schedule are empty")
+	}
 	if sysinfo.Refresh.Last != "" {
 		fmt.Fprintf(Stdout, "last: %s\n", sysinfo.Refresh.Last)
 	} else {
@@ -718,7 +716,6 @@ func (x *cmdRefresh) Execute([]string) error {
 		if x.asksForMode() || x.asksForChannel() {
 			return errors.New(i18n.G("--time does not take mode nor channel flags"))
 		}
-
 		return x.showRefreshTimes()
 	}
 
@@ -735,11 +732,8 @@ func (x *cmdRefresh) Execute([]string) error {
 		return nil
 	}
 
-	names := make([]string, len(x.Positional.Snaps))
-	for i, name := range x.Positional.Snaps {
-		names[i] = string(name)
-	}
-	if len(x.Positional.Snaps) == 1 {
+	names := installedSnapNames(x.Positional.Snaps)
+	if len(names) == 1 {
 		opts := &client.SnapOptions{
 			Amend:            x.Amend,
 			Channel:          x.Channel,

@@ -23,10 +23,6 @@ import (
 	"io"
 )
 
-var FormatAmount = formatAmount
-var FormatBPS = formatBPS
-var FormatDuration = formatDuration
-
 var (
 	ClrEOL            = clrEOL
 	CursorInvisible   = cursorInvisible

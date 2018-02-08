@@ -236,6 +236,58 @@ func (s *SquashfsTestSuite) TestUnpackGlob(c *C) {
 	c.Assert(osutil.FileExists(filepath.Join(outputDir, "meta/snap.yaml")), Equals, false)
 }
 
+func (s *SquashfsTestSuite) TestUnpackDetectsFailures(c *C) {
+	mockUnsquashfs := testutil.MockCommand(c, "unsquashfs", `
+cat >&2 <<EOF
+Failed to write /tmp/1/modules/4.4.0-112-generic/modules.symbols, skipping
+
+Write on output file failed because No space left on device
+
+writer: failed to write data block 0
+
+Failed to write /tmp/1/modules/4.4.0-112-generic/modules.symbols.bin, skipping
+
+Write on output file failed because No space left on device
+
+writer: failed to write data block 0
+
+Failed to write /tmp/1/modules/4.4.0-112-generic/vdso/vdso32.so, skipping
+
+Write on output file failed because No space left on device
+
+writer: failed to write data block 0
+
+Failed to write /tmp/1/modules/4.4.0-112-generic/vdso/vdso64.so, skipping
+
+Write on output file failed because No space left on device
+
+writer: failed to write data block 0
+
+Failed to write /tmp/1/modules/4.4.0-112-generic/vdso/vdsox32.so, skipping
+
+Write on output file failed because No space left on device
+
+writer: failed to write data block 0
+
+Failed to write /tmp/1/snap/manifest.yaml, skipping
+
+Write on output file failed because No space left on device
+
+writer: failed to write data block 0
+
+Failed to write /tmp/1/snap/snapcraft.yaml, skipping
+EOF
+`)
+	defer mockUnsquashfs.Restore()
+
+	data := "mock kernel snap"
+	snap := makeSnap(c, "", data)
+	err := snap.Unpack("*", "some-output-dir")
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "cannot extract \"*\" to \"some-output-dir\": \"writer: failed to write data block 0\\n\\nFailed to write /tmp/1/snap/manifest.yaml, skipping\\n\\nWrite on output file failed because No space left on device\\n\\nwriter: failed to write data block 0\\n\\nFailed to write /tmp/1/snap/snapcraft.yaml, skipping\\n\"")
+
+}
+
 func (s *SquashfsTestSuite) TestBuild(c *C) {
 	buildDir := c.MkDir()
 	err := os.MkdirAll(filepath.Join(buildDir, "/random/dir"), 0755)
