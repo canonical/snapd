@@ -28,11 +28,11 @@ import (
 	"strings"
 )
 
-// InfoEntry contains data from /proc/$PID/mountinfo
+// MountInfoEntry contains data from /proc/$PID/mountinfo
 //
 // For details please refer to mountinfo documentation at
 // https://www.kernel.org/doc/Documentation/filesystems/proc.txt
-type InfoEntry struct {
+type MountInfoEntry struct {
 	MountID        int
 	ParentID       int
 	DevMajor       int
@@ -53,7 +53,7 @@ const ProcSelfMountInfo = "/proc/self/mountinfo"
 //
 // The file is typically ProcSelfMountInfo but any other process mount table
 // can be read the same way.
-func LoadMountInfo(fname string) ([]*InfoEntry, error) {
+func LoadMountInfo(fname string) ([]*MountInfoEntry, error) {
 	f, err := os.Open(fname)
 	if err != nil {
 		return nil, err
@@ -63,12 +63,12 @@ func LoadMountInfo(fname string) ([]*InfoEntry, error) {
 }
 
 // ReadMountInfo reads and parses a mountinfo file.
-func ReadMountInfo(reader io.Reader) ([]*InfoEntry, error) {
+func ReadMountInfo(reader io.Reader) ([]*MountInfoEntry, error) {
 	scanner := bufio.NewScanner(reader)
-	var entries []*InfoEntry
+	var entries []*MountInfoEntry
 	for scanner.Scan() {
 		s := scanner.Text()
-		entry, err := ParseInfoEntry(s)
+		entry, err := ParseMountInfoEntry(s)
 		if err != nil {
 			return nil, err
 		}
@@ -80,9 +80,9 @@ func ReadMountInfo(reader io.Reader) ([]*InfoEntry, error) {
 	return entries, nil
 }
 
-// ParseInfoEntry parses a single line of /proc/$PID/mountinfo file.
-func ParseInfoEntry(s string) (*InfoEntry, error) {
-	var e InfoEntry
+// ParseMountInfoEntry parses a single line of /proc/$PID/mountinfo file.
+func ParseMountInfoEntry(s string) (*MountInfoEntry, error) {
+	var e MountInfoEntry
 	var err error
 	fields := strings.Fields(s)
 	// The format is variable-length, but at least 10 fields are mandatory.
