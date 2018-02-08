@@ -331,7 +331,7 @@ func (s *SquashfsTestSuite) TestUnsquashfsStderrWriter(c *C) {
 		},
 		{
 			inp:         []string{"failed 1\nfailed 2\n3 failed\n"},
-			expectedErr: `"failed: "failed 1", "failed 2", and "3 failed"`,
+			expectedErr: `failed: "failed 1", "failed 2", and "3 failed"`,
 		},
 		{
 			inp:         []string{"failed 1\nfailed 2\n3 Failed\n4 Failed\n"},
@@ -347,7 +347,7 @@ func (s *SquashfsTestSuite) TestUnsquashfsStderrWriter(c *C) {
 			usw.Write([]byte(l))
 		}
 		if t.expectedErr != "" {
-			c.Check(usw.Err(), ErrorMatches, t.expectedErr)
+			c.Check(usw.Err(), ErrorMatches, t.expectedErr, Commentf("inp: %q failed", t.inp))
 		} else {
 			c.Check(usw.Err(), IsNil)
 		}
