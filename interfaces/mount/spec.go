@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -34,18 +35,18 @@ import (
 // holds internal state that is used by the mount backend during the interface
 // setup process.
 type Specification struct {
-	layoutMountEntries []Entry
-	mountEntries       []Entry
+	layoutMountEntries []osutil.Entry
+	mountEntries       []osutil.Entry
 }
 
 // AddMountEntry adds a new mount entry.
-func (spec *Specification) AddMountEntry(e Entry) error {
+func (spec *Specification) AddMountEntry(e osutil.Entry) error {
 	spec.mountEntries = append(spec.mountEntries, e)
 	return nil
 }
 
-func mountEntryFromLayout(layout *snap.Layout) Entry {
-	var entry Entry
+func mountEntryFromLayout(layout *snap.Layout) osutil.Entry {
+	var entry osutil.Entry
 
 	mountPoint := layout.Snap.ExpandSnapVariables(layout.Path)
 	entry.Dir = mountPoint
@@ -65,7 +66,7 @@ func mountEntryFromLayout(layout *snap.Layout) Entry {
 
 	if layout.Symlink != "" {
 		oldname := layout.Snap.ExpandSnapVariables(layout.Symlink)
-		entry.Options = []string{XSnapdKindSymlink(), XSnapdSymlink(oldname)}
+		entry.Options = []string{osutil.XSnapdKindSymlink(), osutil.XSnapdSymlink(oldname)}
 	}
 
 	var uid int
@@ -75,7 +76,7 @@ func mountEntryFromLayout(layout *snap.Layout) Entry {
 		uid = 0
 	}
 	if uid != 0 {
-		entry.Options = append(entry.Options, XSnapdUser(uid))
+		entry.Options = append(entry.Options, osutil.XSnapdUser(uid))
 	}
 
 	var gid int
@@ -86,11 +87,11 @@ func mountEntryFromLayout(layout *snap.Layout) Entry {
 		gid = 0
 	}
 	if gid != 0 {
-		entry.Options = append(entry.Options, XSnapdGroup(gid))
+		entry.Options = append(entry.Options, osutil.XSnapdGroup(gid))
 	}
 
 	if layout.Mode != 0755 {
-		entry.Options = append(entry.Options, XSnapdMode(uint32(layout.Mode)))
+		entry.Options = append(entry.Options, osutil.XSnapdMode(uint32(layout.Mode)))
 	}
 	return entry
 }
@@ -113,8 +114,8 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 }
 
 // MountEntries returns a copy of the added mount entries.
-func (spec *Specification) MountEntries() []Entry {
-	result := make([]Entry, 0, len(spec.layoutMountEntries)+len(spec.mountEntries))
+func (spec *Specification) MountEntries() []osutil.Entry {
+	result := make([]osutil.Entry, 0, len(spec.layoutMountEntries)+len(spec.mountEntries))
 	result = append(result, spec.layoutMountEntries...)
 	result = append(result, spec.mountEntries...)
 	// Number each entry, in case we get clashes this will automatically give

@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
@@ -46,7 +47,7 @@ const (
 
 // Change describes a change to the mount table (action and the entry to act on).
 type Change struct {
-	Entry  mount.Entry
+	Entry  osutil.Entry
 	Action Action
 }
 
@@ -151,7 +152,7 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 func (c *Change) ensureSource() error {
 	// We only have to do ensure bind mount source exists.
 	// This also rules out symlinks.
-	flags, _ := mount.OptsToCommonFlags(c.Entry.Options)
+	flags, _ := osutil.OptsToCommonFlags(c.Entry.Options)
 	if flags&syscall.MS_BIND == 0 {
 		return nil
 	}
@@ -240,7 +241,7 @@ func (c *Change) lowLevelPerform() error {
 		case "symlink":
 			// symlinks are handled in createInode directly, nothing to do here.
 		case "", "file":
-			flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
+			flags, unparsed := osutil.OptsToCommonFlags(c.Entry.Options)
 			err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
 			logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
 		}
@@ -270,9 +271,9 @@ func (c *Change) lowLevelPerform() error {
 // desired profile.
 func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 	// Copy both profiles as we will want to mutate them.
-	current := make([]mount.Entry, len(currentProfile.Entries))
+	current := make([]osutil.Entry, len(currentProfile.Entries))
 	copy(current, currentProfile.Entries)
-	desired := make([]mount.Entry, len(desiredProfile.Entries))
+	desired := make([]osutil.Entry, len(desiredProfile.Entries))
 	copy(desired, desiredProfile.Entries)
 
 	// Clean the directory part of both profiles. This is done so that we can
@@ -290,7 +291,7 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 	sort.Sort(byMagicDir(desired))
 
 	// Construct a desired directory map.
-	desiredMap := make(map[string]*mount.Entry)
+	desiredMap := make(map[string]*osutil.Entry)
 	for i := range desired {
 		desiredMap[desired[i].Dir] = &desired[i]
 	}

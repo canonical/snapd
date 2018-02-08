@@ -17,7 +17,7 @@
  *
  */
 
-package mount
+package osutil
 
 import (
 	"bufio"
