@@ -148,7 +148,7 @@ func snippetFromLayout(layout *snap.Layout) string {
 	} else if layout.BindFile != "" {
 		return fmt.Sprintf("# Layout path: %s\n%s mrwklix,", mountPoint, mountPoint)
 	}
-	return fmt.Sprintf("# Layout path: %s\n# (no extra permissions necessary)", mountPoint)
+	return fmt.Sprintf("# Layout path: %s\n# (no extra permissions required for symlink)", mountPoint)
 
 }
 
