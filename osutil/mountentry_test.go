@@ -152,39 +152,39 @@ func (s *entrySuite) TestParseMountEntry6(c *C) {
 }
 
 // Test (string) options -> (int) flag conversion code.
-func (s *entrySuite) TestOptsToFlags(c *C) {
-	flags, err := osutil.OptsToFlags(nil)
+func (s *entrySuite) TestMountOptsToFlags(c *C) {
+	flags, err := osutil.MountOptsToFlags(nil)
 	c.Assert(err, IsNil)
 	c.Assert(flags, Equals, 0)
-	flags, err = osutil.OptsToFlags([]string{"ro", "nodev", "nosuid"})
+	flags, err = osutil.MountOptsToFlags([]string{"ro", "nodev", "nosuid"})
 	c.Assert(err, IsNil)
 	c.Assert(flags, Equals, syscall.MS_RDONLY|syscall.MS_NODEV|syscall.MS_NOSUID)
-	_, err = osutil.OptsToFlags([]string{"bogus"})
+	_, err = osutil.MountOptsToFlags([]string{"bogus"})
 	c.Assert(err, ErrorMatches, `unsupported mount option: "bogus"`)
 	// The x-snapd-prefix is reserved for non-kernel parameters that do not
 	// translate to kernel level mount flags. This is similar to systemd or
 	// udisks that use fstab options to convey additional data.
-	flags, err = osutil.OptsToFlags([]string{"x-snapd.foo"})
+	flags, err = osutil.MountOptsToFlags([]string{"x-snapd.foo"})
 	c.Assert(err, IsNil)
 	c.Assert(flags, Equals, 0)
 }
 
 // Test (string) options -> (int, unparsed) flag conversion code.
-func (s *entrySuite) TestOptsToCommonFlags(c *C) {
-	flags, unparsed := osutil.OptsToCommonFlags(nil)
+func (s *entrySuite) TestMountOptsToCommonFlags(c *C) {
+	flags, unparsed := osutil.MountOptsToCommonFlags(nil)
 	c.Assert(flags, Equals, 0)
 	c.Assert(unparsed, HasLen, 0)
-	flags, unparsed = osutil.OptsToCommonFlags([]string{"ro", "nodev", "nosuid"})
+	flags, unparsed = osutil.MountOptsToCommonFlags([]string{"ro", "nodev", "nosuid"})
 	c.Assert(flags, Equals, syscall.MS_RDONLY|syscall.MS_NODEV|syscall.MS_NOSUID)
 	c.Assert(unparsed, HasLen, 0)
-	flags, unparsed = osutil.OptsToCommonFlags([]string{"bogus"})
+	flags, unparsed = osutil.MountOptsToCommonFlags([]string{"bogus"})
 	c.Assert(flags, Equals, 0)
 	c.Assert(unparsed, DeepEquals, []string{"bogus"})
 	// The x-snapd-prefix is reserved for non-kernel parameters that do not
 	// translate to kernel level mount flags. This is similar to systemd or
 	// udisks that use fstab options to convey additional data. Those are not
 	// returned as "unparsed" as we don't want to pass them to the kernel.
-	flags, unparsed = osutil.OptsToCommonFlags([]string{"x-snapd.foo"})
+	flags, unparsed = osutil.MountOptsToCommonFlags([]string{"x-snapd.foo"})
 	c.Assert(flags, Equals, 0)
 	c.Assert(unparsed, HasLen, 0)
 }
