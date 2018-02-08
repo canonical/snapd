@@ -373,7 +373,7 @@ snippet
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	restore := release.MockAppArmorLevel(release.FullAppArmor)
 	defer restore()
-	restore = apparmor.MockMountInfo("") // mock away NFS detection
+	restore = osutil.MockMountInfo("") // mock away NFS detection
 	defer restore()
 
 	// NOTE: replace the real template with a shorter variant
@@ -578,12 +578,12 @@ func (s *backendSuite) TestIsHomeUsingNFS(c *C) {
 		fstab: "localhost:/srv/nfs /mnt/nfs nfs defaults 0 0",
 	}}
 	for _, tc := range cases {
-		restore := apparmor.MockMountInfo(tc.mountinfo)
+		restore := osutil.MockMountInfo(tc.mountinfo)
 		defer restore()
-		restore = apparmor.MockEtcFstab(tc.fstab)
+		restore = osutil.MockEtcFstab(tc.fstab)
 		defer restore()
 
-		nfs, err := apparmor.IsHomeUsingNFS()
+		nfs, err := osutil.IsHomeUsingNFS()
 		if tc.errorPattern != "" {
 			c.Assert(err, ErrorMatches, tc.errorPattern, Commentf("test case %#v", tc))
 		} else {
@@ -596,9 +596,9 @@ func (s *backendSuite) TestIsHomeUsingNFS(c *C) {
 // snap-confine policy when NFS is not used.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoNFS(c *C) {
 	// Make it appear as if NFS was not used.
-	restore := apparmor.MockMountInfo("")
+	restore := osutil.MockMountInfo("")
 	defer restore()
-	restore = apparmor.MockEtcFstab("")
+	restore = osutil.MockEtcFstab("")
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -624,8 +624,8 @@ func MockEnableNFSWorkaroundCondition() (restore func()) {
 	// Mock mountinfo and fstab so that snapd thinks that NFS workaround
 	// is necessary. The details don't matter here. See TestIsHomeUsingNFS
 	// for details about what triggers the workaround.
-	restore1 := apparmor.MockMountInfo("")
-	restore2 := apparmor.MockEtcFstab("localhost:/srv/nfs /home nfs4 defaults 0 0")
+	restore1 := osutil.MockMountInfo("")
+	restore2 := osutil.MockEtcFstab("localhost:/srv/nfs /home nfs4 defaults 0 0")
 	return func() {
 		restore1()
 		restore2()
@@ -636,8 +636,8 @@ func MockDisableNFSWorkaroundCondition() (restore func()) {
 	// Mock mountinfo and fstab so that snapd thinks that NFS workaround is not
 	// necessary. The details don't matter here. See TestIsHomeUsingNFS for
 	// details about what triggers the workaround.
-	restore1 := apparmor.MockMountInfo("")
-	restore2 := apparmor.MockEtcFstab("")
+	restore1 := osutil.MockMountInfo("")
+	restore2 := osutil.MockEtcFstab("")
 	return func() {
 		restore1()
 		restore2()
@@ -755,7 +755,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C)
 // Test behavior when isHomeUsingNFS fails.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 	// Make corrupt mountinfo.
-	restore := apparmor.MockMountInfo("corrupt")
+	restore := osutil.MockMountInfo("corrupt")
 	defer restore()
 
 	// Intercept interaction with apparmor_parser

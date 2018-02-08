@@ -461,7 +461,9 @@ func straceCmd() ([]string, error) {
 		stracePath,
 		"-u", current.Username,
 		"-f",
-		"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid",
+		// these syscalls are excluded because they make strace hang
+		// on all or some architectures (gettimeofday on arm64)
+		"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
 	}, nil
 }
 
