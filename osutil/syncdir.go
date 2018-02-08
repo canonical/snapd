@@ -37,15 +37,15 @@ type FileState struct {
 // ErrSameState is returned when the state of a file has not changed.
 var ErrSameState = fmt.Errorf("file state has not changed")
 
-// EnsureDirState ensures that directory content matches expectations.
+// EnsureDirStateGlobs ensures that directory content matches expectations.
 //
-// EnsureDirState enumerates all the files in the specified directory that
-// match the provided pattern (glob). Each enumerated file is checked to ensure
-// that the contents, permissions are what is desired. Unexpected files are
-// removed. Missing files are created and differing files are corrected.  Files
-// not matching the pattern are ignored.
+// EnsureDirStateGlobs enumerates all the files in the specified directory that
+// match the provided set of pattern (globs). Each enumerated file is checked
+// to ensure that the contents, permissions are what is desired. Unexpected
+// files are removed. Missing files are created and differing files are
+// corrected. Files not matching any pattern are ignored.
 //
-// Note that EnsureDirState only checks for permissions and content. Other
+// Note that EnsureDirStateGlobs only checks for permissions and content. Other
 // security mechanisms, including file ownership and extended attributes are
 // *not* supported.
 //
@@ -53,7 +53,7 @@ var ErrSameState = fmt.Errorf("file state has not changed")
 // the directory.  Map keys must be file names relative to the directory.
 // Sub-directories in the name are not allowed.
 //
-// If writing any of the files fails, EnsureDirState switches to erase mode
+// If writing any of the files fails, EnsureDirStateGlobs switches to erase mode
 // where *all* of the files managed by the glob pattern are removed (including
 // those that may have been already written). The return value is an empty list
 // of changed files, the real list of removed files and the first error.
@@ -63,16 +63,20 @@ var ErrSameState = fmt.Errorf("file state has not changed")
 // exhausted.
 //
 // In all cases, the function returns the first error it has encountered.
-func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, removed []string, err error) {
-	if _, err := filepath.Match(glob, "foo"); err != nil {
-		panic(fmt.Sprintf("EnsureDirState got invalid pattern %q: %s", glob, err))
+func EnsureDirStateGlobs(dir string, globs []string, content map[string]*FileState) (changed, removed []string, err error) {
+	// Check syntax before doing anything.
+	if _, index, err := matchAny(globs, "foo"); err != nil {
+		return nil, nil, fmt.Errorf("internal error: EnsureDirState got invalid pattern %q: %s", globs[index], err)
 	}
 	for baseName := range content {
 		if filepath.Base(baseName) != baseName {
-			panic(fmt.Sprintf("EnsureDirState got filename %q which has a path component", baseName))
+			return nil, nil, fmt.Errorf("internal error: EnsureDirState got filename %q which has a path component", baseName)
 		}
-		if ok, _ := filepath.Match(glob, baseName); !ok {
-			panic(fmt.Sprintf("EnsureDirState got filename %q which doesn't match the glob pattern %q", baseName, glob))
+		if ok, _, _ := matchAny(globs, baseName); !ok {
+			if len(globs) == 1 {
+				return nil, nil, fmt.Errorf("internal error: EnsureDirState got filename %q which doesn't match the glob pattern %q", baseName, globs[0])
+			}
+			return nil, nil, fmt.Errorf("internal error: EnsureDirState got filename %q which doesn't match any glob patterns %q", baseName, globs)
 		}
 	}
 	// Change phase (create/change files described by content)
@@ -96,10 +100,14 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, r
 		changed = append(changed, baseName)
 	}
 	// Delete phase (remove files matching the glob that are not in content)
-	matches, err := filepath.Glob(filepath.Join(dir, glob))
-	if err != nil {
-		sort.Strings(changed)
-		return changed, nil, err
+	var matches []string
+	for _, glob := range globs {
+		m, err := filepath.Glob(filepath.Join(dir, glob))
+		if err != nil {
+			sort.Strings(changed)
+			return changed, nil, err
+		}
+		matches = append(matches, m...)
 	}
 	for _, filePath := range matches {
 		baseName := filepath.Base(filePath)
@@ -118,6 +126,22 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, r
 	sort.Strings(changed)
 	sort.Strings(removed)
 	return changed, removed, firstErr
+}
+
+func matchAny(globs []string, path string) (ok bool, index int, err error) {
+	for index, glob := range globs {
+		if ok, err := filepath.Match(glob, path); ok || err != nil {
+			return ok, index, err
+		}
+	}
+	return false, 0, nil
+}
+
+// EnsureDirState ensures that directory content matches expectations.
+//
+// This is like EnsureDirStateGlobs but it only supports one glob at a time.
+func EnsureDirState(dir string, glob string, content map[string]*FileState) (changed, removed []string, err error) {
+	return EnsureDirStateGlobs(dir, []string{glob}, content)
 }
 
 // EnsureFileState ensures that the file is in the expected state. It will not attempt

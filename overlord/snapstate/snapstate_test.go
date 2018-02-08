@@ -5911,12 +5911,12 @@ func (s *snapmgrQuerySuite) SetUpTest(c *C) {
 name: name0
 version: 1.1
 description: |
-    Lots of text`, "", sideInfo11)
+    Lots of text`, sideInfo11)
 	snaptest.MockSnap(c, `
 name: name0
 version: 1.2
 description: |
-    Lots of text`, "", sideInfo12)
+    Lots of text`, sideInfo12)
 	snapstate.Set(st, "name1", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo11, sideInfo12},
@@ -6049,7 +6049,7 @@ func (s *snapmgrQuerySuite) TestTypeInfo(c *C) {
 			RealName: x.snapName,
 			Revision: snap.R(2),
 		}
-		snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: %q\nversion: %q\n", x.snapName, x.snapType, x.snapName), "", sideInfo)
+		snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: %q\nversion: %q\n", x.snapName, x.snapType, x.snapName), sideInfo)
 		snapstate.Set(st, x.snapName, &snapstate.SnapState{
 			SnapType: string(x.snapType),
 			Active:   true,
@@ -6106,7 +6106,7 @@ func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
 				RealName: snapName,
 				Revision: snap.R(1),
 			}
-			snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: os\nversion: %q\n", snapName, snapName), "", sideInfo)
+			snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: os\nversion: %q\n", snapName, snapName), sideInfo)
 			snapstate.Set(st, snapName, &snapstate.SnapState{
 				SnapType: string(snap.TypeOS),
 				Active:   true,
@@ -7005,7 +7005,7 @@ func (s *snapmgrTestSuite) prepareGadget(c *C) {
 name: the-gadget
 type: gadget
 version: 1.0
-`, "", gadgetSideInfo)
+`, gadgetSideInfo)
 
 	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0600)
 	c.Assert(err, IsNil)
@@ -7072,7 +7072,7 @@ volumes:
         bootloader: grub
 `)
 
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, "SNAP", &snap.SideInfo{Revision: snap.R(2)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(2)})
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
@@ -7102,7 +7102,7 @@ func makeInstalledMockCoreSnap(c *C) {
 version: 1.0
 type: os
 `
-	snaptest.MockSnap(c, coreSnapYaml, "", &snap.SideInfo{
+	snaptest.MockSnap(c, coreSnapYaml, &snap.SideInfo{
 		RealName: "core",
 		Revision: snap.R(1),
 	})
