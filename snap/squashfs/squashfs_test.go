@@ -284,8 +284,7 @@ EOF
 	snap := makeSnap(c, "", data)
 	err := snap.Unpack("*", "some-output-dir")
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot extract \"*\" to \"some-output-dir\": \"writer: failed to write data block 0\\n\\nFailed to write /tmp/1/snap/manifest.yaml, skipping\\n\\nWrite on output file failed because No space left on device\\n\\nwriter: failed to write data block 0\\n\\nFailed to write /tmp/1/snap/snapcraft.yaml, skipping\\n\"")
-
+	c.Check(err.Error(), Equals, `cannot extract "*" to "some-output-dir": failed: "Failed to write /tmp/1/modules/4.4.0-112-generic/modules.symbols, skipping", "Write on output file failed because No space left on device", "writer: failed to write data block 0", "Failed to write /tmp/1/modules/4.4.0-112-generic/modules.symbols.bin, skipping", and 15 more`)
 }
 
 func (s *SquashfsTestSuite) TestBuild(c *C) {
@@ -311,4 +310,46 @@ squashfs-root/data.bin
 squashfs-root/random
 squashfs-root/random/dir
 `)
+}
+
+func (s *SquashfsTestSuite) TestUnsquashfsStderrWriter(c *C) {
+	for _, t := range []struct {
+		inp         []string
+		expectedErr string
+	}{
+		{
+			inp:         []string{"failed to write something\n"},
+			expectedErr: `failed: "failed to write something"`,
+		},
+		{
+			inp:         []string{"fai", "led to write", " something\nunrelated\n"},
+			expectedErr: `failed: "failed to write something"`,
+		},
+		{
+			inp:         []string{"failed to write\nfailed to read\n"},
+			expectedErr: `failed: "failed to write", and "failed to read"`,
+		},
+		{
+			inp:         []string{"failed 1\nfailed 2\n3 failed\n"},
+			expectedErr: `failed: "failed 1", "failed 2", and "3 failed"`,
+		},
+		{
+			inp:         []string{"failed 1\nfailed 2\n3 Failed\n4 Failed\n"},
+			expectedErr: `failed: "failed 1", "failed 2", "3 Failed", and "4 Failed"`,
+		},
+		{
+			inp:         []string{"failed 1\nfailed 2\n3 Failed\n4 Failed\nfailed #5\n"},
+			expectedErr: `failed: "failed 1", "failed 2", "3 Failed", "4 Failed", and 1 more`,
+		},
+	} {
+		usw := newUnsquashfsStderrWriter()
+		for _, l := range t.inp {
+			usw.Write([]byte(l))
+		}
+		if t.expectedErr != "" {
+			c.Check(usw.Err(), ErrorMatches, t.expectedErr, Commentf("inp: %q failed", t.inp))
+		} else {
+			c.Check(usw.Err(), IsNil)
+		}
+	}
 }
