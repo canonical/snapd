@@ -452,7 +452,7 @@ type LayoutConstraint interface {
 	IsOffLimits(path string) bool
 }
 
-// mountedDirectory represents a mounted file-system tree or a bind-mounted directory.
+// mountedTree represents a mounted file-system tree or a bind-mounted directory.
 type mountedTree string
 
 // IsOffLimits returns true if the mount point s a prefix of a given path.
