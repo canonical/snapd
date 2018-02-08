@@ -32,7 +32,7 @@ import (
 
 // Profile represents an array of mount entries.
 type Profile struct {
-	Entries []Entry
+	Entries []osutil.Entry
 }
 
 // LoadProfile loads a mount profile from a given file.
@@ -75,7 +75,7 @@ func ReadProfile(reader io.Reader) (*Profile, error) {
 		if s == "" {
 			continue
 		}
-		entry, err := ParseEntry(s)
+		entry, err := osutil.ParseEntry(s)
 		if err != nil {
 			return nil, err
 		}

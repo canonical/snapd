@@ -25,7 +25,6 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -36,7 +35,7 @@ var (
 
 // XSnapdMode returns the file mode associated with x-snapd.mode mount option.
 // If the mode is not specified explicitly then a default mode of 0755 is assumed.
-func XSnapdMode(e *mount.Entry) (os.FileMode, error) {
+func XSnapdMode(e *osutil.Entry) (os.FileMode, error) {
 	if opt, ok := e.OptStr("x-snapd.mode"); ok {
 		if !validModeRe.MatchString(opt) {
 			return 0, fmt.Errorf("cannot parse octal file mode from %q", opt)
@@ -54,7 +53,7 @@ func XSnapdMode(e *mount.Entry) (os.FileMode, error) {
 // XSnapdUID returns the user associated with x-snapd-user mount option.  If
 // the mode is not specified explicitly then a default "root" use is
 // returned.
-func XSnapdUID(e *mount.Entry) (uid uint64, err error) {
+func XSnapdUID(e *osutil.Entry) (uid uint64, err error) {
 	if opt, ok := e.OptStr("x-snapd.uid"); ok {
 		if !validUserGroupRe.MatchString(opt) {
 			return math.MaxUint64, fmt.Errorf("cannot parse user name %q", opt)
@@ -76,7 +75,7 @@ func XSnapdUID(e *mount.Entry) (uid uint64, err error) {
 // XSnapdGID returns the user associated with x-snapd-user mount option.  If
 // the mode is not specified explicitly then a default "root" use is
 // returned.
-func XSnapdGID(e *mount.Entry) (gid uint64, err error) {
+func XSnapdGID(e *osutil.Entry) (gid uint64, err error) {
 	if opt, ok := e.OptStr("x-snapd.gid"); ok {
 		if !validUserGroupRe.MatchString(opt) {
 			return math.MaxUint64, fmt.Errorf("cannot parse group name %q", opt)
@@ -100,7 +99,7 @@ func XSnapdGID(e *mount.Entry) (gid uint64, err error) {
 // Identifiers are kept in the x-snapd.id mount option. The value is a string
 // that identifies a mount entry and is stable across invocations of snapd. In
 // absence of that identifier the entry mount point is returned.
-func XSnapdEntryID(e *mount.Entry) string {
+func XSnapdEntryID(e *osutil.Entry) string {
 	if val, ok := e.OptStr("x-snapd.id"); ok {
 		return val
 	}
@@ -113,7 +112,7 @@ func XSnapdEntryID(e *mount.Entry) string {
 // The value is a string that identifies another mount entry which, in order to
 // be feasible, has spawned one or more additional support entries. Each such
 // entry contains the needed-by attribute.
-func XSnapdNeededBy(e *mount.Entry) string {
+func XSnapdNeededBy(e *osutil.Entry) string {
 	val, _ := e.OptStr("x-snapd.needed-by")
 	return val
 }
@@ -124,6 +123,6 @@ func XSnapdNeededBy(e *mount.Entry) string {
 // from what snapd instructed. Such entries are needed to make other things
 // possible.  They are identified by having the "x-snapd.synthetic" mount
 // option.
-func XSnapdSynthetic(e *mount.Entry) bool {
+func XSnapdSynthetic(e *osutil.Entry) bool {
 	return e.OptBool("x-snapd.synthetic")
 }

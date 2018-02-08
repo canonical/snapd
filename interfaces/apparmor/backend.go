@@ -57,7 +57,7 @@ import (
 )
 
 var (
-	procSelfMountInfo = mount.ProcSelfMountInfo
+	procSelfMountInfo = osutil.ProcSelfMountInfo
 	procSelfExe       = "/proc/self/exe"
 	etcFstab          = "/etc/fstab"
 )
@@ -174,7 +174,7 @@ func (b *Backend) Initialize() error {
 // and possible mounted filesystems).  If either of those describes NFS
 // filesystem mounted under or beneath /home/ then the return value is true.
 func isHomeUsingNFS() (bool, error) {
-	mountinfo, err := mount.LoadMountInfo(procSelfMountInfo)
+	mountinfo, err := osutil.LoadMountInfo(procSelfMountInfo)
 	if err != nil {
 		return false, fmt.Errorf("cannot parse %s: %s", procSelfMountInfo, err)
 	}
