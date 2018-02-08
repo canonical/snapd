@@ -106,3 +106,10 @@ func SetUnsafeIO(b bool) func() {
 		snapdUnsafeIO = oldSnapdUnsafeIO
 	}
 }
+
+func MockOsReadlink(f func(string) (string, error)) func() {
+	realOsReadlink := osReadlink
+	osReadlink = f
+
+	return func() { osReadlink = realOsReadlink }
+}

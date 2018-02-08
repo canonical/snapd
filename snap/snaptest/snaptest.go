@@ -21,6 +21,7 @@
 package snaptest
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -36,7 +37,7 @@ import (
 //
 // The caller is responsible for mocking root directory with dirs.SetRootDir()
 // and for altering the overlord state if required.
-func MockSnap(c *check.C, yamlText string, snapContents string, sideInfo *snap.SideInfo) *snap.Info {
+func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	c.Assert(sideInfo, check.Not(check.IsNil))
 
 	// Parse the yaml (we need the Name).
@@ -56,6 +57,7 @@ func MockSnap(c *check.C, yamlText string, snapContents string, sideInfo *snap.S
 	// Write the .snap to disk
 	err = os.MkdirAll(filepath.Dir(snapInfo.MountFile()), 0755)
 	c.Assert(err, check.IsNil)
+	snapContents := fmt.Sprintf("%s-%s-%s", sideInfo.RealName, sideInfo.SnapID, sideInfo.Revision)
 	err = ioutil.WriteFile(snapInfo.MountFile(), []byte(snapContents), 0644)
 	c.Assert(err, check.IsNil)
 	snapInfo.Size = int64(len(snapContents))
