@@ -231,18 +231,19 @@ func Validate(info *Info) error {
 
 // ValidateLayoutAll validates the consistency of all the layout elements in a snap.
 func ValidateLayoutAll(info *Info) error {
-	blacklist := make([]string, 0, len(info.Layout))
 	paths := make([]string, 0, len(info.Layout))
 	for _, layout := range info.Layout {
 		paths = append(paths, layout.Path)
 	}
 	sort.Strings(paths)
+
+	constraints := make([]LayoutConstraint, 0, len(info.Layout))
 	for _, path := range paths {
 		layout := info.Layout[path]
-		if err := ValidateLayout(layout, blacklist); err != nil {
+		if err := ValidateLayout(layout, constraints); err != nil {
 			return err
 		}
-		blacklist = append(blacklist, info.ExpandSnapVariables(layout.Path))
+		constraints = append(constraints, layout.constraint())
 	}
 	return nil
 }
@@ -446,8 +447,37 @@ func isAbsAndClean(path string) bool {
 	return (filepath.IsAbs(path) || strings.HasPrefix(path, "$")) && filepath.Clean(path) == path
 }
 
+// LayoutConstraint abstracts validation of conflicting layout elements.
+type LayoutConstraint interface {
+	IsOffLimits(path string) bool
+}
+
+// mountedTree represents a mounted file-system tree or a bind-mounted directory.
+type mountedTree string
+
+// IsOffLimits returns true if the mount point s a prefix of a given path.
+func (mountPoint mountedTree) IsOffLimits(path string) bool {
+	return strings.HasPrefix(path, string(mountPoint)+"/")
+}
+
+// symlinkFile represents a layout using symbolic link.
+type symlinkFile string
+
+// IsOffLimits returns true for mounted files  if a path is identical to the path of the mount point.
+func (mountPoint symlinkFile) IsOffLimits(path string) bool {
+	return strings.HasPrefix(path, string(mountPoint)+"/") || path == string(mountPoint)
+}
+
+func (layout *Layout) constraint() LayoutConstraint {
+	path := layout.Snap.ExpandSnapVariables(layout.Path)
+	if layout.Symlink != "" {
+		return symlinkFile(path)
+	}
+	return mountedTree(path)
+}
+
 // ValidateLayout ensures that the given layout contains only valid subset of constructs.
-func ValidateLayout(layout *Layout, blacklist []string) error {
+func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 	si := layout.Snap
 	// Rules for validating layouts:
 	//
@@ -468,9 +498,10 @@ func ValidateLayout(layout *Layout, blacklist []string) error {
 	if !isAbsAndClean(mountPoint) {
 		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
 	}
-	for i := range blacklist {
-		if strings.HasPrefix(mountPoint, blacklist[i]) {
-			return fmt.Errorf("layout %q underneath prior layout item %q", layout.Path, blacklist[i])
+
+	for _, constraint := range constraints {
+		if constraint.IsOffLimits(mountPoint) {
+			return fmt.Errorf("layout %q underneath prior layout item %q", layout.Path, constraint)
 		}
 	}
 
