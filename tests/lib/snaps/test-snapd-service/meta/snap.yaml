@@ -13,4 +13,4 @@ apps:
         command: bin/start-survive
         stop-command: bin/stop-survive
         daemon: simple
-        refresh-mode: survive
+        refresh-mode: keep
