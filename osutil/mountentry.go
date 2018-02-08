@@ -152,7 +152,7 @@ func ParseMountEntry(s string) (MountEntry, error) {
 // OptsToCommonFlags converts mount options strings to a mount flag, returning unparsed flags.
 // The unparsed flags will not contain any snapd-specific mount option, those
 // starting with the string "x-snapd."
-func OptsToCommonFlags(opts []string) (flags int, unparsed []string) {
+func MountOptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 	for _, opt := range opts {
 		switch opt {
 		case "ro":
@@ -211,8 +211,8 @@ func OptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 }
 
 // OptsToFlags converts mount options strings to a mount flag.
-func OptsToFlags(opts []string) (flags int, err error) {
-	flags, unparsed := OptsToCommonFlags(opts)
+func MountOptsToFlags(opts []string) (flags int, err error) {
+	flags, unparsed := MountOptsToCommonFlags(opts)
 	for _, opt := range unparsed {
 		if !strings.HasPrefix(opt, "x-snapd.") {
 			return 0, fmt.Errorf("unsupported mount option: %q", opt)

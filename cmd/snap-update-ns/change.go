@@ -152,7 +152,7 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 func (c *Change) ensureSource() error {
 	// We only have to do ensure bind mount source exists.
 	// This also rules out symlinks.
-	flags, _ := osutil.OptsToCommonFlags(c.Entry.Options)
+	flags, _ := osutil.MountOptsToCommonFlags(c.Entry.Options)
 	if flags&syscall.MS_BIND == 0 {
 		return nil
 	}
@@ -241,7 +241,7 @@ func (c *Change) lowLevelPerform() error {
 		case "symlink":
 			// symlinks are handled in createInode directly, nothing to do here.
 		case "", "file":
-			flags, unparsed := osutil.OptsToCommonFlags(c.Entry.Options)
+			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
 			err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
 			logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
 		}
