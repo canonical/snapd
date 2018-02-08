@@ -64,8 +64,11 @@ func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
 	} else {
 		apparmorFeaturesStr = "\n- " + strings.Join(apparmorFeatures, "\n- ") + "\n"
 	}
+	nfsHome, err := osutil.IsHomeUsingNFS()
+	c.Assert(err, IsNil)
 	c.Check(systemKey, Equals, fmt.Sprintf(`build-id: %s
-apparmor-features:%s`, s.buildID, apparmorFeaturesStr))
+apparmor-features:%snfs-home: %v
+`, s.buildID, apparmorFeaturesStr, nfsHome))
 }
 
 func (ts *systemKeySuite) TestInterfaceDigest(c *C) {

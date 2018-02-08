@@ -33,6 +33,7 @@ import (
 type systemKey struct {
 	BuildID          string   `yaml:"build-id"`
 	AppArmorFeatures []string `yaml:"apparmor-features"`
+	NFSHome          bool     `yaml:"nfs-home"`
 }
 
 var mockedSystemKey *systemKey
