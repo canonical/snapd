@@ -305,7 +305,7 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 	// Collect the IDs of desired changes.
 	// We need that below to keep implicit changes from the current profile.
 	for i := range desired {
-		desiredIDs[XSnapdEntryID(&desired[i])] = true
+		desiredIDs[desired[i].XSnapdEntryID()] = true
 	}
 
 	// Compute reusable entries: those which are equal in current and desired and which
@@ -334,7 +334,7 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 		// constructed using a temporary bind mount that contained the original
 		// mount entries of a directory that was hidden with a tmpfs, but this
 		// fact was lost.
-		if XSnapdSynthetic(&current[i]) && desiredIDs[XSnapdNeededBy(&current[i])] {
+		if current[i].XSnapdSynthetic() && desiredIDs[current[i].XSnapdNeededBy()] {
 			logger.Debugf("reusing synthetic entry %q", current[i])
 			reuse[dir] = true
 			continue

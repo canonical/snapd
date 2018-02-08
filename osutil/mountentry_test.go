@@ -20,6 +20,8 @@
 package osutil_test
 
 import (
+	"math"
+	"os"
 	"syscall"
 
 	. "gopkg.in/check.v1"
@@ -216,4 +218,127 @@ func (s *entrySuite) TestOptionHelpers(c *C) {
 	c.Assert(osutil.XSnapdGroup(1000), Equals, "x-snapd.group=1000")
 	c.Assert(osutil.XSnapdMode(0755), Equals, "x-snapd.mode=0755")
 	c.Assert(osutil.XSnapdSymlink("oldname"), Equals, "x-snapd.symlink=oldname")
+}
+
+func (s *entrySuite) TestXSnapdMode(c *C) {
+	// Mode has a default value.
+	e := &osutil.MountEntry{}
+	mode, err := e.XSnapdMode()
+	c.Assert(err, IsNil)
+	c.Assert(mode, Equals, os.FileMode(0755))
+
+	// Mode is parsed from the x-snapd.mode= option.
+	e = &osutil.MountEntry{Options: []string{"x-snapd.mode=0700"}}
+	mode, err = e.XSnapdMode()
+	c.Assert(err, IsNil)
+	c.Assert(mode, Equals, os.FileMode(0700))
+
+	// Empty value is invalid.
+	e = &osutil.MountEntry{Options: []string{"x-snapd.mode="}}
+	_, err = e.XSnapdMode()
+	c.Assert(err, ErrorMatches, `cannot parse octal file mode from ""`)
+
+	// As well as other bogus values.
+	e = &osutil.MountEntry{Options: []string{"x-snapd.mode=pasta"}}
+	_, err = e.XSnapdMode()
+	c.Assert(err, ErrorMatches, `cannot parse octal file mode from "pasta"`)
+
+	// And even valid values with trailing garbage.
+	e = &osutil.MountEntry{Options: []string{"x-snapd.mode=0700pasta"}}
+	mode, err = e.XSnapdMode()
+	c.Assert(err, ErrorMatches, `cannot parse octal file mode from "0700pasta"`)
+	c.Assert(mode, Equals, os.FileMode(0))
+}
+
+func (s *entrySuite) TestXSnapdUID(c *C) {
+	// User has a default value.
+	e := &osutil.MountEntry{}
+	uid, err := e.XSnapdUID()
+	c.Assert(err, IsNil)
+	c.Assert(uid, Equals, uint64(0))
+
+	// User is parsed from the x-snapd.uid= option.
+	e = &osutil.MountEntry{Options: []string{"x-snapd.uid=root"}}
+	uid, err = e.XSnapdUID()
+	c.Assert(err, IsNil)
+	c.Assert(uid, Equals, uint64(0))
+
+	// Numeric names are used as-is.
+	e = &osutil.MountEntry{Options: []string{"x-snapd.uid=123"}}
+	uid, err = e.XSnapdUID()
+	c.Assert(err, IsNil)
+	c.Assert(uid, Equals, uint64(123))
+
+	// Unknown user names are invalid.
+	e = &osutil.MountEntry{Options: []string{"x-snapd.uid=bogus"}}
+	uid, err = e.XSnapdUID()
+	c.Assert(err, ErrorMatches, `cannot resolve user name "bogus"`)
+	c.Assert(uid, Equals, uint64(math.MaxUint64))
+
+	// And even valid values with trailing garbage.
+	e = &osutil.MountEntry{Options: []string{"x-snapd.uid=0bogus"}}
+	uid, err = e.XSnapdUID()
+	c.Assert(err, ErrorMatches, `cannot parse user name "0bogus"`)
+	c.Assert(uid, Equals, uint64(math.MaxUint64))
+}
+
+func (s *entrySuite) TestXSnapdGID(c *C) {
+	// Group has a default value.
+	e := &osutil.MountEntry{}
+	gid, err := e.XSnapdGID()
+	c.Assert(err, IsNil)
+	c.Assert(gid, Equals, uint64(0))
+
+	e = &osutil.MountEntry{Options: []string{"x-snapd.gid=root"}}
+	gid, err = e.XSnapdGID()
+	c.Assert(err, IsNil)
+	c.Assert(gid, Equals, uint64(0))
+
+	// Numeric names are used as-is.
+	e = &osutil.MountEntry{Options: []string{"x-snapd.gid=456"}}
+	gid, err = e.XSnapdGID()
+	c.Assert(err, IsNil)
+	c.Assert(gid, Equals, uint64(456))
+
+	// Unknown group names are invalid.
+	e = &osutil.MountEntry{Options: []string{"x-snapd.gid=bogus"}}
+	gid, err = e.XSnapdGID()
+	c.Assert(err, ErrorMatches, `cannot resolve group name "bogus"`)
+	c.Assert(gid, Equals, uint64(math.MaxUint64))
+
+	// And even valid values with trailing garbage.
+	e = &osutil.MountEntry{Options: []string{"x-snapd.gid=0bogus"}}
+	gid, err = e.XSnapdGID()
+	c.Assert(err, ErrorMatches, `cannot parse group name "0bogus"`)
+	c.Assert(gid, Equals, uint64(math.MaxUint64))
+}
+
+func (s *entrySuite) TestXSnapdEntryID(c *C) {
+	// Entry ID is optional and defaults to the mount point.
+	e := &osutil.MountEntry{Dir: "/foo"}
+	c.Assert(e.XSnapdEntryID(), Equals, "/foo")
+
+	// Entry ID is parsed from the x-snapd.id= option.
+	e = &osutil.MountEntry{Dir: "/foo", Options: []string{"x-snapd.id=foo"}}
+	c.Assert(e.XSnapdEntryID(), Equals, "foo")
+}
+
+func (s *entrySuite) TestXSnapdNeededBy(c *C) {
+	// The needed-by attribute is optional.
+	e := &osutil.MountEntry{}
+	c.Assert(e.XSnapdNeededBy(), Equals, "")
+
+	// The needed-by attribute parsed from the x-snapd.needed-by= option.
+	e = &osutil.MountEntry{Options: []string{"x-snap.id=foo", "x-snapd.needed-by=bar"}}
+	c.Assert(e.XSnapdNeededBy(), Equals, "bar")
+}
+
+func (s *entrySuite) TestXSnapdSynthetic(c *C) {
+	// Entries are not synthetic unless tagged as such.
+	e := &osutil.MountEntry{}
+	c.Assert(e.XSnapdSynthetic(), Equals, false)
+
+	// Tagging is done with x-snapd.synthetic option.
+	e = &osutil.MountEntry{Options: []string{"x-snapd.synthetic"}}
+	c.Assert(e.XSnapdSynthetic(), Equals, true)
 }

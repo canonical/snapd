@@ -21,6 +21,9 @@ package osutil
 
 import (
 	"fmt"
+	"math"
+	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -242,6 +245,105 @@ func (e *MountEntry) OptBool(name string) bool {
 		}
 	}
 	return false
+}
+
+var (
+	validModeRe      = regexp.MustCompile("^0[0-7]{3}$")
+	validUserGroupRe = regexp.MustCompile("(^[0-9]+$)|(^[a-z_][a-z0-9_-]*[$]?$)")
+)
+
+// XSnapdMode returns the file mode associated with x-snapd.mode mount option.
+// If the mode is not specified explicitly then a default mode of 0755 is assumed.
+func (e *MountEntry) XSnapdMode() (os.FileMode, error) {
+	if opt, ok := e.OptStr("x-snapd.mode"); ok {
+		if !validModeRe.MatchString(opt) {
+			return 0, fmt.Errorf("cannot parse octal file mode from %q", opt)
+		}
+		var mode os.FileMode
+		n, err := fmt.Sscanf(opt, "%o", &mode)
+		if err != nil || n != 1 {
+			return 0, fmt.Errorf("cannot parse octal file mode from %q", opt)
+		}
+		return mode, nil
+	}
+	return 0755, nil
+}
+
+// XSnapdUID returns the user associated with x-snapd-user mount option.  If
+// the mode is not specified explicitly then a default "root" use is
+// returned.
+func (e *MountEntry) XSnapdUID() (uid uint64, err error) {
+	if opt, ok := e.OptStr("x-snapd.uid"); ok {
+		if !validUserGroupRe.MatchString(opt) {
+			return math.MaxUint64, fmt.Errorf("cannot parse user name %q", opt)
+		}
+		// Try to parse a numeric ID first.
+		if n, err := fmt.Sscanf(opt, "%d", &uid); n == 1 && err == nil {
+			return uid, nil
+		}
+		// Fall-back to system name lookup.
+		if uid, err = FindUid(opt); err != nil {
+			// The error message from FindUid is not very useful so just skip it.
+			return math.MaxUint64, fmt.Errorf("cannot resolve user name %q", opt)
+		}
+		return uid, nil
+	}
+	return 0, nil
+}
+
+// XSnapdGID returns the user associated with x-snapd-user mount option.  If
+// the mode is not specified explicitly then a default "root" use is
+// returned.
+func (e *MountEntry) XSnapdGID() (gid uint64, err error) {
+	if opt, ok := e.OptStr("x-snapd.gid"); ok {
+		if !validUserGroupRe.MatchString(opt) {
+			return math.MaxUint64, fmt.Errorf("cannot parse group name %q", opt)
+		}
+		// Try to parse a numeric ID first.
+		if n, err := fmt.Sscanf(opt, "%d", &gid); n == 1 && err == nil {
+			return gid, nil
+		}
+		// Fall-back to system name lookup.
+		if gid, err = FindGid(opt); err != nil {
+			// The error message from FindGid is not very useful so just skip it.
+			return math.MaxUint64, fmt.Errorf("cannot resolve group name %q", opt)
+		}
+		return gid, nil
+	}
+	return 0, nil
+}
+
+// XSnapdEntryID returns the identifier of a given mount enrty.
+//
+// Identifiers are kept in the x-snapd.id mount option. The value is a string
+// that identifies a mount entry and is stable across invocations of snapd. In
+// absence of that identifier the entry mount point is returned.
+func (e *MountEntry) XSnapdEntryID() string {
+	if val, ok := e.OptStr("x-snapd.id"); ok {
+		return val
+	}
+	return e.Dir
+}
+
+// XSnapdNeededBy the identifier of an entry which needs this entry to function.
+//
+// The "needed by" identifiers are kept in the x-snapd.needed-by mount option.
+// The value is a string that identifies another mount entry which, in order to
+// be feasible, has spawned one or more additional support entries. Each such
+// entry contains the needed-by attribute.
+func (e *MountEntry) XSnapdNeededBy() string {
+	val, _ := e.OptStr("x-snapd.needed-by")
+	return val
+}
+
+// XSnapdSynthetic returns true of a given mount entry is synthetic.
+//
+// Synthetic mount entries are created by snap-update-ns itself, separately
+// from what snapd instructed. Such entries are needed to make other things
+// possible.  They are identified by having the "x-snapd.synthetic" mount
+// option.
+func (e *MountEntry) XSnapdSynthetic() bool {
+	return e.OptBool("x-snapd.synthetic")
 }
 
 // XSnapdKindSymlink returns the string "x-snapd.kind=symlink".
