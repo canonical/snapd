@@ -53,8 +53,8 @@ clean:
 		sed s:@SNAP_MOUNT_DIR@:$(SNAP_MOUNT_DIR):g  | \
 		cat > $@
 
-# If SNAP_MOUNT_DIR uses non-default location then just copy the file.
-# This lets us reuse the sed rule above and get the right dependencies.
+# If SNAP_MOUNT_DIR uses non-default location then rename snap.mount
+# so that the directory name is encoded in the file name.
 ifneq ($(snap_mount_unit),snap.mount)
 $(snap_mount_unit): snap.mount
 	cp $< $@

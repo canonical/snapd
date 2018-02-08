@@ -62,7 +62,6 @@ version: 1.0
 	helloYaml2 = `name: hello
 version: 2.0
 `
-	helloContents = ""
 )
 
 func (s *copydataSuite) TestCopyData(c *C) {
@@ -76,7 +75,7 @@ func (s *copydataSuite) TestCopyData(c *C) {
 
 	canaryData := []byte("ni ni ni")
 
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	// just creates data dirs in this case
 	err = s.be.CopySnapData(v1, nil, progress.Null)
 	c.Assert(err, IsNil)
@@ -92,7 +91,7 @@ func (s *copydataSuite) TestCopyData(c *C) {
 	err = ioutil.WriteFile(filepath.Join(homeCommonData, "canary.common_home"), canaryData, 0644)
 	c.Assert(err, IsNil)
 
-	v2 := snaptest.MockSnap(c, helloYaml2, helloContents, &snap.SideInfo{Revision: snap.R(20)})
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 	err = s.be.CopySnapData(v2, v1, progress.Null)
 	c.Assert(err, IsNil)
 
@@ -123,11 +122,11 @@ func (s *copydataSuite) TestCopyDataBails(c *C) {
 	oldSnapDataHomeGlob := dirs.SnapDataHomeGlob
 	defer func() { dirs.SnapDataHomeGlob = oldSnapDataHomeGlob }()
 
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	c.Assert(s.be.CopySnapData(v1, nil, progress.Null), IsNil)
 	c.Assert(os.Chmod(v1.DataDir(), 0), IsNil)
 
-	v2 := snaptest.MockSnap(c, helloYaml2, helloContents, &snap.SideInfo{Revision: snap.R(20)})
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 	err := s.be.CopySnapData(v2, v1, progress.Null)
 	c.Check(err, ErrorMatches, "cannot copy .*")
 }
@@ -140,7 +139,7 @@ func (s *copydataSuite) TestCopyDataNoUserHomes(c *C) {
 	defer func() { dirs.SnapDataHomeGlob = oldSnapDataHomeGlob }()
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "snap")
 
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	err := s.be.CopySnapData(v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 
@@ -151,7 +150,7 @@ func (s *copydataSuite) TestCopyDataNoUserHomes(c *C) {
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
-	v2 := snaptest.MockSnap(c, helloYaml2, helloContents, &snap.SideInfo{Revision: snap.R(20)})
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 	err = s.be.CopySnapData(v2, v1, progress.Null)
 	c.Assert(err, IsNil)
 
@@ -197,12 +196,12 @@ func (s copydataSuite) populateHomeData(c *C, user string, revision snap.Revisio
 }
 
 func (s *copydataSuite) TestCopyDataDoUndo(c *C) {
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	s.populateData(c, snap.R(10))
 	homedir := s.populateHomeData(c, "user1", snap.R(10))
 
 	// pretend we install a new version
-	v2 := snaptest.MockSnap(c, helloYaml2, helloContents, &snap.SideInfo{Revision: snap.R(20)})
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
 	// copy data
 	err := s.be.CopySnapData(v2, v1, progress.Null)
@@ -232,11 +231,11 @@ func (s *copydataSuite) TestCopyDataDoUndoNoUserHomes(c *C) {
 	defer func() { dirs.SnapDataHomeGlob = oldSnapDataHomeGlob }()
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "snap")
 
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	s.populateData(c, snap.R(10))
 
 	// pretend we install a new version
-	v2 := snaptest.MockSnap(c, helloYaml2, helloContents, &snap.SideInfo{Revision: snap.R(20)})
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
 	// copy data
 	err := s.be.CopySnapData(v2, v1, progress.Null)
@@ -255,7 +254,7 @@ func (s *copydataSuite) TestCopyDataDoUndoNoUserHomes(c *C) {
 }
 
 func (s *copydataSuite) TestCopyDataDoUndoFirstInstall(c *C) {
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	// first install
 	err := s.be.CopySnapData(v1, nil, progress.Null)
@@ -274,12 +273,12 @@ func (s *copydataSuite) TestCopyDataDoUndoFirstInstall(c *C) {
 }
 
 func (s *copydataSuite) TestCopyDataDoABA(c *C) {
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	s.populateData(c, snap.R(10))
 	c.Check(s.populatedData("10"), Equals, "10\n")
 
 	// pretend we install a new version
-	v2 := snaptest.MockSnap(c, helloYaml2, helloContents, &snap.SideInfo{Revision: snap.R(20)})
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 	// and write our own data to it
 	s.populateData(c, snap.R(20))
 	c.Check(s.populatedData("20"), Equals, "20\n")
@@ -299,12 +298,12 @@ func (s *copydataSuite) TestCopyDataDoABA(c *C) {
 }
 
 func (s *copydataSuite) TestCopyDataDoUndoABA(c *C) {
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	s.populateData(c, snap.R(10))
 	c.Check(s.populatedData("10"), Equals, "10\n")
 
 	// pretend we install a new version
-	v2 := snaptest.MockSnap(c, helloYaml2, helloContents, &snap.SideInfo{Revision: snap.R(20)})
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 	// and write our own data to it
 	s.populateData(c, snap.R(20))
 	c.Check(s.populatedData("20"), Equals, "20\n")
@@ -328,13 +327,13 @@ func (s *copydataSuite) TestCopyDataDoUndoABA(c *C) {
 func (s *copydataSuite) TestCopyDataDoIdempotent(c *C) {
 	// make sure that a retry wouldn't stumble on partial work
 
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	s.populateData(c, snap.R(10))
 	homedir := s.populateHomeData(c, "user1", snap.R(10))
 
 	// pretend we install a new version
-	v2 := snaptest.MockSnap(c, helloYaml2, helloContents, &snap.SideInfo{Revision: snap.R(20)})
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
 	// copy data
 	err := s.be.CopySnapData(v2, v1, progress.Null)
@@ -356,12 +355,12 @@ func (s *copydataSuite) TestCopyDataDoIdempotent(c *C) {
 func (s *copydataSuite) TestCopyDataUndoIdempotent(c *C) {
 	// make sure that a retry wouldn't stumble on partial work
 
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	s.populateData(c, snap.R(10))
 	homedir := s.populateHomeData(c, "user1", snap.R(10))
 
 	// pretend we install a new version
-	v2 := snaptest.MockSnap(c, helloYaml2, helloContents, &snap.SideInfo{Revision: snap.R(20)})
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
 	// copy data
 	err := s.be.CopySnapData(v2, v1, progress.Null)
@@ -384,7 +383,7 @@ func (s *copydataSuite) TestCopyDataUndoIdempotent(c *C) {
 }
 
 func (s *copydataSuite) TestCopyDataDoFirstInstallIdempotent(c *C) {
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	// first install
 	err := s.be.CopySnapData(v1, nil, progress.Null)
@@ -407,7 +406,7 @@ func (s *copydataSuite) TestCopyDataDoFirstInstallIdempotent(c *C) {
 }
 
 func (s *copydataSuite) TestCopyDataUndoFirstInstallIdempotent(c *C) {
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	// first install
 	err := s.be.CopySnapData(v1, nil, progress.Null)
@@ -430,11 +429,11 @@ func (s *copydataSuite) TestCopyDataUndoFirstInstallIdempotent(c *C) {
 }
 
 func (s *copydataSuite) TestCopyDataCopyFailure(c *C) {
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	s.populateData(c, snap.R(10))
 
 	// pretend we install a new version
-	v2 := snaptest.MockSnap(c, helloYaml2, helloContents, &snap.SideInfo{Revision: snap.R(20)})
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
 	defer testutil.MockCommand(c, "cp", "echo cp: boom; exit 3").Restore()
 
@@ -448,14 +447,14 @@ func (s *copydataSuite) TestCopyDataCopyFailure(c *C) {
 }
 
 func (s *copydataSuite) TestCopyDataPartialFailure(c *C) {
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	s.populateData(c, snap.R(10))
 	homedir1 := s.populateHomeData(c, "user1", snap.R(10))
 	homedir2 := s.populateHomeData(c, "user2", snap.R(10))
 
 	// pretend we install a new version
-	v2 := snaptest.MockSnap(c, helloYaml2, helloContents, &snap.SideInfo{Revision: snap.R(20)})
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
 	// sanity check: the 20 dirs don't exist yet (but 10 do)
 	for _, dir := range []string{dirs.SnapDataDir, homedir1, homedir2} {
@@ -477,7 +476,7 @@ func (s *copydataSuite) TestCopyDataPartialFailure(c *C) {
 }
 
 func (s *copydataSuite) TestCopyDataSameRevision(c *C) {
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	homedir1 := s.populateHomeData(c, "user1", snap.R(10))
 	homedir2 := s.populateHomeData(c, "user2", snap.R(10))
@@ -513,7 +512,7 @@ func (s *copydataSuite) TestCopyDataSameRevision(c *C) {
 }
 
 func (s *copydataSuite) TestUndoCopyDataSameRevision(c *C) {
-	v1 := snaptest.MockSnap(c, helloYaml1, helloContents, &snap.SideInfo{Revision: snap.R(10)})
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	homedir1 := s.populateHomeData(c, "user1", snap.R(10))
 	homedir2 := s.populateHomeData(c, "user2", snap.R(10))

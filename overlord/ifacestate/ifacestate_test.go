@@ -627,7 +627,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	sideInfo := &snap.SideInfo{
 		Revision: snap.R(1),
 	}
-	snapInfo := snaptest.MockSnap(c, yamlText, "", sideInfo)
+	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
 	sideInfo.RealName = snapInfo.Name()
 
 	a, err := s.db.FindMany(asserts.SnapDeclarationType, map[string]string{
@@ -656,7 +656,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 
 func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision int) *snap.Info {
 	sideInfo := &snap.SideInfo{Revision: snap.R(revision)}
-	snapInfo := snaptest.MockSnap(c, yamlText, "", sideInfo)
+	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
 	sideInfo.RealName = snapInfo.Name()
 
 	s.state.Lock()

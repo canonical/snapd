@@ -134,7 +134,7 @@ func (s *settingsSuite) TestSetUserDeclined(c *C) {
 	c.Assert(err, IsNil)
 
 	err = s.settings.Set("default-web-browser", "bar.desktop", ":some-dbus-sender")
-	c.Assert(err, ErrorMatches, `cannot set setting: user declined`)
+	c.Assert(err, ErrorMatches, `cannot change configuration: user declined change`)
 	c.Check(s.mockXdgSettings.Calls(), IsNil)
 	// FIXME: this needs PR#4342
 	/*
