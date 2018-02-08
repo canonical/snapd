@@ -15,7 +15,7 @@ if WITH_UNIT_TESTS
 CHECK_CFLAGS += -Werror
 endif
 
-subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private
+subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private snap-gdb-shim
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
@@ -452,3 +452,5 @@ libexec_PROGRAMS += snap-gdb-shim/snap-gdb-shim
 
 snap_gdb_shim_snap_gdb_shim_SOURCES = \
 	snap-gdb-shim/snap-gdb-shim.c
+
+snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
