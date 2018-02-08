@@ -256,18 +256,18 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(changes, DeepEquals, []*update.Change{
 		// Store /foo in /tmp/.snap/foo while we set things up
-		{Entry: osutil.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
 		// Put a tmpfs over /foo
-		{Entry: osutil.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
 		// Bind mount files and directories over. Note that files are identified by x-snapd.kind=file option.
-		{Entry: osutil.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
 		// Create symlinks.
 		// Bad symlinks and all other file types are skipped and not
 		// recorded in mount changes.
-		{Entry: osutil.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
 		// Unmount the safe-keeping directory
-		{Entry: osutil.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
 	})
 }
 
@@ -290,12 +290,12 @@ func (s *utilsSuite) TestPlanWritableMimicErrors(c *C) {
 func (s *utilsSuite) TestExecWirableMimicSuccess(c *C) {
 	// This plan is the same as in the test above. This is what comes out of planWritableMimic.
 	plan := []*update.Change{
-		{Entry: osutil.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
 	}
 
 	// Mock the act of performing changes, each of the change we perform is coming from the plan.
@@ -309,22 +309,22 @@ func (s *utilsSuite) TestExecWirableMimicSuccess(c *C) {
 	undoPlan, err := update.ExecWritableMimic(plan)
 	c.Assert(err, IsNil)
 	c.Assert(undoPlan, DeepEquals, []*update.Change{
-		{Entry: osutil.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
 	})
 }
 
 func (s *utilsSuite) TestExecWirableMimicErrorWithRecovery(c *C) {
 	// This plan is the same as in the test above. This is what comes out of planWritableMimic.
 	plan := []*update.Change{
-		{Entry: osutil.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
 		// NOTE: the next perform will fail. Notably the symlink did not fail.
-		{Entry: osutil.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
 	}
 
 	// Mock the act of performing changes. Before we inject a failure we ensure
@@ -355,21 +355,21 @@ func (s *utilsSuite) TestExecWirableMimicErrorWithRecovery(c *C) {
 	// The changes we managed to perform were undone correctly.
 	c.Assert(recoveryPlan, DeepEquals, []*update.Change{
 		// NOTE: there is no symlink undo entry as it is implicitly undone by unmounting the tmpfs.
-		{Entry: osutil.Entry{Name: "/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Unmount},
-		{Entry: osutil.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Unmount},
-		{Entry: osutil.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Unmount},
 	})
 }
 
 func (s *utilsSuite) TestExecWirableMimicErrorNothingDone(c *C) {
 	// This plan is the same as in the test above. This is what comes out of planWritableMimic.
 	plan := []*update.Change{
-		{Entry: osutil.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
 	}
 
 	// Mock the act of performing changes and just fail on any request.
@@ -387,12 +387,12 @@ func (s *utilsSuite) TestExecWirableMimicErrorNothingDone(c *C) {
 func (s *utilsSuite) TestExecWirableMimicErrorCannotUndo(c *C) {
 	// This plan is the same as in the test above. This is what comes out of planWritableMimic.
 	plan := []*update.Change{
-		{Entry: osutil.Entry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
-		{Entry: osutil.Entry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs"}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"bind"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/symlink", Dir: "/foo/symlink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=target"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "none", Dir: "/tmp/.snap/foo"}, Action: update.Unmount},
 	}
 
 	// Mock the act of performing changes. After performing the first change

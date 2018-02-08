@@ -32,23 +32,23 @@ type entrySuite struct{}
 var _ = Suite(&entrySuite{})
 
 func (s *entrySuite) TestString(c *C) {
-	ent0 := osutil.Entry{}
+	ent0 := osutil.MountEntry{}
 	c.Assert(ent0.String(), Equals, "none none none defaults 0 0")
-	ent1 := osutil.Entry{
+	ent1 := osutil.MountEntry{
 		Name:    "/var/snap/foo/common",
 		Dir:     "/var/snap/bar/common",
 		Options: []string{"bind"},
 	}
 	c.Assert(ent1.String(), Equals,
 		"/var/snap/foo/common /var/snap/bar/common none bind 0 0")
-	ent2 := osutil.Entry{
+	ent2 := osutil.MountEntry{
 		Name:    "/dev/sda5",
 		Dir:     "/media/foo",
 		Type:    "ext4",
 		Options: []string{"rw,noatime"},
 	}
 	c.Assert(ent2.String(), Equals, "/dev/sda5 /media/foo ext4 rw,noatime 0 0")
-	ent3 := osutil.Entry{
+	ent3 := osutil.MountEntry{
 		Name:    "/dev/sda5",
 		Dir:     "/media/My Files",
 		Type:    "ext4",
@@ -58,30 +58,30 @@ func (s *entrySuite) TestString(c *C) {
 }
 
 func (s *entrySuite) TestEqual(c *C) {
-	var a, b *osutil.Entry
-	a = &osutil.Entry{}
-	b = &osutil.Entry{}
+	var a, b *osutil.MountEntry
+	a = &osutil.MountEntry{}
+	b = &osutil.MountEntry{}
 	c.Assert(a.Equal(b), Equals, true)
-	a = &osutil.Entry{Dir: "foo"}
-	b = &osutil.Entry{Dir: "foo"}
+	a = &osutil.MountEntry{Dir: "foo"}
+	b = &osutil.MountEntry{Dir: "foo"}
 	c.Assert(a.Equal(b), Equals, true)
-	a = &osutil.Entry{Options: []string{"ro"}}
-	b = &osutil.Entry{Options: []string{"ro"}}
+	a = &osutil.MountEntry{Options: []string{"ro"}}
+	b = &osutil.MountEntry{Options: []string{"ro"}}
 	c.Assert(a.Equal(b), Equals, true)
-	a = &osutil.Entry{Dir: "foo"}
-	b = &osutil.Entry{Dir: "bar"}
+	a = &osutil.MountEntry{Dir: "foo"}
+	b = &osutil.MountEntry{Dir: "bar"}
 	c.Assert(a.Equal(b), Equals, false)
-	a = &osutil.Entry{}
-	b = &osutil.Entry{Options: []string{"ro"}}
+	a = &osutil.MountEntry{}
+	b = &osutil.MountEntry{Options: []string{"ro"}}
 	c.Assert(a.Equal(b), Equals, false)
-	a = &osutil.Entry{Options: []string{"ro"}}
-	b = &osutil.Entry{Options: []string{"rw"}}
+	a = &osutil.MountEntry{Options: []string{"ro"}}
+	b = &osutil.MountEntry{Options: []string{"rw"}}
 	c.Assert(a.Equal(b), Equals, false)
 }
 
 // Test that typical fstab entry is parsed correctly.
-func (s *entrySuite) TestParseEntry1(c *C) {
-	e, err := osutil.ParseEntry("UUID=394f32c0-1f94-4005-9717-f9ab4a4b570b /               ext4    errors=remount-ro 0       1")
+func (s *entrySuite) TestParseMountEntry1(c *C) {
+	e, err := osutil.ParseMountEntry("UUID=394f32c0-1f94-4005-9717-f9ab4a4b570b /               ext4    errors=remount-ro 0       1")
 	c.Assert(err, IsNil)
 	c.Assert(e.Name, Equals, "UUID=394f32c0-1f94-4005-9717-f9ab4a4b570b")
 	c.Assert(e.Dir, Equals, "/")
@@ -92,8 +92,8 @@ func (s *entrySuite) TestParseEntry1(c *C) {
 }
 
 // Test that options are parsed correctly
-func (s *entrySuite) TestParseEntry2(c *C) {
-	e, err := osutil.ParseEntry("name dir type options,comma,separated 0 0")
+func (s *entrySuite) TestParseMountEntry2(c *C) {
+	e, err := osutil.ParseMountEntry("name dir type options,comma,separated 0 0")
 	c.Assert(err, IsNil)
 	c.Assert(e.Name, Equals, "name")
 	c.Assert(e.Dir, Equals, "dir")
@@ -104,8 +104,8 @@ func (s *entrySuite) TestParseEntry2(c *C) {
 }
 
 // Test that whitespace escape codes are honored
-func (s *entrySuite) TestParseEntry3(c *C) {
-	e, err := osutil.ParseEntry(`na\040me d\011ir ty\012pe optio\134ns 0 0`)
+func (s *entrySuite) TestParseMountEntry3(c *C) {
+	e, err := osutil.ParseMountEntry(`na\040me d\011ir ty\012pe optio\134ns 0 0`)
 	c.Assert(err, IsNil)
 	c.Assert(e.Name, Equals, "na me")
 	c.Assert(e.Dir, Equals, "d\tir")
@@ -116,36 +116,36 @@ func (s *entrySuite) TestParseEntry3(c *C) {
 }
 
 // Test that number of fields is checked
-func (s *entrySuite) TestParseEntry4(c *C) {
+func (s *entrySuite) TestParseMountEntry4(c *C) {
 	for _, s := range []string{
 		"", "1", "1 2", "1 2 3" /* skip 4, 5 and 6 fields (valid case) */, "1 2 3 4 5 6 7",
 	} {
-		_, err := osutil.ParseEntry(s)
+		_, err := osutil.ParseMountEntry(s)
 		c.Assert(err, ErrorMatches, "expected between 4 and 6 fields, found [01237]")
 	}
 }
 
 // Test that integers are parsed and error checked
-func (s *entrySuite) TestParseEntry5(c *C) {
-	_, err := osutil.ParseEntry("name dir type options foo 0")
+func (s *entrySuite) TestParseMountEntry5(c *C) {
+	_, err := osutil.ParseMountEntry("name dir type options foo 0")
 	c.Assert(err, ErrorMatches, "cannot parse dump frequency: .*")
-	_, err = osutil.ParseEntry("name dir type options 0 foo")
+	_, err = osutil.ParseMountEntry("name dir type options 0 foo")
 	c.Assert(err, ErrorMatches, "cannot parse check pass number: .*")
 }
 
 // Test that last two integer fields default to zero if not present.
-func (s *entrySuite) TestParseEntry6(c *C) {
-	e, err := osutil.ParseEntry("name dir type options")
+func (s *entrySuite) TestParseMountEntry6(c *C) {
+	e, err := osutil.ParseMountEntry("name dir type options")
 	c.Assert(err, IsNil)
 	c.Assert(e.DumpFrequency, Equals, 0)
 	c.Assert(e.CheckPassNumber, Equals, 0)
 
-	e, err = osutil.ParseEntry("name dir type options 5")
+	e, err = osutil.ParseMountEntry("name dir type options 5")
 	c.Assert(err, IsNil)
 	c.Assert(e.DumpFrequency, Equals, 5)
 	c.Assert(e.CheckPassNumber, Equals, 0)
 
-	e, err = osutil.ParseEntry("name dir type options 5 7")
+	e, err = osutil.ParseMountEntry("name dir type options 5 7")
 	c.Assert(err, IsNil)
 	c.Assert(e.DumpFrequency, Equals, 5)
 	c.Assert(e.CheckPassNumber, Equals, 7)
@@ -190,7 +190,7 @@ func (s *entrySuite) TestOptsToCommonFlags(c *C) {
 }
 
 func (s *entrySuite) TestOptStr(c *C) {
-	e := &osutil.Entry{Options: []string{"key=value"}}
+	e := &osutil.MountEntry{Options: []string{"key=value"}}
 	val, ok := e.OptStr("key")
 	c.Assert(ok, Equals, true)
 	c.Assert(val, Equals, "value")
@@ -201,7 +201,7 @@ func (s *entrySuite) TestOptStr(c *C) {
 }
 
 func (s *entrySuite) TestOptBool(c *C) {
-	e := &osutil.Entry{Options: []string{"key"}}
+	e := &osutil.MountEntry{Options: []string{"key"}}
 	val := e.OptBool("key")
 	c.Assert(val, Equals, true)
 

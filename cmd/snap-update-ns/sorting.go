@@ -27,7 +27,7 @@ import (
 
 // byMagicDir allows sorting an array of entries that automagically assumes
 // each entry ends with a trailing slash.
-type byMagicDir []osutil.Entry
+type byMagicDir []osutil.MountEntry
 
 func (c byMagicDir) Len() int      { return len(c) }
 func (c byMagicDir) Swap(i, j int) { c[i], c[j] = c[j], c[i] }

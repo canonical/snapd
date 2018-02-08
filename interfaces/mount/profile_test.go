@@ -53,7 +53,7 @@ func (s *profileSuite) TestLoadProfile2(c *C) {
 	p, err := mount.LoadProfile(fname)
 	c.Assert(err, IsNil)
 	c.Assert(p.Entries, HasLen, 1)
-	c.Assert(p.Entries, DeepEquals, []osutil.Entry{
+	c.Assert(p.Entries, DeepEquals, []osutil.MountEntry{
 		{Name: "name-1", Dir: "dir-1", Type: "type-1", Options: []string{"options-1"}, DumpFrequency: 1, CheckPassNumber: 1},
 	})
 }
@@ -63,7 +63,7 @@ func (s *profileSuite) TestSaveProfile1(c *C) {
 	dir := c.MkDir()
 	fname := filepath.Join(dir, "profile")
 	p := &mount.Profile{
-		Entries: []osutil.Entry{
+		Entries: []osutil.MountEntry{
 			{Name: "name-1", Dir: "dir-1", Type: "type-1", Options: []string{"options-1"}, DumpFrequency: 1, CheckPassNumber: 1},
 		},
 	}
@@ -100,7 +100,7 @@ func (s *profileSuite) TestReadProfile3(c *C) {
 		name-2 dir-2 type-2 options-2 2 2 # 2nd entry`))
 	c.Assert(err, IsNil)
 	c.Assert(p.Entries, HasLen, 2)
-	c.Assert(p.Entries, DeepEquals, []osutil.Entry{
+	c.Assert(p.Entries, DeepEquals, []osutil.MountEntry{
 		{Name: "name-1", Dir: "dir-1", Type: "type-1", Options: []string{"options-1"}, DumpFrequency: 1, CheckPassNumber: 1},
 		{Name: "name-2", Dir: "dir-2", Type: "type-2", Options: []string{"options-2"}, DumpFrequency: 2, CheckPassNumber: 2},
 	})
@@ -119,7 +119,7 @@ func (s *profileSuite) TestWriteTo1(c *C) {
 // Test that writing an trivial fstab file works correctly.
 func (s *profileSuite) TestWriteTo2(c *C) {
 	p := &mount.Profile{
-		Entries: []osutil.Entry{
+		Entries: []osutil.MountEntry{
 			{Name: "name-1", Dir: "dir-1", Type: "type-1", Options: []string{"options-1"}, DumpFrequency: 1, CheckPassNumber: 1},
 			{Name: "name-2", Dir: "dir-2", Type: "type-2", Options: []string{"options-2"}, DumpFrequency: 2, CheckPassNumber: 2},
 		},
