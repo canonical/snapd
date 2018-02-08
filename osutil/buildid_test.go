@@ -86,3 +86,14 @@ func (s *buildIDSuite) TestReadBuildIDmd5(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(id, Equals, buildID(c, md5Truth))
 }
+
+func (s *buildIDSuite) TestMyBuildID(c *C) {
+	restore := osutil.MockOsReadlink(func(string) (string, error) {
+		return truePath, nil
+	})
+	defer restore()
+
+	id, err := osutil.MyBuildID()
+	c.Assert(err, IsNil)
+	c.Check(id, Equals, buildID(c, truePath))
+}
