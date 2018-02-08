@@ -387,8 +387,8 @@ func (s *SystemdTestSuite) TestRestart(c *C) {
 }
 
 func (s *SystemdTestSuite) TestKill(c *C) {
-	c.Assert(New("", s.rep).Kill("foo", "HUP"), IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"kill", "foo", "-s", "HUP"}})
+	c.Assert(New("", s.rep).Kill("foo", "HUP", ""), IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"kill", "foo", "-s", "HUP", "--kill-who=all"}})
 }
 
 func (s *SystemdTestSuite) TestIsTimeout(c *C) {

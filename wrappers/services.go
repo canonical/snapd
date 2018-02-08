@@ -76,9 +76,9 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 		}
 		inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
 		// ignore errors for kill; nothing we'd do differently at this point
-		sysd.Kill(serviceName, "TERM")
+		sysd.Kill(serviceName, "TERM", "")
 		time.Sleep(killWait)
-		sysd.Kill(serviceName, "KILL")
+		sysd.Kill(serviceName, "KILL", "")
 
 	}
 
@@ -225,8 +225,32 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 			continue
 		}
 		// Skip stop on refresh when refresh mode is "keep"
-		if app.RefreshMode == "keep" && reason == snap.StopReasonRefresh {
-			continue
+		if reason == snap.StopReasonRefresh {
+			switch app.RefreshMode {
+			case "keep":
+				// skip this service
+				continue
+			case "sigterm":
+				sysd.Kill(app.ServiceName(), "TERM", "main")
+				continue
+			case "sigterm-all":
+				sysd.Kill(app.ServiceName(), "TERM", "all")
+				continue
+			case "sighup":
+				sysd.Kill(app.ServiceName(), "HUP", "main")
+				continue
+			case "sighup-all":
+				sysd.Kill(app.ServiceName(), "HUP", "all")
+				continue
+			case "sigusr1":
+				sysd.Kill(app.ServiceName(), "USR1", "main")
+				continue
+			case "sigusr1-all":
+				sysd.Kill(app.ServiceName(), "USR1", "all")
+				continue
+			case "", "restart":
+				// do nothing here, the default below to stop
+			}
 		}
 		if err := stopService(sysd, app, inter); err != nil {
 			return err

@@ -9,8 +9,38 @@ apps:
     test-snapd-other-service:
         command: bin/start-other
         daemon: simple
-    test-snapd-surviving-service:
-        command: bin/start-survive
-        stop-command: bin/stop-survive
+    test-snapd-keep-service:
+        command: bin/start-refresh-mode keep
+        stop-command: bin/stop-refresh-mode keep
         daemon: simple
         refresh-mode: keep
+    test-snapd-sigterm-service:
+        command: bin/start-refresh-mode sigterm
+        stop-command: bin/stop-refresh-mode sigterm
+        daemon: simple
+        refresh-mode: sigterm
+    test-snapd-sigterm-all-service:
+        command: bin/start-refresh-mode sigterm-all
+        stop-command: bin/stop-refresh-mode sigterm-all
+        daemon: simple
+        refresh-mode: sigterm
+    test-snapd-sighup-service:
+        command: bin/start-refresh-mode sighup
+        stop-command: bin/stop-refresh-mode sighup
+        daemon: simple
+        refresh-mode: sighup
+    test-snapd-sighup-all-service:
+        command: bin/start-refresh-mode sighup-all
+        stop-command: bin/stop-refresh-mode sighup-all
+        daemon: simple
+        refresh-mode: sighup-all
+    test-snapd-sigusr1-service:
+        command: bin/start-refresh-mode sigusr1
+        stop-command: bin/stop-refresh-mode sigusr1
+        daemon: simple
+        refresh-mode: sigusr1
+    test-snapd-sigusr1-all-service:
+        command: bin/start-refresh-mode sigusr1-all
+        stop-command: bin/stop-refresh-mode sigusr1-all
+        daemon: simple
+        refresh-mode: sigusr1-all

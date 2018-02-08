@@ -105,7 +105,7 @@ type Systemd interface {
 	Disable(service string) error
 	Start(service ...string) error
 	Stop(service string, timeout time.Duration) error
-	Kill(service, signal string) error
+	Kill(service, signal, who string) error
 	Restart(service string, timeout time.Duration) error
 	Status(services ...string) ([]*ServiceStatus, error)
 	LogReader(services []string, n string, follow bool) (io.ReadCloser, error)
@@ -311,8 +311,11 @@ loop:
 }
 
 // Kill all processes of the unit with the given signal
-func (s *systemd) Kill(serviceName, signal string) error {
-	_, err := systemctlCmd("kill", serviceName, "-s", signal)
+func (s *systemd) Kill(serviceName, signal, who string) error {
+	if who == "" {
+		who = "all"
+	}
+	_, err := systemctlCmd("kill", serviceName, "-s", signal, "--kill-who="+who)
 	return err
 }
 

@@ -1,7 +1,0 @@
-#!/bin/sh
-
-while true; do
-    echo "running surviving process"
-    sleep 100
-done
-
