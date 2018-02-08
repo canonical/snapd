@@ -182,7 +182,7 @@ func isHomeUsingNFS() (bool, error) {
 			return true, nil
 		}
 	}
-	fstab, err := osutil.LoadProfile(etcFstab)
+	fstab, err := osutil.LoadMountProfile(etcFstab)
 	if err != nil {
 		return false, fmt.Errorf("cannot parse %s: %s", etcFstab, err)
 	}
