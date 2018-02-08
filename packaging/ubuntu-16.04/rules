@@ -46,6 +46,8 @@ GOOS := $(shell go env GOOS)
 BUILDFLAGS:=
 GCCGOFLAGS=-gccgoflags="-I $(CURDIR)/_build/pkg/gccgo_$(GOOS)_$(GOARCH)/$(DH_GOPKG)/vendor"
 export DH_GOLANG_GO_GENERATE=0
+# workaround for https://github.com/golang/go/issues/23721
+export GOMAXPROCS=2
 endif
 
 # check if we need to include the testkeys in the binary
