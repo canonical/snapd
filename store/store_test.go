@@ -1055,9 +1055,9 @@ func (t *remoteRepoTestSuite) TestUseDeltas(c *C) {
 		wantDelta bool
 	}{
 		{env: "", classic: false, exeInHost: false, exeInCore: false, wantDelta: false},
-		{env: "", classic: false, exeInHost: false, exeInCore: true, wantDelta: false},
-		{env: "", classic: false, exeInHost: true, exeInCore: false, wantDelta: false},
-		{env: "", classic: false, exeInHost: true, exeInCore: true, wantDelta: false},
+		{env: "", classic: false, exeInHost: false, exeInCore: true, wantDelta: true},
+		{env: "", classic: false, exeInHost: true, exeInCore: false, wantDelta: true},
+		{env: "", classic: false, exeInHost: true, exeInCore: true, wantDelta: true},
 		{env: "", classic: true, exeInHost: false, exeInCore: false, wantDelta: false},
 		{env: "", classic: true, exeInHost: false, exeInCore: true, wantDelta: true},
 		{env: "", classic: true, exeInHost: true, exeInCore: false, wantDelta: true},
@@ -3918,12 +3918,12 @@ var MockUpdatesWithDeltasJSON = `
 }
 `
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDefaultsDeltasOnClassicOnly(c *C) {
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDefaultsDeltas(c *C) {
 	for _, t := range []struct {
 		onClassic      bool
 		deltaFormatStr string
 	}{
-		{false, ""},
+		{true, "xdelta3"},
 		{true, "xdelta3"},
 	} {
 		restore := release.MockOnClassic(t.onClassic)
