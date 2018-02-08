@@ -49,7 +49,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
@@ -183,7 +182,7 @@ func isHomeUsingNFS() (bool, error) {
 			return true, nil
 		}
 	}
-	fstab, err := mount.LoadProfile(etcFstab)
+	fstab, err := osutil.LoadProfile(etcFstab)
 	if err != nil {
 		return false, fmt.Errorf("cannot parse %s: %s", etcFstab, err)
 	}

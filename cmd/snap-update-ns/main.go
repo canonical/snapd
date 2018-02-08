@@ -129,14 +129,14 @@ func computeAndSaveChanges(snapName string) error {
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
-	desired, err := mount.LoadProfile(desiredProfilePath)
+	desired, err := osutil.LoadProfile(desiredProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load desired mount profile of snap %q: %s", snapName, err)
 	}
 	debugShowProfile(desired, "desired mount profile")
 
 	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
-	currentBefore, err := mount.LoadProfile(currentProfilePath)
+	currentBefore, err := osutil.LoadProfile(currentProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load current mount profile of snap %q: %s", snapName, err)
 	}
@@ -170,7 +170,7 @@ func computeAndSaveChanges(snapName string) error {
 
 	// Compute the new current profile so that it contains only changes that were made
 	// and save it back for next runs.
-	var currentAfter mount.Profile
+	var currentAfter osutil.Profile
 	for _, change := range changesMade {
 		if change.Action == Mount || change.Action == Keep {
 			currentAfter.Entries = append(currentAfter.Entries, change.Entry)
@@ -185,7 +185,7 @@ func computeAndSaveChanges(snapName string) error {
 	return nil
 }
 
-func debugShowProfile(profile *mount.Profile, header string) {
+func debugShowProfile(profile *osutil.Profile, header string) {
 	if len(profile.Entries) > 0 {
 		logger.Debugf("%s:", header)
 		for _, entry := range profile.Entries {

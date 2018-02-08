@@ -17,7 +17,7 @@
  *
  */
 
-package mount
+package osutil
 
 import (
 	"bufio"
@@ -26,13 +26,11 @@ import (
 	"io"
 	"os"
 	"strings"
-
-	"github.com/snapcore/snapd/osutil"
 )
 
 // Profile represents an array of mount entries.
 type Profile struct {
-	Entries []osutil.MountEntry
+	Entries []MountEntry
 }
 
 // LoadProfile loads a mount profile from a given file.
@@ -57,7 +55,7 @@ func (p *Profile) Save(fname string) error {
 	if _, err := p.WriteTo(&buf); err != nil {
 		return err
 	}
-	return osutil.AtomicWriteFile(fname, buf.Bytes(), 0644, osutil.AtomicWriteFlags(0))
+	return AtomicWriteFile(fname, buf.Bytes(), 0644, AtomicWriteFlags(0))
 }
 
 // ReadProfile reads and parses a mount profile.
@@ -75,7 +73,7 @@ func ReadProfile(reader io.Reader) (*Profile, error) {
 		if s == "" {
 			continue
 		}
-		entry, err := osutil.ParseMountEntry(s)
+		entry, err := ParseMountEntry(s)
 		if err != nil {
 			return nil, err
 		}
