@@ -773,7 +773,7 @@ version: gadget
 func (s *deviceMgrSuite) TestDoRequestSerialErrorsOnNoHost(c *C) {
 	privKey, _ := assertstest.GenerateKey(testKeyLength)
 
-	nowhere := "http://nowhere.nowhere.test"
+	nowhere := "http://nowhere.nowhere.really-nowhere.com"
 
 	mockRequestIDURL := nowhere + requestIDURLPath
 	restore := devicestate.MockRequestIDURL(mockRequestIDURL)
