@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -57,28 +58,162 @@ func (c Change) String() string {
 // changePerform is Change.Perform that can be mocked for testing.
 var changePerform func(*Change) ([]*Change, error)
 
-// changePerformImpl is the real implementation of Change.Perform
-func changePerformImpl(c *Change) ([]*Change, error) {
-	if c.Action == Mount {
-		const (
-			mode = 0755
-			uid  = 0
-			gid  = 0
-		)
-		// Create target mount directory if needed.
-		if err := ensureMountPoint(c.Entry.Dir, mode, uid, gid); err != nil {
-			return nil, err
-		}
-		// If this is a bind mount then create the source directory as well.
-		// This allows snaps to share a subset of their data easily.
-		flags, _ := mount.OptsToCommonFlags(c.Entry.Options)
-		if flags&syscall.MS_BIND != 0 {
-			if err := ensureMountPoint(c.Entry.Name, mode, uid, gid); err != nil {
-				return nil, err
-			}
+func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
+	var err error
+	var changes []*Change
+
+	// In case we need to create something, some constants.
+	const (
+		mode = 0755
+		uid  = 0
+		gid  = 0
+	)
+
+	// If the element doesn't exist we can attempt to create it.  We will
+	// create the parent directory and then the final element relative to it.
+	// The traversed space may be writable so we just try to create things
+	// first.
+	kind, _ := c.Entry.OptStr("x-snapd.kind")
+
+	// TODO: re-factor this, if possible, with inspection and preemptive
+	// creation after the current release ships. This should be possible but
+	// will affect tests heavily (churn, not safe before release).
+	switch kind {
+	case "":
+		err = secureMkdirAll(path, mode, uid, gid)
+	case "file":
+		err = secureMkfileAll(path, mode, uid, gid)
+	case "symlink":
+		target, _ := c.Entry.OptStr("x-snapd.symlink")
+		if target == "" {
+			err = fmt.Errorf("cannot create symlink with empty target")
+		} else {
+			err = secureMklinkAll(path, mode, uid, gid, target)
 		}
 	}
-	return nil, c.lowLevelPerform()
+	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
+		// If the writing failed because the underlying file-system is read-only
+		// we can construct a writable mimic to fix that.
+		changes, err = createWritableMimic(err2.Path)
+		if err != nil {
+			err = fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
+		} else {
+			// Try once again. Note that we care *just* about the error. We have already
+			// performed the hole poking and thus additional changes must be nil.
+			_, err = c.createPath(path, false)
+		}
+	} else if err != nil {
+		err = fmt.Errorf("cannot create path %q: %s", path, err)
+	}
+	return changes, err
+}
+
+func (c *Change) ensureTarget() ([]*Change, error) {
+	var changes []*Change
+
+	kind, _ := c.Entry.OptStr("x-snapd.kind")
+	path := c.Entry.Dir
+
+	// We use lstat to ensure that we don't follow a symlink in case one was
+	// set up by the snap. Note that at the time this is run, all the snap's
+	// processes are frozen but if the path is a directory controlled by the
+	// user (typically in /home) then we may still race with user processes
+	// that change it.
+	fi, err := osLstat(path)
+
+	if err == nil {
+		// If the element already exists we just need to ensure it is of
+		// the correct type. The desired type depends on the kind of entry
+		// we are working with.
+		switch kind {
+		case "":
+			if !fi.Mode().IsDir() {
+				err = fmt.Errorf("cannot use %q as mount point: not a directory", path)
+			}
+		case "file":
+			if !fi.Mode().IsRegular() {
+				err = fmt.Errorf("cannot use %q as mount point: not a regular file", path)
+			}
+		case "symlink":
+			// When we want to create a symlink we just need the empty
+			// space so anything that is in the way is a problem.
+			err = fmt.Errorf("cannot create symlink in %q: existing file in the way", path)
+		}
+	} else if os.IsNotExist(err) {
+		changes, err = c.createPath(path, true)
+	} else {
+		// If we cannot inspect the element let's just bail out.
+		err = fmt.Errorf("cannot inspect %q: %v", path, err)
+	}
+	return changes, err
+}
+
+func (c *Change) ensureSource() error {
+	// We only have to do ensure bind mount source exists.
+	// This also rules out symlinks.
+	flags, _ := mount.OptsToCommonFlags(c.Entry.Options)
+	if flags&syscall.MS_BIND == 0 {
+		return nil
+	}
+
+	kind, _ := c.Entry.OptStr("x-snapd.kind")
+	path := c.Entry.Name
+	fi, err := osLstat(path)
+
+	if err == nil {
+		// If the element already exists we just need to ensure it is of
+		// the correct type. The desired type depends on the kind of entry
+		// we are working with.
+		switch kind {
+		case "":
+			if !fi.Mode().IsDir() {
+				err = fmt.Errorf("cannot use %q as bind-mount source: not a directory", path)
+			}
+		case "file":
+			if !fi.Mode().IsRegular() {
+				err = fmt.Errorf("cannot use %q as bind-mount source: not a regular file", path)
+			}
+		}
+	} else if os.IsNotExist(err) {
+		_, err = c.createPath(path, false)
+	} else {
+		// If we cannot inspect the element let's just bail out.
+		err = fmt.Errorf("cannot inspect %q: %v", path, err)
+	}
+	return err
+}
+
+// changePerformImpl is the real implementation of Change.Perform
+func changePerformImpl(c *Change) (changes []*Change, err error) {
+	if c.Action == Mount {
+		// We may be asked to bind mount a file, bind mount a directory, mount
+		// a filesystem over a directory, or create a symlink (which is abusing
+		// the "mount" concept slightly). That actual operation is performed in
+		// c.lowLevelPerform. Here we just set the stage to make that possible.
+		//
+		// As a result of this ensure call we may need to make the medium writable
+		// and that's why we may return more changes as a result of performing this
+		// one.
+		changes, err = c.ensureTarget()
+		if err != nil {
+			return changes, err
+		}
+
+		// At this time we can be sure that the target element (for files and
+		// directories) exists and is of the right type or that it (for
+		// symlinks) doesn't exist but the parent directory does.
+		// This property holds as long as we don't interact with locations that
+		// are under the control of regular (non-snap) processes that are not
+		// suspended and may be racing with us.
+		err = c.ensureSource()
+		if err != nil {
+			return changes, err
+		}
+	}
+
+	// Perform the underlying mount / unmount / unlink call.
+	err = c.lowLevelPerform()
+	return changes, err
 }
 
 func init() {
@@ -97,20 +232,34 @@ func (c *Change) Perform() ([]*Change, error) {
 
 // lowLevelPerform is simple bridge from Change to mount / unmount syscall.
 func (c *Change) lowLevelPerform() error {
+	var err error
 	switch c.Action {
 	case Mount:
-		flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
-		err := sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
-		logger.Debugf("mount %q %q %q %d %q -> %s", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
+		kind, _ := c.Entry.OptStr("x-snapd.kind")
+		switch kind {
+		case "symlink":
+			// symlinks are handled in createInode directly, nothing to do here.
+		case "", "file":
+			flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
+			err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+			logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
+		}
 		return err
 	case Unmount:
-		err := sysUnmount(c.Entry.Dir, umountNoFollow)
-		logger.Debugf("umount %q -> %v", c.Entry.Dir, err)
+		kind, _ := c.Entry.OptStr("x-snapd.kind")
+		switch kind {
+		case "symlink":
+			err = osRemove(c.Entry.Dir)
+			logger.Debugf("remove %q (error: %v)", c.Entry.Dir, err)
+		case "", "file":
+			err = sysUnmount(c.Entry.Dir, umountNoFollow)
+			logger.Debugf("umount %q (error: %v)", c.Entry.Dir, err)
+		}
 		return err
 	case Keep:
 		return nil
 	}
-	return fmt.Errorf("cannot process mount change, unknown action: %q", c.Action)
+	return fmt.Errorf("cannot process mount change: unknown action: %q", c.Action)
 }
 
 // NeededChanges computes the changes required to change current to desired mount entries.

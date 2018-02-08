@@ -294,6 +294,20 @@ func secureMkfileAll(name string, perm os.FileMode, uid sys.UserID, gid sys.Grou
 	return err
 }
 
+func secureMklinkAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
+	parent := filepath.Dir(name)
+	err := secureMkdirAll(parent, perm, uid, gid)
+	if err != nil {
+		return err
+	}
+	// TODO: roll this uber securely like the code above does using linkat(2).
+	err = osSymlink(oldname, name)
+	if err == syscall.EROFS {
+		return &ReadOnlyFsError{Path: parent}
+	}
+	return err
+}
+
 // planWritableMimic plans how to transform a given directory from read-only to writable.
 //
 // The algorithm is designed to be universally reversible so that it can be
@@ -458,26 +472,14 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 	return undoChanges, nil
 }
 
-func ensureMountPoint(path string, mode os.FileMode, uid sys.UserID, gid sys.GroupID) error {
-	// If the mount point is not present then create a directory in its
-	// place.  This is very naive, doesn't handle read-only file systems
-	// but it is a good starting point for people working with things like
-	// $SNAP_DATA/subdirectory.
-	//
-	// We use lstat to ensure that we don't follow the symlink in case one
-	// was set up by the snap. Note that at the time this is run, all the
-	// snap's processes are frozen.
-	fi, err := osLstat(path)
-	switch {
-	case err != nil && os.IsNotExist(err):
-		return secureMkdirAll(path, mode, uid, gid)
-	case err != nil:
-		return fmt.Errorf("cannot inspect %q: %v", path, err)
-	case err == nil:
-		// Ensure that mount point is a directory.
-		if !fi.IsDir() {
-			return fmt.Errorf("cannot use %q for mounting, not a directory", path)
-		}
+func createWritableMimic(dir string) ([]*Change, error) {
+	plan, err := planWritableMimic(dir)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	changes, err := execWritableMimic(plan)
+	if err != nil {
+		return nil, err
+	}
+	return changes, nil
 }
