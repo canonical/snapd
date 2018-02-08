@@ -487,7 +487,7 @@ func straceCmd() ([]string, error) {
 func (x *cmdRun) runCmdUnderGdb(origCmd, env []string) error {
 	env = append(env, "SNAP_CONFINE_RUN_UNDER_GDB=1")
 
-	cmd := []string{"sudo", "-E", "gdb", "-ex=r", "-ex=catch exec", "-ex=cont", "--args"}
+	cmd := []string{"sudo", "-E", "gdb", "-ex=run", "-ex=catch exec", "-ex=continue", "--args"}
 	cmd = append(cmd, origCmd...)
 
 	gcmd := exec.Command(cmd[0], cmd[1:]...)
