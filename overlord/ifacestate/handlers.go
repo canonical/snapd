@@ -350,6 +350,26 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	connRef := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
 
+	var plugSnapst snapstate.SnapState
+	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
+		if autoConnect {
+			// ignore the error if auto-connecting
+			task.Logf("snap %q is no longer available for auto-connecting", plugRef.Snap)
+			return nil
+		}
+		return err
+	}
+
+	var slotSnapst snapstate.SnapState
+	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
+		if autoConnect {
+			// ignore the error if auto-connecting
+			task.Logf("snap %q is no longer available for auto-connecting", plugRef.Snap)
+			return nil
+		}
+		return err
+	}
+
 	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
 	if plug == nil {
 		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
@@ -369,7 +389,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	}
 
-	// FIXME: check auto connect policy here instead when interface hooks land.
+	// FIXME: check auto connect policy when interface hooks land.
 	if !autoConnect {
 		var slotDecl *asserts.SnapDeclaration
 		if slot.Snap.SnapID != "" {
@@ -408,16 +428,6 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	// TODO: pass dynamic attributes from hooks
 	err = m.repo.Connect(connRef)
 	if err != nil {
-		return err
-	}
-
-	var plugSnapst snapstate.SnapState
-	if err := snapstate.Get(st, connRef.PlugRef.Snap, &plugSnapst); err != nil {
-		return err
-	}
-
-	var slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, connRef.SlotRef.Snap, &slotSnapst); err != nil {
 		return err
 	}
 
