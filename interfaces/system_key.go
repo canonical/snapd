@@ -20,8 +20,12 @@
 package interfaces
 
 import (
+	"os"
+	"path/filepath"
+
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
@@ -35,6 +39,7 @@ type systemKey struct {
 	BuildID          string   `yaml:"build-id"`
 	AppArmorFeatures []string `yaml:"apparmor-features"`
 	NFSHome          bool     `yaml:"nfs-home"`
+	Core             string   `yaml:"core"`
 }
 
 var mockedSystemKey *systemKey
@@ -62,6 +67,12 @@ func generateSystemKey() *systemKey {
 	if err != nil {
 		logger.Noticef("cannot determine nfs usage in generateSystemKey: %v", err)
 	}
+	// Add the current Core path, we need this because we call helpers
+	// like snap-confine from core that will need an updated profile
+	// if it changes
+	//
+	// FIXME: what about core18? the snapd snap?
+	sk.Core, _ = os.Readlink(filepath.Join(dirs.SnapMountDir, "core/current"))
 
 	return &sk
 }
