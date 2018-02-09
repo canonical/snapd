@@ -2161,3 +2161,55 @@ func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
 	c.Assert(ifaces.Connections, HasLen, 1)
 	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "snap", Name: "network"}, interfaces.SlotRef{Snap: "core", Name: "network"}}})
 }
+
+func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot string) *state.Change {
+	chg := st.NewChange("connect...", "...")
+
+	t := st.NewTask("connect", "other connect task")
+	t.Set("slot", interfaces.SlotRef{Snap: "producer", Name: "slot"})
+	t.Set("plug", interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	t.Set("auto", true)
+	chg.AddTask(t)
+
+	return chg
+}
+
+func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotSnapOnAutoConnect(c *C) {
+	_ = s.manager(c)
+	s.mockSnap(c, consumerYaml)
+	// no producer snap in the state, doConnect should complain
+
+	s.state.Lock()
+
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := chg.Tasks()[0]
+	c.Assert(task.Status(), Equals, state.DoneStatus)
+	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "producer" is no longer available for auto-connecting.*`)
+}
+
+func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugSnapOnAutoConnect(c *C) {
+	_ = s.manager(c)
+	s.mockSnap(c, producerYaml)
+	// no consumer snap in the state, doConnect should complain
+
+	s.state.Lock()
+
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := chg.Tasks()[0]
+	c.Assert(task.Status(), Equals, state.DoneStatus)
+	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "consumer" is no longer available for auto-connecting.*`)
+}

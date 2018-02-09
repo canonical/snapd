@@ -364,7 +364,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
 		if autoConnect {
 			// ignore the error if auto-connecting
-			task.Logf("snap %q is no longer available for auto-connecting", plugRef.Snap)
+			task.Logf("snap %q is no longer available for auto-connecting", slotRef.Snap)
 			return nil
 		}
 		return err
