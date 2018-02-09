@@ -551,7 +551,7 @@ type plugValidator interface {
 
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
-func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map[string]interface{}, policyCheck func(*ConnectedPlug, *ConnectedSlot) error) (*Connection, error) {
+func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map[string]interface{}, policyCheck func(*ConnectedPlug, *ConnectedSlot) (bool, error)) (*Connection, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -575,11 +575,6 @@ func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map
 		return nil, fmt.Errorf(`cannot connect plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
 			plugSnapName, plugName, plug.Interface, slotSnapName, slotName, slot.Interface)
 	}
-	// Ensure that slot and plug are not connected yet
-	if r.slotPlugs[slot][plug] != nil {
-		// But if they are don't treat this as an error.
-		return r.slotPlugs[slot][plug], nil
-	}
 
 	iface, ok := r.ifaces[plug.Interface]
 	if !ok {
@@ -602,7 +597,9 @@ func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map
 	}
 
 	if policyCheck != nil {
-		if err := policyCheck(cplug, cslot); err != nil {
+		// autoconnect policy checker returns false to indicate disallowed auto-connection, but it's not an error.
+		ok, err := policyCheck(cplug, cslot)
+		if err != nil || !ok {
 			return nil, err
 		}
 	}
@@ -975,7 +972,7 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 
 // AutoConnectCandidateSlots finds and returns viable auto-connection candidates
 // for a given plug.
-func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, policyCheck func(*ConnectedPlug, *ConnectedSlot) bool) []*snap.SlotInfo {
+func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, policyCheck func(*ConnectedPlug, *ConnectedSlot) (bool, error)) []*snap.SlotInfo {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -996,7 +993,7 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 			plug := &Plug{PlugInfo: plugInfo}
 			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow
-			if !policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil)) {
+			if ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil)); !ok || err != nil {
 				continue
 			}
 
@@ -1010,7 +1007,7 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 
 // AutoConnectCandidatePlugs finds and returns viable auto-connection candidates
 // for a given slot.
-func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, policyCheck func(*ConnectedPlug, *ConnectedSlot) bool) []*snap.PlugInfo {
+func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, policyCheck func(*ConnectedPlug, *ConnectedSlot) (bool, error)) []*snap.PlugInfo {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -1031,7 +1028,7 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 			plug := &Plug{PlugInfo: plugInfo}
 			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow
-			if !policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil)) {
+			if ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil)); !ok || err != nil {
 				continue
 			}
 

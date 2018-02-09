@@ -1398,8 +1398,8 @@ func (s *RepositorySuite) TestAutoConnectCandidatePlugsAndSlots(c *C) {
 	err = repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "manual"})
 	c.Assert(err, IsNil)
 
-	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) bool {
-		return slot.Interface() == "auto"
+	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) (bool, error) {
+		return slot.Interface() == "auto", nil
 	}
 
 	// Add a pair of snaps with plugs/slots using those two interfaces
@@ -1440,8 +1440,8 @@ func (s *RepositorySuite) TestAutoConnectCandidatePlugsAndSlotsSymmetry(c *C) {
 	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "auto"})
 	c.Assert(err, IsNil)
 
-	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) bool {
-		return slot.Interface() == "auto"
+	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) (bool, error) {
+		return slot.Interface() == "auto", nil
 	}
 
 	// Add a producer snap for "auto"
@@ -1715,8 +1715,8 @@ func (s *DisconnectSnapSuite) TestCrossConnection(c *C) {
 	}
 }
 
-func contentPolicyCheck(plug *ConnectedPlug, slot *ConnectedSlot) bool {
-	return plug.Snap().PublisherID == slot.Snap().PublisherID
+func contentPolicyCheck(plug *ConnectedPlug, slot *ConnectedSlot) (bool, error) {
+	return plug.Snap().PublisherID == slot.Snap().PublisherID, nil
 }
 
 func contentAutoConnect(plug *Plug, slot *Slot) bool {
@@ -1954,7 +1954,7 @@ func (s *RepositorySuite) TestBeforeConnectValidationFailure(c *C) {
 	plugDynAttrs := map[string]interface{}{"attr1": "val1"}
 	slotDynAttrs := map[string]interface{}{"attr1": "val1"}
 
-	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) error { return nil }
+	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) (bool, error) { return true, nil }
 
 	conn, err := s.emptyRepo.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, plugDynAttrs, slotDynAttrs, policyCheck)
 	c.Assert(err, NotNil)
@@ -1978,7 +1978,9 @@ func (s *RepositorySuite) TestBeforeConnectValidationPolicyCheckFailure(c *C) {
 	plugDynAttrs := map[string]interface{}{"attr1": "val1"}
 	slotDynAttrs := map[string]interface{}{"attr1": "val1"}
 
-	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) error { return fmt.Errorf("policy check failed") }
+	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) (bool, error) {
+		return false, fmt.Errorf("policy check failed")
+	}
 
 	conn, err := s.emptyRepo.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, plugDynAttrs, slotDynAttrs, policyCheck)
 	c.Assert(err, NotNil)
