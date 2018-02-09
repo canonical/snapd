@@ -20,6 +20,8 @@
 package ctlcmd
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -45,6 +47,10 @@ func init() {
 }
 
 func (c *stopCommand) Execute(args []string) error {
+	if c.getUid() != 0 {
+		return fmt.Errorf("cannot use \"restart\" with uid %d, try with sudo", c.getUid())
+	}
+
 	inst := servicestate.Instruction{
 		Action: "stop",
 		Names:  c.Positional.ServiceNames,

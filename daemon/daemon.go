@@ -111,10 +111,13 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 		logger.Noticef("unexpected error when attempting to get UID: %s", err)
 		return accessForbidden
 	}
-	isSnap := (socket == dirs.SnapSocket)
 
 	// ensure that snaps can only access SnapOK things
-	if isSnap && !c.SnapOK {
+	isSnap := (socket == dirs.SnapSocket)
+	if isSnap {
+		if c.SnapOK {
+			return accessOK
+		}
 		return accessUnauthorized
 	}
 

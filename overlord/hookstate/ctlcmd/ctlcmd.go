@@ -35,6 +35,7 @@ type baseCommand struct {
 	stdout io.Writer
 	stderr io.Writer
 	c      *hookstate.Context
+	uid    uint32
 }
 
 func (c *baseCommand) setStdout(w io.Writer) {
@@ -65,12 +66,23 @@ func (c *baseCommand) context() *hookstate.Context {
 	return c.c
 }
 
+func (c *baseCommand) getUid() uint32 {
+	return c.uid
+}
+
+func (c *baseCommand) setUid(uid uint32) {
+	c.uid = uid
+}
+
 type command interface {
 	setStdout(w io.Writer)
 	setStderr(w io.Writer)
 
 	setContext(context *hookstate.Context)
 	context() *hookstate.Context
+
+	getUid() uint32
+	setUid(uid uint32)
 
 	Execute(args []string) error
 }
@@ -92,7 +104,7 @@ func addCommand(name, shortHelp, longHelp string, generator func() command) {
 }
 
 // Run runs the requested command.
-func Run(context *hookstate.Context, args []string) (stdout, stderr []byte, err error) {
+func Run(context *hookstate.Context, uid uint32, args []string) (stdout, stderr []byte, err error) {
 	parser := flags.NewParser(nil, flags.PassDoubleDash|flags.HelpFlag)
 
 	// Create stdout/stderr buffers, and make sure commands use them.
@@ -103,6 +115,7 @@ func Run(context *hookstate.Context, args []string) (stdout, stderr []byte, err 
 		cmd.setStdout(&stdoutBuffer)
 		cmd.setStderr(&stderrBuffer)
 		cmd.setContext(context)
+		cmd.setUid(uid)
 
 		_, err = parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd)
 		if err != nil {
