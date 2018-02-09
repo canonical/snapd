@@ -484,7 +484,7 @@ type mountedTree string
 
 // IsOffLimits returns true if the mount point is a prefix of a given path.
 func (mountPoint mountedTree) IsOffLimits(path string) bool {
-	return strings.HasPrefix(path, string(mountPoint)+"/")
+	return strings.HasPrefix(path, string(mountPoint)+"/") || path == string(mountPoint)
 }
 
 // mountedFile represents a bind-mounted file.
