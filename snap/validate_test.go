@@ -599,6 +599,7 @@ layout:
 	for _, yaml := range []string{yaml1, yaml1rev} {
 		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
 		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
 		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
 	}
@@ -623,6 +624,7 @@ layout:
 	for _, yaml := range []string{yaml2, yaml2rev} {
 		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
 		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
 		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
 	}
@@ -647,6 +649,7 @@ layout:
 	for _, yaml := range []string{yaml3, yaml3rev} {
 		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
 		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
 		c.Assert(err, IsNil)
 	}
@@ -671,6 +674,7 @@ layout:
 	for _, yaml := range []string{yaml4, yaml4rev} {
 		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
 		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
 		c.Assert(err, IsNil)
 	}
@@ -695,6 +699,7 @@ layout:
 	for _, yaml := range []string{yaml5, yaml5rev} {
 		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
 		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
 		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
 	}
@@ -709,9 +714,9 @@ layout:
 `
 	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml6), &SideInfo{Revision: R(42)})
 	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 1)
 	err = ValidateLayoutAll(info)
 	c.Assert(err, IsNil)
-	c.Assert(info.Layout, HasLen, 1)
 	c.Assert(info.Layout["/etc/norf"].Bind, Equals, "")
 	c.Assert(info.Layout["/etc/norf"].BindFile, Equals, "$SNAP/etc/norf")
 
@@ -726,6 +731,7 @@ layout:
 `
 	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml7), &SideInfo{Revision: R(42)})
 	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
 	c.Assert(err, ErrorMatches, `layout "/etc/norf" refers to directory "\$SNAP/etc/norf" but another layout treats it as file`)
 
@@ -740,6 +746,7 @@ layout:
 `
 	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml8), &SideInfo{Revision: R(42)})
 	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
 	c.Assert(err, ErrorMatches, `layout "/etc/norf" refers to file "\$SNAP/etc/norf" but another layout treats it as a directory`)
 
@@ -754,6 +761,7 @@ layout:
 `
 	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml9), &SideInfo{Revision: R(42)})
 	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
 	c.Assert(err, ErrorMatches, `layout "/etc/norf" refers to file "\$SNAP/etc/norf" but another layout treats it as a directory`)
 
@@ -768,6 +776,7 @@ layout:
 `
 	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml10), &SideInfo{Revision: R(42)})
 	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
 	c.Assert(err, IsNil)
 
@@ -782,6 +791,7 @@ layout:
 `
 	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml11), &SideInfo{Revision: R(42)})
 	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 2)
 	err = ValidateLayoutAll(info)
 	c.Assert(err, IsNil)
 }
