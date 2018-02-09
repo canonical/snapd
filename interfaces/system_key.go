@@ -22,6 +22,7 @@ package interfaces
 import (
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
@@ -51,11 +52,16 @@ func generateSystemKey() *systemKey {
 	}
 	sk.BuildID = buildID
 
-	// Add apparmor-feature, note that ioutil.ReadDir() is already sorted.
-	//
-	// We prefix the dirs.GlobalRootDir (which is usually "/") to make
-	// this testable.
+	// Add apparmor-feature (which is already sorted)
 	sk.AppArmorFeatures = release.AppArmorFeatures()
+
+	// Add if home is using NFS, if so we need to have a different
+	// security profile and if this changes we need to change our
+	// profile.
+	sk.NFSHome, err = osutil.IsHomeUsingNFS()
+	if err != nil {
+		logger.Noticef("cannot determine nfs usage in generateSystemKey: %v", err)
+	}
 
 	return &sk
 }
