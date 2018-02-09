@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -251,7 +252,7 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []osutil.MountEntry{{
 		Name:    filepath.Join(dirs.CoreSnapMountDir, "producer/5/export"),
 		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
 		Options: []string{"bind", "ro"},
@@ -282,7 +283,7 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []osutil.MountEntry{{
 		Name:    filepath.Join(dirs.CoreSnapMountDir, "producer/5/export"),
 		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
 		Options: []string{"bind", "ro"},
@@ -325,7 +326,7 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []osutil.MountEntry{{
 		Name:    "/var/snap/producer/5/export",
 		Dir:     "/var/snap/consumer/7/import",
 		Options: []string{"bind"},
@@ -370,7 +371,7 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []osutil.MountEntry{{
 		Name:    "/var/snap/producer/common/export",
 		Dir:     "/var/snap/consumer/common/import",
 		Options: []string{"bind"},
@@ -428,7 +429,7 @@ slots:
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
 
 	// Analyze the mount specification.
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []osutil.MountEntry{{
 		Name:    "/var/snap/producer/common/read-common",
 		Dir:     "/var/snap/consumer/common/import/read-common",
 		Options: []string{"bind", "ro"},
@@ -516,7 +517,7 @@ slots:
 	}
 
 	// Analyze the mount specification.
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []osutil.MountEntry{{
 		Name:    "/snap/plugin-one/1/plugin",
 		Dir:     "/snap/app/1/plugins/plugin",
 		Options: []string{"bind", "ro"},
@@ -577,7 +578,7 @@ slots:
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
 
 	// Analyze the mount specification
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []osutil.MountEntry{{
 		Name:    "/var/snap/producer/2/directory",
 		Dir:     "/var/snap/consumer/common/import/directory",
 		Options: []string{"bind", "ro"},
