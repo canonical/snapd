@@ -88,12 +88,13 @@ type hookYaml struct {
 }
 
 type layoutYaml struct {
-	Bind    string `yaml:"bind,omitempty"`
-	Type    string `yaml:"type,omitempty"`
-	User    string `yaml:"user,omitempty"`
-	Group   string `yaml:"group,omitempty"`
-	Mode    string `yaml:"mode,omitempty"`
-	Symlink string `yaml:"symlink,omitempty"`
+	Bind     string `yaml:"bind,omitempty"`
+	BindFile string `yaml:"bind-file,omitempty"`
+	Type     string `yaml:"type,omitempty"`
+	User     string `yaml:"user,omitempty"`
+	Group    string `yaml:"group,omitempty"`
+	Mode     string `yaml:"mode,omitempty"`
+	Symlink  string `yaml:"symlink,omitempty"`
 }
 
 type socketsYaml struct {
@@ -166,7 +167,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			}
 			snap.Layout[path] = &Layout{
 				Snap: snap, Path: path,
-				Bind: l.Bind, Type: l.Type, Symlink: l.Symlink,
+				Bind: l.Bind, Type: l.Type, Symlink: l.Symlink, BindFile: l.BindFile,
 				User: user, Group: group, Mode: mode,
 			}
 		}

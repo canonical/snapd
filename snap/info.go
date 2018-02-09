@@ -200,13 +200,14 @@ type Info struct {
 type Layout struct {
 	Snap *Info
 
-	Path    string      `json:"path"`
-	Bind    string      `json:"bind,omitempty"`
-	Type    string      `json:"type,omitempty"`
-	User    string      `json:"user,omitempty"`
-	Group   string      `json:"group,omitempty"`
-	Mode    os.FileMode `json:"mode,omitempty"`
-	Symlink string      `json:"symlink,omitempty"`
+	Path     string      `json:"path"`
+	Bind     string      `json:"bind,omitempty"`
+	BindFile string      `json:"bind-file,omitempty"`
+	Type     string      `json:"type,omitempty"`
+	User     string      `json:"user,omitempty"`
+	Group    string      `json:"group,omitempty"`
+	Mode     os.FileMode `json:"mode,omitempty"`
+	Symlink  string      `json:"symlink,omitempty"`
 }
 
 // ChannelSnapInfo is the minimum information that can be used to clearly

@@ -124,14 +124,18 @@ layout:
     mode: 1777
   /mylink:
     symlink: $SNAP/link/target
+  /etc/foo.conf:
+    bind-file: $SNAP/foo.conf
 `
 
 func (s *specSuite) TestMountEntryFromLayout(c *C) {
 	snapInfo := snaptest.MockInfo(c, snapWithLayout, &snap.SideInfo{Revision: snap.R(42)})
 	s.spec.AddSnapLayout(snapInfo)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// Layout result is sorted by mount path.
+		{Dir: "/etc/foo.conf", Name: "/snap/vanguard/42/foo.conf", Options: []string{"bind", "rw", "x-snapd.kind=file"}},
 		{Dir: "/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/vanguard/42/link/target"}},
-		{Name: "tmpfs", Dir: "/mytmp", Type: "tmpfs", Options: []string{"x-snapd.mode=01777"}},
-		{Name: "/snap/vanguard/42/usr", Dir: "/usr", Options: []string{"bind", "rw"}},
+		{Dir: "/mytmp", Name: "tmpfs", Type: "tmpfs", Options: []string{"x-snapd.mode=01777"}},
+		{Dir: "/usr", Name: "/snap/vanguard/42/usr", Options: []string{"bind", "rw"}},
 	})
 }
