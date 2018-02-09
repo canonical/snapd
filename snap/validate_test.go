@@ -532,6 +532,10 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Bind: "/bar", BindFile: "/froz"}, nil),
 		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Symlink: "/bar", BindFile: "/froz"}, nil),
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", BindFile: "/froz"}, nil),
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Bind: "/bar", Symlink: "/froz"}, nil),
 		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Symlink: "/froz"}, nil),
