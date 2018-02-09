@@ -237,6 +237,33 @@ func ValidateLayoutAll(info *Info) error {
 	}
 	sort.Strings(paths)
 
+	// Validate that each source path is used consistently as a file or as a directory.
+	sourceKindMap := make(map[string]string)
+	for _, path := range paths {
+		layout := info.Layout[path]
+		if layout.Bind != "" {
+			// Layout refers to a directory.
+			sourcePath := info.ExpandSnapVariables(layout.Bind)
+			if kind, ok := sourceKindMap[sourcePath]; ok {
+				if kind != "dir" {
+					return fmt.Errorf("layout %q refers to directory %q but another layout treats it as file", layout.Path, layout.Bind)
+				}
+			}
+			sourceKindMap[sourcePath] = "dir"
+		}
+		if layout.BindFile != "" {
+			// Layout refers to a file.
+			sourcePath := info.ExpandSnapVariables(layout.BindFile)
+			if kind, ok := sourceKindMap[sourcePath]; ok {
+				if kind != "file" {
+					return fmt.Errorf("layout %q refers to file %q but another layout treats it as a directory", layout.Path, layout.BindFile)
+				}
+			}
+			sourceKindMap[sourcePath] = "file"
+		}
+	}
+
+	// Validate each layout item and collect resulting constraints.
 	constraints := make([]LayoutConstraint, 0, len(info.Layout))
 	for _, path := range paths {
 		layout := info.Layout[path]
