@@ -260,20 +260,14 @@ func (s *entrySuite) TestXSnapdUID(c *C) {
 	// User is parsed from the x-snapd.uid= option.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.uid=root"}}
 	uid, err = e.XSnapdUID()
-	c.Assert(err, IsNil)
-	c.Assert(uid, Equals, uint64(0))
+	c.Assert(err, ErrorMatches, `cannot parse user name "root"`)
+	c.Assert(uid, Equals, uint64(math.MaxUint64))
 
 	// Numeric names are used as-is.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.uid=123"}}
 	uid, err = e.XSnapdUID()
 	c.Assert(err, IsNil)
 	c.Assert(uid, Equals, uint64(123))
-
-	// Unknown user names are invalid.
-	e = &osutil.MountEntry{Options: []string{"x-snapd.uid=bogus"}}
-	uid, err = e.XSnapdUID()
-	c.Assert(err, ErrorMatches, `cannot resolve user name "bogus"`)
-	c.Assert(uid, Equals, uint64(math.MaxUint64))
 
 	// And even valid values with trailing garbage.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.uid=0bogus"}}
@@ -291,20 +285,14 @@ func (s *entrySuite) TestXSnapdGID(c *C) {
 
 	e = &osutil.MountEntry{Options: []string{"x-snapd.gid=root"}}
 	gid, err = e.XSnapdGID()
-	c.Assert(err, IsNil)
-	c.Assert(gid, Equals, uint64(0))
+	c.Assert(err, ErrorMatches, `cannot parse group name "root"`)
+	c.Assert(gid, Equals, uint64(math.MaxUint64))
 
 	// Numeric names are used as-is.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.gid=456"}}
 	gid, err = e.XSnapdGID()
 	c.Assert(err, IsNil)
 	c.Assert(gid, Equals, uint64(456))
-
-	// Unknown group names are invalid.
-	e = &osutil.MountEntry{Options: []string{"x-snapd.gid=bogus"}}
-	gid, err = e.XSnapdGID()
-	c.Assert(err, ErrorMatches, `cannot resolve group name "bogus"`)
-	c.Assert(gid, Equals, uint64(math.MaxUint64))
 
 	// And even valid values with trailing garbage.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.gid=0bogus"}}
