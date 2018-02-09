@@ -530,6 +530,12 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Bind: "/bar", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Bind: "/bar", BindFile: "/froz"}, nil),
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Symlink: "/bar", BindFile: "/froz"}, nil),
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", BindFile: "/froz"}, nil),
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Bind: "/bar", Symlink: "/froz"}, nil),
 		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Symlink: "/froz"}, nil),
@@ -554,6 +560,7 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "\$SNAP/evil" uses invalid symlink old name "/etc": must start with \$SNAP, \$SNAP_DATA or \$SNAP_COMMON`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo/bar", Bind: "$SNAP/bar/foo"}, []LayoutConstraint{testConstraint("/foo")}),
 		ErrorMatches, `layout "/foo/bar" underneath prior layout item "/foo"`)
+
 	// Several valid layouts.
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Mode: 01755}, nil), IsNil)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/tmp", Type: "tmpfs"}, nil), IsNil)
@@ -592,6 +599,7 @@ layout:
 	for _, yaml := range []string{yaml1, yaml1rev} {
 		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
 		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
 		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
 	}
@@ -616,6 +624,7 @@ layout:
 	for _, yaml := range []string{yaml2, yaml2rev} {
 		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
 		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
 		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
 	}
@@ -640,6 +649,7 @@ layout:
 	for _, yaml := range []string{yaml3, yaml3rev} {
 		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
 		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
 		c.Assert(err, IsNil)
 	}
@@ -664,6 +674,7 @@ layout:
 	for _, yaml := range []string{yaml4, yaml4rev} {
 		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
 		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
 		c.Assert(err, IsNil)
 	}
@@ -688,10 +699,101 @@ layout:
 	for _, yaml := range []string{yaml5, yaml5rev} {
 		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
 		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 2)
 		err = ValidateLayoutAll(info)
 		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
 	}
 
+	const yaml6 = `
+name: tricky-layout-1
+layout:
+  /etc/norf:
+    bind: $SNAP/etc/norf
+  /etc/norf:
+    bind-file: $SNAP/etc/norf
+`
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml6), &SideInfo{Revision: R(42)})
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 1)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout["/etc/norf"].Bind, Equals, "")
+	c.Assert(info.Layout["/etc/norf"].BindFile, Equals, "$SNAP/etc/norf")
+
+	// Two layouts refer to the same path as a directory and a file.
+	const yaml7 = `
+name: clashing-source-path-1
+layout:
+  /etc/norf:
+    bind: $SNAP/etc/norf
+  /etc/corge:
+    bind-file: $SNAP/etc/norf
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml7), &SideInfo{Revision: R(42)})
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 2)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, ErrorMatches, `layout "/etc/norf" refers to directory "\$SNAP/etc/norf" but another layout treats it as file`)
+
+	// Two layouts refer to the same path as a directory and a file (other way around).
+	const yaml8 = `
+name: clashing-source-path-2
+layout:
+  /etc/norf:
+    bind-file: $SNAP/etc/norf
+  /etc/corge:
+    bind: $SNAP/etc/norf
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml8), &SideInfo{Revision: R(42)})
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 2)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, ErrorMatches, `layout "/etc/norf" refers to file "\$SNAP/etc/norf" but another layout treats it as a directory`)
+
+	// Two layouts refer to the same path, but one uses variable and the other doesn't.
+	const yaml9 = `
+name: clashing-source-path-3
+layout:
+  /etc/norf:
+    bind-file: $SNAP/etc/norf
+  /etc/corge:
+    bind: /snap/clashing-source-path-3/42/etc/norf
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml9), &SideInfo{Revision: R(42)})
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 2)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, ErrorMatches, `layout "/etc/norf" refers to file "\$SNAP/etc/norf" but another layout treats it as a directory`)
+
+	// Same source path referred from a bind mount and symlink doesn't clash.
+	const yaml10 = `
+name: non-clashing-source-1
+layout:
+  /etc/norf:
+    bind: $SNAP/etc/norf
+  /etc/corge:
+    symlink: $SNAP/etc/norf
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml10), &SideInfo{Revision: R(42)})
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 2)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, IsNil)
+
+	// Same source path referred from a file bind mount and symlink doesn't clash.
+	const yaml11 = `
+name: non-clashing-source-1
+layout:
+  /etc/norf:
+    bind-file: $SNAP/etc/norf
+  /etc/corge:
+    symlink: $SNAP/etc/norf
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml11), &SideInfo{Revision: R(42)})
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 2)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, IsNil)
 }
 
 func (s *ValidateSuite) TestValidateSocketName(c *C) {
