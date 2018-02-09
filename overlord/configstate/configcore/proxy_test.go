@@ -91,6 +91,7 @@ func (s *proxySuite) TestConfigureProxy(c *C) {
 		s.makeMockEtcEnvironment(c)
 
 		err := configcore.Run(&mockConf{
+			state: s.state,
 			conf: map[string]interface{}{
 				fmt.Sprintf("proxy.%s", proto): fmt.Sprintf("%s://example.com", proto),
 			},
@@ -112,6 +113,7 @@ func (s *proxySuite) TestConfigureNoProxy(c *C) {
 	// populate with content
 	s.makeMockEtcEnvironment(c)
 	err := configcore.Run(&mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
 			"proxy.no-proxy": "example.com,bar.com",
 		},
@@ -128,6 +130,7 @@ no_proxy=example.com,bar.com`)
 func (s *proxySuite) TestConfigureProxyStore(c *C) {
 	// set to ""
 	err := configcore.Run(&mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
 			"proxy.store": "",
 		},

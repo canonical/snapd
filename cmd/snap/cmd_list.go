@@ -59,12 +59,7 @@ func (x *cmdList) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	names := make([]string, len(x.Positional.Snaps))
-	for i, name := range x.Positional.Snaps {
-		names[i] = string(name)
-	}
-
-	return listSnaps(names, x.All)
+	return listSnaps(installedSnapNames(x.Positional.Snaps), x.All)
 }
 
 var ErrNoMatchingSnaps = errors.New(i18n.G("no matching snaps installed"))

@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -138,18 +139,11 @@ func validateSocketAddrNet(socket *SocketInfo, fieldName string, address string)
 		if err := validateSocketAddrNetHost(socket, fieldName, address[:lastIndex]); err != nil {
 			return err
 		}
-		if err := validateSocketAddrNetPort(socket, fieldName, address[lastIndex+1:]); err != nil {
-			return err
-		}
-		return nil
+		return validateSocketAddrNetPort(socket, fieldName, address[lastIndex+1:])
 	}
 
 	// Address only contains a port
-	if err := validateSocketAddrNetPort(socket, fieldName, address); err != nil {
-		return err
-	}
-
-	return nil
+	return validateSocketAddrNetPort(socket, fieldName, address)
 }
 
 func validateSocketAddrNetHost(socket *SocketInfo, fieldName string, address string) error {
@@ -232,10 +226,24 @@ func Validate(info *Info) error {
 		return err
 	}
 
+	return ValidateLayoutAll(info)
+}
+
+// ValidateLayoutAll validates the consistency of all the layout elements in a snap.
+func ValidateLayoutAll(info *Info) error {
+	paths := make([]string, 0, len(info.Layout))
 	for _, layout := range info.Layout {
-		if err := ValidateLayout(layout); err != nil {
+		paths = append(paths, layout.Path)
+	}
+	sort.Strings(paths)
+
+	constraints := make([]LayoutConstraint, 0, len(info.Layout))
+	for _, path := range paths {
+		layout := info.Layout[path]
+		if err := ValidateLayout(layout, constraints); err != nil {
 			return err
 		}
+		constraints = append(constraints, layout.constraint())
 	}
 	return nil
 }
@@ -306,7 +314,7 @@ func validateAppOrderCycles(apps map[string]*AppInfo) error {
 		app := queue[0]
 		queue = queue[1:]
 		for _, successor := range successors[app] {
-			predecessors[successor] -= 1
+			predecessors[successor]--
 			if predecessors[successor] == 0 {
 				delete(predecessors, successor)
 				queue = append(queue, successor)
@@ -356,6 +364,7 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 // will get confused.
 var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
 
+// ValidAppName tells whether a string is a valid application name.
 func ValidAppName(n string) bool {
 	var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 
@@ -408,11 +417,7 @@ func ValidateApp(app *AppInfo) error {
 	if err := validateAppOrderNames(app, app.Before); err != nil {
 		return err
 	}
-	if err := validateAppOrderNames(app, app.After); err != nil {
-		return err
-	}
-
-	return nil
+	return validateAppOrderNames(app, app.After)
 }
 
 // ValidatePathVariables ensures that given path contains only $SNAP, $SNAP_DATA or $SNAP_COMMON.
@@ -442,8 +447,44 @@ func isAbsAndClean(path string) bool {
 	return (filepath.IsAbs(path) || strings.HasPrefix(path, "$")) && filepath.Clean(path) == path
 }
 
+// LayoutConstraint abstracts validation of conflicting layout elements.
+type LayoutConstraint interface {
+	IsOffLimits(path string) bool
+}
+
+// mountedTree represents a mounted file-system tree or a bind-mounted directory.
+type mountedTree string
+
+// IsOffLimits returns true if the mount point s a prefix of a given path.
+func (mountPoint mountedTree) IsOffLimits(path string) bool {
+	return strings.HasPrefix(path, string(mountPoint)+"/")
+}
+
+// symlinkFile represents a layout using symbolic link.
+type symlinkFile string
+
+// IsOffLimits returns true for mounted files  if a path is identical to the path of the mount point.
+func (mountPoint symlinkFile) IsOffLimits(path string) bool {
+	return strings.HasPrefix(path, string(mountPoint)+"/") || path == string(mountPoint)
+}
+
+func (layout *Layout) constraint() LayoutConstraint {
+	path := layout.Snap.ExpandSnapVariables(layout.Path)
+	if layout.Symlink != "" {
+		return symlinkFile(path)
+	}
+	return mountedTree(path)
+}
+
 // ValidateLayout ensures that the given layout contains only valid subset of constructs.
-func ValidateLayout(layout *Layout) error {
+func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
+	si := layout.Snap
+	// Rules for validating layouts:
+	//
+	// * source of mount --bind must be in on of $SNAP, $SNAP_DATA or $SNAP_COMMON
+	// * target of symlink must in in one of $SNAP, $SNAP_DATA, or $SNAP_COMMON
+	// * may not mount on top of an existing layout mountpoint
+
 	mountPoint := layout.Path
 
 	if mountPoint == "" {
@@ -453,19 +494,26 @@ func ValidateLayout(layout *Layout) error {
 	if err := ValidatePathVariables(mountPoint); err != nil {
 		return fmt.Errorf("layout %q uses invalid mount point: %s", layout.Path, err)
 	}
+	mountPoint = si.ExpandSnapVariables(mountPoint)
 	if !isAbsAndClean(mountPoint) {
 		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
 	}
 
+	for _, constraint := range constraints {
+		if constraint.IsOffLimits(mountPoint) {
+			return fmt.Errorf("layout %q underneath prior layout item %q", layout.Path, constraint)
+		}
+	}
+
 	var nused int
 	if layout.Bind != "" {
-		nused += 1
+		nused++
 	}
 	if layout.Type != "" {
-		nused += 1
+		nused++
 	}
 	if layout.Symlink != "" {
-		nused += 1
+		nused++
 	}
 	if nused != 1 {
 		return fmt.Errorf("layout %q must define a bind mount, a filesystem mount or a symlink", layout.Path)
@@ -476,8 +524,17 @@ func ValidateLayout(layout *Layout) error {
 		if err := ValidatePathVariables(mountSource); err != nil {
 			return fmt.Errorf("layout %q uses invalid bind mount source %q: %s", layout.Path, mountSource, err)
 		}
+		mountSource = si.ExpandSnapVariables(mountSource)
 		if !isAbsAndClean(mountSource) {
 			return fmt.Errorf("layout %q uses invalid bind mount source %q: must be absolute and clean", layout.Path, mountSource)
+		}
+		// Bind mounts *must* use $SNAP, $SNAP_DATA or $SNAP_COMMON as bind
+		// mount source. This is done so that snaps cannot bypass restrictions
+		// by mounting something outside into their own space.
+		if !strings.HasPrefix(mountSource, si.ExpandSnapVariables("$SNAP")) &&
+			!strings.HasPrefix(mountSource, si.ExpandSnapVariables("$SNAP_DATA")) &&
+			!strings.HasPrefix(mountSource, si.ExpandSnapVariables("$SNAP_COMMON")) {
+			return fmt.Errorf("layout %q uses invalid bind mount source %q: must start with $SNAP, $SNAP_DATA or $SNAP_COMMON", layout.Path, mountSource)
 		}
 	}
 
@@ -494,8 +551,17 @@ func ValidateLayout(layout *Layout) error {
 		if err := ValidatePathVariables(oldname); err != nil {
 			return fmt.Errorf("layout %q uses invalid symlink old name %q: %s", layout.Path, oldname, err)
 		}
+		oldname = si.ExpandSnapVariables(oldname)
 		if !isAbsAndClean(oldname) {
 			return fmt.Errorf("layout %q uses invalid symlink old name %q: must be absolute and clean", layout.Path, oldname)
+		}
+		// Symlinks *must* use $SNAP, $SNAP_DATA or $SNAP_COMMON as oldname.
+		// This is done so that snaps cannot attempt to bypass restrictions
+		// by mounting something outside into their own space.
+		if !strings.HasPrefix(oldname, si.ExpandSnapVariables("$SNAP")) &&
+			!strings.HasPrefix(oldname, si.ExpandSnapVariables("$SNAP_DATA")) &&
+			!strings.HasPrefix(oldname, si.ExpandSnapVariables("$SNAP_COMMON")) {
+			return fmt.Errorf("layout %q uses invalid symlink old name %q: must start with $SNAP, $SNAP_DATA or $SNAP_COMMON", layout.Path, oldname)
 		}
 	}
 
