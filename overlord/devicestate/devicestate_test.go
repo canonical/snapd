@@ -975,24 +975,24 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(c *C) 
 		c.Assert(ctx.HookName(), Equals, "prepare-device")
 
 		// snapctl set the registration params
-		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.url=%q", mockServer.URL+"/svc/")})
+		_, _, err := ctlcmd.Run(ctx, 0, []string{"set", fmt.Sprintf("device-service.url=%q", mockServer.URL+"/svc/")})
 		c.Assert(err, IsNil)
 
 		h, err := json.Marshal(map[string]string{
 			"x-extra-header": "extra",
 		})
 		c.Assert(err, IsNil)
-		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))})
+		_, _, err = ctlcmd.Run(ctx, 0, []string{"set", fmt.Sprintf("device-service.headers=%s", string(h))})
 		c.Assert(err, IsNil)
 
-		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.proposed-serial=%q", "Y9999")})
+		_, _, err = ctlcmd.Run(ctx, 0, []string{"set", fmt.Sprintf("registration.proposed-serial=%q", "Y9999")})
 		c.Assert(err, IsNil)
 
 		d, err := yaml.Marshal(map[string]string{
 			"mac": "00:00:00:00:ff:00",
 		})
 		c.Assert(err, IsNil)
-		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration.body=%q", d)})
+		_, _, err = ctlcmd.Run(ctx, 0, []string{"set", fmt.Sprintf("registration.body=%q", d)})
 		c.Assert(err, IsNil)
 
 		return nil, nil

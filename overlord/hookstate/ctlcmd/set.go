@@ -70,6 +70,9 @@ func (s *setCommand) Execute(args []string) error {
 	if context == nil {
 		return fmt.Errorf("cannot set without a context")
 	}
+	if s.getUid() != 0 {
+		return fmt.Errorf("cannot use \"set\" with uid %d, try with sudo", s.getUid())
+	}
 
 	// treat PlugOrSlotSpec argument as key=value if it contans '=' or doesn't contain ':' - this is to support
 	// values such as "device-service.url=192.168.0.1:5555" and error out on invalid key=value if only "key" is given.

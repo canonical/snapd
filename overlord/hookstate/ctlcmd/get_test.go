@@ -135,7 +135,7 @@ func (s *getSuite) TestGetTests(c *C) {
 
 		state.Unlock()
 
-		stdout, stderr, err := ctlcmd.Run(mockContext, strings.Fields(test.args))
+		stdout, stderr, err := ctlcmd.Run(mockContext, 0, strings.Fields(test.args))
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 		} else {
@@ -147,7 +147,7 @@ func (s *getSuite) TestGetTests(c *C) {
 }
 
 func (s *getSuite) TestCommandWithoutContext(c *C) {
-	_, _, err := ctlcmd.Run(nil, []string{"get", "foo"})
+	_, _, err := ctlcmd.Run(nil, 0, []string{"get", "foo"})
 	c.Check(err, ErrorMatches, ".*cannot get without a context.*")
 }
 
@@ -206,52 +206,52 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 }
 
 func (s *getAttrSuite) TestGetPlugAttributesInPlugHook(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"get", ":aplug", "aattr"})
+	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, 0, []string{"get", ":aplug", "aattr"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "foo\n")
 	c.Check(string(stderr), Equals, "")
 
-	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, []string{"get", "-d", ":aplug", "baz"})
+	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, 0, []string{"get", "-d", ":aplug", "baz"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "{\n\t\"baz\": [\n\t\t\"a\",\n\t\t\"b\"\n\t]\n}\n")
 	c.Check(string(stderr), Equals, "")
 
 	// The --plug parameter doesn't do anything if used on plug side
-	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, []string{"get", "--plug", ":aplug", "aattr"})
+	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, 0, []string{"get", "--plug", ":aplug", "aattr"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "foo\n")
 	c.Check(string(stderr), Equals, "")
 }
 
 func (s *getAttrSuite) TestGetSlotAttributesInSlotHook(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, []string{"get", ":bslot", "battr"})
+	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, 0, []string{"get", ":bslot", "battr"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "bar\n")
 	c.Check(string(stderr), Equals, "")
 
 	// The --slot parameter doesn't do anything if used on slot side
-	stdout, stderr, err = ctlcmd.Run(s.mockSlotHookContext, []string{"get", "--slot", ":bslot", "battr"})
+	stdout, stderr, err = ctlcmd.Run(s.mockSlotHookContext, 0, []string{"get", "--slot", ":bslot", "battr"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "bar\n")
 	c.Check(string(stderr), Equals, "")
 }
 
 func (s *getAttrSuite) TestGetSlotAttributeInPlugHook(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"get", "--slot", ":aplug", "battr"})
+	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, 0, []string{"get", "--slot", ":aplug", "battr"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "bar\n")
 	c.Check(string(stderr), Equals, "")
 }
 
 func (s *getAttrSuite) TestGetPlugAttributeInSlotHook(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, []string{"get", "--plug", ":bslot", "aattr"})
+	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, 0, []string{"get", "--plug", ":bslot", "aattr"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "foo\n")
 	c.Check(string(stderr), Equals, "")
 }
 
 func (s *getAttrSuite) TestUnknownPlugAttribute(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"get", ":aplug", "x"})
+	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, 0, []string{"get", ":aplug", "x"})
 	c.Check(err, NotNil)
 	c.Check(err.Error(), Equals, `unknown attribute "x"`)
 	c.Check(string(stdout), Equals, "")
@@ -259,7 +259,7 @@ func (s *getAttrSuite) TestUnknownPlugAttribute(c *C) {
 }
 
 func (s *getAttrSuite) TestUnknownSlotAttribute(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, []string{"get", ":bslot", "x"})
+	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, 0, []string{"get", ":bslot", "x"})
 	c.Check(err, NotNil)
 	c.Check(err.Error(), Equals, `unknown attribute "x"`)
 	c.Check(string(stdout), Equals, "")
@@ -267,7 +267,7 @@ func (s *getAttrSuite) TestUnknownSlotAttribute(c *C) {
 }
 
 func (s *getAttrSuite) TestUsingPlugNameInSlotHookFails(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, []string{"get", ":aplug", "x"})
+	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, 0, []string{"get", ":aplug", "x"})
 	c.Check(err, NotNil)
 	c.Check(err.Error(), Equals, `unknown plug or slot "aplug"`)
 	c.Check(string(stdout), Equals, "")
@@ -275,7 +275,7 @@ func (s *getAttrSuite) TestUsingPlugNameInSlotHookFails(c *C) {
 }
 
 func (s *getAttrSuite) TestUsingSlotNameInPlugHookFails(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"get", ":bslot", "x"})
+	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, 0, []string{"get", ":bslot", "x"})
 	c.Check(err, NotNil)
 	c.Check(err.Error(), Equals, `unknown plug or slot "bslot"`)
 	c.Check(string(stdout), Equals, "")
@@ -283,7 +283,7 @@ func (s *getAttrSuite) TestUsingSlotNameInPlugHookFails(c *C) {
 }
 
 func (s *getAttrSuite) TestForcePlugOrSlotMutuallyExclusive(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, []string{"get", "--slot", "--plug", ":aplug", "x"})
+	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, 0, []string{"get", "--slot", "--plug", ":aplug", "x"})
 	c.Check(err, NotNil)
 	c.Check(err.Error(), Equals, `cannot use --plug and --slot together`)
 	c.Check(string(stdout), Equals, "")
@@ -291,17 +291,17 @@ func (s *getAttrSuite) TestForcePlugOrSlotMutuallyExclusive(c *C) {
 }
 
 func (s *getAttrSuite) TestPlugOrSlotEmpty(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"get", ":", "foo"})
+	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, 0, []string{"get", ":", "foo"})
 	c.Check(err.Error(), Equals, "plug or slot name not provided")
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }
 
 func (s *setSuite) TestNull(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=null"})
+	_, _, err := ctlcmd.Run(s.mockContext, 0, []string{"set", "foo=null"})
 	c.Check(err, IsNil)
 
-	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", `bar=[null]`})
+	_, _, err = ctlcmd.Run(s.mockContext, 0, []string{"set", `bar=[null]`})
 	c.Check(err, IsNil)
 
 	// Notify the context that we're done. This should save the config.

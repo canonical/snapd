@@ -2490,11 +2490,15 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	if len(snapctlOptions.Args) == 0 {
 		return BadRequest("snapctl cannot run without args")
 	}
+	_, uid, _, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return Forbidden("cannot get remote user: %s", err)
+	}
 
 	// Ignore missing context error to allow 'snapctl -h' without a context;
 	// Actual context is validated later by get/set.
 	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
-	stdout, stderr, err := ctlcmd.Run(context, snapctlOptions.Args)
+	stdout, stderr, err := ctlcmd.Run(context, uid, snapctlOptions.Args)
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			stdout = []byte(e.Error())
