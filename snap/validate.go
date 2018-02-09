@@ -536,6 +536,13 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
 	}
 
+	for _, path := range []string{"/proc", "/sys", "/dev", "/run", "/boot", "/lost+found", "/media"} {
+		// We use the mountedTree constraint as this has the right semantics.
+		if mountedTree(path).IsOffLimits(mountPoint) {
+			return fmt.Errorf("layout %q in an off-limits area", layout.Path)
+		}
+	}
+
 	for _, constraint := range constraints {
 		if constraint.IsOffLimits(mountPoint) {
 			return fmt.Errorf("layout %q underneath prior layout item %q", layout.Path, constraint)
