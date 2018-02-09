@@ -561,6 +561,23 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo/bar", Bind: "$SNAP/bar/foo"}, []LayoutConstraint{testConstraint("/foo")}),
 		ErrorMatches, `layout "/foo/bar" underneath prior layout item "/foo"`)
 
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/dev", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/dev" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/dev/foo", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/dev/foo" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/proc", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/proc" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/sys", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/sys" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/run", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/run" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/boot", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/boot" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lost+found", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/lost\+found" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/media", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/media" in an off-limits area`)
+
 	// Several valid layouts.
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Mode: 01755}, nil), IsNil)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/tmp", Type: "tmpfs"}, nil), IsNil)
