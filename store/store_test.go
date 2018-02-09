@@ -2742,7 +2742,7 @@ func (t *remoteRepoTestSuite) testUbuntuStoreSnapCommands(c *C, onClassic bool) 
 	db.Commit()
 	c.Check(bufNames.String(), Equals, "bar\nfoo\n")
 
-	dump, err := advisor.Dump()
+	dump, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
 	c.Check(dump, DeepEquals, map[string][]string{
 		"foo":     {"foo"},

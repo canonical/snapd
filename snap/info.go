@@ -330,6 +330,25 @@ func (s *Info) Services() []*AppInfo {
 	return svcs
 }
 
+// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON.
+func (s *Info) ExpandSnapVariables(path string) string {
+	return os.Expand(path, func(v string) string {
+		switch v {
+		case "SNAP":
+			// NOTE: We use dirs.CoreSnapMountDir here as the path used will be always
+			// inside the mount namespace snap-confine creates and there we will
+			// always have a /snap directory available regardless if the system
+			// we're running on supports this or not.
+			return filepath.Join(dirs.CoreSnapMountDir, s.Name(), s.Revision.String())
+		case "SNAP_DATA":
+			return s.DataDir()
+		case "SNAP_COMMON":
+			return s.CommonDataDir()
+		}
+		return ""
+	})
+}
+
 func BadInterfacesSummary(snapInfo *Info) string {
 	inverted := make(map[string][]string)
 	for name, reason := range snapInfo.BadInterfaces {

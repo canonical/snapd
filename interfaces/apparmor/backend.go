@@ -49,7 +49,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
@@ -57,9 +56,7 @@ import (
 )
 
 var (
-	procSelfMountInfo = mount.ProcSelfMountInfo
-	procSelfExe       = "/proc/self/exe"
-	etcFstab          = "/etc/fstab"
+	procSelfExe = "/proc/self/exe"
 )
 
 // Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
@@ -101,7 +98,7 @@ func (b *Backend) Initialize() error {
 	// Check if NFS is mounted at or under $HOME. Because NFS is not
 	// transparent to apparmor we must alter our profile to counter that and
 	// allow snap-confine to work.
-	if nfs, err := isHomeUsingNFS(); err != nil {
+	if nfs, err := osutil.IsHomeUsingNFS(); err != nil {
 		logger.Noticef("cannot determine if NFS is in use: %v", err)
 	} else if nfs {
 		policy["nfs-support"] = &osutil.FileState{
@@ -166,33 +163,6 @@ func (b *Backend) Initialize() error {
 		return fmt.Errorf("cannot reload snap-confine apparmor profile: %v", osutil.OutputErr(output, err))
 	}
 	return nil
-}
-
-// isHomeUsingNFS returns true if NFS mounts are defined or mounted under /home.
-//
-// Internally /proc/self/mountinfo and /etc/fstab are interrogated (for current
-// and possible mounted filesystems).  If either of those describes NFS
-// filesystem mounted under or beneath /home/ then the return value is true.
-func isHomeUsingNFS() (bool, error) {
-	mountinfo, err := mount.LoadMountInfo(procSelfMountInfo)
-	if err != nil {
-		return false, fmt.Errorf("cannot parse %s: %s", procSelfMountInfo, err)
-	}
-	for _, entry := range mountinfo {
-		if (entry.FsType == "nfs4" || entry.FsType == "nfs") && (strings.HasPrefix(entry.MountDir, "/home/") || entry.MountDir == "/home") {
-			return true, nil
-		}
-	}
-	fstab, err := mount.LoadProfile(etcFstab)
-	if err != nil {
-		return false, fmt.Errorf("cannot parse %s: %s", etcFstab, err)
-	}
-	for _, entry := range fstab.Entries {
-		if (entry.Type == "nfs4" || entry.Type == "nfs") && (strings.HasPrefix(entry.Dir, "/home/") || entry.Dir == "/home") {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 // setupSnapConfineReexec will setup apparmor profiles on a classic
@@ -277,6 +247,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err != nil {
 		return fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
+	spec.(*Specification).AddSnapLayout(snapInfo)
 
 	// core on classic is special
 	if snapName == "core" && release.OnClassic && release.AppArmorLevel() != release.NoAppArmor {
@@ -332,7 +303,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 // Remove removes and unloads apparmor profiles of a given snap.
 func (b *Backend) Remove(snapName string) error {
-	glob := interfaces.SecurityTagGlob(snapName)
+	glob := fmt.Sprintf("snap*.%s*", snapName)
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, nil)
 	errUnload := unloadProfiles(removed)
 	if errEnsure != nil {
@@ -404,7 +375,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				// transparent to apparmor we must alter the profile to counter that and
 				// allow access to SNAP_USER_* files.
 				tagSnippets = snippetForTag
-				if nfs, _ := isHomeUsingNFS(); nfs {
+				if nfs, _ := osutil.IsHomeUsingNFS(); nfs {
 					tagSnippets += nfsSnippet
 				}
 			}

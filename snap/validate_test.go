@@ -515,46 +515,183 @@ func (s *ValidateSuite) TestValidateAlias(c *C) {
 	}
 }
 
+type testConstraint string
+
+func (constraint testConstraint) IsOffLimits(path string) bool {
+	return true
+}
+
 func (s *ValidateSuite) TestValidateLayout(c *C) {
+	si := &Info{SuggestedName: "foo"}
 	// Several invalid layouts.
-	c.Check(ValidateLayout(&Layout{}),
+	c.Check(ValidateLayout(&Layout{Snap: si}, nil),
 		ErrorMatches, "layout cannot use an empty path")
-	c.Check(ValidateLayout(&Layout{Path: "/foo"}),
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo"}, nil),
 		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
-	c.Check(ValidateLayout(&Layout{Path: "/foo", Bind: "/bar", Type: "tmpfs"}),
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Bind: "/bar", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
-	c.Check(ValidateLayout(&Layout{Path: "/foo", Bind: "/bar", Symlink: "/froz"}),
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Bind: "/bar", Symlink: "/froz"}, nil),
 		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
-	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "tmpfs", Symlink: "/froz"}),
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Symlink: "/froz"}, nil),
 		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
-	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "ext4"}),
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "ext4"}, nil),
 		ErrorMatches, `layout "/foo" uses invalid filesystem "ext4"`)
-	c.Check(ValidateLayout(&Layout{Path: "/foo/bar", Type: "tmpfs", User: "foo"}),
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo/bar", Type: "tmpfs", User: "foo"}, nil),
 		ErrorMatches, `layout "/foo/bar" uses invalid user "foo"`)
-	c.Check(ValidateLayout(&Layout{Path: "/foo/bar", Type: "tmpfs", Group: "foo"}),
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo/bar", Type: "tmpfs", Group: "foo"}, nil),
 		ErrorMatches, `layout "/foo/bar" uses invalid group "foo"`)
-	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "tmpfs", Mode: 02755}),
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Mode: 02755}, nil),
 		ErrorMatches, `layout "/foo" uses invalid mode 02755`)
-	c.Check(ValidateLayout(&Layout{Path: "$FOO", Type: "tmpfs"}),
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$FOO", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "\$FOO" uses invalid mount point: reference to unknown variable "\$FOO"`)
-	c.Check(ValidateLayout(&Layout{Path: "/foo", Bind: "$BAR"}),
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Bind: "$BAR"}, nil),
 		ErrorMatches, `layout "/foo" uses invalid bind mount source "\$BAR": reference to unknown variable "\$BAR"`)
-	c.Check(ValidateLayout(&Layout{Path: "/foo", Symlink: "$BAR"}),
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Bind: "/etc"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid bind mount source "/etc": must start with \$SNAP, \$SNAP_DATA or \$SNAP_COMMON`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Symlink: "$BAR"}, nil),
 		ErrorMatches, `layout "/foo" uses invalid symlink old name "\$BAR": reference to unknown variable "\$BAR"`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Symlink: "/etc"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid symlink old name "/etc": must start with \$SNAP, \$SNAP_DATA or \$SNAP_COMMON`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo/bar", Bind: "$SNAP/bar/foo"}, []LayoutConstraint{testConstraint("/foo")}),
+		ErrorMatches, `layout "/foo/bar" underneath prior layout item "/foo"`)
 	// Several valid layouts.
-	c.Check(ValidateLayout(&Layout{Path: "/foo", Type: "tmpfs", Mode: 01755}), IsNil)
-	c.Check(ValidateLayout(&Layout{Path: "/tmp", Type: "tmpfs"}), IsNil)
-	c.Check(ValidateLayout(&Layout{Path: "/usr", Bind: "$SNAP/usr"}), IsNil)
-	c.Check(ValidateLayout(&Layout{Path: "/var", Bind: "$SNAP_DATA/var"}), IsNil)
-	c.Check(ValidateLayout(&Layout{Path: "/var", Bind: "$SNAP_COMMON/var"}), IsNil)
-	c.Check(ValidateLayout(&Layout{Path: "/etc/foo.conf", Symlink: "$SNAP_DATA/etc/foo.conf"}), IsNil)
-	c.Check(ValidateLayout(&Layout{Path: "/a/b", Type: "tmpfs", User: "root"}), IsNil)
-	c.Check(ValidateLayout(&Layout{Path: "/a/b", Type: "tmpfs", Group: "root"}), IsNil)
-	c.Check(ValidateLayout(&Layout{Path: "/a/b", Type: "tmpfs", Mode: 0655}), IsNil)
-	c.Check(ValidateLayout(&Layout{Path: "/usr", Symlink: "$SNAP/usr"}), IsNil)
-	c.Check(ValidateLayout(&Layout{Path: "/var", Symlink: "$SNAP_DATA/var"}), IsNil)
-	c.Check(ValidateLayout(&Layout{Path: "/var", Symlink: "$SNAP_COMMON/var"}), IsNil)
-	c.Check(ValidateLayout(&Layout{Path: "$SNAP/data", Symlink: "$SNAP_DATA"}), IsNil)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Mode: 01755}, nil), IsNil)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/tmp", Type: "tmpfs"}, nil), IsNil)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/usr", Bind: "$SNAP/usr"}, nil), IsNil)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var", Bind: "$SNAP_DATA/var"}, nil), IsNil)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var", Bind: "$SNAP_COMMON/var"}, nil), IsNil)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/etc/foo.conf", Symlink: "$SNAP_DATA/etc/foo.conf"}, nil), IsNil)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/a/b", Type: "tmpfs", User: "root"}, nil), IsNil)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/a/b", Type: "tmpfs", Group: "root"}, nil), IsNil)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/a/b", Type: "tmpfs", Mode: 0655}, nil), IsNil)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/usr", Symlink: "$SNAP/usr"}, nil), IsNil)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var", Symlink: "$SNAP_DATA/var"}, nil), IsNil)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var", Symlink: "$SNAP_COMMON/var"}, nil), IsNil)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/data", Symlink: "$SNAP_DATA"}, nil), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateLayoutAll(c *C) {
+	// /usr/foo prevents /usr/foo/bar from being valid (tmpfs)
+	const yaml1 = `
+name: broken-layout-1
+layout:
+  /usr/foo:
+    type: tmpfs
+  /usr/foo/bar:
+    type: tmpfs
+`
+	const yaml1rev = `
+name: broken-layout-1
+layout:
+  /usr/foo/bar:
+    type: tmpfs
+  /usr/foo:
+    type: tmpfs
+`
+
+	for _, yaml := range []string{yaml1, yaml1rev} {
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		c.Assert(err, IsNil)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
+	}
+
+	// Same as above but with bind-mounts instead of filesystem mounts.
+	const yaml2 = `
+name: broken-layout-2
+layout:
+  /usr/foo:
+    bind: $SNAP
+  /usr/foo/bar:
+    bind: $SNAP
+`
+	const yaml2rev = `
+name: broken-layout-2
+layout:
+  /usr/foo/bar:
+    bind: $SNAP
+  /usr/foo:
+    bind: $SNAP
+`
+	for _, yaml := range []string{yaml2, yaml2rev} {
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		c.Assert(err, IsNil)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
+	}
+
+	// /etc/foo (directory) is not clashing with /etc/foo.conf (file)
+	const yaml3 = `
+name: valid-layout-1
+layout:
+  /etc/foo:
+    bind: $SNAP_DATA/foo
+  /etc/foo.conf:
+    symlink: $SNAP_DATA/foo.conf
+`
+	const yaml3rev = `
+name: valid-layout-1
+layout:
+  /etc/foo.conf:
+    symlink: $SNAP_DATA/foo.conf
+  /etc/foo:
+    bind: $SNAP_DATA/foo
+`
+	for _, yaml := range []string{yaml3, yaml3rev} {
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		c.Assert(err, IsNil)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, IsNil)
+	}
+
+	// /etc/foo file is not clashing with /etc/foobar
+	const yaml4 = `
+name: valid-layout-2
+layout:
+  /etc/foo:
+    symlink: $SNAP_DATA/foo
+  /etc/foobar:
+    symlink: $SNAP_DATA/foobar
+`
+	const yaml4rev = `
+name: valid-layout-2
+layout:
+  /etc/foobar:
+    symlink: $SNAP_DATA/foobar
+  /etc/foo:
+    symlink: $SNAP_DATA/foo
+`
+	for _, yaml := range []string{yaml4, yaml4rev} {
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		c.Assert(err, IsNil)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, IsNil)
+	}
+
+	// /etc/foo file is also clashing with /etc/foo/bar
+	const yaml5 = `
+name: valid-layout-2
+layout:
+  /usr/foo:
+    symlink: $SNAP_DATA/foo
+  /usr/foo/bar:
+    bind: $SNAP_DATA/foo/bar
+`
+	const yaml5rev = `
+name: valid-layout-2
+layout:
+  /usr/foo/bar:
+    bind: $SNAP_DATA/foo/bar
+  /usr/foo:
+    symlink: $SNAP_DATA/foo
+`
+	for _, yaml := range []string{yaml5, yaml5rev} {
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		c.Assert(err, IsNil)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
+	}
+
 }
 
 func (s *ValidateSuite) TestValidateSocketName(c *C) {

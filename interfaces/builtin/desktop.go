@@ -220,7 +220,7 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		if !osutil.IsDirectory(dir) {
 			continue
 		}
-		spec.AddMountEntry(mount.Entry{
+		spec.AddMountEntry(osutil.MountEntry{
 			Name:    "/var/lib/snapd/hostfs" + dir,
 			Dir:     dirs.StripRootDir(dir),
 			Options: []string{"bind", "ro"},

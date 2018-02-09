@@ -450,10 +450,6 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
 		// Some processes are still using the namespace so we cannot discard it
 		// as that would fracture the view that the set of processes inside
 		// have on what is mounted.
-		fprintf(stderr,
-			"snap %s cannot use current base snap %s because "
-			"existing process are still using the old revision\n",
-			snap_name, base_snap_name);
 		return 0;
 	}
 	// The namespace is both stale and empty. We can discard it now.
