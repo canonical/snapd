@@ -380,14 +380,24 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	policyCheck, err := newConnectChecker(st)
-	if err != nil {
-		return err
+	var policyChecker func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error)
+
+	if autoConnect {
+		autochecker, err := newAutoConnectChecker(st)
+		if err != nil {
+			return err
+		}
+		policyChecker = autochecker.check
+	} else {
+		policyCheck, err := newConnectChecker(st)
+		if err != nil {
+			return err
+		}
+		policyChecker = policyCheck.check
 	}
 
-	// FIXME: check auto connect policy here instead when interface hooks land.
-	conn, err := m.repo.Connect(connRef, plugDynamicAttrs, slotDynamicAttrs, policyCheck.check)
-	if err != nil {
+	conn, err := m.repo.Connect(connRef, plugDynamicAttrs, slotDynamicAttrs, policyChecker)
+	if err != nil || conn == nil {
 		return err
 	}
 

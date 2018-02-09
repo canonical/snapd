@@ -290,14 +290,14 @@ func (c *autoConnectChecker) snapDeclaration(snapID string) (*asserts.SnapDeclar
 	return snapDecl, nil
 }
 
-func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) bool {
+func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
 	var plugDecl *asserts.SnapDeclaration
 	if plug.Snap().SnapID != "" {
 		var err error
 		plugDecl, err = c.snapDeclaration(plug.Snap().SnapID)
 		if err != nil {
 			logger.Noticef("error: cannot find snap declaration for %q: %v", plug.Snap().Name(), err)
-			return false
+			return false, nil
 		}
 	}
 
@@ -307,7 +307,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		slotDecl, err = c.snapDeclaration(slot.Snap().SnapID)
 		if err != nil {
 			logger.Noticef("error: cannot find snap declaration for %q: %v", slot.Snap().Name(), err)
-			return false
+			return false, nil
 		}
 	}
 
@@ -320,7 +320,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		BaseDeclaration:     c.baseDecl,
 	}
 
-	return ic.CheckAutoConnect() == nil
+	return ic.CheckAutoConnect() == nil, nil
 }
 
 type connectChecker struct {
@@ -339,13 +339,13 @@ func newConnectChecker(s *state.State) (*connectChecker, error) {
 	}, nil
 }
 
-func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
 	var plugDecl *asserts.SnapDeclaration
 	if plug.Snap().SnapID != "" {
 		var err error
 		plugDecl, err = assertstate.SnapDeclaration(c.st, plug.Snap().SnapID)
 		if err != nil {
-			return fmt.Errorf("cannot find snap declaration for %q: %v", plug.Snap().Name(), err)
+			return false, fmt.Errorf("cannot find snap declaration for %q: %v", plug.Snap().Name(), err)
 		}
 	}
 
@@ -354,7 +354,7 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 		var err error
 		slotDecl, err = assertstate.SnapDeclaration(c.st, slot.Snap().SnapID)
 		if err != nil {
-			return fmt.Errorf("cannot find snap declaration for %q: %v", slot.Snap().Name(), err)
+			return false, fmt.Errorf("cannot find snap declaration for %q: %v", slot.Snap().Name(), err)
 		}
 	}
 
@@ -372,10 +372,10 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 	// check should be skipped at this point.
 	if plugDecl != nil && slotDecl != nil {
 		if err := ic.Check(); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return nil
+	return true, nil
 }
 
 func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRef, error) {
