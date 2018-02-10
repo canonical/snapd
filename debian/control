@@ -59,6 +59,7 @@ Standards-Version: 3.9.8
 Homepage: https://github.com/snapcore/snapd
 Vcs-Browser: https://anonscm.debian.org/cgit/collab-maint/snapd.git
 Vcs-Git: git://anonscm.debian.org/collab-maint/snapd.git
+XS-Go-Import-Path: github.com/snapcore/snapd
 
 Package: golang-github-ubuntu-core-snappy-dev
 Architecture: all
