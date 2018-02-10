@@ -2,3 +2,4 @@ disable-i18n.patch
 disable-seccomp-tests.patch
 no-seccomp-fork.patch
 disable-TestDoRequestSerialErrorsOnNoHost.patch
+fix-pkg-config-line.patch
