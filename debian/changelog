@@ -1,3 +1,11 @@
+snapd (2.30-5) unstable; urgency=medium
+
+  * Team upload.
+  * add fix-pkg-config-line.patch to fix FTBFS
+  * Set XS-Go-Import-Path
+
+ -- Michael Stapelberg <stapelberg@debian.org>  Sat, 10 Feb 2018 23:18:15 +0100
+
 snapd (2.30-4) unstable; urgency=medium
 
   * Fix Built-Using computation on Debian.
