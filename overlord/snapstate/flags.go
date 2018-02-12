@@ -57,6 +57,10 @@ type Flags struct {
 	// Amend allows refreshing out of a snap unknown to the store
 	// and into one that is known.
 	Amend bool `json:"amend,omitempty"`
+
+	// DangerousMode is set if user has installed the snap directly from
+	// unknown file
+	DangerousMode bool `json:"dangerousmode,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode confinement (either set or overridden)
