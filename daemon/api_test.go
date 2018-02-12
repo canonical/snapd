@@ -61,6 +61,8 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -736,6 +738,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"storeUserInfo",
 		"postCreateUserUcrednetGet",
 		"ensureStateSoon",
+		"ctlcmdRun",
+		"runSnapctlUcrednetGet",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
@@ -5799,6 +5803,48 @@ func (s *apiSuite) TestSplitQS(c *check.C) {
 	c.Check(splitQS("foo ,, bar"), check.DeepEquals, []string{"foo", "bar"})
 	c.Check(splitQS(""), check.HasLen, 0)
 	c.Check(splitQS(","), check.HasLen, 0)
+}
+
+func (s *apiSuite) TestSnapctlGetNoUID(c *check.C) {
+	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "something"]}`)
+	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	c.Assert(err, check.IsNil)
+	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
+	c.Assert(rsp.Status, check.Equals, 403)
+}
+
+func (s *apiSuite) TestSnapctlGetUID(c *check.C) {
+	var uid uint32
+	_ = s.daemon(c)
+
+	runSnapctlUcrednetGet = func(string) (uint32, uint32, string, error) {
+		return 100, uid, dirs.SnapSocket, nil
+	}
+	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
+	ctlcmdRun = func(*hookstate.Context, []string) ([]byte, []byte, error) {
+		return nil, nil, nil
+	}
+	defer func() { ctlcmdRun = ctlcmd.Run }()
+
+	for _, t := range []struct {
+		uid uint32
+		cmd string
+		arg string
+
+		expectedCode int
+	}{
+		{1000, "get", "something", 200},
+		{0, "get", "something", 200},
+		{1000, "set", "some=thing", 403},
+		{0, "set", "some=thing", 200},
+	} {
+		uid = t.uid
+		buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, t.cmd, t.arg))
+		req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+		c.Assert(err, check.IsNil)
+		rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
+		c.Assert(rsp.Status, check.Equals, t.expectedCode)
+	}
 }
 
 var _ = check.Suite(&postDebugSuite{})

@@ -114,7 +114,10 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 	isSnap := (socket == dirs.SnapSocket)
 
 	// ensure that snaps can only access SnapOK things
-	if isSnap && !c.SnapOK {
+	if isSnap {
+		if c.SnapOK {
+			return accessOK
+		}
 		return accessUnauthorized
 	}
 
