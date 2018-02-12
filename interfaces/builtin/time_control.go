@@ -68,6 +68,13 @@ dbus (receive)
     member=PropertiesChanged
     peer=(label=unconfined),
 
+# Required in bionic (Ubuntu 18.04)
+dbus (send)
+    bus=system
+    path=/org/freedesktop/timedate1
+    interface=org.freedesktop.DBus.Properties
+    member=GetAll,
+
 # As the core snap ships the timedatectl utility we can also allow
 # clients to use it now that they have access to the relevant
 # D-Bus methods for setting the time via timedatectl's set-time and
