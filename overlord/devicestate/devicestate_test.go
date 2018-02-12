@@ -771,6 +771,10 @@ version: gadget
 }
 
 func (s *deviceMgrSuite) TestDoRequestSerialErrorsOnNoHost(c *C) {
+	if os.Getenv("http_proxy") != "" {
+		c.Skip("cannot run test when http proxy is in use, the error pattern is different")
+	}
+
 	privKey, _ := assertstest.GenerateKey(testKeyLength)
 
 	nowhere := "http://nowhere.nowhere.test"
