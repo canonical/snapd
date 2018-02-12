@@ -20,8 +20,8 @@
 package main
 
 //#cgo CFLAGS: -D_FILE_OFFSET_BITS=64
-//#cgo pkg-config: --static --cflags libseccomp
-//#cgo LDFLAGS: -Wl,-Bstatic -lseccomp -Wl,-Bdynamic
+//#cgo pkg-config: libseccomp
+//#cgo LDFLAGS: -lseccomp
 //
 //#include <asm/ioctls.h>
 //#include <ctype.h>
