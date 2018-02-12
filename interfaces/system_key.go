@@ -35,32 +35,53 @@ type systemKey struct {
 	AppArmorFeatures []string `yaml:"apparmor-features"`
 }
 
-func generateSystemKey() *systemKey {
-	var mySystemKey systemKey
+var mockedSystemKey *systemKey
 
-	// add build-id
+func generateSystemKey() *systemKey {
+	// for testing only
+	if mockedSystemKey != nil {
+		return mockedSystemKey
+	}
+
+	var sk systemKey
 	buildID, err := osutil.MyBuildID()
 	if err != nil {
-		buildID = "unknown"
+		buildID = ""
 	}
-	mySystemKey.BuildID = buildID
+	sk.BuildID = buildID
 
 	// Add apparmor-feature, note that ioutil.ReadDir() is already sorted.
 	//
 	// We prefix the dirs.GlobalRootDir (which is usually "/") to make
 	// this testable.
-	mySystemKey.AppArmorFeatures = release.AppArmorFeatures()
+	sk.AppArmorFeatures = release.AppArmorFeatures()
 
-	return &mySystemKey
+	return &sk
 }
 
 // SystemKey outputs a string that identifies what security profiles
 // environment this snapd is using. Security profiles that were generated
 // with a different Systemkey should be re-generated.
 func SystemKey() string {
-	sk, err := yaml.Marshal(generateSystemKey())
+	sk := generateSystemKey()
+
+	// special case: unknown build-ids always trigger a rebuild
+	if sk.BuildID == "" {
+		return ""
+	}
+	sks, err := yaml.Marshal(sk)
 	if err != nil {
 		panic(err)
 	}
-	return string(sk)
+	return string(sks)
+}
+
+func MockSystemKey(s string) func() {
+	var sk systemKey
+	err := yaml.Unmarshal([]byte(s), &sk)
+	if err != nil {
+		panic(err)
+	}
+	mockedSystemKey = &sk
+	return func() { mockedSystemKey = nil }
 }
