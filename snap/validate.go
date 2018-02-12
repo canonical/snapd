@@ -482,15 +482,15 @@ type LayoutConstraint interface {
 // mountedTree represents a mounted file-system tree or a bind-mounted directory.
 type mountedTree string
 
-// IsOffLimits returns true if the mount point is a prefix of a given path.
+// IsOffLimits returns true if the mount point is (perhaps non-proper) prefix of a given path.
 func (mountPoint mountedTree) IsOffLimits(path string) bool {
-	return strings.HasPrefix(path, string(mountPoint)+"/")
+	return strings.HasPrefix(path, string(mountPoint)+"/") || path == string(mountPoint)
 }
 
 // mountedFile represents a bind-mounted file.
 type mountedFile string
 
-// IsOffLimits returns true if the mount point is a prefix of a given path.
+// IsOffLimits returns true if the mount point is (perhaps non-proper) prefix of a given path.
 func (mountPoint mountedFile) IsOffLimits(path string) bool {
 	return strings.HasPrefix(path, string(mountPoint)+"/") || path == string(mountPoint)
 }
@@ -534,6 +534,13 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 	mountPoint = si.ExpandSnapVariables(mountPoint)
 	if !isAbsAndClean(mountPoint) {
 		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
+	}
+
+	for _, path := range []string{"/proc", "/sys", "/dev", "/run", "/boot", "/lost+found", "/media"} {
+		// We use the mountedTree constraint as this has the right semantics.
+		if mountedTree(path).IsOffLimits(mountPoint) {
+			return fmt.Errorf("layout %q in an off-limits area", layout.Path)
+		}
 	}
 
 	for _, constraint := range constraints {
