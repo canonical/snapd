@@ -365,6 +365,9 @@ profile "snap.samba.smbd" (attach_disconnected) {
   # This is related to LP: #1666897
   @{INSTALL_DIR}/core/*/{,usr/}lib/@{multiarch}/{,**/}lib*.so* m,
 
+  # Read only access to the core snap-exec (needed on bionic)
+  @{INSTALL_DIR}/core/*/usr/lib/snapd/snap-exec m,
+
 snippet
 }
 `,
