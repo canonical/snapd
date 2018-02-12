@@ -1,5 +1,10 @@
 summary: Check that timeserver interface works
 
+# This makes only sense on ubuntu-core because this snap will run inside
+# the core environment on a classic system we cannot really use this
+# on classic
+systems: [ubuntu-core-*]
+
 details: |
     This test makes sure that a snap using the timeserver-control interface
     can access timeserver information and update it.
@@ -12,7 +17,7 @@ prepare: |
 
 restore: |
     # Restore the initial timeserver
-    if [ -f timeserver.txt ]; then
+    if [ -s timeserver.txt ]; then
         timedatectl set-ntp "$(cat timeserver.txt)"
         rm -f timeserver.txt
     fi
