@@ -43,12 +43,14 @@ var _ = Suite(&kvmInterfaceSuite{
 })
 
 const kvmConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [kvm]
 `
 
 const kvmCoreYaml = `name: core
+version: 0
 type: os
 slots:
   kvm:

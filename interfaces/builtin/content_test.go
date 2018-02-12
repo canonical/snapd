@@ -123,6 +123,7 @@ slots:
 
 func (s *ContentSuite) TestSanitizeSlotSourceAndLegacy(c *C) {
 	slot := MockSlot(c, `name: snap
+version: 0
 slots:
   content:
     source:
@@ -131,6 +132,7 @@ slots:
 `, nil, "content")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, `move the "read" attribute into the "source" section`)
 	slot = MockSlot(c, `name: snap
+version: 0
 slots:
   content:
     source:
@@ -222,7 +224,7 @@ apps:
 }
 
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
-	info := snaptest.MockInfo(c, "name: name", &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockInfo(c, "{name: name, version: 0}", &snap.SideInfo{Revision: snap.R(42)})
 	c.Check(builtin.ResolveSpecialVariable("foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
 	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info), Equals, "/var/snap/name/42/foo")
@@ -235,6 +237,7 @@ func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 // Check that legacy syntax works and allows sharing read-only snap content
 func (s *ContentSuite) TestConnectedPlugSnippetSharingLegacy(c *C) {
 	const consumerYaml = `name: consumer 
+version: 0
 plugs:
  content:
   target: import
@@ -242,6 +245,7 @@ plugs:
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
 	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
 	const producerYaml = `name: producer
+version: 0
 slots:
  content:
   read:
@@ -263,6 +267,7 @@ slots:
 // Check that sharing of read-only snap content is possible
 func (s *ContentSuite) TestConnectedPlugSnippetSharingSnap(c *C) {
 	const consumerYaml = `name: consumer 
+version: 0
 plugs:
  content:
   target: $SNAP/import
@@ -273,6 +278,7 @@ apps:
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
 	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
 	const producerYaml = `name: producer
+version: 0
 slots:
  content:
   read:
@@ -306,6 +312,7 @@ slots:
 // Check that sharing of writable data is possible
 func (s *ContentSuite) TestConnectedPlugSnippetSharingSnapData(c *C) {
 	const consumerYaml = `name: consumer 
+version: 0
 plugs:
  content:
   target: $SNAP_DATA/import
@@ -316,6 +323,7 @@ apps:
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
 	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
 	const producerYaml = `name: producer
+version: 0
 slots:
  content:
   write:
@@ -351,6 +359,7 @@ slots:
 // Check that sharing of writable common data is possible
 func (s *ContentSuite) TestConnectedPlugSnippetSharingSnapCommon(c *C) {
 	const consumerYaml = `name: consumer 
+version: 0
 plugs:
  content:
   target: $SNAP_COMMON/import
@@ -361,6 +370,7 @@ apps:
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
 	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
 	const producerYaml = `name: producer
+version: 0
 slots:
  content:
   write:
@@ -399,6 +409,7 @@ func (s *ContentSuite) TestInterfaces(c *C) {
 
 func (s *ContentSuite) TestModernContentInterface(c *C) {
 	plug := MockPlug(c, `name: consumer
+version: 0
 plugs:
  content:
   target: $SNAP_COMMON/import
@@ -409,6 +420,7 @@ apps:
 	connectedPlug := interfaces.NewConnectedPlug(plug, nil)
 
 	slot := MockSlot(c, `name: producer
+version: 0
 slots:
  content:
   source:
@@ -476,6 +488,7 @@ slots:
 func (s *ContentSuite) TestModernContentInterfacePlugins(c *C) {
 	// Define one app snap and two snaps plugin snaps.
 	plug := MockPlug(c, `name: app
+version: 0
 plugs:
  plugins:
   interface: content
@@ -491,6 +504,7 @@ apps:
 	// XXX: realistically the plugin may be a single file and we don't support
 	// those very well.
 	slotOne := MockSlot(c, `name: plugin-one
+version: 0
 slots:
  plugin-for-app:
   interface: content
@@ -500,6 +514,7 @@ slots:
 	connectedSlotOne := interfaces.NewConnectedSlot(slotOne, nil)
 
 	slotTwo := MockSlot(c, `name: plugin-two
+version: 0
 slots:
  plugin-for-app:
   interface: content
@@ -551,6 +566,7 @@ slots:
 
 func (s *ContentSuite) TestModernContentSameReadAndWriteClash(c *C) {
 	plug := MockPlug(c, `name: consumer
+version: 0
 plugs:
  content:
   target: $SNAP_COMMON/import
@@ -561,6 +577,7 @@ apps:
 	connectedPlug := interfaces.NewConnectedPlug(plug, nil)
 
 	slot := MockSlot(c, `name: producer
+version: 0
 slots:
  content:
   source:

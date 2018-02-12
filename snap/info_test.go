@@ -669,6 +669,7 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 }
 
 const coreSnapYaml = `name: core
+version: 0
 type: os
 plugs:
   network-bind:

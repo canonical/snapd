@@ -139,6 +139,7 @@ func (s *specSuite) TestAddUpdateNS(c *C) {
 
 const snapWithLayout = `
 name: vanguard
+version: 0
 apps:
   vanguard:
     command: vanguard
