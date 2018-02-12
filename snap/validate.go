@@ -482,7 +482,7 @@ type LayoutConstraint interface {
 // mountedTree represents a mounted file-system tree or a bind-mounted directory.
 type mountedTree string
 
-// IsOffLimits returns true if the mount point is a prefix of a given path.
+// IsOffLimits returns true if the mount point is (perhaps non-proper) prefix of a given path.
 func (mountPoint mountedTree) IsOffLimits(path string) bool {
 	return strings.HasPrefix(path, string(mountPoint)+"/") || path == string(mountPoint)
 }
@@ -490,7 +490,7 @@ func (mountPoint mountedTree) IsOffLimits(path string) bool {
 // mountedFile represents a bind-mounted file.
 type mountedFile string
 
-// IsOffLimits returns true if the mount point is a prefix of a given path.
+// IsOffLimits returns true if the mount point is (perhaps non-proper) prefix of a given path.
 func (mountPoint mountedFile) IsOffLimits(path string) bool {
 	return strings.HasPrefix(path, string(mountPoint)+"/") || path == string(mountPoint)
 }
