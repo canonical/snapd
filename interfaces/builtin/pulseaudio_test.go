@@ -64,6 +64,7 @@ apps:
 
 // a pulseaudio slot on the core snap (as automatically added on classic)
 const pulseaudioMockClassicSlotSnapInfoYaml = `name: core
+version: 0
 type: os
 slots:
  pulseaudio:

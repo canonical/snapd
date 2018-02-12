@@ -109,6 +109,7 @@ var _ = Suite(&SerialPortInterfaceSuite{
 func (s *SerialPortInterfaceSuite) SetUpTest(c *C) {
 	osSnapInfo := snaptest.MockInfo(c, `
 name: ubuntu-core
+version: 0
 type: os
 slots:
     test-port-1:
@@ -206,6 +207,7 @@ slots:
 
 	gadgetSnapInfo := snaptest.MockInfo(c, `
 name: some-device
+version: 0
 type: gadget
 slots:
   test-udev-1:
@@ -271,6 +273,7 @@ slots:
 
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
+version: 0
 plugs:
     plug-for-port-1:
         interface: serial-port

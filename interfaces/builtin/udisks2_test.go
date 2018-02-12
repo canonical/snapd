@@ -45,12 +45,14 @@ var _ = Suite(&UDisks2InterfaceSuite{
 })
 
 const udisks2ConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [udisks2]
 `
 
 const udisks2ConsumerTwoAppsYaml = `name: consumer
+version: 0
 apps:
  app1:
   plugs: [udisks2]
@@ -59,6 +61,7 @@ apps:
 `
 
 const udisks2ConsumerThreeAppsYaml = `name: consumer
+version: 0
 apps:
  app1:
   plugs: [udisks2]
@@ -68,12 +71,14 @@ apps:
 `
 
 const udisks2ProducerYaml = `name: producer
+version: 0
 apps:
  app:
   slots: [udisks2]
 `
 
 const udisks2ProducerTwoAppsYaml = `name: producer
+version: 0
 apps:
  app1:
   slots: [udisks2]
@@ -82,6 +87,7 @@ apps:
 `
 
 const udisks2ProducerThreeAppsYaml = `name: producer
+version: 0
 apps:
  app1:
   slots: [udisks2]

@@ -44,12 +44,14 @@ var _ = Suite(&ioPortsControlInterfaceSuite{
 })
 
 const ioPortsControlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [io-ports-control]
 `
 
 const ioPortsControlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   io-ports-control:

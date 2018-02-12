@@ -41,12 +41,14 @@ type FuseSupportInterfaceSuite struct {
 }
 
 const fuseSupportConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [fuse-support]
 `
 
 const fuseSupportCoreYaml = `name: core
+version: 0
 type: os
 slots:
   fuse-support:

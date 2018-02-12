@@ -78,6 +78,7 @@ func (s *IioInterfaceSuite) SetUpTest(c *C) {
 	// Mock for OS Snap
 	osSnapInfo := snaptest.MockInfo(c, `
 name: ubuntu-core
+version: 0
 type: os
 slots:
   test-port-1:
@@ -89,6 +90,7 @@ slots:
 	// Mock for Gadget Snap
 	gadgetSnapInfo := snaptest.MockInfo(c, `
 name: some-device
+version: 0
 type: gadget
 slots:
   test-udev-1:
@@ -154,6 +156,7 @@ slots:
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
+version: 0
 plugs:
   plug-for-port-1:
     interface: iio

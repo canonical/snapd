@@ -44,12 +44,14 @@ var _ = Suite(&PhysicalMemoryObserveInterfaceSuite{
 })
 
 const physicalMemoryObserveConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [physical-memory-observe]
 `
 
 const physicalMemoryObserveCoreYaml = `name: core
+version: 0
 type: os
 slots:
   physical-memory-observe:

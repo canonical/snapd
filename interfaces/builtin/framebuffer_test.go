@@ -40,6 +40,7 @@ type FramebufferInterfaceSuite struct {
 
 const framebufferConsumerYaml = `
 name: consumer
+version: 0
 apps:
   app:
     plugs: [framebuffer]
@@ -47,6 +48,7 @@ apps:
 
 const framebufferOsYaml = `
 name: core
+version: 0
 type: os
 slots:
   framebuffer:
