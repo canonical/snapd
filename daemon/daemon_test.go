@@ -172,23 +172,11 @@ func (s *daemonSuite) TestSnapctlAccessSnapOKWithUser(c *check.C) {
 	pst := &http.Request{Method: "POST", RemoteAddr: remoteAddr}
 	del := &http.Request{Method: "DELETE", RemoteAddr: remoteAddr}
 
-	cmd := &Command{d: newTestDaemon(c), SnapOK: true, UserOK: true}
+	cmd := &Command{d: newTestDaemon(c), SnapOK: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
-
-	cmd = &Command{d: newTestDaemon(c), SnapOK: true, UserOK: false}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
-
-	cmd = &Command{d: newTestDaemon(c), SnapOK: false, UserOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
+	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
+	c.Check(cmd.canAccess(pst, nil), check.Equals, accessOK)
+	c.Check(cmd.canAccess(del, nil), check.Equals, accessOK)
 }
 
 func (s *daemonSuite) TestSnapctlAccessSnapOKWithRoot(c *check.C) {
@@ -198,23 +186,11 @@ func (s *daemonSuite) TestSnapctlAccessSnapOKWithRoot(c *check.C) {
 	pst := &http.Request{Method: "POST", RemoteAddr: remoteAddr}
 	del := &http.Request{Method: "DELETE", RemoteAddr: remoteAddr}
 
-	cmd := &Command{d: newTestDaemon(c), SnapOK: true, UserOK: true}
+	cmd := &Command{d: newTestDaemon(c), SnapOK: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
 	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
 	c.Check(cmd.canAccess(pst, nil), check.Equals, accessOK)
 	c.Check(cmd.canAccess(del, nil), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), SnapOK: true, UserOK: false}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), SnapOK: false, UserOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
 }
 
 func (s *daemonSuite) TestUserAccess(c *check.C) {
