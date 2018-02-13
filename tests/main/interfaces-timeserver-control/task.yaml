@@ -1,10 +1,5 @@
 summary: Check that timeserver interface works
 
-# This makes only sense on ubuntu-core because this snap will run inside
-# the core environment on a classic system we cannot really use this
-# on classic
-systems: [ubuntu-core-*]
-
 details: |
     This test makes sure that a snap using the timeserver-control interface
     can access timeserver information and update it.
