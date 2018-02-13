@@ -70,6 +70,7 @@ var _ = Suite(&spiInterfaceSuite{
 func (s *spiInterfaceSuite) SetUpTest(c *C) {
 	info := snaptest.MockInfo(c, `
 name: core
+version: 0
 type: os
 slots:
   spi-1:
@@ -86,6 +87,7 @@ slots:
 
 	info = snaptest.MockInfo(c, `
 name: gadget
+version: 0
 type: gadget
 slots:
   spi-1:
@@ -131,6 +133,7 @@ slots:
 
 	info = snaptest.MockInfo(c, `
 name: consumer
+version: 0
 plugs:
   spi-1:
     interface: spi
@@ -185,7 +188,7 @@ func (s *spiInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# spi
 KERNEL=="spidev0.0", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *spiInterfaceSuite) TestAppArmorSpec(c *C) {

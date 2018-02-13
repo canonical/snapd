@@ -200,13 +200,14 @@ type Info struct {
 type Layout struct {
 	Snap *Info
 
-	Path    string      `json:"path"`
-	Bind    string      `json:"bind,omitempty"`
-	Type    string      `json:"type,omitempty"`
-	User    string      `json:"user,omitempty"`
-	Group   string      `json:"group,omitempty"`
-	Mode    os.FileMode `json:"mode,omitempty"`
-	Symlink string      `json:"symlink,omitempty"`
+	Path     string      `json:"path"`
+	Bind     string      `json:"bind,omitempty"`
+	BindFile string      `json:"bind-file,omitempty"`
+	Type     string      `json:"type,omitempty"`
+	User     string      `json:"user,omitempty"`
+	Group    string      `json:"group,omitempty"`
+	Mode     os.FileMode `json:"mode,omitempty"`
+	Symlink  string      `json:"symlink,omitempty"`
 }
 
 // ChannelSnapInfo is the minimum information that can be used to clearly
@@ -500,6 +501,13 @@ type SocketInfo struct {
 	SocketMode   os.FileMode
 }
 
+// TimerInfo provides information on application timer.
+type TimerInfo struct {
+	App *AppInfo
+
+	Timer string
+}
+
 // AppInfo provides information about a app.
 type AppInfo struct {
 	Snap *Info
@@ -531,6 +539,8 @@ type AppInfo struct {
 	// before
 	After  []string
 	Before []string
+
+	Timer *TimerInfo
 }
 
 // ScreenshotInfo provides information about a screenshot.
@@ -549,9 +559,14 @@ type HookInfo struct {
 	Slots map[string]*SlotInfo
 }
 
-// File returns the path to the file
+// File returns the path to the *.socket file
 func (socket *SocketInfo) File() string {
 	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
+}
+
+// File returns the path to the *.timer file
+func (timer *TimerInfo) File() string {
+	return filepath.Join(dirs.SnapServicesDir, timer.App.SecurityTag()+".timer")
 }
 
 // SecurityTag returns application-specific security tag.
