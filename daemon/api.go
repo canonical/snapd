@@ -2119,6 +2119,8 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 
 var (
 	postCreateUserUcrednetGet = ucrednetGet
+	runSnapctlUcrednetGet     = ucrednetGet
+	ctlcmdRun                 = ctlcmd.Run
 	storeUserInfo             = store.UserInfo
 	osutilAddUser             = osutil.AddUser
 )
@@ -2491,10 +2493,19 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("snapctl cannot run without args")
 	}
 
+	_, uid, _, err := runSnapctlUcrednetGet(r.RemoteAddr)
+	if err != nil {
+		return Forbidden("cannot get remote user: %s", err)
+	}
+	// we only allow "get" from regular users in snapctl
+	if uid != 0 && snapctlOptions.Args[0] != "get" {
+		return Forbidden("cannot use %q with uid %d, try with sudo", snapctlOptions.Args[0], uid)
+	}
+
 	// Ignore missing context error to allow 'snapctl -h' without a context;
 	// Actual context is validated later by get/set.
 	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
-	stdout, stderr, err := ctlcmd.Run(context, snapctlOptions.Args)
+	stdout, stderr, err := ctlcmdRun(context, snapctlOptions.Args)
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			stdout = []byte(e.Error())
