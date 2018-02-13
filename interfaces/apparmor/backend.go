@@ -211,13 +211,14 @@ func setupSnapConfineReexec(coreInfo *snap.Info) error {
 	}
 
 	dir, glob, content, err := snapConfineFromCoreProfile(coreInfo)
+	cache := dirs.SystemApparmorCacheDir
 	if err != nil {
 		return fmt.Errorf("cannot compute snap-confine profile: %s", err)
 	}
 
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
-	errReload := reloadProfiles(changed, dir, dirs.SystemApparmorCacheDir)
-	errUnload := unloadProfiles(removed, dirs.SystemApparmorCacheDir)
+	errReload := reloadProfiles(changed, dir, cache)
+	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize snap-confine apparmor profile: %s", errEnsure)
 	}
@@ -271,8 +272,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
-	glob := interfaces.SecurityTagGlob(snapInfo.Name())
 	dir := dirs.SnapAppArmorDir
+	glob := interfaces.SecurityTagGlob(snapInfo.Name())
+	cache := dirs.AppArmorCacheDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
 	}
@@ -285,8 +287,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		all = append(all, name)
 	}
 	sort.Strings(all)
-	errReload := reloadProfiles(all, dirs.SnapAppArmorDir, dirs.AppArmorCacheDir)
-	errUnload := unloadProfiles(removed, dirs.AppArmorCacheDir)
+	errReload := reloadProfiles(all, dir, cache)
+	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
 	}
@@ -298,9 +300,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 // Remove removes and unloads apparmor profiles of a given snap.
 func (b *Backend) Remove(snapName string) error {
+	dir := dirs.SnapAppArmorDir
 	glob := fmt.Sprintf("snap*.%s*", snapName)
-	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, nil)
-	errUnload := unloadProfiles(removed, dirs.AppArmorCacheDir)
+	cache := dirs.AppArmorCacheDir
+	_, removed, errEnsure := osutil.EnsureDirState(dir, glob, nil)
+	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
 	}
