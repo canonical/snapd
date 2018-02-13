@@ -1638,8 +1638,7 @@ func (s *deviceMgrSuite) TestCheckGadget(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	// nothing is setup
-	gadgetInfo := snaptest.MockInfo(c, `type: gadget
-name: other-gadget`, nil)
+	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: other-gadget, version: 0}", nil)
 
 	err := devicestate.CheckGadgetOrKernel(s.state, gadgetInfo, nil, snapstate.Flags{})
 	c.Check(err, ErrorMatches, `cannot install gadget without model assertion`)
@@ -1670,26 +1669,17 @@ name: other-gadget`, nil)
 
 	// brand gadget
 	s.setupSnapDecl(c, "gadget", "brand-gadget-id", "my-brand")
-	brandGadgetInfo := snaptest.MockInfo(c, `
-type: gadget
-name: gadget
-`, nil)
+	brandGadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 	brandGadgetInfo.SnapID = "brand-gadget-id"
 
 	// canonical gadget
 	s.setupSnapDecl(c, "gadget", "canonical-gadget-id", "canonical")
-	canonicalGadgetInfo := snaptest.MockInfo(c, `
-type: gadget
-name: gadget
-`, nil)
+	canonicalGadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 	canonicalGadgetInfo.SnapID = "canonical-gadget-id"
 
 	// other gadget
 	s.setupSnapDecl(c, "gadget", "other-gadget-id", "other-brand")
-	otherGadgetInfo := snaptest.MockInfo(c, `
-type: gadget
-name: gadget
-`, nil)
+	otherGadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 	otherGadgetInfo.SnapID = "other-gadget-id"
 
 	// install brand gadget ok
@@ -1716,8 +1706,7 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassic(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	gadgetInfo := snaptest.MockInfo(c, `type: gadget
-name: other-gadget`, nil)
+	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: other-gadget, version: 0}", nil)
 
 	// setup model assertion
 	s.setupBrands(c)
@@ -1744,26 +1733,17 @@ name: other-gadget`, nil)
 
 	// brand gadget
 	s.setupSnapDecl(c, "gadget", "brand-gadget-id", "my-brand")
-	brandGadgetInfo := snaptest.MockInfo(c, `
-type: gadget
-name: gadget
-`, nil)
+	brandGadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 	brandGadgetInfo.SnapID = "brand-gadget-id"
 
 	// canonical gadget
 	s.setupSnapDecl(c, "gadget", "canonical-gadget-id", "canonical")
-	canonicalGadgetInfo := snaptest.MockInfo(c, `
-type: gadget
-name: gadget
-`, nil)
+	canonicalGadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 	canonicalGadgetInfo.SnapID = "canonical-gadget-id"
 
 	// other gadget
 	s.setupSnapDecl(c, "gadget", "other-gadget-id", "other-brand")
-	otherGadgetInfo := snaptest.MockInfo(c, `
-type: gadget
-name: gadget
-`, nil)
+	otherGadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 	otherGadgetInfo.SnapID = "other-gadget-id"
 
 	// install brand gadget ok
@@ -1790,8 +1770,7 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassicGadgetNotSpecified(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	gadgetInfo := snaptest.MockInfo(c, `type: gadget
-name: gadget`, nil)
+	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 
 	// setup model assertion
 	s.setupBrands(c)
@@ -1819,8 +1798,7 @@ name: gadget`, nil)
 func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	kernelInfo := snaptest.MockInfo(c, `type: kernel
-name: lnrk`, nil)
+	kernelInfo := snaptest.MockInfo(c, "{type: kernel, name: lnrk, version: 0}", nil)
 
 	// not on classic
 	release.OnClassic = true
@@ -1858,26 +1836,17 @@ name: lnrk`, nil)
 
 	// brand kernel
 	s.setupSnapDecl(c, "krnl", "brand-krnl-id", "my-brand")
-	brandKrnlInfo := snaptest.MockInfo(c, `
-type: kernel
-name: krnl
-`, nil)
+	brandKrnlInfo := snaptest.MockInfo(c, "{type: kernel, name: krnl, version: 0}", nil)
 	brandKrnlInfo.SnapID = "brand-krnl-id"
 
 	// canonical kernel
 	s.setupSnapDecl(c, "krnl", "canonical-krnl-id", "canonical")
-	canonicalKrnlInfo := snaptest.MockInfo(c, `
-type: kernel
-name: krnl
-`, nil)
+	canonicalKrnlInfo := snaptest.MockInfo(c, "{type: kernel, name: krnl, version: 0}", nil)
 	canonicalKrnlInfo.SnapID = "canonical-krnl-id"
 
 	// other kernel
 	s.setupSnapDecl(c, "krnl", "other-krnl-id", "other-brand")
-	otherKrnlInfo := snaptest.MockInfo(c, `
-type: kernel
-name: krnl
-`, nil)
+	otherKrnlInfo := snaptest.MockInfo(c, "{type: kernel, name: krnl, version: 0}", nil)
 	otherKrnlInfo.SnapID = "other-krnl-id"
 
 	// install brand kernel ok

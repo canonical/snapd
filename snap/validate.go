@@ -49,6 +49,20 @@ func ValidateName(name string) error {
 	return nil
 }
 
+// NB keep this in sync with snapcraft and the review tools :-)
+var isValidVersion = regexp.MustCompile("^[a-zA-Z0-9](?:[a-zA-Z0-9:.+~_-]{0,30}[a-zA-Z0-9+~])?$").MatchString
+
+// ValidateVersion checks if a string is a valid snap version.
+func ValidateVersion(version string) error {
+	if len(version) == 0 {
+		return fmt.Errorf("snap version cannot be empty")
+	}
+	if !isValidVersion(version) {
+		return fmt.Errorf("invalid snap version: %q", version)
+	}
+	return nil
+}
+
 // ValidateLicense checks if a string is a valid SPDX expression.
 func ValidateLicense(license string) error {
 	if err := spdx.ValidateLicense(license); err != nil {
@@ -175,28 +189,28 @@ func Validate(info *Info) error {
 	if name == "" {
 		return fmt.Errorf("snap name cannot be empty")
 	}
-	err := ValidateName(name)
-	if err != nil {
+
+	if err := ValidateName(name); err != nil {
 		return err
 	}
 
-	err = info.Epoch.Validate()
-	if err != nil {
+	if err := ValidateVersion(info.Version); err != nil {
 		return err
 	}
 
-	license := info.License
-	if license != "" {
-		err := ValidateLicense(license)
-		if err != nil {
+	if err := info.Epoch.Validate(); err != nil {
+		return err
+	}
+
+	if license := info.License; license != "" {
+		if err := ValidateLicense(license); err != nil {
 			return err
 		}
 	}
 
 	// validate app entries
 	for _, app := range info.Apps {
-		err := ValidateApp(app)
-		if err != nil {
+		if err := ValidateApp(app); err != nil {
 			return err
 		}
 	}
@@ -215,8 +229,7 @@ func Validate(info *Info) error {
 
 	// validate hook entries
 	for _, hook := range info.Hooks {
-		err := ValidateHook(hook)
-		if err != nil {
+		if err := ValidateHook(hook); err != nil {
 			return err
 		}
 	}

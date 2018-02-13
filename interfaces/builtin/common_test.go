@@ -33,6 +33,7 @@ var _ = Suite(&commonIfaceSuite{})
 func (s *commonIfaceSuite) TestUDevSpec(c *C) {
 	plug, _ := MockConnectedPlug(c, `
 name: consumer
+version: 0
 apps:
   app-a:
     plugs: [common]
@@ -42,6 +43,7 @@ apps:
 `, nil, "common")
 	slot, _ := MockConnectedSlot(c, `
 name: producer
+version: 0
 slots:
   common:
 `, nil, "common")

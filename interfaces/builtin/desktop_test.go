@@ -48,12 +48,14 @@ var _ = Suite(&DesktopInterfaceSuite{
 })
 
 const desktopConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [desktop]
 `
 
 const desktopCoreYaml = `name: core
+version: 0
 type: os
 slots:
   desktop:

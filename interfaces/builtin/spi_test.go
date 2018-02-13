@@ -70,6 +70,7 @@ var _ = Suite(&spiInterfaceSuite{
 func (s *spiInterfaceSuite) SetUpTest(c *C) {
 	info := snaptest.MockInfo(c, `
 name: core
+version: 0
 type: os
 slots:
   spi-1:
@@ -86,6 +87,7 @@ slots:
 
 	info = snaptest.MockInfo(c, `
 name: gadget
+version: 0
 type: gadget
 slots:
   spi-1:
@@ -131,6 +133,7 @@ slots:
 
 	info = snaptest.MockInfo(c, `
 name: consumer
+version: 0
 plugs:
   spi-1:
     interface: spi

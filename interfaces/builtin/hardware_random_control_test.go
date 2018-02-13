@@ -43,12 +43,14 @@ var _ = Suite(&HardwareRandomControlInterfaceSuite{
 })
 
 const hardwareRandomControlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [hardware-random-control]
 `
 
 const hardwareRandomControlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   hardware-random-control:
