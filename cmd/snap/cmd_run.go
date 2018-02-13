@@ -51,11 +51,14 @@ var (
 
 type cmdRun struct {
 	Command  string `long:"command" hidden:"yes"`
-	Hookname string `long:"hook" hidden:"yes"`
+	HookName string `long:"hook" hidden:"yes"`
 	Revision string `short:"r" default:"unset" hidden:"yes"`
 	Shell    bool   `long:"shell" `
-	Strace   string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
-	Gdb      bool   `long:"gdb"`
+	// This options is both a selector (use or don't use strace) and it
+	// can also carry extra options for strace. This is why there is
+	// "default" and "optional-value" to distinguish this.
+	Strace string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
+	Gdb    bool   `long:"gdb"`
 
 	// not a real option, used to check if cmdRun is initialized by
 	// the parser
@@ -87,19 +90,19 @@ func (x *cmdRun) Execute(args []string) error {
 	args = args[1:]
 
 	// Catch some invalid parameter combinations, provide helpful errors
-	if x.Hookname != "" && x.Command != "" {
+	if x.HookName != "" && x.Command != "" {
 		return fmt.Errorf(i18n.G("cannot use --hook and --command together"))
 	}
-	if x.Revision != "unset" && x.Revision != "" && x.Hookname == "" {
+	if x.Revision != "unset" && x.Revision != "" && x.HookName == "" {
 		return fmt.Errorf(i18n.G("-r can only be used with --hook"))
 	}
-	if x.Hookname != "" && len(args) > 0 {
+	if x.HookName != "" && len(args) > 0 {
 		// TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
-		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.Hookname, strings.Join(args, " "))
+		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.HookName, strings.Join(args, " "))
 	}
 
 	// Now actually handle the dispatching
-	if x.Hookname != "" {
+	if x.HookName != "" {
 		return x.snapRunHook(snapApp)
 	}
 
@@ -296,9 +299,9 @@ func (x *cmdRun) snapRunHook(snapName string) error {
 		return err
 	}
 
-	hook := info.Hooks[x.Hookname]
+	hook := info.Hooks[x.HookName]
 	if hook == nil {
-		return fmt.Errorf(i18n.G("cannot find hook %q in %q"), x.Hookname, snapName)
+		return fmt.Errorf(i18n.G("cannot find hook %q in %q"), x.HookName, snapName)
 	}
 
 	return x.runSnapConfine(info, hook.SecurityTag(), snapName, hook.Name, nil)
