@@ -339,3 +339,21 @@ func (s *entrySuite) TestXSnapdSynthetic(c *C) {
 	e = &osutil.MountEntry{Options: []string{"x-snapd.synthetic"}}
 	c.Assert(e.XSnapdSynthetic(), Equals, true)
 }
+
+func (s *entrySuite) TextXSnapdOriginLayout(c *C) {
+	c.Assert(osutil.XSnapdOriginLayout(), Equals, "x-snapd.origin=layout")
+}
+
+func (s *entrySuite) TestXSnapdOrigin(c *C) {
+	// Entries have no origin by default.
+	e := &osutil.MountEntry{}
+	c.Assert(e.XSnapdOrigin(), Equals, "")
+
+	// Origin can be indicated with the x-snapd.origin= option
+	e = &osutil.MountEntry{Options: []string{"x-snapd.origin=layout"}}
+	c.Assert(e.XSnapdOrigin(), Equals, "layout")
+
+	// The helpful helper for this constant actually works.
+	e = &osutil.MountEntry{Options: []string{osutil.XSnapdOriginLayout()}}
+	c.Assert(e.XSnapdOrigin(), Equals, "layout")
+}
