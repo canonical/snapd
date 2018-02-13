@@ -126,8 +126,15 @@ func ParseMountEntry(s string) (MountEntry, error) {
 	var df, cpn int
 	fields := strings.FieldsFunc(s, func(r rune) bool { return r == ' ' || r == '\t' })
 	// do all error checks before any assignments to `e'
-	if len(fields) < 4 || len(fields) > 6 {
-		return e, fmt.Errorf("expected between 4 and 6 fields, found %d", len(fields))
+	if len(fields) < 3 || len(fields) > 6 {
+		return e, fmt.Errorf("expected between 3 and 6 fields, found %d", len(fields))
+	}
+	e.Name = unescape(fields[0])
+	e.Dir = unescape(fields[1])
+	e.Type = unescape(fields[2])
+	// Parse Options if we have at least 4 fields
+	if len(fields) > 3 {
+		e.Options = strings.Split(unescape(fields[3]), ",")
 	}
 	// Parse DumpFrequency if we have at least 5 fields
 	if len(fields) > 4 {
@@ -136,6 +143,7 @@ func ParseMountEntry(s string) (MountEntry, error) {
 			return e, fmt.Errorf("cannot parse dump frequency: %q", fields[4])
 		}
 	}
+	e.DumpFrequency = df
 	// Parse CheckPassNumber if we have at least 6 fields
 	if len(fields) > 5 {
 		cpn, err = strconv.Atoi(fields[5])
@@ -143,11 +151,6 @@ func ParseMountEntry(s string) (MountEntry, error) {
 			return e, fmt.Errorf("cannot parse check pass number: %q", fields[5])
 		}
 	}
-	e.Name = unescape(fields[0])
-	e.Dir = unescape(fields[1])
-	e.Type = unescape(fields[2])
-	e.Options = strings.Split(unescape(fields[3]), ",")
-	e.DumpFrequency = df
 	e.CheckPassNumber = cpn
 	return e, nil
 }
