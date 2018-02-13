@@ -96,6 +96,7 @@ var api = []*Command{
 }
 
 var (
+	// see daemon.go:canAccess for details how the access is controlled
 	rootCmd = &Command{
 		Path:    "/",
 		GuestOK: true,
@@ -115,9 +116,8 @@ var (
 	}
 
 	logoutCmd = &Command{
-		Path:   "/v2/logout",
-		POST:   logoutUser,
-		UserOK: true,
+		Path: "/v2/logout",
+		POST: logoutUser,
 	}
 
 	appIconCmd = &Command{
@@ -209,21 +209,18 @@ var (
 	}
 
 	createUserCmd = &Command{
-		Path:   "/v2/create-user",
-		UserOK: false,
-		POST:   postCreateUser,
+		Path: "/v2/create-user",
+		POST: postCreateUser,
 	}
 
 	buyCmd = &Command{
-		Path:   "/v2/buy",
-		UserOK: false,
-		POST:   postBuy,
+		Path: "/v2/buy",
+		POST: postBuy,
 	}
 
 	readyToBuyCmd = &Command{
-		Path:   "/v2/buy/ready",
-		UserOK: false,
-		GET:    readyToBuy,
+		Path: "/v2/buy/ready",
+		GET:  readyToBuy,
 	}
 
 	snapctlCmd = &Command{
@@ -233,9 +230,8 @@ var (
 	}
 
 	usersCmd = &Command{
-		Path:   "/v2/users",
-		UserOK: false,
-		GET:    getUsers,
+		Path: "/v2/users",
+		GET:  getUsers,
 	}
 
 	sectionsCmd = &Command{
