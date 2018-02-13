@@ -688,7 +688,7 @@ echo "stdout output 2"
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid",
+			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),

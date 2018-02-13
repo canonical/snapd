@@ -43,12 +43,14 @@ var _ = Suite(&PhysicalMemoryControlInterfaceSuite{
 })
 
 const physicalMemoryControlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [physical-memory-control]
 `
 
 const physicalMemoryControlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   physical-memory-control:

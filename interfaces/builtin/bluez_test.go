@@ -48,12 +48,14 @@ var _ = Suite(&BluezInterfaceSuite{
 })
 
 const bluezConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [bluez]
 `
 
 const bluezConsumerTwoAppsYaml = `name: consumer
+version: 0
 apps:
  app1:
   plugs: [bluez]
@@ -62,6 +64,7 @@ apps:
 `
 
 const bluezConsumerThreeAppsYaml = `name: consumer
+version: 0
 apps:
  app1:
   plugs: [bluez]
@@ -71,12 +74,14 @@ apps:
 `
 
 const bluezProducerYaml = `name: producer
+version: 0
 apps:
  app:
   slots: [bluez]
 `
 
 const bluezProducerTwoAppsYaml = `name: producer
+version: 0
 apps:
  app1:
   slots: [bluez]
@@ -85,6 +90,7 @@ apps:
 `
 
 const bluezProducerThreeAppsYaml = `name: producer
+version: 0
 apps:
  app1:
   slots: [bluez]
@@ -94,6 +100,7 @@ apps:
 `
 
 const bluezCoreYaml = `name: core
+version: 0
 slots:
   bluez:
 `

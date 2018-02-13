@@ -43,12 +43,14 @@ var _ = Suite(&TpmInterfaceSuite{
 })
 
 const tpmConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [tpm]
 `
 
 const tpmCoreYaml = `name: core
+version: 0
 type: os
 slots:
   tpm:

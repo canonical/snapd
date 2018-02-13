@@ -43,12 +43,14 @@ var _ = Suite(&AlsaInterfaceSuite{
 })
 
 const alsaConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [alsa]
 `
 
 const alsaCoreYaml = `name: core
+version: 0
 type: os
 slots:
   alsa:

@@ -27,8 +27,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
@@ -330,7 +330,7 @@ func planWritableMimic(dir string) ([]*Change, error) {
 
 	// Bind mount the original directory elsewhere for safe-keeping.
 	changes = append(changes, &Change{
-		Action: Mount, Entry: mount.Entry{
+		Action: Mount, Entry: osutil.MountEntry{
 			// NOTE: Here we bind instead of recursively binding
 			// because recursive binds cannot be undone without
 			// parsing the mount table and exploring what is really
@@ -340,7 +340,7 @@ func planWritableMimic(dir string) ([]*Change, error) {
 	})
 	// Mount tmpfs over the original directory, hiding its contents.
 	changes = append(changes, &Change{
-		Action: Mount, Entry: mount.Entry{Name: "tmpfs", Dir: dir, Type: "tmpfs"},
+		Action: Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: dir, Type: "tmpfs"},
 	})
 	// Iterate over the items in the original directory (nothing is mounted _yet_).
 	entries, err := ioutilReadDir(dir)
@@ -348,7 +348,7 @@ func planWritableMimic(dir string) ([]*Change, error) {
 		return nil, err
 	}
 	for _, fi := range entries {
-		ch := &Change{Action: Mount, Entry: mount.Entry{
+		ch := &Change{Action: Mount, Entry: osutil.MountEntry{
 			Name:    filepath.Join(safeKeepingDir, fi.Name()),
 			Dir:     filepath.Join(dir, fi.Name()),
 			Options: []string{"bind"},
@@ -374,7 +374,7 @@ func planWritableMimic(dir string) ([]*Change, error) {
 	}
 	// Finally unbind the safe-keeping directory as we don't need it anymore.
 	changes = append(changes, &Change{
-		Action: Unmount, Entry: mount.Entry{Name: "none", Dir: safeKeepingDir},
+		Action: Unmount, Entry: osutil.MountEntry{Name: "none", Dir: safeKeepingDir},
 	})
 	return changes, nil
 }
@@ -453,7 +453,7 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 		// Store an undo change for the change we just performed.
 		undoChange := &Change{
 			Action: Mount,
-			Entry:  mount.Entry{Dir: change.Entry.Dir, Name: change.Entry.Name, Type: change.Entry.Type, Options: change.Entry.Options},
+			Entry:  osutil.MountEntry{Dir: change.Entry.Dir, Name: change.Entry.Name, Type: change.Entry.Type, Options: change.Entry.Options},
 		}
 		// Because of the use of a temporary bind mount (aka the safe-keeping
 		// directory) we cannot represent bind mounts fully (the temporary bind
