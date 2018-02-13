@@ -170,7 +170,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 
 	n := -1
 	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
-		n += 1
+		n++
 		switch n {
 		case 0:
 			c.Assert(chg, DeepEquals, &update.Change{
