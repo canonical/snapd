@@ -252,7 +252,6 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 		default:
 			panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
 		}
-		return nil, nil
 	})
 	defer restore()
 
