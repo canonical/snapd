@@ -609,7 +609,7 @@ func (s *servicesTestSuite) TestServiceAfterBefore(c *C) {
 
 }
 
-func (s *servicesTestSuite) TestStopServiceKeep(c *C) {
+func (s *servicesTestSuite) TestStopServiceEndure(c *C) {
 	var sysdLog [][]string
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
@@ -622,7 +622,7 @@ version: 1.0
 apps:
  survivor:
   command: bin/survivor
-  refresh-mode: keep
+  refresh-mode: endure
   daemon: simple
 `
 	info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})
@@ -670,6 +670,8 @@ func (s *servicesTestSuite) TestStopServiceSigs(c *C) {
 		{mode: "sighup-all", expectedSig: "HUP", expectedWho: "all"},
 		{mode: "sigusr1", expectedSig: "USR1", expectedWho: "main"},
 		{mode: "sigusr1-all", expectedSig: "USR1", expectedWho: "all"},
+		{mode: "sigusr2", expectedSig: "USR2", expectedWho: "main"},
+		{mode: "sigusr2-all", expectedSig: "USR2", expectedWho: "all"},
 	} {
 		surviveYaml := fmt.Sprintf(`name: survive-snap
 version: 1.0

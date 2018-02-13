@@ -1,4 +1,4 @@
-summary: "Check that refresh-mode: keep works"
+summary: "Check that refresh-modes works"
 
 kill-timeout: 5m
 
@@ -8,19 +8,19 @@ execute: |
     install_local test-snapd-service
 
     echo "We can see it running"
-    systemctl status snap.test-snapd-service.test-snapd-keep-service|MATCH "running"
+    systemctl status snap.test-snapd-service.test-snapd-endure-service|MATCH "running"
 
     echo "When it is re-installed"
     install_local test-snapd-service
 
-    refresh_modes="keep sigterm sigterm-all sighup sighup-all sigusr1 sigusr1-all"
+    refresh_modes="endure sigterm sigterm-all sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
     for s in $refresh_modes; do
         echo "We can still see it running"
         systemctl status snap.test-snapd-service.test-snapd-${s}-service|MATCH "running"
 
         echo "And it is not re-started"
         if journalctl -u snap.test-snapd-service.test-snapd-${s}-service | grep "stop ${s}"; then
-            echo "reinstall did stop a service that should keep"
+            echo "reinstall did stop a service that shouldn't"
             exit 1
         fi
 

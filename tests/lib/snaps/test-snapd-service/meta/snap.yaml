@@ -9,11 +9,11 @@ apps:
     test-snapd-other-service:
         command: bin/start-other
         daemon: simple
-    test-snapd-keep-service:
-        command: bin/start-refresh-mode keep
-        stop-command: bin/stop-refresh-mode keep
+    test-snapd-endure-service:
+        command: bin/start-refresh-mode endure
+        stop-command: bin/stop-refresh-mode endure
         daemon: simple
-        refresh-mode: keep
+        refresh-mode: endure
     test-snapd-sigterm-service:
         command: bin/start-refresh-mode sigterm
         stop-command: bin/stop-refresh-mode sigterm
@@ -44,3 +44,13 @@ apps:
         stop-command: bin/stop-refresh-mode sigusr1-all
         daemon: simple
         refresh-mode: sigusr1-all
+    test-snapd-sigusr2-service:
+        command: bin/start-refresh-mode sigusr2
+        stop-command: bin/stop-refresh-mode sigusr2
+        daemon: simple
+        refresh-mode: sigusr2
+    test-snapd-sigusr2-all-service:
+        command: bin/start-refresh-mode sigusr2-all
+        stop-command: bin/stop-refresh-mode sigusr2-all
+        daemon: simple
+        refresh-mode: sigusr2-all
