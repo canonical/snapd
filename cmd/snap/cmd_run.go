@@ -51,11 +51,14 @@ var (
 
 type cmdRun struct {
 	Command  string `long:"command" hidden:"yes"`
-	Hook     string `long:"hook" hidden:"yes"`
+	Hookname string `long:"hook" hidden:"yes"`
 	Revision string `short:"r" default:"unset" hidden:"yes"`
 	Shell    bool   `long:"shell" `
-	// FIXME: provide a way to pass options to strace
-	Strace bool `long:"strace"`
+	Strace   string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
+
+	// not a real option, used to check if cmdRun is initialized by
+	// the parser
+	ParserRan int `long:"parser-ran" default:"1" hidden:"yes"`
 }
 
 func init() {
@@ -65,11 +68,12 @@ func init() {
 		func() flags.Commander {
 			return &cmdRun{}
 		}, map[string]string{
-			"command": i18n.G("Alternative command to run"),
-			"hook":    i18n.G("Hook to run"),
-			"r":       i18n.G("Use a specific snap revision when running hook"),
-			"shell":   i18n.G("Run a shell instead of the command (useful for debugging)"),
-			"strace":  i18n.G("Run the command under strace (useful for debugging"),
+			"command":    i18n.G("Alternative command to run"),
+			"hook":       i18n.G("Hook to run"),
+			"r":          i18n.G("Use a specific snap revision when running hook"),
+			"shell":      i18n.G("Run a shell instead of the command (useful for debugging)"),
+			"strace":     i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here."),
+			"parser-ran": "",
 		}, nil)
 }
 
@@ -81,35 +85,27 @@ func (x *cmdRun) Execute(args []string) error {
 	args = args[1:]
 
 	// Catch some invalid parameter combinations, provide helpful errors
-	if x.Hook != "" && x.Command != "" {
+	if x.Hookname != "" && x.Command != "" {
 		return fmt.Errorf(i18n.G("cannot use --hook and --command together"))
 	}
-	if x.Revision != "unset" && x.Revision != "" && x.Hook == "" {
+	if x.Revision != "unset" && x.Revision != "" && x.Hookname == "" {
 		return fmt.Errorf(i18n.G("-r can only be used with --hook"))
 	}
-	if x.Hook != "" && len(args) > 0 {
+	if x.Hookname != "" && len(args) > 0 {
 		// TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
-		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.Hook, strings.Join(args, " "))
+		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.Hookname, strings.Join(args, " "))
 	}
 
 	// Now actually handle the dispatching
-	if x.Hook != "" {
-		return snapRunHook(snapApp, x.Revision, x.Hook)
-	}
-
-	// pass shell as a special command to snap-exec
-	switch {
-	case x.Shell:
-		x.Command = "shell"
-	case x.Strace:
-		x.Command = "strace"
+	if x.Hookname != "" {
+		return x.snapRunHook(snapApp)
 	}
 
 	if x.Command == "complete" {
 		snapApp, args = antialias(snapApp, args)
 	}
 
-	return snapRunApp(snapApp, x.Command, args)
+	return x.snapRunApp(snapApp, args)
 }
 
 // antialias changes snapApp and args if snapApp is actually an alias
@@ -253,7 +249,26 @@ func createUserDataDirs(info *snap.Info) error {
 	return createOrUpdateUserDataSymlink(info, usr)
 }
 
-func snapRunApp(snapApp, command string, args []string) error {
+func (x *cmdRun) useStrace() bool {
+	return x.ParserRan == 1 && x.Strace != "no-strace"
+}
+
+func (x *cmdRun) straceOpts() []string {
+	if x.Strace == "with-strace" {
+		return nil
+	}
+
+	var opts []string
+	// TODO: use shlex?
+	for _, opt := range strings.Split(x.Strace, " ") {
+		if strings.TrimSpace(opt) != "" {
+			opts = append(opts, opt)
+		}
+	}
+	return opts
+}
+
+func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 	snapName, appName := snap.SplitSnapApp(snapApp)
 	info, err := getSnapInfo(snapName, snap.R(0))
 	if err != nil {
@@ -265,11 +280,11 @@ func snapRunApp(snapApp, command string, args []string) error {
 		return fmt.Errorf(i18n.G("cannot find app %q in %q"), appName, snapName)
 	}
 
-	return runSnapConfine(info, app.SecurityTag(), snapApp, command, "", args)
+	return x.runSnapConfine(info, app.SecurityTag(), snapApp, "", args)
 }
 
-func snapRunHook(snapName, snapRevision, hookName string) error {
-	revision, err := snap.ParseRevision(snapRevision)
+func (x *cmdRun) snapRunHook(snapName string) error {
+	revision, err := snap.ParseRevision(x.Revision)
 	if err != nil {
 		return err
 	}
@@ -279,12 +294,12 @@ func snapRunHook(snapName, snapRevision, hookName string) error {
 		return err
 	}
 
-	hook := info.Hooks[hookName]
+	hook := info.Hooks[x.Hookname]
 	if hook == nil {
-		return fmt.Errorf(i18n.G("cannot find hook %q in %q"), hookName, snapName)
+		return fmt.Errorf(i18n.G("cannot find hook %q in %q"), x.Hookname, snapName)
 	}
 
-	return runSnapConfine(info, hook.SecurityTag(), snapName, "", hook.Name, nil)
+	return x.runSnapConfine(info, hook.SecurityTag(), snapName, hook.Name, nil)
 }
 
 var osReadlink = os.Readlink
@@ -467,12 +482,13 @@ func straceCmd() ([]string, error) {
 	}, nil
 }
 
-func runCmdUnderStrace(origCmd, env []string) error {
+func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 	// prepend strace magic
 	cmd, err := straceCmd()
 	if err != nil {
 		return err
 	}
+	cmd = append(cmd, x.straceOpts()...)
 	cmd = append(cmd, origCmd...)
 
 	// run with filter
@@ -490,9 +506,9 @@ func runCmdUnderStrace(origCmd, env []string) error {
 
 		r := bufio.NewReader(stderr)
 
-		// the first thing from strace if things work is
-		// "exeve" - show everything until we see this to
-		// not swallow real strace errors
+		// The first thing from strace if things work is
+		// "exeve(" - show everything until we see this to
+		// not swallow real strace errors.
 		for {
 			s, err := r.ReadString('\n')
 			if err != nil {
@@ -523,9 +539,11 @@ func runCmdUnderStrace(origCmd, env []string) error {
 				}
 				break
 			}
-			// ensure we catch the execve but *not* the
+			// Ensure we catch the execve but *not* the
 			// exec into
 			// /snap/core/current/usr/lib/snapd/snap-confine
+			// which is just `snap run` using the core version
+			// snap-confine.
 			if (strings.Contains(s, needle1) || strings.Contains(s, needle2)) && !strings.Contains(s, "usr/lib/snapd/snap-confine") {
 				fmt.Fprint(Stderr, s)
 				break
@@ -541,7 +559,7 @@ func runCmdUnderStrace(origCmd, env []string) error {
 	return err
 }
 
-func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
+func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook string, args []string) error {
 	snapConfine := filepath.Join(dirs.DistroLibExecDir, "snap-confine")
 	// if we re-exec, we must run the snap-confine from the core snap
 	// as well, if they get out of sync, havoc will happen
@@ -569,15 +587,7 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 		logger.Noticef("WARNING: cannot copy user Xauthority file: %s", err)
 	}
 
-	var cmd []string
-
-	var useStrace bool
-	if command == "strace" {
-		command = ""
-		useStrace = true
-	}
-	cmd = append(cmd, snapConfine)
-
+	cmd := []string{snapConfine}
 	if info.NeedsClassic() {
 		cmd = append(cmd, "--classic")
 	}
@@ -604,8 +614,11 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	}
 	cmd = append(cmd, snapExecPath)
 
-	if command != "" {
-		cmd = append(cmd, "--command="+command)
+	if x.Shell {
+		cmd = append(cmd, "--command=shell")
+	}
+	if x.Command != "" {
+		cmd = append(cmd, "--command="+x.Command)
 	}
 
 	if hook != "" {
@@ -622,8 +635,8 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	}
 	env := snapenv.ExecEnv(info, extraEnv)
 
-	if useStrace {
-		return runCmdUnderStrace(cmd, env)
+	if x.useStrace() {
+		return x.runCmdUnderStrace(cmd, env)
 	} else {
 		return syscallExec(cmd[0], cmd, env)
 	}
