@@ -120,12 +120,12 @@ func (s *specSuite) TestTagDevice(c *C) {
 kernel="voodoo", TAG+="snap_snap1_foo"`,
 		`# iface-2
 kernel="hoodoo", TAG+="snap_snap1_foo"`,
-		`TAG=="snap_snap1_foo", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_snap1_foo $devpath $major:$minor"`,
+		`TAG=="snap_snap1_foo", RUN+="/usr/lib/snapd/snappy-app-dev $env{ACTION} snap_snap1_foo $devpath $major:$minor"`,
 		`# iface-1
 kernel="voodoo", TAG+="snap_snap1_hook_configure"`,
 		`# iface-2
 kernel="hoodoo", TAG+="snap_snap1_hook_configure"`,
-		`TAG=="snap_snap1_hook_configure", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_snap1_hook_configure $devpath $major:$minor"`,
+		`TAG=="snap_snap1_hook_configure", RUN+="/usr/lib/snapd/snappy-app-dev $env{ACTION} snap_snap1_hook_configure $devpath $major:$minor"`,
 	})
 }
 

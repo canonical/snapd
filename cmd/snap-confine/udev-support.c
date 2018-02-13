@@ -63,7 +63,7 @@ _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
 		}
 		debug("running snappy-app-dev add %s %s %s", udev_s->tagname,
 		      path, buf);
-		execle("/lib/udev/snappy-app-dev", "/lib/udev/snappy-app-dev",
+		execle("/usr/lib/snapd/snappy-app-dev", "/usr/lib/snapd/snappy-app-dev",
 		       "add", udev_s->tagname, path, buf, NULL, env);
 		die("execl failed");
 	}
@@ -217,7 +217,7 @@ void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 	// https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
 	for (unsigned pty_major = 136; pty_major <= 143; pty_major++) {
 		// '/dev/pts/slaves' is only used for debugging and by
-		// /lib/udev/snappy-app-dev to determine if it is a block
+		// /usr/lib/snapd/snappy-app-dev to determine if it is a block
 		// device, so just use something to indicate what the
 		// addition is for
 		_run_snappy_app_dev_add_majmin(udev_s, "/dev/pts/slaves",

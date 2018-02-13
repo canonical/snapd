@@ -181,7 +181,7 @@ KERNEL=="mouse[0-9]*", TAG+="snap_wayland_app1"`)
 KERNEL=="ts[0-9]*", TAG+="snap_wayland_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# wayland
 KERNEL=="tty[0-9]*", TAG+="snap_wayland_app1"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_wayland_app1", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_wayland_app1 $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_wayland_app1", RUN+="/usr/lib/snapd/snappy-app-dev $env{ACTION} snap_wayland_app1 $devpath $major:$minor"`)
 
 	// on a classic system with wayland slot coming from the core snap.
 	restore = release.MockOnClassic(true)
