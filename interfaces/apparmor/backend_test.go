@@ -410,7 +410,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 	}
 }
 
-var coreYaml string = `name: core
+const coreYaml = `name: core
 version: 1
 `
 
