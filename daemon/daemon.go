@@ -96,6 +96,16 @@ const (
 
 var polkitCheckAuthorizationForPid = polkit.CheckAuthorizationForPid
 
+// canAccess checks the following properties:
+//
+// - if a user is logged in (via `snap login`) everything is allowed
+// - if the user is `root` everything is allowed
+// - POST/PUT/DELETE all require `snap login` or `root`
+//
+// Otherwise for GET requests the following parameters are honored:
+// - GuestOK: anyone can access GET
+// - UserOK: any uid on the local system can access GET
+// - SnapOK: a snap can access this via `snapctl`
 func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult {
 	if user != nil {
 		// Authenticated users do anything for now.
@@ -114,7 +124,10 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 	isSnap := (socket == dirs.SnapSocket)
 
 	// ensure that snaps can only access SnapOK things
-	if isSnap && !c.SnapOK {
+	if isSnap {
+		if c.SnapOK {
+			return accessOK
+		}
 		return accessUnauthorized
 	}
 

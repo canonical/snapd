@@ -46,6 +46,7 @@ var _ = Suite(&BroadcomAsicControlSuite{
 
 func (s *BroadcomAsicControlSuite) SetUpTest(c *C) {
 	const producerYaml = `name: core
+version: 0
 type: os
 slots:
   broadcom-asic-control:
@@ -55,6 +56,7 @@ slots:
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 
 	const consumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [broadcom-asic-control]

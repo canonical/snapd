@@ -43,12 +43,14 @@ var _ = Suite(&TimeControlInterfaceSuite{
 })
 
 const timectlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [time-control]
 `
 
 const timectlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   time-control:

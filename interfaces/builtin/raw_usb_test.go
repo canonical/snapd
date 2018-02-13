@@ -43,12 +43,14 @@ var _ = Suite(&RawUsbInterfaceSuite{
 })
 
 const rawusbConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [raw-usb]
 `
 
 const rawusbCoreYaml = `name: core
+version: 0
 type: os
 slots:
   raw-usb:

@@ -44,12 +44,14 @@ var _ = Suite(&PppInterfaceSuite{
 })
 
 const pppConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [ppp]
 `
 
 const pppCoreYaml = `name: core
+version: 0
 type: os
 slots:
   ppp:

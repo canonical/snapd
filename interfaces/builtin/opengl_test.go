@@ -43,12 +43,14 @@ var _ = Suite(&OpenglInterfaceSuite{
 })
 
 const openglConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [opengl]
 `
 
 const openglCoreYaml = `name: core
+version: 0
 type: os
 slots:
   opengl:

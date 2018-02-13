@@ -43,12 +43,14 @@ var _ = Suite(&HardwareRandomObserveInterfaceSuite{
 })
 
 const hardwareRandomObserveConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [hardware-random-observe]
 `
 
 const hardwareRandomObserveCoreYaml = `name: core
+version: 0
 type: os
 slots:
   hardware-random-observe:

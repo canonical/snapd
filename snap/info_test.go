@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -669,6 +670,7 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 }
 
 const coreSnapYaml = `name: core
+version: 0
 type: os
 plugs:
   network-bind:
@@ -772,6 +774,22 @@ apps:
 	app := info.Apps["app1"]
 	socket := app.Sockets["sock1"]
 	c.Check(socket.File(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.app1.sock1.socket")
+}
+
+func (s *infoSuite) TestTimerFile(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: pans
+apps:
+  app1:
+    daemon: true
+    timer: mon,10:00-12:00
+`))
+
+	c.Assert(err, IsNil)
+
+	app := info.Apps["app1"]
+	timerFile := app.Timer.File()
+	c.Check(timerFile, Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.app1.timer")
+	c.Check(strings.TrimSuffix(app.ServiceFile(), ".service")+".timer", Equals, timerFile)
 }
 
 func (s *infoSuite) TestLayoutParsing(c *C) {
