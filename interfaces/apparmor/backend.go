@@ -204,68 +204,29 @@ func snapConfineFromCoreProfile(coreInfo *snap.Info) (dir, glob string, content 
 // running snap-confine from the core snap.
 //
 // Additionally it will cleanup stale apparmor profiles it created.
-func setupSnapConfineReexec(snapInfo *snap.Info) error {
-	// cleanup old
-	apparmorProfilePathPattern := strings.Replace(filepath.Join(dirs.SnapMountDir, "/core/*/usr/lib/snapd/snap-confine"), "/", ".", -1)[1:]
-
-	glob, err := filepath.Glob(filepath.Join(dirs.SystemApparmorDir, apparmorProfilePathPattern))
+func setupSnapConfineReexec(coreInfo *snap.Info) error {
+	err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot create snap-confine policy directory: %s", err)
 	}
 
-	for _, path := range glob {
-		snapConfineInCore := "/" + strings.Replace(filepath.Base(path), ".", "/", -1)
-		if osutil.FileExists(snapConfineInCore) {
-			continue
-		}
-
-		// not using apparmor.UnloadProfile() because it uses a
-		// different cachedir
-		if output, err := exec.Command("apparmor_parser", "-R", filepath.Base(path)).CombinedOutput(); err != nil {
-			logger.Noticef("cannot unload apparmor profile %s: %v", filepath.Base(path), osutil.OutputErr(output, err))
-		}
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		if err := os.Remove(filepath.Join(dirs.SystemApparmorCacheDir, filepath.Base(path))); err != nil && !os.IsNotExist(err) {
-			return err
-		}
+	dir, glob, content, err := snapConfineFromCoreProfile(coreInfo)
+	if err != nil {
+		return fmt.Errorf("cannot compute snap-confine profile: %s", err)
 	}
 
-	// add new confinement file
-	coreRoot := snapInfo.MountDir()
-	snapConfineInCore := filepath.Join(coreRoot, "usr/lib/snapd/snap-confine")
-	apparmorProfilePath := filepath.Join(dirs.SystemApparmorDir, strings.Replace(snapConfineInCore[1:], "/", ".", -1))
-
-	// we must test the ".real" suffix first, this is a workaround for
-	// https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=858004
-	apparmorProfile, err := ioutil.ReadFile(filepath.Join(coreRoot, "/etc/apparmor.d/usr.lib.snapd.snap-confine.real"))
-	if os.IsNotExist(err) {
-		apparmorProfile, err = ioutil.ReadFile(filepath.Join(coreRoot, "/etc/apparmor.d/usr.lib.snapd.snap-confine"))
-		if err != nil {
-			return err
-		}
+	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
+	errReload := reloadProfiles(changed, dir, dirs.SystemApparmorCacheDir)
+	errUnload := unloadProfiles(removed, dirs.SystemApparmorCacheDir)
+	if errEnsure != nil {
+		return fmt.Errorf("cannot synchronize snap-confine apparmor profile: %s", errEnsure)
 	}
-	apparmorProfileForCore := strings.Replace(string(apparmorProfile), "/usr/lib/snapd/snap-confine", snapConfineInCore, -1)
-
-	// /etc/apparmor.d is read/write OnClassic, so write out the
-	// new core's profile there
-	if err := osutil.AtomicWriteFile(apparmorProfilePath, []byte(apparmorProfileForCore), 0644, 0); err != nil {
-		return err
+	if errReload != nil {
+		return fmt.Errorf("cannot reload snap-confine apparmor profile: %s", errReload)
 	}
-
-	// create for policy extensions for snap-confine. This is required for the
-	// profiles to compile but distribution package may not yet contain this
-	// directory.
-	if err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755); err != nil {
-		return err
+	if errUnload != nil {
+		return fmt.Errorf("cannot unload snap-confine apparmor profile: %s", errReload)
 	}
-
-	// not using apparmor.LoadProfile() because it uses a different cachedir
-	if output, err := exec.Command("apparmor_parser", "--replace", "--write-cache", apparmorProfilePath, "--cache-loc", dirs.SystemApparmorCacheDir).CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot replace snap-confine apparmor profile: %v", osutil.OutputErr(output, err))
-	}
-
 	return nil
 }
 
