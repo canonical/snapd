@@ -43,12 +43,14 @@ var _ = Suite(&HardwareRandomControlInterfaceSuite{
 })
 
 const hardwareRandomControlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [hardware-random-control]
 `
 
 const hardwareRandomControlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   hardware-random-control:
@@ -91,7 +93,7 @@ func (s *HardwareRandomControlInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# hardware-random-control
 KERNEL=="hwrng", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *HardwareRandomControlInterfaceSuite) TestStaticInfo(c *C) {

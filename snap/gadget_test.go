@@ -122,6 +122,7 @@ func (s *gadgetYamlTestSuite) TearDownTest(c *C) {
 func (s *gadgetYamlTestSuite) TestReadGadgetNotAGadget(c *C) {
 	info := snaptest.MockInfo(c, `
 name: other
+version: 0
 `, &snap.SideInfo{Revision: snap.R(42)})
 	_, err := snap.ReadGadgetInfo(info, false)
 	c.Assert(err, ErrorMatches, "cannot read gadget snap details: not a gadget snap")

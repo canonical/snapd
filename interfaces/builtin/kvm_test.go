@@ -43,12 +43,14 @@ var _ = Suite(&kvmInterfaceSuite{
 })
 
 const kvmConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [kvm]
 `
 
 const kvmCoreYaml = `name: core
+version: 0
 type: os
 slots:
   kvm:
@@ -96,7 +98,7 @@ func (s *kvmInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], Equals, `# kvm
 KERNEL=="kvm", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *kvmInterfaceSuite) TestStaticInfo(c *C) {

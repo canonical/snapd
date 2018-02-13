@@ -30,14 +30,24 @@ import (
 )
 
 // SetupSnap does prepare and mount the snap for further processing.
-func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter progress.Meter) error {
+func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter progress.Meter) (err error) {
 	// This assumes that the snap was already verified or --dangerous was used.
 
-	s, snapf, err := OpenSnapFile(snapFilePath, sideInfo)
-	if err != nil {
-		return err
+	s, snapf, oErr := OpenSnapFile(snapFilePath, sideInfo)
+	if oErr != nil {
+		return oErr
 	}
 	instdir := s.MountDir()
+
+	defer func() {
+		if err == nil {
+			return
+		}
+		// XXX: this will also remove the snap from /var/lib/snapd/snaps
+		if e := b.RemoveSnapFiles(s, s.Type, meter); e != nil {
+			meter.Notify(fmt.Sprintf("while trying to clean up due to previous failure: %v", e))
+		}
+	}()
 
 	if err := os.MkdirAll(instdir, 0755); err != nil {
 		return err

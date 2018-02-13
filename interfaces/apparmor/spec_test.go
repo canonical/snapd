@@ -139,6 +139,7 @@ func (s *specSuite) TestAddUpdateNS(c *C) {
 
 const snapWithLayout = `
 name: vanguard
+version: 0
 apps:
   vanguard:
     command: vanguard
@@ -150,6 +151,8 @@ layout:
     mode: 1777
   /mylink:
     symlink: $SNAP/link/target
+  /etc/foo.conf:
+    bind-file: $SNAP/foo.conf
 `
 
 func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
@@ -157,7 +160,8 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 	s.spec.AddSnapLayout(snapInfo)
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.vanguard.vanguard": {
-			"# Layout path: /mylink\n/mylink{,/**} mrwklix,",
+			"# Layout path: /etc/foo.conf\n/etc/foo.conf mrwklix,",
+			"# Layout path: /mylink\n# (no extra permissions required for symlink)",
 			"# Layout path: /mytmp\n/mytmp{,/**} mrwklix,",
 			"# Layout path: /usr\n/usr{,/**} mrwklix,",
 		},

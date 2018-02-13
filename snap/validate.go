@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/spdx"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 // Regular expressions describing correct identifiers.
@@ -45,6 +46,20 @@ func ValidateName(name string) error {
 	valid := validSnapName.MatchString(name)
 	if !valid {
 		return fmt.Errorf("invalid snap name: %q", name)
+	}
+	return nil
+}
+
+// NB keep this in sync with snapcraft and the review tools :-)
+var isValidVersion = regexp.MustCompile("^[a-zA-Z0-9](?:[a-zA-Z0-9:.+~_-]{0,30}[a-zA-Z0-9+~])?$").MatchString
+
+// ValidateVersion checks if a string is a valid snap version.
+func ValidateVersion(version string) error {
+	if len(version) == 0 {
+		return fmt.Errorf("snap version cannot be empty")
+	}
+	if !isValidVersion(version) {
+		return fmt.Errorf("invalid snap version: %q", version)
 	}
 	return nil
 }
@@ -175,28 +190,28 @@ func Validate(info *Info) error {
 	if name == "" {
 		return fmt.Errorf("snap name cannot be empty")
 	}
-	err := ValidateName(name)
-	if err != nil {
+
+	if err := ValidateName(name); err != nil {
 		return err
 	}
 
-	err = info.Epoch.Validate()
-	if err != nil {
+	if err := ValidateVersion(info.Version); err != nil {
 		return err
 	}
 
-	license := info.License
-	if license != "" {
-		err := ValidateLicense(license)
-		if err != nil {
+	if err := info.Epoch.Validate(); err != nil {
+		return err
+	}
+
+	if license := info.License; license != "" {
+		if err := ValidateLicense(license); err != nil {
 			return err
 		}
 	}
 
 	// validate app entries
 	for _, app := range info.Apps {
-		err := ValidateApp(app)
-		if err != nil {
+		if err := ValidateApp(app); err != nil {
 			return err
 		}
 	}
@@ -215,8 +230,7 @@ func Validate(info *Info) error {
 
 	// validate hook entries
 	for _, hook := range info.Hooks {
-		err := ValidateHook(hook)
-		if err != nil {
+		if err := ValidateHook(hook); err != nil {
 			return err
 		}
 	}
@@ -231,18 +245,46 @@ func Validate(info *Info) error {
 
 // ValidateLayoutAll validates the consistency of all the layout elements in a snap.
 func ValidateLayoutAll(info *Info) error {
-	blacklist := make([]string, 0, len(info.Layout))
 	paths := make([]string, 0, len(info.Layout))
 	for _, layout := range info.Layout {
 		paths = append(paths, layout.Path)
 	}
 	sort.Strings(paths)
+
+	// Validate that each source path is used consistently as a file or as a directory.
+	sourceKindMap := make(map[string]string)
 	for _, path := range paths {
 		layout := info.Layout[path]
-		if err := ValidateLayout(layout, blacklist); err != nil {
+		if layout.Bind != "" {
+			// Layout refers to a directory.
+			sourcePath := info.ExpandSnapVariables(layout.Bind)
+			if kind, ok := sourceKindMap[sourcePath]; ok {
+				if kind != "dir" {
+					return fmt.Errorf("layout %q refers to directory %q but another layout treats it as file", layout.Path, layout.Bind)
+				}
+			}
+			sourceKindMap[sourcePath] = "dir"
+		}
+		if layout.BindFile != "" {
+			// Layout refers to a file.
+			sourcePath := info.ExpandSnapVariables(layout.BindFile)
+			if kind, ok := sourceKindMap[sourcePath]; ok {
+				if kind != "file" {
+					return fmt.Errorf("layout %q refers to file %q but another layout treats it as a directory", layout.Path, layout.BindFile)
+				}
+			}
+			sourceKindMap[sourcePath] = "file"
+		}
+	}
+
+	// Validate each layout item and collect resulting constraints.
+	constraints := make([]LayoutConstraint, 0, len(info.Layout))
+	for _, path := range paths {
+		layout := info.Layout[path]
+		if err := ValidateLayout(layout, constraints); err != nil {
 			return err
 		}
-		blacklist = append(blacklist, info.ExpandSnapVariables(layout.Path))
+		constraints = append(constraints, layout.constraint())
 	}
 	return nil
 }
@@ -358,6 +400,22 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 	return nil
 }
 
+func validateAppTimer(app *AppInfo) error {
+	if app.Timer == nil {
+		return nil
+	}
+
+	if !app.IsService() {
+		return fmt.Errorf("cannot use timer with application %q as it's not a service", app.Name)
+	}
+
+	if _, err := timeutil.ParseSchedule(app.Timer.Timer); err != nil {
+		return fmt.Errorf("application %q timer has invalid format: %v", app.Name, err)
+	}
+
+	return nil
+}
+
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused.
@@ -416,7 +474,12 @@ func ValidateApp(app *AppInfo) error {
 	if err := validateAppOrderNames(app, app.Before); err != nil {
 		return err
 	}
-	return validateAppOrderNames(app, app.After)
+
+	if err := validateAppOrderNames(app, app.After); err != nil {
+		return err
+	}
+
+	return validateAppTimer(app)
 }
 
 // ValidatePathVariables ensures that given path contains only $SNAP, $SNAP_DATA or $SNAP_COMMON.
@@ -446,8 +509,47 @@ func isAbsAndClean(path string) bool {
 	return (filepath.IsAbs(path) || strings.HasPrefix(path, "$")) && filepath.Clean(path) == path
 }
 
+// LayoutConstraint abstracts validation of conflicting layout elements.
+type LayoutConstraint interface {
+	IsOffLimits(path string) bool
+}
+
+// mountedTree represents a mounted file-system tree or a bind-mounted directory.
+type mountedTree string
+
+// IsOffLimits returns true if the mount point is (perhaps non-proper) prefix of a given path.
+func (mountPoint mountedTree) IsOffLimits(path string) bool {
+	return strings.HasPrefix(path, string(mountPoint)+"/") || path == string(mountPoint)
+}
+
+// mountedFile represents a bind-mounted file.
+type mountedFile string
+
+// IsOffLimits returns true if the mount point is (perhaps non-proper) prefix of a given path.
+func (mountPoint mountedFile) IsOffLimits(path string) bool {
+	return strings.HasPrefix(path, string(mountPoint)+"/") || path == string(mountPoint)
+}
+
+// symlinkFile represents a layout using symbolic link.
+type symlinkFile string
+
+// IsOffLimits returns true for mounted files  if a path is identical to the path of the mount point.
+func (mountPoint symlinkFile) IsOffLimits(path string) bool {
+	return strings.HasPrefix(path, string(mountPoint)+"/") || path == string(mountPoint)
+}
+
+func (layout *Layout) constraint() LayoutConstraint {
+	path := layout.Snap.ExpandSnapVariables(layout.Path)
+	if layout.Symlink != "" {
+		return symlinkFile(path)
+	} else if layout.BindFile != "" {
+		return mountedFile(path)
+	}
+	return mountedTree(path)
+}
+
 // ValidateLayout ensures that the given layout contains only valid subset of constructs.
-func ValidateLayout(layout *Layout, blacklist []string) error {
+func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 	si := layout.Snap
 	// Rules for validating layouts:
 	//
@@ -468,14 +570,25 @@ func ValidateLayout(layout *Layout, blacklist []string) error {
 	if !isAbsAndClean(mountPoint) {
 		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
 	}
-	for i := range blacklist {
-		if strings.HasPrefix(mountPoint, blacklist[i]) {
-			return fmt.Errorf("layout %q underneath prior layout item %q", layout.Path, blacklist[i])
+
+	for _, path := range []string{"/proc", "/sys", "/dev", "/run", "/boot", "/lost+found", "/media"} {
+		// We use the mountedTree constraint as this has the right semantics.
+		if mountedTree(path).IsOffLimits(mountPoint) {
+			return fmt.Errorf("layout %q in an off-limits area", layout.Path)
+		}
+	}
+
+	for _, constraint := range constraints {
+		if constraint.IsOffLimits(mountPoint) {
+			return fmt.Errorf("layout %q underneath prior layout item %q", layout.Path, constraint)
 		}
 	}
 
 	var nused int
 	if layout.Bind != "" {
+		nused++
+	}
+	if layout.BindFile != "" {
 		nused++
 	}
 	if layout.Type != "" {
@@ -488,8 +601,8 @@ func ValidateLayout(layout *Layout, blacklist []string) error {
 		return fmt.Errorf("layout %q must define a bind mount, a filesystem mount or a symlink", layout.Path)
 	}
 
-	if layout.Bind != "" {
-		mountSource := layout.Bind
+	if layout.Bind != "" || layout.BindFile != "" {
+		mountSource := layout.Bind + layout.BindFile
 		if err := ValidatePathVariables(mountSource); err != nil {
 			return fmt.Errorf("layout %q uses invalid bind mount source %q: %s", layout.Path, mountSource, err)
 		}

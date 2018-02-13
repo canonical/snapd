@@ -78,6 +78,7 @@ func (s *IioInterfaceSuite) SetUpTest(c *C) {
 	// Mock for OS Snap
 	osSnapInfo := snaptest.MockInfo(c, `
 name: ubuntu-core
+version: 0
 type: os
 slots:
   test-port-1:
@@ -89,6 +90,7 @@ slots:
 	// Mock for Gadget Snap
 	gadgetSnapInfo := snaptest.MockInfo(c, `
 name: some-device
+version: 0
 type: gadget
 slots:
   test-udev-1:
@@ -154,6 +156,7 @@ slots:
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
+version: 0
 plugs:
   plug-for-port-1:
     interface: iio
@@ -187,7 +190,7 @@ func (s *IioInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# iio
 KERNEL=="iio:device1", TAG+="snap_client-snap_app-accessing-1-port"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_client-snap_app-accessing-1-port", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_client-snap_app-accessing-1-port $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_client-snap_app-accessing-1-port", RUN+="/usr/lib/snapd/snappy-app-dev $env{ACTION} snap_client-snap_app-accessing-1-port $devpath $major:$minor"`)
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {

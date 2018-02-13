@@ -139,6 +139,15 @@ ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
 endif
 
+	# ensure snap-seccomp is build with a static libseccomp on Ubuntu
+ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
+	sed -i "s|#cgo LDFLAGS:|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-seccomp)
+	# ensure that libseccomp is not dynamically linked
+	ldd _build/bin/snap-seccomp
+	test "$$(ldd _build/bin/snap-seccomp | grep libseccomp)" = ""
+endif
+
 	# Build C bits, sadly manually
 	cd cmd && ( autoreconf -i -f )
 	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))

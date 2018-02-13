@@ -43,12 +43,14 @@ var _ = Suite(&OpticalDriveInterfaceSuite{
 })
 
 const opticalDriveConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [optical-drive]
 `
 
 const opticalDriveCoreYaml = `name: core
+version: 0
 type: os
 slots:
   optical-drive:
@@ -91,7 +93,7 @@ func (s *OpticalDriveInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 3)
 	c.Assert(spec.Snippets(), testutil.Contains, `# optical-drive
 KERNEL=="sr[0-9]*", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *OpticalDriveInterfaceSuite) TestStaticInfo(c *C) {

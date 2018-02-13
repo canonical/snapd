@@ -43,12 +43,14 @@ var _ = Suite(&JoystickInterfaceSuite{
 })
 
 const joystickConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [joystick]
 `
 
 const joystickCoreYaml = `name: core
+version: 0
 type: os
 slots:
   joystick:
@@ -91,7 +93,7 @@ func (s *JoystickInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# joystick
 KERNEL=="js[0-9]*", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *JoystickInterfaceSuite) TestStaticInfo(c *C) {

@@ -1608,6 +1608,8 @@ layout:
     bind: $SNAP/usr/share/foo
   /usr/share/bar:
     symlink: $SNAP/usr/share/bar
+  /etc/froz:
+    bind-file: $SNAP/etc/froz
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
@@ -1627,4 +1629,27 @@ layout:
 		Group:   "root",
 		Mode:    0755,
 	})
+	c.Assert(info.Layout["/etc/froz"], DeepEquals, &snap.Layout{
+		Snap:     info,
+		Path:     "/etc/froz",
+		BindFile: "$SNAP/etc/froz",
+		User:     "root",
+		Group:    "root",
+		Mode:     0755,
+	})
+}
+
+func (s *YamlSuite) TestSnapYamlAppTimer(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   daemon: oneshot
+   timer: mon,10:00-12:00
+
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	app := info.Apps["foo"]
+	c.Check(app.Timer, DeepEquals, &snap.TimerInfo{App: app, Timer: "mon,10:00-12:00"})
 }

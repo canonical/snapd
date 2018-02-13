@@ -42,12 +42,14 @@ var _ = Suite(&UhidInterfaceSuite{
 })
 
 const uhidConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [uhid]
 `
 
 const uhidCoreYaml = `name: core
+version: 0
 type: os
 slots:
   uhid:
