@@ -5,6 +5,9 @@ prepare: |
     install_local basic-run
     install_local test-snapd-tools
 
+restore: |
+    rm -f stdout stderr
+    
 debug:
     cat stderr
 
@@ -34,3 +37,15 @@ execute: |
        cat stderr"
        exit 1
     fi
+
+    echo "Test snap run --strace with options works"
+    snap run --strace="-tt" test-snapd-tools.echo "hello-world" >stdout 2>stderr
+    MATCH hello-world < stdout
+    MATCH '[0-9:.]+ write\(1, "hello-world\\n"' < stderr
+    
+    echo "Test snap --strace invalid works"
+    if snap run --strace="invalid" test-snapd-tools.echo hello 2>stderr ; then
+        echo "snap run with an invalid strace option should fail but it did not"
+        exit 1
+    fi
+    MATCH "Can't stat 'invalid': No such file or directory" < stderr
