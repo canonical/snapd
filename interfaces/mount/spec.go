@@ -97,6 +97,9 @@ func mountEntryFromLayout(layout *snap.Layout) osutil.MountEntry {
 	if layout.Mode != 0755 {
 		entry.Options = append(entry.Options, osutil.XSnapdMode(uint32(layout.Mode)))
 	}
+
+	// Indicate that this is a layout mount entry.
+	entry.Options = append(entry.Options, osutil.XSnapdOriginLayout())
 	return entry
 }
 
