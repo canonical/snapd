@@ -38,6 +38,9 @@ disable_refreshes() {
 
     echo "Ensure jq is gone"
     snap remove jq
+
+    echo "Disable refresh timer"
+    systemctl stop snapd.refresh.timer
 }
 
 setup_systemd_snapd_overrides() {
