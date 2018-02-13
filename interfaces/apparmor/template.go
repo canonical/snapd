@@ -489,6 +489,9 @@ var classicJailmodeSnippet = `
   # Read only access to the core snap to load libc from.
   # This is related to LP: #1666897
   @{INSTALL_DIR}/core/*/{,usr/}lib/@{multiarch}/{,**/}lib*.so* m,
+
+  # For snappy reexec on 4.8+ kernels
+  @{INSTALL_DIR}/core/*/usr/lib/snapd/snap-exec m,
 `
 
 // nfsSnippet contains extra permissions necessary for snaps and snap-confine
