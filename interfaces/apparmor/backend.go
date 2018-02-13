@@ -410,6 +410,7 @@ func unloadProfiles(profiles []string) error {
 	return nil
 }
 
+// NewSpecification returns a new, empty apparmor specification.
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }
