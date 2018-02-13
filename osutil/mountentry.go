@@ -86,10 +86,12 @@ var unescape = strings.NewReplacer(
 	`\134`, "\\",
 ).Replace
 
+// Escape returns the given path with space, tab, newline and forward slash escaped.
 func Escape(path string) string {
 	return escape(path)
 }
 
+// Unescape returns the given path with space, tab, newline and forward slash unescaped.
 func Unescape(path string) string {
 	return unescape(path)
 }
@@ -155,9 +157,9 @@ func ParseMountEntry(s string) (MountEntry, error) {
 	return e, nil
 }
 
-// OptsToCommonFlags converts mount options strings to a mount flag, returning unparsed flags.
-// The unparsed flags will not contain any snapd-specific mount option, those
-// starting with the string "x-snapd."
+// MountOptsToCommonFlags converts mount options strings to a mount flag,
+// returning unparsed flags. The unparsed flags will not contain any snapd-
+// specific mount option, those starting with the string "x-snapd."
 func MountOptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 	for _, opt := range opts {
 		switch opt {
@@ -216,7 +218,7 @@ func MountOptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 	return flags, unparsed
 }
 
-// OptsToFlags converts mount options strings to a mount flag.
+// MountOptsToFlags converts mount options strings to a mount flag.
 func MountOptsToFlags(opts []string) (flags int, err error) {
 	flags, unparsed := MountOptsToCommonFlags(opts)
 	for _, opt := range unparsed {
