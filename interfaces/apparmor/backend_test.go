@@ -414,6 +414,50 @@ const coreYaml = `name: core
 version: 1
 `
 
+func (s *backendSuite) TestSnapConfineProfile(c *C) {
+	// Let's say we're working with the core snap at revision 111.
+	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
+
+	// The apparmor profile would normally be here. Let's write one there.
+	vanillaProfilePath := filepath.Join(coreInfo.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
+	vanillaProfileText := []byte(`#include <tunables/global>
+/usr/lib/snapd/snap-confine (attach_disconnected) {
+    # We run privileged, so be fanatical about what we include and don't use
+    # any abstractions
+    /etc/ld.so.cache r,
+}
+`)
+	//c.Assert(os.MkdirAll(dirs.SystemApparmorDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(vanillaProfilePath), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(vanillaProfilePath, vanillaProfileText, 0644), IsNil)
+
+	// We expect to see the same profile, just anchored at a different directory.
+	expectedProfileDir := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d")
+	expectedProfileName := strings.Replace(filepath.Join(coreInfo.MountDir(), "usr/lib/snapd/snap-confine")[1:], "/", ".", -1)
+	expectedProfileGlob := strings.Replace(expectedProfileName, coreInfo.Revision.String(), "*", -1)
+	expectedProfileText := fmt.Sprintf(`#include <tunables/global>
+%s/usr/lib/snapd/snap-confine (attach_disconnected) {
+    # We run privileged, so be fanatical about what we include and don't use
+    # any abstractions
+    /etc/ld.so.cache r,
+}
+`, coreInfo.MountDir())
+
+	c.Assert(expectedProfileName, testutil.Contains, coreInfo.Revision.String())
+
+	// Compute the profile and see if it matches.
+	dir, glob, content, err := apparmor.SnapConfineFromCoreProfile(coreInfo)
+	c.Assert(err, IsNil)
+	c.Assert(dir, Equals, expectedProfileDir)
+	c.Assert(glob, Equals, expectedProfileGlob)
+	c.Assert(content, DeepEquals, map[string]*osutil.FileState{
+		expectedProfileName: {
+			Content: []byte(expectedProfileText),
+			Mode:    0644,
+		},
+	})
+}
+
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	restorer := release.MockOnClassic(true)
 	defer restorer()
