@@ -66,6 +66,13 @@ func ValidateVersion(version string) error {
 			return fmt.Errorf("invalid snap version: cannot be empty")
 		}
 		if !strutil.IsPrintableASCII(version) {
+			// note that while this way of quoting the version can produce ugly
+			// output in some cases (e.g. if you're trying to set a version to
+			// "hello😁", seeing “invalid version "hello😁"” could be clearer than
+			// “invalid snap version "hello\U0001f601"”), in a lot of more
+			// interesting cases you _need_ to have the thing that's not ASCII
+			// pointed out: homoglyphs and near-homoglyphs are too hard to spot
+			// otherwise. Take for example a version of "аерс". Or "v1.0‑x".
 			return fmt.Errorf("invalid snap version %s: must be printable, non-whitespace ASCII",
 				strconv.QuoteToASCII(version))
 		}
