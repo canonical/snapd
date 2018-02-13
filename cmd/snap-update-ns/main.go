@@ -162,6 +162,9 @@ func computeAndSaveChanges(snapName string) error {
 			}
 		}
 		if err != nil {
+			if change.Entry.XSnapdOrigin() == "layout" {
+				return err
+			}
 			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			continue
 		}
