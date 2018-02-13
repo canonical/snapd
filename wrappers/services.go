@@ -224,10 +224,11 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
-		// Skip stop on refresh when refresh mode is "keep"
+		// Skip stop on refresh when refresh mode is set to something
+		// other than "restart" (or "" which is the same)
 		if reason == snap.StopReasonRefresh {
 			switch app.RefreshMode {
-			case "keep":
+			case "endure":
 				// skip this service
 				continue
 			case "sigterm":
@@ -247,6 +248,12 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 				continue
 			case "sigusr1-all":
 				sysd.Kill(app.ServiceName(), "USR1", "all")
+				continue
+			case "sigusr2":
+				sysd.Kill(app.ServiceName(), "USR2", "main")
+				continue
+			case "sigusr2-all":
+				sysd.Kill(app.ServiceName(), "USR2", "all")
 				continue
 			case "", "restart":
 				// do nothing here, the default below to stop

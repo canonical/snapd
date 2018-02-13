@@ -480,7 +480,7 @@ func ValidateApp(app *AppInfo) error {
 
 	// validate refresh-mode
 	switch app.RefreshMode {
-	case "", "keep", "restart", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all":
+	case "", "endure", "restart", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
 		// valid
 	default:
 		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.RefreshMode)

@@ -395,7 +395,7 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 	}{
 		// good
 		{"", true},
-		{"keep", true},
+		{"endure", true},
 		{"restart", true},
 		{"sigterm", true},
 		{"sigterm-all", true},
@@ -403,6 +403,8 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 		{"sighup-all", true},
 		{"sigusr1", true},
 		{"sigusr1-all", true},
+		{"sigusr2", true},
+		{"sigusr2-all", true},
 		// bad
 		{"invalid-thing", false},
 	} {
@@ -414,7 +416,7 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 	}
 
 	// non-services cannot have a refresh-mode
-	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", RefreshMode: "keep"})
+	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", RefreshMode: "endure"})
 	c.Check(err, ErrorMatches, `"refresh-mode" cannot be used for "foo", only for services`)
 }
 
