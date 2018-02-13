@@ -127,3 +127,22 @@ func (ts *strutilSuite) TestListContains(c *check.C) {
 		c.Check(strutil.SortedListContains(xs, "bar"), check.Equals, true)
 	}
 }
+
+func (ts *strutilSuite) TestIsPrintableASCII(c *check.C) {
+	for _, s := range []string{
+		"",                                   // null case (-> call runes in here satisfy the condition)
+		"0123456789",                         // digits
+		"abcdefghijklmnopqrstuvwxyz",         // lowercase
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ",         // uppercase
+		"!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", // punctuation
+	} {
+		c.Check(strutil.IsPrintableASCII(s), check.Equals, true, check.Commentf(s))
+	}
+
+	for _, s := range []string{
+		" \t\n\r\x0b\x0c", // whitespace
+		"áéíóú",           // non-ascii
+	} {
+		c.Check(strutil.IsPrintableASCII(s), check.Equals, false, check.Commentf(s))
+	}
+}

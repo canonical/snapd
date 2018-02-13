@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/spdx"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -53,13 +54,53 @@ func ValidateName(name string) error {
 // NB keep this in sync with snapcraft and the review tools :-)
 var isValidVersion = regexp.MustCompile("^[a-zA-Z0-9](?:[a-zA-Z0-9:.+~_-]{0,30}[a-zA-Z0-9+~])?$").MatchString
 
+var isInvalidFirstVersionChar = regexp.MustCompile("^[^a-zA-Z0-9]").MatchString
+var isInvalidLastVersionChar = regexp.MustCompile("[^a-zA-Z0-9+~]$").MatchString
+var invalidMiddleVersionChars = regexp.MustCompile("[^a-zA-Z0-9:.+~_-]+").FindAllString
+
 // ValidateVersion checks if a string is a valid snap version.
 func ValidateVersion(version string) error {
-	if len(version) == 0 {
-		return fmt.Errorf("snap version cannot be empty")
-	}
 	if !isValidVersion(version) {
-		return fmt.Errorf("invalid snap version: %q", version)
+		// maybe it was too short?
+		if len(version) == 0 {
+			return fmt.Errorf("invalid snap version: cannot be empty")
+		}
+		if !strutil.IsPrintableASCII(version) {
+			return fmt.Errorf("invalid snap version %s: must be printable, non-whitespace ASCII",
+				strconv.QuoteToASCII(version))
+		}
+		// now we know it's a non-empty ASCII string, we can get serious
+		var reasons []string
+		// ... too long?
+		if len(version) > 32 {
+			reasons = append(reasons, fmt.Sprintf("cannot be longer than 32 characters (got: %d)", len(version)))
+		}
+		// started with a symbol?
+		if isInvalidFirstVersionChar(version) {
+			// note that we can only say version[0] because we know it's ASCII :-)
+			reasons = append(reasons, fmt.Sprintf("must start with an ASCII alphanumeric (and not %q)", version[0]))
+		}
+		if len(version) > 1 {
+			if isInvalidLastVersionChar(version) {
+				tpl := "must end with an ASCII alphanumeric or one of '+' or '~' (and not %q)"
+				reasons = append(reasons, fmt.Sprintf(tpl, version[len(version)-1]))
+			}
+			if len(version) > 2 {
+				if all := invalidMiddleVersionChars(version[1:len(version)-1], -1); len(all) > 0 {
+					reasons = append(reasons, fmt.Sprintf("contains invalid characters: %s", strutil.Quoted(all)))
+				}
+			}
+		}
+		switch len(reasons) {
+		case 0:
+			// huh
+			return fmt.Errorf("invalid snap version %q", version)
+		case 1:
+			return fmt.Errorf("invalid snap version %q: %s", version, reasons[0])
+		default:
+			reasons, last := reasons[:len(reasons)-1], reasons[len(reasons)-1]
+			return fmt.Errorf("invalid snap version %q: %s, and %s", version, strings.Join(reasons, ", "), last)
+		}
 	}
 	return nil
 }

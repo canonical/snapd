@@ -127,3 +127,14 @@ func SortedListContains(list []string, str string) bool {
 	}
 	return list[i] == str
 }
+
+// IsPrintableASCII returns whether all characters in the given string are in the
+// printable (non-whitespace) ASCII range (that's everything 0x21-0x7e inclusive).
+func IsPrintableASCII(str string) bool {
+	for _, r := range str {
+		if r < 0x21 || r > 0x7e {
+			return false
+		}
+	}
+	return true
+}
