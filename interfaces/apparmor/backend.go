@@ -38,6 +38,7 @@
 package apparmor
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -163,6 +164,39 @@ func (b *Backend) Initialize() error {
 		return fmt.Errorf("cannot reload snap-confine apparmor profile: %v", osutil.OutputErr(output, err))
 	}
 	return nil
+}
+
+// snapConfineFromCoreProfile returns the apparmor profile for snap-confine in the given core snap.
+func snapConfineFromCoreProfile(coreInfo *snap.Info) (dir, glob string, content map[string]*osutil.FileState, err error) {
+	// Find the vanilla apparmor profile for snap-confine as present in the given core snap.
+
+	// We must test the ".real" suffix first, this is a workaround for
+	// https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=858004
+	vanillaProfilePath := filepath.Join(coreInfo.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
+	vanillaProfileText, err := ioutil.ReadFile(vanillaProfilePath)
+	if os.IsNotExist(err) {
+		vanillaProfilePath = filepath.Join(coreInfo.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine")
+		vanillaProfileText, err = ioutil.ReadFile(vanillaProfilePath)
+	}
+	if err != nil {
+		return "", "", nil, fmt.Errorf("cannot open apparmor profile for vanilla snap-confine: %s", err)
+	}
+
+	// Replace the path to vanilla snap-confine with the path to the mounted snap-confine from core.
+	snapConfineInCore := filepath.Join(coreInfo.MountDir(), "usr/lib/snapd/snap-confine")
+	patchedProfileText := bytes.Replace(
+		vanillaProfileText, []byte("/usr/lib/snapd/snap-confine"), []byte(snapConfineInCore), -1)
+	patchedProfileName := strings.Replace(snapConfineInCore[1:], "/", ".", -1)
+	patchedProfileGlob := strings.Replace(patchedProfileName, coreInfo.Revision.String(), "*", 1)
+
+	// Return information for EnsureDirState that describes the re-exec profile for snap-confine.
+	content = map[string]*osutil.FileState{
+		patchedProfileName: {
+			Content: []byte(patchedProfileText),
+			Mode:    0644,
+		},
+	}
+	return dirs.SystemApparmorDir, patchedProfileGlob, content, nil
 }
 
 // setupSnapConfineReexec will setup apparmor profiles on a classic
