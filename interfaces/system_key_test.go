@@ -36,6 +36,7 @@ type systemKeySuite struct {
 	tmp              string
 	apparmorFeatures string
 	buildID          string
+	restorers        []func()
 }
 
 var _ = Suite(&systemKeySuite{})
@@ -48,10 +49,17 @@ func (s *systemKeySuite) SetUpTest(c *C) {
 	id, err := osutil.MyBuildID()
 	c.Assert(err, IsNil)
 	s.buildID = id
+
+	s.restorers = []func(){
+		osutil.MockMountInfo(""), osutil.MockEtcFstab(""),
+	}
 }
 
 func (s *systemKeySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	for _, fn := range s.restorers {
+		fn()
+	}
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
