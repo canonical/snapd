@@ -830,9 +830,7 @@ func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
     "kind":"snap-not-a-snap"
   },
   "status-code": 400
-}
-`)
-
+}`)
 	})
 
 	cmd := []string{"try", "/"}
