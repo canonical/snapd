@@ -130,7 +130,7 @@ func (spec *Specification) MountEntries() []osutil.MountEntry {
 	count := make(map[string]int, len(result))
 	for i := range result {
 		path := result[i].Dir
-		count[path] += 1
+		count[path]++
 		if c := count[path]; c > 1 {
 			newDir := fmt.Sprintf("%s-%d", result[i].Dir, c)
 			logger.Noticef("renaming mount entry for directory %q to %q to avoid a clash", result[i].Dir, newDir)
