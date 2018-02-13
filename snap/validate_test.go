@@ -87,6 +87,36 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 	}
 }
 
+func (s *ValidateSuite) TestValidateVersion(c *C) {
+	validVersions := []string{
+
+		"0", "v1.0", "0.12+16.04.20160126-0ubuntu1",
+		"1:6.0.1+r16-3", "1.0~", "1.0+", "README.~1~",
+		"a+++++++++++++++++++++++++++++++",
+		"AZaz:.+~_-123",
+	}
+	for _, version := range validVersions {
+		err := ValidateVersion(version)
+		c.Assert(err, IsNil)
+	}
+	invalidVersions := []string{
+		// can't have non-whitelisted symbols
+		"v1.3([<$$$>])", "what even _is_ a version",
+		// can't start with whitelisted symbls
+		":", ".", "+", "~", "_", "-",
+		// can't end with most whitelisted symbols
+		"a:", "a.", "a_", "a-",
+		// version must be plain ASCII
+		"árbol", "日本語", "한글", "ру́сский язы́к",
+	}
+	for _, version := range invalidVersions {
+		err := ValidateVersion(version)
+		c.Assert(err, ErrorMatches, `invalid snap version: ".*"`)
+	}
+	// version cannot be empty
+	c.Assert(ValidateVersion(""), ErrorMatches, `snap version cannot be empty`)
+}
+
 func (s *ValidateSuite) TestValidateLicense(c *C) {
 	validLicenses := []string{
 		"GPL-3.0", "(GPL-3.0)", "GPL-3.0+", "GPL-3.0 AND GPL-2.0", "GPL-3.0 OR GPL-2.0", "MIT OR (GPL-3.0 AND GPL-2.0)", "MIT OR(GPL-3.0 AND GPL-2.0)",
@@ -465,6 +495,7 @@ hooks:
 
 func (s *ValidateSuite) TestPlugSlotNamesUnique(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`name: snap
+version: 0
 plugs:
  foo:
 slots:

@@ -44,12 +44,14 @@ var _ = Suite(&NetworkControlInterfaceSuite{
 })
 
 const networkControlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [network-control]
 `
 
 const networkControlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   network-control:

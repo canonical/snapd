@@ -49,6 +49,7 @@ var _ = Suite(&MirInterfaceSuite{
 func (s *MirInterfaceSuite) SetUpTest(c *C) {
 	// a pulseaudio slot on the core snap (as automatically added on classic)
 	const mirMockClassicSlotSnapInfoYaml = `name: core
+version: 0
 type: os
 slots:
  mir:

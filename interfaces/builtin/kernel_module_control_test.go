@@ -44,12 +44,14 @@ var _ = Suite(&KernelModuleControlInterfaceSuite{
 })
 
 const kernelmodctlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [kernel-module-control]
 `
 
 const kernelmodctlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   kernel-module-control:

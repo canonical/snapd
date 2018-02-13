@@ -47,6 +47,7 @@ var _ = Suite(&WaylandInterfaceSuite{
 })
 
 const waylandConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [wayland]
@@ -54,6 +55,7 @@ apps:
 
 // a wayland slot on a wayland snap (as installed on a core/all-snap system)
 const waylandCoreYaml = `name: wayland
+version: 0
 apps:
  app1:
   slots: [wayland]
@@ -61,6 +63,7 @@ apps:
 
 // a wayland slot on the core snap (as automatically added on classic)
 const waylandClassicYaml = `name: core
+version: 0
 type: os
 slots:
  wayland:

@@ -116,6 +116,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 
 const snapWithLayout = `
 name: vanguard
+version: 0
 layout:
   /usr:
     bind: $SNAP/usr

@@ -43,12 +43,14 @@ var _ = Suite(&OpticalDriveInterfaceSuite{
 })
 
 const opticalDriveConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [optical-drive]
 `
 
 const opticalDriveCoreYaml = `name: core
+version: 0
 type: os
 slots:
   optical-drive:

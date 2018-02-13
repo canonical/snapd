@@ -62,6 +62,7 @@ var _ = Suite(&specSuite{
 
 func (s *specSuite) SetUpSuite(c *C) {
 	info1 := snaptest.MockInfo(c, `name: snap1
+version: 0
 plugs:
     name:
         interface: test
@@ -72,6 +73,7 @@ hooks:
     configure:
 `, nil)
 	info2 := snaptest.MockInfo(c, `name: snap2
+version: 0
 slots:
     name:
         interface: test

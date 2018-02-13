@@ -43,12 +43,14 @@ var _ = Suite(&JoystickInterfaceSuite{
 })
 
 const joystickConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [joystick]
 `
 
 const joystickCoreYaml = `name: core
+version: 0
 type: os
 slots:
   joystick:

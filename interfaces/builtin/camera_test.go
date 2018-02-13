@@ -43,12 +43,14 @@ var _ = Suite(&CameraInterfaceSuite{
 })
 
 const cameraConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [camera]
 `
 
 const cameraCoreYaml = `name: core
+version: 0
 type: os
 slots:
   camera:
