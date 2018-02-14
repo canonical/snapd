@@ -331,6 +331,14 @@ func (e *MountEntry) XSnapdNeededBy() string {
 	return val
 }
 
+// XSnapdOrigin returns the origin of a given mount entry.
+//
+// Currently only "layout" entries are identified with a unique origin string.
+func (e *MountEntry) XSnapdOrigin() string {
+	val, _ := e.OptStr("x-snapd.origin")
+	return val
+}
+
 // XSnapdSynthetic returns true of a given mount entry is synthetic.
 //
 // Synthetic mount entries are created by snap-update-ns itself, separately
@@ -349,6 +357,11 @@ func XSnapdKindSymlink() string {
 // XSnapdKindFile returns the string "x-snapd.kind=file".
 func XSnapdKindFile() string {
 	return "x-snapd.kind=file"
+}
+
+// XSnapdOriginLayout returns the string "x-snapd.origin=layout"
+func XSnapdOriginLayout() string {
+	return "x-snapd.origin=layout"
 }
 
 // XSnapdUser returns the string "x-snapd.user=%d".
