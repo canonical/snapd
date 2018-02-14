@@ -1,0 +1,50 @@
+summary: Ensure that the removable-media interface works.
+
+details: |
+    The removable-media interface allows to access to removable storage filesystems.
+environment:
+    TESTDIR: '/media/testdir'
+    TESTFILE: '/media/testdir/testfile'
+    CONNECTED_PATTERN: ':removable-media +test-snapd-removable-media'
+    DISCONNECTED_PATTERN: '\- +test-snapd-removable-media:removable-media'
+
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-removable-media
+
+    mkdir -p "$TESTDIR"
+    touch "$TESTFILE"
+
+restore: |
+    rm -f call.error
+    rm -rf "$TESTDIR"
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    echo "When the interface is connected"
+    snap connect test-snapd-removable-media:removable-media
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    echo "Then the snap is able to read inside /run"
+    test-snapd-removable-media.sh -c "test -d /run/snapd"
+
+    echo "And the snap is able to access to read/write removable storage filesystems"
+    test-snapd-removable-media.sh -c "test -d $TESTDIR"
+    test-snapd-removable-media.sh -c "sed -i 's/ / /g' $TESTFILE"
+
+    if [ "$(snap debug confinement)" = partial ]; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-removable-media:removable-media
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    echo "Then the snap is not able to access read the test media file"
+    if test-snapd-removable-media.sh -c "cat $TESTFILE" 2>${PWD}/call.error; then
+        echo "Expected permission error accessing to removable storage filesystems"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
