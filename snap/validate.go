@@ -54,6 +54,7 @@ func ValidateName(name string) error {
 // NB keep this in sync with snapcraft and the review tools :-)
 var isValidVersion = regexp.MustCompile("^[a-zA-Z0-9](?:[a-zA-Z0-9:.+~_-]{0,30}[a-zA-Z0-9+~])?$").MatchString
 
+var isNonGraphicalASCII = regexp.MustCompile("[^[:graph:]]").MatchString
 var isInvalidFirstVersionChar = regexp.MustCompile("^[^a-zA-Z0-9]").MatchString
 var isInvalidLastVersionChar = regexp.MustCompile("[^a-zA-Z0-9+~]$").MatchString
 var invalidMiddleVersionChars = regexp.MustCompile("[^a-zA-Z0-9:.+~_-]+").FindAllString
@@ -65,7 +66,7 @@ func ValidateVersion(version string) error {
 		if len(version) == 0 {
 			return fmt.Errorf("invalid snap version: cannot be empty")
 		}
-		if !strutil.IsPrintableASCII(version) {
+		if isNonGraphicalASCII(version) {
 			// note that while this way of quoting the version can produce ugly
 			// output in some cases (e.g. if you're trying to set a version to
 			// "hello😁", seeing “invalid version "hello😁"” could be clearer than
