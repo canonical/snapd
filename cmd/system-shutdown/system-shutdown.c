@@ -59,6 +59,17 @@ int main(int argc, char *argv[])
 	   oldroot loop device and finally unmount writable itself.
 	 */
 
+        /*
+           We do the sync before anything, as if this exits the kernel should
+           panic (and you'd get the old "Kernel panic - not syncing: Attempted
+           to kill init!" on console).
+
+           If you're running ubuntu core in a VM where you don't need to sync
+           this will slow things down a little (systemd has a detect_container()
+           helper that I can't justify reimplementing for this).
+         */
+        sync();		// from sync(2): "sync is always successful".
+
 	if (mkdir("/writable", 0755) < 0) {
 		die("cannot create directory /writable");
 	}
@@ -78,7 +89,6 @@ int main(int argc, char *argv[])
 		bool ok = umount_all();
 		kmsg("%c was %s to unmount writable cleanly", ok ? '-' : '*',
 		     ok ? "able" : "*NOT* able");
-		sync();		// shouldn't be needed, but just in case
 	}
 
 	// argv[1] can be one of at least: halt, reboot, poweroff.
