@@ -218,6 +218,7 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
+	logger.Debugf("StopServices called for %q, reason: %v", apps, reason)
 	for _, app := range apps {
 		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
 		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
@@ -227,6 +228,7 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 		// Skip stop on refresh when refresh mode is set to something
 		// other than "restart" (or "" which is the same)
 		if reason == snap.StopReasonRefresh {
+			logger.Debugf(" %s refresh-mode: %v", app.Name, app.RefreshMode)
 			switch app.RefreshMode {
 			case "endure":
 				// skip this service
