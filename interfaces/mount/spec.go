@@ -37,11 +37,18 @@ import (
 type Specification struct {
 	layoutMountEntries []osutil.MountEntry
 	mountEntries       []osutil.MountEntry
+	userMountEntries   []osutil.MountEntry
 }
 
 // AddMountEntry adds a new mount entry.
 func (spec *Specification) AddMountEntry(e osutil.MountEntry) error {
 	spec.mountEntries = append(spec.mountEntries, e)
+	return nil
+}
+
+//AddUserMountEntry adds a new user mount entry.
+func (spec *Specification) AddUserMountEntry(e osutil.MountEntry) error {
+	spec.userMountEntries = append(spec.userMountEntries, e)
 	return nil
 }
 
@@ -125,19 +132,33 @@ func (spec *Specification) MountEntries() []osutil.MountEntry {
 	result := make([]osutil.MountEntry, 0, len(spec.layoutMountEntries)+len(spec.mountEntries))
 	result = append(result, spec.layoutMountEntries...)
 	result = append(result, spec.mountEntries...)
-	// Number each entry, in case we get clashes this will automatically give
-	// them unique names.
-	count := make(map[string]int, len(result))
-	for i := range result {
-		path := result[i].Dir
+	unclashMountEntries(result)
+	return result
+}
+
+// UserMountEntries returns a copy of the added user mount entries.
+func (spec *Specification) UserMountEntries() []osutil.MountEntry {
+	result := make([]osutil.MountEntry, len(spec.userMountEntries))
+	copy(result, spec.userMountEntries)
+	unclashMountEntries(result)
+	return result
+}
+
+// unclashMountEntries renames mount points if they clash with other entries.
+//
+// Subsequent entries get suffixed with -2, -3, etc.
+// The initial entry is unaltered (and does not become -1).
+func unclashMountEntries(entries []osutil.MountEntry) {
+	count := make(map[string]int, len(entries))
+	for i := range entries {
+		path := entries[i].Dir
 		count[path]++
 		if c := count[path]; c > 1 {
-			newDir := fmt.Sprintf("%s-%d", result[i].Dir, c)
-			logger.Noticef("renaming mount entry for directory %q to %q to avoid a clash", result[i].Dir, newDir)
-			result[i].Dir = newDir
+			newDir := fmt.Sprintf("%s-%d", entries[i].Dir, c)
+			logger.Noticef("renaming mount entry for directory %q to %q to avoid a clash", entries[i].Dir, newDir)
+			entries[i].Dir = newDir
 		}
 	}
-	return result
 }
 
 // Implementation of methods required by interfaces.Specification
