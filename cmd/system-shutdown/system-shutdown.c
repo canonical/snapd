@@ -59,19 +59,17 @@ int main(int argc, char *argv[])
 	   oldroot loop device and finally unmount writable itself.
 	 */
 
-        /*
-           We do the sync before anything, because this shutdown helper is
-           running as PID 1; if it exits (via one of the die() calls below) the
-           kernel should panic, and you'd get the old "Kernel panic - not
-           syncing: Attempted to kill init!" on console.
+	/*
+	   There are two¹ ways out of this program: we die, which calls sync
+	   before halting the system; or we umount everything successfully
+	   before doing whatever we were told to do, in which case there's
+	   nothing left to sync.
 
-           If you're running ubuntu core in a VM where you don't need to sync
-           this will slow things down a little (systemd has a detect_container()
-           helper that I can't justify reimplementing for this). If this is a
-           problem let us know; we _could_ move the sync to die itself. Feels a
-           little dirty though.
-         */
-        sync();                 // from sync(2): "sync is always successful".
+           1) ... apart from the third way that we never talk about: we somehow
+	      are unable to umount everything cleanly, but go ahead with the
+	      reboot anyway because no error was returned. That's the only path
+	      we need to sync on explicitly.
+	 */
 
 	if (mkdir("/writable", 0755) < 0) {
 		die("cannot create directory /writable");
@@ -89,9 +87,12 @@ int main(int argc, char *argv[])
 			die("cannot move writable out of the way");
 		}
 
-		bool ok = umount_all();
-		kmsg("%c was %s to unmount writable cleanly", ok ? '-' : '*',
-		     ok ? "able" : "*NOT* able");
+                if (umount_all()) {
+                        kmsg("- was able to unmount writable cleanly");
+                } else {
+                        kmsg("* was *NOT* able to unmount writable cleanly");
+                        sync(); // we don't know what happened but we're going ahead
+                }
 	}
 
 	// argv[1] can be one of at least: halt, reboot, poweroff.
