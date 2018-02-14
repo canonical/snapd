@@ -97,6 +97,9 @@ func mountEntryFromLayout(layout *snap.Layout) osutil.MountEntry {
 	if layout.Mode != 0755 {
 		entry.Options = append(entry.Options, osutil.XSnapdMode(uint32(layout.Mode)))
 	}
+
+	// Indicate that this is a layout mount entry.
+	entry.Options = append(entry.Options, osutil.XSnapdOriginLayout())
 	return entry
 }
 
@@ -127,7 +130,7 @@ func (spec *Specification) MountEntries() []osutil.MountEntry {
 	count := make(map[string]int, len(result))
 	for i := range result {
 		path := result[i].Dir
-		count[path] += 1
+		count[path]++
 		if c := count[path]; c > 1 {
 			newDir := fmt.Sprintf("%s-%d", result[i].Dir, c)
 			logger.Noticef("renaming mount entry for directory %q to %q to avoid a clash", result[i].Dir, newDir)

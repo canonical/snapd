@@ -170,7 +170,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 
 	n := -1
 	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
-		n += 1
+		n++
 		switch n {
 		case 0:
 			c.Assert(chg, DeepEquals, &update.Change{
@@ -213,6 +213,50 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	defer restore()
 
 	c.Assert(update.ComputeAndSaveChanges(snapName), IsNil)
+
+	content, err := ioutil.ReadFile(currentProfilePath)
+	c.Assert(err, IsNil)
+	c.Check(string(content), Equals, "")
+}
+
+func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+
+	const snapName = "mysnap"
+	const currentProfileContent = ""
+	const desiredProfileContent = "/snap/mysnap/42/usr/share/mysnap /usr/share/mysnap none bind,ro,x-snapd.origin=layout 0 0"
+
+	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
+	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
+
+	c.Assert(os.MkdirAll(filepath.Dir(currentProfilePath), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(desiredProfilePath), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
+
+	n := -1
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
+		n++
+		switch n {
+		case 0:
+			c.Assert(chg, DeepEquals, &update.Change{
+				Action: update.Mount,
+				Entry: osutil.MountEntry{
+					Name: "/snap/mysnap/42/usr/share/mysnap",
+					Dir:  "/usr/share/mysnap", Type: "none",
+					Options: []string{"bind", "ro", "x-snapd.origin=layout"},
+				},
+			})
+			return nil, fmt.Errorf("testing")
+		default:
+			panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
+		}
+	})
+	defer restore()
+
+	// The error was not ignored, we bailed out.
+	c.Assert(update.ComputeAndSaveChanges(snapName), ErrorMatches, "testing")
 
 	content, err := ioutil.ReadFile(currentProfilePath)
 	c.Assert(err, IsNil)
