@@ -290,8 +290,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		all = append(all, name)
 	}
 	sort.Strings(all)
-	errReload := reloadProfiles(all)
-	errUnload := unloadProfiles(removed)
+	errReload := reloadProfiles(all, dirs.SnapAppArmorDir, dirs.AppArmorCacheDir)
+	errUnload := unloadProfiles(removed, dirs.AppArmorCacheDir)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
 	}
@@ -305,7 +305,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 func (b *Backend) Remove(snapName string) error {
 	glob := fmt.Sprintf("snap*.%s*", snapName)
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapAppArmorDir, glob, nil)
-	errUnload := unloadProfiles(removed)
+	errUnload := unloadProfiles(removed, dirs.AppArmorCacheDir)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
 	}
@@ -390,10 +390,9 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	}
 }
 
-func reloadProfiles(profiles []string) error {
+func reloadProfiles(profiles []string, profileDir, cacheDir string) error {
 	for _, profile := range profiles {
-		fname := filepath.Join(dirs.SnapAppArmorDir, profile)
-		err := LoadProfile(fname)
+		err := loadProfile(filepath.Join(profileDir, profile), cacheDir)
 		if err != nil {
 			return fmt.Errorf("cannot load apparmor profile %q: %s", profile, err)
 		}
@@ -401,15 +400,16 @@ func reloadProfiles(profiles []string) error {
 	return nil
 }
 
-func unloadProfiles(profiles []string) error {
+func unloadProfiles(profiles []string, cacheDir string) error {
 	for _, profile := range profiles {
-		if err := UnloadProfile(profile); err != nil {
+		if err := unloadProfile(profile, cacheDir); err != nil {
 			return fmt.Errorf("cannot unload apparmor profile %q: %s", profile, err)
 		}
 	}
 	return nil
 }
 
+// NewSpecification returns a new, empty apparmor specification.
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }
