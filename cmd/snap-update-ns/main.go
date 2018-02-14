@@ -84,9 +84,8 @@ func run() error {
 
 	if opts.UserFstab {
 		return applyUserFstab(opts.Positionals.SnapName)
-	} else {
-		return applyFstab(opts.Positionals.SnapName, opts.FromSnapConfine)
 	}
+	return applyFstab(opts.Positionals.SnapName, opts.FromSnapConfine)
 }
 
 func applyFstab(snapName string, fromSnapConfine bool) error {
