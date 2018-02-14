@@ -152,8 +152,6 @@ func computeAndSaveChanges(snapName string) error {
 	for _, change := range changesNeeded {
 		logger.Debugf("\t * %s", change)
 		synthesised, err := changePerform(change)
-		// NOTE: we may have done something even if Perform itself has failed.
-		// We need to collect synthesized changes and store them.
 		changesMade = append(changesMade, synthesised...)
 		if len(synthesised) > 0 {
 			logger.Debugf("\tsynthesised additional mount changes:")
@@ -162,12 +160,15 @@ func computeAndSaveChanges(snapName string) error {
 			}
 		}
 		if err != nil {
+			// NOTE: we may have done something even if Perform itself has failed.
+			// We need to collect synthesized changes and store them.
 			if change.Entry.XSnapdOrigin() == "layout" {
 				return err
 			}
 			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			continue
 		}
+
 		changesMade = append(changesMade, change)
 	}
 
