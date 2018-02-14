@@ -29,17 +29,8 @@ execute: |
     snap connect test-snapd-gpio-memory-control:gpio-memory-control
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
-    mem_address=$(cat /var/log/syslog | grep -m1 'gpiomem.*Registers at' | sed 's/^.*at //')
-    if [ -n $mem_address ]; then
-        echo "Memory address not registered"
-        exit 1
-    fi
-
-    echo "Then the snap is able read the physical memory"
-    test-snapd-gpio-memory-control.gpiomem $mem_address
-
-    echo "Then the snap is able to write the physical memory"
-    test-snapd-gpio-memory-control.gpiomem $mem_address test
+    echo "Then the snap is able read and write the physical memory"
+    test-snapd-gpio-memory-control.gpiomem
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -50,7 +41,7 @@ execute: |
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to access the gpio physical memory"
-    if test-snapd-gpio-memory-control.gpiomem $mem_address 2>${PWD}/call.error; then
+    if test-snapd-gpio-memory-control.gpiomem 2>${PWD}/call.error; then
         echo "Expected permission error reading the gpio physical memory with disconnected plug"
         exit 1
     fi
