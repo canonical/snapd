@@ -217,6 +217,18 @@ func setupSnapConfineReexec(coreInfo *snap.Info) error {
 	}
 
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
+	if len(changed) == 0 {
+		// XXX: because NFS workaround is handled separately the same correct
+		// snap-confine profile may need to be re-loaded. This is because the
+		// profile contains include directives and those load a second file
+		// that has changed outside of the scope of EnsureDirState.
+		//
+		// To counter that, always reload the profile by pretending it had
+		// changed.
+		for fname := range content {
+			changed = append(changed, fname)
+		}
+	}
 	errReload := reloadProfiles(changed, dir, cache)
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
