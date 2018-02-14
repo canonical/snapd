@@ -146,8 +146,8 @@ func (spec *Specification) UserMountEntries() []osutil.MountEntry {
 
 // unclashMountEntries renames mount points if they clash with other entries.
 //
-// Subsequent entries get suffixed with _2, _3, etc.
-// The initial entry is unaltered (and does not become _1).
+// Subsequent entries get suffixed with -2, -3, etc.
+// The initial entry is unaltered (and does not become -1).
 func unclashMountEntries(entries []osutil.MountEntry) {
 	count := make(map[string]int, len(entries))
 	for i := range entries {
