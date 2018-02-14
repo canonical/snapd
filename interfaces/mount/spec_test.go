@@ -80,9 +80,13 @@ func (s *specSuite) SetUpTest(c *C) {
 func (s *specSuite) TestSmoke(c *C) {
 	ent0 := osutil.MountEntry{Dir: "dir-a", Name: "fs1"}
 	ent1 := osutil.MountEntry{Dir: "dir-b", Name: "fs2"}
+	ent3 := osutil.MountEntry{Dir: "dir-c", Name: "fs3"}
 	c.Assert(s.spec.AddMountEntry(ent0), IsNil)
 	c.Assert(s.spec.AddMountEntry(ent1), IsNil)
+	c.Assert(s.spec.AddUserMountEntry(ent0), IsNil)
+	c.Assert(s.spec.AddUserMountEntry(ent3), IsNil)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{ent0, ent1})
+	c.Assert(s.spec.UserMountEntries(), DeepEquals, []osutil.MountEntry{ent0, ent3})
 }
 
 // Added entries can clash and are automatically renamed by MountEntries
