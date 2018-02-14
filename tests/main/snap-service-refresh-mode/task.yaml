@@ -1,6 +1,6 @@
 summary: "Check that refresh-modes works"
 
-kill-timeout: 5m
+kill-timeout: 3m
 
 execute: |
     echo "When the service snap is installed"
@@ -13,7 +13,9 @@ execute: |
     echo "When it is re-installed"
     install_local test-snapd-service
 
-    refresh_modes="endure sigterm sigterm-all sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
+    # note that we do not spread test sigterm{,-all} because catching this
+    # signal in the service means the stop will timeout with a 90s delay
+    refresh_modes="endure sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
     for s in $refresh_modes; do
         echo "We can still see it running"
         systemctl status snap.test-snapd-service.test-snapd-${s}-service|MATCH "running"
