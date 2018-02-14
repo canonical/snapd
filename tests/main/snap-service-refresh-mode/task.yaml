@@ -2,6 +2,9 @@ summary: "Check that refresh-modes works"
 
 kill-timeout: 3m
 
+debug: |
+    journalctl -u snap.test-snapd-service.test-snapd-endure-service
+
 execute: |
     echo "When the service snap is installed"
     . $TESTSLIB/snaps.sh
