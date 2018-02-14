@@ -2003,7 +2003,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(result.Architectures, DeepEquals, []string{"all"})
 	c.Check(result.Revision, Equals, snap.R(27))
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
-	c.Check(result.Publisher, Equals, "Canonical")
+	c.Check(result.Publisher, Equals, "canonical")
 	c.Check(result.Version, Equals, "6.3")
 	c.Check(result.Sha3_384, Matches, `[[:xdigit:]]{96}`)
 	c.Check(result.Size, Equals, int64(20480))
