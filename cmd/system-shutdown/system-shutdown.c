@@ -60,15 +60,18 @@ int main(int argc, char *argv[])
 	 */
 
         /*
-           We do the sync before anything, as if this exits the kernel should
-           panic (and you'd get the old "Kernel panic - not syncing: Attempted
-           to kill init!" on console).
+           We do the sync before anything, because this shutdown helper is
+           running as PID 1; if it exits (via one of the die() calls below) the
+           kernel should panic, and you'd get the old "Kernel panic - not
+           syncing: Attempted to kill init!" on console.
 
            If you're running ubuntu core in a VM where you don't need to sync
            this will slow things down a little (systemd has a detect_container()
-           helper that I can't justify reimplementing for this).
+           helper that I can't justify reimplementing for this). If this is a
+           problem let us know; we _could_ move the sync to die itself. Feels a
+           little dirty though.
          */
-        sync();		// from sync(2): "sync is always successful".
+        sync();                 // from sync(2): "sync is always successful".
 
 	if (mkdir("/writable", 0755) < 0) {
 		die("cannot create directory /writable");
