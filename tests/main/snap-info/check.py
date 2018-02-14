@@ -133,7 +133,7 @@ check("error", res[5],
 # not installed snaps have "contact" information
 check("test-snapd-python-webserver", res[6],
    ("name", equals, "test-snapd-python-webserver"),
-   ("publisher", equals, "Canonical"),
+   ("publisher", equals, "canonical"),
    ("contact", equals, "snappy-canonical-storeaccount@canonical.com"),
    ("summary", exists),
    ("description", exists),
