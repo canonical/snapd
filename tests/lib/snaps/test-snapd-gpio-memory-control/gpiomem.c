@@ -1,14 +1,10 @@
-#include <ctype.h>
-#include <errno.h>
 #include <fcntl.h>
-#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/types.h>
-#include <termios.h>
 #include <unistd.h>
 
 #define MAP_SIZE 4096UL
@@ -18,49 +14,45 @@ int main(int argc, char** argv)
 {
     int fd;
     void *map_base, *virt_addr;
-    uint32_t read_result, writeval;
-    off_t target;
+    uint32_t read_result, write_result;
 
-    if (argc < 2) {
-        printf("Usage: gpiomem ADDRESS [DATA]\n"
-               "\tADDRESS : memory address to act upon\n"
-               "\tDATA    : data to be written\n\n");
-        exit(1);
-    }
-    target = strtoul(argv[1], 0, 0);
+    uint32_t writeval = 't';
+    off_t address = 0x00000001;
+    int retval = -1;
 
-    if ((fd = open("/dev/gpiomem", O_RDWR | O_SYNC)) == -1) {
-        fprintf(stderr, "Error: File /dev/gpiomem could not be opened\n");
-        exit(1);
+    /* Open character device */
+    if ((fd = open("/dev/gpiomem", O_RDWR)) == -1) {
+        perror("cannot open /dev/gpiomem");
+        goto close;
     }
 
     /* Map one page */
-    map_base = mmap(NULL, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, target & ~MAP_MASK);
+    map_base = mmap(NULL, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, address & ~MAP_MASK);
     if (map_base == MAP_FAILED) {
-        fprintf(stderr, "Error: Page could not be mapped\n");
-        exit(1);
+        perror("cannot map gpio memory");
+        goto unmap;
     }
-
     printf("Memory mapped at address %p.\n", map_base);
 
-    virt_addr = map_base + (target & MAP_MASK);
+    /* Read memory map */
+    virt_addr = (char*)map_base + (address & MAP_MASK);
     read_result = *((uint32_t*)virt_addr);
+    printf("Read value: %#010x\n", read_result);
 
-    printf("Read value: 0x%ui\n", read_result);
+    /* Write memory map */
+    *((uint32_t*)virt_addr) = writeval;
+    write_result = *((uint32_t*)virt_addr);
+    printf("Written %#010x; readback %#010x\n", writeval, write_result);
 
-    if (argc > 2) {
-        writeval = strtoul(argv[2], 0, 0);
-        *((uint32_t*)virt_addr) = writeval;
-        read_result = *((uint32_t*)virt_addr);
+    retval = 0;
 
-        printf("Written 0x%ui; readback 0x%ui\n", writeval, read_result);
-    }
-
+unmap:
+    /* Unmap the page */
     if (munmap(map_base, MAP_SIZE) == -1) {
-        fprintf(stderr, "Error: Data could not be written\n");
-        exit(1);
+        perror("cannot unmap gpio memory");
     }
 
+close:
     close(fd);
-    return 0;
+    return retval;
 }
