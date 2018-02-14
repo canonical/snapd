@@ -1,9 +1,8 @@
 #!/bin/bash
 
-trap "echo got sigusr1" SIGUSR1
-trap "echo got sigusr2" SIGUSR2
-trap "echo got sighup" SIGHUP
-trap "echo got sigterm" SIGTERM
+trap "echo got sigusr1" USR1
+trap "echo got sigusr2" USR2
+trap "echo got sighup" HUP
 
 while true; do
     echo "running $1 process"
