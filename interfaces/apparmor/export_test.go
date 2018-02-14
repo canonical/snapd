@@ -25,6 +25,10 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+var (
+	SnapConfineFromCoreProfile = snapConfineFromCoreProfile
+)
+
 // MockProcSelfExe mocks the location of /proc/self/exe read by setupSnapConfineGeneratedPolicy.
 func MockProcSelfExe(symlink string) (restore func()) {
 	old := procSelfExe

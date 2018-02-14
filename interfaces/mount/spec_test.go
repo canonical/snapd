@@ -134,9 +134,9 @@ func (s *specSuite) TestMountEntryFromLayout(c *C) {
 	s.spec.AddSnapLayout(snapInfo)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		// Layout result is sorted by mount path.
-		{Dir: "/etc/foo.conf", Name: "/snap/vanguard/42/foo.conf", Options: []string{"bind", "rw", "x-snapd.kind=file"}},
-		{Dir: "/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/vanguard/42/link/target"}},
-		{Dir: "/mytmp", Name: "tmpfs", Type: "tmpfs", Options: []string{"x-snapd.mode=01777"}},
-		{Dir: "/usr", Name: "/snap/vanguard/42/usr", Options: []string{"bind", "rw"}},
+		{Dir: "/etc/foo.conf", Name: "/snap/vanguard/42/foo.conf", Options: []string{"bind", "rw", "x-snapd.kind=file", "x-snapd.origin=layout"}},
+		{Dir: "/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/vanguard/42/link/target", "x-snapd.origin=layout"}},
+		{Dir: "/mytmp", Name: "tmpfs", Type: "tmpfs", Options: []string{"x-snapd.mode=01777", "x-snapd.origin=layout"}},
+		{Dir: "/usr", Name: "/snap/vanguard/42/usr", Options: []string{"bind", "rw", "x-snapd.origin=layout"}},
 	})
 }
