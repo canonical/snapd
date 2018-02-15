@@ -129,24 +129,38 @@ func (ws WeekSpan) String() string {
 	return ws.Start.String()
 }
 
+func findNthWeekDay(t time.Time, weekday time.Weekday, nthInMonth uint) time.Time {
+	// move to the beginning of the month
+	t = t.AddDate(0, 0, -t.Day()+1)
+
+	for nth := uint(0); t.Weekday() != weekday || nth != nthInMonth; {
+		t = t.Add(24 * time.Hour)
+		if t.Weekday() == weekday {
+			nth++
+		}
+	}
+	return t
+}
+
 // Match checks if t is within the day span represented by ws.
 func (ws WeekSpan) Match(t time.Time) bool {
 	start, end := ws.Start, ws.End
 	wdStart, wdEnd := start.Weekday, end.Weekday
 
 	if start.Pos != EveryWeek {
-		// is it the right week?
-		week := uint(t.Day()/7) + 1
-
 		if start.Pos == LastWeek {
 			// last week of the month
 			if !isLastWeekdayInMonth(t) {
 				return false
 			}
 		} else {
-			if week < start.Pos || week > end.Pos {
+			startDay := findNthWeekDay(t, start.Weekday, start.Pos)
+			endDay := findNthWeekDay(t, end.Weekday, end.Pos)
+
+			if t.Day() < startDay.Day() || t.Day() > endDay.Day() {
 				return false
 			}
+			return true
 		}
 	}
 
