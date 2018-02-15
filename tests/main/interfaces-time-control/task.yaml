@@ -25,13 +25,18 @@ execute: |
     CONNECTED_PATTERN=":time-control +test-snapd-timedate-control-consumer"
     DISCONNECTED_PATTERN="\- +test-snapd-timedate-control-consumer:time-control"
 
+    # hwclock with libaudit (ie, core 16) also needs netlink-audit connected.
+    # This interface is tested elsewhere, so simply connect it here so we can
+    # test the time-control interface in isolation.
+    snap connect test-snapd-timedate-control-consumer:netlink-audit
+
     # Check the interface is disconnected by detault
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     # Connect the interface and check it is connected
     snap connect test-snapd-timedate-control-consumer:time-control
     snap interfaces | MATCH "$CONNECTED_PATTERN"
-    
+
     # Read/write to hwclock access should be possible
     test-snapd-timedate-control-consumer.hwclock-time -r -f /dev/rtc
     test-snapd-timedate-control-consumer.hwclock-time --systohc -f /dev/rtc
