@@ -62,6 +62,9 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 # eglfs
 /dev/vchiq rw,
 
+# Parallels guest tools 3D acceleration (video toolgate)
+@{PROC}/driver/prl_vtg rw,
+
 # /sys/devices
 /sys/devices/pci[0-9a-f]*/**/config r,
 /sys/devices/pci[0-9a-f]*/**/revision r,
