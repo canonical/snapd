@@ -20,6 +20,7 @@
 
 #include <errno.h>
 #include <glob.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
