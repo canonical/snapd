@@ -5,7 +5,7 @@ details: |
     can access the /dev/rtc device node exposed by a slot on the OS
     snap properly.
 
-systems: [-opensuse-*,-fedora-*,-ubuntu-core-*]
+systems: [-opensuse-*,-fedora-*,-ubuntu-core-*,-ubuntu-14.04-*]
 
 prepare: |
     . $TESTSLIB/snaps.sh
