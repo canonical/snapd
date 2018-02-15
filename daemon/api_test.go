@@ -684,11 +684,6 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	// Very basic check to help stop us from not adding all the
 	// commands to the command list.
 	//
-	// It could get fancier, looking deeper into the AST to see
-	// exactly what's being defined, but it's probably not worth
-	// it; this gives us most of the benefits of that, with a
-	// fraction of the work.
-	//
 	// NOTE: there's probably a
 	// better/easier way of doing this (patches welcome)
 
@@ -701,48 +696,45 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	found := 0
 
 	ast.Inspect(f, func(n ast.Node) bool {
-		switch v := n.(type) {
-		case *ast.ValueSpec:
-			found += len(v.Values)
-			return false
+		// a ValueSpec is a constant or variable declaration
+		vs, ok := n.(*ast.ValueSpec)
+		if !ok {
+			return true
+		}
+		// foo, bar = Command{}, Command{} -> two v.Values
+		for _, v := range vs.Values {
+			// a Command{} is a composite literal; check for that
+			x, ok := v.(*ast.CompositeLit)
+			if !ok {
+				// it might be a &Command{} instead
+				// the & in &foo{} is an unary expression
+				y, ok := v.(*ast.UnaryExpr)
+				// (and yes the & in &foo{} is token.AND)
+				if !ok || y.Op != token.AND {
+					continue
+				}
+				// again check for Command{} (composite literal)
+				x, ok = y.X.(*ast.CompositeLit)
+				if !ok {
+					continue
+				}
+			}
+			// ok, x is a composite literal, ie foo{}.
+			// the foo in foo{} is an Ident
+			z, ok := x.Type.(*ast.Ident)
+			if !ok {
+				continue
+			}
+			if z.Name == "Command" {
+				// gotcha!
+				found++
+			}
 		}
 		return true
 	})
 
-	exceptions := []string{ // keep sorted, for scanning ease
-		"isEmailish",
-		"api",
-		"maxReadBuflen",
-		"muxVars",
-		"errNothingToInstall",
-		"errDevJailModeConflict",
-		"errNoJailMode",
-		"errClassicDevmodeConflict",
-		// snapInstruction vars:
-		"snapInstructionDispTable",
-		"snapstateInstall",
-		"snapstateUpdate",
-		"snapstateInstallPath",
-		"snapstateTryPath",
-		"snapstateUpdateMany",
-		"snapstateInstallMany",
-		"snapstateRemoveMany",
-		"snapstateRefreshCandidates",
-		"snapstateRevert",
-		"snapstateRevertToRevision",
-		"snapstateSwitch",
-		"assertstateRefreshSnapDeclarations",
-		"unsafeReadSnapInfo",
-		"osutilAddUser",
-		"setupLocalUser",
-		"storeUserInfo",
-		"postCreateUserUcrednetGet",
-		"ensureStateSoon",
-		"ctlcmdRun",
-		"runSnapctlUcrednetGet",
-	}
-	c.Check(found, check.Equals, len(api)+len(exceptions),
-		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
+	c.Check(found, check.Equals, len(api),
+		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list.`))
 }
 
 func (s *apiSuite) TestRootCmd(c *check.C) {
