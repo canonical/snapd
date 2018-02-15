@@ -152,6 +152,9 @@ apps:
      command: foo-bin
    bar:
      command: bar-bin -x
+   baz:
+     command: bar-bin -x
+     timer: 10:00-12:00,,mon,12:00~14:00
 `))
 	c.Assert(err, IsNil)
 	info.Revision = snap.R(42)
@@ -160,6 +163,7 @@ apps:
 	c.Check(info.Apps["bar"].LauncherReloadCommand(), Equals, "/usr/bin/snap run --command=reload foo.bar")
 	c.Check(info.Apps["bar"].LauncherPostStopCommand(), Equals, "/usr/bin/snap run --command=post-stop foo.bar")
 	c.Check(info.Apps["foo"].LauncherCommand(), Equals, "/usr/bin/snap run foo")
+	c.Check(info.Apps["baz"].LauncherCommand(), Equals, `/usr/bin/snap run --timer="10:00-12:00,,mon,12:00~14:00" foo.baz`)
 }
 
 const sampleYaml = `
