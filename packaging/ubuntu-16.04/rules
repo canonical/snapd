@@ -146,6 +146,9 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
 	# ensure that libseccomp is not dynamically linked
 	ldd _build/bin/snap-seccomp
 	test "$$(ldd _build/bin/snap-seccomp | grep libseccomp)" = ""
+	# revert again so that the subsequent tests work
+	sed -i "s|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|#cgo LDFLAGS:|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
+
 endif
 
 	# Build C bits, sadly manually
