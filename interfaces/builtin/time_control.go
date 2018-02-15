@@ -97,8 +97,8 @@ capability sys_time,
 # clients to use it now that they have access to the relevant
 # device nodes. Note: some invocations of hwclock will try to
 # write to the audit subsystem. We omit 'capability audit_write'
-# and 'capability net_admin' here. Applications requiring
-# logging should plugs 'netlink-audit'.
+# and 'capability net_admin' here. Applications requiring audit
+# logging should plug 'netlink-audit'.
 /sbin/hwclock ixr,
 `
 
