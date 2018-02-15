@@ -96,26 +96,18 @@ func (s *copydataSuite) TestCopyData(c *C) {
 	c.Assert(err, IsNil)
 
 	newCanaryDataFile := filepath.Join(dirs.SnapDataDir, "hello/20", "canary.txt")
-	content, err := ioutil.ReadFile(newCanaryDataFile)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, canaryData)
+	c.Assert(newCanaryDataFile, testutil.FileEquals, canaryData)
 
 	// ensure common data file is still there (even though it didn't get copied)
 	newCanaryDataFile = filepath.Join(dirs.SnapDataDir, "hello", "common", "canary.common")
-	content, err = ioutil.ReadFile(newCanaryDataFile)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, canaryData)
+	c.Assert(newCanaryDataFile, testutil.FileEquals, canaryData)
 
 	newCanaryDataFile = filepath.Join(homedir, "hello/20", "canary.home")
-	content, err = ioutil.ReadFile(newCanaryDataFile)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, canaryData)
+	c.Assert(newCanaryDataFile, testutil.FileEquals, canaryData)
 
 	// ensure home common data file is still there (even though it didn't get copied)
 	newCanaryDataFile = filepath.Join(homedir, "hello", "common", "canary.common_home")
-	content, err = ioutil.ReadFile(newCanaryDataFile)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, canaryData)
+	c.Assert(newCanaryDataFile, testutil.FileEquals, canaryData)
 }
 
 func (s *copydataSuite) TestCopyDataBails(c *C) {

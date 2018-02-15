@@ -21,7 +21,6 @@ package ifacestate_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -2139,9 +2138,7 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
 
 	_ = s.manager(c)
-	raw, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
-	c.Assert(err, IsNil)
-	c.Check(string(raw), Matches, "(?sm).*build-id:.*")
+	c.Check(dirs.SnapSystemKeyFile, testutil.FileMatches, "(?sm).*build-id:.*")
 
 	stat, err := os.Stat(dirs.SnapSystemKeyFile)
 	c.Assert(err, IsNil)

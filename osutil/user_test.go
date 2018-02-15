@@ -20,7 +20,6 @@
 package osutil_test
 
 import (
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -111,9 +110,7 @@ func (s *createUserSuite) TestAddSudoUser(c *check.C) {
 	fs, _ := filepath.Glob(filepath.Join(mockSudoers, "*"))
 	c.Assert(fs, check.HasLen, 1)
 	c.Assert(filepath.Base(fs[0]), check.Equals, "create-user-karl%2Esagan")
-	bs, err := ioutil.ReadFile(fs[0])
-	c.Assert(err, check.IsNil)
-	c.Check(string(bs), check.Equals, `
+	c.Check(fs[0], testutil.FileEquals, `
 # Created by snap create-user
 
 # User rules for karl.sagan
@@ -126,9 +123,7 @@ func (s *createUserSuite) TestAddUserSSHKeys(c *check.C) {
 		SSHKeys: []string{"ssh-key1", "ssh-key2"},
 	})
 	c.Assert(err, check.IsNil)
-	sshKeys, err := ioutil.ReadFile(filepath.Join(s.mockHome, ".ssh", "authorized_keys"))
-	c.Assert(err, check.IsNil)
-	c.Check(string(sshKeys), check.Equals, "ssh-key1\nssh-key2")
+	c.Check(filepath.Join(s.mockHome, ".ssh", "authorized_keys"), testutil.FileEquals, "ssh-key1\nssh-key2")
 
 }
 

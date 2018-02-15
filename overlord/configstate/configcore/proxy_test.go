@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type proxySuite struct {
@@ -98,9 +99,7 @@ func (s *proxySuite) TestConfigureProxy(c *C) {
 		})
 		c.Assert(err, IsNil)
 
-		content, err := ioutil.ReadFile(s.mockEtcEnvironment)
-		c.Assert(err, IsNil)
-		c.Check(string(content), Equals, fmt.Sprintf(`
+		c.Check(s.mockEtcEnvironment, testutil.FileEquals, fmt.Sprintf(`
 PATH="/usr/bin"
 %[1]s_proxy=%[1]s://example.com`, proto))
 	}
@@ -120,9 +119,7 @@ func (s *proxySuite) TestConfigureNoProxy(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(s.mockEtcEnvironment)
-	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, `
+	c.Check(s.mockEtcEnvironment, testutil.FileEquals, `
 PATH="/usr/bin"
 no_proxy=example.com,bar.com`)
 }
