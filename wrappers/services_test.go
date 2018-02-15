@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -36,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -404,8 +404,6 @@ func (s *servicesTestSuite) TestAddSnapSocketFiles(c *C) {
 	err := wrappers.AddSnapServices(info, nil)
 	c.Assert(err, IsNil)
 
-	content1, err := ioutil.ReadFile(sock1File)
-	c.Assert(err, IsNil)
 	expected := fmt.Sprintf(
 		`[Socket]
 Service=snap.hello-snap.svc1.service
@@ -414,10 +412,7 @@ ListenStream=%s
 SocketMode=0666
 
 `, filepath.Join(s.tempdir, "/var/snap/hello-snap/common/sock1.socket"))
-	c.Check(strings.Contains(string(content1), expected), Equals, true)
-
-	content2, err := ioutil.ReadFile(sock2File)
-	c.Assert(err, IsNil)
+	c.Check(sock1File, testutil.FileContains, expected)
 
 	expected = fmt.Sprintf(
 		`[Socket]
@@ -426,8 +421,7 @@ FileDescriptorName=sock2
 ListenStream=%s
 
 `, filepath.Join(s.tempdir, "/var/snap/hello-snap/12/sock2.socket"))
-	c.Check(strings.Contains(string(content2), expected), Equals, true)
-
+	c.Check(sock2File, testutil.FileContains, expected)
 }
 
 func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
