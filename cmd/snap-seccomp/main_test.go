@@ -475,6 +475,8 @@ func (s *snapSeccompSuite) TestCompileSocket(c *C) {
 		{"socket AF_UNIX", "socket;native;99", main.SeccompRetKill},
 		{"socket - SOCK_STREAM", "socket;native;-,SOCK_STREAM", main.SeccompRetAllow},
 		{"socket - SOCK_STREAM", "socket;native;-,99", main.SeccompRetKill},
+		{"socket AF_CONN", "socket;native;AF_CONN", main.SeccompRetAllow},
+		{"socket AF_CONN", "socket;native;99", main.SeccompRetKill},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
