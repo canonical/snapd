@@ -49,3 +49,11 @@ execute: |
         exit 1
     fi
     MATCH "Can't stat 'invalid': No such file or directory" < stderr
+
+    if which gdb; then
+       echo "Test snap run --gdb works"
+       echo "c" | snap run --gdb test-snapd-tools.echo hello > stdout
+       cat stdout | MATCH 'Continuing.'
+       cat stdout | MATCH hello
+    fi
+

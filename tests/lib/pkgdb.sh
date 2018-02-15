@@ -368,6 +368,7 @@ pkg_dependencies_ubuntu_generic(){
         curl
         devscripts
         expect
+        gdb
         gdebi-core
         git
         indent

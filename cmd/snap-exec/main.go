@@ -112,7 +112,7 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 		cmd = app.ReloadCommand
 	case "post-stop":
 		cmd = app.PostStopCommand
-	case "":
+	case "", "gdb":
 		cmd = app.Command
 	default:
 		return "", fmt.Errorf("cannot use %q command", command)
@@ -183,23 +183,25 @@ func execApp(snapApp, revision, command string, args []string) error {
 	cmdArgs := expandEnvCmdArgs(tmpArgv[1:], osutil.EnvMap(env))
 
 	// run the command
-	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)
+	fullCmd := []string{filepath.Join(app.Snap.MountDir(), cmd)}
 	switch command {
 	case "shell":
-		fullCmd = defaultShell
+		fullCmd[0] = defaultShell
 		cmdArgs = nil
 	case "complete":
-		fullCmd = defaultShell
+		fullCmd[0] = defaultShell
 		cmdArgs = []string{
 			dirs.CompletionHelper,
 			filepath.Join(app.Snap.MountDir(), app.Completer),
 		}
+	case "gdb":
+		fullCmd = append(fullCmd, fullCmd[0])
+		fullCmd[0] = filepath.Join(dirs.CoreLibExecDir, "snap-gdb-shim")
 	}
-	fullCmdArgs := []string{fullCmd}
-	fullCmdArgs = append(fullCmdArgs, cmdArgs...)
-	fullCmdArgs = append(fullCmdArgs, args...)
-	if err := syscallExec(fullCmd, fullCmdArgs, env); err != nil {
-		return fmt.Errorf("cannot exec %q: %s", fullCmd, err)
+	fullCmd = append(fullCmd, cmdArgs...)
+	fullCmd = append(fullCmd, args...)
+	if err := syscallExec(fullCmd[0], fullCmd, env); err != nil {
+		return fmt.Errorf("cannot exec %q: %s", fullCmd[0], err)
 	}
 	// this is never reached except in tests
 	return nil
