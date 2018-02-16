@@ -43,12 +43,14 @@ var _ = Suite(&PhysicalMemoryControlInterfaceSuite{
 })
 
 const physicalMemoryControlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [physical-memory-control]
 `
 
 const physicalMemoryControlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   physical-memory-control:
@@ -91,7 +93,7 @@ func (s *PhysicalMemoryControlInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# physical-memory-control
 KERNEL=="mem", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestStaticInfo(c *C) {

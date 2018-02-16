@@ -35,7 +35,7 @@ type packCmd struct {
 	} `positional-args:"yes"`
 }
 
-var shortPackHelp = i18n.G("pack the given target dir as a snap")
+var shortPackHelp = i18n.G("Pack the given target dir as a snap")
 var longPackHelp = i18n.G(`
 The pack command packs the given snap-dir as a snap.`)
 

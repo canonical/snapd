@@ -27,6 +27,8 @@ import (
 	"unicode"
 
 	"golang.org/x/crypto/ssh/terminal"
+
+	"github.com/snapcore/snapd/strutil/quantity"
 )
 
 var stdout io.Writer = os.Stdout
@@ -132,11 +134,11 @@ func (p *ANSIMeter) Set(current float64) {
 		since := time.Now().UTC().Sub(p.t0).Seconds()
 		per := since / p.written
 		left := (p.total - p.written) * per
-		timeleft = " " + formatDuration(left)
+		timeleft = " " + quantity.FormatDuration(left)
 		if col > 20 {
 			percent = " " + p.percent()
 			if col > 29 {
-				speed = " " + formatBPS(p.written, since, -1)
+				speed = " " + quantity.FormatBPS(p.written, since, -1)
 			}
 		}
 	}

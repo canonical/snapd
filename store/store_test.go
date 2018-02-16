@@ -2742,7 +2742,7 @@ func (t *remoteRepoTestSuite) testUbuntuStoreSnapCommands(c *C, onClassic bool) 
 	db.Commit()
 	c.Check(bufNames.String(), Equals, "bar\nfoo\n")
 
-	dump, err := advisor.Dump()
+	dump, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
 	c.Check(dump, DeepEquals, map[string][]string{
 		"foo":     {"foo"},
@@ -3054,6 +3054,19 @@ func (t *remoteRepoTestSuite) TestCurrentSnapNilLocalRevisionNoID(c *C) {
 	}
 	cs := currentSnap(cand)
 	c.Assert(cs, IsNil)
+	c.Check(t.logbuf.String(), Equals, "")
+}
+
+func (t *remoteRepoTestSuite) TestCurrentSnapRevLocalRevWithAmendHappy(c *C) {
+	cand := &RefreshCandidate{
+		SnapID:   helloWorldSnapID,
+		Revision: snap.R("x1"),
+		Amend:    true,
+	}
+	cs := currentSnap(cand)
+	c.Assert(cs, NotNil)
+	c.Check(cs.SnapID, Equals, cand.SnapID)
+	c.Check(cs.Revision, Equals, cand.Revision.N)
 	c.Check(t.logbuf.String(), Equals, "")
 }
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -451,6 +451,11 @@ socket AF_NFC
 socket AF_VSOCK
 socket AF_MPLS
 socket AF_IB
+
+# For usrsctp, AppArmor doesn't support 'network conn,' since AF_CONN is
+# userspace and encapsulated in other domains that are mediated. As such, do
+# not allow AF_CONN by default here.
+# socket AF_CONN
 
 # For AF_NETLINK, we'll use a combination of AppArmor coarse mediation and
 # seccomp arg filtering of netlink families.

@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -242,4 +243,34 @@ type: kernel
 
 	l, _ = filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
 	c.Assert(l, HasLen, 0)
+}
+
+func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {
+	snapPath := makeTestSnap(c, helloYaml1)
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		// mount unit start fails
+		if len(cmd) >= 2 && cmd[0] == "start" && strings.HasSuffix(cmd[1], ".mount") {
+			return nil, fmt.Errorf("failed")
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	err := s.be.SetupSnap(snapPath, &si, progress.Null)
+	c.Assert(err, ErrorMatches, "failed")
+
+	// everything is gone
+	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
+	c.Check(l, HasLen, 0)
+
+	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
+	c.Check(osutil.FileExists(minInfo.MountDir()), Equals, false)
+	c.Check(osutil.FileExists(minInfo.MountFile()), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello_14.snap")), Equals, false)
 }

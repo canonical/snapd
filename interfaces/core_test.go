@@ -184,6 +184,7 @@ func (s *CoreSuite) TestParseConnRef(c *C) {
 func (s *CoreSuite) TestSanitizePlug(c *C) {
 	info := snaptest.MockInfo(c, `
 name: snap
+version: 0
 plugs:
   plug:
     interface: iface
@@ -204,6 +205,7 @@ plugs:
 func (s *CoreSuite) TestSanitizeSlot(c *C) {
 	info := snaptest.MockInfo(c, `
 name: snap
+version: 0
 slots:
   slot:
     interface: iface
