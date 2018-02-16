@@ -563,7 +563,8 @@ int sc_open_snap_update_ns(void)
 	return fd;
 }
 
-void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
+void sc_populate_mount_ns(int snap_update_ns_fd, const char *base_snap_name,
+			  const char *snap_name)
 {
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
@@ -573,10 +574,6 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 	if (vanilla_cwd == NULL) {
 		die("cannot get the current working directory");
 	}
-	// Find and open snap-update-ns from the same path as where we
-	// (snap-confine) were called.
-	int snap_update_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	snap_update_ns_fd = sc_open_snap_update_ns();
 
 	bool on_classic_distro = is_running_on_classic_distribution();
 	// on classic or with alternative base snaps we need to setup
