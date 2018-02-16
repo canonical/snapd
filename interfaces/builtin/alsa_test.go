@@ -93,7 +93,7 @@ func (s *AlsaInterfaceSuite) TestUDevpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 8)
 	c.Assert(spec.Snippets(), testutil.Contains, `# alsa
 KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *AlsaInterfaceSuite) TestStaticInfo(c *C) {
