@@ -101,7 +101,7 @@ func (s *ValidateSuite) TestValidateVersion(c *C) {
 	}
 	invalidVersions := []string{
 		// can't have non-whitelisted symbols
-		"v1.3([<$$$>])", "what even _is_ a version",
+		"v1.3([<$$$>])", "what even _is_ a version", "horrible_underscores",
 		// can't start with whitelisted symbls
 		":", ".", "+", "~", "-",
 		// can't end with most whitelisted symbols
