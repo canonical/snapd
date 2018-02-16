@@ -277,9 +277,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 
 		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
-		data, err := ioutil.ReadFile(profile + ".src")
-		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, scenario.content)
+		c.Check(profile+".src", testutil.FileEquals, scenario.content)
 		stat, err := os.Stat(profile + ".src")
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -319,9 +317,7 @@ func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, snapYaml, 0)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.foo.foo")
-	data, err := ioutil.ReadFile(profile + ".src")
-	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, "default\naaa\nzzz\n")
+	c.Check(profile+".src", testutil.FileEquals, "default\naaa\nzzz\n")
 	stat, err := os.Stat(profile + ".src")
 	c.Assert(err, IsNil)
 	c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -336,7 +332,5 @@ func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
 	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
-	data, err := ioutil.ReadFile(profile + ".src")
-	c.Assert(err, IsNil)
-	c.Assert(string(data), testutil.Contains, "\nbind\n")
+	c.Assert(profile+".src", testutil.FileContains, "\nbind\n")
 }

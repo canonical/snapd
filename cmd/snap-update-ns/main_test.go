@@ -31,6 +31,7 @@ import (
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -67,9 +68,7 @@ func (s *mainSuite) TestComputeAndSaveChanges(c *C) {
 	err = update.ComputeAndSaveChanges(snapName)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(currentProfilePath)
-	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, `/var/lib/snapd/hostfs/usr/local/share/fonts /usr/local/share/fonts none bind,ro 0 0
+	c.Check(currentProfilePath, testutil.FileEquals, `/var/lib/snapd/hostfs/usr/local/share/fonts /usr/local/share/fonts none bind,ro 0 0
 /var/lib/snapd/hostfs/usr/share/fonts /usr/share/fonts none bind,ro 0 0
 `)
 }
@@ -135,9 +134,7 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 
 	c.Assert(update.ComputeAndSaveChanges(snapName), IsNil)
 
-	content, err := ioutil.ReadFile(currentProfilePath)
-	c.Assert(err, IsNil)
-	c.Check(string(content), Equals,
+	c.Check(currentProfilePath, testutil.FileEquals,
 		`tmpfs /usr/share tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
 /usr/share/adduser /usr/share/adduser none bind,ro,x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
 /usr/share/awk /usr/share/awk none bind,ro,x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
@@ -214,9 +211,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 
 	c.Assert(update.ComputeAndSaveChanges(snapName), IsNil)
 
-	content, err := ioutil.ReadFile(currentProfilePath)
-	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, "")
+	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
 
 func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
@@ -258,7 +253,5 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 	// The error was not ignored, we bailed out.
 	c.Assert(update.ComputeAndSaveChanges(snapName), ErrorMatches, "testing")
 
-	content, err := ioutil.ReadFile(currentProfilePath)
-	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, "")
+	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
