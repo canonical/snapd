@@ -2548,9 +2548,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
 		c.Check(flags, check.DeepEquals, expectedFlags)
 
-		bs, err := ioutil.ReadFile(path)
-		c.Check(err, check.IsNil)
-		c.Check(string(bs), check.Equals, "xyzzy")
+		c.Check(path, testutil.FileEquals, "xyzzy")
 
 		installQueue = append(installQueue, si.RealName+"::"+path)
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -4880,9 +4878,7 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 	// auth saved to user home dir
 	outfile := filepath.Join(s.mockUserHome, ".snap", "auth.json")
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
-	content, err := ioutil.ReadFile(outfile)
-	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals,
+	c.Check(outfile, testutil.FileEquals,
 		fmt.Sprintf(`{"id":%d,"username":"%s","email":"%s","macaroon":"%s"}`,
 			1, expectedUsername, expectedEmail, user.Macaroon))
 }

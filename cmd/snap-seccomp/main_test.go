@@ -38,6 +38,7 @@ import (
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -330,10 +331,7 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 	err := main.Compile([]byte(inp), outPath)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(outPath)
-	c.Assert(err, IsNil)
-	c.Check(content, DeepEquals, []byte(inp))
-
+	c.Check(outPath, testutil.FileEquals, inp)
 }
 
 // TestCompile iterates over a range of textual seccomp whitelist rules and
