@@ -117,6 +117,20 @@ dbus (receive, send)
     path=/org/freedesktop/ModemManager1{,/**}
     interface=org.freedesktop.DBus.*
     peer=(label=unconfined),
+
+# Allow accessing logind services to properly shutdown devices on suspend
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member={PrepareForSleep,SessionNew,SessionRemoved}
+    peer=(label=unconfined),
+dbus (send)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member=Inhibit
+    peer=(label=unconfined),
 `
 
 const modemManagerConnectedSlotAppArmor = `

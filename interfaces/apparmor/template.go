@@ -216,6 +216,9 @@ var defaultTemplate = `
   # For snappy reexec on 4.8+ kernels
   /usr/lib/snapd/snap-exec m,
 
+  # For gdb support
+  /usr/lib/snapd/snap-gdb-shim ixr,
+
   # For in-snap tab completion
   /etc/bash_completion.d/{,*} r,
   /usr/lib/snapd/etelpmoc.sh ixr,               # marshaller (see complete.sh for out-of-snap unmarshal)
