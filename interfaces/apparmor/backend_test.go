@@ -376,7 +376,7 @@ snippet
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	restore := release.MockAppArmorLevel(release.FullAppArmor)
 	defer restore()
-	restore = osutil.MockMountInfo("") // mock away NFS detection
+	restore = osutil.MockMountInfo("") // mock away NFS/overlay detection
 	defer restore()
 
 	// NOTE: replace the real template with a shorter variant
@@ -933,5 +933,205 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
 	c.Assert(files, HasLen, 1)
 
 	// We didn't try to reload the policy.
+	c.Assert(cmd.Calls(), HasLen, 0)
+}
+
+func (s *backendSuite) TestIsRootOverlay(c *C) {
+	cases := []struct {
+		mountinfo, fstab string
+		overlay          bool
+		errorPattern     string
+	}{{
+		// Errors from parsing mountinfo and fstab are propagated.
+		mountinfo:    "bad syntax",
+		errorPattern: "cannot parse .*/mountinfo.*, .*",
+	}, {
+		fstab:        "bad syntax",
+		errorPattern: "cannot parse .*/fstab.*, .*",
+	}, {
+		// overlay mounted on / are recognized
+		mountinfo: "31 1 0:26 / / rw,relatime shared:1 - overlay /cow rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
+		overlay:   true,
+	}, {
+		// overlay mounted elsewhere are ignored
+		mountinfo: "31 1 0:26 /elsewhere /elsewhere rw,relatime shared:1 - overlay /cow rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
+	}, {
+		// overlay mounted at / is recognized
+		fstab:   "overlay / overlay rw 0 0",
+		overlay: true,
+	}, {
+		// overlay mounted elsewhere are ignored
+		fstab: "overlay /elsewhere overlay rw 0 0",
+	}}
+	for _, tc := range cases {
+		restore := osutil.MockMountInfo(tc.mountinfo)
+		defer restore()
+		restore = osutil.MockEtcFstab(tc.fstab)
+		defer restore()
+
+		overlay, err := osutil.IsRootOverlay()
+		if tc.errorPattern != "" {
+			c.Assert(err, ErrorMatches, tc.errorPattern, Commentf("test case %#v", tc))
+		} else {
+			c.Assert(err, IsNil)
+		}
+		c.Assert(overlay, Equals, tc.overlay)
+	}
+}
+
+// snap-confine policy when overlay is not used.
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoOverlay(c *C) {
+	// Make it appear as if overlay was not used.
+	restore := osutil.MockMountInfo("")
+	defer restore()
+	restore = osutil.MockEtcFstab("")
+	defer restore()
+
+	// Intercept interaction with apparmor_parser
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+
+	// Setup generated policy for snap-confine.
+	err := (&apparmor.Backend{}).Initialize()
+	c.Assert(err, IsNil)
+	c.Assert(cmd.Calls(), HasLen, 0)
+
+	// Because overlay is not used there are no local policy files but the
+	// directory was created.
+	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 0)
+
+	// The policy was not reloaded.
+	c.Assert(cmd.Calls(), HasLen, 0)
+}
+
+func MockEnableOverlayWorkaroundCondition() (restore func()) {
+	// Mock mountinfo and fstab so that snapd thinks that overlay workaround
+	// is necessary. The details don't matter here. See TestIsRootOverlay
+	// for details about what triggers the workaround.
+	restore1 := osutil.MockMountInfo("")
+	restore2 := osutil.MockEtcFstab("overlay / overlay rw 0 0")
+	return func() {
+		restore1()
+		restore2()
+	}
+}
+
+func MockDisableOverlayWorkaroundCondition() (restore func()) {
+	// Mock mountinfo and fstab so that snapd thinks that overlay workaround is not
+	// necessary. The details don't matter here. See TestIsRootOverlay for
+	// details about what triggers the workaround.
+	restore1 := osutil.MockMountInfo("")
+	restore2 := osutil.MockEtcFstab("")
+	return func() {
+		restore1()
+		restore2()
+	}
+}
+
+// Ensure that both names of the snap-confine apparmor profile are supported.
+
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlay1(c *C) {
+	s.testSetupSnapConfineGeneratedPolicyWithOverlay(c, "usr.lib.snapd.snap-confine")
+}
+
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlay2(c *C) {
+	s.testSetupSnapConfineGeneratedPolicyWithOverlay(c, "usr.lib.snapd.snap-confine.real")
+}
+
+// snap-confine policy when overlay is used and snapd has not re-executed.
+func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithOverlay(c *C, profileFname string) {
+	// Make it appear as if overlay workaround was needed.
+	restore := MockEnableOverlayWorkaroundCondition()
+	defer restore()
+
+	// Intercept interaction with apparmor_parser
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+
+	// Intercept the /proc/self/exe symlink and point it to the distribution
+	// executable (the path doesn't matter as long as it is not from the
+	// mounted core snap). This indicates that snapd is not re-executing
+	// and that we should reload snap-confine profile.
+	fakeExe := filepath.Join(s.RootDir, "fake-proc-self-exe")
+	err := os.Symlink("/usr/lib/snapd/snapd", fakeExe)
+	c.Assert(err, IsNil)
+	restore = apparmor.MockProcSelfExe(fakeExe)
+	defer restore()
+
+	profilePath := filepath.Join(dirs.SystemApparmorDir, profileFname)
+
+	// Create the directory where system apparmor profiles are stored and write
+	// the system apparmor profile of snap-confine.
+	c.Assert(os.MkdirAll(dirs.SystemApparmorDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(profilePath, []byte(""), 0644), IsNil)
+
+	// Setup generated policy for snap-confine.
+	err = (&apparmor.Backend{}).Initialize()
+	c.Assert(err, IsNil)
+
+	// Because overlay is being used, we have the extra policy file.
+	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 1)
+	c.Assert(files[0].Name(), Equals, "overlay-root")
+	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
+	c.Assert(files[0].IsDir(), Equals, false)
+
+	// The policy allows upperdir access.
+	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name()))
+	c.Assert(err, IsNil)
+	c.Assert(string(data), testutil.Contains, "/upper/{,**/} r,")
+
+	// The system apparmor profile of snap-confine was reloaded.
+	c.Assert(cmd.Calls(), HasLen, 1)
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{{
+		"apparmor_parser", "--replace",
+		"-O", "no-expr-simplify",
+		"--write-cache",
+		"--cache-loc", dirs.SystemApparmorCacheDir,
+		profilePath,
+	}})
+}
+
+// snap-confine policy when overlay is used and snapd has re-executed.
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlayAndReExec(c *C) {
+	// Make it appear as if overlay workaround was needed.
+	restore := MockEnableOverlayWorkaroundCondition()
+	defer restore()
+
+	// Intercept interaction with apparmor_parser
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+
+	// Intercept the /proc/self/exe symlink and point it to the snapd from the
+	// mounted core snap. This indicates that snapd has re-executed and
+	// should not reload snap-confine policy.
+	fakeExe := filepath.Join(s.RootDir, "fake-proc-self-exe")
+	err := os.Symlink(filepath.Join(dirs.SnapMountDir, "/core/1234/usr/lib/snapd/snapd"), fakeExe)
+	c.Assert(err, IsNil)
+	restore = apparmor.MockProcSelfExe(fakeExe)
+	defer restore()
+
+	// Setup generated policy for snap-confine.
+	err = (&apparmor.Backend{}).Initialize()
+	c.Assert(err, IsNil)
+
+	// Because overlay is being used, we have the extra policy file.
+	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 1)
+	c.Assert(files[0].Name(), Equals, "overlay-root")
+	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
+	c.Assert(files[0].IsDir(), Equals, false)
+
+	// The policy allows upperdir access
+	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name()))
+	c.Assert(err, IsNil)
+	c.Assert(string(data), testutil.Contains, "/upper/{,**/} r,")
+
+	// The distribution policy was not reloaded because snap-confine executes
+	// from core snap. This is handled separately by per-profile Setup.
 	c.Assert(cmd.Calls(), HasLen, 0)
 }

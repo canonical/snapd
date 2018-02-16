@@ -109,6 +109,18 @@ func (b *Backend) Initialize() error {
 		logger.Noticef("snapd enabled NFS support, additional implicit network permissions granted")
 	}
 
+	// Check if '/' is on overlayfs. If so, add the necessary rules for
+	// upperdir and allow snap-confine to work.
+	if overlayRoot, err := osutil.IsRootOverlay(); err != nil {
+		logger.Noticef("cannot determine if / on overlay: %v", err)
+	} else if overlayRoot {
+		policy["overlay-root"] = &osutil.FileState{
+			Content: []byte(overlayRootSnippet),
+			Mode:    0644,
+		}
+		logger.Noticef("snapd enabled / on overlay support, additional upperdir permissions granted")
+	}
+
 	// Ensure that generated policy is what we computed above.
 	created, removed, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, policy)
 	if err != nil {
@@ -390,6 +402,10 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				tagSnippets = snippetForTag
 				if nfs, _ := osutil.IsHomeUsingNFS(); nfs {
 					tagSnippets += nfsSnippet
+				}
+
+				if overlayRoot, _ := osutil.IsRootOverlay(); overlayRoot {
+					tagSnippets += overlayRootSnippet
 				}
 			}
 			return tagSnippets
