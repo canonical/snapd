@@ -184,6 +184,7 @@ var defaultTemplate = `
   /{,usr/}bin/stat ixr,
   /{,usr/}bin/stdbuf ixr,
   /{,usr/}bin/stty ixr,
+  /{,usr/}bin/sync ixr,
   /{,usr/}bin/systemd-cat ixr,
   /{,usr/}bin/tac ixr,
   /{,usr/}bin/tail ixr,
@@ -215,6 +216,9 @@ var defaultTemplate = `
 
   # For snappy reexec on 4.8+ kernels
   /usr/lib/snapd/snap-exec m,
+
+  # For gdb support
+  /usr/lib/snapd/snap-gdb-shim ixr,
 
   # For in-snap tab completion
   /etc/bash_completion.d/{,*} r,
@@ -489,6 +493,9 @@ var classicJailmodeSnippet = `
   # Read only access to the core snap to load libc from.
   # This is related to LP: #1666897
   @{INSTALL_DIR}/core/*/{,usr/}lib/@{multiarch}/{,**/}lib*.so* m,
+
+  # For snappy reexec on 4.8+ kernels
+  @{INSTALL_DIR}/core/*/usr/lib/snapd/snap-exec m,
 `
 
 // nfsSnippet contains extra permissions necessary for snaps and snap-confine

@@ -86,10 +86,12 @@ var unescape = strings.NewReplacer(
 	`\134`, "\\",
 ).Replace
 
+// Escape returns the given path with space, tab, newline and forward slash escaped.
 func Escape(path string) string {
 	return escape(path)
 }
 
+// Unescape returns the given path with space, tab, newline and forward slash unescaped.
 func Unescape(path string) string {
 	return unescape(path)
 }
@@ -126,8 +128,15 @@ func ParseMountEntry(s string) (MountEntry, error) {
 	var df, cpn int
 	fields := strings.FieldsFunc(s, func(r rune) bool { return r == ' ' || r == '\t' })
 	// do all error checks before any assignments to `e'
-	if len(fields) < 4 || len(fields) > 6 {
-		return e, fmt.Errorf("expected between 4 and 6 fields, found %d", len(fields))
+	if len(fields) < 3 || len(fields) > 6 {
+		return e, fmt.Errorf("expected between 3 and 6 fields, found %d", len(fields))
+	}
+	e.Name = unescape(fields[0])
+	e.Dir = unescape(fields[1])
+	e.Type = unescape(fields[2])
+	// Parse Options if we have at least 4 fields
+	if len(fields) > 3 {
+		e.Options = strings.Split(unescape(fields[3]), ",")
 	}
 	// Parse DumpFrequency if we have at least 5 fields
 	if len(fields) > 4 {
@@ -136,6 +145,7 @@ func ParseMountEntry(s string) (MountEntry, error) {
 			return e, fmt.Errorf("cannot parse dump frequency: %q", fields[4])
 		}
 	}
+	e.DumpFrequency = df
 	// Parse CheckPassNumber if we have at least 6 fields
 	if len(fields) > 5 {
 		cpn, err = strconv.Atoi(fields[5])
@@ -143,18 +153,13 @@ func ParseMountEntry(s string) (MountEntry, error) {
 			return e, fmt.Errorf("cannot parse check pass number: %q", fields[5])
 		}
 	}
-	e.Name = unescape(fields[0])
-	e.Dir = unescape(fields[1])
-	e.Type = unescape(fields[2])
-	e.Options = strings.Split(unescape(fields[3]), ",")
-	e.DumpFrequency = df
 	e.CheckPassNumber = cpn
 	return e, nil
 }
 
-// OptsToCommonFlags converts mount options strings to a mount flag, returning unparsed flags.
-// The unparsed flags will not contain any snapd-specific mount option, those
-// starting with the string "x-snapd."
+// MountOptsToCommonFlags converts mount options strings to a mount flag,
+// returning unparsed flags. The unparsed flags will not contain any snapd-
+// specific mount option, those starting with the string "x-snapd."
 func MountOptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 	for _, opt := range opts {
 		switch opt {
@@ -213,7 +218,7 @@ func MountOptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 	return flags, unparsed
 }
 
-// OptsToFlags converts mount options strings to a mount flag.
+// MountOptsToFlags converts mount options strings to a mount flag.
 func MountOptsToFlags(opts []string) (flags int, err error) {
 	flags, unparsed := MountOptsToCommonFlags(opts)
 	for _, opt := range unparsed {
@@ -326,6 +331,14 @@ func (e *MountEntry) XSnapdNeededBy() string {
 	return val
 }
 
+// XSnapdOrigin returns the origin of a given mount entry.
+//
+// Currently only "layout" entries are identified with a unique origin string.
+func (e *MountEntry) XSnapdOrigin() string {
+	val, _ := e.OptStr("x-snapd.origin")
+	return val
+}
+
 // XSnapdSynthetic returns true of a given mount entry is synthetic.
 //
 // Synthetic mount entries are created by snap-update-ns itself, separately
@@ -344,6 +357,11 @@ func XSnapdKindSymlink() string {
 // XSnapdKindFile returns the string "x-snapd.kind=file".
 func XSnapdKindFile() string {
 	return "x-snapd.kind=file"
+}
+
+// XSnapdOriginLayout returns the string "x-snapd.origin=layout"
+func XSnapdOriginLayout() string {
+	return "x-snapd.origin=layout"
 }
 
 // XSnapdUser returns the string "x-snapd.user=%d".
