@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/snapcore/snapd/client"
@@ -64,6 +65,42 @@ func (x *cmdList) Execute(args []string) error {
 
 var ErrNoMatchingSnaps = errors.New(i18n.G("no matching snaps installed"))
 
+// snapd will give us  and we want
+// "" (local snap)     "-"
+// risk                risk
+// track               track        (not yet returned by snapd)
+// track/stable        track
+// track/risk          track/risk
+// risk/branch         risk/…
+// track/risk/branch   track/risk/…
+func fmtChannel(ch string) string {
+	if ch == "" {
+		// local snap
+		return "-"
+	}
+	idx := strings.IndexByte(ch, '/')
+	if idx < 0 {
+		// risk
+		return ch
+	}
+	first, rest := ch[:idx], ch[idx+1:]
+	if rest == "stable" && first != "" {
+		// first is a track
+		return first
+	}
+	if idx2 := strings.IndexByte(rest, '/'); idx2 >= 0 {
+		ch = ch[:idx2+idx+2] + "…"
+	}
+	// if first is a risk, rest is a branch (so we want first).
+	// Otherwise, first is a track and rest is a risk, so we want first/rest -> we want ch.
+	for _, risk := range []string{"stable", "candidate", "beta", "edge"} {
+		if first == risk {
+			return first + "/…"
+		}
+	}
+	return ch
+}
+
 func listSnaps(names []string, all bool) error {
 	cli := Client()
 	snaps, err := cli.List(names, &client.ListOptions{All: all})
@@ -85,11 +122,24 @@ func listSnaps(names []string, all bool) error {
 	w := tabWriter()
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper\tNotes"))
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tTracking\tDeveloper\tNotes"))
 
 	for _, snap := range snaps {
-		// TODO: make JailMode a flag in the snap itself
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, NotesFromLocal(snap))
+		// Aid parsing of the output by not leaving the field empty.
+		dev := snap.Developer
+		if dev == "" {
+			dev = "-"
+		}
+		// doing it this way because otherwise it's a sea of %s\t%s\t%s
+		line := []string{
+			snap.Name,
+			snap.Version,
+			snap.Revision.String(),
+			fmtChannel(snap.TrackingChannel),
+			dev,
+			NotesFromLocal(snap).String(),
+		}
+		fmt.Fprintln(w, strings.Join(line, "\t"))
 	}
 
 	return nil
