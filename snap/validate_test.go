@@ -93,7 +93,7 @@ func (s *ValidateSuite) TestValidateVersion(c *C) {
 		"0", "v1.0", "0.12+16.04.20160126-0ubuntu1",
 		"1:6.0.1+r16-3", "1.0~", "1.0+", "README.~1~",
 		"a+++++++++++++++++++++++++++++++",
-		"AZaz:.+~_-123",
+		"AZaz:.+~-123",
 	}
 	for _, version := range validVersions {
 		err := ValidateVersion(version)
@@ -103,9 +103,9 @@ func (s *ValidateSuite) TestValidateVersion(c *C) {
 		// can't have non-whitelisted symbols
 		"v1.3([<$$$>])", "what even _is_ a version",
 		// can't start with whitelisted symbls
-		":", ".", "+", "~", "_", "-",
+		":", ".", "+", "~", "-",
 		// can't end with most whitelisted symbols
-		"a:", "a.", "a_", "a-",
+		"a:", "a.", "a-",
 		// version must be plain ASCII
 		"árbol", "日本語", "한글", "ру́сский язы́к",
 	}
