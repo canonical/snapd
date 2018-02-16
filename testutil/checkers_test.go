@@ -27,16 +27,16 @@
 package testutil
 
 import (
+	"io/ioutil"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"runtime"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/strutil"
-	"io/ioutil"
-	"regexp"
 )
 
 func Test(t *testing.T) {
