@@ -282,9 +282,9 @@ func (s *CheckersS) TestFileEquals(c *C) {
 	testCheck(c, FileEquals, false, "", filename, []byte(twofer))
 	testCheck(c, FileEquals, false, "", filename, myStringer{twofer})
 
-	testCheck(c, FileEquals, false, "Can't read file: open : no such file or directory", "", "")
+	testCheck(c, FileEquals, false, `Can't read file "": open : no such file or directory`, "", "")
 	testCheck(c, FileEquals, false, "Filename must be a string", 42, "")
-	testCheck(c, FileEquals, false, "Can't compare file contents with a int", filename, 1)
+	testCheck(c, FileEquals, false, "Can't compare file contents with something of type int", filename, 1)
 }
 
 func (s *CheckersS) TestFileContains(c *C) {
@@ -307,9 +307,9 @@ func (s *CheckersS) TestFileContains(c *C) {
 	// undocumented
 	testCheck(c, FileContains, false, "", filename, regexp.MustCompile("^$"))
 
-	testCheck(c, FileContains, false, "Can't read file: open : no such file or directory", "", "")
+	testCheck(c, FileContains, false, `Can't read file "": open : no such file or directory`, "", "")
 	testCheck(c, FileContains, false, "Filename must be a string", 42, "")
-	testCheck(c, FileContains, false, "Can't compare file contents with a int", filename, 1)
+	testCheck(c, FileContains, false, "Can't compare file contents with something of type int", filename, 1)
 }
 
 func (s *CheckersS) TestFileMatches(c *C) {
@@ -325,7 +325,7 @@ func (s *CheckersS) TestFileMatches(c *C) {
 	testCheck(c, FileMatches, false, "", filename, "^$")
 	testCheck(c, FileMatches, false, "", filename, "123"+regexp.QuoteMeta(content))
 
-	testCheck(c, FileMatches, false, "Can't read file: open : no such file or directory", "", "")
+	testCheck(c, FileMatches, false, `Can't read file "": open : no such file or directory`, "", "")
 	testCheck(c, FileMatches, false, "Filename must be a string", 42, ".*")
 	testCheck(c, FileMatches, false, "Regex must be a string", filename, 1)
 }
