@@ -228,9 +228,7 @@ func (s *SquashfsTestSuite) TestUnpackGlob(c *C) {
 	c.Assert(err, IsNil)
 
 	// this is the file we expect
-	content, err := ioutil.ReadFile(filepath.Join(outputDir, "data.bin"))
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, data)
+	c.Assert(filepath.Join(outputDir, "data.bin"), testutil.FileEquals, data)
 
 	// ensure glob was honored
 	c.Assert(osutil.FileExists(filepath.Join(outputDir, "meta/snap.yaml")), Equals, false)
