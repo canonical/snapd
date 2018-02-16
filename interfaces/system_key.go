@@ -39,6 +39,7 @@ type systemKey struct {
 	BuildID          string   `yaml:"build-id"`
 	AppArmorFeatures []string `yaml:"apparmor-features"`
 	NFSHome          bool     `yaml:"nfs-home"`
+	OverlayRoot      bool     `yaml:"overlay-root"`
 	Core             string   `yaml:"core,omitempty"`
 }
 
@@ -67,6 +68,14 @@ func generateSystemKey() *systemKey {
 	if err != nil {
 		logger.Noticef("cannot determine nfs usage in generateSystemKey: %v", err)
 	}
+
+	// Add if '/' is on overlayfs so we can add AppArmor rules for
+	// upperdir such that if this changes, we change our profile.
+	sk.OverlayRoot, err = osutil.IsRootOverlay()
+	if err != nil {
+		logger.Noticef("cannot determine / on overlay in generateSystemKey: %v", err)
+	}
+
 	// Add the current Core path, we need this because we call helpers
 	// like snap-confine from core that will need an updated profile
 	// if it changes
