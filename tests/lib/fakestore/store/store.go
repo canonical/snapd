@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -99,6 +99,8 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux.HandleFunc("/api/v1/snaps/metadata", store.bulkEndpoint)
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(topDir))))
 	mux.HandleFunc("/api/v1/snaps/assertions/", store.assertionsEndpoint)
+	// v2
+	mux.HandleFunc("/v2/snaps/refresh", store.installRefreshEndpoint)
 
 	return store
 }
@@ -474,6 +476,153 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 	}
 
 	return bs, nil
+}
+
+type contextSnap struct {
+	SnapID      string `json:"snap-id"`
+	InstanceKey string `json:"instance-key"`
+}
+
+type installRefreshAction struct {
+	Action      string `json:"action"`
+	InstanceKey string `json:"instance-key"`
+	SnapID      string `json:"snap-id"`
+	Name        string `json:"name"`
+}
+
+type installRefreshReqJSON struct {
+	Context []contextSnap          `json:"context"`
+	Fields  []string               `json:"fields"`
+	Actions []installRefreshAction `json:"actions"`
+}
+
+type installRefreshResult struct {
+	Result      string        `json:"result"`
+	InstanceKey string        `json:"instance-key"`
+	SnapID      string        `json:"snap-id"`
+	Name        string        `json:"name"`
+	Snap        detailsV2JSON `json:"snap"`
+}
+
+type detailsV2JSON struct {
+	Architectures []string `json:"architectures"`
+	SnapID        string   `json:"snap-id"`
+	Name          string   `json:"name"`
+	Publisher     struct {
+		ID       string `json:"id"`
+		Username string `json:"username"`
+	} `json:"publisher"`
+	Download struct {
+		URL      string `json:"url"`
+		Sha3_384 string `json:"sha3-384"`
+		Size     uint64 `json:"size"`
+	} `json:"download"`
+	Version  string `json:"version"`
+	Revision int    `json:"revision"`
+}
+
+type installRefreshRespJSON struct {
+	Results []*installRefreshResult `json:"results"`
+}
+
+func (s *Store) installRefreshEndpoint(w http.ResponseWriter, req *http.Request) {
+	var reqData installRefreshReqJSON
+	var replyData installRefreshRespJSON
+
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&reqData); err != nil {
+		http.Error(w, fmt.Sprintf("cannot decode request body: %v", err), 400)
+		return
+	}
+
+	bs, err := s.collectAssertions()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
+		return
+	}
+
+	var remoteStore string
+	if osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
+		remoteStore = "staging"
+	} else {
+		remoteStore = "production"
+	}
+	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName[remoteStore])
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting snapIDs: %v", err), 500)
+		return
+	}
+
+	snaps, err := s.collectSnaps()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
+		return
+	}
+
+	actions := reqData.Actions
+	if len(actions) == 1 && actions[0].Action == "refresh-all" {
+		actions = make([]installRefreshAction, len(reqData.Context))
+		for i, s := range reqData.Context {
+			actions[i] = installRefreshAction{
+				Action:      "refresh",
+				SnapID:      s.SnapID,
+				InstanceKey: s.InstanceKey,
+			}
+		}
+	}
+
+	// check if we have downloadable snap of the given SnapID or name
+	for _, a := range actions {
+		name := a.Name
+		snapID := a.SnapID
+		if a.Action == "refresh" {
+			name = snapIDtoName[snapID]
+		}
+
+		if name == "" {
+			http.Error(w, fmt.Sprintf("unknown snapid: %q", snapID), 400)
+			return
+		}
+
+		if fn, ok := snaps[name]; ok {
+			essInfo, err := snapEssentialInfo(w, fn, snapID, bs)
+			if essInfo == nil {
+				if err != errInfo {
+					panic(err)
+				}
+				return
+			}
+
+			res := &installRefreshResult{
+				Result:      a.Action,
+				InstanceKey: a.InstanceKey,
+				SnapID:      essInfo.SnapID,
+				Name:        essInfo.Name,
+				Snap: detailsV2JSON{
+					Architectures: []string{"all"},
+					SnapID:        essInfo.SnapID,
+					Name:          essInfo.Name,
+					Version:       essInfo.Version,
+					Revision:      essInfo.Revision,
+				},
+			}
+			res.Snap.Publisher.ID = essInfo.DeveloperID
+			res.Snap.Publisher.Username = essInfo.DevelName
+			res.Snap.Download.URL = fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn))
+			res.Snap.Download.Sha3_384 = hexify(essInfo.Digest)
+			res.Snap.Download.Size = essInfo.Size
+			replyData.Results = append(replyData.Results, res)
+		}
+	}
+
+	// use indent because this is a development tool, output
+	// should look nice
+	out, err := json.MarshalIndent(replyData, "", "    ")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("can marshal: %v: %v", replyData, err), 400)
+		return
+	}
+	w.Write(out)
 }
 
 func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, primaryKey []string) (asserts.Assertion, error) {
