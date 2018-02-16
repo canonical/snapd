@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type profileSuite struct{}
@@ -73,9 +74,7 @@ func (s *profileSuite) TestSaveMountProfile1(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0644))
 
-	data, err := ioutil.ReadFile(fname)
-	c.Assert(err, IsNil)
-	c.Assert(string(data), Equals, "name-1 dir-1 type-1 options-1 1 1\n")
+	c.Assert(fname, testutil.FileEquals, "name-1 dir-1 type-1 options-1 1 1\n")
 }
 
 // Test that empty fstab is parsed without errors

@@ -479,9 +479,7 @@ func (ovs *overlordSuite) TestCheckpoint(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(st.Mode(), Equals, os.FileMode(0600))
 
-	content, err := ioutil.ReadFile(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
-	c.Check(string(content), testutil.Contains, `"mark":1`)
+	c.Check(dirs.SnapStateFile, testutil.FileContains, `"mark":1`)
 }
 
 type runnerManager struct {
