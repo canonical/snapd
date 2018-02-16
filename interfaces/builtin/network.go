@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -72,6 +72,10 @@ bind
 # network-observe, for series 16 also have it here to not break existing snaps.
 # Future snapd series may remove this in the future. LP: #1689536
 socket AF_NETLINK - NETLINK_ROUTE
+
+# Userspace SCTP
+# https://github.com/sctplab/usrsctp/blob/master/usrsctplib/usrsctp.h
+socket AF_CONN
 `
 
 func init() {
