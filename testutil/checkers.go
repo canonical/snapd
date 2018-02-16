@@ -86,22 +86,20 @@ func fileContentCheck(filename string, content interface{}, exact bool) (result 
 			return bytes.Equal(buf, content), ""
 		case fmt.Stringer:
 			return string(buf) == content.String(), ""
-		default:
-			return false, fmt.Sprintf("Can't compare file contents with a %T", content)
+		}
+	} else {
+		switch content := content.(type) {
+		case string:
+			return strings.Contains(string(buf), content), ""
+		case []byte:
+			return bytes.Contains(buf, content), ""
+		case *regexp.Regexp:
+			return content.Match(buf), ""
+		case fmt.Stringer:
+			return strings.Contains(string(buf), content.String()), ""
 		}
 	}
-	switch content := content.(type) {
-	case string:
-		return strings.Contains(string(buf), content), ""
-	case []byte:
-		return bytes.Contains(buf, content), ""
-	case *regexp.Regexp:
-		return content.Match(buf), ""
-	case fmt.Stringer:
-		return strings.Contains(string(buf), content.String()), ""
-	default:
-		return false, fmt.Sprintf("Can't compare file contents with a %T", content)
-	}
+	return false, fmt.Sprintf("Can't compare file contents with something of type %T", content)
 }
 
 type containsChecker struct {
