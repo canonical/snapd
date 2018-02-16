@@ -22,6 +22,7 @@ package snap_test
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 
 	. "gopkg.in/check.v1"
 
@@ -89,7 +90,6 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 
 func (s *ValidateSuite) TestValidateVersion(c *C) {
 	validVersions := []string{
-
 		"0", "v1.0", "0.12+16.04.20160126-0ubuntu1",
 		"1:6.0.1+r16-3", "1.0~", "1.0+", "README.~1~",
 		"a+++++++++++++++++++++++++++++++",
@@ -99,22 +99,37 @@ func (s *ValidateSuite) TestValidateVersion(c *C) {
 		err := ValidateVersion(version)
 		c.Assert(err, IsNil)
 	}
-	invalidVersions := []string{
-		// can't have non-whitelisted symbols
-		"v1.3([<$$$>])", "what even _is_ a version",
-		// can't start with whitelisted symbls
-		":", ".", "+", "~", "_", "-",
-		// can't end with most whitelisted symbols
-		"a:", "a.", "a_", "a-",
-		// version must be plain ASCII
-		"árbol", "日本語", "한글", "ру́сский язы́к",
+	invalidVersionsTable := [][2]string{
+		{"~foo", `must start with an ASCII alphanumeric (and not '~')`},
+		{"+foo", `must start with an ASCII alphanumeric (and not '+')`},
+
+		{"foo:", `must end with an ASCII alphanumeric or one of '+' or '~' (and not ':')`},
+		{"foo.", `must end with an ASCII alphanumeric or one of '+' or '~' (and not '.')`},
+		{"foo_", `must end with an ASCII alphanumeric or one of '+' or '~' (and not '_')`},
+		{"foo-", `must end with an ASCII alphanumeric or one of '+' or '~' (and not '-')`},
+
+		{"foo($bar^baz$)meep", `contains invalid characters: "($", "^", "$)"`},
+
+		{"árbol", `must be printable, non-whitespace ASCII`},
+		{"日本語", `must be printable, non-whitespace ASCII`},
+		{"한글", `must be printable, non-whitespace ASCII`},
+		{"ру́сский язы́к", `must be printable, non-whitespace ASCII`},
+
+		{"~foo$bar:", `must start with an ASCII alphanumeric (and not '~'),` +
+			` must end with an ASCII alphanumeric or one of '+' or '~' (and not ':'),` +
+			` and contains invalid characters: "$"`},
 	}
-	for _, version := range invalidVersions {
+	for _, t := range invalidVersionsTable {
+		version, reason := t[0], t[1]
 		err := ValidateVersion(version)
-		c.Assert(err, ErrorMatches, `invalid snap version: ".*"`)
+		c.Assert(err, NotNil)
+		c.Assert(err.Error(), Equals, fmt.Sprintf("invalid snap version %s: %s", strconv.QuoteToASCII(version), reason))
 	}
 	// version cannot be empty
-	c.Assert(ValidateVersion(""), ErrorMatches, `snap version cannot be empty`)
+	c.Assert(ValidateVersion(""), ErrorMatches, `invalid snap version: cannot be empty`)
+	// version length cannot be >32
+	c.Assert(ValidateVersion("this-version-is-a-little-bit-older"), ErrorMatches,
+		`invalid snap version "this-version-is-a-little-bit-older": cannot be longer than 32 characters \(got: 34\)`)
 }
 
 func (s *ValidateSuite) TestValidateLicense(c *C) {
