@@ -61,6 +61,8 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -398,10 +400,9 @@ func (s *apiBaseSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, deve
 name: %s
 version: %s
 %s`, name, version, extraYaml)
-	contents := ""
 
 	// Mock the snap on disk
-	snapInfo := snaptest.MockSnap(c, yamlText, contents, sideInfo)
+	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
 
 	c.Assert(os.MkdirAll(snapInfo.DataDir(), 0755), check.IsNil)
 	metadir := filepath.Join(snapInfo.MountDir(), "meta")
@@ -440,7 +441,9 @@ version: %s
 			c.Assert(err, check.IsNil)
 		}
 
-		h := sha3.Sum384([]byte(fmt.Sprintf("%s%s", name, revision)))
+		content, err := ioutil.ReadFile(snapInfo.MountFile())
+		c.Assert(err, check.IsNil)
+		h := sha3.Sum384(content)
 		dgst, err := asserts.EncodeDigest(crypto.SHA3_384, h[:])
 		c.Assert(err, check.IsNil)
 		snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
@@ -474,8 +477,7 @@ version: 1
 type: gadget
 gadget: {store: {id: %q}}
 `, store)
-	contents := ""
-	snaptest.MockSnap(c, yamlText, contents, &snap.SideInfo{Revision: snap.R(1)})
+	snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: snap.R(1)})
 	c.Assert(os.Symlink("1", filepath.Join(dirs.SnapMountDir, "test", "current")), check.IsNil)
 }
 
@@ -736,6 +738,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"storeUserInfo",
 		"postCreateUserUcrednetGet",
 		"ensureStateSoon",
+		"ctlcmdRun",
+		"runSnapctlUcrednetGet",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
@@ -772,7 +776,17 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	rec := httptest.NewRecorder()
 	c.Check(sysInfoCmd.Path, check.Equals, "/v2/system-info")
 
-	s.daemon(c).Version = "42b1"
+	d := s.daemon(c)
+	d.Version = "42b1"
+
+	// set both legacy and new refresh schedules. new one takes priority
+	st := d.overlord.State()
+	st.Lock()
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.schedule", "00:00-9:00/12:00-13:00")
+	tr.Set("core", "refresh.timer", "8:00~9:00/2")
+	tr.Commit()
+	st.Unlock()
 
 	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
 	defer restore()
@@ -799,7 +813,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
 		"refresh": map[string]interface{}{
-			"schedule": "00:00-24:00/4",
+			// only the "timer" field
+			"timer": "8:00~9:00/2",
 		},
 		"confinement": "partial",
 	}
@@ -810,6 +825,60 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	// Ensure that we had a kernel-verrsion but don't check the actual value.
 	const kernelVersionKey = "kernel-version"
 	c.Check(rsp.Result.(map[string]interface{})[kernelVersionKey], check.Not(check.Equals), "")
+	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
+	rec := httptest.NewRecorder()
+
+	d := s.daemon(c)
+	d.Version = "42b1"
+
+	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
+	defer restore()
+	restore = release.MockOnClassic(true)
+	defer restore()
+	restore = release.MockForcedDevmode(true)
+	defer restore()
+
+	// set the legacy refresh schedule
+	st := d.overlord.State()
+	st.Lock()
+	tr := config.NewTransaction(st)
+	tr.Set("core", "refresh.schedule", "00:00-9:00/12:00-13:00")
+	tr.Set("core", "refresh.timer", "")
+	tr.Commit()
+	st.Unlock()
+
+	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
+
+	expected := map[string]interface{}{
+		"series":  "16",
+		"version": "42b1",
+		"os-release": map[string]interface{}{
+			"id":         "distro-id",
+			"version-id": "1.2",
+		},
+		"on-classic": true,
+		"managed":    false,
+		"locations": map[string]interface{}{
+			"snap-mount-dir": dirs.SnapMountDir,
+			"snap-bin-dir":   dirs.SnapBinariesDir,
+		},
+		"refresh": map[string]interface{}{
+			// only the "schedule" field
+			"schedule": "00:00-9:00/12:00-13:00",
+		},
+		"confinement": "partial",
+	}
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	const kernelVersionKey = "kernel-version"
 	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
@@ -3062,10 +3131,10 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 		inst := &snapInstruction{Action: "refresh"}
 		st := d.overlord.State()
 		st.Lock()
-		summary, _, _, err := snapUpdateMany(inst, st)
+		res, err := snapUpdateMany(inst, st)
 		st.Unlock()
 		c.Assert(err, check.IsNil)
-		c.Check(summary, check.Equals, tst.msg)
+		c.Check(res.summary, check.Equals, tst.msg)
 		c.Check(refreshSnapDecls, check.Equals, true)
 	}
 }
@@ -3086,10 +3155,10 @@ func (s *apiSuite) TestRefreshAllNoChanges(c *check.C) {
 	inst := &snapInstruction{Action: "refresh"}
 	st := d.overlord.State()
 	st.Lock()
-	summary, _, _, err := snapUpdateMany(inst, st)
+	res, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(summary, check.Equals, `Refresh all snaps: no updates`)
+	c.Check(res.summary, check.Equals, `Refresh all snaps: no updates`)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
@@ -3110,11 +3179,11 @@ func (s *apiSuite) TestRefreshMany(c *check.C) {
 	inst := &snapInstruction{Action: "refresh", Snaps: []string{"foo", "bar"}}
 	st := d.overlord.State()
 	st.Lock()
-	summary, updates, _, err := snapUpdateMany(inst, st)
+	res, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(summary, check.Equals, `Refresh snaps "foo", "bar"`)
-	c.Check(updates, check.DeepEquals, inst.Snaps)
+	c.Check(res.summary, check.Equals, `Refresh snaps "foo", "bar"`)
+	c.Check(res.affected, check.DeepEquals, inst.Snaps)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
@@ -3135,11 +3204,11 @@ func (s *apiSuite) TestRefreshMany1(c *check.C) {
 	inst := &snapInstruction{Action: "refresh", Snaps: []string{"foo"}}
 	st := d.overlord.State()
 	st.Lock()
-	summary, updates, _, err := snapUpdateMany(inst, st)
+	res, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(summary, check.Equals, `Refresh snap "foo"`)
-	c.Check(updates, check.DeepEquals, inst.Snaps)
+	c.Check(res.summary, check.Equals, `Refresh snap "foo"`)
+	c.Check(res.affected, check.DeepEquals, inst.Snaps)
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
@@ -3154,11 +3223,11 @@ func (s *apiSuite) TestInstallMany(c *check.C) {
 	inst := &snapInstruction{Action: "install", Snaps: []string{"foo", "bar"}}
 	st := d.overlord.State()
 	st.Lock()
-	summary, installs, _, err := snapInstallMany(inst, st)
+	res, err := snapInstallMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(summary, check.Equals, `Install snaps "foo", "bar"`)
-	c.Check(installs, check.DeepEquals, inst.Snaps)
+	c.Check(res.summary, check.Equals, `Install snaps "foo", "bar"`)
+	c.Check(res.affected, check.DeepEquals, inst.Snaps)
 }
 
 func (s *apiSuite) TestRemoveMany(c *check.C) {
@@ -3172,11 +3241,11 @@ func (s *apiSuite) TestRemoveMany(c *check.C) {
 	inst := &snapInstruction{Action: "remove", Snaps: []string{"foo", "bar"}}
 	st := d.overlord.State()
 	st.Lock()
-	summary, removes, _, err := snapRemoveMany(inst, st)
+	res, err := snapRemoveMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Check(summary, check.Equals, `Remove snaps "foo", "bar"`)
-	c.Check(removes, check.DeepEquals, inst.Snaps)
+	c.Check(res.summary, check.Equals, `Remove snaps "foo", "bar"`)
+	c.Check(res.affected, check.DeepEquals, inst.Snaps)
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
@@ -4714,8 +4783,8 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
 	s.daemon(c)
-	postCreateUserUcrednetGet = func(string) (uint32, uint32, error) {
-		return 100, 0, nil
+	postCreateUserUcrednetGet = func(string) (uint32, uint32, string, error) {
+		return 100, 0, dirs.SnapdSocket, nil
 	}
 	s.mockUserHome = c.MkDir()
 	userLookup = mkUserLookup(s.mockUserHome)
@@ -5080,8 +5149,8 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownClassicErro
 
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
-	postCreateUserUcrednetGet = func(string) (uint32, uint32, error) {
-		return 100, 0, nil
+	postCreateUserUcrednetGet = func(string) (uint32, uint32, string, error) {
+		return 100, 0, dirs.SnapdSocket, nil
 	}
 	defer func() {
 		postCreateUserUcrednetGet = ucrednetGet
@@ -5734,6 +5803,48 @@ func (s *apiSuite) TestSplitQS(c *check.C) {
 	c.Check(splitQS("foo ,, bar"), check.DeepEquals, []string{"foo", "bar"})
 	c.Check(splitQS(""), check.HasLen, 0)
 	c.Check(splitQS(","), check.HasLen, 0)
+}
+
+func (s *apiSuite) TestSnapctlGetNoUID(c *check.C) {
+	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "something"]}`)
+	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	c.Assert(err, check.IsNil)
+	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
+	c.Assert(rsp.Status, check.Equals, 403)
+}
+
+func (s *apiSuite) TestSnapctlGetUID(c *check.C) {
+	var uid uint32
+	_ = s.daemon(c)
+
+	runSnapctlUcrednetGet = func(string) (uint32, uint32, string, error) {
+		return 100, uid, dirs.SnapSocket, nil
+	}
+	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
+	ctlcmdRun = func(*hookstate.Context, []string) ([]byte, []byte, error) {
+		return nil, nil, nil
+	}
+	defer func() { ctlcmdRun = ctlcmd.Run }()
+
+	for _, t := range []struct {
+		uid uint32
+		cmd string
+		arg string
+
+		expectedCode int
+	}{
+		{1000, "get", "something", 200},
+		{0, "get", "something", 200},
+		{1000, "set", "some=thing", 403},
+		{0, "set", "some=thing", 200},
+	} {
+		uid = t.uid
+		buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, t.cmd, t.arg))
+		req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+		c.Assert(err, check.IsNil)
+		rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
+		c.Assert(rsp.Status, check.Equals, t.expectedCode)
+	}
 }
 
 var _ = check.Suite(&postDebugSuite{})

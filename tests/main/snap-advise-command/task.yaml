@@ -22,6 +22,13 @@ execute: |
        sleep 1
     done
     stat /var/cache/snapd/commands.db
+    echo "Ensure the database is readable by a regular user"
+    if [ $(stat -c "%a" /var/cache/snapd/commands.db) != "644" ]; then
+        echo "incorrect permissions for /var/cache/snapd/commands.db"
+        echo "expected 0644 got:"
+        stat /var/cache/snapd/commands.db
+        exit 1
+    fi
 
     echo "Ensure `snap advise-snap --command` lookup works"
     snap advise-snap --command test-snapd-tools.echo | MATCH test-snapd-tools
@@ -38,3 +45,6 @@ execute: |
         echo "A not-found snap command should return an error"
         exit 1
     fi
+
+    echo "Ensure advise on snap pkg name advise also works"
+    snap advise-snap test-snapd-tools | MATCH "Tools for testing the snapd application"

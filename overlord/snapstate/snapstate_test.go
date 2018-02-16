@@ -1595,7 +1595,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				Channel:  "some-channel",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "some-snap-id",
 				Revision: snap.R(42),
 			},
 		},
@@ -1619,7 +1619,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				Channel:  "some-channel",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "some-snap-id",
 				Revision: snap.R(42),
 			},
 		},
@@ -1671,7 +1671,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		RealName: "some-snap",
 		Revision: snap.R(42),
 		Channel:  "some-channel",
-		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		SnapID:   "some-snap-id",
 	})
 
 	// verify snaps in the system state
@@ -1685,7 +1685,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "some-channel",
-		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		SnapID:   "some-snap-id",
 		Revision: snap.R(42),
 	})
 	c.Assert(snapst.Required, Equals, false)
@@ -2932,6 +2932,56 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	c.Check(snapst.Current, Equals, snap.R(11))
 }
 
+func (s *snapmgrTestSuite) TestUpdateFromLocal(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R("x1"),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Channel:  "channel-for-7",
+		Current:  si.Revision,
+	})
+
+	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, Equals, store.ErrLocalSnap)
+}
+
+func (s *snapmgrTestSuite) TestUpdateAmend(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R("x1"),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Channel:  "channel-for-7",
+		Current:  si.Revision,
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{Amend: true})
+	c.Assert(err, IsNil)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 0, ts, s.state)
+
+	// ensure we go from local to store revision-7
+	var snapsup snapstate.SnapSetup
+	tasks := ts.Tasks()
+	c.Check(tasks[1].Kind(), Equals, "download-snap")
+	err = tasks[1].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Revision(), Equals, snap.R(7))
+
+}
+
 func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 	// single updates should *not* set the block list
 	si7 := snap.SideInfo{
@@ -3704,7 +3754,7 @@ version: 1.0`)
 
 	si := &snap.SideInfo{
 		RealName: "some-snap",
-		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		SnapID:   "some-snap-id",
 		Revision: snap.R(42),
 	}
 	ts, err := snapstate.InstallPath(s.state, si, someSnap, "", snapstate.Flags{Required: true})
@@ -5256,7 +5306,7 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 			name: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "some-snap-id",
 				Channel:  "some-channel",
 				Revision: snap.R(11),
 			},
@@ -5419,9 +5469,10 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesLegacyWeekdaySchedules(c *C) 
 	s.state.Lock()
 
 	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule configuration: cannot parse "mon@12:00": not a valid time`)
-	schedule, err := s.snapmgr.RefreshSchedule()
+	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
 	c.Check(schedule, Equals, "00:00-24:00/4")
+	c.Check(legacy, Equals, false)
 
 	tr = config.NewTransaction(s.state)
 	refreshTimer := "canary"
@@ -5452,9 +5503,10 @@ func (s *snapmgrTestSuite) TestEnsureRefreshLegacyScheduleIsLowerPriority(c *C) 
 	// expecting new refresh.timer to have been used, fallback to legacy was
 	// not attempted otherwise it would get reset to the default due to
 	// refresh.schedule being garbage
-	schedule, err := s.snapmgr.RefreshSchedule()
+	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
 	c.Check(schedule, Equals, "00:00-23:59,,mon,12:00-14:00")
+	c.Check(legacy, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToLegacySchedule(c *C) {
@@ -5474,9 +5526,10 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToLegacySchedule(c *C) {
 
 	// refresh.timer is unset, triggering automatic fallback to legacy
 	// schedule if that was set
-	schedule, err := s.snapmgr.RefreshSchedule()
+	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
 	c.Check(schedule, Equals, "00:00-23:59")
+	c.Check(legacy, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToDefaultOnError(c *C) {
@@ -5496,9 +5549,10 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToDefaultOnError(c *C) {
 
 	// automatic fallback to default schedule if refresh.timer is set but
 	// cannot be parsed
-	schedule, err := s.snapmgr.RefreshSchedule()
+	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
 	c.Check(schedule, Equals, "00:00-24:00/4")
+	c.Check(legacy, Equals, false)
 
 	tr = config.NewTransaction(s.state)
 	refreshTimer := "canary"
@@ -5526,9 +5580,10 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackOnEmptyToDefaultSchedule(c *
 
 	// automatic fallback to default schedule if neither refresh.timer nor
 	// refresh.schedule was set
-	schedule, err := s.snapmgr.RefreshSchedule()
+	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
 	c.Check(schedule, Equals, "00:00-24:00/4")
+	c.Check(legacy, Equals, false)
 
 	tr = config.NewTransaction(s.state)
 	refreshTimer := "canary"
@@ -5856,12 +5911,12 @@ func (s *snapmgrQuerySuite) SetUpTest(c *C) {
 name: name0
 version: 1.1
 description: |
-    Lots of text`, "", sideInfo11)
+    Lots of text`, sideInfo11)
 	snaptest.MockSnap(c, `
 name: name0
 version: 1.2
 description: |
-    Lots of text`, "", sideInfo12)
+    Lots of text`, sideInfo12)
 	snapstate.Set(st, "name1", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo11, sideInfo12},
@@ -5994,7 +6049,7 @@ func (s *snapmgrQuerySuite) TestTypeInfo(c *C) {
 			RealName: x.snapName,
 			Revision: snap.R(2),
 		}
-		snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: %q\nversion: %q\n", x.snapName, x.snapType, x.snapName), "", sideInfo)
+		snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: %q\nversion: %q\n", x.snapName, x.snapType, x.snapName), sideInfo)
 		snapstate.Set(st, x.snapName, &snapstate.SnapState{
 			SnapType: string(x.snapType),
 			Active:   true,
@@ -6051,7 +6106,7 @@ func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
 				RealName: snapName,
 				Revision: snap.R(1),
 			}
-			snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: os\nversion: %q\n", snapName, snapName), "", sideInfo)
+			snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: os\nversion: %q\n", snapName, snapName), sideInfo)
 			snapstate.Set(st, snapName, &snapstate.SnapState{
 				SnapType: string(snap.TypeOS),
 				Active:   true,
@@ -6950,7 +7005,7 @@ func (s *snapmgrTestSuite) prepareGadget(c *C) {
 name: the-gadget
 type: gadget
 version: 1.0
-`, "", gadgetSideInfo)
+`, gadgetSideInfo)
 
 	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0600)
 	c.Assert(err, IsNil)
@@ -7017,7 +7072,7 @@ volumes:
         bootloader: grub
 `)
 
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, "SNAP", &snap.SideInfo{Revision: snap.R(2)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(2)})
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
@@ -7047,7 +7102,7 @@ func makeInstalledMockCoreSnap(c *C) {
 version: 1.0
 type: os
 `
-	snaptest.MockSnap(c, coreSnapYaml, "", &snap.SideInfo{
+	snaptest.MockSnap(c, coreSnapYaml, &snap.SideInfo{
 		RealName: "core",
 		Revision: snap.R(1),
 	})
@@ -7278,7 +7333,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			name: filepath.Join(dirs.SnapBlobDir, "core_11.snap"),
 			sinfo: snap.SideInfo{
 				RealName: "core",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "core-id",
 				Revision: snap.R(11),
 			},
 		},
@@ -7301,7 +7356,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "core",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "core-id",
 				Revision: snap.R(11),
 			},
 		},
@@ -7910,7 +7965,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "core",
 				Channel:  "stable",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "core-id",
 				Revision: snap.R(11),
 			},
 		},
@@ -7934,7 +7989,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "core",
 				Channel:  "stable",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "core-id",
 				Revision: snap.R(11),
 			},
 		},
@@ -7965,7 +8020,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				Channel:  "some-channel",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "some-snap-id",
 				Revision: snap.R(42),
 			},
 		},
@@ -7989,7 +8044,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				Channel:  "some-channel",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "some-snap-id",
 				Revision: snap.R(42),
 			},
 		},
@@ -8030,7 +8085,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "core",
 		Channel:  "stable",
-		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		SnapID:   "core-id",
 		Revision: snap.R(11),
 	})
 }
@@ -8142,7 +8197,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 		c.Assert(snapst.Sequence, HasLen, 1)
 		c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 			RealName: "core",
-			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+			SnapID:   "core-id",
 			Channel:  "stable",
 			Revision: snap.R(11),
 		})
@@ -8153,7 +8208,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 		c.Assert(snapst.Sequence, HasLen, 1)
 		c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 			RealName: "snap2",
-			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+			SnapID:   "snap2-id",
 			Channel:  "some-other-channel",
 			Revision: snap.R(21),
 		})
@@ -8282,7 +8337,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
-		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		SnapID:   "some-snap-id",
 		Channel:  "some-channel",
 		Revision: snap.R(42),
 	})
@@ -8293,16 +8348,17 @@ func (s *snapmgrTestSuite) TestSnapManagerLegacyRefreshSchedule(c *C) {
 	defer s.state.Unlock()
 
 	for _, t := range []struct {
-		in  string
-		out string
+		in     string
+		out    string
+		legacy bool
 	}{
-		{"", snapstate.DefaultRefreshSchedule},
-		{"invalid schedule", snapstate.DefaultRefreshSchedule},
-		{"8:00-12:00", "8:00-12:00"},
+		{"", snapstate.DefaultRefreshSchedule, false},
+		{"invalid schedule", snapstate.DefaultRefreshSchedule, false},
+		{"8:00-12:00", "8:00-12:00", true},
 		// using the legacy configuration option with a new-style
 		// refresh.timer string is rejected (i.e. the legacy parser is
 		// used for the parsing)
-		{"0:00~24:00/24", snapstate.DefaultRefreshSchedule},
+		{"0:00~24:00/24", snapstate.DefaultRefreshSchedule, false},
 	} {
 		if t.in != "" {
 			tr := config.NewTransaction(s.state)
@@ -8310,9 +8366,10 @@ func (s *snapmgrTestSuite) TestSnapManagerLegacyRefreshSchedule(c *C) {
 			tr.Set("core", "refresh.schedule", t.in)
 			tr.Commit()
 		}
-		scheduleStr, err := s.snapmgr.RefreshSchedule()
+		scheduleStr, legacy, err := s.snapmgr.RefreshSchedule()
 		c.Check(err, IsNil)
 		c.Check(scheduleStr, Equals, t.out)
+		c.Check(legacy, Equals, t.legacy)
 	}
 }
 
@@ -8335,9 +8392,10 @@ func (s *snapmgrTestSuite) TestSnapManagerRefreshSchedule(c *C) {
 			tr.Set("core", "refresh.timer", t.in)
 			tr.Commit()
 		}
-		scheduleStr, err := s.snapmgr.RefreshSchedule()
+		scheduleStr, legacy, err := s.snapmgr.RefreshSchedule()
 		c.Check(err, IsNil)
 		c.Check(scheduleStr, Equals, t.out)
+		c.Check(legacy, Equals, false)
 	}
 }
 

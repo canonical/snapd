@@ -125,12 +125,16 @@ slots:
 `
 
 func (s *backendSuite) TestSetupSetsupSimple(c *C) {
-	fsEntry1 := mount.Entry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
-	fsEntry2 := mount.Entry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry1 := osutil.MountEntry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry2 := osutil.MountEntry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry3 := osutil.MountEntry{Name: "/src-3", Dir: "/dst-3", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
 
 	// Give the plug a permanent effect
 	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
-		return spec.AddMountEntry(fsEntry1)
+		if err := spec.AddMountEntry(fsEntry1); err != nil {
+			return err
+		}
+		return spec.AddUserMountEntry(fsEntry3)
 	}
 	// Give the slot a permanent effect
 	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *snap.SlotInfo) error {
@@ -151,11 +155,17 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 	got := strings.Split(string(content), "\n")
 	sort.Strings(got)
 	c.Check(got, DeepEquals, expected)
+
+	// Check that the user-fstab file was written with the user mount
+	fn = filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.user-fstab")
+	content, err = ioutil.ReadFile(fn)
+	c.Assert(err, IsNil, Commentf("Expected user mount profile for the whole snap"))
+	c.Check(string(content), Equals, fsEntry3.String()+"\n")
 }
 
 func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
 	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
-		return spec.AddMountEntry(mount.Entry{})
+		return spec.AddMountEntry(osutil.MountEntry{})
 	}
 
 	// Ensure that backend.Setup() creates the required dir on demand

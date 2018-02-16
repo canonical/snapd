@@ -1,0 +1,13 @@
+# Ensure $(SNAP_MOUNT_DIR) is mounted "shared" so lxd works correctly (LP: #1668759).
+[Unit]
+Description=Ensure that the snap directory shares mount events.
+ConditionVirtualization=container
+
+[Mount]
+What=@SNAP_MOUNT_DIR@
+Where=@SNAP_MOUNT_DIR@
+Type=none
+Options=bind,shared
+
+[Install]
+WantedBy=local-fs.target

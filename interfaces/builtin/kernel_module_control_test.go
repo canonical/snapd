@@ -44,12 +44,14 @@ var _ = Suite(&KernelModuleControlInterfaceSuite{
 })
 
 const kernelmodctlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [kernel-module-control]
 `
 
 const kernelmodctlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   kernel-module-control:
@@ -99,7 +101,7 @@ func (s *KernelModuleControlInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# kernel-module-control
 KERNEL=="mem", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *KernelModuleControlInterfaceSuite) TestStaticInfo(c *C) {

@@ -44,7 +44,6 @@ plugs:
  network:
   interface: network
 `
-const sampleContents = ""
 
 type snapTestSuite struct{}
 
@@ -59,7 +58,7 @@ func (s *snapTestSuite) TearDownTest(c *C) {
 }
 
 func (s *snapTestSuite) TestMockSnap(c *C) {
-	snapInfo := snaptest.MockSnap(c, sampleYaml, sampleContents, &snap.SideInfo{Revision: snap.R(42)})
+	snapInfo := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
 	// Data from YAML is used
 	c.Check(snapInfo.Name(), Equals, "sample")
 	// Data from SideInfo is used

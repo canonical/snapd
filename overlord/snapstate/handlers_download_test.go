@@ -107,7 +107,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 	t.Get("snap-setup", &snapsup)
 	c.Check(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "foo",
-		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		SnapID:   "foo-id",
 		Revision: snap.R(11),
 		Channel:  "some-channel",
 	})

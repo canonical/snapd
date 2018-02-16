@@ -46,6 +46,8 @@ GOOS := $(shell go env GOOS)
 BUILDFLAGS:=
 GCCGOFLAGS=-gccgoflags="-I $(CURDIR)/_build/pkg/gccgo_$(GOOS)_$(GOARCH)/$(DH_GOPKG)/vendor"
 export DH_GOLANG_GO_GENERATE=0
+# workaround for https://github.com/golang/go/issues/23721
+export GOMAXPROCS=2
 endif
 
 # check if we need to include the testkeys in the binary
@@ -139,6 +141,20 @@ ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	# ensure we generated a static build
 	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
 	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
+endif
+
+	# ensure snap-seccomp is build with a static libseccomp on Ubuntu
+ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
+	# (static linking on powerpc with cgo is broken)
+ ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
+	sed -i "s|#cgo LDFLAGS:|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-seccomp)
+	# ensure that libseccomp is not dynamically linked
+	ldd _build/bin/snap-seccomp
+	test "$$(ldd _build/bin/snap-seccomp | grep libseccomp)" = ""
+	# revert again so that the subsequent tests work
+	sed -i "s|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|#cgo LDFLAGS:|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
+ endif
 endif
 
 	# Build C bits, sadly manually
