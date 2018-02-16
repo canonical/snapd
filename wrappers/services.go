@@ -22,6 +22,7 @@ package wrappers
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 type interacter interface {
@@ -455,4 +457,89 @@ func renderListenStream(socket *snap.SocketInfo) string {
 	snap := socket.App.Snap
 	listenStream := strings.Replace(socket.ListenStream, "$SNAP_DATA", snap.DataDir(), -1)
 	return strings.Replace(listenStream, "$SNAP_COMMON", snap.CommonDataDir(), -1)
+}
+
+func makeAbbrevWeekdays(start time.Weekday, end time.Weekday) []string {
+	out := make([]string, 0, 7)
+	for w := start; w%7 != (end + 1); w++ {
+		out = append(out, time.Weekday(w % 7).String()[0:3])
+	}
+	return out
+}
+
+// generateOnCalendarSchedules converts a timer specification into OnCalendar
+// schedules suitable for use in systemd *.timer units
+func generateOnCalendarSchedules(timer string) ([]string, error) {
+
+	schedule, err := timeutil.ParseSchedule(timer)
+	if err != nil {
+		return nil, err
+	}
+
+	calendarEvents := make([]string, 0, 10)
+	for _, sched := range schedule {
+		days := make([]string, 0, 10)
+		for _, week := range sched.WeekSpans {
+			abbrev := strings.Join(makeAbbrevWeekdays(week.Start.Weekday, week.End.Weekday), ",")
+			switch week.Start.Pos {
+			case timeutil.EveryWeek:
+				// eg: mon, mon-fri, fri-mon
+				days = append(days, fmt.Sprintf("%s *-*-*", abbrev))
+			case timeutil.LastWeek:
+				// eg: mon5
+				days = append(days, fmt.Sprintf("%s *-*~7/1", abbrev))
+			default:
+				// eg: mon1, fri1, mon1-tue2
+				startDay := (week.Start.Pos-1)*7 + 1
+				endDay := week.End.Pos * 7
+
+				// NOTE: schedule mon1-tue2 (all weekdays
+				// between the first Monday of the month, until
+				// the second Tuesday of the month) is not
+				// translatable to systemd.time(7) format, , for
+				// this assume all weekdays and allow the runner
+				// to do the filtering
+				if week.Start != week.End {
+					days = append(days,
+						fmt.Sprintf("*-*-%d..%d/1", startDay, endDay))
+				} else {
+					days = append(days,
+						fmt.Sprintf("%s *-*-%d..%d/1", abbrev, startDay, endDay))
+				}
+
+			}
+		}
+
+		if len(days) == 0 {
+			// no weekday spec, meaning the timer runs every day
+			days = []string{"*-*-*"}
+		}
+
+		startTimes := make([]string, 0, 10)
+		for _, clocks := range sched.ClockSpans {
+			// use expanded clock spans
+			for _, span := range clocks.ClockSpans() {
+				when := span.Start
+				if span.Spread {
+					length := span.End.Sub(span.Start)
+					// replicate what timeutil.Next() does
+					// and cut some time at the end of the
+					// window
+					if length > 5*time.Minute {
+						length -= 5 * time.Minute
+					}
+					when = when.Add(time.Duration(rand.Int63n(int64(length))))
+				}
+
+				startTimes = append(startTimes, when.String())
+			}
+		}
+
+		for _, day := range days {
+			for _, startTime := range startTimes {
+				calendarEvents = append(calendarEvents, fmt.Sprintf("%s %s", day, startTime))
+			}
+		}
+	}
+	return calendarEvents, nil
 }
