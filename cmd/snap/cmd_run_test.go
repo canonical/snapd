@@ -789,12 +789,10 @@ func (s *SnapSuite) TestSnapRunAppTimer(c *check.C) {
 	// redirect exec
 	execArg0 := ""
 	execArgs := []string{}
-	execEnv := []string{}
 	execCalled := false
 	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
 		execArg0 = arg0
 		execArgs = args
-		execEnv = envv
 		execCalled = true
 		return nil
 	})
@@ -819,7 +817,7 @@ func (s *SnapSuite) TestSnapRunAppTimer(c *check.C) {
 	defer restorer()
 
 	// and run it under strace
-	rest, err = snaprun.Parser().ParseArgs([]string{"run", `--timer="mon,10:00~12:00,,fri,13:00"`, "snapname.app", "--arg1", "arg2"})
+	_, err = snaprun.Parser().ParseArgs([]string{"run", `--timer="mon,10:00~12:00,,fri,13:00"`, "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Assert(execCalled, check.Equals, true)
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
