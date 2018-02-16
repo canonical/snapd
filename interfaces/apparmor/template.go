@@ -184,6 +184,7 @@ var defaultTemplate = `
   /{,usr/}bin/stat ixr,
   /{,usr/}bin/stdbuf ixr,
   /{,usr/}bin/stty ixr,
+  /{,usr/}bin/sync ixr,
   /{,usr/}bin/systemd-cat ixr,
   /{,usr/}bin/tac ixr,
   /{,usr/}bin/tail ixr,
