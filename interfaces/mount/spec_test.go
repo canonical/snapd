@@ -76,28 +76,51 @@ func (s *specSuite) SetUpTest(c *C) {
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
 }
 
-// AddMountEntry is not broken
+// AddMountEntry and AddUserMountEntry are not not broken
 func (s *specSuite) TestSmoke(c *C) {
 	ent0 := osutil.MountEntry{Dir: "dir-a", Name: "fs1"}
 	ent1 := osutil.MountEntry{Dir: "dir-b", Name: "fs2"}
+	ent2 := osutil.MountEntry{Dir: "dir-c", Name: "fs3"}
+
+	uent0 := osutil.MountEntry{Dir: "per-user-a", Name: "fs1"}
+	uent1 := osutil.MountEntry{Dir: "per-user-b", Name: "fs2"}
+
 	c.Assert(s.spec.AddMountEntry(ent0), IsNil)
 	c.Assert(s.spec.AddMountEntry(ent1), IsNil)
-	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{ent0, ent1})
+	c.Assert(s.spec.AddMountEntry(ent2), IsNil)
+
+	c.Assert(s.spec.AddUserMountEntry(uent0), IsNil)
+	c.Assert(s.spec.AddUserMountEntry(uent1), IsNil)
+
+	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{ent0, ent1, ent2})
+	c.Assert(s.spec.UserMountEntries(), DeepEquals, []osutil.MountEntry{uent0, uent1})
 }
 
 // Added entries can clash and are automatically renamed by MountEntries
 func (s *specSuite) TestMountEntriesDeclash(c *C) {
 	buf, restore := logger.MockLogger()
 	defer restore()
+
 	c.Assert(s.spec.AddMountEntry(osutil.MountEntry{Dir: "foo", Name: "fs1"}), IsNil)
 	c.Assert(s.spec.AddMountEntry(osutil.MountEntry{Dir: "foo", Name: "fs2"}), IsNil)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{Dir: "foo", Name: "fs1"},
 		{Dir: "foo-2", Name: "fs2"},
 	})
+
+	c.Assert(s.spec.AddUserMountEntry(osutil.MountEntry{Dir: "bar", Name: "fs1"}), IsNil)
+	c.Assert(s.spec.AddUserMountEntry(osutil.MountEntry{Dir: "bar", Name: "fs2"}), IsNil)
+	c.Assert(s.spec.UserMountEntries(), DeepEquals, []osutil.MountEntry{
+		{Dir: "bar", Name: "fs1"},
+		{Dir: "bar-2", Name: "fs2"},
+	})
+
 	// extract the relevant part of the log
-	msg := strings.SplitAfter(strings.TrimSpace(buf.String()), ": ")[1]
+	loggedMsgs := strings.Split(buf.String(), "\n")
+	msg := strings.SplitAfter(strings.TrimSpace(loggedMsgs[0]), ": ")[1]
 	c.Assert(msg, Equals, `renaming mount entry for directory "foo" to "foo-2" to avoid a clash`)
+	msg = strings.SplitAfter(strings.TrimSpace(loggedMsgs[1]), ": ")[1]
+	c.Assert(msg, Equals, `renaming mount entry for directory "bar" to "bar-2" to avoid a clash`)
 }
 
 // The mount.Specification can be used through the interfaces.Specification interface
@@ -134,9 +157,9 @@ func (s *specSuite) TestMountEntryFromLayout(c *C) {
 	s.spec.AddSnapLayout(snapInfo)
 	c.Assert(s.spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		// Layout result is sorted by mount path.
-		{Dir: "/etc/foo.conf", Name: "/snap/vanguard/42/foo.conf", Options: []string{"bind", "rw", "x-snapd.kind=file"}},
-		{Dir: "/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/vanguard/42/link/target"}},
-		{Dir: "/mytmp", Name: "tmpfs", Type: "tmpfs", Options: []string{"x-snapd.mode=01777"}},
-		{Dir: "/usr", Name: "/snap/vanguard/42/usr", Options: []string{"bind", "rw"}},
+		{Dir: "/etc/foo.conf", Name: "/snap/vanguard/42/foo.conf", Options: []string{"bind", "rw", "x-snapd.kind=file", "x-snapd.origin=layout"}},
+		{Dir: "/mylink", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/vanguard/42/link/target", "x-snapd.origin=layout"}},
+		{Dir: "/mytmp", Name: "tmpfs", Type: "tmpfs", Options: []string{"x-snapd.mode=01777", "x-snapd.origin=layout"}},
+		{Dir: "/usr", Name: "/snap/vanguard/42/usr", Options: []string{"bind", "rw", "x-snapd.origin=layout"}},
 	})
 }

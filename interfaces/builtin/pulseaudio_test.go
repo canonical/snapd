@@ -130,7 +130,7 @@ KERNEL=="controlC[0-9]*", TAG+="snap_pulseaudio_app1"`)
 KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="snap_pulseaudio_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# pulseaudio
 KERNEL=="timer", TAG+="snap_pulseaudio_app1"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_pulseaudio_app1", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_pulseaudio_app1 $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_pulseaudio_app1", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_pulseaudio_app1 $devpath $major:$minor"`)
 }
 
 func (s *PulseAudioInterfaceSuite) TestInterfaces(c *C) {

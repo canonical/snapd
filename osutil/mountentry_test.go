@@ -91,6 +91,15 @@ func (s *entrySuite) TestParseMountEntry1(c *C) {
 	c.Assert(e.Options, DeepEquals, []string{"errors=remount-ro"})
 	c.Assert(e.DumpFrequency, Equals, 0)
 	c.Assert(e.CheckPassNumber, Equals, 1)
+
+	e, err = osutil.ParseMountEntry("none /tmp tmpfs")
+	c.Assert(err, IsNil)
+	c.Assert(e.Name, Equals, "none")
+	c.Assert(e.Dir, Equals, "/tmp")
+	c.Assert(e.Type, Equals, "tmpfs")
+	c.Assert(e.Options, IsNil)
+	c.Assert(e.DumpFrequency, Equals, 0)
+	c.Assert(e.CheckPassNumber, Equals, 0)
 }
 
 // Test that options are parsed correctly
@@ -120,10 +129,10 @@ func (s *entrySuite) TestParseMountEntry3(c *C) {
 // Test that number of fields is checked
 func (s *entrySuite) TestParseMountEntry4(c *C) {
 	for _, s := range []string{
-		"", "1", "1 2", "1 2 3" /* skip 4, 5 and 6 fields (valid case) */, "1 2 3 4 5 6 7",
+		"", "1", "1 2" /* skip 3, 4, 5 and 6 fields (valid case) */, "1 2 3 4 5 6 7",
 	} {
 		_, err := osutil.ParseMountEntry(s)
-		c.Assert(err, ErrorMatches, "expected between 4 and 6 fields, found [01237]")
+		c.Assert(err, ErrorMatches, "expected between 3 and 6 fields, found [01237]")
 	}
 }
 
@@ -329,4 +338,22 @@ func (s *entrySuite) TestXSnapdSynthetic(c *C) {
 	// Tagging is done with x-snapd.synthetic option.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.synthetic"}}
 	c.Assert(e.XSnapdSynthetic(), Equals, true)
+}
+
+func (s *entrySuite) TextXSnapdOriginLayout(c *C) {
+	c.Assert(osutil.XSnapdOriginLayout(), Equals, "x-snapd.origin=layout")
+}
+
+func (s *entrySuite) TestXSnapdOrigin(c *C) {
+	// Entries have no origin by default.
+	e := &osutil.MountEntry{}
+	c.Assert(e.XSnapdOrigin(), Equals, "")
+
+	// Origin can be indicated with the x-snapd.origin= option
+	e = &osutil.MountEntry{Options: []string{"x-snapd.origin=layout"}}
+	c.Assert(e.XSnapdOrigin(), Equals, "layout")
+
+	// The helpful helper for this constant actually works.
+	e = &osutil.MountEntry{Options: []string{osutil.XSnapdOriginLayout()}}
+	c.Assert(e.XSnapdOrigin(), Equals, "layout")
 }
