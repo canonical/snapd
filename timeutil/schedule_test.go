@@ -519,7 +519,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 		}, {
 			// second Monday of the month, at 10:00
 			schedule: "mon2,10:00",
-			// first Monday of the month, 9:00
+			// first Monday of the month, 10:00
 			last: "2017-02-06 10:00",
 			// first Monday of the month, 11:00, right after
 			// 'previous first Monday' run
@@ -530,7 +530,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 		}, {
 			// last Monday of the month, at 10:00
 			schedule: "mon5,10:00",
-			// first Monday of the month, 9:00
+			// first Monday of the month, 10:00
 			last: "2017-02-06 10:00",
 			// first Monday of the month, 11:00, right after
 			// 'previous first Monday' run
@@ -539,7 +539,36 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			// from now
 			next: "503h-503h",
 		}, {
-			// from last Monday of the month to the second Tuesday of
+			// from the first Monday of the month to the second Tuesday of
+			// the month, at 10:00
+			schedule: "mon1-tue2,10:00",
+			// Monday, 10:00
+			last: "2017-02-06 10:00",
+			// Tuesday, the day after the first Monday of the month
+			now: "2017-02-07 11:00",
+			// expecting to run the next day at 10:00
+			next: "23h-23h",
+		}, {
+			// from the first Monday of the month to the second Tuesday of
+			// the month, at 10:00
+			schedule: "mon1-tue2,10:00",
+			last:     "2017-02-01 10:00",
+			// Sunday, 10:00
+			now: "2017-02-05 10:00",
+			// expecting to run the next day at 10:00
+			next: "24h-24h",
+		}, {
+			// from the first Monday of the month to the second Tuesday of
+			// the month, at 10:00
+			schedule: "mon1-tue2,10:00",
+			// Tuesday, 10:00
+			last: "2017-02-14 22:00",
+			// Thursday, 10:00
+			now: "2017-02-16 10:00",
+			// expecting to run in 18 days
+			next: "432h-432h",
+		}, {
+			// from the first Monday of the month to the second Tuesday of
 			// the month, at 10:00
 			schedule: "mon1-tue2,10:00",
 			// Sunday, 22:00
@@ -549,7 +578,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			// expecting to run the next day at 10:00
 			next: "23h-23h",
 		}, {
-			// from last Monday of the month to the second Tuesday of
+			// from the first Monday of the month to the second Tuesday of
 			// the month, at 10:00
 			schedule: "mon1-tue2,10:00-12:00",
 			// Sunday, 22:00
@@ -559,7 +588,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			// expecting to run now
 			next: "0h-0h",
 		}, {
-			// from last Monday of the month to the second Tuesday of
+			// from the first Monday of the month to the second Tuesday of
 			// the month, at 10:00
 			schedule: "mon1-tue2,10:00~12:00",
 			// Sunday, 22:00
