@@ -32,6 +32,9 @@ var (
 	SanitizeDesktopFile    = sanitizeDesktopFile
 	RewriteExecLine        = rewriteExecLine
 	IsValidDesktopFileLine = isValidDesktopFileLine
+
+	// timers
+	GenerateOnCalendarSchedules = generateOnCalendarSchedules
 )
 
 func MockKillWait(wait time.Duration) (restore func()) {
