@@ -19,6 +19,15 @@
 #define SNAP_MOUNT_SUPPORT_H
 
 /**
+ * Return a file descriptor referencing the snap-update-ns utility
+ *
+ * By calling this prior to changing the mount namespace, it is
+ * possible to execute the utility even if a different version is now
+ * mounted at the expected location.
+ **/
+int sc_open_snap_update_ns(void);
+
+/**
  * Assuming a new mountspace, populate it accordingly.
  *
  * This function performs many internal tasks:
