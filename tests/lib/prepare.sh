@@ -94,6 +94,9 @@ update_core_snap_for_classic_reexec() {
     cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
     # also the binaries themselves
     cp -a /usr/bin/{snap,snapctl} squashfs-root/usr/bin/
+    # clean and install the udev helper
+    rm -f squashfs-root//lib/udev/snappy-app-dev
+    cp -a /lib/udev/snappy-app-dev squashfs-root/lib/udev/
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
