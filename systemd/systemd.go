@@ -126,6 +126,9 @@ const (
 
 	// the default target for systemd socket units that we generate
 	SocketsTarget = "sockets.target"
+
+	// the default target for systemd timer units that we generate
+	TimersTarget = "timers.target"
 )
 
 type reporter interface {
