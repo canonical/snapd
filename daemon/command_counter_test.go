@@ -135,17 +135,17 @@ var (
 )
 `},
 	{"does *not* count these (should it?)", 0, `
-var wonp, toop *Command
-var wond, tood Command
-var trip *Command
-var trid Command
+var wonP, tooP *Command
+var wonD, tooD Command
+var triP *Command
+var triD Command
 `},
 	{"not in groups either", 0, `
 var (
-    wonp, toop *Command
-    wond, tood Command
-    trip *Command
-    trid Command
+    wonP, tooP *Command
+    wonD, tooD Command
+    triP *Command
+    triD Command
 )
 `},
 
