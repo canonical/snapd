@@ -52,12 +52,12 @@ func ValidateName(name string) error {
 }
 
 // NB keep this in sync with snapcraft and the review tools :-)
-var isValidVersion = regexp.MustCompile("^[a-zA-Z0-9](?:[a-zA-Z0-9:.+~_-]{0,30}[a-zA-Z0-9+~])?$").MatchString
+var isValidVersion = regexp.MustCompile("^[a-zA-Z0-9](?:[a-zA-Z0-9:.+~-]{0,30}[a-zA-Z0-9+~])?$").MatchString
 
 var isNonGraphicalASCII = regexp.MustCompile("[^[:graph:]]").MatchString
 var isInvalidFirstVersionChar = regexp.MustCompile("^[^a-zA-Z0-9]").MatchString
 var isInvalidLastVersionChar = regexp.MustCompile("[^a-zA-Z0-9+~]$").MatchString
-var invalidMiddleVersionChars = regexp.MustCompile("[^a-zA-Z0-9:.+~_-]+").FindAllString
+var invalidMiddleVersionChars = regexp.MustCompile("[^a-zA-Z0-9:.+~-]+").FindAllString
 
 // ValidateVersion checks if a string is a valid snap version.
 func ValidateVersion(version string) error {
