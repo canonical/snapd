@@ -66,7 +66,7 @@ func (c *fileContentChecker) Check(params []interface{}, names []string) (result
 		}
 		rx, err := regexp.Compile(regexpr)
 		if err != nil {
-			return false, fmt.Sprintf("Can't compile regexp: %v", err)
+			return false, fmt.Sprintf("Can't compile regexp %q: %v", regexpr, err)
 		}
 		params[1] = rx
 	}
@@ -76,7 +76,7 @@ func (c *fileContentChecker) Check(params []interface{}, names []string) (result
 func fileContentCheck(filename string, content interface{}, exact bool) (result bool, error string) {
 	buf, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return false, fmt.Sprintf("Can't read file: %v", err)
+		return false, fmt.Sprintf("Can't read file %q: %v", filename, err)
 	}
 	if exact {
 		switch content := content.(type) {
