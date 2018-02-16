@@ -535,7 +535,7 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-static int sc_open_snap_update_ns(void)
+int sc_open_snap_update_ns(void)
 {
 	// +1 is for the case where the link is exactly PATH_MAX long but we also
 	// want to store the terminating '\0'. The readlink system call doesn't add
