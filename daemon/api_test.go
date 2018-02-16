@@ -25,9 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"io"
 	"io/ioutil"
 	"math"
@@ -683,55 +680,7 @@ func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	// Very basic check to help stop us from not adding all the
 	// commands to the command list.
-	//
-	// NOTE: there's probably a
-	// better/easier way of doing this (patches welcome)
-
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "api.go", nil, 0)
-	if err != nil {
-		panic(err)
-	}
-
-	found := 0
-
-	ast.Inspect(f, func(n ast.Node) bool {
-		// a ValueSpec is a constant or variable declaration
-		vs, ok := n.(*ast.ValueSpec)
-		if !ok {
-			return true
-		}
-		// foo, bar = Command{}, Command{} -> two v.Values
-		for _, v := range vs.Values {
-			// a Command{} is a composite literal; check for that
-			x, ok := v.(*ast.CompositeLit)
-			if !ok {
-				// it might be a &Command{} instead
-				// the & in &foo{} is an unary expression
-				y, ok := v.(*ast.UnaryExpr)
-				// (and yes the & in &foo{} is token.AND)
-				if !ok || y.Op != token.AND {
-					continue
-				}
-				// again check for Command{} (composite literal)
-				x, ok = y.X.(*ast.CompositeLit)
-				if !ok {
-					continue
-				}
-			}
-			// ok, x is a composite literal, ie foo{}.
-			// the foo in foo{} is an Ident
-			z, ok := x.Type.(*ast.Ident)
-			if !ok {
-				continue
-			}
-			if z.Name == "Command" {
-				// gotcha!
-				found++
-			}
-		}
-		return true
-	})
+	found := countCommandDeclsIn(c, "api.go", check.Commentf("TestListIncludesAll"))
 
 	c.Check(found, check.Equals, len(api),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list.`))
