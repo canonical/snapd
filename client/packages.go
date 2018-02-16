@@ -54,6 +54,7 @@ type Snap struct {
 	DevMode          bool          `json:"devmode"`
 	JailMode         bool          `json:"jailmode"`
 	TryMode          bool          `json:"trymode,omitempty"`
+	DangerousMode    bool          `json:"dangerousmode,omitempty"`
 	Apps             []AppInfo     `json:"apps,omitempty"`
 	Broken           string        `json:"broken,omitempty"`
 	Contact          string        `json:"contact"`

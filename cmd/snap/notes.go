@@ -61,6 +61,7 @@ type Notes struct {
 	Disabled         bool
 	Broken           bool
 	IgnoreValidation bool
+	DangerousMode    bool
 }
 
 func NotesFromChannelSnapInfo(ref *snap.ChannelSnapInfo) *Notes {
@@ -95,6 +96,7 @@ func NotesFromLocal(snp *client.Snap) *Notes {
 		Disabled:         snp.Status != client.StatusActive,
 		Broken:           snp.Broken != "",
 		IgnoreValidation: snp.IgnoreValidation,
+		DangerousMode:    snp.DangerousMode,
 	}
 }
 
@@ -159,6 +161,10 @@ func (n *Notes) String() string {
 
 	if n.IgnoreValidation {
 		ns = append(ns, i18n.G("ignore-validation"))
+	}
+
+	if n.DangerousMode {
+		ns = append(ns, "dangerous")
 	}
 
 	if len(ns) == 0 {

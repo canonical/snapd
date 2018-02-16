@@ -601,6 +601,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.DevMode = snapsup.DevMode
 	oldJailMode := snapst.JailMode
 	snapst.JailMode = snapsup.JailMode
+	oldDangerousMode := snapst.DangerousMode
+	snapst.DangerousMode = snapsup.DangerousMode
 	oldClassic := snapst.Classic
 	snapst.Classic = snapsup.Classic
 	if snapsup.Required { // set only on install and left alone on refresh
@@ -662,6 +664,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-devmode", oldDevMode)
 	t.Set("old-jailmode", oldJailMode)
+	t.Set("old-dangerousmode", oldDangerousMode)
 	t.Set("old-classic", oldClassic)
 	t.Set("old-ignore-validation", oldIgnoreValidation)
 	t.Set("old-channel", oldChannel)
@@ -728,6 +731,12 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	var oldDangerousMode bool
+	err = t.Get("old-dangerousmode", &oldDangerousMode)
+	if err != nil {
+		return err
+	}
+
 	var oldClassic bool
 	err = t.Get("old-classic", &oldClassic)
 	if err != nil {

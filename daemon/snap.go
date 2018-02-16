@@ -344,6 +344,7 @@ func mapLocal(about aboutSnap) *client.Snap {
 		DevMode:          snapst.DevMode,
 		TryMode:          snapst.TryMode,
 		JailMode:         snapst.JailMode,
+		DangerousMode:    snapst.DangerousMode,
 		Private:          localSnap.Private,
 		Apps:             apps,
 		Broken:           localSnap.Broken,

@@ -350,6 +350,9 @@ func (x *infoCmd) Execute([]string) error {
 				} else {
 					fmt.Fprintf(w, "  broken:\t%t (%s)\n", true, local.Broken)
 				}
+				if local.DangerousMode {
+					fmt.Fprintf(w, "  dangerous:\t%t\n", true)
+				}
 
 				fmt.Fprintf(w, "  ignore-validation:\t%t\n", local.IgnoreValidation)
 			} else {
