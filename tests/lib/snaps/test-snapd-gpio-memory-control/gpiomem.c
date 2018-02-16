@@ -50,6 +50,7 @@ unmap:
     /* Unmap the page */
     if (munmap(map_base, MAP_SIZE) == -1) {
         perror("cannot unmap gpio memory");
+        retval = -1;
     }
 
 close:
