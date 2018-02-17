@@ -4,7 +4,6 @@ details: |
     The kvm interface allows read/write access to kvm.
 
 environment:
-    FAKE_KVM: "${PWD}/fake-kvm"
     CONNECTED_PATTERN: ':kvm +test-snapd-kvm'
     DISCONNECTED_PATTERN: '\- +test-snapd-kvm:kvm'
 
@@ -12,11 +11,17 @@ prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-kvm
 
+    if [ -e /dev/kvm ]; then
+        mv /dev/kvm /dev/kvm.bak
+    fi
+    touch /dev/kvm
+
 restore: |
     rm -f call.error
-    if [ -f $FAKE_KVM]; then
-        rm -f $FAKE_KVM
-        rm -f /dev/kvm
+    rm -f /dev/kvm
+
+    if [ -e /dev/kvm.bak]; then
+        mv /dev/kvm.bak /dev/kvm
     fi
 
 execute: |
@@ -26,14 +31,6 @@ execute: |
     echo "When the interface is connected"
     snap connect test-snapd-kvm:kvm
     snap interfaces | MATCH "$CONNECTED_PATTERN"
-
-    if [ -c /dev/kvm ]; then
-        echo "Just testing the interface with fake kvm device"
-        exit 0    
-    else
-        touch $FAKE_KVM
-        touch /dev/kvm
-    fi
 
     echo "Then the snap is able to read/write on /dev/kvm"
     test-snapd-kvm.sh -c "cat /dev/kvm"
