@@ -2,9 +2,8 @@ summary: Ensure that the removable-media interface works.
 
 details: |
     The removable-media interface allows to access to removable storage filesystems.
+
 environment:
-    TESTDIR: '/media/testdir'
-    TESTFILE: '/media/testdir/testfile'
     CONNECTED_PATTERN: ':removable-media +test-snapd-removable-media'
     DISCONNECTED_PATTERN: '\- +test-snapd-removable-media:removable-media'
 
@@ -12,12 +11,33 @@ prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-removable-media
 
-    mkdir -p "$TESTDIR"
-    touch "$TESTFILE"
+    if ! [ -d /media ]; then
+        mkdir -p /media
+        touch /media/fake
+    fi
+    mkdir -p /media/testdir
+    touch /media/testdir/testfile
+
+    if ! [ -d /run/media ]; then
+        mkdir -p /run/media
+        touch /run/media/fake
+    fi
+    mkdir -p /run/media/testdir
+    touch /run/media/testdir/testfile
+
 
 restore: |
     rm -f call.error
-    rm -rf "$TESTDIR"
+
+    rm -rf /media/testdir
+    if [ -f /media/fake ]; then
+        rm -rf /media
+    fi
+
+    rm -rf /run/media/testdir
+    if [ -f /run/media/fake ]; then
+        rm -rf /run/media/
+    fi
 
 execute: |
     echo "The interface is not connected by default"
@@ -28,11 +48,16 @@ execute: |
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to read inside /run"
-    test-snapd-removable-media.sh -c "test -d /run/snapd"
+    test-snapd-removable-media.sh -c "ls /run"
 
     echo "And the snap is able to access to read/write removable storage filesystems"
-    test-snapd-removable-media.sh -c "test -d $TESTDIR"
-    test-snapd-removable-media.sh -c "sed -i 's/ / /g' $TESTFILE"
+    test-snapd-removable-media.sh -c "ls /media"
+    test-snapd-removable-media.sh -c "ls /media/testdir"
+    test-snapd-removable-media.sh -c "echo test >> /media/testdir/testfile"
+
+    test-snapd-removable-media.sh -c "ls /run/media"
+    test-snapd-removable-media.sh -c "ls /run/media/testdir"
+    test-snapd-removable-media.sh -c "echo test >> /run/media/testdir/testfile"
 
     if [ "$(snap debug confinement)" = partial ]; then
         exit 0
@@ -43,7 +68,7 @@ execute: |
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to access read the test media file"
-    if test-snapd-removable-media.sh -c "cat $TESTFILE" 2>${PWD}/call.error; then
+    if test-snapd-removable-media.sh -c "ls /run" 2>${PWD}/call.error; then
         echo "Expected permission error accessing to removable storage filesystems"
         exit 1
     fi
