@@ -8373,7 +8373,7 @@ func (s contentStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap
 	switch spec.Name {
 	case "snap-content-plug":
 		info.Plugs = map[string]*snap.PlugInfo{
-			"some-plug": &snap.PlugInfo{
+			"some-plug": {
 				Snap:      info,
 				Name:      "shared-content",
 				Interface: "content",
@@ -8385,7 +8385,7 @@ func (s contentStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap
 		}
 	case "snap-content-slot":
 		info.Slots = map[string]*snap.SlotInfo{
-			"some-plug": &snap.SlotInfo{
+			"some-plug": {
 				Snap:      info,
 				Name:      "shared-content",
 				Interface: "content",
