@@ -402,6 +402,39 @@ func (s *ValidateSuite) TestAppDaemonValue(c *C) {
 	}
 }
 
+func (s *ValidateSuite) TestAppRefreshMode(c *C) {
+	// check services
+	for _, t := range []struct {
+		refresh string
+		ok      bool
+	}{
+		// good
+		{"", true},
+		{"endure", true},
+		{"restart", true},
+		{"sigterm", true},
+		{"sigterm-all", true},
+		{"sighup", true},
+		{"sighup-all", true},
+		{"sigusr1", true},
+		{"sigusr1-all", true},
+		{"sigusr2", true},
+		{"sigusr2-all", true},
+		// bad
+		{"invalid-thing", false},
+	} {
+		if t.ok {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refresh}), IsNil)
+		} else {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refresh}), ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refresh))
+		}
+	}
+
+	// non-services cannot have a refresh-mode
+	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", RefreshMode: "endure"})
+	c.Check(err, ErrorMatches, `"refresh-mode" cannot be used for "foo", only for services`)
+}
+
 func (s *ValidateSuite) TestAppWhitelistError(c *C) {
 	err := ValidateApp(&AppInfo{Name: "foo", Command: "x\n"})
 	c.Assert(err, NotNil)
