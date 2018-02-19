@@ -11,12 +11,15 @@ execute: |
     done
 
     echo "Services that are correctly poking the watchdog remain running"
-    for i in $(seq 20); do
-        for service in direct-watchdog-ok; do
-            systemctl show -p SubState snap.test-snapd-service-watchdog.$service | MATCH 'SubState=running'
-        done
+    cnt=0
+    while true; do
+        wdk=$(journalctl -u snap.test-snapd-service-watchdog.direct-watchdog-ok | grep -c 'watchdog kick' || true)
+        test "$wdk" -ge 4 && break || true
+        cnt=$((cnt + 1))
+        test "$cnt" -lt 20
         sleep 1
     done
+    systemctl show -p SubState snap.test-snapd-service-watchdog.direct-watchdog-ok | MATCH 'SubState=running'
 
     echo "Services not poking the watchdog fail due to watchdog"
     for service in direct-watchdog-bad; do
