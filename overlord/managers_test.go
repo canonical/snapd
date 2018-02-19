@@ -1957,7 +1957,6 @@ func (ms *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snap
 	ts2, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName2, SnapID: fakeSnapID(snapName2), Revision: snap.R(3)}, snapPath2, "", snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 
-	// using same change and simulating InstallMany, so need to wait for first taskset
 	ts2.WaitAll(ts1)
 	chg.AddAll(ts2)
 
