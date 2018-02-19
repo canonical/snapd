@@ -2,12 +2,12 @@
 
 if [ -z "$NOTIFY_SOCKET" ]; then
     echo "error: NOTIFY_SOCKET is not set"
-    exit
+    exit 1
 fi
 
 if [ -z "$WATCHDOG_USEC" ]; then
     echo "error: WATCHDOG_USEC is not set"
-    exit
+    exit 1
 fi
 
 notify="systemd-notify MAINPID=$$"
