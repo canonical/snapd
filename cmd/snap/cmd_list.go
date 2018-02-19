@@ -26,10 +26,11 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-
-	"github.com/jessevdk/go-flags"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var shortListHelp = i18n.G("List installed snaps")
@@ -75,29 +76,29 @@ var ErrNoMatchingSnaps = errors.New(i18n.G("no matching snaps installed"))
 // track/risk/branch   track/risk/…
 func fmtChannel(ch string) string {
 	if ch == "" {
-		// local snap
+		// "" -> "-" (local snap)
 		return "-"
 	}
 	idx := strings.IndexByte(ch, '/')
 	if idx < 0 {
-		// risk
+		// risk -> risk
 		return ch
 	}
 	first, rest := ch[:idx], ch[idx+1:]
 	if rest == "stable" && first != "" {
-		// first is a track
+		// track/stable -> track
 		return first
 	}
 	if idx2 := strings.IndexByte(rest, '/'); idx2 >= 0 {
-		ch = ch[:idx2+idx+2] + "…"
+		// track/risk/branch -> track/risk/…
+		return ch[:idx2+idx+2] + "…"
 	}
-	// if first is a risk, rest is a branch (so we want first).
-	// Otherwise, first is a track and rest is a risk, so we want first/rest -> we want ch.
-	for _, risk := range []string{"stable", "candidate", "beta", "edge"} {
-		if first == risk {
-			return first + "/…"
-		}
+	// so it's foo/bar -> either risk/branch, or track/risk.
+	if strutil.ListContains(channelRisks, first) {
+		// risk/branch -> risk/…
+		return first + "/…"
 	}
+	// track/risk -> track/risk
 	return ch
 }
 
