@@ -177,7 +177,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, wanted []string, userID int)
 	st := t.State()
 
 	// We try to install all wanted snaps. If one snap cannot be installed
-	// becasue of change conflicts or similar we retry. Only if all snaps
+	// because of change conflicts or similar we retry. Only if all snaps
 	// can be installed together we add the tasks to the change.
 	//
 	// FIXME: we need to test for circular wants here.
