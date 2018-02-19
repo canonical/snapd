@@ -616,10 +616,10 @@ func (s *servicesTestSuite) TestServiceWatchdog(c *C) {
 	snapYaml := packageHello + `
  svc2:
    daemon: forking
-   watchdog: 12
+   watchdog-timeout: 12s
  svc3:
    daemon: forking
-   watchdog: 0
+   watchdog-timeout: 0s
  svc4:
    daemon: forking
 `
