@@ -38,6 +38,9 @@ disable_refreshes() {
 
     echo "Ensure jq is gone"
     snap remove jq
+
+    echo "Disable refresh timer"
+    systemctl stop snapd.refresh.timer
 }
 
 setup_systemd_snapd_overrides() {
@@ -242,8 +245,9 @@ prepare_classic() {
             systemctl stop "$unit"
         done
         snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
+        snap_confine_profiles="$(ls /etc/apparmor.d/snap.core.* || true)"
         # shellcheck disable=SC2086
-        tar cf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount $snapd_env
+        tar cf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount $snap_confine_profiles $snapd_env
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
@@ -356,7 +360,7 @@ EOF
         echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /mnt/system-data/etc/sudoers.d/99-ubuntu-user
         # modify sshd so that we can connect as root
         mkdir -p /mnt/system-data/etc/ssh
-        cp -a "$UNPACKD/etc/ssh/sshd_config" /mnt/system-data/etc/ssh/
+        cp -a "$UNPACKD"/etc/ssh/* /mnt/system-data/etc/ssh/
         sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /mnt/system-data/etc/ssh/sshd_config
 
         # build the user database - this is complicated because:

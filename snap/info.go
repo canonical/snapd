@@ -200,13 +200,14 @@ type Info struct {
 type Layout struct {
 	Snap *Info
 
-	Path    string      `json:"path"`
-	Bind    string      `json:"bind,omitempty"`
-	Type    string      `json:"type,omitempty"`
-	User    string      `json:"user,omitempty"`
-	Group   string      `json:"group,omitempty"`
-	Mode    os.FileMode `json:"mode,omitempty"`
-	Symlink string      `json:"symlink,omitempty"`
+	Path     string      `json:"path"`
+	Bind     string      `json:"bind,omitempty"`
+	BindFile string      `json:"bind-file,omitempty"`
+	Type     string      `json:"type,omitempty"`
+	User     string      `json:"user,omitempty"`
+	Group    string      `json:"group,omitempty"`
+	Mode     os.FileMode `json:"mode,omitempty"`
+	Symlink  string      `json:"symlink,omitempty"`
 }
 
 // ChannelSnapInfo is the minimum information that can be used to clearly
@@ -328,6 +329,25 @@ func (s *Info) Services() []*AppInfo {
 	}
 
 	return svcs
+}
+
+// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON.
+func (s *Info) ExpandSnapVariables(path string) string {
+	return os.Expand(path, func(v string) string {
+		switch v {
+		case "SNAP":
+			// NOTE: We use dirs.CoreSnapMountDir here as the path used will be always
+			// inside the mount namespace snap-confine creates and there we will
+			// always have a /snap directory available regardless if the system
+			// we're running on supports this or not.
+			return filepath.Join(dirs.CoreSnapMountDir, s.Name(), s.Revision.String())
+		case "SNAP_DATA":
+			return s.DataDir()
+		case "SNAP_COMMON":
+			return s.CommonDataDir()
+		}
+		return ""
+	})
 }
 
 func BadInterfacesSummary(snapInfo *Info) string {
@@ -481,6 +501,13 @@ type SocketInfo struct {
 	SocketMode   os.FileMode
 }
 
+// TimerInfo provides information on application timer.
+type TimerInfo struct {
+	App *AppInfo
+
+	Timer string
+}
+
 // AppInfo provides information about a app.
 type AppInfo struct {
 	Snap *Info
@@ -496,6 +523,7 @@ type AppInfo struct {
 	PostStopCommand string
 	RestartCond     RestartCondition
 	Completer       string
+	RefreshMode     string
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
@@ -514,6 +542,8 @@ type AppInfo struct {
 	Before []string
 
 	WatchdogTimeout uint
+
+	Timer *TimerInfo
 }
 
 // ScreenshotInfo provides information about a screenshot.
@@ -532,9 +562,14 @@ type HookInfo struct {
 	Slots map[string]*SlotInfo
 }
 
-// File returns the path to the file
+// File returns the path to the *.socket file
 func (socket *SocketInfo) File() string {
 	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
+}
+
+// File returns the path to the *.timer file
+func (timer *TimerInfo) File() string {
+	return filepath.Join(dirs.SnapServicesDir, timer.App.SecurityTag()+".timer")
 }
 
 // SecurityTag returns application-specific security tag.

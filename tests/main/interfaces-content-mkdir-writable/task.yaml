@@ -28,12 +28,6 @@ execute: |
     . $TESTSLIB/dirs.sh
     PATH=$LIBEXECDIR/snapd:$PATH
 
-    # Skip the SNAP variant until the related branch is merged.
-    if [ "$VAR" = "SNAP" ]; then
-        echo "Poking holes in read-only space is not yet supported."
-        exit 0
-    fi
-
     # Test that initially there are no mount points on the plug side (because
     # nothing is connected). All of the plug side target directories are
     # created dynamically when the corresponding content interface connects.

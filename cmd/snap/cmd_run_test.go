@@ -45,7 +45,6 @@ apps:
 hooks:
  configure:
 `)
-var mockContents = "SNAP"
 
 func (s *SnapSuite) TestInvalidParameters(c *check.C) {
 	invalidParameters := []string{"run", "--hook=configure", "--command=command-name", "snap-name"}
@@ -67,7 +66,7 @@ func (s *SnapSuite) TestInvalidParameters(c *check.C) {
 
 func (s *SnapSuite) TestSnapRunWhenMissingConfine(c *check.C) {
 	// mock installed snap
-	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -97,7 +96,7 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -132,7 +131,7 @@ func (s *SnapSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	si := snaptest.MockSnap(c, string(mockYaml)+"confinement: classic\n", string(mockContents), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml)+"confinement: classic\n", &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -171,7 +170,7 @@ func (s *SnapSuite) TestSnapRunClassicAppIntegrationReexeced(c *check.C) {
 	defer mockSnapConfine(mountedCoreLibExecPath)()
 
 	// mock installed snap
-	si := snaptest.MockSnap(c, string(mockYaml)+"confinement: classic\n", string(mockContents), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml)+"confinement: classic\n", &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -183,13 +182,9 @@ func (s *SnapSuite) TestSnapRunClassicAppIntegrationReexeced(c *check.C) {
 	})
 	defer restore()
 
-	execArg0 := ""
 	execArgs := []string{}
-	execEnv := []string{}
 	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
-		execArg0 = arg0
 		execArgs = args
-		execEnv = envv
 		return nil
 	})
 	defer restorer()
@@ -207,7 +202,7 @@ func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -226,7 +221,7 @@ func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 	defer restorer()
 
 	// and run it!
-	err = snaprun.SnapRunApp("snapname.app", "my-command", []string{"arg1", "arg2"})
+	_, err = snaprun.Parser().ParseArgs([]string{"run", "--command=my-command", "snapname.app", "arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
@@ -258,7 +253,7 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -292,7 +287,7 @@ func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -327,10 +322,10 @@ func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 
 	// mock installed snap
 	// Create both revisions 41 and 42
-	snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(41),
 	})
-	snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -360,7 +355,7 @@ func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 
 func (s *SnapSuite) TestSnapRunHookMissingRevisionIntegration(c *check.C) {
 	// Only create revision 42
-	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -386,7 +381,7 @@ func (s *SnapSuite) TestSnapRunHookInvalidRevisionIntegration(c *check.C) {
 
 func (s *SnapSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	// Only create revision 42
-	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -400,7 +395,7 @@ func (s *SnapSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	})
 	defer restorer()
 
-	err = snaprun.SnapRunHook("snapname", "unset", "missing-hook")
+	_, err = snaprun.Parser().ParseArgs([]string{"run", "--hook=missing-hook", "snapname"})
 	c.Assert(err, check.ErrorMatches, `cannot find hook "missing-hook" in "snapname"`)
 	c.Check(called, check.Equals, false)
 }
@@ -424,7 +419,7 @@ func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -480,7 +475,7 @@ func (s *SnapSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 	defer mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "current", dirs.CoreLibExecDir))()
 
 	// mock installed snap
-	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -529,7 +524,7 @@ func (s *SnapSuite) TestSnapRunXauthorityMigration(c *check.C) {
 
 	// mock installed snap; happily this also gives us a directory
 	// below /tmp which the Xauthority migration expects.
-	si := snaptest.MockSnap(c, string(mockYaml), string(mockContents), &snap.SideInfo{
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 	err = os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
@@ -650,4 +645,132 @@ func (s *SnapSuite) TestAntialiasBailsIfUnhappy(c *check.C) {
 		c.Check(app, check.Equals, "alias", check.Commentf(desc))
 		c.Check(outArgs, check.DeepEquals, inArgs, check.Commentf(desc))
 	}
+}
+
+func (s *SnapSuite) TestSnapRunAppWithStraceIntegration(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
+
+	// pretend we have sudo and simulate some useful output that would
+	// normally come from strace
+	sudoCmd := testutil.MockCommand(c, "sudo", fmt.Sprintf(`
+echo "stdout output 1"
+>&2 echo 'execve("/path/to/snap-confine")'
+>&2 echo "snap-confine/snap-exec strace stuff"
+>&2 echo "getuid() = 1000"
+>&2 echo 'execve("%s/snapName/x2/bin/foo")'
+>&2 echo "interessting strace output"
+>&2 echo "and more"
+echo "stdout output 2"
+`, dirs.SnapMountDir))
+	defer sudoCmd.Restore()
+
+	// pretend we have strace
+	straceCmd := testutil.MockCommand(c, "strace", "")
+	defer straceCmd.Restore()
+
+	user, err := user.Current()
+	c.Assert(err, check.IsNil)
+
+	// and run it under strace
+	rest, err := snaprun.Parser().ParseArgs([]string{"run", "--strace", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
+		{
+			"sudo", "-E",
+			filepath.Join(straceCmd.BinDir(), "strace"),
+			"-u", user.Username,
+			"-f",
+			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
+			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+			"snap.snapname.app",
+			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+			"snapname.app", "--arg1", "arg2",
+		},
+	})
+	c.Check(s.Stdout(), check.Equals, "stdout output 1\nstdout output 2\n")
+	c.Check(s.Stderr(), check.Equals, fmt.Sprintf("execve(%q)\ninteressting strace output\nand more\n", filepath.Join(dirs.SnapMountDir, "snapName/x2/bin/foo")))
+}
+
+func (s *SnapSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
+
+	// pretend we have sudo
+	sudoCmd := testutil.MockCommand(c, "sudo", "")
+	defer sudoCmd.Restore()
+
+	// pretend we have strace
+	straceCmd := testutil.MockCommand(c, "strace", "")
+	defer straceCmd.Restore()
+
+	user, err := user.Current()
+	c.Assert(err, check.IsNil)
+
+	// and run it under strace
+	rest, err := snaprun.Parser().ParseArgs([]string{"run", "--strace=-tt", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
+		{
+			"sudo", "-E",
+			filepath.Join(straceCmd.BinDir(), "strace"),
+			"-u", user.Username,
+			"-f",
+			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
+			"-tt",
+			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+			"snap.snapname.app",
+			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+			"snapname.app", "--arg1", "arg2",
+		},
+	})
+}
+
+func (s *SnapSuite) TestSnapRunShellIntegration(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	// and run it!
+	rest, err := snaprun.Parser().ParseArgs([]string{"run", "--shell", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		"snap.snapname.app",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"--command=shell", "snapname.app", "--arg1", "arg2"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 }

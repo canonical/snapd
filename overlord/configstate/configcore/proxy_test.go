@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type proxySuite struct {
@@ -75,35 +76,58 @@ func (s *proxySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
+func (s *proxySuite) makeMockEtcEnvironment(c *C) {
+	err := ioutil.WriteFile(s.mockEtcEnvironment, []byte(`
+PATH="/usr/bin"
+`), 0644)
+	c.Assert(err, IsNil)
+}
+
 func (s *proxySuite) TestConfigureProxy(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	for _, proto := range []string{"http", "https", "ftp"} {
 		// populate with content
-		err := ioutil.WriteFile(s.mockEtcEnvironment, []byte(`
-PATH="/usr/bin"
-`), 0644)
-		c.Assert(err, IsNil)
+		s.makeMockEtcEnvironment(c)
 
-		err = configcore.Run(&mockConf{
+		err := configcore.Run(&mockConf{
+			state: s.state,
 			conf: map[string]interface{}{
 				fmt.Sprintf("proxy.%s", proto): fmt.Sprintf("%s://example.com", proto),
 			},
 		})
 		c.Assert(err, IsNil)
 
-		content, err := ioutil.ReadFile(s.mockEtcEnvironment)
-		c.Assert(err, IsNil)
-		c.Check(string(content), Equals, fmt.Sprintf(`
+		c.Check(s.mockEtcEnvironment, testutil.FileEquals, fmt.Sprintf(`
 PATH="/usr/bin"
 %[1]s_proxy=%[1]s://example.com`, proto))
 	}
 }
 
+func (s *proxySuite) TestConfigureNoProxy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// populate with content
+	s.makeMockEtcEnvironment(c)
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"proxy.no-proxy": "example.com,bar.com",
+		},
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(s.mockEtcEnvironment, testutil.FileEquals, `
+PATH="/usr/bin"
+no_proxy=example.com,bar.com`)
+}
+
 func (s *proxySuite) TestConfigureProxyStore(c *C) {
 	// set to ""
 	err := configcore.Run(&mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
 			"proxy.store": "",
 		},

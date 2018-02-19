@@ -82,8 +82,6 @@ hooks:
     prepare-device:
 `
 
-var snapContents = ""
-
 func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -115,7 +113,7 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.change.AddTask(s.task)
 
 	sideInfo := &snap.SideInfo{RealName: "test-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
-	snaptest.MockSnap(c, snapYaml, snapContents, sideInfo)
+	snaptest.MockSnap(c, snapYaml, sideInfo)
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo},
@@ -874,7 +872,7 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 	s.state.Lock()
 
 	sideInfo := &snap.SideInfo{RealName: "test-snap-1", SnapID: "some-snap-id1", Revision: snap.R(1)}
-	info := snaptest.MockSnap(c, snapYaml1, snapContents, sideInfo)
+	info := snaptest.MockSnap(c, snapYaml1, sideInfo)
 	c.Assert(info.Hooks, HasLen, 1)
 	snapstate.Set(s.state, "test-snap-1", &snapstate.SnapState{
 		Active:   true,
@@ -883,7 +881,7 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 	})
 
 	sideInfo = &snap.SideInfo{RealName: "test-snap-2", SnapID: "some-snap-id2", Revision: snap.R(1)}
-	snaptest.MockSnap(c, snapYaml2, snapContents, sideInfo)
+	snaptest.MockSnap(c, snapYaml2, sideInfo)
 	snapstate.Set(s.state, "test-snap-2", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo},
