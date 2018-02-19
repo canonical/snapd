@@ -1,0 +1,51 @@
+summary: Ensure that the broadcom-asic-control interface works.
+
+details: |
+    The broadcom-asic-control interface allow access to broadcom asic kernel module.
+
+environment:
+    CONNECTED_PATTERN: ':ssh-keys +test-snapd-ssh-keys'
+    DISCONNECTED_PATTERN: '\- +test-snapd-ssh-keys:ssh-keys'
+
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-broadcom-asic-control
+
+    . $TESTSLIB/files.sh
+    ensure_dir_exists /sys/module/linux_bcm_knet/
+    ensure_dir_exists /sys/module/linux_kernel_bde/
+    ensure_dir_exists /sys/module/linux_user_bde/
+
+    ensure_file_exists_move_real /dev/linux-user-bde
+    ensure_file_exists_move_real /dev/linux-kernel-bde
+    ensure_file_exists_move_real /dev/linux-bcm-knet
+
+
+restore: |
+    rm -f call.error
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    echo "When the interface is connected"
+    snap connect test-snapd-broadcom-asic-control:broadcom-asic-control
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    echo "Then the snap is able to check the ssh version"
+    test-snapd-broadcom-asic-control.sh -c "ls /sys/module/linux_bcm_knet/"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-broadcom-asic-control:broadcom-asic-control
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    echo "Then the snap is not able to read a ssh private key"
+    if test-snapd-broadcom-asic-control.sh -c "ls /sys/module/linux_bcm_knet/" 2>${PWD}/call.error; then
+        echo "Expected permission error accessing to ssh"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
