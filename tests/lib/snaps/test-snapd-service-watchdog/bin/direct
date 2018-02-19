@@ -34,7 +34,7 @@ def main(opts):
         sleep_time = 2 * watchdog_timeout
         logging.warning('running in "bad" mode')
     else:
-        sleep_time = watchdog_timeout // 2
+        sleep_time = watchdog_timeout / 2
 
     logging.info('watchdog notification every %us', sleep_time)
 
