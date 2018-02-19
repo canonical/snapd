@@ -36,3 +36,7 @@ fi
 export GOPATH=/tmp/go
 go get -u github.com/snapcore/spread/cmd/spread
 /tmp/go/bin/spread -v "autopkgtest:${ID}-${VERSION_ID}-$(dpkg --print-architecture)"
+
+# store journal info for inspectsion
+journalctl --sync
+journalctl -ab > $ADT_ARTIFACTS/journal.txt
