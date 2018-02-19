@@ -117,6 +117,20 @@ dbus (receive, send)
     path=/org/freedesktop/ModemManager1{,/**}
     interface=org.freedesktop.DBus.*
     peer=(label=unconfined),
+
+# Allow accessing logind services to properly shutdown devices on suspend
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member={PrepareForSleep,SessionNew,SessionRemoved}
+    peer=(label=unconfined),
+dbus (send)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member=Inhibit
+    peer=(label=unconfined),
 `
 
 const modemManagerConnectedSlotAppArmor = `
@@ -744,6 +758,9 @@ LABEL="mm_telit_port_types_end"
 ACTION!="add|change|move", GOTO="mm_usb_device_blacklist_end"
 SUBSYSTEM!="usb", GOTO="mm_usb_device_blacklist_end"
 ENV{DEVTYPE}!="usb_device",  GOTO="mm_usb_device_blacklist_end"
+
+# Telegesis zigbee dongle
+ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="0003", ENV{ID_MM_DEVICE_IGNORE}="1"
 
 # APC UPS devices
 ATTRS{idVendor}=="051d", ENV{ID_MM_DEVICE_IGNORE}="1"

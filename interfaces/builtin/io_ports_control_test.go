@@ -44,12 +44,14 @@ var _ = Suite(&ioPortsControlInterfaceSuite{
 })
 
 const ioPortsControlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [io-ports-control]
 `
 
 const ioPortsControlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   io-ports-control:
@@ -99,7 +101,7 @@ func (s *ioPortsControlInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(udevSpec.Snippets(), HasLen, 2)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# io-ports-control
 KERNEL=="port", TAG+="snap_consumer_app"`)
-	c.Assert(udevSpec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+	c.Assert(udevSpec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *ioPortsControlInterfaceSuite) TestStaticInfo(c *C) {

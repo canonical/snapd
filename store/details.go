@@ -39,14 +39,16 @@ type snapDetails struct {
 	LastUpdated      string             `json:"last_updated,omitempty"`
 	Name             string             `json:"package_name"`
 	Prices           map[string]float64 `json:"prices,omitempty"`
-	Publisher        string             `json:"publisher,omitempty"`
-	RatingsAverage   float64            `json:"ratings_average,omitempty"`
-	Revision         int                `json:"revision"` // store revisions are ints starting at 1
-	ScreenshotURLs   []string           `json:"screenshot_urls,omitempty"`
-	SnapID           string             `json:"snap_id"`
-	SnapYAML         string             `json:"snap_yaml_raw"`
-	License          string             `json:"license,omitempty"`
-	Base             string             `json:"base,omitempty"`
+	// Note that the publisher is really the "display name" of the
+	// publisher
+	Publisher      string   `json:"publisher,omitempty"`
+	RatingsAverage float64  `json:"ratings_average,omitempty"`
+	Revision       int      `json:"revision"` // store revisions are ints starting at 1
+	ScreenshotURLs []string `json:"screenshot_urls,omitempty"`
+	SnapID         string   `json:"snap_id"`
+	SnapYAML       string   `json:"snap_yaml_raw"`
+	License        string   `json:"license,omitempty"`
+	Base           string   `json:"base,omitempty"`
 
 	// FIXME: the store should send "contact" here, once it does we
 	//        can remove support_url
