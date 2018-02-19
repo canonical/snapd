@@ -45,6 +45,7 @@ var _ = Suite(&SnapdControlInterfaceSuite{
 func (s *SnapdControlInterfaceSuite) SetUpTest(c *C) {
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: other
+version: 0
 apps:
  app:
     command: foo

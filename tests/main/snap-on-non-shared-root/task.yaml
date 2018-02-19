@@ -1,3 +1,5 @@
+# NOTE: This test should be altered or removed once snap-confine
+# no longer tries to alter sharing of /snap (it's broken anyway).
 summary: Ensure that snapd works on systems with a non rshared root
 # no need to run on ubuntu-core-16, we always have / shared here
 systems: [-ubuntu-core-*]

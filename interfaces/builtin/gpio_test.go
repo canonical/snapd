@@ -57,6 +57,7 @@ var _ = Suite(&GpioInterfaceSuite{
 func (s *GpioInterfaceSuite) SetUpTest(c *C) {
 	gadgetInfo := snaptest.MockInfo(c, `
 name: my-device
+version: 0
 type: gadget
 slots:
     my-pin:
@@ -87,6 +88,7 @@ plugs:
 
 	osInfo := snaptest.MockInfo(c, `
 name: my-core
+version: 0
 type: os
 slots:
     my-pin:
@@ -99,6 +101,7 @@ slots:
 
 	appInfo := snaptest.MockInfo(c, `
 name: my-app
+version: 0
 slots:
     my-pin:
         interface: gpio

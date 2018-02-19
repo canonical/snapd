@@ -33,7 +33,7 @@ func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {
 		panic("call s.daemon(c) in your test first")
 	}
 
-	snapInfo := snaptest.MockSnap(c, yamlText, "", &snap.SideInfo{Revision: snap.R(1)})
+	snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: snap.R(1)})
 
 	st := s.d.overlord.State()
 

@@ -73,3 +73,16 @@ func (s *apparmorSuite) TestProbeAppArmorFullAppArmor(c *C) {
 	c.Check(level, Equals, release.FullAppArmor)
 	c.Check(summary, Equals, "apparmor is enabled and all features are available")
 }
+
+func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
+	fakeSysPath := c.MkDir()
+	restore := release.MockAppArmorFeaturesSysPath(fakeSysPath)
+	defer restore()
+	err := os.MkdirAll(filepath.Join(fakeSysPath, "policy"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(fakeSysPath, "network"), 0755)
+	c.Assert(err, IsNil)
+
+	features := release.AppArmorFeatures()
+	c.Check(features, DeepEquals, []string{"network", "policy"})
+}
