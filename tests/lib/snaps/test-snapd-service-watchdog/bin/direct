@@ -22,11 +22,10 @@ def main(opts):
 
     watchdog_usec = os.getenv('WATCHDOG_USEC')
     if not watchdog_usec:
-        watchdog_timeout = 10
-        logging.warning('WATCHDOG_USEC not set, assuming default value')
-    else:
-        # convert to seconds
-        watchdog_timeout = int(watchdog_usec) / 1000000
+        raise RuntimeError('WATCHDOG_USEC not set')
+
+    # convert to seconds
+    watchdog_timeout = int(watchdog_usec) / 1000000
 
     logging.info('watchdog timeout: %us', watchdog_timeout)
     logging.info('notification socket address: %s', notify_addr)
