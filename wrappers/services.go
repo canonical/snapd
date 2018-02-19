@@ -363,7 +363,7 @@ RemainAfterExit={{.Remain}}
 BusName={{.App.BusName}}
 {{- end}}
 {{- if .App.WatchdogTimeout}}
-WatchdogSec={{.App.WatchdogTimeout}}
+WatchdogSec={{.App.WatchdogTimeout.Seconds}}
 {{- end}}
 {{- if not .App.Sockets}}
 
