@@ -30,6 +30,8 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/snapcore/squashfuse"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -409,8 +411,7 @@ func useFuse() bool {
 		return false
 	}
 
-	_, err := exec.LookPath("squashfuse")
-	if err != nil {
+	if !osutil.ExecutableExists("squashfuse") && !osutil.ExecutableExists("snapfuse") {
 		return false
 	}
 
@@ -443,7 +444,14 @@ func (s *systemd) WriteMountUnitFile(name, what, where, fstype string) (string, 
 		fstype = "none"
 	} else if fstype == "squashfs" && useFuse() {
 		options = append(options, "allow_other")
-		fstype = "fuse.squashfuse"
+		switch {
+		case osutil.ExecutableExists("squashfuse"):
+			fstype = "fuse.squashfuse"
+		case osutil.ExecutableExists("snapfuse"):
+			fstype = "fuse.snapfuse"
+		default:
+			panic("cannot happen because useFuse() ensures on of the two executables is there")
+		}
 	}
 
 	c := fmt.Sprintf(`[Unit]

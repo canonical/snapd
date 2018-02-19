@@ -375,6 +375,9 @@ rm -rf vendor/*
 # Generate version files
 ./mkversion.sh "%{version}-%{release}"
 
+# We don't want/need squashfuse in the rpm
+sed -e 's:_ "github.com/snapcore/squashfuse"::g' -i systemd/systemd.go
+
 # Build snapd
 mkdir -p src/github.com/snapcore
 ln -s ../../../ src/github.com/snapcore/snapd
