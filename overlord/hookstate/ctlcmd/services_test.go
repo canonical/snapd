@@ -58,7 +58,7 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	}, nil
 }
 
-func (f *fakeStore) ListRefresh(_ context.Context, cand []*store.RefreshCandidate, user *auth.UserState, opt *store.RefreshOptions) ([]*snap.Info, error) {
+func (f *fakeStore) InstallRefresh(_ context.Context, installedCtxt []*store.CurrentSnap, actions []*store.InstallRefreshAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
 	return []*snap.Info{{
 		SideInfo: snap.SideInfo{
 			RealName: "test-snap",

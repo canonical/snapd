@@ -86,7 +86,8 @@ type apiBaseSuite struct {
 	d                 *Daemon
 	user              *auth.UserState
 	restoreBackends   func()
-	refreshCandidates []*store.RefreshCandidate
+	installedCtxt     []*store.CurrentSnap
+	actions           []*store.InstallRefreshAction
 	buyOptions        *store.BuyOptions
 	buyResult         *store.BuyResult
 	storeSigning      *assertstest.StoreStack
@@ -124,18 +125,12 @@ func (s *apiBaseSuite) Find(search *store.Search, user *auth.UserState) ([]*snap
 	return s.rsnaps, s.err
 }
 
-func (s *apiBaseSuite) LookupRefresh(snap *store.RefreshCandidate, user *auth.UserState) (*snap.Info, error) {
-	s.refreshCandidates = []*store.RefreshCandidate{snap}
-	s.user = user
-
-	return s.rsnaps[0], s.err
-}
-
-func (s *apiBaseSuite) ListRefresh(ctx context.Context, snaps []*store.RefreshCandidate, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
+func (s *apiBaseSuite) InstallRefresh(ctx context.Context, installedCtxt []*store.CurrentSnap, actions []*store.InstallRefreshAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
 	if ctx == nil {
 		panic("context required")
 	}
-	s.refreshCandidates = snaps
+	s.installedCtxt = installedCtxt
+	s.actions = actions
 	s.user = user
 
 	return s.rsnaps, s.err
@@ -228,7 +223,8 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.vars = nil
 	s.user = nil
 	s.d = nil
-	s.refreshCandidates = nil
+	s.installedCtxt = nil
+	s.actions = nil
 	// Disable real security backends for all API tests
 	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
 
@@ -1498,7 +1494,8 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 
 	c.Check(s.storeSearch, check.DeepEquals, store.Search{Query: "hi"})
-	c.Check(s.refreshCandidates, check.HasLen, 0)
+	c.Check(s.installedCtxt, check.HasLen, 0)
+	c.Check(s.actions, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestFindRefreshes(c *check.C) {
@@ -1521,7 +1518,8 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
-	c.Check(s.refreshCandidates, check.HasLen, 1)
+	c.Check(s.installedCtxt, check.HasLen, 1)
+	c.Check(s.actions, check.HasLen, 1)
 }
 
 func (s *apiSuite) TestFindRefreshSideloaded(c *check.C) {
@@ -1557,9 +1555,9 @@ func (s *apiSuite) TestFindRefreshSideloaded(c *check.C) {
 	rsp := searchStore(findCmd, req, nil).(*resp)
 
 	snaps := snapList(rsp.Result)
-	c.Assert(snaps, check.HasLen, 1)
-	c.Assert(snaps[0]["name"], check.Equals, "store")
-	c.Check(s.refreshCandidates, check.HasLen, 0)
+	c.Assert(snaps, check.HasLen, 1) // FIXME
+	c.Check(s.installedCtxt, check.HasLen, 0)
+	c.Check(s.actions, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestFindPrivate(c *check.C) {
