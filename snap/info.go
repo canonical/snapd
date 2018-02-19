@@ -518,6 +518,7 @@ type AppInfo struct {
 
 	Daemon          string
 	StopTimeout     timeout.Timeout
+	WatchdogTimeout timeout.Timeout
 	StopCommand     string
 	ReloadCommand   string
 	PostStopCommand string
@@ -540,8 +541,6 @@ type AppInfo struct {
 	// before
 	After  []string
 	Before []string
-
-	WatchdogTimeout uint
 
 	Timer *TimerInfo
 }

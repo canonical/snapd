@@ -66,6 +66,7 @@ type appYaml struct {
 	ReloadCommand   string          `yaml:"reload-command,omitempty"`
 	PostStopCommand string          `yaml:"post-stop-command,omitempty"`
 	StopTimeout     timeout.Timeout `yaml:"stop-timeout,omitempty"`
+	WatchdogTimeout timeout.Timeout `yaml:"watchdog-timeout,omitempty"`
 	Completer       string          `yaml:"completer,omitempty"`
 	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
 
@@ -81,8 +82,6 @@ type appYaml struct {
 
 	After  []string `yaml:"after,omitempty"`
 	Before []string `yaml:"before,omitempty"`
-
-	WatchdogTimeout uint `yaml:"watchdog,omitempty"`
 
 	Timer string `yaml:"timer,omitempty"`
 }

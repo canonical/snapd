@@ -1106,12 +1106,12 @@ version: 1.0
 apps:
   foo:
     daemon: simple
-    watchdog: 12
+    watchdog-timeout: 12s
 `)
 	fooNotADaemon := []byte(`
 apps:
   foo:
-    watchdog: 12
+    watchdog-timeout: 12s
 `)
 
 	tcs := []struct {
@@ -1124,12 +1124,13 @@ apps:
 	}, {
 		name: "foo not a service",
 		desc: fooNotADaemon,
-		err:  `cannot use watchdog, application "foo" is not a service`,
+		err:  `cannot define watchdog-timeout in application "foo" as it's not a service`,
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
 		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
 		c.Assert(err, IsNil)
+		c.Assert(info, NotNil)
 
 		err = Validate(info)
 		if tc.err != "" {
