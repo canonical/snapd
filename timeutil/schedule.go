@@ -711,7 +711,7 @@ func parseEventSet(s string) (*Schedule, error) {
 
 // Includes checks whether given time t falls inside the time range covered by
 // the schedule. A single time schedule eg. '10:00' is treated as spanning the
-// time <10:00, 10:01)
+// time [10:00, 10:01)
 func (sched *Schedule) Includes(t time.Time) bool {
 	if len(sched.WeekSpans) > 0 {
 		var weekMatch bool
@@ -730,11 +730,11 @@ func (sched *Schedule) Includes(t time.Time) bool {
 		window := tspan.Window(t)
 		if window.End.Equal(window.Start) {
 			// schedule granularity is a minute, a schedule '10:00'
-			// in fact is: <10:00, 10:01)
+			// in fact is: [10:00, 10:01)
 			window.End = window.End.Add(time.Minute)
 		}
-		// Includes() does the <start,end> check, but we really what
-		// <start,end)
+		// Includes() does the [start,end] check, but we really what
+		// [start,end)
 		if window.Includes(t) && t.Before(window.End) {
 			return true
 		}
