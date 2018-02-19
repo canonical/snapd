@@ -38,7 +38,7 @@ ensure_file_exists() {
     fi
 }
 
-ensure_file_exists_move_real() {
+ensure_file_exists_backup_real() {
     file="$1"
     if [ -f "$file" ]; then
         mv "$file" "$file.back"
