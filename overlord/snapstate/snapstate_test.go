@@ -2089,9 +2089,17 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 		userID int
 	}
 	seen := make(map[snapIDuserID]bool)
+	ir := 0
 	di := 0
 	for _, op := range s.fakeBackend.ops {
 		switch op.op {
+		case "storesvc-install-refresh":
+			ir++
+			c.Check(op.installedCtxt, DeepEquals, []store.CurrentSnap{
+				{Name: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
+				{Name: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2)},
+				{Name: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5)},
+			})
 		case "storesvc-install-refresh:action":
 			snapID := op.action.SnapID
 			seen[snapIDuserID{snapID: snapID, userID: op.userID}] = true
@@ -2104,13 +2112,11 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 			di++
 		}
 	}
+	c.Check(ir, Equals, 3)
 	// we check all snaps with each user
 	c.Check(seen, DeepEquals, map[snapIDuserID]bool{
-		{snapID: "core-snap-id", userID: 1}:     true,
+		{snapID: "core-snap-id", userID: 0}:     true,
 		{snapID: "some-snap-id", userID: 1}:     true,
-		{snapID: "services-snap-id", userID: 1}: true,
-		{snapID: "core-snap-id", userID: 2}:     true,
-		{snapID: "some-snap-id", userID: 2}:     true,
 		{snapID: "services-snap-id", userID: 2}: true,
 	})
 }
@@ -2174,9 +2180,17 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 		userID int
 	}
 	seen := make(map[snapIDuserID]bool)
+	ir := 0
 	di := 0
 	for _, op := range s.fakeBackend.ops {
 		switch op.op {
+		case "storesvc-install-refresh":
+			ir++
+			c.Check(op.installedCtxt, DeepEquals, []store.CurrentSnap{
+				{Name: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
+				{Name: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2)},
+				{Name: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5)},
+			})
 		case "storesvc-install-refresh:action":
 			snapID := op.action.SnapID
 			seen[snapIDuserID{snapID: snapID, userID: op.userID}] = true
@@ -2189,13 +2203,11 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 			di++
 		}
 	}
+	c.Check(ir, Equals, 2)
 	// we check all snaps with each user
 	c.Check(seen, DeepEquals, map[snapIDuserID]bool{
-		{snapID: "core-snap-id", userID: 1}:     true,
-		{snapID: "some-snap-id", userID: 1}:     true,
-		{snapID: "services-snap-id", userID: 1}: true,
 		{snapID: "core-snap-id", userID: 2}:     true,
-		{snapID: "some-snap-id", userID: 2}:     true,
+		{snapID: "some-snap-id", userID: 1}:     true,
 		{snapID: "services-snap-id", userID: 2}: true,
 	})
 

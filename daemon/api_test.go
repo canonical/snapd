@@ -1555,7 +1555,7 @@ func (s *apiSuite) TestFindRefreshSideloaded(c *check.C) {
 	rsp := searchStore(findCmd, req, nil).(*resp)
 
 	snaps := snapList(rsp.Result)
-	c.Assert(snaps, check.HasLen, 1) // FIXME
+	c.Assert(snaps, check.HasLen, 0)
 	c.Check(s.installedCtxt, check.HasLen, 0)
 	c.Check(s.actions, check.HasLen, 0)
 }

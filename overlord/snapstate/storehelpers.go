@@ -287,24 +287,12 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	sort.Strings(names)
 
 	installedCtxt := make([]*store.CurrentSnap, 0, len(snapStates))
-	actions := make([]*store.InstallRefreshAction, 0, len(names))
+	actionsByUserID := make(map[int][]*store.InstallRefreshAction)
 	stateByID := make(map[string]*SnapState, len(snapStates))
 	ignoreValidation := make(map[string]bool)
-	userIDs := make(map[int]bool)
+	fallbackID := idForUser(user)
+	nCands := 0
 	for snapName, snapst := range snapStates {
-		// XXX: fix/move this
-		if len(names) == 0 && (snapst.TryMode || snapst.DevMode) {
-			// no auto-refresh for trymode nor devmode
-			continue
-		}
-
-		// XXX: fix/move this
-		// FIXME: snaps that are not active are skipped for now
-		//        until we know what we want to do
-		if !snapst.Active {
-			continue
-		}
-
 		snapInfo, err := snapst.CurrentInfo()
 		if err != nil {
 			// log something maybe?
@@ -327,6 +315,17 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		}
 		installedCtxt = append(installedCtxt, installed)
 
+		// FIXME: snaps that are not active are skipped for now
+		//        until we know what we want to do
+		if !snapst.Active {
+			continue
+		}
+
+		if len(names) == 0 && (snapst.TryMode || snapst.DevMode) {
+			// no auto-refresh for trymode nor devmode
+			continue
+		}
+
 		if len(names) > 0 && !strutil.SortedListContains(names, snapInfo.Name()) {
 			continue
 		}
@@ -337,44 +336,27 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 			installed.Block = snapst.Block()
 		}
 
-		actions = append(actions, &store.InstallRefreshAction{
+		userID := snapst.UserID
+		if userID == 0 {
+			userID = fallbackID
+		}
+		actionsByUserID[userID] = append(actionsByUserID[userID], &store.InstallRefreshAction{
 			Action: "refresh",
 			SnapID: snapInfo.SnapID,
 		})
-
-		if snapst.UserID != 0 {
-			userIDs[snapst.UserID] = true
-		}
 		if snapst.IgnoreValidation {
 			ignoreValidation[snapInfo.SnapID] = true
 		}
+		nCands++
 	}
 
 	theStore := Store(st)
 
-	// XXX: address TODO
-	// TODO: we query for all snaps for each user so that the
-	// store can take into account validation constraints, we can
-	// do better with coming APIs
-	updatesInfo := make(map[string]*snap.Info, len(actions))
-	fallbackUsed := false
-	fallbackID := idForUser(user)
-	if len(userIDs) == 0 {
-		// none of the snaps had an installed user set, just
-		// use the fallbackID
-		userIDs[fallbackID] = true
-	}
-	for userID := range userIDs {
+	updatesInfo := make(map[string]*snap.Info, nCands)
+	for userID, actions := range actionsByUserID {
 		u, err := userFromUserIDOrFallback(st, userID, user)
 		if err != nil {
 			return nil, nil, nil, err
-		}
-		// consider the fallback user at most once
-		if idForUser(u) == fallbackID {
-			if fallbackUsed {
-				continue
-			}
-			fallbackUsed = true
 		}
 
 		st.Unlock()
