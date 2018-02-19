@@ -33,8 +33,6 @@ var RunMain = run
 
 var (
 	CreateUserDataDirs = createUserDataDirs
-	SnapRunApp         = snapRunApp
-	SnapRunHook        = snapRunHook
 	Wait               = wait
 	ResolveApp         = resolveApp
 	IsReexeced         = isReexeced

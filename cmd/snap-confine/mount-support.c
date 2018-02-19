@@ -535,7 +535,7 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-static int sc_open_snap_update_ns(void)
+int sc_open_snap_update_ns(void)
 {
 	// +1 is for the case where the link is exactly PATH_MAX long but we also
 	// want to store the terminating '\0'. The readlink system call doesn't add
@@ -563,7 +563,8 @@ static int sc_open_snap_update_ns(void)
 	return fd;
 }
 
-void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
+void sc_populate_mount_ns(int snap_update_ns_fd, const char *base_snap_name,
+			  const char *snap_name)
 {
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
@@ -573,10 +574,6 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 	if (vanilla_cwd == NULL) {
 		die("cannot get the current working directory");
 	}
-	// Find and open snap-update-ns from the same path as where we
-	// (snap-confine) were called.
-	int snap_update_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	snap_update_ns_fd = sc_open_snap_update_ns();
 
 	bool on_classic_distro = is_running_on_classic_distribution();
 	// on classic or with alternative base snaps we need to setup
@@ -707,6 +704,11 @@ void sc_ensure_shared_snap_mount(void)
 {
 	if (!is_mounted_with_shared_option("/")
 	    && !is_mounted_with_shared_option(SNAP_MOUNT_DIR)) {
+		// TODO: We could be more aggressive and refuse to function but since
+		// we have no data on actual environments that happen to limp along in
+		// this configuration let's not do that yet.  This code should be
+		// removed once we have a measurement and feedback mechanism that lets
+		// us decide based on measurable data.
 		sc_do_mount(SNAP_MOUNT_DIR, SNAP_MOUNT_DIR, "none",
 			    MS_BIND | MS_REC, 0);
 		sc_do_mount("none", SNAP_MOUNT_DIR, NULL, MS_SHARED | MS_REC,

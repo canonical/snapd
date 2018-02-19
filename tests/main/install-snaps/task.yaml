@@ -50,6 +50,9 @@ environment:
     SNAP/parity: parity
     SNAP/paritybitcoin: parity-bitcoin
     SNAP/remmina: remmina
+    SNAP/skype: skype
+    SNAP/slack: slack
+    SNAP/spotify: spotify
     SNAP/telegramsergiusens: telegram-sergiusens
     SNAP/zeronet: zeronet
     SNAP/zeronetjs: zeronet-js

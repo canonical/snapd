@@ -43,12 +43,14 @@ var _ = Suite(&LxdInterfaceSuite{
 })
 
 const lxdConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [lxd]
 `
 
 const lxdCoreYaml = `name: core
+version: 0
 type: os
 slots:
   lxd:
