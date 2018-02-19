@@ -96,6 +96,7 @@ var api = []*Command{
 }
 
 var (
+	// see daemon.go:canAccess for details how the access is controlled
 	rootCmd = &Command{
 		Path:    "/",
 		GuestOK: true,
@@ -115,9 +116,8 @@ var (
 	}
 
 	logoutCmd = &Command{
-		Path:   "/v2/logout",
-		POST:   logoutUser,
-		UserOK: true,
+		Path: "/v2/logout",
+		POST: logoutUser,
 	}
 
 	appIconCmd = &Command{
@@ -209,21 +209,18 @@ var (
 	}
 
 	createUserCmd = &Command{
-		Path:   "/v2/create-user",
-		UserOK: false,
-		POST:   postCreateUser,
+		Path: "/v2/create-user",
+		POST: postCreateUser,
 	}
 
 	buyCmd = &Command{
-		Path:   "/v2/buy",
-		UserOK: false,
-		POST:   postBuy,
+		Path: "/v2/buy",
+		POST: postBuy,
 	}
 
 	readyToBuyCmd = &Command{
-		Path:   "/v2/buy/ready",
-		UserOK: false,
-		GET:    readyToBuy,
+		Path: "/v2/buy/ready",
+		GET:  readyToBuy,
 	}
 
 	snapctlCmd = &Command{
@@ -233,9 +230,8 @@ var (
 	}
 
 	usersCmd = &Command{
-		Path:   "/v2/users",
-		UserOK: false,
-		GET:    getUsers,
+		Path: "/v2/users",
+		GET:  getUsers,
 	}
 
 	sectionsCmd = &Command{
@@ -2119,6 +2115,8 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 
 var (
 	postCreateUserUcrednetGet = ucrednetGet
+	runSnapctlUcrednetGet     = ucrednetGet
+	ctlcmdRun                 = ctlcmd.Run
 	storeUserInfo             = store.UserInfo
 	osutilAddUser             = osutil.AddUser
 )
@@ -2491,10 +2489,19 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("snapctl cannot run without args")
 	}
 
+	_, uid, _, err := runSnapctlUcrednetGet(r.RemoteAddr)
+	if err != nil {
+		return Forbidden("cannot get remote user: %s", err)
+	}
+	// we only allow "get" from regular users in snapctl
+	if uid != 0 && snapctlOptions.Args[0] != "get" {
+		return Forbidden("cannot use %q with uid %d, try with sudo", snapctlOptions.Args[0], uid)
+	}
+
 	// Ignore missing context error to allow 'snapctl -h' without a context;
 	// Actual context is validated later by get/set.
 	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
-	stdout, stderr, err := ctlcmd.Run(context, snapctlOptions.Args)
+	stdout, stderr, err := ctlcmdRun(context, snapctlOptions.Args)
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			stdout = []byte(e.Error())

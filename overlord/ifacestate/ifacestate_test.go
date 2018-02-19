@@ -20,6 +20,8 @@
 package ifacestate_test
 
 import (
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -32,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -69,6 +72,8 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 
 	dirs.SetRootDir(c.MkDir())
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755), IsNil)
+
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -115,6 +120,10 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 		mgr.AddForeignTaskHandlers()
 		s.privateMgr = mgr
 		s.o.AddManager(mgr)
+
+		// ensure the re-generation of security profiles did not
+		// confuse the tests
+		s.secBackend.SetupCalls = nil
 	}
 	return s.privateMgr
 }
@@ -2183,4 +2192,200 @@ func (s *interfaceManagerSuite) TestAutoConnectDuringCoreTransition(c *C) {
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, HasLen, 1)
 	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "snap", Name: "network"}, interfaces.SlotRef{Snap: "core", Name: "network"}}})
+}
+
+func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot string) *state.Change {
+	chg := st.NewChange("connect...", "...")
+
+	t := st.NewTask("connect", "other connect task")
+	t.Set("slot", interfaces.SlotRef{Snap: "producer", Name: "slot"})
+	t.Set("plug", interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	var plugAttrs, slotAttrs map[string]interface{}
+	t.Set("plug-dynamic", plugAttrs)
+	t.Set("slot-dynamic", slotAttrs)
+	t.Set("auto", true)
+	chg.AddTask(t)
+
+	return chg
+}
+
+func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotSnapOnAutoConnect(c *C) {
+	_ = s.manager(c)
+	s.mockSnap(c, consumerYaml)
+	// no producer snap in the state, doConnect should complain
+
+	s.state.Lock()
+
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := chg.Tasks()[0]
+	c.Assert(task.Status(), Equals, state.DoneStatus)
+	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "producer" is no longer available for auto-connecting.*`)
+
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), Equals, state.ErrNoState)
+}
+
+func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugSnapOnAutoConnect(c *C) {
+	_ = s.manager(c)
+	s.mockSnap(c, producerYaml)
+	// no consumer snap in the state, doConnect should complain
+
+	s.state.Lock()
+
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := chg.Tasks()[0]
+	c.Assert(task.Status(), Equals, state.DoneStatus)
+	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "consumer" is no longer available for auto-connecting.*`)
+
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), Equals, state.ErrNoState)
+}
+
+func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugOnAutoConnect(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	_ = s.manager(c)
+	producer := s.mockSnap(c, producerYaml)
+	// consumer snap has no plug, doConnect should complain
+	s.mockSnap(c, consumerYaml)
+
+	repo := s.manager(c).Repository()
+	err := repo.AddSlot(&snap.SlotInfo{
+		Snap:      producer,
+		Name:      "slot",
+		Interface: "test",
+	})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := chg.Tasks()[0]
+	c.Assert(task.Status(), Equals, state.DoneStatus)
+	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "consumer" no longer has "plug" plug`)
+
+	var conns map[string]interface{}
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotOnAutoConnect(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	_ = s.manager(c)
+	// producer snap has no slot, doConnect should complain
+	s.mockSnap(c, producerYaml)
+	consumer := s.mockSnap(c, consumerYaml)
+
+	repo := s.manager(c).Repository()
+	err := repo.AddPlug(&snap.PlugInfo{
+		Snap:      consumer,
+		Name:      "plug",
+		Interface: "test",
+	})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := chg.Tasks()[0]
+	c.Assert(task.Status(), Equals, state.DoneStatus)
+	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "producer" no longer has "slot" slot`)
+
+	var conns map[string]interface{}
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (s *interfaceManagerSuite) TestConnectHandlesAutoconnect(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	_ = s.manager(c)
+	producer := s.mockSnap(c, producerYaml)
+	consumer := s.mockSnap(c, consumerYaml)
+
+	repo := s.manager(c).Repository()
+	err := repo.AddPlug(&snap.PlugInfo{
+		Snap:      consumer,
+		Name:      "plug",
+		Interface: "test",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddSlot(&snap.SlotInfo{
+		Snap:      producer,
+		Name:      "slot",
+		Interface: "test",
+	})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := chg.Tasks()[0]
+	c.Assert(task.Status(), Equals, state.DoneStatus)
+
+	// Ensure that "slot" is now auto-connected.
+	var conns map[string]interface{}
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test", "auto": true,
+		},
+	})
+}
+
+func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKeyFile(c *C) {
+	restore := interfaces.MockSystemKey("build-id: something")
+	defer restore()
+
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
+
+	_ = s.manager(c)
+	c.Check(dirs.SnapSystemKeyFile, testutil.FileMatches, "(?sm).*build-id:.*")
+
+	stat, err := os.Stat(dirs.SnapSystemKeyFile)
+	c.Assert(err, IsNil)
+
+	// run manager again, but this time the snapsystemkey file should
+	// not be rewriten as the systemKey inputs have not changed
+	s.privateMgr = nil
+	_ = s.manager(c)
+	stat2, err := os.Stat(dirs.SnapSystemKeyFile)
+	c.Assert(err, IsNil)
+	c.Check(stat.ModTime(), DeepEquals, stat2.ModTime())
 }
