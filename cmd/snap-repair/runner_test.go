@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -162,6 +163,17 @@ func (s *baseRunnerSuite) freshState(c *C) {
 
 type runnerSuite struct {
 	baseRunnerSuite
+
+	restore func()
+}
+
+func (s *runnerSuite) SetUpSuite(c *C) {
+	s.baseRunnerSuite.SetUpSuite(c)
+	s.restore = httputil.SetUserAgentFromVersion("1", "snap-repair")
+}
+
+func (s *runnerSuite) TearDownSuite(c *C) {
+	s.restore()
 }
 
 var _ = Suite(&runnerSuite{})
@@ -230,6 +242,8 @@ func (s *runnerSuite) checkBrokenTimeNowMitigated(c *C, runner *repair.Runner) {
 
 func (s *runnerSuite) TestFetchJustRepair(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ua := r.Header.Get("User-Agent")
+		c.Check(strings.Contains(ua, "snap-repair"), Equals, true)
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
 		c.Check(r.URL.Path, Equals, "/repairs/canonical/2")
 		io.WriteString(w, testRepair)
@@ -477,6 +491,8 @@ func (s *runnerSuite) TestFetchRepairPlusKey(c *C) {
 
 func (s *runnerSuite) TestPeek(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ua := r.Header.Get("User-Agent")
+		c.Check(strings.Contains(ua, "snap-repair"), Equals, true)
 		c.Check(r.Header.Get("Accept"), Equals, "application/json")
 		c.Check(r.URL.Path, Equals, "/repairs/canonical/2")
 		io.WriteString(w, testHeadersResp)
@@ -875,6 +891,9 @@ AXNpZw==
 func makeMockServer(c *C, seqRepairs *[]string, redirectFirst bool) *httptest.Server {
 	var mockServer *httptest.Server
 	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ua := r.Header.Get("User-Agent")
+		c.Check(strings.Contains(ua, "snap-repair"), Equals, true)
+
 		urlPath := r.URL.Path
 		if redirectFirst && r.Header.Get("Accept") == asserts.MediaType {
 			if !strings.HasPrefix(urlPath, "/final/") {
