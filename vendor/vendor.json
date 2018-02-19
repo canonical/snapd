@@ -67,18 +67,18 @@
 			"revisionTime": "2016-07-14T06:47:45Z"
 		},
 		{
+			"checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
+			"comment": "fork of boltdb/bolt to fix build failure on ppc. upstream: https://github.com/boltdb/bolt/pull/740 and https://github.com/coreos/bbolt/pull/73",
+			"path": "github.com/snapcore/bolt",
+			"revision": "9eca199504ee1299394669820724322b5bfc070a",
+			"revisionTime": "2018-01-18T17:01:45Z"
+		},
+		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
 			"path": "github.com/snapcore/squashfuse",
 			"revision": "319f6d41a0419465a55d9dcb848d2408b97764f9",
 			"revisionTime": "2017-12-20T16:53:23Z",
 			"tree": true
-    },
-    {
-      "checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
-			"comment": "fork of boltdb/bolt to fix build failure on ppc. upstream: https://github.com/boltdb/bolt/pull/740 and https://github.com/coreos/bbolt/pull/73",
-			"path": "github.com/snapcore/bolt",
-			"revision": "9eca199504ee1299394669820724322b5bfc070a",
-			"revisionTime": "2018-01-18T17:01:45Z"
 		},
 		{
 			"checksumSHA1": "TT1rac6kpQp2vz24m5yDGUNQ/QQ=",
