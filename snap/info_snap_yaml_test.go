@@ -1605,12 +1605,12 @@ name: foo
 version: 1.0
 apps:
   foo:
-    watchdog: 12
+    watchdog-timeout: 12s
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
 
-	c.Check(info.Apps["foo"].WatchdogTimeout, Equals, uint(12))
+	c.Check(info.Apps["foo"].WatchdogTimeout, Equals, timeout.Timeout(12*time.Second))
 }
 
 func (s *YamlSuite) TestLayout(c *C) {
