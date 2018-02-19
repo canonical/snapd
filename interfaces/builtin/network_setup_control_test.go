@@ -45,6 +45,7 @@ var _ = Suite(&NetworkSetupControlInterfaceSuite{
 func (s *NetworkSetupControlInterfaceSuite) SetUpTest(c *C) {
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: other
+version: 0
 apps:
  app:
     command: foo

@@ -34,7 +34,14 @@ import (
 func TestBackend(t *testing.T) { TestingT(t) }
 
 func makeTestSnap(c *C, snapYamlContent string) string {
-	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, nil)
+	info, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))
+	c.Assert(err, IsNil)
+	var files [][]string
+	for _, app := range info.Apps {
+		// files is a list of (filename, content)
+		files = append(files, []string{app.Command, ""})
+	}
+	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, files)
 }
 
 type backendSuite struct{}
@@ -59,6 +66,7 @@ apps:
 
 func (s *backendSuite) TestOpenSnapFilebSideInfo(c *C) {
 	const yaml = `name: foo
+version: 0
 apps:
  bar:
   command: bin/bar

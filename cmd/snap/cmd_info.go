@@ -26,10 +26,10 @@ import (
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
-
-	"gopkg.in/yaml.v2"
+	"time"
 
 	"github.com/jessevdk/go-flags"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
@@ -46,7 +46,7 @@ type infoCmd struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-var shortInfoHelp = i18n.G("show detailed information about a snap")
+var shortInfoHelp = i18n.G("Show detailed information about a snap")
 var longInfoHelp = i18n.G(`
 The info command shows detailed information about a snap, be it by name or by path.`)
 
@@ -281,6 +281,13 @@ func formatSummary(raw string) string {
 func (x *infoCmd) Execute([]string) error {
 	cli := Client()
 
+	termWidth, _ := termSize()
+	termWidth -= 3
+	if termWidth > 100 {
+		// any wider than this and it gets hard to read
+		termWidth = 100
+	}
+
 	w := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
 
 	noneOK := true
@@ -317,12 +324,13 @@ func (x *infoCmd) Execute([]string) error {
 		if both.Contact != "" {
 			fmt.Fprintf(w, "contact:\t%s\n", strings.TrimPrefix(both.Contact, "mailto:"))
 		}
+		license := both.License
+		if license == "" {
+			license = "unknown"
+		}
+		fmt.Fprintf(w, "license:\t%s\n", license)
 		maybePrintPrice(w, remote, resInfo)
-		// FIXME: find out for real
-		termWidth := 77
 		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(both.Description, termWidth))
-		maybePrintType(w, both.Type)
-		maybePrintID(w, both)
 		maybePrintCommands(w, snapName, both.Apps, termWidth)
 		maybePrintServices(w, snapName, both.Apps, termWidth)
 
@@ -332,8 +340,8 @@ func (x *infoCmd) Execute([]string) error {
 			fmt.Fprintf(w, "  confinement:\t%s\n", both.Confinement)
 		}
 
+		var notes *Notes
 		if local != nil {
-			var notes *Notes
 			if x.Verbose {
 				jailMode := local.Confinement == client.DevModeConfinement && !local.DevMode
 				fmt.Fprintf(w, "  devmode:\t%t\n", local.DevMode)
@@ -350,10 +358,18 @@ func (x *infoCmd) Execute([]string) error {
 			} else {
 				notes = NotesFromLocal(local)
 			}
-
+		}
+		// stops the notes etc trying to be aligned with channels
+		w.Flush()
+		maybePrintType(w, both.Type)
+		maybePrintID(w, both)
+		if local != nil {
 			fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
+			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate.Format(time.RFC3339))
+		}
+		w.Flush()
+		if local != nil {
 			fmt.Fprintf(w, "installed:\t%s\t(%s)\t%s\t%s\n", local.Version, local.Revision, strutil.SizeToStr(local.InstalledSize), notes)
-			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate)
 		}
 
 		if remote != nil && remote.Channels != nil && remote.Tracks != nil {

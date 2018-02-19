@@ -32,7 +32,7 @@ import (
 )
 
 // the default refresh pattern
-const defaultRefreshSchedule = "00:00-05:59/6:00-11:59/12:00-17:59/18:00-23:59"
+const defaultRefreshSchedule = "00:00-24:00/4"
 
 // hooks setup by devicestate
 var (
@@ -59,11 +59,12 @@ func newAutoRefresh(st *state.State) *autoRefresh {
 	}
 }
 
-// RefreshSchedule will return a user visible string with the current
-// schedule for the automatic refreshes.
-func (m *autoRefresh) RefreshSchedule() (string, error) {
-	_, scheduleStr, err := m.refreshScheduleWithDefaultsFallback()
-	return scheduleStr, err
+// RefreshSchedule will return a user visible string with the current schedule
+// for the automatic refreshes and a flag indicating whether the schedule is a
+// legacy one.
+func (m *autoRefresh) RefreshSchedule() (schedule string, legacy bool, err error) {
+	_, schedule, legacy, err = m.refreshScheduleWithDefaultsFallback()
+	return schedule, legacy, err
 }
 
 // NextRefresh returns when the next automatic refresh will happen.
@@ -107,7 +108,7 @@ func (m *autoRefresh) Ensure() error {
 		return err
 	}
 
-	refreshSchedule, refreshScheduleStr, err := m.refreshScheduleWithDefaultsFallback()
+	refreshSchedule, refreshScheduleStr, _, err := m.refreshScheduleWithDefaultsFallback()
 	if err != nil {
 		return err
 	}
@@ -119,7 +120,7 @@ func (m *autoRefresh) Ensure() error {
 	if !m.nextRefresh.IsZero() {
 		if m.lastRefreshSchedule != refreshScheduleStr {
 			// the refresh schedule has changed
-			logger.Debugf("Option refresh.schedule changed.")
+			logger.Debugf("Refresh timer changed.")
 			m.nextRefresh = time.Time{}
 		}
 	}
@@ -163,29 +164,47 @@ func (m *autoRefresh) Ensure() error {
 //
 // TODO: we can remove the refreshSchedule reset because we have validation
 //       of the schedule now.
-func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, err error) {
+func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, legacy bool, err error) {
 	if refreshScheduleManaged(m.state) {
 		if m.lastRefreshSchedule != "managed" {
 			logger.Noticef("refresh.schedule is managed via the snapd-control interface")
 			m.lastRefreshSchedule = "managed"
 		}
-		return nil, "managed", nil
+		return nil, "managed", true, nil
 	}
 
-	refreshScheduleStr := defaultRefreshSchedule
 	tr := config.NewTransaction(m.state)
-	err = tr.Get("core", "refresh.schedule", &refreshScheduleStr)
+
+	// try the new refresh.timer config option first
+	err = tr.Get("core", "refresh.timer", &scheduleAsStr)
 	if err != nil && !config.IsNoOption(err) {
-		return nil, "", err
+		return nil, "", false, err
+	}
+	if scheduleAsStr != "" {
+		ts, err = timeutil.ParseSchedule(scheduleAsStr)
+		if err != nil {
+			logger.Noticef("cannot use refresh.timer configuration: %s", err)
+			return refreshScheduleDefault()
+		}
+		return ts, scheduleAsStr, false, nil
 	}
 
-	refreshSchedule, err := timeutil.ParseLegacySchedule(refreshScheduleStr)
-	if err != nil {
-		logger.Noticef("cannot use refresh.schedule configuration: %s", err)
-		refreshSchedule, refreshScheduleStr = resetRefreshScheduleToDefault(m.state)
+	// fallback to legacy refresh.schedule setting when the new
+	// config option is not set
+	err = tr.Get("core", "refresh.schedule", &scheduleAsStr)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, "", false, err
+	}
+	if scheduleAsStr != "" {
+		ts, err = timeutil.ParseLegacySchedule(scheduleAsStr)
+		if err != nil {
+			logger.Noticef("cannot use refresh.schedule configuration: %s", err)
+			return refreshScheduleDefault()
+		}
+		return ts, scheduleAsStr, true, nil
 	}
 
-	return refreshSchedule, refreshScheduleStr, nil
+	return refreshScheduleDefault()
 }
 
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
@@ -204,7 +223,7 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	var msg string
 	switch len(updated) {
 	case 0:
-		logger.Noticef(i18n.G("No snaps to auto-refresh found"))
+		logger.Noticef(i18n.G("auto-refresh: all snaps are up-to-date"))
 		return nil
 	case 1:
 		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
@@ -226,16 +245,13 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	return nil
 }
 
-func resetRefreshScheduleToDefault(st *state.State) (ts []*timeutil.Schedule, scheduleStr string) {
-	refreshSchedule, err := timeutil.ParseLegacySchedule(defaultRefreshSchedule)
+func refreshScheduleDefault() (ts []*timeutil.Schedule, scheduleStr string, legacy bool, err error) {
+	refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshSchedule)
 	if err != nil {
 		panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
 	}
-	tr := config.NewTransaction(st)
-	tr.Set("core", "refresh.schedule", defaultRefreshSchedule)
-	tr.Commit()
 
-	return refreshSchedule, defaultRefreshSchedule
+	return refreshSchedule, defaultRefreshSchedule, false, nil
 }
 
 func autoRefreshInFlight(st *state.State) bool {

@@ -20,8 +20,9 @@
 package snap
 
 var (
-	NewHookType        = newHookType
-	ValidateSocketName = validateSocketName
+	NewHookType                  = newHookType
+	ValidateSocketName           = validateSocketName
+	InfoFromSnapYamlWithSideInfo = infoFromSnapYamlWithSideInfo
 )
 
 func MockSupportedHookTypes(hookTypes []*HookType) (restore func()) {

@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func (cs *clientSuite) TestClientLogin(c *check.C) {
@@ -53,9 +54,7 @@ func (cs *clientSuite) TestClientLogin(c *check.C) {
 	c.Assert(cs.cli.LoggedInUser(), check.Not(check.IsNil))
 
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
-	content, err := ioutil.ReadFile(outfile)
-	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals, `{"username":"the-user-name","macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
+	c.Check(outfile, testutil.FileEquals, `{"username":"the-user-name","macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
 }
 
 func (cs *clientSuite) TestClientLoginWhenLoggedIn(c *check.C) {
@@ -90,9 +89,7 @@ func (cs *clientSuite) TestClientLoginWhenLoggedIn(c *check.C) {
 	c.Assert(cs.cli.LoggedInUser(), check.DeepEquals, expected)
 
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
-	content, err := ioutil.ReadFile(outfile)
-	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals, `{"username":"the-user-name","email":"zed@bar.com","macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
+	c.Check(outfile, testutil.FileEquals, `{"username":"the-user-name","email":"zed@bar.com","macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
 }
 
 func (cs *clientSuite) TestClientLoginError(c *check.C) {
@@ -146,9 +143,7 @@ func (cs *clientSuite) TestWriteAuthData(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
-	content, err := ioutil.ReadFile(outfile)
-	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals, `{"macaroon":"macaroon","discharges":["discharge"]}`)
+	c.Check(outfile, testutil.FileEquals, `{"macaroon":"macaroon","discharges":["discharge"]}`)
 }
 
 func (cs *clientSuite) TestReadAuthData(c *check.C) {

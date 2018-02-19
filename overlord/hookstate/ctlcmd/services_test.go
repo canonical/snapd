@@ -135,10 +135,10 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	snapstate.ReplaceStore(s.st, &s.fakeStore)
 
 	// mock installed snaps
-	info1 := snaptest.MockSnap(c, string(testSnapYaml), "", &snap.SideInfo{
+	info1 := snaptest.MockSnap(c, string(testSnapYaml), &snap.SideInfo{
 		Revision: snap.R(1),
 	})
-	info2 := snaptest.MockSnap(c, string(otherSnapYaml), "", &snap.SideInfo{
+	info2 := snaptest.MockSnap(c, string(otherSnapYaml), &snap.SideInfo{
 		Revision: snap.R(1),
 	})
 	snapstate.Set(s.st, info1.Name(), &snapstate.SnapState{
@@ -284,7 +284,7 @@ func (s *servicectlSuite) TestConflictingChange(c *C) {
 
 	_, _, err := ctlcmd.Run(s.mockContext, []string{"start", "test-snap.test-service"})
 	c.Check(err, NotNil)
-	c.Check(err, ErrorMatches, `snap "test-snap" has changes in progress`)
+	c.Check(err, ErrorMatches, `snap "test-snap" has "conflicting change" change in progress`)
 }
 
 func (s *servicectlSuite) TestQueuedCommands(c *C) {

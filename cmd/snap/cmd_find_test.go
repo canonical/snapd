@@ -21,12 +21,16 @@ package main_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os"
+	"path"
 
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/dirs"
 )
 
 const findJSON = `
@@ -226,7 +230,8 @@ const findPricedJSON = `
       "status": "priced",
       "summary": "GNU Hello, the \"hello world\" snap",
       "type": "app",
-      "version": "2.10"
+      "version": "2.10",
+      "license": "Proprietary"
     }
   ],
   "sources": [
@@ -390,4 +395,121 @@ func (s *SnapSuite) TestFindNetworkTimeoutError(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"find", "hello"})
 	c.Assert(err, check.ErrorMatches, `unable to contact snap store`)
 	c.Check(s.Stdout(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestFindSnapSectionOverview(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0, 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/sections")
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type":   "sync",
+				"result": []string{"sec2", "sec1"},
+			})
+		default:
+			c.Fatalf("expected to get 2 requests, now on #%d", n+1)
+		}
+		n++
+	})
+
+	rest, err := snap.Parser().ParseArgs([]string{"find", "--section"})
+
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+
+	c.Check(s.Stdout(), check.Equals, `No section specified. Available sections:
+ * sec1
+ * sec2
+Please try: snap find --section=<selected section>
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+
+	s.ResetStdStreams()
+}
+
+func (s *SnapSuite) TestFindSnapInvalidSection(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/sections")
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type":   "sync",
+				"result": []string{"sec1"},
+			})
+		default:
+			c.Fatalf("expected to get 1 request, now on %d", n+1)
+		}
+
+		n++
+	})
+	_, err := snap.Parser().ParseArgs([]string{"find", "--section=foobar", "hello"})
+	c.Assert(err, check.ErrorMatches, `No matching section "foobar", use --section to list existing sections`)
+}
+
+func (s *SnapSuite) TestFindSnapNotFoundInSection(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/sections")
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type":   "sync",
+				"result": []string{"foobar"},
+			})
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			v, ok := r.URL.Query()["section"]
+			c.Check(ok, check.Equals, true)
+			c.Check(v, check.DeepEquals, []string{"foobar"})
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type":   "sync",
+				"result": []string{},
+			})
+		default:
+			c.Fatalf("expected to get 2 requests, now on #%d", n+1)
+		}
+		n++
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"find", "--section=foobar", "hello"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stderr(), check.Equals, "No matching snaps for \"hello\" in section \"foobar\"\n")
+	c.Check(s.Stdout(), check.Equals, "")
+
+	s.ResetStdStreams()
+}
+
+func (s *SnapSuite) TestFindSnapCachedSection(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatalf("not expecting any requests")
+	})
+
+	os.MkdirAll(path.Dir(dirs.SnapSectionsFile), 0755)
+	ioutil.WriteFile(dirs.SnapSectionsFile, []byte("sec1\nsec2\nsec3"), 0644)
+
+	_, err := snap.Parser().ParseArgs([]string{"find", "--section=foobar", "hello"})
+	c.Logf("stdout: %s", s.Stdout())
+	c.Assert(err, check.ErrorMatches, `No matching section "foobar", use --section to list existing sections`)
+
+	s.ResetStdStreams()
+
+	rest, err := snap.Parser().ParseArgs([]string{"find", "--section"})
+
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+
+	c.Check(s.Stdout(), check.Equals, `No section specified. Available sections:
+ * sec1
+ * sec2
+ * sec3
+Please try: snap find --section=<selected section>
+`)
+
+	s.ResetStdStreams()
 }
