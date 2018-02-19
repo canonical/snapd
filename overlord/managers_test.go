@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -266,11 +265,8 @@ apps:
 
 	// ensure the right unit is created
 	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/x1"))
-	content, err := ioutil.ReadFile(mup)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, fmt.Sprintf("(?ms).*^Where=%s/foo/x1", dirs.StripRootDir(dirs.SnapMountDir)))
-	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_x1.snap")
-
+	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s/foo/x1", dirs.StripRootDir(dirs.SnapMountDir)))
+	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/foo_x1.snap")
 }
 
 func (ms *mgrsSuite) TestHappyRemove(c *C) {
@@ -627,9 +623,7 @@ apps:
 	c.Assert(symlinkTarget, Equals, "/usr/bin/snap")
 
 	// check updated service file
-	content, err := ioutil.ReadFile(svcFile)
-	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), "/var/snap/foo/"+revno), Equals, true)
+	c.Assert(svcFile, testutil.FileContains, "/var/snap/foo/"+revno)
 }
 
 func (ms *mgrsSuite) TestHappyLocalInstallWithStoreMetadata(c *C) {
@@ -692,10 +686,8 @@ apps:
 
 	// ensure the right unit is created
 	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo/55"))
-	content, err := ioutil.ReadFile(mup)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, fmt.Sprintf("(?ms).*^Where=%s/foo/55", dirs.StripRootDir(dirs.SnapMountDir)))
-	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_55.snap")
+	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s/foo/55", dirs.StripRootDir(dirs.SnapMountDir)))
+	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/foo_55.snap")
 }
 
 func (ms *mgrsSuite) TestCheckInterfaces(c *C) {

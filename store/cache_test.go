@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type cacheSuite struct {
@@ -83,9 +84,7 @@ func (s *cacheSuite) TestGet(c *C) {
 	err = s.cm.Get("some-cache-key", targetPath)
 	c.Check(err, IsNil)
 	c.Check(osutil.FileExists(targetPath), Equals, true)
-	content, err := ioutil.ReadFile(targetPath)
-	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, canary)
+	c.Assert(targetPath, testutil.FileEquals, canary)
 }
 
 func (s *cacheSuite) TestClenaup(c *C) {
