@@ -96,21 +96,39 @@ const (
 
 var polkitCheckAuthorizationForPid = polkit.CheckAuthorizationForPid
 
+// canAccess checks the following properties:
+//
+// - if a user is logged in (via `snap login`) everything is allowed
+// - if the user is `root` everything is allowed
+// - POST/PUT/DELETE all require `snap login` or `root`
+//
+// Otherwise for GET requests the following parameters are honored:
+// - GuestOK: anyone can access GET
+// - UserOK: any uid on the local system can access GET
+// - SnapOK: a snap can access this via `snapctl`
 func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult {
 	if user != nil {
 		// Authenticated users do anything for now.
 		return accessOK
 	}
 
+	// isUser means we have a UID for the request
 	isUser := false
-	pid, uid, err := ucrednetGet(r.RemoteAddr)
+	pid, uid, socket, err := ucrednetGet(r.RemoteAddr)
 	if err == nil {
 		isUser = true
 	} else if err != errNoID {
 		logger.Noticef("unexpected error when attempting to get UID: %s", err)
 		return accessForbidden
-	} else if c.SnapOK {
-		return accessOK
+	}
+	isSnap := (socket == dirs.SnapSocket)
+
+	// ensure that snaps can only access SnapOK things
+	if isSnap {
+		if c.SnapOK {
+			return accessOK
+		}
+		return accessUnauthorized
 	}
 
 	if r.Method == "GET" {
@@ -292,11 +310,9 @@ func (d *Daemon) Init() error {
 	}
 
 	if listener, err := getListener(dirs.SnapSocket, listenerMap); err == nil {
-		// Note that the SnapSocket listener does not use ucrednet. We use the lack
-		// of remote information as an indication that the request originated with
-		// this socket. This listener may also be nil if that socket wasn't among
+		// This listener may also be nil if that socket wasn't among
 		// the listeners, so check it before using it.
-		d.snapListener = listener
+		d.snapListener = &ucrednetListener{listener}
 	} else {
 		logger.Debugf("cannot get listener for %q: %v", dirs.SnapSocket, err)
 	}

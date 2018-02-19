@@ -66,8 +66,6 @@ func init() {
 	})
 }
 
-var nl = []byte{'\n'}
-
 var storeNew = store.New
 
 func downloadAssertion(typeName string, headers map[string]string) ([]asserts.Assertion, error) {

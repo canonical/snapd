@@ -31,8 +31,29 @@ type refreshSuite struct {
 
 var _ = Suite(&refreshSuite{})
 
-func (s *refreshSuite) TestConfigureRefreshScheduleHappy(c *C) {
+func (s *refreshSuite) TestConfigureRefreshTimerHappy(c *C) {
 	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"refresh.timer": "8:00~12:00/2",
+		},
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *refreshSuite) TestConfigureRefreshTimerRejected(c *C) {
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"refresh.timer": "invalid",
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot parse "invalid": "invalid" is not a valid weekday`)
+}
+
+func (s *refreshSuite) TestConfigureLegacyRefreshScheduleHappy(c *C) {
+	err := configcore.Run(&mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.schedule": "8:00-12:00",
 		},
@@ -40,11 +61,21 @@ func (s *refreshSuite) TestConfigureRefreshScheduleHappy(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *refreshSuite) TestConfigureRefreshScheduleRejected(c *C) {
+func (s *refreshSuite) TestConfigureLegacyRefreshScheduleRejected(c *C) {
 	err := configcore.Run(&mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.schedule": "invalid",
 		},
 	})
 	c.Assert(err, ErrorMatches, `cannot parse "invalid": not a valid interval`)
+
+	// check that refresh.schedule is verified against legacy parser
+	err = configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"refresh.schedule": "8:00~12:00/2",
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot parse "8:00~12:00": not a valid interval`)
 }
