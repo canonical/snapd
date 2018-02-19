@@ -237,6 +237,8 @@ func maybePrintServices(w io.Writer, snapName string, allApps []client.AppInfo, 
 	}
 }
 
+var channelRisks = []string{"stable", "candidate", "beta", "edge"}
+
 // displayChannels displays channels and tracks in the right order
 func displayChannels(w io.Writer, remote *client.Snap) {
 	// \t\t\t so we get "installed" lined up with "channels"
@@ -245,7 +247,7 @@ func displayChannels(w io.Writer, remote *client.Snap) {
 	// order by tracks
 	for _, tr := range remote.Tracks {
 		trackHasOpenChannel := false
-		for _, risk := range []string{"stable", "candidate", "beta", "edge"} {
+		for _, risk := range channelRisks {
 			chName := fmt.Sprintf("%s/%s", tr, risk)
 			ch, ok := remote.Channels[chName]
 			if tr == "latest" {
