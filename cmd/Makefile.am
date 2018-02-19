@@ -15,7 +15,7 @@ if WITH_UNIT_TESTS
 CHECK_CFLAGS += -Werror
 endif
 
-subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private
+subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private snap-gdb-shim
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
@@ -355,19 +355,19 @@ install-exec-hook::
 	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
 
 ##
-## snappy-app-dev
+## snap-device-helper
 ##
 
 EXTRA_DIST += \
-	snap-confine/snappy-app-dev
+	snap-confine/snap-device-helper
 
 # NOTE: This makes distcheck fail but it is required for udev, so go figure.
 # http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
 #
 # Install support script for udev rules
 install-exec-local::
-	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
-	install -m 755 $(srcdir)/snap-confine/snappy-app-dev $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
+	install -d -m 755 $(DESTDIR)$(libexecdir)
+	install -m 755 $(srcdir)/snap-confine/snap-device-helper $(DESTDIR)$(libexecdir)
 
 ##
 ## snap-discard-ns
@@ -443,3 +443,14 @@ system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
 system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
+
+##
+## snap-gdb-shim
+##
+
+libexec_PROGRAMS += snap-gdb-shim/snap-gdb-shim
+
+snap_gdb_shim_snap_gdb_shim_SOURCES = \
+	snap-gdb-shim/snap-gdb-shim.c
+
+snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a

@@ -20,6 +20,9 @@
 package ifacestate_test
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -32,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -69,6 +73,8 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 
 	dirs.SetRootDir(c.MkDir())
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755), IsNil)
+
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -115,6 +121,10 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 		mgr.AddForeignTaskHandlers()
 		s.privateMgr = mgr
 		s.o.AddManager(mgr)
+
+		// ensure the re-generation of security profiles did not
+		// confuse the tests
+		s.secBackend.SetupCalls = nil
 	}
 	return s.privateMgr
 }
@@ -2212,4 +2222,27 @@ func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugSnapOnAutoConnect(c
 	task := chg.Tasks()[0]
 	c.Assert(task.Status(), Equals, state.DoneStatus)
 	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "consumer" is no longer available for auto-connecting.*`)
+}
+
+func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKeyFile(c *C) {
+	restore := interfaces.MockSystemKey("build-id: something")
+	defer restore()
+
+	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
+
+	_ = s.manager(c)
+	c.Check(dirs.SnapSystemKeyFile, testutil.FileMatches, "(?sm).*build-id:.*")
+
+	stat, err := os.Stat(dirs.SnapSystemKeyFile)
+	c.Assert(err, IsNil)
+
+	// run manager again, but this time the snapsystemkey file should
+	// not be rewriten as the systemKey inputs have not changed
+	s.privateMgr = nil
+	_ = s.manager(c)
+	stat2, err := os.Stat(dirs.SnapSystemKeyFile)
+	c.Assert(err, IsNil)
+	c.Check(stat.ModTime(), DeepEquals, stat2.ModTime())
 }
