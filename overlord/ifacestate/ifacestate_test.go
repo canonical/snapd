@@ -20,7 +20,6 @@
 package ifacestate_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -2202,6 +2201,9 @@ func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotSnapOnAutoConnect(c
 	task := chg.Tasks()[0]
 	c.Assert(task.Status(), Equals, state.DoneStatus)
 	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "producer" is no longer available for auto-connecting.*`)
+
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), Equals, state.ErrNoState)
 }
 
 func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugSnapOnAutoConnect(c *C) {
@@ -2222,6 +2224,121 @@ func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugSnapOnAutoConnect(c
 	task := chg.Tasks()[0]
 	c.Assert(task.Status(), Equals, state.DoneStatus)
 	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "consumer" is no longer available for auto-connecting.*`)
+
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), Equals, state.ErrNoState)
+}
+
+func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugOnAutoConnect(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	_ = s.manager(c)
+	producer := s.mockSnap(c, producerYaml)
+	// consumer snap has no plug, doConnect should complain
+	s.mockSnap(c, consumerYaml)
+
+	repo := s.manager(c).Repository()
+	err := repo.AddSlot(&snap.SlotInfo{
+		Snap:      producer,
+		Name:      "slot",
+		Interface: "test",
+	})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := chg.Tasks()[0]
+	c.Assert(task.Status(), Equals, state.DoneStatus)
+	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "consumer" no longer has "plug" plug`)
+
+	var conns map[string]interface{}
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotOnAutoConnect(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	_ = s.manager(c)
+	// producer snap has no slot, doConnect should complain
+	s.mockSnap(c, producerYaml)
+	consumer := s.mockSnap(c, consumerYaml)
+
+	repo := s.manager(c).Repository()
+	err := repo.AddPlug(&snap.PlugInfo{
+		Snap:      consumer,
+		Name:      "plug",
+		Interface: "test",
+	})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := chg.Tasks()[0]
+	c.Assert(task.Status(), Equals, state.DoneStatus)
+	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "producer" no longer has "slot" slot`)
+
+	var conns map[string]interface{}
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (s *interfaceManagerSuite) TestConnectHandlesAutoconnect(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	_ = s.manager(c)
+	producer := s.mockSnap(c, producerYaml)
+	consumer := s.mockSnap(c, consumerYaml)
+
+	repo := s.manager(c).Repository()
+	err := repo.AddPlug(&snap.PlugInfo{
+		Snap:      consumer,
+		Name:      "plug",
+		Interface: "test",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddSlot(&snap.SlotInfo{
+		Snap:      producer,
+		Name:      "slot",
+		Interface: "test",
+	})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := chg.Tasks()[0]
+	c.Assert(task.Status(), Equals, state.DoneStatus)
+
+	// Ensure that "slot" is now auto-connected.
+	var conns map[string]interface{}
+	err = s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test", "auto": true,
+		},
+	})
 }
 
 func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKeyFile(c *C) {

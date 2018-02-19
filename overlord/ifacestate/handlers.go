@@ -351,7 +351,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	connRef := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
 
 	var plugSnapst snapstate.SnapState
-	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
+	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err == state.ErrNoState {
 		if autoConnect {
 			// ignore the error if auto-connecting
 			task.Logf("snap %q is no longer available for auto-connecting", plugRef.Snap)
@@ -361,7 +361,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
+	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err == state.ErrNoState {
 		if autoConnect {
 			// ignore the error if auto-connecting
 			task.Logf("snap %q is no longer available for auto-connecting", slotRef.Snap)
@@ -372,6 +372,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
 	if plug == nil {
+		if autoConnect {
+			// ignore the error if auto-connecting
+			task.Logf("snap %q no longer has %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
+			return nil
+		}
 		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
 	}
 
@@ -386,6 +391,11 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	if slot == nil {
+		if autoConnect {
+			// ignore the error if auto-connecting
+			task.Logf("snap %q no longer has %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
+			return nil
+		}
 		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	}
 
