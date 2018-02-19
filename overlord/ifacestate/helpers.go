@@ -21,13 +21,17 @@ package ifacestate
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -53,8 +57,10 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if _, err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if err := m.regenerateAllSecurityProfiles(); err != nil {
-		return err
+	if m.profilesNeedRegeneration() {
+		if err := m.regenerateAllSecurityProfiles(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -107,14 +113,26 @@ func (m *InterfaceManager) addSnaps() error {
 	return nil
 }
 
-// regenerateAllSecurityProfiles will regenerate the security profiles
-// for apparmor and seccomp. This is needed because:
-// - for seccomp we may have "terms" on disk that the current snap-confine
-//   does not understand (e.g. in a rollback scenario). a refresh ensures
-//   we have a profile that matches what snap-confine understand
-// - for apparmor the kernel 4.4.0-65.86 has an incompatible apparmor
-//   change that breaks existing profiles for installed snaps. With a
-//   refresh those get fixed.
+func (m *InterfaceManager) profilesNeedRegeneration() bool {
+	currentSystemKey := interfaces.SystemKey()
+	if currentSystemKey == "" {
+		logger.Noticef("no system key, forcing re-generation of security profiles")
+		return true
+	}
+
+	onDiskSystemKey, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	if os.IsNotExist(err) {
+		return true
+	}
+	if err != nil {
+		logger.Noticef("cannot read system-key file: %s", err)
+		return true
+	}
+
+	return string(onDiskSystemKey) != currentSystemKey
+}
+
+// regenerateAllSecurityProfiles will regenerate all security profiles.
 func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	// Get all the security backends
 	securityBackends := m.repo.Backends()
@@ -155,7 +173,8 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 		}
 	}
 
-	return nil
+	sk := interfaces.SystemKey()
+	return osutil.AtomicWriteFile(dirs.SnapSystemKeyFile, []byte(sk), 0644, 0)
 }
 
 // renameCorePlugConnection renames one connection from "core-support" plug to

@@ -17,16 +17,19 @@
  *
  */
 
-package mount
+package osutil
 
 import (
 	"fmt"
+	"math"
+	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
 )
 
-// Entry describes an /etc/fstab-like mount entry.
+// MountEntry describes an /etc/fstab-like mount entry.
 //
 // Fields are named after names in struct returned by getmntent(3).
 //
@@ -38,7 +41,7 @@ import (
 //     int   mnt_freq;     /* dump frequency in days */
 //     int   mnt_passno;   /* pass number on parallel fsck */
 // };
-type Entry struct {
+type MountEntry struct {
 	Name    string
 	Dir     string
 	Type    string
@@ -61,7 +64,7 @@ func equalStrings(a, b []string) bool {
 }
 
 // Equal checks if one entry is equal to another
-func (e *Entry) Equal(o *Entry) bool {
+func (e *MountEntry) Equal(o *MountEntry) bool {
 	return (e.Name == o.Name && e.Dir == o.Dir && e.Type == o.Type &&
 		equalStrings(e.Options, o.Options) && e.DumpFrequency == o.DumpFrequency &&
 		e.CheckPassNumber == o.CheckPassNumber)
@@ -83,15 +86,17 @@ var unescape = strings.NewReplacer(
 	`\134`, "\\",
 ).Replace
 
+// Escape returns the given path with space, tab, newline and forward slash escaped.
 func Escape(path string) string {
 	return escape(path)
 }
 
+// Unescape returns the given path with space, tab, newline and forward slash unescaped.
 func Unescape(path string) string {
 	return unescape(path)
 }
 
-func (e Entry) String() string {
+func (e MountEntry) String() string {
 	// Name represents name of the device in a mount entry.
 	name := "none"
 	if e.Name != "" {
@@ -116,15 +121,22 @@ func (e Entry) String() string {
 		name, dir, fsType, options, e.DumpFrequency, e.CheckPassNumber)
 }
 
-// ParseEntry parses a fstab-like entry.
-func ParseEntry(s string) (Entry, error) {
-	var e Entry
+// ParseMountEntry parses a fstab-like entry.
+func ParseMountEntry(s string) (MountEntry, error) {
+	var e MountEntry
 	var err error
 	var df, cpn int
 	fields := strings.FieldsFunc(s, func(r rune) bool { return r == ' ' || r == '\t' })
 	// do all error checks before any assignments to `e'
-	if len(fields) < 4 || len(fields) > 6 {
-		return e, fmt.Errorf("expected between 4 and 6 fields, found %d", len(fields))
+	if len(fields) < 3 || len(fields) > 6 {
+		return e, fmt.Errorf("expected between 3 and 6 fields, found %d", len(fields))
+	}
+	e.Name = unescape(fields[0])
+	e.Dir = unescape(fields[1])
+	e.Type = unescape(fields[2])
+	// Parse Options if we have at least 4 fields
+	if len(fields) > 3 {
+		e.Options = strings.Split(unescape(fields[3]), ",")
 	}
 	// Parse DumpFrequency if we have at least 5 fields
 	if len(fields) > 4 {
@@ -133,6 +145,7 @@ func ParseEntry(s string) (Entry, error) {
 			return e, fmt.Errorf("cannot parse dump frequency: %q", fields[4])
 		}
 	}
+	e.DumpFrequency = df
 	// Parse CheckPassNumber if we have at least 6 fields
 	if len(fields) > 5 {
 		cpn, err = strconv.Atoi(fields[5])
@@ -140,19 +153,14 @@ func ParseEntry(s string) (Entry, error) {
 			return e, fmt.Errorf("cannot parse check pass number: %q", fields[5])
 		}
 	}
-	e.Name = unescape(fields[0])
-	e.Dir = unescape(fields[1])
-	e.Type = unescape(fields[2])
-	e.Options = strings.Split(unescape(fields[3]), ",")
-	e.DumpFrequency = df
 	e.CheckPassNumber = cpn
 	return e, nil
 }
 
-// OptsToCommonFlags converts mount options strings to a mount flag, returning unparsed flags.
-// The unparsed flags will not contain any snapd-specific mount option, those
-// starting with the string "x-snapd."
-func OptsToCommonFlags(opts []string) (flags int, unparsed []string) {
+// MountOptsToCommonFlags converts mount options strings to a mount flag,
+// returning unparsed flags. The unparsed flags will not contain any snapd-
+// specific mount option, those starting with the string "x-snapd."
+func MountOptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 	for _, opt := range opts {
 		switch opt {
 		case "ro":
@@ -210,9 +218,9 @@ func OptsToCommonFlags(opts []string) (flags int, unparsed []string) {
 	return flags, unparsed
 }
 
-// OptsToFlags converts mount options strings to a mount flag.
-func OptsToFlags(opts []string) (flags int, err error) {
-	flags, unparsed := OptsToCommonFlags(opts)
+// MountOptsToFlags converts mount options strings to a mount flag.
+func MountOptsToFlags(opts []string) (flags int, err error) {
+	flags, unparsed := MountOptsToCommonFlags(opts)
 	for _, opt := range unparsed {
 		if !strings.HasPrefix(opt, "x-snapd.") {
 			return 0, fmt.Errorf("unsupported mount option: %q", opt)
@@ -223,7 +231,7 @@ func OptsToFlags(opts []string) (flags int, err error) {
 
 // OptStr returns the value part of a key=value mount option.
 // The name of the option must not contain the trailing "=" character.
-func (e *Entry) OptStr(name string) (string, bool) {
+func (e *MountEntry) OptStr(name string) (string, bool) {
 	prefix := name + "="
 	for _, opt := range e.Options {
 		if strings.HasPrefix(opt, prefix) {
@@ -235,13 +243,110 @@ func (e *Entry) OptStr(name string) (string, bool) {
 }
 
 // OptBool returns true if a given mount option is present.
-func (e *Entry) OptBool(name string) bool {
+func (e *MountEntry) OptBool(name string) bool {
 	for _, opt := range e.Options {
 		if opt == name {
 			return true
 		}
 	}
 	return false
+}
+
+var (
+	validModeRe      = regexp.MustCompile("^0[0-7]{3}$")
+	validUserGroupRe = regexp.MustCompile("(^[0-9]+$)")
+)
+
+// XSnapdMode returns the file mode associated with x-snapd.mode mount option.
+// If the mode is not specified explicitly then a default mode of 0755 is assumed.
+func (e *MountEntry) XSnapdMode() (os.FileMode, error) {
+	if opt, ok := e.OptStr("x-snapd.mode"); ok {
+		if !validModeRe.MatchString(opt) {
+			return 0, fmt.Errorf("cannot parse octal file mode from %q", opt)
+		}
+		var mode os.FileMode
+		n, err := fmt.Sscanf(opt, "%o", &mode)
+		if err != nil || n != 1 {
+			return 0, fmt.Errorf("cannot parse octal file mode from %q", opt)
+		}
+		return mode, nil
+	}
+	return 0755, nil
+}
+
+// XSnapdUID returns the user associated with x-snapd-user mount option.  If
+// the mode is not specified explicitly then a default "root" use is
+// returned.
+func (e *MountEntry) XSnapdUID() (uid uint64, err error) {
+	if opt, ok := e.OptStr("x-snapd.uid"); ok {
+		if !validUserGroupRe.MatchString(opt) {
+			return math.MaxUint64, fmt.Errorf("cannot parse user name %q", opt)
+		}
+		// Try to parse a numeric ID first.
+		if n, err := fmt.Sscanf(opt, "%d", &uid); n == 1 && err == nil {
+			return uid, nil
+		}
+		return uid, nil
+	}
+	return 0, nil
+}
+
+// XSnapdGID returns the user associated with x-snapd-user mount option.  If
+// the mode is not specified explicitly then a default "root" use is
+// returned.
+func (e *MountEntry) XSnapdGID() (gid uint64, err error) {
+	if opt, ok := e.OptStr("x-snapd.gid"); ok {
+		if !validUserGroupRe.MatchString(opt) {
+			return math.MaxUint64, fmt.Errorf("cannot parse group name %q", opt)
+		}
+		// Try to parse a numeric ID first.
+		if n, err := fmt.Sscanf(opt, "%d", &gid); n == 1 && err == nil {
+			return gid, nil
+		}
+		return gid, nil
+	}
+	return 0, nil
+}
+
+// XSnapdEntryID returns the identifier of a given mount enrty.
+//
+// Identifiers are kept in the x-snapd.id mount option. The value is a string
+// that identifies a mount entry and is stable across invocations of snapd. In
+// absence of that identifier the entry mount point is returned.
+func (e *MountEntry) XSnapdEntryID() string {
+	if val, ok := e.OptStr("x-snapd.id"); ok {
+		return val
+	}
+	return e.Dir
+}
+
+// XSnapdNeededBy the identifier of an entry which needs this entry to function.
+//
+// The "needed by" identifiers are kept in the x-snapd.needed-by mount option.
+// The value is a string that identifies another mount entry which, in order to
+// be feasible, has spawned one or more additional support entries. Each such
+// entry contains the needed-by attribute.
+func (e *MountEntry) XSnapdNeededBy() string {
+	val, _ := e.OptStr("x-snapd.needed-by")
+	return val
+}
+
+// XSnapdOrigin returns the origin of a given mount entry.
+//
+// Currently only "layout" entries are identified with a unique origin string.
+func (e *MountEntry) XSnapdOrigin() string {
+	val, _ := e.OptStr("x-snapd.origin")
+	return val
+}
+
+// XSnapdSynthetic returns true of a given mount entry is synthetic.
+//
+// Synthetic mount entries are created by snap-update-ns itself, separately
+// from what snapd instructed. Such entries are needed to make other things
+// possible.  They are identified by having the "x-snapd.synthetic" mount
+// option.
+func (e *MountEntry) XSnapdSynthetic() bool {
+	return e.OptBool("x-snapd.synthetic")
 }
 
 // XSnapdKindSymlink returns the string "x-snapd.kind=symlink".
@@ -252,6 +357,11 @@ func XSnapdKindSymlink() string {
 // XSnapdKindFile returns the string "x-snapd.kind=file".
 func XSnapdKindFile() string {
 	return "x-snapd.kind=file"
+}
+
+// XSnapdOriginLayout returns the string "x-snapd.origin=layout"
+func XSnapdOriginLayout() string {
+	return "x-snapd.origin=layout"
 }
 
 // XSnapdUser returns the string "x-snapd.user=%d".

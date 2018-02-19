@@ -65,7 +65,7 @@
     # querying udev
     /etc/udev/udev.conf r,
     /sys/**/uevent r,
-    /lib/udev/snappy-app-dev ixr, # drop
+    /usr/lib/snapd/snap-device-helper ixr, # drop
     /run/udev/** rw,
     /{,usr/}bin/tr ixr,
     /usr/lib/locale/** r,
@@ -553,14 +553,14 @@
         # Allow mounting/unmounting any part of $SNAP over to a temporary place
         # in /tmp/.snap/ during the preparation of a writable mimic.
         # FIXME: update this with per-snap snap-update-ns profiles
-        mount options=(bind, rw) /*/** -> /tmp/.snap/**,
-        # Allow mounting tmpfs over the original $SNAP/** directory.
+        mount options=(bind, rw) /** -> /tmp/.snap/**,
+        # Allow mounting tmpfs over the original read-only directory.
         # FIXME: update this with per-snap snap-update-ns profiles
-        mount fstype=tmpfs options=(rw) tmpfs -> /*/**,
+        mount fstype=tmpfs options=(rw) tmpfs -> /**,
         # Allow bind mounting anything from the temporary place in /tmp/.snap/
         # back to $SNAP/** (to re-construct the data that was there before).
         # FIXME: update this with per-snap snap-update-ns profiles
-        mount options=(bind, rw) /tmp/.snap/** -> /*/**,
+        mount options=(bind, rw) /tmp/.snap/** -> /**,
         # Allow unmounting the temporary directory in /tmp once it is no longer
         # necessary.
         umount /tmp/.snap/**,
