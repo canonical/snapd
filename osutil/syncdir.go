@@ -144,25 +144,38 @@ func EnsureDirState(dir string, glob string, content map[string]*FileState) (cha
 	return EnsureDirStateGlobs(dir, []string{glob}, content)
 }
 
-// EnsureFileState ensures that the file is in the expected state. It will not attempt
-// to remove the file if no content is provided.
-func EnsureFileState(filePath string, fileState *FileState) error {
+// Equals returns whether the file exists in the expected state.
+func (fileState *FileState) Equals(filePath string) (bool, error) {
 	stat, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		return AtomicWriteFile(filePath, fileState.Content, fileState.Mode, 0)
-	}
 	if err != nil {
-		return err
+		if os.IsNotExist(err) {
+			// not existing is not an error
+			return false, nil
+		}
+		return false, err
 	}
 	if stat.Mode().Perm() == fileState.Mode.Perm() && stat.Size() == int64(len(fileState.Content)) {
 		content, err := ioutil.ReadFile(filePath)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if bytes.Equal(content, fileState.Content) {
-			// Return a special error if the file doesn't need to be changed
-			return ErrSameState
+			return true, nil
 		}
+	}
+	return false, nil
+}
+
+// EnsureFileState ensures that the file is in the expected state. It will not attempt
+// to remove the file if no content is provided.
+func EnsureFileState(filePath string, fileState *FileState) error {
+	equal, err := fileState.Equals(filePath)
+	if err != nil {
+		return err
+	}
+	if equal {
+		// Return a special error if the file doesn't need to be changed
+		return ErrSameState
 	}
 	return AtomicWriteFile(filePath, fileState.Content, fileState.Mode, 0)
 }

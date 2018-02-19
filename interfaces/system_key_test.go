@@ -36,6 +36,7 @@ type systemKeySuite struct {
 	tmp              string
 	apparmorFeatures string
 	buildID          string
+	restorers        []func()
 }
 
 var _ = Suite(&systemKeySuite{})
@@ -48,10 +49,17 @@ func (s *systemKeySuite) SetUpTest(c *C) {
 	id, err := osutil.MyBuildID()
 	c.Assert(err, IsNil)
 	s.buildID = id
+
+	s.restorers = []func(){
+		osutil.MockMountInfo(""), osutil.MockEtcFstab(""),
+	}
 }
 
 func (s *systemKeySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	for _, fn := range s.restorers {
+		fn()
+	}
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
@@ -64,6 +72,22 @@ func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
 	} else {
 		apparmorFeaturesStr = "\n- " + strings.Join(apparmorFeatures, "\n- ") + "\n"
 	}
+	nfsHome, err := osutil.IsHomeUsingNFS()
+	c.Assert(err, IsNil)
 	c.Check(systemKey, Equals, fmt.Sprintf(`build-id: %s
-apparmor-features:%s`, s.buildID, apparmorFeaturesStr))
+apparmor-features:%snfs-home: %v
+`, s.buildID, apparmorFeaturesStr, nfsHome))
+}
+
+func (ts *systemKeySuite) TestInterfaceDigest(c *C) {
+	restore := interfaces.MockSystemKey(`build-id: 7a94e9736c091b3984bd63f5aebfc883c4d859e0
+apparmor-features:
+- caps
+- dbus
+`)
+	defer restore()
+
+	systemKey := interfaces.SystemKey()
+	c.Check(systemKey, Matches, "(?sm)^build-id: [a-z0-9]+$")
+	c.Check(systemKey, Matches, "(?sm).*apparmor-features:")
 }

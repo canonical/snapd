@@ -40,12 +40,14 @@ type FirewallControlInterfaceSuite struct {
 }
 
 const firewallControlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [firewall-control]
 `
 
 const firewallControlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   firewall-control:

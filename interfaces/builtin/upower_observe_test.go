@@ -55,6 +55,7 @@ apps:
   plugs: [upower-observe]
 `
 	const upowerMockClassicSlotSnapInfoYaml = `name: core
+version: 0
 type: os
 slots:
  upower-observe:

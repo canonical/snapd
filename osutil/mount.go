@@ -19,40 +19,16 @@
 
 package osutil
 
-import (
-	"bufio"
-	"fmt"
-	"os"
-	"strings"
-)
-
-var mountInfoPath = "/proc/self/mountinfo"
-
+// IsMounted checks if a given directory is a mount point.
 func IsMounted(baseDir string) (bool, error) {
-	f, err := os.Open(mountInfoPath)
+	entries, err := LoadMountInfo(procSelfMountInfo)
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		l := strings.Fields(scanner.Text())
-		if len(l) == 0 {
-			continue
-		}
-		if len(l) < 7 {
-			return false, fmt.Errorf("unexpected mountinfo line: %q", scanner.Text())
-		}
-		// this parser is simplistic, there are optional fields in
-		// the mountinfo lines, however those are *after* l[4] so
-		// we ignore it for now (because we only care about the
-		// mount point)
-		mountPoint := l[4]
-		if baseDir == mountPoint {
+	for _, entry := range entries {
+		if baseDir == entry.MountDir {
 			return true, nil
 		}
 	}
-
-	return false, scanner.Err()
+	return false, nil
 }

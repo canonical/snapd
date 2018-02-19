@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type EnsureDirStateSuite struct {
@@ -53,9 +54,7 @@ func (s *EnsureDirStateSuite) TestVerifiesExpectedFiles(c *C) {
 	c.Assert(changed, HasLen, 0)
 	c.Assert(removed, HasLen, 0)
 	// The content is correct
-	content, err := ioutil.ReadFile(path.Join(s.dir, "expected.snap"))
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte("expected"))
+	c.Assert(path.Join(s.dir, "expected.snap"), testutil.FileEquals, "expected")
 	// The permissions are correct
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
@@ -80,12 +79,8 @@ func (s *EnsureDirStateSuite) TestTwoPatterns(c *C) {
 	c.Assert(changed, HasLen, 0)
 	c.Assert(removed, HasLen, 0)
 	// The content is correct
-	content, err := ioutil.ReadFile(name1)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte("expected-1"))
-	content, err = ioutil.ReadFile(name2)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte("expected-2"))
+	c.Assert(name1, testutil.FileEquals, "expected-1")
+	c.Assert(name2, testutil.FileEquals, "expected-2")
 	// The permissions are correct
 	stat, err := os.Stat(name1)
 	c.Assert(err, IsNil)
@@ -105,9 +100,7 @@ func (s *EnsureDirStateSuite) TestCreatesMissingFiles(c *C) {
 	c.Assert(changed, DeepEquals, []string{"missing.snap"})
 	c.Assert(removed, HasLen, 0)
 	// The content is correct
-	content, err := ioutil.ReadFile(name)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte("content"))
+	c.Assert(name, testutil.FileEquals, "content")
 	// The permissions are correct
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
@@ -154,9 +147,7 @@ func (s *EnsureDirStateSuite) TestCorrectsFilesWithDifferentSize(c *C) {
 	c.Assert(changed, DeepEquals, []string{"differing.snap"})
 	c.Assert(removed, HasLen, 0)
 	// The content is changed
-	content, err := ioutil.ReadFile(name)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte("Hello World"))
+	c.Assert(name, testutil.FileEquals, "Hello World")
 	// The permissions are what we expect
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
@@ -175,9 +166,7 @@ func (s *EnsureDirStateSuite) TestCorrectsFilesWithSameSize(c *C) {
 	c.Assert(changed, DeepEquals, []string{"differing.snap"})
 	c.Assert(removed, HasLen, 0)
 	// The content is changed
-	content, err := ioutil.ReadFile(name)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte("good"))
+	c.Assert(name, testutil.FileEquals, "good")
 	// The permissions are what we expect
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)
@@ -198,9 +187,7 @@ func (s *EnsureDirStateSuite) TestFixesFilesWithBadPermissions(c *C) {
 	c.Assert(changed, DeepEquals, []string{"sensitive.snap"})
 	c.Assert(removed, HasLen, 0)
 	// The content is still the same
-	content, err := ioutil.ReadFile(name)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, []byte("password"))
+	c.Assert(name, testutil.FileEquals, "password")
 	// The permissions are changed
 	stat, err := os.Stat(name)
 	c.Assert(err, IsNil)

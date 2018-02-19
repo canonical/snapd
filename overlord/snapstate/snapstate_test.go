@@ -377,6 +377,7 @@ func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 		"discard-snap",
 		"discard-conns",
 	})
+	verifyStopReason(c, ts, "remove")
 }
 
 func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
@@ -538,6 +539,8 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"start-snap-services",
 		"run-hook[configure]",
 	})
+	// a revert is a special refresh
+	verifyStopReason(c, ts, "refresh")
 
 	snapsup, err := snapstate.TaskSnapSetup(tasks[0])
 	c.Assert(err, IsNil)
@@ -1011,6 +1014,7 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 		"unlink-snap",
 		"remove-profiles",
 	})
+	verifyStopReason(c, ts, "disable")
 }
 
 func (s *snapmgrTestSuite) TestEnableConflict(c *C) {
@@ -1788,7 +1792,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op:   "stop-snap-services",
+			op:   "stop-snap-services:refresh",
 			name: filepath.Join(dirs.SnapMountDir, "services-snap/7"),
 		},
 		{
@@ -1876,6 +1880,9 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		Channel:  "some-channel",
 		SnapID:   "services-snap-id",
 	})
+
+	// verify services stop reason
+	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
 	task = ts.Tasks()[15]
@@ -7005,6 +7012,17 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 	}
 }
 
+func verifyStopReason(c *C, ts *state.TaskSet, reason string) {
+	tl := tasksWithKind(ts, "stop-snap-services")
+	c.Check(tl, HasLen, 1)
+
+	var stopReason string
+	err := tl[0].Get("stop-reason", &stopReason)
+	c.Assert(err, IsNil)
+	c.Check(stopReason, Equals, reason)
+
+}
+
 func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7041,6 +7059,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 			"discard-snap",
 			"discard-conns",
 		})
+		verifyStopReason(c, ts, "remove")
 	}
 }
 

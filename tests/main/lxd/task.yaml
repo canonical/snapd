@@ -73,10 +73,6 @@ execute: |
     lxd.lxc exec my-ubuntu -- systemctl restart snapd.service
     lxd.lxc exec my-ubuntu -- cat /etc/environment
 
-    # FIXME: workaround for missing squashfuse
-    lxd.lxc exec my-ubuntu apt update
-    lxd.lxc exec my-ubuntu -- apt install -y squashfuse
-
     # FIXME: ensure that the kernel running is recent enough, this
     #        will only work with an up-to-date xenial kernel (4.4.0-78+)
 
