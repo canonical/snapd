@@ -19,6 +19,15 @@
 #define SNAP_MOUNT_SUPPORT_H
 
 /**
+ * Return a file descriptor referencing the snap-update-ns utility
+ *
+ * By calling this prior to changing the mount namespace, it is
+ * possible to execute the utility even if a different version is now
+ * mounted at the expected location.
+ **/
+int sc_open_snap_update_ns(void);
+
+/**
  * Assuming a new mountspace, populate it accordingly.
  *
  * This function performs many internal tasks:
@@ -31,7 +40,8 @@
  * The function will also try to preserve the current working directory but if
  * this is impossible it will chdir to SC_VOID_DIR.
  **/
-void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name);
+void sc_populate_mount_ns(int snap_update_ns_fd, const char *base_snap_name,
+			  const char *snap_name);
 
 /**
  * Ensure that / or /snap is mounted with the SHARED option. 

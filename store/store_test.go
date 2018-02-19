@@ -418,9 +418,7 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
-	content, err := ioutil.ReadFile(path)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, string(expectedContent))
+	c.Assert(path, testutil.FileEquals, expectedContent)
 }
 
 func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
@@ -449,9 +447,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
 	err = t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(targetFn)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, expectedContentStr)
+	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
 }
 
 func (t *remoteRepoTestSuite) TestResumeOfCompleted(c *C) {
@@ -473,9 +469,7 @@ func (t *remoteRepoTestSuite) TestResumeOfCompleted(c *C) {
 	err = t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(targetFn)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, expectedContentStr)
+	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
 }
 
 func (t *remoteRepoTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
@@ -515,11 +509,7 @@ func (t *remoteRepoTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
 	err := t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
-
-	content, err := ioutil.ReadFile(targetFn)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, buf)
-
+	c.Assert(targetFn, testutil.FileEquals, buf)
 	c.Assert(t.logbuf.String(), Matches, "(?s).*Retrying .* attempt 2, .*")
 }
 
@@ -564,9 +554,7 @@ func (t *remoteRepoTestSuite) TestDownloadRetryHashErrorIsFullyRetried(c *C) {
 	err := t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(targetFn)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, buf)
+	c.Assert(targetFn, testutil.FileEquals, buf)
 
 	c.Assert(t.logbuf.String(), Matches, "(?s).*Retrying .* attempt 2, .*")
 }
@@ -603,9 +591,7 @@ func (t *remoteRepoTestSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
 	err := t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(targetFn)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, buf)
+	c.Assert(targetFn, testutil.FileEquals, buf)
 
 	c.Assert(t.logbuf.String(), Matches, "(?s).*sha3-384 mismatch.*")
 }
@@ -669,9 +655,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 2)
 
-	content, err := ioutil.ReadFile(targetFn)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, expectedContentStr)
+	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
 }
 
 func (t *remoteRepoTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
@@ -722,9 +706,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
-	content, err := ioutil.ReadFile(path)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, string(expectedContent))
+	c.Assert(path, testutil.FileEquals, expectedContent)
 }
 
 func (t *remoteRepoTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
@@ -752,9 +734,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
-	content, err := ioutil.ReadFile(path)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, string(expectedContent))
+	c.Assert(path, testutil.FileEquals, expectedContent)
 }
 
 func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
@@ -777,9 +757,7 @@ func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
-	content, err := ioutil.ReadFile(path)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, expectedContentStr)
+	c.Assert(path, testutil.FileEquals, expectedContentStr)
 }
 
 func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
@@ -1182,9 +1160,7 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 
 		c.Assert(err, IsNil)
 		defer os.Remove(path)
-		content, err := ioutil.ReadFile(path)
-		c.Assert(err, IsNil)
-		c.Assert(string(content), Equals, testCase.expectedContent)
+		c.Assert(path, testutil.FileEquals, testCase.expectedContent)
 	}
 }
 
@@ -1329,9 +1305,7 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 			c.Assert(err, NotNil)
 		} else {
 			c.Assert(err, IsNil)
-			content, err := ioutil.ReadFile(w.Name())
-			c.Assert(err, IsNil)
-			c.Assert(string(content), Equals, "I was downloaded")
+			c.Assert(w.Name(), testutil.FileEquals, "I was downloaded")
 		}
 	}
 }

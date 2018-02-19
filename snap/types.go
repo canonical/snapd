@@ -118,3 +118,11 @@ func (confinementType *ConfinementType) fromString(str string) error {
 
 	return nil
 }
+
+type ServiceStopReason string
+
+const (
+	StopReasonRefresh ServiceStopReason = "refresh"
+	StopReasonRemove  ServiceStopReason = "remove"
+	StopReasonDisable ServiceStopReason = "disable"
+)

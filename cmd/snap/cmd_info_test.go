@@ -270,8 +270,8 @@ description: |
   https://snapcraft.io/
 snap-id:   mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:  beta
+refreshed: 0001-01-01T00:00:00Z
 installed: 2.10 (1) 1kB disabled
-refreshed: 0001-01-01 00:00:00 +0000 UTC
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -306,8 +306,8 @@ description: |
   https://snapcraft.io/
 snap-id:   mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:  beta
+refreshed: 0001-01-01T00:00:00Z
 installed: 2.10 (1) 1kB disabled
-refreshed: 0001-01-01 00:00:00 +0000 UTC
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
