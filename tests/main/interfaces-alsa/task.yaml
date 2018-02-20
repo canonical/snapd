@@ -38,6 +38,7 @@ execute: |
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to access snd devices"
+    mkdir -p /dev/snd
     generic-consumer.cmd touch /dev/snd/mysnd-dev
     echo "mysnd-dev-content" | tee /dev/snd/mysnd-dev
     generic-consumer.cmd cat /dev/snd/mysnd-dev | MATCH mysnd-dev-content
