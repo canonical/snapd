@@ -343,6 +343,23 @@ func setDynamicHookAttributes(task *state.Task, dynamicPlugAttrs map[string]inte
 	task.Set("slot-dynamic", dynamicSlotAttrs)
 }
 
+func markConnectHooksDone(connectTask *state.Task) error {
+	for _, t := range []string{"connect-plug-task", "connect-slot-task"} {
+		var tid string
+		err := connectTask.Get("connect-plug-task", &tid)
+		if err == nil {
+			t := connectTask.State().Task(tid)
+			if t != nil {
+				t.SetStatus(state.DoneStatus)
+			}
+		}
+		if err != nil && err != state.ErrNoState {
+			return fmt.Errorf("internal error: failed to determine %s id: %s", t, err)
+		}
+	}
+	return nil
+}
+
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -370,6 +387,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		if autoConnect && err == state.ErrNoState {
 			// ignore the error if auto-connecting
 			task.Logf("snap %q is no longer available for auto-connecting", plugRef.Snap)
+			markConnectHooksDone(task)
 			return nil
 		}
 		return err
@@ -380,6 +398,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		if autoConnect && err == state.ErrNoState {
 			// ignore the error if auto-connecting
 			task.Logf("snap %q is no longer available for auto-connecting", slotRef.Snap)
+			markConnectHooksDone(task)
 			return nil
 		}
 		return err
@@ -390,6 +409,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		if autoConnect {
 			// ignore the error if auto-connecting
 			task.Logf("snap %q no longer has %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
+			markConnectHooksDone(task)
 			return nil
 		}
 		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
@@ -400,6 +420,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		if autoConnect {
 			// ignore the error if auto-connecting
 			task.Logf("snap %q no longer has %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
+			markConnectHooksDone(task)
 			return nil
 		}
 		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
@@ -508,7 +529,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// doReconnect creates a set of task for connecting the interface and running its hooks
+// doReconnect creates a set of tasks for connecting the interface and running its hooks
 func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
