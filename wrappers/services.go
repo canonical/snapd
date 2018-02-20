@@ -523,10 +523,11 @@ func generateOnCalendarSchedules(timer string) ([]string, error) {
 				when := span.Start
 				if span.Spread {
 					length := span.End.Sub(span.Start)
-					// replicate what timeutil.Next() does
-					// and cut some time at the end of the
-					// window
 					if length > 5*time.Minute {
+						// replicate what timeutil.Next() does
+						// and cut some time at the end of the
+						// window so that events do not happen
+						// directly one after another
 						length -= 5 * time.Minute
 					}
 					when = when.Add(time.Duration(rand.Int63n(int64(length))))
