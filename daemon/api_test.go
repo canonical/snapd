@@ -25,9 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"io"
 	"io/ioutil"
 	"math"
@@ -61,6 +58,8 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -681,64 +680,10 @@ func (s *apiSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	// Very basic check to help stop us from not adding all the
 	// commands to the command list.
-	//
-	// It could get fancier, looking deeper into the AST to see
-	// exactly what's being defined, but it's probably not worth
-	// it; this gives us most of the benefits of that, with a
-	// fraction of the work.
-	//
-	// NOTE: there's probably a
-	// better/easier way of doing this (patches welcome)
+	found := countCommandDeclsIn(c, "api.go", check.Commentf("TestListIncludesAll"))
 
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "api.go", nil, 0)
-	if err != nil {
-		panic(err)
-	}
-
-	found := 0
-
-	ast.Inspect(f, func(n ast.Node) bool {
-		switch v := n.(type) {
-		case *ast.ValueSpec:
-			found += len(v.Values)
-			return false
-		}
-		return true
-	})
-
-	exceptions := []string{ // keep sorted, for scanning ease
-		"isEmailish",
-		"api",
-		"maxReadBuflen",
-		"muxVars",
-		"errNothingToInstall",
-		"errDevJailModeConflict",
-		"errNoJailMode",
-		"errClassicDevmodeConflict",
-		// snapInstruction vars:
-		"snapInstructionDispTable",
-		"snapstateInstall",
-		"snapstateUpdate",
-		"snapstateInstallPath",
-		"snapstateTryPath",
-		"snapstateUpdateMany",
-		"snapstateInstallMany",
-		"snapstateRemoveMany",
-		"snapstateRefreshCandidates",
-		"snapstateRevert",
-		"snapstateRevertToRevision",
-		"snapstateSwitch",
-		"assertstateRefreshSnapDeclarations",
-		"unsafeReadSnapInfo",
-		"osutilAddUser",
-		"setupLocalUser",
-		"storeUserInfo",
-		"postCreateUserUcrednetGet",
-		"ensureStateSoon",
-	}
-	c.Check(found, check.Equals, len(api)+len(exceptions),
-		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
+	c.Check(found, check.Equals, len(api),
+		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list.`))
 }
 
 func (s *apiSuite) TestRootCmd(c *check.C) {
@@ -2544,9 +2489,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
 		c.Check(flags, check.DeepEquals, expectedFlags)
 
-		bs, err := ioutil.ReadFile(path)
-		c.Check(err, check.IsNil)
-		c.Check(string(bs), check.Equals, "xyzzy")
+		c.Check(path, testutil.FileEquals, "xyzzy")
 
 		installQueue = append(installQueue, si.RealName+"::"+path)
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -4779,8 +4722,8 @@ func (s *postCreateUserSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
 	s.daemon(c)
-	postCreateUserUcrednetGet = func(string) (uint32, uint32, error) {
-		return 100, 0, nil
+	postCreateUserUcrednetGet = func(string) (uint32, uint32, string, error) {
+		return 100, 0, dirs.SnapdSocket, nil
 	}
 	s.mockUserHome = c.MkDir()
 	userLookup = mkUserLookup(s.mockUserHome)
@@ -4876,9 +4819,7 @@ func (s *postCreateUserSuite) TestPostCreateUser(c *check.C) {
 	// auth saved to user home dir
 	outfile := filepath.Join(s.mockUserHome, ".snap", "auth.json")
 	c.Check(osutil.FileExists(outfile), check.Equals, true)
-	content, err := ioutil.ReadFile(outfile)
-	c.Check(err, check.IsNil)
-	c.Check(string(content), check.Equals,
+	c.Check(outfile, testutil.FileEquals,
 		fmt.Sprintf(`{"id":%d,"username":"%s","email":"%s","macaroon":"%s"}`,
 			1, expectedUsername, expectedEmail, user.Macaroon))
 }
@@ -5145,8 +5086,8 @@ func (s *postCreateUserSuite) TestPostCreateUserFromAssertionAllKnownClassicErro
 
 	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 
-	postCreateUserUcrednetGet = func(string) (uint32, uint32, error) {
-		return 100, 0, nil
+	postCreateUserUcrednetGet = func(string) (uint32, uint32, string, error) {
+		return 100, 0, dirs.SnapdSocket, nil
 	}
 	defer func() {
 		postCreateUserUcrednetGet = ucrednetGet
@@ -5799,6 +5740,48 @@ func (s *apiSuite) TestSplitQS(c *check.C) {
 	c.Check(splitQS("foo ,, bar"), check.DeepEquals, []string{"foo", "bar"})
 	c.Check(splitQS(""), check.HasLen, 0)
 	c.Check(splitQS(","), check.HasLen, 0)
+}
+
+func (s *apiSuite) TestSnapctlGetNoUID(c *check.C) {
+	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "something"]}`)
+	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	c.Assert(err, check.IsNil)
+	rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
+	c.Assert(rsp.Status, check.Equals, 403)
+}
+
+func (s *apiSuite) TestSnapctlGetUID(c *check.C) {
+	var uid uint32
+	_ = s.daemon(c)
+
+	runSnapctlUcrednetGet = func(string) (uint32, uint32, string, error) {
+		return 100, uid, dirs.SnapSocket, nil
+	}
+	defer func() { runSnapctlUcrednetGet = ucrednetGet }()
+	ctlcmdRun = func(*hookstate.Context, []string) ([]byte, []byte, error) {
+		return nil, nil, nil
+	}
+	defer func() { ctlcmdRun = ctlcmd.Run }()
+
+	for _, t := range []struct {
+		uid uint32
+		cmd string
+		arg string
+
+		expectedCode int
+	}{
+		{1000, "get", "something", 200},
+		{0, "get", "something", 200},
+		{1000, "set", "some=thing", 403},
+		{0, "set", "some=thing", 200},
+	} {
+		uid = t.uid
+		buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, t.cmd, t.arg))
+		req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+		c.Assert(err, check.IsNil)
+		rsp := runSnapctl(snapctlCmd, req, nil).(*resp)
+		c.Assert(rsp.Status, check.Equals, t.expectedCode)
+	}
 }
 
 var _ = check.Suite(&postDebugSuite{})

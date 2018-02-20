@@ -15,4 +15,4 @@ apps:
         plugs: [timezone-control]
     hwclock-time:
         command: bin/hwclock
-        plugs: [time-control]
+        plugs: [time-control, netlink-audit]

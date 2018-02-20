@@ -41,12 +41,12 @@ const broadcomAsicControlConnectedPlugAppArmor = `
 
 # These are broader than they needs to be, but until we query udev
 # for specific devices, use a broader glob
-/sys/devices/pci[0-9]*/**/config r,
-/sys/devices/pci[0-9]*/**/{,subsystem_}device r,
-/sys/devices/pci[0-9]*/**/{,subsystem_}vendor r,
+/sys/devices/pci[0-9a-f]*/**/config r,
+/sys/devices/pci[0-9a-f]*/**/{,subsystem_}device r,
+/sys/devices/pci[0-9a-f]*/**/{,subsystem_}vendor r,
 
 /sys/bus/pci/devices/ r,
-/run/udev/data/+pci:[0-9]* r,
+/run/udev/data/+pci:[0-9a-f]* r,
 `
 
 var broadcomAsicControlConnectedPlugUDev = []string{

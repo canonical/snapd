@@ -21,14 +21,17 @@ package ifacestate
 
 import (
 	"fmt"
-	"strings"
+	"io/ioutil"
+	"os"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -54,8 +57,10 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if _, err := m.reloadConnections(""); err != nil {
 		return err
 	}
-	if err := m.regenerateAllSecurityProfiles(); err != nil {
-		return err
+	if m.profilesNeedRegeneration() {
+		if err := m.regenerateAllSecurityProfiles(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -108,14 +113,26 @@ func (m *InterfaceManager) addSnaps() error {
 	return nil
 }
 
-// regenerateAllSecurityProfiles will regenerate the security profiles
-// for apparmor and seccomp. This is needed because:
-// - for seccomp we may have "terms" on disk that the current snap-confine
-//   does not understand (e.g. in a rollback scenario). a refresh ensures
-//   we have a profile that matches what snap-confine understand
-// - for apparmor the kernel 4.4.0-65.86 has an incompatible apparmor
-//   change that breaks existing profiles for installed snaps. With a
-//   refresh those get fixed.
+func (m *InterfaceManager) profilesNeedRegeneration() bool {
+	currentSystemKey := interfaces.SystemKey()
+	if currentSystemKey == "" {
+		logger.Noticef("no system key, forcing re-generation of security profiles")
+		return true
+	}
+
+	onDiskSystemKey, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	if os.IsNotExist(err) {
+		return true
+	}
+	if err != nil {
+		logger.Noticef("cannot read system-key file: %s", err)
+		return true
+	}
+
+	return string(onDiskSystemKey) != currentSystemKey
+}
+
+// regenerateAllSecurityProfiles will regenerate all security profiles.
 func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	// Get all the security backends
 	securityBackends := m.repo.Backends()
@@ -156,7 +173,8 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 		}
 	}
 
-	return nil
+	sk := interfaces.SystemKey()
+	return osutil.AtomicWriteFile(dirs.SnapSystemKeyFile, []byte(sk), 0644, 0)
 }
 
 // renameCorePlugConnection renames one connection from "core-support" plug to
@@ -317,116 +335,6 @@ func (c *autoConnectChecker) check(plug *interfaces.Plug, slot *interfaces.Slot)
 	}
 
 	return ic.CheckAutoConnect() == nil
-}
-
-// autoConnect connects the given snap to viable candidates returning the list
-// of connected snap names.  The blacklist can prevent auto-connection to
-// specific interfaces (blacklist entries are plug or slot names).
-func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blacklist map[string]bool) ([]string, error) {
-	var conns map[string]connState
-	var affectedSnapNames []string
-	err := task.State().Get("conns", &conns)
-	if err != nil && err != state.ErrNoState {
-		return nil, err
-	}
-	if conns == nil {
-		conns = make(map[string]connState)
-	}
-
-	autochecker, err := newAutoConnectChecker(task.State())
-	if err != nil {
-		return nil, err
-	}
-
-	// Auto-connect all the plugs
-	for _, plug := range m.repo.Plugs(snapName) {
-		if blacklist[plug.Name] {
-			continue
-		}
-		candidates := m.repo.AutoConnectCandidateSlots(snapName, plug.Name, autochecker.check)
-		if len(candidates) == 0 {
-			continue
-		}
-		// If we are in a core transition we may have both the old ubuntu-core
-		// snap and the new core snap providing the same interface. In that
-		// situation we want to ignore any candidates in ubuntu-core and simply
-		// go with those from the new core snap.
-		if len(candidates) == 2 {
-			switch {
-			case candidates[0].Snap.Name() == "ubuntu-core" && candidates[1].Snap.Name() == "core":
-				candidates = candidates[1:2]
-			case candidates[1].Snap.Name() == "ubuntu-core" && candidates[0].Snap.Name() == "core":
-				candidates = candidates[0:1]
-			}
-		}
-		if len(candidates) != 1 {
-			crefs := make([]string, 0, len(candidates))
-			for _, candidate := range candidates {
-				crefs = append(crefs, candidate.String())
-			}
-			task.Logf("cannot auto connect %s (plug auto-connection), candidates found: %q", plug, strings.Join(crefs, ", "))
-			continue
-		}
-		slot := candidates[0]
-		connRef := interfaces.NewConnRef(plug, slot)
-		key := connRef.ID()
-		if _, ok := conns[key]; ok {
-			// Suggested connection already exist so don't clobber it.
-			// NOTE: we don't log anything here as this is a normal and common condition.
-			continue
-		}
-		if err := m.repo.Connect(*connRef); err != nil {
-			task.Logf("cannot auto connect %s to %s: %s (plug auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
-			continue
-		}
-		affectedSnapNames = append(affectedSnapNames, connRef.PlugRef.Snap)
-		affectedSnapNames = append(affectedSnapNames, connRef.SlotRef.Snap)
-		conns[key] = connState{Interface: plug.Interface, Auto: true}
-	}
-	// Auto-connect all the slots
-	for _, slot := range m.repo.Slots(snapName) {
-		if blacklist[slot.Name] {
-			continue
-		}
-		candidates := m.repo.AutoConnectCandidatePlugs(snapName, slot.Name, autochecker.check)
-		if len(candidates) == 0 {
-			continue
-		}
-
-		for _, plug := range candidates {
-			// make sure slot is the only viable
-			// connection for plug, same check as if we were
-			// considering auto-connections from plug
-			candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.Name(), plug.Name, autochecker.check)
-
-			if len(candSlots) != 1 || candSlots[0].String() != slot.String() {
-				crefs := make([]string, 0, len(candSlots))
-				for _, candidate := range candSlots {
-					crefs = append(crefs, candidate.String())
-				}
-				task.Logf("cannot auto connect %s to %s (slot auto-connection), alternatives found: %q", slot, plug, strings.Join(crefs, ", "))
-				continue
-			}
-
-			connRef := interfaces.NewConnRef(plug, slot)
-			key := connRef.ID()
-			if _, ok := conns[key]; ok {
-				// Suggested connection already exist so don't clobber it.
-				// NOTE: we don't log anything here as this is a normal and common condition.
-				continue
-			}
-			if err := m.repo.Connect(*connRef); err != nil {
-				task.Logf("cannot auto connect %s to %s: %s (slot auto-connection)", connRef.PlugRef, connRef.SlotRef, err)
-				continue
-			}
-			affectedSnapNames = append(affectedSnapNames, connRef.PlugRef.Snap)
-			affectedSnapNames = append(affectedSnapNames, connRef.SlotRef.Snap)
-			conns[key] = connState{Interface: plug.Interface, Auto: true}
-		}
-	}
-
-	task.State().Set("conns", conns)
-	return affectedSnapNames, nil
 }
 
 func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRef, error) {

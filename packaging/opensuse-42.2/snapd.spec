@@ -32,7 +32,7 @@
 
 %define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service
 Name:           snapd
-Version:        2.30
+Version:        2.31
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -304,7 +304,8 @@ fi
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snapd
 %{_libexecdir}/snapd/snap-mgmt
-%{_libexecdir}/udev/snappy-app-dev
+%{_libexecdir}/snapd/snap-gdb-shim
+%{_libexecdir}/snapd/snap-device-helper
 /usr/share/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh

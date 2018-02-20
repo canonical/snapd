@@ -22,6 +22,7 @@ package snap_test
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 
 	. "gopkg.in/check.v1"
 
@@ -85,6 +86,50 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 		err := ValidateName(name)
 		c.Assert(err, ErrorMatches, `invalid snap name: ".*"`)
 	}
+}
+
+func (s *ValidateSuite) TestValidateVersion(c *C) {
+	validVersions := []string{
+		"0", "v1.0", "0.12+16.04.20160126-0ubuntu1",
+		"1:6.0.1+r16-3", "1.0~", "1.0+", "README.~1~",
+		"a+++++++++++++++++++++++++++++++",
+		"AZaz:.+~-123",
+	}
+	for _, version := range validVersions {
+		err := ValidateVersion(version)
+		c.Assert(err, IsNil)
+	}
+	invalidVersionsTable := [][2]string{
+		{"~foo", `must start with an ASCII alphanumeric (and not '~')`},
+		{"+foo", `must start with an ASCII alphanumeric (and not '+')`},
+
+		{"foo:", `must end with an ASCII alphanumeric or one of '+' or '~' (and not ':')`},
+		{"foo.", `must end with an ASCII alphanumeric or one of '+' or '~' (and not '.')`},
+		{"foo-", `must end with an ASCII alphanumeric or one of '+' or '~' (and not '-')`},
+
+		{"horrible_underscores", `contains invalid characters: "_"`},
+		{"foo($bar^baz$)meep", `contains invalid characters: "($", "^", "$)"`},
+
+		{"árbol", `must be printable, non-whitespace ASCII`},
+		{"日本語", `must be printable, non-whitespace ASCII`},
+		{"한글", `must be printable, non-whitespace ASCII`},
+		{"ру́сский язы́к", `must be printable, non-whitespace ASCII`},
+
+		{"~foo$bar:", `must start with an ASCII alphanumeric (and not '~'),` +
+			` must end with an ASCII alphanumeric or one of '+' or '~' (and not ':'),` +
+			` and contains invalid characters: "$"`},
+	}
+	for _, t := range invalidVersionsTable {
+		version, reason := t[0], t[1]
+		err := ValidateVersion(version)
+		c.Assert(err, NotNil)
+		c.Assert(err.Error(), Equals, fmt.Sprintf("invalid snap version %s: %s", strconv.QuoteToASCII(version), reason))
+	}
+	// version cannot be empty
+	c.Assert(ValidateVersion(""), ErrorMatches, `invalid snap version: cannot be empty`)
+	// version length cannot be >32
+	c.Assert(ValidateVersion("this-version-is-a-little-bit-older"), ErrorMatches,
+		`invalid snap version "this-version-is-a-little-bit-older": cannot be longer than 32 characters \(got: 34\)`)
 }
 
 func (s *ValidateSuite) TestValidateLicense(c *C) {
@@ -357,6 +402,39 @@ func (s *ValidateSuite) TestAppDaemonValue(c *C) {
 	}
 }
 
+func (s *ValidateSuite) TestAppRefreshMode(c *C) {
+	// check services
+	for _, t := range []struct {
+		refresh string
+		ok      bool
+	}{
+		// good
+		{"", true},
+		{"endure", true},
+		{"restart", true},
+		{"sigterm", true},
+		{"sigterm-all", true},
+		{"sighup", true},
+		{"sighup-all", true},
+		{"sigusr1", true},
+		{"sigusr1-all", true},
+		{"sigusr2", true},
+		{"sigusr2-all", true},
+		// bad
+		{"invalid-thing", false},
+	} {
+		if t.ok {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refresh}), IsNil)
+		} else {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refresh}), ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refresh))
+		}
+	}
+
+	// non-services cannot have a refresh-mode
+	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", RefreshMode: "endure"})
+	c.Check(err, ErrorMatches, `"refresh-mode" cannot be used for "foo", only for services`)
+}
+
 func (s *ValidateSuite) TestAppWhitelistError(c *C) {
 	err := ValidateApp(&AppInfo{Name: "foo", Command: "x\n"})
 	c.Assert(err, NotNil)
@@ -465,6 +543,7 @@ hooks:
 
 func (s *ValidateSuite) TestPlugSlotNamesUnique(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`name: snap
+version: 0
 plugs:
  foo:
 slots:
@@ -515,6 +594,12 @@ func (s *ValidateSuite) TestValidateAlias(c *C) {
 	}
 }
 
+type testConstraint string
+
+func (constraint testConstraint) IsOffLimits(path string) bool {
+	return true
+}
+
 func (s *ValidateSuite) TestValidateLayout(c *C) {
 	si := &Info{SuggestedName: "foo"}
 	// Several invalid layouts.
@@ -523,6 +608,12 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo"}, nil),
 		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Bind: "/bar", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Bind: "/bar", BindFile: "/froz"}, nil),
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Symlink: "/bar", BindFile: "/froz"}, nil),
+		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", BindFile: "/froz"}, nil),
 		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Bind: "/bar", Symlink: "/froz"}, nil),
 		ErrorMatches, `layout "/foo" must define a bind mount, a filesystem mount or a symlink`)
@@ -546,8 +637,26 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 		ErrorMatches, `layout "/foo" uses invalid symlink old name "\$BAR": reference to unknown variable "\$BAR"`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Symlink: "/etc"}, nil),
 		ErrorMatches, `layout "\$SNAP/evil" uses invalid symlink old name "/etc": must start with \$SNAP, \$SNAP_DATA or \$SNAP_COMMON`)
-	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo/bar", Bind: "$SNAP/bar/foo"}, []string{"/foo"}),
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo/bar", Bind: "$SNAP/bar/foo"}, []LayoutConstraint{testConstraint("/foo")}),
 		ErrorMatches, `layout "/foo/bar" underneath prior layout item "/foo"`)
+
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/dev", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/dev" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/dev/foo", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/dev/foo" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/proc", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/proc" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/sys", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/sys" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/run", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/run" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/boot", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/boot" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/lost+found", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/lost\+found" in an off-limits area`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/media", Type: "tmpfs"}, nil),
+		ErrorMatches, `layout "/media" in an off-limits area`)
+
 	// Several valid layouts.
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Mode: 01755}, nil), IsNil)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/tmp", Type: "tmpfs"}, nil), IsNil)
@@ -562,6 +671,225 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var", Symlink: "$SNAP_DATA/var"}, nil), IsNil)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/var", Symlink: "$SNAP_COMMON/var"}, nil), IsNil)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/data", Symlink: "$SNAP_DATA"}, nil), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateLayoutAll(c *C) {
+	// /usr/foo prevents /usr/foo/bar from being valid (tmpfs)
+	const yaml1 = `
+name: broken-layout-1
+layout:
+  /usr/foo:
+    type: tmpfs
+  /usr/foo/bar:
+    type: tmpfs
+`
+	const yaml1rev = `
+name: broken-layout-1
+layout:
+  /usr/foo/bar:
+    type: tmpfs
+  /usr/foo:
+    type: tmpfs
+`
+
+	for _, yaml := range []string{yaml1, yaml1rev} {
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 2)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
+	}
+
+	// Same as above but with bind-mounts instead of filesystem mounts.
+	const yaml2 = `
+name: broken-layout-2
+layout:
+  /usr/foo:
+    bind: $SNAP
+  /usr/foo/bar:
+    bind: $SNAP
+`
+	const yaml2rev = `
+name: broken-layout-2
+layout:
+  /usr/foo/bar:
+    bind: $SNAP
+  /usr/foo:
+    bind: $SNAP
+`
+	for _, yaml := range []string{yaml2, yaml2rev} {
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 2)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
+	}
+
+	// /etc/foo (directory) is not clashing with /etc/foo.conf (file)
+	const yaml3 = `
+name: valid-layout-1
+layout:
+  /etc/foo:
+    bind: $SNAP_DATA/foo
+  /etc/foo.conf:
+    symlink: $SNAP_DATA/foo.conf
+`
+	const yaml3rev = `
+name: valid-layout-1
+layout:
+  /etc/foo.conf:
+    symlink: $SNAP_DATA/foo.conf
+  /etc/foo:
+    bind: $SNAP_DATA/foo
+`
+	for _, yaml := range []string{yaml3, yaml3rev} {
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 2)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, IsNil)
+	}
+
+	// /etc/foo file is not clashing with /etc/foobar
+	const yaml4 = `
+name: valid-layout-2
+layout:
+  /etc/foo:
+    symlink: $SNAP_DATA/foo
+  /etc/foobar:
+    symlink: $SNAP_DATA/foobar
+`
+	const yaml4rev = `
+name: valid-layout-2
+layout:
+  /etc/foobar:
+    symlink: $SNAP_DATA/foobar
+  /etc/foo:
+    symlink: $SNAP_DATA/foo
+`
+	for _, yaml := range []string{yaml4, yaml4rev} {
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 2)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, IsNil)
+	}
+
+	// /etc/foo file is also clashing with /etc/foo/bar
+	const yaml5 = `
+name: valid-layout-2
+layout:
+  /usr/foo:
+    symlink: $SNAP_DATA/foo
+  /usr/foo/bar:
+    bind: $SNAP_DATA/foo/bar
+`
+	const yaml5rev = `
+name: valid-layout-2
+layout:
+  /usr/foo/bar:
+    bind: $SNAP_DATA/foo/bar
+  /usr/foo:
+    symlink: $SNAP_DATA/foo
+`
+	for _, yaml := range []string{yaml5, yaml5rev} {
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), &SideInfo{Revision: R(42)})
+		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 2)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, ErrorMatches, `layout "/usr/foo/bar" underneath prior layout item "/usr/foo"`)
+	}
+
+	const yaml6 = `
+name: tricky-layout-1
+layout:
+  /etc/norf:
+    bind: $SNAP/etc/norf
+  /etc/norf:
+    bind-file: $SNAP/etc/norf
+`
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml6), &SideInfo{Revision: R(42)})
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 1)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout["/etc/norf"].Bind, Equals, "")
+	c.Assert(info.Layout["/etc/norf"].BindFile, Equals, "$SNAP/etc/norf")
+
+	// Two layouts refer to the same path as a directory and a file.
+	const yaml7 = `
+name: clashing-source-path-1
+layout:
+  /etc/norf:
+    bind: $SNAP/etc/norf
+  /etc/corge:
+    bind-file: $SNAP/etc/norf
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml7), &SideInfo{Revision: R(42)})
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 2)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, ErrorMatches, `layout "/etc/norf" refers to directory "\$SNAP/etc/norf" but another layout treats it as file`)
+
+	// Two layouts refer to the same path as a directory and a file (other way around).
+	const yaml8 = `
+name: clashing-source-path-2
+layout:
+  /etc/norf:
+    bind-file: $SNAP/etc/norf
+  /etc/corge:
+    bind: $SNAP/etc/norf
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml8), &SideInfo{Revision: R(42)})
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 2)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, ErrorMatches, `layout "/etc/norf" refers to file "\$SNAP/etc/norf" but another layout treats it as a directory`)
+
+	// Two layouts refer to the same path, but one uses variable and the other doesn't.
+	const yaml9 = `
+name: clashing-source-path-3
+layout:
+  /etc/norf:
+    bind-file: $SNAP/etc/norf
+  /etc/corge:
+    bind: /snap/clashing-source-path-3/42/etc/norf
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml9), &SideInfo{Revision: R(42)})
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 2)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, ErrorMatches, `layout "/etc/norf" refers to file "\$SNAP/etc/norf" but another layout treats it as a directory`)
+
+	// Same source path referred from a bind mount and symlink doesn't clash.
+	const yaml10 = `
+name: non-clashing-source-1
+layout:
+  /etc/norf:
+    bind: $SNAP/etc/norf
+  /etc/corge:
+    symlink: $SNAP/etc/norf
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml10), &SideInfo{Revision: R(42)})
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 2)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, IsNil)
+
+	// Same source path referred from a file bind mount and symlink doesn't clash.
+	const yaml11 = `
+name: non-clashing-source-1
+layout:
+  /etc/norf:
+    bind-file: $SNAP/etc/norf
+  /etc/corge:
+    symlink: $SNAP/etc/norf
+`
+	info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml11), &SideInfo{Revision: R(42)})
+	c.Assert(err, IsNil)
+	c.Assert(info.Layout, HasLen, 2)
+	err = ValidateLayoutAll(info)
+	c.Assert(err, IsNil)
 }
 
 func (s *ValidateSuite) TestValidateSocketName(c *C) {
@@ -755,6 +1083,59 @@ apps:
 		desc: fooSelfCycle,
 		err:  `applications are part of a before/after cycle: foo`},
 	}
+	for _, tc := range tcs {
+		c.Logf("trying %q", tc.name)
+		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
+		c.Assert(err, IsNil)
+
+		err = Validate(info)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
+
+func (s *YamlSuite) TestValidateAppTimer(c *C) {
+	meta := []byte(`
+name: foo
+version: 1.0
+`)
+	allGood := []byte(`
+apps:
+  foo:
+    daemon: simple
+    timer: 10:00-12:00
+`)
+	notAService := []byte(`
+apps:
+  foo:
+    timer: 10:00-12:00
+`)
+	badTimer := []byte(`
+apps:
+  foo:
+    daemon: oneshot
+    timer: mon,10:00-12:00,mon2-wed3
+`)
+
+	tcs := []struct {
+		name string
+		desc []byte
+		err  string
+	}{{
+		name: "all correct",
+		desc: allGood,
+	}, {
+		name: "not a service",
+		desc: notAService,
+		err:  `cannot use timer with application "foo" as it's not a service`,
+	}, {
+		name: "invalid timer",
+		desc: badTimer,
+		err:  `application "foo" timer has invalid format: cannot parse "mon2-wed3": invalid schedule fragment`,
+	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
 		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
