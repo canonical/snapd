@@ -44,7 +44,8 @@ func (wr *LimitedBuffer) Write(data []byte) (int, error) {
 	}
 	if wr.buffer.Len() > 2*wr.maxBytes {
 		data := wr.buffer.Bytes()
-		// don't limit by number of lines, we will apply line limit in Bytes(),
+		// Do an early (and inaccurate) truncate here to save memory,
+		// the exact truncate happens in the .Bytes() function;
 		// also, limit by 2 times the requested number of bytes at this point.
 		data = TruncateOutput(data, 0, 2*wr.maxBytes)
 		copy(wr.buffer.Bytes(), data)
