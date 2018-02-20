@@ -582,7 +582,7 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	defer st.Unlock()
 
 	var oldconn connState
-	err := st.Get("old-conn", &oldconn)
+	err := task.Get("old-conn", &oldconn)
 	if err == state.ErrNoState {
 		return nil
 	}
