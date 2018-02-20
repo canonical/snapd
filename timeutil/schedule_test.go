@@ -881,6 +881,11 @@ func (ts *timeutilSuite) TestScheduleIncludes(c *C) {
 			now:       "2017-02-06 10:30:00",
 			expecting: true,
 		}, {
+			// every day, 23:59
+			schedule:  "23:59",
+			now:       "2017-02-06 23:59:59",
+			expecting: true,
+		}, {
 			// 2 ranges, reversed order in spec
 			schedule: "10:00~11:00,9:00-10:00",
 			// sometime between 10am and 11am
