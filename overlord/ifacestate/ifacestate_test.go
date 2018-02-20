@@ -2231,6 +2231,70 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 	return chg
 }
 
+func (s *interfaceManagerSuite) TestUndoConnectRestoresOldConnState(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	mgr := s.manager(c)
+	producer := s.mockSnap(c, producerYaml)
+	consumer := s.mockSnap(c, consumerYaml)
+
+	repo := s.manager(c).Repository()
+	err := repo.AddPlug(&snap.PlugInfo{
+		Snap:      consumer,
+		Name:      "plug",
+		Interface: "test",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddSlot(&snap.SlotInfo{
+		Snap:      producer,
+		Name:      "slot",
+		Interface: "test",
+	})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface":    "test",
+			"plug-static":  map[string]interface{}{"foo1": "bar1"},
+			"slot-static":  map[string]interface{}{"foo2": "bar2"},
+			"plug-dynamic": map[string]interface{}{"foo3": "bar3"},
+			"slot-dynamic": map[string]interface{}{"foo4": "bar4"},
+		},
+	})
+
+	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	// Add a dummy task just to hold the change not ready.
+	dummy := s.state.NewTask("dummy", "")
+	chg.AddTask(dummy)
+
+	s.state.Unlock()
+	mgr.Ensure()
+	mgr.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoStatus)
+	chg.Abort()
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.Status(), Equals, state.UndoneStatus)
+
+	// Information about the connection is intact
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface":    "test",
+			"plug-static":  map[string]interface{}{"foo1": "bar1"},
+			"plug-dynamic": map[string]interface{}{"foo3": "bar3"},
+			"slot-static":  map[string]interface{}{"foo2": "bar2"},
+			"slot-dynamic": map[string]interface{}{"foo4": "bar4"},
+		}})
+}
+
 func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotSnapOnAutoConnect(c *C) {
 	_ = s.manager(c)
 	s.mockSnap(c, producerYaml)
