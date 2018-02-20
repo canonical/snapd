@@ -42,6 +42,7 @@ var _ = Suite(&servicesSuite{})
 
 func (s *servicesSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.configcoreSuite.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
 	s.systemctlArgs = nil
@@ -87,6 +88,7 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 		s.systemctlArgs = nil
 
 		err := configcore.Run(&mockConf{
+			state: s.state,
 			conf: map[string]interface{}{
 				fmt.Sprintf("service.%s.disable", srvName): true,
 			},
@@ -109,6 +111,7 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 	for _, srvName := range []string{"ssh", "rsyslog"} {
 		s.systemctlArgs = nil
 		err := configcore.Run(&mockConf{
+			state: s.state,
 			conf: map[string]interface{}{
 				fmt.Sprintf("service.%s.disable", srvName): false,
 			},
@@ -129,6 +132,7 @@ func (s *servicesSuite) TestConfigureServiceUnsupportedService(c *C) {
 	defer restore()
 
 	err := configcore.Run(&mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
 			"service.snapd.disable": true,
 		},
