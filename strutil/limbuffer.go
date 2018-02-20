@@ -38,20 +38,37 @@ func NewLimitedBuffer(maxLines, maxBytes int) *LimitedBuffer {
 }
 
 func (wr *LimitedBuffer) Write(data []byte) (int, error) {
-	sz, err := wr.buffer.Write(data)
+	// Do an early (and inaccurate) truncate here to save memory,
+	// the exact truncate happens in the .Bytes() function;
+	// also, limit by 2 times the requested number of bytes at this point.
+	lim := wr.maxBytes * 2
+	dlen := len(data)
+
+	// simple case, still within limits, nothing to truncate, just write
+	if wr.buffer.Len()+dlen < lim {
+		return wr.buffer.Write(data)
+	}
+
+	// simple case - data to write is outright too big,
+	// just take its tail and overwrite internal buffer
+	if dlen > lim {
+		wr.buffer.Truncate(0)
+		_, err := wr.buffer.Write(data[dlen-lim:])
+		if err != nil {
+			return 0, err
+		}
+		return dlen, err
+	}
+
+	// typical case - shift the buffer by (lim-dlen) bytes to make room for the data
+	tmp := TruncateOutput(wr.buffer.Bytes(), 0, lim-dlen)
+	copy(wr.buffer.Bytes(), tmp)
+	wr.buffer.Truncate(len(tmp))
+	_, err := wr.buffer.Write(data)
 	if err != nil {
 		return 0, err
 	}
-	if wr.buffer.Len() > 2*wr.maxBytes {
-		data := wr.buffer.Bytes()
-		// Do an early (and inaccurate) truncate here to save memory,
-		// the exact truncate happens in the .Bytes() function;
-		// also, limit by 2 times the requested number of bytes at this point.
-		data = TruncateOutput(data, 0, 2*wr.maxBytes)
-		copy(wr.buffer.Bytes(), data)
-		wr.buffer.Truncate(len(data))
-	}
-	return sz, err
+	return dlen, err
 }
 
 func (wr *LimitedBuffer) Bytes() []byte {
