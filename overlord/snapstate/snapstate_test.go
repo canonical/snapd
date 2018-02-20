@@ -8498,14 +8498,16 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 	expected := fakeOps{
 		{
-			op:    "storesvc-snap",
-			name:  "snap-content-plug",
-			revno: snap.R(42),
+			op:     "storesvc-snap",
+			name:   "snap-content-plug",
+			revno:  snap.R(42),
+			userID: 1,
 		},
 		{
-			op:    "storesvc-snap",
-			name:  "snap-content-slot",
-			revno: snap.R(11),
+			op:     "storesvc-snap",
+			name:   "snap-content-slot",
+			revno:  snap.R(11),
+			userID: 1,
 		},
 		{
 			op:   "storesvc-download",
@@ -8526,7 +8528,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "snap-content-slot",
 				Channel:  "stable",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "snap-content-slot-id",
 				Revision: snap.R(11),
 			},
 		},
@@ -8550,13 +8552,18 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "snap-content-slot",
 				Channel:  "stable",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "snap-content-slot-id",
 				Revision: snap.R(11),
 			},
 		},
 		{
 			op:   "link-snap",
 			name: filepath.Join(dirs.SnapMountDir, "snap-content-slot/11"),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "snap-content-slot",
+			revno: snap.R(11),
 		},
 		{
 			op: "update-aliases",
@@ -8580,7 +8587,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "snap-content-plug",
 				Channel:  "some-channel",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "snap-content-plug-id",
 				Revision: snap.R(42),
 			},
 		},
@@ -8604,13 +8611,18 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 			sinfo: snap.SideInfo{
 				RealName: "snap-content-plug",
 				Channel:  "some-channel",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "snap-content-plug-id",
 				Revision: snap.R(42),
 			},
 		},
 		{
 			op:   "link-snap",
 			name: filepath.Join(dirs.SnapMountDir, "snap-content-plug/42"),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "snap-content-plug",
+			revno: snap.R(42),
 		},
 		{
 			op: "update-aliases",

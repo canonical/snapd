@@ -179,8 +179,6 @@ func (m *SnapManager) installPrereqs(t *state.Task, wanted []string, userID int)
 	// We try to install all wanted snaps. If one snap cannot be installed
 	// because of change conflicts or similar we retry. Only if all snaps
 	// can be installed together we add the tasks to the change.
-	//
-	// FIXME: we need to test for circular wants here.
 	var tss []*state.TaskSet
 	for _, prereqName := range wanted {
 		var prereqState SnapState
@@ -195,34 +193,25 @@ func (m *SnapManager) installPrereqs(t *state.Task, wanted []string, userID int)
 		}
 
 		for _, tc := range t.Change().Tasks() {
-			// check if we have already queued it for install
 			if tc.Kind() == "link-snap" {
 				snapsup, err := TaskSnapSetup(tc)
 				if err != nil {
 					return err
 				}
+				// we have the prereq already queued
 				if snapsup.Name() == prereqName {
 					continue
 				}
 			}
-			// FIXME: what about discard-snap?
-		}
-
-		// check that there is no task that installs the prereq already
-		prereqPending, err := changeInFlight(st, prereqName)
-		if err != nil {
-			return err
-		}
-		if prereqPending {
-			// if something else installs core already we need to
-			// wait for that to either finish successfully or fail
-			return &state.Retry{After: prerequisitesRetryTimeout}
+			// if there is a discard-snap we just put the install
+			// of the wanted snap
 		}
 
 		// not installed, nor queued for install -> install it
 		ts, err := Install(st, prereqName, defaultBaseSnapsChannel, snap.R(0), userID, Flags{})
-		// something might have triggered an explicit install of core while
-		// the state was unlocked -> deal with that here
+		// something might have triggered an explicit install while
+		// the state was unlocked -> deal with that here by simply
+		// retrying the operation.
 		if _, ok := err.(changeDuringInstallError); ok {
 			return &state.Retry{After: prerequisitesRetryTimeout}
 		}
