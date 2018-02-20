@@ -69,7 +69,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces
 		return len(running) != 0
 	})
 
-	runner.AddHandler("connect", m.doConnect, nil)
+	runner.AddHandler("connect", m.doConnect, m.undoConnect)
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
 	runner.AddHandler("reconnect", m.doReconnect, nil)
 	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.undoSetupProfiles)
