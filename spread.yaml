@@ -436,6 +436,9 @@ suites:
         # it disabled. A later PR will enable most tests and
         # drop this blacklist.
         systems: [-ubuntu-core-16-*, -opensuse-*]
+        # autopkgtest runs against localhost which causes problems with
+        # this test prepare
+        backends: [-autopkgtest]
         restore: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
