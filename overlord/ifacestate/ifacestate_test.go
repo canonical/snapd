@@ -2198,25 +2198,50 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 	chg := st.NewChange("connect...", "...")
 
 	t := st.NewTask("connect", "other connect task")
-	t.Set("slot", interfaces.SlotRef{Snap: "producer", Name: "slot"})
-	t.Set("plug", interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+	t.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slot})
+	t.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plug})
 	var plugAttrs, slotAttrs map[string]interface{}
 	t.Set("plug-dynamic", plugAttrs)
 	t.Set("slot-dynamic", slotAttrs)
 	t.Set("auto", true)
+
+	// two fake tasks for connect-plug-/slot- hooks
+	hs1 := hookstate.HookSetup{
+		Snap:     slotSnap,
+		Optional: true,
+		Hook:     "connect-slot-" + slot,
+	}
+	ht1 := hookstate.HookTask(st, "connect-slot hook", &hs1, nil)
+	ht1.WaitFor(t)
+	hs2 := hookstate.HookSetup{
+		Snap:     plugSnap,
+		Optional: true,
+		Hook:     "connect-plug-" + plug,
+	}
+	ht2 := hookstate.HookTask(st, "connect-plug hook", &hs2, nil)
+	ht2.WaitFor(ht1)
+
+	t.Set("connect-slot-task", ht1.ID())
+	t.Set("connect-plug-task", ht2.ID())
+
 	chg.AddTask(t)
+	chg.AddTask(ht1)
+	chg.AddTask(ht2)
 
 	return chg
 }
 
 func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotSnapOnAutoConnect(c *C) {
 	_ = s.manager(c)
+	s.mockSnap(c, producerYaml)
 	s.mockSnap(c, consumerYaml)
-	// no producer snap in the state, doConnect should complain
 
 	s.state.Lock()
 
 	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	// remove producer snap from the state, doConnect should complain
+	snapstate.Set(s.state, "producer", nil)
+
 	s.state.Unlock()
 
 	s.settle(c)
@@ -2225,8 +2250,12 @@ func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotSnapOnAutoConnect(c
 	defer s.state.Unlock()
 
 	task := chg.Tasks()[0]
-	c.Assert(task.Status(), Equals, state.DoneStatus)
+	c.Check(task.Status(), Equals, state.DoneStatus)
 	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "producer" is no longer available for auto-connecting.*`)
+	c.Assert(chg.Tasks(), HasLen, 3)
+	// hook tasks explicitely marked done
+	c.Assert(chg.Tasks()[1].Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Tasks()[2].Status(), Equals, state.DoneStatus)
 
 	var conns map[string]interface{}
 	c.Assert(s.state.Get("conns", &conns), Equals, state.ErrNoState)
@@ -2235,11 +2264,13 @@ func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotSnapOnAutoConnect(c
 func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugSnapOnAutoConnect(c *C) {
 	_ = s.manager(c)
 	s.mockSnap(c, producerYaml)
-	// no consumer snap in the state, doConnect should complain
+	s.mockSnap(c, consumerYaml)
 
 	s.state.Lock()
-
 	chg := makeAutoConnectChange(s.state, "consumer", "plug", "producer", "slot")
+	// remove consumer snap from the state, doConnect should complain
+	snapstate.Set(s.state, "consumer", nil)
+
 	s.state.Unlock()
 
 	s.settle(c)
@@ -2248,8 +2279,12 @@ func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugSnapOnAutoConnect(c
 	defer s.state.Unlock()
 
 	task := chg.Tasks()[0]
-	c.Assert(task.Status(), Equals, state.DoneStatus)
+	c.Check(task.Status(), Equals, state.DoneStatus)
 	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "consumer" is no longer available for auto-connecting.*`)
+	c.Assert(chg.Tasks(), HasLen, 3)
+	// hook tasks explicitely marked done
+	c.Assert(chg.Tasks()[1].Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Tasks()[2].Status(), Equals, state.DoneStatus)
 
 	var conns map[string]interface{}
 	c.Assert(s.state.Get("conns", &conns), Equals, state.ErrNoState)
