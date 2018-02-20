@@ -252,6 +252,8 @@ prepare_project() {
         go get -u github.com/kardianos/govendor
     fi
     quiet govendor sync
+    # govendor runs as root and will leave strange permissions
+    chown test.test -R "$SPREAD_PATH"
 
     if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
         case "$SPREAD_SYSTEM" in
