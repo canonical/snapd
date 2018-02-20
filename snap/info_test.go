@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -55,7 +56,7 @@ func (s *infoSimpleSuite) TearDownTest(c *C) {
 
 func (s *infoSimpleSuite) TestReadInfoPanicsIfSanitizeUnset(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(1)}
-	snaptest.MockSnap(c, sampleYaml, sampleContents, si)
+	snaptest.MockSnap(c, sampleYaml, si)
 	c.Assert(func() { snap.ReadInfo("sample", si) }, Panics, `SanitizePlugsSlots function not set`)
 }
 
@@ -173,12 +174,10 @@ apps:
    command: foobar
 `
 
-const sampleContents = "SNAP"
-
 func (s *infoSuite) TestReadInfo(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 
-	snapInfo1 := snaptest.MockSnap(c, sampleYaml, sampleContents, si)
+	snapInfo1 := snaptest.MockSnap(c, sampleYaml, si)
 
 	snapInfo2, err := snap.ReadInfo("sample", si)
 	c.Assert(err, IsNil)
@@ -502,7 +501,7 @@ version: 1.0`
 func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, yaml string, contents string, hooks []string, checker func(c *C, info *snap.Info)) {
 	// First check installed snap
 	sideInfo := &snap.SideInfo{Revision: snap.R(42)}
-	info0 := snaptest.MockSnap(c, yaml, contents, sideInfo)
+	info0 := snaptest.MockSnap(c, yaml, sideInfo)
 	snaptest.PopulateDir(info0.MountDir(), emptyHooks(hooks...))
 	info, err := snap.ReadInfo(info0.Name(), sideInfo)
 	c.Check(err, IsNil)
@@ -661,7 +660,7 @@ func makeFakeDesktopFile(c *C, name, content string) string {
 }
 
 func (s *infoSuite) TestAppDesktopFile(c *C) {
-	snaptest.MockSnap(c, sampleYaml, sampleContents, &snap.SideInfo{})
+	snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{})
 	snapInfo, err := snap.ReadInfo("sample", &snap.SideInfo{})
 	c.Assert(err, IsNil)
 
@@ -671,6 +670,7 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 }
 
 const coreSnapYaml = `name: core
+version: 0
 type: os
 plugs:
   network-bind:
@@ -695,7 +695,7 @@ func (s *infoSuite) TestReadInfoFromSnapFileRenamesCorePlus(c *C) {
 // reading snap via ReadInfo renames clashing core plugs
 func (s *infoSuite) TestReadInfoRenamesCorePlugs(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), RealName: "core"}
-	snaptest.MockSnap(c, coreSnapYaml, sampleContents, si)
+	snaptest.MockSnap(c, coreSnapYaml, si)
 	info, err := snap.ReadInfo("core", si)
 	c.Assert(err, IsNil)
 	c.Check(info.Plugs["network-bind"], IsNil)
@@ -774,6 +774,22 @@ apps:
 	app := info.Apps["app1"]
 	socket := app.Sockets["sock1"]
 	c.Check(socket.File(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.app1.sock1.socket")
+}
+
+func (s *infoSuite) TestTimerFile(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: pans
+apps:
+  app1:
+    daemon: true
+    timer: mon,10:00-12:00
+`))
+
+	c.Assert(err, IsNil)
+
+	app := info.Apps["app1"]
+	timerFile := app.Timer.File()
+	c.Check(timerFile, Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.app1.timer")
+	c.Check(strings.TrimSuffix(app.ServiceFile(), ".service")+".timer", Equals, timerFile)
 }
 
 func (s *infoSuite) TestLayoutParsing(c *C) {

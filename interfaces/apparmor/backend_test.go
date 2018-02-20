@@ -69,7 +69,7 @@ while [ -n "$1" ]; do
 		--write-cache)
 			write=yes
 			;;
-		--replace|--remove)
+		--quiet|--replace|--remove)
 			# Ignore
 			;;
 		-O)
@@ -376,7 +376,7 @@ snippet
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	restore := release.MockAppArmorLevel(release.FullAppArmor)
 	defer restore()
-	restore = apparmor.MockMountInfo("") // mock away NFS detection
+	restore = osutil.MockMountInfo("") // mock away NFS detection
 	defer restore()
 
 	// NOTE: replace the real template with a shorter variant
@@ -403,9 +403,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		}
 		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 1)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-		data, err := ioutil.ReadFile(profile)
-		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, scenario.content)
+		c.Check(profile, testutil.FileEquals, scenario.content)
 		stat, err := os.Stat(profile)
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -413,15 +411,63 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 	}
 }
 
-var coreYaml string = `name: core
+const coreYaml = `name: core
 version: 1
 `
+
+func (s *backendSuite) writeVanillaSnapConfineProfile(c *C, coreInfo *snap.Info) {
+	vanillaProfilePath := filepath.Join(coreInfo.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
+	vanillaProfileText := []byte(`#include <tunables/global>
+/usr/lib/snapd/snap-confine (attach_disconnected) {
+    # We run privileged, so be fanatical about what we include and don't use
+    # any abstractions
+    /etc/ld.so.cache r,
+}
+`)
+	c.Assert(os.MkdirAll(dirs.SystemApparmorDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(vanillaProfilePath), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(vanillaProfilePath, vanillaProfileText, 0644), IsNil)
+}
+
+func (s *backendSuite) TestSnapConfineProfile(c *C) {
+	// Let's say we're working with the core snap at revision 111.
+	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
+	s.writeVanillaSnapConfineProfile(c, coreInfo)
+	// We expect to see the same profile, just anchored at a different directory.
+	expectedProfileDir := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d")
+	expectedProfileName := strings.Replace(filepath.Join(coreInfo.MountDir(), "usr/lib/snapd/snap-confine")[1:], "/", ".", -1)
+	expectedProfileGlob := strings.Replace(expectedProfileName, coreInfo.Revision.String(), "*", -1)
+	expectedProfileText := fmt.Sprintf(`#include <tunables/global>
+%s/usr/lib/snapd/snap-confine (attach_disconnected) {
+    # We run privileged, so be fanatical about what we include and don't use
+    # any abstractions
+    /etc/ld.so.cache r,
+}
+`, coreInfo.MountDir())
+
+	c.Assert(expectedProfileName, testutil.Contains, coreInfo.Revision.String())
+
+	// Compute the profile and see if it matches.
+	dir, glob, content, err := apparmor.SnapConfineFromCoreProfile(coreInfo)
+	c.Assert(err, IsNil)
+	c.Assert(dir, Equals, expectedProfileDir)
+	c.Assert(glob, Equals, expectedProfileGlob)
+	c.Assert(content, DeepEquals, map[string]*osutil.FileState{
+		expectedProfileName: {
+			Content: []byte(expectedProfileText),
+			Mode:    0644,
+		},
+	})
+}
 
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	restorer := release.MockOnClassic(true)
 	defer restorer()
 	restorer = release.MockForcedDevmode(false)
 	defer restorer()
+
+	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
+	s.writeVanillaSnapConfineProfile(c, coreInfo)
 
 	canaryName := strings.Replace(filepath.Join(dirs.SnapMountDir, "/core/2718/usr/lib/snapd/snap-confine"), "/", ".", -1)[1:]
 	canary := filepath.Join(dirs.SystemApparmorDir, canaryName)
@@ -434,8 +480,8 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, coreYaml, 111)
 
 	c.Check(osutil.FileExists(canary), Equals, false)
-	c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "-R", canaryName},
+	c.Check(s.parserCmd.Calls(), testutil.DeepContains, []string{
+		"apparmor_parser", "--remove", canaryName,
 	})
 }
 
@@ -445,29 +491,8 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 	restorer = release.MockForcedDevmode(false)
 	defer restorer()
 
-	cmd := testutil.MockCommand(c, "apparmor_parser", "")
-	defer cmd.Restore()
-
-	var mockAA = []byte(`# Author: Jamie Strandboge <jamie@canonical.com>
-#include <tunables/global>
-
-/usr/lib/snapd/snap-confine (attach_disconnected) {
-    # We run privileged, so be fanatical about what we include and don't use
-    # any abstractions
-    /etc/ld.so.cache r,
-}
-`)
-
-	err := os.MkdirAll(dirs.SystemApparmorDir, 0755)
-	c.Assert(err, IsNil)
-
-	// meh, the paths/filenames are all complicated :/
-	coreRoot := filepath.Join(dirs.SnapMountDir, "/core/111")
-	snapConfineApparmorInCore := filepath.Join(coreRoot, "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
-	err = os.MkdirAll(filepath.Dir(snapConfineApparmorInCore), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(snapConfineApparmorInCore, mockAA, 0644)
-	c.Assert(err, IsNil)
+	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
+	s.writeVanillaSnapConfineProfile(c, coreInfo)
 
 	// install the new core snap on classic triggers a new snap-confine
 	// for this snap-confine on core
@@ -475,18 +500,13 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 
 	newAA, err := filepath.Glob(filepath.Join(dirs.SystemApparmorDir, "*"))
 	c.Assert(err, IsNil)
-
 	c.Assert(newAA, HasLen, 1)
 	c.Check(newAA[0], Matches, `.*/etc/apparmor.d/.*.snap.core.111.usr.lib.snapd.snap-confine`)
 
-	content, err := ioutil.ReadFile(newAA[0])
-	c.Assert(err, IsNil)
 	// this is the key, rewriting "/usr/lib/snapd/snap-confine
-	c.Check(string(content), testutil.Contains, "/snap/core/111/usr/lib/snapd/snap-confine (attach_disconnected) {")
+	c.Check(newAA[0], testutil.FileContains, "/snap/core/111/usr/lib/snapd/snap-confine (attach_disconnected) {")
 	// no other changes other than that to the input
-	c.Check(string(content), Equals, fmt.Sprintf(`# Author: Jamie Strandboge <jamie@canonical.com>
-#include <tunables/global>
-
+	c.Check(newAA[0], testutil.FileEquals, fmt.Sprintf(`#include <tunables/global>
 %s/core/111/usr/lib/snapd/snap-confine (attach_disconnected) {
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
@@ -494,14 +514,14 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 }
 `, dirs.SnapMountDir))
 
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", newAA[0], "--cache-loc", dirs.SystemApparmorCacheDir},
-	})
+	c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{{
+		"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify",
+		fmt.Sprintf("--cache-loc=%s", dirs.SystemApparmorCacheDir), "--quiet", newAA[0],
+	}})
 
 	// snap-confine directory was created
 	_, err = os.Stat(dirs.SnapConfineAppArmorDir)
 	c.Check(err, IsNil)
-
 }
 
 func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
@@ -581,12 +601,12 @@ func (s *backendSuite) TestIsHomeUsingNFS(c *C) {
 		fstab: "localhost:/srv/nfs /mnt/nfs nfs defaults 0 0",
 	}}
 	for _, tc := range cases {
-		restore := apparmor.MockMountInfo(tc.mountinfo)
+		restore := osutil.MockMountInfo(tc.mountinfo)
 		defer restore()
-		restore = apparmor.MockEtcFstab(tc.fstab)
+		restore = osutil.MockEtcFstab(tc.fstab)
 		defer restore()
 
-		nfs, err := apparmor.IsHomeUsingNFS()
+		nfs, err := osutil.IsHomeUsingNFS()
 		if tc.errorPattern != "" {
 			c.Assert(err, ErrorMatches, tc.errorPattern, Commentf("test case %#v", tc))
 		} else {
@@ -599,9 +619,9 @@ func (s *backendSuite) TestIsHomeUsingNFS(c *C) {
 // snap-confine policy when NFS is not used.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoNFS(c *C) {
 	// Make it appear as if NFS was not used.
-	restore := apparmor.MockMountInfo("")
+	restore := osutil.MockMountInfo("")
 	defer restore()
-	restore = apparmor.MockEtcFstab("")
+	restore = osutil.MockEtcFstab("")
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -627,8 +647,8 @@ func MockEnableNFSWorkaroundCondition() (restore func()) {
 	// Mock mountinfo and fstab so that snapd thinks that NFS workaround
 	// is necessary. The details don't matter here. See TestIsHomeUsingNFS
 	// for details about what triggers the workaround.
-	restore1 := apparmor.MockMountInfo("")
-	restore2 := apparmor.MockEtcFstab("localhost:/srv/nfs /home nfs4 defaults 0 0")
+	restore1 := osutil.MockMountInfo("")
+	restore2 := osutil.MockEtcFstab("localhost:/srv/nfs /home nfs4 defaults 0 0")
 	return func() {
 		restore1()
 		restore2()
@@ -639,8 +659,8 @@ func MockDisableNFSWorkaroundCondition() (restore func()) {
 	// Mock mountinfo and fstab so that snapd thinks that NFS workaround is not
 	// necessary. The details don't matter here. See TestIsHomeUsingNFS for
 	// details about what triggers the workaround.
-	restore1 := apparmor.MockMountInfo("")
-	restore2 := apparmor.MockEtcFstab("")
+	restore1 := osutil.MockMountInfo("")
+	restore2 := osutil.MockEtcFstab("")
 	return func() {
 		restore1()
 		restore2()
@@ -697,10 +717,9 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileF
 	c.Assert(files[0].IsDir(), Equals, false)
 
 	// The policy allows network access.
-	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name()))
-	c.Assert(err, IsNil)
-	c.Assert(string(data), testutil.Contains, "network inet,")
-	c.Assert(string(data), testutil.Contains, "network inet6,")
+	fn := filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name())
+	c.Assert(fn, testutil.FileContains, "network inet,")
+	c.Assert(fn, testutil.FileContains, "network inet6,")
 
 	// The system apparmor profile of snap-confine was reloaded.
 	c.Assert(cmd.Calls(), HasLen, 1)
@@ -745,10 +764,9 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C)
 	c.Assert(files[0].IsDir(), Equals, false)
 
 	// The policy allows network access.
-	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name()))
-	c.Assert(err, IsNil)
-	c.Assert(string(data), testutil.Contains, "network inet,")
-	c.Assert(string(data), testutil.Contains, "network inet6,")
+	fn := filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name())
+	c.Assert(fn, testutil.FileContains, "network inet,")
+	c.Assert(fn, testutil.FileContains, "network inet6,")
 
 	// The distribution policy was not reloaded because snap-confine executes
 	// from core snap. This is handled separately by per-profile Setup.
@@ -758,7 +776,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C)
 // Test behavior when isHomeUsingNFS fails.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 	// Make corrupt mountinfo.
-	restore := apparmor.MockMountInfo("corrupt")
+	restore := osutil.MockMountInfo("corrupt")
 	defer restore()
 
 	// Intercept interaction with apparmor_parser

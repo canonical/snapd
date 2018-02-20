@@ -728,12 +728,13 @@ type alias struct {
 
 type catalogItem struct {
 	Name    string   `json:"package_name"`
+	Summary string   `json:"summary"`
 	Aliases []alias  `json:"aliases"`
 	Apps    []string `json:"apps"`
 }
 
 type SnapAdder interface {
-	AddSnap(snapName string, commands []string) error
+	AddSnap(snapName, summary string, commands []string) error
 }
 
 func decodeCatalog(resp *http.Response, names io.Writer, db SnapAdder) error {
@@ -773,7 +774,8 @@ func decodeCatalog(resp *http.Response, names io.Writer, db SnapAdder) error {
 		for _, app := range v.Apps {
 			commands = append(commands, snap.JoinSnapApp(v.Name, app))
 		}
-		if err := db.AddSnap(v.Name, commands); err != nil {
+
+		if err := db.AddSnap(v.Name, v.Summary, commands); err != nil {
 			return err
 		}
 	}
