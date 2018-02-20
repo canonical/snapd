@@ -160,7 +160,6 @@ func connect(st *state.State, change *state.Change, plugSnap, plugName, slotSnap
 
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-
 	connectInterface.Set("auto", autoConnectTask != nil)
 
 	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
@@ -189,6 +188,11 @@ func connect(st *state.State, change *state.Change, plugSnap, plugName, slotSnap
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectPlugHookSetup.Hook, connectPlugHookSetup.Snap)
 	connectPlugConnection := hookstate.HookTask(st, summary, connectPlugHookSetup, initialContext)
 	connectPlugConnection.WaitFor(connectSlotConnection)
+
+	// store IDs of the connect-plug/slot- hook tasks in the main 'connect' task,
+	// so that doConnect can conditionally mark them done on autoconnect.
+	connectInterface.Set("connect-slot-task", connectSlotConnection.ID())
+	connectInterface.Set("connect-plug-task", connectPlugConnection.ID())
 
 	return state.NewTaskSet(preparePlugConnection, prepareSlotConnection, connectInterface, connectSlotConnection, connectPlugConnection), nil
 }
