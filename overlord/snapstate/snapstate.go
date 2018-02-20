@@ -142,6 +142,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if snapst.IsInstalled() {
 		// unlink-current-snap (will stop services for copy-data)
 		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), snapsup.Name()))
+		stop.Set("stop-reason", snap.StopReasonRefresh)
 		addTask(stop)
 		prev = stop
 
@@ -178,6 +179,11 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		addTask(setupSecurityPhase2)
 		prev = setupSecurityPhase2
 	}
+
+	// auto-connections
+	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.Name()))
+	addTask(autoConnect)
+	prev = autoConnect
 
 	// setup aliases
 	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(i18n.G("Set automatic aliases for snap %q"), snapsup.Name()))
@@ -335,6 +341,13 @@ func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.Slot
 		return nil, nil, err
 	}
 	return &plugRef, &slotRef, nil
+}
+
+func ChangeConflictError(snapName, kind string) *changeConflictError {
+	return &changeConflictError{
+		snapName:   snapName,
+		changeKind: kind,
+	}
 }
 
 type changeConflictError struct {
@@ -1085,6 +1098,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 
 	stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q (%s) services"), snapsup.Name(), snapst.Current))
 	stopSnapServices.Set("snap-setup", &snapsup)
+	stopSnapServices.Set("stop-reason", snap.StopReasonDisable)
 
 	removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), snapsup.Name()))
 	removeAliases.Set("snap-setup-task", stopSnapServices.ID())
@@ -1246,6 +1260,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 
 		stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), name))
 		stopSnapServices.Set("snap-setup", snapsup)
+		stopSnapServices.Set("stop-reason", snap.StopReasonRemove)
 		prev = stopSnapServices
 
 		tasks := []*state.Task{stopSnapServices}

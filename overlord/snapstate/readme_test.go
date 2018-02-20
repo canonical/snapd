@@ -64,17 +64,13 @@ func (s *readmeSuite) TestWriteSnapREADME(c *C) {
 
 	// Missing file is created.
 	c.Assert(snapstate.WriteSnapReadme(), IsNil)
-	data, err := ioutil.ReadFile(f)
-	c.Assert(err, IsNil)
-	c.Check(string(data), testutil.Contains, "https://forum.snapcraft.io/t/the-snap-directory/2817")
+	c.Check(f, testutil.FileContains, "https://forum.snapcraft.io/t/the-snap-directory/2817")
 
 	// Corrupted file is cured.
-	err = os.Remove(f)
+	err := os.Remove(f)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(f, []byte("corrupted"), 0644)
 	c.Assert(err, IsNil)
 	c.Assert(snapstate.WriteSnapReadme(), IsNil)
-	data, err = ioutil.ReadFile(f)
-	c.Assert(err, IsNil)
-	c.Check(string(data), testutil.Contains, "https://forum.snapcraft.io/t/the-snap-directory/2817")
+	c.Check(f, testutil.FileContains, "https://forum.snapcraft.io/t/the-snap-directory/2817")
 }

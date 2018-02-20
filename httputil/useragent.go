@@ -41,7 +41,7 @@ func init() {
 }
 
 // SetUserAgentFromVersion sets up a user-agent string.
-func SetUserAgentFromVersion(version string, extraProds ...string) {
+func SetUserAgentFromVersion(version string, extraProds ...string) (restore func()) {
 	extras := make([]string, 1, 3)
 	extras[0] = "series " + release.Series
 	if release.OnClassic {
@@ -57,6 +57,7 @@ func SetUserAgentFromVersion(version string, extraProds ...string) {
 	if len(extraProds) != 0 {
 		extraProdStr = " " + strings.Join(extraProds, " ")
 	}
+	origUserAgent := userAgent
 	// xxx this assumes ReleaseInfo's ID and VersionID don't have weird characters
 	// (see rfc 7231 for values of weird)
 	// assumption checks out in practice, q.v. https://github.com/zyga/os-release-zoo
@@ -64,6 +65,9 @@ func SetUserAgentFromVersion(version string, extraProds ...string) {
 		strings.Join(extras, "; "), extraProdStr, release.ReleaseInfo.ID,
 		release.ReleaseInfo.VersionID, string(arch.UbuntuArchitecture()),
 		sanitizeKernelVersion(release.KernelVersion()))
+	return func() {
+		userAgent = origUserAgent
+	}
 }
 
 func sanitizeKernelVersion(in string) string {

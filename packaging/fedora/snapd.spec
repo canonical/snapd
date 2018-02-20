@@ -375,6 +375,9 @@ rm -rf vendor/*
 # Generate version files
 ./mkversion.sh "%{version}-%{release}"
 
+# We don't want/need squashfuse in the rpm
+sed -e 's:_ "github.com/snapcore/squashfuse"::g' -i systemd/systemd.go
+
 # Build snapd
 mkdir -p src/github.com/snapcore
 ln -s ../../../ src/github.com/snapcore/snapd
@@ -640,7 +643,7 @@ popd
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
-%{_libexecdir}/snapd/snappy-app-dev
+%{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/system-shutdown
 %{_libexecdir}/snapd/snap-gdb-shim
 %{_mandir}/man1/snap-confine.1*
