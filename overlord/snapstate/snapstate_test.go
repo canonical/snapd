@@ -5532,7 +5532,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesLegacyWeekdaySchedules(c *C) 
 	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule configuration: cannot parse "mon@12:00": not a valid time`)
 	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
-	c.Check(schedule, Equals, "00:00-24:00/4")
+	c.Check(schedule, Equals, "00:00~24:00/4")
 	c.Check(legacy, Equals, false)
 
 	tr = config.NewTransaction(s.state)
@@ -5612,7 +5612,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToDefaultOnError(c *C) {
 	// cannot be parsed
 	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
-	c.Check(schedule, Equals, "00:00-24:00/4")
+	c.Check(schedule, Equals, "00:00~24:00/4")
 	c.Check(legacy, Equals, false)
 
 	tr = config.NewTransaction(s.state)
@@ -5643,7 +5643,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackOnEmptyToDefaultSchedule(c *
 	// refresh.schedule was set
 	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
-	c.Check(schedule, Equals, "00:00-24:00/4")
+	c.Check(schedule, Equals, "00:00~24:00/4")
 	c.Check(legacy, Equals, false)
 
 	tr = config.NewTransaction(s.state)
