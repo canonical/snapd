@@ -52,4 +52,16 @@ func (s *limitedBufferSuite) TestLimitedBuffer(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(w.Bytes(), DeepEquals, []byte("exyz12"))
 	c.Assert(n, Equals, 2)
+
+	// eventually 2 times the size and this triggers the truncate in Write
+	n, err = w.Write([]byte("abcd"))
+	c.Assert(err, IsNil)
+	c.Assert(w.Bytes(), DeepEquals, []byte("12abcd"))
+	c.Assert(n, Equals, 4)
+
+	// more than maxBytes in a single write
+	n, err = w.Write([]byte("abcdefghijklmnopqrstuvwxyz"))
+	c.Assert(err, IsNil)
+	c.Assert(w.Bytes(), DeepEquals, []byte("uvwxyz"))
+	c.Assert(n, Equals, 26)
 }
