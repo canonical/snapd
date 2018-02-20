@@ -477,9 +477,9 @@ func generateOnCalendarSchedules(timer string) ([]string, error) {
 		return nil, err
 	}
 
-	calendarEvents := make([]string, 0, 10)
+	calendarEvents := make([]string, 0, len(schedule))
 	for _, sched := range schedule {
-		days := make([]string, 0, 10)
+		days := make([]string, 0, len(sched.WeekSpans))
 		for _, week := range sched.WeekSpans {
 			abbrev := strings.Join(makeAbbrevWeekdays(week.Start.Weekday, week.End.Weekday), ",")
 			switch week.Start.Pos {
@@ -516,7 +516,7 @@ func generateOnCalendarSchedules(timer string) ([]string, error) {
 			days = []string{"*-*-*"}
 		}
 
-		startTimes := make([]string, 0, 10)
+		startTimes := make([]string, 0, len(sched.ClockSpans))
 		for _, clocks := range sched.ClockSpans {
 			// use expanded clock spans
 			for _, span := range clocks.ClockSpans() {
