@@ -29,12 +29,6 @@ var (
 	AddImplicitSlots = addImplicitSlots
 )
 
-func MockConflictPredicate(pred func(*state.Task) bool) (restore func()) {
-	old := noConflictOnConnectTasks
-	noConflictOnConnectTasks = pred
-	return func() { noConflictOnConnectTasks = old }
-}
-
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the
 // InterfaceManager.
 func (m *InterfaceManager) AddForeignTaskHandlers() {

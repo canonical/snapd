@@ -2,7 +2,7 @@
 # udev callout to allow a snap to access a device node
 set -e
 # debugging
-#exec >>/tmp/snappy-app-dev.log
+#exec >>/tmp/snap-device-helper.log
 #exec 2>&1
 #set -x
 # end debugging

@@ -355,11 +355,11 @@ install-exec-hook::
 	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
 
 ##
-## snappy-app-dev
+## snap-device-helper
 ##
 
 EXTRA_DIST += \
-	snap-confine/snappy-app-dev
+	snap-confine/snap-device-helper
 
 # NOTE: This makes distcheck fail but it is required for udev, so go figure.
 # http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
@@ -367,7 +367,7 @@ EXTRA_DIST += \
 # Install support script for udev rules
 install-exec-local::
 	install -d -m 755 $(DESTDIR)$(libexecdir)
-	install -m 755 $(srcdir)/snap-confine/snappy-app-dev $(DESTDIR)$(libexecdir)
+	install -m 755 $(srcdir)/snap-confine/snap-device-helper $(DESTDIR)$(libexecdir)
 
 ##
 ## snap-discard-ns

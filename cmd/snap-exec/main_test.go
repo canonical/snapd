@@ -235,9 +235,7 @@ func (s *snapExecSuite) TestSnapExecAppRealIntegration(c *C) {
 	err = snapExec.Run()
 	c.Assert(err, IsNil)
 
-	output, err := ioutil.ReadFile(canaryFile)
-	c.Assert(err, IsNil)
-	c.Assert(string(output), Equals, `run-app
+	c.Assert(canaryFile, testutil.FileEquals, `run-app
 cmd-arg1
 foo
 --bar=baz
@@ -277,9 +275,7 @@ func (s *snapExecSuite) TestSnapExecHookRealIntegration(c *C) {
 	err := snapExec.Run()
 	c.Assert(err, IsNil)
 
-	output, err := ioutil.ReadFile(canaryFile)
-	c.Assert(err, IsNil)
-	c.Assert(string(output), Equals, "configure\n\n")
+	c.Assert(canaryFile, testutil.FileEquals, "configure\n\n")
 }
 
 func actuallyExec(argv0 string, argv []string, env []string) error {
