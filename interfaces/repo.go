@@ -716,13 +716,13 @@ func (r *Repository) Connections(snapName string) ([]ConnRef, error) {
 
 	var conns []ConnRef
 	for _, plugInfo := range r.plugs[snapName] {
-		for slotInfo, _ := range r.plugSlots[plugInfo] {
+		for slotInfo := range r.plugSlots[plugInfo] {
 			connRef := *NewConnRef(plugInfo, slotInfo)
 			conns = append(conns, connRef)
 		}
 	}
 	for _, slotInfo := range r.slots[snapName] {
-		for plugInfo, _ := range r.slotPlugs[slotInfo] {
+		for plugInfo := range r.slotPlugs[slotInfo] {
 			connRef := *NewConnRef(plugInfo, slotInfo)
 			conns = append(conns, connRef)
 		}
