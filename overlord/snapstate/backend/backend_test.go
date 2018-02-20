@@ -66,6 +66,7 @@ apps:
 
 func (s *backendSuite) TestOpenSnapFilebSideInfo(c *C) {
 	const yaml = `name: foo
+version: 0
 apps:
  bar:
   command: bin/bar

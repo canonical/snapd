@@ -28,6 +28,8 @@ import (
 	"testing"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -362,9 +364,7 @@ func main() {
 	main()
 
 	// verify its what we expect
-	got, err := ioutil.ReadFile(outName)
-	c.Assert(err, IsNil)
-	expected := fmt.Sprintf(`%s
+	c.Assert(outName, testutil.FileEquals, fmt.Sprintf(`%s
 #: %[2]s:9
 msgid   "abc"
 msgstr  ""
@@ -387,8 +387,7 @@ msgstr[1]  ""
 msgid   "zz %%s"
 msgstr  ""
 
-`, header, fname)
-	c.Assert(string(got), Equals, expected)
+`, header, fname))
 }
 
 func (s *xgettextTestSuite) TestProcessFilesConcat(c *C) {

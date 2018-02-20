@@ -12,7 +12,7 @@ prepare: |
 
 restore: |
     # Restore the initial timeserver
-    if [ -f timeserver.txt ]; then
+    if [ -s timeserver.txt ]; then
         timedatectl set-ntp "$(cat timeserver.txt)"
         rm -f timeserver.txt
     fi

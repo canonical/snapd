@@ -46,18 +46,21 @@ var _ = Suite(&AvahiControlInterfaceSuite{
 })
 
 const avahiControlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [avahi-control]
 `
 
 const avahiControlProducerYaml = `name: producer
+version: 0
 apps:
  app:
   slots: [avahi-control]
 `
 
 const avahiControlCoreYaml = `name: core
+version: 0
 slots:
   avahi-control:
 `

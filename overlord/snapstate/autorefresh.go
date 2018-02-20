@@ -32,7 +32,7 @@ import (
 )
 
 // the default refresh pattern
-const defaultRefreshSchedule = "00:00-24:00/4"
+const defaultRefreshSchedule = "00:00~24:00/4"
 
 // hooks setup by devicestate
 var (

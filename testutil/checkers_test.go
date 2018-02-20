@@ -27,11 +27,16 @@
 package testutil
 
 import (
+	"io/ioutil"
+	"path/filepath"
 	"reflect"
+	"regexp"
 	"runtime"
 	"testing"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 func Test(t *testing.T) {
@@ -255,4 +260,72 @@ func (s *CheckersS) TestDeepContainsUncomparableType(c *C) {
 	testCheck(c, DeepContains, true, "", containerArray, elem)
 	testCheck(c, DeepContains, true, "", containerSlice, elem)
 	testCheck(c, DeepContains, true, "", containerMap, elem)
+}
+
+type myStringer struct{ str string }
+
+func (m myStringer) String() string { return m.str }
+
+func (s *CheckersS) TestFileEquals(c *C) {
+	d := c.MkDir()
+	content := strutil.MakeRandomString(10)
+	filename := filepath.Join(d, "canary")
+	c.Assert(ioutil.WriteFile(filename, []byte(content), 0644), IsNil)
+
+	testInfo(c, FileEquals, "FileEquals", []string{"filename", "contents"})
+	testCheck(c, FileEquals, true, "", filename, content)
+	testCheck(c, FileEquals, true, "", filename, []byte(content))
+	testCheck(c, FileEquals, true, "", filename, myStringer{content})
+
+	twofer := content + content
+	testCheck(c, FileEquals, false, "", filename, twofer)
+	testCheck(c, FileEquals, false, "", filename, []byte(twofer))
+	testCheck(c, FileEquals, false, "", filename, myStringer{twofer})
+
+	testCheck(c, FileEquals, false, `Can't read file "": open : no such file or directory`, "", "")
+	testCheck(c, FileEquals, false, "Filename must be a string", 42, "")
+	testCheck(c, FileEquals, false, "Can't compare file contents with something of type int", filename, 1)
+}
+
+func (s *CheckersS) TestFileContains(c *C) {
+	d := c.MkDir()
+	content := strutil.MakeRandomString(10)
+	filename := filepath.Join(d, "canary")
+	c.Assert(ioutil.WriteFile(filename, []byte(content), 0644), IsNil)
+
+	testInfo(c, FileContains, "FileContains", []string{"filename", "contents"})
+	testCheck(c, FileContains, true, "", filename, content[1:])
+	testCheck(c, FileContains, true, "", filename, []byte(content[1:]))
+	testCheck(c, FileContains, true, "", filename, myStringer{content[1:]})
+	// undocumented
+	testCheck(c, FileContains, true, "", filename, regexp.MustCompile(".*"))
+
+	twofer := content + content
+	testCheck(c, FileContains, false, "", filename, twofer)
+	testCheck(c, FileContains, false, "", filename, []byte(twofer))
+	testCheck(c, FileContains, false, "", filename, myStringer{twofer})
+	// undocumented
+	testCheck(c, FileContains, false, "", filename, regexp.MustCompile("^$"))
+
+	testCheck(c, FileContains, false, `Can't read file "": open : no such file or directory`, "", "")
+	testCheck(c, FileContains, false, "Filename must be a string", 42, "")
+	testCheck(c, FileContains, false, "Can't compare file contents with something of type int", filename, 1)
+}
+
+func (s *CheckersS) TestFileMatches(c *C) {
+	d := c.MkDir()
+	content := strutil.MakeRandomString(10)
+	filename := filepath.Join(d, "canary")
+	c.Assert(ioutil.WriteFile(filename, []byte(content), 0644), IsNil)
+
+	testInfo(c, FileMatches, "FileMatches", []string{"filename", "regex"})
+	testCheck(c, FileMatches, true, "", filename, ".*")
+	testCheck(c, FileMatches, true, "", filename, "^"+regexp.QuoteMeta(content)+"$")
+
+	testCheck(c, FileMatches, false, "", filename, "^$")
+	testCheck(c, FileMatches, false, "", filename, "123"+regexp.QuoteMeta(content))
+
+	testCheck(c, FileMatches, false, `Can't read file "": open : no such file or directory`, "", "")
+	testCheck(c, FileMatches, false, "Filename must be a string", 42, ".*")
+	testCheck(c, FileMatches, false, "Regex must be a string", filename, 1)
 }
