@@ -192,7 +192,13 @@ func (m *SnapManager) installPrereqs(t *state.Task, wanted []string, userID int)
 			return err
 		}
 
+		// check if the install of the wanted snap is already in
+		// progress
 		for _, tc := range t.Change().Tasks() {
+			// we only care for link-snap here, if there
+			// is a discard-snap in the pending tasks we
+			// just put the install of the wanted snap
+			// back into the changes
 			if tc.Kind() == "link-snap" {
 				snapsup, err := TaskSnapSetup(tc)
 				if err != nil {
@@ -203,8 +209,6 @@ func (m *SnapManager) installPrereqs(t *state.Task, wanted []string, userID int)
 					continue
 				}
 			}
-			// if there is a discard-snap we just put the install
-			// of the wanted snap
 		}
 
 		// not installed, nor queued for install -> install it
