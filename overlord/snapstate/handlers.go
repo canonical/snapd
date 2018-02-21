@@ -183,9 +183,9 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) installOnePrereq(st *state.State, prereqName string, userID int) (*state.TaskSet, error) {
+func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string, userID int) (*state.TaskSet, error) {
 	// installed already?
-	isInstalled, err := isInstalled(st, prereqName)
+	isInstalled, err := isInstalled(st, snapName)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (m *SnapManager) installOnePrereq(st *state.State, prereqName string, userI
 		return nil, nil
 	}
 	// in progress?
-	inFlight, err := linkSnapInFlight(st, prereqName)
+	inFlight, err := linkSnapInFlight(st, snapName)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +202,7 @@ func (m *SnapManager) installOnePrereq(st *state.State, prereqName string, userI
 	}
 
 	// not installed, nor queued for install -> install it
-	ts, err := Install(st, prereqName, defaultBaseSnapsChannel, snap.R(0), userID, Flags{})
+	ts, err := Install(st, snapName, defaultBaseSnapsChannel, snap.R(0), userID, Flags{})
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
 	// retrying the operation.
@@ -223,7 +223,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	// can be installed together we add the tasks to the change.
 	var tss []*state.TaskSet
 	for _, prereqName := range prereq {
-		ts, err := m.installOnePrereq(st, prereqName, userID)
+		ts, err := m.installOneBaseOrRequired(st, prereqName, userID)
 		if err != nil {
 			return err
 		}
@@ -232,7 +232,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 		}
 		tss = append(tss, ts)
 	}
-	tsBase, err := m.installOnePrereq(st, base, userID)
+	tsBase, err := m.installOneBaseOrRequired(st, base, userID)
 	if err != nil {
 		return err
 	}

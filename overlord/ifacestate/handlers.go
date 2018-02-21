@@ -566,7 +566,10 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			continue
 		}
 		for _, t := range chg.Tasks() {
-			if t.Status().Ready() || t.Kind() != "link-snap" {
+			if t.Status().Ready() {
+				continue
+			}
+			if t.Kind() != "link-snap" && t.Kind() != "setup-profile" {
 				continue
 			}
 			if snapsup, err := snapstate.TaskSnapSetup(t); err == nil {
