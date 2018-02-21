@@ -8460,7 +8460,7 @@ func (s contentStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap
 		}
 	case "snap-content-slot":
 		info.Slots = map[string]*snap.SlotInfo{
-			"some-plug": {
+			"some-slot": {
 				Snap:      info,
 				Name:      "shared-content",
 				Interface: "content",
@@ -8470,7 +8470,6 @@ func (s contentStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap
 			},
 		}
 	}
-
 	return info, err
 }
 
@@ -8627,12 +8626,23 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		{
 			op: "update-aliases",
 		},
+		{
+			op:    "cleanup-trash",
+			name:  "snap-content-plug",
+			revno: snap.R(42),
+		},
+		{
+			op:    "cleanup-trash",
+			name:  "snap-content-slot",
+			revno: snap.R(11),
+		},
 	}
-	// start with an easier-to-read error if this fails:
-	without_trash := len(s.fakeBackend.ops.Ops()) - 2
-	c.Assert(s.fakeBackend.ops.Ops()[:without_trash], DeepEquals, expected.Ops())
-	c.Assert(s.fakeBackend.ops[:without_trash], DeepEquals, expected)
-
+	// snap and default provider are installed in parallel so we can't
+	// do a simple c.Check(ops, DeepEquals, fakeOps{...})
+	c.Check(len(s.fakeBackend.ops), Equals, len(expected))
+	for _, op := range expected {
+		c.Check(s.fakeBackend.ops, testutil.DeepContains, op)
+	}
 }
 
 func (s *snapmgrTestSuite) TestSnapManagerLegacyRefreshSchedule(c *C) {

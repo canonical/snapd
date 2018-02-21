@@ -159,27 +159,29 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 
 	// we need to make sure we install all prereqs together in one
 	// operation
-	wanted := make([]string, len(snapsup.Prereq), len(snapsup.Prereq)+1)
-	copy(wanted, snapsup.Prereq)
-	// append base
-	wanted = append(wanted, defaultCoreSnapName)
+	base := defaultCoreSnapName
 	if snapsup.Base != "" {
-		wanted[len(wanted)-1] = snapsup.Base
+		base = snapsup.Base
 	}
-	if err := m.installPrereqs(t, wanted, snapsup.UserID); err != nil {
+	if err := m.installPrereqs(t, base, snapsup.Prereq, snapsup.UserID); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (m *SnapManager) installPrereqs(t *state.Task, wanted []string, userID int) error {
+func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string, userID int) error {
 	st := t.State()
 
 	// We try to install all wanted snaps. If one snap cannot be installed
 	// because of change conflicts or similar we retry. Only if all snaps
 	// can be installed together we add the tasks to the change.
 	var tss []*state.TaskSet
+	var tsBase *state.TaskSet
+	wanted := make([]string, 0, len(prereq)+1)
+	wanted = append(wanted, prereq...)
+	// base must be last
+	wanted = append(wanted, base)
 	for _, prereqName := range wanted {
 		var prereqState SnapState
 		err := Get(st, prereqName, &prereqState)
@@ -226,15 +228,24 @@ func (m *SnapManager) installPrereqs(t *state.Task, wanted []string, userID int)
 			return err
 		}
 		tss = append(tss, ts)
+		if prereqName == base {
+			tsBase = ts
+		}
 	}
 
 	// inject install for prereq into this change
 	chg := t.Change()
-	waitTasks := chg.Tasks()
+	// ensure original tasks wait for the base
+	if tsBase != nil {
+		for _, t := range chg.Tasks() {
+			t.WaitAll(tsBase)
+		}
+	}
 	for _, ts := range tss {
 		ts.JoinLane(st.NewLane())
-		for _, t := range waitTasks {
-			t.WaitAll(ts)
+		// ensure new tasks wait for the base
+		if tsBase != nil && tsBase != ts {
+			ts.WaitAll(tsBase)
 		}
 		chg.AddAll(ts)
 	}
