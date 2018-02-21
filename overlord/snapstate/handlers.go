@@ -115,18 +115,17 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 const defaultCoreSnapName = "core"
 const defaultBaseSnapsChannel = "stable"
 
-func changeInFlight(st *state.State, snapName string) (bool, error) {
+func linkSnapInFlight(st *state.State, snapName string) (bool, error) {
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
 			continue
 		}
 		for _, tc := range chg.Tasks() {
-			if tc.Kind() == "link-snap" || tc.Kind() == "discard-snap" {
+			if tc.Kind() == "link-snap" {
 				snapsup, err := TaskSnapSetup(tc)
 				if err != nil {
 					return false, err
 				}
-				// some other change aleady inflight
 				if snapsup.Name() == snapName {
 					return true, nil
 				}
@@ -135,6 +134,20 @@ func changeInFlight(st *state.State, snapName string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func isInstalled(st *state.State, snapName string) (bool, error) {
+	var snapState SnapState
+	err := Get(st, snapName, &snapState)
+	// we have the prereq already
+	if err == nil {
+		return true, nil
+	}
+	if err == state.ErrNoState {
+		return false, nil
+	}
+	// real error
+	return false, err
 }
 
 // timeout for tasks to check if the prerequisites are ready
@@ -170,6 +183,38 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func (m *SnapManager) installOnePrereq(st *state.State, prereqName string, userID int) (*state.TaskSet, error) {
+	// installed already?
+	isInstalled, err := isInstalled(st, prereqName)
+	if err != nil {
+		return nil, err
+	}
+	if isInstalled {
+		return nil, nil
+	}
+	// in progress?
+	inFlight, err := linkSnapInFlight(st, prereqName)
+	if err != nil {
+		return nil, err
+	}
+	if inFlight {
+		return nil, nil
+	}
+
+	// not installed, nor queued for install -> install it
+	ts, err := Install(st, prereqName, defaultBaseSnapsChannel, snap.R(0), userID, Flags{})
+	// something might have triggered an explicit install while
+	// the state was unlocked -> deal with that here by simply
+	// retrying the operation.
+	if _, ok := err.(changeDuringInstallError); ok {
+		return nil, &state.Retry{After: prerequisitesRetryTimeout}
+	}
+	if _, ok := err.(changeConflictError); ok {
+		return nil, &state.Retry{After: prerequisitesRetryTimeout}
+	}
+	return ts, err
+}
+
 func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string, userID int) error {
 	st := t.State()
 
@@ -177,77 +222,35 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	// because of change conflicts or similar we retry. Only if all snaps
 	// can be installed together we add the tasks to the change.
 	var tss []*state.TaskSet
-	var tsBase *state.TaskSet
-	wanted := make([]string, 0, len(prereq)+1)
-	wanted = append(wanted, prereq...)
-	// base must be last
-	wanted = append(wanted, base)
-	for _, prereqName := range wanted {
-		var prereqState SnapState
-		err := Get(st, prereqName, &prereqState)
-		// we have the prereq already
-		if err == nil {
-			continue
-		}
-		// if it is a real error, report
-		if err != state.ErrNoState {
-			return err
-		}
-
-		// check if the install of the wanted snap is already in
-		// progress
-		for _, tc := range t.Change().Tasks() {
-			// we only care for link-snap here, if there
-			// is a discard-snap in the pending tasks we
-			// just put the install of the wanted snap
-			// back into the changes
-			if tc.Kind() == "link-snap" {
-				snapsup, err := TaskSnapSetup(tc)
-				if err != nil {
-					return err
-				}
-				// we have the prereq already queued
-				if snapsup.Name() == prereqName {
-					continue
-				}
-			}
-		}
-
-		// not installed, nor queued for install -> install it
-		ts, err := Install(st, prereqName, defaultBaseSnapsChannel, snap.R(0), userID, Flags{})
-		// something might have triggered an explicit install while
-		// the state was unlocked -> deal with that here by simply
-		// retrying the operation.
-		if _, ok := err.(changeDuringInstallError); ok {
-			return &state.Retry{After: prerequisitesRetryTimeout}
-		}
-		if _, ok := err.(changeConflictError); ok {
-			return &state.Retry{After: prerequisitesRetryTimeout}
-		}
+	for _, prereqName := range prereq {
+		ts, err := m.installOnePrereq(st, prereqName, userID)
 		if err != nil {
 			return err
 		}
-		tss = append(tss, ts)
-		if prereqName == base {
-			tsBase = ts
+		if ts == nil {
+			continue
 		}
+		tss = append(tss, ts)
+	}
+	tsBase, err := m.installOnePrereq(st, base, userID)
+	if err != nil {
+		return err
 	}
 
-	// inject install for prereq into this change
 	chg := t.Change()
-	// ensure original tasks wait for the base
+	// add all required snaps, no ordering, this will be done in the
+	// auto-connect task handler
+	for _, ts := range tss {
+		ts.JoinLane(st.NewLane())
+		chg.AddAll(ts)
+	}
+	// add the base if needed, everything else must wait on this
 	if tsBase != nil {
+		tsBase.JoinLane(st.NewLane())
 		for _, t := range chg.Tasks() {
 			t.WaitAll(tsBase)
 		}
-	}
-	for _, ts := range tss {
-		ts.JoinLane(st.NewLane())
-		// ensure new tasks wait for the base
-		if tsBase != nil && tsBase != ts {
-			ts.WaitAll(tsBase)
-		}
-		chg.AddAll(ts)
+		chg.AddAll(tsBase)
 	}
 
 	// make sure that the new change is committed to the state
