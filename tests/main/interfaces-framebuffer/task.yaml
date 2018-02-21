@@ -11,20 +11,16 @@ prepare: |
     snap try $TESTSLIB/snaps/test-snapd-framebuffer
 
 execute: |
-    CONNECTED_PATTERN=":framebuffer +test-snapd-framebuffer"
-    DISCONNECTED_PATTERN="\- +test-snapd-framebuffer:framebuffer"
+    echo "The plug is not connected by default"
+    snap interfaces | MATCH "\- +test-snapd-framebuffer:framebuffer"
 
     if [ ! -e /dev/fb0 ]; then
         echo "Framebuffer not available on /dev/fb0"
         exit 0
     fi
 
-    echo "The plug is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
-
     echo "When the interface is connected"
     snap connect test-snapd-framebuffer:framebuffer
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to write in the framebuffer
     test-snapd-framebuffer.write "123"

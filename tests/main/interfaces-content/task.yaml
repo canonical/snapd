@@ -16,11 +16,8 @@ prepare: |
     snap install --edge test-snapd-content-plug
 
 execute: |
-    CONNECTED_PATTERN="test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug"
-    DISCONNECTED_PATTERN="(?s).*?test-snapd-content-slot:shared-content-slot +-.*?- +test-snapd-content-plug:shared-content-plug"
-
     echo "Then the snap is listed as connected"
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    snap interfaces | grep -Pzq "test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug"
 
     echo "And fstab files are created"
     [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
@@ -31,18 +28,14 @@ execute: |
     echo "And the current mount profile is the same as the desired mount profile"
     diff -u /run/snapd/ns/snap.test-snapd-content-plug.fstab /var/lib/snapd/mount/snap.test-snapd-content-plug.fstab
 
-    echo "============================================"
-
     echo "When the plug is disconnected"
     snap disconnect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the fstab files are removed"
     [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -eq 0 ]
 
     echo "When the plug is reconnected"
     snap connect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the fstab files are recreated"
     [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]

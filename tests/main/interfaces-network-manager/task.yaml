@@ -14,13 +14,11 @@ description: |
 # trying to deconfigure the wifi network which is already owned.
 systems: [ubuntu-core-16-64, ubuntu-core-16-32]
 
-execute: |
-    CONNECTED_PATTERN="^network-manager:service +network-manager:nmcli"
-    DISCONNECTED_PATTERN="^network-manager:service +-$"
-
+prepare: |
     echo "Give a network-manager snap is installed"
     snap install network-manager
 
+execute: |
     # using wait_for_service is not enough, systemd considers the service
     # active even when it is not (yet) listening to dbus
     for i in $(seq 300); do
@@ -30,8 +28,8 @@ execute: |
         sleep 1
     done
 
-    echo "Then the plug is connected by default"
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
+    echo "The interface is connected by default"
+    snap interfaces | MATCH "network-manager:service .*network-manager:nmcli"
 
     echo "And allows to add a new connection"
     conn_name=nmtest
@@ -46,7 +44,6 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect network-manager:nmcli
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the consumer is not able to access the provided methods"
     if network-manager.nmcli general 2>${PWD}/call.error; then

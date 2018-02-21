@@ -3,10 +3,6 @@ summary: Ensure that the raw-usb interface works.
 details: |
     The raw-usb interface allows detection and grants access to all connected USB devices.
 
-environment:
-    CONNECTED_PATTERN: ':raw-usb +test-snapd-raw-usb'
-    DISCONNECTED_PATTERN: '\- +test-snapd-raw-usb:raw-usb'
-
 prepare: |
     . "$TESTSLIB/snaps.sh"
     install_local test-snapd-raw-usb
@@ -16,11 +12,10 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "\- +test-snapd-raw-usb:raw-usb"
 
     echo "When the interface is connected"
     snap connect test-snapd-raw-usb:raw-usb
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     if ! [ -d /sys/bus/usb/devices/usb1 ]; then
         echo "No usb devices registered"
@@ -47,7 +42,6 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-raw-usb:raw-usb
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to check for USB devices"
     if test-snapd-raw-usb.sh -c "cat /sys/bus/usb/devices/usb1/serial" 2>${PWD}/call.error; then

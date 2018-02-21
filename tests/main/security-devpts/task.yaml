@@ -9,13 +9,9 @@ execute: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-devpts
 
-    CONNECTED_PATTERN=":physical-memory-observe +test-snapd-devpts"
-    DISCONNECTED_PATTERN="\- +test-snapd-devpts:physical-memory-observe"
-
     echo "When no plugs are not connected"
-    if snap interfaces | MATCH "$CONNECTED_PATTERN" ; then
+    if snap interfaces | MATCH ":physical-memory-observe .*test-snapd-devpts" ; then
         snap disconnect test-snapd-devpts:physical-memory-observe
-        snap interfaces | MATCH "$DISCONNECTED_PATTERN"
     fi
 
     echo "Then can openpty"
@@ -26,7 +22,6 @@ execute: |
 
     echo "When a udev tagging plug is connected"
     snap connect test-snapd-devpts:physical-memory-observe
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then can openpty"
     test-snapd-devpts.openpty | MATCH PASS

@@ -8,8 +8,6 @@ environment:
     TRUSTDB: "$HOME/.gnupg/trustdb.gpg"
     TRUSTEDKEYS: "$HOME/.gnupg/trustedkeys.gpg"
     CONFIG: "$HOME/.gnupg/gpg.conf"
-    CONNECTED_PATTERN: ':gpg-public-keys +test-snapd-gpg-public-keys'
-    DISCONNECTED_PATTERN: '\- +test-snapd-gpg-public-keys:gpg-public-keys'
 
 prepare: |
     . $TESTSLIB/snaps.sh
@@ -34,7 +32,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "\- +test-snapd-gpg-public-keys:gpg-public-keys"
 
     echo "When the interface is connected"
     snap connect test-snapd-gpg-public-keys:gpg-public-keys
@@ -60,7 +58,6 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-gpg-public-keys:gpg-public-keys
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to read gpg keys"
     if test-snapd-gpg-public-keys.sh -c "cat $TRUSTEDKEYS" 2>${PWD}/call.error; then

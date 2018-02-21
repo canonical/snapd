@@ -32,17 +32,13 @@ execute: |
         echo $(dbus-send --print-reply --dest=com.canonical.Autopilot.Introspection /com/canonical/Autopilot/Introspection com.canonical.Autopilot.Introspection.${method})
     }
 
-    CONNECTED_PATTERN=":autopilot-introspection +test-snapd-autopilot-consumer"
-    DISCONNECTED_PATTERN="^\- +test-snapd-autopilot-consumer:autopilot-introspection"
-
     export $(cat dbus.env)
 
     echo "Then the plug is disconnected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "^\- +test-snapd-autopilot-consumer:autopilot-introspection"
 
     echo "When the plug is connected"
     snap connect test-snapd-autopilot-consumer:autopilot-introspection
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the dbus name is properly reserved and the snap app version can be introspected"
 
@@ -62,12 +58,9 @@ execute: |
         exit 0
     fi
 
-    echo "================================="
-
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "When the plug is disconnected"
         snap disconnect test-snapd-autopilot-consumer:autopilot-introspection
-        snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
         echo "Then the snap version is not introspectable"
         if $SNAP_MOUNT_DIR/bin/test-snapd-autopilot-consumer.consumer GetVersion 2>${PWD}/getversion.error ; then

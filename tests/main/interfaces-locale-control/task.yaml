@@ -22,9 +22,11 @@ prepare: |
         fi
     fi
 
+    . "$TESTSLIB/snaps.sh"
+
     echo "Given a snap declaring a plug on the locale-control interface is installed"
-    snap pack $TESTSLIB/snaps/locale-control-consumer
-    snap install --dangerous locale-control-consumer_1.0_all.snap
+    install_local locale-control-consumer
+
     mv /etc/default/locale locale.back
     cat > /etc/default/locale <<EOF
     LANG="$LANG"
@@ -41,7 +43,7 @@ restore: |
         fi
     fi
 
-    rm -f locale-control-consumer_1.0_all.snap locale-read.error locale-write.error
+    rm -f locale-read.error locale-write.error
     mv locale.back /etc/default/locale
 
 execute: |
@@ -54,21 +56,14 @@ execute: |
         fi
     fi
 
-    CONNECTED_PATTERN=":locale-control +locale-control-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +locale-control-consumer:locale-control"
-
-    echo "Then it is not connected by default"
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
-
-    echo "==================================="
+    echo "The interface is not connected by default"
+    snap interfaces | MATCH "\- +locale-control-consumer:locale-control"
 
     echo "When the plug is connected"
     snap connect locale-control-consumer:locale-control
 
     echo "Then the snap is able to read the locale configuration"
     [ "$(su -l -c 'locale-control-consumer.get LANG' test)" = "$LANG" ]
-
-    echo "==================================="
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "When the plug is disconnected"
@@ -80,8 +75,6 @@ execute: |
             exit 1
         fi
         grep -q "Permission denied" locale-read.error
-
-        echo "==================================="
     fi
 
     echo "When the plug is connected"
@@ -92,8 +85,6 @@ execute: |
     grep -q "LANG=\"mylang\"" /etc/default/locale
 
     if [ "$(snap debug confinement)" = strict ] ; then
-        echo "==================================="
-
         echo "When the plug is disconnected"
         snap disconnect locale-control-consumer:locale-control
 

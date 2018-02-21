@@ -23,9 +23,9 @@ environment:
     DESTINATION_IP: "172.26.0.15"
 
 prepare: |
+    . "$TESTSLIB/snaps.sh"
     echo "Given a snap declaring a plug on the firewall-control interface is installed"
-    snap pack $TESTSLIB/snaps/firewall-control-consumer
-    snap install --dangerous firewall-control-consumer_1.0_all.snap
+    install_local firewall-control-consumer
 
     echo "And a service is listening"
     printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -w 1; done" > $SERVICE_FILE
@@ -44,20 +44,14 @@ prepare: |
 restore: |
     . "$TESTSLIB/systemd.sh"
     systemd_stop_and_destroy_unit $SERVICE_NAME
-    rm -f firewall-control-consumer_1.0_all.snap firewall-create.error $SERVICE_FILE $REQUEST_FILE
+    rm -f firewall-create.error $SERVICE_FILE $REQUEST_FILE
 
 execute: |
-    CONNECTED_PATTERN='^:firewall-control +firewall-control-consumer$'
-    DISCONNECTED_PATTERN='^- +firewall-control-consumer:firewall-control$'
-
-    echo "Then it is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
-
-    echo "==================================="
+    echo "Then the plug is disconnected by default"
+    snap interfaces | MATCH "^\- +firewall-control-consumer:firewall-control"
 
     echo "When the plug is connected"
     snap connect firewall-control-consumer:firewall-control
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "And the snap creates a firewall rule"
     firewall-control-consumer.create
@@ -75,11 +69,8 @@ execute: |
         exit 0
     fi
 
-    echo "==================================="
-
     echo "When the plug is disconnected"
     snap disconnect firewall-control-consumer:firewall-control
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to configure the firewall"
     if firewall-control-consumer.create 2>firewall-create.error; then

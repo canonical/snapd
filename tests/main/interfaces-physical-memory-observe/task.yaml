@@ -24,11 +24,8 @@ execute: |
         exit 0
     fi
 
-    CONNECTED_PATTERN=":physical-memory-observe +test-snapd-physical-memory-observe"
-    DISCONNECTED_PATTERN="\- +test-snapd-physical-memory-observe:physical-memory-observe"
-
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "\- +test-snapd-physical-memory-observe:physical-memory-observe"
 
     echo "When the interface is connected"
     snap connect test-snapd-physical-memory-observe:physical-memory-observe
@@ -42,7 +39,6 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-physical-memory-observe:physical-memory-observe
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to access the physical memory"
     if test-snapd-physical-memory-observe.head 2>${PWD}/call.error; then

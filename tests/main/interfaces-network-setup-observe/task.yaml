@@ -17,17 +17,13 @@ restore: |
     cp $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml
 
 execute: |
-    CONNECTED_PATTERN=":network-setup-observe +test-snapd-check-fs-access"
-    DISCONNECTED_PATTERN="\- +test-snapd-check-fs-access:network-setup-observe"
-
     dirs="/etc/netplan /etc/network"
 
-    echo "The plug is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    echo "The interface is disconnected by default"
+    snap interfaces | MATCH "\- +test-snapd-check-fs-access:network-setup-observe"
 
     echo "When the interface is connected"
     snap connect test-snapd-check-fs-access:network-setup-observe
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to read the network and netplan directories"
     for dir in $dirs; do
