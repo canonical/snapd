@@ -319,6 +319,10 @@ prepare_project_each() {
             systemctl start systemd-journald.service
             ;;
         *)
+            # per journalctl's implementation, --rotate and --sync 'override'
+            # each other if used in a single command, with the one appearing
+            # later being effective
+            journalctl --sync
             journalctl --rotate
             sleep .1
             journalctl --vacuum-time=1ms
