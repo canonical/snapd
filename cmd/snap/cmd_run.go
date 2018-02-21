@@ -523,6 +523,11 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 	go func() {
 		defer func() { filterDone <- true }()
 
+		if osutil.GetenvBool("SNAP_STRACE_SELF", false) {
+			io.Copy(Stderr, stderr)
+			return
+		}
+
 		r := bufio.NewReader(stderr)
 
 		// The first thing from strace if things work is
