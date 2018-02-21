@@ -28,7 +28,7 @@ reset_classic() {
         ubuntu-*|debian-*)
             sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge
             ;;
-        fedora-*|opensuse-*)
+        fedora-*|opensuse-*|arch-*)
             # We don't know if snap-mgmt was built, so call the *.in file
             # directly and pass arguments that will override the placeholders
             sh -x "${SPREAD_PATH}/cmd/snap-mgmt/snap-mgmt.sh.in" \

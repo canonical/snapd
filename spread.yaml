@@ -91,6 +91,10 @@ backends:
 
             - opensuse-42.2-64:
                 workers: 4
+
+            - arch-2018.01.02:
+                workers: 4
+                kernel: GRUB 2
     qemu:
         systems:
             - ubuntu-14.04-32:
@@ -334,6 +338,9 @@ prepare: |
             opensuse-*)
                 zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
+            arch-*)
+                pacman -Syu --noconfirm xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
+                ;;
         esac
         rm -f "$tf"
         curl -sS -o - "https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF" | gunzip > delta-ref.tar
@@ -346,13 +353,13 @@ prepare: |
 
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
-    "$TESTSLIB"/prepare-restore.sh --prepare-project
+    ( . "$TESTSLIB"/prepare-restore.sh --prepare-project )
 prepare-each: |
-    "$TESTSLIB"/prepare-restore.sh --prepare-project-each
+    ( . "$TESTSLIB"/prepare-restore.sh --prepare-project-each )
 restore: |
-    "$TESTSLIB"/prepare-restore.sh --restore-project
+    ( . "$TESTSLIB"/prepare-restore.sh --restore-project )
 restore-each: |
-    "$TESTSLIB"/prepare-restore.sh --restore-project-each
+    ( . "$TESTSLIB"/prepare-restore.sh --restore-project-each )
 
 suites:
     tests/main/:
@@ -375,10 +382,14 @@ suites:
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 . $TESTSLIB/pkgdb.sh
                 distro_purge_package snapd
-                if [[ "$SPREAD_SYSTEM" != opensuse-* ]]; then
-                    # A snap-confine package never existed on openSUSE
-                    distro_purge_package snap-confine
-                fi
+                case "$SPREAD_SYSTEM" in
+                    opensuse-*|arch-*)
+                        # Neither Arch nor openSUSE have snap-confine package
+                        ;;
+                    *)
+                        distro_purge_package snap-confine
+                        ;;
+                esac
             fi
 
     tests/completion/:
@@ -458,7 +469,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+        systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*]
         environment:
             # env vars required for coverage reporting from a spread task
             TRAVIS_BUILD_NUMBER: "$(HOST: echo $TRAVIS_BUILD_NUMBER)"
@@ -480,15 +491,25 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             . $TESTSLIB/pkgdb.sh
-            distro_purge_package snapd snap-confine ubuntu-core-launcher
+
+            distro_purge_package snapd
+            case "$SPREAD_SYSTEM" in
+                arch-*)
+                    # there is no snap-confine and ubuntu-core-launcher
+                    # in Arch
+                    ;;
+                *)
+                    distro_purge_package snap-confine ubuntu-core-launcher
+                    ;;
+            esac
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
         manual: true
-        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*]
+        systems: [-fedora-*, -opensuse-*, -arch-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then

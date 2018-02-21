@@ -23,6 +23,13 @@ execute: |
     echo "Install previous snapd version from the store"
     distro_install_package snap-confine snapd
 
+    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        # Services are not auto enabled or started on Arch
+        systemctl daemon-reload
+        systemctl restart snapd.socket
+        systemctl enable snapd.socket
+    fi
+
     prevsnapdver=$(snap --version|grep "snapd ")
 
     if [[ "$SPREAD_SYSTEM" = debian-* ]] ; then
@@ -51,7 +58,17 @@ execute: |
     # allow-downgrades prevents errors when new versions hit the archive, for instance,
     # trying to install 2.11ubuntu1 over 2.11+0.16.04
     pkg_extension="$(distro_get_package_extension)"
-    distro_install_local_package --allow-downgrades "$GOHOME"/snap*."$pkg_extension"
+    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        # Arch's pacman is a bit funky here, the command that's run is:
+        #    pacman -U --noconfirm --force /home/gopath/snapd-*.pkg.tar.xz
+        # The official repo package contains snapd and snap-confine. The local test package
+        # conflicts with snap-confine, thus pacman will ask to remove snap-confine, displaying
+        # a question, but at the same time it completely ignores --noconfirm and aborts the upgrade.
+        # As a workaround, drop --noconfirm and pass 'y' to all the questions.
+        yes | pacman -U "$GOHOME"/snap*."$pkg_extension"
+    else
+        distro_install_local_package --allow-downgrades "$GOHOME"/snap*."$pkg_extension"
+    fi
 
     snapdver=$(snap --version|grep "snapd ")
     [ "$snapdver" != "$prevsnapdver" ]

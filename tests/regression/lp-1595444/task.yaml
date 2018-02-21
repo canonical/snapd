@@ -11,6 +11,7 @@ systems:
     - -debian-*
     - -fedora-*
     - -opensuse-*
+    - -arch-*
 
 prepare: |
     echo "Having installed the test snap"

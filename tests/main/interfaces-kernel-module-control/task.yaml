@@ -1,6 +1,6 @@
 summary: Ensure that the kernel-module-control interface works.
 
-systems: [-fedora-*, -opensuse-*]
+systems: [-fedora-*, -opensuse-*, -arch-*]
 
 environment:
     MODULE: minix

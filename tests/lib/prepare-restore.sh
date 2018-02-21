@@ -41,7 +41,7 @@ create_test_user(){
                 # unlikely to ever clash with anything, and easy to remember.
                 quiet adduser --uid 12345 --gid 12345 --disabled-password --gecos '' test
                 ;;
-            debian-*|fedora-*|opensuse-*)
+            debian-*|fedora-*|opensuse-*|arch-*)
                 quiet useradd -m --uid 12345 --gid 12345 test
                 ;;
             *)
@@ -138,6 +138,46 @@ build_rpm() {
     fi
 }
 
+build_arch_pkg() {
+    base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
+    version="1337.$base_version"
+    packaging_path=packaging/arch
+    archive_name=snapd-$version.tar
+
+    rm -rf /tmp/pkg
+    mkdir -p "/tmp/pkg/sources/snapd"
+    cp -ra -- * "/tmp/pkg/sources/snapd/"
+
+    # shellcheck disable=SC2086
+    (tar -C /tmp/pkg/sources -cf "/tmp/pkg/$archive_name" "snapd")
+    cp "$packaging_path"/* "/tmp/pkg"
+
+    # fixup PKGBUILD which builds a package named snapd-git with dynamic version
+    #  - update pkgname to use snapd
+    #  - kill dynamic version
+    #  - packaging functions are named package_<pkgname>(), update it to package_snapd()
+    #  - update source path to point to local archive instead of git
+    #  - fix package version to $version
+    sed -i \
+        -e "s/^source=.*/source=(\"$archive_name\")/" \
+        -e "s/pkgname=snapd.*/pkgname=snapd/" \
+        -e "s/pkgver=.*/pkgver=$version/" \
+        -e "s/package_snapd-git()/package_snapd()/" \
+        /tmp/pkg/PKGBUILD
+    awk '
+    /BEGIN/ { strip = 0; last = 0 }
+    /pkgver\(\)/ { strip = 1 }
+    /^}/ { if (strip) last = 1 }
+    // { if (strip) { print "#" $0; if (last) { last = 0; strip = 0}} else { print $0}}
+    ' < /tmp/pkg/PKGBUILD > /tmp/pkg/PKGBUILD.tmp
+    mv /tmp/pkg/PKGBUILD.tmp /tmp/pkg/PKGBUILD
+
+    chown -R test:test /tmp/pkg
+    su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
+
+    cp /tmp/pkg/snapd*.pkg.tar.xz "$GOPATH"
+}
+
 download_from_published(){
     local published_version="$1"
 
@@ -214,6 +254,17 @@ prepare_project() {
 
     distro_update_package_db
 
+    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        # perform system upgrade on Arch so that we run with most recent kernel
+        # and userspace
+        if [[ "$SPREAD_REBOOT" == 0 ]]; then
+            if distro_upgrade | MATCH "reboot"; then
+                echo "system upgraded, reboot required"
+                REBOOT
+            fi
+        fi
+    fi
+
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         if [ ! -d packaging/ubuntu-14.04 ]; then
             echo "no packaging/ubuntu-14.04/ directory "
@@ -262,6 +313,9 @@ prepare_project() {
                 ;;
             fedora-*|opensuse-*)
                 build_rpm
+                ;;
+            arch-*)
+                build_arch_pkg
                 ;;
             *)
                 echo "ERROR: No build instructions available for system $SPREAD_SYSTEM"
