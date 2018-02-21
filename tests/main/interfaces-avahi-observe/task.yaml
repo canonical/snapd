@@ -26,13 +26,10 @@ restore: |
     distro_auto_remove_packages
 
 execute: |
-    CONNECTED_PATTERN=":avahi-observe +generic-consumer"
-    DISCONNECTED_PATTERN="^\- +generic-consumer:avahi-observe"
-
     avahi_dbus_call="dbus-send --system --print-reply --dest=org.freedesktop.Avahi / org.freedesktop.Avahi.Server.GetHostName"
 
     echo "Then the plug is disconnected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "^\- +generic-consumer:avahi-observe"
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "And the snap is not able to access avahi provided info"
@@ -45,7 +42,6 @@ execute: |
 
     echo "When the plug is connected"
     snap connect generic-consumer:avahi-observe
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to access avahi provided info"
     hostname=$(cat /etc/hostname)

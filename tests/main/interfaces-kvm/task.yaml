@@ -3,10 +3,6 @@ summary: Ensure that the kvm interface works.
 details: |
     The kvm interface allows read/write access to kvm.
 
-environment:
-    CONNECTED_PATTERN: ':kvm +test-snapd-kvm'
-    DISCONNECTED_PATTERN: '\- +test-snapd-kvm:kvm'
-
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-kvm
@@ -26,11 +22,10 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "\- +test-snapd-kvm:kvm"
 
     echo "When the interface is connected"
     snap connect test-snapd-kvm:kvm
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to read/write on /dev/kvm"
     test-snapd-kvm.sh -c "cat /dev/kvm"
@@ -42,7 +37,6 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-kvm:kvm
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to read the kvm device"
     if test-snapd-kvm.sh -c "cat /dev/kvm" 2>${PWD}/call.error; then

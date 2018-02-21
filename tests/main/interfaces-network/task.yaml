@@ -13,16 +13,15 @@ details: |
 
 environment:
     SNAP_NAME: network-consumer
-    SNAP_FILE: ${SNAP_NAME}_1.0_all.snap
     PORT: 8081
     SERVICE_FILE: "./service.sh"
     SERVICE_NAME: "test-service"
 
 prepare: |
+    . "$TESTSLIB/snaps.sh"
     . $TESTSLIB/systemd.sh
     echo "Given a snap declaring the network plug is installed"
-    snap pack $TESTSLIB/snaps/$SNAP_NAME
-    snap install --dangerous $SNAP_FILE
+    install_local $SNAP_NAME
 
     echo "And a service is listening"
     printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
@@ -34,43 +33,23 @@ prepare: |
 restore: |
     . $TESTSLIB/systemd.sh
     systemd_stop_and_destroy_unit $SERVICE_NAME
-    rm -f $SNAP_FILE $SERVICE_FILE
+    rm -f $SERVICE_FILE
 
 execute: |
-    CONNECTED_PATTERN="(?s)Slot +Plug\n\
-    .*?\n\
-    :network +$SNAP_NAME"
-    DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
-    .*?\n\
-    - +$SNAP_NAME:network"
-
-    echo "Then the snap is listed as connected"
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
-
-    echo "============================================"
+    echo "The interface is connected by default"
+    snap interfaces | MATCH ":network .*$SNAP_NAME"
 
     echo "When the plug is disconnected"
     snap disconnect $SNAP_NAME:network
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the plug can be connected again"
     snap connect $SNAP_NAME:network
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
-
-    echo "============================================"
-
-    echo "When the plug is connected"
-    snap connect $SNAP_NAME:network
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to access a network service"
     network-consumer http://127.0.0.1:$PORT | grep -Pqz "ok\n"
 
-    echo "============================================"
-
     echo "When the plug is disconnected"
     snap disconnect $SNAP_NAME:network
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then snap can't access a network service"
     if network-consumer http://127.0.0.1:$PORT; then

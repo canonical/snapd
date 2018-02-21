@@ -24,17 +24,11 @@ restore: |
     fi
 
 execute: |
-    CONNECTED_PATTERN=":system-observe +test-snapd-system-observe-consumer"
-    DISCONNECTED_PATTERN="^\- +test-snapd-system-observe-consumer:system-observe"
+    echo "The interface is disconnected by default"
+    snap interfaces | MATCH "^\- +test-snapd-system-observe-consumer:system-observe"
 
-    echo "Then the plug is shown as disconnected"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
-
-    echo "==========================================="
-
-    echo "When the plug is connected"
+    echo "When the interface is connected"
     snap connect test-snapd-system-observe-consumer:system-observe
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to get system information"
     expected="/dev/tty.*?serial"
@@ -47,11 +41,8 @@ execute: |
     fi
 
     if [ "$(snap debug confinement)" = strict ] ; then
-        echo "==========================================="
-
         echo "When the plug is disconnected"
         snap disconnect test-snapd-system-observe-consumer:system-observe
-        snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
         echo "Then the snap is not able to get system information"
         if su -l -c "test-snapd-system-observe-consumer.consumer 2>${PWD}/consumer.error" test; then

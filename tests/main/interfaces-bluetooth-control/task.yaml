@@ -12,12 +12,10 @@ restore: |
     rm -f *.error version class control
 
 execute: |
-    CONNECTED_PATTERN=":bluetooth-control +generic-consumer"
-    DISCONNECTED_PATTERN="^\- +generic-consumer:bluetooth-control"
     BTDEV="$(find /sys/devices/ -type d -name bluetooth)"
 
     echo "Then the plug is disconnected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "^\- +generic-consumer:bluetooth-control"
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "And the snap is not able to read usb"
@@ -44,7 +42,6 @@ execute: |
 
     echo "When the plug is connected"
     snap connect generic-consumer:bluetooth-control
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to read usb"
     cat /sys/bus/usb/drivers/btusb/module/version | tee version

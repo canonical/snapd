@@ -43,11 +43,8 @@ execute: |
         SLOT_NAME=service
     fi
 
-    CONNECTED_PATTERN="$SLOT_PROVIDER:$SLOT_NAME +test-snapd-upower-observe-consumer"
-    DISCONNECTED_PATTERN="\- +test-snapd-upower-observe-consumer:upower-observe"
-
-    echo "The snap is connected by default"
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
+    echo "The interface is connected by default"
+    snap interfaces | MATCH "$SLOT_PROVIDER:$SLOT_NAME .*test-snapd-upower-observe-consumer"
 
     echo "When the plug is connected the snap is able to dump info about the upower devices"
     expected="/org/freedesktop/UPower/devices/DisplayDevice.*"
@@ -58,12 +55,9 @@ execute: |
     done
     test-snapd-upower-observe-consumer.upower --dump | MATCH "$expected"
 
-    echo "==================================="
-
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "When the plug is disconnected"
         snap disconnect test-snapd-upower-observe-consumer:upower-observe
-        snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
         echo "Then the snap is not able to dump info about the upower devices"
         if test-snapd-upower-observe-consumer.upower --dump 2>${PWD}/upower.error; then

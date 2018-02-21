@@ -25,17 +25,8 @@ restore: |
     rm -f *.error /dev/snd/mysnd-dev
 
 execute: |
-    CONNECTED_PATTERN=":alsa +generic-consumer"
-    DISCONNECTED_PATTERN="\- +generic-consumer:alsa"
-
-    echo "The plug is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
-
-    echo "==================================="
-
     echo "When the plug is connected"
     snap connect generic-consumer:alsa
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     if ! [ -d /dev/snd/ ]; then
         echo "No sound devices available in the system"
@@ -65,11 +56,8 @@ execute: |
         exit 0
     fi
 
-    echo "==================================="
-
     echo "When the plug is disconnected"
     snap disconnect generic-consumer:alsa
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "The snap is not able to access snd devices"
     if generic-consumer.cmd touch /dev/snd/mysnd-dev 2>snd-create.error; then

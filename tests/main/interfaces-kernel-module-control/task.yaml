@@ -37,19 +37,12 @@ debug: |
     ls -R /lib/modules/$(uname -r)/kernel/fs
 
 execute: |
-    CONNECTED_PATTERN=":kernel-module-control +.*test-snapd-kernel-module-consumer"
-    DISCONNECTED_PATTERN="\- +test-snapd-kernel-module-consumer:kernel-module-control"
-
     echo "The plug is disconnected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
-
-    echo "==================================="
+    snap interfaces | MATCH "\- +test-snapd-kernel-module-consumer:kernel-module-control"
 
     echo "When the plug is connected"
     snap connect test-snapd-kernel-module-consumer:kernel-module-control
     snap connect generic-consumer:kernel-module-control
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
-
 
     echo "Then the snap is able to list the existing modules"
     [ $(su -l -c "test-snapd-kernel-module-consumer.lsmod" test | wc -l) -gt 2 ]
@@ -80,12 +73,9 @@ execute: |
         exit 0
     fi
 
-    echo "==================================="
-
     echo "When the plug is disconnected"
     snap disconnect test-snapd-kernel-module-consumer:kernel-module-control
     snap disconnect generic-consumer:kernel-module-control
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to list modules"
     if su -l -c "test-snapd-kernel-module-consumer.lsmod 2>${PWD}/list.error" test; then
