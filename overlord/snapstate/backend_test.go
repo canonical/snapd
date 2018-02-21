@@ -47,7 +47,9 @@ type fakeOp struct {
 	revno   snap.Revision
 	sinfo   snap.SideInfo
 	stype   snap.Type
-	cand    store.RefreshCandidate
+
+	installedCtxt []store.CurrentSnap
+	action        store.InstallRefreshAction
 
 	old string
 
@@ -91,6 +93,29 @@ func (ops fakeOps) First(op string) *fakeOp {
 type fakeDownload struct {
 	name     string
 	macaroon string
+}
+
+type byName []store.CurrentSnap
+
+func (bna byName) Len() int      { return len(bna) }
+func (bna byName) Swap(i, j int) { bna[i], bna[j] = bna[j], bna[i] }
+func (bna byName) Less(i, j int) bool {
+	return bna[i].Name < bna[j].Name
+}
+
+type byAction []*store.InstallRefreshAction
+
+func (ba byAction) Len() int      { return len(ba) }
+func (ba byAction) Swap(i, j int) { ba[i], ba[j] = ba[j], ba[i] }
+func (ba byAction) Less(i, j int) bool {
+	if ba[i].Action == ba[j].Action {
+		if ba[i].Action == "refresh" {
+			return ba[i].SnapID < ba[j].SnapID
+		} else {
+			return ba[i].Name < ba[j].Name
+		}
+	}
+	return ba[i].Action < ba[j].Action
 }
 
 type fakeStore struct {
@@ -176,18 +201,20 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	return info, nil
 }
 
-func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserState) (*snap.Info, error) {
-	f.pokeStateLock()
+type refreshCand struct {
+	snapID           string
+	channel          string
+	revision         snap.Revision
+	block            []snap.Revision
+	ignoreValidation bool
+}
 
-	if cand == nil {
-		panic("LookupRefresh called with no candidate")
-	}
-
+func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	var name string
 
-	switch cand.SnapID {
+	switch cand.snapID {
 	case "":
-		return nil, store.ErrLocalSnap
+		panic("store refresh APIs expect snap-ids")
 	case "other-snap-id":
 		return nil, store.ErrNoUpdateAvailable
 	case "fakestore-please-error-on-refresh":
@@ -201,15 +228,15 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 	case "snap-with-snapd-control-id":
 		name = "snap-with-snapd-control"
 	default:
-		panic(fmt.Sprintf("ListRefresh: unknown snap-id: %s", cand.SnapID))
+		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
 
 	revno := snap.R(11)
-	if r := f.refreshRevnos[cand.SnapID]; !r.Unset() {
+	if r := f.refreshRevnos[cand.snapID]; !r.Unset() {
 		revno = r
 	}
 	confinement := snap.StrictConfinement
-	switch cand.Channel {
+	switch cand.channel {
 	case "channel-for-7":
 		revno = snap.R(7)
 	case "channel-for-classic":
@@ -221,8 +248,8 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			RealName: name,
-			Channel:  cand.Channel,
-			SnapID:   cand.SnapID,
+			Channel:  cand.channel,
+			SnapID:   cand.snapID,
 			Revision: revno,
 		},
 		Version: name,
@@ -232,7 +259,7 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 		Confinement:   confinement,
 		Architectures: []string{"all"},
 	}
-	switch cand.Channel {
+	switch cand.channel {
 	case "channel-for-layout":
 		info.Layout = map[string]*snap.Layout{
 			"/usr": {
@@ -244,53 +271,21 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 	}
 
 	var hit snap.Revision
-	if cand.Revision != revno {
+	if cand.revision != revno {
 		hit = revno
 	}
-	for _, blocked := range cand.Block {
+	for _, blocked := range cand.block {
 		if blocked == revno {
 			hit = snap.Revision{}
 			break
 		}
 	}
 
-	userID := 0
-	if user != nil {
-		userID = user.ID
-	}
-	// TODO: move this back to ListRefresh
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-list-refresh", cand: *cand, revno: hit, userID: userID})
-
 	if !hit.Unset() {
 		return info, nil
 	}
 
 	return nil, store.ErrNoUpdateAvailable
-}
-
-func (f *fakeStore) ListRefresh(ctx context.Context, cands []*store.RefreshCandidate, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
-	if ctx == nil {
-		panic("context required")
-	}
-	f.pokeStateLock()
-
-	if len(cands) == 0 {
-		return nil, nil
-	}
-	if len(cands) > 3 {
-		panic("fake ListRefresh unexpectedly called with more than 3 candidates")
-	}
-
-	var res []*snap.Info
-	for _, cand := range cands {
-		info, err := f.LookupRefresh(cand, user)
-		if err == store.ErrLocalSnap || err == store.ErrNoUpdateAvailable {
-			continue
-		}
-		res = append(res, info)
-	}
-
-	return res, nil
 }
 
 func (f *fakeStore) InstallRefresh(ctx context.Context, installedCtxt []*store.CurrentSnap, actions []*store.InstallRefreshAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
@@ -307,17 +302,30 @@ func (f *fakeStore) InstallRefresh(ctx context.Context, installedCtxt []*store.C
 	}
 
 	curByID := make(map[string]*store.CurrentSnap, len(installedCtxt))
-	for _, cur := range installedCtxt {
+	ctxt := make(byName, len(installedCtxt))
+	for i, cur := range installedCtxt {
 		if cur.Name == "" || cur.SnapID == "" || cur.Revision.Unset() {
 			return nil, fmt.Errorf("internal error: incomplete current snap info")
 		}
 		curByID[cur.SnapID] = cur
+		ctxt[i] = *cur
 	}
+	sort.Sort(ctxt)
+
+	userID := 0
+	if user != nil {
+		userID = user.ID
+	}
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-install-refresh", installedCtxt: ctxt, userID: userID})
+
+	sorted := make(byAction, len(actions))
+	copy(sorted, actions)
+	sort.Sort(sorted)
 
 	refreshErrors := make(map[string]error)
 	installErrors := make(map[string]error)
 	var res []*snap.Info
-	for _, a := range actions {
+	for _, a := range sorted {
 		if a.Action == "install" {
 			spec := store.SnapSpec{
 				Name:     a.Name,
@@ -335,7 +343,7 @@ func (f *fakeStore) InstallRefresh(ctx context.Context, installedCtxt []*store.C
 		if a.Action != "refresh" {
 			panic("not supported")
 		}
-		// XXX: cheating with RefreshCandidate
+
 		cur := curByID[a.SnapID]
 		channel := a.Channel
 		if channel == "" {
@@ -347,17 +355,24 @@ func (f *fakeStore) InstallRefresh(ctx context.Context, installedCtxt []*store.C
 		} else if a.Flags&store.InstallRefreshEnforceValidation != 0 {
 			ignoreValidation = false
 		}
-		cand := &store.RefreshCandidate{
-			SnapID:           a.SnapID,
-			Channel:          channel,
-			Revision:         cur.Revision,
-			Block:            cur.Block,
-			IgnoreValidation: ignoreValidation,
+		cand := refreshCand{
+			snapID:           a.SnapID,
+			channel:          channel,
+			revision:         cur.Revision,
+			block:            cur.Block,
+			ignoreValidation: ignoreValidation,
 		}
-		info, err := f.LookupRefresh(cand, user)
-		if err == store.ErrLocalSnap {
-			panic("not supported/unexpected")
+		info, err := f.lookupRefresh(cand)
+		var hit snap.Revision
+		if info != nil {
+			hit = info.Revision
 		}
+		f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+			op:     "storesvc-install-refresh:action",
+			action: *a,
+			revno:  hit,
+			userID: userID,
+		})
 		if err == store.ErrNoUpdateAvailable {
 			refreshErrors[cur.Name] = err
 			continue
