@@ -332,6 +332,7 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (*asserts.R
 		if err != nil {
 			return nil, err
 		}
+		req.Header.Set("User-Agent", httputil.UserAgent())
 		req.Header.Set("Accept", "application/x.ubuntu.assertion")
 		if revision >= 0 {
 			req.Header.Set("If-None-Match", fmt.Sprintf(`"%d"`, revision))
@@ -436,6 +437,7 @@ func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interf
 		if err != nil {
 			return nil, err
 		}
+		req.Header.Set("User-Agent", httputil.UserAgent())
 		req.Header.Set("Accept", "application/json")
 		return run.cli.Do(req)
 	}, func(resp *http.Response) error {
