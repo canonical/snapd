@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -230,9 +230,10 @@ func (m *SnapManager) installPrereqs(t *state.Task, wanted []string, userID int)
 
 	// inject install for prereq into this change
 	chg := t.Change()
+	waitTasks := chg.Tasks()
 	for _, ts := range tss {
 		ts.JoinLane(st.NewLane())
-		for _, t := range chg.Tasks() {
+		for _, t := range waitTasks {
 			t.WaitAll(ts)
 		}
 		chg.AddAll(ts)

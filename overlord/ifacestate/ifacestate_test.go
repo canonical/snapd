@@ -2363,3 +2363,82 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 	c.Assert(err, IsNil)
 	c.Check(stat.ModTime(), DeepEquals, stat2.ModTime())
 }
+
+func (s *interfaceManagerSuite) TestAutoconnectForDefaultContentProvider(c *C) {
+	restore := ifacestate.MockConentLinkRetryTimeout(5 * time.Millisecond)
+	defer restore()
+
+	s.mockSnap(c, `name: snap-content-plug
+version: 1
+plugs:
+ shared-content-plug:
+  interface: content
+  default-provider: snap-content-slot
+  content: shared-content
+`)
+	s.mockSnap(c, `name: snap-content-slot
+version: 1
+slots:
+ shared-content-slot:
+  interface: content
+  content: shared-content
+`)
+	mgr := s.manager(c)
+
+	s.state.Lock()
+
+	supContentPlug := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "snap-content-plug"},
+	}
+	supContentSlot := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "snap-content-slot"},
+	}
+	chg := s.state.NewChange("install", "...")
+
+	tInstPlug := s.state.NewTask("link-snap", "Install snap-content-plug")
+	tInstPlug.Set("snap-setup", supContentPlug)
+	chg.AddTask(tInstPlug)
+
+	tInstSlot := s.state.NewTask("link-snap", "Install snap-content-slot")
+	tInstSlot.Set("snap-setup", supContentSlot)
+	chg.AddTask(tInstSlot)
+
+	tConnectPlug := s.state.NewTask("auto-connect", "...")
+	tConnectPlug.Set("snap-setup", supContentPlug)
+	chg.AddTask(tConnectPlug)
+
+	tConnectSlot := s.state.NewTask("auto-connect", "...")
+	tConnectSlot.Set("snap-setup", supContentSlot)
+	chg.AddTask(tConnectSlot)
+
+	// run the change
+	s.state.Unlock()
+	for i := 0; i < 5; i++ {
+		mgr.Ensure()
+		mgr.Wait()
+	}
+
+	// change did a retry
+	s.state.Lock()
+	c.Check(tConnectPlug.Status(), Equals, state.DoingStatus)
+
+	// pretent install of content slot is done
+	tInstSlot.SetStatus(state.DoneStatus)
+	// wait for contentLinkRetryTimeout
+	time.Sleep(10 * time.Millisecond)
+
+	s.state.Unlock()
+
+	// run again
+	for i := 0; i < 5; i++ {
+		mgr.Ensure()
+		mgr.Wait()
+	}
+
+	// check that the connect plug task is now in done state
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(tConnectPlug.Status(), Equals, state.DoneStatus)
+}

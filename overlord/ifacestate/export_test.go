@@ -19,6 +19,7 @@ package ifacestate
 
 import (
 	"errors"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -37,4 +38,10 @@ func (m *InterfaceManager) AddForeignTaskHandlers() {
 		return errors.New("error out")
 	}
 	m.runner.AddHandler("error-trigger", erroringHandler, nil)
+}
+
+func MockConentLinkRetryTimeout(d time.Duration) (restore func()) {
+	old := contentLinkRetryTimeout
+	contentLinkRetryTimeout = d
+	return func() { contentLinkRetryTimeout = old }
 }
