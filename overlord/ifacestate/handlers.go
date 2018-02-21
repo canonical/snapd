@@ -428,7 +428,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("failed to get hook attributes: %s", err)
 	}
 
-	var policyChecker func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error)
+	var policyChecker interfaces.PolicyFunc
 
 	if autoConnect {
 		autochecker, err := newAutoConnectChecker(st)

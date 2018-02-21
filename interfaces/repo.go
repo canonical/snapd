@@ -549,9 +549,11 @@ type plugValidator interface {
 	BeforeConnectPlug(plug *ConnectedPlug) error
 }
 
+type PolicyFunc func(*ConnectedPlug, *ConnectedSlot) (bool, error)
+
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
-func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map[string]interface{}, policyCheck func(*ConnectedPlug, *ConnectedSlot) (bool, error)) (*Connection, error) {
+func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map[string]interface{}, policyCheck PolicyFunc) (*Connection, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
