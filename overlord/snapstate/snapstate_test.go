@@ -8495,147 +8495,121 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
-	expected := fakeOps{
-		{
-			op:     "storesvc-snap",
-			name:   "snap-content-plug",
-			revno:  snap.R(42),
-			userID: 1,
+	expected := fakeOps{{
+		op:     "storesvc-snap",
+		name:   "snap-content-plug",
+		revno:  snap.R(42),
+		userID: 1,
+	}, {
+		op:     "storesvc-snap",
+		name:   "snap-content-slot",
+		revno:  snap.R(11),
+		userID: 1,
+	}, {
+		op:   "storesvc-download",
+		name: "snap-content-slot",
+	}, {
+		op:    "validate-snap:Doing",
+		name:  "snap-content-slot",
+		revno: snap.R(11),
+	}, {
+		op:  "current",
+		old: "<no-current>",
+	}, {
+		op:   "open-snap-file",
+		name: filepath.Join(dirs.SnapBlobDir, "snap-content-slot_11.snap"),
+		sinfo: snap.SideInfo{
+			RealName: "snap-content-slot",
+			Channel:  "stable",
+			SnapID:   "snap-content-slot-id",
+			Revision: snap.R(11),
 		},
-		{
-			op:     "storesvc-snap",
-			name:   "snap-content-slot",
-			revno:  snap.R(11),
-			userID: 1,
+	}, {
+		op:    "setup-snap",
+		name:  filepath.Join(dirs.SnapBlobDir, "snap-content-slot_11.snap"),
+		revno: snap.R(11),
+	}, {
+		op:   "copy-data",
+		name: filepath.Join(dirs.SnapMountDir, "snap-content-slot/11"),
+		old:  "<no-old>",
+	}, {
+		op:    "setup-profiles:Doing",
+		name:  "snap-content-slot",
+		revno: snap.R(11),
+	}, {
+		op: "candidate",
+		sinfo: snap.SideInfo{
+			RealName: "snap-content-slot",
+			Channel:  "stable",
+			SnapID:   "snap-content-slot-id",
+			Revision: snap.R(11),
 		},
-		{
-			op:   "storesvc-download",
-			name: "snap-content-slot",
+	}, {
+		op:   "link-snap",
+		name: filepath.Join(dirs.SnapMountDir, "snap-content-slot/11"),
+	}, {
+		op:    "auto-connect:Doing",
+		name:  "snap-content-slot",
+		revno: snap.R(11),
+	}, {
+		op: "update-aliases",
+	}, {
+		op:   "storesvc-download",
+		name: "snap-content-plug",
+	}, {
+		op:    "validate-snap:Doing",
+		name:  "snap-content-plug",
+		revno: snap.R(42),
+	}, {
+		op:  "current",
+		old: "<no-current>",
+	}, {
+		op:   "open-snap-file",
+		name: filepath.Join(dirs.SnapBlobDir, "snap-content-plug_42.snap"),
+		sinfo: snap.SideInfo{
+			RealName: "snap-content-plug",
+			Channel:  "some-channel",
+			SnapID:   "snap-content-plug-id",
+			Revision: snap.R(42),
 		},
-		{
-			op:    "validate-snap:Doing",
-			name:  "snap-content-slot",
-			revno: snap.R(11),
+	}, {
+		op:    "setup-snap",
+		name:  filepath.Join(dirs.SnapBlobDir, "snap-content-plug_42.snap"),
+		revno: snap.R(42),
+	}, {
+		op:   "copy-data",
+		name: filepath.Join(dirs.SnapMountDir, "snap-content-plug/42"),
+		old:  "<no-old>",
+	}, {
+		op:    "setup-profiles:Doing",
+		name:  "snap-content-plug",
+		revno: snap.R(42),
+	}, {
+		op: "candidate",
+		sinfo: snap.SideInfo{
+			RealName: "snap-content-plug",
+			Channel:  "some-channel",
+			SnapID:   "snap-content-plug-id",
+			Revision: snap.R(42),
 		},
-		{
-			op:  "current",
-			old: "<no-current>",
-		},
-		{
-			op:   "open-snap-file",
-			name: filepath.Join(dirs.SnapBlobDir, "snap-content-slot_11.snap"),
-			sinfo: snap.SideInfo{
-				RealName: "snap-content-slot",
-				Channel:  "stable",
-				SnapID:   "snap-content-slot-id",
-				Revision: snap.R(11),
-			},
-		},
-		{
-			op:    "setup-snap",
-			name:  filepath.Join(dirs.SnapBlobDir, "snap-content-slot_11.snap"),
-			revno: snap.R(11),
-		},
-		{
-			op:   "copy-data",
-			name: filepath.Join(dirs.SnapMountDir, "snap-content-slot/11"),
-			old:  "<no-old>",
-		},
-		{
-			op:    "setup-profiles:Doing",
-			name:  "snap-content-slot",
-			revno: snap.R(11),
-		},
-		{
-			op: "candidate",
-			sinfo: snap.SideInfo{
-				RealName: "snap-content-slot",
-				Channel:  "stable",
-				SnapID:   "snap-content-slot-id",
-				Revision: snap.R(11),
-			},
-		},
-		{
-			op:   "link-snap",
-			name: filepath.Join(dirs.SnapMountDir, "snap-content-slot/11"),
-		},
-		{
-			op:    "auto-connect:Doing",
-			name:  "snap-content-slot",
-			revno: snap.R(11),
-		},
-		{
-			op: "update-aliases",
-		},
-		{
-			op:   "storesvc-download",
-			name: "snap-content-plug",
-		},
-		{
-			op:    "validate-snap:Doing",
-			name:  "snap-content-plug",
-			revno: snap.R(42),
-		},
-		{
-			op:  "current",
-			old: "<no-current>",
-		},
-		{
-			op:   "open-snap-file",
-			name: filepath.Join(dirs.SnapBlobDir, "snap-content-plug_42.snap"),
-			sinfo: snap.SideInfo{
-				RealName: "snap-content-plug",
-				Channel:  "some-channel",
-				SnapID:   "snap-content-plug-id",
-				Revision: snap.R(42),
-			},
-		},
-		{
-			op:    "setup-snap",
-			name:  filepath.Join(dirs.SnapBlobDir, "snap-content-plug_42.snap"),
-			revno: snap.R(42),
-		},
-		{
-			op:   "copy-data",
-			name: filepath.Join(dirs.SnapMountDir, "snap-content-plug/42"),
-			old:  "<no-old>",
-		},
-		{
-			op:    "setup-profiles:Doing",
-			name:  "snap-content-plug",
-			revno: snap.R(42),
-		},
-		{
-			op: "candidate",
-			sinfo: snap.SideInfo{
-				RealName: "snap-content-plug",
-				Channel:  "some-channel",
-				SnapID:   "snap-content-plug-id",
-				Revision: snap.R(42),
-			},
-		},
-		{
-			op:   "link-snap",
-			name: filepath.Join(dirs.SnapMountDir, "snap-content-plug/42"),
-		},
-		{
-			op:    "auto-connect:Doing",
-			name:  "snap-content-plug",
-			revno: snap.R(42),
-		},
-		{
-			op: "update-aliases",
-		},
-		{
-			op:    "cleanup-trash",
-			name:  "snap-content-plug",
-			revno: snap.R(42),
-		},
-		{
-			op:    "cleanup-trash",
-			name:  "snap-content-slot",
-			revno: snap.R(11),
-		},
+	}, {
+		op:   "link-snap",
+		name: filepath.Join(dirs.SnapMountDir, "snap-content-plug/42"),
+	}, {
+		op:    "auto-connect:Doing",
+		name:  "snap-content-plug",
+		revno: snap.R(42),
+	}, {
+		op: "update-aliases",
+	}, {
+		op:    "cleanup-trash",
+		name:  "snap-content-plug",
+		revno: snap.R(42),
+	}, {
+		op:    "cleanup-trash",
+		name:  "snap-content-slot",
+		revno: snap.R(11),
+	},
 	}
 	// snap and default provider are installed in parallel so we can't
 	// do a simple c.Check(ops, DeepEquals, fakeOps{...})
