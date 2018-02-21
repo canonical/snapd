@@ -510,6 +510,23 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 // timeout for shared content retry
 var contentLinkRetryTimeout = 30 * time.Second
 
+// defaultContentProviders returns a dict of the default-providers for the
+// content plugs for the given snapName
+func (m *InterfaceManager) defaultContentProviders(snapName string) map[string]bool {
+	plugs := m.repo.Plugs(snapName)
+	defaultProviders := make(map[string]bool, len(plugs))
+	for _, plug := range plugs {
+		if plug.Interface == "content" {
+			if s, _ := plug.Attrs["content"].(string); s != "" {
+				if dprovider, _ := plug.Attrs["default-provider"].(string); dprovider != "" {
+					defaultProviders[dprovider] = true
+				}
+			}
+		}
+	}
+	return defaultProviders
+}
+
 // doAutoConnect creates task(s) to connect the given snap to viable candidates.
 func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	// FIXME: here we should not reconnect auto-connect plug/slot
@@ -541,28 +558,26 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	chg := task.Change()
-
 	// content iface has special handling for the default-provider
 	// auto-install
-	for _, plug := range m.repo.Plugs(snapName) {
-		if plug.Interface == "content" {
-			if s, _ := plug.Attrs["content"].(string); s != "" {
-				if dprovider, _ := plug.Attrs["default-provider"].(string); dprovider != "" {
-					for _, t := range chg.Tasks() {
-						if !t.Status().Ready() && t.Kind() == "link-snap" {
-							if snapsup, err := snapstate.TaskSnapSetup(t); err == nil {
-								if snapsup.Name() == dprovider {
-									return &state.Retry{contentLinkRetryTimeout}
-								}
-							}
-						}
-					}
+	defaultProviders := m.defaultContentProviders(snapName)
+	for _, chg := range st.Changes() {
+		if chg.Status().Ready() {
+			continue
+		}
+		for _, t := range chg.Tasks() {
+			if t.Status().Ready() || t.Kind() != "link-snap" {
+				continue
+			}
+			if snapsup, err := snapstate.TaskSnapSetup(t); err == nil {
+				if defaultProviders[snapsup.Name()] {
+					return &state.Retry{contentLinkRetryTimeout}
 				}
 			}
 		}
 	}
 
+	chg := task.Change()
 	// Auto-connect all the plugs
 	for _, plug := range m.repo.Plugs(snapName) {
 		candidates := m.repo.AutoConnectCandidateSlots(snapName, plug.Name, autochecker.check)
@@ -642,6 +657,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			autots.AddAll(ts)
 		}
 	}
+
 	task.SetStatus(state.DoneStatus)
 
 	lanes := task.Lanes()
