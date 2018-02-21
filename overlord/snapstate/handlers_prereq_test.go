@@ -96,7 +96,7 @@ func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
-func (s *prereqSuite) TestDoPrereqTalksToStore(c *C) {
+func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 	s.state.Lock()
 	t := s.state.NewTask("prerequisites", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -108,7 +108,8 @@ func (s *prereqSuite) TestDoPrereqTalksToStore(c *C) {
 		Base:    "some-base",
 		Prereq:  []string{"prereq1", "prereq2"},
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
 	s.state.Unlock()
 
 	s.snapmgr.Ensure()
@@ -134,4 +135,16 @@ func (s *prereqSuite) TestDoPrereqTalksToStore(c *C) {
 		},
 	})
 	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	// check that the do-prereq task added all needed prereqs
+	expectedLinkedSnaps := []string{"prereq1", "prereq2", "some-base"}
+	linkedSnaps := make([]string, 0, len(expectedLinkedSnaps))
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "link-snap" {
+			snapsup, err := snapstate.TaskSnapSetup(t)
+			c.Assert(err, IsNil)
+			linkedSnaps = append(linkedSnaps, snapsup.Name())
+		}
+	}
+	c.Check(linkedSnaps, DeepEquals, expectedLinkedSnaps)
 }
