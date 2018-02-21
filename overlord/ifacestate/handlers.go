@@ -569,7 +569,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			if t.Status().Ready() {
 				continue
 			}
-			if t.Kind() != "link-snap" && t.Kind() != "setup-profile" {
+			if t.Kind() != "link-snap" && t.Kind() != "setup-profiles" {
 				continue
 			}
 			if snapsup, err := snapstate.TaskSnapSetup(t); err == nil {

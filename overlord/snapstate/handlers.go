@@ -121,6 +121,9 @@ func linkSnapInFlight(st *state.State, snapName string) (bool, error) {
 			continue
 		}
 		for _, tc := range chg.Tasks() {
+			if tc.Status().Ready() {
+				continue
+			}
 			if tc.Kind() == "link-snap" {
 				snapsup, err := TaskSnapSetup(tc)
 				if err != nil {
@@ -183,7 +186,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string, userID int) (*state.TaskSet, error) {
+func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string, onInFlight error, userID int) (*state.TaskSet, error) {
 	// installed already?
 	isInstalled, err := isInstalled(st, snapName)
 	if err != nil {
@@ -198,7 +201,7 @@ func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string,
 		return nil, err
 	}
 	if inFlight {
-		return nil, nil
+		return nil, onInFlight
 	}
 
 	// not installed, nor queued for install -> install it
@@ -223,7 +226,8 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	// can be installed together we add the tasks to the change.
 	var tss []*state.TaskSet
 	for _, prereqName := range prereq {
-		ts, err := m.installOneBaseOrRequired(st, prereqName, userID)
+		var onInFlightErr error = nil
+		ts, err := m.installOneBaseOrRequired(st, prereqName, onInFlightErr, userID)
 		if err != nil {
 			return err
 		}
@@ -232,7 +236,12 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 		}
 		tss = append(tss, ts)
 	}
-	tsBase, err := m.installOneBaseOrRequired(st, base, userID)
+
+	// for base snaps we need to wait until the change is done
+	// (either finished or failed)
+	// FIXME: this retry here needs a test
+	onInFlightErr := &state.Retry{After: prerequisitesRetryTimeout}
+	tsBase, err := m.installOneBaseOrRequired(st, base, onInFlightErr, userID)
 	if err != nil {
 		return err
 	}
