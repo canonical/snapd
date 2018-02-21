@@ -547,6 +547,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 				Actions []struct {
 					Action string `json:"action"`
 					SnapID string `json:"snap-id"`
+					Name   string `json:"name"`
 				} `json:"actions"`
 			}
 			err := dec.Decode(&input)
@@ -561,10 +562,10 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 			}
 			var results []resultJSON
 			for _, a := range input.Actions {
-				if a.Action != "refresh" {
-					panic(fmt.Sprintf("action %q unsupported", a.Action))
-				}
 				name := ms.serveIDtoName[a.SnapID]
+				if a.Action == "install" {
+					name = a.Name
+				}
 				if ms.serveSnapPath[name] == "" {
 					// no match
 					continue

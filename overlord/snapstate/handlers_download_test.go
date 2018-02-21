@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 type downloadSnapSuite struct {
@@ -90,8 +91,15 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 	// the compat code called the store "Snap" endpoint
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op:    "storesvc-snap",
-			name:  "foo",
+			op: "storesvc-install-refresh",
+		},
+		{
+			op: "storesvc-install-refresh:action",
+			action: store.InstallRefreshAction{
+				Action:  "install",
+				Name:    "foo",
+				Channel: "some-channel",
+			},
 			revno: snap.R(11),
 		},
 		{

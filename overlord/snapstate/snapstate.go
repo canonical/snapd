@@ -605,7 +605,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, &snap.AlreadyInstalledError{Snap: name}
 	}
 
-	info, err := snapInfo(st, name, channel, revision, userID)
+	info, err := installInfo(st, name, channel, revision, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -635,6 +635,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 	installed := make([]string, 0, len(names))
 	tasksets := make([]*state.TaskSet, 0, len(names))
+	// TODO: this could be reorged to do one single store call
 	for _, name := range names {
 		ts, err := Install(st, name, "", snap.R(0), userID, Flags{})
 		// FIXME: is this expected behavior?
@@ -1075,7 +1076,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return updateToRevisionInfo(st, snapst, channel, revision, userID)
+		return updateToRevisionInfo(st, snapst, revision, userID)
 	}
 
 	// refresh-to-local
@@ -1512,12 +1513,6 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, fmt.Errorf("cannot transition snap %q: not installed", oldName)
 	}
 
-	var userID int
-	newInfo, err := snapInfo(st, newName, oldSnapst.Channel, snap.R(0), userID)
-	if err != nil {
-		return nil, err
-	}
-
 	var all []*state.TaskSet
 	// install new core (if not already installed)
 	err = Get(st, newName, &newSnapst)
@@ -1525,6 +1520,12 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, err
 	}
 	if !newSnapst.IsInstalled() {
+		var userID int
+		newInfo, err := installInfo(st, newName, oldSnapst.Channel, snap.R(0), userID)
+		if err != nil {
+			return nil, err
+		}
+
 		// start by instaling the new snap
 		tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
 			Channel:      oldSnapst.Channel,

@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 type prereqSuite struct {
@@ -123,18 +124,39 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 	defer s.state.Unlock()
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op:    "storesvc-snap",
-			name:  "prereq1",
+			op: "storesvc-install-refresh",
+		},
+		{
+			op: "storesvc-install-refresh:action",
+			action: store.InstallRefreshAction{
+				Action:  "install",
+				Name:    "prereq1",
+				Channel: "stable",
+			},
 			revno: snap.R(11),
 		},
 		{
-			op:    "storesvc-snap",
-			name:  "prereq2",
+			op: "storesvc-install-refresh",
+		},
+		{
+			op: "storesvc-install-refresh:action",
+			action: store.InstallRefreshAction{
+				Action:  "install",
+				Name:    "prereq2",
+				Channel: "stable",
+			},
 			revno: snap.R(11),
 		},
 		{
-			op:    "storesvc-snap",
-			name:  "some-base",
+			op: "storesvc-install-refresh",
+		},
+		{
+			op: "storesvc-install-refresh:action",
+			action: store.InstallRefreshAction{
+				Action:  "install",
+				Name:    "some-base",
+				Channel: "stable",
+			},
 			revno: snap.R(11),
 		},
 	})

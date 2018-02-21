@@ -90,29 +90,39 @@ func userFromUserIDOrFallback(st *state.State, userID int, fallbackUser *auth.Us
 	return fallbackUser, nil
 }
 
-func snapNameToID(st *state.State, name string, user *auth.UserState) (string, error) {
-	theStore := Store(st)
-	st.Unlock()
-	info, err := theStore.SnapInfo(store.SnapSpec{Name: name}, user)
-	st.Lock()
-	return info.SnapID, err
-}
+func installInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
+	// TODO: support ignore-validation?
 
-func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
+	installedCtxt, err := installedContext(st)
+	if err != nil {
+		return nil, err
+	}
+
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
 	}
-	theStore := Store(st)
-	st.Unlock() // calls to the store should be done without holding the state lock
-	spec := store.SnapSpec{
-		Name:     name,
-		Channel:  channel,
+
+	// cannot specify both with the API
+	if !revision.Unset() {
+		channel = ""
+	}
+
+	action := &store.InstallRefreshAction{
+		Action: "install",
+		Name:   name,
+		// the desired channel
+		Channel: channel,
+		// the desired revision
 		Revision: revision,
 	}
-	snap, err := theStore.SnapInfo(spec, user)
+
+	theStore := Store(st)
+	st.Unlock() // calls to the store should be done without holding the state lock
+	res, err := theStore.InstallRefresh(context.TODO(), installedCtxt, []*store.InstallRefreshAction{action}, user, nil)
 	st.Lock()
-	return snap, err
+
+	return singleActionResult(name, action.Action, res, err)
 }
 
 func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID int) (*snap.Info, error) {
@@ -195,6 +205,11 @@ func singleActionResult(name, action string, results []*snap.Info, e error) (inf
 			snapErr = irErr.Refresh[name]
 		case "install":
 			snapErr = irErr.Install[name]
+			if snapErr == store.ErrRevisionNotAvailable {
+				// TODO: this preserves old behavior
+				// but do we want to keep it?
+				snapErr = store.ErrSnapNotFound
+			}
 		}
 		if snapErr != nil {
 			return nil, snapErr
@@ -214,22 +229,32 @@ func singleActionResult(name, action string, results []*snap.Info, e error) (inf
 	return nil, e
 }
 
-func updateToRevisionInfo(st *state.State, snapst *SnapState, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
+func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revision, userID int) (*snap.Info, error) {
+	// TODO: support ignore-validation?
+
+	installedCtxt, err := installedContext(st)
+	if err != nil {
+		return nil, err
+	}
+
 	curInfo, user, err := preUpdateInfo(st, snapst, false, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	theStore := Store(st)
-	st.Unlock() // calls to the store should be done without holding the state lock
-	spec := store.SnapSpec{
-		Name:     curInfo.Name(),
-		Channel:  channel,
+	action := &store.InstallRefreshAction{
+		Action: "refresh",
+		SnapID: curInfo.SnapID,
+		// the desired revision
 		Revision: revision,
 	}
-	snap, err := theStore.SnapInfo(spec, user)
+
+	theStore := Store(st)
+	st.Unlock() // calls to the store should be done without holding the state lock
+	res, err := theStore.InstallRefresh(context.TODO(), installedCtxt, []*store.InstallRefreshAction{action}, user, nil)
 	st.Lock()
-	return snap, err
+
+	return singleActionResult(curInfo.Name(), action.Action, res, err)
 }
 
 func installedContext(st *state.State) ([]*store.CurrentSnap, error) {

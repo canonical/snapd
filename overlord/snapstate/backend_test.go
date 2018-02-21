@@ -139,6 +139,18 @@ func (f *fakeStore) pokeStateLock() {
 func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	f.pokeStateLock()
 
+	info, err := f.snapInfo(spec, user)
+
+	userID := 0
+	if user != nil {
+		userID = user.ID
+	}
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: spec.Name, revno: info.Revision, userID: userID})
+
+	return info, err
+}
+
+func (f *fakeStore) snapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
 	if spec.Revision.Unset() {
 		spec.Revision = snap.R(11)
 		if spec.Channel == "channel-for-7" {
@@ -192,12 +204,6 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 		}
 	}
 
-	userID := 0
-	if user != nil {
-		userID = user.ID
-	}
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: spec.Name, revno: spec.Revision, userID: userID})
-
 	return info, nil
 }
 
@@ -227,6 +233,10 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "core"
 	case "snap-with-snapd-control-id":
 		name = "snap-with-snapd-control"
+	case "producer-id":
+		name = "producer"
+	case "consumer-id":
+		name = "consumer"
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
@@ -316,6 +326,9 @@ func (f *fakeStore) InstallRefresh(ctx context.Context, installedCtxt []*store.C
 	if user != nil {
 		userID = user.ID
 	}
+	if len(ctxt) == 0 {
+		ctxt = nil
+	}
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-install-refresh", installedCtxt: ctxt, userID: userID})
 
 	sorted := make(byAction, len(actions))
@@ -332,10 +345,19 @@ func (f *fakeStore) InstallRefresh(ctx context.Context, installedCtxt []*store.C
 				Channel:  a.Channel,
 				Revision: a.Revision,
 			}
-			info, err := f.SnapInfo(spec, user)
+			info, err := f.snapInfo(spec, user)
 			if err != nil {
 				installErrors[a.Name] = err
 				continue
+			}
+			f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+				op:     "storesvc-install-refresh:action",
+				action: *a,
+				revno:  info.Revision,
+				userID: userID,
+			})
+			if !a.Revision.Unset() {
+				info.Channel = ""
 			}
 			res = append(res, info)
 			continue
@@ -365,6 +387,9 @@ func (f *fakeStore) InstallRefresh(ctx context.Context, installedCtxt []*store.C
 		info, err := f.lookupRefresh(cand)
 		var hit snap.Revision
 		if info != nil {
+			if !a.Revision.Unset() {
+				info.Revision = a.Revision
+			}
 			hit = info.Revision
 		}
 		f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
@@ -379,6 +404,9 @@ func (f *fakeStore) InstallRefresh(ctx context.Context, installedCtxt []*store.C
 		}
 		if err != nil {
 			return nil, err
+		}
+		if !a.Revision.Unset() {
+			info.Channel = ""
 		}
 		res = append(res, info)
 	}
