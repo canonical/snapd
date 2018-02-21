@@ -19,58 +19,33 @@
 
 package strutil
 
-import (
-	"bytes"
-)
-
 type LimitedBuffer struct {
-	buffer   *bytes.Buffer
+	buffer   []byte
 	maxLines int
 	maxBytes int
 }
 
 func NewLimitedBuffer(maxLines, maxBytes int) *LimitedBuffer {
 	return &LimitedBuffer{
-		buffer:   &bytes.Buffer{},
 		maxLines: maxLines,
 		maxBytes: maxBytes,
 	}
 }
 
-func (wr *LimitedBuffer) Write(data []byte) (int, error) {
-	// Do an early (and inaccurate) truncate here to save memory,
-	// the exact truncate happens in the .Bytes() function;
-	// also, limit by 2 times the requested number of bytes at this point.
-	lim := wr.maxBytes * 2
-	dlen := len(data)
-
-	// simple case, still within limits, nothing to truncate, just write
-	if wr.buffer.Len()+dlen < lim {
-		return wr.buffer.Write(data)
+func (lb *LimitedBuffer) Write(data []byte) (int, error) {
+	drop := len(lb.buffer) + len(data) - lb.maxBytes
+	switch {
+	case drop < 0:
+		lb.buffer = append(lb.buffer, data...)
+	case drop > len(lb.buffer):
+		lb.buffer = append(lb.buffer[:0], data[drop-len(lb.buffer):]...)
+	default:
+		keep := copy(lb.buffer, lb.buffer[drop:])
+		lb.buffer = append(lb.buffer[:keep], data...)
 	}
-
-	// simple case - data to write is outright too big,
-	// just take its tail and overwrite internal buffer
-	if dlen > lim {
-		wr.buffer.Truncate(0)
-		_, err := wr.buffer.Write(data[dlen-lim:])
-		if err != nil {
-			return 0, err
-		}
-		return dlen, err
-	}
-
-	// typical case - shift the buffer by (lim-dlen) bytes to make room for the data
-	tmp := TruncateOutput(wr.buffer.Bytes(), 0, lim-dlen)
-	copy(wr.buffer.Bytes(), tmp)
-	wr.buffer.Truncate(len(tmp))
-	_, err := wr.buffer.Write(data)
-	if err != nil {
-		return 0, err
-	}
-	return dlen, err
+	return len(data), nil
 }
 
-func (wr *LimitedBuffer) Bytes() []byte {
-	return TruncateOutput(wr.buffer.Bytes(), wr.maxLines, wr.maxBytes)
+func (lb *LimitedBuffer) Bytes() []byte {
+	return TruncateOutput(lb.buffer, lb.maxLines, lb.maxBytes)
 }
