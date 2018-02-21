@@ -543,6 +543,9 @@ func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 
 	snapName := snapsup.Name()
 	connections, err := m.repo.Connections(snapName)
+	if err != nil {
+		return err
+	}
 
 	connectts := state.NewTaskSet()
 	chg := task.Change()
