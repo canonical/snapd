@@ -523,6 +523,9 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 	go func() {
 		defer func() { filterDone <- true }()
 
+		// do not filter the initial strace output if SNAP_STRACE_SELF
+		// is set, this is useful when tracking down issues with snap
+		// helpers such as snap-confine, snap-exec ...
 		if osutil.GetenvBool("SNAP_STRACE_SELF", false) {
 			io.Copy(Stderr, stderr)
 			return
