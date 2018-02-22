@@ -24,6 +24,13 @@ find "$HERE" -name "*.go" -type f -print0 | xargs -0 \
     --keyword=i18n.G \
     --keyword-plural=i18n.DG
 
+xgettext "$HERE"/data/polkit/*.policy \
+    -o "$OUTPUT" \
+    --no-location \
+    --package-name=snappy \
+    --msgid-bugs-address=snappy-devel@lists.ubuntu.com \
+    --join-existing
+
 #xgettext -d snappy -o "$OUTPUT" --c++ --from-code=UTF-8 \
 #	--indent --add-comments=TRANSLATORS: --no-location --sort-output \
 #	--package-name=snappy \
