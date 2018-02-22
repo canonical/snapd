@@ -71,7 +71,7 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) 
 }
 
 func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
-	// give a chance to internal core config to run
+	// give the internal core config a chance to run
 	configTs := snapstate.ConfigureSnap(st, "core", 0)
 	markSeeded.WaitAll(configTs)
 	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
