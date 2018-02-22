@@ -5,7 +5,7 @@
 
 pkgbase=snapd
 pkgname=snapd-git
-pkgver=2.31
+pkgver=2.31.1
 pkgrel=1
 arch=('i686' 'x86_64')
 url="https://github.com/snapcore/snapd"

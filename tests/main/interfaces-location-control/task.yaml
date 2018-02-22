@@ -9,7 +9,8 @@ details: |
     The snap is also declaring a plug on this interface must be able to ask for its properties.
 
 # dbus-launch not supported in ubuntu-core
-systems: [-ubuntu-core-16-*]
+# s390x does not support locationd
+systems: [-ubuntu-core-16-*, -ubuntu-*-s390x]
 
 prepare: |
     . "$TESTSLIB/dbus.sh"
