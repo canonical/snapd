@@ -44,6 +44,20 @@ func (ts *timeutilSuite) TestClock(c *C) {
 
 	td = timeutil.Clock{Hour: 10, Minute: 1}
 	c.Check(td.Sub(timeutil.Clock{Hour: 10, Minute: 0}), Equals, time.Minute)
+
+	td = timeutil.Clock{Hour: 23, Minute: 0}
+	c.Check(td.Add(time.Hour), Equals, timeutil.Clock{Hour: 0, Minute: 0})
+	c.Check(td.Add(2*time.Hour), Equals, timeutil.Clock{Hour: 1, Minute: 0})
+	c.Check(td.Sub(timeutil.Clock{Hour: 1, Minute: 0}), Equals, 22*time.Hour)
+	c.Check(td.Sub(timeutil.Clock{Hour: 0, Minute: 0}), Equals, 23*time.Hour)
+
+	td = timeutil.Clock{Hour: 1, Minute: 0}
+	c.Check(td.Sub(timeutil.Clock{Hour: 23, Minute: 0}), Equals, -2*time.Hour)
+	c.Check(td.Sub(timeutil.Clock{Hour: 1, Minute: 0}), Equals, time.Duration(0))
+
+	td = timeutil.Clock{Hour: 0, Minute: 0}
+	c.Check(td.Sub(timeutil.Clock{Hour: 23, Minute: 0}), Equals, -1*time.Hour)
+	c.Check(td.Sub(timeutil.Clock{Hour: 1, Minute: 0}), Equals, -23*time.Hour)
 }
 
 func (ts *timeutilSuite) TestParseClock(c *C) {
@@ -760,5 +774,35 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 					t.schedule, t.last, t.now, t.next, next))
 			previous = next
 		}
+	}
+}
+
+func (ts *timeutilSuite) TestClockSpans(c *C) {
+	const shortForm = "2006-01-02 15:04:05"
+
+	for _, t := range []struct {
+		clockspan  string
+		flattenend []string
+	}{
+		{
+			clockspan:  "23:00-01:00/2",
+			flattenend: []string{"23:00-00:00", "00:00-01:00"},
+		}, {
+			clockspan:  "23:00-01:00/4",
+			flattenend: []string{"23:00-23:30", "23:30-00:00", "00:00-00:30", "00:30-01:00"},
+		},
+	} {
+		c.Logf("trying %+v", t)
+		spans, err := timeutil.ParseClockSpan(t.clockspan)
+		c.Assert(err, IsNil)
+
+		spanStrings := make([]string, len(t.flattenend))
+		flattened := spans.ClockSpans()
+		c.Assert(flattened, HasLen, len(t.flattenend))
+		for i := range flattened {
+			spanStrings[i] = flattened[i].String()
+		}
+
+		c.Assert(spanStrings, DeepEquals, t.flattenend)
 	}
 }
