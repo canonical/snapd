@@ -403,9 +403,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 		}
 		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 1)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-		data, err := ioutil.ReadFile(profile)
-		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, scenario.content)
+		c.Check(profile, testutil.FileEquals, scenario.content)
 		stat, err := os.Stat(profile)
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -505,12 +503,10 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 	c.Assert(newAA, HasLen, 1)
 	c.Check(newAA[0], Matches, `.*/etc/apparmor.d/.*.snap.core.111.usr.lib.snapd.snap-confine`)
 
-	content, err := ioutil.ReadFile(newAA[0])
-	c.Assert(err, IsNil)
 	// this is the key, rewriting "/usr/lib/snapd/snap-confine
-	c.Check(string(content), testutil.Contains, "/snap/core/111/usr/lib/snapd/snap-confine (attach_disconnected) {")
+	c.Check(newAA[0], testutil.FileContains, "/snap/core/111/usr/lib/snapd/snap-confine (attach_disconnected) {")
 	// no other changes other than that to the input
-	c.Check(string(content), Equals, fmt.Sprintf(`#include <tunables/global>
+	c.Check(newAA[0], testutil.FileEquals, fmt.Sprintf(`#include <tunables/global>
 %s/core/111/usr/lib/snapd/snap-confine (attach_disconnected) {
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
@@ -721,10 +717,9 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileF
 	c.Assert(files[0].IsDir(), Equals, false)
 
 	// The policy allows network access.
-	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name()))
-	c.Assert(err, IsNil)
-	c.Assert(string(data), testutil.Contains, "network inet,")
-	c.Assert(string(data), testutil.Contains, "network inet6,")
+	fn := filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name())
+	c.Assert(fn, testutil.FileContains, "network inet,")
+	c.Assert(fn, testutil.FileContains, "network inet6,")
 
 	// The system apparmor profile of snap-confine was reloaded.
 	c.Assert(cmd.Calls(), HasLen, 1)
@@ -769,10 +764,9 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C)
 	c.Assert(files[0].IsDir(), Equals, false)
 
 	// The policy allows network access.
-	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name()))
-	c.Assert(err, IsNil)
-	c.Assert(string(data), testutil.Contains, "network inet,")
-	c.Assert(string(data), testutil.Contains, "network inet6,")
+	fn := filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name())
+	c.Assert(fn, testutil.FileContains, "network inet,")
+	c.Assert(fn, testutil.FileContains, "network inet6,")
 
 	// The distribution policy was not reloaded because snap-confine executes
 	// from core snap. This is handled separately by per-profile Setup.

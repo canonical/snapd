@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -36,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -90,7 +90,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	}
 
 	sysdLog = nil
-	err = wrappers.StopServices(info.Services(), progress.Null)
+	err = wrappers.StopServices(info.Services(), "", progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(sysdLog, HasLen, 2)
 	c.Check(sysdLog, DeepEquals, [][]string{
@@ -123,7 +123,7 @@ func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C)
 	err := wrappers.AddSnapServices(info, nil)
 	c.Assert(err, IsNil)
 
-	err = wrappers.StopServices(info.Services(), &progress.Null)
+	err = wrappers.StopServices(info.Services(), "", &progress.Null)
 	c.Assert(err, IsNil)
 
 	err = wrappers.RemoveSnapServices(info, &progress.Null)
@@ -167,14 +167,14 @@ apps:
 
 	svcFName := "snap.wat.wat.service"
 
-	err = wrappers.StopServices(info.Services(), progress.Null)
+	err = wrappers.StopServices(info.Services(), "", progress.Null)
 	c.Assert(err, IsNil)
 
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"stop", svcFName},
 		// check kill invocations
-		{"kill", svcFName, "-s", "TERM"},
-		{"kill", svcFName, "-s", "KILL"},
+		{"kill", svcFName, "-s", "TERM", "--kill-who=all"},
+		{"kill", svcFName, "-s", "KILL", "--kill-who=all"},
 	})
 }
 
@@ -205,7 +205,7 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 
 	sysdLog = nil
 
-	err = wrappers.StopServices(info.Services(), &progress.Null)
+	err = wrappers.StopServices(info.Services(), "", &progress.Null)
 	c.Assert(err, IsNil)
 
 	sort.Strings(sysdLog)
@@ -404,8 +404,6 @@ func (s *servicesTestSuite) TestAddSnapSocketFiles(c *C) {
 	err := wrappers.AddSnapServices(info, nil)
 	c.Assert(err, IsNil)
 
-	content1, err := ioutil.ReadFile(sock1File)
-	c.Assert(err, IsNil)
 	expected := fmt.Sprintf(
 		`[Socket]
 Service=snap.hello-snap.svc1.service
@@ -414,10 +412,7 @@ ListenStream=%s
 SocketMode=0666
 
 `, filepath.Join(s.tempdir, "/var/snap/hello-snap/common/sock1.socket"))
-	c.Check(strings.Contains(string(content1), expected), Equals, true)
-
-	content2, err := ioutil.ReadFile(sock2File)
-	c.Assert(err, IsNil)
+	c.Check(sock1File, testutil.FileContains, expected)
 
 	expected = fmt.Sprintf(
 		`[Socket]
@@ -426,8 +421,7 @@ FileDescriptorName=sock2
 ListenStream=%s
 
 `, filepath.Join(s.tempdir, "/var/snap/hello-snap/12/sock2.socket"))
-	c.Check(strings.Contains(string(content2), expected), Equals, true)
-
+	c.Check(sock2File, testutil.FileContains, expected)
 }
 
 func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
@@ -605,6 +599,106 @@ func (s *servicesTestSuite) TestServiceAfterBefore(c *C) {
 				//   After=  foo.service    bar.service
 				"(?ms).*^(?U)"+check.kind+"=.*\\s?"+regexp.QuoteMeta(m)+"\\s?[^=]*$")
 		}
+	}
+
+}
+
+func (s *servicesTestSuite) TestStopServiceEndure(c *C) {
+	var sysdLog [][]string
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	const surviveYaml = `name: survive-snap
+version: 1.0
+apps:
+ survivor:
+  command: bin/survivor
+  refresh-mode: endure
+  daemon: simple
+`
+	info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})
+	survivorFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.survive-snap.survivor.service")
+
+	err := wrappers.AddSnapServices(info, nil)
+	c.Assert(err, IsNil)
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"--root", dirs.GlobalRootDir, "enable", filepath.Base(survivorFile)},
+		{"daemon-reload"},
+	})
+
+	sysdLog = nil
+	err = wrappers.StopServices(info.Services(), snap.StopReasonRefresh, progress.Null)
+	c.Assert(err, IsNil)
+	c.Assert(sysdLog, HasLen, 0)
+
+	sysdLog = nil
+	err = wrappers.StopServices(info.Services(), snap.StopReasonRemove, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"stop", filepath.Base(survivorFile)},
+		{"show", "--property=ActiveState", "snap.survive-snap.survivor.service"},
+	})
+
+}
+
+func (s *servicesTestSuite) TestStopServiceSigs(c *C) {
+	var sysdLog [][]string
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	survivorFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.survive-snap.srv.service")
+	for _, t := range []struct {
+		mode        string
+		expectedSig string
+		expectedWho string
+	}{
+		{mode: "sigterm", expectedSig: "TERM", expectedWho: "main"},
+		{mode: "sigterm-all", expectedSig: "TERM", expectedWho: "all"},
+		{mode: "sighup", expectedSig: "HUP", expectedWho: "main"},
+		{mode: "sighup-all", expectedSig: "HUP", expectedWho: "all"},
+		{mode: "sigusr1", expectedSig: "USR1", expectedWho: "main"},
+		{mode: "sigusr1-all", expectedSig: "USR1", expectedWho: "all"},
+		{mode: "sigusr2", expectedSig: "USR2", expectedWho: "main"},
+		{mode: "sigusr2-all", expectedSig: "USR2", expectedWho: "all"},
+	} {
+		surviveYaml := fmt.Sprintf(`name: survive-snap
+version: 1.0
+apps:
+ srv:
+  command: bin/survivor
+  refresh-mode: %s
+  daemon: simple
+`, t.mode)
+		info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+		sysdLog = nil
+		err := wrappers.AddSnapServices(info, nil)
+		c.Assert(err, IsNil)
+		c.Check(sysdLog, DeepEquals, [][]string{
+			{"--root", dirs.GlobalRootDir, "enable", filepath.Base(survivorFile)},
+			{"daemon-reload"},
+		})
+
+		sysdLog = nil
+		err = wrappers.StopServices(info.Services(), snap.StopReasonRefresh, progress.Null)
+		c.Assert(err, IsNil)
+		c.Check(sysdLog, DeepEquals, [][]string{
+			{"kill", filepath.Base(survivorFile), "-s", t.expectedSig, "--kill-who=" + t.expectedWho},
+		}, Commentf("failure in %s", t.mode))
+
+		sysdLog = nil
+		err = wrappers.StopServices(info.Services(), snap.StopReasonRemove, progress.Null)
+		c.Assert(err, IsNil)
+		c.Check(sysdLog, DeepEquals, [][]string{
+			{"stop", filepath.Base(survivorFile)},
+			{"show", "--property=ActiveState", "snap.survive-snap.srv.service"},
+		})
 	}
 
 }

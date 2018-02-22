@@ -30,6 +30,8 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/snapcore/squashfuse"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -105,7 +107,7 @@ type Systemd interface {
 	Disable(service string) error
 	Start(service ...string) error
 	Stop(service string, timeout time.Duration) error
-	Kill(service, signal string) error
+	Kill(service, signal, who string) error
 	Restart(service string, timeout time.Duration) error
 	Status(services ...string) ([]*ServiceStatus, error)
 	LogReader(services []string, n string, follow bool) (io.ReadCloser, error)
@@ -314,8 +316,11 @@ loop:
 }
 
 // Kill all processes of the unit with the given signal
-func (s *systemd) Kill(serviceName, signal string) error {
-	_, err := systemctlCmd("kill", serviceName, "-s", signal)
+func (s *systemd) Kill(serviceName, signal, who string) error {
+	if who == "" {
+		who = "all"
+	}
+	_, err := systemctlCmd("kill", serviceName, "-s", signal, "--kill-who="+who)
 	return err
 }
 
@@ -406,8 +411,7 @@ func useFuse() bool {
 		return false
 	}
 
-	_, err := exec.LookPath("squashfuse")
-	if err != nil {
+	if !osutil.ExecutableExists("squashfuse") && !osutil.ExecutableExists("snapfuse") {
 		return false
 	}
 
@@ -440,7 +444,14 @@ func (s *systemd) WriteMountUnitFile(name, what, where, fstype string) (string, 
 		fstype = "none"
 	} else if fstype == "squashfs" && useFuse() {
 		options = append(options, "allow_other")
-		fstype = "fuse.squashfuse"
+		switch {
+		case osutil.ExecutableExists("squashfuse"):
+			fstype = "fuse.squashfuse"
+		case osutil.ExecutableExists("snapfuse"):
+			fstype = "fuse.snapfuse"
+		default:
+			panic("cannot happen because useFuse() ensures on of the two executables is there")
+		}
 	}
 
 	c := fmt.Sprintf(`[Unit]
