@@ -335,6 +335,7 @@ X-Snappy=yes
 [Timer]
 Unit=snap.snap.app.service
 OnCalendar=*-*-* 10:00
+OnCalendar=*-*-* 11:00
 
 [Install]
 WantedBy=timers.target
@@ -352,7 +353,7 @@ WantedBy=timers.target
 		Daemon:      "simple",
 		StopTimeout: timeout.DefaultTimeout,
 		Timer: &snap.TimerInfo{
-			Timer: "10:00-12:00",
+			Timer: "10:00-12:00/2",
 		},
 	}
 	service.Timer.App = service
