@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -44,7 +44,7 @@ func (iface *testSnapdInterface) String() string {
 	return iface.Name()
 }
 
-// Name returns the name of the bool-file interface.
+// Name returns the name of the dummy interface.
 func (iface *testSnapdInterface) Name() string {
 	return "dummy"
 }
