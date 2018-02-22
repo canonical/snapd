@@ -1629,6 +1629,99 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	c.Check(refreshSessionRequested, Equals, true)
 }
 
+func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesBothAuths(c *C) {
+	refresh, err := makeTestRefreshDischargeResponse()
+	c.Assert(err, IsNil)
+	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
+
+	// mock refresh response
+	refreshDischargeEndpointHit := false
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
+	}))
+	defer mockSSOServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+
+	refreshSessionRequested := false
+	expiredAuth := `Macaroon root="expired-session-macaroon"`
+	// mock store response
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		switch r.URL.Path {
+		case "/":
+			authorization := r.Header.Get("Authorization")
+			c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
+			if t.user.StoreDischarges[0] != refresh {
+				w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
+				w.WriteHeader(401)
+				return
+			}
+
+			devAuthorization := r.Header.Get("X-Device-Authorization")
+			if devAuthorization == "" {
+				c.Fatalf("device authentication missing")
+			} else if devAuthorization == expiredAuth {
+				w.Header().Set("WWW-Authenticate", "Macaroon refresh_device_session=1")
+				w.WriteHeader(401)
+			} else {
+				c.Check(devAuthorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
+				io.WriteString(w, "response-data")
+			}
+		case authNoncesPath:
+			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
+		case authSessionPath:
+			// sanity of request
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			var req map[string]string
+			err = json.Unmarshal(jsonReq, &req)
+			c.Assert(err, IsNil)
+			c.Check(strings.HasPrefix(req["device-session-request"], "type: device-session-request\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["serial-assertion"], "type: serial\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["model-assertion"], "type: model\n"), Equals, true)
+
+			authorization := r.Header.Get("X-Device-Authorization")
+			if authorization == "" {
+				c.Fatalf("expecting only refresh")
+			} else {
+				c.Check(authorization, Equals, expiredAuth)
+				io.WriteString(w, `{"macaroon": "refreshed-session-macaroon"}`)
+				refreshSessionRequested = true
+			}
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+
+	// make sure device session is expired
+	t.device.SessionMacaroon = "expired-session-macaroon"
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	repo := New(&Config{
+		StoreBaseURL: mockServerURL,
+	}, authContext)
+	c.Assert(repo, NotNil)
+
+	reqOptions := &requestOptions{Method: "GET", URL: mockServerURL}
+
+	resp, err := repo.doRequest(context.TODO(), repo.client, reqOptions, t.user)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Check(resp.StatusCode, Equals, 200)
+
+	responseData, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(responseData), Equals, "response-data")
+	c.Check(refreshDischargeEndpointHit, Equals, true)
+	c.Check(refreshSessionRequested, Equals, true)
+}
+
 func (t *remoteRepoTestSuite) TestDoRequestSetsExtraHeaders(c *C) {
 	// Custom headers are applied last.
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
