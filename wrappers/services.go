@@ -232,6 +232,8 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 				return err
 			}
 			written = append(written, path)
+			// service is activated via timers only and not during
+			// the boot
 			continue
 		}
 
