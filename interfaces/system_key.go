@@ -73,7 +73,7 @@ func generateSystemKey() *systemKey {
 	// upperdir such that if this changes, we change our profile.
 	sk.OverlayRoot, err = osutil.IsRootOverlay()
 	if err != nil {
-		logger.Noticef("cannot determine / on overlay in generateSystemKey: %v", err)
+		logger.Noticef("cannot determine root filesystem on overlay in generateSystemKey: %v", err)
 	}
 
 	// Add the current Core path, we need this because we call helpers

@@ -112,13 +112,13 @@ func (b *Backend) Initialize() error {
 	// Check if '/' is on overlayfs. If so, add the necessary rules for
 	// upperdir and allow snap-confine to work.
 	if overlayRoot, err := osutil.IsRootOverlay(); err != nil {
-		logger.Noticef("cannot determine if / on overlay: %v", err)
+		logger.Noticef("cannot determine if root filesystem on overlay: %v", err)
 	} else if overlayRoot {
 		policy["overlay-root"] = &osutil.FileState{
 			Content: []byte(overlayRootSnippet),
 			Mode:    0644,
 		}
-		logger.Noticef("snapd enabled / on overlay support, additional upperdir permissions granted")
+		logger.Noticef("snapd enabled root filesystem on overlay support, additional upperdir permissions granted")
 	}
 
 	// Ensure that generated policy is what we computed above.
