@@ -151,8 +151,9 @@ type SyscallRecorder struct {
 	calls []string
 	// Error function for a given system call.
 	errors map[string]func() error
-	// pre-arranged result of lstat and readdir calls
+	// pre-arranged result of lstat, fstat and readdir calls.
 	lstats   map[string]os.FileInfo
+	fstats   map[string]syscall.Stat_t
 	readdirs map[string][]os.FileInfo
 	// allocated file descriptors
 	fds map[int]string
@@ -313,6 +314,30 @@ func (sys *SyscallRecorder) Lstat(name string) (os.FileInfo, error) {
 		return fi, nil
 	}
 	panic(fmt.Sprintf("one of InsertLstatResult() or InsertFault() for %s must be used", call))
+}
+
+// InsertFstatResult makes given subsequent call fstat return the specified stat buffer.
+func (sys *SyscallRecorder) InsertFstatResult(call string, buf syscall.Stat_t) {
+	if sys.fstats == nil {
+		sys.fstats = make(map[string]syscall.Stat_t)
+	}
+	sys.fstats[call] = buf
+}
+
+func (sys *SyscallRecorder) Fstat(fd int, buf *syscall.Stat_t) error {
+	call := fmt.Sprintf("fstat %d <ptr>", fd)
+	if _, ok := sys.fds[fd]; !ok {
+		sys.calls = append(sys.calls, call)
+		return fmt.Errorf("attempting to fstat with an invalid file descriptor %d", fd)
+	}
+	if err := sys.call(call); err != nil {
+		return err
+	}
+	if b, ok := sys.fstats[call]; ok {
+		*buf = b
+		return nil
+	}
+	panic(fmt.Sprintf("one of InsertFstatResult() or InsertFault() for %s must be used", call))
 }
 
 // InsertReadDirResult makes given subsequent call readdir return the specified fake file infos.
