@@ -827,32 +827,23 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 
 	wwwAuth := resp.Header.Get("WWW-Authenticate")
 	if resp.StatusCode == 401 {
-		refreshed := false
+		var refreshNeed authRefreshNeed
+		refresh := false
 		if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
 			// refresh user
-			err = s.refreshUser(user)
-			if err != nil {
-				return nil, err
-			}
-			refreshed = true
+			refreshNeed.user = true
+			refresh = true
 		}
 		if strings.Contains(wwwAuth, "refresh_device_session=1") {
 			// refresh device session
-			if s.authContext == nil {
-				return nil, fmt.Errorf("internal error: no authContext")
-			}
-			device, err := s.authContext.Device()
-			if err != nil {
-				return nil, err
-			}
-
-			err = s.refreshDeviceSession(device)
-			if err != nil {
-				return nil, err
-			}
-			refreshed = true
+			refreshNeed.device = true
+			refresh = true
 		}
-		if refreshed {
+		if refresh {
+			err := s.refreshAuth(user, refreshNeed)
+			if err != nil {
+				return nil, err
+			}
 			// close previous response and retry
 			// TODO: make this non-recursive or add a recursion limit
 			resp.Body.Close()
@@ -919,6 +910,37 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	s.setStoreID(req)
 
 	return req, nil
+}
+
+type authRefreshNeed struct {
+	device bool
+	user   bool
+}
+
+func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
+	if need.user {
+		// refresh user
+		err := s.refreshUser(user)
+		if err != nil {
+			return err
+		}
+	}
+	if need.device {
+		// refresh device session
+		if s.authContext == nil {
+			return fmt.Errorf("internal error: no authContext")
+		}
+		device, err := s.authContext.Device()
+		if err != nil {
+			return err
+		}
+
+		err = s.refreshDeviceSession(device)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) extractSuggestedCurrency(resp *http.Response) {
