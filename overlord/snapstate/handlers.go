@@ -142,15 +142,10 @@ func linkSnapInFlight(st *state.State, snapName string) (bool, error) {
 func isInstalled(st *state.State, snapName string) (bool, error) {
 	var snapState SnapState
 	err := Get(st, snapName, &snapState)
-	// we have the prereq already
-	if err == nil {
-		return true, nil
+	if err != nil && err != state.ErrNoState {
+		return false, err
 	}
-	if err == state.ErrNoState {
-		return false, nil
-	}
-	// real error
-	return false, err
+	return snapState.IsInstalled(), nil
 }
 
 // timeout for tasks to check if the prerequisites are ready

@@ -558,8 +558,9 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// content iface has special handling for the default-provider
-	// auto-install
+	// wait for auto-install, started by prerequisites code, for
+	// the default-providers of content ifaces so we can
+	// auto-connect to them
 	defaultProviders := m.defaultContentProviders(snapName)
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
