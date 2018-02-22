@@ -36,6 +36,7 @@ var _ = Suite(&connSuite{})
 func (s *connSuite) SetUpTest(c *C) {
 	consumer := snaptest.MockInfo(c, `
 name: consumer
+version: 0
 apps:
     app:
 plugs:
@@ -46,6 +47,7 @@ plugs:
 	s.plug = consumer.Plugs["plug"]
 	producer := snaptest.MockInfo(c, `
 name: producer
+version: 0
 apps:
     app:
 slots:

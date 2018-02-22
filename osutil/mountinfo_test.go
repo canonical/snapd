@@ -17,7 +17,7 @@
  *
  */
 
-package mount_test
+package osutil_test
 
 import (
 	"io/ioutil"
@@ -26,7 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type mountinfoSuite struct{}
@@ -34,8 +34,8 @@ type mountinfoSuite struct{}
 var _ = Suite(&mountinfoSuite{})
 
 // Check that parsing the example from kernel documentation works correctly.
-func (s *mountinfoSuite) TestParseInfoEntry1(c *C) {
-	entry, err := mount.ParseInfoEntry(
+func (s *mountinfoSuite) TestParseMountInfoEntry1(c *C) {
+	entry, err := osutil.ParseMountInfoEntry(
 		"36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue")
 	c.Assert(err, IsNil)
 	c.Assert(entry.MountID, Equals, 36)
@@ -52,23 +52,23 @@ func (s *mountinfoSuite) TestParseInfoEntry1(c *C) {
 }
 
 // Check that various combinations of optional fields are parsed correctly.
-func (s *mountinfoSuite) TestParseInfoEntry2(c *C) {
+func (s *mountinfoSuite) TestParseMountInfoEntry2(c *C) {
 	// No optional fields.
-	entry, err := mount.ParseInfoEntry(
+	entry, err := osutil.ParseMountInfoEntry(
 		"36 35 98:0 /mnt1 /mnt2 rw,noatime - ext3 /dev/root rw,errors=continue")
 	c.Assert(err, IsNil)
 	c.Assert(entry.MountOptions, DeepEquals, map[string]string{"rw": "", "noatime": ""})
 	c.Assert(entry.OptionalFields, HasLen, 0)
 	c.Assert(entry.FsType, Equals, "ext3")
 	// One optional field.
-	entry, err = mount.ParseInfoEntry(
+	entry, err = osutil.ParseMountInfoEntry(
 		"36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue")
 	c.Assert(err, IsNil)
 	c.Assert(entry.MountOptions, DeepEquals, map[string]string{"rw": "", "noatime": ""})
 	c.Assert(entry.OptionalFields, DeepEquals, []string{"master:1"})
 	c.Assert(entry.FsType, Equals, "ext3")
 	// Two optional fields.
-	entry, err = mount.ParseInfoEntry(
+	entry, err = osutil.ParseMountInfoEntry(
 		"36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 slave:2 - ext3 /dev/root rw,errors=continue")
 	c.Assert(err, IsNil)
 	c.Assert(entry.MountOptions, DeepEquals, map[string]string{"rw": "", "noatime": ""})
@@ -77,8 +77,8 @@ func (s *mountinfoSuite) TestParseInfoEntry2(c *C) {
 }
 
 // Check that white-space is unescaped correctly.
-func (s *mountinfoSuite) TestParseInfoEntry3(c *C) {
-	entry, err := mount.ParseInfoEntry(
+func (s *mountinfoSuite) TestParseMountInfoEntry3(c *C) {
+	entry, err := osutil.ParseMountInfoEntry(
 		`36 35 98:0 /mnt\0401 /mnt\0402 rw\040,noatime mas\040ter:1 - ext\0403 /dev/ro\040ot rw\040,errors=continue`)
 	c.Assert(err, IsNil)
 	c.Assert(entry.MountID, Equals, 36)
@@ -96,35 +96,35 @@ func (s *mountinfoSuite) TestParseInfoEntry3(c *C) {
 }
 
 // Check that various malformed entries are detected.
-func (s *mountinfoSuite) TestParseInfoEntry4(c *C) {
+func (s *mountinfoSuite) TestParseMountInfoEntry4(c *C) {
 	var err error
-	_, err = mount.ParseInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
+	_, err = osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
 	c.Assert(err, ErrorMatches, "incorrect number of tail fields, expected 3 but found 4")
-	_, err = mount.ParseInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root")
+	_, err = osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root")
 	c.Assert(err, ErrorMatches, "incorrect number of tail fields, expected 3 but found 2")
-	_, err = mount.ParseInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3")
+	_, err = osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3")
 	c.Assert(err, ErrorMatches, "incorrect number of fields, expected at least 10 but found 9")
-	_, err = mount.ParseInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 -")
+	_, err = osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 -")
 	c.Assert(err, ErrorMatches, "incorrect number of fields, expected at least 10 but found 8")
-	_, err = mount.ParseInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1")
+	_, err = osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1")
 	c.Assert(err, ErrorMatches, "incorrect number of fields, expected at least 10 but found 7")
-	_, err = mount.ParseInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 garbage1 garbage2 garbage3")
+	_, err = osutil.ParseMountInfoEntry("36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 garbage1 garbage2 garbage3")
 	c.Assert(err, ErrorMatches, "list of optional fields is not terminated properly")
-	_, err = mount.ParseInfoEntry("foo 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
+	_, err = osutil.ParseMountInfoEntry("foo 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
 	c.Assert(err, ErrorMatches, `cannot parse mount ID: "foo"`)
-	_, err = mount.ParseInfoEntry("36 bar 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
+	_, err = osutil.ParseMountInfoEntry("36 bar 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
 	c.Assert(err, ErrorMatches, `cannot parse parent mount ID: "bar"`)
-	_, err = mount.ParseInfoEntry("36 35 froz:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
+	_, err = osutil.ParseMountInfoEntry("36 35 froz:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
 	c.Assert(err, ErrorMatches, `cannot parse device major number: "froz"`)
-	_, err = mount.ParseInfoEntry("36 35 98:bot /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
+	_, err = osutil.ParseMountInfoEntry("36 35 98:bot /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
 	c.Assert(err, ErrorMatches, `cannot parse device minor number: "bot"`)
-	_, err = mount.ParseInfoEntry("36 35 corrupt /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
+	_, err = osutil.ParseMountInfoEntry("36 35 corrupt /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue foo")
 	c.Assert(err, ErrorMatches, `cannot parse device major:minor number pair: "corrupt"`)
 }
 
 // Test that empty mountinfo is parsed without errors.
-func (s *profileSuite) TestReadMountInfo1(c *C) {
-	entries, err := mount.ReadMountInfo(strings.NewReader(""))
+func (s *mountinfoSuite) TestReadMountInfo1(c *C) {
+	entries, err := osutil.ReadMountInfo(strings.NewReader(""))
 	c.Assert(err, IsNil)
 	c.Assert(entries, HasLen, 0)
 }
@@ -135,25 +135,25 @@ const mountInfoSample = "" +
 	"21 25 0:6 / /dev rw,nosuid,relatime shared:2 - devtmpfs udev rw,size=1937696k,nr_inodes=484424,mode=755\n"
 
 // Test that mountinfo is parsed without errors.
-func (s *profileSuite) TestReadMountInfo2(c *C) {
-	entries, err := mount.ReadMountInfo(strings.NewReader(mountInfoSample))
+func (s *mountinfoSuite) TestReadMountInfo2(c *C) {
+	entries, err := osutil.ReadMountInfo(strings.NewReader(mountInfoSample))
 	c.Assert(err, IsNil)
 	c.Assert(entries, HasLen, 3)
 }
 
 // Test that loading mountinfo from a file works as expected.
-func (s *profileSuite) TestLoadMountInfo1(c *C) {
+func (s *mountinfoSuite) TestLoadMountInfo1(c *C) {
 	fname := filepath.Join(c.MkDir(), "mountinfo")
 	err := ioutil.WriteFile(fname, []byte(mountInfoSample), 0644)
 	c.Assert(err, IsNil)
-	entries, err := mount.LoadMountInfo(fname)
+	entries, err := osutil.LoadMountInfo(fname)
 	c.Assert(err, IsNil)
 	c.Assert(entries, HasLen, 3)
 }
 
 // Test that loading mountinfo from a missing file reports an error.
-func (s *profileSuite) TestLoadMountInfo2(c *C) {
+func (s *mountinfoSuite) TestLoadMountInfo2(c *C) {
 	fname := filepath.Join(c.MkDir(), "mountinfo")
-	_, err := mount.LoadMountInfo(fname)
+	_, err := osutil.LoadMountInfo(fname)
 	c.Assert(err, ErrorMatches, "*. no such file or directory")
 }

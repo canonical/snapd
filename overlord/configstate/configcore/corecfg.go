@@ -59,7 +59,7 @@ func Run(tr Conf) error {
 	}
 
 	// capture cloud information
-	if err := handleCloud(tr); err != nil {
+	if err := setCloudInfoWhenSeeding(tr); err != nil {
 		return err
 	}
 

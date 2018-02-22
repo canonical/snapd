@@ -50,6 +50,7 @@ var _ = Suite(&RepositorySuite{
 func (s *RepositorySuite) SetUpTest(c *C) {
 	consumer := snaptest.MockInfo(c, `
 name: consumer
+version: 0
 apps:
     app:
 hooks:
@@ -63,6 +64,7 @@ plugs:
 	s.plug = consumer.Plugs["plug"]
 	producer := snaptest.MockInfo(c, `
 name: producer
+version: 0
 apps:
     app:
 hooks:
@@ -79,6 +81,7 @@ slots:
 	// have at least one interface.
 	s.coreSnap = snaptest.MockInfo(c, `
 name: core
+version: 0
 type: os
 slots:
     network:
@@ -259,12 +262,14 @@ func (s *RepositorySuite) TestPlug(c *C) {
 func (s *RepositorySuite) TestPlugSearch(c *C) {
 	addPlugsSlots(c, s.testRepo, `
 name: x
+version: 0
 plugs:
     a: interface
     b: interface
     c: interface
 `, `
 name: y
+version: 0
 plugs:
     a: interface
     b: interface
@@ -315,10 +320,12 @@ func (s *RepositorySuite) TestRemovePlugFailsWhenPlugIsConnected(c *C) {
 func (s *RepositorySuite) TestAllPlugsWithoutInterfaceName(c *C) {
 	snaps := addPlugsSlots(c, s.testRepo, `
 name: snap-a
+version: 0
 plugs:
     name-a: interface
 `, `
 name: snap-b
+version: 0
 plugs:
     name-a: interface
     name-b: interface
@@ -339,10 +346,12 @@ func (s *RepositorySuite) TestAllPlugsWithInterfaceName(c *C) {
 	c.Assert(err, IsNil)
 	snaps := addPlugsSlots(c, s.testRepo, `
 name: snap-a
+version: 0
 plugs:
     name-a: interface
 `, `
 name: snap-b
+version: 0
 plugs:
     name-a: interface
     name-b: other-interface
@@ -356,10 +365,12 @@ plugs:
 func (s *RepositorySuite) TestPlugs(c *C) {
 	snaps := addPlugsSlots(c, s.testRepo, `
 name: snap-a
+version: 0
 plugs:
     name-a: interface
 `, `
 name: snap-b
+version: 0
 plugs:
     name-a: interface
     name-b: interface
@@ -382,11 +393,13 @@ func (s *RepositorySuite) TestAllSlots(c *C) {
 	c.Assert(err, IsNil)
 	snaps := addPlugsSlots(c, s.testRepo, `
 name: snap-a
+version: 0
 slots:
     name-a: interface
     name-b: interface
 `, `
 name: snap-b
+version: 0
 slots:
     name-a: other-interface
 `)
@@ -407,11 +420,13 @@ slots:
 func (s *RepositorySuite) TestSlots(c *C) {
 	snaps := addPlugsSlots(c, s.testRepo, `
 name: snap-a
+version: 0
 slots:
     name-a: interface
     name-b: interface
 `, `
 name: snap-b
+version: 0
 slots:
     name-a: interface
 `)
@@ -563,6 +578,7 @@ func (s *RepositorySuite) TestResolveConnectExplicit(c *C) {
 func (s *RepositorySuite) TestResolveConnectImplicitCoreSlot(c *C) {
 	coreSnap := snaptest.MockInfo(c, `
 name: core
+version: 0
 type: os
 slots:
     slot:
@@ -582,6 +598,7 @@ slots:
 func (s *RepositorySuite) TestResolveConnectImplicitUbuntuCoreSlot(c *C) {
 	ubuntuCoreSnap := snaptest.MockInfo(c, `
 name: ubuntu-core
+version: 0
 type: os
 slots:
     slot:
@@ -601,6 +618,7 @@ slots:
 func (s *RepositorySuite) TestResolveConnectImplicitSlotPrefersCore(c *C) {
 	coreSnap := snaptest.MockInfo(c, `
 name: core
+version: 0
 type: os
 slots:
     slot:
@@ -608,6 +626,7 @@ slots:
 `, nil)
 	ubuntuCoreSnap := snaptest.MockInfo(c, `
 name: ubuntu-core
+version: 0
 type: os
 slots:
     slot:
@@ -627,6 +646,7 @@ func (s *RepositorySuite) TestResolveConnectNoImplicitCandidates(c *C) {
 	c.Assert(err, IsNil)
 	coreSnap := snaptest.MockInfo(c, `
 name: core
+version: 0
 type: os
 slots:
     slot:
@@ -643,6 +663,7 @@ slots:
 func (s *RepositorySuite) TestResolveConnectAmbiguity(c *C) {
 	coreSnap := snaptest.MockInfo(c, `
 name: core
+version: 0
 type: os
 slots:
     slot-a:
@@ -1371,12 +1392,14 @@ func (s *RepositorySuite) TestAutoConnectCandidatePlugsAndSlots(c *C) {
 	// Add a pair of snaps with plugs/slots using those two interfaces
 	consumer := snaptest.MockInfo(c, `
 name: consumer
+version: 0
 plugs:
     auto:
     manual:
 `, nil)
 	producer := snaptest.MockInfo(c, `
 name: producer
+version: 0
 type: os
 slots:
     auto:
@@ -1413,6 +1436,7 @@ func (s *RepositorySuite) TestAutoConnectCandidatePlugsAndSlotsSymmetry(c *C) {
 	// Add a producer snap for "auto"
 	producer := snaptest.MockInfo(c, `
 name: producer
+version: 0
 type: os
 slots:
     auto:
@@ -1423,6 +1447,7 @@ slots:
 	// Add two consumers snaps for "auto"
 	consumer1 := snaptest.MockInfo(c, `
 name: consumer1
+version: 0
 plugs:
     auto:
 `, nil)
@@ -1433,6 +1458,7 @@ plugs:
 	// Add two consumers snaps for "auto"
 	consumer2 := snaptest.MockInfo(c, `
 name: consumer2
+version: 0
 plugs:
     auto:
 `, nil)
@@ -1481,12 +1507,14 @@ func (s *AddRemoveSuite) SetUpTest(c *C) {
 
 const testConsumerYaml = `
 name: consumer
+version: 0
 apps:
     app:
         plugs: [iface]
 `
 const testProducerYaml = `
 name: producer
+version: 0
 apps:
     app:
         slots: [iface]
@@ -1494,6 +1522,7 @@ apps:
 
 const testConsumerInvalidSlotNameYaml = `
 name: consumer
+version: 0
 slots:
  ttyS5:
   interface: iface
@@ -1504,6 +1533,7 @@ apps:
 
 const testConsumerInvalidPlugNameYaml = `
 name: consumer
+version: 0
 plugs:
  ttyS3:
   interface: iface
@@ -1548,6 +1578,7 @@ func (s *AddRemoveSuite) TestAddSnapErrorsOnExistingSnapSlots(c *C) {
 func (s *AddRemoveSuite) TestAddSnapSkipsUnknownInterfaces(c *C) {
 	info, err := s.addSnap(c, `
 name: bogus
+version: 0
 plugs:
   bogus-plug:
 slots:
@@ -1617,6 +1648,7 @@ func (s *DisconnectSnapSuite) SetUpTest(c *C) {
 
 	s.s1 = snaptest.MockInfo(c, `
 name: s1
+version: 0
 plugs:
     iface-a:
 slots:
@@ -1627,6 +1659,7 @@ slots:
 
 	s.s2 = snaptest.MockInfo(c, `
 name: s2
+version: 0
 plugs:
     iface-b:
 slots:
@@ -1698,6 +1731,7 @@ func makeContentConnectionTestSnaps(c *C, plugContentToken, slotContentToken str
 
 	plugSnap := snaptest.MockInfo(c, fmt.Sprintf(`
 name: content-plug-snap
+version: 0
 plugs:
   imported-content:
     interface: content
@@ -1705,6 +1739,7 @@ plugs:
 `, plugContentToken), nil)
 	slotSnap := snaptest.MockInfo(c, fmt.Sprintf(`
 name: content-slot-snap
+version: 0
 slots:
   exported-content:
     interface: content
@@ -1773,6 +1808,7 @@ func (s *RepositorySuite) TestInfo(c *C) {
 	// Add some test snaps.
 	s1 := snaptest.MockInfo(c, fmt.Sprintf(`
 name: s1
+version: 0
 apps:
   s1:
     plugs: [i1, i2]
@@ -1781,6 +1817,7 @@ apps:
 
 	s2 := snaptest.MockInfo(c, fmt.Sprintf(`
 name: s2
+version: 0
 apps:
   s2:
     slots: [i1, i3]
@@ -1789,6 +1826,7 @@ apps:
 
 	s3 := snaptest.MockInfo(c, fmt.Sprintf(`
 name: s3
+version: 0
 type: os
 slots:
   i2:

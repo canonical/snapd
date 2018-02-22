@@ -157,6 +157,7 @@ func (s *snapmgrTestSuite) TestKnownTaskKinds(c *C) {
 	sort.Strings(kinds)
 	c.Assert(kinds, DeepEquals, []string{
 		"alias",
+		"auto-connect",
 		"cleanup",
 		"clear-aliases",
 		"clear-snap",
@@ -281,9 +282,12 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		"link-snap",
 	)
 	if opts&maybeCore != 0 {
-		expected = append(expected, "setup-profiles")
+		expected = append(expected,
+			"setup-profiles",
+		)
 	}
 	expected = append(expected,
+		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
 		"run-hook[install]",
@@ -336,6 +340,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		expected = append(expected, "setup-profiles")
 	}
 	expected = append(expected,
+		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
 		"run-hook[post-refresh]",
@@ -371,6 +376,7 @@ func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 		"discard-snap",
 		"discard-conns",
 	})
+	verifyStopReason(c, ts, "remove")
 }
 
 func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
@@ -525,11 +531,14 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
+		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
 		"start-snap-services",
 		"run-hook[configure]",
 	})
+	// a revert is a special refresh
+	verifyStopReason(c, ts, "refresh")
 
 	snapsup, err := snapstate.TaskSnapSetup(tasks[0])
 	c.Assert(err, IsNil)
@@ -899,6 +908,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
+		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
 		"start-snap-services",
@@ -1001,6 +1011,7 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 		"unlink-snap",
 		"remove-profiles",
 	})
+	verifyStopReason(c, ts, "disable")
 }
 
 func (s *snapmgrTestSuite) TestEnableConflict(c *C) {
@@ -1628,6 +1639,11 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/42"),
 		},
 		{
+			op:    "auto-connect:Doing",
+			name:  "some-snap",
+			revno: snap.R(42),
+		},
+		{
 			op: "update-aliases",
 		},
 		{
@@ -1649,7 +1665,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (42) from channel "some-channel"`)
 
 	// check link/start snap summary
-	linkTask := ta[len(ta)-6]
+	linkTask := ta[len(ta)-7]
 	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (42) available to the system`)
 	startTask := ta[len(ta)-2]
 	c.Check(startTask.Summary(), Equals, `Start snap "some-snap" (42) services`)
@@ -1773,7 +1789,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op:   "stop-snap-services",
+			op:   "stop-snap-services:refresh",
 			name: filepath.Join(dirs.SnapMountDir, "services-snap/7"),
 		},
 		{
@@ -1806,6 +1822,11 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			name: filepath.Join(dirs.SnapMountDir, "services-snap/11"),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "services-snap",
+			revno: snap.R(11),
 		},
 		{
 			op: "update-aliases",
@@ -1857,8 +1878,11 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		SnapID:   "services-snap-id",
 	})
 
+	// verify services stop reason
+	verifyStopReason(c, ts, "refresh")
+
 	// check post-refresh hook
-	task = ts.Tasks()[13]
+	task = ts.Tasks()[14]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap" snap if present`)
 
@@ -2407,6 +2431,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
 		},
 		{
 			op: "update-aliases",
@@ -3365,7 +3394,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 17
+			j += 18
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -3507,6 +3536,11 @@ version: 1.0`)
 			revno: snap.R("x1"),
 		},
 		{
+			op:    "auto-connect:Doing",
+			name:  "mock",
+			revno: snap.R("x1"),
+		},
+		{
 			op: "update-aliases",
 		},
 		{
@@ -3577,7 +3611,7 @@ version: 1.0`)
 
 	ops := s.fakeBackend.ops
 	// ensure only local install was run, i.e. first action is pseudo-action current
-	c.Assert(ops.Ops(), HasLen, 11)
+	c.Assert(ops.Ops(), HasLen, 12)
 	c.Check(ops[0].op, Equals, "current")
 	c.Check(ops[0].old, Equals, filepath.Join(dirs.SnapMountDir, "mock/x2"))
 	// and setup-snap
@@ -3715,6 +3749,11 @@ version: 1.0`)
 			revno: snap.R("x1"),
 		},
 		{
+			op:    "auto-connect:Doing",
+			name:  "mock",
+			revno: snap.R("x1"),
+		},
+		{
 			op: "update-aliases",
 		},
 		{
@@ -3767,7 +3806,7 @@ version: 1.0`)
 	s.state.Lock()
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -4537,6 +4576,11 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
+			op:    "auto-connect:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op: "update-aliases",
 		},
 		{
@@ -4718,6 +4762,11 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 		},
 		{
+			op:    "auto-connect:Doing",
+			name:  "some-snap",
+			revno: snap.R(2),
+		},
+		{
 			op: "update-aliases",
 		},
 	}
@@ -4776,7 +4825,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 6)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 7)
 
 	// verify that LocalRevision is still -7
 	var snapst snapstate.SnapState
@@ -4841,6 +4890,11 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 		{
 			op:   "link-snap",
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
 		},
 		{
 			op: "update-aliases",
@@ -4925,6 +4979,11 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "some-snap",
+			revno: snap.R(1),
 		},
 		{
 			op: "update-aliases",
@@ -5392,6 +5451,7 @@ validate-snap: Done
 link-snap: Error
  INFO unlink
  ERROR fail
+auto-connect: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
 run-hook: Hold
@@ -5407,6 +5467,7 @@ validate-snap: Done
 link-snap: Error
  INFO unlink
  ERROR fail
+auto-connect: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
 run-hook: Hold
@@ -5471,7 +5532,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshRefusesLegacyWeekdaySchedules(c *C) 
 	c.Check(logbuf.String(), testutil.Contains, `cannot use refresh.schedule configuration: cannot parse "mon@12:00": not a valid time`)
 	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
-	c.Check(schedule, Equals, "00:00-24:00/4")
+	c.Check(schedule, Equals, "00:00~24:00/4")
 	c.Check(legacy, Equals, false)
 
 	tr = config.NewTransaction(s.state)
@@ -5551,7 +5612,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackToDefaultOnError(c *C) {
 	// cannot be parsed
 	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
-	c.Check(schedule, Equals, "00:00-24:00/4")
+	c.Check(schedule, Equals, "00:00~24:00/4")
 	c.Check(legacy, Equals, false)
 
 	tr = config.NewTransaction(s.state)
@@ -5582,7 +5643,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshFallbackOnEmptyToDefaultSchedule(c *
 	// refresh.schedule was set
 	schedule, legacy, err := s.snapmgr.RefreshSchedule()
 	c.Assert(err, IsNil)
-	c.Check(schedule, Equals, "00:00-24:00/4")
+	c.Check(schedule, Equals, "00:00~24:00/4")
 	c.Check(legacy, Equals, false)
 
 	tr = config.NewTransaction(s.state)
@@ -5911,12 +5972,12 @@ func (s *snapmgrQuerySuite) SetUpTest(c *C) {
 name: name0
 version: 1.1
 description: |
-    Lots of text`, "", sideInfo11)
+    Lots of text`, sideInfo11)
 	snaptest.MockSnap(c, `
 name: name0
 version: 1.2
 description: |
-    Lots of text`, "", sideInfo12)
+    Lots of text`, sideInfo12)
 	snapstate.Set(st, "name1", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo11, sideInfo12},
@@ -6049,7 +6110,7 @@ func (s *snapmgrQuerySuite) TestTypeInfo(c *C) {
 			RealName: x.snapName,
 			Revision: snap.R(2),
 		}
-		snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: %q\nversion: %q\n", x.snapName, x.snapType, x.snapName), "", sideInfo)
+		snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: %q\nversion: %q\n", x.snapName, x.snapType, x.snapName), sideInfo)
 		snapstate.Set(st, x.snapName, &snapstate.SnapState{
 			SnapType: string(x.snapType),
 			Active:   true,
@@ -6106,7 +6167,7 @@ func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
 				RealName: snapName,
 				Revision: snap.R(1),
 			}
-			snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: os\nversion: %q\n", snapName, snapName), "", sideInfo)
+			snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: os\nversion: %q\n", snapName, snapName), sideInfo)
 			snapstate.Set(st, snapName, &snapstate.SnapState{
 				SnapType: string(snap.TypeOS),
 				Active:   true,
@@ -6276,6 +6337,7 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 		"setup-profiles",
 		"link-snap",
 		"setup-profiles",
+		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
 		"run-hook[install]",
@@ -6881,6 +6943,11 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
+			op:    "auto-connect:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op: "update-aliases",
 		},
 		{
@@ -6940,6 +7007,17 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 	}
 }
 
+func verifyStopReason(c *C, ts *state.TaskSet, reason string) {
+	tl := tasksWithKind(ts, "stop-snap-services")
+	c.Check(tl, HasLen, 1)
+
+	var stopReason string
+	err := tl[0].Get("stop-reason", &stopReason)
+	c.Assert(err, IsNil)
+	c.Check(stopReason, Equals, reason)
+
+}
+
 func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -6976,6 +7054,7 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 			"discard-snap",
 			"discard-conns",
 		})
+		verifyStopReason(c, ts, "remove")
 	}
 }
 
@@ -7005,7 +7084,7 @@ func (s *snapmgrTestSuite) prepareGadget(c *C) {
 name: the-gadget
 type: gadget
 version: 1.0
-`, "", gadgetSideInfo)
+`, gadgetSideInfo)
 
 	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0600)
 	c.Assert(err, IsNil)
@@ -7072,7 +7151,7 @@ volumes:
         bootloader: grub
 `)
 
-	info := snaptest.MockSnap(c, mockGadgetSnapYaml, "SNAP", &snap.SideInfo{Revision: snap.R(2)})
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(2)})
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
@@ -7102,7 +7181,7 @@ func makeInstalledMockCoreSnap(c *C) {
 version: 1.0
 type: os
 `
-	snaptest.MockSnap(c, coreSnapYaml, "", &snap.SideInfo{
+	snaptest.MockSnap(c, coreSnapYaml, &snap.SideInfo{
 		RealName: "core",
 		Revision: snap.R(1),
 	})
@@ -7366,6 +7445,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		},
 		{
 			op:    "setup-profiles:Doing",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
+			op:    "auto-connect:Doing",
 			name:  "core",
 			revno: snap.R(11),
 		},
@@ -7998,6 +8082,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "core/11"),
 		},
 		{
+			op:    "auto-connect:Doing",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
 			op: "update-aliases",
 		},
 		// after core is in place continue with the snap
@@ -8051,6 +8140,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		{
 			op:   "link-snap",
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/42"),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "some-snap",
+			revno: snap.R(42),
 		},
 		{
 			op: "update-aliases",
@@ -8126,11 +8220,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	len1 := len(chg1.Tasks())
 	len2 := len(chg2.Tasks())
 	if len1 > len2 {
-		c.Assert(chg1.Tasks(), HasLen, 24)
-		c.Assert(chg2.Tasks(), HasLen, 12)
+		c.Assert(chg1.Tasks(), HasLen, 26)
+		c.Assert(chg2.Tasks(), HasLen, 13)
 	} else {
-		c.Assert(chg1.Tasks(), HasLen, 12)
-		c.Assert(chg2.Tasks(), HasLen, 24)
+		c.Assert(chg1.Tasks(), HasLen, 13)
+		c.Assert(chg2.Tasks(), HasLen, 26)
 	}
 
 	// FIXME: add helpers and do a DeepEquals here for the operations

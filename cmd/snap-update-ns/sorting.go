@@ -22,12 +22,12 @@ package main
 import (
 	"strings"
 
-	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // byMagicDir allows sorting an array of entries that automagically assumes
 // each entry ends with a trailing slash.
-type byMagicDir []mount.Entry
+type byMagicDir []osutil.MountEntry
 
 func (c byMagicDir) Len() int      { return len(c) }
 func (c byMagicDir) Swap(i, j int) { c[i], c[j] = c[j], c[i] }

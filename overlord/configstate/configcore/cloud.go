@@ -42,7 +42,7 @@ func alreadySeeded(tr Conf) (bool, error) {
 	return seeded, nil
 }
 
-func handleCloud(tr Conf) error {
+func setCloudInfoWhenSeeding(tr Conf) error {
 	// if we are during seeding try to capture cloud information
 	seeded, err := alreadySeeded(tr)
 	if err != nil {
