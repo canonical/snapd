@@ -50,7 +50,15 @@ hooks:
 func (s *SnapSuite) TestInvalidParameters(c *check.C) {
 	invalidParameters := []string{"run", "--hook=configure", "--command=command-name", "snap-name"}
 	_, err := snaprun.Parser().ParseArgs(invalidParameters)
-	c.Check(err, check.ErrorMatches, ".*cannot use --hook and --command together.*")
+	c.Check(err, check.ErrorMatches, ".*you can only use one of --hook, --command, and --timer.*")
+
+	invalidParameters = []string{"run", "--hook=configure", "--timer=10:00-12:00", "snap-name"}
+	_, err = snaprun.Parser().ParseArgs(invalidParameters)
+	c.Check(err, check.ErrorMatches, ".*you can only use one of --hook, --command, and --timer.*")
+
+	invalidParameters = []string{"run", "--command=command-name", "--timer=10:00-12:00", "snap-name"}
+	_, err = snaprun.Parser().ParseArgs(invalidParameters)
+	c.Check(err, check.ErrorMatches, ".*you can only use one of --hook, --command, and --timer.*")
 
 	invalidParameters = []string{"run", "-r=1", "--command=command-name", "snap-name"}
 	_, err = snaprun.Parser().ParseArgs(invalidParameters)

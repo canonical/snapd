@@ -95,18 +95,22 @@ func (x *cmdRun) Execute(args []string) error {
 	args = args[1:]
 
 	// Catch some invalid parameter combinations, provide helpful errors
-	if x.HookName != "" && x.Command != "" {
-		return fmt.Errorf(i18n.G("cannot use --hook and --command together"))
+	optionsSet := 0
+	for _, param := range []string{x.HookName, x.Command, x.Timer} {
+		if param != "" {
+			optionsSet++
+		}
 	}
+	if optionsSet > 1 {
+		return fmt.Errorf("you can only use one of --hook, --command, and --timer")
+	}
+
 	if x.Revision != "unset" && x.Revision != "" && x.HookName == "" {
 		return fmt.Errorf(i18n.G("-r can only be used with --hook"))
 	}
 	if x.HookName != "" && len(args) > 0 {
 		// TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
 		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.HookName, strings.Join(args, " "))
-	}
-	if x.Timer != "" && (x.HookName != "" || x.Command != "") {
-		return fmt.Errorf(i18n.G("cannot use --timer with either --hook or --command"))
 	}
 
 	// Now actually handle the dispatching
