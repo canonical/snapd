@@ -327,7 +327,7 @@ func (x *cmdRun) snapRunTimer(snapApp, timer string, args []string) error {
 
 	now := timeNow()
 	if !timeutil.Includes(schedule, now) {
-		fmt.Fprintf(Stderr, "on %v attempted to run %v timer outside of scheduled time %q\n", now, snapApp, timer)
+		fmt.Fprintf(Stderr, "%s: attempted to run %q timer outside of scheduled time %q\n", now.Format(time.RFC3339), snapApp, timer)
 		return nil
 	}
 
