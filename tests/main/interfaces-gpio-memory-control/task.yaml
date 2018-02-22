@@ -5,10 +5,6 @@ details: |
 
 systems: [ubuntu-core-16-arm-*]
 
-environment:
-    CONNECTED_PATTERN: ':gpio-memory-control +test-snapd-gpio-memory-control'
-    DISCONNECTED_PATTERN: '\- +test-snapd-gpio-memory-control:gpio-memory-control'
-
 prepare: |
     echo "Given the test-snapd-gpio-memory-control snap is installed"
     snap install test-snapd-gpio-memory-control
@@ -23,11 +19,10 @@ execute: |
     fi
 
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "\- +test-snapd-gpio-memory-control:gpio-memory-control"
 
     echo "When the interface is connected"
     snap connect test-snapd-gpio-memory-control:gpio-memory-control
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able read and write the physical memory"
     test-snapd-gpio-memory-control.gpiomem
@@ -38,7 +33,6 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-gpio-memory-control:gpio-memory-control
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to access the gpio physical memory"
     if test-snapd-gpio-memory-control.gpiomem 2>${PWD}/call.error; then
