@@ -810,48 +810,53 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestO
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
 func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
-	req, err := s.newRequest(reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-
-	var resp *http.Response
-	if ctx != nil {
-		resp, err = ctxhttp.Do(ctx, client, req)
-	} else {
-		resp, err = client.Do(req)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	wwwAuth := resp.Header.Get("WWW-Authenticate")
-	if resp.StatusCode == 401 {
-		var refreshNeed authRefreshNeed
-		refresh := false
-		if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
-			// refresh user
-			refreshNeed.user = true
-			refresh = true
+	authRefreshes := 0
+	for {
+		req, err := s.newRequest(reqOptions, user)
+		if err != nil {
+			return nil, err
 		}
-		if strings.Contains(wwwAuth, "refresh_device_session=1") {
-			// refresh device session
-			refreshNeed.device = true
-			refresh = true
+
+		var resp *http.Response
+		if ctx != nil {
+			resp, err = ctxhttp.Do(ctx, client, req)
+		} else {
+			resp, err = client.Do(req)
 		}
-		if refresh {
-			err := s.refreshAuth(user, refreshNeed)
-			if err != nil {
-				return nil, err
+		if err != nil {
+			return nil, err
+		}
+
+		wwwAuth := resp.Header.Get("WWW-Authenticate")
+		if resp.StatusCode == 401 && authRefreshes < 4 {
+			// 4 tries: 2 tries for each in case both user
+			// and device need refreshing
+			var refreshNeed authRefreshNeed
+			refresh := false
+			if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
+				// refresh user
+				refreshNeed.user = true
+				refresh = true
 			}
-			// close previous response and retry
-			// TODO: make this non-recursive or add a recursion limit
-			resp.Body.Close()
-			return s.doRequest(ctx, client, reqOptions, user)
+			if strings.Contains(wwwAuth, "refresh_device_session=1") {
+				// refresh device session
+				refreshNeed.device = true
+				refresh = true
+			}
+			if refresh {
+				err := s.refreshAuth(user, refreshNeed)
+				if err != nil {
+					return nil, err
+				}
+				// close previous response and retry
+				resp.Body.Close()
+				authRefreshes++
+				continue
+			}
 		}
-	}
 
-	return resp, err
+		return resp, err
+	}
 }
 
 // build a new http.Request with headers for the store
