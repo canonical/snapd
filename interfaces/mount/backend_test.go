@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) {
@@ -100,12 +101,8 @@ func (s *backendSuite) TestRemove(c *C) {
 	c.Assert(osutil.FileExists(snapCanaryToGo), Equals, false)
 	c.Assert(osutil.FileExists(appCanaryToGo), Equals, false)
 	c.Assert(osutil.FileExists(hookCanaryToGo), Equals, false)
-	content, err := ioutil.ReadFile(appCanaryToStay)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, "stay!")
-	content, err = ioutil.ReadFile(snapCanaryToStay)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, "stay!")
+	c.Assert(appCanaryToStay, testutil.FileEquals, "stay!")
+	c.Assert(snapCanaryToStay, testutil.FileEquals, "stay!")
 }
 
 var mockSnapYaml = `name: snap-name

@@ -10,7 +10,9 @@ prepare: |
 
 restore: |
     . $TESTSLIB/pkgdb.sh
-    kill $(cat dbus-launch.pid)
+    if [ -f dbus-launch.pid ]; then
+        kill $(cat dbus-launch.pid)
+    fi
     rm -f  dbus-launch.pid
 
 execute: |
