@@ -97,7 +97,7 @@ reset_all_snap() {
             "bin" | "$gadget_name" | "$kernel_name" | core | README)
                 ;;
             *)
-                if ! echo "$SKIP_REMOVE_SNAPS" | grep -q -w $snap; then
+                if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
                     snap remove "$snap"
                 fi
                 ;;
