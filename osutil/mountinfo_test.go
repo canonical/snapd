@@ -35,9 +35,12 @@ var _ = Suite(&mountinfoSuite{})
 
 // Check that parsing the example from kernel documentation works correctly.
 func (s *mountinfoSuite) TestParseMountInfoEntry1(c *C) {
-	entry, err := osutil.ParseMountInfoEntry(
-		"36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue")
+	real := "36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue"
+	canonical := "36 35 98:0 /mnt1 /mnt2 noatime,rw master:1 - ext3 /dev/root errors=continue,rw"
+	entry, err := osutil.ParseMountInfoEntry(real)
 	c.Assert(err, IsNil)
+	c.Assert(entry.String(), Equals, canonical)
+
 	c.Assert(entry.MountID, Equals, 36)
 	c.Assert(entry.ParentID, Equals, 35)
 	c.Assert(entry.DevMajor, Equals, 98)
@@ -54,9 +57,12 @@ func (s *mountinfoSuite) TestParseMountInfoEntry1(c *C) {
 // Check that various combinations of optional fields are parsed correctly.
 func (s *mountinfoSuite) TestParseMountInfoEntry2(c *C) {
 	// No optional fields.
-	entry, err := osutil.ParseMountInfoEntry(
-		"36 35 98:0 /mnt1 /mnt2 rw,noatime - ext3 /dev/root rw,errors=continue")
+	real := "36 35 98:0 /mnt1 /mnt2 rw,noatime - ext3 /dev/root rw,errors=continue"
+	canonical := "36 35 98:0 /mnt1 /mnt2 noatime,rw - ext3 /dev/root errors=continue,rw"
+	entry, err := osutil.ParseMountInfoEntry(real)
 	c.Assert(err, IsNil)
+	c.Assert(entry.String(), Equals, canonical)
+
 	c.Assert(entry.MountOptions, DeepEquals, map[string]string{"rw": "", "noatime": ""})
 	c.Assert(entry.OptionalFields, HasLen, 0)
 	c.Assert(entry.FsType, Equals, "ext3")
