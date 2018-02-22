@@ -221,6 +221,8 @@ type testAuthContext struct {
 	proxyStoreURL *url.URL
 
 	storeID string
+
+	cloudInfo *auth.CloudInfo
 }
 
 func (ac *testAuthContext) Device() (*auth.DeviceState, error) {
@@ -281,6 +283,10 @@ func (ac *testAuthContext) ProxyStoreParams(defaultURL *url.URL) (string, *url.U
 		return ac.proxyStoreID, ac.proxyStoreURL, nil
 	}
 	return "", defaultURL, nil
+}
+
+func (ac *testAuthContext) CloudInfo() (*auth.CloudInfo, error) {
+	return ac.cloudInfo, nil
 }
 
 func makeTestMacaroon() (*macaroon.Macaroon, error) {
@@ -2210,7 +2216,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, "21")
 		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, "archXYZ")
 		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "true")
+		// for now we have both
 		c.Check(r.Header.Get("X-Ubuntu-No-CDN"), Equals, "true")
+		c.Check(r.Header.Get("Snap-CDN"), Equals, "none")
 
 		w.WriteHeader(200)
 		io.WriteString(w, MockDetailsJSON)
@@ -2259,6 +2267,70 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c 
 	cfg.Architecture = "archXYZ"
 	cfg.StoreID = "fallback"
 	repo := New(cfg, &testAuthContext{c: c, device: t.device, storeID: "my-brand-store-id"})
+	c.Assert(repo, NotNil)
+
+	// the actual test
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "edge",
+		Revision: snap.R(0),
+	}
+	result, err := repo.SnapInfo(spec, nil)
+	c.Assert(err, IsNil)
+	c.Check(result.Name(), Equals, "hello-world")
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryFullCloudInfoFromAuthContext(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", detailsPathPattern)
+		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="aws" region="us-east-1" availability-zone="us-east-1c"`)
+
+		w.WriteHeader(200)
+		io.WriteString(w, MockDetailsJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := DefaultConfig()
+	cfg.StoreBaseURL = mockServerURL
+	cfg.Series = "21"
+	cfg.Architecture = "archXYZ"
+	cfg.StoreID = "fallback"
+	repo := New(cfg, &testAuthContext{c: c, device: t.device, cloudInfo: &auth.CloudInfo{Name: "aws", Region: "us-east-1", AvailabilityZone: "us-east-1c"}})
+	c.Assert(repo, NotNil)
+
+	// the actual test
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "edge",
+		Revision: snap.R(0),
+	}
+	result, err := repo.SnapInfo(spec, nil)
+	c.Assert(err, IsNil)
+	c.Check(result.Name(), Equals, "hello-world")
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLessDetailedCloudInfoFromAuthContext(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", detailsPathPattern)
+		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="openstack" availability-zone="nova"`)
+
+		w.WriteHeader(200)
+		io.WriteString(w, MockDetailsJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := DefaultConfig()
+	cfg.StoreBaseURL = mockServerURL
+	cfg.Series = "21"
+	cfg.Architecture = "archXYZ"
+	cfg.StoreID = "fallback"
+	repo := New(cfg, &testAuthContext{c: c, device: t.device, cloudInfo: &auth.CloudInfo{Name: "openstack", Region: "", AvailabilityZone: "nova"}})
 	c.Assert(repo, NotNil)
 
 	// the actual test
