@@ -2025,7 +2025,7 @@ const mockSingleOrderJSON = `{
   ]
 }`
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
+func (s *storeTestSuite) TestDetails(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2126,7 +2126,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(slot.Apps["content-plug"].Command, Equals, "bin/content-plug")
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryDetailsDefaultChannelIsStable(c *C) {
+func (s *storeTestSuite) TestDetailsDefaultChannelIsStable(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2162,7 +2162,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryDetailsDefaultChannelIsStable(
 	c.Check(result.Channel, Equals, "stable")
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryDetails500(c *C) {
+func (s *storeTestSuite) TestDetails500(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
@@ -2194,7 +2194,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryDetails500(c *C) {
 	c.Assert(n, Equals, 5)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryDetails500once(c *C) {
+func (s *storeTestSuite) TestDetails500once(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
@@ -2231,8 +2231,8 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryDetails500once(c *C) {
 	c.Assert(n, Equals, 2)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) {
-	// this test will break and should be melded into TestUbuntuStoreRepositoryDetails,
+func (s *storeTestSuite) TestDetailsAndChannels(c *C) {
+	// this test will break and should be melded into TestDetails,
 	// above, when the store provides the channels as part of details
 
 	n := 0
@@ -2310,7 +2310,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) {
 	c.Check(snap.Validate(result), IsNil)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
+func (s *storeTestSuite) TestNonDefaults(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 	os.Setenv("SNAPPY_STORE_NO_CDN", "1")
@@ -2359,7 +2359,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 	c.Check(result.Name(), Equals, "hello-world")
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c *C) {
+func (s *storeTestSuite) TestStoreIDFromAuthContext(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
 		storeID := r.Header.Get("X-Ubuntu-Store")
@@ -2392,7 +2392,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c *C) {
 	c.Check(result.Name(), Equals, "hello-world")
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryFullCloudInfoFromAuthContext(c *C) {
+func (s *storeTestSuite) TestFullCloudInfoFromAuthContext(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
 		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="aws" region="us-east-1" availability-zone="us-east-1c"`)
@@ -2424,7 +2424,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryFullCloudInfoFromAuthContext(c
 	c.Check(result.Name(), Equals, "hello-world")
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryLessDetailedCloudInfoFromAuthContext(c *C) {
+func (s *storeTestSuite) TestLessDetailedCloudInfoFromAuthContext(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
 		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="openstack" availability-zone="nova"`)
@@ -2456,7 +2456,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryLessDetailedCloudInfoFromAuthC
 	c.Check(result.Name(), Equals, "hello-world")
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryProxyStoreFromAuthContext(c *C) {
+func (s *storeTestSuite) TestProxyStoreFromAuthContext(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
 
@@ -2491,7 +2491,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryProxyStoreFromAuthContext(c *C
 	c.Check(result.Name(), Equals, "hello-world")
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryProxyStoreFromAuthContextURLFallback(c *C) {
+func (s *storeTestSuite) TestProxyStoreFromAuthContextURLFallback(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
 
@@ -2525,7 +2525,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryProxyStoreFromAuthContextURLFa
 	c.Check(result.Name(), Equals, "hello-world")
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
+func (s *storeTestSuite) TestRevision(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ordersPath:
@@ -2563,7 +2563,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 	c.Check(result.Revision, DeepEquals, snap.R(27))
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
+func (s *storeTestSuite) TestDetailsOopses(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
 		c.Check(r.URL.Path, Matches, ".*/hello-world")
@@ -2613,7 +2613,7 @@ const MockNoDetailsJSON = `{
     "result": "error"
 }`
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
+func (s *storeTestSuite) TestNoDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
 		c.Check(r.URL.Path, Matches, ".*/no-such-pkg")
@@ -2711,7 +2711,7 @@ const MockSearchJSON = `{
 }
 `
 
-func (s *storeTestSuite) TestUbuntuStoreFindQueries(c *C) {
+func (s *storeTestSuite) TestFindQueries(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", searchPath)
@@ -2797,7 +2797,7 @@ const MockSectionsJSON = `{
 }
 `
 
-func (s *storeTestSuite) TestUbuntuStoreSectionsQuery(c *C) {
+func (s *storeTestSuite) TestSectionsQuery(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", sectionsPath)
@@ -2857,15 +2857,15 @@ const mockNamesJSON = `
   }
 }`
 
-func (s *storeTestSuite) TestUbuntuStoreSnapCommandsOnClassic(c *C) {
-	s.testUbuntuStoreSnapCommands(c, true)
+func (s *storeTestSuite) TestSnapCommandsOnClassic(c *C) {
+	s.testSnapCommands(c, true)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreSnapCommandsOnCore(c *C) {
-	s.testUbuntuStoreSnapCommands(c, false)
+func (s *storeTestSuite) TestSnapCommandsOnCore(c *C) {
+	s.testSnapCommands(c, false)
 }
 
-func (s *storeTestSuite) testUbuntuStoreSnapCommands(c *C, onClassic bool) {
+func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
 	defer release.MockOnClassic(onClassic)()
 
@@ -2918,7 +2918,7 @@ func (s *storeTestSuite) testUbuntuStoreSnapCommands(c *C, onClassic bool) {
 	})
 }
 
-func (s *storeTestSuite) TestUbuntuStoreFindPrivate(c *C) {
+func (s *storeTestSuite) TestFindPrivate(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", searchPath)
@@ -2963,7 +2963,7 @@ func (s *storeTestSuite) TestUbuntuStoreFindPrivate(c *C) {
 	c.Check(err, Equals, ErrBadQuery)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreFindFailures(c *C) {
+func (s *storeTestSuite) TestFindFailures(c *C) {
 	repo := New(&Config{StoreBaseURL: new(url.URL)}, nil)
 	_, err := repo.Find(&Search{Query: "foo:bar"}, nil)
 	c.Check(err, Equals, ErrBadQuery)
@@ -2971,7 +2971,7 @@ func (s *storeTestSuite) TestUbuntuStoreFindFailures(c *C) {
 	c.Check(err, Equals, ErrBadQuery)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreFindFails(c *C) {
+func (s *storeTestSuite) TestFindFails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", searchPath)
 		c.Check(r.URL.Query().Get("q"), Equals, "hello")
@@ -2993,7 +2993,7 @@ func (s *storeTestSuite) TestUbuntuStoreFindFails(c *C) {
 	c.Check(snaps, HasLen, 0)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
+func (s *storeTestSuite) TestFindBadContentType(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", searchPath)
 		c.Check(r.URL.Query().Get("q"), Equals, "hello")
@@ -3015,7 +3015,7 @@ func (s *storeTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
 	c.Check(snaps, HasLen, 0)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreFindBadBody(c *C) {
+func (s *storeTestSuite) TestFindBadBody(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", searchPath)
 		query := r.URL.Query()
@@ -3039,7 +3039,7 @@ func (s *storeTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	c.Check(snaps, HasLen, 0)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreFind500(c *C) {
+func (s *storeTestSuite) TestFind500(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", searchPath)
@@ -3062,7 +3062,7 @@ func (s *storeTestSuite) TestUbuntuStoreFind500(c *C) {
 	c.Assert(n, Equals, 5)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreFind500once(c *C) {
+func (s *storeTestSuite) TestFind500once(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", searchPath)
@@ -3092,7 +3092,7 @@ func (s *storeTestSuite) TestUbuntuStoreFind500once(c *C) {
 	c.Assert(n, Equals, 2)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
+func (s *storeTestSuite) TestFindAuthFailed(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case searchPath:
@@ -3277,7 +3277,7 @@ var MockUpdatesJSON = `
 }
 `
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryRefreshForCandidates(c *C) {
+func (s *storeTestSuite) TestRefreshForCandidates(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
 		// check device authorization is set, implicitly checking doRequest was used
@@ -3335,7 +3335,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryRefreshForCandidates(c *C) {
 	c.Assert(results[0].Deltas, HasLen, 0)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesRetriesOnEOF(c *C) {
+func (s *storeTestSuite) TestRefreshForCandidatesRetriesOnEOF(c *C) {
 	n := 0
 	var mockServer *httptest.Server
 	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -3386,7 +3386,7 @@ func mockRFC(newRFC func(*Store, []*currentSnapJSON, *auth.UserState, *RefreshOp
 	}
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryLookupRefresh(c *C) {
+func (s *storeTestSuite) TestLookupRefresh(c *C) {
 	defer mockRFC(func(_ *Store, currentSnaps []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		c.Check(currentSnaps, DeepEquals, []*currentSnapJSON{{
 			SnapID:   helloWorldSnapID,
@@ -3421,7 +3421,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryLookupRefresh(c *C) {
 	c.Assert(result.Deltas, HasLen, 0)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryLookupRefreshIgnoreValidation(c *C) {
+func (s *storeTestSuite) TestLookupRefreshIgnoreValidation(c *C) {
 	defer mockRFC(func(_ *Store, currentSnaps []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		c.Check(currentSnaps, DeepEquals, []*currentSnapJSON{{
 			SnapID:           helloWorldSnapID,
@@ -3455,7 +3455,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryLookupRefreshIgnoreValidation(
 	c.Assert(result.SnapID, Equals, helloWorldSnapID)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryLookupRefreshLocalSnap(c *C) {
+func (s *storeTestSuite) TestLookupRefreshLocalSnap(c *C) {
 	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		panic("unexpected call to refreshForCandidates")
 	})()
@@ -3470,7 +3470,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryLookupRefreshLocalSnap(c *C) {
 	c.Check(err, Equals, ErrLocalSnap)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryLookupRefreshRFCError(c *C) {
+func (s *storeTestSuite) TestLookupRefreshRFCError(c *C) {
 	anError := errors.New("ouchie")
 	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		return nil, anError
@@ -3487,7 +3487,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryLookupRefreshRFCError(c *C) {
 	c.Check(err, Equals, anError)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryLookupRefreshEmptyResponse(c *C) {
+func (s *storeTestSuite) TestLookupRefreshEmptyResponse(c *C) {
 	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		return nil, nil
 	})()
@@ -3503,7 +3503,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryLookupRefreshEmptyResponse(c *
 	c.Check(err, Equals, ErrSnapNotFound)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryLookupRefreshNoUpdate(c *C) {
+func (s *storeTestSuite) TestLookupRefreshNoUpdate(c *C) {
 	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		return []*snapDetails{{
 			SnapID:   helloWorldDeveloperID,
@@ -3522,7 +3522,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryLookupRefreshNoUpdate(c *C) {
 	c.Check(err, Equals, ErrNoUpdateAvailable)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
+func (s *storeTestSuite) TestListRefresh(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
 		// check device authorization is set, implicitly checking doRequest was used
@@ -3579,7 +3579,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	c.Assert(results[0].Deltas, HasLen, 0)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefreshIgnoreValidation(c *C) {
+func (s *storeTestSuite) TestListRefreshIgnoreValidation(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
 		// check device authorization is set, implicitly checking doRequest was used
@@ -3635,7 +3635,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefreshIgnoreValidation(c 
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefreshDefaultChannelIsStable(c *C) {
+func (s *storeTestSuite) TestListRefreshDefaultChannelIsStable(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
 		// check device authorization is set, implicitly checking doRequest was used
@@ -3691,7 +3691,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefreshDefaultChannelIsSta
 	c.Assert(results[0].Deltas, HasLen, 0)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *C) {
+func (s *storeTestSuite) TestListRefreshRetryOnEOF(c *C) {
 	n := 0
 	var mockServer *httptest.Server
 	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -3734,7 +3734,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *C) {
 	c.Assert(results[0].Name(), Equals, "hello-world")
 }
 
-func (s *storeTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
+func (s *storeTestSuite) TestUnexpectedEOFhandling(c *C) {
 	permanentlyBrokenSrvCalls := 0
 	somewhatBrokenSrvCalls := 0
 
@@ -3788,7 +3788,7 @@ func (s *storeTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
 	c.Assert(somewhatBrokenSrvCalls, Equals, 4)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesEOF(c *C) {
+func (s *storeTestSuite) TestRefreshForCandidatesEOF(c *C) {
 	n := 0
 	var mockServer *httptest.Server
 	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -3820,7 +3820,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesEOF(c *C) 
 	c.Assert(n, Equals, 5)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesUnauthorised(c *C) {
+func (s *storeTestSuite) TestRefreshForCandidatesUnauthorised(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
@@ -3939,7 +3939,7 @@ func (s *storeTestSuite) TestAcceptableUpdateSkipsBoth(c *C) {
 	c.Check(acceptableUpdate(&snapDetails{Revision: 42}, &RefreshCandidate{Revision: snap.R("42"), Block: []snap.Revision{snap.R("42")}}), Equals, false)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c *C) {
+func (s *storeTestSuite) TestListRefreshSkipCurrent(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -3982,7 +3982,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c *C) {
 	c.Assert(results, HasLen, 0)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefreshSkipBlocked(c *C) {
+func (s *storeTestSuite) TestListRefreshSkipBlocked(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -4084,7 +4084,7 @@ var MockUpdatesWithDeltasJSON = `
 }
 `
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryDefaultsDeltasOnClassicOnly(c *C) {
+func (s *storeTestSuite) TestDefaultsDeltasOnClassicOnly(c *C) {
 	for _, t := range []struct {
 		onClassic      bool
 		deltaFormatStr string
@@ -4116,7 +4116,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryDefaultsDeltasOnClassicOnly(c 
 	}
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *C) {
+func (s *storeTestSuite) TestListRefreshWithDeltas(c *C) {
 	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
 	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
 	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
@@ -4185,7 +4185,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *C) {
 	})
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(c *C) {
+func (s *storeTestSuite) TestListRefreshWithoutDeltas(c *C) {
 	// Verify the X-Delta-Format header is not set.
 	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
 	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
@@ -4237,7 +4237,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(c *C)
 	c.Assert(results[0].Deltas, HasLen, 0)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c *C) {
+func (s *storeTestSuite) TestUpdateNotSendLocalRevs(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Error(r.URL.Path)
 		c.Fatal("no network request expected")
@@ -4261,7 +4261,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryListRefreshOptions(c *C) {
+func (s *storeTestSuite) TestListRefreshOptions(c *C) {
 	for _, t := range []struct {
 		flag   *RefreshOptions
 		header string
@@ -4420,7 +4420,7 @@ T/A8LqZYmIzKRHGwCVucCyAUD8xnwt9nyWLgLB+LLPOVFNK8SR6YyNsX05Yz1BUSndBfaTN8j/k8
 8isKGZE6P0O9ozBbNIAE8v8NMWQegJ4uWuil7D3psLkzQIrxSypk9TrQ2GlIG2hJdUovc5zBuroe
 xS4u9rVT6UY=`
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
+func (s *storeTestSuite) TestAssertion(c *C) {
 	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 88)
 	defer restore()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -4450,7 +4450,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryAssertionProxyStoreFromAuthContext(c *C) {
+func (s *storeTestSuite) TestAssertionProxyStoreFromAuthContext(c *C) {
 	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 88)
 	defer restore()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -4487,7 +4487,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryAssertionProxyStoreFromAuthCon
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryAssertionNotFound(c *C) {
+func (s *storeTestSuite) TestAssertionNotFound(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", "/api/v1/snaps/assertions/.*")
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
@@ -4517,7 +4517,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryAssertionNotFound(c *C) {
 	})
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositoryAssertion500(c *C) {
+func (s *storeTestSuite) TestAssertion500(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", "/api/v1/snaps/assertions/.*")
@@ -4539,7 +4539,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositoryAssertion500(c *C) {
 	c.Assert(n, Equals, 5)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
+func (s *storeTestSuite) TestSuggestedCurrency(c *C) {
 	suggestedCurrency := "GBP"
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -4583,7 +4583,7 @@ func (s *storeTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	c.Check(repo.SuggestedCurrency(), Equals, "EUR")
 }
 
-func (s *storeTestSuite) TestUbuntuStoreDecorateOrders(c *C) {
+func (s *storeTestSuite) TestDecorateOrders(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", ordersPath)
 		// check device authorization is set, implicitly checking doRequest was used
@@ -4634,7 +4634,7 @@ func (s *storeTestSuite) TestUbuntuStoreDecorateOrders(c *C) {
 	c.Check(otherApp2.MustBuy, Equals, false)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreDecorateOrdersFailedAccess(c *C) {
+func (s *storeTestSuite) TestDecorateOrdersFailedAccess(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", ordersPath)
 		c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
@@ -4683,7 +4683,7 @@ func (s *storeTestSuite) TestUbuntuStoreDecorateOrdersFailedAccess(c *C) {
 	c.Check(otherApp2.MustBuy, Equals, false)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreDecorateOrdersNoAuth(c *C) {
+func (s *storeTestSuite) TestDecorateOrdersNoAuth(c *C) {
 	cfg := Config{}
 	repo := New(&cfg, nil)
 	c.Assert(repo, NotNil)
@@ -4717,7 +4717,7 @@ func (s *storeTestSuite) TestUbuntuStoreDecorateOrdersNoAuth(c *C) {
 	c.Check(otherApp2.MustBuy, Equals, false)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreDecorateOrdersAllFree(c *C) {
+func (s *storeTestSuite) TestDecorateOrdersAllFree(c *C) {
 	requestRecieved := false
 
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -4754,7 +4754,7 @@ func (s *storeTestSuite) TestUbuntuStoreDecorateOrdersAllFree(c *C) {
 	c.Check(requestRecieved, Equals, false)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreDecorateOrdersSingle(c *C) {
+func (s *storeTestSuite) TestDecorateOrdersSingle(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
@@ -4786,7 +4786,7 @@ func (s *storeTestSuite) TestUbuntuStoreDecorateOrdersSingle(c *C) {
 	c.Check(helloWorld.MustBuy, Equals, false)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreDecorateOrdersSingleFreeSnap(c *C) {
+func (s *storeTestSuite) TestDecorateOrdersSingleFreeSnap(c *C) {
 	cfg := Config{}
 	repo := New(&cfg, nil)
 	c.Assert(repo, NotNil)
@@ -4801,7 +4801,7 @@ func (s *storeTestSuite) TestUbuntuStoreDecorateOrdersSingleFreeSnap(c *C) {
 	c.Check(helloWorld.MustBuy, Equals, false)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreDecorateOrdersSingleNotFound(c *C) {
+func (s *storeTestSuite) TestDecorateOrdersSingleNotFound(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", ordersPath)
 		c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
@@ -4835,7 +4835,7 @@ func (s *storeTestSuite) TestUbuntuStoreDecorateOrdersSingleNotFound(c *C) {
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreDecorateOrdersTokenExpired(c *C) {
+func (s *storeTestSuite) TestDecorateOrdersTokenExpired(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Authorization"), Equals, s.expectedAuthorization(c, s.user))
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
@@ -4868,7 +4868,7 @@ func (s *storeTestSuite) TestUbuntuStoreDecorateOrdersTokenExpired(c *C) {
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreMustBuy(c *C) {
+func (s *storeTestSuite) TestMustBuy(c *C) {
 	// Never need to buy a free snap.
 	c.Check(mustBuy(false, true), Equals, false)
 	c.Check(mustBuy(false, false), Equals, false)
@@ -4960,7 +4960,7 @@ var buyTests = []struct {
 	},
 }
 
-func (s *storeTestSuite) TestUbuntuStoreBuy500(c *C) {
+func (s *storeTestSuite) TestBuy500(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -4994,7 +4994,7 @@ func (s *storeTestSuite) TestUbuntuStoreBuy500(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (s *storeTestSuite) TestUbuntuStoreBuy(c *C) {
+func (s *storeTestSuite) TestBuy(c *C) {
 	for _, test := range buyTests {
 		searchServerCalled := false
 		purchaseServerGetCalled := false
@@ -5098,7 +5098,7 @@ func (s *storeTestSuite) TestUbuntuStoreBuy(c *C) {
 	}
 }
 
-func (s *storeTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
+func (s *storeTestSuite) TestBuyFailArgumentChecking(c *C) {
 	repo := New(&Config{}, nil)
 	c.Assert(repo, NotNil)
 
@@ -5254,7 +5254,7 @@ var readyToBuyTests = []struct {
 	},
 }
 
-func (s *storeTestSuite) TestUbuntuStoreReadyToBuy(c *C) {
+func (s *storeTestSuite) TestReadyToBuy(c *C) {
 	for _, test := range readyToBuyTests {
 		purchaseServerGetCalled := 0
 		mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
