@@ -51,13 +51,6 @@ func MockSudoersDotD(mockDir string) func() {
 	return func() { sudoersDotD = realSudoersD }
 }
 
-func MockMountInfoPath(mockMountInfoPath string) func() {
-	realMountInfoPath := mountInfoPath
-	mountInfoPath = mockMountInfoPath
-
-	return func() { mountInfoPath = realMountInfoPath }
-}
-
 func MockSyscallKill(f func(int, syscall.Signal) error) func() {
 	oldSyscallKill := syscallKill
 	syscallKill = f
@@ -105,4 +98,11 @@ func SetUnsafeIO(b bool) func() {
 	return func() {
 		snapdUnsafeIO = oldSnapdUnsafeIO
 	}
+}
+
+func MockOsReadlink(f func(string) (string, error)) func() {
+	realOsReadlink := osReadlink
+	osReadlink = f
+
+	return func() { osReadlink = realOsReadlink }
 }

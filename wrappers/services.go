@@ -76,9 +76,9 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 		}
 		inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
 		// ignore errors for kill; nothing we'd do differently at this point
-		sysd.Kill(serviceName, "TERM")
+		sysd.Kill(serviceName, "TERM", "")
 		time.Sleep(killWait)
-		sysd.Kill(serviceName, "KILL")
+		sysd.Kill(serviceName, "KILL", "")
 
 	}
 
@@ -93,16 +93,30 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
+	services := make([]string, 0, len(apps))
 	for _, app := range apps {
 		// they're *supposed* to be all services, but checking doesn't hurt
 		if !app.IsService() {
 			continue
 		}
 
-		if len(app.Sockets) == 0 {
-			if err := sysd.Start(app.ServiceName()); err != nil {
-				return err
+		defer func(app *snap.AppInfo) {
+			if err == nil {
+				return
 			}
+			if e := stopService(sysd, app, inter); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
+			}
+			for _, socket := range app.Sockets {
+				socketService := filepath.Base(socket.File())
+				if e := sysd.Disable(socketService); e != nil {
+					inter.Notify(fmt.Sprintf("While trying to disable previously enabled socket service %q: %v", socketService, e))
+				}
+			}
+		}(app)
+
+		if len(app.Sockets) == 0 {
+			services = append(services, app.ServiceName())
 		}
 
 		for _, socket := range app.Sockets {
@@ -117,14 +131,13 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 			}
 		}
 
-		defer func(app *snap.AppInfo) {
-			if err == nil {
-				return
-			}
-			if e := stopService(sysd, app, inter); e != nil {
-				inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
-			}
-		}(app)
+	}
+
+	if len(services) > 0 {
+		if err := sysd.Start(services...); err != nil {
+			// cleanup was set up by iterating over apps
+			return err
+		}
 	}
 
 	return nil
@@ -202,14 +215,51 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 }
 
 // StopServices stops service units for the applications from the snap which are services.
-func StopServices(apps []*snap.AppInfo, inter interacter) error {
+func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
+	logger.Debugf("StopServices called for %q, reason: %v", apps, reason)
 	for _, app := range apps {
 		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
 		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
 		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
 			continue
+		}
+		// Skip stop on refresh when refresh mode is set to something
+		// other than "restart" (or "" which is the same)
+		if reason == snap.StopReasonRefresh {
+			logger.Debugf(" %s refresh-mode: %v", app.Name, app.RefreshMode)
+			switch app.RefreshMode {
+			case "endure":
+				// skip this service
+				continue
+			case "sigterm":
+				sysd.Kill(app.ServiceName(), "TERM", "main")
+				continue
+			case "sigterm-all":
+				sysd.Kill(app.ServiceName(), "TERM", "all")
+				continue
+			case "sighup":
+				sysd.Kill(app.ServiceName(), "HUP", "main")
+				continue
+			case "sighup-all":
+				sysd.Kill(app.ServiceName(), "HUP", "all")
+				continue
+			case "sigusr1":
+				sysd.Kill(app.ServiceName(), "USR1", "main")
+				continue
+			case "sigusr1-all":
+				sysd.Kill(app.ServiceName(), "USR1", "all")
+				continue
+			case "sigusr2":
+				sysd.Kill(app.ServiceName(), "USR2", "main")
+				continue
+			case "sigusr2-all":
+				sysd.Kill(app.ServiceName(), "USR2", "all")
+				continue
+			case "", "restart":
+				// do nothing here, the default below to stop
+			}
 		}
 		if err := stopService(sysd, app, inter); err != nil {
 			return err

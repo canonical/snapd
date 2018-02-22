@@ -1,5 +1,8 @@
 summary: Check snap search
 
+# s390x,ppc64el have nothing featured
+systems: [-ubuntu-*-ppc64el, -ubuntu-*-s390x]
+
 restore: |
     rm -f featured.txt
 

@@ -17,7 +17,7 @@ execute: |
     snap install test-snapd-tools_*.snap
 
     echo "The revision is not a local revision"
-    snap list|MATCH '^test-snapd-tools.* [0-9]+\s+canonical'
+    snap list|MATCH '^test-snapd-tools.* [0-9]+\s+-\s+canonical'
 
     echo "Test it"
     test-snapd-tools.success

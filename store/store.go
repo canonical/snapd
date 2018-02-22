@@ -96,9 +96,16 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.EditedTitle = d.Title
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
-	// FIXME: should this be publisherID?
+	// Note that the store side is using confusing terminology here.
+	// What the store calls "developer" is actually the publisher
+	// username.
+	//
+	// It also sends "publisher" which is the "publisher display name"
+	// which we cannot use currently because it is not validated
+	// (i.e. the publisher could put anything in there and mislead
+	// the users this way).
+	info.Publisher = d.Developer
 	info.PublisherID = d.DeveloperID
-	info.Publisher = d.Publisher
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
