@@ -148,7 +148,7 @@ func assertRequest(c *C, r *http.Request, method, pathPattern string) {
 	}
 }
 
-type remoteRepoTestSuite struct {
+type storeTestSuite struct {
 	testutil.BaseTest
 	store     *Store
 	logbuf    *bytes.Buffer
@@ -162,7 +162,7 @@ type remoteRepoTestSuite struct {
 	restoreLogger func()
 }
 
-var _ = Suite(&remoteRepoTestSuite{})
+var _ = Suite(&storeTestSuite{})
 
 const (
 	exModel = `type: model
@@ -348,7 +348,7 @@ func createTestDevice() *auth.DeviceState {
 	}
 }
 
-func (t *remoteRepoTestSuite) SetUpTest(c *C) {
+func (t *storeTestSuite) SetUpTest(c *C) {
 	t.store = New(nil, nil)
 	t.origDownloadFunc = download
 	dirs.SetRootDir(c.MkDir())
@@ -381,13 +381,13 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	)))
 }
 
-func (t *remoteRepoTestSuite) TearDownTest(c *C) {
+func (t *storeTestSuite) TearDownTest(c *C) {
 	download = t.origDownloadFunc
 	t.mockXDelta.Restore()
 	t.restoreLogger()
 }
 
-func (t *remoteRepoTestSuite) expectedAuthorization(c *C, user *auth.UserState) string {
+func (t *storeTestSuite) expectedAuthorization(c *C, user *auth.UserState) string {
 	var buf bytes.Buffer
 
 	root, err := auth.MacaroonDeserialize(user.StoreMacaroon)
@@ -405,7 +405,7 @@ func (t *remoteRepoTestSuite) expectedAuthorization(c *C, user *auth.UserState) 
 	return buf.String()
 }
 
-func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
+func (t *storeTestSuite) TestDownloadOK(c *C) {
 	expectedContent := []byte("I was downloaded")
 	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		c.Check(url, Equals, "anon-url")
@@ -427,7 +427,7 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 	c.Assert(path, testutil.FileEquals, expectedContent)
 }
 
-func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
+func (t *storeTestSuite) TestDownloadRangeRequest(c *C) {
 	partialContentStr := "partial content "
 	missingContentStr := "was downloaded"
 	expectedContentStr := partialContentStr + missingContentStr
@@ -456,7 +456,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
 	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
 }
 
-func (t *remoteRepoTestSuite) TestResumeOfCompleted(c *C) {
+func (t *storeTestSuite) TestResumeOfCompleted(c *C) {
 	expectedContentStr := "nothing downloaded"
 
 	download = nil
@@ -478,7 +478,7 @@ func (t *remoteRepoTestSuite) TestResumeOfCompleted(c *C) {
 	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
 }
 
-func (t *remoteRepoTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
+func (t *storeTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
 	n := 0
 	var mockServer *httptest.Server
 
@@ -519,7 +519,7 @@ func (t *remoteRepoTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
 	c.Assert(t.logbuf.String(), Matches, "(?s).*Retrying .* attempt 2, .*")
 }
 
-func (t *remoteRepoTestSuite) TestDownloadRetryHashErrorIsFullyRetried(c *C) {
+func (t *storeTestSuite) TestDownloadRetryHashErrorIsFullyRetried(c *C) {
 	n := 0
 	var mockServer *httptest.Server
 
@@ -565,7 +565,7 @@ func (t *remoteRepoTestSuite) TestDownloadRetryHashErrorIsFullyRetried(c *C) {
 	c.Assert(t.logbuf.String(), Matches, "(?s).*Retrying .* attempt 2, .*")
 }
 
-func (t *remoteRepoTestSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
+func (t *storeTestSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
 	var mockServer *httptest.Server
 
 	// our mock download content
@@ -602,7 +602,7 @@ func (t *remoteRepoTestSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
 	c.Assert(t.logbuf.String(), Matches, "(?s).*sha3-384 mismatch.*")
 }
 
-func (t *remoteRepoTestSuite) TestDownloadRetryHashErrorIsFullyRetriedOnlyOnce(c *C) {
+func (t *storeTestSuite) TestDownloadRetryHashErrorIsFullyRetriedOnlyOnce(c *C) {
 	n := 0
 	var mockServer *httptest.Server
 
@@ -630,7 +630,7 @@ func (t *remoteRepoTestSuite) TestDownloadRetryHashErrorIsFullyRetriedOnlyOnce(c
 	c.Assert(n, Equals, 2)
 }
 
-func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
+func (t *storeTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 	expectedContentStr := "file was downloaded from scratch"
 	partialContentStr := "partial content "
 
@@ -664,7 +664,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
 }
 
-func (t *remoteRepoTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
+func (t *storeTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 	partialContentStr := "partial content "
 
 	n := 0
@@ -690,7 +690,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 	c.Assert(n, Equals, 2)
 }
 
-func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
+func (t *storeTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	expectedContent := []byte("I was downloaded")
 	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		// check user is pass and auth url is used
@@ -715,7 +715,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	c.Assert(path, testutil.FileEquals, expectedContent)
 }
 
-func (t *remoteRepoTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
+func (t *storeTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
 	expectedContent := []byte("I was downloaded")
 	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		// check auth url is used
@@ -743,7 +743,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
 	c.Assert(path, testutil.FileEquals, expectedContent)
 }
 
-func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
+func (t *storeTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 	expectedContentStr := "I was downloaded"
 	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		c.Check(url, Equals, "anon-url")
@@ -766,7 +766,7 @@ func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 	c.Assert(path, testutil.FileEquals, expectedContentStr)
 }
 
-func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
+func (t *storeTestSuite) TestDownloadFails(c *C) {
 	var tmpfile *os.File
 	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		tmpfile = w.(*os.File)
@@ -786,7 +786,7 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
+func (t *storeTestSuite) TestDownloadSyncFails(c *C) {
 	var tmpfile *os.File
 	download = func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 		tmpfile = w.(*os.File)
@@ -810,7 +810,7 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestActualDownload(c *C) {
+func (t *storeTestSuite) TestActualDownload(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
@@ -829,7 +829,7 @@ func (t *remoteRepoTestSuite) TestActualDownload(c *C) {
 	c.Check(n, Equals, 1)
 }
 
-func (t *remoteRepoTestSuite) TestDownloadCancellation(c *C) {
+func (t *storeTestSuite) TestDownloadCancellation(c *C) {
 	// the channel used by mock server to request cancellation from the test
 	syncCh := make(chan struct{})
 
@@ -871,7 +871,7 @@ func (nopeSeeker) Seek(int64, int) (int64, error) {
 	return -1, errors.New("what is this, quidditch?")
 }
 
-func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased402(c *C) {
+func (t *storeTestSuite) TestActualDownloadNonPurchased402(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
@@ -890,7 +890,7 @@ func (t *remoteRepoTestSuite) TestActualDownloadNonPurchased402(c *C) {
 	c.Check(n, Equals, 1)
 }
 
-func (t *remoteRepoTestSuite) TestActualDownload404(c *C) {
+func (t *storeTestSuite) TestActualDownload404(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
@@ -908,7 +908,7 @@ func (t *remoteRepoTestSuite) TestActualDownload404(c *C) {
 	c.Check(n, Equals, 1)
 }
 
-func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
+func (t *storeTestSuite) TestActualDownload500(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
@@ -926,7 +926,7 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	c.Check(n, Equals, 5)
 }
 
-func (t *remoteRepoTestSuite) TestActualDownload500Once(c *C) {
+func (t *storeTestSuite) TestActualDownload500Once(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
@@ -995,7 +995,7 @@ func (sb *SillyBuffer) String() string {
 	return string(sb.buf[0:sb.pos])
 }
 
-func (t *remoteRepoTestSuite) TestActualDownloadResume(c *C) {
+func (t *storeTestSuite) TestActualDownloadResume(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
@@ -1016,7 +1016,7 @@ func (t *remoteRepoTestSuite) TestActualDownloadResume(c *C) {
 	c.Check(n, Equals, 1)
 }
 
-func (t *remoteRepoTestSuite) TestUseDeltas(c *C) {
+func (t *storeTestSuite) TestUseDeltas(c *C) {
 	origPath := os.Getenv("PATH")
 	defer os.Setenv("PATH", origPath)
 	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
@@ -1136,7 +1136,7 @@ var deltaTests = []struct {
 	expectedContent: "full-snap-url-content",
 }}
 
-func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
+func (t *storeTestSuite) TestDownloadWithDelta(c *C) {
 	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
 	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
 	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
@@ -1264,7 +1264,7 @@ var downloadDeltaTests = []struct {
 	expectError:   true,
 }}
 
-func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
+func (t *storeTestSuite) TestDownloadDelta(c *C) {
 	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
 	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
 	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
@@ -1337,7 +1337,7 @@ var applyDeltaTests = []struct {
 	error:           "cannot apply unsupported delta format \"nodelta\" (only xdelta3 currently)",
 }}
 
-func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
+func (t *storeTestSuite) TestApplyDelta(c *C) {
 	for _, testCase := range applyDeltaTests {
 		name := "foo"
 		currentSnapName := fmt.Sprintf("%s_%d.snap", name, testCase.currentRevision)
@@ -1384,7 +1384,7 @@ var (
 	userAgent = httputil.UserAgent()
 )
 
-func (t *remoteRepoTestSuite) TestDoRequestSetsAuth(c *C) {
+func (t *storeTestSuite) TestDoRequestSetsAuth(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.UserAgent(), Equals, userAgent)
 		// check user authorization is set
@@ -1415,7 +1415,7 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAuth(c *C) {
 	c.Check(string(responseData), Equals, "response-data")
 }
 
-func (t *remoteRepoTestSuite) TestDoRequestDoesNotSetAuthForLocalOnlyUser(c *C) {
+func (t *storeTestSuite) TestDoRequestDoesNotSetAuthForLocalOnlyUser(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.UserAgent(), Equals, userAgent)
 		// check no user authorization is set
@@ -1446,7 +1446,7 @@ func (t *remoteRepoTestSuite) TestDoRequestDoesNotSetAuthForLocalOnlyUser(c *C) 
 	c.Check(string(responseData), Equals, "response-data")
 }
 
-func (t *remoteRepoTestSuite) TestDoRequestAuthNoSerial(c *C) {
+func (t *storeTestSuite) TestDoRequestAuthNoSerial(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.UserAgent(), Equals, userAgent)
 		// check user authorization is set
@@ -1480,7 +1480,7 @@ func (t *remoteRepoTestSuite) TestDoRequestAuthNoSerial(c *C) {
 	c.Check(string(responseData), Equals, "response-data")
 }
 
-func (t *remoteRepoTestSuite) TestDoRequestRefreshesAuth(c *C) {
+func (t *storeTestSuite) TestDoRequestRefreshesAuth(c *C) {
 	refresh, err := makeTestRefreshDischargeResponse()
 	c.Assert(err, IsNil)
 	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
@@ -1527,7 +1527,7 @@ func (t *remoteRepoTestSuite) TestDoRequestRefreshesAuth(c *C) {
 	c.Check(refreshDischargeEndpointHit, Equals, true)
 }
 
-func (t *remoteRepoTestSuite) TestDoRequestForwardsRefreshAuthFailure(c *C) {
+func (t *storeTestSuite) TestDoRequestForwardsRefreshAuthFailure(c *C) {
 	// mock refresh response
 	refreshDischargeEndpointHit := false
 	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1563,7 +1563,7 @@ func (t *remoteRepoTestSuite) TestDoRequestForwardsRefreshAuthFailure(c *C) {
 	c.Check(refreshDischargeEndpointHit, Equals, true)
 }
 
-func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
+func (t *storeTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	deviceSessionRequested := false
 	refreshSessionRequested := false
 	expiredAuth := `Macaroon root="expired-session-macaroon"`
@@ -1635,7 +1635,7 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	c.Check(refreshSessionRequested, Equals, true)
 }
 
-func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesBothAuths(c *C) {
+func (t *storeTestSuite) TestDoRequestSetsAndRefreshesBothAuths(c *C) {
 	refresh, err := makeTestRefreshDischargeResponse()
 	c.Assert(err, IsNil)
 	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
@@ -1728,7 +1728,7 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesBothAuths(c *C) {
 	c.Check(refreshSessionRequested, Equals, true)
 }
 
-func (t *remoteRepoTestSuite) TestDoRequestSetsExtraHeaders(c *C) {
+func (t *storeTestSuite) TestDoRequestSetsExtraHeaders(c *C) {
 	// Custom headers are applied last.
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.UserAgent(), Equals, `customAgent`)
@@ -1763,7 +1763,7 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsExtraHeaders(c *C) {
 	c.Check(string(responseData), Equals, "response-data")
 }
 
-func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
+func (t *storeTestSuite) TestLoginUser(c *C) {
 	macaroon, err := makeTestMacaroon()
 	c.Assert(err, IsNil)
 	serializedMacaroon, err := auth.MacaroonSerialize(macaroon)
@@ -1795,7 +1795,7 @@ func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
 	c.Check(userDischarge, Equals, serializedDischarge)
 }
 
-func (t *remoteRepoTestSuite) TestLoginUserDeveloperAPIError(c *C) {
+func (t *storeTestSuite) TestLoginUserDeveloperAPIError(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		io.WriteString(w, "{}")
@@ -1811,7 +1811,7 @@ func (t *remoteRepoTestSuite) TestLoginUserDeveloperAPIError(c *C) {
 	c.Check(userDischarge, Equals, "")
 }
 
-func (t *remoteRepoTestSuite) TestLoginUserSSOError(c *C) {
+func (t *storeTestSuite) TestLoginUserSSOError(c *C) {
 	macaroon, err := makeTestMacaroon()
 	c.Assert(err, IsNil)
 	serializedMacaroon, err := auth.MacaroonSerialize(macaroon)
@@ -2021,7 +2021,7 @@ const mockSingleOrderJSON = `{
   ]
 }`
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2107,7 +2107,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(snap.Validate(result), IsNil)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDefaultChannelIsStable(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryDetailsDefaultChannelIsStable(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2143,7 +2143,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDefaultChannelIsSt
 	c.Check(result.Channel, Equals, "stable")
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryDetails500(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
@@ -2175,7 +2175,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500(c *C) {
 	c.Assert(n, Equals, 5)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500once(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryDetails500once(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
@@ -2212,7 +2212,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails500once(c *C) {
 	c.Assert(n, Equals, 2)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) {
 	// this test will break and should be melded into TestUbuntuStoreRepositoryDetails,
 	// above, when the store provides the channels as part of details
 
@@ -2291,7 +2291,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsAndChannels(c *C) 
 	c.Check(snap.Validate(result), IsNil)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 	os.Setenv("SNAPPY_STORE_NO_CDN", "1")
@@ -2340,7 +2340,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 	c.Check(result.Name(), Equals, "hello-world")
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
 		storeID := r.Header.Get("X-Ubuntu-Store")
@@ -2373,7 +2373,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c 
 	c.Check(result.Name(), Equals, "hello-world")
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryFullCloudInfoFromAuthContext(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryFullCloudInfoFromAuthContext(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
 		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="aws" region="us-east-1" availability-zone="us-east-1c"`)
@@ -2405,7 +2405,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryFullCloudInfoFromAuthCont
 	c.Check(result.Name(), Equals, "hello-world")
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLessDetailedCloudInfoFromAuthContext(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryLessDetailedCloudInfoFromAuthContext(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
 		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="openstack" availability-zone="nova"`)
@@ -2437,7 +2437,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLessDetailedCloudInfoFrom
 	c.Check(result.Name(), Equals, "hello-world")
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryProxyStoreFromAuthContext(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryProxyStoreFromAuthContext(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
 
@@ -2472,7 +2472,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryProxyStoreFromAuthContext
 	c.Check(result.Name(), Equals, "hello-world")
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryProxyStoreFromAuthContextURLFallback(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryProxyStoreFromAuthContextURLFallback(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
 
@@ -2506,7 +2506,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryProxyStoreFromAuthContext
 	c.Check(result.Name(), Equals, "hello-world")
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ordersPath:
@@ -2544,7 +2544,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 	c.Check(result.Revision, DeepEquals, snap.R(27))
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
 		c.Check(r.URL.Path, Matches, ".*/hello-world")
@@ -2594,7 +2594,7 @@ const MockNoDetailsJSON = `{
     "result": "error"
 }`
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
 		c.Check(r.URL.Path, Matches, ".*/no-such-pkg")
@@ -2626,7 +2626,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(result, IsNil)
 }
 
-func (t *remoteRepoTestSuite) TestStructFields(c *C) {
+func (t *storeTestSuite) TestStructFields(c *C) {
 	type s struct {
 		Foo int `json:"hello"`
 		Bar int `json:"potato,stuff"`
@@ -2684,7 +2684,7 @@ const MockSearchJSON = `{
 }
 `
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreFindQueries(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", searchPath)
@@ -2770,7 +2770,7 @@ const MockSectionsJSON = `{
 }
 `
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreSectionsQuery(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreSectionsQuery(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", sectionsPath)
@@ -2830,15 +2830,15 @@ const mockNamesJSON = `
   }
 }`
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreSnapCommandsOnClassic(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreSnapCommandsOnClassic(c *C) {
 	t.testUbuntuStoreSnapCommands(c, true)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreSnapCommandsOnCore(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreSnapCommandsOnCore(c *C) {
 	t.testUbuntuStoreSnapCommands(c, false)
 }
 
-func (t *remoteRepoTestSuite) testUbuntuStoreSnapCommands(c *C, onClassic bool) {
+func (t *storeTestSuite) testUbuntuStoreSnapCommands(c *C, onClassic bool) {
 	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
 	defer release.MockOnClassic(onClassic)()
 
@@ -2891,7 +2891,7 @@ func (t *remoteRepoTestSuite) testUbuntuStoreSnapCommands(c *C, onClassic bool) 
 	})
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreFindPrivate(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", searchPath)
@@ -2936,7 +2936,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
 	c.Check(err, Equals, ErrBadQuery)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreFindFailures(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreFindFailures(c *C) {
 	repo := New(&Config{StoreBaseURL: new(url.URL)}, nil)
 	_, err := repo.Find(&Search{Query: "foo:bar"}, nil)
 	c.Check(err, Equals, ErrBadQuery)
@@ -2944,7 +2944,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindFailures(c *C) {
 	c.Check(err, Equals, ErrBadQuery)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreFindFails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", searchPath)
 		c.Check(r.URL.Query().Get("q"), Equals, "hello")
@@ -2966,7 +2966,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 	c.Check(snaps, HasLen, 0)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", searchPath)
 		c.Check(r.URL.Query().Get("q"), Equals, "hello")
@@ -2988,7 +2988,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
 	c.Check(snaps, HasLen, 0)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", searchPath)
 		query := r.URL.Query()
@@ -3012,7 +3012,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	c.Check(snaps, HasLen, 0)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreFind500(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreFind500(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", searchPath)
@@ -3035,7 +3035,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind500(c *C) {
 	c.Assert(n, Equals, 5)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreFind500once(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreFind500once(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", searchPath)
@@ -3065,7 +3065,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind500once(c *C) {
 	c.Assert(n, Equals, 2)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case searchPath:
@@ -3116,7 +3116,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 	c.Check(snaps[0].MustBuy, Equals, true)
 }
 
-func (t *remoteRepoTestSuite) TestCurrentSnap(c *C) {
+func (t *storeTestSuite) TestCurrentSnap(c *C) {
 	cand := &RefreshCandidate{
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
@@ -3133,7 +3133,7 @@ func (t *remoteRepoTestSuite) TestCurrentSnap(c *C) {
 	c.Check(t.logbuf.String(), Equals, "")
 }
 
-func (t *remoteRepoTestSuite) TestCurrentSnapIgnoreValidation(c *C) {
+func (t *storeTestSuite) TestCurrentSnapIgnoreValidation(c *C) {
 	cand := &RefreshCandidate{
 		SnapID:           helloWorldSnapID,
 		Channel:          "stable",
@@ -3151,7 +3151,7 @@ func (t *remoteRepoTestSuite) TestCurrentSnapIgnoreValidation(c *C) {
 	c.Check(t.logbuf.String(), Equals, "")
 }
 
-func (t *remoteRepoTestSuite) TestCurrentSnapNoChannel(c *C) {
+func (t *storeTestSuite) TestCurrentSnapNoChannel(c *C) {
 	cand := &RefreshCandidate{
 		SnapID:   helloWorldSnapID,
 		Revision: snap.R(1),
@@ -3166,7 +3166,7 @@ func (t *remoteRepoTestSuite) TestCurrentSnapNoChannel(c *C) {
 	c.Check(t.logbuf.String(), Equals, "")
 }
 
-func (t *remoteRepoTestSuite) TestCurrentSnapNilNoID(c *C) {
+func (t *storeTestSuite) TestCurrentSnapNilNoID(c *C) {
 	cand := &RefreshCandidate{
 		SnapID:   "",
 		Revision: snap.R(1),
@@ -3176,7 +3176,7 @@ func (t *remoteRepoTestSuite) TestCurrentSnapNilNoID(c *C) {
 	c.Check(t.logbuf.String(), Matches, "(?m).* an empty SnapID but a store revision!")
 }
 
-func (t *remoteRepoTestSuite) TestCurrentSnapNilLocalRevision(c *C) {
+func (t *storeTestSuite) TestCurrentSnapNilLocalRevision(c *C) {
 	cand := &RefreshCandidate{
 		SnapID:   helloWorldSnapID,
 		Revision: snap.R("x1"),
@@ -3186,7 +3186,7 @@ func (t *remoteRepoTestSuite) TestCurrentSnapNilLocalRevision(c *C) {
 	c.Check(t.logbuf.String(), Matches, "(?m).* a non-empty SnapID but a non-store revision!")
 }
 
-func (t *remoteRepoTestSuite) TestCurrentSnapNilLocalRevisionNoID(c *C) {
+func (t *storeTestSuite) TestCurrentSnapNilLocalRevisionNoID(c *C) {
 	cand := &RefreshCandidate{
 		SnapID:   "",
 		Revision: snap.R("x1"),
@@ -3196,7 +3196,7 @@ func (t *remoteRepoTestSuite) TestCurrentSnapNilLocalRevisionNoID(c *C) {
 	c.Check(t.logbuf.String(), Equals, "")
 }
 
-func (t *remoteRepoTestSuite) TestCurrentSnapRevLocalRevWithAmendHappy(c *C) {
+func (t *storeTestSuite) TestCurrentSnapRevLocalRevWithAmendHappy(c *C) {
 	cand := &RefreshCandidate{
 		SnapID:   helloWorldSnapID,
 		Revision: snap.R("x1"),
@@ -3250,7 +3250,7 @@ var MockUpdatesJSON = `
 }
 `
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidates(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryRefreshForCandidates(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
 		// check device authorization is set, implicitly checking doRequest was used
@@ -3308,7 +3308,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidates(c *C
 	c.Assert(results[0].Deltas, HasLen, 0)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesRetriesOnEOF(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesRetriesOnEOF(c *C) {
 	n := 0
 	var mockServer *httptest.Server
 	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -3359,7 +3359,7 @@ func mockRFC(newRFC func(*Store, []*currentSnapJSON, *auth.UserState, *RefreshOp
 	}
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefresh(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryLookupRefresh(c *C) {
 	defer mockRFC(func(_ *Store, currentSnaps []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		c.Check(currentSnaps, DeepEquals, []*currentSnapJSON{{
 			SnapID:   helloWorldSnapID,
@@ -3394,7 +3394,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefresh(c *C) {
 	c.Assert(result.Deltas, HasLen, 0)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshIgnoreValidation(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryLookupRefreshIgnoreValidation(c *C) {
 	defer mockRFC(func(_ *Store, currentSnaps []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		c.Check(currentSnaps, DeepEquals, []*currentSnapJSON{{
 			SnapID:           helloWorldSnapID,
@@ -3428,7 +3428,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshIgnoreValida
 	c.Assert(result.SnapID, Equals, helloWorldSnapID)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshLocalSnap(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryLookupRefreshLocalSnap(c *C) {
 	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		panic("unexpected call to refreshForCandidates")
 	})()
@@ -3443,7 +3443,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshLocalSnap(c 
 	c.Check(err, Equals, ErrLocalSnap)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshRFCError(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryLookupRefreshRFCError(c *C) {
 	anError := errors.New("ouchie")
 	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		return nil, anError
@@ -3460,7 +3460,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshRFCError(c *
 	c.Check(err, Equals, anError)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshEmptyResponse(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryLookupRefreshEmptyResponse(c *C) {
 	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		return nil, nil
 	})()
@@ -3476,7 +3476,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshEmptyRespons
 	c.Check(err, Equals, ErrSnapNotFound)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshNoUpdate(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryLookupRefreshNoUpdate(c *C) {
 	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		return []*snapDetails{{
 			SnapID:   helloWorldDeveloperID,
@@ -3495,7 +3495,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLookupRefreshNoUpdate(c *
 	c.Check(err, Equals, ErrNoUpdateAvailable)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
 		// check device authorization is set, implicitly checking doRequest was used
@@ -3552,7 +3552,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	c.Assert(results[0].Deltas, HasLen, 0)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshIgnoreValidation(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryListRefreshIgnoreValidation(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
 		// check device authorization is set, implicitly checking doRequest was used
@@ -3608,7 +3608,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshIgnoreValidati
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshDefaultChannelIsStable(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryListRefreshDefaultChannelIsStable(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
 		// check device authorization is set, implicitly checking doRequest was used
@@ -3664,7 +3664,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshDefaultChannel
 	c.Assert(results[0].Deltas, HasLen, 0)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *C) {
 	n := 0
 	var mockServer *httptest.Server
 	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -3707,7 +3707,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshRetryOnEOF(c *
 	c.Assert(results[0].Name(), Equals, "hello-world")
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
 	permanentlyBrokenSrvCalls := 0
 	somewhatBrokenSrvCalls := 0
 
@@ -3761,7 +3761,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreUnexpectedEOFhandling(c *C) {
 	c.Assert(somewhatBrokenSrvCalls, Equals, 4)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesEOF(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesEOF(c *C) {
 	n := 0
 	var mockServer *httptest.Server
 	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -3793,7 +3793,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesEOF(c
 	c.Assert(n, Equals, 5)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesUnauthorised(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesUnauthorised(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
@@ -3824,7 +3824,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRefreshForCandidatesUnaut
 	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 401 via POST to "http://.*?/metadata"`)
 }
 
-func (t *remoteRepoTestSuite) TestRefreshForCandidatesFailOnDNS(c *C) {
+func (t *storeTestSuite) TestRefreshForCandidatesFailOnDNS(c *C) {
 	baseURL, err := url.Parse("http://nonexistingserver909123.com/")
 	c.Assert(err, IsNil)
 	cfg := Config{
@@ -3843,7 +3843,7 @@ func (t *remoteRepoTestSuite) TestRefreshForCandidatesFailOnDNS(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (t *remoteRepoTestSuite) TestRefreshForCandidates500(c *C) {
+func (t *storeTestSuite) TestRefreshForCandidates500(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
@@ -3870,7 +3870,7 @@ func (t *remoteRepoTestSuite) TestRefreshForCandidates500(c *C) {
 	c.Assert(n, Equals, 5)
 }
 
-func (t *remoteRepoTestSuite) TestRefreshForCandidates500DurationExceeded(c *C) {
+func (t *storeTestSuite) TestRefreshForCandidates500DurationExceeded(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
@@ -3898,21 +3898,21 @@ func (t *remoteRepoTestSuite) TestRefreshForCandidates500DurationExceeded(c *C) 
 	c.Assert(n, Equals, 1)
 }
 
-func (t *remoteRepoTestSuite) TestAcceptableUpdateWorks(c *C) {
+func (t *storeTestSuite) TestAcceptableUpdateWorks(c *C) {
 	c.Check(acceptableUpdate(&snapDetails{Revision: 42}, &RefreshCandidate{Revision: snap.R("1")}), Equals, true)
 }
-func (t *remoteRepoTestSuite) TestAcceptableUpdateSkipsCurrent(c *C) {
+func (t *storeTestSuite) TestAcceptableUpdateSkipsCurrent(c *C) {
 	c.Check(acceptableUpdate(&snapDetails{Revision: 42}, &RefreshCandidate{Revision: snap.R("42")}), Equals, false)
 }
-func (t *remoteRepoTestSuite) TestAcceptableUpdateSkipsBlocked(c *C) {
+func (t *storeTestSuite) TestAcceptableUpdateSkipsBlocked(c *C) {
 	c.Check(acceptableUpdate(&snapDetails{Revision: 42}, &RefreshCandidate{Revision: snap.R("1"), Block: []snap.Revision{snap.R("42")}}), Equals, false)
 }
-func (t *remoteRepoTestSuite) TestAcceptableUpdateSkipsBoth(c *C) {
+func (t *storeTestSuite) TestAcceptableUpdateSkipsBoth(c *C) {
 	// belts-and-suspenders
 	c.Check(acceptableUpdate(&snapDetails{Revision: 42}, &RefreshCandidate{Revision: snap.R("42"), Block: []snap.Revision{snap.R("42")}}), Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -3955,7 +3955,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c 
 	c.Assert(results, HasLen, 0)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipBlocked(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryListRefreshSkipBlocked(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", metadataPath)
 		jsonReq, err := ioutil.ReadAll(r.Body)
@@ -4057,7 +4057,7 @@ var MockUpdatesWithDeltasJSON = `
 }
 `
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDefaultsDeltasOnClassicOnly(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryDefaultsDeltasOnClassicOnly(c *C) {
 	for _, t := range []struct {
 		onClassic      bool
 		deltaFormatStr string
@@ -4089,7 +4089,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDefaultsDeltasOnClassicOn
 	}
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *C) {
 	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
 	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
 	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
@@ -4158,7 +4158,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *
 	})
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(c *C) {
 	// Verify the X-Delta-Format header is not set.
 	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
 	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
@@ -4210,7 +4210,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(
 	c.Assert(results[0].Deltas, HasLen, 0)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Error(r.URL.Path)
 		c.Fatal("no network request expected")
@@ -4234,7 +4234,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 	c.Assert(err, IsNil)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshOptions(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryListRefreshOptions(c *C) {
 	for _, t := range []struct {
 		flag   *RefreshOptions
 		header string
@@ -4273,7 +4273,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshOptions(c *C) 
 	}
 }
 
-func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
+func (t *storeTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 	type s struct {
 		Foo int `json:"hello"`
 		Bar int
@@ -4281,7 +4281,7 @@ func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 	c.Assert(getStructFields(s{}), DeepEquals, []string{"hello"})
 }
 
-func (t *remoteRepoTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
+func (t *storeTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := authLocation()
 
@@ -4292,7 +4292,7 @@ func (t *remoteRepoTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
 	c.Check(before, Not(Equals), after)
 }
 
-func (t *remoteRepoTestSuite) TestAuthURLDependsOnEnviron(c *C) {
+func (t *storeTestSuite) TestAuthURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := authURL()
 
@@ -4303,7 +4303,7 @@ func (t *remoteRepoTestSuite) TestAuthURLDependsOnEnviron(c *C) {
 	c.Check(before, Not(Equals), after)
 }
 
-func (t *remoteRepoTestSuite) TestApiURLDependsOnEnviron(c *C) {
+func (t *storeTestSuite) TestApiURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := apiURL()
 
@@ -4314,7 +4314,7 @@ func (t *remoteRepoTestSuite) TestApiURLDependsOnEnviron(c *C) {
 	c.Check(before, Not(Equals), after)
 }
 
-func (t *remoteRepoTestSuite) TestStoreURLDependsOnEnviron(c *C) {
+func (t *storeTestSuite) TestStoreURLDependsOnEnviron(c *C) {
 	// This also depends on the API URL, but that's tested separately (see
 	// TestApiURLDependsOnEnviron).
 	api := apiURL()
@@ -4341,21 +4341,21 @@ func (t *remoteRepoTestSuite) TestStoreURLDependsOnEnviron(c *C) {
 	c.Check(u.String(), Matches, "https://force-cpi.local/.*")
 }
 
-func (t *remoteRepoTestSuite) TestStoreURLBadEnvironAPI(c *C) {
+func (t *storeTestSuite) TestStoreURLBadEnvironAPI(c *C) {
 	c.Assert(os.Setenv("SNAPPY_FORCE_API_URL", "://force-api.local/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_API_URL", "")
 	_, err := storeURL(apiURL())
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_API_URL: parse ://force-api.local/: missing protocol scheme")
 }
 
-func (t *remoteRepoTestSuite) TestStoreURLBadEnvironCPI(c *C) {
+func (t *storeTestSuite) TestStoreURLBadEnvironCPI(c *C) {
 	c.Assert(os.Setenv("SNAPPY_FORCE_CPI_URL", "://force-cpi.local/api/v1/"), IsNil)
 	defer os.Setenv("SNAPPY_FORCE_CPI_URL", "")
 	_, err := storeURL(apiURL())
 	c.Check(err, ErrorMatches, "invalid SNAPPY_FORCE_CPI_URL: parse ://force-cpi.local/: missing protocol scheme")
 }
 
-func (t *remoteRepoTestSuite) TestStoreDeveloperURLDependsOnEnviron(c *C) {
+func (t *storeTestSuite) TestStoreDeveloperURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := storeDeveloperURL()
 
@@ -4366,12 +4366,12 @@ func (t *remoteRepoTestSuite) TestStoreDeveloperURLDependsOnEnviron(c *C) {
 	c.Check(before, Not(Equals), after)
 }
 
-func (t *remoteRepoTestSuite) TestDefaultConfig(c *C) {
+func (t *storeTestSuite) TestDefaultConfig(c *C) {
 	c.Check(defaultConfig.StoreBaseURL.String(), Equals, "https://api.snapcraft.io/")
 	c.Check(defaultConfig.AssertionsBaseURL, IsNil)
 }
 
-func (t *remoteRepoTestSuite) TestNew(c *C) {
+func (t *storeTestSuite) TestNew(c *C) {
 	aStore := New(nil, nil)
 	// check for fields
 	c.Check(aStore.detailFields, DeepEquals, detailFields)
@@ -4393,7 +4393,7 @@ T/A8LqZYmIzKRHGwCVucCyAUD8xnwt9nyWLgLB+LLPOVFNK8SR6YyNsX05Yz1BUSndBfaTN8j/k8
 8isKGZE6P0O9ozBbNIAE8v8NMWQegJ4uWuil7D3psLkzQIrxSypk9TrQ2GlIG2hJdUovc5zBuroe
 xS4u9rVT6UY=`
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
 	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 88)
 	defer restore()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -4423,7 +4423,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionProxyStoreFromAuthContext(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryAssertionProxyStoreFromAuthContext(c *C) {
 	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 88)
 	defer restore()
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -4460,7 +4460,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionProxyStoreFromAu
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionNotFound(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryAssertionNotFound(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", "/api/v1/snaps/assertions/.*")
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
@@ -4490,7 +4490,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionNotFound(c *C) {
 	})
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion500(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositoryAssertion500(c *C) {
 	var n = 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", "/api/v1/snaps/assertions/.*")
@@ -4512,7 +4512,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion500(c *C) {
 	c.Assert(n, Equals, 5)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	suggestedCurrency := "GBP"
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -4556,7 +4556,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	c.Check(repo.SuggestedCurrency(), Equals, "EUR")
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrders(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreDecorateOrders(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", ordersPath)
 		// check device authorization is set, implicitly checking doRequest was used
@@ -4607,7 +4607,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrders(c *C) {
 	c.Check(otherApp2.MustBuy, Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersFailedAccess(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreDecorateOrdersFailedAccess(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", ordersPath)
 		c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
@@ -4656,7 +4656,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersFailedAccess(c *C) {
 	c.Check(otherApp2.MustBuy, Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersNoAuth(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreDecorateOrdersNoAuth(c *C) {
 	cfg := Config{}
 	repo := New(&cfg, nil)
 	c.Assert(repo, NotNil)
@@ -4690,7 +4690,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersNoAuth(c *C) {
 	c.Check(otherApp2.MustBuy, Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersAllFree(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreDecorateOrdersAllFree(c *C) {
 	requestRecieved := false
 
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -4727,7 +4727,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersAllFree(c *C) {
 	c.Check(requestRecieved, Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingle(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreDecorateOrdersSingle(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
@@ -4759,7 +4759,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingle(c *C) {
 	c.Check(helloWorld.MustBuy, Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingleFreeSnap(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreDecorateOrdersSingleFreeSnap(c *C) {
 	cfg := Config{}
 	repo := New(&cfg, nil)
 	c.Assert(repo, NotNil)
@@ -4774,7 +4774,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingleFreeSnap(c *C) 
 	c.Check(helloWorld.MustBuy, Equals, false)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingleNotFound(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreDecorateOrdersSingleNotFound(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", ordersPath)
 		c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
@@ -4808,7 +4808,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersSingleNotFound(c *C) 
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersTokenExpired(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreDecorateOrdersTokenExpired(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
@@ -4841,7 +4841,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecorateOrdersTokenExpired(c *C) {
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreMustBuy(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreMustBuy(c *C) {
 	// Never need to buy a free snap.
 	c.Check(mustBuy(false, true), Equals, false)
 	c.Check(mustBuy(false, false), Equals, false)
@@ -4933,7 +4933,7 @@ var buyTests = []struct {
 	},
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreBuy500(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreBuy500(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -4967,7 +4967,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy500(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreBuy(c *C) {
 	for _, test := range buyTests {
 		searchServerCalled := false
 		purchaseServerGetCalled := false
@@ -5071,7 +5071,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 	}
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 	repo := New(&Config{}, nil)
 	c.Assert(repo, NotNil)
 
@@ -5227,7 +5227,7 @@ var readyToBuyTests = []struct {
 	},
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuy(c *C) {
+func (t *storeTestSuite) TestUbuntuStoreReadyToBuy(c *C) {
 	for _, test := range readyToBuyTests {
 		purchaseServerGetCalled := 0
 		mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -5263,7 +5263,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuy(c *C) {
 	}
 }
 
-func (t *remoteRepoTestSuite) TestDoRequestSetRangeHeaderOnRedirect(c *C) {
+func (t *storeTestSuite) TestDoRequestSetRangeHeaderOnRedirect(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
@@ -5316,7 +5316,7 @@ func (co *cacheObserver) Put(cacheKey, sourcePath string) error {
 	return nil
 }
 
-func (t *remoteRepoTestSuite) TestDownloadCacheHit(c *C) {
+func (t *storeTestSuite) TestDownloadCacheHit(c *C) {
 	oldCache := t.store.cacher
 	defer func() { t.store.cacher = oldCache }()
 	obs := &cacheObserver{inCache: map[string]bool{"the-snaps-sha3_384": true}}
@@ -5338,7 +5338,7 @@ func (t *remoteRepoTestSuite) TestDownloadCacheHit(c *C) {
 	c.Check(obs.puts, IsNil)
 }
 
-func (t *remoteRepoTestSuite) TestDownloadCacheMiss(c *C) {
+func (t *storeTestSuite) TestDownloadCacheMiss(c *C) {
 	oldCache := t.store.cacher
 	defer func() { t.store.cacher = oldCache }()
 	obs := &cacheObserver{inCache: map[string]bool{}}
