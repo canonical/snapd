@@ -560,6 +560,10 @@ func generateOnCalendarSchedules(timer string) ([]string, error) {
 				when := span.Start
 				if span.Spread {
 					length := span.End.Sub(span.Start)
+					if length < 0 {
+						// span Start wraps around, so we have '23:45.Sub(0:00)'
+						length = -length
+					}
 					if length > 5*time.Minute {
 						// replicate what timeutil.Next() does
 						// and cut some time at the end of the
@@ -568,6 +572,12 @@ func generateOnCalendarSchedules(timer string) ([]string, error) {
 						length -= 5 * time.Minute
 					}
 					when = when.Add(time.Duration(rand.Int63n(int64(length))))
+				}
+				if when.Hour == 24 {
+					// 24:00 for us means the other end of
+					// the day, for systemd we need to
+					// adjust it to the 0-23 hour range
+					when.Hour -= 24
 				}
 
 				startTimes = append(startTimes, when.String())

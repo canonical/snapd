@@ -366,6 +366,20 @@ func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 		in:         "mon,10:00~12:00,,fri,15:00",
 		expected:   []string{`Mon \*-\*-\* 1[01]:[0-5][0-9]`, `Fri \*-\*-\* 15:00`},
 		randomized: true,
+	}, {
+		in:         "23:00~24:00/4",
+		expected:   []string{`\*-\*-\* 23:[01][0-9]`, `\*-\*-\* 23:[12][0-9]`, `\*-\*-\* 23:[34][0-9]`, `*-*-* 23:[45][0-9]`},
+		randomized: true,
+	}, {
+		in:         "23:00~01:00/4",
+		expected:   []string{`\*-\*-\* 23:[0-2][0-9]`, `\*-\*-\* 23:[3-5][0-9]`, `\*-\*-\* 00:[0-2][0-9]`, `\*-\*-\* 00:[3-5][0-9]`},
+		randomized: true,
+	}, {
+		in:       "23:00-01:00/4",
+		expected: []string{`*-*-* 23:00`, `*-*-* 23:30`, `*-*-* 00:00`, `*-*-* 00:30`},
+	}, {
+		in:       "24:00",
+		expected: []string{`*-*-* 00:00`},
 	}} {
 		c.Logf("trying %+v", t)
 
