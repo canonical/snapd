@@ -188,9 +188,11 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 
 	s.state.Unlock()
 	// wait the prereq-retry-timeout
-	time.Sleep(10 * time.Millisecond)
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
+	for i := 0; i < 10; i++ {
+		time.Sleep(10 * time.Millisecond)
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+	}
 	s.state.Lock()
 	defer s.state.Unlock()
 
