@@ -332,6 +332,19 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 			}
 		}
 
+		if app.Timer != nil {
+			path := app.Timer.File()
+
+			timerName := filepath.Base(path)
+			if err := sysd.Disable(timerName); err != nil {
+				return err
+			}
+
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				logger.Noticef("Failed to remove timer file %q for %q: %v", path, serviceName, err)
+			}
+		}
+
 		if err := sysd.Disable(serviceName); err != nil {
 			return err
 		}
