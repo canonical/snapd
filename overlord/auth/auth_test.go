@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -547,6 +548,31 @@ func (as *authSuite) TestAuthContextDeviceSessionRequestParamsNilDeviceAssertion
 
 	_, err := authContext.DeviceSessionRequestParams("NONCE")
 	c.Check(err, Equals, auth.ErrNoSerial)
+}
+
+func (as *authSuite) TestAuthContextCloudInfo(c *C) {
+	authContext := auth.NewAuthContext(as.state, nil)
+
+	cloud, err := authContext.CloudInfo()
+	c.Assert(err, IsNil)
+	c.Check(cloud, IsNil)
+
+	cloudInfo := &auth.CloudInfo{
+		Name:             "aws",
+		Region:           "us-east-1",
+		AvailabilityZone: "us-east-1a",
+	}
+	as.state.Lock()
+	defer as.state.Unlock()
+	tr := config.NewTransaction(as.state)
+	tr.Set("core", "cloud", cloudInfo)
+	tr.Commit()
+
+	as.state.Unlock()
+	cloud, err = authContext.CloudInfo()
+	as.state.Lock()
+	c.Assert(err, IsNil)
+	c.Check(cloud, DeepEquals, cloudInfo)
 }
 
 const (
