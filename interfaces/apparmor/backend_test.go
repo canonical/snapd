@@ -436,7 +436,7 @@ func (s *backendSuite) TestSnapConfineProfile(c *C) {
 	// We expect to see the same profile, just anchored at a different directory.
 	expectedProfileDir := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d")
 	expectedProfileName := strings.Replace(filepath.Join(coreInfo.MountDir(), "usr/lib/snapd/snap-confine")[1:], "/", ".", -1)
-	expectedProfileGlob := strings.Replace(expectedProfileName, coreInfo.Revision.String(), "*", -1)
+	expectedProfileGlob := strings.Replace(expectedProfileName, "."+coreInfo.Revision.String()+".", ".*.", -1)
 	expectedProfileText := fmt.Sprintf(`#include <tunables/global>
 %s/usr/lib/snapd/snap-confine (attach_disconnected) {
     # We run privileged, so be fanatical about what we include and don't use
