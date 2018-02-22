@@ -29,40 +29,43 @@ type overlaySuite struct{}
 
 var _ = Suite(&overlaySuite{})
 
-func (s *overlaySuite) TestIsRootOverlay(c *C) {
+func (s *overlaySuite) TestIsRootWritableOverlay(c *C) {
 	cases := []struct {
-		mountinfo, fstab string
-		overlay          bool
-		errorPattern     string
+		mountinfo    string
+		overlay      string
+		errorPattern string
 	}{{
-		// Errors from parsing mountinfo and fstab are propagated.
+		// Errors from parsing mountinfo are propagated.
 		mountinfo:    "bad syntax",
 		errorPattern: "cannot parse .*/mountinfo.*, .*",
 	}, {
-		fstab:        "bad syntax",
-		errorPattern: "cannot parse .*/fstab.*, .*",
-	}, {
 		// overlay mounted on / are recognized
+		// casper mount source /cow
 		mountinfo: "31 1 0:26 / / rw,relatime shared:1 - overlay /cow rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
-		overlay:   true,
+		overlay:   "/upper",
+	}, {
+		// casper mount source upperdir trailing slash
+		mountinfo: "31 1 0:26 / / rw,relatime shared:1 - overlay /cow rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper/,workdir=/cow/work",
+		overlay:   "/upper",
+	}, {
+		// casper mount source trailing slash
+		mountinfo: "31 1 0:26 / / rw,relatime shared:1 - overlay /cow/ rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
+		overlay:   "/upper",
+	}, {
+		// non-casper mount source
+		mountinfo: "31 1 0:26 / / rw,relatime shared:1 - overlay overlay rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
+		overlay:   "/cow/upper",
 	}, {
 		// overlay mounted elsewhere are ignored
 		mountinfo: "31 1 0:26 /elsewhere /elsewhere rw,relatime shared:1 - overlay /cow rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
 	}, {
-		// overlay mounted at / is recognized
-		fstab:   "overlay / overlay rw 0 0",
-		overlay: true,
-	}, {
-		// overlay mounted elsewhere are ignored
-		fstab: "overlay /elsewhere overlay rw 0 0",
+		mountinfo: "31 1 0:26 /elsewhere /elsewhere rw,relatime shared:1 - overlay overlay rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
 	}}
 	for _, tc := range cases {
 		restore := osutil.MockMountInfo(tc.mountinfo)
 		defer restore()
-		restore = osutil.MockEtcFstab(tc.fstab)
-		defer restore()
 
-		overlay, err := osutil.IsRootOverlay()
+		overlay, err := osutil.IsRootWritableOverlay()
 		if tc.errorPattern != "" {
 			c.Assert(err, ErrorMatches, tc.errorPattern, Commentf("test case %#v", tc))
 		} else {

@@ -21,29 +21,46 @@ package osutil
 
 import (
 	"fmt"
+	"strings"
 )
 
-// IsRootOverlay returns true if overlayfs is being used for '/'
+// IsRootWritableOverlay detects if the current '/' is a writable overlay
+// (fstype is 'overlay' and 'upperdir' is specified) and returns upperdir or
+// the empty string if not used.
+//
+// Debian-based LiveCD systems use 'casper' to setup the mounts, and part of
+// this setup involves running mount commands to mount / on /cow as overlay and
+// results in AppArmor seeing '/upper' as the upperdir rather than '/cow/upper'
+// as seen in mountinfo. By the time snapd is run, we don't have enough
+// information to discover /cow through mount parent ID or st_dev (maj:min).
+// While overlay doesn't use the mount source for anything itself, casper sets
+// the mount source ('/cow' with the above) for its own purposes and we can
+// leverage this by stripping the mount source from the beginning of upperdir.
+//
+// https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt
+// man 5 proc
 //
 // Currently uses variables and Mock functions from nfs.go
-func IsRootOverlay() (bool, error) {
+func IsRootWritableOverlay() (string, error) {
 	mountinfo, err := LoadMountInfo(procSelfMountInfo)
 	if err != nil {
-		return false, fmt.Errorf("cannot parse %s: %s", procSelfMountInfo, err)
+		return "", fmt.Errorf("cannot parse %s: %s", procSelfMountInfo, err)
 	}
 	for _, entry := range mountinfo {
 		if entry.FsType == "overlay" && entry.MountDir == "/" {
-			return true, nil
+			// upperdir must be an absolute path to be considered
+			if dir, ok := entry.SuperOptions["upperdir"]; ok && strings.HasPrefix(dir, "/") {
+				// if mount source is path, strip it from dir
+				// (for casper)
+				if strings.HasPrefix(entry.MountSource, "/") {
+					dir = strings.TrimPrefix(dir, strings.TrimRight(entry.MountSource, "/"))
+				}
+
+				// Make sure trailing slashes are predicatably
+				// missing
+				return strings.TrimRight(dir, "/"), nil
+			}
 		}
 	}
-	fstab, err := LoadMountProfile(etcFstab)
-	if err != nil {
-		return false, fmt.Errorf("cannot parse %s: %s", etcFstab, err)
-	}
-	for _, entry := range fstab.Entries {
-		if entry.Type == "overlay" && entry.Dir == "/" {
-			return true, nil
-		}
-	}
-	return false, nil
+	return "", nil
 }

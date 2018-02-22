@@ -936,40 +936,35 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
 	c.Assert(cmd.Calls(), HasLen, 0)
 }
 
-func (s *backendSuite) TestIsRootOverlay(c *C) {
+func (s *backendSuite) TestIsRootWritableOverlay(c *C) {
 	cases := []struct {
-		mountinfo, fstab string
-		overlay          bool
-		errorPattern     string
+		mountinfo    string
+		overlay      string
+		errorPattern string
 	}{{
-		// Errors from parsing mountinfo and fstab are propagated.
+		// Errors from parsing mountinfo are propagated.
 		mountinfo:    "bad syntax",
 		errorPattern: "cannot parse .*/mountinfo.*, .*",
 	}, {
-		fstab:        "bad syntax",
-		errorPattern: "cannot parse .*/fstab.*, .*",
-	}, {
 		// overlay mounted on / are recognized
+		// casper mount source
 		mountinfo: "31 1 0:26 / / rw,relatime shared:1 - overlay /cow rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
-		overlay:   true,
+		overlay:   "/upper",
+	}, {
+		// non-casper mount source
+		mountinfo: "31 1 0:26 / / rw,relatime shared:1 - overlay overlay rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
+		overlay:   "/cow/upper",
 	}, {
 		// overlay mounted elsewhere are ignored
 		mountinfo: "31 1 0:26 /elsewhere /elsewhere rw,relatime shared:1 - overlay /cow rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
 	}, {
-		// overlay mounted at / is recognized
-		fstab:   "overlay / overlay rw 0 0",
-		overlay: true,
-	}, {
-		// overlay mounted elsewhere are ignored
-		fstab: "overlay /elsewhere overlay rw 0 0",
+		mountinfo: "31 1 0:26 /elsewhere /elsewhere rw,relatime shared:1 - overlay overlay rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
 	}}
 	for _, tc := range cases {
 		restore := osutil.MockMountInfo(tc.mountinfo)
 		defer restore()
-		restore = osutil.MockEtcFstab(tc.fstab)
-		defer restore()
 
-		overlay, err := osutil.IsRootOverlay()
+		overlay, err := osutil.IsRootWritableOverlay()
 		if tc.errorPattern != "" {
 			c.Assert(err, ErrorMatches, tc.errorPattern, Commentf("test case %#v", tc))
 		} else {
@@ -983,8 +978,6 @@ func (s *backendSuite) TestIsRootOverlay(c *C) {
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoOverlay(c *C) {
 	// Make it appear as if overlay was not used.
 	restore := osutil.MockMountInfo("")
-	defer restore()
-	restore = osutil.MockEtcFstab("")
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -1007,26 +1000,24 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoOverlay(c *C) {
 }
 
 func MockEnableOverlayWorkaroundCondition() (restore func()) {
-	// Mock mountinfo and fstab so that snapd thinks that overlay workaround
-	// is necessary. The details don't matter here. See TestIsRootOverlay
-	// for details about what triggers the workaround.
-	restore1 := osutil.MockMountInfo("")
-	restore2 := osutil.MockEtcFstab("overlay / overlay rw 0 0")
+	// Mock mountinfo so that snapd thinks that overlay workaround
+	// is necessary. The details don't matter here. See
+	// TestIsRootWritableOverlay for details about what triggers the
+	// workaround.
+	restore1 := osutil.MockMountInfo("31 1 0:26 / / rw,relatime shared:1 - overlay /cow rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work")
 	return func() {
 		restore1()
-		restore2()
 	}
 }
 
 func MockDisableOverlayWorkaroundCondition() (restore func()) {
-	// Mock mountinfo and fstab so that snapd thinks that overlay workaround is not
-	// necessary. The details don't matter here. See TestIsRootOverlay for
-	// details about what triggers the workaround.
+	// Mock mountinfo so that snapd thinks that overlay workaround is not
+	// necessary. The details don't matter here. See
+	// TestIsRootWritableOverlay for details about what triggers the
+	// workaround.
 	restore1 := osutil.MockMountInfo("")
-	restore2 := osutil.MockEtcFstab("")
 	return func() {
 		restore1()
-		restore2()
 	}
 }
 
@@ -1082,7 +1073,7 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithOverlay(c *C, prof
 	// The policy allows upperdir access.
 	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name()))
 	c.Assert(err, IsNil)
-	c.Assert(string(data), testutil.Contains, "/upper/{,**/} r,")
+	c.Assert(string(data), testutil.Contains, "\"/upper/{,**/}\" r,")
 
 	// The system apparmor profile of snap-confine was reloaded.
 	c.Assert(cmd.Calls(), HasLen, 1)
@@ -1129,9 +1120,106 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlayAndReExec(c
 	// The policy allows upperdir access
 	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name()))
 	c.Assert(err, IsNil)
-	c.Assert(string(data), testutil.Contains, "/upper/{,**/} r,")
+	c.Assert(string(data), testutil.Contains, "\"/upper/{,**/}\" r,")
 
 	// The distribution policy was not reloaded because snap-confine executes
 	// from core snap. This is handled separately by per-profile Setup.
 	c.Assert(cmd.Calls(), HasLen, 0)
+}
+
+type nfsAndOverlaySnippetsScenario struct {
+	opts    interfaces.ConfinementOptions
+	overlaySnippet string
+	nfsSnippet string
+}
+
+var nfsAndOverlaySnippetsScenarios = []nfsAndOverlaySnippetsScenario{{
+	// By default apparmor is enforcing mode.
+	opts:    interfaces.ConfinementOptions{},
+	overlaySnippet: `"/cow/upper/{,**/}" r,`,
+	nfsSnippet: "network inet,\n  network inet6,",
+}, {
+	// DevMode switches apparmor to non-enforcing (complain) mode.
+	opts:    interfaces.ConfinementOptions{DevMode: true},
+	overlaySnippet: `"/cow/upper/{,**/}" r,`,
+	nfsSnippet: "network inet,\n  network inet6,",
+}, {
+	// JailMode switches apparmor to enforcing mode even in the presence of DevMode.
+	opts:    interfaces.ConfinementOptions{DevMode: true, JailMode: true},
+	overlaySnippet: `"/cow/upper/{,**/}" r,`,
+	nfsSnippet: "network inet,\n  network inet6,",
+}, {
+	// Classic confinement (without jailmode) uses apparmor in complain mode by default and ignores all snippets.
+	opts:    interfaces.ConfinementOptions{Classic: true},
+	overlaySnippet: "",
+	nfsSnippet: "",
+}, {
+	// Classic confinement in JailMode uses enforcing apparmor.
+	opts:    interfaces.ConfinementOptions{Classic: true, JailMode: true},
+	// FIXME: logic in backend.addContent is wrong for this case
+	//overlaySnippet: `"/cow/upper/{,**/}" r,`,
+	//nfsSnippet: "network inet,\n  network inet6,",
+	overlaySnippet: "",
+	nfsSnippet: "",
+}}
+
+func (s *backendSuite) TestNFSAndOverlaySnippets(c *C) {
+	restoreAppArmorLevel := release.MockAppArmorLevel(release.FullAppArmor)
+	defer restoreAppArmorLevel()
+	restoreNFS := MockEnableNFSWorkaroundCondition()
+	defer restoreNFS()
+	restoreMountInfo := osutil.MockMountInfo("31 1 0:26 / / rw,relatime shared:1 - overlay overlay rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work\n")
+	defer restoreMountInfo()
+
+	for _, scenario := range nfsAndOverlaySnippetsScenarios {
+		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+			return nil
+		}
+		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 1)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		c.Check(profile, testutil.FileContains, scenario.overlaySnippet)
+		c.Check(profile, testutil.FileContains, scenario.nfsSnippet)
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+var casperOverlaySnippetsScenarios = []nfsAndOverlaySnippetsScenario{{
+	// By default apparmor is enforcing mode.
+	opts:    interfaces.ConfinementOptions{},
+	overlaySnippet: `"/upper/{,**/}" r,`,
+}, {
+	// DevMode switches apparmor to non-enforcing (complain) mode.
+	opts:    interfaces.ConfinementOptions{DevMode: true},
+	overlaySnippet: `"/upper/{,**/}" r,`,
+}, {
+	// JailMode switches apparmor to enforcing mode even in the presence of DevMode.
+	opts:    interfaces.ConfinementOptions{DevMode: true, JailMode: true},
+	overlaySnippet: `"/upper/{,**/}" r,`,
+}, {
+	// Classic confinement (without jailmode) uses apparmor in complain mode by default and ignores all snippets.
+	opts:    interfaces.ConfinementOptions{Classic: true},
+	overlaySnippet: "",
+}, {
+	// Classic confinement in JailMode uses enforcing apparmor.
+	opts:    interfaces.ConfinementOptions{Classic: true, JailMode: true},
+	// FIXME: logic in backend.addContent is wrong for this case
+	//overlaySnippet: `"/upper/{,**/}" r,`,
+	overlaySnippet: "",
+}}
+
+func (s *backendSuite) TestCasperOverlaySnippets(c *C) {
+	restoreAppArmorLevel := release.MockAppArmorLevel(release.FullAppArmor)
+	defer restoreAppArmorLevel()
+	restoreMountInfo := osutil.MockMountInfo("31 1 0:26 / / rw,relatime shared:1 - overlay /cow rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work\n")
+	defer restoreMountInfo()
+
+	for _, scenario := range casperOverlaySnippetsScenarios {
+		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+			return nil
+		}
+		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 1)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		c.Check(profile, testutil.FileContains, scenario.overlaySnippet)
+		s.RemoveSnap(c, snapInfo)
+	}
 }

@@ -39,7 +39,7 @@ type systemKey struct {
 	BuildID          string   `yaml:"build-id"`
 	AppArmorFeatures []string `yaml:"apparmor-features"`
 	NFSHome          bool     `yaml:"nfs-home"`
-	OverlayRoot      bool     `yaml:"overlay-root"`
+	OverlayRoot      string   `yaml:"overlay-root"`
 	Core             string   `yaml:"core,omitempty"`
 }
 
@@ -71,7 +71,7 @@ func generateSystemKey() *systemKey {
 
 	// Add if '/' is on overlayfs so we can add AppArmor rules for
 	// upperdir such that if this changes, we change our profile.
-	sk.OverlayRoot, err = osutil.IsRootOverlay()
+	sk.OverlayRoot, err = osutil.IsRootWritableOverlay()
 	if err != nil {
 		logger.Noticef("cannot determine root filesystem on overlay in generateSystemKey: %v", err)
 	}

@@ -74,11 +74,11 @@ func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
 	}
 	nfsHome, err := osutil.IsHomeUsingNFS()
 	c.Assert(err, IsNil)
-	overlayRoot, err := osutil.IsRootOverlay()
+	overlayRoot, err := osutil.IsRootWritableOverlay()
 	c.Assert(err, IsNil)
 	c.Check(systemKey, Equals, fmt.Sprintf(`build-id: %s
 apparmor-features:%snfs-home: %v
-overlay-root: %v
+overlay-root: "%v"
 `, s.buildID, apparmorFeaturesStr, nfsHome, overlayRoot))
 }
 
