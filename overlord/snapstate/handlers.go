@@ -179,6 +179,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	if snapsup.Base != "" {
 		base = snapsup.Base
 	}
+
 	if err := m.installPrereqs(t, base, snapsup.Prereq, snapsup.UserID); err != nil {
 		return err
 	}
@@ -239,7 +240,6 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 
 	// for base snaps we need to wait until the change is done
 	// (either finished or failed)
-	// FIXME: this retry here needs a test
 	onInFlightErr := &state.Retry{After: prerequisitesRetryTimeout}
 	tsBase, err := m.installOneBaseOrRequired(st, base, onInFlightErr, userID)
 	if err != nil {
@@ -713,7 +713,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("cannot create snap cookie: %v", err)
 		}
 	}
-
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-devmode", oldDevMode)

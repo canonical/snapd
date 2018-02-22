@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,8 +20,11 @@
 package snapstate_test
 
 import (
+	"time"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -40,6 +43,7 @@ type prereqSuite struct {
 var _ = Suite(&prereqSuite{})
 
 func (s *prereqSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(nil)
 	s.state.Lock()
@@ -55,7 +59,6 @@ func (s *prereqSuite) SetUpTest(c *C) {
 	s.snapmgr, err = snapstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
-
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
 	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
@@ -147,4 +150,49 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 		}
 	}
 	c.Check(linkedSnaps, DeepEquals, expectedLinkedSnaps)
+}
+
+func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
+	restore := snapstate.MockPrerequisitesRetryTimeout(5 * time.Millisecond)
+	defer restore()
+
+	s.state.Lock()
+	tCore := s.state.NewTask("link-snap", "Pretend core gets installed")
+	tCore.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "core",
+			Revision: snap.R(11),
+		},
+	})
+
+	// pretend foo gets installed and needs core (which is in progress)
+	t := s.state.NewTask("prerequisites", "foo")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
+	})
+
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	chg.AddTask(tCore)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	s.state.Lock()
+
+	// check that t is not done yet, it must wait for core
+	c.Check(t.Status(), Equals, state.DoingStatus)
+	c.Check(tCore.Status(), Equals, state.DoneStatus)
+
+	s.state.Unlock()
+	// wait the prereq-retry-timeout
+	time.Sleep(10 * time.Millisecond)
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(t.Status(), Equals, state.DoneStatus)
 }
