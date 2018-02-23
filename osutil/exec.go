@@ -140,12 +140,7 @@ func CommandFromCore(name string, cmdArgs ...string) (*exec.Cmd, error) {
 	return exec.Command(coreLdSo, allArgs...), nil
 }
 
-var (
-	syscallKill    = syscall.Kill
-	syscallGetpgid = syscall.Getpgid
-
-	cmdWaitTimeout = 5 * time.Second
-)
+var cmdWaitTimeout = 5 * time.Second
 
 // KillProcessGroup kills the process group associated with the given command.
 //
