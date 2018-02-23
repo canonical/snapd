@@ -37,7 +37,7 @@ import (
 
 type utilsSuite struct {
 	testutil.BaseTest
-	sys *update.SyscallRecorder
+	sys *testutil.SyscallRecorder
 	log *bytes.Buffer
 }
 
@@ -45,7 +45,7 @@ var _ = Suite(&utilsSuite{})
 
 func (s *utilsSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-	s.sys = &update.SyscallRecorder{}
+	s.sys = &testutil.SyscallRecorder{}
 	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
 	buf, restore := logger.MockLogger()
 	s.BaseTest.AddCleanup(restore)
@@ -226,18 +226,18 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
 		c.Assert(dir, Equals, "/foo")
 		return []os.FileInfo{
-			update.FakeFileInfo("file", 0),
-			update.FakeFileInfo("dir", os.ModeDir),
-			update.FakeFileInfo("symlink", os.ModeSymlink),
-			update.FakeFileInfo("error-symlink-readlink", os.ModeSymlink),
+			testutil.FakeFileInfo("file", 0),
+			testutil.FakeFileInfo("dir", os.ModeDir),
+			testutil.FakeFileInfo("symlink", os.ModeSymlink),
+			testutil.FakeFileInfo("error-symlink-readlink", os.ModeSymlink),
 			// NOTE: None of the filesystem entries below are supported because
 			// they cannot be placed inside snaps or can only be created at
 			// runtime in areas that are already writable and this would never
 			// have to be handled in a writable mimic.
-			update.FakeFileInfo("block-dev", os.ModeDevice),
-			update.FakeFileInfo("char-dev", os.ModeDevice|os.ModeCharDevice),
-			update.FakeFileInfo("socket", os.ModeSocket),
-			update.FakeFileInfo("pipe", os.ModeNamedPipe),
+			testutil.FakeFileInfo("block-dev", os.ModeDevice),
+			testutil.FakeFileInfo("char-dev", os.ModeDevice|os.ModeCharDevice),
+			testutil.FakeFileInfo("socket", os.ModeSocket),
+			testutil.FakeFileInfo("pipe", os.ModeNamedPipe),
 		}, nil
 	})
 	defer restore()

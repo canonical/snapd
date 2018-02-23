@@ -21,7 +21,6 @@ package snapstate_test
 
 import (
 	"io"
-	"io/ioutil"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -34,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type catalogStore struct {
@@ -89,14 +89,10 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})
 
 	c.Check(osutil.FileExists(dirs.SnapSectionsFile), Equals, true)
-	content, err := ioutil.ReadFile(dirs.SnapSectionsFile)
-	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, "section1\nsection2")
+	c.Check(dirs.SnapSectionsFile, testutil.FileEquals, "section1\nsection2")
 
 	c.Check(osutil.FileExists(dirs.SnapNamesFile), Equals, true)
-	content, err = ioutil.ReadFile(dirs.SnapNamesFile)
-	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, "pkg1\npkg2")
+	c.Check(dirs.SnapNamesFile, testutil.FileEquals, "pkg1\npkg2")
 
 	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, true)
 	dump, err := advisor.DumpCommands()

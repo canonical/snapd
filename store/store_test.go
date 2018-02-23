@@ -221,6 +221,8 @@ type testAuthContext struct {
 	proxyStoreURL *url.URL
 
 	storeID string
+
+	cloudInfo *auth.CloudInfo
 }
 
 func (ac *testAuthContext) Device() (*auth.DeviceState, error) {
@@ -281,6 +283,10 @@ func (ac *testAuthContext) ProxyStoreParams(defaultURL *url.URL) (string, *url.U
 		return ac.proxyStoreID, ac.proxyStoreURL, nil
 	}
 	return "", defaultURL, nil
+}
+
+func (ac *testAuthContext) CloudInfo() (*auth.CloudInfo, error) {
+	return ac.cloudInfo, nil
 }
 
 func makeTestMacaroon() (*macaroon.Macaroon, error) {
@@ -418,9 +424,7 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
-	content, err := ioutil.ReadFile(path)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, string(expectedContent))
+	c.Assert(path, testutil.FileEquals, expectedContent)
 }
 
 func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
@@ -449,9 +453,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequest(c *C) {
 	err = t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(targetFn)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, expectedContentStr)
+	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
 }
 
 func (t *remoteRepoTestSuite) TestResumeOfCompleted(c *C) {
@@ -473,9 +475,7 @@ func (t *remoteRepoTestSuite) TestResumeOfCompleted(c *C) {
 	err = t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(targetFn)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, expectedContentStr)
+	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
 }
 
 func (t *remoteRepoTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
@@ -515,11 +515,7 @@ func (t *remoteRepoTestSuite) TestDownloadEOFHandlesResumeHashCorrectly(c *C) {
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
 	err := t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
-
-	content, err := ioutil.ReadFile(targetFn)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, buf)
-
+	c.Assert(targetFn, testutil.FileEquals, buf)
 	c.Assert(t.logbuf.String(), Matches, "(?s).*Retrying .* attempt 2, .*")
 }
 
@@ -564,9 +560,7 @@ func (t *remoteRepoTestSuite) TestDownloadRetryHashErrorIsFullyRetried(c *C) {
 	err := t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(targetFn)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, buf)
+	c.Assert(targetFn, testutil.FileEquals, buf)
 
 	c.Assert(t.logbuf.String(), Matches, "(?s).*Retrying .* attempt 2, .*")
 }
@@ -603,9 +597,7 @@ func (t *remoteRepoTestSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
 	err := t.store.Download(context.TODO(), "foo", targetFn, &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(targetFn)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, buf)
+	c.Assert(targetFn, testutil.FileEquals, buf)
 
 	c.Assert(t.logbuf.String(), Matches, "(?s).*sha3-384 mismatch.*")
 }
@@ -669,9 +661,7 @@ func (t *remoteRepoTestSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 2)
 
-	content, err := ioutil.ReadFile(targetFn)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, expectedContentStr)
+	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
 }
 
 func (t *remoteRepoTestSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
@@ -722,9 +712,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
-	content, err := ioutil.ReadFile(path)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, string(expectedContent))
+	c.Assert(path, testutil.FileEquals, expectedContent)
 }
 
 func (t *remoteRepoTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
@@ -752,9 +740,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDeviceDoesNotUseAnonURL(c *C) {
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
-	content, err := ioutil.ReadFile(path)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, string(expectedContent))
+	c.Assert(path, testutil.FileEquals, expectedContent)
 }
 
 func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
@@ -777,9 +763,7 @@ func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
-	content, err := ioutil.ReadFile(path)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, expectedContentStr)
+	c.Assert(path, testutil.FileEquals, expectedContentStr)
 }
 
 func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
@@ -1182,9 +1166,7 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 
 		c.Assert(err, IsNil)
 		defer os.Remove(path)
-		content, err := ioutil.ReadFile(path)
-		c.Assert(err, IsNil)
-		c.Assert(string(content), Equals, testCase.expectedContent)
+		c.Assert(path, testutil.FileEquals, testCase.expectedContent)
 	}
 }
 
@@ -1329,9 +1311,7 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 			c.Assert(err, NotNil)
 		} else {
 			c.Assert(err, IsNil)
-			content, err := ioutil.ReadFile(w.Name())
-			c.Assert(err, IsNil)
-			c.Assert(string(content), Equals, "I was downloaded")
+			c.Assert(w.Name(), testutil.FileEquals, "I was downloaded")
 		}
 	}
 }
@@ -1778,11 +1758,14 @@ const (
 
 /* acquired via
 
-http --pretty=format --print b https://api.snapcraft.io/api/v1/snaps/details/hello-world X-Ubuntu-Series:16 fields==anon_download_url,architecture,channel,download_sha3_384,summary,description,binary_filesize,download_url,icon_url,last_updated,license,package_name,prices,publisher,ratings_average,revision,screenshot_urls,snap_id,support_url,title,content,version,origin,developer_id,private,confinement channel==edge | xsel -b
+http --pretty=format --print b https://api.snapcraft.io/api/v1/snaps/details/hello-world X-Ubuntu-Series:16 fields==anon_download_url,architecture,channel,download_sha3_384,summary,description,binary_filesize,download_url,icon_url,last_updated,license,package_name,prices,publisher,ratings_average,revision,screenshot_urls,snap_id,support_url,title,content,version,origin,developer_id,private,confinement,snap_yaml_raw channel==edge | xsel -b
 
 on 2016-07-03. Then, by hand:
  * set prices to {"EUR": 0.99, "USD": 1.23}.
  * Screenshot URLS set manually.
+
+on 2017-11-20. Then, by hand:
+ * add "snap_yaml_raw" from "test-snapd-content-plug"
 
 On Ubuntu, apt install httpie xsel (although you could get http from
 the http snap instead).
@@ -1822,6 +1805,7 @@ const MockDetailsJSON = `{
     "support_url": "mailto:snappy-devel@lists.ubuntu.com",
     "title": "Hello World",
     "version": "6.3",
+    "snap_yaml_raw": "name: test-snapd-content-plug\nversion: 1.0\napps:\n    content-plug:\n        command: bin/content-plug\n        plugs: [shared-content-plug]\nplugs:\n    shared-content-plug:\n        interface: content\n        target: import\n        content: mylib\n        default-provider: test-snapd-content-slot\nslots:\n    shared-content-slot:\n        interface: content\n        content: mylib\n        read:\n            - /\n",
     "channel_maps_list": [
       {
         "track": "latest",
@@ -2032,6 +2016,21 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	// c.Check(result.Private, Equals, true)
 
 	c.Check(snap.Validate(result), IsNil)
+
+	// validate the plugs/slots
+	c.Check(result.Plugs, HasLen, 1)
+	plug := result.Plugs["shared-content-plug"]
+	c.Check(plug.Name, Equals, "shared-content-plug")
+	c.Check(plug.Snap, DeepEquals, result)
+	c.Check(plug.Apps, HasLen, 1)
+	c.Check(plug.Apps["content-plug"].Command, Equals, "bin/content-plug")
+
+	c.Check(result.Slots, HasLen, 1)
+	slot := result.Slots["shared-content-slot"]
+	c.Check(slot.Name, Equals, "shared-content-slot")
+	c.Check(slot.Snap, DeepEquals, result)
+	c.Check(slot.Apps, HasLen, 1)
+	c.Check(slot.Apps["content-plug"].Command, Equals, "bin/content-plug")
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDefaultChannelIsStable(c *C) {
@@ -2236,7 +2235,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, "21")
 		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, "archXYZ")
 		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "true")
+		// for now we have both
 		c.Check(r.Header.Get("X-Ubuntu-No-CDN"), Equals, "true")
+		c.Check(r.Header.Get("Snap-CDN"), Equals, "none")
 
 		w.WriteHeader(200)
 		io.WriteString(w, MockDetailsJSON)
@@ -2285,6 +2286,70 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c 
 	cfg.Architecture = "archXYZ"
 	cfg.StoreID = "fallback"
 	repo := New(cfg, &testAuthContext{c: c, device: t.device, storeID: "my-brand-store-id"})
+	c.Assert(repo, NotNil)
+
+	// the actual test
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "edge",
+		Revision: snap.R(0),
+	}
+	result, err := repo.SnapInfo(spec, nil)
+	c.Assert(err, IsNil)
+	c.Check(result.Name(), Equals, "hello-world")
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryFullCloudInfoFromAuthContext(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", detailsPathPattern)
+		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="aws" region="us-east-1" availability-zone="us-east-1c"`)
+
+		w.WriteHeader(200)
+		io.WriteString(w, MockDetailsJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := DefaultConfig()
+	cfg.StoreBaseURL = mockServerURL
+	cfg.Series = "21"
+	cfg.Architecture = "archXYZ"
+	cfg.StoreID = "fallback"
+	repo := New(cfg, &testAuthContext{c: c, device: t.device, cloudInfo: &auth.CloudInfo{Name: "aws", Region: "us-east-1", AvailabilityZone: "us-east-1c"}})
+	c.Assert(repo, NotNil)
+
+	// the actual test
+	spec := SnapSpec{
+		Name:     "hello-world",
+		Channel:  "edge",
+		Revision: snap.R(0),
+	}
+	result, err := repo.SnapInfo(spec, nil)
+	c.Assert(err, IsNil)
+	c.Check(result.Name(), Equals, "hello-world")
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryLessDetailedCloudInfoFromAuthContext(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", detailsPathPattern)
+		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="openstack" availability-zone="nova"`)
+
+		w.WriteHeader(200)
+		io.WriteString(w, MockDetailsJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := DefaultConfig()
+	cfg.StoreBaseURL = mockServerURL
+	cfg.Series = "21"
+	cfg.Architecture = "archXYZ"
+	cfg.StoreID = "fallback"
+	repo := New(cfg, &testAuthContext{c: c, device: t.device, cloudInfo: &auth.CloudInfo{Name: "openstack", Region: "", AvailabilityZone: "nova"}})
 	c.Assert(repo, NotNil)
 
 	// the actual test

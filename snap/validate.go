@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/spdx"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -51,15 +52,63 @@ func ValidateName(name string) error {
 }
 
 // NB keep this in sync with snapcraft and the review tools :-)
-var isValidVersion = regexp.MustCompile("^[a-zA-Z0-9](?:[a-zA-Z0-9:.+~_-]{0,30}[a-zA-Z0-9+~])?$").MatchString
+var isValidVersion = regexp.MustCompile("^[a-zA-Z0-9](?:[a-zA-Z0-9:.+~-]{0,30}[a-zA-Z0-9+~])?$").MatchString
+
+var isNonGraphicalASCII = regexp.MustCompile("[^[:graph:]]").MatchString
+var isInvalidFirstVersionChar = regexp.MustCompile("^[^a-zA-Z0-9]").MatchString
+var isInvalidLastVersionChar = regexp.MustCompile("[^a-zA-Z0-9+~]$").MatchString
+var invalidMiddleVersionChars = regexp.MustCompile("[^a-zA-Z0-9:.+~-]+").FindAllString
 
 // ValidateVersion checks if a string is a valid snap version.
 func ValidateVersion(version string) error {
-	if len(version) == 0 {
-		return fmt.Errorf("snap version cannot be empty")
-	}
 	if !isValidVersion(version) {
-		return fmt.Errorf("invalid snap version: %q", version)
+		// maybe it was too short?
+		if len(version) == 0 {
+			return fmt.Errorf("invalid snap version: cannot be empty")
+		}
+		if isNonGraphicalASCII(version) {
+			// note that while this way of quoting the version can produce ugly
+			// output in some cases (e.g. if you're trying to set a version to
+			// "hello😁", seeing “invalid version "hello😁"” could be clearer than
+			// “invalid snap version "hello\U0001f601"”), in a lot of more
+			// interesting cases you _need_ to have the thing that's not ASCII
+			// pointed out: homoglyphs and near-homoglyphs are too hard to spot
+			// otherwise. Take for example a version of "аерс". Or "v1.0‑x".
+			return fmt.Errorf("invalid snap version %s: must be printable, non-whitespace ASCII",
+				strconv.QuoteToASCII(version))
+		}
+		// now we know it's a non-empty ASCII string, we can get serious
+		var reasons []string
+		// ... too long?
+		if len(version) > 32 {
+			reasons = append(reasons, fmt.Sprintf("cannot be longer than 32 characters (got: %d)", len(version)))
+		}
+		// started with a symbol?
+		if isInvalidFirstVersionChar(version) {
+			// note that we can only say version[0] because we know it's ASCII :-)
+			reasons = append(reasons, fmt.Sprintf("must start with an ASCII alphanumeric (and not %q)", version[0]))
+		}
+		if len(version) > 1 {
+			if isInvalidLastVersionChar(version) {
+				tpl := "must end with an ASCII alphanumeric or one of '+' or '~' (and not %q)"
+				reasons = append(reasons, fmt.Sprintf(tpl, version[len(version)-1]))
+			}
+			if len(version) > 2 {
+				if all := invalidMiddleVersionChars(version[1:len(version)-1], -1); len(all) > 0 {
+					reasons = append(reasons, fmt.Sprintf("contains invalid characters: %s", strutil.Quoted(all)))
+				}
+			}
+		}
+		switch len(reasons) {
+		case 0:
+			// huh
+			return fmt.Errorf("invalid snap version %q", version)
+		case 1:
+			return fmt.Errorf("invalid snap version %q: %s", version, reasons[0])
+		default:
+			reasons, last := reasons[:len(reasons)-1], reasons[len(reasons)-1]
+			return fmt.Errorf("invalid snap version %q: %s, and %s", version, strings.Join(reasons, ", "), last)
+		}
 	}
 	return nil
 }
@@ -238,6 +287,13 @@ func Validate(info *Info) error {
 	// ensure that plug and slot have unique names
 	if err := plugsSlotsUniqueNames(info); err != nil {
 		return err
+	}
+
+	// validate that bases do not have base fields
+	if info.Type == TypeOS || info.Type == TypeBase {
+		if info.Base != "" {
+			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.Name())
+		}
 	}
 
 	return ValidateLayoutAll(info)
@@ -474,9 +530,19 @@ func ValidateApp(app *AppInfo) error {
 	if err := validateAppOrderNames(app, app.Before); err != nil {
 		return err
 	}
-
 	if err := validateAppOrderNames(app, app.After); err != nil {
 		return err
+	}
+
+	// validate refresh-mode
+	switch app.RefreshMode {
+	case "", "endure", "restart", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
+		// valid
+	default:
+		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.RefreshMode)
+	}
+	if app.RefreshMode != "" && app.Daemon == "" {
+		return fmt.Errorf(`"refresh-mode" cannot be used for %q, only for services`, app.Name)
 	}
 
 	return validateAppTimer(app)

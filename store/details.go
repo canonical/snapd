@@ -46,6 +46,7 @@ type snapDetails struct {
 	Revision       int      `json:"revision"` // store revisions are ints starting at 1
 	ScreenshotURLs []string `json:"screenshot_urls,omitempty"`
 	SnapID         string   `json:"snap_id"`
+	SnapYAML       string   `json:"snap_yaml_raw"`
 	License        string   `json:"license,omitempty"`
 	Base           string   `json:"base,omitempty"`
 
