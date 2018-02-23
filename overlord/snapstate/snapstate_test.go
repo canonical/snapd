@@ -1681,6 +1681,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_42.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Updated:     snapsup.DownloadInfo.Updated,
 		},
 		SideInfo: snapsup.SideInfo,
 	})
@@ -1869,6 +1870,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "services-snap_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Updated:     snapsup.DownloadInfo.Updated,
 		},
 		SideInfo: snapsup.SideInfo,
 	})

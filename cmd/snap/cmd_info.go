@@ -367,15 +367,16 @@ func (x *infoCmd) Execute([]string) error {
 		maybePrintID(w, both)
 		if local != nil {
 			fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
-			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate.Format(time.RFC3339))
 		}
-		w.Flush()
+		if !(both.Updated == nil || both.Updated.IsZero()) {
+			fmt.Fprintf(w, "refreshed:\t%s\n", both.Updated.Format(time.RFC3339))
+		}
+		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
+			w.Flush()
+			displayChannels(w, remote)
+		}
 		if local != nil {
 			fmt.Fprintf(w, "installed:\t%s\t(%s)\t%s\t%s\n", local.Version, local.Revision, strutil.SizeToStr(local.InstalledSize), notes)
-		}
-
-		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
-			displayChannels(w, remote)
 		}
 
 	}

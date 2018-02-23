@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -385,6 +386,8 @@ type DownloadInfo struct {
 	Size     int64  `json:"size,omitempty"`
 	Sha3_384 string `json:"sha3-384,omitempty"`
 
+	Updated time.Time `json:"updated"`
+
 	// The server can include information about available deltas for a given
 	// snap at a specific revision during refresh. Currently during refresh the
 	// server will provide single matching deltas only, from the clients
@@ -719,11 +722,15 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	st, err := os.Stat(MountFile(name, si.Revision))
+	// Lstat because if the mountfile is not a symlink it's just a stat,
+	// and if it is it means it's a snapdir so we need the timestamp on the
+	// symlink itself (and the size of the dir won't be useful anyway).
+	st, err := os.Lstat(MountFile(name, si.Revision))
 	if err != nil {
 		return nil, err
 	}
 	info.Size = st.Size()
+	info.Updated = st.ModTime()
 
 	err = addImplicitHooks(info)
 	if err != nil {
