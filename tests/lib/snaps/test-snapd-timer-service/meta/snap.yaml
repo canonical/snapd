@@ -1,0 +1,11 @@
+name: test-snapd-timer-service
+version: 1.0
+apps:
+  regular-timer:
+    command: bin/loop regular-timer
+    daemon: simple
+    timer: 0:00-24:00/96
+  random-timer:
+    command: bin/loop random-timer
+    daemon: simple
+    timer: 0:00~24:00/96
