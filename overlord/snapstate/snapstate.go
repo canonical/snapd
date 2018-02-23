@@ -456,20 +456,22 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 	return nil
 }
 
-func contentAttr(attrs map[string]interface{}) string {
-	// we always have a "content" attr in plug/slots of interface
-	// type "content"
-	s, _ := attrs["content"].(string)
+func contentAttr(attrer interfaces.Attrer) string {
+	var s string
+	err := attrer.Attr("content", &s)
+	if err != nil {
+		return ""
+	}
 	return s
 }
 
 func contentIfaceAvailable(st *state.State, contentTag string) bool {
 	repo := ifacerepo.Get(st)
 	for _, slot := range repo.AllSlots("content") {
-		if contentAttr(slot.Attrs) == "" {
+		if contentAttr(slot) == "" {
 			continue
 		}
-		if contentAttr(slot.Attrs) == contentTag {
+		if contentAttr(slot) == contentTag {
 			return true
 		}
 	}
@@ -482,12 +484,13 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	out := []string{}
 	for _, plug := range info.Plugs {
 		if plug.Interface == "content" {
-			if contentAttr(plug.Attrs) == "" {
+			if contentAttr(plug) == "" {
 				continue
 			}
-			if !contentIfaceAvailable(st, contentAttr(plug.Attrs)) {
-				dprovider, ok := plug.Attrs["default-provider"].(string)
-				if !ok || dprovider == "" {
+			if !contentIfaceAvailable(st, contentAttr(plug)) {
+				var dprovider string
+				err := plug.Attr("default-provider", &dprovider)
+				if err != nil || dprovider == "" {
 					continue
 				}
 				out = append(out, dprovider)

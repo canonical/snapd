@@ -2365,7 +2365,7 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectForDefaultContentProvider(c *C) {
-	restore := ifacestate.MockConentLinkRetryTimeout(5 * time.Millisecond)
+	restore := ifacestate.MockContentLinkRetryTimeout(5 * time.Millisecond)
 	defer restore()
 
 	s.mockSnap(c, `name: snap-content-plug

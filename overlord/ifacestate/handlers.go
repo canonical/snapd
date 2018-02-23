@@ -517,8 +517,10 @@ func (m *InterfaceManager) defaultContentProviders(snapName string) map[string]b
 	defaultProviders := make(map[string]bool, len(plugs))
 	for _, plug := range plugs {
 		if plug.Interface == "content" {
-			if s, _ := plug.Attrs["content"].(string); s != "" {
-				if dprovider, _ := plug.Attrs["default-provider"].(string); dprovider != "" {
+			var s string
+			if err := plug.Attr("content", &s); err == nil && s != "" {
+				var dprovider string
+				if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
 					defaultProviders[dprovider] = true
 				}
 			}
