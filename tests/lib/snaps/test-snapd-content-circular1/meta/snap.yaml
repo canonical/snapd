@@ -8,7 +8,7 @@ plugs:
   content-plug:
     interface: content
     target: import
-    content: circular1
+    content: circular2
     default-provider: test-snapd-content-circular2
 slots:
   content-slot:
