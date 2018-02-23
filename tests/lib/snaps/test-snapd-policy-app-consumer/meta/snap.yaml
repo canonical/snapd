@@ -83,9 +83,9 @@ apps:
   fwupd:
     command: bin/run
     plugs: [ fwupd ]
-  gnome-online-accounts-service:
+  accounts-service:
     command: bin/run
-    plugs: [ gnome-online-accounts-service ]
+    plugs: [ accounts-service ]
   gpg-keys:
     command: bin/run
     plugs: [ gpg-keys ]

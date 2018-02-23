@@ -19,18 +19,18 @@
 
 package builtin
 
-const gnomeOnlineAccountsServiceSummary = `allows communication with the GNOME Online Accounts service`
+const accountsServiceSummary = `allows communication with the Accounts service like GNOME Online Accounts`
 
-const gnomeOnlineAccountsServiceBaseDeclarationSlots = `
-  gnome-online-accounts-service:
+const accountsServiceBaseDeclarationSlots = `
+  accounts-service:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const gnomeOnlineAccountsServiceConnectedPlugAppArmor = `
-# Description: Allow access to GNOME Online Accounts service
+const accountsServiceConnectedPlugAppArmor = `
+# Description: Allow access to Accounts service like GNOME Online Accounts
 
 #include <abstractions/dbus-session-strict>
 
@@ -66,11 +66,11 @@ dbus (send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "gnome-online-accounts-service",
-		summary:               gnomeOnlineAccountsServiceSummary,
+		name:                  "accounts-service",
+		summary:               accountsServiceSummary,
 		implicitOnClassic:     true,
 		reservedForOS:         true,
-		baseDeclarationSlots:  gnomeOnlineAccountsServiceBaseDeclarationSlots,
-		connectedPlugAppArmor: gnomeOnlineAccountsServiceConnectedPlugAppArmor,
+		baseDeclarationSlots:  accountsServiceBaseDeclarationSlots,
+		connectedPlugAppArmor: accountsServiceConnectedPlugAppArmor,
 	})
 }
