@@ -60,7 +60,11 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	snapContents := fmt.Sprintf("%s-%s-%s", sideInfo.RealName, sideInfo.SnapID, sideInfo.Revision)
 	err = ioutil.WriteFile(snapInfo.MountFile(), []byte(snapContents), 0644)
 	c.Assert(err, check.IsNil)
-	snapInfo.Size = int64(len(snapContents))
+	st, err := os.Stat(snapInfo.MountFile())
+	c.Assert(err, check.IsNil)
+	c.Assert(int64(len(snapContents)), check.Equals, st.Size())
+	snapInfo.Size = st.Size()
+	snapInfo.Updated = st.ModTime()
 
 	return snapInfo
 }

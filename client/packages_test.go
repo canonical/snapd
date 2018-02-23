@@ -182,7 +182,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			"download-size": 6930947,
 			"icon": "/v2/icons/chatroom.ogra/icon",
 			"installed-size": 18976651,
-			"install-date": "2016-01-02T15:04:05Z",
+			"updated": "2016-01-02T15:04:05Z",
 			"license": "GPL-3.0",
 			"name": "chatroom",
 			"developer": "ogra",
@@ -204,6 +204,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 	c.Assert(cs.req.Method, check.Equals, "GET")
 	c.Assert(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName))
 	c.Assert(err, check.IsNil)
+	date := time.Date(2016, 1, 2, 15, 4, 5, 0, time.UTC)
 	c.Assert(pkg, check.DeepEquals, &client.Snap{
 		ID:            "funky-snap-id",
 		Summary:       "bla bla",
@@ -212,7 +213,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		DownloadSize:  6930947,
 		Icon:          "/v2/icons/chatroom.ogra/icon",
 		InstalledSize: 18976651,
-		InstallDate:   time.Date(2016, 1, 2, 15, 4, 5, 0, time.UTC),
+		Updated:       &date,
 		License:       "GPL-3.0",
 		Name:          "chatroom",
 		Developer:     "ogra",

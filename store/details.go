@@ -21,6 +21,7 @@ package store
 
 import (
 	"github.com/snapcore/snapd/snap"
+	"time"
 )
 
 // snapDetails encapsulates the data sent to us from the store as JSON.
@@ -36,7 +37,7 @@ type snapDetails struct {
 	DownloadURL      string             `json:"download_url,omitempty"`
 	Epoch            snap.Epoch         `json:"epoch"`
 	IconURL          string             `json:"icon_url"`
-	LastUpdated      string             `json:"last_updated,omitempty"`
+	LastUpdated      time.Time          `json:"last_updated,omitempty"`
 	Name             string             `json:"package_name"`
 	Prices           map[string]float64 `json:"prices,omitempty"`
 	// Note that the publisher is really the "display name" of the

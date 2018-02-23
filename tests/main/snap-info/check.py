@@ -140,4 +140,5 @@ check("test-snapd-python-webserver", res[6],
    ("channels", exists),
    ("snap-id", equals, snap_ids["test-snapd-python-webserver"]),
    ("license", equals, "Other Open Source"),
+   ("refreshed", exists),
 )

@@ -109,6 +109,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
+	info.Updated = d.LastUpdated
 	info.IconURL = d.IconURL
 	info.AnonDownloadURL = d.AnonDownloadURL
 	info.DownloadURL = d.DownloadURL

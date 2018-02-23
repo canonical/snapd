@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -191,8 +192,48 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	c.Check(snapInfo2.Summary(), Equals, "esummary")
 
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
+	c.Check(snapInfo2.Size, Not(Equals), 0)
+	now := time.Now()
+	up := snapInfo2.Updated
+	c.Assert(up, NotNil)
+	c.Check(!up.IsZero(), Equals, true)
+	c.Check(up.Before(now), Equals, true)
+	c.Check(up.After(now.Add(-5*time.Minute)), Equals, true)
 
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
+}
+
+func closeEnough(a, b time.Time) bool {
+	d := a.Sub(b)
+	if d < 0 {
+		d = -d
+	}
+	return d < 2*time.Minute
+}
+
+func (s *infoSuite) TestReadInfoUsesLstat(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnap(c, sampleYaml, si)
+	// move the mocked snap aside, set its timestamp back, and symlink to it
+	moved := snapInfo.MountFile() + ".moved"
+	c.Assert(os.Rename(snapInfo.MountFile(), moved), IsNil)
+	now := time.Now()
+	then := now.Add(-time.Hour)
+	c.Assert(os.Chtimes(moved, then, then), IsNil)
+	c.Assert(os.Symlink(moved, snapInfo.MountFile()), IsNil)
+	// sanity check time: lstat should give you 'now'; stat, 'then'.
+	st, err := os.Lstat(snapInfo.MountFile())
+	c.Assert(err, IsNil)
+	// filesystem can round or truncate the value (hopefully just to the second)
+	c.Assert(closeEnough(st.ModTime(), now), Equals, true)
+	st, err = os.Stat(snapInfo.MountFile())
+	c.Assert(err, IsNil)
+	c.Assert(closeEnough(st.ModTime(), then), Equals, true)
+
+	// and now, check that ReadInfo reads the time from the symlink
+	snapInfo2, err := snap.ReadInfo("sample", si)
+	c.Assert(err, IsNil)
+	c.Check(closeEnough(snapInfo2.Updated, now), Equals, true)
 }
 
 func (s *infoSuite) TestReadInfoNotFound(c *C) {
