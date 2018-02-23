@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,11 +20,11 @@
 package snapstate
 
 import (
-	"fmt"
 	"sort"
 
 	"golang.org/x/net/context"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -120,26 +120,42 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 		opts = &updateInfoOpts{}
 	}
 
+	installedCtxt, err := installedContext(st)
+	if err != nil {
+		return nil, err
+	}
+
 	curInfo, user, err := preUpdateInfo(st, snapst, opts.amend, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshCand := &store.RefreshCandidate{
+	var flags store.InstallRefreshActionFlags
+	if opts.ignoreValidation {
+		flags = store.InstallRefreshIgnoreValidation
+	} else {
+		flags = store.InstallRefreshEnforceValidation
+	}
+
+	action := &store.InstallRefreshAction{
+		Action: "refresh",
+		SnapID: curInfo.SnapID,
 		// the desired channel
-		Channel:          opts.channel,
-		SnapID:           curInfo.SnapID,
-		Revision:         curInfo.Revision,
-		Epoch:            curInfo.Epoch,
-		IgnoreValidation: opts.ignoreValidation,
-		Amend:            opts.amend,
+		Channel: opts.channel,
+		Flags:   flags,
+	}
+
+	if curInfo.SnapID == "" { // amend
+		action.Action = "install"
+		action.Name = curInfo.Name()
 	}
 
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.LookupRefresh(refreshCand, user)
+	res, err := theStore.InstallRefresh(context.TODO(), installedCtxt, []*store.InstallRefreshAction{action}, user, nil)
 	st.Lock()
-	return res, err
+
+	return singleActionResult(curInfo.Name(), action.Action, res, err)
 }
 
 func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (*snap.Info, *auth.UserState, error) {
@@ -157,18 +173,45 @@ func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (
 		if !amend {
 			return nil, nil, store.ErrLocalSnap
 		}
-
-		// in amend mode we need to move to the store rev
-		id, err := snapNameToID(st, curInfo.Name(), user)
-		if err != nil {
-			return nil, nil, fmt.Errorf("cannot get snap ID for %q: %v", curInfo.Name(), err)
-		}
-		curInfo.SnapID = id
-		// set revision to "unknown"
-		curInfo.Revision = snap.R(0)
 	}
 
 	return curInfo, user, nil
+}
+
+func singleActionResult(name, action string, results []*snap.Info, e error) (info *snap.Info, err error) {
+	if len(results) > 0 {
+		// TODO: if we also have an error log/warn about it
+		return results[0], nil
+	}
+
+	if irErr, ok := e.(*store.InstallRefreshError); ok {
+		if len(irErr.Other) != 0 {
+			return nil, irErr
+		}
+
+		var snapErr error
+		switch action {
+		case "refresh":
+			snapErr = irErr.Refresh[name]
+		case "install":
+			snapErr = irErr.Install[name]
+		}
+		if snapErr != nil {
+			return nil, snapErr
+		}
+
+		// no result, atypical case
+		if irErr.NoResults {
+			switch action {
+			case "refresh":
+				return nil, store.ErrNoUpdateAvailable
+			case "install":
+				return nil, store.ErrSnapNotFound
+			}
+		}
+	}
+
+	return nil, e
 }
 
 func updateToRevisionInfo(st *state.State, snapst *SnapState, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
@@ -189,7 +232,45 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, channel string, re
 	return snap, err
 }
 
-func refreshCandidates(ctx context.Context, st *state.State, names []string, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
+func installedContext(st *state.State) ([]*store.CurrentSnap, error) {
+	snapStates, err := All(st)
+	if err != nil {
+		return nil, err
+	}
+
+	installedCtxt := make([]*store.CurrentSnap, 0, len(snapStates))
+
+	for snapName, snapst := range snapStates {
+		if snapst.TryMode {
+			// do not report try-mode snaps
+			continue
+		}
+
+		snapInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			// log something maybe?
+			continue
+		}
+
+		if snapInfo.SnapID == "" {
+			// not a store snap
+			continue
+		}
+
+		installed := &store.CurrentSnap{
+			Name:             snapName,
+			SnapID:           snapInfo.SnapID,
+			TrackingChannel:  snapst.Channel,
+			Revision:         snapInfo.Revision,
+			IgnoreValidation: snapst.IgnoreValidation,
+		}
+		installedCtxt = append(installedCtxt, installed)
+	}
+
+	return installedCtxt, nil
+}
+
+func refreshCandidates(ctx context.Context, st *state.State, names []string, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
 	snapStates, err := All(st)
 	if err != nil {
 		return nil, nil, nil, err
@@ -204,16 +285,19 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 
 	sort.Strings(names)
 
+	installedCtxt := make([]*store.CurrentSnap, 0, len(snapStates))
+	actions := make([]*store.InstallRefreshAction, 0, len(names))
 	stateByID := make(map[string]*SnapState, len(snapStates))
-	candidatesInfo := make([]*store.RefreshCandidate, 0, len(snapStates))
 	ignoreValidation := make(map[string]bool)
 	userIDs := make(map[int]bool)
-	for _, snapst := range snapStates {
+	for snapName, snapst := range snapStates {
+		// XXX: fix/move this
 		if len(names) == 0 && (snapst.TryMode || snapst.DevMode) {
 			// no auto-refresh for trymode nor devmode
 			continue
 		}
 
+		// XXX: fix/move this
 		// FIXME: snaps that are not active are skipped for now
 		//        until we know what we want to do
 		if !snapst.Active {
@@ -231,27 +315,31 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 			continue
 		}
 
+		installed := &store.CurrentSnap{
+			Name: snapName,
+			// the desired channel (not info.Channel!)
+			TrackingChannel:  snapst.Channel,
+			SnapID:           snapInfo.SnapID,
+			Revision:         snapInfo.Revision,
+			IgnoreValidation: snapst.IgnoreValidation,
+		}
+		installedCtxt = append(installedCtxt, installed)
+
 		if len(names) > 0 && !strutil.SortedListContains(names, snapInfo.Name()) {
 			continue
 		}
 
 		stateByID[snapInfo.SnapID] = snapst
 
-		// get confinement preference from the snapstate
-		candidateInfo := &store.RefreshCandidate{
-			// the desired channel (not info.Channel!)
-			Channel:          snapst.Channel,
-			SnapID:           snapInfo.SnapID,
-			Revision:         snapInfo.Revision,
-			Epoch:            snapInfo.Epoch,
-			IgnoreValidation: snapst.IgnoreValidation,
-		}
-
 		if len(names) == 0 {
-			candidateInfo.Block = snapst.Block()
+			installed.Block = snapst.Block()
 		}
 
-		candidatesInfo = append(candidatesInfo, candidateInfo)
+		actions = append(actions, &store.InstallRefreshAction{
+			Action: "refresh",
+			SnapID: snapInfo.SnapID,
+		})
+
 		if snapst.UserID != 0 {
 			userIDs[snapst.UserID] = true
 		}
@@ -262,10 +350,11 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 
 	theStore := Store(st)
 
+	// XXX: address TODO
 	// TODO: we query for all snaps for each user so that the
 	// store can take into account validation constraints, we can
 	// do better with coming APIs
-	updatesInfo := make(map[string]*snap.Info, len(candidatesInfo))
+	updatesInfo := make(map[string]*snap.Info, len(actions))
 	fallbackUsed := false
 	fallbackID := idForUser(user)
 	if len(userIDs) == 0 {
@@ -287,10 +376,15 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		}
 
 		st.Unlock()
-		updatesForUser, err := theStore.ListRefresh(ctx, candidatesInfo, u, flags)
+		updatesForUser, err := theStore.InstallRefresh(ctx, installedCtxt, actions, u, opts)
 		st.Lock()
 		if err != nil {
-			return nil, nil, nil, err
+			irErr, ok := err.(*store.InstallRefreshError)
+			if !ok {
+				return nil, nil, nil, err
+			}
+			// TODO: use the warning infra here when we have it
+			logger.Noticef("%v", irErr)
 		}
 
 		for _, snapInfo := range updatesForUser {

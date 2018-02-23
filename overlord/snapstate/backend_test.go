@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -126,6 +126,10 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	typ := snap.TypeApp
 	if spec.Name == "some-core" {
 		typ = snap.TypeOS
+	}
+
+	if spec.Name == "snap-unknown" {
+		return nil, store.ErrSnapNotFound
 	}
 
 	info := &snap.Info{
@@ -284,6 +288,98 @@ func (f *fakeStore) ListRefresh(ctx context.Context, cands []*store.RefreshCandi
 			continue
 		}
 		res = append(res, info)
+	}
+
+	return res, nil
+}
+
+func (f *fakeStore) InstallRefresh(ctx context.Context, installedCtxt []*store.CurrentSnap, actions []*store.InstallRefreshAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+	if ctx == nil {
+		panic("context required")
+	}
+	f.pokeStateLock()
+
+	if len(installedCtxt) == 0 && len(actions) == 0 {
+		return nil, nil
+	}
+	if len(actions) > 3 {
+		panic("fake InstallRefresh unexpectedly called with more than 3 actions")
+	}
+
+	curByID := make(map[string]*store.CurrentSnap, len(installedCtxt))
+	for _, cur := range installedCtxt {
+		if cur.Name == "" || cur.SnapID == "" || cur.Revision.Unset() {
+			return nil, fmt.Errorf("internal error: incomplete current snap info")
+		}
+		curByID[cur.SnapID] = cur
+	}
+
+	refreshErrors := make(map[string]error)
+	installErrors := make(map[string]error)
+	var res []*snap.Info
+	for _, a := range actions {
+		if a.Action == "install" {
+			spec := store.SnapSpec{
+				Name:     a.Name,
+				Channel:  a.Channel,
+				Revision: a.Revision,
+			}
+			info, err := f.SnapInfo(spec, user)
+			if err != nil {
+				installErrors[a.Name] = err
+				continue
+			}
+			res = append(res, info)
+			continue
+		}
+		if a.Action != "refresh" {
+			panic("not supported")
+		}
+		// XXX: cheating with RefreshCandidate
+		cur := curByID[a.SnapID]
+		channel := a.Channel
+		if channel == "" {
+			channel = cur.TrackingChannel
+		}
+		ignoreValidation := cur.IgnoreValidation
+		if a.Flags&store.InstallRefreshIgnoreValidation != 0 {
+			ignoreValidation = true
+		} else if a.Flags&store.InstallRefreshEnforceValidation != 0 {
+			ignoreValidation = false
+		}
+		cand := &store.RefreshCandidate{
+			SnapID:           a.SnapID,
+			Channel:          channel,
+			Revision:         cur.Revision,
+			Block:            cur.Block,
+			IgnoreValidation: ignoreValidation,
+		}
+		info, err := f.LookupRefresh(cand, user)
+		if err == store.ErrLocalSnap {
+			panic("not supported/unexpected")
+		}
+		if err == store.ErrNoUpdateAvailable {
+			refreshErrors[cur.Name] = err
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, info)
+	}
+
+	if len(refreshErrors)+len(installErrors) > 0 || len(res) == 0 {
+		if len(refreshErrors) == 0 {
+			refreshErrors = nil
+		}
+		if len(installErrors) == 0 {
+			installErrors = nil
+		}
+		return res, &store.InstallRefreshError{
+			NoResults: len(refreshErrors)+len(installErrors)+len(res) == 0,
+			Refresh:   refreshErrors,
+			Install:   installErrors,
+		}
 	}
 
 	return res, nil

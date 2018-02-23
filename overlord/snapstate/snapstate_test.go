@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -2530,6 +2530,41 @@ func (s *snapmgrTestSuite) TestUpdateSameRevision(c *C) {
 	c.Assert(err, Equals, store.ErrNoUpdateAvailable)
 }
 
+// A noResultsStore returns no results for install/refresh requests
+type noResultsStore struct {
+	*fakeStore
+}
+
+func (n noResultsStore) InstallRefresh(ctx context.Context, installedCtxt []*store.CurrentSnap, actions []*store.InstallRefreshAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+	return nil, &store.InstallRefreshError{NoResults: true}
+}
+
+func (s *snapmgrTestSuite) TestUpdateNoStoreResults(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, noResultsStore{fakeStore: s.fakeStore})
+
+	// this is an atypical case in which the store didn't return
+	// an error nor a result, we are defensive and return
+	// a reasonable error
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Channel:  "channel-for-7",
+		Current:  si.Revision,
+	})
+
+	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, Equals, store.ErrNoUpdateAvailable)
+}
+
 func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchesChannel(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
@@ -3019,7 +3054,26 @@ func (s *snapmgrTestSuite) TestUpdateAmend(c *C) {
 	err = tasks[1].Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Check(snapsup.Revision(), Equals, snap.R(7))
+}
 
+func (s *snapmgrTestSuite) TestUpdateAmendSnapNotFound(c *C) {
+	si := snap.SideInfo{
+		RealName: "snap-unknown",
+		Revision: snap.R("x1"),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "snap-unknown", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Channel:  "stable",
+		Current:  si.Revision,
+	})
+
+	_, err := snapstate.Update(s.state, "snap-unknown", "stable", snap.R(0), s.user.ID, snapstate.Flags{Amend: true})
+	c.Assert(err, Equals, store.ErrSnapNotFound)
 }
 
 func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {

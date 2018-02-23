@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2017 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -55,6 +55,10 @@ func (Store) LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info
 
 func (Store) ListRefresh(context.Context, []*store.RefreshCandidate, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error) {
 	panic("Store.ListRefresh not expected")
+}
+
+func (Store) InstallRefresh(context.Context, []*store.CurrentSnap, []*store.InstallRefreshAction, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error) {
+	panic("Store.InstallRefresh not expected")
 }
 
 func (Store) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {
