@@ -23,6 +23,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -156,6 +157,32 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	restore := snapstate.MockPrerequisitesRetryTimeout(5 * time.Millisecond)
 	defer restore()
 
+	calls := 0
+	s.snapmgr.AddAdhocTaskHandler("link-snap",
+		func(task *state.Task, _ *tomb.Tomb) error {
+			if calls == 0 {
+				// retry again later, this forces ordering of
+				// tasks, so that the prerequisites tasks ends
+				// up waiting for this one
+				calls += 1
+				return &state.Retry{After: 1 * time.Millisecond}
+			}
+
+			// setup everything as if the snap is installed
+			st := task.State()
+			st.Lock()
+			defer st.Unlock()
+			snapsup, _ := snapstate.TaskSnapSetup(task)
+			var snapst snapstate.SnapState
+			snapstate.Get(st, snapsup.Name(), &snapst)
+			snapst.Current = snapsup.Revision()
+			snapst.Sequence = append(snapst.Sequence, snapsup.SideInfo)
+			snapstate.Set(st, snapsup.Name(), &snapst)
+			return nil
+		},
+		func(*state.Task, *tomb.Tomb) error {
+			return nil
+		})
 	s.state.Lock()
 	tCore := s.state.NewTask("link-snap", "Pretend core gets installed")
 	tCore.Set("snap-setup", &snapstate.SnapSetup{
@@ -177,10 +204,21 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	chg.AddTask(t)
 	chg.AddTask(tCore)
 
-	s.state.Unlock()
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
-	s.state.Lock()
+	// NOTE: tasks are iterated on in undefined order, we have fixed the
+	// link-snap handler to return a 'fake' retry what results
+	// 'prerequisites' task handler observing the state of the world we
+	// want, even if 'link-snap' ran first
+
+	for i := 0; i < 10; i++ {
+		time.Sleep(1 * time.Millisecond)
+		s.state.Unlock()
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+		s.state.Lock()
+		if tCore.Status() == state.DoneStatus {
+			break
+		}
+	}
 
 	// check that t is not done yet, it must wait for core
 	c.Check(t.Status(), Equals, state.DoingStatus)
