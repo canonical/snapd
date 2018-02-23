@@ -828,57 +828,84 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestO
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
 func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
-	req, err := s.newRequest(reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-
-	var resp *http.Response
-	if ctx != nil {
-		resp, err = ctxhttp.Do(ctx, client, req)
-	} else {
-		resp, err = client.Do(req)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	wwwAuth := resp.Header.Get("WWW-Authenticate")
-	if resp.StatusCode == 401 {
-		refreshed := false
-		if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
-			// refresh user
-			err = s.refreshUser(user)
-			if err != nil {
-				return nil, err
-			}
-			refreshed = true
+	authRefreshes := 0
+	for {
+		req, err := s.newRequest(reqOptions, user)
+		if err != nil {
+			return nil, err
 		}
-		if strings.Contains(wwwAuth, "refresh_device_session=1") {
-			// refresh device session
-			if s.authContext == nil {
-				return nil, fmt.Errorf("internal error: no authContext")
-			}
-			device, err := s.authContext.Device()
-			if err != nil {
-				return nil, err
-			}
 
-			err = s.refreshDeviceSession(device)
-			if err != nil {
-				return nil, err
-			}
-			refreshed = true
+		var resp *http.Response
+		if ctx != nil {
+			resp, err = ctxhttp.Do(ctx, client, req)
+		} else {
+			resp, err = client.Do(req)
 		}
-		if refreshed {
-			// close previous response and retry
-			// TODO: make this non-recursive or add a recursion limit
-			resp.Body.Close()
-			return s.doRequest(ctx, client, reqOptions, user)
+		if err != nil {
+			return nil, err
+		}
+
+		wwwAuth := resp.Header.Get("WWW-Authenticate")
+		if resp.StatusCode == 401 && authRefreshes < 4 {
+			// 4 tries: 2 tries for each in case both user
+			// and device need refreshing
+			var refreshNeed authRefreshNeed
+			refresh := false
+			if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
+				// refresh user
+				refreshNeed.user = true
+				refresh = true
+			}
+			if strings.Contains(wwwAuth, "refresh_device_session=1") {
+				// refresh device session
+				refreshNeed.device = true
+				refresh = true
+			}
+			if refresh {
+				err := s.refreshAuth(user, refreshNeed)
+				if err != nil {
+					return nil, err
+				}
+				// close previous response and retry
+				resp.Body.Close()
+				authRefreshes++
+				continue
+			}
+		}
+
+		return resp, err
+	}
+}
+
+type authRefreshNeed struct {
+	device bool
+	user   bool
+}
+
+func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
+	if need.user {
+		// refresh user
+		err := s.refreshUser(user)
+		if err != nil {
+			return err
 		}
 	}
+	if need.device {
+		// refresh device session
+		if s.authContext == nil {
+			return fmt.Errorf("internal error: no authContext")
+		}
+		device, err := s.authContext.Device()
+		if err != nil {
+			return err
+		}
 
-	return resp, err
+		err = s.refreshDeviceSession(device)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // build a new http.Request with headers for the store
