@@ -906,7 +906,13 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set("X-Ubuntu-Series", s.series)
 	req.Header.Set("X-Ubuntu-Classic", strconv.FormatBool(release.OnClassic))
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
+	// still send this for now
 	req.Header.Set("X-Ubuntu-No-CDN", strconv.FormatBool(s.noCDN))
+	// TODO: do this only for download
+	err = s.cdnHeader(req, reqOptions)
+	if err != nil {
+		return nil, err
+	}
 
 	if reqOptions.ContentType != "" {
 		req.Header.Set("Content-Type", reqOptions.ContentType)
@@ -919,6 +925,44 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	s.setStoreID(req)
 
 	return req, nil
+}
+
+func (s *Store) cdnHeader(req *http.Request, reqOptions *requestOptions) error {
+	if s.noCDN {
+		req.Header.Set("Snap-CDN", "none")
+		return nil
+	}
+
+	if s.authContext == nil {
+		return nil
+	}
+
+	// set Snap-CDN from cloud instance information
+	// if available
+
+	// TODO: do we want a more complex retry strategy
+	// where we first to send this header and if the
+	// operation fails that way to even get the connection
+	// then we retry without sending this?
+
+	cloudInfo, err := s.authContext.CloudInfo()
+	if err != nil {
+		return err
+	}
+
+	if cloudInfo != nil {
+		cdnParams := []string{fmt.Sprintf("cloud-name=%q", cloudInfo.Name)}
+		if cloudInfo.Region != "" {
+			cdnParams = append(cdnParams, fmt.Sprintf("region=%q", cloudInfo.Region))
+		}
+		if cloudInfo.AvailabilityZone != "" {
+			cdnParams = append(cdnParams, fmt.Sprintf("availability-zone=%q", cloudInfo.AvailabilityZone))
+		}
+
+		req.Header.Set("Snap-CDN", strings.Join(cdnParams, " "))
+	}
+
+	return nil
 }
 
 func (s *Store) extractSuggestedCurrency(resp *http.Response) {
