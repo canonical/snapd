@@ -1,6 +1,6 @@
-name: test-snapd-gnome-online-accounts
+name: test-snapd-accounts-service
 version: '0.1'
-summary: Test for gnome-online-accounts-service interface
+summary: Test for accounts-service interface
 description: |
   A test program that lists the accounts registered with
   gnome-online-accounts.
@@ -11,7 +11,7 @@ apps:
   list-accounts:
     command: list-accounts
     plugs:
-      - gnome-online-accounts-service
+      - accounts-service
 
 parts:
   list-accounts:

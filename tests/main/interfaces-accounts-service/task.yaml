@@ -1,4 +1,4 @@
-summary: Ensure that the gnome-online-accounts-service interface works
+summary: Ensure that the accounts-service interface works
 
 # Only test on classic systems with AppArmor DBus mediation
 # Don't test on ubuntu-14.04, since it's gnome-online-accounts daemon
@@ -14,7 +14,7 @@ prepare: |
     . $TESTSLIB/pkgdb.sh
     echo "Ensure we have a working goa-daemon"
     distro_install_package gnome-online-accounts
-    snap install --edge test-snapd-gnome-online-accounts
+    snap install --edge test-snapd-accounts-service
     mkdir -p $XDG_CONFIG_HOME $XDG_DATA_HOME $XDG_CACHE_HOME
 
 restore: |
@@ -24,8 +24,8 @@ restore: |
     rm -rf $XDG_CONFIG_HOME $XDG_DATA_HOME $XDG_CACHE_HOME
 
 execute: |
-    CONNECTED_PATTERN=":gnome-online-accounts-service +test-snapd-gnome-online-accounts"
-    DISCONNECTED_PATTERN="\- +test-snapd-gnome-online-accounts:gnome-online-accounts-service"
+    CONNECTED_PATTERN=":accounts-service +test-snapd-accounts-service"
+    DISCONNECTED_PATTERN="\- +test-snapd-accounts-service:accounts-service"
 
     echo "Ensure things run"
     eval $(dbus-launch --sh-syntax)
@@ -49,9 +49,9 @@ execute: |
 
     echo "The interface is initially disconnected"
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
-    test-snapd-gnome-online-accounts.list-accounts && exit 1 || true
+    test-snapd-accounts-service.list-accounts && exit 1 || true
 
     echo "When the plug is connected"
-    snap connect test-snapd-gnome-online-accounts:gnome-online-accounts-service
+    snap connect test-snapd-accounts-service:accounts-service
     snap interfaces | MATCH "$CONNECTED_PATTERN"
-    test-snapd-gnome-online-accounts.list-accounts | MATCH "Display Name at IMAP and SMTP"
+    test-snapd-accounts-service.list-accounts | MATCH "Display Name at IMAP and SMTP"
