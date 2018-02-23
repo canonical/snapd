@@ -25,6 +25,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -49,7 +50,15 @@ hooks:
 func (s *SnapSuite) TestInvalidParameters(c *check.C) {
 	invalidParameters := []string{"run", "--hook=configure", "--command=command-name", "snap-name"}
 	_, err := snaprun.Parser().ParseArgs(invalidParameters)
-	c.Check(err, check.ErrorMatches, ".*cannot use --hook and --command together.*")
+	c.Check(err, check.ErrorMatches, ".*you can only use one of --hook, --command, and --timer.*")
+
+	invalidParameters = []string{"run", "--hook=configure", "--timer=10:00-12:00", "snap-name"}
+	_, err = snaprun.Parser().ParseArgs(invalidParameters)
+	c.Check(err, check.ErrorMatches, ".*you can only use one of --hook, --command, and --timer.*")
+
+	invalidParameters = []string{"run", "--command=command-name", "--timer=10:00-12:00", "snap-name"}
+	_, err = snaprun.Parser().ParseArgs(invalidParameters)
+	c.Check(err, check.ErrorMatches, ".*you can only use one of --hook, --command, and --timer.*")
 
 	invalidParameters = []string{"run", "-r=1", "--command=command-name", "snap-name"}
 	_, err = snaprun.Parser().ParseArgs(invalidParameters)
@@ -773,4 +782,61 @@ func (s *SnapSuite) TestSnapRunShellIntegration(c *check.C) {
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"--command=shell", "snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+}
+
+func (s *SnapSuite) TestSnapRunAppTimer(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execCalled := false
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execCalled = true
+		return nil
+	})
+	defer restorer()
+
+	fakeNow := time.Date(2018, 02, 12, 9, 55, 0, 0, time.Local)
+	restorer = snaprun.MockTimeNow(func() time.Time {
+		// Monday Feb 12, 9:55
+		return fakeNow
+	})
+	defer restorer()
+
+	// pretend we are outside of timer range
+	rest, err := snaprun.Parser().ParseArgs([]string{"run", `--timer="mon,10:00~12:00,,fri,13:00"`, "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Assert(execCalled, check.Equals, false)
+
+	c.Check(s.Stderr(), check.Equals, fmt.Sprintf(`%s: attempted to run "snapname.app" timer outside of scheduled time "mon,10:00~12:00,,fri,13:00"
+`, fakeNow.Format(time.RFC3339)))
+	s.ResetStdStreams()
+
+	restorer = snaprun.MockTimeNow(func() time.Time {
+		// Monday Feb 12, 10:20
+		return time.Date(2018, 02, 12, 10, 20, 0, 0, time.Local)
+	})
+	defer restorer()
+
+	// and run it under strace
+	_, err = snaprun.Parser().ParseArgs([]string{"run", `--timer="mon,10:00~12:00,,fri,13:00"`, "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(execCalled, check.Equals, true)
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		"snap.snapname.app",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"snapname.app", "--arg1", "arg2"})
 }

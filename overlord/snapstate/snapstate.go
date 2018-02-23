@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -462,6 +463,50 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 	return nil
 }
 
+func contentAttr(attrer interfaces.Attrer) string {
+	var s string
+	err := attrer.Attr("content", &s)
+	if err != nil {
+		return ""
+	}
+	return s
+}
+
+func contentIfaceAvailable(st *state.State, contentTag string) bool {
+	repo := ifacerepo.Get(st)
+	for _, slot := range repo.AllSlots("content") {
+		if contentAttr(slot) == "" {
+			continue
+		}
+		if contentAttr(slot) == contentTag {
+			return true
+		}
+	}
+	return false
+}
+
+// defaultContentPlugProviders takes a snap.Info and returns what
+// default providers there are.
+func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
+	out := []string{}
+	for _, plug := range info.Plugs {
+		if plug.Interface == "content" {
+			if contentAttr(plug) == "" {
+				continue
+			}
+			if !contentIfaceAvailable(st, contentAttr(plug)) {
+				var dprovider string
+				err := plug.Attr("default-provider", &dprovider)
+				if err != nil || dprovider == "" {
+					continue
+				}
+				out = append(out, dprovider)
+			}
+		}
+	}
+	return out
+}
+
 // InstallPath returns a set of tasks for installing snap from a file path.
 // Note that the state must be locked by the caller.
 // The provided SideInfo can contain just a name which results in a
@@ -505,6 +550,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 
 	snapsup := &SnapSetup{
 		Base:     info.Base,
+		Prereq:   defaultContentPlugProviders(st, info),
 		SideInfo: si,
 		SnapPath: path,
 		Channel:  channel,
@@ -550,6 +596,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 	snapsup := &SnapSetup{
 		Channel:      channel,
 		Base:         info.Base,
+		Prereq:       defaultContentPlugProviders(st, info),
 		UserID:       userID,
 		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
