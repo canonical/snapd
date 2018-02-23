@@ -10,9 +10,9 @@ execute: |
 
     echo "Then the snap is listed as connected"
     snap interfaces
-    CONNECTED_PATTERN_1="test-snapd-content-circular1:shared-content-slot +test-snapd-content-circular1:shared-content-plug"
+    CONNECTED_PATTERN_1="test-snapd-content-circular1:content-slot +test-snapd-content-circular2:content-plug"
     snap interfaces | MATCH "$CONNECTED_PATTERN_1"
 
-    CONNECTED_PATTERN_2="test-snapd-content-circular2:shared-content-slot +test-snapd-content-circular2:shared-content-plug"
+    CONNECTED_PATTERN_2="test-snapd-content-circular2:content-slot +test-snapd-content-circular1:content-plug"
     snap interfaces | MATCH "$CONNECTED_PATTERN_2"
     
