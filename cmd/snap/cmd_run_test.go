@@ -806,9 +806,10 @@ func (s *SnapSuite) TestSnapRunAppTimer(c *check.C) {
 	})
 	defer restorer()
 
+	fakeNow := time.Date(2018, 02, 12, 9, 55, 0, 0, time.Local)
 	restorer = snaprun.MockTimeNow(func() time.Time {
 		// Monday Feb 12, 9:55
-		return time.Date(2018, 02, 12, 9, 55, 0, 0, time.Local)
+		return fakeNow
 	})
 	defer restorer()
 
@@ -818,8 +819,8 @@ func (s *SnapSuite) TestSnapRunAppTimer(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Assert(execCalled, check.Equals, false)
 
-	c.Check(s.Stderr(), check.Equals, `2018-02-12T09:55:00+01:00: attempted to run "snapname.app" timer outside of scheduled time "mon,10:00~12:00,,fri,13:00"
-`)
+	c.Check(s.Stderr(), check.Equals, fmt.Sprintf(`%s: attempted to run "snapname.app" timer outside of scheduled time "mon,10:00~12:00,,fri,13:00"
+`, fakeNow.Format(time.RFC3339)))
 	s.ResetStdStreams()
 
 	restorer = snaprun.MockTimeNow(func() time.Time {
