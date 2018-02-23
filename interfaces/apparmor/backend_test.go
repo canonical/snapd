@@ -1128,39 +1128,39 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlayAndReExec(c
 }
 
 type nfsAndOverlaySnippetsScenario struct {
-	opts    interfaces.ConfinementOptions
+	opts           interfaces.ConfinementOptions
 	overlaySnippet string
-	nfsSnippet string
+	nfsSnippet     string
 }
 
 var nfsAndOverlaySnippetsScenarios = []nfsAndOverlaySnippetsScenario{{
 	// By default apparmor is enforcing mode.
-	opts:    interfaces.ConfinementOptions{},
+	opts:           interfaces.ConfinementOptions{},
 	overlaySnippet: `"/cow/upper/{,**/}" r,`,
-	nfsSnippet: "network inet,\n  network inet6,",
+	nfsSnippet:     "network inet,\n  network inet6,",
 }, {
 	// DevMode switches apparmor to non-enforcing (complain) mode.
-	opts:    interfaces.ConfinementOptions{DevMode: true},
+	opts:           interfaces.ConfinementOptions{DevMode: true},
 	overlaySnippet: `"/cow/upper/{,**/}" r,`,
-	nfsSnippet: "network inet,\n  network inet6,",
+	nfsSnippet:     "network inet,\n  network inet6,",
 }, {
 	// JailMode switches apparmor to enforcing mode even in the presence of DevMode.
-	opts:    interfaces.ConfinementOptions{DevMode: true, JailMode: true},
+	opts:           interfaces.ConfinementOptions{DevMode: true, JailMode: true},
 	overlaySnippet: `"/cow/upper/{,**/}" r,`,
-	nfsSnippet: "network inet,\n  network inet6,",
+	nfsSnippet:     "network inet,\n  network inet6,",
 }, {
 	// Classic confinement (without jailmode) uses apparmor in complain mode by default and ignores all snippets.
-	opts:    interfaces.ConfinementOptions{Classic: true},
+	opts:           interfaces.ConfinementOptions{Classic: true},
 	overlaySnippet: "",
-	nfsSnippet: "",
+	nfsSnippet:     "",
 }, {
 	// Classic confinement in JailMode uses enforcing apparmor.
-	opts:    interfaces.ConfinementOptions{Classic: true, JailMode: true},
+	opts: interfaces.ConfinementOptions{Classic: true, JailMode: true},
 	// FIXME: logic in backend.addContent is wrong for this case
 	//overlaySnippet: `"/cow/upper/{,**/}" r,`,
 	//nfsSnippet: "network inet,\n  network inet6,",
 	overlaySnippet: "",
-	nfsSnippet: "",
+	nfsSnippet:     "",
 }}
 
 func (s *backendSuite) TestNFSAndOverlaySnippets(c *C) {
@@ -1185,23 +1185,23 @@ func (s *backendSuite) TestNFSAndOverlaySnippets(c *C) {
 
 var casperOverlaySnippetsScenarios = []nfsAndOverlaySnippetsScenario{{
 	// By default apparmor is enforcing mode.
-	opts:    interfaces.ConfinementOptions{},
+	opts:           interfaces.ConfinementOptions{},
 	overlaySnippet: `"/upper/{,**/}" r,`,
 }, {
 	// DevMode switches apparmor to non-enforcing (complain) mode.
-	opts:    interfaces.ConfinementOptions{DevMode: true},
+	opts:           interfaces.ConfinementOptions{DevMode: true},
 	overlaySnippet: `"/upper/{,**/}" r,`,
 }, {
 	// JailMode switches apparmor to enforcing mode even in the presence of DevMode.
-	opts:    interfaces.ConfinementOptions{DevMode: true, JailMode: true},
+	opts:           interfaces.ConfinementOptions{DevMode: true, JailMode: true},
 	overlaySnippet: `"/upper/{,**/}" r,`,
 }, {
 	// Classic confinement (without jailmode) uses apparmor in complain mode by default and ignores all snippets.
-	opts:    interfaces.ConfinementOptions{Classic: true},
+	opts:           interfaces.ConfinementOptions{Classic: true},
 	overlaySnippet: "",
 }, {
 	// Classic confinement in JailMode uses enforcing apparmor.
-	opts:    interfaces.ConfinementOptions{Classic: true, JailMode: true},
+	opts: interfaces.ConfinementOptions{Classic: true, JailMode: true},
 	// FIXME: logic in backend.addContent is wrong for this case
 	//overlaySnippet: `"/upper/{,**/}" r,`,
 	overlaySnippet: "",
