@@ -200,6 +200,8 @@ const mockInfoJSONOtherLicense = `
       "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
       "developer": "canonical",
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
+      "install-date": "2006-01-02T22:04:07.123456789Z",
+      "installed-size": 1024,
       "name": "hello",
       "private": false,
       "resource": "/v2/snaps/hello",
@@ -209,8 +211,7 @@ const mockInfoJSONOtherLicense = `
       "type": "app",
       "version": "2.10",
       "license": "BSD-3",
-      "tracking-channel": "beta",
-      "installed-size": 1024
+      "tracking-channel": "beta"
     }
 }
 `
@@ -225,6 +226,8 @@ const mockInfoJSONNoLicense = `
       "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
       "developer": "canonical",
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
+      "install-date": "2006-01-02T22:04:07.123456789Z",
+      "installed-size": 1024,
       "name": "hello",
       "private": false,
       "resource": "/v2/snaps/hello",
@@ -234,8 +237,7 @@ const mockInfoJSONNoLicense = `
       "type": "app",
       "version": "2.10",
       "license": "",
-      "tracking-channel": "beta",
-      "installed-size": 1024
+      "tracking-channel": "beta"
     }
 }
 `
@@ -270,8 +272,8 @@ description: |
   https://snapcraft.io/
 snap-id:   mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:  beta
-refreshed: 0001-01-01T00:00:00Z
-installed: 2.10 (1) 1kB disabled
+refreshed: 2006-01-02T22:04:07Z
+current: 2.10 (1) 1kB disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -306,8 +308,8 @@ description: |
   https://snapcraft.io/
 snap-id:   mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:  beta
-refreshed: 0001-01-01T00:00:00Z
-installed: 2.10 (1) 1kB disabled
+refreshed: 2006-01-02T22:04:07Z
+current: 2.10 (1) 1kB disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
