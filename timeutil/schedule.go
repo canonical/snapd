@@ -46,7 +46,11 @@ func (t Clock) String() string {
 func (t Clock) Sub(other Clock) time.Duration {
 	t1 := time.Duration(t.Hour)*time.Hour + time.Duration(t.Minute)*time.Minute
 	t2 := time.Duration(other.Hour)*time.Hour + time.Duration(other.Minute)*time.Minute
-	return t1 - t2
+	dur := t1 - t2
+	if dur < 0 {
+		dur = -(dur + 24*time.Hour)
+	}
+	return dur
 }
 
 // Add adds given duration to t and returns a new Clock
@@ -225,6 +229,9 @@ func (ts ClockSpan) ClockSpans() []ClockSpan {
 	}
 
 	span := ts.End.Sub(ts.Start)
+	if span < 0 {
+		span = -span
+	}
 	step := span / time.Duration(ts.Split)
 
 	spans := make([]ClockSpan, ts.Split)
