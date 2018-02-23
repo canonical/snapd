@@ -29,6 +29,7 @@ xgettext "$HERE"/data/polkit/*.policy \
     --no-location \
     --package-name=snappy \
     --msgid-bugs-address=snappy-devel@lists.ubuntu.com \
+    --from-code=UTF-8 \
     --join-existing
 
 #xgettext -d snappy -o "$OUTPUT" --c++ --from-code=UTF-8 \
