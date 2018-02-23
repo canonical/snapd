@@ -6,7 +6,7 @@ execute: |
   snap list core
 
   out=$(! snap refresh core --channel bogus 2>&1 1>- )
-  revno=$( snap info core | awk '/^installed:/{print $3}' )
+  revno=$( snap info core | awk '/^current:/{print $3}' )
   if [[ "$revno" =~ x[0-9]+ ]]; then
       MATCH 'error: local snap "core" is unknown to the store' <<< "$out"
   else
