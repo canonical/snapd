@@ -48,8 +48,12 @@ func IsRootWritableOverlay() (string, error) {
 	}
 	for _, entry := range mountinfo {
 		if entry.FsType == "overlay" && entry.MountDir == "/" {
-			// upperdir must be an absolute path to be considered
-			if dir, ok := entry.SuperOptions["upperdir"]; ok && strings.HasPrefix(dir, "/") {
+			if dir, ok := entry.SuperOptions["upperdir"]; ok {
+				// upperdir must be an absolute path without
+				// any AARE characters to be considered
+				if !strings.HasPrefix(dir, "/") || strings.ContainsAny(dir, "?*[]{}^\"") {
+					continue
+				}
 				// if mount source is path, strip it from dir
 				// (for casper)
 				if strings.HasPrefix(entry.MountSource, "/") {
