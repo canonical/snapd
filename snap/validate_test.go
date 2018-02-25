@@ -61,6 +61,8 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 		"a-a", "aa-a", "a-aa", "a-b-c",
 		"a0", "a-0", "a-0a",
 		"01game", "1-or-2",
+		// a regexp stresser
+		"u-94903713687486543234157734673284536758",
 	}
 	for _, name := range validNames {
 		err := ValidateName(name)
@@ -69,6 +71,14 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 	invalidNames := []string{
 		// name cannot be empty
 		"",
+		// names cannot be full
+		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
+		"1111111111111111111111111111111111111111x",
+		"x1111111111111111111111111111111111111111",
+		"x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x",
+		// a regexp stresser
+		"u-9490371368748654323415773467328453675-",
 		// dashes alone are not a name
 		"-", "--",
 		// double dashes in a name are not allowed
