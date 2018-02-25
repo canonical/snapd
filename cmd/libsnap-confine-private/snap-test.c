@@ -152,6 +152,12 @@ static void test_sc_snap_name_validate(void)
 	const char *invalid_names[] = {
 		// name cannot be empty
 		"",
+		// names cannot be full
+		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
+		"1111111111111111111111111111111111111111x",
+		"x1111111111111111111111111111111111111111",
+		"x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x",
 		// dashes alone are not a name
 		"-", "--",
 		// double dashes in a name are not allowed
@@ -161,7 +167,7 @@ static void test_sc_snap_name_validate(void)
 		// name cannot have any spaces in it
 		"a ", " a", "a a",
 		// a number alone is not a name
-		"0", "123",
+		"0", "123", "1-2-3",
 		// identifier must be plain ASCII
 		"日本語", "한글", "ру́сский язы́к",
 	};
@@ -181,6 +187,17 @@ static void test_sc_snap_name_validate(void)
 	sc_snap_name_validate("123test", &err);
 	g_assert_null(err);
 
+	// In case we switch to a regex, here's a test that could break things.
+	const char *good_bad_name = "u-94903713687486543234157734673284536758";
+	char varname[41] = {0};
+	for (int i = 3; i <= 40; i++ ) {
+		g_assert_nonnull(strncpy(varname, good_bad_name, i));
+		varname[i] = 0;
+		g_test_message("checking valid snap name: >%s<", varname);
+		sc_snap_name_validate(varname, &err);
+		g_assert_null(err);
+		sc_error_free(err);
+	}
 }
 
 static void test_sc_snap_name_validate__respects_error_protocol(void)
