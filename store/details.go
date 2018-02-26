@@ -49,6 +49,7 @@ type snapDetails struct {
 	Revision       int      `json:"revision"` // store revisions are ints starting at 1
 	ScreenshotURLs []string `json:"screenshot_urls,omitempty"`
 	SnapID         string   `json:"snap_id"`
+	SnapYAML       string   `json:"snap_yaml_raw"`
 	License        string   `json:"license,omitempty"`
 	Base           string   `json:"base,omitempty"`
 
@@ -160,6 +161,24 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	//        the "SupportURL" part of the if
 	if info.Contact == "" {
 		info.Contact = d.SupportURL
+	}
+
+	// fill in the plug/slot data
+	if rawYamlInfo, err := snap.InfoFromSnapYaml([]byte(d.SnapYAML)); err == nil {
+		if info.Plugs == nil {
+			info.Plugs = make(map[string]*snap.PlugInfo)
+		}
+		for k, v := range rawYamlInfo.Plugs {
+			info.Plugs[k] = v
+			info.Plugs[k].Snap = info
+		}
+		if info.Slots == nil {
+			info.Slots = make(map[string]*snap.SlotInfo)
+		}
+		for k, v := range rawYamlInfo.Slots {
+			info.Slots[k] = v
+			info.Slots[k].Snap = info
+		}
 	}
 
 	// fill in the tracks data

@@ -1842,11 +1842,14 @@ const (
 
 /* acquired via
 
-http --pretty=format --print b https://api.snapcraft.io/api/v1/snaps/details/hello-world X-Ubuntu-Series:16 fields==anon_download_url,architecture,channel,download_sha3_384,summary,description,binary_filesize,download_url,icon_url,last_updated,license,package_name,prices,publisher,ratings_average,revision,screenshot_urls,snap_id,support_url,title,content,version,origin,developer_id,private,confinement channel==edge | xsel -b
+http --pretty=format --print b https://api.snapcraft.io/api/v1/snaps/details/hello-world X-Ubuntu-Series:16 fields==anon_download_url,architecture,channel,download_sha3_384,summary,description,binary_filesize,download_url,icon_url,last_updated,license,package_name,prices,publisher,ratings_average,revision,screenshot_urls,snap_id,support_url,title,content,version,origin,developer_id,private,confinement,snap_yaml_raw channel==edge | xsel -b
 
 on 2016-07-03. Then, by hand:
  * set prices to {"EUR": 0.99, "USD": 1.23}.
  * Screenshot URLS set manually.
+
+on 2017-11-20. Then, by hand:
+ * add "snap_yaml_raw" from "test-snapd-content-plug"
 
 On Ubuntu, apt install httpie xsel (although you could get http from
 the http snap instead).
@@ -1886,6 +1889,7 @@ const MockDetailsJSON = `{
     "support_url": "mailto:snappy-devel@lists.ubuntu.com",
     "title": "Hello World",
     "version": "6.3",
+    "snap_yaml_raw": "name: test-snapd-content-plug\nversion: 1.0\napps:\n    content-plug:\n        command: bin/content-plug\n        plugs: [shared-content-plug]\nplugs:\n    shared-content-plug:\n        interface: content\n        target: import\n        content: mylib\n        default-provider: test-snapd-content-slot\nslots:\n    shared-content-slot:\n        interface: content\n        content: mylib\n        read:\n            - /\n",
     "channel_maps_list": [
       {
         "track": "latest",
@@ -2095,6 +2099,21 @@ func (s *storeTestSuite) TestDetails(c *C) {
 	// c.Check(result.Private, Equals, true)
 
 	c.Check(snap.Validate(result), IsNil)
+
+	// validate the plugs/slots
+	c.Check(result.Plugs, HasLen, 1)
+	plug := result.Plugs["shared-content-plug"]
+	c.Check(plug.Name, Equals, "shared-content-plug")
+	c.Check(plug.Snap, DeepEquals, result)
+	c.Check(plug.Apps, HasLen, 1)
+	c.Check(plug.Apps["content-plug"].Command, Equals, "bin/content-plug")
+
+	c.Check(result.Slots, HasLen, 1)
+	slot := result.Slots["shared-content-slot"]
+	c.Check(slot.Name, Equals, "shared-content-slot")
+	c.Check(slot.Snap, DeepEquals, result)
+	c.Check(slot.Apps, HasLen, 1)
+	c.Check(slot.Apps["content-plug"].Command, Equals, "bin/content-plug")
 }
 
 func (s *storeTestSuite) TestDetailsDefaultChannelIsStable(c *C) {

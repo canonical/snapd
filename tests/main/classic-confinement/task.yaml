@@ -39,13 +39,13 @@ execute: |
     echo "Check that we can install classic confinement snaps from the store"
     snap install --classic "$CLASSIC_SNAP"
     snap list | MATCH "$CLASSIC_SNAP .*1.0 .*classic"
-    snap info "$CLASSIC_SNAP"|MATCH "installed:.* 1.0 .*classic"
+    snap info "$CLASSIC_SNAP"|MATCH "current:.* 1.0 .*classic"
     "$CLASSIC_SNAP" | MATCH lala
 
     echo "Snap refresh from the store also works (2.0 is in beta, 1.0 in stable)"
     snap refresh --beta "$CLASSIC_SNAP"
     snap list | MATCH "$CLASSIC_SNAP .*2.0 .*classic"
-    snap info "$CLASSIC_SNAP"|MATCH "installed:.* 2.0 .*classic"
+    snap info "$CLASSIC_SNAP"|MATCH "current:.* 2.0 .*classic"
     "$CLASSIC_SNAP" | MATCH lala
 
 restore: |
