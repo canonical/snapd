@@ -39,6 +39,10 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/net/context"
+	"golang.org/x/net/context/ctxhttp"
+	"gopkg.in/retry.v1"
+
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
@@ -50,10 +54,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-
-	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
-	"gopkg.in/retry.v1"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -270,7 +271,7 @@ func respToError(resp *http.Response, msg string) error {
 	return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL)
 }
 
-func getStructFields(s interface{}) []string {
+func getStructFields(s interface{}, exceptions ...string) []string {
 	st := reflect.TypeOf(s)
 	num := st.NumField()
 	fields := make([]string, 0, num)
@@ -280,7 +281,7 @@ func getStructFields(s interface{}) []string {
 		if idx > -1 {
 			tag = tag[:idx]
 		}
-		if tag != "" && tag != "snap_yaml_raw" {
+		if tag != "" && !strutil.ListContains(exceptions, tag) {
 			fields = append(fields, tag)
 		}
 	}
@@ -420,8 +421,8 @@ type sectionResults struct {
 	} `json:"_embedded"`
 }
 
-// The fields we are interested in
-var detailFields = getStructFields(snapDetails{})
+// The fields we are interested in (not you, snap_yaml_raw)
+var detailFields = getStructFields(snapDetails{}, "snap_yaml_raw")
 
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta3"
