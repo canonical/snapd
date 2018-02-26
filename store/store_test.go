@@ -2033,7 +2033,7 @@ func (s *storeTestSuite) TestDetails(c *C) {
 		c.Check(r.URL.Path, Matches, ".*/hello-world")
 
 		c.Check(r.URL.Query().Get("channel"), Equals, "edge")
-		c.Check(r.URL.Query().Get("fields"), Equals, "abc,def")
+		c.Check(r.URL.Query().Get("fields"), Equals, "abc,def,snap_yaml_raw")
 
 		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, release.Series)
 		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, arch.UbuntuArchitecture())
