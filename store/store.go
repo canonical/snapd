@@ -280,7 +280,7 @@ func getStructFields(s interface{}) []string {
 		if idx > -1 {
 			tag = tag[:idx]
 		}
-		if tag != "" {
+		if tag != "" && tag != "snap_yaml_raw" {
 			fields = append(fields, tag)
 		}
 	}
@@ -423,9 +423,6 @@ type sectionResults struct {
 // The fields we are interested in
 var detailFields = getStructFields(snapDetails{})
 
-// The fields we are interested in for snap.ChannelSnapInfos
-var channelSnapInfoFields = getStructFields(channelSnapInfoDetails{})
-
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta3"
 
@@ -502,6 +499,16 @@ func (s *Store) defaultSnapQuery() url.Values {
 	q := url.Values{}
 	if len(s.detailFields) != 0 {
 		q.Set("fields", strings.Join(s.detailFields, ","))
+	}
+	return q
+}
+
+func (s *Store) queryForSnapInfo() url.Values {
+	// like defaultSnapQuery, plus a couple
+	q := url.Values{}
+	if len(s.detailFields) != 0 {
+		fields := append(s.detailFields, "snap_yaml_raw")
+		q.Set("fields", strings.Join(fields, ","))
 	}
 	return q
 }
@@ -1130,7 +1137,7 @@ type SnapSpec struct {
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
 func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	query := s.defaultSnapQuery()
+	query := s.queryForSnapInfo()
 
 	channel := snapSpec.Channel
 	var sel string
