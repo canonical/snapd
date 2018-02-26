@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -71,4 +71,5 @@ func setupHooks(hookMgr *hookstate.HookManager) {
 	hookMgr.Register(regexp.MustCompile("^prepare-slot-[-a-z0-9]+$"), prepareGenerator)
 	hookMgr.Register(regexp.MustCompile("^connect-plug-[-a-z0-9]+$"), connectGenerator)
 	hookMgr.Register(regexp.MustCompile("^connect-slot-[-a-z0-9]+$"), connectGenerator)
+	hookMgr.Register(regexp.MustCompile("^disconnect-(?:plug|slot)-[-a-z0-9]+$"), connectGenerator)
 }

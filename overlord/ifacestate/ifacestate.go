@@ -238,7 +238,12 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 }
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
-func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, error) {
+	plugSnap := conn.Plug.Snap().Name()
+	slotSnap := conn.Slot.Snap().Name()
+	plugName := conn.Plug.Name()
+	slotName := conn.Slot.Name()
+
 	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
@@ -248,10 +253,38 @@ func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) 
 
 	summary := fmt.Sprintf(i18n.G("Disconnect %s:%s from %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
-	task := st.NewTask("disconnect", summary)
-	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
-	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	return state.NewTaskSet(task), nil
+	disconnectTask := st.NewTask("disconnect", summary)
+	disconnectTask.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
+	disconnectTask.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+
+	context := make(map[string]interface{})
+	context["attrs-task"] = disconnectTask.ID()
+
+	disconnectSlotHookSetup := &hookstate.HookSetup{
+		Snap:     slotSnap,
+		Hook:     "disconnect-slot-" + slotName,
+		Optional: true,
+	}
+	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectSlotHookSetup.Hook, disconnectSlotHookSetup.Snap)
+	disconnectSlot := hookstate.HookTask(st, summary, disconnectSlotHookSetup, context)
+
+	disconnectPlugHookSetup := &hookstate.HookSetup{
+		Snap:     plugSnap,
+		Hook:     "disconnect-plug-" + plugName,
+		Optional: true,
+	}
+	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectPlugHookSetup.Hook, disconnectPlugHookSetup.Snap)
+	disconnectPlug := hookstate.HookTask(st, summary, disconnectPlugHookSetup, context)
+
+	// set plug/slot attributes of the connection on disconnect task
+	disconnectTask.Set("slot-static", conn.Slot.StaticAttrs())
+	disconnectTask.Set("slot-dynamic", conn.Slot.DynamicAttrs())
+	disconnectTask.Set("plug-static", conn.Plug.StaticAttrs())
+	disconnectTask.Set("plug-dynamic", conn.Plug.DynamicAttrs())
+
+	disconnectPlug.WaitFor(disconnectSlot)
+	disconnectTask.WaitFor(disconnectPlug)
+	return state.NewTaskSet(disconnectSlot, disconnectPlug, disconnectTask), nil
 }
 
 // CheckInterfaces checks whether plugs and slots of snap are allowed for installation.
