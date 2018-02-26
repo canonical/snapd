@@ -814,6 +814,7 @@ func (s *storeTestSuite) TestDownloadSyncFails(c *C) {
 func (s *storeTestSuite) TestActualDownload(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Snap-CDN"), Equals, "")
 		n++
 		io.WriteString(w, "response-data")
 	}))
@@ -828,6 +829,64 @@ func (s *storeTestSuite) TestActualDownload(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(buf.String(), Equals, "response-data")
 	c.Check(n, Equals, 1)
+}
+
+func (s *storeTestSuite) TestActualDownloadNoCDN(c *C) {
+	os.Setenv("SNAPPY_STORE_NO_CDN", "1")
+	defer os.Unsetenv("SNAPPY_STORE_NO_CDN")
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Snap-CDN"), Equals, "none")
+		io.WriteString(w, "response-data")
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := New(&Config{}, nil)
+	var buf SillyBuffer
+	// keep tests happy
+	sha3 := ""
+	err := download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, "response-data")
+}
+
+func (s *storeTestSuite) TestActualDownloadFullCloudInfoFromAuthContext(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="aws" region="us-east-1" availability-zone="us-east-1c"`)
+
+		io.WriteString(w, "response-data")
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := New(&Config{}, &testAuthContext{c: c, device: s.device, cloudInfo: &auth.CloudInfo{Name: "aws", Region: "us-east-1", AvailabilityZone: "us-east-1c"}})
+
+	var buf SillyBuffer
+	// keep tests happy
+	sha3 := ""
+	err := download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, "response-data")
+}
+
+func (s *storeTestSuite) TestActualDownloadLessDetailedCloudInfoFromAuthContext(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="openstack" availability-zone="nova"`)
+
+		io.WriteString(w, "response-data")
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := New(&Config{}, &testAuthContext{c: c, device: s.device, cloudInfo: &auth.CloudInfo{Name: "openstack", Region: "", AvailabilityZone: "nova"}})
+
+	var buf SillyBuffer
+	// keep tests happy
+	sha3 := ""
+	err := download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, "response-data")
 }
 
 func (s *storeTestSuite) TestDownloadCancellation(c *C) {
@@ -2301,8 +2360,6 @@ func (s *storeTestSuite) TestDetailsAndChannels(c *C) {
 func (s *storeTestSuite) TestNonDefaults(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
-	os.Setenv("SNAPPY_STORE_NO_CDN", "1")
-	defer os.Unsetenv("SNAPPY_STORE_NO_CDN")
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", detailsPathPattern)
@@ -2316,9 +2373,6 @@ func (s *storeTestSuite) TestNonDefaults(c *C) {
 		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, "21")
 		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, "archXYZ")
 		c.Check(r.Header.Get("X-Ubuntu-Classic"), Equals, "true")
-		// for now we have both
-		c.Check(r.Header.Get("X-Ubuntu-No-CDN"), Equals, "true")
-		c.Check(r.Header.Get("Snap-CDN"), Equals, "none")
 
 		w.WriteHeader(200)
 		io.WriteString(w, MockDetailsJSON)
@@ -2366,68 +2420,6 @@ func (s *storeTestSuite) TestStoreIDFromAuthContext(c *C) {
 	cfg.Architecture = "archXYZ"
 	cfg.StoreID = "fallback"
 	sto := New(cfg, &testAuthContext{c: c, device: s.device, storeID: "my-brand-store-id"})
-
-	// the actual test
-	spec := SnapSpec{
-		Name:     "hello-world",
-		Channel:  "edge",
-		Revision: snap.R(0),
-	}
-	result, err := sto.SnapInfo(spec, nil)
-	c.Assert(err, IsNil)
-	c.Check(result.Name(), Equals, "hello-world")
-}
-
-func (s *storeTestSuite) TestFullCloudInfoFromAuthContext(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "GET", detailsPathPattern)
-		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="aws" region="us-east-1" availability-zone="us-east-1c"`)
-
-		w.WriteHeader(200)
-		io.WriteString(w, MockDetailsJSON)
-	}))
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := DefaultConfig()
-	cfg.StoreBaseURL = mockServerURL
-	cfg.Series = "21"
-	cfg.Architecture = "archXYZ"
-	cfg.StoreID = "fallback"
-	sto := New(cfg, &testAuthContext{c: c, device: s.device, cloudInfo: &auth.CloudInfo{Name: "aws", Region: "us-east-1", AvailabilityZone: "us-east-1c"}})
-
-	// the actual test
-	spec := SnapSpec{
-		Name:     "hello-world",
-		Channel:  "edge",
-		Revision: snap.R(0),
-	}
-	result, err := sto.SnapInfo(spec, nil)
-	c.Assert(err, IsNil)
-	c.Check(result.Name(), Equals, "hello-world")
-}
-
-func (s *storeTestSuite) TestLessDetailedCloudInfoFromAuthContext(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "GET", detailsPathPattern)
-		c.Check(r.Header.Get("Snap-CDN"), Equals, `cloud-name="openstack" availability-zone="nova"`)
-
-		w.WriteHeader(200)
-		io.WriteString(w, MockDetailsJSON)
-	}))
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	mockServerURL, _ := url.Parse(mockServer.URL)
-	cfg := DefaultConfig()
-	cfg.StoreBaseURL = mockServerURL
-	cfg.Series = "21"
-	cfg.Architecture = "archXYZ"
-	cfg.StoreID = "fallback"
-	sto := New(cfg, &testAuthContext{c: c, device: s.device, cloudInfo: &auth.CloudInfo{Name: "openstack", Region: "", AvailabilityZone: "nova"}})
 
 	// the actual test
 	spec := SnapSpec{
@@ -5900,8 +5892,6 @@ func (s *storeTestSuite) TestInstallFallbackChannelIsStable(c *C) {
 func (s *storeTestSuite) TestInstallRefreshNonDefaultsHeaders(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
-	os.Setenv("SNAPPY_STORE_NO_CDN", "1")
-	defer os.Unsetenv("SNAPPY_STORE_NO_CDN")
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", installRefreshPath)
@@ -5914,7 +5904,6 @@ func (s *storeTestSuite) TestInstallRefreshNonDefaultsHeaders(c *C) {
 		c.Check(r.Header.Get("Snap-Device-Series"), Equals, "21")
 		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, "archXYZ")
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "true")
-		c.Check(r.Header.Get("X-Ubuntu-No-CDN"), Equals, "true")
 
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
