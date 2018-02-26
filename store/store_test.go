@@ -2630,6 +2630,14 @@ func (s *storeTestSuite) TestStructFields(c *C) {
 	c.Assert(getStructFields(aStruct{}), DeepEquals, []string{"hello", "potato"})
 }
 
+func (s *storeTestSuite) TestStructFieldsExcept(c *C) {
+	type aStruct struct {
+		Foo int `json:"hello"`
+		Bar int `json:"potato,stuff"`
+	}
+	c.Assert(getStructFields(aStruct{}, "potato"), DeepEquals, []string{"hello"})
+}
+
 /* acquired via:
 curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Clicense%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&q=hello' | python -m json.tool | xsel -b
 Screenshot URLS set manually.
@@ -4080,7 +4088,7 @@ func (s *storeTestSuite) TestListRefreshWithDeltas(c *C) {
 			"epoch":       "0",
 			"confinement": "",
 		})
-		c.Assert(resp.Fields, DeepEquals, getStructFields(snapDetails{}))
+		c.Assert(resp.Fields, DeepEquals, getStructFields(snapDetails{}, "snap_yaml_raw"))
 
 		io.WriteString(w, MockUpdatesWithDeltasJSON)
 	}))
