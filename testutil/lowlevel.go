@@ -136,6 +136,10 @@ func formatUnmountFlags(flags int) string {
 		flags ^= UMOUNT_NOFOLLOW
 		fl = append(fl, "UMOUNT_NOFOLLOW")
 	}
+	if flags&syscall.MNT_DETACH == syscall.MNT_DETACH {
+		flags ^= syscall.MNT_DETACH
+		fl = append(fl, "MNT_DETACH")
+	}
 	if flags != 0 {
 		panic(fmt.Errorf("unrecognized unmount flags %d", flags))
 	}
