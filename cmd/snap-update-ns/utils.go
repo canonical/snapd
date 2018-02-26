@@ -331,11 +331,20 @@ func planWritableMimic(dir string) ([]*Change, error) {
 	// Bind mount the original directory elsewhere for safe-keeping.
 	changes = append(changes, &Change{
 		Action: Mount, Entry: osutil.MountEntry{
-			// NOTE: Here we bind instead of recursively binding
-			// because recursive binds cannot be undone without
-			// parsing the mount table and exploring what is really
-			// there and this is not how the undo logic is
-			// designed.
+			// NOTE: Here we recursively bind because we realized that not
+			// doing so doesn't work work on core devices which use bind
+			// mounts extensively to construct writable spaces in /etc and
+			// /var and elsewhere.
+			//
+			// All directories present in the original are also recursively
+			// bind mounted back to their original location. To unmount this
+			// contraption we use MNT_DETACH which frees us from having to
+			// enumerate the mount table, unmount all the things (starting
+			// with most nested).
+			//
+			// The undo logic handles rbind mounts and adds x-snapd.unbind
+			// flag to them, which in turns translates to MNT_DETACH on
+			// umount2(2) system call.
 			Name: dir, Dir: safeKeepingDir, Options: []string{"rbind"}},
 	})
 	// Mount tmpfs over the original directory, hiding its contents.
