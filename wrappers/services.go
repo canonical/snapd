@@ -600,18 +600,13 @@ func makeAbbrevWeekdays(start time.Weekday, end time.Weekday) []string {
 	return out
 }
 
-// generateOnCalendarSchedules converts a timer specification into OnCalendar
-// schedules suitable for use in systemd *.timer units
-func generateOnCalendarSchedules(timer string) ([]string, error) {
-
-	schedule, err := timeutil.ParseSchedule(timer)
-	if err != nil {
-		return nil, err
-	}
-
-	calendarEvents := make([]string, 0, 10)
+// generateOnCalendarSchedules converts a schedule into OnCalendar schedules
+// suitable for use in systemd *.timer units using systemd.time(7)
+// https://www.freedesktop.org/software/systemd/man/systemd.time.html
+func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
+	calendarEvents := make([]string, 0, len(schedule))
 	for _, sched := range schedule {
-		days := make([]string, 0, 10)
+		days := make([]string, 0, len(sched.WeekSpans))
 		for _, week := range sched.WeekSpans {
 			abbrev := strings.Join(makeAbbrevWeekdays(week.Start.Weekday, week.End.Weekday), ",")
 			switch week.Start.Pos {
@@ -629,7 +624,7 @@ func generateOnCalendarSchedules(timer string) ([]string, error) {
 				// NOTE: schedule mon1-tue2 (all weekdays
 				// between the first Monday of the month, until
 				// the second Tuesday of the month) is not
-				// translatable to systemd.time(7) format, , for
+				// translatable to systemd.time(7) format, for
 				// this assume all weekdays and allow the runner
 				// to do the filtering
 				if week.Start != week.End {
@@ -648,20 +643,31 @@ func generateOnCalendarSchedules(timer string) ([]string, error) {
 			days = []string{"*-*-*"}
 		}
 
-		startTimes := make([]string, 0, 10)
+		startTimes := make([]string, 0, len(sched.ClockSpans))
 		for _, clocks := range sched.ClockSpans {
 			// use expanded clock spans
 			for _, span := range clocks.ClockSpans() {
 				when := span.Start
 				if span.Spread {
 					length := span.End.Sub(span.Start)
-					// replicate what timeutil.Next() does
-					// and cut some time at the end of the
-					// window
+					if length < 0 {
+						// span Start wraps around, so we have '23:45.Sub(0:00)'
+						length = -length
+					}
 					if length > 5*time.Minute {
+						// replicate what timeutil.Next() does
+						// and cut some time at the end of the
+						// window so that events do not happen
+						// directly one after another
 						length -= 5 * time.Minute
 					}
 					when = when.Add(time.Duration(rand.Int63n(int64(length))))
+				}
+				if when.Hour == 24 {
+					// 24:00 for us means the other end of
+					// the day, for systemd we need to
+					// adjust it to the 0-23 hour range
+					when.Hour -= 24
 				}
 
 				startTimes = append(startTimes, when.String())
@@ -674,5 +680,5 @@ func generateOnCalendarSchedules(timer string) ([]string, error) {
 			}
 		}
 	}
-	return calendarEvents, nil
+	return calendarEvents
 }

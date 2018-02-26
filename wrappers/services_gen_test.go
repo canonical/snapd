@@ -21,6 +21,7 @@ package wrappers_test
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/timeout"
+	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -407,6 +409,9 @@ WantedBy=multi-user.target
 
 func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 	systemdAnalyzePath, _ := exec.LookPath("systemd-analyze")
+	if systemdAnalyzePath == "" {
+		fmt.Fprintln(os.Stderr, "WARNING: generated schedules will not verified by systemd-analyze")
+	}
 
 	for _, t := range []struct {
 		in         string
@@ -449,11 +454,27 @@ func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 		in:         "mon,10:00~12:00,,fri,15:00",
 		expected:   []string{`Mon \*-\*-\* 1[01]:[0-5][0-9]`, `Fri \*-\*-\* 15:00`},
 		randomized: true,
+	}, {
+		in:         "23:00~24:00/4",
+		expected:   []string{`\*-\*-\* 23:[01][0-9]`, `\*-\*-\* 23:[12][0-9]`, `\*-\*-\* 23:[34][0-9]`, `*-*-* 23:[45][0-9]`},
+		randomized: true,
+	}, {
+		in:         "23:00~01:00/4",
+		expected:   []string{`\*-\*-\* 23:[0-2][0-9]`, `\*-\*-\* 23:[3-5][0-9]`, `\*-\*-\* 00:[0-2][0-9]`, `\*-\*-\* 00:[3-5][0-9]`},
+		randomized: true,
+	}, {
+		in:       "23:00-01:00/4",
+		expected: []string{`*-*-* 23:00`, `*-*-* 23:30`, `*-*-* 00:00`, `*-*-* 00:30`},
+	}, {
+		in:       "24:00",
+		expected: []string{`*-*-* 00:00`},
 	}} {
 		c.Logf("trying %+v", t)
 
-		timer, err := wrappers.GenerateOnCalendarSchedules(t.in)
+		schedule, err := timeutil.ParseSchedule(t.in)
 		c.Check(err, IsNil)
+
+		timer := wrappers.GenerateOnCalendarSchedules(schedule)
 		c.Check(timer, Not(IsNil))
 		if !t.randomized {
 			c.Check(timer, DeepEquals, t.expected)
