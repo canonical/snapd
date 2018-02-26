@@ -225,7 +225,10 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 		}
 
 		if app.Timer != nil {
-			content := generateSnapTimerFile(app)
+			content, err := generateSnapTimerFile(app)
+			if err != nil {
+				return err
+			}
 			path := app.Timer.File()
 			os.MkdirAll(filepath.Dir(path), 0755)
 			if err := osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
@@ -546,7 +549,7 @@ func renderListenStream(socket *snap.SocketInfo) string {
 	return strings.Replace(listenStream, "$SNAP_COMMON", snap.CommonDataDir(), -1)
 }
 
-func generateSnapTimerFile(app *snap.AppInfo) []byte {
+func generateSnapTimerFile(app *snap.AppInfo) ([]byte, error) {
 	timerTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Timer {{.TimerName}} for snap application {{.App.Snap.Name}}.{{.App.Name}}
@@ -565,7 +568,12 @@ WantedBy={{.TimersTarget}}
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("timer-wrapper").Parse(timerTemplate))
 
-	schedules, _ := generateOnCalendarSchedules(app.Timer.Timer)
+	timerSchedule, err := timeutil.ParseSchedule(app.Timer.Timer)
+	if err != nil {
+		return nil, err
+	}
+
+	schedules := generateOnCalendarSchedules(timerSchedule)
 
 	wrapperData := struct {
 		App             *snap.AppInfo
@@ -588,7 +596,7 @@ WantedBy={{.TimersTarget}}
 		logger.Panicf("Unable to execute template: %v", err)
 	}
 
-	return templateOut.Bytes()
+	return templateOut.Bytes(), nil
 
 }
 

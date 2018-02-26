@@ -357,10 +357,33 @@ WantedBy=timers.target
 	}
 	service.Timer.App = service
 
-	generatedWrapper := wrappers.GenerateSnapTimerFile(service)
+	generatedWrapper, err := wrappers.GenerateSnapTimerFile(service)
+	c.Assert(err, IsNil)
 
 	c.Logf("timer: \n%v\n", string(generatedWrapper))
 	c.Assert(string(generatedWrapper), Equals, expectedService)
+}
+
+func (s *servicesWrapperGenSuite) TestServiceTimerUnitBadTimer(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		StopTimeout: timeout.DefaultTimeout,
+		Timer: &snap.TimerInfo{
+			Timer: "bad-timer",
+		},
+	}
+	service.Timer.App = service
+
+	generatedWrapper, err := wrappers.GenerateSnapTimerFile(service)
+	c.Assert(err, ErrorMatches, `cannot parse "bad-timer": "bad" is not a valid weekday`)
+	c.Assert(generatedWrapper, IsNil)
 }
 
 func (s *servicesWrapperGenSuite) TestServiceTimerServiceUnit(c *C) {
