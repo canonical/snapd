@@ -137,3 +137,11 @@ func MockIsTerminal(t bool) (restore func()) {
 		isTerminal = oldIsTerminal
 	}
 }
+
+func MockTimeNow(newTimeNow func() time.Time) (restore func()) {
+	oldTimeNow := timeNow
+	timeNow = newTimeNow
+	return func() {
+		timeNow = oldTimeNow
+	}
+}
