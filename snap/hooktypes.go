@@ -32,6 +32,7 @@ var supportedHooks = []*HookType{
 	newHookType(regexp.MustCompile("^remove$")),
 	newHookType(regexp.MustCompile("^prepare-(?:plug|slot)-[-a-z0-9]+$")),
 	newHookType(regexp.MustCompile("^connect-(?:plug|slot)-[-a-z0-9]+$")),
+	newHookType(regexp.MustCompile("^disconnect-(?:plug|slot)-[-a-z0-9]+$")),
 }
 
 // HookType represents a pattern of supported hook names.
