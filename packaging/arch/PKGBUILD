@@ -94,13 +94,7 @@ check() {
   export GOPATH="$srcdir/go"
   cd "$GOPATH/src/${_gourl}"
 
-  # XXX: Those files are unknown to gitignore but are checked by run-checks
-  # --static. Before gitignore is updated we just remove the junk one and move
-  # the valuable one aside.
-  rm -f cmd/snap-confine/snap-confine-debug
-  mv data/info $srcdir/xxx-info
-
-  ./run-checks --unit
+  SKIP_UNCLEAN=1 ./run-checks --unit
   # XXX: Static checks choke on autotools generated cruft. Let's not run them
   # here as they are designed to pass on a clean tree, before anything else is
   # done, not after building the tree.
