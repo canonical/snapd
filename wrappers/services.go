@@ -528,7 +528,7 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 				// NOTE: schedule mon1-tue2 (all weekdays
 				// between the first Monday of the month, until
 				// the second Tuesday of the month) is not
-				// translatable to systemd.time(7) format, , for
+				// translatable to systemd.time(7) format, for
 				// this assume all weekdays and allow the runner
 				// to do the filtering
 				if week.Start != week.End {
