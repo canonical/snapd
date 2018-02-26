@@ -65,7 +65,6 @@ type SystemCalls interface {
 func MockSystemCalls(sc SystemCalls) (restore func()) {
 	// save
 	oldOsLstat := osLstat
-	oldSymlink := osSymlink
 	oldRemove := osRemove
 	oldIoutilReadDir := ioutilReadDir
 
@@ -76,10 +75,10 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	oldSysOpen := sysOpen
 	oldSysOpenat := sysOpenat
 	oldSysUnmount := sysUnmount
+	oldSysSymlink := sysSymlink
 
 	// override
 	osLstat = sc.Lstat
-	osSymlink = sc.Symlink
 	osRemove = sc.Remove
 	ioutilReadDir = sc.ReadDir
 
@@ -90,11 +89,11 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	sysOpen = sc.Open
 	sysOpenat = sc.Openat
 	sysUnmount = sc.Unmount
+	sysSymlink = sc.Symlink
 
 	return func() {
 		// restore
 		osLstat = oldOsLstat
-		osSymlink = oldSymlink
 		osRemove = oldRemove
 		ioutilReadDir = oldIoutilReadDir
 
@@ -105,6 +104,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		sysOpen = oldSysOpen
 		sysOpenat = oldSysOpenat
 		sysUnmount = oldSysUnmount
+		sysSymlink = oldSysSymlink
 	}
 }
 
