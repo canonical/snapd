@@ -109,6 +109,10 @@ func formatMountFlags(flags int) string {
 		flags ^= syscall.MS_BIND
 		fl = append(fl, "MS_BIND")
 	}
+	if flags&syscall.MS_REC == syscall.MS_REC {
+		flags ^= syscall.MS_REC
+		fl = append(fl, "MS_REC")
+	}
 	if flags&syscall.MS_RDONLY == syscall.MS_RDONLY {
 		flags ^= syscall.MS_RDONLY
 		fl = append(fl, "MS_RDONLY")
@@ -131,6 +135,10 @@ func formatUnmountFlags(flags int) string {
 	if flags&UMOUNT_NOFOLLOW == UMOUNT_NOFOLLOW {
 		flags ^= UMOUNT_NOFOLLOW
 		fl = append(fl, "UMOUNT_NOFOLLOW")
+	}
+	if flags&syscall.MNT_DETACH == syscall.MNT_DETACH {
+		flags ^= syscall.MNT_DETACH
+		fl = append(fl, "MNT_DETACH")
 	}
 	if flags != 0 {
 		panic(fmt.Errorf("unrecognized unmount flags %d", flags))
