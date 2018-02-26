@@ -42,7 +42,10 @@ type systemKey struct {
 	Core             string   `yaml:"core,omitempty"`
 }
 
-var mockedSystemKey *systemKey
+var (
+	isHomeUsingNFS  = osutil.IsHomeUsingNFS
+	mockedSystemKey *systemKey
+)
 
 func generateSystemKey() *systemKey {
 	// for testing only
@@ -63,7 +66,7 @@ func generateSystemKey() *systemKey {
 	// Add if home is using NFS, if so we need to have a different
 	// security profile and if this changes we need to change our
 	// profile.
-	sk.NFSHome, err = osutil.IsHomeUsingNFS()
+	sk.NFSHome, err = isHomeUsingNFS()
 	if err != nil {
 		logger.Noticef("cannot determine nfs usage in generateSystemKey: %v", err)
 	}

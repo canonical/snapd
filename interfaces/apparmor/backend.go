@@ -57,10 +57,11 @@ import (
 )
 
 var (
-	procSelfExe = "/proc/self/exe"
+	procSelfExe    = "/proc/self/exe"
+	isHomeUsingNFS = osutil.IsHomeUsingNFS
 )
 
-// Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
+// Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
 type Backend struct{}
 
 // Name returns the name of the backend.
@@ -99,7 +100,7 @@ func (b *Backend) Initialize() error {
 	// Check if NFS is mounted at or under $HOME. Because NFS is not
 	// transparent to apparmor we must alter our profile to counter that and
 	// allow snap-confine to work.
-	if nfs, err := osutil.IsHomeUsingNFS(); err != nil {
+	if nfs, err := isHomeUsingNFS(); err != nil {
 		logger.Noticef("cannot determine if NFS is in use: %v", err)
 	} else if nfs {
 		policy["nfs-support"] = &osutil.FileState{
@@ -388,7 +389,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				// transparent to apparmor we must alter the profile to counter that and
 				// allow access to SNAP_USER_* files.
 				tagSnippets = snippetForTag
-				if nfs, _ := osutil.IsHomeUsingNFS(); nfs {
+				if nfs, _ := isHomeUsingNFS(); nfs {
 					tagSnippets += nfsSnippet
 				}
 			}
