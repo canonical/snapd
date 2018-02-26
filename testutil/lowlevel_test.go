@@ -265,10 +265,10 @@ func (s *lowLevelSuite) TestMkdiratBadFd(c *C) {
 }
 
 func (s *lowLevelSuite) TestMountSuccess(c *C) {
-	err := s.sys.Mount("source", "target", "fstype", syscall.MS_BIND|syscall.MS_RDONLY, "")
+	err := s.sys.Mount("source", "target", "fstype", syscall.MS_BIND|syscall.MS_REC|syscall.MS_RDONLY, "")
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`mount "source" "target" "fstype" MS_BIND|MS_RDONLY ""`,
+		`mount "source" "target" "fstype" MS_BIND|MS_REC|MS_RDONLY ""`,
 	})
 }
 
