@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.31
+Version:        2.31.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -715,6 +715,25 @@ fi
 
 
 %changelog
+* Tue Feb 20 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.31.1
+ - tests: multiple autopkgtest related fixes for 18.04
+ - overlord/snapstate: use spread in the default refresh schedule
+ - timeutil: fix scheduling on nth weekday of the month
+ - interfaces: miscellaneous policy updates for home, opengl, time-
+   control, network, et al
+ - cmd/snap: use proper help strings for `snap userd --help`
+ - interfaces/time-control,netlink-audit: adjust for util-linux
+   compiled with libaudit
+ - rules: do not static link on powerpc
+ - packaging: revert LDFLAGS rewrite again after building snap-
+   seccomp
+ - store: revert PR#4532 and do not display displayname
+ - daemon: allow `snapctl get` from any uid
+ - debian, snap: only static link libseccomp in snap-seccomp on
+   ubuntu
+ - daemon: improve ucrednet code for the snap.socket
+
 * Tue Feb 06 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.31
  - cmd/snap-confine: allow snap-update-ns to chown things

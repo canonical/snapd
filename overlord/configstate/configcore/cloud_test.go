@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 )
 
@@ -121,7 +122,7 @@ func (s *cloudSuite) TestHandleCloud(c *C) {
 		err := configcore.Run(tr)
 		c.Assert(err, IsNil)
 
-		var cloudInfo configcore.CloudInfo
+		var cloudInfo auth.CloudInfo
 		tr.Get("core", "cloud", &cloudInfo)
 
 		c.Check(cloudInfo.Name, Equals, t.name)
@@ -155,7 +156,7 @@ func (s *cloudSuite) TestHandleCloudAlreadySeeded(c *C) {
 	err = configcore.Run(tr)
 	c.Assert(err, IsNil)
 
-	var cloudInfo configcore.CloudInfo
+	var cloudInfo auth.CloudInfo
 	tr.Get("core", "cloud", &cloudInfo)
 
 	c.Check(cloudInfo.Name, Equals, "")

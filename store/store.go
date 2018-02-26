@@ -147,6 +147,24 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 		info.Contact = d.SupportURL
 	}
 
+	// fill in the plug/slot data
+	if rawYamlInfo, err := snap.InfoFromSnapYaml([]byte(d.SnapYAML)); err == nil {
+		if info.Plugs == nil {
+			info.Plugs = make(map[string]*snap.PlugInfo)
+		}
+		for k, v := range rawYamlInfo.Plugs {
+			info.Plugs[k] = v
+			info.Plugs[k].Snap = info
+		}
+		if info.Slots == nil {
+			info.Slots = make(map[string]*snap.SlotInfo)
+		}
+		for k, v := range rawYamlInfo.Slots {
+			info.Slots[k] = v
+			info.Slots[k].Snap = info
+		}
+	}
+
 	// fill in the tracks data
 	if len(d.ChannelMapList) > 0 {
 		info.Channels = make(map[string]*snap.ChannelSnapInfo)
@@ -810,57 +828,84 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestO
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
 func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
-	req, err := s.newRequest(reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-
-	var resp *http.Response
-	if ctx != nil {
-		resp, err = ctxhttp.Do(ctx, client, req)
-	} else {
-		resp, err = client.Do(req)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	wwwAuth := resp.Header.Get("WWW-Authenticate")
-	if resp.StatusCode == 401 {
-		refreshed := false
-		if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
-			// refresh user
-			err = s.refreshUser(user)
-			if err != nil {
-				return nil, err
-			}
-			refreshed = true
+	authRefreshes := 0
+	for {
+		req, err := s.newRequest(reqOptions, user)
+		if err != nil {
+			return nil, err
 		}
-		if strings.Contains(wwwAuth, "refresh_device_session=1") {
-			// refresh device session
-			if s.authContext == nil {
-				return nil, fmt.Errorf("internal error: no authContext")
-			}
-			device, err := s.authContext.Device()
-			if err != nil {
-				return nil, err
-			}
 
-			err = s.refreshDeviceSession(device)
-			if err != nil {
-				return nil, err
-			}
-			refreshed = true
+		var resp *http.Response
+		if ctx != nil {
+			resp, err = ctxhttp.Do(ctx, client, req)
+		} else {
+			resp, err = client.Do(req)
 		}
-		if refreshed {
-			// close previous response and retry
-			// TODO: make this non-recursive or add a recursion limit
-			resp.Body.Close()
-			return s.doRequest(ctx, client, reqOptions, user)
+		if err != nil {
+			return nil, err
+		}
+
+		wwwAuth := resp.Header.Get("WWW-Authenticate")
+		if resp.StatusCode == 401 && authRefreshes < 4 {
+			// 4 tries: 2 tries for each in case both user
+			// and device need refreshing
+			var refreshNeed authRefreshNeed
+			refresh := false
+			if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
+				// refresh user
+				refreshNeed.user = true
+				refresh = true
+			}
+			if strings.Contains(wwwAuth, "refresh_device_session=1") {
+				// refresh device session
+				refreshNeed.device = true
+				refresh = true
+			}
+			if refresh {
+				err := s.refreshAuth(user, refreshNeed)
+				if err != nil {
+					return nil, err
+				}
+				// close previous response and retry
+				resp.Body.Close()
+				authRefreshes++
+				continue
+			}
+		}
+
+		return resp, err
+	}
+}
+
+type authRefreshNeed struct {
+	device bool
+	user   bool
+}
+
+func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
+	if need.user {
+		// refresh user
+		err := s.refreshUser(user)
+		if err != nil {
+			return err
 		}
 	}
+	if need.device {
+		// refresh device session
+		if s.authContext == nil {
+			return fmt.Errorf("internal error: no authContext")
+		}
+		device, err := s.authContext.Device()
+		if err != nil {
+			return err
+		}
 
-	return resp, err
+		err = s.refreshDeviceSession(device)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // build a new http.Request with headers for the store
@@ -906,7 +951,13 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set("X-Ubuntu-Series", s.series)
 	req.Header.Set("X-Ubuntu-Classic", strconv.FormatBool(release.OnClassic))
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
+	// still send this for now
 	req.Header.Set("X-Ubuntu-No-CDN", strconv.FormatBool(s.noCDN))
+	// TODO: do this only for download
+	err = s.cdnHeader(req, reqOptions)
+	if err != nil {
+		return nil, err
+	}
 
 	if reqOptions.ContentType != "" {
 		req.Header.Set("Content-Type", reqOptions.ContentType)
@@ -919,6 +970,44 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	s.setStoreID(req)
 
 	return req, nil
+}
+
+func (s *Store) cdnHeader(req *http.Request, reqOptions *requestOptions) error {
+	if s.noCDN {
+		req.Header.Set("Snap-CDN", "none")
+		return nil
+	}
+
+	if s.authContext == nil {
+		return nil
+	}
+
+	// set Snap-CDN from cloud instance information
+	// if available
+
+	// TODO: do we want a more complex retry strategy
+	// where we first to send this header and if the
+	// operation fails that way to even get the connection
+	// then we retry without sending this?
+
+	cloudInfo, err := s.authContext.CloudInfo()
+	if err != nil {
+		return err
+	}
+
+	if cloudInfo != nil {
+		cdnParams := []string{fmt.Sprintf("cloud-name=%q", cloudInfo.Name)}
+		if cloudInfo.Region != "" {
+			cdnParams = append(cdnParams, fmt.Sprintf("region=%q", cloudInfo.Region))
+		}
+		if cloudInfo.AvailabilityZone != "" {
+			cdnParams = append(cdnParams, fmt.Sprintf("availability-zone=%q", cloudInfo.AvailabilityZone))
+		}
+
+		req.Header.Set("Snap-CDN", strings.Join(cdnParams, " "))
+	}
+
+	return nil
 }
 
 func (s *Store) extractSuggestedCurrency(resp *http.Response) {
