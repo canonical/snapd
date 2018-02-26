@@ -604,6 +604,9 @@ func (app *AppInfo) launcherCommand(command string) string {
 
 // LauncherCommand returns the launcher command line to use when invoking the app binary.
 func (app *AppInfo) LauncherCommand() string {
+	if app.Timer != nil {
+		return app.launcherCommand(fmt.Sprintf("--timer=%q", app.Timer.Timer))
+	}
 	return app.launcherCommand("")
 }
 

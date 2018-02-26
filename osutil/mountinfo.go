@@ -46,9 +46,6 @@ type MountInfoEntry struct {
 	SuperOptions   map[string]string
 }
 
-// ProcSelfMountInfo is a path to the mountinfo table of the current process.
-const ProcSelfMountInfo = "/proc/self/mountinfo"
-
 // LoadMountInfo loads list of mounted entries from a given file.
 //
 // The file is typically ProcSelfMountInfo but any other process mount table
