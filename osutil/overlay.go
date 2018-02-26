@@ -50,7 +50,8 @@ func IsRootWritableOverlay() (string, error) {
 		if entry.FsType == "overlay" && entry.MountDir == "/" {
 			if dir, ok := entry.SuperOptions["upperdir"]; ok {
 				// upperdir must be an absolute path without
-				// any AARE characters to be considered
+				// any AppArmor regular expression (AARE)
+				// characters to be considered
 				if !strings.HasPrefix(dir, "/") || strings.ContainsAny(dir, "?*[]{}^\"") {
 					continue
 				}
