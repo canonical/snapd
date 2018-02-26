@@ -21,6 +21,7 @@ package wrappers_test
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -325,6 +326,9 @@ WantedBy=multi-user.target
 
 func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 	systemdAnalyzePath, _ := exec.LookPath("systemd-analyze")
+	if systemdAnalyzePath == "" {
+		fmt.Fprintln(os.Stderr, "WARNING: generated schedules will not verified by systemd-analyze")
+	}
 
 	for _, t := range []struct {
 		in         string
