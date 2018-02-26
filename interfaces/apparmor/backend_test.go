@@ -376,7 +376,9 @@ snippet
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	restore := release.MockAppArmorLevel(release.FullAppArmor)
 	defer restore()
-	restore = osutil.MockMountInfo("") // mock away NFS/overlay detection
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
 	defer restore()
 
 	// NOTE: replace the real template with a shorter variant
@@ -552,76 +554,10 @@ func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 	c.Check(l, DeepEquals, []string{dirsAreKept, symlinksAreKept})
 }
 
-func (s *backendSuite) TestIsHomeUsingNFS(c *C) {
-	cases := []struct {
-		mountinfo, fstab string
-		nfs              bool
-		errorPattern     string
-	}{{
-		// Errors from parsing mountinfo and fstab are propagated.
-		mountinfo:    "bad syntax",
-		errorPattern: "cannot parse .*/mountinfo.*, .*",
-	}, {
-		fstab:        "bad syntax",
-		errorPattern: "cannot parse .*/fstab.*, .*",
-	}, {
-		// NFSv3 {tcp,udp} and NFSv4 currently mounted at /home/zyga/nfs are recognized.
-		mountinfo: "1074 28 0:59 / /home/zyga/nfs rw,relatime shared:342 - nfs localhost:/srv/nfs rw,vers=3,rsize=1048576,wsize=1048576,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,mountaddr=127.0.0.1,mountvers=3,mountport=54125,mountproto=tcp,local_lock=none,addr=127.0.0.1",
-		nfs:       true,
-	}, {
-		mountinfo: "1074 28 0:59 / /home/zyga/nfs rw,relatime shared:342 - nfs localhost:/srv/nfs rw,vers=3,rsize=32768,wsize=32768,namlen=255,hard,proto=udp,timeo=11,retrans=3,sec=sys,mountaddr=127.0.0.1,mountvers=3,mountport=47875,mountproto=udp,local_lock=none,addr=127.0.0.1",
-		nfs:       true,
-	}, {
-		mountinfo: "680 27 0:59 / /home/zyga/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1",
-		nfs:       true,
-	}, {
-		// NFSv3 {tcp,udp} and NFSv4 currently mounted at /home/zyga/nfs are ignored (not in $HOME).
-		mountinfo: "1074 28 0:59 / /mnt/nfs rw,relatime shared:342 - nfs localhost:/srv/nfs rw,vers=3,rsize=1048576,wsize=1048576,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,mountaddr=127.0.0.1,mountvers=3,mountport=54125,mountproto=tcp,local_lock=none,addr=127.0.0.1",
-	}, {
-		mountinfo: "1074 28 0:59 / /mnt/nfs rw,relatime shared:342 - nfs localhost:/srv/nfs rw,vers=3,rsize=32768,wsize=32768,namlen=255,hard,proto=udp,timeo=11,retrans=3,sec=sys,mountaddr=127.0.0.1,mountvers=3,mountport=47875,mountproto=udp,local_lock=none,addr=127.0.0.1",
-	}, {
-		mountinfo: "680 27 0:59 / /mnt/nfs rw,relatime shared:478 - nfs4 localhost:/srv/nfs rw,vers=4.2,rsize=524288,wsize=524288,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=127.0.0.1,local_lock=none,addr=127.0.0.1",
-	}, {
-		// NFS that may be mounted at /home and /home/zyga/nfs is recognized.
-		// Two spellings are possible, "nfs" and "nfs4" (they are equivalent
-		// nowadays).
-		fstab: "localhost:/srv/nfs /home nfs defaults 0 0",
-		nfs:   true,
-	}, {
-		fstab: "localhost:/srv/nfs /home nfs4 defaults 0 0",
-		nfs:   true,
-	}, {
-		fstab: "localhost:/srv/nfs /home/zyga/nfs nfs defaults 0 0",
-		nfs:   true,
-	}, {
-		fstab: "localhost:/srv/nfs /home/zyga/nfs nfs4 defaults 0 0",
-		nfs:   true,
-	}, {
-		// NFS that may be mounted at /mnt/nfs is ignored (not in $HOME).
-		fstab: "localhost:/srv/nfs /mnt/nfs nfs defaults 0 0",
-	}}
-	for _, tc := range cases {
-		restore := osutil.MockMountInfo(tc.mountinfo)
-		defer restore()
-		restore = osutil.MockEtcFstab(tc.fstab)
-		defer restore()
-
-		nfs, err := osutil.IsHomeUsingNFS()
-		if tc.errorPattern != "" {
-			c.Assert(err, ErrorMatches, tc.errorPattern, Commentf("test case %#v", tc))
-		} else {
-			c.Assert(err, IsNil)
-		}
-		c.Assert(nfs, Equals, tc.nfs)
-	}
-}
-
 // snap-confine policy when NFS is not used.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoNFS(c *C) {
 	// Make it appear as if NFS was not used.
-	restore := osutil.MockMountInfo("")
-	defer restore()
-	restore = osutil.MockEtcFstab("")
+	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -643,30 +579,6 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoNFS(c *C) {
 	c.Assert(cmd.Calls(), HasLen, 0)
 }
 
-func MockEnableNFSWorkaroundCondition() (restore func()) {
-	// Mock mountinfo and fstab so that snapd thinks that NFS workaround
-	// is necessary. The details don't matter here. See TestIsHomeUsingNFS
-	// for details about what triggers the workaround.
-	restore1 := osutil.MockMountInfo("")
-	restore2 := osutil.MockEtcFstab("localhost:/srv/nfs /home nfs4 defaults 0 0")
-	return func() {
-		restore1()
-		restore2()
-	}
-}
-
-func MockDisableNFSWorkaroundCondition() (restore func()) {
-	// Mock mountinfo and fstab so that snapd thinks that NFS workaround is not
-	// necessary. The details don't matter here. See TestIsHomeUsingNFS for
-	// details about what triggers the workaround.
-	restore1 := osutil.MockMountInfo("")
-	restore2 := osutil.MockEtcFstab("")
-	return func() {
-		restore1()
-		restore2()
-	}
-}
-
 // Ensure that both names of the snap-confine apparmor profile are supported.
 
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS1(c *C) {
@@ -680,7 +592,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS2(c *C) {
 // snap-confine policy when NFS is used and snapd has not re-executed.
 func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileFname string) {
 	// Make it appear as if NFS workaround was needed.
-	restore := MockEnableNFSWorkaroundCondition()
+	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -735,7 +647,7 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileF
 // snap-confine policy when NFS is used and snapd has re-executed.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C) {
 	// Make it appear as if NFS workaround was needed.
-	restore := MockEnableNFSWorkaroundCondition()
+	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -775,8 +687,8 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C)
 
 // Test behavior when isHomeUsingNFS fails.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
-	// Make corrupt mountinfo.
-	restore := osutil.MockMountInfo("corrupt")
+	// Make it appear as if NFS detection was broken.
+	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, fmt.Errorf("broken") })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -812,7 +724,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 // Test behavior when os.Readlink "/proc/self/exe" fails.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 	// Make it appear as if NFS workaround was needed.
-	restore := MockEnableNFSWorkaroundCondition()
+	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -841,7 +753,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 // Test behavior when exec.Command "apparmor_parser" fails
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 	// Make it appear as if NFS workaround was needed.
-	restore := MockEnableNFSWorkaroundCondition()
+	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser and make it fail.
@@ -895,7 +807,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
 	}
 
 	// Make it appear as if NFS workaround was not needed.
-	restore := MockDisableNFSWorkaroundCondition()
+	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser and make it fail.
@@ -936,48 +848,10 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError5(c *C) {
 	c.Assert(cmd.Calls(), HasLen, 0)
 }
 
-func (s *backendSuite) TestIsRootWritableOverlay(c *C) {
-	cases := []struct {
-		mountinfo    string
-		overlay      string
-		errorPattern string
-	}{{
-		// Errors from parsing mountinfo are propagated.
-		mountinfo:    "bad syntax",
-		errorPattern: "cannot parse .*/mountinfo.*, .*",
-	}, {
-		// overlay mounted on / are recognized
-		// casper mount source
-		mountinfo: "31 1 0:26 / / rw,relatime shared:1 - overlay /cow rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
-		overlay:   "/upper",
-	}, {
-		// non-casper mount source
-		mountinfo: "31 1 0:26 / / rw,relatime shared:1 - overlay overlay rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
-		overlay:   "/cow/upper",
-	}, {
-		// overlay mounted elsewhere are ignored
-		mountinfo: "31 1 0:26 /elsewhere /elsewhere rw,relatime shared:1 - overlay /cow rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
-	}, {
-		mountinfo: "31 1 0:26 /elsewhere /elsewhere rw,relatime shared:1 - overlay overlay rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
-	}}
-	for _, tc := range cases {
-		restore := osutil.MockMountInfo(tc.mountinfo)
-		defer restore()
-
-		overlay, err := osutil.IsRootWritableOverlay()
-		if tc.errorPattern != "" {
-			c.Assert(err, ErrorMatches, tc.errorPattern, Commentf("test case %#v", tc))
-		} else {
-			c.Assert(err, IsNil)
-		}
-		c.Assert(overlay, Equals, tc.overlay)
-	}
-}
-
 // snap-confine policy when overlay is not used.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoOverlay(c *C) {
 	// Make it appear as if overlay was not used.
-	restore := osutil.MockMountInfo("")
+	restore := apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -999,28 +873,6 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyNoOverlay(c *C) {
 	c.Assert(cmd.Calls(), HasLen, 0)
 }
 
-func MockEnableOverlayWorkaroundCondition() (restore func()) {
-	// Mock mountinfo so that snapd thinks that overlay workaround
-	// is necessary. The details don't matter here. See
-	// TestIsRootWritableOverlay for details about what triggers the
-	// workaround.
-	restore1 := osutil.MockMountInfo("31 1 0:26 / / rw,relatime shared:1 - overlay /cow rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work")
-	return func() {
-		restore1()
-	}
-}
-
-func MockDisableOverlayWorkaroundCondition() (restore func()) {
-	// Mock mountinfo so that snapd thinks that overlay workaround is not
-	// necessary. The details don't matter here. See
-	// TestIsRootWritableOverlay for details about what triggers the
-	// workaround.
-	restore1 := osutil.MockMountInfo("")
-	return func() {
-		restore1()
-	}
-}
-
 // Ensure that both names of the snap-confine apparmor profile are supported.
 
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlay1(c *C) {
@@ -1034,7 +886,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlay2(c *C) {
 // snap-confine policy when overlay is used and snapd has not re-executed.
 func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithOverlay(c *C, profileFname string) {
 	// Make it appear as if overlay workaround was needed.
-	restore := MockEnableOverlayWorkaroundCondition()
+	restore := apparmor.MockIsRootWritableOverlay(func() (string, error) { return "/upper", nil })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -1089,7 +941,7 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithOverlay(c *C, prof
 // snap-confine policy when overlay is used and snapd has re-executed.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlayAndReExec(c *C) {
 	// Make it appear as if overlay workaround was needed.
-	restore := MockEnableOverlayWorkaroundCondition()
+	restore := apparmor.MockIsRootWritableOverlay(func() (string, error) { return "/upper", nil })
 	defer restore()
 
 	// Intercept interaction with apparmor_parser
@@ -1136,17 +988,17 @@ type nfsAndOverlaySnippetsScenario struct {
 var nfsAndOverlaySnippetsScenarios = []nfsAndOverlaySnippetsScenario{{
 	// By default apparmor is enforcing mode.
 	opts:           interfaces.ConfinementOptions{},
-	overlaySnippet: `"/cow/upper/{,**/}" r,`,
+	overlaySnippet: `"/upper/{,**/}" r,`,
 	nfsSnippet:     "network inet,\n  network inet6,",
 }, {
 	// DevMode switches apparmor to non-enforcing (complain) mode.
 	opts:           interfaces.ConfinementOptions{DevMode: true},
-	overlaySnippet: `"/cow/upper/{,**/}" r,`,
+	overlaySnippet: `"/upper/{,**/}" r,`,
 	nfsSnippet:     "network inet,\n  network inet6,",
 }, {
 	// JailMode switches apparmor to enforcing mode even in the presence of DevMode.
 	opts:           interfaces.ConfinementOptions{DevMode: true, JailMode: true},
-	overlaySnippet: `"/cow/upper/{,**/}" r,`,
+	overlaySnippet: `"/upper/{,**/}" r,`,
 	nfsSnippet:     "network inet,\n  network inet6,",
 }, {
 	// Classic confinement (without jailmode) uses apparmor in complain mode by default and ignores all snippets.
@@ -1157,24 +1009,24 @@ var nfsAndOverlaySnippetsScenarios = []nfsAndOverlaySnippetsScenario{{
 	// Classic confinement in JailMode uses enforcing apparmor.
 	opts: interfaces.ConfinementOptions{Classic: true, JailMode: true},
 	// FIXME: logic in backend.addContent is wrong for this case
-	//overlaySnippet: `"/cow/upper/{,**/}" r,`,
+	//overlaySnippet: `"/upper/{,**/}" r,`,
 	//nfsSnippet: "network inet,\n  network inet6,",
 	overlaySnippet: "",
 	nfsSnippet:     "",
 }}
 
 func (s *backendSuite) TestNFSAndOverlaySnippets(c *C) {
-	restoreAppArmorLevel := release.MockAppArmorLevel(release.FullAppArmor)
-	defer restoreAppArmorLevel()
-	restoreNFS := MockEnableNFSWorkaroundCondition()
-	defer restoreNFS()
-	restoreMountInfo := osutil.MockMountInfo("31 1 0:26 / / rw,relatime shared:1 - overlay overlay rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work\n")
-	defer restoreMountInfo()
+	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
+	defer restore()
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "/upper", nil })
+	defer restore()
+	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+		return nil
+	}
 
 	for _, scenario := range nfsAndOverlaySnippetsScenarios {
-		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-			return nil
-		}
 		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 1)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		c.Check(profile, testutil.FileContains, scenario.overlaySnippet)
@@ -1208,15 +1060,17 @@ var casperOverlaySnippetsScenarios = []nfsAndOverlaySnippetsScenario{{
 }}
 
 func (s *backendSuite) TestCasperOverlaySnippets(c *C) {
-	restoreAppArmorLevel := release.MockAppArmorLevel(release.FullAppArmor)
-	defer restoreAppArmorLevel()
-	restoreMountInfo := osutil.MockMountInfo("31 1 0:26 / / rw,relatime shared:1 - overlay /cow rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work\n")
-	defer restoreMountInfo()
+	restore := release.MockAppArmorLevel(release.FullAppArmor)
+	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "/upper", nil })
+	defer restore()
+	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+		return nil
+	}
 
 	for _, scenario := range casperOverlaySnippetsScenarios {
-		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-			return nil
-		}
 		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 1)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		c.Check(profile, testutil.FileContains, scenario.overlaySnippet)
