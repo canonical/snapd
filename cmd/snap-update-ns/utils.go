@@ -41,7 +41,6 @@ const (
 var (
 	osLstat    = os.Lstat
 	osReadlink = os.Readlink
-	osSymlink  = os.Symlink
 	osRemove   = os.Remove
 
 	sysClose   = syscall.Close
@@ -51,6 +50,7 @@ var (
 	sysOpenat  = syscall.Openat
 	sysUnmount = syscall.Unmount
 	sysFchown  = sys.Fchown
+	sysSymlink = syscall.Symlink
 
 	ioutilReadDir = ioutil.ReadDir
 )
@@ -301,7 +301,7 @@ func secureMklinkAll(name string, perm os.FileMode, uid sys.UserID, gid sys.Grou
 		return err
 	}
 	// TODO: roll this uber securely like the code above does using linkat(2).
-	err = osSymlink(oldname, name)
+	err = sysSymlink(oldname, name)
 	if err == syscall.EROFS {
 		return &ReadOnlyFsError{Path: parent}
 	}
