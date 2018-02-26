@@ -57,26 +57,19 @@ func flattenMap(m map[string]string) string {
 	var buf bytes.Buffer
 	for i, key := range keys {
 		if i > 0 {
-			fmt.Fprintf(&buf, ",")
+			buf.WriteString(",")
 		}
 		if m[key] != "" {
 			fmt.Fprintf(&buf, "%s=%s", key, m[key])
 		} else {
-			fmt.Fprintf(&buf, "%s", key)
+			buf.WriteString(key)
 		}
 	}
 	return buf.String()
 }
 
 func flattenList(l []string) string {
-	var buf bytes.Buffer
-	for i, el := range l {
-		if i > 0 {
-			fmt.Fprintf(&buf, ",")
-		}
-		fmt.Fprintf(&buf, "%s", el)
-	}
-	return buf.String()
+	return strings.Join(l, ",")
 }
 
 func (mi *MountInfoEntry) String() string {
