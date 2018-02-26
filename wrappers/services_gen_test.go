@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/timeout"
+	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -383,8 +384,10 @@ func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 	}} {
 		c.Logf("trying %+v", t)
 
-		timer, err := wrappers.GenerateOnCalendarSchedules(t.in)
+		schedule, err := timeutil.ParseSchedule(t.in)
 		c.Check(err, IsNil)
+
+		timer := wrappers.GenerateOnCalendarSchedules(schedule)
 		c.Check(timer, Not(IsNil))
 		if !t.randomized {
 			c.Check(timer, DeepEquals, t.expected)

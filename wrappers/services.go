@@ -504,16 +504,10 @@ func makeAbbrevWeekdays(start time.Weekday, end time.Weekday) []string {
 	return out
 }
 
-// generateOnCalendarSchedules converts a timer specification into OnCalendar
-// schedules suitable for use in systemd *.timer units using systemd.time(7)
+// generateOnCalendarSchedules converts a schedule into OnCalendar schedules
+// suitable for use in systemd *.timer units using systemd.time(7)
 // https://www.freedesktop.org/software/systemd/man/systemd.time.html
-func generateOnCalendarSchedules(timer string) ([]string, error) {
-
-	schedule, err := timeutil.ParseSchedule(timer)
-	if err != nil {
-		return nil, err
-	}
-
+func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 	calendarEvents := make([]string, 0, len(schedule))
 	for _, sched := range schedule {
 		days := make([]string, 0, len(sched.WeekSpans))
@@ -590,5 +584,5 @@ func generateOnCalendarSchedules(timer string) ([]string, error) {
 			}
 		}
 	}
-	return calendarEvents, nil
+	return calendarEvents
 }
