@@ -26,6 +26,7 @@ find "$HERE" -name "*.go" -type f -print0 | xargs -0 \
 
 xgettext "$HERE"/data/polkit/*.policy \
     -o "$OUTPUT" \
+    --its="$HERE/po/its/polkit.its" \
     --no-location \
     --package-name=snappy \
     --msgid-bugs-address=snappy-devel@lists.ubuntu.com \
