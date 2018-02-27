@@ -196,6 +196,8 @@ const (
 	prepareSlotHook
 	connectPlugHook
 	connectSlotHook
+	disconnectPlugHook
+	disconnectSlotHook
 	unknownHook
 )
 
@@ -208,6 +210,10 @@ func interfaceHookType(hookName string) (ifaceHookType, error) {
 		return prepareSlotHook, nil
 	} else if strings.HasPrefix(hookName, "connect-slot-") {
 		return connectSlotHook, nil
+	} else if strings.HasPrefix(hookName, "disconnect-plug-") {
+		return disconnectPlugHook, nil
+	} else if strings.HasPrefix(hookName, "disconnect-slot-") {
+		return disconnectSlotHook, nil
 	}
 	return unknownHook, fmt.Errorf("unknown hook type")
 }

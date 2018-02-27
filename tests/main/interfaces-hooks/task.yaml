@@ -62,6 +62,7 @@ execute: |
 
     # make sure disconnect hooks are executed
     snap disconnect basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer
-    # producer/consumer hooks dump marker files, check if they exist to verify hooks were run
+
+    # producer/consumer disconnect hooks dump marker files, check if they exist to verify hooks were run
     [ -f "$CONSUMER_DATA/disconnect-plug-consumer-done" ]
     [ -f "$PRODUCER_DATA/disconnect-slot-producer-done" ]
