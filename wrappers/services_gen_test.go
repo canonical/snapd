@@ -21,15 +21,17 @@ package wrappers_test
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"strings"
 
 	. "gopkg.in/check.v1"
-
-	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/timeout"
+	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -320,4 +322,90 @@ WantedBy=multi-user.target
 
 	c.Logf("service: \n%v\n", string(generatedWrapper))
 	c.Assert(string(generatedWrapper), Equals, expectedService)
+}
+
+func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
+	systemdAnalyzePath, _ := exec.LookPath("systemd-analyze")
+	if systemdAnalyzePath == "" {
+		fmt.Fprintln(os.Stderr, "WARNING: generated schedules will not verified by systemd-analyze")
+	}
+
+	for _, t := range []struct {
+		in         string
+		expected   []string
+		randomized bool
+	}{{
+		in:       "9:00-11:00,,20:00-22:00",
+		expected: []string{"*-*-* 09:00", "*-*-* 20:00"},
+	}, {
+		in:       "9:00-11:00/2,,20:00",
+		expected: []string{"*-*-* 09:00", "*-*-* 10:00", "*-*-* 20:00"},
+	}, {
+		in:         "9:00~11:00/2,,20:00",
+		expected:   []string{`\*-\*-\* 09:[0-5][0-9]`, `\*-\*-\* 10:[0-5][0-9]`, `\*-\*-\* 20:00`},
+		randomized: true,
+	}, {
+		in:       "mon,10:00,,fri,15:00",
+		expected: []string{"Mon *-*-* 10:00", "Fri *-*-* 15:00"},
+	}, {
+		in:       "mon-fri,10:00-11:00",
+		expected: []string{"Mon,Tue,Wed,Thu,Fri *-*-* 10:00"},
+	}, {
+		in:       "fri-mon,10:00-11:00",
+		expected: []string{"Fri,Sat,Sun,Mon *-*-* 10:00"},
+	}, {
+		in:       "mon5,10:00",
+		expected: []string{"Mon *-*~7/1 10:00"},
+	}, {
+		in:       "mon2,10:00",
+		expected: []string{"Mon *-*-8..14/1 10:00"},
+	}, {
+		in:       "mon2,mon1,10:00",
+		expected: []string{"Mon *-*-8..14/1 10:00", "Mon *-*-1..7/1 10:00"},
+	}, {
+		// NOTE: non-representable, assumes that service runner does the
+		// filtering of when to run the timer
+		in:       "mon1-mon3,10:00",
+		expected: []string{"*-*-1..21/1 10:00"},
+	}, {
+		in:         "mon,10:00~12:00,,fri,15:00",
+		expected:   []string{`Mon \*-\*-\* 1[01]:[0-5][0-9]`, `Fri \*-\*-\* 15:00`},
+		randomized: true,
+	}, {
+		in:         "23:00~24:00/4",
+		expected:   []string{`\*-\*-\* 23:[01][0-9]`, `\*-\*-\* 23:[12][0-9]`, `\*-\*-\* 23:[34][0-9]`, `*-*-* 23:[45][0-9]`},
+		randomized: true,
+	}, {
+		in:         "23:00~01:00/4",
+		expected:   []string{`\*-\*-\* 23:[0-2][0-9]`, `\*-\*-\* 23:[3-5][0-9]`, `\*-\*-\* 00:[0-2][0-9]`, `\*-\*-\* 00:[3-5][0-9]`},
+		randomized: true,
+	}, {
+		in:       "23:00-01:00/4",
+		expected: []string{`*-*-* 23:00`, `*-*-* 23:30`, `*-*-* 00:00`, `*-*-* 00:30`},
+	}, {
+		in:       "24:00",
+		expected: []string{`*-*-* 00:00`},
+	}} {
+		c.Logf("trying %+v", t)
+
+		schedule, err := timeutil.ParseSchedule(t.in)
+		c.Check(err, IsNil)
+
+		timer := wrappers.GenerateOnCalendarSchedules(schedule)
+		c.Check(timer, Not(IsNil))
+		if !t.randomized {
+			c.Check(timer, DeepEquals, t.expected)
+		} else {
+			c.Assert(timer, HasLen, len(t.expected))
+			for i := range timer {
+				c.Check(timer[i], Matches, t.expected[i])
+			}
+		}
+
+		if systemdAnalyzePath != "" {
+			cmd := exec.Command(systemdAnalyzePath, append([]string{"calendar"}, timer...)...)
+			out, err := cmd.CombinedOutput()
+			c.Check(err, IsNil, Commentf("systemd-analyze failed with output:\n%s", string(out)))
+		}
+	}
 }
