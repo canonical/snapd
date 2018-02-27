@@ -65,10 +65,16 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 	serviceName := app.ServiceName()
 	tout := serviceStopTimeout(app)
 
-	socketErrors := []error{}
+	stopErrors := []error{}
 	for _, socket := range app.Sockets {
 		if err := sysd.Stop(filepath.Base(socket.File()), tout); err != nil {
-			socketErrors = append(socketErrors, err)
+			stopErrors = append(stopErrors, err)
+		}
+	}
+
+	if app.Timer != nil {
+		if err := sysd.Stop(filepath.Base(app.Timer.File()), tout); err != nil {
+			stopErrors = append(stopErrors, err)
 		}
 	}
 
@@ -84,8 +90,8 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 
 	}
 
-	if len(socketErrors) > 0 {
-		return socketErrors[0]
+	if len(stopErrors) > 0 {
+		return stopErrors[0]
 	}
 
 	return nil
@@ -115,9 +121,15 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 					inter.Notify(fmt.Sprintf("While trying to disable previously enabled socket service %q: %v", socketService, e))
 				}
 			}
+			if app.Timer != nil {
+				timerService := filepath.Base(app.Timer.File())
+				if e := sysd.Disable(timerService); e != nil {
+					inter.Notify(fmt.Sprintf("While trying to disable previously enabled timer service %q: %v", timerService, e))
+				}
+			}
 		}(app)
 
-		if len(app.Sockets) == 0 {
+		if len(app.Sockets) == 0 && app.Timer == nil {
 			services = append(services, app.ServiceName())
 		}
 
@@ -129,6 +141,18 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 			}
 
 			if err := sysd.Start(socketService); err != nil {
+				return err
+			}
+		}
+
+		if app.Timer != nil {
+			timerService := filepath.Base(app.Timer.File())
+			// enable the timer
+			if err := sysd.Enable(timerService); err != nil {
+				return err
+			}
+
+			if err := sysd.Start(timerService); err != nil {
 				return err
 			}
 		}
@@ -198,6 +222,22 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 				return err
 			}
 			written = append(written, path)
+		}
+
+		if app.Timer != nil {
+			content, err := generateSnapTimerFile(app)
+			if err != nil {
+				return err
+			}
+			path := app.Timer.File()
+			os.MkdirAll(filepath.Dir(path), 0755)
+			if err := osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
+				return err
+			}
+			written = append(written, path)
+			// service is activated via timers only and not during
+			// the boot
+			continue
 		}
 
 		svcName := app.ServiceName()
@@ -294,6 +334,19 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 				logger.Noticef("Failed to remove socket file %q for %q: %v", path, serviceName, err)
+			}
+		}
+
+		if app.Timer != nil {
+			path := app.Timer.File()
+
+			timerName := filepath.Base(path)
+			if err := sysd.Disable(timerName); err != nil {
+				return err
+			}
+
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				logger.Noticef("Failed to remove timer file %q for %q: %v", path, serviceName, err)
 			}
 		}
 
@@ -494,6 +547,57 @@ func renderListenStream(socket *snap.SocketInfo) string {
 	snap := socket.App.Snap
 	listenStream := strings.Replace(socket.ListenStream, "$SNAP_DATA", snap.DataDir(), -1)
 	return strings.Replace(listenStream, "$SNAP_COMMON", snap.CommonDataDir(), -1)
+}
+
+func generateSnapTimerFile(app *snap.AppInfo) ([]byte, error) {
+	timerTemplate := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Timer {{.TimerName}} for snap application {{.App.Snap.Name}}.{{.App.Name}}
+Requires={{.MountUnit}}
+After={{.MountUnit}}
+X-Snappy=yes
+
+[Timer]
+Unit={{.ServiceFileName}}
+{{ range .Schedules }}OnCalendar={{ . }}
+{{- end }}
+
+[Install]
+WantedBy={{.TimersTarget}}
+`
+	var templateOut bytes.Buffer
+	t := template.Must(template.New("timer-wrapper").Parse(timerTemplate))
+
+	timerSchedule, err := timeutil.ParseSchedule(app.Timer.Timer)
+	if err != nil {
+		return nil, err
+	}
+
+	schedules := generateOnCalendarSchedules(timerSchedule)
+
+	wrapperData := struct {
+		App             *snap.AppInfo
+		ServiceFileName string
+		TimersTarget    string
+		TimerName       string
+		MountUnit       string
+		Schedules       []string
+	}{
+		App:             app,
+		ServiceFileName: filepath.Base(app.ServiceFile()),
+		TimersTarget:    systemd.TimersTarget,
+		TimerName:       app.Name,
+		MountUnit:       filepath.Base(systemd.MountUnitPath(app.Snap.MountDir())),
+		Schedules:       schedules,
+	}
+
+	if err := t.Execute(&templateOut, wrapperData); err != nil {
+		// this can never happen, except we forget a variable
+		logger.Panicf("Unable to execute template: %v", err)
+	}
+
+	return templateOut.Bytes(), nil
+
 }
 
 func makeAbbrevWeekdays(start time.Weekday, end time.Weekday) []string {

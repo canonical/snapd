@@ -324,6 +324,112 @@ WantedBy=multi-user.target
 	c.Assert(string(generatedWrapper), Equals, expectedService)
 }
 
+func (s *servicesWrapperGenSuite) TestServiceTimerUnit(c *C) {
+	const expectedServiceFmt = `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Timer app for snap application snap.app
+Requires=%s-snap-44.mount
+After=%s-snap-44.mount
+X-Snappy=yes
+
+[Timer]
+Unit=snap.snap.app.service
+OnCalendar=*-*-* 10:00
+
+[Install]
+WantedBy=timers.target
+`
+
+	expectedService := fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix)
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		StopTimeout: timeout.DefaultTimeout,
+		Timer: &snap.TimerInfo{
+			Timer: "10:00-12:00",
+		},
+	}
+	service.Timer.App = service
+
+	generatedWrapper, err := wrappers.GenerateSnapTimerFile(service)
+	c.Assert(err, IsNil)
+
+	c.Logf("timer: \n%v\n", string(generatedWrapper))
+	c.Assert(string(generatedWrapper), Equals, expectedService)
+}
+
+func (s *servicesWrapperGenSuite) TestServiceTimerUnitBadTimer(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		StopTimeout: timeout.DefaultTimeout,
+		Timer: &snap.TimerInfo{
+			Timer: "bad-timer",
+		},
+	}
+	service.Timer.App = service
+
+	generatedWrapper, err := wrappers.GenerateSnapTimerFile(service)
+	c.Assert(err, ErrorMatches, `cannot parse "bad-timer": "bad" is not a valid weekday`)
+	c.Assert(generatedWrapper, IsNil)
+}
+
+func (s *servicesWrapperGenSuite) TestServiceTimerServiceUnit(c *C) {
+	const expectedServiceFmt = `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+Requires=%s-snap-44.mount
+Wants=network-online.target
+After=%s-snap-44.mount network-online.target
+X-Snappy=yes
+
+[Service]
+ExecStart=/usr/bin/snap run --timer="10:00-12:00,,mon,23:00~01:00/2" snap.app
+SyslogIdentifier=snap.app
+Restart=%s
+WorkingDirectory=/var/snap/snap/44
+TimeoutStopSec=30
+Type=%s
+
+[Install]
+WantedBy=multi-user.target
+`
+
+	expectedService := fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple")
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		StopTimeout: timeout.DefaultTimeout,
+		Timer: &snap.TimerInfo{
+			Timer: "10:00-12:00,,mon,23:00~01:00/2",
+		},
+	}
+
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+	c.Assert(err, IsNil)
+
+	c.Logf("service: \n%v\n", string(generatedWrapper))
+	c.Assert(string(generatedWrapper), Equals, expectedService)
+}
+
 func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 	systemdAnalyzePath, _ := exec.LookPath("systemd-analyze")
 	if systemdAnalyzePath == "" {
