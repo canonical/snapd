@@ -1,0 +1,2 @@
+#!/bin/sh
+touch "$SNAP_COMMON/disconnect-plug-consumer-done"
