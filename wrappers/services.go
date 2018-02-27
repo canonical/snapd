@@ -555,7 +555,7 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 				if span.Spread {
 					length := span.End.Sub(span.Start)
 					if length < 0 {
-						// span Start wraps around, so we have '23:45.Sub(0:00)'
+						// span Start wraps around, so we have '00:00.Sub(23:45)'
 						length = -length
 					}
 					if length > 5*time.Minute {
