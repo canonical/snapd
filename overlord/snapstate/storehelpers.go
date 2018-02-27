@@ -262,6 +262,7 @@ func installedContext(st *state.State) ([]*store.CurrentSnap, error) {
 			SnapID:           snapInfo.SnapID,
 			TrackingChannel:  snapst.Channel,
 			Revision:         snapInfo.Revision,
+			RefreshedDate:    revisionDate(snapInfo),
 			IgnoreValidation: snapst.IgnoreValidation,
 		}
 		installedCtxt = append(installedCtxt, installed)
@@ -321,6 +322,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 			TrackingChannel:  snapst.Channel,
 			SnapID:           snapInfo.SnapID,
 			Revision:         snapInfo.Revision,
+			RefreshedDate:    revisionDate(snapInfo),
 			IgnoreValidation: snapst.IgnoreValidation,
 		}
 		installedCtxt = append(installedCtxt, installed)

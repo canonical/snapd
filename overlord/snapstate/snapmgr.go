@@ -230,6 +230,17 @@ func readInfoAnyway(name string, si *snap.SideInfo) (*snap.Info, error) {
 	return info, err
 }
 
+var revisionDate = revisionDateImpl
+
+// revisionDate returns a good approximation of when a revision reached the system.
+func revisionDateImpl(info *snap.Info) time.Time {
+	fi, err := os.Lstat(info.MountFile())
+	if err != nil {
+		return time.Time{}
+	}
+	return fi.ModTime()
+}
+
 // CurrentInfo returns the information about the current active revision or the last active revision (if the snap is inactive). It returns the ErrNoCurrent error if snapst.Current is unset.
 func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	cur := snapst.CurrentSideInfo()
