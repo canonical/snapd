@@ -84,9 +84,12 @@ func (s *mountinfoSuite) TestParseMountInfoEntry2(c *C) {
 
 // Check that white-space is unescaped correctly.
 func (s *mountinfoSuite) TestParseMountInfoEntry3(c *C) {
-	entry, err := osutil.ParseMountInfoEntry(
-		`36 35 98:0 /mnt\0401 /mnt\0402 rw\040,noatime mas\040ter:1 - ext\0403 /dev/ro\040ot rw\040,errors=continue`)
+	real := `36 35 98:0 /mnt\0401 /mnt\0402 noatime,rw\040 mas\040ter:1 - ext\0403 /dev/ro\040ot rw\040,errors=continue`
+	canonical := `36 35 98:0 /mnt\0401 /mnt\0402 noatime,rw\040 mas\040ter:1 - ext\0403 /dev/ro\040ot errors=continue,rw\040`
+	entry, err := osutil.ParseMountInfoEntry(real)
 	c.Assert(err, IsNil)
+	c.Assert(entry.String(), Equals, canonical)
+
 	c.Assert(entry.MountID, Equals, 36)
 	c.Assert(entry.ParentID, Equals, 35)
 	c.Assert(entry.DevMajor, Equals, 98)
