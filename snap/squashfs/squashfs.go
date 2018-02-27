@@ -21,6 +21,7 @@ package squashfs
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -28,6 +29,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -302,4 +304,34 @@ func (s *Snap) Build(buildDir string) error {
 			"-no-fragments",
 		).Run()
 	})
+}
+
+// BuildDate returns the "Creation or last append time" as reported by unsquashfs.
+func (s *Snap) BuildDate() time.Time {
+	return BuildDate(s.path)
+}
+
+// BuildDate returns the "Creation or last append time" as reported by unsquashfs.
+func BuildDate(path string) time.Time {
+	var t0 time.Time
+
+	buf, err := exec.Command("unsquashfs", "-s", path).Output()
+	if !(err == nil && bytes.HasPrefix(buf, []byte("Found a valid SQUASHFS"))) {
+		return t0
+	}
+	i := bytes.IndexByte(buf, '\n') + 1
+	if i <= 0 || i == len(buf) {
+		return t0
+	}
+	if !bytes.HasPrefix(buf[i:], []byte("Creation or last append time ")) {
+		return t0
+	}
+
+	i += len("Creation or last append time ")
+	j := i + bytes.IndexByte(buf[i:], '\n')
+	if j <= i {
+		return t0
+	}
+	t0, _ = time.Parse(time.ANSIC, string(buf[i:j]))
+	return t0
 }
