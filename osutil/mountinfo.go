@@ -57,19 +57,26 @@ func flattenMap(m map[string]string) string {
 	var buf bytes.Buffer
 	for i, key := range keys {
 		if i > 0 {
-			buf.WriteString(",")
+			buf.WriteRune(',')
 		}
 		if m[key] != "" {
-			fmt.Fprintf(&buf, "%s=%s", key, m[key])
+			fmt.Fprintf(&buf, "%s=%s", escape(key), escape(m[key]))
 		} else {
-			buf.WriteString(key)
+			buf.WriteString(escape(key))
 		}
 	}
 	return buf.String()
 }
 
 func flattenList(l []string) string {
-	return strings.Join(l, ",")
+	var buf bytes.Buffer
+	for i, item := range l {
+		if i > 0 {
+			buf.WriteRune(',')
+		}
+		buf.WriteString(escape(item))
+	}
+	return buf.String()
 }
 
 func (mi *MountInfoEntry) String() string {
@@ -80,7 +87,7 @@ func (mi *MountInfoEntry) String() string {
 	return fmt.Sprintf("%d %d %d:%d %s %s %s %s%s- %s %s %s",
 		mi.MountID, mi.ParentID, mi.DevMajor, mi.DevMinor, escape(mi.Root),
 		escape(mi.MountDir), flattenMap(mi.MountOptions), flattenList(mi.OptionalFields),
-		maybeSpace, mi.FsType, escape(mi.MountSource),
+		maybeSpace, escape(mi.FsType), escape(mi.MountSource),
 		flattenMap(mi.SuperOptions))
 }
 
