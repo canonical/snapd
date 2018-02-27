@@ -72,47 +72,41 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 	st.Lock()
 	defer st.Unlock()
 
-	for _, cmd := range ctlcmds {
-		// the argv to call systemctl will need at most one entry per appInfo,
-		// plus one for "systemctl", one for the action, and sometimes one for
-		// an option. That's a maximum of 3+len(appInfos).
-		argv := make([]string, 2, 3+len(appInfos))
-		argv[0] = "systemctl"
-		argv[1] = cmd
-
-		snapNames := make([]string, 0, len(appInfos))
-		lastName := ""
-		names := make([]string, len(appInfos))
-		for i, svc := range appInfos {
-			argv = append(argv, svc.ServiceName())
-			snapName := svc.Snap.Name()
-			names[i] = snapName + "." + svc.Name
-			if snapName != lastName {
-				snapNames = append(snapNames, snapName)
-				lastName = snapName
-			}
+	svcs := make([]string, 0, len(appInfos))
+	snapNames := make([]string, 0, len(appInfos))
+	lastName := ""
+	names := make([]string, len(appInfos))
+	for i, svc := range appInfos {
+		svcs = append(svcs, svc.ServiceName())
+		snapName := svc.Snap.Name()
+		names[i] = snapName + "." + svc.Name
+		if snapName != lastName {
+			snapNames = append(snapNames, snapName)
+			lastName = snapName
 		}
+	}
 
-		desc := fmt.Sprintf("%s of %v", inst.Action, names)
-
-		var checkConflict func(otherTask *state.Task) bool
-		if context != nil && !context.IsEphemeral() {
-			if task, ok := context.Task(); ok {
-				chg := task.Change()
-				checkConflict = func(otherTask *state.Task) bool {
-					if chg != nil && otherTask.Change() != nil {
-						// if same change, then return false (no conflict)
-						return chg.ID() != otherTask.Change().ID()
-					}
-					return true
+	var checkConflict func(otherTask *state.Task) bool
+	if context != nil && !context.IsEphemeral() {
+		if task, ok := context.Task(); ok {
+			chg := task.Change()
+			checkConflict = func(otherTask *state.Task) bool {
+				if chg != nil && otherTask.Change() != nil {
+					// if same change, then return false (no conflict)
+					return chg.ID() != otherTask.Change().ID()
 				}
+				return true
 			}
 		}
+	}
 
-		if err := snapstate.CheckChangeConflictMany(st, snapNames, checkConflict); err != nil {
-			return nil, &ServiceActionConflictError{err}
-		}
+	if err := snapstate.CheckChangeConflictMany(st, snapNames, checkConflict); err != nil {
+		return nil, &ServiceActionConflictError{err}
+	}
 
+	for _, cmd := range ctlcmds {
+		argv := append([]string{"systemctl", cmd}, svcs...)
+		desc := fmt.Sprintf("%s of %v", cmd, names)
 		ts := cmdstate.Exec(st, desc, argv)
 		tts = append(tts, ts)
 	}
