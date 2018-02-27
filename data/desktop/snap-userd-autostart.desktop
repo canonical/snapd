@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=Snap user application autostart helper
+Comment=A snap helper for autostarting user applications
+Exec=/usr/bin/snap userd --autostart
+Type=Application
