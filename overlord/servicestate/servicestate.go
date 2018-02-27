@@ -44,68 +44,83 @@ type ServiceActionConflictError struct{ error }
 // The appInfos and inst define the services and the command to execute.
 // Context is used to determine change conflicts - we will not conflict with
 // tasks from same change as that of context's.
-func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, context *hookstate.Context) (*state.TaskSet, error) {
-	// the argv to call systemctl will need at most one entry per appInfo,
-	// plus one for "systemctl", one for the action, and sometimes one for
-	// an option. That's a maximum of 3+len(appInfos).
-	argv := make([]string, 2, 3+len(appInfos))
-	argv[0] = "systemctl"
+func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, context *hookstate.Context) ([]*state.TaskSet, error) {
+	var tts []*state.TaskSet
 
-	argv[1] = inst.Action
-	switch inst.Action {
-	case "start":
+	var ctlcmds []string
+	switch {
+	case inst.Action == "start":
 		if inst.Enable {
-			argv[1] = "enable"
-			argv = append(argv, "--now")
+			ctlcmds = []string{"enable"}
 		}
-	case "stop":
+		ctlcmds = append(ctlcmds, "start")
+	case inst.Action == "stop":
 		if inst.Disable {
-			argv[1] = "disable"
-			argv = append(argv, "--now")
+			ctlcmds = []string{"disable"}
 		}
-	case "restart":
+		ctlcmds = append(ctlcmds, "stop")
+	case inst.Action == "restart":
 		if inst.Reload {
-			argv[1] = "reload-or-restart"
+			ctlcmds = []string{"reload-or-restart"}
+		} else {
+			ctlcmds = []string{"restart"}
 		}
 	default:
 		return nil, fmt.Errorf("unknown action %q", inst.Action)
 	}
 
-	snapNames := make([]string, 0, len(appInfos))
-	lastName := ""
-	names := make([]string, len(appInfos))
-	for i, svc := range appInfos {
-		argv = append(argv, svc.ServiceName())
-		snapName := svc.Snap.Name()
-		names[i] = snapName + "." + svc.Name
-		if snapName != lastName {
-			snapNames = append(snapNames, snapName)
-			lastName = snapName
-		}
-	}
-
-	desc := fmt.Sprintf("%s of %v", inst.Action, names)
-
 	st.Lock()
 	defer st.Unlock()
 
-	var checkConflict func(otherTask *state.Task) bool
-	if context != nil && !context.IsEphemeral() {
-		if task, ok := context.Task(); ok {
-			chg := task.Change()
-			checkConflict = func(otherTask *state.Task) bool {
-				if chg != nil && otherTask.Change() != nil {
-					// if same change, then return false (no conflict)
-					return chg.ID() != otherTask.Change().ID()
-				}
-				return true
+	for _, cmd := range ctlcmds {
+		// the argv to call systemctl will need at most one entry per appInfo,
+		// plus one for "systemctl", one for the action, and sometimes one for
+		// an option. That's a maximum of 3+len(appInfos).
+		argv := make([]string, 2, 3+len(appInfos))
+		argv[0] = "systemctl"
+		argv[1] = cmd
+
+		snapNames := make([]string, 0, len(appInfos))
+		lastName := ""
+		names := make([]string, len(appInfos))
+		for i, svc := range appInfos {
+			argv = append(argv, svc.ServiceName())
+			snapName := svc.Snap.Name()
+			names[i] = snapName + "." + svc.Name
+			if snapName != lastName {
+				snapNames = append(snapNames, snapName)
+				lastName = snapName
 			}
 		}
+
+		desc := fmt.Sprintf("%s of %v", inst.Action, names)
+
+		var checkConflict func(otherTask *state.Task) bool
+		if context != nil && !context.IsEphemeral() {
+			if task, ok := context.Task(); ok {
+				chg := task.Change()
+				checkConflict = func(otherTask *state.Task) bool {
+					if chg != nil && otherTask.Change() != nil {
+						// if same change, then return false (no conflict)
+						return chg.ID() != otherTask.Change().ID()
+					}
+					return true
+				}
+			}
+		}
+
+		if err := snapstate.CheckChangeConflictMany(st, snapNames, checkConflict); err != nil {
+			return nil, &ServiceActionConflictError{err}
+		}
+
+		ts := cmdstate.Exec(st, desc, argv)
+		tts = append(tts, ts)
 	}
 
-	if err := snapstate.CheckChangeConflictMany(st, snapNames, checkConflict); err != nil {
-		return nil, &ServiceActionConflictError{err}
+	// make a taskset wait for its predecessor
+	for i := 1; i < len(tts); i++ {
+		tts[i].WaitAll(tts[i-1])
 	}
 
-	return cmdstate.Exec(st, desc, argv), nil
+	return tts, nil
 }
