@@ -19,6 +19,9 @@ restore: |
     rm -f "$PRODUCER_DATA/prepare-slot-producer-done"
     rm -f "$CONSUMER_DATA/connect-plug-consumer-done"
     rm -f "$PRODUCER_DATA/connect-slot-producer-done"
+    rm -f "$CONSUMER_DATA/disconnect-plug-consumer-done"
+    rm -f "$PRODUCER_DATA/disconnect-slot-producer-done"
+
     snap remove basic-iface-hooks-consumer
     snap remove basic-iface-hooks-producer
 
@@ -56,3 +59,9 @@ execute: |
 
     jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["exec-count"]' /var/lib/snapd/state.json | MATCH "2"
     systemctl start snapd.service snapd.socket
+
+    # make sure disconnect hooks are executed
+    snap disconnect basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer
+    # producer/consumer hooks dump marker files, check if they exist to verify hooks were run
+    [ -f "$CONSUMER_DATA/disconnect-plug-consumer-done" ]
+    [ -f "$PRODUCER_DATA/disconnect-slot-producer-done" ]
