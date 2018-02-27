@@ -78,6 +78,8 @@ func (s *snapmgrTestSuite) settle(c *C) {
 
 var _ = Suite(&snapmgrTestSuite{})
 
+var fakeRevDateEpoch = time.Date(2018, 1, 0, 0, 0, 0, 0, time.UTC)
+
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
@@ -116,6 +118,14 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.BaseTest.AddCleanup(snapstate.MockReadInfo(s.fakeBackend.ReadInfo))
 	s.BaseTest.AddCleanup(snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile))
+	revDate := func(info *snap.Info) time.Time {
+		if info.Revision.Local() {
+			panic("no local revision should reach revisionDate")
+		}
+		// for convenience a date derived from the revision
+		return fakeRevDateEpoch.AddDate(0, 0, info.Revision.N)
+	}
+	s.BaseTest.AddCleanup(snapstate.MockRevisionDate(revDate))
 
 	s.BaseTest.AddCleanup(func() {
 		snapstate.SetupInstallHook = oldSetupInstallHook
@@ -1739,6 +1749,13 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		Revision: snap.R(7),
 		SnapID:   "services-snap-id",
 	}
+	snaptest.MockSnap(c, `name: services-snap`, &si)
+	fi, err := os.Stat(snap.MountFile("services-snap", si.Revision))
+	c.Assert(err, IsNil)
+	refreshedDate := fi.ModTime()
+	// look at disk
+	r := snapstate.MockRevisionDate(nil)
+	defer r()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1769,6 +1786,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				SnapID:          "services-snap-id",
 				Revision:        snap.R(7),
 				TrackingChannel: "stable",
+				RefreshedDate:   refreshedDate,
 			}},
 			userID: 1,
 		},
@@ -2229,9 +2247,10 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		{
 			op: "storesvc-install-refresh",
 			installedCtxt: []store.CurrentSnap{{
-				Name:     "some-snap",
-				SnapID:   "some-snap-id",
-				Revision: snap.R(7),
+				Name:          "some-snap",
+				SnapID:        "some-snap-id",
+				Revision:      snap.R(7),
+				RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 			}},
 			userID: 1,
 		},
@@ -2403,6 +2422,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 				SnapID:          "some-snap-id",
 				Revision:        snap.R(7),
 				TrackingChannel: "stable",
+				RefreshedDate:   fakeRevDateEpoch.AddDate(0, 0, 7),
 			}},
 			userID: 1,
 		},
@@ -2686,6 +2706,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 				SnapID:          "some-snap-id",
 				Revision:        snap.R(7),
 				TrackingChannel: "other-channel",
+				RefreshedDate:   fakeRevDateEpoch.AddDate(0, 0, 7),
 			}},
 			userID: 1,
 		},
@@ -2957,6 +2978,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			SnapID:           "some-snap-id",
 			Revision:         snap.R(7),
 			IgnoreValidation: false,
+			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 7),
 		}},
 		userID: 1,
 	})
@@ -3003,6 +3025,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			Revision:         snap.R(11),
 			TrackingChannel:  "stable",
 			IgnoreValidation: true,
+			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 11),
 		}},
 		userID: 1,
 	})
@@ -3053,6 +3076,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 			Revision:         snap.R(12),
 			TrackingChannel:  "stable",
 			IgnoreValidation: true,
+			RefreshedDate:    fakeRevDateEpoch.AddDate(0, 0, 12),
 		}},
 		userID: 1,
 	})
@@ -3182,9 +3206,10 @@ func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
 		op: "storesvc-install-refresh",
 		installedCtxt: []store.CurrentSnap{{
-			Name:     "some-snap",
-			SnapID:   "some-snap-id",
-			Revision: snap.R(7),
+			Name:          "some-snap",
+			SnapID:        "some-snap-id",
+			Revision:      snap.R(7),
+			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 		}},
 		userID: 1,
 	})
@@ -3221,9 +3246,10 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
 		op: "storesvc-install-refresh",
 		installedCtxt: []store.CurrentSnap{{
-			Name:     "some-snap",
-			SnapID:   "some-snap-id",
-			Revision: snap.R(7),
+			Name:          "some-snap",
+			SnapID:        "some-snap-id",
+			Revision:      snap.R(7),
+			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
 		}},
 		userID: 1,
 	})
@@ -3259,10 +3285,11 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
 		op: "storesvc-install-refresh",
 		installedCtxt: []store.CurrentSnap{{
-			Name:     "some-snap",
-			SnapID:   "some-snap-id",
-			Revision: snap.R(7),
-			Block:    []snap.Revision{snap.R(11)},
+			Name:          "some-snap",
+			SnapID:        "some-snap-id",
+			Revision:      snap.R(7),
+			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
+			Block:         []snap.Revision{snap.R(11)},
 		}},
 		userID: 1,
 	})
