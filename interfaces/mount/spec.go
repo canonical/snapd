@@ -61,7 +61,7 @@ func mountEntryFromLayout(layout *snap.Layout) osutil.MountEntry {
 	// XXX: what about ro mounts?
 	if layout.Bind != "" {
 		mountSource := layout.Snap.ExpandSnapVariables(layout.Bind)
-		entry.Options = []string{"bind", "rw"}
+		entry.Options = []string{"rbind", "rw"}
 		entry.Name = mountSource
 	}
 	if layout.BindFile != "" {

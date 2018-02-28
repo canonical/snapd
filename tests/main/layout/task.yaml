@@ -7,20 +7,17 @@ details: |
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-layout
-debug: |
-    # We saw some failures where it looked like we were confined by the most
-    # wrong thing imaginable. To get an idea what is going on let's show
-    # the profile we were using when the test fails.
-    # Before per-snap update-ns profiles are here.
-    cat /etc/apparmor.d/*snap.core.*.usr.lib.snapd.snap-confine* || :
-    # Once per-snap update-ns profiles are here.
-    cat /var/lib/snapd/apparmor/profiles/snap-update-ns.test-snapd-layout || :
+restore: |
+    # XXX: Those are going to be handled automatically with writabe mimic over /etc
+    # For now this unbreaks master.
+    rm -f /etc/demo.conf
+    rm -f /etc/demo.cfg
+    rm -rf /etc/demo
 execute: |
     echo "snap declaring layouts doesn't explode on startup"
     test-snapd-layout.sh -c "true"
-    
-    echo "layout declarations are honored"
 
+    echo "layout declarations are honored"
     test-snapd-layout.sh -c "test -d /etc/demo"
     test-snapd-layout.sh -c "test -f /etc/demo.conf"
     test-snapd-layout.sh -c "test -h /etc/demo.cfg"

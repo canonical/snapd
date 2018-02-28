@@ -211,6 +211,34 @@ type Layout struct {
 	Symlink  string      `json:"symlink,omitempty"`
 }
 
+// String returns a simple textual representation of a layout.
+func (l *Layout) String() string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "%s: ", l.Path)
+	switch {
+	case l.Bind != "":
+		fmt.Fprintf(&buf, "bind %s", l.Bind)
+	case l.BindFile != "":
+		fmt.Fprintf(&buf, "bind-file %s", l.BindFile)
+	case l.Symlink != "":
+		fmt.Fprintf(&buf, "symlink %s", l.Symlink)
+	case l.Type != "":
+		fmt.Fprintf(&buf, "type %s", l.Type)
+	default:
+		fmt.Fprintf(&buf, "???")
+	}
+	if l.User != "root" && l.User != "" {
+		fmt.Fprintf(&buf, ", user: %s", l.User)
+	}
+	if l.Group != "root" && l.Group != "" {
+		fmt.Fprintf(&buf, ", group: %s", l.Group)
+	}
+	if l.Mode != 0755 {
+		fmt.Fprintf(&buf, ", mode: %#o", l.Mode)
+	}
+	return buf.String()
+}
+
 // ChannelSnapInfo is the minimum information that can be used to clearly
 // distinguish different revisions of the same snap.
 type ChannelSnapInfo struct {
