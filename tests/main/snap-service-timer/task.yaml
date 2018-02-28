@@ -20,7 +20,9 @@ execute: |
     echo "When disabled, times are not listed by systemd"
     snap disable test-snapd-timer-service
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        systemctl show -p UnitFileState snap.test-snapd-timer-service.$service.timer | MATCH "UnitFileState="
+        for service in regular-timer random-timer; do
+            systemctl show -p UnitFileState snap.test-snapd-timer-service.$service.timer | MATCH "UnitFileState="
+        done
     else
         ! systemctl list-timers | MATCH "test-snapd-timer-service"
     fi
@@ -28,7 +30,9 @@ execute: |
     echo "When reenabled, the timers are present again"
     snap enable test-snapd-timer-service
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        systemctl show -p UnitFileState snap.test-snapd-timer-service.$service.timer | MATCH "UnitFileState=enabled"
+        for service in regular-timer random-timer; do
+            systemctl show -p UnitFileState snap.test-snapd-timer-service.$service.timer | MATCH "UnitFileState=enabled"
+        done
     else
         systemctl list-timers | MATCH "test-snapd-timer-service"
     fi
@@ -36,7 +40,9 @@ execute: |
     echo "When removed, times are not listed by systemd"
     snap remove test-snapd-timer-service
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
-        systemctl show -p UnitFileState snap.test-snapd-timer-service.$service.timer | MATCH "UnitFileState="
+        for service in regular-timer random-timer; do
+            systemctl show -p UnitFileState snap.test-snapd-timer-service.$service.timer | MATCH "UnitFileState="
+        done
     else
         ! systemctl list-timers | MATCH "test-snapd-timer-service"
     fi
