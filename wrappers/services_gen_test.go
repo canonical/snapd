@@ -432,8 +432,22 @@ WantedBy=multi-user.target
 
 func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 	systemdAnalyzePath, _ := exec.LookPath("systemd-analyze")
+	if systemdAnalyzePath != "" {
+		// systemd-analyze is in the path, but it will fail if the
+		// daemon is not running (as it happens in LP builds) and writes
+		// the following to stderr:
+		//   Failed to create bus connection: No such file or directory
+		cmd := exec.Command(systemdAnalyzePath, "calendar", "12:00")
+		err := cmd.Run()
+		if err != nil {
+			// turns out it's not usable, disable extra verification
+			fmt.Fprintln(os.Stderr, `WARNING: systemd-analyze not usable, cannot validate a known schedule "12:00"`)
+			systemdAnalyzePath = ""
+		}
+	}
+
 	if systemdAnalyzePath == "" {
-		fmt.Fprintln(os.Stderr, "WARNING: generated schedules will not verified by systemd-analyze")
+		fmt.Fprintln(os.Stderr, "WARNING: generated schedules will not be validated by systemd-analyze")
 	}
 
 	for _, t := range []struct {
