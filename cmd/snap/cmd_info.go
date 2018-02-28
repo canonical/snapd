@@ -240,9 +240,8 @@ func maybePrintServices(w io.Writer, snapName string, allApps []client.AppInfo, 
 var channelRisks = []string{"stable", "candidate", "beta", "edge"}
 
 // displayChannels displays channels and tracks in the right order
-func displayChannels(w io.Writer, remote *client.Snap) {
-	// \t\t\t so we get "installed" lined up with "channels"
-	fmt.Fprintf(w, "channels:\t\t\t\n")
+func displayChannels(w io.Writer, chantpl string, remote *client.Snap) {
+	fmt.Fprintf(w, "channels:"+strings.Repeat("\t", strings.Count(chantpl, "\t"))+"\n")
 
 	// order by tracks
 	for _, tr := range remote.Tracks {
@@ -267,7 +266,7 @@ func displayChannels(w io.Writer, remote *client.Snap) {
 					version = "–" // that's an en dash (so yaml is happy)
 				}
 			}
-			fmt.Fprintf(w, "  %s:\t%s\t%s\t%s\t%s\n", chName, version, revision, size, notes)
+			fmt.Fprintf(w, "  "+chantpl, chName, version, revision, size, notes)
 		}
 	}
 }
@@ -366,16 +365,25 @@ func (x *infoCmd) Execute([]string) error {
 		maybePrintType(w, both.Type)
 		maybePrintID(w, both)
 		if local != nil {
-			fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
-			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate.Format(time.RFC3339))
-		}
-		w.Flush()
-		if local != nil {
-			fmt.Fprintf(w, "installed:\t%s\t(%s)\t%s\t%s\n", local.Version, local.Revision, strutil.SizeToStr(local.InstalledSize), notes)
+			if local.TrackingChannel != "" {
+				fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
+			}
+			if !local.InstallDate.IsZero() {
+				fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate.Format(time.RFC3339))
+			}
 		}
 
+		chantpl := "%s:\t%s %s %s %s\n"
 		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
-			displayChannels(w, remote)
+			chantpl = "%s:\t%s\t%s\t%s\t%s\n"
+
+			w.Flush()
+			displayChannels(w, chantpl, remote)
+		}
+		if local != nil {
+			revstr := fmt.Sprintf("(%s)", local.Revision)
+			fmt.Fprintf(w, chantpl,
+				"current", local.Version, revstr, strutil.SizeToStr(local.InstalledSize), notes)
 		}
 
 	}

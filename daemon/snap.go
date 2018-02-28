@@ -22,11 +22,9 @@ package daemon
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -51,16 +49,6 @@ func snapIcon(info *snap.Info) string {
 	}
 
 	return found[0]
-}
-
-// snapDate returns the time of the snap mount directory.
-func snapDate(info *snap.Info) time.Time {
-	st, err := os.Stat(info.MountDir())
-	if err != nil {
-		return time.Time{}
-	}
-
-	return st.ModTime()
 }
 
 func publisherName(st *state.State, info *snap.Info) (string, error) {
@@ -329,7 +317,7 @@ func mapLocal(about aboutSnap) *client.Snap {
 		Developer:        about.publisher,
 		Icon:             snapIcon(localSnap),
 		ID:               localSnap.SnapID,
-		InstallDate:      snapDate(localSnap),
+		InstallDate:      localSnap.InstallDate(),
 		InstalledSize:    localSnap.Size,
 		Name:             localSnap.Name(),
 		Revision:         localSnap.Revision,
