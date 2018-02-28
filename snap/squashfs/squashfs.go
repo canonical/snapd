@@ -21,7 +21,6 @@ package squashfs
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -315,23 +314,22 @@ func (s *Snap) BuildDate() time.Time {
 func BuildDate(path string) time.Time {
 	var t0 time.Time
 
-	buf, err := exec.Command("unsquashfs", "-s", path).Output()
-	if !(err == nil && bytes.HasPrefix(buf, []byte("Found a valid SQUASHFS"))) {
-		return t0
-	}
-	i := bytes.IndexByte(buf, '\n') + 1
-	if i <= 0 || i == len(buf) {
-		return t0
-	}
-	if !bytes.HasPrefix(buf[i:], []byte("Creation or last append time ")) {
-		return t0
+	const prefix = "Creation or last append time "
+	m := &strutil.MatchCounter{
+		Regexp: regexp.MustCompile("(?m)^" + prefix + ".*$"),
+		N:      1,
 	}
 
-	i += len("Creation or last append time ")
-	j := i + bytes.IndexByte(buf[i:], '\n')
-	if j <= i {
+	cmd := exec.Command("unsquashfs", "-s", path)
+	cmd.Stdout = m
+	cmd.Stderr = m
+	if err := cmd.Run(); err != nil {
 		return t0
 	}
-	t0, _ = time.Parse(time.ANSIC, string(buf[i:j]))
+	matches, count := m.Matches()
+	if count != 1 {
+		return t0
+	}
+	t0, _ = time.Parse(time.ANSIC, matches[0][len(prefix):])
 	return t0
 }
