@@ -1,0 +1,6 @@
+name: autostart-snap
+version: 1.0
+apps:
+  foo:
+    command: bin/foobar
+    autostart: foo.desktop
