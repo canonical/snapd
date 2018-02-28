@@ -779,18 +779,15 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 			// 4 tries: 2 tries for each in case both user
 			// and device need refreshing
 			var refreshNeed authRefreshNeed
-			refresh := false
 			if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
 				// refresh user
 				refreshNeed.user = true
-				refresh = true
 			}
 			if strings.Contains(wwwAuth, "refresh_device_session=1") {
 				// refresh device session
 				refreshNeed.device = true
-				refresh = true
 			}
-			if refresh {
+			if refreshNeed.needed() {
 				err := s.refreshAuth(user, refreshNeed)
 				if err != nil {
 					return nil, err
@@ -809,6 +806,10 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 type authRefreshNeed struct {
 	device bool
 	user   bool
+}
+
+func (rn *authRefreshNeed) needed() bool {
+	return rn.device || rn.user
 }
 
 func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
@@ -2136,6 +2137,41 @@ var installRefreshFields = getStructFields(storeSnap{})
 // successul (200) but there were reported errors it will return both
 // the snap infos and an InstallRefreshError.
 func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap, actions []*InstallRefreshAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
+	authRefreshes := 0
+	for {
+		snaps, err := s.installRefresh(ctx, installedCtxt, actions, user, opts)
+
+		if irErr, ok := err.(*InstallRefreshError); ok && authRefreshes < 2 && len(irErr.Other) > 0 {
+			// do we need to try to refresh auths?, 2 tries
+			var refreshNeed authRefreshNeed
+			for _, otherErr := range irErr.Other {
+				switch otherErr {
+				case errUserAuthorizationNeedsRefresh:
+					refreshNeed.user = true
+				case errDeviceAuthorizationNeedsRefresh:
+					refreshNeed.device = true
+				}
+			}
+			if refreshNeed.needed() {
+				err := s.refreshAuth(user, refreshNeed)
+				if err != nil {
+					// best effort
+					logger.Noticef("cannot refresh soft-expired authorisation: %v", err)
+				}
+				authRefreshes++
+				// TODO: we could avoid retrying here
+				// if refreshAuth gave no error we got
+				// as many non-error results from the
+				// store as actions anyway
+				continue
+			}
+		}
+
+		return snaps, err
+	}
+}
+
+func (s *Store) installRefresh(ctx context.Context, installedCtxt []*CurrentSnap, actions []*InstallRefreshAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
 	if opts == nil {
 		opts = &RefreshOptions{}
 	}
@@ -2287,10 +2323,9 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 	}
 
 	for _, errObj := range results.ErrorList {
-		otherErrors = append(otherErrors, translateInstallRefreshError("-", errObj.Code, errObj.Message))
+		otherErr := translateInstallRefreshError("-", errObj.Code, errObj.Message)
+		otherErrors = append(otherErrors, otherErr)
 	}
-
-	// XXX: handle refreshing macaroons as needed
 
 	if len(refreshErrors)+len(installErrors) != 0 || len(results.Results) == 0 || len(otherErrors) != 0 {
 		// normalize empty maps

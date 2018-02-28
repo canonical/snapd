@@ -151,6 +151,12 @@ func (e InstallRefreshError) Error() string {
 	return strings.Join(es, "\n")
 }
 
+// Authorization soft-expiry errors that get handled automatically.
+var (
+	errUserAuthorizationNeedsRefresh   = errors.New("soft-expired user authorization needs refresh")
+	errDeviceAuthorizationNeedsRefresh = errors.New("soft-expired device authorization needs refresh")
+)
+
 func translateInstallRefreshError(action, code, message string) error {
 	switch code {
 	case "revision-not-found":
@@ -160,6 +166,10 @@ func translateInstallRefreshError(action, code, message string) error {
 		return ErrRevisionNotAvailable
 	case "id-not-found", "name-not-found":
 		return ErrSnapNotFound
+	case "user-authorization-needs-refresh":
+		return errUserAuthorizationNeedsRefresh
+	case "device-authorization-needs-refresh":
+		return errDeviceAuthorizationNeedsRefresh
 	default:
 		return fmt.Errorf("%v", message)
 	}

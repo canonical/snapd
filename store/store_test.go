@@ -6725,3 +6725,134 @@ func (s *storeTestSuite) TestInstallRefreshOtherErrors(c *C) {
  - other error one
  - global error`)
 }
+
+func (s *storeTestSuite) TestInstallRefreshRefreshesBothAuths(c *C) {
+	// install/refresh has is its own custom way to signal
+	// macaroon refreshes that allows to do a best effort
+	// with the available results
+
+	refresh, err := makeTestRefreshDischargeResponse()
+	c.Assert(err, IsNil)
+	c.Check(s.user.StoreDischarges[0], Not(Equals), refresh)
+
+	// mock refresh response
+	refreshDischargeEndpointHit := false
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
+	}))
+	defer mockSSOServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+
+	refreshSessionRequested := false
+	expiredAuth := `Macaroon root="expired-session-macaroon"`
+	n := 0
+	// mock store response
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		switch r.URL.Path {
+		case installRefreshPath:
+			n++
+			type errObj struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			}
+			var errors []errObj
+
+			authorization := r.Header.Get("Authorization")
+			c.Check(authorization, Equals, s.expectedAuthorization(c, s.user))
+			if s.user.StoreDischarges[0] != refresh {
+				errors = append(errors, errObj{Code: "user-authorization-needs-refresh"})
+			}
+
+			devAuthorization := r.Header.Get("Snap-Device-Authorization")
+			if devAuthorization == "" {
+				c.Fatalf("device authentication missing")
+			} else if devAuthorization == expiredAuth {
+				errors = append(errors, errObj{Code: "device-authorization-needs-refresh"})
+			} else {
+				c.Check(devAuthorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
+			}
+
+			errorsJSON, err := json.Marshal(errors)
+			c.Assert(err, IsNil)
+
+			io.WriteString(w, fmt.Sprintf(`{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "name": "canonical",
+          "title": "Canonical"
+       }
+     }
+  }],
+  "error-list": %s
+}`, errorsJSON))
+		case authNoncesPath:
+			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
+		case authSessionPath:
+			// sanity of request
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			var req map[string]string
+			err = json.Unmarshal(jsonReq, &req)
+			c.Assert(err, IsNil)
+			c.Check(strings.HasPrefix(req["device-session-request"], "type: device-session-request\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["serial-assertion"], "type: serial\n"), Equals, true)
+			c.Check(strings.HasPrefix(req["model-assertion"], "type: model\n"), Equals, true)
+
+			authorization := r.Header.Get("X-Device-Authorization")
+			if authorization == "" {
+				c.Fatalf("expecting only refresh")
+			} else {
+				c.Check(authorization, Equals, expiredAuth)
+				io.WriteString(w, `{"macaroon": "refreshed-session-macaroon"}`)
+				refreshSessionRequested = true
+			}
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+
+	// make sure device session is expired
+	s.device.SessionMacaroon = "expired-session-macaroon"
+	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
+	sto := New(&Config{
+		StoreBaseURL: mockServerURL,
+	}, authContext)
+
+	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
+		{
+			Name:            "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "beta",
+			Revision:        snap.R(1),
+			RefreshedDate:   helloRefreshedDate,
+		},
+	}, []*InstallRefreshAction{
+		{
+			Action: "refresh",
+			SnapID: helloWorldSnapID,
+		},
+	}, s.user, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].Name(), Equals, "hello-world")
+	c.Check(refreshDischargeEndpointHit, Equals, true)
+	c.Check(refreshSessionRequested, Equals, true)
+	c.Check(n, Equals, 2)
+}
