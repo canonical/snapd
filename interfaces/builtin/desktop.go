@@ -139,7 +139,7 @@ dbus (send)
     bus=session
     path=/io/snapcraft/Launcher
     interface=io.snapcraft.Launcher
-    member=OpenURL
+    member={OpenURL,OpenFile}
     peer=(label=unconfined),
 
 # Allow checking status, activating and locking the screensaver
