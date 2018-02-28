@@ -236,7 +236,7 @@ func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 
 // Check that legacy syntax works and allows sharing read-only snap content
 func (s *ContentSuite) TestConnectedPlugSnippetSharingLegacy(c *C) {
-	const consumerYaml = `name: consumer 
+	const consumerYaml = `name: consumer
 version: 0
 plugs:
  content:
@@ -266,7 +266,7 @@ slots:
 
 // Check that sharing of read-only snap content is possible
 func (s *ContentSuite) TestConnectedPlugSnippetSharingSnap(c *C) {
-	const consumerYaml = `name: consumer 
+	const consumerYaml = `name: consumer
 version: 0
 plugs:
  content:
@@ -300,18 +300,60 @@ slots:
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	expected := fmt.Sprintf(`
+	expected := `
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files
 # read-only.
-%s/producer/5/export/** mrkix,
-`, dirs.CoreSnapMountDir)
+/snap/producer/5/export/** mrkix,
+`
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
+
+	updateNS := apparmorSpec.UpdateNS()
+	profile0 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
+  mount options=(bind, ro) /snap/producer/5/export/ -> /snap/consumer/7/import/,
+  umount /snap/consumer/7/import/,
+  # Writable mimic /snap/producer/5
+  mount options=(rbind, rw) /snap/producer/5/ -> /tmp/.snap/snap/producer/5/,
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/5/,
+  mount options=(rbind, rw) /tmp/.snap/snap/producer/5/** -> /snap/producer/5/**,
+  mount options=(bind, rw) /tmp/.snap/snap/producer/5/* -> /snap/producer/5/*,
+  umount /tmp/.snap/snap/producer/5/,
+  umount /snap/producer/5{,/**},
+  /snap/producer/5/** rw,
+  /snap/producer/5/ rw,
+  /snap/producer/ rw,
+  /snap/ rw,
+  /tmp/.snap/snap/producer/5/** rw,
+  /tmp/.snap/snap/producer/5/ rw,
+  /tmp/.snap/snap/producer/ rw,
+  /tmp/.snap/snap/ rw,
+  /tmp/.snap/ rw,
+  /tmp/ rw,
+  # Writable mimic /snap/consumer/7
+  mount options=(rbind, rw) /snap/consumer/7/ -> /tmp/.snap/snap/consumer/7/,
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/consumer/7/,
+  mount options=(rbind, rw) /tmp/.snap/snap/consumer/7/** -> /snap/consumer/7/**,
+  mount options=(bind, rw) /tmp/.snap/snap/consumer/7/* -> /snap/consumer/7/*,
+  umount /tmp/.snap/snap/consumer/7/,
+  umount /snap/consumer/7{,/**},
+  /snap/consumer/7/** rw,
+  /snap/consumer/7/ rw,
+  /snap/consumer/ rw,
+  /snap/ rw,
+  /tmp/.snap/snap/consumer/7/** rw,
+  /tmp/.snap/snap/consumer/7/ rw,
+  /tmp/.snap/snap/consumer/ rw,
+  /tmp/.snap/snap/ rw,
+  /tmp/.snap/ rw,
+  /tmp/ rw,
+`
+	c.Assert(updateNS["consumer"][0], Equals, profile0)
+	c.Assert(updateNS, DeepEquals, map[string][]string{"consumer": {profile0}})
 }
 
 // Check that sharing of writable data is possible
 func (s *ContentSuite) TestConnectedPlugSnippetSharingSnapData(c *C) {
-	const consumerYaml = `name: consumer 
+	const consumerYaml = `name: consumer
 version: 0
 plugs:
  content:
@@ -354,11 +396,31 @@ slots:
 /var/snap/producer/5/export/** mrwklix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
+
+	updateNS := apparmorSpec.UpdateNS()
+	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
+  mount options=(bind, rw) /var/snap/producer/5/export/ -> /var/snap/consumer/7/import/,
+  umount /var/snap/consumer/7/import/,
+  # Writable directory /var/snap/producer/5/export
+  /var/snap/producer/5/export/ rw,
+  /var/snap/producer/5/ rw,
+  /var/snap/producer/ rw,
+  /var/snap/ rw,
+  /var/ rw,
+  # Writable directory /var/snap/consumer/7/import
+  /var/snap/consumer/7/import/ rw,
+  /var/snap/consumer/7/ rw,
+  /var/snap/consumer/ rw,
+  /var/snap/ rw,
+  /var/ rw,
+`
+	c.Assert(updateNS["consumer"][0], Equals, profile0)
+	c.Assert(updateNS, DeepEquals, map[string][]string{"consumer": {profile0}})
 }
 
 // Check that sharing of writable common data is possible
 func (s *ContentSuite) TestConnectedPlugSnippetSharingSnapCommon(c *C) {
-	const consumerYaml = `name: consumer 
+	const consumerYaml = `name: consumer
 version: 0
 plugs:
  content:
@@ -401,6 +463,26 @@ slots:
 /var/snap/producer/common/export/** mrwklix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
+
+	updateNS := apparmorSpec.UpdateNS()
+	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
+  mount options=(bind, rw) /var/snap/producer/common/export/ -> /var/snap/consumer/common/import/,
+  umount /var/snap/consumer/common/import/,
+  # Writable directory /var/snap/producer/common/export
+  /var/snap/producer/common/export/ rw,
+  /var/snap/producer/common/ rw,
+  /var/snap/producer/ rw,
+  /var/snap/ rw,
+  /var/ rw,
+  # Writable directory /var/snap/consumer/common/import
+  /var/snap/consumer/common/import/ rw,
+  /var/snap/consumer/common/ rw,
+  /var/snap/consumer/ rw,
+  /var/snap/ rw,
+  /var/ rw,
+`
+	c.Assert(updateNS["consumer"][0], Equals, profile0)
+	c.Assert(updateNS, DeepEquals, map[string][]string{"consumer": {profile0}})
 }
 
 func (s *ContentSuite) TestInterfaces(c *C) {
@@ -483,6 +565,110 @@ slots:
 /snap/producer/2/read-snap/** mrkix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
+	fmt.Printf("")
+	updateNS := apparmorSpec.UpdateNS()
+	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
+  mount options=(bind, rw) /var/snap/producer/common/write-common/ -> /var/snap/consumer/common/import/write-common/,
+  umount /var/snap/consumer/common/import/write-common/,
+  # Writable directory /var/snap/producer/common/write-common
+  /var/snap/producer/common/write-common/ rw,
+  /var/snap/producer/common/ rw,
+  /var/snap/producer/ rw,
+  /var/snap/ rw,
+  /var/ rw,
+  # Writable directory /var/snap/consumer/common/import/write-common
+  /var/snap/consumer/common/import/write-common/ rw,
+  /var/snap/consumer/common/import/ rw,
+  /var/snap/consumer/common/ rw,
+  /var/snap/consumer/ rw,
+  /var/snap/ rw,
+  /var/ rw,
+`
+	profile1 := `  # Read-write content sharing consumer:content -> producer:content (w#1)
+  mount options=(bind, rw) /var/snap/producer/2/write-data/ -> /var/snap/consumer/common/import/write-data/,
+  umount /var/snap/consumer/common/import/write-data/,
+  # Writable directory /var/snap/producer/2/write-data
+  /var/snap/producer/2/write-data/ rw,
+  /var/snap/producer/2/ rw,
+  /var/snap/producer/ rw,
+  /var/snap/ rw,
+  /var/ rw,
+  # Writable directory /var/snap/consumer/common/import/write-data
+  /var/snap/consumer/common/import/write-data/ rw,
+  /var/snap/consumer/common/import/ rw,
+  /var/snap/consumer/common/ rw,
+  /var/snap/consumer/ rw,
+  /var/snap/ rw,
+  /var/ rw,
+`
+	profile2 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
+  mount options=(bind, ro) /var/snap/producer/common/read-common/ -> /var/snap/consumer/common/import/read-common/,
+  umount /var/snap/consumer/common/import/read-common/,
+  # Writable directory /var/snap/producer/common/read-common
+  /var/snap/producer/common/read-common/ rw,
+  /var/snap/producer/common/ rw,
+  /var/snap/producer/ rw,
+  /var/snap/ rw,
+  /var/ rw,
+  # Writable directory /var/snap/consumer/common/import/read-common
+  /var/snap/consumer/common/import/read-common/ rw,
+  /var/snap/consumer/common/import/ rw,
+  /var/snap/consumer/common/ rw,
+  /var/snap/consumer/ rw,
+  /var/snap/ rw,
+  /var/ rw,
+`
+	profile3 := `  # Read-only content sharing consumer:content -> producer:content (r#1)
+  mount options=(bind, ro) /var/snap/producer/2/read-data/ -> /var/snap/consumer/common/import/read-data/,
+  umount /var/snap/consumer/common/import/read-data/,
+  # Writable directory /var/snap/producer/2/read-data
+  /var/snap/producer/2/read-data/ rw,
+  /var/snap/producer/2/ rw,
+  /var/snap/producer/ rw,
+  /var/snap/ rw,
+  /var/ rw,
+  # Writable directory /var/snap/consumer/common/import/read-data
+  /var/snap/consumer/common/import/read-data/ rw,
+  /var/snap/consumer/common/import/ rw,
+  /var/snap/consumer/common/ rw,
+  /var/snap/consumer/ rw,
+  /var/snap/ rw,
+  /var/ rw,
+`
+	profile4 := `  # Read-only content sharing consumer:content -> producer:content (r#2)
+  mount options=(bind, ro) /snap/producer/2/read-snap/ -> /var/snap/consumer/common/import/read-snap/,
+  umount /var/snap/consumer/common/import/read-snap/,
+  # Writable mimic /snap/producer/2
+  mount options=(rbind, rw) /snap/producer/2/ -> /tmp/.snap/snap/producer/2/,
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/2/,
+  mount options=(rbind, rw) /tmp/.snap/snap/producer/2/** -> /snap/producer/2/**,
+  mount options=(bind, rw) /tmp/.snap/snap/producer/2/* -> /snap/producer/2/*,
+  umount /tmp/.snap/snap/producer/2/,
+  umount /snap/producer/2{,/**},
+  /snap/producer/2/** rw,
+  /snap/producer/2/ rw,
+  /snap/producer/ rw,
+  /snap/ rw,
+  /tmp/.snap/snap/producer/2/** rw,
+  /tmp/.snap/snap/producer/2/ rw,
+  /tmp/.snap/snap/producer/ rw,
+  /tmp/.snap/snap/ rw,
+  /tmp/.snap/ rw,
+  /tmp/ rw,
+  # Writable directory /var/snap/consumer/common/import/read-snap
+  /var/snap/consumer/common/import/read-snap/ rw,
+  /var/snap/consumer/common/import/ rw,
+  /var/snap/consumer/common/ rw,
+  /var/snap/consumer/ rw,
+  /var/snap/ rw,
+  /var/ rw,
+`
+	c.Assert(updateNS["consumer"][0], Equals, profile0)
+	c.Assert(updateNS["consumer"][1], Equals, profile1)
+	c.Assert(updateNS["consumer"][2], Equals, profile2)
+	c.Assert(updateNS["consumer"][3], Equals, profile3)
+	c.Assert(updateNS["consumer"][4], Equals, profile4)
+	c.Assert(updateNS, DeepEquals, map[string][]string{"consumer": {profile0, profile1, profile2, profile3, profile4}})
 }
 
 func (s *ContentSuite) TestModernContentInterfacePlugins(c *C) {

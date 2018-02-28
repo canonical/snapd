@@ -272,7 +272,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err != nil {
 		return fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
+	spec.(*Specification).snapName = snapInfo.Name()
 	spec.(*Specification).AddSnapLayout(snapInfo)
+	spec.(*Specification).snapName = ""
 
 	// core on classic is special
 	if snapName == "core" && release.OnClassic && release.AppArmorLevel() != release.NoAppArmor {
