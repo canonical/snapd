@@ -2105,8 +2105,11 @@ type installRefreshWrapper struct {
 }
 
 type installRefreshResp struct {
-	Results []*installRefreshResult `json:"results"`
-	// XXX: errors
+	Results   []*installRefreshResult `json:"results"`
+	ErrorList []struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error-list"`
 }
 
 var installRefreshFields = getStructFields(storeSnap{})
@@ -2205,12 +2208,21 @@ func (s *Store) InstallRefresh(installedCtxt []*CurrentSnap, actions []*InstallR
 	s.extractSuggestedCurrency(resp)
 
 	refreshErrors := make(map[string]error)
-	// XXX: install errors
+	installErrors := make(map[string]error)
+	var otherErrors []error
 
 	var snaps []*snap.Info
 	for _, res := range results.Results {
 		if res.Result == "error" {
-			// XXX: deal with error
+			if cur := curSnaps[res.SnapID]; cur != nil {
+				refreshErrors[cur.Name] = translateInstallRefreshError("refresh", res.Error.Code, res.Error.Message)
+				continue
+			}
+			if res.Name != "" {
+				installErrors[res.Name] = translateInstallRefreshError("install", res.Error.Code, res.Error.Message)
+				continue
+			}
+			otherErrors = append(otherErrors, translateInstallRefreshError("-", res.Error.Code, res.Error.Message))
 			continue
 		}
 		snapInfo, err := infoFromStoreSnap(&res.Snap)
@@ -2232,15 +2244,25 @@ func (s *Store) InstallRefresh(installedCtxt []*CurrentSnap, actions []*InstallR
 		snaps = append(snaps, snapInfo)
 	}
 
-	// XXX: deal with global errors!!
+	for _, errObj := range results.ErrorList {
+		otherErrors = append(otherErrors, translateInstallRefreshError("-", errObj.Code, errObj.Message))
+	}
 
-	if len(refreshErrors) != 0 || len(results.Results) == 0 {
+	// XXX: handle refreshing macaroons as needed
+
+	if len(refreshErrors)+len(installErrors) != 0 || len(results.Results) == 0 || len(otherErrors) != 0 {
+		// normalize empty maps
 		if len(refreshErrors) == 0 {
 			refreshErrors = nil
+		}
+		if len(installErrors) == 0 {
+			installErrors = nil
 		}
 		return snaps, &InstallRefreshError{
 			NoResults: len(results.Results) == 0,
 			Refresh:   refreshErrors,
+			Install:   installErrors,
+			Other:     otherErrors,
 		}
 	}
 

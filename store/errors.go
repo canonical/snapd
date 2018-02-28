@@ -61,6 +61,9 @@ var (
 
 	// ErrNoUpdateAvailable is returned when an update is attempetd for a snap that has no update available.
 	ErrNoUpdateAvailable = errors.New("snap has no updates available")
+
+	// ErrRevisionNotAvailable is returned when an install is attempted for a snap but the/a revision is not available (given install constraints)
+	ErrRevisionNotAvailable = errors.New("no snap revision given constraints")
 )
 
 // DownloadError represents a download error
@@ -117,6 +120,8 @@ type InstallRefreshError struct {
 	Refresh map[string]error
 	// Install errors by snap name.
 	Install map[string]error
+	// Other errors.
+	Other []error
 }
 
 func (e InstallRefreshError) Error() string {
@@ -127,9 +132,35 @@ func (e InstallRefreshError) Error() string {
 			es = append(es, fmt.Sprintf(" - %q: %v", name, e))
 		}
 	}
+	if len(e.Install) > 0 {
+		es = append(es, "cannot install:")
+		for name, e := range e.Install {
+			es = append(es, fmt.Sprintf(" - %q: %v", name, e))
+		}
+	}
+	if len(e.Other) > 0 {
+		es = append(es, "other install/refresh errors:")
+		for _, e := range e.Other {
+			es = append(es, fmt.Sprintf(" - %v", e))
+		}
+	}
 	if e.NoResults && len(es) == 0 {
 		// this is an atypical result
 		return "no install/refresh information results from the store"
 	}
 	return strings.Join(es, "\n")
+}
+
+func translateInstallRefreshError(action, code, message string) error {
+	switch code {
+	case "revision-not-found":
+		if action == "refresh" {
+			return ErrNoUpdateAvailable
+		}
+		return ErrRevisionNotAvailable
+	case "id-not-found", "name-not-found":
+		return ErrSnapNotFound
+	default:
+		return fmt.Errorf("%v", message)
+	}
 }
