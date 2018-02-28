@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -106,4 +106,30 @@ func (e InvalidAuthDataError) Error() string {
 	//      full sentences (with periods and capitalization)
 	//      (empirically this checks out)
 	return strings.Join(es, "  ")
+}
+
+// InstallRefreshError conveys errors that were reported on otherwise overall successful install/refresh request.
+type InstallRefreshError struct {
+	// NoResults is set if the there were no results in the
+	// install/refresh response.
+	NoResults bool
+	// Refresh errors by snap name.
+	Refresh map[string]error
+	// Install errors by snap name.
+	Install map[string]error
+}
+
+func (e InstallRefreshError) Error() string {
+	var es []string
+	if len(e.Refresh) > 0 {
+		es = append(es, "cannot refresh:")
+		for name, e := range e.Refresh {
+			es = append(es, fmt.Sprintf(" - %q: %v", name, e))
+		}
+	}
+	if e.NoResults && len(es) == 0 {
+		// this is an atypical result
+		return "no install/refresh information results from the store"
+	}
+	return strings.Join(es, "\n")
 }
