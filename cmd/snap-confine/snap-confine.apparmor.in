@@ -554,6 +554,7 @@
         # in /tmp/.snap/ during the preparation of a writable mimic.
         # FIXME: update this with per-snap snap-update-ns profiles
         mount options=(bind, rw) /** -> /tmp/.snap/**,
+        mount options=(rbind, rw) /** -> /tmp/.snap/**,
         # Allow mounting tmpfs over the original read-only directory.
         # FIXME: update this with per-snap snap-update-ns profiles
         mount fstype=tmpfs options=(rw) tmpfs -> /**,
@@ -561,9 +562,13 @@
         # back to $SNAP/** (to re-construct the data that was there before).
         # FIXME: update this with per-snap snap-update-ns profiles
         mount options=(bind, rw) /tmp/.snap/** -> /**,
+        mount options=(rbind, rw) /tmp/.snap/** -> /**,
         # Allow unmounting the temporary directory in /tmp once it is no longer
         # necessary.
         umount /tmp/.snap/**,
+        # Allow unmounting any of the above in case something fails and
+        # we start recovery.
+        umount /**,
 
         # Allow creating missing directories anywhere under the root directory
         # (but not in the root directory itself) where they need to be created

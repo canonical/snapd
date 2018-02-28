@@ -166,6 +166,8 @@ func (s *storeSuite) TestCheckAuthority(c *C) {
 	err := db.Add(operator)
 	c.Assert(err, IsNil)
 
+	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
+
 	storeHeaders := map[string]interface{}{
 		"store":       "store1",
 		"operator-id": operator.HeaderString("account-id"),
@@ -173,7 +175,6 @@ func (s *storeSuite) TestCheckAuthority(c *C) {
 	}
 
 	// store signed by some other account fails.
-	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 	store, err := otherDB.Sign(asserts.StoreType, storeHeaders, nil, "")
 	c.Assert(err, IsNil)
 	err = db.Check(store)

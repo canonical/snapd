@@ -252,7 +252,11 @@ func (c *Change) lowLevelPerform() error {
 			err = osRemove(c.Entry.Dir)
 			logger.Debugf("remove %q (error: %v)", c.Entry.Dir, err)
 		case "", "file":
-			err = sysUnmount(c.Entry.Dir, umountNoFollow)
+			flags := umountNoFollow
+			if c.Entry.OptBool("x-snapd.detach") {
+				flags |= syscall.MNT_DETACH
+			}
+			err = sysUnmount(c.Entry.Dir, flags)
 			logger.Debugf("umount %q (error: %v)", c.Entry.Dir, err)
 		}
 		return err
