@@ -281,7 +281,7 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		return fmt.Errorf("cannot use --plug and --slot together")
 	}
 
-	isPlugSide := (hookType == preparePlugHook || hookType == connectPlugHook)
+	isPlugSide := (hookType == preparePlugHook || hookType == connectPlugHook || hookType == disconnectPlugHook)
 	if err = validatePlugOrSlot(attrsTask, isPlugSide, plugOrSlot); err != nil {
 		return err
 	}
