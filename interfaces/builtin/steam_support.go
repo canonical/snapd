@@ -23,7 +23,6 @@ const steamSupportSummary = `allows access to various permissions required to us
 
 const steamSupportBaseDeclarationSlots = `
   steam-support:
-    allow-installation: false
     deny-connection: true
     deny-auto-connection: true
 `
