@@ -225,7 +225,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
 			continue
 		}
-		// Note: reloaded connections are not checked against policy again.
+		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
 		if _, err := m.repo.Connect(connRef, cn.DynamicPlugAttrs, cn.DynamicSlotAttrs, nil); err != nil {
 			logger.Noticef("%s", err)
 		}

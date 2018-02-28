@@ -1961,7 +1961,8 @@ func (s *RepositorySuite) TestBeforeConnectValidation(c *C) {
 	plugDynAttrs := map[string]interface{}{"attr1": "val1"}
 	slotDynAttrs := map[string]interface{}{"attr1": "val1"}
 
-	conn, err := s.emptyRepo.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, plugDynAttrs, slotDynAttrs, nil)
+	policyCheck := func(plug *ConnectedPlug, slot *ConnectedSlot) (bool, error) { return true, nil }
+	conn, err := s.emptyRepo.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, plugDynAttrs, slotDynAttrs, policyCheck)
 	c.Assert(err, IsNil)
 	c.Assert(conn, NotNil)
 
