@@ -44,6 +44,13 @@ environment:
     PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools
 
 backends:
+    google:
+        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
+        location: computeengine/us-east1-b
+        systems:
+            - ubuntu-16.04-64:
+                workers: 8
+
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
         plan: 4GB
@@ -57,9 +64,6 @@ backends:
             HTTP_PROXY: null
             HTTPS_PROXY: null
         systems:
-            - ubuntu-16.04-64:
-                kernel: GRUB 2
-                workers: 8
             - ubuntu-16.04-32:
                 kernel: GRUB 2
                 workers: 6

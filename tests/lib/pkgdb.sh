@@ -423,6 +423,11 @@ pkg_dependencies_ubuntu_classic(){
                 xvfb
                 "
             ;;
+        ubuntu-17.10-64)
+            echo "
+                linux-image-extra-4.13.0-16-generic
+                "
+            ;;
         ubuntu-*)
             echo "
                 linux-image-extra-$(uname -r)
