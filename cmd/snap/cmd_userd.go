@@ -20,19 +20,29 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
+	"os/user"
+	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/userd"
 )
 
 type cmdUserd struct {
 	userd userd.Userd
+
+	Autostart bool `long:"autostart"`
 }
 
 var shortUserdHelp = i18n.G("Start the userd service")
@@ -44,16 +54,19 @@ func init() {
 		longUserdHelp,
 		func() flags.Commander {
 			return &cmdUserd{}
-		},
-		nil,
-		[]argDesc{},
-	)
+		}, map[string]string{
+			"autostart": i18n.G("Autostart user applications"),
+		}, nil)
 	cmd.hidden = true
 }
 
 func (x *cmdUserd) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	if x.Autostart {
+		return x.runAutostart()
 	}
 
 	if err := x.userd.Init(); err != nil {
@@ -71,4 +84,118 @@ func (x *cmdUserd) Execute(args []string) error {
 	}
 
 	return x.userd.Stop()
+}
+
+var (
+	replacedDesktopKeys = []string{"%f", "%F", "%u", "%U", "%d", "%D",
+		"%n", "%N", "%i", "%c", "%k", "%v", "%m"}
+)
+
+func findExec(desktopFilePath string) (string, error) {
+	f, err := os.Open(desktopFilePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	execCmd := ""
+	for scanner.Scan() {
+		bline := scanner.Bytes()
+
+		if !bytes.HasPrefix(bline, []byte("Exec=")) {
+			continue
+		}
+
+		execCmd = strings.Split(string(bline), "Exec=")[1]
+		for _, key := range replacedDesktopKeys {
+			execCmd = strings.Replace(execCmd, key, "", -1)
+		}
+		return execCmd, nil
+	}
+
+	if execCmd == "" {
+		return "", fmt.Errorf("Exec not found")
+	}
+	return "", nil
+}
+
+func tryAutostartApp(snapName, desktopFilePath string) error {
+	desktopFile := filepath.Base(desktopFilePath)
+
+	info, err := getSnapInfo(snapName, snap.R(0))
+	if err != nil {
+		return fmt.Errorf("failed to obtain snap information for snap %q: %v", snapName, err)
+	}
+
+	var app *snap.AppInfo
+	for _, candidate := range info.Apps {
+		if candidate.Autostart == desktopFile {
+			app = candidate
+			break
+		}
+	}
+
+	if app == nil {
+		return fmt.Errorf("could not match desktop file %v with an app in snap %q", desktopFile, snapName)
+	}
+
+	// use the sanitized desktop file
+	command, err := findExec(desktopFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to determine startup command: %v", filepath.Base(desktopFile), err)
+	}
+	logger.Debugf("exec line: %v", command)
+
+	pos := strings.Index(command, app.Command)
+	if pos == -1 {
+		return fmt.Errorf("startup command does not match app %q from snap %q", app.Name, snapName)
+	}
+
+	args := command[pos+len(app.Command):]
+	logger.Debugf(`remaining args: "%v"`, args)
+
+	// TODO: shlex
+	args = strings.TrimSpace(args)
+	split := strings.Split(args, " ")
+	cmd := exec.Command(app.WrapperPath(), split...)
+	cmd.Stderr = Stderr
+	cmd.Stdout = Stdout
+	if err := cmd.Start(); err != nil {
+		fmt.Errorf("failed to autostart %q: %v", app.Name, err)
+	}
+	return nil
+}
+
+func (x *cmdUserd) runAutostart() error {
+	usr, err := user.Current()
+	if err != nil {
+		return err
+	}
+
+	usrSnapDir := filepath.Join(usr.HomeDir, "snap")
+
+	glob := filepath.Join(usrSnapDir, "*/current/.config/autostart/*.desktop")
+	matches, err := filepath.Glob(glob)
+	if err != nil {
+		return err
+	}
+
+	for _, desktopFilePath := range matches {
+		desktopFile := filepath.Base(desktopFilePath)
+		logger.Debugf("autostart desktop file %v", desktopFile)
+
+		// /home/foo/snap/some-snap/current/.config/autostart/some-app.desktop ->
+		//    some-snap/current/.config/autostart/some-app.desktop
+		noHomePrefix := strings.TrimPrefix(desktopFilePath, usrSnapDir+"/")
+		// some-snap/current/.config/autostart/some-app.desktop -> some-snap
+		snapName := noHomePrefix[0:strings.IndexByte(noHomePrefix, '/')]
+
+		logger.Debugf("snap name: %q", snapName)
+
+		if err := tryAutostartApp(snapName, desktopFilePath); err != nil {
+			logger.Noticef("error encountered when trying to autostart %v for snap %q: %v", desktopFile, snapName, err)
+		}
+	}
+	return nil
 }
