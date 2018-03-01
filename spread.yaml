@@ -59,6 +59,10 @@ backends:
                 image: ubuntu-16.04-64
                 workers: 6
 
+            - debian-9-64:
+                image: debian-9-stretch
+                workers: 6
+
             - opensuse-42.2-64:
                 image: opensuse-leap-42-2
                 workers: 4
@@ -80,9 +84,6 @@ backends:
             HTTP_PROXY: null
             HTTPS_PROXY: null
         systems:
-            - debian-9-64:
-                kernel: GRUB 2
-                workers: 6
             - debian-sid-64:
                 kernel: GRUB 2
                 workers: 6
