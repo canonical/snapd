@@ -39,18 +39,31 @@ func Human(then time.Time) string {
 	return humanTimeSince(then.Local(), time.Now().Local())
 }
 
+func ngd(d int) uint32 {
+	const max = 1000000
+	if d > max {
+		return uint32((d % max) + max)
+	}
+	return uint32(d)
+}
+
 func humanTimeSince(then, now time.Time) string {
 	d := int(math.Floor(noon(then).Sub(noon(now)).Hours() / 24))
 	switch {
-	case d > 1:
-		return fmt.Sprintf(then.Format(i18n.G("in %d days, at 15:04 MST")), d)
 	case d < -1:
-		return fmt.Sprintf(then.Format(i18n.G("%d days ago, at 15:04 MST")), -d)
-	case d == 1:
-		return then.Format(i18n.G("tomorrow at 15:04 MST"))
+		// TRANSLATORS: %d will be at least 2
+		return fmt.Sprintf(then.Format(i18n.NG("", "%d days ago, at 15:04 MST", ngd(d))), -d)
 	case d == -1:
 		return then.Format(i18n.G("yesterday at 15:04 MST"))
-	default:
+	case d == 0:
 		return then.Format(i18n.G("today at 15:04 MST"))
+	case d == 1:
+		return then.Format(i18n.G("tomorrow at 15:04 MST"))
+	case d > 1:
+		// TRANSLATORS: %d will be at least 2
+		return fmt.Sprintf(then.Format(i18n.NG("", "in %d days, at 15:04 MST", ngd(d))), d)
+	default:
+		// the following message is brought to you by Joel Armando, the self-described awesome and sexy mathematician.
+		panic("you have broken the law of trichotomy! ℤ is no longer totally ordered! chaos ensues!")
 	}
 }
