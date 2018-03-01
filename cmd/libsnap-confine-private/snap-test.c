@@ -152,7 +152,7 @@ static void test_sc_snap_name_validate(void)
 	const char *invalid_names[] = {
 		// name cannot be empty
 		"",
-		// names cannot be full
+		// names cannot be too long
 		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
 		"1111111111111111111111111111111111111111x",
