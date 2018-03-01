@@ -167,7 +167,7 @@ func (s *launcherSuite) TestOpenFileFailsWithDeviceFile(c *C) {
 
 	err = s.launcher.OpenFile(dbus.UnixFD(dupFd), ":some-dbus-sender")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, "can only open regular files and directories")
+	c.Assert(err, ErrorMatches, "cannot open anything other than regular files or directories")
 	c.Assert(s.mockXdgOpen.Calls(), IsNil)
 }
 
@@ -185,6 +185,6 @@ func (s *launcherSuite) TestOpenFileFailsWithPathDescriptor(c *C) {
 
 	err = s.launcher.OpenFile(dbus.UnixFD(dupFd), ":some-dbus-sender")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, "bad file descriptor")
+	c.Assert(err, ErrorMatches, "cannot use file descriptors opened using O_PATH")
 	c.Assert(s.mockXdgOpen.Calls(), IsNil)
 }

@@ -103,6 +103,13 @@ func (s *Launcher) OpenURL(addr string) *dbus.Error {
 	return nil
 }
 
+// fdToFilename determines the path associated with an open file descriptor.
+//
+// The file descriptor cannot be opened using O_PATH and must refer to
+// a regular file or to a directory. The symlink at /proc/self/fd/<fd>
+// is read to determine the filename. The descriptor is also fstat'ed
+// and the resulting device number and inode number are compared to
+// stat on the path determined earlier. The numbers must match.
 func fdToFilename(fd int) (string, error) {
 	flags, err := sys.FcntlGetFl(fd)
 	if err != nil {
@@ -111,7 +118,7 @@ func fdToFilename(fd int) (string, error) {
 	// File descriptors opened with O_PATH do not imply access to
 	// the file in question.
 	if flags&sys.O_PATH != 0 {
-		return "", fmt.Errorf("bad file descriptor")
+		return "", fmt.Errorf("cannot use file descriptors opened using O_PATH")
 	}
 
 	// Determine the file name associated with the passed file descriptor.
@@ -130,12 +137,12 @@ func fdToFilename(fd int) (string, error) {
 
 	// Sanity check to ensure we've got the right file
 	if fdStat.Dev != fileStat.Dev || fdStat.Ino != fileStat.Ino {
-		return "", fmt.Errorf("could not determine file name")
+		return "", fmt.Errorf("cannot determine file name")
 	}
 
 	fileType := fileStat.Mode & syscall.S_IFMT
 	if fileType != syscall.S_IFREG && fileType != syscall.S_IFDIR {
-		return "", fmt.Errorf("can only open regular files and directories")
+		return "", fmt.Errorf("cannot open anything other than regular files or directories")
 	}
 
 	return filename, nil
@@ -160,8 +167,8 @@ func (s *Launcher) OpenFile(clientFd dbus.UnixFD, sender dbus.Sender) *dbus.Erro
 		return dbus.MakeFailedError(err)
 	}
 	answeredYes := dialog.YesNo(
-		i18n.G("Allow open file?"),
-		fmt.Sprintf(i18n.G("Allow snap %q to open file %q ?"), snap, filename),
+		i18n.G("Allow opening file?"),
+		fmt.Sprintf(i18n.G("Allow snap %q to open file %q?"), snap, filename),
 		&ui.DialogOptions{
 			Timeout: 5 * 60 * time.Second,
 			Footer:  i18n.G("This dialog will close automatically after 5 minutes of inactivity."),
