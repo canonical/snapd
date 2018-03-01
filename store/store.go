@@ -2072,18 +2072,14 @@ type InstallRefreshAction struct {
 	Epoch    *snap.Epoch
 }
 
-type installRefreshIgnoreValidationJSON struct {
-	IgnoreValidation bool `json:"ignore-validation"`
-}
-
 type installRefreshActionJSON struct {
-	Action   string      `json:"action"`
-	Name     string      `json:"name,omitempty"`
-	SnapID   string      `json:"snap-id,omitempty"`
-	Channel  string      `json:"channel,omitempty"`
-	Revision int         `json:"revision,omitempty"`
-	Epoch    *snap.Epoch `json:"epoch,omitempty"`
-	*installRefreshIgnoreValidationJSON
+	Action           string      `json:"action"`
+	Name             string      `json:"name,omitempty"`
+	SnapID           string      `json:"snap-id,omitempty"`
+	Channel          string      `json:"channel,omitempty"`
+	Revision         int         `json:"revision,omitempty"`
+	Epoch            *snap.Epoch `json:"epoch,omitempty"`
+	IgnoreValidation *bool       `json:"ignore-validation,omitempty"`
 }
 
 type installRefreshResult struct {
@@ -2155,18 +2151,23 @@ func (s *Store) InstallRefresh(installedCtxt []*CurrentSnap, actions []*InstallR
 
 	actionJSONs := make([]*installRefreshActionJSON, len(actions))
 	for i, a := range actions {
-		aJSON := &installRefreshActionJSON{
-			Action:   a.Action,
-			SnapID:   a.SnapID,
-			Name:     a.Name,
-			Channel:  a.Channel,
-			Revision: a.Revision.N,
-			Epoch:    a.Epoch,
-		}
+		var ignoreValidation *bool
 		if a.Flags&InstallRefreshIgnoreValidation != 0 {
-			aJSON.installRefreshIgnoreValidationJSON = &installRefreshIgnoreValidationJSON{true}
+			var t = true
+			ignoreValidation = &t
 		} else if a.Flags&InstallRefreshEnforceValidation != 0 {
-			aJSON.installRefreshIgnoreValidationJSON = &installRefreshIgnoreValidationJSON{false}
+			var f = false
+			ignoreValidation = &f
+		}
+
+		aJSON := &installRefreshActionJSON{
+			Action:           a.Action,
+			SnapID:           a.SnapID,
+			Name:             a.Name,
+			Channel:          a.Channel,
+			Revision:         a.Revision.N,
+			Epoch:            a.Epoch,
+			IgnoreValidation: ignoreValidation,
 		}
 		actionJSONs[i] = aJSON
 	}
