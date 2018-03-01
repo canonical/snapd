@@ -68,7 +68,7 @@ type storeSnapDelta struct {
 	Size     int64  `json:"size"`
 	Source   int    `json:"source"`
 	Target   int    `json:"target"`
-	URL      string `json:"url,omitempty"`
+	URL      string `json:"url"`
 }
 
 type storeAccount struct {
