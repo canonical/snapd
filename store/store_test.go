@@ -5383,8 +5383,8 @@ func (s *storeTestSuite) TestInstallRefresh(c *C) {
        "version": "6.1",
        "publisher": {
           "id": "canonical",
-          "name": "canonical",
-          "title": "Canonical"
+          "username": "canonical",
+          "display-name": "Canonical"
        }
      }
   }]
@@ -5529,8 +5529,8 @@ func (s *storeTestSuite) TestInstallRefreshSkipBlocked(c *C) {
        "version": "6.1",
        "publisher": {
           "id": "canonical",
-          "name": "canonical",
-          "title": "Canonical"
+          "username": "canonical",
+          "display-name": "Canonical"
        }
      }
   }]
@@ -5613,8 +5613,8 @@ func (s *storeTestSuite) TestInstallRefreshSkipCurrent(c *C) {
        "version": "6.1",
        "publisher": {
           "id": "canonical",
-          "name": "canonical",
-          "title": "Canonical"
+          "username": "canonical",
+          "display-name": "Canonical"
        }
      }
   }]
@@ -5687,8 +5687,8 @@ func (s *storeTestSuite) TestInstallRefreshRetryOnEOF(c *C) {
        "version": "6.1",
        "publisher": {
           "id": "canonical",
-          "name": "canonical",
-          "title": "Canonical"
+          "username": "canonical",
+          "display-name": "Canonical"
        }
      }
   }]
@@ -5769,8 +5769,8 @@ func (s *storeTestSuite) TestInstallRefreshIgnoreValidation(c *C) {
        "version": "6.1",
        "publisher": {
           "id": "canonical",
-          "name": "canonical",
-          "title": "Canonical"
+          "username": "canonical",
+          "display-name": "Canonical"
        }
      }
   }]
@@ -5851,8 +5851,8 @@ func (s *storeTestSuite) TestInstallFallbackChannelIsStable(c *C) {
        "version": "6.1",
        "publisher": {
           "id": "canonical",
-          "name": "canonical",
-          "title": "Canonical"
+          "username": "canonical",
+          "display-name": "Canonical"
        }
      }
   }]
@@ -5940,8 +5940,8 @@ func (s *storeTestSuite) TestInstallRefreshNonDefaultsHeaders(c *C) {
        "version": "6.1",
        "publisher": {
           "id": "canonical",
-          "name": "canonical",
-          "title": "Canonical"
+          "username": "canonical",
+          "display-name": "Canonical"
        }
      }
   }]
@@ -6030,8 +6030,8 @@ func (s *storeTestSuite) TestInstallRefreshWithDeltas(c *C) {
        "version": "6.1",
        "publisher": {
           "id": "canonical",
-          "name": "canonical",
-          "title": "Canonical"
+          "username": "canonical",
+          "display-name": "Canonical"
        }
      }
   }]
@@ -6112,8 +6112,8 @@ func (s *storeTestSuite) TestInstallRefreshOptions(c *C) {
        "version": "6.1",
        "publisher": {
           "id": "canonical",
-          "name": "canonical",
-          "title": "Canonical"
+          "username": "canonical",
+          "display-name": "Canonical"
        }
      }
   }]
@@ -6201,8 +6201,8 @@ func (s *storeTestSuite) TestInstallRefreshInstall(c *C) {
        "version": "6.1",
        "publisher": {
           "id": "canonical",
-          "name": "canonical",
-          "title": "Canonical"
+          "username": "canonical",
+          "display-name": "Canonical"
        }
      }
   }]
@@ -6288,8 +6288,8 @@ func (s *storeTestSuite) TestInstallRefreshInstallWithRevision(c *C) {
        "version": "6.1",
        "publisher": {
           "id": "canonical",
-          "name": "canonical",
-          "title": "Canonical"
+          "username": "canonical",
+          "display-name": "Canonical"
        }
      }
   }]
