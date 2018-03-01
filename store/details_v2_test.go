@@ -61,8 +61,8 @@ const (
   "private": false,
   "publisher": {
      "id": "canonical",
-     "name": "canonical",
-     "title": "Canonical"
+     "username": "canonical",
+     "display-name": "Canonical"
   },
   "revision": 3887,
   "snap-id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
@@ -107,8 +107,8 @@ const (
   "private": false,
   "publisher": {
      "id": "ZvtzsxbsHivZLdvzrt0iqW529riGLfXJ",
-     "name": "thingyinc",
-     "title": "Thingy Inc."
+     "username": "thingyinc",
+     "display-name": "Thingy Inc."
   },
   "revision": 21,
   "snap-id": "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
