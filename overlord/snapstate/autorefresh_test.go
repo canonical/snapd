@@ -175,3 +175,63 @@ func (s *autoRefreshTestSuite) TestDefaultScheduleIsRandomized(c *C) {
 		}
 	}
 }
+
+func (s *autoRefreshTestSuite) TestLastRefreshRefreshHold(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	holdTime := time.Now().Add(5 * time.Minute)
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", holdTime)
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	s.state.Unlock()
+	err := af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+
+	// no refresh
+	c.Check(s.store.ops, HasLen, 0)
+
+	var lastRefresh time.Time
+	s.state.Get("last-refresh", &lastRefresh)
+	c.Check(lastRefresh.IsZero(), Equals, true)
+
+	// hold still kept
+	tr = config.NewTransaction(s.state)
+	var t1 time.Time
+	err = tr.Get("core", "refresh.hold", &t1)
+	c.Assert(err, IsNil)
+	c.Check(t1.Equal(holdTime), Equals, true)
+}
+
+func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpired(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	holdTime := time.Now().Add(-5 * time.Minute)
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", holdTime)
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	s.state.Unlock()
+	err := af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+
+	// refresh happened
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+
+	var lastRefresh time.Time
+	s.state.Get("last-refresh", &lastRefresh)
+	c.Check(lastRefresh.Year(), Equals, time.Now().Year())
+
+	// hold was reset
+	tr = config.NewTransaction(s.state)
+	var t1 time.Time
+	err = tr.Get("core", "refresh.hold", &t1)
+	c.Assert(err, IsNil)
+	c.Check(t1.IsZero(), Equals, true)
+}
