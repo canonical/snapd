@@ -53,6 +53,10 @@ backends:
             - ubuntu-14.04-64:
                 workers: 6
 
+            - ubuntu-core-16-64:
+                image: ubuntu-16.04-64
+                workers: 6
+
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
         plan: 4GB
@@ -68,11 +72,6 @@ backends:
         systems:
             - ubuntu-16.04-32:
                 kernel: GRUB 2
-                workers: 6
-
-            - ubuntu-core-16-64:
-                kernel: Direct Disk
-                image: ubuntu-16.04-64
                 workers: 6
 
             - debian-9-64:
