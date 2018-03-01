@@ -143,7 +143,7 @@ func tryAutostartApp(snapName, desktopFilePath string) error {
 	// use the sanitized desktop file
 	command, err := findExec(desktopFilePath)
 	if err != nil {
-		return fmt.Errorf("failed to determine startup command: %v", filepath.Base(desktopFile), err)
+		return fmt.Errorf("failed to determine startup command: %v", err)
 	}
 	logger.Debugf("exec line: %v", command)
 
@@ -162,7 +162,7 @@ func tryAutostartApp(snapName, desktopFilePath string) error {
 	cmd.Stderr = Stderr
 	cmd.Stdout = Stdout
 	if err := cmd.Start(); err != nil {
-		fmt.Errorf("failed to autostart %q: %v", app.Name, err)
+		return fmt.Errorf("failed to autostart %q: %v", app.Name, err)
 	}
 	return nil
 }
