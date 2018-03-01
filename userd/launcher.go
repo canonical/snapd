@@ -47,6 +47,7 @@ const launcherIntrospectionXML = `
 		<arg type='s' name='url' direction='in'/>
 	</method>
 	<method name="OpenFile">
+		<arg type="s" name="parent_window" direction="in"/>
 		<arg type="h" name="fd" direction="in"/>
 	</method>
 </interface>`
@@ -148,7 +149,7 @@ func fdToFilename(fd int) (string, error) {
 	return filename, nil
 }
 
-func (s *Launcher) OpenFile(clientFd dbus.UnixFD, sender dbus.Sender) *dbus.Error {
+func (s *Launcher) OpenFile(parentWindow string, clientFd dbus.UnixFD, sender dbus.Sender) *dbus.Error {
 	// godbus transfers ownership of this file descriptor to us
 	fd := int(clientFd)
 	defer syscall.Close(fd)

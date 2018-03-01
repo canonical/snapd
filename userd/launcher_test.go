@@ -108,7 +108,7 @@ func (s *launcherSuite) TestOpenFileUserAccepts(c *C) {
 	dupFd, err := syscall.Dup(int(file.Fd()))
 	c.Assert(err, IsNil)
 
-	err = s.launcher.OpenFile(dbus.UnixFD(dupFd), ":some-dbus-sender")
+	err = s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender")
 	c.Assert(err, IsNil)
 	c.Assert(s.mockXdgOpen.Calls(), DeepEquals, [][]string{
 		{"xdg-open", path},
@@ -129,7 +129,7 @@ func (s *launcherSuite) TestOpenFileUserDeclines(c *C) {
 	dupFd, err := syscall.Dup(int(file.Fd()))
 	c.Assert(err, IsNil)
 
-	err = s.launcher.OpenFile(dbus.UnixFD(dupFd), ":some-dbus-sender")
+	err = s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "permission denied")
 	c.Assert(s.mockXdgOpen.Calls(), IsNil)
@@ -147,7 +147,7 @@ func (s *launcherSuite) TestOpenFileSucceedsWithDirectory(c *C) {
 	dupFd, err := syscall.Dup(fd)
 	c.Assert(err, IsNil)
 
-	err = s.launcher.OpenFile(dbus.UnixFD(dupFd), ":some-dbus-sender")
+	err = s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender")
 	c.Assert(err, IsNil)
 	c.Assert(s.mockXdgOpen.Calls(), DeepEquals, [][]string{
 		{"xdg-open", dir},
@@ -165,7 +165,7 @@ func (s *launcherSuite) TestOpenFileFailsWithDeviceFile(c *C) {
 	dupFd, err := syscall.Dup(int(file.Fd()))
 	c.Assert(err, IsNil)
 
-	err = s.launcher.OpenFile(dbus.UnixFD(dupFd), ":some-dbus-sender")
+	err = s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "cannot open anything other than regular files or directories")
 	c.Assert(s.mockXdgOpen.Calls(), IsNil)
@@ -183,7 +183,7 @@ func (s *launcherSuite) TestOpenFileFailsWithPathDescriptor(c *C) {
 	dupFd, err := syscall.Dup(fd)
 	c.Assert(err, IsNil)
 
-	err = s.launcher.OpenFile(dbus.UnixFD(dupFd), ":some-dbus-sender")
+	err = s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "cannot use file descriptors opened using O_PATH")
 	c.Assert(s.mockXdgOpen.Calls(), IsNil)
