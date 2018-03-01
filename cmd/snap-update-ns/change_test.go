@@ -422,10 +422,10 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 		`close 3`,
 		`close 5`,
 		`lstat "/rofs"`,
-		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND ""`,
+		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND|MS_REC ""`,
 		`lstat "/rofs"`,
 		`mount "tmpfs" "/rofs" "tmpfs" 0 ""`,
-		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW`,
+		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`,
 
 		// mimic ready, re-try initial mkdir
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
@@ -547,6 +547,15 @@ func (s *changeSuite) TestPerformFilesystemUnmount(c *C) {
 	synth, err := chg.Perform()
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "/target" UMOUNT_NOFOLLOW`})
+	c.Assert(synth, HasLen, 0)
+}
+
+// Change.Perform wants to detach a bind mount.
+func (s *changeSuite) TestPerformFilesystemDetch(c *C) {
+	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "/something", Dir: "/target", Options: []string{"x-snapd.detach"}}}
+	synth, err := chg.Perform()
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "/target" UMOUNT_NOFOLLOW|MNT_DETACH`})
 	c.Assert(synth, HasLen, 0)
 }
 
@@ -769,10 +778,10 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 		`close 3`,
 		`close 5`,
 		`lstat "/rofs"`,
-		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND ""`,
+		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND|MS_REC ""`,
 		`lstat "/rofs"`,
 		`mount "tmpfs" "/rofs" "tmpfs" 0 ""`,
-		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW`,
+		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`,
 
 		// mimic ready, re-try initial mkdir
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
@@ -1044,10 +1053,10 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 		`close 3`,
 		`close 5`,
 		`lstat "/rofs"`,
-		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND ""`,
+		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND|MS_REC ""`,
 		`lstat "/rofs"`,
 		`mount "tmpfs" "/rofs" "tmpfs" 0 ""`,
-		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW`,
+		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`,
 
 		// mimic ready, re-try initial mkdir
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
@@ -1278,10 +1287,10 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 		`close 3`,
 		`close 5`,
 		`lstat "/rofs"`,
-		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND ""`,
+		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND|MS_REC ""`,
 		`lstat "/rofs"`,
 		`mount "tmpfs" "/rofs" "tmpfs" 0 ""`,
-		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW`,
+		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`,
 
 		// mimic ready, re-try initial base mkdir
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,

@@ -265,10 +265,10 @@ func (s *lowLevelSuite) TestMkdiratBadFd(c *C) {
 }
 
 func (s *lowLevelSuite) TestMountSuccess(c *C) {
-	err := s.sys.Mount("source", "target", "fstype", syscall.MS_BIND|syscall.MS_RDONLY, "")
+	err := s.sys.Mount("source", "target", "fstype", syscall.MS_BIND|syscall.MS_REC|syscall.MS_RDONLY, "")
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`mount "source" "target" "fstype" MS_BIND|MS_RDONLY ""`,
+		`mount "source" "target" "fstype" MS_BIND|MS_REC|MS_RDONLY ""`,
 	})
 }
 
@@ -282,9 +282,9 @@ func (s *lowLevelSuite) TestMountFailure(c *C) {
 }
 
 func (s *lowLevelSuite) TestUnmountSuccess(c *C) {
-	err := s.sys.Unmount("target", testutil.UMOUNT_NOFOLLOW)
+	err := s.sys.Unmount("target", testutil.UMOUNT_NOFOLLOW|syscall.MNT_DETACH)
 	c.Assert(err, IsNil)
-	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" UMOUNT_NOFOLLOW`})
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" UMOUNT_NOFOLLOW|MNT_DETACH`})
 }
 
 func (s *lowLevelSuite) TestUnmountFailure(c *C) {
@@ -315,6 +315,41 @@ func (s *lowLevelSuite) TestLstatFailure(c *C) {
 	fi, err := s.sys.Lstat("/foo")
 	c.Assert(err, ErrorMatches, "no such file or directory")
 	c.Assert(fi, IsNil)
+}
+
+func (s *lowLevelSuite) TestFstat(c *C) {
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+	var buf syscall.Stat_t
+	c.Assert(func() { s.sys.Fstat(fd, &buf) }, PanicMatches,
+		`one of InsertFstatResult\(\) or InsertFault\(\) for fstat 3 <ptr> must be used`)
+}
+
+func (s *lowLevelSuite) TestFstatBadFd(c *C) {
+	var buf syscall.Stat_t
+	err := s.sys.Fstat(3, &buf)
+	c.Assert(err, ErrorMatches, "attempting to fstat with an invalid file descriptor 3")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`fstat 3 <ptr>`})
+}
+
+func (s *lowLevelSuite) TestFstatSuccess(c *C) {
+	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{Dev: 0xC0FE})
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+	var buf syscall.Stat_t
+	err = s.sys.Fstat(fd, &buf)
+	c.Assert(err, IsNil)
+	c.Assert(buf, Equals, syscall.Stat_t{Dev: 0xC0FE})
+}
+
+func (s *lowLevelSuite) TestFstatFailure(c *C) {
+	s.sys.InsertFault(`fstat 3 <ptr>`, syscall.EPERM)
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+	var buf syscall.Stat_t
+	err = s.sys.Fstat(fd, &buf)
+	c.Assert(err, ErrorMatches, "operation not permitted")
+	c.Assert(buf, Equals, syscall.Stat_t{})
 }
 
 func (s *lowLevelSuite) TestReadDir(c *C) {
