@@ -30,7 +30,7 @@
 %global with_test_keys 0
 %endif
 
-%define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service
+%define systemd_services_list snapd.socket snapd.service
 Name:           snapd
 Version:        2.31.1
 Release:        0
@@ -288,8 +288,6 @@ fi
 %verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_mandir}/man1/snap-confine.1.gz
 %{_mandir}/man5/snap-discard-ns.5.gz
-%{_unitdir}/snapd.refresh.service
-%{_unitdir}/snapd.refresh.timer
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
 %{_unitdir}/snap.mount

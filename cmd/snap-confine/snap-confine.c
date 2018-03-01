@@ -244,7 +244,8 @@ int main(int argc, char **argv)
 				}
 			}
 			if (sc_should_populate_ns_group(group)) {
-				sc_populate_mount_ns(snap_update_ns_fd,
+				sc_populate_mount_ns(&apparmor,
+						     snap_update_ns_fd,
 						     base_snap_name, snap_name);
 				sc_preserve_populated_ns_group(group);
 			}
