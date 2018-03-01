@@ -71,7 +71,7 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 	invalidNames := []string{
 		// name cannot be empty
 		"",
-		// names cannot be full
+		// names cannot be too long
 		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
 		"1111111111111111111111111111111111111111x",
