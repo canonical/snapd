@@ -85,6 +85,30 @@ func (m *autoRefresh) LastRefresh() (time.Time, error) {
 	return lastRefresh, nil
 }
 
+// EffectiveRefreshHold returns the time until to which refreshes are
+// held if refresh.hold configuration is set and accounting for the
+// max postponement since the last refresh.
+func (m *autoRefresh) EffectiveRefreshHold() (time.Time, error) {
+	var holdTime time.Time
+
+	tr := config.NewTransaction(m.state)
+	err := tr.Get("core", "refresh.hold", &holdTime)
+	if err != nil && !config.IsNoOption(err) {
+		return time.Time{}, err
+	}
+
+	// XXX: adjust using last-refresh/seed-time & maxPostponement
+
+	return holdTime, nil
+}
+
+// clearRefreshHold clears refresh.hold configuration.
+func (m *autoRefresh) clearRefreshHold() {
+	tr := config.NewTransaction(m.state)
+	tr.Set("core", "refresh.hold", nil)
+	tr.Commit()
+}
+
 // Ensure ensures that we refresh all installed snaps periodically
 func (m *autoRefresh) Ensure() error {
 	m.state.Lock()
@@ -141,10 +165,24 @@ func (m *autoRefresh) Ensure() error {
 			delta := timeutil.Next(refreshSchedule, lastRefresh, maxPostponement)
 			m.nextRefresh = time.Now().Add(delta)
 		} else {
+			// XXX: make sure either seed-time or last-refresh
+			// are set
 			// immediate
 			m.nextRefresh = time.Now()
 		}
 		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh)
+	}
+
+	// should we hold back refreshes?
+	holdTime, err := m.EffectiveRefreshHold()
+	if err != nil {
+		return err
+	}
+	if holdTime.After(time.Now()) {
+		return nil
+	}
+	if !holdTime.IsZero() {
+		m.clearRefreshHold()
 	}
 
 	// do refresh attempt (if needed)
