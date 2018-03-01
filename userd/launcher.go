@@ -128,11 +128,11 @@ func fdToFilename(fd int) (string, error) {
 		return "", err
 	}
 
-	var fdStat, fileStat syscall.Stat_t
-	if err := syscall.Fstat(fd, &fdStat); err != nil {
+	var fileStat, fdStat syscall.Stat_t
+	if err := syscall.Stat(filename, &fileStat); err != nil {
 		return "", err
 	}
-	if err := syscall.Stat(filename, &fileStat); err != nil {
+	if err := syscall.Fstat(fd, &fdStat); err != nil {
 		return "", err
 	}
 
