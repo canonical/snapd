@@ -84,7 +84,7 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	for _, srvName := range []string{"ssh", "rsyslog"} {
+	for _, srvName := range []string{"ssh", "rsyslog", "snapd.autoimport"} {
 		s.systemctlArgs = nil
 
 		err := configcore.Run(&mockConf{
@@ -108,7 +108,7 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	for _, srvName := range []string{"ssh", "rsyslog"} {
+	for _, srvName := range []string{"ssh", "rsyslog", "snapd.autoimport"} {
 		s.systemctlArgs = nil
 		err := configcore.Run(&mockConf{
 			state: s.state,
