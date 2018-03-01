@@ -2048,11 +2048,11 @@ type CurrentSnap struct {
 }
 
 type contextSnapJSON struct {
-	SnapID           string    `json:"snap-id"`
-	Revision         int       `json:"revision"`
-	TrackingChannel  string    `json:"tracking-channel"`
-	RefreshedDate    time.Time `json:"refreshed-date"`
-	IgnoreValidation bool      `json:"ignore-validation,omitempty"`
+	SnapID           string     `json:"snap-id"`
+	Revision         int        `json:"revision"`
+	TrackingChannel  string     `json:"tracking-channel"`
+	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
+	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
 }
 
 type InstallRefreshActionFlags int
@@ -2140,13 +2140,16 @@ func (s *Store) InstallRefresh(installedCtxt []*CurrentSnap, actions []*InstallR
 		if channel == "" {
 			channel = "stable"
 		}
+		var refreshedDate *time.Time
+		if !curSnap.RefreshedDate.IsZero() {
+			refreshedDate = &curSnap.RefreshedDate
+		}
 		ctxtSnapJSONs[i] = &contextSnapJSON{
 			SnapID:           curSnap.SnapID,
 			Revision:         curSnap.Revision.N,
 			TrackingChannel:  channel,
 			IgnoreValidation: curSnap.IgnoreValidation,
-			// TODO: this should become optional
-			RefreshedDate: curSnap.RefreshedDate,
+			RefreshedDate:    refreshedDate,
 		}
 	}
 
