@@ -72,9 +72,9 @@ type storeSnapDelta struct {
 }
 
 type storeAccount struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`  // aka username
-	Title string `json:"title"` // aka display-name
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display-name"`
 }
 
 type storeSnapMedia struct {
@@ -102,7 +102,7 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info.Base = d.Base
 	info.License = d.License
 	info.PublisherID = d.Publisher.ID
-	info.Publisher = d.Publisher.Name
+	info.Publisher = d.Publisher.Username
 	info.DownloadURL = d.Download.URL
 	info.Size = d.Download.Size
 	info.Sha3_384 = d.Download.Sha3_384
