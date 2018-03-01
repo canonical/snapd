@@ -61,6 +61,9 @@ func (s *overlaySuite) TestIsRootWritableOverlay(c *C) {
 	}, {
 		mountinfo: "31 1 0:26 /elsewhere /elsewhere rw,relatime shared:1 - overlay overlay rw,lowerdir=//filesystem.squashfs,upperdir=/cow/upper,workdir=/cow/work",
 	}, {
+		// casper overlay which results in empty upperdir are ignored
+		mountinfo: "31 1 0:26 / / rw,relatime shared:1 - overlay /upper rw,lowerdir=//filesystem.squashfs,upperdir=/upper,workdir=/cow/work",
+	}, {
 		// overlay with relative paths, AARE or double quotes are
 		// ignored
 		mountinfo: "31 1 0:26 / / rw,relatime shared:1 - overlay /cow rw,lowerdir=//filesystem.squashfs,upperdir=cow/upper,workdir=/cow/work",

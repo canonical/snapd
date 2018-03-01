@@ -51,8 +51,8 @@ func IsRootWritableOverlay() (string, error) {
 			if dir, ok := entry.SuperOptions["upperdir"]; ok {
 				// upperdir must be an absolute path without
 				// any AppArmor regular expression (AARE)
-				// characters to be considered
-				if !strings.HasPrefix(dir, "/") || strings.ContainsAny(dir, "?*[]{}^\"") {
+				// characters or double quotes to be considered
+				if !strings.HasPrefix(dir, "/") || strings.ContainsAny(dir, `?*[]{}^"`) {
 					continue
 				}
 				// if mount source is path, strip it from dir
@@ -61,9 +61,17 @@ func IsRootWritableOverlay() (string, error) {
 					dir = strings.TrimPrefix(dir, strings.TrimRight(entry.MountSource, "/"))
 				}
 
+				dir = strings.TrimRight(dir, "/")
+
+				// The resulting trimmed dir must be an
+				// absolute path that is not '/'
+				if len(dir) < 2 || !strings.HasPrefix(dir, "/") {
+					continue
+				}
+
 				// Make sure trailing slashes are predicatably
 				// missing
-				return strings.TrimRight(dir, "/"), nil
+				return dir, nil
 			}
 		}
 	}
