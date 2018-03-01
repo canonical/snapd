@@ -1,0 +1,55 @@
+summary: Ensure that snap layouts are applied
+details: |
+    This test installs a test snap that uses layout declarations.
+    The layout changes which directories and files exist in the filesystem
+    in the area beyond the $SNAP directory. In addition all applications and
+    hooks get permissions to access those areas.
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-layout
+debug: |
+    # We saw some failures where it looked like we were confined by the most
+    # wrong thing imaginable. To get an idea what is going on let's show
+    # the profile we were using when the test fails.
+    # Before per-snap update-ns profiles are here.
+    cat /etc/apparmor.d/*snap.core.*.usr.lib.snapd.snap-confine* || :
+    # Once per-snap update-ns profiles are here.
+    cat /var/lib/snapd/apparmor/profiles/snap-update-ns.test-snapd-layout || :
+execute: |
+    echo "snap declaring layouts doesn't explode on startup"
+    test-snapd-layout.sh -c "true"
+    
+    echo "layout declarations are honored"
+
+    test-snapd-layout.sh -c "test -d /etc/demo"
+    test-snapd-layout.sh -c "test -f /etc/demo.conf"
+    test-snapd-layout.sh -c "test -h /etc/demo.cfg"
+    test "$(test-snapd-layout.sh -c "readlink /etc/demo.cfg")" = "$(test-snapd-layout.sh -c 'echo $SNAP_COMMON/etc/demo.conf')"
+    test-snapd-layout.sh -c "test -d /usr/share/demo"
+    test-snapd-layout.sh -c "test -d /var/lib/demo"
+    test-snapd-layout.sh -c "test -d /var/cache/demo"
+    test-snapd-layout.sh -c "test -d /opt/demo"
+
+    echo "layout locations pointing to SNAP_DATA and SNAP_COMMON are writable"
+    echo "and the writes go to the right place in the backing store"
+
+    test-snapd-layout.sh -c "echo foo-1 > /etc/demo/writable"
+    test "$(test-snapd-layout.sh -c 'cat $SNAP_COMMON/etc/demo/writable')" = "foo-1"
+
+    test-snapd-layout.sh -c "echo foo-2 > /etc/demo.conf"
+    test "$(test-snapd-layout.sh -c 'cat $SNAP_COMMON/etc/demo.conf')" = "foo-2"
+
+    # NOTE: this is a symlink to demo.conf, effectively
+    test-snapd-layout.sh -c "echo foo-3 > /etc/demo.cfg"
+    test "$(test-snapd-layout.sh -c 'cat $SNAP_COMMON/etc/demo.conf')" = "foo-3"
+
+    test-snapd-layout.sh -c "echo foo-4 > /var/lib/demo/writable"
+    test "$(test-snapd-layout.sh -c 'cat $SNAP_DATA/var/lib/demo/writable')" = "foo-4"
+
+    test-snapd-layout.sh -c "echo foo-5 > /var/cache/demo/writable"
+    test "$(test-snapd-layout.sh -c 'cat $SNAP_DATA/var/cache/demo/writable')" = "foo-5"
+
+    echo "layout locations pointing to SNAP are readable"
+
+    test-snapd-layout.sh -c "test -r /usr/share/demo/file"
+    test-snapd-layout.sh -c "test -r /opt/demo/file"
