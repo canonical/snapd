@@ -32,22 +32,25 @@ func noon(t time.Time) time.Time {
 	return time.Date(y, m, d, 12, 0, 0, 0, t.Location())
 }
 
-// Human turns the time (which must be in the past) into something
-// more meant for human consumption.
+// Human turns the time into a relative expression of time meant for human
+// consumption.
+// Human(t)  --> "today at 07:47 "
 func Human(then time.Time) string {
-	return humanTimeSince(then, time.Now())
+	return humanTimeSince(then.Local(), time.Now().Local())
 }
 
 func humanTimeSince(then, now time.Time) string {
-	then = then.Local()
-	now = now.Local()
-
-	switch d := int(math.Ceil(noon(now).Sub(noon(then)).Hours() / 24)); d {
-	case 0:
-		return then.Format(i18n.G("today at 15:04-07"))
-	case 1:
-		return then.Format(i18n.G("yesterday at 15:04-07"))
+	d := int(math.Floor(noon(then).Sub(noon(now)).Hours() / 24))
+	switch {
+	case d > 1:
+		return fmt.Sprintf(then.Format(i18n.G("in %d days, at 15:04 MST")), d)
+	case d < -1:
+		return fmt.Sprintf(then.Format(i18n.G("%d days ago, at 15:04 MST")), -d)
+	case d == 1:
+		return then.Format(i18n.G("tomorrow at 15:04 MST"))
+	case d == -1:
+		return then.Format(i18n.G("yesterday at 15:04 MST"))
 	default:
-		return fmt.Sprintf(then.Format(i18n.G("%d days ago at 15:04-07")), d)
+		return then.Format(i18n.G("today at 15:04 MST"))
 	}
 }

@@ -46,31 +46,34 @@ func (s *humanSuite) SetUpSuite(c *check.C) {
 	s.afterDSTends = time.Date(2017, 10, 29, 1, 1, 0, 0, loc)
 
 	// sanity check
-	c.Check(s.beforeDSTbegins.Format("-07"), check.Equals, s.afterDSTends.Format("-07"))
-	c.Check(s.beforeDSTbegins.Format("-07"), check.Equals, "+00")
-	c.Check(s.afterDSTbegins.Format("Z07"), check.Equals, s.beforeDSTends.Format("Z07"))
-	c.Check(s.afterDSTbegins.Format("Z07"), check.Equals, "+01")
+	c.Check(s.beforeDSTbegins.Format("MST"), check.Equals, s.afterDSTends.Format("MST"))
+	c.Check(s.beforeDSTbegins.Format("MST"), check.Equals, "GMT")
+	c.Check(s.afterDSTbegins.Format("MST"), check.Equals, s.beforeDSTends.Format("MST"))
+	c.Check(s.afterDSTbegins.Format("MST"), check.Equals, "BST")
 
 	// “The month, day, hour, min, sec, and nsec values may be outside their
 	//  usual ranges and will be normalized during the conversion.”
-	// so you can always substract 1 from a day and it'll just work \o/
+	// so you can always add or subtract 1 from a day and it'll just work \o/
 	c.Check(time.Date(2017, -1, -1, -1, -1, -1, 0, loc), check.DeepEquals, time.Date(2016, 10, 29, 22, 58, 59, 0, loc))
+	c.Check(time.Date(2017, 13, 32, 25, 61, 63, 0, loc), check.DeepEquals, time.Date(2018, 2, 2, 2, 2, 3, 0, loc))
 }
 
 func (s *humanSuite) TestHumanTimeDST(c *check.C) {
-	c.Check(timeutil.HumanTimeSince(s.beforeDSTbegins, s.afterDSTbegins), check.Equals, "today at 00:59+00")
-	c.Check(timeutil.HumanTimeSince(s.beforeDSTends, s.afterDSTends), check.Equals, "today at 01:59+01")
-	c.Check(timeutil.HumanTimeSince(s.beforeDSTbegins, s.afterDSTends), check.Equals, "218 days ago at 00:59+00")
+	c.Check(timeutil.HumanTimeSince(s.beforeDSTbegins, s.afterDSTbegins), check.Equals, "today at 00:59 GMT")
+	c.Check(timeutil.HumanTimeSince(s.beforeDSTends, s.afterDSTends), check.Equals, "today at 01:59 BST")
+	c.Check(timeutil.HumanTimeSince(s.beforeDSTbegins, s.afterDSTends), check.Equals, "218 days ago, at 00:59 GMT")
 }
 
 func (*humanSuite) TestHuman(c *check.C) {
 	now := time.Now()
-	timePart := now.Format("15:04-07")
+	timePart := now.Format("15:04 MST")
 	y, m, d := now.Date()
 	H, M, S := now.Clock()
 	loc := now.Location()
 
-	c.Check(timeutil.Human(now), check.Equals, "today at "+timePart)
+	c.Check(timeutil.Human(time.Date(y, m, d-2, H, M, S, 0, loc)), check.Equals, "2 days ago, at "+timePart)
 	c.Check(timeutil.Human(time.Date(y, m, d-1, H, M, S, 0, loc)), check.Equals, "yesterday at "+timePart)
-	c.Check(timeutil.Human(time.Date(y, m, d-2, H, M, S, 0, loc)), check.Equals, "2 days ago at "+timePart)
+	c.Check(timeutil.Human(now), check.Equals, "today at "+timePart)
+	c.Check(timeutil.Human(time.Date(y, m, d+1, H, M, S, 0, loc)), check.Equals, "tomorrow at "+timePart)
+	c.Check(timeutil.Human(time.Date(y, m, d+2, H, M, S, 0, loc)), check.Equals, "in 2 days, at "+timePart)
 }
