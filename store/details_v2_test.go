@@ -20,12 +20,15 @@
 package store
 
 import (
+	"reflect"
+
 	"encoding/json"
 	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type detailsV2Suite struct{}
@@ -247,4 +250,45 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	c.Check(snap.Validate(info), IsNil)
 
 	c.Check(info.Private, Equals, true)
+
+	// check that up to few exceptions info is filled
+	expectedZeroFields := []string{
+		"SuggestedName",
+		"Assumes",
+		"OriginalTitle",
+		"OriginalSummary",
+		"OriginalDescription",
+		"Environment",
+		"LicenseAgreement", // XXX go away?
+		"LicenseVersion",   // XXX go away?
+		"Apps",
+		"LegacyAliases",
+		"Hooks",
+		"BadInterfaces",
+		"Broken",
+		"MustBuy",
+		"Channels", // TODO: support coming later
+		"Tracks",   // TODO: support coming later
+		"Layout",
+		"SideInfo.Channel",
+		"DownloadInfo.AnonDownloadURL", // TODO: going away at some point
+	}
+	var checker func(string, reflect.Value)
+	checker = func(pfx string, x reflect.Value) {
+		t := x.Type()
+		for i := 0; i < x.NumField(); i++ {
+			f := t.Field(i)
+			v := x.Field(i)
+			if f.Anonymous {
+				checker(pfx+f.Name+".", v)
+				continue
+			}
+			if reflect.DeepEqual(v.Interface(), reflect.Zero(f.Type).Interface()) {
+				name := pfx + f.Name
+				c.Check(expectedZeroFields, testutil.Contains, name, Commentf("%s not set", name))
+			}
+		}
+	}
+	x := reflect.ValueOf(info).Elem()
+	checker("", x)
 }
