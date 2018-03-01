@@ -48,5 +48,5 @@ execute: |
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to access avahi provided info"
-    hostname=$(cat /etc/hostname)
+    hostname=$(hostname)
     generic-consumer.cmd $avahi_dbus_call | MATCH "$hostname"
