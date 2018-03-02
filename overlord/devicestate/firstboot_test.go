@@ -527,6 +527,12 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 	err = state.Get("seeded", &seeded)
 	c.Assert(err, IsNil)
 	c.Check(seeded, Equals, true)
+
+	// check we set seed-time
+	var seedTime time.Time
+	err = state.Get("seed-time", &seedTime)
+	c.Assert(err, IsNil)
+	c.Check(seedTime.IsZero(), Equals, false)
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {
