@@ -159,6 +159,7 @@ func (s *interfaceManagerSuite) TestKnownTaskKinds(c *C) {
 		"connect",
 		"discard-conns",
 		"disconnect",
+		"disconnect-interfaces",
 		"reconnect",
 		"remove-profiles",
 		"setup-profiles",
