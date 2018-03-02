@@ -630,6 +630,25 @@ func preprocess(content []byte) (unrestricted, complain bool) {
 	return unrestricted, complain
 }
 
+func complainAction() seccomp.ScmpAction {
+	// XXX: Work around some distributions not having a new enough
+	// libseccomp-golang that declares ActLog. Instead, we'll guess at its
+	// value by adding one to ActAllow and then verify that the string
+	// representation is what we expect for ActLog. The value and string is
+	// defined in https://github.com/seccomp/libseccomp-golang/pull/29.
+	//
+	// Ultimately, the fix for this workaround is to be able to use the
+	// GetApi() function created in the PR above. It'll tell us if the
+	// kernel, libseccomp, and libseccomp-golang all support ActLog.
+	var actLog seccomp.ScmpAction = seccomp.ActAllow + 1
+
+	if (actLog.String() == "Action: Log system call") {
+		return actLog
+	}
+
+	return seccomp.ActAllow
+}
+
 func compile(content []byte, out string) error {
 	var err error
 	var secFilter *seccomp.ScmpFilter
@@ -639,13 +658,21 @@ func compile(content []byte, out string) error {
 	case unrestricted:
 		return osutil.AtomicWrite(out, bytes.NewBufferString("@unrestricted\n"), 0644, 0)
 	case complain:
-		secFilter, err = seccomp.NewFilter(seccomp.ActLog)
+		var complainAct seccomp.ScmpAction = complainAction()
+
+		secFilter, err = seccomp.NewFilter(complainAct)
 		if err != nil {
-			// ActLog is only supported in newer versions
-			// of the kernel, libseccomp, and
-			// libseccomp-golang. Attempt to fall back to
-			// ActAllow before erroring out.
-			secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
+			if complainAct != seccomp.ActAllow {
+				// ActLog is only supported in newer versions
+				// of the kernel, libseccomp, and
+				// libseccomp-golang. Attempt to fall back to
+				// ActAllow before erroring out.
+				complainAct = seccomp.ActAllow
+				secFilter, err = seccomp.NewFilter(complainAct)
+			}
+		}
+
+		if complainAct == seccomp.ActAllow {
 			unrestricted = true
 		}
 	default:
