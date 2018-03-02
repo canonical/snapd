@@ -444,6 +444,7 @@ func (s *AllSuite) TestRegisterIface(c *C) {
 
 const testConsumerInvalidSlotNameYaml = `
 name: consumer
+version: 0
 slots:
  ttyS5:
   interface: iface
@@ -454,6 +455,7 @@ apps:
 
 const testConsumerInvalidPlugNameYaml = `
 name: consumer
+version: 0
 plugs:
  ttyS3:
   interface: iface
@@ -464,6 +466,7 @@ apps:
 
 const testInvalidSlotInterfaceYaml = `
 name: testsnap
+version: 0
 slots:
  iface:
   interface: iface
@@ -477,6 +480,7 @@ hooks:
 
 const testInvalidPlugInterfaceYaml = `
 name: testsnap
+version: 0
 plugs:
  iface:
   interface: iface

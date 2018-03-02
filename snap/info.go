@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -172,7 +173,7 @@ type Info struct {
 	// The information in all the remaining fields is not sourced from the snap blob itself.
 	SideInfo
 
-	// Broken marks if set whether the snap is broken and the reason.
+	// Broken marks whether the snap is broken and the reason.
 	Broken string
 
 	// The information in these fields is ephemeral, available only from the store.
@@ -200,13 +201,14 @@ type Info struct {
 type Layout struct {
 	Snap *Info
 
-	Path    string      `json:"path"`
-	Bind    string      `json:"bind,omitempty"`
-	Type    string      `json:"type,omitempty"`
-	User    string      `json:"user,omitempty"`
-	Group   string      `json:"group,omitempty"`
-	Mode    os.FileMode `json:"mode,omitempty"`
-	Symlink string      `json:"symlink,omitempty"`
+	Path     string      `json:"path"`
+	Bind     string      `json:"bind,omitempty"`
+	BindFile string      `json:"bind-file,omitempty"`
+	Type     string      `json:"type,omitempty"`
+	User     string      `json:"user,omitempty"`
+	Group    string      `json:"group,omitempty"`
+	Mode     os.FileMode `json:"mode,omitempty"`
+	Symlink  string      `json:"symlink,omitempty"`
 }
 
 // ChannelSnapInfo is the minimum information that can be used to clearly
@@ -347,6 +349,22 @@ func (s *Info) ExpandSnapVariables(path string) string {
 		}
 		return ""
 	})
+}
+
+// InstallDate returns the "install date" of the snap.
+//
+// If the snap is not active, it'll return a zero time; otherwise
+// it'll return the modtime of the "current" symlink. Sneaky.
+func (s *Info) InstallDate() time.Time {
+	dir, rev := filepath.Split(s.MountDir())
+	cur := filepath.Join(dir, "current")
+	tag, err := os.Readlink(cur)
+	if err == nil && tag == rev {
+		if st, err := os.Lstat(cur); err == nil {
+			return st.ModTime()
+		}
+	}
+	return time.Time{}
 }
 
 func BadInterfacesSummary(snapInfo *Info) string {
@@ -500,6 +518,13 @@ type SocketInfo struct {
 	SocketMode   os.FileMode
 }
 
+// TimerInfo provides information on application timer.
+type TimerInfo struct {
+	App *AppInfo
+
+	Timer string
+}
+
 // AppInfo provides information about a app.
 type AppInfo struct {
 	Snap *Info
@@ -515,6 +540,7 @@ type AppInfo struct {
 	PostStopCommand string
 	RestartCond     RestartCondition
 	Completer       string
+	RefreshMode     string
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
@@ -531,6 +557,8 @@ type AppInfo struct {
 	// before
 	After  []string
 	Before []string
+
+	Timer *TimerInfo
 }
 
 // ScreenshotInfo provides information about a screenshot.
@@ -549,9 +577,14 @@ type HookInfo struct {
 	Slots map[string]*SlotInfo
 }
 
-// File returns the path to the file
+// File returns the path to the *.socket file
 func (socket *SocketInfo) File() string {
 	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
+}
+
+// File returns the path to the *.timer file
+func (timer *TimerInfo) File() string {
+	return filepath.Join(dirs.SnapServicesDir, timer.App.SecurityTag()+".timer")
 }
 
 // SecurityTag returns application-specific security tag.
@@ -588,6 +621,9 @@ func (app *AppInfo) launcherCommand(command string) string {
 
 // LauncherCommand returns the launcher command line to use when invoking the app binary.
 func (app *AppInfo) LauncherCommand() string {
+	if app.Timer != nil {
+		return app.launcherCommand(fmt.Sprintf("--timer=%q", app.Timer.Timer))
+	}
 	return app.launcherCommand("")
 }
 

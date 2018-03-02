@@ -12,10 +12,10 @@ reset_classic() {
 
     echo "Ensure the service is active before stopping it"
     retries=20
-    systemctl status snapd.service || true
-    while systemctl status snapd.service | grep "Active: activating"; do
+    systemctl status snapd.service snapd.socket || true
+    while systemctl status snapd.service snapd.socket | grep "Active: activating"; do
         if [ $retries -eq 0 ]; then
-            echo "snapd service not active"
+            echo "snapd service or socket not active"
             exit 1
         fi
         retries=$(( $retries - 1 ))
@@ -97,6 +97,10 @@ reset_all_snap() {
             "bin" | "$gadget_name" | "$kernel_name" | core | README)
                 ;;
             *)
+                # make sure snapd is running before we attempt to remove snaps, in case a test stopped it
+                if ! systemctl status snapd.service snapd.socket; then
+                    systemctl start snapd.service snapd.socket
+                fi
                 snap remove "$snap"
                 ;;
         esac

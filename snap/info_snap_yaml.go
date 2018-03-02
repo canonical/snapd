@@ -67,6 +67,7 @@ type appYaml struct {
 	PostStopCommand string          `yaml:"post-stop-command,omitempty"`
 	StopTimeout     timeout.Timeout `yaml:"stop-timeout,omitempty"`
 	Completer       string          `yaml:"completer,omitempty"`
+	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
 
 	RestartCond RestartCondition `yaml:"restart-condition,omitempty"`
 	SlotNames   []string         `yaml:"slots,omitempty"`
@@ -80,6 +81,8 @@ type appYaml struct {
 
 	After  []string `yaml:"after,omitempty"`
 	Before []string `yaml:"before,omitempty"`
+
+	Timer string `yaml:"timer,omitempty"`
 }
 
 type hookYaml struct {
@@ -88,12 +91,13 @@ type hookYaml struct {
 }
 
 type layoutYaml struct {
-	Bind    string `yaml:"bind,omitempty"`
-	Type    string `yaml:"type,omitempty"`
-	User    string `yaml:"user,omitempty"`
-	Group   string `yaml:"group,omitempty"`
-	Mode    string `yaml:"mode,omitempty"`
-	Symlink string `yaml:"symlink,omitempty"`
+	Bind     string `yaml:"bind,omitempty"`
+	BindFile string `yaml:"bind-file,omitempty"`
+	Type     string `yaml:"type,omitempty"`
+	User     string `yaml:"user,omitempty"`
+	Group    string `yaml:"group,omitempty"`
+	Mode     string `yaml:"mode,omitempty"`
+	Symlink  string `yaml:"symlink,omitempty"`
 }
 
 type socketsYaml struct {
@@ -166,7 +170,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			}
 			snap.Layout[path] = &Layout{
 				Snap: snap, Path: path,
-				Bind: l.Bind, Type: l.Type, Symlink: l.Symlink,
+				Bind: l.Bind, Type: l.Type, Symlink: l.Symlink, BindFile: l.BindFile,
 				User: user, Group: group, Mode: mode,
 			}
 		}
@@ -292,6 +296,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			BusName:         yApp.BusName,
 			Environment:     yApp.Environment,
 			Completer:       yApp.Completer,
+			RefreshMode:     yApp.RefreshMode,
 			Before:          yApp.Before,
 			After:           yApp.After,
 		}
@@ -348,6 +353,12 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 				Name:         name,
 				ListenStream: data.ListenStream,
 				SocketMode:   data.SocketMode,
+			}
+		}
+		if yApp.Timer != "" {
+			app.Timer = &TimerInfo{
+				App:   app,
+				Timer: yApp.Timer,
 			}
 		}
 	}

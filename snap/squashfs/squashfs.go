@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,8 +28,10 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Magic is the magic prefix of squashfs snap files.
@@ -88,8 +90,58 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	return osutil.CopyFile(s.path, targetPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
 }
 
+// unsquashfsStderrWriter is a helper that captures errors from
+// unsquashfs on stderr. Because unsquashfs will potentially
+// (e.g. on out-of-diskspace) report an error on every single
+// file we limit the reported error lines to 4.
+//
+// unsquashfs does not exit with an exit code for write errors
+// (e.g. no space left on device). There is an upstream PR
+// to fix this https://github.com/plougher/squashfs-tools/pull/46
+//
+// However in the meantime we can detect errors by looking
+// on stderr for "failed" which is pretty consistently used in
+// the unsquashfs.c source in case of errors.
+type unsquashfsStderrWriter struct {
+	strutil.MatchCounter
+}
+
+func newUnsquashfsStderrWriter() *unsquashfsStderrWriter {
+	return &unsquashfsStderrWriter{strutil.MatchCounter{
+		Regexp: regexp.MustCompile(`(?m).*\b[Ff]ailed\b.*`),
+		N:      4, // note Err below uses this value
+	}}
+}
+
+func (u *unsquashfsStderrWriter) Err() error {
+	// here we use that our N is 4.
+	errors, count := u.Matches()
+	switch count {
+	case 0:
+		return nil
+	case 1:
+		return fmt.Errorf("failed: %q", errors[0])
+	case 2, 3, 4:
+		return fmt.Errorf("failed: %s, and %q", strutil.Quoted(errors[:len(errors)-1]), errors[len(errors)-1])
+	default:
+		// count > len(matches)
+		extra := count - len(errors)
+		return fmt.Errorf("failed: %s, and %d more", strutil.Quoted(errors), extra)
+	}
+}
+
 func (s *Snap) Unpack(src, dstDir string) error {
-	return exec.Command("unsquashfs", "-f", "-i", "-d", dstDir, s.path, src).Run()
+	usw := newUnsquashfsStderrWriter()
+
+	cmd := exec.Command("unsquashfs", "-f", "-d", dstDir, s.path, src)
+	cmd.Stderr = usw
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	if usw.Err() != nil {
+		return fmt.Errorf("cannot extract %q to %q: %v", src, dstDir, usw.Err())
+	}
+	return nil
 }
 
 // Size returns the size of a squashfs snap.
@@ -251,4 +303,33 @@ func (s *Snap) Build(buildDir string) error {
 			"-no-fragments",
 		).Run()
 	})
+}
+
+// BuildDate returns the "Creation or last append time" as reported by unsquashfs.
+func (s *Snap) BuildDate() time.Time {
+	return BuildDate(s.path)
+}
+
+// BuildDate returns the "Creation or last append time" as reported by unsquashfs.
+func BuildDate(path string) time.Time {
+	var t0 time.Time
+
+	const prefix = "Creation or last append time "
+	m := &strutil.MatchCounter{
+		Regexp: regexp.MustCompile("(?m)^" + prefix + ".*$"),
+		N:      1,
+	}
+
+	cmd := exec.Command("unsquashfs", "-s", path)
+	cmd.Stdout = m
+	cmd.Stderr = m
+	if err := cmd.Run(); err != nil {
+		return t0
+	}
+	matches, count := m.Matches()
+	if count != 1 {
+		return t0
+	}
+	t0, _ = time.Parse(time.ANSIC, matches[0][len(prefix):])
+	return t0
 }

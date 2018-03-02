@@ -42,12 +42,14 @@ var _ = Suite(&GpgKeysInterfaceSuite{
 })
 
 const gpgKeysConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
    plugs: [gpg-keys]
    `
 
 const gpgKeysCoreYaml = `name: core
+version: 0
 type: os
 slots:
   gpg-keys:

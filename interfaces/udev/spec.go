@@ -74,7 +74,7 @@ func (spec *Specification) TagDevice(snippet string) {
 	for _, securityTag := range spec.securityTags {
 		tag := udevTag(securityTag)
 		spec.addEntry(fmt.Sprintf("# %s\n%s, TAG+=\"%s\"", spec.iface, snippet, tag), tag)
-		spec.addEntry(fmt.Sprintf("TAG==\"%s\", RUN+=\"/lib/udev/snappy-app-dev $env{ACTION} %s $devpath $major:$minor\"", tag, tag), tag)
+		spec.addEntry(fmt.Sprintf("TAG==\"%s\", RUN+=\"/usr/lib/snapd/snap-device-helper $env{ACTION} %s $devpath $major:$minor\"", tag, tag), tag)
 	}
 }
 
