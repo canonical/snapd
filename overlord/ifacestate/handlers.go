@@ -786,6 +786,59 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// doDisconnectInterfaces creates tasks for disconnecting an interface and running its interface hooks.
+func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, err := snapstate.TaskSnapSetup(task)
+	if err != nil {
+		return err
+	}
+
+	snapName := snapsup.Name()
+	connections, err := m.repo.Connections(snapName)
+	if err != nil {
+		return err
+	}
+
+	connectts := state.NewTaskSet()
+	chg := task.Change()
+	for _, connRef := range connections {
+		conn, err := m.repo.Connection(connRef)
+		if err != nil {
+			break
+		}
+		ts, err := Disconnect(st, conn)
+		if err != nil {
+			return err
+		}
+		connectts.AddAll(ts)
+	}
+
+	task.SetStatus(state.DoneStatus)
+
+	lanes := task.Lanes()
+	if len(lanes) == 1 && lanes[0] == 0 {
+		lanes = nil
+	}
+	ht := task.HaltTasks()
+
+	// add all disconnect tasks to the change of main "reconnect" task and to the same lane.
+	for _, l := range lanes {
+		connectts.JoinLane(l)
+	}
+	chg.AddAll(connectts)
+	// make all halt tasks of the main 'disconnect-interface' task wait on connect tasks
+	for _, t := range ht {
+		t.WaitAll(connectts)
+	}
+
+	st.EnsureBefore(0)
+	return nil
+}
+
 func (m *InterfaceManager) undoAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	// TODO Introduce disconnection hooks, and run them here as well to give a chance
 	// for the snap to undo whatever it did when the connection was established.

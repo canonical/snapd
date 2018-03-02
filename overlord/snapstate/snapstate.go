@@ -1303,6 +1303,13 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		chain = ts
 	}
 
+	if removeAll {
+		// disconnect interfaces and run disconnect hooks
+		disconnect := st.NewTask("disconnect-interfaces", fmt.Sprintf(i18n.G("Disconnect interfaces of snap %q"), snapsup.Name()))
+		disconnect.Set("snap-setup", snapsup)
+		addNext(state.NewTaskSet(disconnect))
+	}
+
 	var removeHook *state.Task
 	// only run remove hook if uninstalling the snap completely
 	if removeAll {
