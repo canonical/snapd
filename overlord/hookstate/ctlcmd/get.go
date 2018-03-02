@@ -251,12 +251,22 @@ func attributesTask(context *hookstate.Context) (*state.Task, error) {
 	defer context.Unlock()
 
 	if err := context.Get("attrs-task", &attrsTaskID); err != nil {
-		return nil, err
+		if err == state.ErrNoState {
+			// if attrs-task is not present, look for attributes in hook's own task
+			if hookTask, ok := context.Task(); ok {
+				attrsTaskID = hookTask.ID()
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	st := context.State()
 
-	attrsTask := st.Task(attrsTaskID)
+	var attrsTask *state.Task
+	if attrsTaskID != "" {
+		attrsTask = st.Task(attrsTaskID)
+	}
 	if attrsTask == nil {
 		return nil, fmt.Errorf(i18n.G("internal error: cannot find attrs task"))
 	}
