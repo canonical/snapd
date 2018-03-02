@@ -83,6 +83,8 @@ type appYaml struct {
 	Before []string `yaml:"before,omitempty"`
 
 	Timer string `yaml:"timer,omitempty"`
+
+	Autostart string `yaml:"autostart,omitempty"`
 }
 
 type hookYaml struct {
@@ -299,6 +301,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			RefreshMode:     yApp.RefreshMode,
 			Before:          yApp.Before,
 			After:           yApp.After,
+			Autostart:       yApp.Autostart,
 		}
 		if len(y.Plugs) > 0 || len(yApp.PlugNames) > 0 {
 			app.Plugs = make(map[string]*PlugInfo)
