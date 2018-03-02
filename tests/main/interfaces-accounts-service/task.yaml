@@ -24,9 +24,6 @@ restore: |
     rm -rf $XDG_CONFIG_HOME $XDG_DATA_HOME $XDG_CACHE_HOME
 
 execute: |
-    CONNECTED_PATTERN=":accounts-service +test-snapd-accounts-service"
-    DISCONNECTED_PATTERN="\- +test-snapd-accounts-service:accounts-service"
-
     echo "Ensure things run"
     eval $(dbus-launch --sh-syntax)
     echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
@@ -48,10 +45,9 @@ execute: |
       "{'Enabled': 'true', 'EmailAddress': 'test@example.com', 'Name': 'Test User', 'ImapHost': 'imap.example.com', 'SmtpHost': 'mail.example.com'}"
 
     echo "The interface is initially disconnected"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "\- +test-snapd-accounts-service:accounts-service"
     test-snapd-accounts-service.list-accounts && exit 1 || true
 
     echo "When the plug is connected"
     snap connect test-snapd-accounts-service:accounts-service
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
     test-snapd-accounts-service.list-accounts | MATCH "Display Name at IMAP and SMTP"
