@@ -210,6 +210,10 @@ func parse(c *C, s string) (time.Duration, time.Duration) {
 	return a, b
 }
 
+const (
+	maxDuration = 60 * 24 * time.Hour
+)
+
 func (ts *timeutilSuite) TestLegacyScheduleNext(c *C) {
 	const shortForm = "2006-01-02 15:04"
 
@@ -303,7 +307,7 @@ func (ts *timeutilSuite) TestLegacyScheduleNext(c *C) {
 		c.Assert(err, IsNil)
 		minDist, maxDist := parse(c, t.next)
 
-		next := timeutil.Next(sched, last)
+		next := timeutil.Next(sched, last, maxDuration)
 		c.Check(next >= minDist && next <= maxDist, Equals, true, Commentf("invalid  distance for schedule %q with last refresh %q, now %q, expected %v, got %v", t.schedule, t.last, t.now, t.next, next))
 	}
 
@@ -757,7 +761,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 		calls := 2
 
 		for i := 0; i < calls; i++ {
-			next := timeutil.Next(sched, last)
+			next := timeutil.Next(sched, last, maxDuration)
 			if t.randomized {
 				c.Check(next, Not(Equals), previous)
 			} else if previous != 0 {
