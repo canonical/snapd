@@ -247,7 +247,7 @@ fi
 
 UNCLEAN="$(git status -s|grep '^??')" || true
 SKIP_UNCLEAN=${SKIP_UNCLEAN=}
-if [[ -n "$UNCLEAN" && -z "$SKIP_UNCLEAN" ]]; then
+if [ -n "$UNCLEAN" ] && [ -z "$SKIP_UNCLEAN" ]; then
     cat <<EOF
 
 There are files left in the git tree after the tests:
