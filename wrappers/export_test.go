@@ -21,6 +21,8 @@ package wrappers
 
 import (
 	"time"
+
+	"github.com/snapcore/snapd/snap"
 )
 
 // some internal helper exposed for testing
@@ -30,8 +32,6 @@ var (
 	GenerateSnapTimerFile   = generateSnapTimerFile
 
 	// desktop
-	SanitizeDesktopFile    = sanitizeDesktopFile
-	RewriteExecLine        = rewriteExecLine
 	IsValidDesktopFileLine = isValidDesktopFileLine
 
 	// timers
@@ -44,4 +44,14 @@ func MockKillWait(wait time.Duration) (restore func()) {
 	return func() {
 		killWait = oldKillWait
 	}
+}
+
+func RewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
+	r := execRewriterImpl{matcher: appMatcher}
+	return r.rewrite(s, desktopFile, line)
+}
+
+func RewriteAutostartExecLine(s *snap.Info, desktopFile, line string) (string, error) {
+	r := execRewriterImpl{strict: true, matcher: appAutostartMatcher}
+	return r.rewrite(s, desktopFile, line)
 }

@@ -332,6 +332,22 @@ apps:
 	c.Assert(newl, Equals, fmt.Sprintf("Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app", dirs.SnapMountDir))
 }
 
+func (s *sanitizeDesktopFileSuite) TestRewriteAutostartExecLineOk(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+  autostart: foo.desktop
+`))
+	c.Assert(err, IsNil)
+
+	newl, err := wrappers.RewriteAutostartExecLine(snap, "foo.desktop", "Exec=cmd")
+	c.Assert(err, IsNil)
+	c.Assert(newl, Equals, fmt.Sprintf("Exec=%s/bin/snap.app", dirs.SnapMountDir))
+}
+
 func (s *sanitizeDesktopFileSuite) TestLangLang(c *C) {
 	langs := []struct {
 		line    string
@@ -358,4 +374,112 @@ func (s *sanitizeDesktopFileSuite) TestLangLang(c *C) {
 	for _, t := range langs {
 		c.Assert(wrappers.IsValidDesktopFileLine([]byte(t.line)), Equals, t.isValid)
 	}
+}
+
+func (s *sanitizeDesktopFileSuite) TestSanitizeAutostartWithArgsValid(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: bin/foo
+  autostart: foo-stable.desktop
+`))
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=/snap/foo/current/bin/foo --foo bar baz "foo=2"
+`)
+
+	e := wrappers.SanitizeAutostartDesktopFile(snap, "foo-stable.desktop", desktopContent)
+	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+Name=foo
+Exec=%s/bin/snap.app --foo bar baz "foo=2"
+`, dirs.SnapMountDir))
+}
+
+func (s *sanitizeDesktopFileSuite) TestSanitizeAutostartNoArgsValid(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: bin/foo
+  autostart: foo-stable.desktop
+`))
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=/snap/foo/current/bin/foo
+`)
+
+	e := wrappers.SanitizeAutostartDesktopFile(snap, "foo-stable.desktop", desktopContent)
+	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+Name=foo
+Exec=%s/bin/snap.app
+`, dirs.SnapMountDir))
+}
+
+func (s *sanitizeDesktopFileSuite) TestSanitizeAutostartNoPrefixValid(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: bin/foo
+  autostart: foo-stable.desktop
+`))
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=bin/foo
+`)
+
+	e := wrappers.SanitizeAutostartDesktopFile(snap, "foo-stable.desktop", desktopContent)
+	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
+Name=foo
+Exec=%s/bin/snap.app
+`, dirs.SnapMountDir))
+}
+
+func (s *sanitizeDesktopFileSuite) TestSanitizeAutostartBadCommand(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: bin/foo
+  autostart: foo-stable.desktop
+`))
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=/snap/foo/current/bin/foo-bad --foo bar baz
+`)
+
+	e := wrappers.SanitizeAutostartDesktopFile(snap, "foo-stable.desktop", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Entry]
+Name=foo
+`)
+}
+
+func (s *sanitizeDesktopFileSuite) TestSanitizeAutostartBadAutostartDesktop(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: bin/foo
+  autostart: foo.desktop
+`))
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=/snap/foo/current/bin/foo-bad --foo bar baz
+`)
+
+	e := wrappers.SanitizeAutostartDesktopFile(snap, "foo-stable.desktop", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Entry]
+Name=foo
+`)
 }
