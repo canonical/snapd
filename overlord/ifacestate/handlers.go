@@ -577,7 +577,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			}
 			if snapsup, err := snapstate.TaskSnapSetup(t); err == nil {
 				if defaultProviders[snapsup.Name()] {
-					return &state.Retry{contentLinkRetryTimeout}
+					return &state.Retry{After: contentLinkRetryTimeout}
 				}
 			}
 		}
