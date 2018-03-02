@@ -145,7 +145,7 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 			WritableProfile(&buf, path)
 		case l.Symlink != "":
 			// Allow constructing writable mimic to symlink parent directory.
-			fmt.Fprintf(&buf, "  %s rwl,\n", path)
+			fmt.Fprintf(&buf, "  %s rw,\n", path)
 			WritableProfile(&buf, path)
 		}
 		spec.AddUpdateNS(buf.String())
