@@ -21,6 +21,11 @@ package timeutil
 
 import "time"
 
+var (
+	ParseClockSpan = parseClockSpan
+	HumanTimeSince = humanTimeSince
+)
+
 func MockTimeNow(f func() time.Time) (restorer func()) {
 	origTimeNow := timeNow
 	timeNow = f

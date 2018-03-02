@@ -67,7 +67,7 @@ func fromRaw(raw []byte) (*stat, error) {
 		// next'll come the size or the node type
 		st.parseSize,
 		// and then the time
-		st.parseTime,
+		st.parseTimeUTC,
 		// and finally the path
 		st.parsePath,
 	}
@@ -157,9 +157,9 @@ func errBadPath(raw []byte) statError {
 	}
 }
 
-func (st *stat) parseTime(raw []byte) (int, error) {
+func (st *stat) parseTimeUTC(raw []byte) (int, error) {
 	const timelen = 16
-	t, err := time.ParseInLocation("2006-01-02 15:04", string(raw[:timelen]), time.Local)
+	t, err := time.Parse("2006-01-02 15:04", string(raw[:timelen]))
 	if err != nil {
 		return 0, errBadTime(raw)
 	}

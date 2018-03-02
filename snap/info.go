@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -172,7 +173,7 @@ type Info struct {
 	// The information in all the remaining fields is not sourced from the snap blob itself.
 	SideInfo
 
-	// Broken marks if set whether the snap is broken and the reason.
+	// Broken marks whether the snap is broken and the reason.
 	Broken string
 
 	// The information in these fields is ephemeral, available only from the store.
@@ -348,6 +349,22 @@ func (s *Info) ExpandSnapVariables(path string) string {
 		}
 		return ""
 	})
+}
+
+// InstallDate returns the "install date" of the snap.
+//
+// If the snap is not active, it'll return a zero time; otherwise
+// it'll return the modtime of the "current" symlink. Sneaky.
+func (s *Info) InstallDate() time.Time {
+	dir, rev := filepath.Split(s.MountDir())
+	cur := filepath.Join(dir, "current")
+	tag, err := os.Readlink(cur)
+	if err == nil && tag == rev {
+		if st, err := os.Lstat(cur); err == nil {
+			return st.ModTime()
+		}
+	}
+	return time.Time{}
 }
 
 func BadInterfacesSummary(snapInfo *Info) string {
@@ -542,6 +559,8 @@ type AppInfo struct {
 	Before []string
 
 	Timer *TimerInfo
+
+	Autostart string
 }
 
 // ScreenshotInfo provides information about a screenshot.
@@ -604,6 +623,9 @@ func (app *AppInfo) launcherCommand(command string) string {
 
 // LauncherCommand returns the launcher command line to use when invoking the app binary.
 func (app *AppInfo) LauncherCommand() string {
+	if app.Timer != nil {
+		return app.launcherCommand(fmt.Sprintf("--timer=%q", app.Timer.Timer))
+	}
 	return app.launcherCommand("")
 }
 
