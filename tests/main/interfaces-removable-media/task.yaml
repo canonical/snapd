@@ -3,10 +3,6 @@ summary: Ensure that the removable-media interface works.
 details: |
     The removable-media interface allows to access to removable storage filesystems.
 
-environment:
-    CONNECTED_PATTERN: ':removable-media +test-snapd-removable-media'
-    DISCONNECTED_PATTERN: '\- +test-snapd-removable-media:removable-media'
-
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-removable-media
@@ -41,11 +37,10 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "\- +test-snapd-removable-media:removable-media"
 
     echo "When the interface is connected"
     snap connect test-snapd-removable-media:removable-media
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to read inside /run"
     test-snapd-removable-media.sh -c "ls /run"
@@ -65,7 +60,6 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-removable-media:removable-media
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to access read the test media file"
     if test-snapd-removable-media.sh -c "ls /run" 2>${PWD}/call.error; then
