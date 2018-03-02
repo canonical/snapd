@@ -38,6 +38,15 @@ func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
 	}
 }
 
+// MockIsRootWritableOverlay mocks the real implementation of osutil.IsRootWritableOverlay
+func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
+	old := isRootWritableOverlay
+	isRootWritableOverlay = new
+	return func() {
+		isRootWritableOverlay = old
+	}
+}
+
 // MockProcSelfExe mocks the location of /proc/self/exe read by setupSnapConfineGeneratedPolicy.
 func MockProcSelfExe(symlink string) (restore func()) {
 	old := procSelfExe
