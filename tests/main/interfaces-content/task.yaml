@@ -9,13 +9,18 @@ details: |
     reconnected.
 
 prepare: |
-    echo "Given a snap declaring a content sharing slot is installed"
-    snap install --edge test-snapd-content-slot
-
-    echo "And a snap declaring a content sharing plug is installed"
-    snap install --edge test-snapd-content-plug
+    echo "Ensure an empty state so that installing test-snapd-content-plug"
+    echo "will pull in test-snapd-content-slot *and* core"
+    systemctl stop snapd
+    rm -f /var/lib/snapd/state.json
+    systemctl start snapd
 
 execute: |
+    echo "When a snap declaring a content sharing plug is installed"
+    snap install --edge test-snapd-content-plug
+    echo "Then this pulls in the default provider"
+    snap list | MATCH  test-snapd-content-slot
+
     echo "Then the snap is listed as connected"
     snap interfaces | grep -Pzq "test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug"
 

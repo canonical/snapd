@@ -57,10 +57,12 @@ import (
 )
 
 var (
-	procSelfExe = "/proc/self/exe"
+	procSelfExe           = "/proc/self/exe"
+	isHomeUsingNFS        = osutil.IsHomeUsingNFS
+	isRootWritableOverlay = osutil.IsRootWritableOverlay
 )
 
-// Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
+// Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
 type Backend struct{}
 
 // Name returns the name of the backend.
@@ -99,7 +101,7 @@ func (b *Backend) Initialize() error {
 	// Check if NFS is mounted at or under $HOME. Because NFS is not
 	// transparent to apparmor we must alter our profile to counter that and
 	// allow snap-confine to work.
-	if nfs, err := osutil.IsHomeUsingNFS(); err != nil {
+	if nfs, err := isHomeUsingNFS(); err != nil {
 		logger.Noticef("cannot determine if NFS is in use: %v", err)
 	} else if nfs {
 		policy["nfs-support"] = &osutil.FileState{
@@ -107,6 +109,19 @@ func (b *Backend) Initialize() error {
 			Mode:    0644,
 		}
 		logger.Noticef("snapd enabled NFS support, additional implicit network permissions granted")
+	}
+
+	// Check if '/' is on overlayfs. If so, add the necessary rules for
+	// upperdir and allow snap-confine to work.
+	if overlayRoot, err := isRootWritableOverlay(); err != nil {
+		logger.Noticef("cannot determine if root filesystem on overlay: %v", err)
+	} else if overlayRoot != "" {
+		snippet := strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
+		policy["overlay-root"] = &osutil.FileState{
+			Content: []byte(snippet),
+			Mode:    0644,
+		}
+		logger.Noticef("snapd enabled root filesystem on overlay support, additional upperdir permissions granted")
 	}
 
 	// Ensure that generated policy is what we computed above.
@@ -287,12 +302,13 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
 	dir := dirs.SnapAppArmorDir
-	glob := interfaces.SecurityTagGlob(snapInfo.Name())
+	glob1 := fmt.Sprintf("snap*.%s*", snapInfo.Name())
+	glob2 := fmt.Sprintf("snap-update-ns.%s", snapInfo.Name())
 	cache := dirs.AppArmorCacheDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
 	}
-	_, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
+	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, []string{glob1, glob2}, content)
 	// NOTE: load all profiles instead of just the changed profiles.  We're
 	// relying on apparmor cache to make this efficient. This gives us
 	// certainty that each call to Setup ends up with working profiles.
@@ -315,9 +331,10 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 // Remove removes and unloads apparmor profiles of a given snap.
 func (b *Backend) Remove(snapName string) error {
 	dir := dirs.SnapAppArmorDir
-	glob := fmt.Sprintf("snap*.%s*", snapName)
+	glob1 := fmt.Sprintf("snap*.%s*", snapName)
+	glob2 := fmt.Sprintf("snap-update-ns.%s", snapName)
 	cache := dirs.AppArmorCacheDir
-	_, removed, errEnsure := osutil.EnsureDirState(dir, glob, nil)
+	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, []string{glob1, glob2}, nil)
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
@@ -326,30 +343,59 @@ func (b *Backend) Remove(snapName string) error {
 }
 
 var (
-	templatePattern = regexp.MustCompile("(###[A-Z]+###)")
+	templatePattern = regexp.MustCompile("(###[A-Z_]+###)")
 	attachPattern   = regexp.MustCompile(`\(attach_disconnected\)`)
 )
 
 const attachComplain = "(attach_disconnected,complain)"
 
 func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]*osutil.FileState, err error) {
+	content = make(map[string]*osutil.FileState, len(snapInfo.Apps)+len(snapInfo.Hooks)+1)
+
+	// Add profile for each app.
 	for _, appInfo := range snapInfo.Apps {
-		if content == nil {
-			content = make(map[string]*osutil.FileState)
-		}
 		securityTag := appInfo.SecurityTag()
 		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content)
 	}
-
+	// Add profile for each hook.
 	for _, hookInfo := range snapInfo.Hooks {
-		if content == nil {
-			content = make(map[string]*osutil.FileState)
-		}
 		securityTag := hookInfo.SecurityTag()
 		addContent(securityTag, snapInfo, opts, spec.SnippetForTag(securityTag), content)
 	}
+	// Add profile for snap-update-ns if we have any apps or hooks.
+	// If we have neither then we don't have any need to create an executing environment.
+	// This applies to, for example, kernel snaps or gadget snaps (unless they have hooks).
+	if len(content) > 0 {
+		snippets := strings.Join(spec.UpdateNS()[snapInfo.Name()], "\n")
+		addUpdateNSProfile(snapInfo, opts, snippets, content)
+	}
 
 	return content, nil
+}
+
+// addUpdateNSProfile adds an apparmor profile for snap-update-ns, tailored to a specific snap.
+//
+// This profile exists so that snap-update-ns doens't need to carry very wide, open permissions
+// that are suitable for poking holes (and writing) in nearly arbitrary places. Instead the profile
+// contains just the permissions needed to poke a hole and write to the layout-specific paths.
+func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippets string, content map[string]*osutil.FileState) {
+	// Compute the template by injecting special updateNS snippets.
+	policy := templatePattern.ReplaceAllStringFunc(updateNSTemplate, func(placeholder string) string {
+		switch placeholder {
+		case "###SNAP_NAME###":
+			return snapInfo.Name()
+		case "###SNIPPETS###":
+			return snippets
+		}
+		return ""
+	})
+
+	// Ensure that the snap-update-ns profile is on disk.
+	profileName := fmt.Sprintf("snap-update-ns.%s", snapInfo.Name())
+	content[profileName] = &osutil.FileState{
+		Content: []byte(policy),
+		Mode:    0644,
+	}
 }
 
 func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
@@ -388,8 +434,13 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				// transparent to apparmor we must alter the profile to counter that and
 				// allow access to SNAP_USER_* files.
 				tagSnippets = snippetForTag
-				if nfs, _ := osutil.IsHomeUsingNFS(); nfs {
+				if nfs, _ := isHomeUsingNFS(); nfs {
 					tagSnippets += nfsSnippet
+				}
+
+				if overlayRoot, _ := isRootWritableOverlay(); overlayRoot != "" {
+					snippet := strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
+					tagSnippets += snippet
 				}
 			}
 			return tagSnippets

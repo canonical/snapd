@@ -90,6 +90,17 @@ func (s *EnsureDirStateSuite) TestTwoPatterns(c *C) {
 	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0600))
 }
 
+func (s *EnsureDirStateSuite) TestMultipleMatches(c *C) {
+	name := filepath.Join(s.dir, "foo")
+	err := ioutil.WriteFile(name, []byte("content"), 0600)
+	c.Assert(err, IsNil)
+	// When a file is matched by multiple globs it removed correctly.
+	changed, removed, err := osutil.EnsureDirStateGlobs(s.dir, []string{"foo", "f*"}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(changed, HasLen, 0)
+	c.Assert(removed, DeepEquals, []string{"foo"})
+}
+
 func (s *EnsureDirStateSuite) TestCreatesMissingFiles(c *C) {
 	name := filepath.Join(s.dir, "missing.snap")
 	changed, removed, err := osutil.EnsureDirState(s.dir, s.glob, map[string]*osutil.FileState{

@@ -289,6 +289,13 @@ func Validate(info *Info) error {
 		return err
 	}
 
+	// validate that bases do not have base fields
+	if info.Type == TypeOS || info.Type == TypeBase {
+		if info.Base != "" {
+			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.Name())
+		}
+	}
+
 	return ValidateLayoutAll(info)
 }
 
