@@ -321,6 +321,7 @@ func BuildDate(path string) time.Time {
 	}
 
 	cmd := exec.Command("unsquashfs", "-s", path)
+	cmd.Env = append(os.Environ(), "TZ=UTC")
 	cmd.Stdout = m
 	cmd.Stderr = m
 	if err := cmd.Run(); err != nil {
