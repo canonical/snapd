@@ -61,6 +61,14 @@ type SnapSetup struct {
 	UserID  int    `json:"user-id,omitempty"`
 	Base    string `json:"base,omitempty"`
 
+	// FIXME: implement rename of this as suggested in
+	//  https://github.com/snapcore/snapd/pull/4103#discussion_r169569717
+	//
+	// Prereq is a list of snap-names that need to get installed
+	// together with this snap. Typically used when installing
+	// content-snaps with default-providers.
+	Prereq []string `json:"prereq,omitempty"`
+
 	Flags
 
 	SnapPath string `json:"snap-path,omitempty"`
@@ -366,10 +374,10 @@ func (m *SnapManager) LastRefresh() (time.Time, error) {
 	return m.autoRefresh.LastRefresh()
 }
 
-// RefreshSchedule returns the current refresh schedule as a string
-// suitable to display to a user.
+// RefreshSchedule returns the current refresh schedule as a string suitable for
+// display to a user and a flag indicating whether the schedule is a legacy one.
 // The caller should be holding the state lock.
-func (m *SnapManager) RefreshSchedule() (string, error) {
+func (m *SnapManager) RefreshSchedule() (string, bool, error) {
 	return m.autoRefresh.RefreshSchedule()
 }
 

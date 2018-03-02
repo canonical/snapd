@@ -114,6 +114,7 @@ func (s *SnapSuite) TestInfoPriced(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   GNU Hello, the "hello world" snap
 publisher: canonical
+license:   Proprietary
 price:     1.99GBP
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
@@ -144,7 +145,49 @@ const mockInfoJSON = `
       "status": "available",
       "summary": "The GNU Hello snap",
       "type": "app",
-      "version": "2.10"
+      "version": "2.10",
+      "license": "MIT"
+    }
+  ],
+  "sources": [
+    "store"
+  ],
+  "suggested-currency": "GBP"
+}
+`
+
+const mockInfoJSONWithChannels = `
+{
+  "type": "sync",
+  "status-code": 200,
+  "status": "OK",
+  "result": [
+    {
+      "channel": "stable",
+      "confinement": "strict",
+      "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
+      "developer": "canonical",
+      "download-size": 65536,
+      "icon": "",
+      "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
+      "name": "hello",
+      "private": false,
+      "resource": "/v2/snaps/hello",
+      "revision": "1",
+      "status": "available",
+      "summary": "The GNU Hello snap",
+      "type": "app",
+      "version": "2.10",
+      "license": "MIT",
+      "channels": {
+        "1/stable": {
+          "revision": "1",
+          "version": "2.10",
+          "channel": "1/stable",
+          "size": 65536
+        }
+      },
+      "tracks": ["1"]
     }
   ],
   "sources": [
@@ -178,10 +221,177 @@ func (s *SnapSuite) TestInfoUnquoted(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `name:      hello
 summary:   The GNU Hello snap
 publisher: canonical
+license:   MIT
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
   https://snapcraft.io/
 snap-id: mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+const mockInfoJSONOtherLicense = `
+{
+  "type": "sync",
+  "status-code": 200,
+  "status": "OK",
+  "result": {
+      "channel": "stable",
+      "confinement": "strict",
+      "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
+      "developer": "canonical",
+      "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
+      "install-date": "2006-01-02T22:04:07.123456789Z",
+      "installed-size": 1024,
+      "name": "hello",
+      "private": false,
+      "resource": "/v2/snaps/hello",
+      "revision": "1",
+      "status": "available",
+      "summary": "The GNU Hello snap",
+      "type": "app",
+      "version": "2.10",
+      "license": "BSD-3",
+      "tracking-channel": "beta"
+    }
+}
+`
+const mockInfoJSONNoLicense = `
+{
+  "type": "sync",
+  "status-code": 200,
+  "status": "OK",
+  "result": {
+      "channel": "stable",
+      "confinement": "strict",
+      "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
+      "developer": "canonical",
+      "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
+      "install-date": "2006-01-02T22:04:07.123456789Z",
+      "installed-size": 1024,
+      "name": "hello",
+      "private": false,
+      "resource": "/v2/snaps/hello",
+      "revision": "1",
+      "status": "available",
+      "summary": "The GNU Hello snap",
+      "type": "app",
+      "version": "2.10",
+      "license": "",
+      "tracking-channel": "beta"
+    }
+}
+`
+
+func (s *SnapSuite) TestInfoWithLocalDifferentLicense(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			fmt.Fprintln(w, mockInfoJSON)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
+			fmt.Fprintln(w, mockInfoJSONOtherLicense)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d (%v)", n+1, r)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"info", "hello"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `name:      hello
+summary:   The GNU Hello snap
+publisher: canonical
+license:   BSD-3
+description: |
+  GNU hello prints a friendly greeting. This is part of the snapcraft tour at
+  https://snapcraft.io/
+snap-id:   mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:  beta
+refreshed: 2006-01-02T22:04:07Z
+current:   2.10 (1) 1kB disabled
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestInfoWithLocalNoLicense(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			fmt.Fprintln(w, mockInfoJSON)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
+			fmt.Fprintln(w, mockInfoJSONNoLicense)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d (%v)", n+1, r)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"info", "hello"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `name:      hello
+summary:   The GNU Hello snap
+publisher: canonical
+license:   unknown
+description: |
+  GNU hello prints a friendly greeting. This is part of the snapcraft tour at
+  https://snapcraft.io/
+snap-id:   mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:  beta
+refreshed: 2006-01-02T22:04:07Z
+current:   2.10 (1) 1kB disabled
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestInfoWithChannelsAndLocal(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			fmt.Fprintln(w, mockInfoJSONWithChannels)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
+			fmt.Fprintln(w, mockInfoJSONNoLicense)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d (%v)", n+1, r)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"info", "hello"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `name:      hello
+summary:   The GNU Hello snap
+publisher: canonical
+license:   unknown
+description: |
+  GNU hello prints a friendly greeting. This is part of the snapcraft tour at
+  https://snapcraft.io/
+snap-id:   mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:  beta
+refreshed: 2006-01-02T22:04:07Z
+channels:                    
+  1/stable:    2.10 (1) 65kB -
+  1/candidate: ↑             
+  1/beta:      ↑             
+  1/edge:      ↑             
+current:       2.10 (1) 1kB  disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }

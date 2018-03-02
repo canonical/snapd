@@ -27,8 +27,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
@@ -41,7 +41,6 @@ const (
 var (
 	osLstat    = os.Lstat
 	osReadlink = os.Readlink
-	osSymlink  = os.Symlink
 	osRemove   = os.Remove
 
 	sysClose   = syscall.Close
@@ -51,6 +50,7 @@ var (
 	sysOpenat  = syscall.Openat
 	sysUnmount = syscall.Unmount
 	sysFchown  = sys.Fchown
+	sysSymlink = syscall.Symlink
 
 	ioutilReadDir = ioutil.ReadDir
 )
@@ -294,6 +294,20 @@ func secureMkfileAll(name string, perm os.FileMode, uid sys.UserID, gid sys.Grou
 	return err
 }
 
+func secureMklinkAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
+	parent := filepath.Dir(name)
+	err := secureMkdirAll(parent, perm, uid, gid)
+	if err != nil {
+		return err
+	}
+	// TODO: roll this uber securely like the code above does using linkat(2).
+	err = sysSymlink(oldname, name)
+	if err == syscall.EROFS {
+		return &ReadOnlyFsError{Path: parent}
+	}
+	return err
+}
+
 // planWritableMimic plans how to transform a given directory from read-only to writable.
 //
 // The algorithm is designed to be universally reversible so that it can be
@@ -316,17 +330,26 @@ func planWritableMimic(dir string) ([]*Change, error) {
 
 	// Bind mount the original directory elsewhere for safe-keeping.
 	changes = append(changes, &Change{
-		Action: Mount, Entry: mount.Entry{
-			// NOTE: Here we bind instead of recursively binding
-			// because recursive binds cannot be undone without
-			// parsing the mount table and exploring what is really
-			// there and this is not how the undo logic is
-			// designed.
-			Name: dir, Dir: safeKeepingDir, Options: []string{"bind"}},
+		Action: Mount, Entry: osutil.MountEntry{
+			// NOTE: Here we recursively bind because we realized that not
+			// doing so doesn't work work on core devices which use bind
+			// mounts extensively to construct writable spaces in /etc and
+			// /var and elsewhere.
+			//
+			// All directories present in the original are also recursively
+			// bind mounted back to their original location. To unmount this
+			// contraption we use MNT_DETACH which frees us from having to
+			// enumerate the mount table, unmount all the things (starting
+			// with most nested).
+			//
+			// The undo logic handles rbind mounts and adds x-snapd.unbind
+			// flag to them, which in turns translates to MNT_DETACH on
+			// umount2(2) system call.
+			Name: dir, Dir: safeKeepingDir, Options: []string{"rbind"}},
 	})
 	// Mount tmpfs over the original directory, hiding its contents.
 	changes = append(changes, &Change{
-		Action: Mount, Entry: mount.Entry{Name: "tmpfs", Dir: dir, Type: "tmpfs"},
+		Action: Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: dir, Type: "tmpfs"},
 	})
 	// Iterate over the items in the original directory (nothing is mounted _yet_).
 	entries, err := ioutilReadDir(dir)
@@ -334,10 +357,9 @@ func planWritableMimic(dir string) ([]*Change, error) {
 		return nil, err
 	}
 	for _, fi := range entries {
-		ch := &Change{Action: Mount, Entry: mount.Entry{
-			Name:    filepath.Join(safeKeepingDir, fi.Name()),
-			Dir:     filepath.Join(dir, fi.Name()),
-			Options: []string{"bind"},
+		ch := &Change{Action: Mount, Entry: osutil.MountEntry{
+			Name: filepath.Join(safeKeepingDir, fi.Name()),
+			Dir:  filepath.Join(dir, fi.Name()),
 		}}
 		// Bind mount each element from the safe-keeping directory into the
 		// tmpfs. Our Change.Perform() engine can create the missing
@@ -345,9 +367,10 @@ func planWritableMimic(dir string) ([]*Change, error) {
 		m := fi.Mode()
 		switch {
 		case m.IsDir():
+			ch.Entry.Options = []string{"rbind"}
 			changes = append(changes, ch)
 		case m.IsRegular():
-			ch.Entry.Options = append(ch.Entry.Options, "x-snapd.kind=file")
+			ch.Entry.Options = []string{"bind", "x-snapd.kind=file"}
 			changes = append(changes, ch)
 		case m&os.ModeSymlink != 0:
 			if target, err := osReadlink(filepath.Join(dir, fi.Name())); err == nil {
@@ -360,7 +383,7 @@ func planWritableMimic(dir string) ([]*Change, error) {
 	}
 	// Finally unbind the safe-keeping directory as we don't need it anymore.
 	changes = append(changes, &Change{
-		Action: Unmount, Entry: mount.Entry{Name: "none", Dir: safeKeepingDir},
+		Action: Unmount, Entry: osutil.MountEntry{Name: "none", Dir: safeKeepingDir, Options: []string{"x-snapd.detach"}},
 	})
 	return changes, nil
 }
@@ -416,6 +439,9 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 				// The "undo plan" is "a plan that can be undone" not "the plan
 				// for how to undo" so we need to flip the actions.
 				recoveryUndoChange.Action = Unmount
+				if recoveryUndoChange.Entry.OptBool("rbind") {
+					recoveryUndoChange.Entry.Options = append(recoveryUndoChange.Entry.Options, "x-snapd.detach")
+				}
 				if _, err2 := changePerform(recoveryUndoChange); err2 != nil {
 					// Drat, we failed when trying to recover from an error.
 					// We cannot do anything at this stage.
@@ -437,9 +463,15 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 
 		}
 		// Store an undo change for the change we just performed.
+		undoOpts := change.Entry.Options
+		if change.Entry.OptBool("rbind") {
+			undoOpts = make([]string, 0, len(change.Entry.Options)+1)
+			undoOpts = append(undoOpts, change.Entry.Options...)
+			undoOpts = append(undoOpts, "x-snapd.detach")
+		}
 		undoChange := &Change{
 			Action: Mount,
-			Entry:  mount.Entry{Dir: change.Entry.Dir, Name: change.Entry.Name, Type: change.Entry.Type, Options: change.Entry.Options},
+			Entry:  osutil.MountEntry{Dir: change.Entry.Dir, Name: change.Entry.Name, Type: change.Entry.Type, Options: undoOpts},
 		}
 		// Because of the use of a temporary bind mount (aka the safe-keeping
 		// directory) we cannot represent bind mounts fully (the temporary bind
@@ -450,7 +482,7 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 		// directory or file in the same path, with the tmpfs in place already)
 		// but this is closer to the truth and more in line with the idea that
 		// this is just a plan for undoing the operation.
-		if undoChange.Entry.OptBool("bind") {
+		if undoChange.Entry.OptBool("bind") || undoChange.Entry.OptBool("rbind") {
 			undoChange.Entry.Name = undoChange.Entry.Dir
 		}
 		undoChanges = append(undoChanges, undoChange)
@@ -458,26 +490,14 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 	return undoChanges, nil
 }
 
-func ensureMountPoint(path string, mode os.FileMode, uid sys.UserID, gid sys.GroupID) error {
-	// If the mount point is not present then create a directory in its
-	// place.  This is very naive, doesn't handle read-only file systems
-	// but it is a good starting point for people working with things like
-	// $SNAP_DATA/subdirectory.
-	//
-	// We use lstat to ensure that we don't follow the symlink in case one
-	// was set up by the snap. Note that at the time this is run, all the
-	// snap's processes are frozen.
-	fi, err := osLstat(path)
-	switch {
-	case err != nil && os.IsNotExist(err):
-		return secureMkdirAll(path, mode, uid, gid)
-	case err != nil:
-		return fmt.Errorf("cannot inspect %q: %v", path, err)
-	case err == nil:
-		// Ensure that mount point is a directory.
-		if !fi.IsDir() {
-			return fmt.Errorf("cannot use %q for mounting, not a directory", path)
-		}
+func createWritableMimic(dir string) ([]*Change, error) {
+	plan, err := planWritableMimic(dir)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	changes, err := execWritableMimic(plan)
+	if err != nil {
+		return nil, err
+	}
+	return changes, nil
 }

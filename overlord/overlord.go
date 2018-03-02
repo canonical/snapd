@@ -72,13 +72,14 @@ type Overlord struct {
 	// restarts
 	restartHandler func(t state.RestartType)
 	// managers
-	inited    bool
-	snapMgr   *snapstate.SnapManager
-	assertMgr *assertstate.AssertManager
-	ifaceMgr  *ifacestate.InterfaceManager
-	hookMgr   *hookstate.HookManager
-	deviceMgr *devicestate.DeviceManager
-	cmdMgr    *cmdstate.CommandManager
+	inited     bool
+	snapMgr    *snapstate.SnapManager
+	assertMgr  *assertstate.AssertManager
+	ifaceMgr   *ifacestate.InterfaceManager
+	hookMgr    *hookstate.HookManager
+	deviceMgr  *devicestate.DeviceManager
+	cmdMgr     *cmdstate.CommandManager
+	unknownMgr *UnknownTaskManager
 }
 
 var storeNew = store.New
@@ -101,6 +102,8 @@ func New() (*Overlord, error) {
 	}
 
 	o.stateEng = NewStateEngine(s)
+	o.unknownMgr = NewUnknownTaskManager(s)
+	o.stateEng.AddManager(o.unknownMgr)
 
 	hookMgr, err := hookstate.Manager(s)
 	if err != nil {
@@ -168,6 +171,7 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.cmdMgr = x
 	}
 	o.stateEng.AddManager(mgr)
+	o.unknownMgr.Ignore(mgr.KnownTaskKinds())
 }
 
 func loadState(backend state.Backend) (*state.State, error) {
@@ -383,6 +387,12 @@ func (o *Overlord) CommandManager() *cmdstate.CommandManager {
 	return o.cmdMgr
 }
 
+// UnknownTaskManager returns the manager responsible for handling of
+// unknown tasks.
+func (o *Overlord) UnknownTaskManager() *UnknownTaskManager {
+	return o.unknownMgr
+}
+
 // Mock creates an Overlord without any managers and with a backend
 // not using disk. Managers can be added with AddManager. For testing.
 func Mock() *Overlord {
@@ -391,6 +401,9 @@ func Mock() *Overlord {
 		inited:   false,
 	}
 	o.stateEng = NewStateEngine(state.New(mockBackend{o: o}))
+	o.unknownMgr = NewUnknownTaskManager(o.stateEng.State())
+	o.stateEng.AddManager(o.unknownMgr)
+
 	return o
 }
 

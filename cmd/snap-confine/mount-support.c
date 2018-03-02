@@ -43,6 +43,7 @@
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 #include "mount-support-nvidia.h"
+#include "apparmor-support.h"
 #include "quirks.h"
 
 #define MAX_BUF 1000
@@ -146,7 +147,8 @@ static void setup_private_pts(void)
  * not as powerful), to a copy of snap-update-ns. The program is opened before
  * the root filesystem is pivoted so that it is easier to pick the right copy.
  **/
-static void sc_setup_mount_profiles(int snap_update_ns_fd,
+static void sc_setup_mount_profiles(struct sc_apparmor *apparmor,
+				    int snap_update_ns_fd,
 				    const char *snap_name)
 {
 	debug("calling snap-update-ns to initialize mount namespace");
@@ -155,7 +157,13 @@ static void sc_setup_mount_profiles(int snap_update_ns_fd,
 		die("cannot fork to run snap-update-ns");
 	}
 	if (child == 0) {
-		// We are the child, execute snap-update-ns
+		// We are the child, execute snap-update-ns under a dedicated profile.
+		char profile[PATH_MAX] = { 0 };
+		sc_must_snprintf(profile, sizeof profile, "snap-update-ns.%s",
+				 snap_name);
+		debug("launching snap-update-ns under per-snap profile %s",
+		      profile);
+		sc_maybe_aa_change_onexec(apparmor, profile);
 		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
 		snap_name_copy = strdup(snap_name);
 		if (snap_name_copy == NULL) {
@@ -535,7 +543,7 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-static int sc_open_snap_update_ns(void)
+int sc_open_snap_update_ns(void)
 {
 	// +1 is for the case where the link is exactly PATH_MAX long but we also
 	// want to store the terminating '\0'. The readlink system call doesn't add
@@ -563,7 +571,8 @@ static int sc_open_snap_update_ns(void)
 	return fd;
 }
 
-void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
+void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
+			  const char *base_snap_name, const char *snap_name)
 {
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
@@ -573,10 +582,6 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 	if (vanilla_cwd == NULL) {
 		die("cannot get the current working directory");
 	}
-	// Find and open snap-update-ns from the same path as where we
-	// (snap-confine) were called.
-	int snap_update_ns_fd SC_CLEANUP(sc_cleanup_close) = -1;
-	snap_update_ns_fd = sc_open_snap_update_ns();
 
 	bool on_classic_distro = is_running_on_classic_distribution();
 	// on classic or with alternative base snaps we need to setup
@@ -665,7 +670,7 @@ void sc_populate_mount_ns(const char *base_snap_name, const char *snap_name)
 		sc_setup_quirks();
 	}
 	// setup the security backend bind mounts
-	sc_setup_mount_profiles(snap_update_ns_fd, snap_name);
+	sc_setup_mount_profiles(apparmor, snap_update_ns_fd, snap_name);
 
 	// Try to re-locate back to vanilla working directory. This can fail
 	// because that directory is no longer present.
@@ -707,6 +712,11 @@ void sc_ensure_shared_snap_mount(void)
 {
 	if (!is_mounted_with_shared_option("/")
 	    && !is_mounted_with_shared_option(SNAP_MOUNT_DIR)) {
+		// TODO: We could be more aggressive and refuse to function but since
+		// we have no data on actual environments that happen to limp along in
+		// this configuration let's not do that yet.  This code should be
+		// removed once we have a measurement and feedback mechanism that lets
+		// us decide based on measurable data.
 		sc_do_mount(SNAP_MOUNT_DIR, SNAP_MOUNT_DIR, "none",
 			    MS_BIND | MS_REC, 0);
 		sc_do_mount("none", SNAP_MOUNT_DIR, NULL, MS_SHARED | MS_REC,

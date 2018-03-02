@@ -49,12 +49,14 @@ func (s *baseDeclSuite) SetUpSuite(c *C) {
 func (s *baseDeclSuite) connectCand(c *C, iface, slotYaml, plugYaml string) *policy.ConnectCandidate {
 	if slotYaml == "" {
 		slotYaml = fmt.Sprintf(`name: slot-snap
+version: 0
 slots:
   %s:
 `, iface)
 	}
 	if plugYaml == "" {
 		plugYaml = fmt.Sprintf(`name: plug-snap
+version: 0
 plugs:
   %s:
 `, iface)
@@ -71,6 +73,7 @@ plugs:
 func (s *baseDeclSuite) installSlotCand(c *C, iface string, snapType snap.Type, yaml string) *policy.InstallCandidate {
 	if yaml == "" {
 		yaml = fmt.Sprintf(`name: install-slot-snap
+version: 0
 type: %s
 slots:
   %s:
@@ -86,6 +89,7 @@ slots:
 func (s *baseDeclSuite) installPlugCand(c *C, iface string, snapType snap.Type, yaml string) *policy.InstallCandidate {
 	if yaml == "" {
 		yaml = fmt.Sprintf(`name: install-plug-snap
+version: 0
 type: %s
 plugs:
   %s:
@@ -243,12 +247,14 @@ func (s *baseDeclSuite) TestAutoConnectionContent(c *C) {
 	// same publisher, same content
 	cand = s.connectCand(c, "stuff", `
 name: slot-snap
+version: 0
 slots:
   stuff:
     interface: content
     content: mk1
 `, `
 name: plug-snap
+version: 0
 plugs:
   stuff:
     interface: content
@@ -267,12 +273,14 @@ plugs:
 
 	// same publisher, different content
 	cand = s.connectCand(c, "stuff", `name: slot-snap
+version: 0
 slots:
   stuff:
     interface: content
     content: mk1
 `, `
 name: plug-snap
+version: 0
 plugs:
   stuff:
     interface: content
@@ -740,12 +748,14 @@ func (s *baseDeclSuite) TestConnectionContent(c *C) {
 
 	// same publisher, same content
 	cand = s.connectCand(c, "stuff", `name: slot-snap
+version: 0
 slots:
   stuff:
     interface: content
     content: mk1
 `, `
 name: plug-snap
+version: 0
 plugs:
   stuff:
     interface: content
@@ -765,12 +775,14 @@ plugs:
 	// same publisher, different content
 	cand = s.connectCand(c, "stuff", `
 name: slot-snap
+version: 0
 slots:
   stuff:
     interface: content
     content: mk1
 `, `
 name: plug-snap
+version: 0
 plugs:
   stuff:
     interface: content
@@ -795,6 +807,7 @@ revision: 0
 
 func (s *baseDeclSuite) TestBrowserSupportAllowSandbox(c *C) {
 	const plugYaml = `name: plug-snap
+version: 0
 plugs:
   browser-support:
    allow-sandbox: true

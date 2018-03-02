@@ -38,6 +38,7 @@ import (
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -332,10 +333,7 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 	err := main.Compile([]byte(inp), outPath)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(outPath)
-	c.Assert(err, IsNil)
-	c.Check(content, DeepEquals, []byte(inp))
-
+	c.Check(outPath, testutil.FileEquals, inp)
 }
 
 // TestCompile iterates over a range of textual seccomp whitelist rules and
@@ -477,6 +475,8 @@ func (s *snapSeccompSuite) TestCompileSocket(c *C) {
 		{"socket AF_UNIX", "socket;native;99", Deny},
 		{"socket - SOCK_STREAM", "socket;native;-,SOCK_STREAM", Allow},
 		{"socket - SOCK_STREAM", "socket;native;-,99", Deny},
+		{"socket AF_CONN", "socket;native;AF_CONN", Allow},
+		{"socket AF_CONN", "socket;native;99", Deny},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}

@@ -99,3 +99,13 @@ func ReadBuildID(fname string) (string, error) {
 	}
 	return "", ErrNoBuildID
 }
+
+// MyBuildID return the build-id of the currently running executable
+func MyBuildID() (string, error) {
+	exe, err := osReadlink("/proc/self/exe")
+	if err != nil {
+		return "", err
+	}
+
+	return ReadBuildID(exe)
+}

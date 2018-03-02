@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 type autoRefreshStore struct {
@@ -118,8 +119,9 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 0)
 
-	refreshScheduleStr, err := af.RefreshSchedule()
+	refreshScheduleStr, legacy, err := af.RefreshSchedule()
 	c.Check(refreshScheduleStr, Equals, "managed")
+	c.Check(legacy, Equals, true)
 	c.Check(err, IsNil)
 
 	c.Check(af.NextRefresh(), DeepEquals, time.Time{})
@@ -158,4 +160,18 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 	err = af.Ensure()
 	c.Check(err, ErrorMatches, "random store error")
 	c.Check(s.store.ops, HasLen, 2)
+}
+
+func (s *autoRefreshTestSuite) TestDefaultScheduleIsRandomized(c *C) {
+	schedule, err := timeutil.ParseSchedule(snapstate.DefaultRefreshSchedule)
+	c.Assert(err, IsNil)
+
+	for _, sched := range schedule {
+		for _, span := range sched.ClockSpans {
+			c.Check(span.Start == span.End, Equals, false,
+				Commentf("clock span %v is a single time, expected an actual span", span))
+			c.Check(span.Spread, Equals, true,
+				Commentf("clock span %v is not randomized", span))
+		}
+	}
 }

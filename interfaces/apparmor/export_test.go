@@ -20,51 +20,30 @@
 package apparmor
 
 import (
-	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/snapcore/snapd/testutil"
 )
 
 var (
-	IsHomeUsingNFS = isHomeUsingNFS
+	SnapConfineFromCoreProfile = snapConfineFromCoreProfile
 )
 
-//MockMountInfo mocks content of /proc/self/mountinfo read by isHomeUsingNFS
-func MockMountInfo(text string) (restore func()) {
-	old := procSelfMountInfo
-	f, err := ioutil.TempFile("", "mountinfo")
-	if err != nil {
-		panic(fmt.Errorf("cannot open temporary file: %s", err))
-	}
-	if err := ioutil.WriteFile(f.Name(), []byte(text), 0644); err != nil {
-		panic(fmt.Errorf("cannot write mock mountinfo file: %s", err))
-	}
-	procSelfMountInfo = f.Name()
+// MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS
+func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
+	old := isHomeUsingNFS
+	isHomeUsingNFS = new
 	return func() {
-		os.Remove(procSelfMountInfo)
-		procSelfMountInfo = old
+		isHomeUsingNFS = old
 	}
 }
 
-// MockEtcFstab mocks content of /etc/fstab read by isHomeUsingNFS
-func MockEtcFstab(text string) (restore func()) {
-	old := etcFstab
-	f, err := ioutil.TempFile("", "fstab")
-	if err != nil {
-		panic(fmt.Errorf("cannot open temporary file: %s", err))
-	}
-	if err := ioutil.WriteFile(f.Name(), []byte(text), 0644); err != nil {
-		panic(fmt.Errorf("cannot write mock fstab file: %s", err))
-	}
-	etcFstab = f.Name()
+// MockIsRootWritableOverlay mocks the real implementation of osutil.IsRootWritableOverlay
+func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
+	old := isRootWritableOverlay
+	isRootWritableOverlay = new
 	return func() {
-		if etcFstab == "/etc/fstab" {
-			panic("respectfully refusing to remove /etc/fstab")
-		}
-		os.Remove(etcFstab)
-		etcFstab = old
+		isRootWritableOverlay = old
 	}
 }
 
@@ -101,4 +80,9 @@ func MockClassicTemplate(fakeTemplate string) (restore func()) {
 	orig := classicTemplate
 	classicTemplate = fakeTemplate
 	return func() { classicTemplate = orig }
+}
+
+// SetSpecScope sets the scope of a given specification
+func SetSpecScope(spec *Specification, securityTags []string, snapName string) (restore func()) {
+	return spec.setScope(securityTags, snapName)
 }

@@ -70,6 +70,13 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) 
 	return snapstate.InstallPath(st, &sideInfo, path, sn.Channel, flags)
 }
 
+func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
+	// give the internal core config a chance to run
+	configTs := snapstate.ConfigureSnap(st, "core", 0)
+	markSeeded.WaitAll(configTs)
+	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
+}
+
 func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	// check that the state is empty
 	var seeded bool
@@ -86,7 +93,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	// ack all initial assertions
 	model, err := importAssertionsFromSeed(st)
 	if err == errNothingToDo {
-		return []*state.TaskSet{state.NewTaskSet(markSeeded)}, nil
+		return trivialSeeding(st, markSeeded), nil
 	}
 	if err != nil {
 		return nil, err
@@ -95,7 +102,7 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	seedYamlFile := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
 	if release.OnClassic && !osutil.FileExists(seedYamlFile) {
 		// on classic it is ok to not seed any snaps
-		return []*state.TaskSet{state.NewTaskSet(markSeeded)}, nil
+		return trivialSeeding(st, markSeeded), nil
 	}
 
 	seed, err := snap.ReadSeedYaml(seedYamlFile)

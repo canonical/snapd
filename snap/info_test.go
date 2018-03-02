@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -55,7 +56,7 @@ func (s *infoSimpleSuite) TearDownTest(c *C) {
 
 func (s *infoSimpleSuite) TestReadInfoPanicsIfSanitizeUnset(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(1)}
-	snaptest.MockSnap(c, sampleYaml, sampleContents, si)
+	snaptest.MockSnap(c, sampleYaml, si)
 	c.Assert(func() { snap.ReadInfo("sample", si) }, Panics, `SanitizePlugsSlots function not set`)
 }
 
@@ -151,6 +152,9 @@ apps:
      command: foo-bin
    bar:
      command: bar-bin -x
+   baz:
+     command: bar-bin -x
+     timer: 10:00-12:00,,mon,12:00~14:00
 `))
 	c.Assert(err, IsNil)
 	info.Revision = snap.R(42)
@@ -159,6 +163,7 @@ apps:
 	c.Check(info.Apps["bar"].LauncherReloadCommand(), Equals, "/usr/bin/snap run --command=reload foo.bar")
 	c.Check(info.Apps["bar"].LauncherPostStopCommand(), Equals, "/usr/bin/snap run --command=post-stop foo.bar")
 	c.Check(info.Apps["foo"].LauncherCommand(), Equals, "/usr/bin/snap run foo")
+	c.Check(info.Apps["baz"].LauncherCommand(), Equals, `/usr/bin/snap run --timer="10:00-12:00,,mon,12:00~14:00" foo.baz`)
 }
 
 const sampleYaml = `
@@ -173,12 +178,10 @@ apps:
    command: foobar
 `
 
-const sampleContents = "SNAP"
-
 func (s *infoSuite) TestReadInfo(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 
-	snapInfo1 := snaptest.MockSnap(c, sampleYaml, sampleContents, si)
+	snapInfo1 := snaptest.MockSnap(c, sampleYaml, si)
 
 	snapInfo2, err := snap.ReadInfo("sample", si)
 	c.Assert(err, IsNil)
@@ -190,6 +193,20 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
 
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
+}
+
+func (s *infoSuite) TestInstallDate(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(1)}
+	info := snaptest.MockSnap(c, sampleYaml, si)
+	// not current -> Zero
+	c.Check(info.InstallDate().IsZero(), Equals, true)
+
+	mountdir := info.MountDir()
+	dir, rev := filepath.Split(mountdir)
+	c.Assert(os.MkdirAll(dir, 0755), IsNil)
+	c.Assert(os.Symlink(rev, filepath.Join(dir, "current")), IsNil)
+
+	c.Check(info.InstallDate().IsZero(), Equals, false)
 }
 
 func (s *infoSuite) TestReadInfoNotFound(c *C) {
@@ -502,7 +519,7 @@ version: 1.0`
 func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, yaml string, contents string, hooks []string, checker func(c *C, info *snap.Info)) {
 	// First check installed snap
 	sideInfo := &snap.SideInfo{Revision: snap.R(42)}
-	info0 := snaptest.MockSnap(c, yaml, contents, sideInfo)
+	info0 := snaptest.MockSnap(c, yaml, sideInfo)
 	snaptest.PopulateDir(info0.MountDir(), emptyHooks(hooks...))
 	info, err := snap.ReadInfo(info0.Name(), sideInfo)
 	c.Check(err, IsNil)
@@ -661,7 +678,7 @@ func makeFakeDesktopFile(c *C, name, content string) string {
 }
 
 func (s *infoSuite) TestAppDesktopFile(c *C) {
-	snaptest.MockSnap(c, sampleYaml, sampleContents, &snap.SideInfo{})
+	snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{})
 	snapInfo, err := snap.ReadInfo("sample", &snap.SideInfo{})
 	c.Assert(err, IsNil)
 
@@ -671,6 +688,7 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 }
 
 const coreSnapYaml = `name: core
+version: 0
 type: os
 plugs:
   network-bind:
@@ -695,7 +713,7 @@ func (s *infoSuite) TestReadInfoFromSnapFileRenamesCorePlus(c *C) {
 // reading snap via ReadInfo renames clashing core plugs
 func (s *infoSuite) TestReadInfoRenamesCorePlugs(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), RealName: "core"}
-	snaptest.MockSnap(c, coreSnapYaml, sampleContents, si)
+	snaptest.MockSnap(c, coreSnapYaml, si)
 	info, err := snap.ReadInfo("core", si)
 	c.Assert(err, IsNil)
 	c.Check(info.Plugs["network-bind"], IsNil)
@@ -774,6 +792,22 @@ apps:
 	app := info.Apps["app1"]
 	socket := app.Sockets["sock1"]
 	c.Check(socket.File(), Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.app1.sock1.socket")
+}
+
+func (s *infoSuite) TestTimerFile(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: pans
+apps:
+  app1:
+    daemon: true
+    timer: mon,10:00-12:00
+`))
+
+	c.Assert(err, IsNil)
+
+	app := info.Apps["app1"]
+	timerFile := app.Timer.File()
+	c.Check(timerFile, Equals, dirs.GlobalRootDir+"/etc/systemd/system/snap.pans.app1.timer")
+	c.Check(strings.TrimSuffix(app.ServiceFile(), ".service")+".timer", Equals, timerFile)
 }
 
 func (s *infoSuite) TestLayoutParsing(c *C) {
@@ -858,4 +892,15 @@ func (s *infoSuite) TestSlotInfoAttr(c *C) {
 	c.Check(slot.Attr("key", &intVal), ErrorMatches, `snap "snap" has interface "interface" with invalid value type for "key" attribute`)
 	c.Check(slot.Attr("unknown", &val), ErrorMatches, `snap "snap" does not have attribute "unknown" for interface "interface"`)
 	c.Check(slot.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
+}
+
+func (s *infoSuite) TestExpandSnapVariables(c *C) {
+	dirs.SetRootDir("")
+	info, err := snap.InfoFromSnapYaml([]byte(`name: foo`))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(42)
+	c.Assert(info.ExpandSnapVariables("$SNAP/stuff"), Equals, "/snap/foo/42/stuff")
+	c.Assert(info.ExpandSnapVariables("$SNAP_DATA/stuff"), Equals, "/var/snap/foo/42/stuff")
+	c.Assert(info.ExpandSnapVariables("$SNAP_COMMON/stuff"), Equals, "/var/snap/foo/common/stuff")
+	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
 }

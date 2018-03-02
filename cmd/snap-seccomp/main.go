@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,8 +20,8 @@
 package main
 
 //#cgo CFLAGS: -D_FILE_OFFSET_BITS=64
-//#cgo pkg-config: --static --cflags libseccomp
-//#cgo LDFLAGS: -Wl,-Bstatic -lseccomp -Wl,-Bdynamic
+//#cgo pkg-config: libseccomp
+//#cgo LDFLAGS:
 //
 //#include <asm/ioctls.h>
 //#include <ctype.h>
@@ -67,6 +67,12 @@ package main
 //#define AF_MPLS 28
 //#define PF_MPLS AF_MPLS
 //#endif				// AF_MPLS
+//
+// // https://github.com/sctplab/usrsctp/blob/master/usrsctplib/usrsctp.h
+//#ifndef AF_CONN
+//#define AF_CONN 123
+//#define PF_CONN AF_CONN
+//#endif				// AF_CONN
 //
 //#ifndef PR_CAP_AMBIENT
 //#define PR_CAP_AMBIENT 47
@@ -247,6 +253,8 @@ var seccompResolver = map[string]uint64{
 	"PF_MPLS": C.PF_MPLS,
 	"AF_CAN":  syscall.AF_CAN,
 	"PF_CAN":  C.PF_CAN,
+	"AF_CONN": C.AF_CONN, // 123
+	"PF_CONN": C.PF_CONN,
 
 	// man 2 socket - type
 	"SOCK_STREAM":    syscall.SOCK_STREAM,

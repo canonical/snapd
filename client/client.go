@@ -395,8 +395,12 @@ type OSRelease struct {
 	VersionID string `json:"version-id,omitempty"`
 }
 
+// RefreshInfo contains information about refreshes.
 type RefreshInfo struct {
-	Schedule string `json:"schedule"`
+	// Timer contains the refresh.timer setting.
+	Timer string `json:"timer,omitempty"`
+	// Schedule contains the legacy refresh.schedule setting.
+	Schedule string `json:"schedule,omitempty"`
 	Last     string `json:"last,omitempty"`
 	Next     string `json:"next,omitempty"`
 }

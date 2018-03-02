@@ -368,6 +368,7 @@ pkg_dependencies_ubuntu_generic(){
         curl
         devscripts
         expect
+        gdb
         gdebi-core
         git
         indent
@@ -380,8 +381,8 @@ pkg_dependencies_ubuntu_generic(){
         netcat-openbsd
         pkg-config
         python3-docutils
-        rng-tools
         udev
+        uuid-runtime
         "
 }
 
@@ -404,13 +405,11 @@ pkg_dependencies_ubuntu_classic(){
         ubuntu-14.04-*)
             echo "
                 linux-image-extra-$(uname -r)
-                pollinate
                 "
             ;;
         ubuntu-16.04-32)
             echo "
                 linux-image-extra-$(uname -r)
-                pollinate
                 "
             ;;
         ubuntu-16.04-64)
@@ -419,16 +418,19 @@ pkg_dependencies_ubuntu_classic(){
                 kpartx
                 libvirt-bin
                 linux-image-extra-$(uname -r)
-                pollinate
                 qemu
                 x11-utils
                 xvfb
                 "
             ;;
+        ubuntu-17.10-64)
+            echo "
+                linux-image-extra-4.13.0-16-generic
+                "
+            ;;
         ubuntu-*)
             echo "
                 linux-image-extra-$(uname -r)
-                pollinate
                 "
             ;;
         debian-*)
@@ -471,7 +473,7 @@ pkg_dependencies_opensuse(){
         lsb-release
         netcat-openbsd
         osc
-        rng-tools
+        uuidd
         xdg-utils
         xdg-user-dirs
         "

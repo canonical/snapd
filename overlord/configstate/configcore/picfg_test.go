@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type piCfgSuite struct {
@@ -51,6 +52,7 @@ unrelated_options=are-kept
 `
 
 func (s *piCfgSuite) SetUpTest(c *C) {
+	s.configcoreSuite.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
 
@@ -70,9 +72,7 @@ func (s *piCfgSuite) mockConfig(c *C, txt string) {
 }
 
 func (s *piCfgSuite) checkMockConfig(c *C, expected string) {
-	newContent, err := ioutil.ReadFile(s.mockConfigPath)
-	c.Assert(err, IsNil)
-	c.Check(string(newContent), Equals, expected)
+	c.Check(s.mockConfigPath, testutil.FileEquals, expected)
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigUncommentExisting(c *C) {
@@ -134,6 +134,7 @@ func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
 	defer restore()
 
 	err := configcore.Run(&mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": 1,
 		},
@@ -144,6 +145,7 @@ func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
 	s.checkMockConfig(c, expected)
 
 	err = configcore.Run(&mockConf{
+		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": "",
 		},
