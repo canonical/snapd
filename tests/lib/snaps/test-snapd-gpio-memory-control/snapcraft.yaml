@@ -1,0 +1,17 @@
+name: test-snapd-gpio-memory-control
+version: 1.0
+summary: Basic gpio-memory-control snap
+description: A basic snap which access to public gpiomem device
+grade: stable
+confinement: strict
+
+apps:
+  gpiomem:
+    command: gpiomem
+    plugs: [gpio-memory-control]
+
+parts:
+    test:
+        source: .
+        plugin: make
+        artifacts: [gpiomem]

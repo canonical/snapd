@@ -12,6 +12,6 @@ execute: |
     systemctl status snapd.service |MATCH active
     
     echo "Ensure timers are working"
-    for timer in snapd.refresh.timer snapd.snap-repair.timer; do
+    for timer in snapd.snap-repair.timer; do
         systemctl is-active $timer
     done

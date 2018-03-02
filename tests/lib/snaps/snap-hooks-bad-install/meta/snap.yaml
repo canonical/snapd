@@ -1,0 +1,5 @@
+name: snap-hooks-bad-install
+version: 1.0
+apps:
+    app:
+        command: true

@@ -44,6 +44,15 @@ environment:
     PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools
 
 backends:
+    google:
+        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
+        location: computeengine/us-east1-b
+        systems:
+            - ubuntu-16.04-64:
+                workers: 8
+            - ubuntu-14.04-64:
+                workers: 6
+
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
         plan: 4GB
@@ -57,13 +66,7 @@ backends:
             HTTP_PROXY: null
             HTTPS_PROXY: null
         systems:
-            - ubuntu-16.04-64:
-                kernel: GRUB 2
-                workers: 8
             - ubuntu-16.04-32:
-                kernel: GRUB 2
-                workers: 6
-            - ubuntu-14.04-64:
                 kernel: GRUB 2
                 workers: 6
 
@@ -113,6 +116,9 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-18.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-32:
                 username: ubuntu
                 password: ubuntu
             - debian-sid-64:
@@ -196,6 +202,9 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-18.04-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-arm64:
                 username: ubuntu
                 password: ubuntu
     external:
@@ -430,6 +439,9 @@ suites:
         # it disabled. A later PR will enable most tests and
         # drop this blacklist.
         systems: [-ubuntu-core-16-*, -opensuse-*]
+        # autopkgtest runs against localhost which causes problems with
+        # this test prepare
+        backends: [-autopkgtest]
         restore: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"

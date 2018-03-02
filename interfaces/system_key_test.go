@@ -21,14 +21,15 @@ package interfaces_test
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 )
 
 type systemKeySuite struct {
@@ -53,22 +54,40 @@ func (s *systemKeySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func (s *systemKeySuite) TestInterfaceSystemKeyNoApparmor(c *C) {
+func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
+	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+
 	systemKey := interfaces.SystemKey()
+
+	apparmorFeatures := release.AppArmorFeatures()
+	var apparmorFeaturesStr string
+	if len(apparmorFeatures) == 0 {
+		apparmorFeaturesStr = " []\n"
+	} else {
+		apparmorFeaturesStr = "\n- " + strings.Join(apparmorFeatures, "\n- ") + "\n"
+	}
+	nfsHome, err := osutil.IsHomeUsingNFS()
+	c.Assert(err, IsNil)
+	overlayRoot, err := osutil.IsRootWritableOverlay()
+	c.Assert(err, IsNil)
 	c.Check(systemKey, Equals, fmt.Sprintf(`build-id: %s
-apparmor-features: []
-`, s.buildID))
+apparmor-features:%snfs-home: %v
+overlay-root: "%v"
+`, s.buildID, apparmorFeaturesStr, nfsHome, overlayRoot))
 }
 
-func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
-	err := os.MkdirAll(s.apparmorFeatures, 0755)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(s.apparmorFeatures, "policy"), 0755)
-	c.Assert(err, IsNil)
+func (ts *systemKeySuite) TestInterfaceDigest(c *C) {
+	restore := interfaces.MockSystemKey(`build-id: 7a94e9736c091b3984bd63f5aebfc883c4d859e0
+apparmor-features:
+- caps
+- dbus
+`)
+	defer restore()
+	restore = interfaces.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
 
 	systemKey := interfaces.SystemKey()
-	c.Check(systemKey, Equals, fmt.Sprintf(`build-id: %s
-apparmor-features:
-- policy
-`, s.buildID))
+	c.Check(systemKey, Matches, "(?sm)^build-id: [a-z0-9]+$")
+	c.Check(systemKey, Matches, "(?sm).*apparmor-features:")
 }

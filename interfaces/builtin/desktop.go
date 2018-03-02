@@ -174,6 +174,23 @@ dbus (send)
     interface=io.snapcraft.Settings
     member={Check,Get,Set}
     peer=(label=unconfined),
+
+## Allow access to xdg-document-portal file system.  Access control is
+## handled by bind mounting a snap-specific sub-tree to this location.
+#owner /run/user/[0-9]*/doc/** rw,
+
+# Allow access to xdg-desktop-portal and xdg-document-portal
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/{desktop,documents}
+    peer=(label=unconfined),
+
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/portal/{desktop,documents}
+    peer=(label=unconfined),
 `
 
 type desktopInterface struct{}
@@ -220,12 +237,22 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		if !osutil.IsDirectory(dir) {
 			continue
 		}
-		spec.AddMountEntry(mount.Entry{
+		spec.AddMountEntry(osutil.MountEntry{
 			Name:    "/var/lib/snapd/hostfs" + dir,
 			Dir:     dirs.StripRootDir(dir),
 			Options: []string{"bind", "ro"},
 		})
 	}
+
+	/*
+		appId := "snap.pkg." + plug.Snap.Name()
+		spec.AddUserMount(mount.Entry{
+			Name: "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
+			Dir: "$XDG_RUNTIME_DIR/doc",
+			Options: []string{"bind", "rw"},
+		})
+	*/
+
 	return nil
 }
 

@@ -20,13 +20,15 @@
 package interfaces
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 )
 
 // systemKey describes the environment for which security profiles
@@ -36,39 +38,80 @@ import (
 type systemKey struct {
 	BuildID          string   `yaml:"build-id"`
 	AppArmorFeatures []string `yaml:"apparmor-features"`
+	NFSHome          bool     `yaml:"nfs-home"`
+	OverlayRoot      string   `yaml:"overlay-root"`
+	Core             string   `yaml:"core,omitempty"`
 }
 
-func generateSystemKey() *systemKey {
-	var mySystemKey systemKey
+var (
+	isHomeUsingNFS  = osutil.IsHomeUsingNFS
+	mockedSystemKey *systemKey
+)
 
-	// add build-id
+func generateSystemKey() *systemKey {
+	// for testing only
+	if mockedSystemKey != nil {
+		return mockedSystemKey
+	}
+
+	var sk systemKey
 	buildID, err := osutil.MyBuildID()
 	if err != nil {
-		buildID = "unknown"
+		buildID = ""
 	}
-	mySystemKey.BuildID = buildID
+	sk.BuildID = buildID
 
-	// Add apparmor-feature, note that ioutil.ReadDir() is already sorted.
+	// Add apparmor-feature (which is already sorted)
+	sk.AppArmorFeatures = release.AppArmorFeatures()
+
+	// Add if home is using NFS, if so we need to have a different
+	// security profile and if this changes we need to change our
+	// profile.
+	sk.NFSHome, err = isHomeUsingNFS()
+	if err != nil {
+		logger.Noticef("cannot determine nfs usage in generateSystemKey: %v", err)
+	}
+
+	// Add if '/' is on overlayfs so we can add AppArmor rules for
+	// upperdir such that if this changes, we change our profile.
+	sk.OverlayRoot, err = osutil.IsRootWritableOverlay()
+	if err != nil {
+		logger.Noticef("cannot determine root filesystem on overlay in generateSystemKey: %v", err)
+	}
+
+	// Add the current Core path, we need this because we call helpers
+	// like snap-confine from core that will need an updated profile
+	// if it changes
 	//
-	// We prefix the dirs.GlobalRootDir (which is usually "/") to make
-	// this testable.
-	if dentries, err := ioutil.ReadDir(filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor/features")); err == nil {
-		mySystemKey.AppArmorFeatures = make([]string, len(dentries))
-		for i, f := range dentries {
-			mySystemKey.AppArmorFeatures[i] = f.Name()
-		}
-	}
+	// FIXME: what about core18? the snapd snap?
+	sk.Core, _ = os.Readlink(filepath.Join(dirs.SnapMountDir, "core/current"))
 
-	return &mySystemKey
+	return &sk
 }
 
 // SystemKey outputs a string that identifies what security profiles
 // environment this snapd is using. Security profiles that were generated
 // with a different Systemkey should be re-generated.
 func SystemKey() string {
-	sk, err := yaml.Marshal(generateSystemKey())
+	sk := generateSystemKey()
+
+	// special case: unknown build-ids always trigger a rebuild
+	if sk.BuildID == "" {
+		return ""
+	}
+	sks, err := yaml.Marshal(sk)
 	if err != nil {
 		panic(err)
 	}
-	return string(sk)
+	return string(sks)
+}
+
+func MockSystemKey(s string) func() {
+	var sk systemKey
+	err := yaml.Unmarshal([]byte(s), &sk)
+	if err != nil {
+		panic(err)
+	}
+	mockedSystemKey = &sk
+	return func() { mockedSystemKey = nil }
 }

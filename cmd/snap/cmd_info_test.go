@@ -156,6 +156,47 @@ const mockInfoJSON = `
 }
 `
 
+const mockInfoJSONWithChannels = `
+{
+  "type": "sync",
+  "status-code": 200,
+  "status": "OK",
+  "result": [
+    {
+      "channel": "stable",
+      "confinement": "strict",
+      "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
+      "developer": "canonical",
+      "download-size": 65536,
+      "icon": "",
+      "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
+      "name": "hello",
+      "private": false,
+      "resource": "/v2/snaps/hello",
+      "revision": "1",
+      "status": "available",
+      "summary": "The GNU Hello snap",
+      "type": "app",
+      "version": "2.10",
+      "license": "MIT",
+      "channels": {
+        "1/stable": {
+          "revision": "1",
+          "version": "2.10",
+          "channel": "1/stable",
+          "size": 65536
+        }
+      },
+      "tracks": ["1"]
+    }
+  ],
+  "sources": [
+    "store"
+  ],
+  "suggested-currency": "GBP"
+}
+`
+
 func (s *SnapSuite) TestInfoUnquoted(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -200,6 +241,8 @@ const mockInfoJSONOtherLicense = `
       "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
       "developer": "canonical",
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
+      "install-date": "2006-01-02T22:04:07.123456789Z",
+      "installed-size": 1024,
       "name": "hello",
       "private": false,
       "resource": "/v2/snaps/hello",
@@ -209,8 +252,7 @@ const mockInfoJSONOtherLicense = `
       "type": "app",
       "version": "2.10",
       "license": "BSD-3",
-      "tracking-channel": "beta",
-      "installed-size": 1024
+      "tracking-channel": "beta"
     }
 }
 `
@@ -225,6 +267,8 @@ const mockInfoJSONNoLicense = `
       "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
       "developer": "canonical",
       "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
+      "install-date": "2006-01-02T22:04:07.123456789Z",
+      "installed-size": 1024,
       "name": "hello",
       "private": false,
       "resource": "/v2/snaps/hello",
@@ -234,8 +278,7 @@ const mockInfoJSONNoLicense = `
       "type": "app",
       "version": "2.10",
       "license": "",
-      "tracking-channel": "beta",
-      "installed-size": 1024
+      "tracking-channel": "beta"
     }
 }
 `
@@ -270,8 +313,8 @@ description: |
   https://snapcraft.io/
 snap-id:   mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:  beta
-installed: 2.10 (1) 1kB disabled
-refreshed: 0001-01-01 00:00:00 +0000 UTC
+refreshed: 2006-01-02T22:04:07Z
+current:   2.10 (1) 1kB disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -306,8 +349,49 @@ description: |
   https://snapcraft.io/
 snap-id:   mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:  beta
-installed: 2.10 (1) 1kB disabled
-refreshed: 0001-01-01 00:00:00 +0000 UTC
+refreshed: 2006-01-02T22:04:07Z
+current:   2.10 (1) 1kB disabled
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestInfoWithChannelsAndLocal(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			fmt.Fprintln(w, mockInfoJSONWithChannels)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
+			fmt.Fprintln(w, mockInfoJSONNoLicense)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d (%v)", n+1, r)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"info", "hello"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `name:      hello
+summary:   The GNU Hello snap
+publisher: canonical
+license:   unknown
+description: |
+  GNU hello prints a friendly greeting. This is part of the snapcraft tour at
+  https://snapcraft.io/
+snap-id:   mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:  beta
+refreshed: 2006-01-02T22:04:07Z
+channels:                    
+  1/stable:    2.10 (1) 65kB -
+  1/candidate: ↑             
+  1/beta:      ↑             
+  1/edge:      ↑             
+current:       2.10 (1) 1kB  disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }

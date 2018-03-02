@@ -33,8 +33,6 @@ var RunMain = run
 
 var (
 	CreateUserDataDirs = createUserDataDirs
-	SnapRunApp         = snapRunApp
-	SnapRunHook        = snapRunHook
 	Wait               = wait
 	ResolveApp         = resolveApp
 	IsReexeced         = isReexeced
@@ -42,6 +40,8 @@ var (
 	MaybePrintCommands = maybePrintCommands
 	SortByPath         = sortByPath
 	AdviseCommand      = adviseCommand
+	Antialias          = antialias
+	FormatChannel      = fmtChannel
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -138,4 +138,10 @@ func MockIsTerminal(t bool) (restore func()) {
 	}
 }
 
-var Antialias = antialias
+func MockTimeNow(newTimeNow func() time.Time) (restore func()) {
+	oldTimeNow := timeNow
+	timeNow = newTimeNow
+	return func() {
+		timeNow = oldTimeNow
+	}
+}

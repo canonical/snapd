@@ -46,7 +46,11 @@ func (t Clock) String() string {
 func (t Clock) Sub(other Clock) time.Duration {
 	t1 := time.Duration(t.Hour)*time.Hour + time.Duration(t.Minute)*time.Minute
 	t2 := time.Duration(other.Hour)*time.Hour + time.Duration(other.Minute)*time.Minute
-	return t1 - t2
+	dur := t1 - t2
+	if dur < 0 {
+		dur = -(dur + 24*time.Hour)
+	}
+	return dur
 }
 
 // Add adds given duration to t and returns a new Clock
@@ -129,24 +133,38 @@ func (ws WeekSpan) String() string {
 	return ws.Start.String()
 }
 
+func findNthWeekDay(t time.Time, weekday time.Weekday, nthInMonth uint) time.Time {
+	// move to the beginning of the month
+	t = t.AddDate(0, 0, -t.Day()+1)
+
+	for nth := uint(0); t.Weekday() != weekday || nth != nthInMonth; {
+		t = t.Add(24 * time.Hour)
+		if t.Weekday() == weekday {
+			nth++
+		}
+	}
+	return t
+}
+
 // Match checks if t is within the day span represented by ws.
 func (ws WeekSpan) Match(t time.Time) bool {
 	start, end := ws.Start, ws.End
 	wdStart, wdEnd := start.Weekday, end.Weekday
 
 	if start.Pos != EveryWeek {
-		// is it the right week?
-		week := uint(t.Day()/7) + 1
-
 		if start.Pos == LastWeek {
 			// last week of the month
 			if !isLastWeekdayInMonth(t) {
 				return false
 			}
 		} else {
-			if week < start.Pos || week > end.Pos {
+			startDay := findNthWeekDay(t, start.Weekday, start.Pos)
+			endDay := findNthWeekDay(t, end.Weekday, end.Pos)
+
+			if t.Day() < startDay.Day() || t.Day() > endDay.Day() {
 				return false
 			}
+			return true
 		}
 	}
 
@@ -211,6 +229,9 @@ func (ts ClockSpan) ClockSpans() []ClockSpan {
 	}
 
 	span := ts.End.Sub(ts.Start)
+	if span < 0 {
+		span = -span
+	}
 	step := span / time.Duration(ts.Split)
 
 	spans := make([]ClockSpan, ts.Split)
@@ -693,4 +714,48 @@ func parseEventSet(s string) (*Schedule, error) {
 	}
 
 	return &schedule, nil
+}
+
+// Includes checks whether given time t falls inside the time range covered by
+// the schedule. A single time schedule eg. '10:00' is treated as spanning the
+// time [10:00, 10:01)
+func (sched *Schedule) Includes(t time.Time) bool {
+	if len(sched.WeekSpans) > 0 {
+		var weekMatch bool
+		for _, week := range sched.WeekSpans {
+			if week.Match(t) {
+				weekMatch = true
+				break
+			}
+		}
+		if !weekMatch {
+			return false
+		}
+	}
+
+	for _, tspan := range sched.flattenedClockSpans() {
+		window := tspan.Window(t)
+		if window.End.Equal(window.Start) {
+			// schedule granularity is a minute, a schedule '10:00'
+			// in fact is: [10:00, 10:01)
+			window.End = window.End.Add(time.Minute)
+		}
+		// Includes() does the [start,end] check, but we really what
+		// [start,end)
+		if window.Includes(t) && t.Before(window.End) {
+			return true
+		}
+	}
+	return false
+}
+
+// Includes checks whether given time t falls inside the time range covered by
+// a schedule.
+func Includes(schedule []*Schedule, t time.Time) bool {
+	for _, sched := range schedule {
+		if sched.Includes(t) {
+			return true
+		}
+	}
+	return false
 }
