@@ -211,6 +211,7 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 	} else {
 		cmd = exec.Command("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path, relative)
 	}
+	cmd.Env = []string{"TZ=UTC"}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return walkFn(relative, nil, err)
@@ -321,6 +322,7 @@ func BuildDate(path string) time.Time {
 	}
 
 	cmd := exec.Command("unsquashfs", "-s", path)
+	cmd.Env = []string{"TZ=UTC"}
 	cmd.Stdout = m
 	cmd.Stderr = m
 	if err := cmd.Run(); err != nil {
