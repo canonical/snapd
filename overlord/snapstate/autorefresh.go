@@ -34,6 +34,9 @@ import (
 // the default refresh pattern
 const defaultRefreshSchedule = "00:00~24:00/4"
 
+// cannot keep without refreshing for more than maxPostponement
+const maxPostponement = 60 * 24 * time.Hour
+
 // hooks setup by devicestate
 var (
 	CanAutoRefresh     func(st *state.State) (bool, error)
@@ -135,7 +138,7 @@ func (m *autoRefresh) Ensure() error {
 	if m.nextRefresh.IsZero() {
 		// store attempts in memory so that we can backoff
 		if !lastRefresh.IsZero() {
-			delta := timeutil.Next(refreshSchedule, lastRefresh)
+			delta := timeutil.Next(refreshSchedule, lastRefresh, maxPostponement)
 			m.nextRefresh = time.Now().Add(delta)
 		} else {
 			// immediate
