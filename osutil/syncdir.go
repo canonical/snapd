@@ -100,21 +100,24 @@ func EnsureDirStateGlobs(dir string, globs []string, content map[string]*FileSta
 		changed = append(changed, baseName)
 	}
 	// Delete phase (remove files matching the glob that are not in content)
-	var matches []string
+	matches := make(map[string]bool)
 	for _, glob := range globs {
 		m, err := filepath.Glob(filepath.Join(dir, glob))
 		if err != nil {
 			sort.Strings(changed)
 			return changed, nil, err
 		}
-		matches = append(matches, m...)
+		for _, path := range m {
+			matches[path] = true
+		}
 	}
-	for _, filePath := range matches {
-		baseName := filepath.Base(filePath)
+
+	for path := range matches {
+		baseName := filepath.Base(path)
 		if content[baseName] != nil {
 			continue
 		}
-		err := os.Remove(filePath)
+		err := os.Remove(path)
 		if err != nil {
 			if firstErr == nil {
 				firstErr = err
