@@ -1404,7 +1404,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState,
 
 	toRefresh := make([]*snap.Info, 0, len(latest))
 	for _, rsnap := range latest {
-		if !acceptableUpdate(rsnap, candidateMap[rsnap.SnapID]) {
+		if !acceptableUpdate(rsnap, candidateMap[rsnap.SnapID.Clean()]) {
 			continue
 		}
 
