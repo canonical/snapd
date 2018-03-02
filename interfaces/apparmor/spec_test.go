@@ -241,7 +241,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /tmp/ rw,
 `
 	profile2 := `  # Layout /var/cache/mylink: symlink $SNAP_DATA/link/target
-  /var/cache/mylink rwl,
+  /var/cache/mylink rw,
   # Writable mimic /var/cache
   mount options=(rbind, rw) /var/cache/ -> /tmp/.snap/var/cache/,
   mount fstype=tmpfs options=(rw) tmpfs -> /var/cache/,
