@@ -234,7 +234,7 @@ if [ "$SPREAD" = 1 ]; then
     export PATH=$TMP_SPREAD:$PATH
     ( cd "$TMP_SPREAD" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
-    spread -v linode:
+    spread google: linode:
 
     # cleanup the debian-ubuntu-14.04
     rm -rf debian-ubuntu-14.04
@@ -246,7 +246,8 @@ if [ "$DEPRECATED" = 1 ]; then
 fi
 
 UNCLEAN="$(git status -s|grep '^??')" || true
-if [ -n "$UNCLEAN" ]; then
+SKIP_UNCLEAN=${SKIP_UNCLEAN=}
+if [[ -n "$UNCLEAN" && -z "$SKIP_UNCLEAN" ]]; then
     cat <<EOF
 
 There are files left in the git tree after the tests:

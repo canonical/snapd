@@ -17,8 +17,8 @@ case "$1" in
             # snapd.system-shutdown.service is not strictly needed on 14.04. Its functionality
             # is limited to core devices, we still include it here for the sake of comppleteness
             # in comparison to 16.04 setups.
-            systemctl -f enable snapd.refresh.timer snapd.refresh.service snapd.autoimport.service snapd.socket snapd.service snap.mount.service snapd.system-shutdown.service
-            systemctl start snapd.refresh.timer snapd.autoimport.service snapd.socket snapd.service snap.mount.service
+            systemctl -f enable snapd.autoimport.service snapd.socket snapd.service snap.mount.service snapd.system-shutdown.service
+            systemctl start snapd.autoimport.service snapd.socket snapd.service snap.mount.service
         fi
 
 	case ":$PATH:" in
