@@ -2560,7 +2560,7 @@ func (t *remoteRepoTestSuite) TestStructFields(c *C) {
 	c.Assert(getStructFields(s{}), DeepEquals, []string{"hello", "potato"})
 }
 
-func (s *storeTestSuite) TestStructFieldsExcept(c *C) {
+func (s *remoteRepoTestSuite) TestStructFieldsExcept(c *C) {
 	type aStruct struct {
 		Foo int `json:"hello"`
 		Bar int `json:"potato,stuff"`
