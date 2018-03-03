@@ -21,12 +21,14 @@ package snapstate
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -77,12 +79,7 @@ func (m *autoRefresh) NextRefresh() time.Time {
 
 // LastRefresh returns when the last refresh happened.
 func (m *autoRefresh) LastRefresh() (time.Time, error) {
-	var lastRefresh time.Time
-	err := m.state.Get("last-refresh", &lastRefresh)
-	if err != nil && err != state.ErrNoState {
-		return time.Time{}, err
-	}
-	return lastRefresh, nil
+	return getTime(m.state, "last-refresh")
 }
 
 // EffectiveRefreshHold returns the time until to which refreshes are
@@ -97,7 +94,27 @@ func (m *autoRefresh) EffectiveRefreshHold() (time.Time, error) {
 		return time.Time{}, err
 	}
 
-	// XXX: adjust using last-refresh/seed-time & maxPostponement
+	// cannot hold beyond last-refresh + max-postponement
+	lastRefresh, err := m.LastRefresh()
+	if err != nil {
+		return time.Time{}, err
+	}
+	if lastRefresh.IsZero() {
+		seedTime, err := getTime(m.state, "seed-time")
+		if err != nil {
+			return time.Time{}, err
+		}
+		if seedTime.IsZero() {
+			// no reference to know whether holding is reasonable
+			return time.Time{}, nil
+		}
+		lastRefresh = seedTime
+	}
+
+	limitTime := lastRefresh.Add(maxPostponement)
+	if holdTime.After(limitTime) {
+		return limitTime, nil
+	}
 
 	return holdTime, nil
 }
@@ -165,8 +182,9 @@ func (m *autoRefresh) Ensure() error {
 			delta := timeutil.Next(refreshSchedule, lastRefresh, maxPostponement)
 			m.nextRefresh = time.Now().Add(delta)
 		} else {
-			// XXX: make sure either seed-time or last-refresh
-			// are set
+			// make sure either seed-time or last-refresh
+			// are set for hold code below
+			m.ensureLastRefreshAnchor()
 			// immediate
 			m.nextRefresh = time.Now()
 		}
@@ -197,6 +215,27 @@ func (m *autoRefresh) Ensure() error {
 	}
 
 	return err
+}
+
+func (m *autoRefresh) ensureLastRefreshAnchor() {
+	seedTime, _ := getTime(m.state, "seed-time")
+	if !seedTime.IsZero() {
+		return
+	}
+
+	// last core refresh
+	coreRefreshDate := snap.InstallDate("core")
+	if !coreRefreshDate.IsZero() {
+		m.state.Set("last-refresh", coreRefreshDate)
+		return
+	}
+
+	// fallback to executable time
+	st, err := os.Stat("/proc/self/exe")
+	if err == nil {
+		m.state.Set("last-refresh", st.ModTime())
+		return
+	}
 }
 
 // refreshScheduleWithDefaultsFallback returns the current refresh schedule
@@ -324,4 +363,14 @@ func refreshScheduleManaged(st *state.State) bool {
 	}
 
 	return CanManageRefreshes(st)
+}
+
+// getTime retrieves a time from a state value.
+func getTime(st *state.State, timeKey string) (time.Time, error) {
+	var t1 time.Time
+	err := st.Get(timeKey, &t1)
+	if err != nil && err != state.ErrNoState {
+		return time.Time{}, err
+	}
+	return t1, nil
 }

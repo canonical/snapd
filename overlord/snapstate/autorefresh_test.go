@@ -21,10 +21,13 @@ package snapstate_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -57,6 +60,8 @@ type autoRefreshTestSuite struct {
 var _ = Suite(&autoRefreshTestSuite{})
 
 func (s *autoRefreshTestSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+
 	s.state = state.New(nil)
 
 	s.store = &autoRefreshStore{}
@@ -79,14 +84,19 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
+
+	s.state.Set("seed-time", time.Now())
 }
 
 func (s *autoRefreshTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 	snapstate.AutoAliases = nil
+	dirs.SetRootDir("")
 }
 
 func (s *autoRefreshTestSuite) TestLastRefresh(c *C) {
+	// this does an immediate refresh
+
 	af := snapstate.NewAutoRefresh(s.state)
 	err := af.Ensure()
 	c.Check(err, IsNil)
@@ -180,7 +190,10 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHold(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	holdTime := time.Now().Add(5 * time.Minute)
+	t0 := time.Now()
+	s.state.Set("last-refresh", t0.Add(-12*time.Hour))
+
+	holdTime := t0.Add(5 * time.Minute)
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "refresh.hold", holdTime)
 	tr.Commit()
@@ -194,10 +207,6 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHold(c *C) {
 	// no refresh
 	c.Check(s.store.ops, HasLen, 0)
 
-	var lastRefresh time.Time
-	s.state.Get("last-refresh", &lastRefresh)
-	c.Check(lastRefresh.IsZero(), Equals, true)
-
 	// hold still kept
 	tr = config.NewTransaction(s.state)
 	var t1 time.Time
@@ -210,7 +219,10 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpired(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	holdTime := time.Now().Add(-5 * time.Minute)
+	t0 := time.Now()
+	s.state.Set("last-refresh", t0.Add(-12*time.Hour))
+
+	holdTime := t0.Add(-5 * time.Minute)
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "refresh.hold", holdTime)
 	tr.Commit()
@@ -234,4 +246,107 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpired(c *C) {
 	err = tr.Get("core", "refresh.hold", &t1)
 	c.Assert(err, IsNil)
 	c.Check(t1.IsZero(), Equals, true)
+}
+
+func (s *autoRefreshTestSuite) TestEffectiveRefreshHold(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// assume no seed-time
+	s.state.Set("seed-time", nil)
+
+	af := snapstate.NewAutoRefresh(s.state)
+
+	t0, err := af.EffectiveRefreshHold()
+	c.Assert(err, IsNil)
+	c.Check(t0.IsZero(), Equals, true)
+
+	holdTime := time.Now()
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", holdTime)
+	tr.Commit()
+
+	seedTime := holdTime.Add(-70 * 24 * time.Hour)
+	s.state.Set("seed-time", seedTime)
+
+	t1, err := af.EffectiveRefreshHold()
+	c.Assert(err, IsNil)
+	c.Check(t1.Equal(seedTime.Add(60*24*time.Hour)), Equals, true)
+
+	lastRefresh := holdTime.Add(-65 * 24 * time.Hour)
+	s.state.Set("last-refresh", lastRefresh)
+
+	t1, err = af.EffectiveRefreshHold()
+	c.Assert(err, IsNil)
+	c.Check(t1.Equal(lastRefresh.Add(60*24*time.Hour)), Equals, true)
+
+	s.state.Set("last-refresh", holdTime.Add(-6*time.Hour))
+	t1, err = af.EffectiveRefreshHold()
+	c.Assert(err, IsNil)
+	c.Check(t1.Equal(holdTime), Equals, true)
+}
+
+func (s *autoRefreshTestSuite) TestEnsureLastRefreshAnchor(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	// set hold => no refreshes
+	t0 := time.Now()
+	holdTime := t0.Add(1 * time.Hour)
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", holdTime)
+	tr.Commit()
+
+	// with seed-time
+	s.state.Set("seed-time", t0.Add(-1*time.Hour))
+
+	af := snapstate.NewAutoRefresh(s.state)
+	s.state.Unlock()
+	err := af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+	// no refresh
+	c.Check(s.store.ops, HasLen, 0)
+	lastRefresh, err := af.LastRefresh()
+	c.Assert(err, IsNil)
+	c.Check(lastRefresh.IsZero(), Equals, true)
+
+	// no seed-time
+	s.state.Set("seed-time", nil)
+
+	// fallback to time of executable
+	st, err := os.Stat("/proc/self/exe")
+	c.Assert(err, IsNil)
+	exeTime := st.ModTime()
+
+	af = snapstate.NewAutoRefresh(s.state)
+	s.state.Unlock()
+	err = af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+	// no refresh
+	c.Check(s.store.ops, HasLen, 0)
+	lastRefresh, err = af.LastRefresh()
+	c.Assert(err, IsNil)
+	c.Check(lastRefresh.Equal(exeTime), Equals, true)
+
+	// clear
+	s.state.Set("last-refresh", nil)
+	// use core last refresh time
+	coreCurrent := filepath.Join(dirs.SnapMountDir, "core", "current")
+	err = os.MkdirAll(coreCurrent, 0755)
+	c.Assert(err, IsNil)
+	st, err = os.Stat(coreCurrent)
+	c.Assert(err, IsNil)
+	coreRefreshed := st.ModTime()
+
+	af = snapstate.NewAutoRefresh(s.state)
+	s.state.Unlock()
+	err = af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+	// no refresh
+	c.Check(s.store.ops, HasLen, 0)
+	lastRefresh, err = af.LastRefresh()
+	c.Assert(err, IsNil)
+	c.Check(lastRefresh.Equal(coreRefreshed), Equals, true)
 }
