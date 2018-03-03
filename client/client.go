@@ -402,6 +402,7 @@ type RefreshInfo struct {
 	// Schedule contains the legacy refresh.schedule setting.
 	Schedule string `json:"schedule,omitempty"`
 	Last     string `json:"last,omitempty"`
+	Hold     string `json:"hold,omitempty"`
 	Next     string `json:"next,omitempty"`
 }
 

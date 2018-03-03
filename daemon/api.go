@@ -266,6 +266,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	defer st.Unlock()
 	nextRefresh := snapMgr.NextRefresh()
 	lastRefresh, _ := snapMgr.LastRefresh()
+	refreshHold, _ := snapMgr.EffectiveRefreshHold()
 	refreshScheduleStr, legacySchedule, err := snapMgr.RefreshSchedule()
 	if err != nil {
 		return InternalError("cannot get refresh schedule: %s", err)
@@ -277,6 +278,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	refreshInfo := client.RefreshInfo{
 		Last: formatRefreshTime(lastRefresh),
+		Hold: formatRefreshTime(refreshHold),
 		Next: formatRefreshTime(nextRefresh),
 	}
 	if !legacySchedule {
