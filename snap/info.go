@@ -785,6 +785,18 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	return info, nil
 }
 
+// InstallDate returns the "install date" of the snap.
+//
+// If the snap is not active, it'll return a zero time; otherwise
+// it'll return the modtime of the "current" symlink.
+func InstallDate(name string) time.Time {
+	cur := filepath.Join(dirs.SnapMountDir, name, "current")
+	if st, err := os.Lstat(cur); err == nil {
+		return st.ModTime()
+	}
+	return time.Time{}
+}
+
 // SplitSnapApp will split a string of the form `snap.app` into
 // the `snap` and the `app` part. It also deals with the special
 // case of snapName == appName.
