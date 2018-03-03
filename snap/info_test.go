@@ -195,6 +195,26 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
 
+func (s *infoSuite) TestInstallDate(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(1)}
+	info := snaptest.MockSnap(c, sampleYaml, si)
+	// not current -> Zero
+	c.Check(snap.InstallDate(info.Name()).IsZero(), Equals, true)
+
+	mountdir := info.MountDir()
+	dir, rev := filepath.Split(mountdir)
+	c.Assert(os.MkdirAll(dir, 0755), IsNil)
+	cur := filepath.Join(dir, "current")
+	c.Assert(os.Symlink(rev, cur), IsNil)
+	st, err := os.Lstat(cur)
+	c.Assert(err, IsNil)
+	instTime := st.ModTime()
+	// sanity
+	c.Check(instTime.IsZero(), Equals, false)
+
+	c.Check(snap.InstallDate(info.Name()).Equal(instTime), Equals, true)
+}
+
 func (s *infoSuite) TestReadInfoNotFound(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 	info, err := snap.ReadInfo("sample", si)
