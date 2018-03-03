@@ -368,6 +368,14 @@ func (m *SnapManager) NextRefresh() time.Time {
 	return m.autoRefresh.NextRefresh()
 }
 
+// EffectiveRefreshHold returns the time until to which refreshes are
+// held if refresh.hold configuration is set and accounting for the
+// max postponement since the last refresh.
+// The caller should be holding the state lock.
+func (m *SnapManager) EffectiveRefreshHold() (time.Time, error) {
+	return m.autoRefresh.EffectiveRefreshHold()
+}
+
 // LastRefresh returns the time the last snap update.
 // The caller should be holding the state lock.
 func (m *SnapManager) LastRefresh() (time.Time, error) {

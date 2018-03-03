@@ -593,6 +593,33 @@ next: 2017-04-26T00:58:00+0200
 	c.Check(n, check.Equals, 1)
 }
 
+func (s *SnapSuite) TestRefreshHold(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+			fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"timer": "0:00-24:00/4", "last": "2017-04-25T17:35:00+0200", "next": "2017-04-26T00:58:00+0200", "hold": "2017-04-28T00:00:00+0200"}}}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--time"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `timer: 0:00-24:00/4
+last: 2017-04-25T17:35:00+0200
+hold: 2017-04-28T00:00:00+0200
+next: 2017-04-26T00:58:00+0200
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 1)
+}
+
 func (s *SnapSuite) TestRefreshNoTimerNoSchedule(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, check.Equals, "GET")

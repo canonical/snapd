@@ -670,6 +670,9 @@ func (x *cmdRefresh) showRefreshTimes() error {
 	} else {
 		fmt.Fprintf(Stdout, "last: n/a\n")
 	}
+	if sysinfo.Refresh.Hold != "" {
+		fmt.Fprintf(Stdout, "hold: %s\n", sysinfo.Refresh.Hold)
+	}
 	if sysinfo.Refresh.Next != "" {
 		fmt.Fprintf(Stdout, "next: %s\n", sysinfo.Refresh.Next)
 	} else {
