@@ -569,11 +569,10 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   /var/lib/snapd/mount/snap.###SNAP_NAME###.fstab r,
 
   # Allow reading and writing actual per-snap mount profiles. Note that
-  # the second rule is generic to allow our tmpfile-rename approach to
-  # writing them. Those are written by snap-update-ns and represent the
-  # actual layout at a given moment.
-  /run/snapd/ns/snap.###SNAP_NAME###.fstab rw,
-  /run/snapd/ns/snap.###SNAP_NAME###.fstab.* rw,
+  # the wildcard in the rule to allow an atomic write + rename strategy.
+  # Those files are written by snap-update-ns and represent the actual
+  # mount profile at a given moment.
+  /run/snapd/ns/snap.###SNAP_NAME###.fstab{,.*} rw,
 
   # NOTE: at this stage the /snap directory is stable as we have called
   # pivot_root already.
