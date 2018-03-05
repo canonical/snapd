@@ -272,7 +272,12 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err != nil {
 		return fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
-	spec.(*Specification).snapName = snapInfo.Name()
+
+	// Set the snapName for AddUpdateNS snippet.
+	//
+	// TODO: remove this along with Specification.snapName as it is not really
+	// needed in practice and the corresponding code can be simplified away.
+	spec.(*Specification).snapName = snapName
 	spec.(*Specification).AddSnapLayout(snapInfo)
 	spec.(*Specification).snapName = ""
 
