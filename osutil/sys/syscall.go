@@ -95,3 +95,15 @@ func FchownAt(dirfd uintptr, path string, uid UserID, gid GroupID, flags int) er
 	}
 	return errno
 }
+
+// As of Go 1.9, the O_PATH constant does not seem to be declared
+// uniformly over all archtiectures.
+const O_PATH = 0x200000
+
+func FcntlGetFl(fd int) (int, error) {
+	flags, _, errno := syscall.Syscall(syscall.SYS_FCNTL, uintptr(fd), uintptr(syscall.F_GETFL), 0)
+	if errno != 0 {
+		return 0, errno
+	}
+	return int(flags), nil
+}
