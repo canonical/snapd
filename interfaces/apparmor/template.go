@@ -520,10 +520,16 @@ var overlayRootSnippet = `
   "###UPPERDIR###/{,**/}" r,
 `
 
-// updateNSTemplate contains an apparmor profile for snap-update-ns.
-// The template contains variable references to encode per-snap layout
-// requirements so that snap-update-ns doesn't need to have broad permissions
-// to write to the whole disk or to mount and unmount anything.
+// updateNSTemplate defines the apparmor profile for per-snap snap-update-ns.
+//
+// The per-snap snap-update-ns profiles are composed via a template and
+// snippets for the snap. The template allows:
+// - accesses to libraries, files and /proc entries required to run
+// - using global and per-snap lock files
+// - reading per-snap mount namespaces and mount profiles
+// - managing per-snap freezer state files
+// - per-snap mounting/unmounting fonts from the host
+// - denying mounts to restricted places (eg, /snap/bin and /media)
 var updateNSTemplate = `
 # Description: Allows snap-update-ns to construct the mount namespace specific
 # to a particular snap (see the name below). This specifically includes the
