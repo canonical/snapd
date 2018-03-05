@@ -130,25 +130,19 @@ func appMatcher(app *snap.AppInfo, desktopFile, execCmd string) string {
 }
 
 // appAutostartMatcher matches a snap app with a desktop file and an exec
-// command by inspecting the application's autostart configuration and its command, returns an
+// command by inspecting the application's autostart declaration, returns an
 // updated command or an empty string
 func appAutostartMatcher(app *snap.AppInfo, desktopFile, execCmd string) string {
 	if app.Autostart != filepath.Base(desktopFile) {
 		return ""
 	}
 
-	wrapper := app.WrapperPath()
 	cmd := execCmd
-	pos := strings.Index(execCmd, " ")
-	if pos != -1 {
+	if pos := strings.Index(execCmd, " "); pos != -1 {
 		cmd = execCmd[0:pos]
 	}
 
-	if !strings.HasSuffix(cmd, app.Command) {
-		return ""
-	}
-
-	return fmt.Sprintf("%s%s", wrapper, execCmd[len(cmd):])
+	return fmt.Sprintf("%s%s", app.WrapperPath(), execCmd[len(cmd):])
 }
 
 func (e *execRewriterImpl) rewrite(s *snap.Info, desktopFile, line string) (string, error) {

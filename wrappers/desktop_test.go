@@ -398,7 +398,7 @@ Exec=%s/bin/snap.app --foo bar baz "foo=2"
 `, dirs.SnapMountDir))
 }
 
-func (s *sanitizeDesktopFileSuite) TestSanitizeAutostartNoArgsValid(c *C) {
+func (s *sanitizeDesktopFileSuite) TestSanitizeAutostartNoArgs(c *C) {
 	snap, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
@@ -454,7 +454,6 @@ apps:
 	c.Assert(err, IsNil)
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
-Exec=/snap/foo/current/bin/foo-bad --foo bar baz
 `)
 
 	e := wrappers.SanitizeAutostartDesktopFile(snap, "foo-stable.desktop", desktopContent)
@@ -463,7 +462,7 @@ Name=foo
 `)
 }
 
-func (s *sanitizeDesktopFileSuite) TestSanitizeAutostartBadAutostartDesktop(c *C) {
+func (s *sanitizeDesktopFileSuite) TestSanitizeAutostartDifferentAutostartDesktop(c *C) {
 	snap, err := snap.InfoFromSnapYaml([]byte(`
 name: snap
 version: 1.0
