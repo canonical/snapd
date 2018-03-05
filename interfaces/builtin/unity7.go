@@ -112,7 +112,7 @@ dbus (send)
     bus=session
     path=/io/snapcraft/Launcher
     interface=io.snapcraft.Launcher
-    member=OpenURL
+    member={OpenURL,OpenFile}
     peer=(label=unconfined),
 
 # Allow use of snapd's internal 'xdg-settings'
