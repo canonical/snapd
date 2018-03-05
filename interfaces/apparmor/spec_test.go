@@ -181,11 +181,9 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   umount /tmp/.snap/etc/,
   umount /etc{,/**},
   /etc/** rw,
-  /etc/ rw,
   /tmp/.snap/etc/** rw,
   /tmp/.snap/etc/ rw,
   /tmp/.snap/ rw,
-  /tmp/ rw,
   # Writable mimic /snap/vanguard/42
   mount options=(rbind, rw) /snap/vanguard/42/ -> /tmp/.snap/snap/vanguard/42/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/,
@@ -196,13 +194,11 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /snap/vanguard/42/** rw,
   /snap/vanguard/42/ rw,
   /snap/vanguard/ rw,
-  /snap/ rw,
   /tmp/.snap/snap/vanguard/42/** rw,
   /tmp/.snap/snap/vanguard/42/ rw,
   /tmp/.snap/snap/vanguard/ rw,
   /tmp/.snap/snap/ rw,
   /tmp/.snap/ rw,
-  /tmp/ rw,
 `
 	profile1 := `  # Layout /usr/foo: bind $SNAP/usr/foo
   mount options=(rbind, rw) /snap/vanguard/42/usr/foo/ -> /usr/foo/,
@@ -215,11 +211,9 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   umount /tmp/.snap/usr/,
   umount /usr{,/**},
   /usr/** rw,
-  /usr/ rw,
   /tmp/.snap/usr/** rw,
   /tmp/.snap/usr/ rw,
   /tmp/.snap/ rw,
-  /tmp/ rw,
   # Writable mimic /snap/vanguard/42/usr
   mount options=(rbind, rw) /snap/vanguard/42/usr/ -> /tmp/.snap/snap/vanguard/42/usr/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/usr/,
@@ -231,14 +225,12 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /snap/vanguard/42/usr/ rw,
   /snap/vanguard/42/ rw,
   /snap/vanguard/ rw,
-  /snap/ rw,
   /tmp/.snap/snap/vanguard/42/usr/** rw,
   /tmp/.snap/snap/vanguard/42/usr/ rw,
   /tmp/.snap/snap/vanguard/42/ rw,
   /tmp/.snap/snap/vanguard/ rw,
   /tmp/.snap/snap/ rw,
   /tmp/.snap/ rw,
-  /tmp/ rw,
 `
 	profile2 := `  # Layout /var/cache/mylink: symlink $SNAP_DATA/link/target
   /var/cache/mylink rw,
@@ -251,12 +243,10 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   umount /var/cache{,/**},
   /var/cache/** rw,
   /var/cache/ rw,
-  /var/ rw,
   /tmp/.snap/var/cache/** rw,
   /tmp/.snap/var/cache/ rw,
   /tmp/.snap/var/ rw,
   /tmp/.snap/ rw,
-  /tmp/ rw,
 `
 	profile3 := `  # Layout /var/tmp: type tmpfs, mode: 01777
   mount fstype=tmpfs tmpfs -> /var/tmp/,
@@ -269,11 +259,9 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   umount /tmp/.snap/var/,
   umount /var{,/**},
   /var/** rw,
-  /var/ rw,
   /tmp/.snap/var/** rw,
   /tmp/.snap/var/ rw,
   /tmp/.snap/ rw,
-  /tmp/ rw,
 `
 	updateNS := s.spec.UpdateNS()["vanguard"]
 	c.Assert(updateNS[0], Equals, profile0)
