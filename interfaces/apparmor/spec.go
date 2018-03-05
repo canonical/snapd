@@ -168,8 +168,18 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 	}
 }
 
+// isProbably writable returns true if the path is probably representing writable area.
 func isProbablyWritable(path string) bool {
 	return strings.HasPrefix(path, "/var/snap/") || strings.HasPrefix(path, "/home/") || strings.HasPrefix(path, "/root/")
+}
+
+// isProbablyPresent returns true if the path is probably already present.
+//
+// This is used as a simple hint to not inject writable path rules for things
+// that we don't expect to create as they are already present in the skeleton
+// file-system tree.
+func isProbablyPresent(path string) bool {
+	return path == "/" || path == "/snap" || path == "/var" || path == "/var/snap" || path == "/tmp" || path == "/usr" || path == "/etc"
 }
 
 // WritableFileProfile writes a profile for snap-update-ns for making given file writable.
@@ -180,7 +190,7 @@ func WritableFileProfile(buf *bytes.Buffer, path string) {
 	if isProbablyWritable(path) {
 		fmt.Fprintf(buf, "  # Writable file %s\n", path)
 		fmt.Fprintf(buf, "  %s rw,\n", path)
-		for p := parent(path); p != "/"; p = parent(p) {
+		for p := parent(path); !isProbablyPresent(p); p = parent(p) {
 			fmt.Fprintf(buf, "  %s/ rw,\n", p)
 		}
 	} else {
@@ -200,11 +210,11 @@ func WritableFileProfile(buf *bytes.Buffer, path string) {
 		fmt.Fprintf(buf, "  umount %s{,/**},\n", parentPath)
 		// Allow creating directories on demand.
 		fmt.Fprintf(buf, "  %s/** rw,\n", parentPath)
-		for p := parentPath; p != "/"; p = parent(p) {
+		for p := parentPath; !isProbablyPresent(p); p = parent(p) {
 			fmt.Fprintf(buf, "  %s/ rw,\n", p)
 		}
 		fmt.Fprintf(buf, "  /tmp/.snap%s/** rw,\n", parentPath)
-		for p := filepath.Join("/tmp/.snap/", parentPath); p != "/"; p = parent(p) {
+		for p := filepath.Join("/tmp/.snap/", parentPath); !isProbablyPresent(p); p = parent(p) {
 			fmt.Fprintf(buf, "  %s/ rw,\n", p)
 		}
 	}
@@ -217,7 +227,7 @@ func WritableProfile(buf *bytes.Buffer, path string) {
 	}
 	if isProbablyWritable(path) {
 		fmt.Fprintf(buf, "  # Writable directory %s\n", path)
-		for p := path; p != "/"; p = parent(p) {
+		for p := path; !isProbablyPresent(p); p = parent(p) {
 			fmt.Fprintf(buf, "  %s/ rw,\n", p)
 		}
 	} else {
@@ -237,11 +247,11 @@ func WritableProfile(buf *bytes.Buffer, path string) {
 		fmt.Fprintf(buf, "  umount %s{,/**},\n", parentPath)
 		// Allow creating directories on demand.
 		fmt.Fprintf(buf, "  %s/** rw,\n", parentPath)
-		for p := parentPath; p != "/"; p = parent(p) {
+		for p := parentPath; !isProbablyPresent(p); p = parent(p) {
 			fmt.Fprintf(buf, "  %s/ rw,\n", p)
 		}
 		fmt.Fprintf(buf, "  /tmp/.snap%s/** rw,\n", parentPath)
-		for p := filepath.Join("/tmp/.snap/", parentPath); p != "/"; p = parent(p) {
+		for p := filepath.Join("/tmp/.snap/", parentPath); !isProbablyPresent(p); p = parent(p) {
 			fmt.Fprintf(buf, "  %s/ rw,\n", p)
 		}
 	}
