@@ -144,6 +144,7 @@ int main(int argc, char** argv)
     // There might be architecture-specific requirements. see "man syscall"
     // for details.
     syscall_ret = syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
+    // 911 is our mocked errno
     if (syscall_ret < 0 && errno == 911) {
         ret = 10;
     }

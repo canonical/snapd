@@ -218,7 +218,7 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 		.len = num_read / sizeof(struct sock_filter),
 		.filter = (struct sock_filter *)bpf,
 	};
-	if (seccomp(SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_LOG, &prog)) {
+	if (seccomp(SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_LOG, &prog) != 0) {
 		if (errno == ENOSYS) {
 			debug("kernel doesn't support the seccomp(2) syscall");
 		} else if (errno == EINVAL) {

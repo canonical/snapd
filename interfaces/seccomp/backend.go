@@ -167,6 +167,9 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetF
 	if opts.DevMode && !opts.JailMode {
 		// NOTE: This is understood by snap-confine
 		buffer.WriteString("@complain\n")
+		if !release.SecCompSupportsAction("log") {
+			buffer.WriteString("# complain mode logging unavailable\n")
+		}
 	}
 
 	buffer.Write(defaultTemplate)

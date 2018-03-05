@@ -642,10 +642,12 @@ func complainAction() seccomp.ScmpAction {
 	// kernel, libseccomp, and libseccomp-golang all support ActLog.
 	var actLog seccomp.ScmpAction = seccomp.ActAllow + 1
 
-	if (actLog.String() == "Action: Log system call") {
+	if actLog.String() == "Action: Log system call" {
 		return actLog
 	}
 
+	// Because ActLog is functionally ActAllow with logging, if we don't
+	// support ActLog, fallback to ActLog.
 	return seccomp.ActAllow
 }
 
@@ -672,6 +674,9 @@ func compile(content []byte, out string) error {
 			}
 		}
 
+		// Set unrestricted to 'true' to fallback to the pre-ActLog
+		// behavior of simply setting the allow filter without adding
+		// any rules.
 		if complainAct == seccomp.ActAllow {
 			unrestricted = true
 		}

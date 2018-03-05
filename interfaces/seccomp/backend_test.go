@@ -334,3 +334,52 @@ func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	c.Assert(profile+".src", testutil.FileContains, "\nbind\n")
 }
+
+const ClassicYamlV1 = `
+name: test-classic
+version: 1
+developer: acme
+confinement: classic
+apps:
+  sh:
+  `
+
+func (s *backendSuite) TestSystemKeyRetLogSupported(c *C) {
+	restore := release.MockSecCompActions([]string{"allow", "errno", "kill", "log", "trace", "trap"})
+	defer restore()
+
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: true}, ifacetest.SambaYamlV1, 0)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	c.Assert(profile+".src", Not(testutil.FileContains), "# complain mode logging unavailable\n")
+	s.RemoveSnap(c, snapInfo)
+
+	snapInfo = s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: false}, ifacetest.SambaYamlV1, 0)
+	profile = filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	c.Assert(profile+".src", Not(testutil.FileContains), "# complain mode logging unavailable\n")
+	s.RemoveSnap(c, snapInfo)
+
+	snapInfo = s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: false, Classic: true}, ClassicYamlV1, 0)
+	profile = filepath.Join(dirs.SnapSeccompDir, "snap.test-classic.sh")
+	c.Assert(profile+".src", Not(testutil.FileContains), "# complain mode logging unavailable\n")
+	s.RemoveSnap(c, snapInfo)
+}
+
+func (s *backendSuite) TestSystemKeyRetLogUnsupported(c *C) {
+	restore := release.MockSecCompActions([]string{"allow", "errno", "kill", "trace", "trap"})
+	defer restore()
+
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: true}, ifacetest.SambaYamlV1, 0)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	c.Assert(profile+".src", testutil.FileContains, "# complain mode logging unavailable\n")
+	s.RemoveSnap(c, snapInfo)
+
+	snapInfo = s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: false}, ifacetest.SambaYamlV1, 0)
+	profile = filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	c.Assert(profile+".src", Not(testutil.FileContains), "# complain mode logging unavailable\n")
+	s.RemoveSnap(c, snapInfo)
+
+	snapInfo = s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: false, Classic: true}, ClassicYamlV1, 0)
+	profile = filepath.Join(dirs.SnapSeccompDir, "snap.test-classic.sh")
+	c.Assert(profile+".src", Not(testutil.FileContains), "# complain mode logging unavailable\n")
+	s.RemoveSnap(c, snapInfo)
+}

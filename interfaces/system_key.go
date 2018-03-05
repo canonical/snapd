@@ -41,6 +41,7 @@ type systemKey struct {
 	NFSHome          bool     `yaml:"nfs-home"`
 	OverlayRoot      string   `yaml:"overlay-root"`
 	Core             string   `yaml:"core,omitempty"`
+	SecCompActions   []string `yaml:"seccomp-features"`
 }
 
 var (
@@ -61,7 +62,7 @@ func generateSystemKey() *systemKey {
 	}
 	sk.BuildID = buildID
 
-	// Add apparmor-feature (which is already sorted)
+	// Add apparmor-features (which is already sorted)
 	sk.AppArmorFeatures = release.AppArmorFeatures()
 
 	// Add if home is using NFS, if so we need to have a different
@@ -85,6 +86,9 @@ func generateSystemKey() *systemKey {
 	//
 	// FIXME: what about core18? the snapd snap?
 	sk.Core, _ = os.Readlink(filepath.Join(dirs.SnapMountDir, "core/current"))
+
+	// Add seccomp-features
+	sk.SecCompActions = release.SecCompActions
 
 	return &sk
 }
