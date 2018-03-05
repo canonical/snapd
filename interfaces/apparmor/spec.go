@@ -82,6 +82,22 @@ func (spec *Specification) AddUpdateNS(snippet string) {
 }
 
 // AddSnapLayout adds apparmor snippets based on the layout of the snap.
+//
+// The per-snap snap-update-ns profiles are composed via a template and
+// snippets for the snap. The snippets may allow (depending on the snippet):
+// - mount profiles via the content interface
+// - creating missing mount point directories under $SNAP* (the 'tree'
+//   of permissions is needed for SecureMkDirAll that uses
+//   open(..., O_NOFOLLOW) and mkdirat() using the resulting file descriptor)
+// - creating a placeholder directory in /tmp/.snap/ in the per-snap mount
+//   namespace to support writable mimic which uses tmpfs and bind mount to
+//   poke holes in arbitrary read-only locations
+// - mounting/unmounting any part of $SNAP into placeholder directory
+// - mounting/unmounting tmpfs over the original $SNAP/** location
+// - mounting/unmounting from placeholder back to $SNAP/** (for reconstructing
+//   the data)
+// Importantly, the above mount operations are happening within the per-snap
+// mount namespace.
 func (spec *Specification) AddSnapLayout(si *snap.Info) {
 	if len(si.Layout) == 0 {
 		return
