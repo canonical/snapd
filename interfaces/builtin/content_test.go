@@ -322,13 +322,11 @@ slots:
   /snap/producer/5/** rw,
   /snap/producer/5/ rw,
   /snap/producer/ rw,
-  /snap/ rw,
   /tmp/.snap/snap/producer/5/** rw,
   /tmp/.snap/snap/producer/5/ rw,
   /tmp/.snap/snap/producer/ rw,
   /tmp/.snap/snap/ rw,
   /tmp/.snap/ rw,
-  /tmp/ rw,
   # Writable mimic /snap/consumer/7
   mount options=(rbind, rw) /snap/consumer/7/ -> /tmp/.snap/snap/consumer/7/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/consumer/7/,
@@ -339,13 +337,11 @@ slots:
   /snap/consumer/7/** rw,
   /snap/consumer/7/ rw,
   /snap/consumer/ rw,
-  /snap/ rw,
   /tmp/.snap/snap/consumer/7/** rw,
   /tmp/.snap/snap/consumer/7/ rw,
   /tmp/.snap/snap/consumer/ rw,
   /tmp/.snap/snap/ rw,
   /tmp/.snap/ rw,
-  /tmp/ rw,
 `
 	c.Assert(updateNS["consumer"][0], Equals, profile0)
 	c.Assert(updateNS, DeepEquals, map[string][]string{"consumer": {profile0}})
@@ -405,14 +401,10 @@ slots:
   /var/snap/producer/5/export/ rw,
   /var/snap/producer/5/ rw,
   /var/snap/producer/ rw,
-  /var/snap/ rw,
-  /var/ rw,
   # Writable directory /var/snap/consumer/7/import
   /var/snap/consumer/7/import/ rw,
   /var/snap/consumer/7/ rw,
   /var/snap/consumer/ rw,
-  /var/snap/ rw,
-  /var/ rw,
 `
 	c.Assert(updateNS["consumer"][0], Equals, profile0)
 	c.Assert(updateNS, DeepEquals, map[string][]string{"consumer": {profile0}})
@@ -472,14 +464,10 @@ slots:
   /var/snap/producer/common/export/ rw,
   /var/snap/producer/common/ rw,
   /var/snap/producer/ rw,
-  /var/snap/ rw,
-  /var/ rw,
   # Writable directory /var/snap/consumer/common/import
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
-  /var/snap/ rw,
-  /var/ rw,
 `
 	c.Assert(updateNS["consumer"][0], Equals, profile0)
 	c.Assert(updateNS, DeepEquals, map[string][]string{"consumer": {profile0}})
@@ -574,15 +562,11 @@ slots:
   /var/snap/producer/common/write-common/ rw,
   /var/snap/producer/common/ rw,
   /var/snap/producer/ rw,
-  /var/snap/ rw,
-  /var/ rw,
   # Writable directory /var/snap/consumer/common/import/write-common
   /var/snap/consumer/common/import/write-common/ rw,
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
-  /var/snap/ rw,
-  /var/ rw,
 `
 	profile1 := `  # Read-write content sharing consumer:content -> producer:content (w#1)
   mount options=(bind, rw) /var/snap/producer/2/write-data/ -> /var/snap/consumer/common/import/write-data/,
@@ -591,15 +575,11 @@ slots:
   /var/snap/producer/2/write-data/ rw,
   /var/snap/producer/2/ rw,
   /var/snap/producer/ rw,
-  /var/snap/ rw,
-  /var/ rw,
   # Writable directory /var/snap/consumer/common/import/write-data
   /var/snap/consumer/common/import/write-data/ rw,
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
-  /var/snap/ rw,
-  /var/ rw,
 `
 	profile2 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
   mount options=(bind, ro) /var/snap/producer/common/read-common/ -> /var/snap/consumer/common/import/read-common/,
@@ -608,15 +588,11 @@ slots:
   /var/snap/producer/common/read-common/ rw,
   /var/snap/producer/common/ rw,
   /var/snap/producer/ rw,
-  /var/snap/ rw,
-  /var/ rw,
   # Writable directory /var/snap/consumer/common/import/read-common
   /var/snap/consumer/common/import/read-common/ rw,
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
-  /var/snap/ rw,
-  /var/ rw,
 `
 	profile3 := `  # Read-only content sharing consumer:content -> producer:content (r#1)
   mount options=(bind, ro) /var/snap/producer/2/read-data/ -> /var/snap/consumer/common/import/read-data/,
@@ -625,15 +601,11 @@ slots:
   /var/snap/producer/2/read-data/ rw,
   /var/snap/producer/2/ rw,
   /var/snap/producer/ rw,
-  /var/snap/ rw,
-  /var/ rw,
   # Writable directory /var/snap/consumer/common/import/read-data
   /var/snap/consumer/common/import/read-data/ rw,
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
-  /var/snap/ rw,
-  /var/ rw,
 `
 	profile4 := `  # Read-only content sharing consumer:content -> producer:content (r#2)
   mount options=(bind, ro) /snap/producer/2/read-snap/ -> /var/snap/consumer/common/import/read-snap/,
@@ -648,20 +620,16 @@ slots:
   /snap/producer/2/** rw,
   /snap/producer/2/ rw,
   /snap/producer/ rw,
-  /snap/ rw,
   /tmp/.snap/snap/producer/2/** rw,
   /tmp/.snap/snap/producer/2/ rw,
   /tmp/.snap/snap/producer/ rw,
   /tmp/.snap/snap/ rw,
   /tmp/.snap/ rw,
-  /tmp/ rw,
   # Writable directory /var/snap/consumer/common/import/read-snap
   /var/snap/consumer/common/import/read-snap/ rw,
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
-  /var/snap/ rw,
-  /var/ rw,
 `
 	c.Assert(updateNS["consumer"][0], Equals, profile0)
 	c.Assert(updateNS["consumer"][1], Equals, profile1)

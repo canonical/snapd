@@ -603,9 +603,15 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   mount options=(ro bind) /var/lib/snapd/hostfs/var/cache/fontconfig/ -> /var/cache/fontconfig/,
   umount /var/cache/fontconfig/,
 
-  # Allow traversing from the root directory.
+  # Allow traversing from the root directory and several well-known places.
   # Specific directory permissions are added by snippets below.
   / r,
+  /etc/ r,
+  /snap/ r,
+  /tmp/ r,
+  /usr/ r,
+  /var/ r,
+  /var/snap/ r,
 
   # Allow reading timezone data.
   /usr/share/zoneinfo/** r,
