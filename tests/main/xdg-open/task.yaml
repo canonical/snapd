@@ -47,7 +47,7 @@ execute: |
     ensure_xdg_open_output() {
         rm -f /tmp/xdg-open-output
         export DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
-        $SNAP_MOUNT_DIR/core/current/usr/bin/xdg-open $1
+        chroot $SNAP_MOUNT_DIR/core/current /usr/bin/xdg-open $1
         test -e /tmp/xdg-open-output
         test "$(cat /tmp/xdg-open-output)" = $1
     }
