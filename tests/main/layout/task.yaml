@@ -6,7 +6,15 @@ details: |
     hooks get permissions to access those areas.
 prepare: |
     . $TESTSLIB/snaps.sh
-    install_local test-snapd-layout    
+    install_local test-snapd-layout
+debug: |
+    # We saw some failures where it looked like we were confined by the most
+    # wrong thing imaginable. To get an idea what is going on let's show
+    # the profile we were using when the test fails.
+    # Before per-snap update-ns profiles are here.
+    cat /etc/apparmor.d/*snap.core.*.usr.lib.snapd.snap-confine* || :
+    # Once per-snap update-ns profiles are here.
+    cat /var/lib/snapd/apparmor/profiles/snap-update-ns.test-snapd-layout || :
 execute: |
     echo "snap declaring layouts doesn't explode on startup"
     test-snapd-layout.sh -c "true"

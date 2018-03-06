@@ -247,7 +247,7 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 		enabled = append(enabled, svcName)
 	}
 
-	if len(enabled) > 0 {
+	if len(written) > 0 {
 		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
@@ -560,8 +560,7 @@ X-Snappy=yes
 [Timer]
 Unit={{.ServiceFileName}}
 {{ range .Schedules }}OnCalendar={{ . }}
-{{- end }}
-
+{{ end }}
 [Install]
 WantedBy={{.TimersTarget}}
 `
