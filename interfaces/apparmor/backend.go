@@ -273,13 +273,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
 
-	// Set the snapName for AddUpdateNS snippet.
-	//
-	// TODO: remove this along with Specification.snapName as it is not really
-	// needed in practice and the corresponding code can be simplified away.
-	spec.(*Specification).snapName = snapName
+	// Add snippets derived from the layout definition.
 	spec.(*Specification).AddSnapLayout(snapInfo)
-	spec.(*Specification).snapName = ""
 
 	// core on classic is special
 	if snapName == "core" && release.OnClassic && release.AppArmorLevel() != release.NoAppArmor {
@@ -373,7 +368,7 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 	// If we have neither then we don't have any need to create an executing environment.
 	// This applies to, for example, kernel snaps or gadget snaps (unless they have hooks).
 	if len(content) > 0 {
-		snippets := strings.Join(spec.UpdateNS()[snapInfo.Name()], "\n")
+		snippets := strings.Join(spec.UpdateNS(), "\n")
 		addUpdateNSProfile(snapInfo, opts, snippets, content)
 	}
 

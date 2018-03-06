@@ -103,7 +103,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 
 // AddSnippet adds a snippet for the given security tag.
 func (s *specSuite) TestAddSnippet(c *C) {
-	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"}, "demo")
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
 	defer restore()
 
 	// Add two snippets in the context we are in.
@@ -122,7 +122,7 @@ func (s *specSuite) TestAddSnippet(c *C) {
 
 // AddUpdateNS adds a snippet for the snap-update-ns profile for a given snap.
 func (s *specSuite) TestAddUpdateNS(c *C) {
-	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"}, "demo")
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
 	defer restore()
 
 	// Add a two snap-update-ns snippets in the context we are in.
@@ -130,8 +130,8 @@ func (s *specSuite) TestAddUpdateNS(c *C) {
 	s.spec.AddUpdateNS("s-u-n snippet 2")
 
 	// The snippets were recorded correctly and in the right place.
-	c.Assert(s.spec.UpdateNS(), DeepEquals, map[string][]string{
-		"demo": {"s-u-n snippet 1", "s-u-n snippet 2"},
+	c.Assert(s.spec.UpdateNS(), DeepEquals, []string{
+		"s-u-n snippet 1", "s-u-n snippet 2",
 	})
 	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "")
 	c.Assert(s.spec.SecurityTags(), HasLen, 0)
@@ -157,7 +157,7 @@ layout:
 
 func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 	snapInfo := snaptest.MockInfo(c, snapWithLayout, &snap.SideInfo{Revision: snap.R(42)})
-	restore := apparmor.SetSpecScope(s.spec, []string{"snap.vanguard.vanguard"}, "vanguard")
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.vanguard.vanguard"})
 	defer restore()
 
 	s.spec.AddSnapLayout(snapInfo)
@@ -263,7 +263,7 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
   /tmp/.snap/var/ rw,
   /tmp/.snap/ rw,
 `
-	updateNS := s.spec.UpdateNS()["vanguard"]
+	updateNS := s.spec.UpdateNS()
 	c.Assert(updateNS[0], Equals, profile0)
 	c.Assert(updateNS[1], Equals, profile1)
 	c.Assert(updateNS[2], Equals, profile2)

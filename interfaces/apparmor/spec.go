@@ -34,7 +34,6 @@ import (
 type Specification struct {
 	// scope for various Add{...}Snippet functions
 	securityTags []string
-	snapName     string
 
 	// snippets are indexed by security tag and describe parts of apparmor policy
 	// for snap application and hook processes. The security tag encodes the identity
@@ -42,17 +41,15 @@ type Specification struct {
 	snippets map[string][]string
 	// updateNS are indexed by snap name and describe parts of apparmor policy
 	// for snap-update-ns executing on behalf of a given snap.
-	updateNS map[string][]string
+	updateNS []string
 }
 
 // setScope sets the scope of subsequent AddSnippet family functions.
 // The returned function resets the scope to an empty scope.
-func (spec *Specification) setScope(securityTags []string, snapName string) (restore func()) {
+func (spec *Specification) setScope(securityTags []string) (restore func()) {
 	spec.securityTags = securityTags
-	spec.snapName = snapName
 	return func() {
 		spec.securityTags = nil
-		spec.snapName = ""
 	}
 }
 
@@ -72,13 +69,7 @@ func (spec *Specification) AddSnippet(snippet string) {
 
 // AddUpdateNS adds a new apparmor snippet for the snap-update-ns program.
 func (spec *Specification) AddUpdateNS(snippet string) {
-	if spec.snapName == "" {
-		return
-	}
-	if spec.updateNS == nil {
-		spec.updateNS = make(map[string][]string)
-	}
-	spec.updateNS[spec.snapName] = append(spec.updateNS[spec.snapName], snippet)
+	spec.updateNS = append(spec.updateNS, snippet)
 }
 
 // AddSnapLayout adds apparmor snippets based on the layout of the snap.
@@ -286,8 +277,10 @@ func (spec *Specification) SecurityTags() []string {
 }
 
 // UpdateNS returns a deep copy of all the added snap-update-ns snippets.
-func (spec *Specification) UpdateNS() map[string][]string {
-	return copySnippets(spec.updateNS)
+func (spec *Specification) UpdateNS() []string {
+	cp := make([]string, len(spec.updateNS))
+	copy(cp, spec.updateNS)
+	return cp
 }
 
 func snippetFromLayout(layout *snap.Layout) string {
@@ -316,7 +309,7 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 		AppArmorConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(plug.SecurityTags(), plug.Snap().Name())
+		restore := spec.setScope(plug.SecurityTags())
 		defer restore()
 		return iface.AppArmorConnectedPlug(spec, plug, slot)
 	}
@@ -329,7 +322,7 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 		AppArmorConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(slot.SecurityTags(), slot.Snap().Name())
+		restore := spec.setScope(slot.SecurityTags())
 		defer restore()
 		return iface.AppArmorConnectedSlot(spec, plug, slot)
 	}
@@ -342,7 +335,7 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 		AppArmorPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(plug.SecurityTags(), plug.Snap.Name())
+		restore := spec.setScope(plug.SecurityTags())
 		defer restore()
 		return iface.AppArmorPermanentPlug(spec, plug)
 	}
@@ -355,7 +348,7 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		AppArmorPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(slot.SecurityTags(), slot.Snap.Name())
+		restore := spec.setScope(slot.SecurityTags())
 		defer restore()
 		return iface.AppArmorPermanentSlot(spec, slot)
 	}
