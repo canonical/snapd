@@ -83,6 +83,6 @@ func MockClassicTemplate(fakeTemplate string) (restore func()) {
 }
 
 // SetSpecScope sets the scope of a given specification
-func SetSpecScope(spec *Specification, securityTags []string, snapName string) (restore func()) {
-	return spec.setScope(securityTags, snapName)
+func SetSpecScope(spec *Specification, securityTags []string) (restore func()) {
+	return spec.setScope(securityTags)
 }
