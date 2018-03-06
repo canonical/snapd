@@ -50,7 +50,7 @@
 %global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
 %global import_path     %{provider_prefix}
 
-%global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.refresh.timer snapd.refresh.service
+%global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service
 
 # Until we have a way to add more extldflags to gobuild macro...
 %if 0%{?fedora} >= 26
@@ -604,8 +604,6 @@ popd
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.autoimport.service
-%{_unitdir}/snapd.refresh.service
-%{_unitdir}/snapd.refresh.timer
 %{_unitdir}/var-lib-snapd-snap.mount
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
@@ -679,9 +677,6 @@ popd
 if [ $1 -eq 1 ] ; then
    if systemctl -q is-enabled snapd.socket > /dev/null 2>&1 ; then
       systemctl start snapd.socket > /dev/null 2>&1 || :
-   fi
-   if systemctl -q is-enabled snapd.refresh.timer > /dev/null 2>&1 ; then
-      systemctl start snapd.refresh.timer > /dev/null 2>&1 || :
    fi
 fi
 
