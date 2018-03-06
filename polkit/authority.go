@@ -49,7 +49,7 @@ func checkAuthorization(subject authSubject, actionId string, details map[string
 	err = authority.Call(
 		"org.freedesktop.PolicyKit1.Authority.CheckAuthorization", 0,
 		subject, actionId, details, flags, "").Store(&result)
-	if err != nil && !result.IsAuthorized {
+	if err != nil || !result.IsAuthorized {
 		if result.IsChallenge {
 			err = ErrInteraction
 		} else if result.Details["polkit.dismissed"] != "" {
