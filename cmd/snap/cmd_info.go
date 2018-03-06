@@ -297,6 +297,10 @@ func (x *infoCmd) Execute([]string) error {
 		if i > 0 {
 			fmt.Fprintln(w, "---")
 		}
+		if snapName == "system" {
+			fmt.Fprintln(w, "system: You can't have it.")
+			continue
+		}
 
 		if tryDirect(w, snapName, x.Verbose) {
 			noneOK = false

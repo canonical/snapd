@@ -60,6 +60,9 @@ func needsMaybeCore(typ snap.Type) int {
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
+	if snapsup.Name() == "system" {
+		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
+	}
 	if snapst.IsInstalled() && !snapst.Active {
 		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.Name())
 	}
