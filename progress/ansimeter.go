@@ -51,7 +51,7 @@ var (
 	// make cursor invisible
 	cursorInvisible = "\033[?25l"
 	// make cursor visible
-	cursorVisible = "\033[?12;25h"
+	cursorVisible = "\033[?25h"
 	// turn on reverse video
 	enterReverseMode = "\033[7m"
 	// go back to normal video
@@ -152,7 +152,7 @@ func (p *ANSIMeter) Set(current float64) {
 	fmt.Fprint(stdout, "\r", enterReverseMode, string(msg[:i]), exitAttributeMode, string(msg[i:]))
 }
 
-var spinner = []string{".", "o", "O", "o"}
+var spinner = []string{"/", "-", "\\", "|"}
 
 func (p *ANSIMeter) Spin(msgstr string) {
 	msg := []rune(msgstr)
