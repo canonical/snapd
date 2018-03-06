@@ -33,6 +33,8 @@ import (
 
 type cmdUserd struct {
 	userd userd.Userd
+
+	Autostart bool `long:"autostart"`
 }
 
 var shortUserdHelp = i18n.G("Start the userd service")
@@ -46,16 +48,19 @@ func init() {
 		longUserdHelp,
 		func() flags.Commander {
 			return &cmdUserd{}
-		},
-		nil,
-		[]argDesc{},
-	)
+		}, map[string]string{
+			"autostart": i18n.G("Autostart user applications"),
+		}, nil)
 	cmd.hidden = true
 }
 
 func (x *cmdUserd) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	if x.Autostart {
+		return x.runAutostart()
 	}
 
 	if err := x.userd.Init(); err != nil {
@@ -73,4 +78,12 @@ func (x *cmdUserd) Execute(args []string) error {
 	}
 
 	return x.userd.Stop()
+}
+
+func (x *cmdUserd) runAutostart() error {
+	err := userd.AutostartSessionApps()
+	if err != nil {
+		return fmt.Errorf("autostart failed for the following apps:\n%v", err)
+	}
+	return nil
 }
