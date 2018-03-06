@@ -37,10 +37,15 @@ type SimpleString struct {
 	s string
 }
 
+// NewSimpleString returns a new SimpleString whose Clean method returns the given string.
+//
+// This is meant for use in testing.
 func NewSimpleString(s string) SimpleString {
 	return SimpleString{s}
 }
 
+// UnmarshalJSON will return an error if the JSON has anything that is
+// plain, non-backslashed ASCII.
 func (un *SimpleString) UnmarshalJSON(in []byte) error {
 	s, err := unmarshal(in, uOpt{basic: true})
 	if err != nil {
@@ -73,6 +78,9 @@ type String struct {
 	s string
 }
 
+// NewString returns a new String whose Clean method returns the given string.
+//
+// This is meant for use in testing.
 func NewString(s string) String {
 	return String{s}
 }
@@ -325,5 +333,6 @@ func unmarshal(in []byte, o uOpt) (string, error) {
 	}
 
 	out = out[:len(out):len(out)]
+	// This avoids copying the byte array:
 	return *(*string)(unsafe.Pointer(&out)), nil
 }
