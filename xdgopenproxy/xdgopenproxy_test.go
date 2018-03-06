@@ -20,10 +20,12 @@
 package xdgopenproxy_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/godbus/dbus"
@@ -56,7 +58,7 @@ func (s *xdgOpenSuite) TestOpenFile(c *C) {
 		c.Check(method, Equals, "io.snapcraft.Launcher.OpenFile")
 		c.Assert(args, HasLen, 2)
 		c.Check(args[0], Equals, "")
-		//c.Check(args[1], Equals, ???)
+		c.Check(fdMatchesFile(int(args[1].(dbus.UnixFD)), path), IsNil)
 		return nil
 	})
 	c.Check(xdgopenproxy.Launch(launcher, path), IsNil)
@@ -70,7 +72,7 @@ func (s *xdgOpenSuite) TestOpenFileURL(c *C) {
 		c.Check(method, Equals, "io.snapcraft.Launcher.OpenFile")
 		c.Assert(args, HasLen, 2)
 		c.Check(args[0], Equals, "")
-		//c.Check(args[1], Equals, ???)
+		c.Check(fdMatchesFile(int(args[1].(dbus.UnixFD)), path), IsNil)
 		return nil
 	})
 
@@ -85,7 +87,7 @@ func (s *xdgOpenSuite) TestOpenDir(c *C) {
 		c.Check(method, Equals, "io.snapcraft.Launcher.OpenFile")
 		c.Assert(args, HasLen, 2)
 		c.Check(args[0], Equals, "")
-		//c.Check(args[1], Equals, ???)
+		c.Check(fdMatchesFile(int(args[1].(dbus.UnixFD)), dir), IsNil)
 		return nil
 	})
 	c.Check(xdgopenproxy.Launch(launcher, dir), IsNil)
@@ -111,6 +113,20 @@ func (s *xdgOpenSuite) TestOpenUnreadableFile(c *C) {
 		return nil
 	})
 	c.Check(xdgopenproxy.Launch(launcher, path), ErrorMatches, "permission denied")
+}
+
+func fdMatchesFile(fd int, filename string) error {
+	var fdStat, fileStat syscall.Stat_t
+	if err := syscall.Fstat(fd, &fdStat); err != nil {
+		return err
+	}
+	if err := syscall.Stat(filename, &fileStat); err != nil {
+		return err
+	}
+	if fdStat.Dev != fileStat.Dev || fdStat.Ino != fileStat.Ino {
+		return fmt.Errorf("File descriptor and fd do not match")
+	}
+	return nil
 }
 
 // fakeBusObject is a dbus.BusObject implementation that forwards
