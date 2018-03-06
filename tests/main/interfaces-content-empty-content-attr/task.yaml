@@ -9,7 +9,7 @@ prepare: |
 
 execute: |
     echo "Then the snap is listed as connected"
-    snap interfaces | grep -Pzq "test-snapd-content-slot-empty-content-attr:shared-content +test-snapd-content-plug-empty-content-attr"
+    snap interfaces | MATCH "test-snapd-content-slot-no-content-attr:shared-content +test-snapd-content-plug-no-content-attr"
 
     echo "And fstab files are created"
     [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
