@@ -263,6 +263,8 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	restore := release.MockForcedDevmode(false)
 	defer restore()
+	restore = release.MockSecCompActions([]string{"log"})
+	defer restore()
 
 	// NOTE: replace the real template with a shorter variant
 	restore = seccomp.MockTemplate([]byte("default\n"))
