@@ -463,8 +463,5 @@ libexec_PROGRAMS += snapd-generator/snapd-generator
 EXTRA_DIST += snapd-generator/main.c.in
 CLEANFILES += snapd-generator/main.c
 
-snapd-generator/main.c: snapd-generator/main.c.in Makefile
-	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
-
 snapd_generator_snapd_generator_SOURCES = snapd-generator/main.c
 snapd_generator_snapd_generator_LDADD = libsnap-confine-private.a
