@@ -22,19 +22,11 @@ SYSTEMDSYSTEMUNITDIR := /lib/systemd/system
 SYSTEMD_UNITS_GENERATED := $(wildcard *.in)
 SYSTEMD_UNITS = $(SYSTEMD_UNITS_GENERATED:.in=) $(wildcard *.timer) $(wildcard *.socket)
 
-# The special mount unit for "/snap" must be named after the path and the path
-# is a variable.  Compute it in make for simplicity. This is equivalent to
-# calling systemd-escape --path $(SNAP_MOUNT_DIR)
-snap_mount_unit=$(subst /,-,$(patsubst %/,%,$(patsubst /%,%,$(SNAP_MOUNT_DIR)))).mount
-
-# Yes, we want the extra unit too, thank you
-SYSTEMD_UNITS += $(snap_mount_unit)
-
 .PHONY: all
 all: $(SYSTEMD_UNITS)
 
 .PHONY: install
-install: $(filter-out snap.mount,$(SYSTEMD_UNITS)) $(snap_mount_unit)
+install: $(SYSTEMD_UNITS)
 	# NOTE: old (e.g. 14.04) GNU coreutils doesn't -D with -t
 	install -d -m 0755 $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR)
 	install -m 0644 -t $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR) $^
@@ -43,7 +35,7 @@ install: $(filter-out snap.mount,$(SYSTEMD_UNITS)) $(snap_mount_unit)
 
 .PHONY: clean
 clean:
-	rm -f $(SYSTEMD_UNITS_GENERATED:.in=) $(snap_mount_unit)
+	rm -f $(SYSTEMD_UNITS_GENERATED:.in=)
 
 %: %.in
 	cat $< | \
@@ -52,10 +44,3 @@ clean:
 		sed s:@bindir@:$(BINDIR):g | \
 		sed s:@SNAP_MOUNT_DIR@:$(SNAP_MOUNT_DIR):g  | \
 		cat > $@
-
-# If SNAP_MOUNT_DIR uses non-default location then rename snap.mount
-# so that the directory name is encoded in the file name.
-ifneq ($(snap_mount_unit),snap.mount)
-$(snap_mount_unit): snap.mount
-	cp $< $@
-endif
