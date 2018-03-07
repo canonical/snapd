@@ -144,6 +144,14 @@ var (
 	NewCatalogRefresh = newCatalogRefresh
 )
 
+func MockNextRefresh(ar *autoRefresh, when time.Time) {
+	ar.nextRefresh = when
+}
+
+func MockLastRefreshSchedule(ar *autoRefresh, schedule string) {
+	ar.lastRefreshSchedule = schedule
+}
+
 func MockCatalogRefreshNextRefresh(cr *catalogRefresh, when time.Time) {
 	cr.nextCatalogRefresh = when
 }

@@ -248,6 +248,46 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpired(c *C) {
 	c.Check(t1.IsZero(), Equals, true)
 }
 
+func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredReschedule(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t0 := time.Now()
+	s.state.Set("last-refresh", t0.Add(-12*time.Hour))
+
+	holdTime := t0.Add(-1 * time.Minute)
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", holdTime)
+
+	nextRefresh := t0.Add(5 * time.Minute).Truncate(time.Minute)
+	schedule := fmt.Sprintf("%02d:%02d-%02d:59", nextRefresh.Hour(), nextRefresh.Minute(), nextRefresh.Hour())
+	tr.Set("core", "refresh.timer", schedule)
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	snapstate.MockLastRefreshSchedule(af, schedule)
+	snapstate.MockNextRefresh(af, holdTime.Add(-2*time.Minute))
+
+	s.state.Unlock()
+	err := af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+
+	// refresh did not happen yet
+	c.Check(s.store.ops, HasLen, 0)
+
+	// hold was reset
+	tr = config.NewTransaction(s.state)
+	var t1 time.Time
+	err = tr.Get("core", "refresh.hold", &t1)
+	c.Assert(err, IsNil)
+	c.Check(t1.IsZero(), Equals, true)
+
+	// check next refresh
+	nextRefresh1 := af.NextRefresh()
+	c.Check(nextRefresh1.Before(nextRefresh), Equals, false)
+}
+
 func (s *autoRefreshTestSuite) TestEffectiveRefreshHold(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
