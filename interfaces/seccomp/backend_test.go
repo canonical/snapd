@@ -358,7 +358,7 @@ func (s *backendSuite) TestSystemKeyRetLogSupported(c *C) {
 	c.Assert(profile+".src", Not(testutil.FileContains), "# complain mode logging unavailable\n")
 	s.RemoveSnap(c, snapInfo)
 
-	snapInfo = s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: false, Classic: true}, ClassicYamlV1, 0)
+	snapInfo = s.InstallSnap(c, interfaces.ConfinementOptions{Classic: true}, ClassicYamlV1, 0)
 	profile = filepath.Join(dirs.SnapSeccompDir, "snap.test-classic.sh")
 	c.Assert(profile+".src", Not(testutil.FileContains), "# complain mode logging unavailable\n")
 	s.RemoveSnap(c, snapInfo)
@@ -378,7 +378,7 @@ func (s *backendSuite) TestSystemKeyRetLogUnsupported(c *C) {
 	c.Assert(profile+".src", Not(testutil.FileContains), "# complain mode logging unavailable\n")
 	s.RemoveSnap(c, snapInfo)
 
-	snapInfo = s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: false, Classic: true}, ClassicYamlV1, 0)
+	snapInfo = s.InstallSnap(c, interfaces.ConfinementOptions{Classic: true}, ClassicYamlV1, 0)
 	profile = filepath.Join(dirs.SnapSeccompDir, "snap.test-classic.sh")
 	c.Assert(profile+".src", Not(testutil.FileContains), "# complain mode logging unavailable\n")
 	s.RemoveSnap(c, snapInfo)
