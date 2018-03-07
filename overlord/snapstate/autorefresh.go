@@ -200,7 +200,13 @@ func (m *autoRefresh) Ensure() error {
 		return nil
 	}
 	if !holdTime.IsZero() {
+		// expired hold case
 		m.clearRefreshHold()
+		if !m.nextRefresh.After(holdTime) {
+			// next refresh is obsolete, compute the next one
+			delta := timeutil.Next(refreshSchedule, holdTime, maxPostponement)
+			m.nextRefresh = time.Now().Add(delta)
+		}
 	}
 
 	// do refresh attempt (if needed)
