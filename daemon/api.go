@@ -1854,7 +1854,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 					break
 				}
 				ts, err = ifacestate.Disconnect(st, conn)
-				//ts, err = ifacestate.Disconnect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 				if err != nil {
 					break
 				}
