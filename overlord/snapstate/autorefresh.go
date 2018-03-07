@@ -175,18 +175,20 @@ func (m *autoRefresh) Ensure() error {
 		return nil
 	}
 
+	now := time.Now()
 	// compute next refresh attempt time (if needed)
 	if m.nextRefresh.IsZero() {
 		// store attempts in memory so that we can backoff
 		if !lastRefresh.IsZero() {
 			delta := timeutil.Next(refreshSchedule, lastRefresh, maxPostponement)
-			m.nextRefresh = time.Now().Add(delta)
+			now = time.Now()
+			m.nextRefresh = now.Add(delta)
 		} else {
 			// make sure either seed-time or last-refresh
 			// are set for hold code below
 			m.ensureLastRefreshAnchor()
 			// immediate
-			m.nextRefresh = time.Now()
+			m.nextRefresh = now
 		}
 		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh)
 	}
@@ -196,21 +198,22 @@ func (m *autoRefresh) Ensure() error {
 	if err != nil {
 		return err
 	}
-	if holdTime.After(time.Now()) {
+	if holdTime.After(now) {
 		return nil
 	}
 	if !holdTime.IsZero() {
 		// expired hold case
 		m.clearRefreshHold()
-		if !m.nextRefresh.After(holdTime) {
+		if m.nextRefresh.Before(holdTime) {
 			// next refresh is obsolete, compute the next one
 			delta := timeutil.Next(refreshSchedule, holdTime, maxPostponement)
-			m.nextRefresh = time.Now().Add(delta)
+			now = time.Now()
+			m.nextRefresh = now.Add(delta)
 		}
 	}
 
 	// do refresh attempt (if needed)
-	if !m.nextRefresh.After(time.Now()) {
+	if !m.nextRefresh.After(now) {
 		err = m.launchAutoRefresh()
 		// clear nextRefresh only if the refresh worked. There is
 		// still the lastRefreshAttempt rate limit so things will
