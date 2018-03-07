@@ -1864,8 +1864,8 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	change := newChange(st, a.Action+"-snap", summary, tasksets, affected)
-	// Special case for disconnect: if no connections exit, we don't want to error out and just report Done.
-	// Note that for every other case (invalid snap/plug/slot names ResolveDisconnect will report a clear error that we report above)
+	// Special case for disconnect: if no connections exist, we just report Done.
+	// Note that for every other case ResolveDisconnect will give an error.
 	if len(tasksets) == 0 {
 		change.SetStatus(state.DoneStatus)
 	}
