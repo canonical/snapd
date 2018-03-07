@@ -48,7 +48,13 @@ var svcAppInfos = []client.AppInfo{
 
 var mixedAppInfos = append(append([]client.AppInfo(nil), cmdAppInfos...), svcAppInfos...)
 
-func (s *SnapSuite) TestMaybePrintServices(c *check.C) {
+type infoSuite struct {
+	BaseSnapSuite
+}
+
+var _ = check.Suite(&infoSuite{})
+
+func (s *infoSuite) TestMaybePrintServices(c *check.C) {
 	for _, infos := range [][]client.AppInfo{svcAppInfos, mixedAppInfos} {
 		var buf bytes.Buffer
 		snap.MaybePrintServices(&buf, "foo", infos, -1)
@@ -60,7 +66,7 @@ func (s *SnapSuite) TestMaybePrintServices(c *check.C) {
 	}
 }
 
-func (s *SnapSuite) TestMaybePrintServicesNoServices(c *check.C) {
+func (s *infoSuite) TestMaybePrintServicesNoServices(c *check.C) {
 	for _, infos := range [][]client.AppInfo{cmdAppInfos, nil} {
 		var buf bytes.Buffer
 		snap.MaybePrintServices(&buf, "foo", infos, -1)
@@ -69,7 +75,7 @@ func (s *SnapSuite) TestMaybePrintServicesNoServices(c *check.C) {
 	}
 }
 
-func (s *SnapSuite) TestMaybePrintCommands(c *check.C) {
+func (s *infoSuite) TestMaybePrintCommands(c *check.C) {
 	for _, infos := range [][]client.AppInfo{cmdAppInfos, mixedAppInfos} {
 		var buf bytes.Buffer
 		snap.MaybePrintCommands(&buf, "foo", infos, -1)
@@ -81,7 +87,7 @@ func (s *SnapSuite) TestMaybePrintCommands(c *check.C) {
 	}
 }
 
-func (s *SnapSuite) TestMaybePrintCommandsNoCommands(c *check.C) {
+func (s *infoSuite) TestMaybePrintCommandsNoCommands(c *check.C) {
 	for _, infos := range [][]client.AppInfo{svcAppInfos, nil} {
 		var buf bytes.Buffer
 		snap.MaybePrintCommands(&buf, "foo", infos, -1)
@@ -90,7 +96,7 @@ func (s *SnapSuite) TestMaybePrintCommandsNoCommands(c *check.C) {
 	}
 }
 
-func (s *SnapSuite) TestInfoPriced(c *check.C) {
+func (s *infoSuite) TestInfoPriced(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
@@ -197,7 +203,7 @@ const mockInfoJSONWithChannels = `
 }
 `
 
-func (s *SnapSuite) TestInfoUnquoted(c *check.C) {
+func (s *infoSuite) TestInfoUnquoted(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
@@ -283,7 +289,7 @@ const mockInfoJSONNoLicense = `
 }
 `
 
-func (s *SnapSuite) TestInfoWithLocalDifferentLicense(c *check.C) {
+func (s *infoSuite) TestInfoWithLocalDifferentLicense(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
@@ -296,12 +302,12 @@ func (s *SnapSuite) TestInfoWithLocalDifferentLicense(c *check.C) {
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
 			fmt.Fprintln(w, mockInfoJSONOtherLicense)
 		default:
-			c.Fatalf("expected to get 1 requests, now on %d (%v)", n+1, r)
+			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
 		}
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "hello"})
+	rest, err := snap.Parser().ParseArgs([]string{"info", "--absolute-times", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -311,15 +317,15 @@ license:   BSD-3
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
   https://snapcraft.io/
-snap-id:   mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
-tracking:  beta
-refreshed: 2006-01-02T22:04:07Z
-current:   2.10 (1) 1kB disabled
+snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:     beta
+refresh-date: 2006-01-02T22:04:07Z
+installed:    2.10 (1) 1kB disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *SnapSuite) TestInfoWithLocalNoLicense(c *check.C) {
+func (s *infoSuite) TestInfoWithLocalNoLicense(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
@@ -337,7 +343,7 @@ func (s *SnapSuite) TestInfoWithLocalNoLicense(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "hello"})
+	rest, err := snap.Parser().ParseArgs([]string{"info", "--absolute-times", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -347,15 +353,15 @@ license:   unknown
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
   https://snapcraft.io/
-snap-id:   mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
-tracking:  beta
-refreshed: 2006-01-02T22:04:07Z
-current:   2.10 (1) 1kB disabled
+snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:     beta
+refresh-date: 2006-01-02T22:04:07Z
+installed:    2.10 (1) 1kB disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *SnapSuite) TestInfoWithChannelsAndLocal(c *check.C) {
+func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
@@ -373,7 +379,7 @@ func (s *SnapSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "hello"})
+	rest, err := snap.Parser().ParseArgs([]string{"info", "--absolute-times", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -383,15 +389,15 @@ license:   unknown
 description: |
   GNU hello prints a friendly greeting. This is part of the snapcraft tour at
   https://snapcraft.io/
-snap-id:   mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
-tracking:  beta
-refreshed: 2006-01-02T22:04:07Z
+snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:     beta
+refresh-date: 2006-01-02T22:04:07Z
 channels:                    
   1/stable:    2.10 (1) 65kB -
   1/candidate: ↑             
   1/beta:      ↑             
   1/edge:      ↑             
-current:       2.10 (1) 1kB  disabled
+installed:     2.10 (1) 1kB  disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
