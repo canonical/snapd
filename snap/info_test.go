@@ -152,6 +152,9 @@ apps:
      command: foo-bin
    bar:
      command: bar-bin -x
+   baz:
+     command: bar-bin -x
+     timer: 10:00-12:00,,mon,12:00~14:00
 `))
 	c.Assert(err, IsNil)
 	info.Revision = snap.R(42)
@@ -160,6 +163,7 @@ apps:
 	c.Check(info.Apps["bar"].LauncherReloadCommand(), Equals, "/usr/bin/snap run --command=reload foo.bar")
 	c.Check(info.Apps["bar"].LauncherPostStopCommand(), Equals, "/usr/bin/snap run --command=post-stop foo.bar")
 	c.Check(info.Apps["foo"].LauncherCommand(), Equals, "/usr/bin/snap run foo")
+	c.Check(info.Apps["baz"].LauncherCommand(), Equals, `/usr/bin/snap run --timer="10:00-12:00,,mon,12:00~14:00" foo.baz`)
 }
 
 const sampleYaml = `
@@ -189,6 +193,20 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
 
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
+}
+
+func (s *infoSuite) TestInstallDate(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(1)}
+	info := snaptest.MockSnap(c, sampleYaml, si)
+	// not current -> Zero
+	c.Check(info.InstallDate().IsZero(), Equals, true)
+
+	mountdir := info.MountDir()
+	dir, rev := filepath.Split(mountdir)
+	c.Assert(os.MkdirAll(dir, 0755), IsNil)
+	c.Assert(os.Symlink(rev, filepath.Join(dir, "current")), IsNil)
+
+	c.Check(info.InstallDate().IsZero(), Equals, false)
 }
 
 func (s *infoSuite) TestReadInfoNotFound(c *C) {

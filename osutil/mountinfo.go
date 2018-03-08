@@ -21,9 +21,11 @@ package osutil
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -46,8 +48,48 @@ type MountInfoEntry struct {
 	SuperOptions   map[string]string
 }
 
-// ProcSelfMountInfo is a path to the mountinfo table of the current process.
-const ProcSelfMountInfo = "/proc/self/mountinfo"
+func flattenMap(m map[string]string) string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	var buf bytes.Buffer
+	for i, key := range keys {
+		if i > 0 {
+			buf.WriteRune(',')
+		}
+		if m[key] != "" {
+			fmt.Fprintf(&buf, "%s=%s", escape(key), escape(m[key]))
+		} else {
+			buf.WriteString(escape(key))
+		}
+	}
+	return buf.String()
+}
+
+func flattenList(l []string) string {
+	var buf bytes.Buffer
+	for i, item := range l {
+		if i > 0 {
+			buf.WriteRune(',')
+		}
+		buf.WriteString(escape(item))
+	}
+	return buf.String()
+}
+
+func (mi *MountInfoEntry) String() string {
+	maybeSpace := " "
+	if len(mi.OptionalFields) == 0 {
+		maybeSpace = ""
+	}
+	return fmt.Sprintf("%d %d %d:%d %s %s %s %s%s- %s %s %s",
+		mi.MountID, mi.ParentID, mi.DevMajor, mi.DevMinor, escape(mi.Root),
+		escape(mi.MountDir), flattenMap(mi.MountOptions), flattenList(mi.OptionalFields),
+		maybeSpace, escape(mi.FsType), escape(mi.MountSource),
+		flattenMap(mi.SuperOptions))
+}
 
 // LoadMountInfo loads list of mounted entries from a given file.
 //

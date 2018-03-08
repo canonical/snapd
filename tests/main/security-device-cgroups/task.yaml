@@ -21,7 +21,10 @@ environment:
 
 prepare: |
     if [ ! -e /sys/devices/virtual/misc/uinput ]; then
-        modprobe uinput
+        if ! modprobe uinput; then
+            echo "no uinput support, cannot run test"
+            exit 0
+        fi
     fi
     # create nvidia devices if they don't exist
     if [ ! -e /dev/nvidia0 ]; then
@@ -67,6 +70,12 @@ restore: |
     udevadm trigger
 
 execute: |
+    # some systems (like s390x) do not have support for this
+    if [ ! -e /sys/devices/virtual/misc/uinput ]; then
+        echo "no uinput support, cannot run test"
+        exit 0
+    fi
+
     echo "Given a snap is installed"
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools

@@ -36,7 +36,6 @@ type systemKeySuite struct {
 	tmp              string
 	apparmorFeatures string
 	buildID          string
-	restorers        []func()
 }
 
 var _ = Suite(&systemKeySuite{})
@@ -49,20 +48,16 @@ func (s *systemKeySuite) SetUpTest(c *C) {
 	id, err := osutil.MyBuildID()
 	c.Assert(err, IsNil)
 	s.buildID = id
-
-	s.restorers = []func(){
-		osutil.MockMountInfo(""), osutil.MockEtcFstab(""),
-	}
 }
 
 func (s *systemKeySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
-	for _, fn := range s.restorers {
-		fn()
-	}
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
+	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+
 	systemKey := interfaces.SystemKey()
 
 	apparmorFeatures := release.AppArmorFeatures()
@@ -74,9 +69,12 @@ func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
 	}
 	nfsHome, err := osutil.IsHomeUsingNFS()
 	c.Assert(err, IsNil)
+	overlayRoot, err := osutil.IsRootWritableOverlay()
+	c.Assert(err, IsNil)
 	c.Check(systemKey, Equals, fmt.Sprintf(`build-id: %s
 apparmor-features:%snfs-home: %v
-`, s.buildID, apparmorFeaturesStr, nfsHome))
+overlay-root: "%v"
+`, s.buildID, apparmorFeaturesStr, nfsHome, overlayRoot))
 }
 
 func (ts *systemKeySuite) TestInterfaceDigest(c *C) {
@@ -85,6 +83,8 @@ apparmor-features:
 - caps
 - dbus
 `)
+	defer restore()
+	restore = interfaces.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
 
 	systemKey := interfaces.SystemKey()
