@@ -39,10 +39,10 @@ func Human(then time.Time) string {
 	return humanTimeSince(then.Local(), time.Now().Local(), 60)
 }
 
-func humanTimeSince(then, now time.Time, cutoff int) string {
+func humanTimeSince(then, now time.Time, cutoffDays int) string {
 	d := int(math.Floor(noon(then).Sub(noon(now)).Hours() / 24))
 	switch {
-	case d < -cutoff || d > cutoff:
+	case d < -cutoffDays || d > cutoffDays:
 		return then.Format("2006-01-02")
 	case d < -1:
 		// TRANSLATORS: %d will be at least 2; the singular is only included to help gettext
