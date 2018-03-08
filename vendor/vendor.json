@@ -74,6 +74,13 @@
 			"revisionTime": "2018-01-18T17:01:45Z"
 		},
 		{
+			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
+			"path": "github.com/snapcore/squashfuse",
+			"revision": "319f6d41a0419465a55d9dcb848d2408b97764f9",
+			"revisionTime": "2017-12-20T16:53:23Z",
+			"tree": true
+		},
+		{
 			"checksumSHA1": "TT1rac6kpQp2vz24m5yDGUNQ/QQ=",
 			"path": "golang.org/x/crypto/cast5",
 			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d"

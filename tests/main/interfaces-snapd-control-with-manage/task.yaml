@@ -73,13 +73,6 @@ execute: |
     fi
     snap refresh --time | MATCH 'schedule: managed'
 
-    echo "Check that the snapd.refresh.service is disabled as well"
-    systemctl start snapd.refresh.service
-    if snap changes | MATCH "Refresh all snaps"; then
-        echo "snapd.refresh.service did refresh, this should not happen"
-        exit 1
-    fi
-
     # make sure we trigger a refresh for hints at least once
     systemctl stop snapd.socket snapd.service
     jq ".data[\"last-refresh\"] = \"2007-08-22T09:30:44.449455783+01:00\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new

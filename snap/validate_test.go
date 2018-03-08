@@ -1149,3 +1149,27 @@ apps:
 		}
 	}
 }
+
+func (s *ValidateSuite) TestValidateOsCannotHaveBase(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+type: os
+base: bar
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `cannot have "base" field on "os" snap "foo"`)
+}
+
+func (s *ValidateSuite) TestValidateBaseCannotHaveBase(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+type: base
+base: bar
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `cannot have "base" field on "base" snap "foo"`)
+}

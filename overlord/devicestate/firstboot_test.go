@@ -258,7 +258,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudIns
 
 	// check captured cloud information
 	tr := config.NewTransaction(st)
-	var cloud configcore.CloudInfo
+	var cloud auth.CloudInfo
 	err = tr.Get("core", "cloud", &cloud)
 	c.Assert(err, IsNil)
 	c.Check(cloud.Name, Equals, "aws")

@@ -2,7 +2,10 @@ summary: Ensure that lxd works
 
 # only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
-systems: [ubuntu-16*, ubuntu-core-*]
+#systems: [ubuntu-16*, ubuntu-core-*]
+
+# FIXME LXD has some issue on Google images.
+systems: [ubuntu-16.04-32, ubuntu-core-*]
 
 # lxd downloads can be quite slow
 kill-timeout: 25m
@@ -72,10 +75,6 @@ execute: |
     lxd.lxc exec my-ubuntu -- systemctl daemon-reload
     lxd.lxc exec my-ubuntu -- systemctl restart snapd.service
     lxd.lxc exec my-ubuntu -- cat /etc/environment
-
-    # FIXME: workaround for missing squashfuse
-    lxd.lxc exec my-ubuntu apt update
-    lxd.lxc exec my-ubuntu -- apt install -y squashfuse
 
     # FIXME: ensure that the kernel running is recent enough, this
     #        will only work with an up-to-date xenial kernel (4.4.0-78+)

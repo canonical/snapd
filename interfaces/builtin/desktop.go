@@ -139,7 +139,7 @@ dbus (send)
     bus=session
     path=/io/snapcraft/Launcher
     interface=io.snapcraft.Launcher
-    member=OpenURL
+    member={OpenURL,OpenFile}
     peer=(label=unconfined),
 
 # Allow checking status, activating and locking the screensaver
@@ -173,6 +173,23 @@ dbus (send)
     path=/io/snapcraft/Settings
     interface=io.snapcraft.Settings
     member={Check,Get,Set}
+    peer=(label=unconfined),
+
+## Allow access to xdg-document-portal file system.  Access control is
+## handled by bind mounting a snap-specific sub-tree to this location.
+#owner /run/user/[0-9]*/doc/** rw,
+
+# Allow access to xdg-desktop-portal and xdg-document-portal
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/{desktop,documents}
+    peer=(label=unconfined),
+
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/portal/{desktop,documents}
     peer=(label=unconfined),
 `
 
@@ -226,6 +243,16 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 			Options: []string{"bind", "ro"},
 		})
 	}
+
+	/*
+		appId := "snap.pkg." + plug.Snap.Name()
+		spec.AddUserMount(mount.Entry{
+			Name: "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
+			Dir: "$XDG_RUNTIME_DIR/doc",
+			Options: []string{"bind", "rw"},
+		})
+	*/
+
 	return nil
 }
 

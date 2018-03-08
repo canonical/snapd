@@ -83,6 +83,9 @@ apps:
   fwupd:
     command: bin/run
     plugs: [ fwupd ]
+  accounts-service:
+    command: bin/run
+    plugs: [ accounts-service ]
   gpg-keys:
     command: bin/run
     plugs: [ gpg-keys ]
