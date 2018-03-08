@@ -57,6 +57,10 @@ backends:
                 image: ubuntu-16.04-64
                 workers: 6
 
+            - fedora-27-64:
+                image: fedora-cloud-base-27-1-6-x86-64
+                workers: 4
+
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
         plan: 4GB
@@ -82,8 +86,6 @@ backends:
                 workers: 6
                 manual: true
 
-            - fedora-27-64:
-                workers: 4
             - fedora-26-64:
                 workers: 4
                 manual: true
