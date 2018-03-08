@@ -209,10 +209,6 @@ type tokenizer struct {
 	state parserState
 }
 
-type token struct {
-	value string
-}
-
 func newTokenizer(in io.RuneReader) tokenizer {
 	return tokenizer{
 		in:    in,
