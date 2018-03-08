@@ -45,16 +45,16 @@ func TestClassifier(t *testing.T) {
 func TestTokenizer(t *testing.T) {
 	testInput := strings.NewReader(testString)
 	expectedTokens := []*Token{
-		&Token{WordToken, "one"},
-		&Token{WordToken, "two"},
-		&Token{WordToken, "three four"},
-		&Token{WordToken, "five \"six\""},
-		&Token{WordToken, "seven#eight"},
-		&Token{CommentToken, " nine # ten"},
-		&Token{WordToken, "eleven"},
-		&Token{WordToken, "twelve\\"},
-		&Token{WordToken, "thirteen=13"},
-		&Token{WordToken, "fourteen/14"}}
+		{WordToken, "one"},
+		{WordToken, "two"},
+		{WordToken, "three four"},
+		{WordToken, "five \"six\""},
+		{WordToken, "seven#eight"},
+		{CommentToken, " nine # ten"},
+		{WordToken, "eleven"},
+		{WordToken, "twelve\\"},
+		{WordToken, "thirteen=13"},
+		{WordToken, "fourteen/14"}}
 
 	tokenizer := NewTokenizer(testInput)
 	for i, want := range expectedTokens {
