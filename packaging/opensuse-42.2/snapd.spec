@@ -309,7 +309,7 @@ fi
 /usr/share/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
-%{_libexecdir}/snapd/snapd-generator
+/lib/systemd/system-generators/snapd-generator
 %{_mandir}/man1/snap.1.gz
 /usr/share/dbus-1/services/io.snapcraft.Launcher.service
 /usr/share/dbus-1/services/io.snapcraft.Settings.service
