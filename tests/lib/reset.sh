@@ -97,7 +97,13 @@ reset_all_snap() {
             "bin" | "$gadget_name" | "$kernel_name" | core | README)
                 ;;
             *)
-                snap remove "$snap"
+                # make sure snapd is running before we attempt to remove snaps, in case a test stopped it
+                if ! systemctl status snapd.service snapd.socket; then
+                    systemctl start snapd.service snapd.socket
+                fi
+                if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
+                    snap remove "$snap"
+                fi
                 ;;
         esac
     done

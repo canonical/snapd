@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -115,18 +115,20 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 const defaultCoreSnapName = "core"
 const defaultBaseSnapsChannel = "stable"
 
-func changeInFlight(st *state.State, snapName string) (bool, error) {
+func linkSnapInFlight(st *state.State, snapName string) (bool, error) {
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
 			continue
 		}
 		for _, tc := range chg.Tasks() {
-			if tc.Kind() == "link-snap" || tc.Kind() == "discard-snap" {
+			if tc.Status().Ready() {
+				continue
+			}
+			if tc.Kind() == "link-snap" {
 				snapsup, err := TaskSnapSetup(tc)
 				if err != nil {
 					return false, err
 				}
-				// some other change aleady inflight
 				if snapsup.Name() == snapName {
 					return true, nil
 				}
@@ -135,6 +137,15 @@ func changeInFlight(st *state.State, snapName string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func isInstalled(st *state.State, snapName string) (bool, error) {
+	var snapState SnapState
+	err := Get(st, snapName, &snapState)
+	if err != nil && err != state.ErrNoState {
+		return false, err
+	}
+	return snapState.IsInstalled(), nil
 }
 
 // timeout for tasks to check if the prerequisites are ready
@@ -157,55 +168,95 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	// check prereqs
-	prereqName := defaultCoreSnapName
+	// we need to make sure we install all prereqs together in one
+	// operation
+	base := defaultCoreSnapName
 	if snapsup.Base != "" {
-		prereqName = snapsup.Base
+		base = snapsup.Base
 	}
 
-	var prereqState SnapState
-	err = Get(st, prereqName, &prereqState)
-	// we have the prereq already
-	if err == nil {
-		return nil
-	}
-	// if it is a real error, report
-	if err != state.ErrNoState {
+	if err := m.installPrereqs(t, base, snapsup.Prereq, snapsup.UserID); err != nil {
 		return err
 	}
 
-	// check that there is no task that installs the prereq already
-	prereqPending, err := changeInFlight(st, prereqName)
+	return nil
+}
+
+func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string, onInFlight error, userID int) (*state.TaskSet, error) {
+	// installed already?
+	isInstalled, err := isInstalled(st, snapName)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if prereqPending {
-		// if something else installs core already we need to
-		// wait for that to either finish successfully or fail
-		return &state.Retry{After: prerequisitesRetryTimeout}
+	if isInstalled {
+		return nil, nil
+	}
+	// in progress?
+	inFlight, err := linkSnapInFlight(st, snapName)
+	if err != nil {
+		return nil, err
+	}
+	if inFlight {
+		return nil, onInFlight
 	}
 
 	// not installed, nor queued for install -> install it
-	ts, err := Install(st, prereqName, defaultBaseSnapsChannel, snap.R(0), snapsup.UserID, Flags{})
-	// something might have triggered an explicit install of core while
-	// the state was unlocked -> deal with that here
+	ts, err := Install(st, snapName, defaultBaseSnapsChannel, snap.R(0), userID, Flags{})
+	// something might have triggered an explicit install while
+	// the state was unlocked -> deal with that here by simply
+	// retrying the operation.
 	if _, ok := err.(changeDuringInstallError); ok {
-		return &state.Retry{After: prerequisitesRetryTimeout}
+		return nil, &state.Retry{After: prerequisitesRetryTimeout}
 	}
 	if _, ok := err.(changeConflictError); ok {
-		return &state.Retry{After: prerequisitesRetryTimeout}
+		return nil, &state.Retry{After: prerequisitesRetryTimeout}
 	}
+	return ts, err
+}
+
+func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string, userID int) error {
+	st := t.State()
+
+	// We try to install all wanted snaps. If one snap cannot be installed
+	// because of change conflicts or similar we retry. Only if all snaps
+	// can be installed together we add the tasks to the change.
+	var tss []*state.TaskSet
+	for _, prereqName := range prereq {
+		var onInFlightErr error = nil
+		ts, err := m.installOneBaseOrRequired(st, prereqName, onInFlightErr, userID)
+		if err != nil {
+			return err
+		}
+		if ts == nil {
+			continue
+		}
+		tss = append(tss, ts)
+	}
+
+	// for base snaps we need to wait until the change is done
+	// (either finished or failed)
+	onInFlightErr := &state.Retry{After: prerequisitesRetryTimeout}
+	tsBase, err := m.installOneBaseOrRequired(st, base, onInFlightErr, userID)
 	if err != nil {
 		return err
 	}
-	ts.JoinLane(st.NewLane())
 
-	// inject install for core into this change
 	chg := t.Change()
-	for _, t := range chg.Tasks() {
-		t.WaitAll(ts)
+	// add all required snaps, no ordering, this will be done in the
+	// auto-connect task handler
+	for _, ts := range tss {
+		ts.JoinLane(st.NewLane())
+		chg.AddAll(ts)
 	}
-	chg.AddAll(ts)
+	// add the base if needed, everything else must wait on this
+	if tsBase != nil {
+		tsBase.JoinLane(st.NewLane())
+		for _, t := range chg.Tasks() {
+			t.WaitAll(tsBase)
+		}
+		chg.AddAll(tsBase)
+	}
+
 	// make sure that the new change is committed to the state
 	// together with marking this task done
 	t.SetStatus(state.DoneStatus)
@@ -657,7 +708,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			return fmt.Errorf("cannot create snap cookie: %v", err)
 		}
 	}
-
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-devmode", oldDevMode)

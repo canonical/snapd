@@ -1,5 +1,9 @@
 summary: Check that interfaces are listed after reboot the machine
 
+# do not run on autopkgtest, we need to reboot here and ADT does
+# not support our reboot logic
+backends: [-autopkgtest]
+
 details: |
     This test checks if the interfaces are listed after the machine
     is rebooted. The test is also checking the interfaces after a 
