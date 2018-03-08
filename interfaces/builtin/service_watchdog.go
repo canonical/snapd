@@ -27,45 +27,45 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
-const softwareWatchdogSummary = `allows use of systemd service watchdog`
+const serviceWatchdogSummary = `allows use of systemd service watchdog`
 
-const softwareWatchdogBaseDeclarationSlots = `
-  software-watchdog:
+const serviceWatchdogBaseDeclarationSlots = `
+  service-watchdog:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const softwareWatchdogConnectedPlugAppArmorTemplate = `
+const serviceWatchdogConnectedPlugAppArmorTemplate = `
 # Allow sending notification messages to systemd through the notify socket
 {{notify-socket}} w,
 `
 
-type softwareWatchdogInterface struct {
+type serviceWatchdogInterface struct {
 	commonInterface
 }
 
 var osGetenv = os.Getenv
 
-func (iface *softwareWatchdogInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *serviceWatchdogInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	notifySocket := osGetenv("NOTIFY_SOCKET")
 	if notifySocket == "" {
 		notifySocket = "/run/systemd/notify"
 	}
-	snippet := strings.Replace(softwareWatchdogConnectedPlugAppArmorTemplate,
+	snippet := strings.Replace(serviceWatchdogConnectedPlugAppArmorTemplate,
 		"{{notify-socket}}", notifySocket, 1)
 	spec.AddSnippet(snippet)
 	return nil
 }
 
 func init() {
-	registerIface(&softwareWatchdogInterface{commonInterface: commonInterface{
-		name:                 "software-watchdog",
-		summary:              softwareWatchdogSummary,
+	registerIface(&serviceWatchdogInterface{commonInterface: commonInterface{
+		name:                 "service-watchdog",
+		summary:              serviceWatchdogSummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
-		baseDeclarationSlots: softwareWatchdogBaseDeclarationSlots,
+		baseDeclarationSlots: serviceWatchdogBaseDeclarationSlots,
 		// implemented by AppArmorConnectedPlug()
 		connectedPlugAppArmor: "",
 		reservedForOS:         true,
