@@ -25,7 +25,8 @@
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
 
-static struct sc_mountinfo_entry *find_root_mountinfo(struct sc_mountinfo *mounts)
+static struct sc_mountinfo_entry *find_root_mountinfo(struct sc_mountinfo
+						      *mounts)
 {
 	struct sc_mountinfo_entry *cur;
 	for (cur = sc_first_mountinfo_entry(mounts); cur != NULL;
@@ -59,20 +60,19 @@ int main(int argc, char **argv)
 
 	struct sc_mountinfo_entry *root = find_root_mountinfo(mounts);
 	if (!root) {
-		fprintf(stderr, "cannot find mountinfo entry of the root filesystem\n");
+		fprintf(stderr,
+			"cannot find mountinfo entry of the root filesystem\n");
 		return 1;
 	}
-
 	// Check if the root file-system is mounted with shared option.
 	if (strstr(root->optional_fields, "shared:") != NULL) {
 		// The workaround is not needed, everything is good as-is.
 		return 0;
 	}
-
 	// Construct the file name for a new systemd mount unit.
 	char fname[PATH_MAX + 1] = { 0 };
 	sc_must_snprintf(fname, sizeof fname,
-			"%s/"SNAP_MOUNT_DIR".mount", normal_dir);
+			 "%s/" SNAP_MOUNT_DIR ".mount", normal_dir);
 
 	// Open the mount unit and write the contents.
 	FILE *f SC_CLEANUP(sc_cleanup_file) = NULL;
@@ -89,8 +89,8 @@ int main(int argc, char **argv)
 		"Description=Ensure that the snap directory "
 		"shares mount events.\n");
 	fprintf(f, "[Mount]\n");
-	fprintf(f, "What="SNAP_MOUNT_DIR"\n");
-	fprintf(f, "Where="SNAP_MOUNT_DIR"\n");
+	fprintf(f, "What=" SNAP_MOUNT_DIR "\n");
+	fprintf(f, "Where=" SNAP_MOUNT_DIR "\n");
 	fprintf(f, "Type=none\n");
 	fprintf(f, "Options=bind,shared\n");
 	fprintf(f, "[Install]\n");
