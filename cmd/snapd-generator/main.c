@@ -47,8 +47,9 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	const char *normal_dir = argv[1];
-	const char *early_dir = argv[2];
-	const char *late_dir = argv[3];
+	// For reference, but we don't use those variables here.
+	// const char *early_dir = argv[2];
+	// const char *late_dir = argv[3];
 
 	// Load /proc/self/mountinfo so that we can inspect the root filesystem.
 	struct sc_mountinfo *mounts SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
