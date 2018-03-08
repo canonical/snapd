@@ -36,12 +36,14 @@ func noon(t time.Time) time.Time {
 // consumption.
 // Human(t)  --> "today at 07:47"
 func Human(then time.Time) string {
-	return humanTimeSince(then.Local(), time.Now().Local())
+	return humanTimeSince(then.Local(), time.Now().Local(), 30)
 }
 
-func humanTimeSince(then, now time.Time) string {
+func humanTimeSince(then, now time.Time, cutoff int) string {
 	d := int(math.Floor(noon(then).Sub(noon(now)).Hours() / 24))
 	switch {
+	case d < -cutoff || d > cutoff:
+		return then.Format("2006-01-02")
 	case d < -1:
 		// TRANSLATORS: %d will be at least 2; the singular is only included to help gettext
 		return fmt.Sprintf(then.Format(i18n.NG("%d day ago, at 15:04 MST", "%d days ago, at 15:04 MST", -d)), -d)

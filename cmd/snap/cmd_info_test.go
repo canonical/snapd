@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -216,7 +217,7 @@ func (s *infoSuite) TestInfoUnquoted(c *check.C) {
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
 			fmt.Fprintln(w, "{}")
 		default:
-			c.Fatalf("expected to get 1 requests, now on %d (%v)", n+1, r)
+			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
 		}
 
 		n++
@@ -338,7 +339,7 @@ func (s *infoSuite) TestInfoWithLocalNoLicense(c *check.C) {
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
 			fmt.Fprintln(w, mockInfoJSONNoLicense)
 		default:
-			c.Fatalf("expected to get 1 requests, now on %d (%v)", n+1, r)
+			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
 		}
 
 		n++
@@ -374,7 +375,7 @@ func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
 			fmt.Fprintln(w, mockInfoJSONNoLicense)
 		default:
-			c.Fatalf("expected to get 1 requests, now on %d (%v)", n+1, r)
+			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
 		}
 
 		n++
@@ -398,6 +399,46 @@ channels:
   1/beta:      ↑             
   1/edge:      ↑             
 installed:     2.10 (1) 1kB  disabled
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *infoSuite) TestInfoHumanTimes(c *check.C) {
+	// checks that tiemutil.Human is called when no --absolute-times is given
+	restore := snap.MockTimeutilHuman(func(time.Time) string { return "TOTALLY NOT A ROBOT" })
+	defer restore()
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			fmt.Fprintln(w, "{}")
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/hello")
+			fmt.Fprintln(w, mockInfoJSONNoLicense)
+		default:
+			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"info", "hello"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `name:      hello
+summary:   The GNU Hello snap
+publisher: canonical
+license:   unknown
+description: |
+  GNU hello prints a friendly greeting. This is part of the snapcraft tour at
+  https://snapcraft.io/
+snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
+tracking:     beta
+refresh-date: TOTALLY NOT A ROBOT
+installed:    2.10 (1) 1kB disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
