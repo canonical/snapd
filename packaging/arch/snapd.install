@@ -4,7 +4,7 @@ post_install() {
   echo 'To use snapd start/enable the snapd.socket'
   echo
   echo 'If you want your apps to be automatically updated'
-  echo 'from the store start/enable the snapd.refresh.timer'
+  echo 'from the store start/enable the snapd.service'
   echo
   echo 'NOTE: Desktop entries show up after logging in again'
   echo ' or rebooting after snapd installation'
@@ -15,9 +15,7 @@ post_install() {
 _systemctl_do_for_all() {
   /usr/bin/systemctl "$@" \
                      snapd.service \
-                     snapd.socket \
-                     snapd.refresh.timer \
-                     snapd.refresh.service > /dev/null 2>&1
+                     snapd.socket > /dev/null 2>&1
 }
 
 _stop_services() {
@@ -45,9 +43,6 @@ post_upgrade() {
   # restore the services after an upgrade
   if /usr/bin/systemctl -q is-enabled snapd.socket > /dev/null 2>&1; then
     /usr/bin/systemctl start snapd.socket > /dev/null 2>&1 || :
-  fi
-  if systemctl -q is-enabled snapd.refresh.timer > /dev/null 2>&1; then
-    systemctl start snapd.refresh.timer > /dev/null 2>&1 || :
   fi
 }
 

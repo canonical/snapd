@@ -31,6 +31,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -40,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
+	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/x11"
 )
 
@@ -47,6 +49,7 @@ var (
 	syscallExec = syscall.Exec
 	userCurrent = user.Current
 	osGetenv    = os.Getenv
+	timeNow     = time.Now
 )
 
 type cmdRun struct {
@@ -62,7 +65,8 @@ type cmdRun struct {
 
 	// not a real option, used to check if cmdRun is initialized by
 	// the parser
-	ParserRan int `long:"parser-ran" default:"1" hidden:"yes"`
+	ParserRan int    `long:"parser-ran" default:"1" hidden:"yes"`
+	Timer     string `long:"timer" hidden:"yes"`
 }
 
 func init() {
@@ -76,8 +80,9 @@ func init() {
 			"hook":       i18n.G("Hook to run"),
 			"r":          i18n.G("Use a specific snap revision when running hook"),
 			"shell":      i18n.G("Run a shell instead of the command (useful for debugging)"),
-			"strace":     i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here."),
+			"strace":     i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
 			"gdb":        i18n.G("Run the command with gdb"),
+			"timer":      i18n.G("Run as a timer service with given schedule"),
 			"parser-ran": "",
 		}, nil)
 }
@@ -90,9 +95,16 @@ func (x *cmdRun) Execute(args []string) error {
 	args = args[1:]
 
 	// Catch some invalid parameter combinations, provide helpful errors
-	if x.HookName != "" && x.Command != "" {
-		return fmt.Errorf(i18n.G("cannot use --hook and --command together"))
+	optionsSet := 0
+	for _, param := range []string{x.HookName, x.Command, x.Timer} {
+		if param != "" {
+			optionsSet++
+		}
 	}
+	if optionsSet > 1 {
+		return fmt.Errorf("you can only use one of --hook, --command, and --timer")
+	}
+
 	if x.Revision != "unset" && x.Revision != "" && x.HookName == "" {
 		return fmt.Errorf(i18n.G("-r can only be used with --hook"))
 	}
@@ -108,6 +120,10 @@ func (x *cmdRun) Execute(args []string) error {
 
 	if x.Command == "complete" {
 		snapApp, args = antialias(snapApp, args)
+	}
+
+	if x.Timer != "" {
+		return x.snapRunTimer(snapApp, x.Timer, args)
 	}
 
 	return x.snapRunApp(snapApp, args)
@@ -258,19 +274,22 @@ func (x *cmdRun) useStrace() bool {
 	return x.ParserRan == 1 && x.Strace != "no-strace"
 }
 
-func (x *cmdRun) straceOpts() []string {
+func (x *cmdRun) straceOpts() (opts []string, raw bool) {
 	if x.Strace == "with-strace" {
-		return nil
+		return nil, false
 	}
 
-	var opts []string
 	// TODO: use shlex?
 	for _, opt := range strings.Split(x.Strace, " ") {
 		if strings.TrimSpace(opt) != "" {
+			if opt == "--raw" {
+				raw = true
+				continue
+			}
 			opts = append(opts, opt)
 		}
 	}
-	return opts
+	return opts, raw
 }
 
 func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
@@ -305,6 +324,21 @@ func (x *cmdRun) snapRunHook(snapName string) error {
 	}
 
 	return x.runSnapConfine(info, hook.SecurityTag(), snapName, hook.Name, nil)
+}
+
+func (x *cmdRun) snapRunTimer(snapApp, timer string, args []string) error {
+	schedule, err := timeutil.ParseSchedule(timer)
+	if err != nil {
+		return fmt.Errorf("invalid timer format: %v", err)
+	}
+
+	now := timeNow()
+	if !timeutil.Includes(schedule, now) {
+		fmt.Fprintf(Stderr, "%s: attempted to run %q timer outside of scheduled time %q\n", now.Format(time.RFC3339), snapApp, timer)
+		return nil
+	}
+
+	return x.snapRunApp(snapApp, args)
 }
 
 var osReadlink = os.Readlink
@@ -507,7 +541,8 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 	if err != nil {
 		return err
 	}
-	cmd = append(cmd, x.straceOpts()...)
+	straceOpts, raw := x.straceOpts()
+	cmd = append(cmd, straceOpts...)
 	cmd = append(cmd, origCmd...)
 
 	// run with filter
@@ -522,6 +557,15 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 	filterDone := make(chan bool, 1)
 	go func() {
 		defer func() { filterDone <- true }()
+
+		if raw {
+			// Passing --strace='--raw' disables the filtering of
+			// early strace output. This is useful when tracking
+			// down issues with snap helpers such as snap-confine,
+			// snap-exec ...
+			io.Copy(Stderr, stderr)
+			return
+		}
 
 		r := bufio.NewReader(stderr)
 

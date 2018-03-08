@@ -42,6 +42,13 @@ func snapFromSenderImpl(conn *dbus.Conn, sender dbus.Sender) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot find snap for connection: %v", err)
 	}
+	// Check that the sender is still connected to the bus: if it
+	// has disconnected between the GetConnectionUnixProcessID
+	// call and when we poked around in /proc, then it is possible
+	// that the process ID was reused.
+	if !nameHasOwner(conn, sender) {
+		return "", fmt.Errorf("sender is no longer connected to the bus")
+	}
 	return snap, nil
 }
 
@@ -52,6 +59,16 @@ func connectionPid(conn *dbus.Conn, sender dbus.Sender) (pid int, err error) {
 	}
 	call.Store(&pid)
 	return pid, nil
+}
+
+func nameHasOwner(conn *dbus.Conn, sender dbus.Sender) bool {
+	call := conn.BusObject().Call("org.freedesktop.DBus.NameHasOwner", 0, sender)
+	if call.Err != nil {
+		return false
+	}
+	var hasOwner bool
+	call.Store(&hasOwner)
+	return hasOwner
 }
 
 // FIXME: move to osutil?

@@ -127,3 +127,23 @@ func SortedListContains(list []string, str string) bool {
 	}
 	return list[i] == str
 }
+
+// TruncateOutput truncates input data by maxLines, imposing maxBytes limit (total) for them.
+// The maxLines may be 0 to avoid the constraint on number of lines.
+func TruncateOutput(data []byte, maxLines, maxBytes int) []byte {
+	if maxBytes > len(data) {
+		maxBytes = len(data)
+	}
+	lines := maxLines
+	bytes := maxBytes
+	for i := len(data) - 1; i >= 0; i-- {
+		if data[i] == '\n' {
+			lines--
+		}
+		if lines == 0 || bytes == 0 {
+			return data[i+1:]
+		}
+		bytes--
+	}
+	return data
+}

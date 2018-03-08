@@ -29,7 +29,7 @@ prepare: |
 restore: |
     rm -f call.error
     . "$TESTSLIB/dbus.sh"
-    stop_dbus_unit
+    stop_dbus_unit || true
 
 execute: |
     CONNECTED_PATTERN="test-snapd-dbus-provider:dbus-test +test-snapd-dbus-consumer"

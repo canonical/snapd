@@ -22,6 +22,7 @@ package wrappers
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 type interacter interface {
@@ -63,10 +65,16 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 	serviceName := app.ServiceName()
 	tout := serviceStopTimeout(app)
 
-	socketErrors := []error{}
+	stopErrors := []error{}
 	for _, socket := range app.Sockets {
 		if err := sysd.Stop(filepath.Base(socket.File()), tout); err != nil {
-			socketErrors = append(socketErrors, err)
+			stopErrors = append(stopErrors, err)
+		}
+	}
+
+	if app.Timer != nil {
+		if err := sysd.Stop(filepath.Base(app.Timer.File()), tout); err != nil {
+			stopErrors = append(stopErrors, err)
 		}
 	}
 
@@ -82,8 +90,8 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 
 	}
 
-	if len(socketErrors) > 0 {
-		return socketErrors[0]
+	if len(stopErrors) > 0 {
+		return stopErrors[0]
 	}
 
 	return nil
@@ -113,9 +121,15 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 					inter.Notify(fmt.Sprintf("While trying to disable previously enabled socket service %q: %v", socketService, e))
 				}
 			}
+			if app.Timer != nil {
+				timerService := filepath.Base(app.Timer.File())
+				if e := sysd.Disable(timerService); e != nil {
+					inter.Notify(fmt.Sprintf("While trying to disable previously enabled timer service %q: %v", timerService, e))
+				}
+			}
 		}(app)
 
-		if len(app.Sockets) == 0 {
+		if len(app.Sockets) == 0 && app.Timer == nil {
 			services = append(services, app.ServiceName())
 		}
 
@@ -127,6 +141,18 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 			}
 
 			if err := sysd.Start(socketService); err != nil {
+				return err
+			}
+		}
+
+		if app.Timer != nil {
+			timerService := filepath.Base(app.Timer.File())
+			// enable the timer
+			if err := sysd.Enable(timerService); err != nil {
+				return err
+			}
+
+			if err := sysd.Start(timerService); err != nil {
 				return err
 			}
 		}
@@ -198,6 +224,22 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 			written = append(written, path)
 		}
 
+		if app.Timer != nil {
+			content, err := generateSnapTimerFile(app)
+			if err != nil {
+				return err
+			}
+			path := app.Timer.File()
+			os.MkdirAll(filepath.Dir(path), 0755)
+			if err := osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
+				return err
+			}
+			written = append(written, path)
+			// service is activated via timers only and not during
+			// the boot
+			continue
+		}
+
 		svcName := app.ServiceName()
 		if err := sysd.Enable(svcName); err != nil {
 			return err
@@ -205,7 +247,7 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 		enabled = append(enabled, svcName)
 	}
 
-	if len(enabled) > 0 {
+	if len(written) > 0 {
 		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
@@ -292,6 +334,19 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 				logger.Noticef("Failed to remove socket file %q for %q: %v", path, serviceName, err)
+			}
+		}
+
+		if app.Timer != nil {
+			path := app.Timer.File()
+
+			timerName := filepath.Base(path)
+			if err := sysd.Disable(timerName); err != nil {
+				return err
+			}
+
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				logger.Noticef("Failed to remove timer file %q for %q: %v", path, serviceName, err)
 			}
 		}
 
@@ -492,4 +547,145 @@ func renderListenStream(socket *snap.SocketInfo) string {
 	snap := socket.App.Snap
 	listenStream := strings.Replace(socket.ListenStream, "$SNAP_DATA", snap.DataDir(), -1)
 	return strings.Replace(listenStream, "$SNAP_COMMON", snap.CommonDataDir(), -1)
+}
+
+func generateSnapTimerFile(app *snap.AppInfo) ([]byte, error) {
+	timerTemplate := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Timer {{.TimerName}} for snap application {{.App.Snap.Name}}.{{.App.Name}}
+Requires={{.MountUnit}}
+After={{.MountUnit}}
+X-Snappy=yes
+
+[Timer]
+Unit={{.ServiceFileName}}
+{{ range .Schedules }}OnCalendar={{ . }}
+{{ end }}
+[Install]
+WantedBy={{.TimersTarget}}
+`
+	var templateOut bytes.Buffer
+	t := template.Must(template.New("timer-wrapper").Parse(timerTemplate))
+
+	timerSchedule, err := timeutil.ParseSchedule(app.Timer.Timer)
+	if err != nil {
+		return nil, err
+	}
+
+	schedules := generateOnCalendarSchedules(timerSchedule)
+
+	wrapperData := struct {
+		App             *snap.AppInfo
+		ServiceFileName string
+		TimersTarget    string
+		TimerName       string
+		MountUnit       string
+		Schedules       []string
+	}{
+		App:             app,
+		ServiceFileName: filepath.Base(app.ServiceFile()),
+		TimersTarget:    systemd.TimersTarget,
+		TimerName:       app.Name,
+		MountUnit:       filepath.Base(systemd.MountUnitPath(app.Snap.MountDir())),
+		Schedules:       schedules,
+	}
+
+	if err := t.Execute(&templateOut, wrapperData); err != nil {
+		// this can never happen, except we forget a variable
+		logger.Panicf("Unable to execute template: %v", err)
+	}
+
+	return templateOut.Bytes(), nil
+
+}
+
+func makeAbbrevWeekdays(start time.Weekday, end time.Weekday) []string {
+	out := make([]string, 0, 7)
+	for w := start; w%7 != (end + 1); w++ {
+		out = append(out, time.Weekday(w % 7).String()[0:3])
+	}
+	return out
+}
+
+// generateOnCalendarSchedules converts a schedule into OnCalendar schedules
+// suitable for use in systemd *.timer units using systemd.time(7)
+// https://www.freedesktop.org/software/systemd/man/systemd.time.html
+func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
+	calendarEvents := make([]string, 0, len(schedule))
+	for _, sched := range schedule {
+		days := make([]string, 0, len(sched.WeekSpans))
+		for _, week := range sched.WeekSpans {
+			abbrev := strings.Join(makeAbbrevWeekdays(week.Start.Weekday, week.End.Weekday), ",")
+			switch week.Start.Pos {
+			case timeutil.EveryWeek:
+				// eg: mon, mon-fri, fri-mon
+				days = append(days, fmt.Sprintf("%s *-*-*", abbrev))
+			case timeutil.LastWeek:
+				// eg: mon5
+				days = append(days, fmt.Sprintf("%s *-*~7/1", abbrev))
+			default:
+				// eg: mon1, fri1, mon1-tue2
+				startDay := (week.Start.Pos-1)*7 + 1
+				endDay := week.End.Pos * 7
+
+				// NOTE: schedule mon1-tue2 (all weekdays
+				// between the first Monday of the month, until
+				// the second Tuesday of the month) is not
+				// translatable to systemd.time(7) format, for
+				// this assume all weekdays and allow the runner
+				// to do the filtering
+				if week.Start != week.End {
+					days = append(days,
+						fmt.Sprintf("*-*-%d..%d/1", startDay, endDay))
+				} else {
+					days = append(days,
+						fmt.Sprintf("%s *-*-%d..%d/1", abbrev, startDay, endDay))
+				}
+
+			}
+		}
+
+		if len(days) == 0 {
+			// no weekday spec, meaning the timer runs every day
+			days = []string{"*-*-*"}
+		}
+
+		startTimes := make([]string, 0, len(sched.ClockSpans))
+		for _, clocks := range sched.ClockSpans {
+			// use expanded clock spans
+			for _, span := range clocks.ClockSpans() {
+				when := span.Start
+				if span.Spread {
+					length := span.End.Sub(span.Start)
+					if length < 0 {
+						// span Start wraps around, so we have '00:00.Sub(23:45)'
+						length = -length
+					}
+					if length > 5*time.Minute {
+						// replicate what timeutil.Next() does
+						// and cut some time at the end of the
+						// window so that events do not happen
+						// directly one after another
+						length -= 5 * time.Minute
+					}
+					when = when.Add(time.Duration(rand.Int63n(int64(length))))
+				}
+				if when.Hour == 24 {
+					// 24:00 for us means the other end of
+					// the day, for systemd we need to
+					// adjust it to the 0-23 hour range
+					when.Hour -= 24
+				}
+
+				startTimes = append(startTimes, when.String())
+			}
+		}
+
+		for _, day := range days {
+			for _, startTime := range startTimes {
+				calendarEvents = append(calendarEvents, fmt.Sprintf("%s %s", day, startTime))
+			}
+		}
+	}
+	return calendarEvents
 }

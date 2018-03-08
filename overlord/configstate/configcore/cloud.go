@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,16 +26,9 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 )
-
-// CloudInfo holds the content for the optional "cloud" entry of core config
-// that reflects cloud information for the system if available.
-type CloudInfo struct {
-	Name             string `json:"name"`
-	Region           string `json:"region,omitempty"`
-	AvailabilityZone string `json:"availability-zone,omitempty"`
-}
 
 func alreadySeeded(tr Conf) (bool, error) {
 	st := tr.State()
@@ -88,7 +81,7 @@ func setCloudInfoWhenSeeding(tr Conf) error {
 		return nil
 	}
 
-	tr.Set("core", "cloud", CloudInfo{
+	tr.Set("core", "cloud", auth.CloudInfo{
 		Name:             cloudName,
 		Region:           instanceData.V1.Region,
 		AvailabilityZone: instanceData.V1.AvailabilityZone,
