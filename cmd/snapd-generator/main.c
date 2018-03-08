@@ -28,15 +28,15 @@
 static struct sc_mountinfo_entry *find_root_mountinfo(struct sc_mountinfo
 						      *mounts)
 {
-	struct sc_mountinfo_entry *cur;
+	struct sc_mountinfo_entry *cur, *root = NULL;
 	for (cur = sc_first_mountinfo_entry(mounts); cur != NULL;
 	     cur = sc_next_mountinfo_entry(cur)) {
 		// Look for the mount info entry for the root file-system.
 		if (sc_streq("/", cur->mount_dir) && sc_streq("/", cur->root)) {
-			return cur;
+			root = cur;
 		}
 	}
-	return NULL;
+	return root;
 }
 
 int main(int argc, char **argv)
