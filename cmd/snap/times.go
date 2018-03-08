@@ -33,7 +33,7 @@ type timeMixin struct {
 }
 
 var timeDescs = mixinDescs{
-	"abs-time": i18n.G("Display absolute times (in RFC 3339 format). Otherwise, display relative times up to 30 days, then YYYY-MM-DD."),
+	"abs-time": i18n.G("Display absolute times (in RFC 3339 format). Otherwise, display relative times up to 60 days, then YYYY-MM-DD."),
 }
 
 func (mx timeMixin) fmtTime(t time.Time) string {
