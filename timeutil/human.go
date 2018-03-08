@@ -36,7 +36,7 @@ func noon(t time.Time) time.Time {
 // consumption.
 // Human(t)  --> "today at 07:47"
 func Human(then time.Time) string {
-	return humanTimeSince(then.Local(), time.Now().Local(), 30)
+	return humanTimeSince(then.Local(), time.Now().Local(), 60)
 }
 
 func humanTimeSince(then, now time.Time, cutoff int) string {

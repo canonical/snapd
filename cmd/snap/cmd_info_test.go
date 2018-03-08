@@ -308,7 +308,7 @@ func (s *infoSuite) TestInfoWithLocalDifferentLicense(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "--absolute-times", "hello"})
+	rest, err := snap.Parser().ParseArgs([]string{"info", "--abs-time", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -344,7 +344,7 @@ func (s *infoSuite) TestInfoWithLocalNoLicense(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "--absolute-times", "hello"})
+	rest, err := snap.Parser().ParseArgs([]string{"info", "--abs-time", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -380,7 +380,7 @@ func (s *infoSuite) TestInfoWithChannelsAndLocal(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"info", "--absolute-times", "hello"})
+	rest, err := snap.Parser().ParseArgs([]string{"info", "--abs-time", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `name:      hello
@@ -404,7 +404,7 @@ installed:     2.10 (1) 1kB  disabled
 }
 
 func (s *infoSuite) TestInfoHumanTimes(c *check.C) {
-	// checks that tiemutil.Human is called when no --absolute-times is given
+	// checks that tiemutil.Human is called when no --abs-time is given
 	restore := snap.MockTimeutilHuman(func(time.Time) string { return "TOTALLY NOT A ROBOT" })
 	defer restore()
 
