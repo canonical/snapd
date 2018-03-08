@@ -42,19 +42,21 @@ environment:
     NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
     SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
     PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools
+    SKIP_REMOVE_SNAPS: "$(HOST: echo ${SKIP_REMOVE_SNAPS:-})"
 
 backends:
     google:
         key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
         location: computeengine/us-east1-b
         systems:
+            - ubuntu-14.04-64:
+                workers: 6
             - ubuntu-16.04-64:
                 workers: 8
             - ubuntu-18.04-64:
                 image: ubuntu-os-cloud-devel/ubuntu-18.04-64
                 workers: 6
-            - ubuntu-14.04-64:
-                workers: 6
+
             - ubuntu-core-16-64:
                 image: ubuntu-os-cloud-devel/ubuntu-core-16-64
                 workers: 6
@@ -74,14 +76,6 @@ backends:
         systems:
             - ubuntu-16.04-32:
                 kernel: GRUB 2
-                workers: 6
-            - ubuntu-14.04-64:
-                kernel: GRUB 2
-                workers: 6
-
-            - ubuntu-core-16-64:
-                kernel: Direct Disk
-                image: ubuntu-16.04-64
                 workers: 6
 
             - debian-9-64:
