@@ -63,11 +63,8 @@ func (s *systemKeySuite) TearDownTest(c *C) {
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
-	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	restore := release.MockSecCompActions([]string{"allow", "errno", "kill", "log", "trace", "trap"})
 	defer restore()
-
-	restore2 := release.MockSecCompActions([]string{"allow", "errno", "kill", "log", "trace", "trap"})
-	defer restore2()
 
 	systemKey := interfaces.SystemKey()
 
