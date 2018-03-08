@@ -29,11 +29,11 @@ import (
 var timeutilHuman = timeutil.Human
 
 type timeMixin struct {
-	AbsTime bool `long:"absolute-times"`
+	AbsTime bool `long:"abs-time"`
 }
 
 var timeDescs = mixinDescs{
-	"absolute-times": i18n.G("Display absolute times (in RFC 3339 format). Otherwise, display relative times up to 30 days, then YYYY-MM-DD."),
+	"abs-time": i18n.G("Display absolute times (in RFC 3339 format). Otherwise, display relative times up to 30 days, then YYYY-MM-DD."),
 }
 
 func (mx timeMixin) fmtTime(t time.Time) string {
