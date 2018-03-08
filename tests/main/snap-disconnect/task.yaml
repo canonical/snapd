@@ -42,4 +42,4 @@ execute: |
     snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
 
     echo "Disconnecting again using abbreviated form is handled"
-    snap disconnect home-consumer:home | MATCH "nothing to do"
+    snap disconnect home-consumer:home | MATCH "No connections to disconnect"
