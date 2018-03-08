@@ -41,6 +41,5 @@ execute: |
     snap disconnect home-consumer:home :home
     snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
 
-    echo "Disconnecting again using abbreviated form doesn't fail"
-    snap disconnect home-consumer:home
-    snap changes | tail -n2 | MATCH "Done.*Disconnect.*"
+    echo "Disconnecting again using abbreviated form is handled"
+    snap disconnect home-consumer:home 2>&1 | MATCH "nothing to do"
