@@ -79,7 +79,7 @@ int main(int argc, char **argv)
 	FILE *f SC_CLEANUP(sc_cleanup_file) = NULL;
 	f = fopen(fname, "wt");
 	if (!f) {
-		fprintf(stderr, "cannot open %s: %m", fname);
+		fprintf(stderr, "cannot open %s: %m\n", fname);
 		return 1;
 	}
 	fprintf(f,
