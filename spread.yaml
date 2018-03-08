@@ -50,6 +50,9 @@ backends:
         systems:
             - ubuntu-16.04-64:
                 workers: 8
+            - ubuntu-16.04-32:
+                workers: 1
+                image: xenial-server-cloudimg-i386
             - ubuntu-14.04-64:
                 workers: 6
 
@@ -70,10 +73,6 @@ backends:
             HTTP_PROXY: null
             HTTPS_PROXY: null
         systems:
-            - ubuntu-16.04-32:
-                kernel: GRUB 2
-                workers: 6
-
             - debian-9-64:
                 kernel: GRUB 2
                 workers: 6
