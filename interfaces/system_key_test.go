@@ -63,6 +63,12 @@ func (s *systemKeySuite) TearDownTest(c *C) {
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
+	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	restore2 := release.MockSecCompActions([]string{"allow", "errno", "kill", "log", "trace", "trap"})
+	defer restore2()
+
 	systemKey := interfaces.SystemKey()
 
 	apparmorFeatures := release.AppArmorFeatures()
@@ -72,6 +78,15 @@ func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
 	} else {
 		apparmorFeaturesStr = "\n- " + strings.Join(apparmorFeatures, "\n- ") + "\n"
 	}
+
+	seccompActions := release.SecCompActions
+	var seccompActionsStr string
+	if len(seccompActions) == 0 {
+		seccompActionsStr = " []\n"
+	} else {
+		seccompActionsStr = "\n- " + strings.Join(seccompActions, "\n- ") + "\n"
+	}
+
 	nfsHome, err := osutil.IsHomeUsingNFS()
 	c.Assert(err, IsNil)
 	overlayRoot, err := osutil.IsRootWritableOverlay()
@@ -79,7 +94,7 @@ func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
 	c.Check(systemKey, Equals, fmt.Sprintf(`build-id: %s
 apparmor-features:%snfs-home: %v
 overlay-root: "%v"
-`, s.buildID, apparmorFeaturesStr, nfsHome, overlayRoot))
+seccomp-features:%s`, s.buildID, apparmorFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
 }
 
 func (ts *systemKeySuite) TestInterfaceDigest(c *C) {
