@@ -26,17 +26,19 @@ import (
 	"github.com/snapcore/snapd/timeutil"
 )
 
+var timeutilHuman = timeutil.Human
+
 type timeMixin struct {
 	AbsTime bool `long:"absolute-times"`
 }
 
 var timeDescs = mixinDescs{
-	"absolute-times": i18n.G("Display absolute times (in RFC 3339 format). Otherwise, display relative times."),
+	"absolute-times": i18n.G("Display absolute times (in RFC 3339 format). Otherwise, display relative times up to 30 days, then YYYY-MM-DD."),
 }
 
 func (mx timeMixin) fmtTime(t time.Time) string {
 	if mx.AbsTime {
 		return t.Format(time.RFC3339)
 	}
-	return timeutil.Human(t)
+	return timeutilHuman(t)
 }

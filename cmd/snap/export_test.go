@@ -145,3 +145,11 @@ func MockTimeNow(newTimeNow func() time.Time) (restore func()) {
 		timeNow = oldTimeNow
 	}
 }
+
+func MockTimeutilHuman(h func(time.Time) string) (restore func()) {
+	oldH := timeutilHuman
+	timeutilHuman = h
+	return func() {
+		timeutilHuman = oldH
+	}
+}
