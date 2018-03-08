@@ -1,4 +1,4 @@
-summary: Check that snaps can use software-watchdog provided by systemd
+summary: Check that snaps can use service-watchdog provided by systemd
 
 execute: |
     echo "When the service snap  is installed"
