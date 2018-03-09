@@ -32,7 +32,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-var shortGetHelp = i18n.G("Prints configuration options")
+var shortGetHelp = i18n.G("Print configuration options")
 var longGetHelp = i18n.G(`
 The get command prints configuration options for the provided snap.
 

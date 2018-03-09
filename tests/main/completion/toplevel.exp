@@ -6,12 +6,6 @@ chat "snap --h\t" "snap --help $" true
 chat "\t\t" "snap --help $"
 cancel
 
-# --version completes
-chat "snap --v\t" "snap --version $" true
-# but no more
-chat "\t\t" "snap --version $"
-cancel
-
 # commands complete
 rechat "snap in\t\t" "\[\n ]info\[\r ]" true
 rechat "" "\[\n ]install\[\r ]" true

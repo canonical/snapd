@@ -219,7 +219,7 @@ type cmdAutoImport struct {
 	ForceClassic bool `long:"force-classic"`
 }
 
-var shortAutoImportHelp = i18n.G("Inspects devices for actionable information")
+var shortAutoImportHelp = i18n.G("Inspect devices for actionable information")
 
 var longAutoImportHelp = i18n.G(`
 The auto-import command searches available mounted devices looking for

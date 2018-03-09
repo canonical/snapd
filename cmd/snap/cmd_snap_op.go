@@ -42,12 +42,12 @@ func lastLogStr(logs []string) string {
 }
 
 var (
-	shortInstallHelp = i18n.G("Installs a snap to the system")
-	shortRemoveHelp  = i18n.G("Removes a snap from the system")
-	shortRefreshHelp = i18n.G("Refreshes a snap in the system")
-	shortTryHelp     = i18n.G("Tests a snap in the system")
-	shortEnableHelp  = i18n.G("Enables a snap in the system")
-	shortDisableHelp = i18n.G("Disables a snap in the system")
+	shortInstallHelp = i18n.G("Install a snap to the system")
+	shortRemoveHelp  = i18n.G("Remove a snap from the system")
+	shortRefreshHelp = i18n.G("Refresh a snap in the system")
+	shortTryHelp     = i18n.G("Test a snap in the system")
+	shortEnableHelp  = i18n.G("Enable a snap in the system")
+	shortDisableHelp = i18n.G("Disable a snap in the system")
 )
 
 var longInstallHelp = i18n.G(`
@@ -57,9 +57,9 @@ The install command installs the named snap in the system.
 var longRemoveHelp = i18n.G(`
 The remove command removes the named snap from the system.
 
-By default all the snap revisions are removed, including their data and the common
-data directory. When a --revision option is passed only the specified revision is
-removed.
+By default all the snap revisions are removed, including their data and the
+common data directory. When a --revision option is passed only the specified
+revision is removed.
 `)
 
 var longRefreshHelp = i18n.G(`
@@ -83,7 +83,7 @@ The enable command enables a snap that was previously disabled.
 
 var longDisableHelp = i18n.G(`
 The disable command disables a snap. The binaries and services of the
-snap will no longer be available. But all the data is still available
+snap will no longer be available, but all the data is still available
 and the snap can easily be enabled again.
 `)
 

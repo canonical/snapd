@@ -30,15 +30,9 @@ import (
 
 func (s *SnapSuite) TestListHelp(c *check.C) {
 	msg := `Usage:
-  snap.test [OPTIONS] list [list-OPTIONS] [<snap>...]
+  snap.test list [list-OPTIONS] [<snap>...]
 
 The list command displays a summary of snaps installed in the current system.
-
-Application Options:
-      --version     Print the version and exit
-
-Help Options:
-  -h, --help        Show this help message
 
 [list command options]
           --all     Show all revisions

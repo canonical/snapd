@@ -34,9 +34,12 @@ import (
 var shortChangesHelp = i18n.G("List system changes")
 var shortTasksHelp = i18n.G("List a change's tasks")
 var longChangesHelp = i18n.G(`
-The changes command displays a summary of the recent system changes performed.`)
+The changes command displays a summary of the recent system changes performed.
+`)
 var longTasksHelp = i18n.G(`
-The tasks command displays a summary of tasks associated to an individual change.`)
+The tasks command displays a summary of tasks associated to an
+individual change.
+`)
 
 type cmdChanges struct {
 	Positional struct {
