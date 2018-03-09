@@ -51,7 +51,7 @@ func (x *cmdWatch) Execute(args []string) error {
 
 	// this is the only valid use of wait without a waitMixin (ie
 	// without --no-wait), so we fake it here.
-	_, err = waitMixin{}.wait(cli, id)
+	_, err = waitMixin{skipAbort: true}.wait(cli, id)
 
 	return err
 }
