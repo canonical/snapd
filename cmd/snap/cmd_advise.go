@@ -38,10 +38,9 @@ type cmdAdviseSnap struct {
 	Command bool   `long:"command"`
 }
 
-var shortAdviseSnapHelp = i18n.G("Advise on available snaps.")
+var shortAdviseSnapHelp = i18n.G("Advise on available snaps")
 var longAdviseSnapHelp = i18n.G(`
-The advise-snap command shows what snaps with the given command are
-available.
+The advise-snap command shows what snaps with the given command are available.
 `)
 
 func init() {

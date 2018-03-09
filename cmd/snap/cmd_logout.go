@@ -29,7 +29,9 @@ type cmdLogout struct{}
 
 var shortLogoutHelp = i18n.G("Log out of the store")
 
-var longLogoutHelp = i18n.G("This command logs the current user out of the store")
+var longLogoutHelp = i18n.G(`
+The logout command logs the current user out of the store.
+`)
 
 func init() {
 	addCommand("logout",

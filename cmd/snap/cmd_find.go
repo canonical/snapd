@@ -36,7 +36,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var shortFindHelp = i18n.G("Finds packages to install")
+var shortFindHelp = i18n.G("Find packages to install")
 var longFindHelp = i18n.G(`
 The find command queries the store for available packages in the stable channel.
 `)

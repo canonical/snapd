@@ -30,16 +30,10 @@ import (
 
 func (s *SnapSuite) TestUnaliasHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] unalias [unalias-OPTIONS] [<alias-or-snap>]
+  snap.test unalias [unalias-OPTIONS] [<alias-or-snap>]
 
 The unalias command tears down a manual alias when given one or disables all
 aliases of a snap, removing also all manual ones, when given a snap name.
-
-Application Options:
-      --version              Print the version and exit
-
-Help Options:
-  -h, --help                 Show this help message
 
 [unalias command options]
           --no-wait          Do not wait for the operation to finish but just

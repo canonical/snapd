@@ -36,14 +36,16 @@ type cmdLogin struct {
 	} `positional-args:"yes"`
 }
 
-var shortLoginHelp = i18n.G("Authenticates on snapd and the store")
+var shortLoginHelp = i18n.G("Authenticate to snapd and the store")
 
 var longLoginHelp = i18n.G(`
-The login command authenticates on snapd and the snap store and saves credentials
-into the ~/.snap/auth.json file. Further communication with snapd will then be made
-using those credentials.
+The login command authenticates the user to snapd and the snap store, and saves
+credentials into the ~/.snap/auth.json file. Further communication with snapd
+will then be made using those credentials.
 
-Login only works for local users in the sudo, admin or wheel groups.
+You don't need to login to interact with snapd, unless you are publishing your
+own snaps and are wishinng to install unpublished revisions, or private snaps
+you have access to, or you wish to buy snaps.
 
 An account can be setup at https://login.ubuntu.com
 `)

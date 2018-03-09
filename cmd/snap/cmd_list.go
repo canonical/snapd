@@ -35,7 +35,8 @@ import (
 
 var shortListHelp = i18n.G("List installed snaps")
 var longListHelp = i18n.G(`
-The list command displays a summary of snaps installed in the current system.`)
+The list command displays a summary of snaps installed in the current system.
+`)
 
 type cmdList struct {
 	Positional struct {

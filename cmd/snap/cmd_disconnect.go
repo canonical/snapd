@@ -35,7 +35,7 @@ type cmdDisconnect struct {
 	} `positional-args:"true"`
 }
 
-var shortDisconnectHelp = i18n.G("Disconnects a plug from a slot")
+var shortDisconnectHelp = i18n.G("Disconnect a plug from a slot")
 var longDisconnectHelp = i18n.G(`
 The disconnect command disconnects a plug from a slot.
 It may be called in the following ways:
