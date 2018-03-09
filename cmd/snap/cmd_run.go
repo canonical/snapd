@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
+	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/x11"
 )
@@ -274,22 +275,24 @@ func (x *cmdRun) useStrace() bool {
 	return x.ParserRan == 1 && x.Strace != "no-strace"
 }
 
-func (x *cmdRun) straceOpts() (opts []string, raw bool) {
+func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 	if x.Strace == "with-strace" {
-		return nil, false
+		return nil, false, nil
 	}
 
-	// TODO: use shlex?
-	for _, opt := range strings.Split(x.Strace, " ") {
-		if strings.TrimSpace(opt) != "" {
-			if opt == "--raw" {
-				raw = true
-				continue
-			}
-			opts = append(opts, opt)
-		}
+	split, err := shlex.Split(x.Strace)
+	if err != nil {
+		return nil, false, err
 	}
-	return opts, raw
+
+	for _, opt := range split {
+		if opt == "--raw" {
+			raw = true
+			continue
+		}
+		opts = append(opts, opt)
+	}
+	return opts, raw, nil
 }
 
 func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
@@ -541,7 +544,10 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 	if err != nil {
 		return err
 	}
-	straceOpts, raw := x.straceOpts()
+	straceOpts, raw, err := x.straceOpts()
+	if err != nil {
+		return err
+	}
 	cmd = append(cmd, straceOpts...)
 	cmd = append(cmd, origCmd...)
 
