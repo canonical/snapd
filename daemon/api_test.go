@@ -757,7 +757,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			// only the "timer" field
 			"timer": "8:00~9:00/2",
 		},
-		"confinement": "partial",
+		"confinement":         "partial",
+		"classic-unsupported": !dirs.SupportsClassicConfinement(),
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -813,7 +814,8 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 			// only the "schedule" field
 			"schedule": "00:00-9:00/12:00-13:00",
 		},
-		"confinement": "partial",
+		"confinement":         "partial",
+		"classic-unsupported": !dirs.SupportsClassicConfinement(),
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)

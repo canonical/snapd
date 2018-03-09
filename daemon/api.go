@@ -296,7 +296,8 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
-		"refresh": refreshInfo,
+		"refresh":             refreshInfo,
+		"classic-unsupported": !dirs.SupportsClassicConfinement(),
 	}
 	// NOTE: Right now we don't have a good way to differentiate if we
 	// only have partial confinement (ala AppArmor disabled and Seccomp
