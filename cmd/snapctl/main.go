@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/xdgopenproxy"
 )
 
 var clientConfig = client.Config{
@@ -45,6 +46,13 @@ func main() {
 			fmt.Fprintf(os.Stderr, "no internal core configuration anymore")
 			os.Exit(1)
 		}
+	}
+	if len(os.Args) == 3 && os.Args[1] == "user-open" {
+		if err := xdgopenproxy.Run(os.Args[2]); err != nil {
+			fmt.Fprintf(os.Stderr, "user-open error: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
 	}
 
 	// no internal command, route via snapd

@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/yaml.v2"
@@ -40,6 +39,8 @@ import (
 )
 
 type infoCmd struct {
+	timeMixin
+
 	Verbose    bool `long:"verbose"`
 	Positional struct {
 		Snaps []anySnapName `positional-arg-name:"<snap>" required:"1"`
@@ -56,9 +57,9 @@ func init() {
 		longInfoHelp,
 		func() flags.Commander {
 			return &infoCmd{}
-		}, map[string]string{
+		}, timeDescs.also(map[string]string{
 			"verbose": i18n.G("Include a verbose list of a snap's notes (otherwise, summarise notes)"),
-		}, nil)
+		}), nil)
 }
 
 func norm(path string) string {
@@ -369,7 +370,7 @@ func (x *infoCmd) Execute([]string) error {
 				fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
 			}
 			if !local.InstallDate.IsZero() {
-				fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate.Format(time.RFC3339))
+				fmt.Fprintf(w, "refresh-date:\t%s\n", x.fmtTime(local.InstallDate))
 			}
 		}
 
@@ -383,7 +384,7 @@ func (x *infoCmd) Execute([]string) error {
 		if local != nil {
 			revstr := fmt.Sprintf("(%s)", local.Revision)
 			fmt.Fprintf(w, chantpl,
-				"current", local.Version, revstr, strutil.SizeToStr(local.InstalledSize), notes)
+				"installed", local.Version, revstr, strutil.SizeToStr(local.InstalledSize), notes)
 		}
 
 	}
