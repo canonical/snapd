@@ -231,6 +231,9 @@ install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 install -m 644 -D data/completion/snap %{buildroot}/usr/share/bash-completion/completions/snap
 install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
 install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
+# move snapd-generator
+install -m 755 -d %{buildroot}/lib/systemd/system-generators/
+mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}/lib/systemd/system-generators/
 
 %verifyscript
 %verify_permissions -e %{_libexecdir}/snapd/snap-confine
@@ -290,7 +293,6 @@ fi
 %{_mandir}/man5/snap-discard-ns.5.gz
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
-%{_unitdir}/snap.mount
 /usr/bin/snap
 /usr/bin/snapctl
 /usr/sbin/rcsnapd
@@ -307,6 +309,7 @@ fi
 /usr/share/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
+/lib/systemd/system-generators/snapd-generator
 %{_mandir}/man1/snap.1.gz
 /usr/share/dbus-1/services/io.snapcraft.Launcher.service
 /usr/share/dbus-1/services/io.snapcraft.Settings.service
