@@ -25,6 +25,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
 )
@@ -33,7 +34,6 @@ var RunMain = run
 
 var (
 	CreateUserDataDirs = createUserDataDirs
-	Wait               = wait
 	ResolveApp         = resolveApp
 	IsReexeced         = isReexeced
 	MaybePrintServices = maybePrintServices
@@ -152,4 +152,8 @@ func MockTimeutilHuman(h func(time.Time) string) (restore func()) {
 	return func() {
 		timeutilHuman = oldH
 	}
+}
+
+func Wait(cli *client.Client, id string) (*client.Change, error) {
+	return waitMixin{}.wait(cli, id)
 }
