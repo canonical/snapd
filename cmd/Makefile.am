@@ -15,7 +15,7 @@ if WITH_UNIT_TESTS
 CHECK_CFLAGS += -Werror
 endif
 
-subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private
+subdirs = snap-confine snap-discard-ns system-shutdown libsnap-confine-private snapd-generator
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
@@ -443,3 +443,12 @@ system_shutdown_unit_tests_LDADD = libsnap-confine-private.a
 system_shutdown_unit_tests_CFLAGS = $(GLIB_CFLAGS)
 system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
+
+##
+## snapd-generator
+##
+
+libexec_PROGRAMS += snapd-generator/snapd-generator
+
+snapd_generator_snapd_generator_SOURCES = snapd-generator/main.c
+snapd_generator_snapd_generator_LDADD = libsnap-confine-private.a

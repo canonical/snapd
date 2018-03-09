@@ -6,6 +6,7 @@ usr/bin/snap-repair /usr/lib/snapd/
 usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapd /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
+usr/lib/snapd/snapd-generator /lib/systemd/system-generators/
 
 # bash completion
 data/completion/snap /usr/share/bash-completion/completions
