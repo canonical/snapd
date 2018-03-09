@@ -51,6 +51,11 @@ type snapSeccompSuite struct {
 
 var _ = Suite(&snapSeccompSuite{})
 
+const (
+	Deny = iota
+	Allow
+)
+
 var seccompBpfLoaderContent = []byte(`
 #include <fcntl.h>
 #include <inttypes.h>
@@ -127,32 +132,30 @@ int main(int argc, char* argv[])
 
 var seccompSyscallRunnerContent = []byte(`
 #define _GNU_SOURCE
+#include <errno.h>
 #include <stdlib.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 int main(int argc, char** argv)
 {
-    int l[7];
+    int l[7], syscall_ret, ret = 0;
     for (int i = 0; i < 7; i++)
         l[i] = atoi(argv[i + 1]);
     // There might be architecture-specific requirements. see "man syscall"
     // for details.
-    syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
-    syscall(SYS_exit, 0, 0, 0, 0, 0, 0);
+    syscall_ret = syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
+    // 911 is our mocked errno
+    if (syscall_ret < 0 && errno == 911) {
+        ret = 10;
+    }
+    syscall(SYS_exit, ret, 0, 0, 0, 0, 0);
     return 0;
 }
 `)
 
-func lastKmsg() string {
-	output, err := exec.Command("dmesg").CombinedOutput()
-	if err != nil {
-		return err.Error()
-	}
-	l := strings.Split(string(output), "\n")
-	return fmt.Sprintf("Showing last 10 lines of dmesg:\n%s", strings.Join(l[len(l)-10:], "\n"))
-}
-
 func (s *snapSeccompSuite) SetUpSuite(c *C) {
+	main.MockErrnoOnDenial(911)
+
 	// build seccomp-load helper
 	s.seccompBpfLoader = filepath.Join(c.MkDir(), "seccomp_bpf_loader")
 	err := ioutil.WriteFile(s.seccompBpfLoader+".c", seccompBpfLoaderContent, 0644)
@@ -312,13 +315,13 @@ restart_syscall
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	switch expected {
-	case main.SeccompRetAllow:
+	case Allow:
 		if err != nil {
-			c.Fatalf("unexpected error for %q (failed to run %q): %s", seccompWhitelist, lastKmsg(), err)
+			c.Fatalf("unexpected error for %q (failed to run %q)", seccompWhitelist, err)
 		}
-	case main.SeccompRetKill:
+	case Deny:
 		if err == nil {
-			c.Fatalf("unexpected success for %q %q (ran but should have failed %s)", seccompWhitelist, bpfInput, lastKmsg())
+			c.Fatalf("unexpected success for %q %q (ran but should have failed)", seccompWhitelist, bpfInput)
 		}
 	default:
 		c.Fatalf("unknown expected result %v", expected)
@@ -343,8 +346,8 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 //
 // Eg to test that the rule 'read >=2' is allowed with 'read(2)' and 'read(3)'
 // and denied with 'read(1)' and 'read(0)', add the following tests:
-//    {"read >=2", "read;native;2", main.SeccompRetAllow},
-//    {"read >=2", "read;native;3", main.SeccompRetAllow},
+//    {"read >=2", "read;native;2", Allow},
+//    {"read >=2", "read;native;3", Allow},
 //    {"read >=2", "read;native;1", main.SeccompRetKill},
 //    {"read >=2", "read;native;0", main.SeccompRetKill},
 func (s *snapSeccompSuite) TestCompile(c *C) {
@@ -355,98 +358,98 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		expected         int
 	}{
 		// special
-		{"@complain", "execve", main.SeccompRetAllow},
+		{"@complain", "execve", Allow},
 
 		// trivial allow
-		{"read", "read", main.SeccompRetAllow},
-		{"read\nwrite\nexecve\n", "write", main.SeccompRetAllow},
+		{"read", "read", Allow},
+		{"read\nwrite\nexecve\n", "write", Allow},
 
 		// trivial denial
-		{"read", "ioctl", main.SeccompRetKill},
+		{"read", "ioctl", Deny},
 
 		// test argument filtering syntax, we currently support:
 		//   >=, <=, !, <, >, |
 		// modifiers.
 
 		// reads >= 2 are ok
-		{"read >=2", "read;native;2", main.SeccompRetAllow},
-		{"read >=2", "read;native;3", main.SeccompRetAllow},
+		{"read >=2", "read;native;2", Allow},
+		{"read >=2", "read;native;3", Allow},
 		// but not reads < 2, those get killed
-		{"read >=2", "read;native;1", main.SeccompRetKill},
-		{"read >=2", "read;native;0", main.SeccompRetKill},
+		{"read >=2", "read;native;1", Deny},
+		{"read >=2", "read;native;0", Deny},
 
 		// reads <= 2 are ok
-		{"read <=2", "read;native;0", main.SeccompRetAllow},
-		{"read <=2", "read;native;1", main.SeccompRetAllow},
-		{"read <=2", "read;native;2", main.SeccompRetAllow},
+		{"read <=2", "read;native;0", Allow},
+		{"read <=2", "read;native;1", Allow},
+		{"read <=2", "read;native;2", Allow},
 		// but not reads >2, those get killed
-		{"read <=2", "read;native;3", main.SeccompRetKill},
-		{"read <=2", "read;native;4", main.SeccompRetKill},
+		{"read <=2", "read;native;3", Deny},
+		{"read <=2", "read;native;4", Deny},
 
 		// reads that are not 2 are ok
-		{"read !2", "read;native;1", main.SeccompRetAllow},
-		{"read !2", "read;native;3", main.SeccompRetAllow},
+		{"read !2", "read;native;1", Allow},
+		{"read !2", "read;native;3", Allow},
 		// but not 2, this gets killed
-		{"read !2", "read;native;2", main.SeccompRetKill},
+		{"read !2", "read;native;2", Deny},
 
 		// reads > 2 are ok
-		{"read >2", "read;native;4", main.SeccompRetAllow},
-		{"read >2", "read;native;3", main.SeccompRetAllow},
+		{"read >2", "read;native;4", Allow},
+		{"read >2", "read;native;3", Allow},
 		// but not reads <= 2, those get killed
-		{"read >2", "read;native;2", main.SeccompRetKill},
-		{"read >2", "read;native;1", main.SeccompRetKill},
+		{"read >2", "read;native;2", Deny},
+		{"read >2", "read;native;1", Deny},
 
 		// reads < 2 are ok
-		{"read <2", "read;native;0", main.SeccompRetAllow},
-		{"read <2", "read;native;1", main.SeccompRetAllow},
+		{"read <2", "read;native;0", Allow},
+		{"read <2", "read;native;1", Allow},
 		// but not reads >= 2, those get killed
-		{"read <2", "read;native;2", main.SeccompRetKill},
-		{"read <2", "read;native;3", main.SeccompRetKill},
+		{"read <2", "read;native;2", Deny},
+		{"read <2", "read;native;3", Deny},
 
 		// FIXME: test maskedEqual better
-		{"read |1", "read;native;1", main.SeccompRetAllow},
-		{"read |1", "read;native;2", main.SeccompRetKill},
+		{"read |1", "read;native;1", Allow},
+		{"read |1", "read;native;2", Deny},
 
 		// exact match, reads == 2 are ok
-		{"read 2", "read;native;2", main.SeccompRetAllow},
+		{"read 2", "read;native;2", Allow},
 		// but not those != 2
-		{"read 2", "read;native;3", main.SeccompRetKill},
-		{"read 2", "read;native;1", main.SeccompRetKill},
+		{"read 2", "read;native;3", Deny},
+		{"read 2", "read;native;1", Deny},
 
 		// test actual syscalls and their expected usage
-		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
-		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
-		{"ioctl - !TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetKill},
+		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", Allow},
+		{"ioctl - TIOCSTI", "ioctl;native;-,99", Deny},
+		{"ioctl - !TIOCSTI", "ioctl;native;-,TIOCSTI", Deny},
 
 		// test_bad_seccomp_filter_args_clone
-		{"setns - CLONE_NEWNET", "setns;native;-,99", main.SeccompRetKill},
-		{"setns - CLONE_NEWNET", "setns;native;-,CLONE_NEWNET", main.SeccompRetAllow},
+		{"setns - CLONE_NEWNET", "setns;native;-,99", Deny},
+		{"setns - CLONE_NEWNET", "setns;native;-,CLONE_NEWNET", Allow},
 
 		// test_bad_seccomp_filter_args_mknod
-		{"mknod - |S_IFIFO", "mknod;native;-,S_IFIFO", main.SeccompRetAllow},
-		{"mknod - |S_IFIFO", "mknod;native;-,99", main.SeccompRetKill},
+		{"mknod - |S_IFIFO", "mknod;native;-,S_IFIFO", Allow},
+		{"mknod - |S_IFIFO", "mknod;native;-,99", Deny},
 
 		// test_bad_seccomp_filter_args_prctl
-		{"prctl PR_CAP_AMBIENT_RAISE", "prctl;native;PR_CAP_AMBIENT_RAISE", main.SeccompRetAllow},
-		{"prctl PR_CAP_AMBIENT_RAISE", "prctl;native;99", main.SeccompRetKill},
+		{"prctl PR_CAP_AMBIENT_RAISE", "prctl;native;PR_CAP_AMBIENT_RAISE", Allow},
+		{"prctl PR_CAP_AMBIENT_RAISE", "prctl;native;99", Deny},
 
 		// test_bad_seccomp_filter_args_prio
-		{"setpriority PRIO_PROCESS 0 >=0", "setpriority;native;PRIO_PROCESS,0,19", main.SeccompRetAllow},
-		{"setpriority PRIO_PROCESS 0 >=0", "setpriority;native;99", main.SeccompRetKill},
+		{"setpriority PRIO_PROCESS 0 >=0", "setpriority;native;PRIO_PROCESS,0,19", Allow},
+		{"setpriority PRIO_PROCESS 0 >=0", "setpriority;native;99", Deny},
 
 		// test_bad_seccomp_filter_args_quotactl
-		{"quotactl Q_GETQUOTA", "quotactl;native;Q_GETQUOTA", main.SeccompRetAllow},
-		{"quotactl Q_GETQUOTA", "quotactl;native;99", main.SeccompRetKill},
+		{"quotactl Q_GETQUOTA", "quotactl;native;Q_GETQUOTA", Allow},
+		{"quotactl Q_GETQUOTA", "quotactl;native;99", Deny},
 
 		// test_bad_seccomp_filter_args_termios
-		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
-		{"ioctl - TIOCSTI", "ioctl;native;-,99", main.SeccompRetKill},
+		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", Allow},
+		{"ioctl - TIOCSTI", "ioctl;native;-,99", Deny},
 
 		// u:root g:root
-		{"fchown - u:root g:root", "fchown;native;-,0,0", main.SeccompRetAllow},
-		{"fchown - u:root g:root", "fchown;native;-,99,0", main.SeccompRetKill},
-		{"chown - u:root g:root", "chown;native;-,0,0", main.SeccompRetAllow},
-		{"chown - u:root g:root", "chown;native;-,99,0", main.SeccompRetKill},
+		{"fchown - u:root g:root", "fchown;native;-,0,0", Allow},
+		{"fchown - u:root g:root", "fchown;native;-,99,0", Deny},
+		{"chown - u:root g:root", "chown;native;-,0,0", Allow},
+		{"chown - u:root g:root", "chown;native;-,99,0", Deny},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
@@ -469,12 +472,12 @@ func (s *snapSeccompSuite) TestCompileSocket(c *C) {
 	}{
 
 		// test_bad_seccomp_filter_args_socket
-		{"socket AF_UNIX", "socket;native;AF_UNIX", main.SeccompRetAllow},
-		{"socket AF_UNIX", "socket;native;99", main.SeccompRetKill},
-		{"socket - SOCK_STREAM", "socket;native;-,SOCK_STREAM", main.SeccompRetAllow},
-		{"socket - SOCK_STREAM", "socket;native;-,99", main.SeccompRetKill},
-		{"socket AF_CONN", "socket;native;AF_CONN", main.SeccompRetAllow},
-		{"socket AF_CONN", "socket;native;99", main.SeccompRetKill},
+		{"socket AF_UNIX", "socket;native;AF_UNIX", Allow},
+		{"socket AF_UNIX", "socket;native;99", Deny},
+		{"socket - SOCK_STREAM", "socket;native;-,SOCK_STREAM", Allow},
+		{"socket - SOCK_STREAM", "socket;native;-,99", Deny},
+		{"socket AF_CONN", "socket;native;AF_CONN", Allow},
+		{"socket AF_CONN", "socket;native;99", Deny},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
@@ -585,15 +588,15 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSocket(c *C) {
 			seccompWhitelist := fmt.Sprintf("socket %s_%s", pre, i)
 			bpfInputGood := fmt.Sprintf("socket;native;%s_%s", pre, i)
 			bpfInputBad := "socket;native;99999"
-			s.runBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
-			s.runBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
+			s.runBpf(c, seccompWhitelist, bpfInputGood, Allow)
+			s.runBpf(c, seccompWhitelist, bpfInputBad, Deny)
 
 			for _, j := range []string{"SOCK_STREAM", "SOCK_DGRAM", "SOCK_SEQPACKET", "SOCK_RAW", "SOCK_RDM", "SOCK_PACKET"} {
 				seccompWhitelist := fmt.Sprintf("socket %s_%s %s", pre, i, j)
 				bpfInputGood := fmt.Sprintf("socket;native;%s_%s,%s", pre, i, j)
 				bpfInputBad := fmt.Sprintf("socket;native;%s_%s,9999", pre, i)
-				s.runBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
-				s.runBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
+				s.runBpf(c, seccompWhitelist, bpfInputGood, Allow)
+				s.runBpf(c, seccompWhitelist, bpfInputBad, Deny)
 			}
 		}
 	}
@@ -603,8 +606,8 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSocket(c *C) {
 			seccompWhitelist := fmt.Sprintf("socket %s - %s", j, i)
 			bpfInputGood := fmt.Sprintf("socket;native;%s,0,%s", j, i)
 			bpfInputBad := fmt.Sprintf("socket;native;%s,0,99", j)
-			s.runBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
-			s.runBpf(c, seccompWhitelist, bpfInputBad, main.SeccompRetKill)
+			s.runBpf(c, seccompWhitelist, bpfInputGood, Allow)
+			s.runBpf(c, seccompWhitelist, bpfInputBad, Deny)
 		}
 	}
 }
@@ -615,10 +618,10 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsQuotactl(c *C) {
 		// good input
 		seccompWhitelist := fmt.Sprintf("quotactl %s", arg)
 		bpfInputGood := fmt.Sprintf("quotactl;native;%s", arg)
-		s.runBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+		s.runBpf(c, seccompWhitelist, bpfInputGood, Allow)
 		// bad input
 		for _, bad := range []string{"quotactl;native;99999", "read;native;"} {
-			s.runBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
+			s.runBpf(c, seccompWhitelist, bad, Deny)
 		}
 	}
 }
@@ -629,22 +632,22 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsPrctl(c *C) {
 		// good input
 		seccompWhitelist := fmt.Sprintf("prctl %s", arg)
 		bpfInputGood := fmt.Sprintf("prctl;native;%s", arg)
-		s.runBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+		s.runBpf(c, seccompWhitelist, bpfInputGood, Allow)
 		// bad input
 		for _, bad := range []string{"prctl;native;99999", "setpriority;native;"} {
-			s.runBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
+			s.runBpf(c, seccompWhitelist, bad, Deny)
 		}
 
 		if arg == "PR_CAP_AMBIENT" {
 			for _, j := range []string{"PR_CAP_AMBIENT_RAISE", "PR_CAP_AMBIENT_LOWER", "PR_CAP_AMBIENT_IS_SET", "PR_CAP_AMBIENT_CLEAR_ALL"} {
 				seccompWhitelist := fmt.Sprintf("prctl %s %s", arg, j)
 				bpfInputGood := fmt.Sprintf("prctl;native;%s,%s", arg, j)
-				s.runBpf(c, seccompWhitelist, bpfInputGood, main.SeccompRetAllow)
+				s.runBpf(c, seccompWhitelist, bpfInputGood, Allow)
 				for _, bad := range []string{
 					fmt.Sprintf("prctl;native;%s,99999", arg),
 					"setpriority;native;",
 				} {
-					s.runBpf(c, seccompWhitelist, bad, main.SeccompRetKill)
+					s.runBpf(c, seccompWhitelist, bad, Deny)
 				}
 			}
 		}
@@ -659,19 +662,19 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsClone(c *C) {
 		expected         int
 	}{
 		// good input
-		{"setns - CLONE_NEWIPC", "setns;native;-,CLONE_NEWIPC", main.SeccompRetAllow},
-		{"setns - CLONE_NEWNET", "setns;native;-,CLONE_NEWNET", main.SeccompRetAllow},
-		{"setns - CLONE_NEWNS", "setns;native;-,CLONE_NEWNS", main.SeccompRetAllow},
-		{"setns - CLONE_NEWPID", "setns;native;-,CLONE_NEWPID", main.SeccompRetAllow},
-		{"setns - CLONE_NEWUSER", "setns;native;-,CLONE_NEWUSER", main.SeccompRetAllow},
-		{"setns - CLONE_NEWUTS", "setns;native;-,CLONE_NEWUTS", main.SeccompRetAllow},
+		{"setns - CLONE_NEWIPC", "setns;native;-,CLONE_NEWIPC", Allow},
+		{"setns - CLONE_NEWNET", "setns;native;-,CLONE_NEWNET", Allow},
+		{"setns - CLONE_NEWNS", "setns;native;-,CLONE_NEWNS", Allow},
+		{"setns - CLONE_NEWPID", "setns;native;-,CLONE_NEWPID", Allow},
+		{"setns - CLONE_NEWUSER", "setns;native;-,CLONE_NEWUSER", Allow},
+		{"setns - CLONE_NEWUTS", "setns;native;-,CLONE_NEWUTS", Allow},
 		// bad input
-		{"setns - CLONE_NEWIPC", "setns;native;-,99", main.SeccompRetKill},
-		{"setns - CLONE_NEWNET", "setns;native;-,99", main.SeccompRetKill},
-		{"setns - CLONE_NEWNS", "setns;native;-,99", main.SeccompRetKill},
-		{"setns - CLONE_NEWPID", "setns;native;-,99", main.SeccompRetKill},
-		{"setns - CLONE_NEWUSER", "setns;native;-,99", main.SeccompRetKill},
-		{"setns - CLONE_NEWUTS", "setns;native;-,99", main.SeccompRetKill},
+		{"setns - CLONE_NEWIPC", "setns;native;-,99", Deny},
+		{"setns - CLONE_NEWNET", "setns;native;-,99", Deny},
+		{"setns - CLONE_NEWNS", "setns;native;-,99", Deny},
+		{"setns - CLONE_NEWPID", "setns;native;-,99", Deny},
+		{"setns - CLONE_NEWUSER", "setns;native;-,99", Deny},
+		{"setns - CLONE_NEWUTS", "setns;native;-,99", Deny},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
@@ -685,17 +688,17 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsMknod(c *C) {
 		expected         int
 	}{
 		// good input
-		{"mknod - S_IFREG", "mknod;native;-,S_IFREG", main.SeccompRetAllow},
-		{"mknod - S_IFCHR", "mknod;native;-,S_IFCHR", main.SeccompRetAllow},
-		{"mknod - S_IFBLK", "mknod;native;-,S_IFBLK", main.SeccompRetAllow},
-		{"mknod - S_IFIFO", "mknod;native;-,S_IFIFO", main.SeccompRetAllow},
-		{"mknod - S_IFSOCK", "mknod;native;-,S_IFSOCK", main.SeccompRetAllow},
+		{"mknod - S_IFREG", "mknod;native;-,S_IFREG", Allow},
+		{"mknod - S_IFCHR", "mknod;native;-,S_IFCHR", Allow},
+		{"mknod - S_IFBLK", "mknod;native;-,S_IFBLK", Allow},
+		{"mknod - S_IFIFO", "mknod;native;-,S_IFIFO", Allow},
+		{"mknod - S_IFSOCK", "mknod;native;-,S_IFSOCK", Allow},
 		// bad input
-		{"mknod - S_IFREG", "mknod;native;-,999", main.SeccompRetKill},
-		{"mknod - S_IFCHR", "mknod;native;-,999", main.SeccompRetKill},
-		{"mknod - S_IFBLK", "mknod;native;-,999", main.SeccompRetKill},
-		{"mknod - S_IFIFO", "mknod;native;-,999", main.SeccompRetKill},
-		{"mknod - S_IFSOCK", "mknod;native;-,999", main.SeccompRetKill},
+		{"mknod - S_IFREG", "mknod;native;-,999", Deny},
+		{"mknod - S_IFCHR", "mknod;native;-,999", Deny},
+		{"mknod - S_IFBLK", "mknod;native;-,999", Deny},
+		{"mknod - S_IFIFO", "mknod;native;-,999", Deny},
+		{"mknod - S_IFSOCK", "mknod;native;-,999", Deny},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
@@ -709,13 +712,13 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsPrio(c *C) {
 		expected         int
 	}{
 		// good input
-		{"setpriority PRIO_PROCESS", "setpriority;native;PRIO_PROCESS", main.SeccompRetAllow},
-		{"setpriority PRIO_PGRP", "setpriority;native;PRIO_PGRP", main.SeccompRetAllow},
-		{"setpriority PRIO_USER", "setpriority;native;PRIO_USER", main.SeccompRetAllow},
+		{"setpriority PRIO_PROCESS", "setpriority;native;PRIO_PROCESS", Allow},
+		{"setpriority PRIO_PGRP", "setpriority;native;PRIO_PGRP", Allow},
+		{"setpriority PRIO_USER", "setpriority;native;PRIO_USER", Allow},
 		// bad input
-		{"setpriority PRIO_PROCESS", "setpriority;native;99", main.SeccompRetKill},
-		{"setpriority PRIO_PGRP", "setpriority;native;99", main.SeccompRetKill},
-		{"setpriority PRIO_USER", "setpriority;native;99", main.SeccompRetKill},
+		{"setpriority PRIO_PROCESS", "setpriority;native;99", Deny},
+		{"setpriority PRIO_PGRP", "setpriority;native;99", Deny},
+		{"setpriority PRIO_USER", "setpriority;native;99", Deny},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
@@ -729,9 +732,9 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsTermios(c *C) {
 		expected         int
 	}{
 		// good input
-		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", main.SeccompRetAllow},
+		{"ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", Allow},
 		// bad input
-		{"ioctl - TIOCSTI", "quotactl;native;-,99", main.SeccompRetKill},
+		{"ioctl - TIOCSTI", "quotactl;native;-,99", Deny},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
@@ -750,17 +753,15 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
 	}{
 		// good input. 'root' is guaranteed to be '0' and 'daemon' uid
 		// was determined at runtime
-		{"setuid u:root", "setuid;native;0", main.SeccompRetAllow},
-		{"setuid u:daemon", fmt.Sprintf("setuid;native;%v", daemonUid),
-			main.SeccompRetAllow},
-		{"setgid g:root", "setgid;native;0", main.SeccompRetAllow},
-		{"setgid g:daemon", fmt.Sprintf("setgid;native;%v", daemonUid),
-			main.SeccompRetAllow},
+		{"setuid u:root", "setuid;native;0", Allow},
+		{"setuid u:daemon", fmt.Sprintf("setuid;native;%v", daemonUid), Allow},
+		{"setgid g:root", "setgid;native;0", Allow},
+		{"setgid g:daemon", fmt.Sprintf("setgid;native;%v", daemonUid), Allow},
 		// bad input
-		{"setuid u:root", "setuid;native;99", main.SeccompRetKill},
-		{"setuid u:daemon", "setuid;native;99", main.SeccompRetKill},
-		{"setgid g:root", "setgid;native;99", main.SeccompRetKill},
-		{"setgid g:daemon", "setgid;native;99", main.SeccompRetKill},
+		{"setuid u:root", "setuid;native;99", Deny},
+		{"setuid u:daemon", "setuid;native;99", Deny},
+		{"setgid g:root", "setgid;native;99", Deny},
+		{"setgid g:daemon", "setgid;native;99", Deny},
 	} {
 		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
@@ -774,8 +775,8 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 		expected         int
 	}{
 		// on amd64 we add compat i386
-		{"amd64", "read", "read;i386", main.SeccompRetAllow},
-		{"amd64", "read", "read;amd64", main.SeccompRetAllow},
+		{"amd64", "read", "read;i386", Allow},
+		{"amd64", "read", "read;amd64", Allow},
 	} {
 		// It is tricky to mock the architecture here because
 		// seccomp is always adding the native arch to the seccomp
