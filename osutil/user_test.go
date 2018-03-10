@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/testutil"
+	"os/exec"
 )
 
 type createUserSuite struct {
@@ -204,4 +205,72 @@ func (s *createUserSuite) TestUidGid(c *check.C) {
 			c.Check(err, check.ErrorMatches, ".*"+t.Err+".*", check.Commentf(k))
 		}
 	}
+}
+
+func (createUserSuite) TestNoDropPrivsIfNotRoot(c *check.C) {
+	var chownedPaths []string
+
+	defer osutil.MockSysGetuid(1)()
+	defer osutil.MockSysChownPath(func(path string, _ sys.UserID, _ sys.GroupID) error {
+		chownedPaths = append(chownedPaths, path)
+		return nil
+	})()
+
+	cmd := exec.Command("/xyzzy", "blah")
+	c.Assert(osutil.DropPrivs(cmd, "/a/b/c"), check.IsNil)
+	c.Check(cmd.Args, check.DeepEquals, []string{"/xyzzy", "blah"})
+	c.Check(chownedPaths, check.IsNil)
+}
+
+func (createUserSuite) TestDropPrivsIfRoot(c *check.C) {
+	var chownedPaths []string
+
+	defer osutil.MockSysGetuid(0)()
+	defer osutil.MockSysChownPath(func(path string, _ sys.UserID, _ sys.GroupID) error {
+		chownedPaths = append(chownedPaths, path)
+		return nil
+	})()
+
+	cmd := exec.Command("/xyzzy", "blah")
+	c.Assert(osutil.DropPrivs(cmd, "/a/b/c"), check.IsNil)
+	c.Check(cmd.Args, check.DeepEquals, []string{"/usr/bin/sudo", "--user=snappypkg", "/xyzzy", "blah"})
+	c.Check(chownedPaths, check.DeepEquals, []string{"/a/b/c"})
+}
+
+func (createUserSuite) TestDropPrivesBailsIfNoSnappypkg(c *check.C) {
+	defer osutil.MockSysGetuid(0)()
+	defer osutil.MockUserLookup(func(string) (*user.User, error) {
+		return nil, user.UnknownUserError("?")
+	})()
+
+	cmd := exec.Command("/xyzzy", "blah")
+	c.Check(osutil.DropPrivs(cmd, "/a/b/c"), check.Equals, user.UnknownUserError("?"))
+}
+
+func (createUserSuite) TestDropPrivesBailsIfFunkySnappypkg(c *check.C) {
+	defer osutil.MockSysGetuid(0)()
+	defer osutil.MockUserLookup(func(string) (*user.User, error) {
+		return &user.User{Uid: " funky chicken "}, nil
+	})()
+
+	cmd := exec.Command("/xyzzy", "blah")
+	c.Check(osutil.DropPrivs(cmd, "/a/b/c"), check.ErrorMatches, ".* funky chicken .*")
+}
+
+func (createUserSuite) TestDropPrivesBailsIfNoSudo(c *check.C) {
+	defer osutil.MockSysGetuid(0)()
+
+	path := os.Getenv("PATH")
+	os.Unsetenv("PATH")
+	defer os.Setenv("PATH", path)
+
+	cmd := exec.Command("/xyzzy", "blah")
+	c.Check(osutil.DropPrivs(cmd, "/a/b/c"), check.ErrorMatches, ".* executable file not found .*")
+}
+
+func (createUserSuite) TestDropPrivsBailsIfChownFails(c *check.C) {
+	defer osutil.MockSysGetuid(0)()
+
+	cmd := exec.Command("/xyzzy", "blah")
+	c.Check(osutil.DropPrivs(cmd, "/nonexistent"), check.ErrorMatches, "cannot chown .* no such file or directory")
 }

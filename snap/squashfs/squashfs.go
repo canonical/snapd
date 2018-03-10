@@ -163,7 +163,12 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
-	if err := exec.Command("unsquashfs", "-i", "-d", unpackDir, s.path, filePath).Run(); err != nil {
+
+	cmd := exec.Command("unsquashfs", "-i", "-d", unpackDir, s.path, filePath)
+	if err := osutil.DropPrivs(cmd, s.path, tmpdir); err != nil {
+		return nil, err
+	}
+	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
 
@@ -210,6 +215,9 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 		cmd = exec.Command("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path)
 	} else {
 		cmd = exec.Command("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path, relative)
+	}
+	if err := osutil.DropPrivs(cmd, s.path); err != nil {
+		return err
 	}
 	cmd.Env = []string{"TZ=UTC"}
 	stdout, err := cmd.StdoutPipe()
@@ -265,8 +273,11 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 
 // ListDir returns the content of a single directory inside a squashfs snap.
 func (s *Snap) ListDir(dirPath string) ([]string, error) {
-	output, err := exec.Command(
-		"unsquashfs", "-no-progress", "-dest", "_", "-l", s.path, dirPath).CombinedOutput()
+	cmd := exec.Command("unsquashfs", "-no-progress", "-dest", "_", "-l", s.path, dirPath)
+	if err := osutil.DropPrivs(cmd, s.path); err != nil {
+		return nil, err
+	}
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, osutil.OutputErr(output, err)
 	}
@@ -322,6 +333,9 @@ func BuildDate(path string) time.Time {
 	}
 
 	cmd := exec.Command("unsquashfs", "-s", path)
+	if err := osutil.DropPrivs(cmd, path); err != nil {
+		return t0
+	}
 	cmd.Env = []string{"TZ=UTC"}
 	cmd.Stdout = m
 	cmd.Stderr = m

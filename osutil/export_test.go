@@ -145,3 +145,17 @@ func MockEtcFstab(text string) (restore func()) {
 		etcFstab = old
 	}
 }
+
+func MockSysGetuid(uid sys.UserID) func() {
+	real := sysGetuid
+	sysGetuid = func() sys.UserID { return uid }
+
+	return func() { sysGetuid = real }
+}
+
+func MockSysChownPath(mock func(string, sys.UserID, sys.GroupID) error) func() {
+	real := sysChownPath
+	sysChownPath = mock
+
+	return func() { sysChownPath = real }
+}

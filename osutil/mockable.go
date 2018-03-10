@@ -23,6 +23,8 @@ import (
 	"os"
 	"os/user"
 	"syscall"
+
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 const (
@@ -36,6 +38,8 @@ var (
 
 	osReadlink = os.Readlink
 
+	sysGetuid      = sys.Getuid
+	sysChownPath   = sys.ChownPath
 	syscallKill    = syscall.Kill
 	syscallGetpgid = syscall.Getpgid
 
