@@ -206,8 +206,13 @@ func okPrice(s string) bool {
 }
 
 func u4(in []byte) rune {
-	// we know it's the right length and correct hex thanks to json
-	u, _ := strconv.ParseUint(string(in[2:6]), 16, 32)
+	if len(in) < 6 || in[0] != '\\' || in[1] != 'u' {
+		return -1
+	}
+	u, err := strconv.ParseUint(string(in[2:6]), 16, 32)
+	if err != nil {
+		return -1
+	}
 	return rune(u)
 }
 
@@ -219,13 +224,12 @@ type uOpt struct {
 func unmarshal(in []byte, o uOpt) (string, error) {
 	// heavily based on (inspired by?) unquoteBytes from encoding/json
 
-	// note that by the time we're called the json package has
-	// already checked it's valid JSON so a lot of checks done
-	// there are not needed here
-
-	// maybe it's a null and that's alright
-	if len(in) == 4 && in[0] == 'n' && in[1] == 'u' && in[2] == 'l' && in[3] == 'l' {
-		return "", nil
+	if len(in) < 2 || in[0] != '"' || in[len(in)-1] != '"' {
+		// maybe it's a null and that's alright
+		if len(in) == 4 && in[0] == 'n' && in[1] == 'u' && in[2] == 'l' && in[3] == 'l' {
+			return "", nil
+		}
+		return "", fmt.Errorf("missing string delimiters: %q", in)
 	}
 
 	// prune the quotes
@@ -233,8 +237,9 @@ func unmarshal(in []byte, o uOpt) (string, error) {
 	i := 0
 	// try the fast track
 	for i < len(in) {
+		// 0x00..0x19 is the first of Cc
 		// 0x20..0x7e is all of printable ASCII (minus control chars)
-		if in[i] > 0x7e || in[i] == '\\' {
+		if in[i] < 0x20 || in[i] > 0x7e || in[i] == '\\' || in[i] == '"' {
 			break
 		}
 		i++
@@ -255,17 +260,38 @@ func unmarshal(in []byte, o uOpt) (string, error) {
 	var ubuf [utf8.UTFMax]byte
 	for i < len(in) {
 		switch c = in[i]; {
+		case c == '"':
+			return "", fmt.Errorf("unexpected unescaped quote at %d in \"%s\"", i, in)
+		case c < 0x20:
+			return "", fmt.Errorf("unexpected control character at %d in %q", i, in)
 		case c == '\\':
 			// handle escapes
 			i++
+			if i == len(in) {
+				return "", fmt.Errorf("unexpected end of string (trailing backslash) in \"%s\"", in)
+			}
 			switch in[i] {
 			case 'u':
 				// oh dear, a unicode wotsit
 				r = u4(in[i-1:])
+				if r < 0 {
+					x := in[i-1:]
+					if len(x) > 6 {
+						x = x[:6]
+					}
+					return "", fmt.Errorf(`badly formed \u escape %q at %d of "%s"`, x, i, in)
+				}
 				i += 5
 				if utf16.IsSurrogate(r) {
 					// sigh
 					r2 = u4(in[i:])
+					if r2 < 0 {
+						x := in[i:]
+						if len(x) > 6 {
+							x = x[:6]
+						}
+						return "", fmt.Errorf(`badly formed \u escape %q at %d of "%s"`, x, i, in)
+					}
 					i += 6
 					r = utf16.DecodeRune(r, r2)
 				}
@@ -291,6 +317,8 @@ func unmarshal(in []byte, o uOpt) (string, error) {
 				// but go adds ' to the list (why?!)
 				out = append(out, in[i])
 				i++
+			default:
+				return "", fmt.Errorf(`unknown escape '%c' at %d of "%s"`, in[i], i, in)
 			}
 		case c <= 0x7e:
 			// printable ASCII, except " or \
