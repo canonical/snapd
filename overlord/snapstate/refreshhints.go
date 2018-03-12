@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -40,11 +41,7 @@ func newRefreshHints(st *state.State) *refreshHints {
 }
 
 func (r *refreshHints) lastRefresh(timestampKey string) (time.Time, error) {
-	var lastRefresh time.Time
-	if err := r.state.Get(timestampKey, &lastRefresh); err != nil && err != state.ErrNoState {
-		return time.Time{}, err
-	}
-	return lastRefresh, nil
+	return getTime(r.state, timestampKey)
 }
 
 func (r *refreshHints) needsUpdate() (bool, error) {
@@ -73,6 +70,14 @@ func (r *refreshHints) refresh() error {
 	// error. In the future we may retry with a backoff.
 	r.state.Set("last-refresh-hints", time.Now())
 	return err
+}
+
+// AtSeed configures hints refresh policies at end of seeding.
+func (r *refreshHints) AtSeed() {
+	// on classic hold hints refreshes for a full 24h
+	if release.OnClassic {
+		r.state.Set("last-refresh-hints", time.Now())
+	}
 }
 
 // Ensure will ensure that refresh hints are available on a regular

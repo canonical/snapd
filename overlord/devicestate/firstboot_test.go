@@ -256,8 +256,17 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudIns
 	c.Assert(err, IsNil)
 	c.Check(seeded, Equals, true)
 
-	// check captured cloud information
+	// check that refresh policies have run in this case
+	// from SnapManager.AtSeed
+	var t1 time.Time
+	err = st.Get("last-refresh-hints", &t1)
+	c.Check(err, IsNil)
 	tr := config.NewTransaction(st)
+	err = tr.Get("core", "refresh.hold", &t1)
+	c.Check(err, IsNil)
+
+	// check captured cloud information
+	tr = config.NewTransaction(st)
 	var cloud auth.CloudInfo
 	err = tr.Get("core", "cloud", &cloud)
 	c.Assert(err, IsNil)
