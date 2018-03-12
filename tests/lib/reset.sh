@@ -101,7 +101,9 @@ reset_all_snap() {
                 if ! systemctl status snapd.service snapd.socket; then
                     systemctl start snapd.service snapd.socket
                 fi
-                snap remove "$snap"
+                if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
+                    snap remove "$snap"
+                fi
                 ;;
         esac
     done
