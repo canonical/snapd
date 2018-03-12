@@ -131,6 +131,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.user2, err = auth.NewUser(s.state, "username2", "email2@test.com", "macaroon2", []string{"discharge2"})
 	c.Assert(err, IsNil)
 
+	s.state.Set("seed-time", time.Now())
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
