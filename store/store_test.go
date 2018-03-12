@@ -1038,9 +1038,9 @@ func (s *storeTestSuite) TestUseDeltas(c *C) {
 		wantDelta bool
 	}{
 		{env: "", classic: false, exeInHost: false, exeInCore: false, wantDelta: false},
-		{env: "", classic: false, exeInHost: false, exeInCore: true, wantDelta: false},
-		{env: "", classic: false, exeInHost: true, exeInCore: false, wantDelta: false},
-		{env: "", classic: false, exeInHost: true, exeInCore: true, wantDelta: false},
+		{env: "", classic: false, exeInHost: false, exeInCore: true, wantDelta: true},
+		{env: "", classic: false, exeInHost: true, exeInCore: false, wantDelta: true},
+		{env: "", classic: false, exeInHost: true, exeInCore: true, wantDelta: true},
 		{env: "", classic: true, exeInHost: false, exeInCore: false, wantDelta: false},
 		{env: "", classic: true, exeInHost: false, exeInCore: true, wantDelta: true},
 		{env: "", classic: true, exeInHost: true, exeInCore: false, wantDelta: true},
@@ -2033,7 +2033,7 @@ func (s *storeTestSuite) TestDetails(c *C) {
 		c.Check(r.URL.Path, Matches, ".*/hello-world")
 
 		c.Check(r.URL.Query().Get("channel"), Equals, "edge")
-		c.Check(r.URL.Query().Get("fields"), Equals, "abc,def")
+		c.Check(r.URL.Query().Get("fields"), Equals, "abc,def,snap_yaml_raw")
 
 		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, release.Series)
 		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, arch.UbuntuArchitecture())
@@ -2628,6 +2628,14 @@ func (s *storeTestSuite) TestStructFields(c *C) {
 		Bar int `json:"potato,stuff"`
 	}
 	c.Assert(getStructFields(aStruct{}), DeepEquals, []string{"hello", "potato"})
+}
+
+func (s *storeTestSuite) TestStructFieldsExcept(c *C) {
+	type aStruct struct {
+		Foo int `json:"hello"`
+		Bar int `json:"potato,stuff"`
+	}
+	c.Assert(getStructFields(aStruct{}, "potato"), DeepEquals, []string{"hello"})
 }
 
 /* acquired via:
@@ -4028,7 +4036,7 @@ func (s *storeTestSuite) TestDefaultsDeltasOnClassicOnly(c *C) {
 		onClassic      bool
 		deltaFormatStr string
 	}{
-		{false, ""},
+		{true, "xdelta3"},
 		{true, "xdelta3"},
 	} {
 		restore := release.MockOnClassic(t.onClassic)
@@ -4080,7 +4088,7 @@ func (s *storeTestSuite) TestListRefreshWithDeltas(c *C) {
 			"epoch":       "0",
 			"confinement": "",
 		})
-		c.Assert(resp.Fields, DeepEquals, getStructFields(snapDetails{}))
+		c.Assert(resp.Fields, DeepEquals, getStructFields(snapDetails{}, "snap_yaml_raw"))
 
 		io.WriteString(w, MockUpdatesWithDeltasJSON)
 	}))

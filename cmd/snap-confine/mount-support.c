@@ -43,6 +43,7 @@
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
 #include "mount-support-nvidia.h"
+#include "apparmor-support.h"
 #include "quirks.h"
 
 #define MAX_BUF 1000
@@ -146,7 +147,8 @@ static void setup_private_pts(void)
  * not as powerful), to a copy of snap-update-ns. The program is opened before
  * the root filesystem is pivoted so that it is easier to pick the right copy.
  **/
-static void sc_setup_mount_profiles(int snap_update_ns_fd,
+static void sc_setup_mount_profiles(struct sc_apparmor *apparmor,
+				    int snap_update_ns_fd,
 				    const char *snap_name)
 {
 	debug("calling snap-update-ns to initialize mount namespace");
@@ -155,7 +157,13 @@ static void sc_setup_mount_profiles(int snap_update_ns_fd,
 		die("cannot fork to run snap-update-ns");
 	}
 	if (child == 0) {
-		// We are the child, execute snap-update-ns
+		// We are the child, execute snap-update-ns under a dedicated profile.
+		char profile[PATH_MAX] = { 0 };
+		sc_must_snprintf(profile, sizeof profile, "snap-update-ns.%s",
+				 snap_name);
+		debug("launching snap-update-ns under per-snap profile %s",
+		      profile);
+		sc_maybe_aa_change_onexec(apparmor, profile);
 		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
 		snap_name_copy = strdup(snap_name);
 		if (snap_name_copy == NULL) {
@@ -563,8 +571,8 @@ int sc_open_snap_update_ns(void)
 	return fd;
 }
 
-void sc_populate_mount_ns(int snap_update_ns_fd, const char *base_snap_name,
-			  const char *snap_name)
+void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
+			  const char *base_snap_name, const char *snap_name)
 {
 	// Get the current working directory before we start fiddling with
 	// mounts and possibly pivot_root.  At the end of the whole process, we
@@ -662,7 +670,7 @@ void sc_populate_mount_ns(int snap_update_ns_fd, const char *base_snap_name,
 		sc_setup_quirks();
 	}
 	// setup the security backend bind mounts
-	sc_setup_mount_profiles(snap_update_ns_fd, snap_name);
+	sc_setup_mount_profiles(apparmor, snap_update_ns_fd, snap_name);
 
 	// Try to re-locate back to vanilla working directory. This can fail
 	// because that directory is no longer present.

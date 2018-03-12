@@ -22,7 +22,6 @@ restore: |
     clean_file /dev/linux-kernel-bde
     clean_file /dev/linux-bcm-knet
 
-    clean_dir /sys/devices/pci00test/
     clean_file "/run/udev/data/+pci:0test"
 
 execute: |
@@ -57,7 +56,9 @@ execute: |
         done
     fi
 
-    test-snapd-broadcom-asic-control.sh -c "ls /sys/bus/pci/devices/"
+    if [ -d /sys/bus/pci/devices ]; then
+        test-snapd-broadcom-asic-control.sh -c "ls /sys/bus/pci/devices/"
+    fi
     test-snapd-broadcom-asic-control.sh -c "cat /run/udev/data/+pci:0test"
 
     if [ "$(snap debug confinement)" = partial ] ; then

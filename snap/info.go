@@ -559,6 +559,8 @@ type AppInfo struct {
 	Before []string
 
 	Timer *TimerInfo
+
+	Autostart string
 }
 
 // ScreenshotInfo provides information about a screenshot.
