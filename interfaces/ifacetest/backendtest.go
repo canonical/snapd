@@ -99,6 +99,7 @@ slots:
 `
 const SambaYamlWithHook = `
 name: samba
+version: 0
 apps:
     smbd:
     nmbd:

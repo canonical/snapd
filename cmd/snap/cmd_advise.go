@@ -40,7 +40,7 @@ type cmdAdviseSnap struct {
 
 var shortAdviseSnapHelp = i18n.G("Advise on available snaps.")
 var longAdviseSnapHelp = i18n.G(`
-The advise-command command shows what snaps with the given command are 
+The advise-snap command shows what snaps with the given command are
 available.
 `)
 
@@ -88,14 +88,30 @@ func (x *cmdAdviseSnap) Execute(args []string) error {
 		return adviseCommand(x.Positionals.CommandOrPkg, x.Format)
 	}
 
-	return fmt.Errorf("snap advise-snap is only implemented with --command")
+	return advisePkg(x.Positionals.CommandOrPkg)
+}
+
+func advisePkg(pkgName string) error {
+	match, err := advisor.FindPackage(pkgName)
+	if err != nil {
+		return fmt.Errorf("advise for pkgname failed: %s", err)
+	}
+	if match != nil {
+		fmt.Fprintf(Stdout, i18n.G("Packages matching %q:\n"), pkgName)
+		fmt.Fprintf(Stdout, " * %s - %s\n", match.Snap, match.Summary)
+		fmt.Fprintf(Stdout, i18n.G("Try: snap install <selected snap>\n"))
+	}
+
+	// FIXME: find mispells
+
+	return nil
 }
 
 func adviseCommand(cmd string, format string) error {
 	// find exact matches
 	matches, err := advisor.FindCommand(cmd)
 	if err != nil {
-		return fmt.Errorf("advise-command error: %s", err)
+		return fmt.Errorf("advise for command failed: %s", err)
 	}
 	if len(matches) > 0 {
 		switch format {

@@ -31,7 +31,7 @@ import (
 
 type svcStatus struct {
 	Positional struct {
-		ServiceNames []serviceName `positional-arg-name:"<service>"`
+		ServiceNames []serviceName
 	} `positional-args:"yes"`
 }
 
@@ -39,25 +39,60 @@ type svcLogs struct {
 	N          string `short:"n" default:"10"`
 	Follow     bool   `short:"f"`
 	Positional struct {
-		ServiceNames []serviceName `positional-arg-name:"<service>" required:"1"`
+		ServiceNames []serviceName `required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 var (
 	shortServicesHelp = i18n.G("Query the status of services")
-	shortLogsHelp     = i18n.G("Retrieve logs of services")
-	shortStartHelp    = i18n.G("Start services")
-	shortStopHelp     = i18n.G("Stop services")
-	shortRestartHelp  = i18n.G("Restart services")
+	longServicesHelp  = i18n.G(`
+The services command lists information about the services specified, or about the services in all currently installed snaps.
+`)
+	shortLogsHelp = i18n.G("Retrieve logs of services")
+	longLogsHelp  = i18n.G(`
+The logs command fetches logs of the given services and displays them in chronological order.
+`)
+	shortStartHelp = i18n.G("Start services")
+	longStartHelp  = i18n.G(`
+The start command starts, and optionally enables, the given services.
+`)
+	shortStopHelp = i18n.G("Stop services")
+	longStopHelp  = i18n.G(`
+The stop command stops, and optionally disables, the given services.
+`)
+	shortRestartHelp = i18n.G("Restart services")
+	longRestartHelp  = i18n.G(`
+The restart command restarts the given services.
+
+If the --reload option is given, for each service whose app has a reload command, a reload is performed instead of a restart.
+`)
 )
 
 func init() {
-	addCommand("services", shortServicesHelp, "", func() flags.Commander { return &svcStatus{} }, nil, nil)
-	addCommand("logs", shortLogsHelp, "", func() flags.Commander { return &svcLogs{} }, nil, nil)
+	argdescs := []argDesc{{
+		// TRANSLATORS: This needs to be wrapped in <>s.
+		name: i18n.G("<service>"),
+		desc: i18n.G("A service specification, which can be just a snap name (for all services in the snap), or <snap>.<app> for a single service."),
+	}}
+	addCommand("services", shortServicesHelp, longServicesHelp, func() flags.Commander { return &svcStatus{} }, nil, argdescs)
+	addCommand("logs", shortLogsHelp, longLogsHelp, func() flags.Commander { return &svcLogs{} },
+		map[string]string{
+			"n": i18n.G("Show only the given number of lines, or 'all'."),
+			"f": i18n.G("Wait for new lines and print them as they come in."),
+		}, argdescs)
 
-	addCommand("start", shortStartHelp, "", func() flags.Commander { return &svcStart{} }, nil, nil)
-	addCommand("stop", shortStopHelp, "", func() flags.Commander { return &svcStop{} }, nil, nil)
-	addCommand("restart", shortRestartHelp, "", func() flags.Commander { return &svcRestart{} }, nil, nil)
+	addCommand("start", shortStartHelp, longStartHelp, func() flags.Commander { return &svcStart{} },
+		waitDescs.also(map[string]string{
+			"enable": i18n.G("As well as starting the service now, arrange for it to be started on boot."),
+		}), argdescs)
+	addCommand("stop", shortStopHelp, longStopHelp, func() flags.Commander { return &svcStop{} },
+		waitDescs.also(map[string]string{
+			"disable": i18n.G("As well as stopping the service now, arrange for it to no longer be started on boot."),
+		}), argdescs)
+	addCommand("restart", shortRestartHelp, longRestartHelp, func() flags.Commander { return &svcRestart{} },
+		waitDescs.also(map[string]string{
+			"reload": i18n.G("If the service has a reload command, use it instead of restarting."),
+		}), argdescs)
 }
 
 func svcNames(s []serviceName) []string {
@@ -81,7 +116,7 @@ func (s *svcStatus) Execute(args []string) error {
 	w := tabWriter()
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Snap\tService\tStartup\tCurrent"))
+	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent"))
 
 	for _, svc := range services {
 		startup := i18n.G("disabled")
@@ -92,7 +127,7 @@ func (s *svcStatus) Execute(args []string) error {
 		if svc.Active {
 			current = i18n.G("active")
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current)
+		fmt.Fprintf(w, "%s.%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current)
 	}
 
 	return nil
@@ -127,7 +162,7 @@ func (s *svcLogs) Execute(args []string) error {
 type svcStart struct {
 	waitMixin
 	Positional struct {
-		ServiceNames []serviceName `positional-arg-name:"<service>" required:"1"`
+		ServiceNames []serviceName `required:"1"`
 	} `positional-args:"yes" required:"yes"`
 	Enable bool `long:"enable"`
 }
@@ -157,7 +192,7 @@ func (s *svcStart) Execute(args []string) error {
 type svcStop struct {
 	waitMixin
 	Positional struct {
-		ServiceNames []serviceName `positional-arg-name:"<service>" required:"1"`
+		ServiceNames []serviceName `required:"1"`
 	} `positional-args:"yes" required:"yes"`
 	Disable bool `long:"disable"`
 }
@@ -187,7 +222,7 @@ func (s *svcStop) Execute(args []string) error {
 type svcRestart struct {
 	waitMixin
 	Positional struct {
-		ServiceNames []serviceName `positional-arg-name:"<service>" required:"1"`
+		ServiceNames []serviceName `required:"1"`
 	} `positional-args:"yes" required:"yes"`
 	Reload bool `long:"reload"`
 }

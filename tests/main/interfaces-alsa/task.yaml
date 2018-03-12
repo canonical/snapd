@@ -37,6 +37,11 @@ execute: |
     snap connect generic-consumer:alsa
     snap interfaces | MATCH "$CONNECTED_PATTERN"
 
+    if ! [ -d /dev/snd/ ]; then
+        echo "No sound devices available in the system"
+        exit 0
+    fi
+
     echo "Then the snap is able to access snd devices"
     mkdir -p /dev/snd
     generic-consumer.cmd touch /dev/snd/mysnd-dev

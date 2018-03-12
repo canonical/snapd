@@ -46,11 +46,35 @@ type DialogOptions struct {
 	Timeout time.Duration
 }
 
+var hasZenityExecutable = func() bool {
+	return osutil.ExecutableExists("zenity")
+}
+
+var hasKDialogExecutable = func() bool {
+	return osutil.ExecutableExists("kdialog")
+}
+
+func MockHasZenityExecutable(f func() bool) func() {
+	oldHasZenityExecutable := hasZenityExecutable
+	hasZenityExecutable := f
+	return func() {
+		hasZenityExecutable = oldHasZenityExecutable
+	}
+}
+
+func MockHasKDialogExecutable(f func() bool) func() {
+	oldHasKDialogExecutable := hasKDialogExecutable
+	hasKDialogExecutable := f
+	return func() {
+		hasKDialogExecutable = oldHasKDialogExecutable
+	}
+}
+
 // New returns the best matching UI interface for the given system
 // or an error if no ui can be created.
 func New() (UI, error) {
-	hasZenity := osutil.ExecutableExists("zenity")
-	hasKDialog := osutil.ExecutableExists("kdialog")
+	hasZenity := hasZenityExecutable()
+	hasKDialog := hasKDialogExecutable()
 
 	switch {
 	case hasZenity && hasKDialog:

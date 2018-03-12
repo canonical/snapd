@@ -3,10 +3,10 @@ summary: Check that execle doesn't regress
 systems: [-debian-8]
 details: |
  The setup for this test is unorthodox because by the time the cgroup code is
- executed, the mounts are in place and /lib/udev/snappy-app-dev from the core
+ executed, the mounts are in place and /lib/udev/snap-device-helper from the core
  snap is used. Unfortunately, simple bind mounts over
  /snap/ubuntu-core/current/lib/udev don't work and the core snap must be
- unpacked, lib/udev/snappy-app-dev modified to be tested, repacked and mounted.
+ unpacked, lib/udev/snap-device-helper modified to be tested, repacked and mounted.
  We unmount the core snap and move it aside to avoid both the original and the
  updated core snap from being mounted on the same mount point, which confuses
  the kernel.
@@ -23,10 +23,10 @@ prepare: |
     echo "Unmount original core snap"
     umount $(ls -1d /snap/ubuntu-core/* | grep -v current | tail -1)
     mv $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap | tail -1) $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap | tail -1).orig
-    echo "Create modified core snap for snappy-app-dev"
+    echo "Create modified core snap for snap-device-helper"
     unsquashfs $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap.orig | tail -1)
-    echo 'echo PATH=$PATH > /run/udev/spread-test.out' >> ./squashfs-root/lib/udev/snappy-app-dev
-    echo 'echo TESTVAR=$TESTVAR >> /run/udev/spread-test.out' >> ./squashfs-root/lib/udev/snappy-app-dev
+    echo 'echo PATH=$PATH > /run/udev/spread-test.out' >> ./squashfs-root/lib/udev/snap-device-helper
+    echo 'echo TESTVAR=$TESTVAR >> /run/udev/spread-test.out' >> ./squashfs-root/lib/udev/snap-device-helper
     mksquashfs ./squashfs-root $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap.orig | tail -1 | sed 's/.orig//') -comp xz -no-fragments
     if [ ! -e $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap | tail -1) ]; then exit 1; fi
     echo "Mount modified core snap"

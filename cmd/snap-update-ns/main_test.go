@@ -30,7 +30,8 @@ import (
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -67,9 +68,7 @@ func (s *mainSuite) TestComputeAndSaveChanges(c *C) {
 	err = update.ComputeAndSaveChanges(snapName)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(currentProfilePath)
-	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, `/var/lib/snapd/hostfs/usr/local/share/fonts /usr/local/share/fonts none bind,ro 0 0
+	c.Check(currentProfilePath, testutil.FileEquals, `/var/lib/snapd/hostfs/usr/local/share/fonts /usr/local/share/fonts none bind,ro 0 0
 /var/lib/snapd/hostfs/usr/share/fonts /usr/share/fonts none bind,ro 0 0
 `)
 }
@@ -105,14 +104,14 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 		// The change that we were asked to perform is to create a bind mount
 		// from within the snap to /usr/share/mysnap.
 		c.Assert(chg, DeepEquals, &update.Change{
-			Action: update.Mount, Entry: mount.Entry{
+			Action: update.Mount, Entry: osutil.MountEntry{
 				Name: "/snap/mysnap/42/usr/share/mysnap",
 				Dir:  "/usr/share/mysnap", Type: "none",
 				Options: []string{"bind", "ro"}}})
 		synthetic := []*update.Change{
 			// The original directory (which was a part of the core snap and is
 			// read only) was hidden with a tmpfs.
-			{Action: update.Mount, Entry: mount.Entry{
+			{Action: update.Mount, Entry: osutil.MountEntry{
 				Dir: "/usr/share", Name: "tmpfs", Type: "tmpfs",
 				Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
 			// For the sake of brevity we will only represent a few of the
@@ -122,10 +121,10 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 			// original mount entries of /usr/share but this fact was lost.
 			// Again, the only point of this entry is to correctly perform an
 			// undo operation when /usr/share/mysnap is no longer needed.
-			{Action: update.Mount, Entry: mount.Entry{
+			{Action: update.Mount, Entry: osutil.MountEntry{
 				Dir: "/usr/share/adduser", Name: "/usr/share/adduser",
 				Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
-			{Action: update.Mount, Entry: mount.Entry{
+			{Action: update.Mount, Entry: osutil.MountEntry{
 				Dir: "/usr/share/awk", Name: "/usr/share/awk",
 				Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"}}},
 		}
@@ -135,9 +134,7 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 
 	c.Assert(update.ComputeAndSaveChanges(snapName), IsNil)
 
-	content, err := ioutil.ReadFile(currentProfilePath)
-	c.Assert(err, IsNil)
-	c.Check(string(content), Equals,
+	c.Check(currentProfilePath, testutil.FileEquals,
 		`tmpfs /usr/share tmpfs x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
 /usr/share/adduser /usr/share/adduser none bind,ro,x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
 /usr/share/awk /usr/share/awk none bind,ro,x-snapd.synthetic,x-snapd.needed-by=/usr/share/mysnap 0 0
@@ -170,12 +167,12 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 
 	n := -1
 	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
-		n += 1
+		n++
 		switch n {
 		case 0:
 			c.Assert(chg, DeepEquals, &update.Change{
 				Action: update.Unmount,
-				Entry: mount.Entry{
+				Entry: osutil.MountEntry{
 					Name: "/snap/mysnap/42/usr/share/mysnap",
 					Dir:  "/usr/share/mysnap", Type: "none",
 					Options: []string{"bind", "ro"},
@@ -184,7 +181,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 		case 1:
 			c.Assert(chg, DeepEquals, &update.Change{
 				Action: update.Unmount,
-				Entry: mount.Entry{
+				Entry: osutil.MountEntry{
 					Name: "/usr/share/awk", Dir: "/usr/share/awk", Type: "none",
 					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
 				},
@@ -192,7 +189,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 		case 2:
 			c.Assert(chg, DeepEquals, &update.Change{
 				Action: update.Unmount,
-				Entry: mount.Entry{
+				Entry: osutil.MountEntry{
 					Name: "/usr/share/adduser", Dir: "/usr/share/adduser", Type: "none",
 					Options: []string{"bind", "ro", "x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
 				},
@@ -200,7 +197,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 		case 3:
 			c.Assert(chg, DeepEquals, &update.Change{
 				Action: update.Unmount,
-				Entry: mount.Entry{
+				Entry: osutil.MountEntry{
 					Name: "tmpfs", Dir: "/usr/share", Type: "tmpfs",
 					Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/usr/share/mysnap"},
 				},
@@ -214,7 +211,47 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 
 	c.Assert(update.ComputeAndSaveChanges(snapName), IsNil)
 
-	content, err := ioutil.ReadFile(currentProfilePath)
-	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, "")
+	c.Check(currentProfilePath, testutil.FileEquals, "")
+}
+
+func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+
+	const snapName = "mysnap"
+	const currentProfileContent = ""
+	const desiredProfileContent = "/snap/mysnap/42/usr/share/mysnap /usr/share/mysnap none bind,ro,x-snapd.origin=layout 0 0"
+
+	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
+	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
+
+	c.Assert(os.MkdirAll(filepath.Dir(currentProfilePath), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(desiredProfilePath), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
+
+	n := -1
+	restore := update.MockChangePerform(func(chg *update.Change) ([]*update.Change, error) {
+		n++
+		switch n {
+		case 0:
+			c.Assert(chg, DeepEquals, &update.Change{
+				Action: update.Mount,
+				Entry: osutil.MountEntry{
+					Name: "/snap/mysnap/42/usr/share/mysnap",
+					Dir:  "/usr/share/mysnap", Type: "none",
+					Options: []string{"bind", "ro", "x-snapd.origin=layout"},
+				},
+			})
+			return nil, fmt.Errorf("testing")
+		default:
+			panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
+		}
+	})
+	defer restore()
+
+	// The error was not ignored, we bailed out.
+	c.Assert(update.ComputeAndSaveChanges(snapName), ErrorMatches, "testing")
+
+	c.Check(currentProfilePath, testutil.FileEquals, "")
 }

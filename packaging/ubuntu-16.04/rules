@@ -46,6 +46,8 @@ GOOS := $(shell go env GOOS)
 BUILDFLAGS:=
 GCCGOFLAGS=-gccgoflags="-I $(CURDIR)/_build/pkg/gccgo_$(GOOS)_$(GOARCH)/$(DH_GOPKG)/vendor"
 export DH_GOLANG_GO_GENERATE=0
+# workaround for https://github.com/golang/go/issues/23721
+export GOMAXPROCS=2
 endif
 
 # check if we need to include the testkeys in the binary
@@ -115,6 +117,8 @@ endif
 	$(MAKE) -C data clean
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
+	# XXX: hacky^2
+	(cd vendor/github.com/snapcore/squashfuse/src && rm -f snapfuse && make distclean || true )
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -122,6 +126,8 @@ override_dh_auto_build:
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
+
+	# this is the main go build
 	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 
 	# (static linking on powerpc with cgo is broken)
@@ -158,6 +164,9 @@ endif
 
 	# Generate the real systemd/dbus/env config files
 	$(MAKE) -C data all
+
+	# build squashfuse and rename to snapfuse
+	(cd vendor/github.com/snapcore/squashfuse/src && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse snapfuse)
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
