@@ -35,7 +35,9 @@ type escapeSuite struct{}
 var _ = check.Suite(escapeSuite{})
 
 var table = map[string]string{
+	"null":           "",
 	`"hello"`:        "hello",
+	`"árbol"`:        "árbol",
 	`"\u0020"`:       " ",
 	`"\uD83D\uDE00"`: "😀",
 	`"a\b\r\tb"`:     "ab",
@@ -58,7 +60,7 @@ func (escapeSuite) TestSimple(c *check.C) {
 	for j, s := range table {
 		comm := check.Commentf(j)
 		err := json.Unmarshal([]byte(j), &u)
-		if j != `"hello"` {
+		if j != `"hello"` && j != "null" {
 			// shouldn't work
 			c.Check(err, check.NotNil, comm)
 		} else {
@@ -79,32 +81,73 @@ func (escapeSuite) TestStrings(c *check.C) {
 }
 
 func (escapeSuite) TestBadStrings(c *check.C) {
-	table := []string{
-		// missing end quotes
-		``, `42`, `"`, `"hello`,
-		// unescaped quotes
-		`"""`,
-		// raw control characters
-		"\"\x1b[3mhello\x1b[m\"",
-		// escapewha
-		`"\'"`,
-		`"\u20"`,
+	var u1 puritan.String
+	var u2 puritan.SimpleString
+
+	cc0 := make([][]byte, 0x20)
+	for i := range cc0 {
+		cc0[i] = []byte{'"', byte(i), '"'}
+	}
+	badesc := make([][]byte, 0, 0x7f-0x21-9)
+	for c := byte(0x21); c < 0x7f; c++ {
+		switch c {
+		case '"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u':
+			continue
+		default:
+			badesc = append(badesc, []byte{'"', '\\', c, '"'})
+		}
+	}
+
+	table := map[string][][]byte{
+		// these are from json itself (so we're not checking them):
+		"invalid character '.+' in string literal":     cc0,
+		"invalid character '.+' in string escape code": badesc,
+		`invalid character '.+' in \\u .*`:             {[]byte(`"\u02"`), []byte(`"\u02zz"`)},
+		"invalid character '\"' after top-level value": {[]byte(`"""`)},
+		"unexpected end of JSON input":                 {[]byte(`"\"`)},
+	}
+
+	for e, js := range table {
+		for _, j := range js {
+			comm := check.Commentf("%q", j)
+			c.Check(json.Unmarshal(j, &u1), check.ErrorMatches, e, comm)
+			c.Check(json.Unmarshal(j, &u2), check.ErrorMatches, e, comm)
+		}
+	}
+
+}
+
+func (escapeSuite) xTestBadStrings(c *check.C) {
+	table := map[string][]string{
+		"xyzzy0": {``, `42`, `"`, `"hello`},
+		"xyzzy1": {`"""`},
+		"xyzzy2": {"\"\x1b[3mhello\x1b[m\""},
+		"xyzzy3": {`"\'"`},
+		"xyzzy4": {`"\u20"`},
 		// // not 8-bit clean
 		// `"\x9f"`,
 	}
 	var u1 puritan.String
 	var u2 puritan.SimpleString
-	for _, j := range table {
-		comm := check.Commentf("%q", j)
-		c.Check(json.Unmarshal([]byte(j), &u1), check.NotNil, comm)
-		c.Check(json.Unmarshal([]byte(j), &u2), check.NotNil, comm)
+	for e, js := range table {
+		for _, j := range js {
+			comm := check.Commentf("%q", j)
+			c.Check(json.Unmarshal([]byte(j), &u1), check.ErrorMatches, e, comm)
+			c.Check(json.Unmarshal([]byte(j), &u2), check.ErrorMatches, e, comm)
+		}
 	}
 }
 
 func (escapeSuite) TestParagraph(c *check.C) {
 	var u puritan.Paragraph
 	for j1, v1 := range table {
+		if j1 == "null" {
+			continue
+		}
 		for j2, v2 := range table {
+			if j2 == "null" {
+				continue
+			}
 			j := j1[:len(j1)-1] + "\\n" + j2[1:]
 			s := v1 + "\n" + v2
 
