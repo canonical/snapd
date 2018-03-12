@@ -441,7 +441,7 @@ autoreconf --force --install --verbose
     --enable-nvidia-biarch \
     %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
     --with-snap-mount-dir=%{_sharedstatedir}/snapd/snap \
-    --with-merged-usr
+    --enable-merged-usr
 
 %make_build
 popd
