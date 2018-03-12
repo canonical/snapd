@@ -333,6 +333,14 @@ prepare_project_each() {
     dmesg -c > /dev/null
 
     fixup_dev_random
+
+    # ensure the right core snap-confine profile is loaded
+    if [ -e /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine* ]; then
+        # force change in the file to trick apparmor cache
+        echo "" >> /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine*
+        # really load
+        apparmor_parser --skip-read-cache -r /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine*
+    fi
 }
 
 restore_project_each() {
