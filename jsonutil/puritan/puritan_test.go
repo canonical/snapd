@@ -42,7 +42,7 @@ var table = map[string]string{
 	`"\uD83D\uDE00"`: "😀",
 	`"a\b\r\tb"`:     "ab",
 	`"\\\""`:         `\"`,
-	// escape sequences (NOTE just the cotrol char is stripped)
+	// escape sequences (NOTE just the control char is stripped)
 	`"\u001b[3mhello\u001b[m"`: "[3mhello[m",
 	`"a\u0080z"`:               "az",
 	"\"a\u0080z\"":             "az",
@@ -67,6 +67,7 @@ func (escapeSuite) TestSimple(c *check.C) {
 			// should work
 			c.Assert(err, check.IsNil, comm)
 			c.Check(u.Clean(), check.Equals, s, comm)
+			c.Check(puritan.NewSimpleString(s), check.DeepEquals, u)
 		}
 	}
 }
@@ -77,6 +78,7 @@ func (escapeSuite) TestStrings(c *check.C) {
 		comm := check.Commentf(j)
 		c.Assert(json.Unmarshal([]byte(j), &u), check.IsNil, comm)
 		c.Check(u.Clean(), check.Equals, s, comm)
+		c.Check(puritan.NewString(s), check.DeepEquals, u, comm)
 	}
 }
 
@@ -141,15 +143,20 @@ func (escapeSuite) xTestBadStrings(c *check.C) {
 func (escapeSuite) TestParagraph(c *check.C) {
 	var u puritan.Paragraph
 	for j1, v1 := range table {
-		if j1 == "null" {
-			continue
-		}
 		for j2, v2 := range table {
-			if j2 == "null" {
+			if j2 == "null" && j1 != "null" {
 				continue
 			}
-			j := j1[:len(j1)-1] + "\\n" + j2[1:]
-			s := v1 + "\n" + v2
+
+			var j, s string
+
+			if j1 == "null" {
+				j = j2
+				s = v2
+			} else {
+				j = j1[:len(j1)-1] + "\\n" + j2[1:]
+				s = v1 + "\n" + v2
+			}
 
 			comm := check.Commentf(j)
 			c.Assert(json.Unmarshal([]byte(j), &u), check.IsNil, comm)
@@ -200,10 +207,23 @@ func (escapeSuite) TestOldPriceMap(c *check.C) {
 
 func (escapeSuite) TestPriceMapBad(c *check.C) {
 	var u puritan.PriceMap
-	for _, s := range []string{
-		`{"USD": "1+IVA"}`,
-		`{"XX": "3.14"}`,
+	for e, s := range map[string]string{
+		`json: cannot unmarshal.*`:    `{"USD": []}`,
+		`invalid price "1\+IVA"`:      `{"USD": "1+IVA"}`,
+		`invalid currency name "XX"`:  `{"XX": "3.14"}`,
+		`invalid currency name "eur"`: `{"eur": "2.0"}`,
 	} {
-		c.Check(json.Unmarshal([]byte(s), &u), check.NotNil)
+		c.Check(json.Unmarshal([]byte(s), &u), check.ErrorMatches, e)
+	}
+}
+
+func (escapeSuite) TestOldPriceMapBad(c *check.C) {
+	var u puritan.OldPriceMap
+	for e, s := range map[string]string{
+		`json: cannot unmarshal.*`:    `{"USD": "1.0"}`,
+		`invalid currency name "XX"`:  `{"XX": 3.14}`,
+		`invalid currency name "eur"`: `{"eur": 2.0}`,
+	} {
+		c.Check(json.Unmarshal([]byte(s), &u), check.ErrorMatches, e)
 	}
 }
