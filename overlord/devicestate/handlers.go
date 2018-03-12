@@ -45,6 +45,10 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	if m.atSeed != nil {
+		m.atSeed()
+	}
+
 	st.Set("seed-time", time.Now())
 	st.Set("seeded", true)
 	return nil

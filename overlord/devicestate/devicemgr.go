@@ -51,10 +51,12 @@ type DeviceManager struct {
 
 	lastBecomeOperationalAttempt time.Time
 	becomeOperationalBackoff     time.Duration
+
+	atSeed func()
 }
 
 // Manager returns a new device manager.
-func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager, error) {
+func Manager(s *state.State, hookManager *hookstate.HookManager, atSeed func()) (*DeviceManager, error) {
 	delayedCrossMgrInit()
 
 	runner := state.NewTaskRunner(s)
@@ -65,7 +67,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 
 	}
 
-	m := &DeviceManager{state: s, keypairMgr: keypairMgr, runner: runner}
+	m := &DeviceManager{state: s, keypairMgr: keypairMgr, runner: runner, atSeed: atSeed}
 
 	hookManager.Register(regexp.MustCompile("^prepare-device$"), newPrepareDeviceHandler)
 

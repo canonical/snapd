@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -111,4 +112,27 @@ func (s *refreshHintsTestSuite) TestLastRefreshNoRefreshNeededBecauseOfFullAutoR
 	err := rh.Ensure()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 0)
+}
+
+func (s *refreshHintsTestSuite) TestAtSeedPolicy(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	rh := snapstate.NewRefreshHints(s.state)
+
+	// on core, does nothing
+	rh.AtSeed()
+	var t1 time.Time
+	err := s.state.Get("last-refresh-hints", &t1)
+	c.Check(err, Equals, state.ErrNoState)
+
+	release.MockOnClassic(true)
+	// on classic it sets last-refresh-hints to now,
+	// postponing it of 24h
+	rh.AtSeed()
+	err = s.state.Get("last-refresh-hints", &t1)
+	c.Check(err, IsNil)
 }

@@ -129,7 +129,7 @@ func New() (*Overlord, error) {
 	}
 	o.addManager(ifaceMgr)
 
-	deviceMgr, err := devicestate.Manager(s, hookMgr)
+	deviceMgr, err := devicestate.Manager(s, hookMgr, snapMgr.AtSeed)
 	if err != nil {
 		return nil, err
 	}

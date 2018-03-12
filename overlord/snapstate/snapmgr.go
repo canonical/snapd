@@ -512,6 +512,12 @@ func (m *SnapManager) Ensure() error {
 	return nil
 }
 
+// AtSeed runs at end of seeding policies.
+func (m *SnapManager) AtSeed() {
+	m.autoRefresh.AtSeed()
+	m.refreshHints.AtSeed()
+}
+
 func (m *SnapManager) KnownTaskKinds() []string {
 	return m.runner.KnownTaskKinds()
 }

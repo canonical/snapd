@@ -143,7 +143,7 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 
 	hookMgr, err := hookstate.Manager(s.state)
 	c.Assert(err, IsNil)
-	mgr, err := devicestate.Manager(s.state, hookMgr)
+	mgr, err := devicestate.Manager(s.state, hookMgr, nil)
 	c.Assert(err, IsNil)
 
 	s.db = db
