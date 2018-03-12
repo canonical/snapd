@@ -36,7 +36,6 @@ version: 1.0
 hooks:
  configure:
 `)
-var validApplyContents = ""
 
 func (s *SnapSuite) TestInvalidSetParameters(c *check.C) {
 	invalidParameters := []string{"set", "snap-name", "key", "value"}
@@ -46,7 +45,7 @@ func (s *SnapSuite) TestInvalidSetParameters(c *check.C) {
 
 func (s *SnapSuite) TestSnapSetIntegrationString(c *check.C) {
 	// mock installed snap
-	snaptest.MockSnap(c, string(validApplyYaml), string(validApplyContents), &snap.SideInfo{
+	snaptest.MockSnap(c, string(validApplyYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -60,7 +59,7 @@ func (s *SnapSuite) TestSnapSetIntegrationString(c *check.C) {
 
 func (s *SnapSuite) TestSnapSetIntegrationNumber(c *check.C) {
 	// mock installed snap
-	snaptest.MockSnap(c, string(validApplyYaml), string(validApplyContents), &snap.SideInfo{
+	snaptest.MockSnap(c, string(validApplyYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -73,7 +72,7 @@ func (s *SnapSuite) TestSnapSetIntegrationNumber(c *check.C) {
 }
 
 func (s *SnapSuite) TestSnapSetIntegrationBigInt(c *check.C) {
-	snaptest.MockSnap(c, string(validApplyYaml), string(validApplyContents), &snap.SideInfo{
+	snaptest.MockSnap(c, string(validApplyYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 
@@ -87,7 +86,7 @@ func (s *SnapSuite) TestSnapSetIntegrationBigInt(c *check.C) {
 
 func (s *SnapSuite) TestSnapSetIntegrationJson(c *check.C) {
 	// mock installed snap
-	snaptest.MockSnap(c, string(validApplyYaml), string(validApplyContents), &snap.SideInfo{
+	snaptest.MockSnap(c, string(validApplyYaml), &snap.SideInfo{
 		Revision: snap.R(42),
 	})
 

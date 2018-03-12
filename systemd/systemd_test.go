@@ -148,6 +148,12 @@ func (s *SystemdTestSuite) TestStart(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo"}})
 }
 
+func (s *SystemdTestSuite) TestStartMany(c *C) {
+	err := New("", s.rep).Start("foo", "bar", "baz")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo", "bar", "baz"}})
+}
+
 func (s *SystemdTestSuite) TestStop(c *C) {
 	restore := MockStopDelays(time.Millisecond, 25*time.Second)
 	defer restore()
@@ -381,8 +387,8 @@ func (s *SystemdTestSuite) TestRestart(c *C) {
 }
 
 func (s *SystemdTestSuite) TestKill(c *C) {
-	c.Assert(New("", s.rep).Kill("foo", "HUP"), IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"kill", "foo", "-s", "HUP"}})
+	c.Assert(New("", s.rep).Kill("foo", "HUP", ""), IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"kill", "foo", "-s", "HUP", "--kill-who=all"}})
 }
 
 func (s *SystemdTestSuite) TestIsTimeout(c *C) {
@@ -461,9 +467,8 @@ func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
-	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
 Description=Mount unit for foo
 Before=snapd.service
 
@@ -475,7 +480,7 @@ Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target
-`, mockSnapPath))
+`[1:], mockSnapPath))
 }
 
 func (s *SystemdTestSuite) TestWriteMountUnitForDirs(c *C) {
@@ -485,9 +490,8 @@ func (s *SystemdTestSuite) TestWriteMountUnitForDirs(c *C) {
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
-	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
 Description=Mount unit for foodir
 Before=snapd.service
 
@@ -499,7 +503,7 @@ Options=nodev,ro,x-gdu.hide,bind
 
 [Install]
 WantedBy=multi-user.target
-`, snapDir))
+`[1:], snapDir))
 }
 
 func (s *SystemdTestSuite) TestFuseInContainer(c *C) {
@@ -528,9 +532,8 @@ exit 0
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
-	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
 Description=Mount unit for foo
 Before=snapd.service
 
@@ -542,7 +545,7 @@ Options=nodev,ro,x-gdu.hide,allow_other
 
 [Install]
 WantedBy=multi-user.target
-`, mockSnapPath))
+`[1:], mockSnapPath))
 }
 
 func (s *SystemdTestSuite) TestFuseOutsideContainer(c *C) {
@@ -567,9 +570,8 @@ exit 0
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
-	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
 Description=Mount unit for foo
 Before=snapd.service
 
@@ -581,7 +583,7 @@ Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target
-`, mockSnapPath))
+`[1:], mockSnapPath))
 }
 
 func (s *SystemdTestSuite) TestJctl(c *C) {

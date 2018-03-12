@@ -40,8 +40,8 @@ var longUserdHelp = i18n.G("The userd command starts the snap user session servi
 
 func init() {
 	cmd := addCommand("userd",
-		shortAbortHelp,
-		longAbortHelp,
+		shortUserdHelp,
+		longUserdHelp,
 		func() flags.Commander {
 			return &cmdUserd{}
 		},

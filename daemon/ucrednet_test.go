@@ -74,7 +74,7 @@ func (s *ucrednetSuite) TestAcceptConnRemoteAddrString(c *check.C) {
 
 	remoteAddr := conn.RemoteAddr().String()
 	c.Check(remoteAddr, check.Matches, "pid=100;uid=42;.*")
-	pid, uid, err := ucrednetGet(remoteAddr)
+	pid, uid, _, err := ucrednetGet(remoteAddr)
 	c.Check(pid, check.Equals, uint32(100))
 	c.Check(uid, check.Equals, uint32(42))
 	c.Check(err, check.IsNil)
@@ -101,7 +101,7 @@ func (s *ucrednetSuite) TestNonUnix(c *check.C) {
 
 	remoteAddr := conn.RemoteAddr().String()
 	c.Check(remoteAddr, check.Matches, "pid=;uid=;.*")
-	pid, uid, err := ucrednetGet(remoteAddr)
+	pid, uid, _, err := ucrednetGet(remoteAddr)
 	c.Check(pid, check.Equals, ucrednetNoProcess)
 	c.Check(uid, check.Equals, ucrednetNobody)
 	c.Check(err, check.Equals, errNoID)
@@ -144,36 +144,37 @@ func (s *ucrednetSuite) TestUcredErrors(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestGetNoUid(c *check.C) {
-	pid, uid, err := ucrednetGet("pid=100;uid=;")
+	pid, uid, _, err := ucrednetGet("pid=100;uid=;")
 	c.Check(err, check.Equals, errNoID)
 	c.Check(pid, check.Equals, uint32(100))
 	c.Check(uid, check.Equals, ucrednetNobody)
 }
 
 func (s *ucrednetSuite) TestGetBadUid(c *check.C) {
-	pid, uid, err := ucrednetGet("pid=100;uid=hello;")
+	pid, uid, _, err := ucrednetGet("pid=100;uid=hello;")
 	c.Check(err, check.NotNil)
 	c.Check(pid, check.Equals, uint32(100))
 	c.Check(uid, check.Equals, ucrednetNobody)
 }
 
 func (s *ucrednetSuite) TestGetNonUcrednet(c *check.C) {
-	pid, uid, err := ucrednetGet("hello")
+	pid, uid, _, err := ucrednetGet("hello")
 	c.Check(err, check.Equals, errNoID)
 	c.Check(pid, check.Equals, ucrednetNoProcess)
 	c.Check(uid, check.Equals, ucrednetNobody)
 }
 
 func (s *ucrednetSuite) TestGetNothing(c *check.C) {
-	pid, uid, err := ucrednetGet("")
+	pid, uid, _, err := ucrednetGet("")
 	c.Check(err, check.Equals, errNoID)
 	c.Check(pid, check.Equals, ucrednetNoProcess)
 	c.Check(uid, check.Equals, ucrednetNobody)
 }
 
 func (s *ucrednetSuite) TestGet(c *check.C) {
-	pid, uid, err := ucrednetGet("pid=100;uid=42;")
+	pid, uid, socket, err := ucrednetGet("pid=100;uid=42;socket=/run/snap.socket")
 	c.Check(err, check.IsNil)
 	c.Check(pid, check.Equals, uint32(100))
 	c.Check(uid, check.Equals, uint32(42))
+	c.Check(socket, check.Equals, "/run/snap.socket")
 }
