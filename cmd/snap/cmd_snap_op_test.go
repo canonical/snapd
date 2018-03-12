@@ -28,6 +28,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -54,7 +55,11 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	switch t.n {
 	case 0:
 		t.checker(r)
-		t.c.Check(r.Method, check.Equals, "POST")
+		method := "POST"
+		if strings.HasSuffix(r.URL.Path, "/conf") {
+			method = "PUT"
+		}
+		t.c.Check(r.Method, check.Equals, method)
 		w.WriteHeader(202)
 		fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
 	case 1:
@@ -1045,6 +1050,17 @@ func (s *SnapOpSuite) TestNoWait(c *check.C) {
 		{"enable", "--no-wait", "foo"},
 		{"disable", "--no-wait", "foo"},
 		{"try", "--no-wait", "."},
+		{"switch", "--no-wait", "--channel=foo", "bar"},
+		// commands that use waitMixin from elsewhere
+		{"start", "--no-wait", "foo"},
+		{"stop", "--no-wait", "foo"},
+		{"restart", "--no-wait", "foo"},
+		{"alias", "--no-wait", "foo", "bar"},
+		{"unalias", "--no-wait", "foo"},
+		{"prefer", "--no-wait", "foo"},
+		{"set", "--no-wait", "foo", "bar=baz"},
+		{"disconnect", "--no-wait", "foo:bar"},
+		{"connect", "--no-wait", "foo:bar"},
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
