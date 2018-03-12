@@ -63,11 +63,15 @@ func (escapeSuite) TestSimple(c *check.C) {
 		if j != `"hello"` && j != "null" {
 			// shouldn't work
 			c.Check(err, check.NotNil, comm)
+			c.Check(u.UnmarshalJSON([]byte(j)), check.NotNil, comm)
 		} else {
 			// should work
 			c.Assert(err, check.IsNil, comm)
 			c.Check(u.Clean(), check.Equals, s, comm)
 			c.Check(puritan.NewSimpleString(s), check.DeepEquals, u)
+
+			c.Assert(u.UnmarshalJSON([]byte(j)), check.IsNil, comm)
+			c.Check(u.Clean(), check.Equals, s, comm)
 		}
 	}
 }
@@ -79,6 +83,9 @@ func (escapeSuite) TestStrings(c *check.C) {
 		c.Assert(json.Unmarshal([]byte(j), &u), check.IsNil, comm)
 		c.Check(u.Clean(), check.Equals, s, comm)
 		c.Check(puritan.NewString(s), check.DeepEquals, u, comm)
+
+		c.Assert(u.UnmarshalJSON([]byte(j)), check.IsNil, comm)
+		c.Check(u.Clean(), check.Equals, s, comm)
 	}
 }
 
@@ -91,7 +98,7 @@ func (escapeSuite) TestBadStrings(c *check.C) {
 		cc0[i] = []byte{'"', byte(i), '"'}
 	}
 	badesc := make([][]byte, 0, 0x7f-0x21-9)
-	for c := byte(0x21); c < 0x7f; c++ {
+	for c := byte('!'); c <= '~'; c++ {
 		switch c {
 		case '"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u':
 			continue
@@ -117,25 +124,28 @@ func (escapeSuite) TestBadStrings(c *check.C) {
 		}
 	}
 
-}
-
-func (escapeSuite) xTestBadStrings(c *check.C) {
-	table := map[string][]string{
-		"xyzzy0": {``, `42`, `"`, `"hello`},
-		"xyzzy1": {`"""`},
-		"xyzzy2": {"\"\x1b[3mhello\x1b[m\""},
-		"xyzzy3": {`"\'"`},
-		"xyzzy4": {`"\u20"`},
-		// // not 8-bit clean
-		// `"\x9f"`,
+	table = map[string][][]byte{
+		// these are from our lib
+		`missing string delimiters.*`:                 {{}, {'"'}},
+		`unexpected control character at 0 in "\\.+"`: cc0,
+		`unknown escape '.' at 1 of "\\."`:            badesc,
+		`badly formed \\u escape.*`: {
+			[]byte(`"\u02"`), []byte(`"\u02zz"`), []byte(`"a\u02xxz"`),
+			[]byte(`"\uD83Da"`), []byte(`"\uD83Da\u20"`), []byte(`"\uD83Da\u20zzz"`),
+		},
+		`unexpected unescaped quote at 0 in """`:            {[]byte(`"""`)},
+		`unexpected end of string \(trailing backslash\).*`: {[]byte(`"\"`)},
 	}
-	var u1 puritan.String
-	var u2 puritan.SimpleString
+
 	for e, js := range table {
+		e2 := `invalid simple JSON string.*`
+		if e == `missing string delimiters.*` {
+			e2 = e
+		}
 		for _, j := range js {
 			comm := check.Commentf("%q", j)
-			c.Check(json.Unmarshal([]byte(j), &u1), check.ErrorMatches, e, comm)
-			c.Check(json.Unmarshal([]byte(j), &u2), check.ErrorMatches, e, comm)
+			c.Check(u1.UnmarshalJSON(j), check.ErrorMatches, e, comm)
+			c.Check(u2.UnmarshalJSON(j), check.ErrorMatches, e2, comm)
 		}
 	}
 }
