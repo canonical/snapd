@@ -459,7 +459,6 @@ func (x *cmdInstall) Execute([]string) error {
 }
 
 type cmdRefresh struct {
-	timeMixin
 	waitMixin
 	channelMixin
 	modeMixin
@@ -539,13 +538,13 @@ func (x *cmdRefresh) showRefreshTimes() error {
 	} else {
 		return errors.New("internal error: both refresh.timer and refresh.schedule are empty")
 	}
-	if t, err := time.Parse(time.RFC3339, sysinfo.Refresh.Last); err == nil {
-		fmt.Fprintf(Stdout, "last: %s\n", x.fmtTime(t))
+	if sysinfo.Refresh.Last != "" {
+		fmt.Fprintf(Stdout, "last: %s\n", sysinfo.Refresh.Last)
 	} else {
 		fmt.Fprintf(Stdout, "last: n/a\n")
 	}
-	if t, err := time.Parse(time.RFC3339, sysinfo.Refresh.Next); err == nil {
-		fmt.Fprintf(Stdout, "next: %s\n", x.fmtTime(t))
+	if sysinfo.Refresh.Next != "" {
+		fmt.Fprintf(Stdout, "next: %s\n", sysinfo.Refresh.Next)
 	} else {
 		fmt.Fprintf(Stdout, "next: n/a\n")
 	}
@@ -881,7 +880,7 @@ func init() {
 			"unaliased":       i18n.G("Install the given snap without enabling its automatic aliases"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
-		waitDescs.also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
+		waitDescs.also(channelDescs).also(modeDescs).also(map[string]string{
 			"amend":             i18n.G("Allow refresh attempt on snap unknown to the store"),
 			"revision":          i18n.G("Refresh to the given revision"),
 			"list":              i18n.G("Show available snaps for refresh but do not perform a refresh"),
