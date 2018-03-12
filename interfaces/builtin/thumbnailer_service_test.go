@@ -55,6 +55,7 @@ apps:
 `
 	// a thumbnailer-service slot on the core snap (as automatically added on classic)
 	const thumbnailerServiceMockClassicSlotSnapInfoYaml = `name: core
+version: 0
 type: os
 slots:
  thumbnailer-service:

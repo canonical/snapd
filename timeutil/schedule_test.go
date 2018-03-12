@@ -44,6 +44,20 @@ func (ts *timeutilSuite) TestClock(c *C) {
 
 	td = timeutil.Clock{Hour: 10, Minute: 1}
 	c.Check(td.Sub(timeutil.Clock{Hour: 10, Minute: 0}), Equals, time.Minute)
+
+	td = timeutil.Clock{Hour: 23, Minute: 0}
+	c.Check(td.Add(time.Hour), Equals, timeutil.Clock{Hour: 0, Minute: 0})
+	c.Check(td.Add(2*time.Hour), Equals, timeutil.Clock{Hour: 1, Minute: 0})
+	c.Check(td.Sub(timeutil.Clock{Hour: 1, Minute: 0}), Equals, 22*time.Hour)
+	c.Check(td.Sub(timeutil.Clock{Hour: 0, Minute: 0}), Equals, 23*time.Hour)
+
+	td = timeutil.Clock{Hour: 1, Minute: 0}
+	c.Check(td.Sub(timeutil.Clock{Hour: 23, Minute: 0}), Equals, -2*time.Hour)
+	c.Check(td.Sub(timeutil.Clock{Hour: 1, Minute: 0}), Equals, time.Duration(0))
+
+	td = timeutil.Clock{Hour: 0, Minute: 0}
+	c.Check(td.Sub(timeutil.Clock{Hour: 23, Minute: 0}), Equals, -1*time.Hour)
+	c.Check(td.Sub(timeutil.Clock{Hour: 1, Minute: 0}), Equals, -23*time.Hour)
 }
 
 func (ts *timeutilSuite) TestParseClock(c *C) {
@@ -519,7 +533,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 		}, {
 			// second Monday of the month, at 10:00
 			schedule: "mon2,10:00",
-			// first Monday of the month, 9:00
+			// first Monday of the month, 10:00
 			last: "2017-02-06 10:00",
 			// first Monday of the month, 11:00, right after
 			// 'previous first Monday' run
@@ -530,7 +544,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 		}, {
 			// last Monday of the month, at 10:00
 			schedule: "mon5,10:00",
-			// first Monday of the month, 9:00
+			// first Monday of the month, 10:00
 			last: "2017-02-06 10:00",
 			// first Monday of the month, 11:00, right after
 			// 'previous first Monday' run
@@ -539,7 +553,36 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			// from now
 			next: "503h-503h",
 		}, {
-			// from last Monday of the month to the second Tuesday of
+			// from the first Monday of the month to the second Tuesday of
+			// the month, at 10:00
+			schedule: "mon1-tue2,10:00",
+			// Monday, 10:00
+			last: "2017-02-06 10:00",
+			// Tuesday, the day after the first Monday of the month
+			now: "2017-02-07 11:00",
+			// expecting to run the next day at 10:00
+			next: "23h-23h",
+		}, {
+			// from the first Monday of the month to the second Tuesday of
+			// the month, at 10:00
+			schedule: "mon1-tue2,10:00",
+			last:     "2017-02-01 10:00",
+			// Sunday, 10:00
+			now: "2017-02-05 10:00",
+			// expecting to run the next day at 10:00
+			next: "24h-24h",
+		}, {
+			// from the first Monday of the month to the second Tuesday of
+			// the month, at 10:00
+			schedule: "mon1-tue2,10:00",
+			// Tuesday, 10:00
+			last: "2017-02-14 22:00",
+			// Thursday, 10:00
+			now: "2017-02-16 10:00",
+			// expecting to run in 18 days
+			next: "432h-432h",
+		}, {
+			// from the first Monday of the month to the second Tuesday of
 			// the month, at 10:00
 			schedule: "mon1-tue2,10:00",
 			// Sunday, 22:00
@@ -549,7 +592,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			// expecting to run the next day at 10:00
 			next: "23h-23h",
 		}, {
-			// from last Monday of the month to the second Tuesday of
+			// from the first Monday of the month to the second Tuesday of
 			// the month, at 10:00
 			schedule: "mon1-tue2,10:00-12:00",
 			// Sunday, 22:00
@@ -559,7 +602,7 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 			// expecting to run now
 			next: "0h-0h",
 		}, {
-			// from last Monday of the month to the second Tuesday of
+			// from the first Monday of the month to the second Tuesday of
 			// the month, at 10:00
 			schedule: "mon1-tue2,10:00~12:00",
 			// Sunday, 22:00
@@ -731,5 +774,178 @@ func (ts *timeutilSuite) TestScheduleNext(c *C) {
 					t.schedule, t.last, t.now, t.next, next))
 			previous = next
 		}
+	}
+}
+
+func (ts *timeutilSuite) TestScheduleIncludes(c *C) {
+	const shortForm = "2006-01-02 15:04:05"
+
+	for _, t := range []struct {
+		schedule  string
+		now       string
+		expecting bool
+	}{
+		{
+			schedule: "mon,10:00,,fri,15:00",
+			// mon 9:00
+			now:       "2017-02-06 9:00:00",
+			expecting: false,
+		}, {
+			// first monday of the month, at 10:00
+			schedule: "mon1,10:00",
+			// Mon 10:00:00
+			now:       "2017-02-06 10:00:00",
+			expecting: true,
+		}, {
+			// first monday of the month, at 10:00
+			schedule: "mon1,10:00",
+			// Mon 10:00:45
+			now:       "2017-02-06 10:00:45",
+			expecting: true,
+		}, {
+			// first monday of the month, at 10:00
+			schedule: "mon1,10:00",
+			// Mon 10:01
+			now:       "2017-02-06 10:01:00",
+			expecting: false,
+		}, {
+			// last Monday of the month, at 10:00
+			schedule: "mon5,10:00-11:00",
+			// first Monday of the month, 11:00, right after
+			// 'previous first Monday' run
+			now:       "2017-02-27 10:59:20",
+			expecting: true,
+		}, {
+			// from first Monday of the month to the second Tuesday of
+			// the month, at 10:00 to 12:00
+			schedule: "mon1-tue2,10:00-12:00",
+			// Thursday, 11:10
+			now:       "2017-02-09 11:10:00",
+			expecting: true,
+		}, {
+			// from first Monday of the month to the second Tuesday of
+			// the month, at 10:00 to 12:00
+			schedule: "mon1-tue2,10:00~12:00",
+			// Thursday, 11:10
+			now:       "2017-02-02 11:10:00",
+			expecting: false,
+		}, {
+			// from first Monday of the month to the second Tuesday of
+			// the month, at 10:00 to 12:00
+			schedule: "mon1-tue2,10:00~12:00",
+			// Monday, 11:10
+			now:       "2017-02-06 11:10:00",
+			expecting: true,
+		}, {
+			// from first Monday of the month to the second Tuesday of
+			// the month, at 10:00 to 12:00
+			schedule: "mon1-tue2,10:00~12:00",
+			// Thursday, 11:10
+			now:       "2017-02-16 11:10:00",
+			expecting: false,
+		}, {
+			// from first Monday of the month to the second Tuesday of
+			// the month, at 10:00 to 12:00
+			schedule: "mon1-tue2,10:00~12:00",
+			// Thursday, 11:10
+			now:       "2017-02-16 11:10:00",
+			expecting: false,
+		}, {
+			// from first Monday of the month to the second Tuesday of
+			// the month, at 10:00 to 12:00
+			schedule: "mon1-tue2,10:00~12:00",
+			// Thursday, 11:10
+			now:       "2017-02-09 11:10:00",
+			expecting: true,
+		}, {
+			// from first Tuesday of the month to the second Monday of
+			// the month, at 10:00 to 12:00
+			schedule: "tue1-mon2,10:00~12:00",
+			// Thursday, 11:10
+			now:       "2017-02-09 11:10:00",
+			expecting: true,
+		}, {
+			// from 4th Monday of the month to the last Wednesday of
+			// the month, at 10:00 to 12:00
+			schedule: "mon4-wed5,10:00~12:00",
+			// Schedule ends up being Feb 20 - Feb 22 2017
+			now:       "2017-03-01 11:10:00",
+			expecting: false,
+		}, {
+			// from 4th Monday of the month to the last Wednesday of
+			// the month, at 10:00 to 12:00
+			schedule: "mon4-wed5,10:00~12:00",
+			// Schedule ends up being Feb 20 - Feb 22 2017
+			now:       "2017-02-23 11:10:00",
+			expecting: false,
+		}, {
+			// from last Monday of the month to the second Tuesday of
+			// the month, at 10:00
+			schedule: "mon1-tue2,10:00~12:00",
+			// Sunday, 11:10
+			now:       "2017-02-05 11:10:00",
+			expecting: false,
+		}, {
+			// twice between 9am and 11am
+			schedule:  "9:00-11:00/2",
+			now:       "2017-02-06 10:30:00",
+			expecting: true,
+		}, {
+			schedule:  "9:00-10:00,10:00-11:00",
+			now:       "2017-02-06 10:30:00",
+			expecting: true,
+		}, {
+			// every day, 23:59
+			schedule:  "23:59",
+			now:       "2017-02-06 23:59:59",
+			expecting: true,
+		}, {
+			// 2 ranges, reversed order in spec
+			schedule: "10:00~11:00,9:00-10:00",
+			// sometime between 10am and 11am
+			now:       "2017-02-06 9:30:00",
+			expecting: true,
+		},
+	} {
+		c.Logf("trying %+v", t)
+
+		now, err := time.ParseInLocation(shortForm, t.now, time.Local)
+		c.Assert(err, IsNil)
+
+		sched, err := timeutil.ParseSchedule(t.schedule)
+		c.Assert(err, IsNil)
+
+		c.Check(timeutil.Includes(sched, now), Equals, t.expecting,
+			Commentf("unexpected result for schedule %v and time %v", t.schedule, now))
+	}
+}
+
+func (ts *timeutilSuite) TestClockSpans(c *C) {
+	const shortForm = "2006-01-02 15:04:05"
+
+	for _, t := range []struct {
+		clockspan  string
+		flattenend []string
+	}{
+		{
+			clockspan:  "23:00-01:00/2",
+			flattenend: []string{"23:00-00:00", "00:00-01:00"},
+		}, {
+			clockspan:  "23:00-01:00/4",
+			flattenend: []string{"23:00-23:30", "23:30-00:00", "00:00-00:30", "00:30-01:00"},
+		},
+	} {
+		c.Logf("trying %+v", t)
+		spans, err := timeutil.ParseClockSpan(t.clockspan)
+		c.Assert(err, IsNil)
+
+		spanStrings := make([]string, len(t.flattenend))
+		flattened := spans.ClockSpans()
+		c.Assert(flattened, HasLen, len(t.flattenend))
+		for i := range flattened {
+			spanStrings[i] = flattened[i].String()
+		}
+
+		c.Assert(spanStrings, DeepEquals, t.flattenend)
 	}
 }

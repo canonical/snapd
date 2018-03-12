@@ -35,6 +35,7 @@ var (
 
 type Conf interface {
 	Get(snapName, key string, result interface{}) error
+	Set(snapName, key string, value interface{}) error
 	Changes() []string
 	State() *state.State
 }
@@ -92,18 +93,22 @@ var supportedConfigurations = map[string]bool{
 }
 
 func Run(tr Conf) error {
+	// check if the changes
+	for _, k := range tr.Changes() {
+		if !supportedConfigurations[k] {
+			return fmt.Errorf("cannot set %q: unsupported core config option", k)
+		}
+	}
+
 	if err := validateProxyStore(tr); err != nil {
 		return err
 	}
 	if err := validateRefreshSchedule(tr); err != nil {
 		return err
 	}
-
-	// check if the changes
-	for _, k := range tr.Changes() {
-		if !supportedConfigurations[k] {
-			return fmt.Errorf("cannot set %q: unsupported core config option", k)
-		}
+	// capture cloud information
+	if err := setCloudInfoWhenSeeding(tr); err != nil {
+		return err
 	}
 
 	// see if it makes sense to run at all

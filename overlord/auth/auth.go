@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -381,6 +382,16 @@ var (
 	ErrNoSerial = errors.New("no device serial yet")
 )
 
+// CloudInfo reflects cloud information for the system (as captured in the core configuration).
+type CloudInfo struct {
+	Name             string `json:"name"`
+	Region           string `json:"region,omitempty"`
+	AvailabilityZone string `json:"availability-zone,omitempty"`
+}
+
+// TODO: move AuthContext to something like a storecontext package, it
+// is about more than just authorization now.
+
 // An AuthContext exposes authorization data and handles its updates.
 type AuthContext interface {
 	Device() (*DeviceState, error)
@@ -393,6 +404,8 @@ type AuthContext interface {
 
 	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
 	ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error)
+
+	CloudInfo() (*CloudInfo, error)
 }
 
 // authContext helps keeping track of auth data in the state and exposing it.
@@ -513,4 +526,20 @@ func (ac *authContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID strin
 		return sto.Store(), sto.URL(), nil
 	}
 	return "", defaultURL, nil
+}
+
+// CloudInfo returns the cloud instance information (if available).
+func (ac *authContext) CloudInfo() (*CloudInfo, error) {
+	ac.state.Lock()
+	defer ac.state.Unlock()
+	tr := config.NewTransaction(ac.state)
+	var cloudInfo CloudInfo
+	err := tr.Get("core", "cloud", &cloudInfo)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+	if cloudInfo.Name != "" {
+		return &cloudInfo, nil
+	}
+	return nil, nil
 }

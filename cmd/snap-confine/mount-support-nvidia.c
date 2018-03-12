@@ -39,9 +39,10 @@
 // note: if the parent dir changes to something other than
 // the current /var/lib/snapd/lib then sc_mkdir_and_mount_and_bind
 // and sc_mkdir_and_mount_and_bind need updating.
-#define SC_LIBGL_DIR   "/var/lib/snapd/lib/gl"
-#define SC_LIBGL32_DIR "/var/lib/snapd/lib/gl32"
-#define SC_VULKAN_DIR  "/var/lib/snapd/lib/vulkan"
+#define SC_LIB "/var/lib/snapd/lib"
+#define SC_LIBGL_DIR   SC_LIB "/gl"
+#define SC_LIBGL32_DIR SC_LIB "/gl32"
+#define SC_VULKAN_DIR  SC_LIB "/vulkan"
 
 #define SC_VULKAN_SOURCE_DIR "/usr/share/vulkan"
 
@@ -207,7 +208,8 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 }
 
 static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
-					      const char *source_dir,
+					      const char *source_dir[],
+					      size_t source_dir_len,
 					      const char *tgt_dir,
 					      const char *glob_list[],
 					      size_t glob_list_len)
@@ -221,14 +223,22 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 	if (res != 0 && errno != EEXIST) {
 		die("cannot create tmpfs target %s", libgl_dir);
 	}
+	if (res == 0 && (chown(libgl_dir, 0, 0) < 0)) {
+		// Adjust the ownership only if we created the directory.
+		die("cannot change ownership of %s", libgl_dir);
+	}
 
 	debug("mounting tmpfs at %s", libgl_dir);
 	if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
 		die("cannot mount tmpfs at %s", libgl_dir);
 	};
-	// Populate libgl_dir with symlinks to libraries from hostfs
-	sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source_dir, glob_list,
-					       glob_list_len);
+
+	for (size_t i = 0; i < source_dir_len; i++) {
+		// Populate libgl_dir with symlinks to libraries from hostfs
+		sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source_dir[i],
+						       glob_list,
+						       glob_list_len);
+	}
 	// Remount $tgt_dir (i.e. .../lib/gl) read only
 	debug("remounting tmpfs as read-only %s", libgl_dir);
 	if (mount(NULL, buf, NULL, MS_REMOUNT | MS_RDONLY, NULL) != 0) {
@@ -237,21 +247,6 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 }
 
 #ifdef NVIDIA_BIARCH
-
-// Copy the symlink farm to an already mounted/constructed target
-static void sc_glob_files_only(const char *rootfs_dir,
-			       const char *source_dir,
-			       const char *tgt_dir,
-			       const char *glob_list[], size_t glob_list_len)
-{
-	char buf[512] = { 0 };
-	sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir, tgt_dir);
-	const char *libgl_dir = buf;
-
-	// Populate libgl_dir with symlinks to libraries from hostfs
-	sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source_dir, glob_list,
-					       glob_list_len);
-}
 
 // Expose host NVIDIA drivers to the snap on biarch systems.
 //
@@ -272,20 +267,35 @@ static void sc_glob_files_only(const char *rootfs_dir,
 // libraries from wherever we find, and clobbering is also harmless.
 static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir)
 {
-	// Primary arch
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, NATIVE_LIBDIR,
-					  SC_LIBGL_DIR, nvidia_globs,
-					  nvidia_globs_len);
-	sc_glob_files_only(rootfs_dir, NATIVE_LIBDIR "/nvidia*", SC_LIBGL_DIR,
-			   nvidia_globs, nvidia_globs_len);
+
+	const char *native_sources[] = {
+		NATIVE_LIBDIR,
+		NATIVE_LIBDIR "/nvidia*",
+	};
+	const size_t native_sources_len =
+	    sizeof native_sources / sizeof *native_sources;
 
 #if UINTPTR_MAX == 0xffffffffffffffff
 	// Alternative 32-bit support
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, LIB32_DIR,
-					  SC_LIBGL32_DIR, nvidia_globs,
+	const char *lib32_sources[] = {
+		LIB32_DIR,
+		LIB32_DIR "/nvidia*",
+	};
+	const size_t lib32_sources_len =
+	    sizeof lib32_sources / sizeof *lib32_sources;
+#endif
+
+	// Primary arch
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir,
+					  native_sources, native_sources_len,
+					  SC_LIBGL_DIR, nvidia_globs,
 					  nvidia_globs_len);
-	sc_glob_files_only(rootfs_dir, LIB32_DIR "/nvidia*",
-			   SC_LIBGL32_DIR, nvidia_globs, nvidia_globs_len);
+
+#if UINTPTR_MAX == 0xffffffffffffffff
+	// Alternative 32-bit support
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, lib32_sources,
+					  lib32_sources_len, SC_LIBGL32_DIR,
+					  nvidia_globs, nvidia_globs_len);
 #endif
 }
 
@@ -356,6 +366,10 @@ static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir,
 	if (res != 0 && errno != EEXIST) {
 		die("cannot create directory %s", dst);
 	}
+	if (res == 0 && (chown(dst, 0, 0) < 0)) {
+		// Adjust the ownership only if we created the directory.
+		die("cannot change ownership of %s", dst);
+	}
 	// Bind mount the binary nvidia driver into $tgt_dir (i.e. /var/lib/snapd/lib/gl).
 	debug("bind mounting nvidia driver %s -> %s", src, dst);
 	if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
@@ -374,11 +388,33 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 
 #endif				// ifdef NVIDIA_MULTIARCH
 
+static void sc_mount_vulkan(const char *rootfs_dir)
+{
+	const char *vulkan_sources[] = {
+		SC_VULKAN_SOURCE_DIR,
+	};
+	const size_t vulkan_sources_len =
+	    sizeof vulkan_sources / sizeof *vulkan_sources;
+
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, vulkan_sources,
+					  vulkan_sources_len, SC_VULKAN_DIR,
+					  vulkan_globs, vulkan_globs_len);
+}
+
 void sc_mount_nvidia_driver(const char *rootfs_dir)
 {
 	/* If NVIDIA module isn't loaded, don't attempt to mount the drivers */
 	if (access(SC_NVIDIA_DRIVER_VERSION_FILE, F_OK) != 0) {
 		return;
+	}
+
+	int res = mkdir(SC_LIB, 0755);
+	if (res != 0 && errno != EEXIST) {
+		die("cannot create " SC_LIB);
+	}
+	if (res == 0 && (chown(SC_LIB, 0, 0) < 0)) {
+		// Adjust the ownership only if we created the directory.
+		die("cannot change ownership of " SC_LIB);
 	}
 #ifdef NVIDIA_MULTIARCH
 	sc_mount_nvidia_driver_multiarch(rootfs_dir);
@@ -388,7 +424,5 @@ void sc_mount_nvidia_driver(const char *rootfs_dir)
 #endif				// ifdef NVIDIA_BIARCH
 
 	// Common for both driver mechanisms
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_VULKAN_SOURCE_DIR,
-					  SC_VULKAN_DIR, vulkan_globs,
-					  vulkan_globs_len);
+	sc_mount_vulkan(rootfs_dir);
 }

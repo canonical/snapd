@@ -61,6 +61,14 @@ type SnapSetup struct {
 	UserID  int    `json:"user-id,omitempty"`
 	Base    string `json:"base,omitempty"`
 
+	// FIXME: implement rename of this as suggested in
+	//  https://github.com/snapcore/snapd/pull/4103#discussion_r169569717
+	//
+	// Prereq is a list of snap-names that need to get installed
+	// together with this snap. Typically used when installing
+	// content-snaps with default-providers.
+	Prereq []string `json:"prereq,omitempty"`
+
 	Flags
 
 	SnapPath string `json:"snap-path,omitempty"`

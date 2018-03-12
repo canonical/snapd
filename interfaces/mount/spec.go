@@ -21,13 +21,11 @@ package mount
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -37,46 +35,38 @@ import (
 // holds internal state that is used by the mount backend during the interface
 // setup process.
 type Specification struct {
-	layoutMountEntries []Entry
-	mountEntries       []Entry
+	layoutMountEntries []osutil.MountEntry
+	mountEntries       []osutil.MountEntry
+	userMountEntries   []osutil.MountEntry
 }
 
 // AddMountEntry adds a new mount entry.
-func (spec *Specification) AddMountEntry(e Entry) error {
+func (spec *Specification) AddMountEntry(e osutil.MountEntry) error {
 	spec.mountEntries = append(spec.mountEntries, e)
 	return nil
 }
 
-// expandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON.
-func expandSnapVariables(path string, snapInfo *snap.Info) string {
-	return os.Expand(path, func(v string) string {
-		switch v {
-		case "SNAP":
-			// NOTE: We use dirs.CoreSnapMountDir here as the path used will be always
-			// inside the mount namespace snap-confine creates and there we will
-			// always have a /snap directory available regardless if the system
-			// we're running on supports this or not.
-			return filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String())
-		case "SNAP_DATA":
-			return snapInfo.DataDir()
-		case "SNAP_COMMON":
-			snapInfo.CommonDataDir()
-		}
-		return ""
-	})
+//AddUserMountEntry adds a new user mount entry.
+func (spec *Specification) AddUserMountEntry(e osutil.MountEntry) error {
+	spec.userMountEntries = append(spec.userMountEntries, e)
+	return nil
 }
 
-func mountEntryFromLayout(layout *snap.Layout) Entry {
-	var entry Entry
+func mountEntryFromLayout(layout *snap.Layout) osutil.MountEntry {
+	var entry osutil.MountEntry
 
-	mountPoint := expandSnapVariables(layout.Path, layout.Snap)
+	mountPoint := layout.Snap.ExpandSnapVariables(layout.Path)
 	entry.Dir = mountPoint
 
+	// XXX: what about ro mounts?
 	if layout.Bind != "" {
-		mountSource := expandSnapVariables(layout.Bind, layout.Snap)
-		// XXX: what about ro mounts?
-		// XXX: what about file mounts, those need x-snapd.kind=file to create correctly?
+		mountSource := layout.Snap.ExpandSnapVariables(layout.Bind)
 		entry.Options = []string{"bind", "rw"}
+		entry.Name = mountSource
+	}
+	if layout.BindFile != "" {
+		mountSource := layout.Snap.ExpandSnapVariables(layout.BindFile)
+		entry.Options = []string{"bind", "rw", "x-snapd.kind=file"}
 		entry.Name = mountSource
 	}
 
@@ -86,8 +76,8 @@ func mountEntryFromLayout(layout *snap.Layout) Entry {
 	}
 
 	if layout.Symlink != "" {
-		oldname := expandSnapVariables(layout.Symlink, layout.Snap)
-		entry.Options = []string{XSnapdKindSymlink(), XSnapdSymlink(oldname)}
+		oldname := layout.Snap.ExpandSnapVariables(layout.Symlink)
+		entry.Options = []string{osutil.XSnapdKindSymlink(), osutil.XSnapdSymlink(oldname)}
 	}
 
 	var uid int
@@ -97,7 +87,7 @@ func mountEntryFromLayout(layout *snap.Layout) Entry {
 		uid = 0
 	}
 	if uid != 0 {
-		entry.Options = append(entry.Options, XSnapdUser(uid))
+		entry.Options = append(entry.Options, osutil.XSnapdUser(uid))
 	}
 
 	var gid int
@@ -108,12 +98,15 @@ func mountEntryFromLayout(layout *snap.Layout) Entry {
 		gid = 0
 	}
 	if gid != 0 {
-		entry.Options = append(entry.Options, XSnapdGroup(gid))
+		entry.Options = append(entry.Options, osutil.XSnapdGroup(gid))
 	}
 
 	if layout.Mode != 0755 {
-		entry.Options = append(entry.Options, XSnapdMode(uint32(layout.Mode)))
+		entry.Options = append(entry.Options, osutil.XSnapdMode(uint32(layout.Mode)))
 	}
+
+	// Indicate that this is a layout mount entry.
+	entry.Options = append(entry.Options, osutil.XSnapdOriginLayout())
 	return entry
 }
 
@@ -135,23 +128,37 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 }
 
 // MountEntries returns a copy of the added mount entries.
-func (spec *Specification) MountEntries() []Entry {
-	result := make([]Entry, 0, len(spec.layoutMountEntries)+len(spec.mountEntries))
+func (spec *Specification) MountEntries() []osutil.MountEntry {
+	result := make([]osutil.MountEntry, 0, len(spec.layoutMountEntries)+len(spec.mountEntries))
 	result = append(result, spec.layoutMountEntries...)
 	result = append(result, spec.mountEntries...)
-	// Number each entry, in case we get clashes this will automatically give
-	// them unique names.
-	count := make(map[string]int, len(result))
-	for i := range result {
-		path := result[i].Dir
-		count[path] += 1
+	unclashMountEntries(result)
+	return result
+}
+
+// UserMountEntries returns a copy of the added user mount entries.
+func (spec *Specification) UserMountEntries() []osutil.MountEntry {
+	result := make([]osutil.MountEntry, len(spec.userMountEntries))
+	copy(result, spec.userMountEntries)
+	unclashMountEntries(result)
+	return result
+}
+
+// unclashMountEntries renames mount points if they clash with other entries.
+//
+// Subsequent entries get suffixed with -2, -3, etc.
+// The initial entry is unaltered (and does not become -1).
+func unclashMountEntries(entries []osutil.MountEntry) {
+	count := make(map[string]int, len(entries))
+	for i := range entries {
+		path := entries[i].Dir
+		count[path]++
 		if c := count[path]; c > 1 {
-			newDir := fmt.Sprintf("%s-%d", result[i].Dir, c)
-			logger.Noticef("renaming mount entry for directory %q to %q to avoid a clash", result[i].Dir, newDir)
-			result[i].Dir = newDir
+			newDir := fmt.Sprintf("%s-%d", entries[i].Dir, c)
+			logger.Noticef("renaming mount entry for directory %q to %q to avoid a clash", entries[i].Dir, newDir)
+			entries[i].Dir = newDir
 		}
 	}
-	return result
 }
 
 // Implementation of methods required by interfaces.Specification
