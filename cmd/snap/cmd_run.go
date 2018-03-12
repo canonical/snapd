@@ -285,6 +285,7 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 		return nil, false, err
 	}
 
+	opts = make([]string, 0, len(split))
 	for _, opt := range split {
 		if opt == "--raw" {
 			raw = true
