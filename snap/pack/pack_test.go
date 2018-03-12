@@ -105,7 +105,7 @@ printf "hello world"
 }
 
 func (s *packSuite) TestPackNoManifestFails(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	c.Assert(os.Remove(filepath.Join(sourceDir, "meta", "snap.yaml")), IsNil)
 	_, err := pack.Snap(sourceDir, "")
 	c.Assert(err, ErrorMatches, `.*/meta/snap\.yaml: no such file or directory`)
@@ -113,6 +113,7 @@ func (s *packSuite) TestPackNoManifestFails(c *C) {
 
 func (s *packSuite) TestPackMissingAppFails(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
 apps:
  foo:
   command: bin/hello-world
@@ -123,7 +124,7 @@ apps:
 }
 
 func (s *packSuite) TestCopyCopies(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	// actually this'll be on /tmp so it'll be a link
 	target := c.MkDir()
 	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
@@ -133,7 +134,7 @@ func (s *packSuite) TestCopyCopies(c *C) {
 }
 
 func (s *packSuite) TestCopyActuallyCopies(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 
 	// hoping to get the non-linking behaviour via /dev/shm
 	target, err := ioutil.TempDir("/dev/shm", "copy")
@@ -151,7 +152,7 @@ func (s *packSuite) TestCopyActuallyCopies(c *C) {
 }
 
 func (s *packSuite) TestCopyExcludesBackups(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	target := c.MkDir()
 	// add a backup file
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0755), IsNil)
@@ -164,7 +165,7 @@ func (s *packSuite) TestCopyExcludesBackups(c *C) {
 }
 
 func (s *packSuite) TestCopyExcludesTopLevelDEBIAN(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	target := c.MkDir()
 	// add a toplevel DEBIAN
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "DEBIAN", "foo"), 0755), IsNil)
@@ -181,7 +182,7 @@ func (s *packSuite) TestCopyExcludesTopLevelDEBIAN(c *C) {
 }
 
 func (s *packSuite) TestCopyExcludesWholeDirs(c *C) {
-	sourceDir := makeExampleSnapSourceDir(c, "name: hello")
+	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	target := c.MkDir()
 	// add a file inside a skipped dir
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, ".bzr"), 0755), IsNil)

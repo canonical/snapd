@@ -44,12 +44,14 @@ var _ = Suite(&TimeControlInterfaceSuite{
 })
 
 const timectlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [time-control]
 `
 
 const timectlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   time-control:
@@ -100,7 +102,7 @@ func (s *TimeControlInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# time-control
 SUBSYSTEM=="rtc", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *TimeControlInterfaceSuite) TestStaticInfo(c *C) {

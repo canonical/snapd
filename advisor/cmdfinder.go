@@ -24,8 +24,6 @@ type Command struct {
 	Command string
 }
 
-var newFinder = Open
-
 func FindCommand(command string) ([]Command, error) {
 	finder, err := newFinder()
 	if err != nil {
@@ -33,7 +31,7 @@ func FindCommand(command string) ([]Command, error) {
 	}
 	defer finder.Close()
 
-	return finder.Find(command)
+	return finder.FindCommand(command)
 }
 
 const (
@@ -88,7 +86,7 @@ func FindMisspelledCommand(command string) ([]Command, error) {
 
 	alternatives := make([]Command, 0, 32)
 	for _, w := range similarWords(command) {
-		res, err := finder.Find(w)
+		res, err := finder.FindCommand(w)
 		if err != nil {
 			return nil, err
 		}
@@ -98,17 +96,4 @@ func FindMisspelledCommand(command string) ([]Command, error) {
 	}
 
 	return alternatives, nil
-}
-
-type Finder interface {
-	Find(command string) ([]Command, error)
-	Close() error
-}
-
-func ReplaceCommandsFinder(constructor func() (Finder, error)) (restore func()) {
-	old := newFinder
-	newFinder = constructor
-	return func() {
-		newFinder = old
-	}
 }

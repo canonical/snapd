@@ -21,7 +21,6 @@ package configcore_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -30,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type powerbtnSuite struct {
@@ -41,6 +41,7 @@ type powerbtnSuite struct {
 var _ = Suite(&powerbtnSuite{})
 
 func (s *powerbtnSuite) SetUpTest(c *C) {
+	s.configcoreSuite.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
 
@@ -63,6 +64,7 @@ func (s *powerbtnSuite) TestConfigurePowerIntegration(c *C) {
 	for _, action := range []string{"ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "lock"} {
 
 		err := configcore.Run(&mockConf{
+			state: s.state,
 			conf: map[string]interface{}{
 				"system.power-key-action": action,
 			},
@@ -71,9 +73,7 @@ func (s *powerbtnSuite) TestConfigurePowerIntegration(c *C) {
 
 		// ensure nothing gets enabled/disabled when an unsupported
 		// service is set for disable
-		content, err := ioutil.ReadFile(s.mockPowerBtnCfg)
-		c.Assert(err, IsNil)
-		c.Check(string(content), Equals, fmt.Sprintf("[Login]\nHandlePowerKey=%s\n", action))
+		c.Check(s.mockPowerBtnCfg, testutil.FileEquals, fmt.Sprintf("[Login]\nHandlePowerKey=%s\n", action))
 	}
 
 }

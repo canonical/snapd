@@ -127,3 +127,33 @@ func (ts *strutilSuite) TestListContains(c *check.C) {
 		c.Check(strutil.SortedListContains(xs, "bar"), check.Equals, true)
 	}
 }
+
+func (ts *strutilSuite) TestTruncateOutput(c *check.C) {
+	data := []byte("ab\ncd\nef\ngh\nij")
+	out := strutil.TruncateOutput(data, 3, 500)
+	c.Assert(out, check.DeepEquals, []byte("ef\ngh\nij"))
+
+	out = strutil.TruncateOutput(data, 1000, 8)
+	c.Assert(out, check.DeepEquals, []byte("ef\ngh\nij"))
+
+	out = strutil.TruncateOutput(data, 1000, 1000)
+	c.Assert(out, check.DeepEquals, []byte("ab\ncd\nef\ngh\nij"))
+
+	out = strutil.TruncateOutput(data, 99, 5)
+	c.Assert(out, check.DeepEquals, []byte("gh\nij"))
+
+	out = strutil.TruncateOutput(data, 99, 6)
+	c.Assert(out, check.DeepEquals, []byte("\ngh\nij"))
+
+	out = strutil.TruncateOutput(data, 5, 1000)
+	c.Assert(out, check.DeepEquals, []byte("ab\ncd\nef\ngh\nij"))
+
+	out = strutil.TruncateOutput(data, 1000, len(data))
+	c.Assert(out, check.DeepEquals, []byte("ab\ncd\nef\ngh\nij"))
+
+	out = strutil.TruncateOutput(data, 1000, 1000)
+	c.Assert(out, check.DeepEquals, []byte("ab\ncd\nef\ngh\nij"))
+
+	out = strutil.TruncateOutput(data, 0, 0)
+	c.Assert(out, check.HasLen, 0)
+}

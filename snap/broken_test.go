@@ -74,6 +74,7 @@ func (s *brokenSuite) TestGuessAppsForBrokenServices(c *C) {
 
 func (s *brokenSuite) TestRenamePlug(c *C) {
 	snapInfo := snaptest.MockInvalidInfo(c, `name: core
+version: 0
 plugs:
   old:
     interface: iface

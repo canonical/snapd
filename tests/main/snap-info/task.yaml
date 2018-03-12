@@ -24,7 +24,11 @@ execute: |
     snap info basic_1.0_all.snap $TESTSLIB/snaps/basic-desktop test-snapd-tools test-snapd-devmode core /etc/passwd test-snapd-python-webserver > out
     python3 check.py < out
 
-    snap info --verbose $TESTSLIB/snaps/basic-desktop
+    . $TESTSLIB/snaps.sh
+    snap info --verbose $TESTSLIB/snaps/basic-desktop|MATCH "path: "
+    install_local basic-desktop
+    snap info basic-desktop|MATCH "license:[ ]+GPL-3.0"
+
     snap info --verbose basic_1.0_all.snap|MATCH "sha3-384:"
     snap info --verbose test-snapd-tools|MATCH "  ignore-validation:"
 

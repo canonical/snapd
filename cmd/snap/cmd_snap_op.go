@@ -23,19 +23,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
-	"time"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/progress"
 )
 
 func lastLogStr(logs []string) string {
@@ -43,108 +39,6 @@ func lastLogStr(logs []string) string {
 		return ""
 	}
 	return logs[len(logs)-1]
-}
-
-var (
-	maxGoneTime = 5 * time.Second
-	pollTime    = 100 * time.Millisecond
-)
-
-type waitMixin struct {
-	NoWait bool `long:"no-wait" hidden:"true"`
-}
-
-// TODO: use waitMixin outside of cmd_snap_op.go
-
-var waitDescs = mixinDescs{
-	"no-wait": i18n.G("Do not wait for the operation to finish but just print the change id."),
-}
-
-var noWait = errors.New("no wait for op")
-
-func (wmx *waitMixin) wait(cli *client.Client, id string) (*client.Change, error) {
-	if wmx.NoWait {
-		fmt.Fprintf(Stdout, "%s\n", id)
-		return nil, noWait
-	}
-	return wait(cli, id)
-}
-
-func wait(cli *client.Client, id string) (*client.Change, error) {
-	pb := progress.MakeProgressBar()
-	defer func() {
-		pb.Finished()
-	}()
-
-	tMax := time.Time{}
-
-	var lastID string
-	lastLog := map[string]string{}
-	for {
-		chg, err := cli.Change(id)
-		if err != nil {
-			// a client.Error means we were able to communicate with
-			// the server (got an answer)
-			if e, ok := err.(*client.Error); ok {
-				return nil, e
-			}
-
-			// an non-client error here means the server most
-			// likely went away
-			// XXX: it actually can be a bunch of other things; fix client to expose it better
-			now := time.Now()
-			if tMax.IsZero() {
-				tMax = now.Add(maxGoneTime)
-			}
-			if now.After(tMax) {
-				return nil, err
-			}
-			pb.Spin(i18n.G("Waiting for server to restart"))
-			time.Sleep(pollTime)
-			continue
-		}
-		if !tMax.IsZero() {
-			pb.Finished()
-			tMax = time.Time{}
-		}
-
-		for _, t := range chg.Tasks {
-			switch {
-			case t.Status != "Doing":
-				continue
-			case t.Progress.Total == 1:
-				pb.Spin(t.Summary)
-				nowLog := lastLogStr(t.Log)
-				if lastLog[t.ID] != nowLog {
-					pb.Notify(nowLog)
-					lastLog[t.ID] = nowLog
-				}
-			case t.ID == lastID:
-				pb.Set(float64(t.Progress.Done))
-			default:
-				pb.Start(t.Summary, float64(t.Progress.Total))
-				lastID = t.ID
-			}
-			break
-		}
-
-		if chg.Ready {
-			if chg.Status == "Done" {
-				return chg, nil
-			}
-
-			if chg.Err != "" {
-				return chg, errors.New(chg.Err)
-			}
-
-			return nil, fmt.Errorf(i18n.G("change finished in status %q with no error message"), chg.Status)
-		}
-
-		// note this very purposely is not a ticker; we want
-		// to sleep 100ms between calls, not call once every
-		// 100ms.
-		time.Sleep(pollTime)
-	}
 }
 
 var (
@@ -216,11 +110,10 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 		return nil
 	}
 
-	_, err = x.wait(cli, changeID)
-	if err == noWait {
-		return nil
-	}
-	if err != nil {
+	if _, err := x.wait(cli, changeID); err != nil {
+		if err == noWait {
+			return nil
+		}
 		return err
 	}
 
@@ -229,11 +122,7 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 }
 
 func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
-	names := make([]string, len(x.Positional.Snaps))
-	for i, s := range x.Positional.Snaps {
-		names[i] = string(s)
-	}
-
+	names := installedSnapNames(x.Positional.Snaps)
 	cli := Client()
 	changeID, err := cli.RemoveMany(names, opts)
 	if err != nil {
@@ -241,10 +130,10 @@ func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 	}
 
 	chg, err := x.wait(cli, changeID)
-	if err == noWait {
-		return nil
-	}
 	if err != nil {
+		if err == noWait {
+			return nil
+		}
 		return err
 	}
 
@@ -440,20 +329,6 @@ type cmdInstall struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-func setupAbortHandler(changeId string) {
-	// Intercept sigint
-	c := make(chan os.Signal, 2)
-	signal.Notify(c, syscall.SIGINT)
-	go func() {
-		<-c
-		cli := Client()
-		_, err := cli.Abort(changeId)
-		if err != nil {
-			fmt.Fprintf(Stderr, err.Error()+"\n")
-		}
-	}()
-}
-
 func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	var err error
 	var installFromFile bool
@@ -475,13 +350,11 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 		return nil
 	}
 
-	setupAbortHandler(changeID)
-
 	chg, err := x.wait(cli, changeID)
-	if err == noWait {
-		return nil
-	}
 	if err != nil {
+		if err == noWait {
+			return nil
+		}
 		return err
 	}
 
@@ -521,13 +394,11 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 		return nil
 	}
 
-	setupAbortHandler(changeID)
-
 	chg, err := x.wait(cli, changeID)
-	if err == noWait {
-		return nil
-	}
 	if err != nil {
+		if err == noWait {
+			return nil
+		}
 		return err
 	}
 
@@ -575,11 +446,7 @@ func (x *cmdInstall) Execute([]string) error {
 	}
 	x.setModes(opts)
 
-	names := make([]string, len(x.Positional.Snaps))
-	for i, name := range x.Positional.Snaps {
-		names[i] = string(name)
-	}
-
+	names := remoteSnapNames(x.Positional.Snaps)
 	if len(names) == 1 {
 		return x.installOne(names[0], opts)
 	}
@@ -593,7 +460,6 @@ func (x *cmdInstall) Execute([]string) error {
 
 type cmdRefresh struct {
 	waitMixin
-
 	channelMixin
 	modeMixin
 
@@ -615,10 +481,10 @@ func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error
 	}
 
 	chg, err := x.wait(cli, changeID)
-	if err == noWait {
-		return nil
-	}
 	if err != nil {
+		if err == noWait {
+			return nil
+		}
 		return err
 	}
 
@@ -648,12 +514,11 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 		return nil
 	}
 
-	_, err = x.wait(cli, changeID)
-	if err == noWait {
+	if _, err := x.wait(cli, changeID); err == noWait {
+		if err != noWait {
+			return err
+		}
 		return nil
-	}
-	if err != nil {
-		return err
 	}
 
 	return showDone([]string{name}, "refresh")
@@ -740,11 +605,8 @@ func (x *cmdRefresh) Execute([]string) error {
 		return nil
 	}
 
-	names := make([]string, len(x.Positional.Snaps))
-	for i, name := range x.Positional.Snaps {
-		names[i] = string(name)
-	}
-	if len(x.Positional.Snaps) == 1 {
+	names := installedSnapNames(x.Positional.Snaps)
+	if len(names) == 1 {
 		opts := &client.SnapOptions{
 			Amend:            x.Amend,
 			Channel:          x.Channel,
@@ -828,10 +690,10 @@ Try "snapcraft prime" in your project directory, then "snap try" again.`), path)
 	}
 
 	chg, err := x.wait(cli, changeID)
-	if err == noWait {
-		return nil
-	}
 	if err != nil {
+		if err == noWait {
+			return nil
+		}
 		return err
 	}
 
@@ -875,11 +737,10 @@ func (x *cmdEnable) Execute([]string) error {
 		return err
 	}
 
-	_, err = x.wait(cli, changeID)
-	if err == noWait {
-		return nil
-	}
-	if err != nil {
+	if _, err := x.wait(cli, changeID); err != nil {
+		if err == noWait {
+			return nil
+		}
 		return err
 	}
 
@@ -904,11 +765,10 @@ func (x *cmdDisable) Execute([]string) error {
 		return err
 	}
 
-	_, err = x.wait(cli, changeID)
-	if err == noWait {
-		return nil
-	}
-	if err != nil {
+	if _, err := x.wait(cli, changeID); err != nil {
+		if err == noWait {
+			return nil
+		}
 		return err
 	}
 
@@ -954,11 +814,10 @@ func (x *cmdRevert) Execute(args []string) error {
 		return err
 	}
 
-	_, err = x.wait(cli, changeID)
-	if err == noWait {
-		return nil
-	}
-	if err != nil {
+	if _, err := x.wait(cli, changeID); err != nil {
+		if err == noWait {
+			return nil
+		}
 		return err
 	}
 
@@ -972,6 +831,7 @@ doing a refresh.
 `)
 
 type cmdSwitch struct {
+	waitMixin
 	channelMixin
 
 	Positional struct {
@@ -998,7 +858,10 @@ func (x cmdSwitch) Execute(args []string) error {
 		return err
 	}
 
-	if _, err = wait(cli, changeID); err != nil {
+	if _, err := x.wait(cli, changeID); err != nil {
+		if err == noWait {
+			return nil
+		}
 		return err
 	}
 
@@ -1030,6 +893,5 @@ func init() {
 	addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} }, waitDescs.also(modeDescs).also(map[string]string{
 		"revision": "Revert to the given revision",
 	}), nil)
-	addCommand("switch", shortSwitchHelp, longSwitchHelp, func() flags.Commander { return &cmdSwitch{} }, nil, nil)
-
+	addCommand("switch", shortSwitchHelp, longSwitchHelp, func() flags.Commander { return &cmdSwitch{} }, waitDescs.also(channelDescs), nil)
 }
