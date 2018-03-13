@@ -66,20 +66,20 @@ func (iface *dummyInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 
 func (iface *dummyInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
 	var value string
-	if err := plug.Attr("consumer-attr-3", &value); err != nil {
+	if err := plug.Attr("before-connect", &value); err != nil {
 		return err
 	}
-	value = fmt.Sprintf("%s-validated", value)
-	return plug.SetAttr("consumer-attr-3", value)
+	value = fmt.Sprintf("plug-changed(%s)", value)
+	return plug.SetAttr("before-connect", value)
 }
 
 func (iface *dummyInterface) BeforeConnectSlot(slot *interfaces.ConnectedSlot) error {
 	var value string
-	if err := slot.Attr("producer-attr-3", &value); err != nil {
+	if err := slot.Attr("before-connect", &value); err != nil {
 		return err
 	}
-	value = fmt.Sprintf("%s-validated", value)
-	return slot.SetAttr("producer-attr-3", value)
+	value = fmt.Sprintf("slot-changed(%s)", value)
+	return slot.SetAttr("before-connect", value)
 }
 
 func (iface *dummyInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
