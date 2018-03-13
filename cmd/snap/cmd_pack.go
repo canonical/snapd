@@ -25,11 +25,13 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/pack"
 )
 
 type packCmd struct {
-	Positional struct {
+	CheckSkeleton bool `long:"check-skeleton"`
+	Positional    struct {
 		SnapDir   string `positional-arg-name:"<snap-dir>"`
 		TargetDir string `positional-arg-name:"<target-dir>"`
 	} `positional-args:"yes"`
@@ -45,7 +47,9 @@ func init() {
 		longPackHelp,
 		func() flags.Commander {
 			return &packCmd{}
-		}, nil, nil)
+		}, map[string]string{
+			"check-skeleton": i18n.G("Validate snap directory only"),
+		}, nil)
 }
 
 func (x *packCmd) Execute([]string) error {
@@ -54,6 +58,14 @@ func (x *packCmd) Execute([]string) error {
 	}
 	if x.Positional.TargetDir == "" {
 		x.Positional.TargetDir = "."
+	}
+
+	if x.CheckSkeleton {
+		_, err := pack.LoadValidate(x.Positional.SnapDir)
+		if err == snap.ErrMissingPaths {
+			return nil
+		}
+		return err
 	}
 
 	snapPath, err := pack.Snap(x.Positional.SnapDir, x.Positional.TargetDir)
