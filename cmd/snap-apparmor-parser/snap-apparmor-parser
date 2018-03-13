@@ -1,0 +1,52 @@
+#!/bin/sh
+# This is a small quick prototype to use a wrapper around the real
+# apparmor_parser binary and do the caching on our own. The issue with the real
+# cache is that is is very basic and can easily end up malfunctioning. For
+# reference see https://bugs.launchpad.net/snappy/+bug/1460152
+
+# The profiles can be loaded from any location. As a important factor, consider
+# that apparmor parser handles import statements and some of the imported files
+# change separately from snapd (package). This is very similar to how the C
+# pre-processor works. 
+
+# The new cache is located in /var/cache/snapd/apparmor. The directory contains
+# files named after a hash (sha1) of the pre-processed input. The value is the
+# compiled binary apparmor profile.
+
+# Usage: snap-apparmor-parser <path-to-profile>
+
+set -ue
+
+CACHE_DIR=/var/cache/snapd/apparmor
+
+if [ -z "$1" ]; then
+	echo "Usage: snap-apparmor-parser <source-file>"
+	exit 1
+fi
+
+preprocessed_file="$(mktemp)"
+if ! apparmor_parser --preprocess "$1" > "$preprocessed_file"; then
+	echo "snap-apparmor-parser: cannot pre-process $1"
+	exit 1
+fi
+
+preprocessed_file_sha1=$(sha1sum "$preprocessed_file" | cut -f 1 -d ' ')
+if [ -z "$preprocessed_file_sha1" ]; then
+	echo "snap-apparmor-parser: cannot compute SHA-1 of pre-processed $1"
+	exit 1
+fi
+
+mkdir -p "$CACHE_DIR"
+
+if [ ! -e "$CACHE_DIR/$preprocessed_file_sha1" ]; then
+	# NOTE: --skip-cache is added "just in case" the defaults enable caching.
+	if ! apparmor_parser --skip-cache --skip-kernel-load --ofile "$CACHE_DIR/$preprocessed_file_sha1" "$preprocessed_file"; then
+		echo "snap-apparmor-parser: cannot compile pre-processed profile $preprocessed_file"
+		exit 1
+	fi
+fi
+
+if ! apparmor_parser --skip-cache --binary --replace "$CACHE_DIR/$preprocessed_file_sha1"; then
+	echo "snap-apparmor-parser: cannot load compiled profile into the kernel $CACHE_DIR/$preprocessed_file_sha1"
+	exit 1
+fi
