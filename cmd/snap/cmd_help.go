@@ -58,7 +58,7 @@ func addHelp(parser *flags.Parser) error {
 }
 
 type cmdHelp struct {
-	Manpage    bool `long:"man"`
+	Manpage    bool `long:"man" hidden:"true"`
 	Positional struct {
 		// TODO: find a way to make Command tab-complete
 		Sub string `positional-arg-name:"<command>"`
