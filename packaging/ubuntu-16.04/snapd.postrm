@@ -105,6 +105,7 @@ if [ "$1" = "purge" ]; then
     fi
 
     echo "Removing extra snap-confine apparmor rules"
+    rm -f /etc/apparmor.d/cache/snap.core.*.usr.lib.snapd.snap-confine
     rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine
 
     echo "Removing snapd cache"
