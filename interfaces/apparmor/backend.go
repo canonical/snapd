@@ -165,11 +165,8 @@ func (b *Backend) Initialize() error {
 	}
 
 	// We are not using apparmor.LoadProfile() because it uses other cache.
-	cmd := exec.Command("apparmor_parser", "--replace",
-		// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
-		"-O", "no-expr-simplify",
-		"--write-cache", "--cache-loc", dirs.SystemApparmorCacheDir,
-		profilePath)
+	// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
+	cmd := exec.Command("apparmor_parser", "--replace", "-O", "no-expr-simplify", "--skip-cache", "--cache-loc", dirs.SystemApparmorCacheDir, profilePath)
 
 	if output, err := cmd.CombinedOutput(); err != nil {
 		// When we cannot reload the profile then let's remove the generated
