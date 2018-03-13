@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
@@ -124,6 +126,30 @@ func (m *autoRefresh) clearRefreshHold() {
 	tr := config.NewTransaction(m.state)
 	tr.Set("core", "refresh.hold", nil)
 	tr.Commit()
+}
+
+// AtSeed configures refresh policies at end of seeding.
+func (m *autoRefresh) AtSeed() error {
+	// on classic old refreshes for up to ~6h after seeding
+	if release.OnClassic {
+		var t1 time.Time
+		tr := config.NewTransaction(m.state)
+		err := tr.Get("core", "refresh.hold", &t1)
+		if !config.IsNoOption(err) {
+			// already set or error
+			return err
+		}
+		// the 20mins tries to ensure that an autoRefresh.Ensure
+		// recalculating the refresh happens before the full 6h
+		// (default Ensure interval is 5mins)
+		maxDelta := 6*time.Hour - 20*time.Minute
+		delta := time.Duration(rand.Int63n(int64(maxDelta)))
+		now := time.Now().UTC()
+		tr.Set("core", "refresh.hold", now.Add(delta))
+		tr.Commit()
+		m.nextRefresh = now
+	}
+	return nil
 }
 
 // Ensure ensures that we refresh all installed snaps periodically
