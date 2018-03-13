@@ -586,7 +586,7 @@ func authenticateDevice(r *http.Request, device *auth.DeviceState) {
 	}
 }
 
-func (s *Store) setStoreID(r *http.Request) {
+func (s *Store) setStoreID(r *http.Request) (customStore bool) {
 	storeID := s.fallbackStoreID
 	if s.authContext != nil {
 		cand, err := s.authContext.StoreID(storeID)
@@ -598,7 +598,9 @@ func (s *Store) setStoreID(r *http.Request) {
 	}
 	if storeID != "" {
 		r.Header.Set("X-Ubuntu-Store", storeID)
+		return true
 	}
+	return false
 }
 
 // requestOptions specifies parameters for store requests.
@@ -609,6 +611,10 @@ type requestOptions struct {
 	ContentType  string
 	ExtraHeaders map[string]string
 	Data         []byte
+
+	// DeviceAuthIsForCustomStore indicates whether the operation strictly
+	// requires device auth only for custom stores to work.
+	DeviceAuthIsForCustomStore bool
 }
 
 func (r *requestOptions) addHeader(k, v string) {
@@ -815,7 +821,9 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		return nil, err
 	}
 
-	if s.authContext != nil {
+	customStore := s.setStoreID(req)
+
+	if s.authContext != nil && (customStore || !reqOptions.DeviceAuthIsForCustomStore) {
 		device, err := s.authContext.Device()
 		if err != nil {
 			return nil, err
@@ -861,8 +869,6 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	for header, value := range reqOptions.ExtraHeaders {
 		req.Header.Set(header, value)
 	}
-
-	s.setStoreID(req)
 
 	return req, nil
 }
@@ -1179,6 +1185,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 		Method: "GET",
 		URL:    s.endpointURL(sectionsEndpPath, nil),
 		Accept: halJsonContentType,
+		DeviceAuthIsForCustomStore: true,
 	}
 
 	var sectionData sectionResults
@@ -1220,6 +1227,7 @@ func (s *Store) WriteCatalogs(names io.Writer, adder SnapAdder) error {
 		Method: "GET",
 		URL:    &u,
 		Accept: halJsonContentType,
+		DeviceAuthIsForCustomStore: true,
 	}
 
 	// do not log body for catalog updates (its huge)
