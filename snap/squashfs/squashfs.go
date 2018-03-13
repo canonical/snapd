@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -50,6 +51,8 @@ func (s *Snap) Path() string {
 func New(snapPath string) *Snap {
 	return &Snap{path: snapPath}
 }
+
+var osLink = os.Link
 
 func (s *Snap) Install(targetPath, mountDir string) error {
 
@@ -82,7 +85,13 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	// link(2) returns EPERM on filesystems that don't support
 	// hard links (like vfat), so checking the error here doesn't
 	// make sense vs just trying to copy it.
-	if err := os.Link(s.path, targetPath); err == nil {
+	if err := osLink(s.path, targetPath); err == nil {
+		return nil
+	}
+
+	// if the file is a seed, but the hardlink failed, symlinking it
+	// saves the copy (which in livecd is expensive) so try that next
+	if filepath.Dir(s.path) == dirs.SnapSeedDir && os.Symlink(s.path, targetPath) == nil {
 		return nil
 	}
 
