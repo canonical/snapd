@@ -11,6 +11,12 @@ kill-timeout: 5m
 
 restore: |
     rm -f state.json.new
+    systemctl stop snapd.{service,socket} || true
+    # remove any generated files and force system key re-generate
+    rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine*
+    rm -f /etc/apparmor.d/cache/*
+    rm -f /var/lib/snapd/system-key
+    systemctl start snapd.{service,socket}
 
 debug: |
     snap list || true
