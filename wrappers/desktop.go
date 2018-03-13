@@ -106,14 +106,15 @@ type execRewriterImpl struct {
 	// strict enables fallback to matching a desktop file with snap
 	// application using the application's name
 	strict bool
-	// matches matches given app with a desktop file and returns a rewritten
+	// rewriter matches given app with a desktop file and returns a rewritten
 	// exec line or an empty string
-	matcher func(app *snap.AppInfo, desktopFile, execLine string) string
+	rewriter func(app *snap.AppInfo, desktopFile, execLine string) string
 }
 
-// appMatcher matches snap app with desktop file and an exec command by looking
-// at snap command wrapper, returns an updated command or an empty string
-func appMatcher(app *snap.AppInfo, desktopFile, execCmd string) string {
+// appExecRewriter matches a snap app with desktop file and an exec command by
+// looking at snap command wrapper, returns an updated command or an empty
+// string
+func appExecRewriter(app *snap.AppInfo, desktopFile, execCmd string) string {
 	env := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s ", desktopFile)
 
 	wrapper := app.WrapperPath()
@@ -129,10 +130,10 @@ func appMatcher(app *snap.AppInfo, desktopFile, execCmd string) string {
 	return ""
 }
 
-// appAutostartMatcher matches a snap app with a desktop file and an exec
+// appAutostartExecRewriter matches a snap app with a desktop file and an exec
 // command by inspecting the application's autostart declaration, returns an
 // updated command or an empty string
-func appAutostartMatcher(app *snap.AppInfo, desktopFile, execCmd string) string {
+func appAutostartExecRewriter(app *snap.AppInfo, desktopFile, execCmd string) string {
 	if app.Autostart != filepath.Base(desktopFile) {
 		return ""
 	}
@@ -148,7 +149,7 @@ func appAutostartMatcher(app *snap.AppInfo, desktopFile, execCmd string) string 
 func (e *execRewriterImpl) rewrite(s *snap.Info, desktopFile, line string) (string, error) {
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range s.Apps {
-		newCmd := e.matcher(app, desktopFile, cmd)
+		newCmd := e.rewriter(app, desktopFile, cmd)
 		if newCmd != "" {
 			return "Exec=" + newCmd, nil
 		}
@@ -179,14 +180,14 @@ func (e *execRewriterImpl) rewrite(s *snap.Info, desktopFile, line string) (stri
 // content, returns an updated content with invalid lines filtered out and Exec
 // line rewritten to match the snap's context
 func SanitizeAutostartDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []byte {
-	return sanitizeDesktopFile(s, desktopFile, rawcontent, &execRewriterImpl{strict: true, matcher: appAutostartMatcher})
+	return sanitizeDesktopFile(s, desktopFile, rawcontent, &execRewriterImpl{strict: true, rewriter: appAutostartExecRewriter})
 }
 
 // SanitizeAutostartDesktopFile inspects an desktop file and its content,
 // returns an updated content with invalid lines filtered out and Exec line
 // rewritten to match the snap's context
 func SanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []byte {
-	return sanitizeDesktopFile(s, desktopFile, rawcontent, &execRewriterImpl{matcher: appMatcher})
+	return sanitizeDesktopFile(s, desktopFile, rawcontent, &execRewriterImpl{rewriter: appExecRewriter})
 }
 
 type execRewriter interface {

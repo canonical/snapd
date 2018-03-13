@@ -47,11 +47,11 @@ func MockKillWait(wait time.Duration) (restore func()) {
 }
 
 func RewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
-	r := execRewriterImpl{matcher: appMatcher}
+	r := execRewriterImpl{rewriter: appExecRewriter}
 	return r.rewrite(s, desktopFile, line)
 }
 
 func RewriteAutostartExecLine(s *snap.Info, desktopFile, line string) (string, error) {
-	r := execRewriterImpl{strict: true, matcher: appAutostartMatcher}
+	r := execRewriterImpl{strict: true, rewriter: appAutostartExecRewriter}
 	return r.rewrite(s, desktopFile, line)
 }
