@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -389,4 +390,41 @@ func (s *autoRefreshTestSuite) TestEnsureLastRefreshAnchor(c *C) {
 	lastRefresh, err = af.LastRefresh()
 	c.Assert(err, IsNil)
 	c.Check(lastRefresh.Equal(coreRefreshed), Equals, true)
+}
+
+func (s *autoRefreshTestSuite) TestAtSeedPolicy(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	af := snapstate.NewAutoRefresh(s.state)
+
+	// on core, does nothing
+	err := af.AtSeed()
+	c.Assert(err, IsNil)
+	c.Check(af.NextRefresh().IsZero(), Equals, true)
+	tr := config.NewTransaction(s.state)
+	var t1 time.Time
+	err = tr.Get("core", "refresh.hold", &t1)
+	c.Check(config.IsNoOption(err), Equals, true)
+
+	release.MockOnClassic(true)
+	// on classic it sets a refresh hold of up to ~6h
+	err = af.AtSeed()
+	c.Assert(err, IsNil)
+	c.Check(af.NextRefresh().IsZero(), Equals, false)
+	tr = config.NewTransaction(s.state)
+	err = tr.Get("core", "refresh.hold", &t1)
+	c.Check(err, IsNil)
+
+	// nop
+	err = af.AtSeed()
+	c.Assert(err, IsNil)
+	var t2 time.Time
+	tr = config.NewTransaction(s.state)
+	err = tr.Get("core", "refresh.hold", &t2)
+	c.Check(err, IsNil)
+	c.Check(t1.Equal(t2), Equals, true)
 }
