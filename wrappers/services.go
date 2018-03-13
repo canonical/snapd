@@ -198,6 +198,11 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 			written = append(written, path)
 		}
 
+		if len(app.Sockets) != 0 {
+			// service is socket activated, not during the boot
+			continue
+		}
+
 		svcName := app.ServiceName()
 		if err := sysd.Enable(svcName); err != nil {
 			return err
