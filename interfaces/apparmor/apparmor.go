@@ -55,7 +55,7 @@ func UnloadProfile(name string) error {
 
 func loadProfile(fname, cacheDir string) error {
 	// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
-	args := []string{"--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s", cacheDir)}
+	args := []string{"--replace", "--skip-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s", cacheDir)}
 	if !osutil.GetenvBool("SNAPD_DEBUG") {
 		args = append(args, "--quiet")
 	}

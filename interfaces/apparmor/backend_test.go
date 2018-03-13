@@ -69,6 +69,8 @@ while [ -n "$1" ]; do
 		--write-cache)
 			write=yes
 			;;
+		--skip-cache)
+			;;
 		--quiet|--replace|--remove)
 			# Ignore
 			;;
@@ -122,7 +124,7 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
 	c.Check(err, IsNil)
 	// apparmor_parser was used to load that file
 	c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", profile},
+		{"apparmor_parser", "--replace", "--skip-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", profile},
 	})
 }
 
@@ -135,7 +137,7 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsProfiles(c *C) {
 	c.Check(err, IsNil)
 	// apparmor_parser was used to load that file
 	c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", profile},
+		{"apparmor_parser", "--replace", "--skip-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", profile},
 	})
 }
 
@@ -147,7 +149,7 @@ func (s *backendSuite) TestProfilesAreAlwaysLoaded(c *C) {
 		c.Assert(err, IsNil)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", profile},
+			{"apparmor_parser", "--replace", "--skip-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", profile},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -202,7 +204,7 @@ func (s *backendSuite) TestUpdatingSnapMakesNeccesaryChanges(c *C) {
 		// apparmor_parser was used to reload the profile because snap revision
 		// is inside the generated policy.
 		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", profile},
+			{"apparmor_parser", "--replace", "--skip-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", profile},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -221,8 +223,8 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 		c.Check(err, IsNil)
 		// apparmor_parser was used to load the both profiles
 		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", nmbdProfile},
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", smbdProfile},
+			{"apparmor_parser", "--replace", "--skip-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", nmbdProfile},
+			{"apparmor_parser", "--replace", "--skip-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", smbdProfile},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -243,9 +245,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 		c.Check(err, IsNil)
 		// apparmor_parser was used to load the both profiles
 		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", hookProfile},
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", nmbdProfile},
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", smbdProfile},
+			{"apparmor_parser", "--replace", "--skip-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", hookProfile},
+			{"apparmor_parser", "--replace", "--skip-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", nmbdProfile},
+			{"apparmor_parser", "--replace", "--skip-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", smbdProfile},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -264,7 +266,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		c.Check(os.IsNotExist(err), Equals, true)
 		// apparmor_parser was used to remove the unused profile
 		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", smbdProfile},
+			{"apparmor_parser", "--replace", "--skip-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", smbdProfile},
 			{"apparmor_parser", "--remove", "snap.samba.nmbd"},
 		})
 		s.RemoveSnap(c, snapInfo)
@@ -286,8 +288,8 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 		c.Check(os.IsNotExist(err), Equals, true)
 		// apparmor_parser was used to remove the unused profile
 		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", nmbdProfile},
-			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", smbdProfile},
+			{"apparmor_parser", "--replace", "--skip-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", nmbdProfile},
+			{"apparmor_parser", "--replace", "--skip-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", smbdProfile},
 			{"apparmor_parser", "--remove", "snap.samba.hook.configure"},
 		})
 		s.RemoveSnap(c, snapInfo)
@@ -517,7 +519,7 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 `, dirs.SnapMountDir))
 
 	c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{{
-		"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify",
+		"apparmor_parser", "--replace", "--skip-cache", "-O", "no-expr-simplify",
 		fmt.Sprintf("--cache-loc=%s", dirs.SystemApparmorCacheDir), "--quiet", newAA[0],
 	}})
 
@@ -728,7 +730,7 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileF
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{{
 		"apparmor_parser", "--replace",
 		"-O", "no-expr-simplify",
-		"--write-cache",
+		"--skip-cache",
 		"--cache-loc", dirs.SystemApparmorCacheDir,
 		profilePath,
 	}})
@@ -1022,7 +1024,7 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithOverlay(c *C, prof
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{{
 		"apparmor_parser", "--replace",
 		"-O", "no-expr-simplify",
-		"--write-cache",
+		"--skip-cache",
 		"--cache-loc", dirs.SystemApparmorCacheDir,
 		profilePath,
 	}})
