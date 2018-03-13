@@ -130,7 +130,7 @@ func (m *autoRefresh) clearRefreshHold() {
 
 // AtSeed configures refresh policies at end of seeding.
 func (m *autoRefresh) AtSeed() error {
-	// on classic old refreshes for up to ~6h after seeding
+	// on classic hold refreshes for up to ~6h after seeding
 	if release.OnClassic {
 		var t1 time.Time
 		tr := config.NewTransaction(m.state)
