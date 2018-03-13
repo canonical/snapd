@@ -45,8 +45,8 @@ $ snap aliases <snap>
 Lists only the aliases defined by the specified snap.
 
 An alias noted as undefined means it was explicitly enabled or disabled but is
-not defined in the current revision of the snap; possibly temporarily (e.g.
-because of a revert), if not this can be cleared with 'snap alias --reset'.
+not defined in the current revision of the snap, possibly temporarily (e.g.
+because of a revert). In any case you can clear this with 'snap alias --reset'.
 `)
 
 func init() {
