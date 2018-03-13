@@ -22,6 +22,7 @@ package snapstate
 import (
 	"time"
 
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
 )
@@ -68,7 +69,7 @@ func (r *refreshHints) refresh() error {
 	var refreshManaged bool
 	refreshManaged = refreshScheduleManaged(r.state)
 
-	_, _, _, err := refreshCandidates(r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
+	_, _, _, err := refreshCandidates(auth.EnsureContextTODO(), r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
 	// TODO: we currently set last-refresh-hints even when there was an
 	// error. In the future we may retry with a backoff.
 	r.state.Set("last-refresh-hints", time.Now())

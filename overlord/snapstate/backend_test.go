@@ -246,7 +246,10 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 	return nil, store.ErrNoUpdateAvailable
 }
 
-func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
+func (f *fakeStore) ListRefresh(ctx context.Context, cands []*store.RefreshCandidate, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
+	if ctx == nil {
+		panic("context required")
+	}
 	f.pokeStateLock()
 
 	if len(cands) == 0 {
@@ -293,7 +296,10 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	return nil
 }
 
-func (f *fakeStore) WriteCatalogs(io.Writer, store.SnapAdder) error {
+func (f *fakeStore) WriteCatalogs(ctx context.Context, _ io.Writer, _ store.SnapAdder) error {
+	if ctx == nil {
+		panic("context required")
+	}
 	f.pokeStateLock()
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
 		op: "x-commands",
@@ -302,7 +308,10 @@ func (f *fakeStore) WriteCatalogs(io.Writer, store.SnapAdder) error {
 	return nil
 }
 
-func (f *fakeStore) Sections(*auth.UserState) ([]string, error) {
+func (f *fakeStore) Sections(ctx context.Context, _ *auth.UserState) ([]string, error) {
+	if ctx == nil {
+		panic("context required")
+	}
 	f.pokeStateLock()
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
 		op: "x-sections",

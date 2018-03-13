@@ -22,6 +22,8 @@ package snapstate_test
 import (
 	"time"
 
+	"golang.org/x/net/context"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/auth"
@@ -38,7 +40,10 @@ type recordingStore struct {
 	ops []string
 }
 
-func (r *recordingStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
+func (r *recordingStore) ListRefresh(ctx context.Context, cands []*store.RefreshCandidate, _ *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
+	if ctx == nil || !auth.IsEnsureContext(ctx) {
+		panic("Ensure marked context required")
+	}
 	r.ops = append(r.ops, "list-refresh")
 	return nil, nil
 }
