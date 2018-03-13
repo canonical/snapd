@@ -264,6 +264,9 @@ debug-each: |
         echo '# snap interfaces'
         snap interfaces || true
     fi
+    ls -l $SPREAD_PATH/trace*
+    cat $SPREAD_PATH/trace.snap-confine || true 
+    cat $SPREAD_PATH/trace.no-snap-confine || true
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit

@@ -72,6 +72,16 @@ reset_classic() {
         for unit in $mounts $services; do
             systemctl start "$unit"
         done
+
+        # ensure the right core snap-confine profile is loaded
+        if [ -e /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine* ]; then
+            # force change in the file to trick apparmor cache
+            echo "" >> /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine*
+            # really load
+            apparmor_parser --skip-read-cache -r /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine*
+        fi
+        # force all profiles to be re-generated (for good measure)
+        rm -f /var/lib/snapd/system-key
     fi
 
     if [ "$1" != "--keep-stopped" ]; then
