@@ -34,7 +34,7 @@ disable_refreshes() {
 
     echo "Minimize risk of hitting refresh schedule"
     snap set core refresh.schedule=00:00-23:59
-    snap refresh --time|MATCH "last: 2[0-9]{3}"
+    snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
 
     echo "Ensure jq is gone"
     snap remove jq
