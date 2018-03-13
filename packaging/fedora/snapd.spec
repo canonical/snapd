@@ -681,6 +681,10 @@ popd
 %endif
 
 %post
+getent group snappypkg >/dev/null || groupadd -r snappypkg
+getent passwd snappypkg >/dev/null || \
+    useradd -r -g snappypkg -d /nonexistent -s /sbin/nologin \
+    -c "Unprivileged account for insecure snap inspection" snappypkg
 %systemd_post %{snappy_svcs}
 # If install, test if snapd socket and timer are enabled.
 # If enabled, then attempt to start them. This will silently fail

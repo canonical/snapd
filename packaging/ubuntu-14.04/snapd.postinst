@@ -11,6 +11,12 @@ case "$1" in
         if dpkg --compare-versions "$2" lt-nl "2.0.7"; then
             ldconfig
         fi
+        adduser --system \
+            --disabled-password \
+            --home /nonexistent \
+            --no-create-home \
+            --group \
+            snappypkg
         # start required services
         if [ -d /run/systemd/system ]; then
             systemctl daemon-reload

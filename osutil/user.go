@@ -170,3 +170,40 @@ func UidGid(u *user.User) (sys.UserID, sys.GroupID, error) {
 
 	return sys.UserID(uid), sys.GroupID(gid), nil
 }
+
+// DropPrivs rewrites cmd to drop to a less privileged user, and
+// chowns the given paths to that user so it can access them.
+func DropPrivs(cmd *exec.Cmd, paths ...string) error {
+	if sysGetuid() != 0 {
+		// nothing to do
+		return nil
+	}
+	u, err := userLookup("snappypkg")
+	if err != nil {
+		return err
+	}
+	uid, gid, err := UidGid(u)
+	if err != nil {
+		return err
+	}
+	sudo, err := exec.LookPath("sudo")
+	if err != nil {
+		return err
+	}
+	for _, path := range paths {
+		if err := sysChownPath(path, uid, gid); err != nil {
+			// improve on 'no such file or directory'
+			return fmt.Errorf("cannot chown %q to %d:%d: %v", path, uid, gid, err)
+		}
+	}
+	// avoid another path lookup
+	cmd.Args[0] = cmd.Path
+	cmd.Path = sudo
+	cmd.Args = append(cmd.Args, "", "")
+	// move everybody two positions back
+	copy(cmd.Args[2:], cmd.Args)
+	cmd.Args[0] = sudo
+	cmd.Args[1] = "--user=snappypkg"
+
+	return nil
+}

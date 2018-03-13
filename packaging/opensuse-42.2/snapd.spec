@@ -242,6 +242,10 @@ mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}/lib/systemd/sys
 %service_add_pre %{systemd_services_list}
 
 %post
+getent group snappypkg >/dev/null || groupadd -r snappypkg
+getent passwd snappypkg >/dev/null || \
+    useradd -r -g snappypkg -d /nonexistent -s /sbin/nologin \
+    -c "Unprivileged account for insecure snap inspection" snappypkg
 %set_permissions %{_libexecdir}/snapd/snap-confine
 %service_add_post %{systemd_services_list}
 case ":$PATH:" in
