@@ -99,11 +99,14 @@ update_core_snap_for_classic_reexec() {
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
+            # remove any generated files and force system key re-generate
+            rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine*
+            rm -f /var/lib/snapd/system-key
             # and snap-confine's apparmor
             if [ -e /etc/apparmor.d/usr.lib.snapd.snap-confine.real ]; then
                 cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine.real squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
             else
-                cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine      squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
+                cp -a /etc/apparmor.d/usr.lib.snapd.snap-confine squashfs-root/etc/apparmor.d/usr.lib.snapd.snap-confine.real
             fi
             ;;
     esac
