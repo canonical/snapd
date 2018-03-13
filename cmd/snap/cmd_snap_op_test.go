@@ -28,6 +28,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -54,7 +55,11 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	switch t.n {
 	case 0:
 		t.checker(r)
-		t.c.Check(r.Method, check.Equals, "POST")
+		method := "POST"
+		if strings.HasSuffix(r.URL.Path, "/conf") {
+			method = "PUT"
+		}
+		t.c.Check(r.Method, check.Equals, method)
 		w.WriteHeader(202)
 		fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
 	case 1:
@@ -593,6 +598,33 @@ next: 2017-04-26T00:58:00+0200
 	c.Check(n, check.Equals, 1)
 }
 
+func (s *SnapSuite) TestRefreshHold(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+			fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"timer": "0:00-24:00/4", "last": "2017-04-25T17:35:00+0200", "next": "2017-04-26T00:58:00+0200", "hold": "2017-04-28T00:00:00+0200"}}}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--time"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `timer: 0:00-24:00/4
+last: 2017-04-25T17:35:00+0200
+hold: 2017-04-28T00:00:00+0200
+next: 2017-04-26T00:58:00+0200
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 1)
+}
+
 func (s *SnapSuite) TestRefreshNoTimerNoSchedule(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, check.Equals, "GET")
@@ -1045,6 +1077,17 @@ func (s *SnapOpSuite) TestNoWait(c *check.C) {
 		{"enable", "--no-wait", "foo"},
 		{"disable", "--no-wait", "foo"},
 		{"try", "--no-wait", "."},
+		{"switch", "--no-wait", "--channel=foo", "bar"},
+		// commands that use waitMixin from elsewhere
+		{"start", "--no-wait", "foo"},
+		{"stop", "--no-wait", "foo"},
+		{"restart", "--no-wait", "foo"},
+		{"alias", "--no-wait", "foo", "bar"},
+		{"unalias", "--no-wait", "foo"},
+		{"prefer", "--no-wait", "foo"},
+		{"set", "--no-wait", "foo", "bar=baz"},
+		{"disconnect", "--no-wait", "foo:bar"},
+		{"connect", "--no-wait", "foo:bar"},
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)

@@ -26,6 +26,7 @@ import (
 )
 
 type cmdConnect struct {
+	waitMixin
 	Positionals struct {
 		PlugSpec connectPlugSpec `required:"yes"`
 		SlotSpec connectSlotSpec
@@ -56,7 +57,7 @@ the plug name.
 func init() {
 	addCommand("connect", shortConnectHelp, longConnectHelp, func() flags.Commander {
 		return &cmdConnect{}
-	}, nil, []argDesc{
+	}, waitDescs, []argDesc{
 		// TRANSLATORS: This needs to be wrapped in <>s.
 		{name: i18n.G("<snap>:<plug>")},
 		// TRANSLATORS: This needs to be wrapped in <>s.
@@ -82,6 +83,12 @@ func (x *cmdConnect) Execute(args []string) error {
 		return err
 	}
 
-	_, err = wait(cli, id)
-	return err
+	if _, err := x.wait(cli, id); err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	return nil
 }
