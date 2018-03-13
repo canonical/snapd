@@ -57,8 +57,9 @@ import (
 )
 
 var (
-	procSelfExe    = "/proc/self/exe"
-	isHomeUsingNFS = osutil.IsHomeUsingNFS
+	procSelfExe           = "/proc/self/exe"
+	isHomeUsingNFS        = osutil.IsHomeUsingNFS
+	isRootWritableOverlay = osutil.IsRootWritableOverlay
 )
 
 // Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
@@ -108,6 +109,19 @@ func (b *Backend) Initialize() error {
 			Mode:    0644,
 		}
 		logger.Noticef("snapd enabled NFS support, additional implicit network permissions granted")
+	}
+
+	// Check if '/' is on overlayfs. If so, add the necessary rules for
+	// upperdir and allow snap-confine to work.
+	if overlayRoot, err := isRootWritableOverlay(); err != nil {
+		logger.Noticef("cannot determine if root filesystem on overlay: %v", err)
+	} else if overlayRoot != "" {
+		snippet := strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
+		policy["overlay-root"] = &osutil.FileState{
+			Content: []byte(snippet),
+			Mode:    0644,
+		}
+		logger.Noticef("snapd enabled root filesystem on overlay support, additional upperdir permissions granted")
 	}
 
 	// Ensure that generated policy is what we computed above.
@@ -422,6 +436,11 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				tagSnippets = snippetForTag
 				if nfs, _ := isHomeUsingNFS(); nfs {
 					tagSnippets += nfsSnippet
+				}
+
+				if overlayRoot, _ := isRootWritableOverlay(); overlayRoot != "" {
+					snippet := strings.Replace(overlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
+					tagSnippets += snippet
 				}
 			}
 			return tagSnippets

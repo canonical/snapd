@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
-	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
@@ -39,19 +38,23 @@ var longTasksHelp = i18n.G(`
 The tasks command displays a summary of tasks associated to an individual change.`)
 
 type cmdChanges struct {
+	timeMixin
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 }
 
-type cmdTasks struct{ changeIDMixin }
+type cmdTasks struct {
+	timeMixin
+	changeIDMixin
+}
 
 func init() {
 	addCommand("changes", shortChangesHelp, longChangesHelp,
-		func() flags.Commander { return &cmdChanges{} }, nil, nil)
+		func() flags.Commander { return &cmdChanges{} }, timeDescs, nil)
 	addCommand("tasks", shortTasksHelp, longTasksHelp,
 		func() flags.Commander { return &cmdTasks{} },
-		changeIDMixinOptDesc,
+		changeIDMixinOptDesc.also(timeDescs),
 		changeIDMixinArgDesc).alias = "change"
 }
 
@@ -99,8 +102,8 @@ func (c *cmdChanges) Execute(args []string) error {
 
 	fmt.Fprintf(w, i18n.G("ID\tStatus\tSpawn\tReady\tSummary\n"))
 	for _, chg := range changes {
-		spawnTime := chg.SpawnTime.UTC().Format(time.RFC3339)
-		readyTime := chg.ReadyTime.UTC().Format(time.RFC3339)
+		spawnTime := c.fmtTime(chg.SpawnTime)
+		readyTime := c.fmtTime(chg.ReadyTime)
 		if chg.ReadyTime.IsZero() {
 			readyTime = "-"
 		}
@@ -115,15 +118,11 @@ func (c *cmdChanges) Execute(args []string) error {
 
 func (c *cmdTasks) Execute([]string) error {
 	cli := Client()
-	id, err := c.GetChangeID(cli)
+	chid, err := c.GetChangeID(cli)
 	if err != nil {
 		return err
 	}
 
-	return showChange(cli, id)
-}
-
-func showChange(cli *client.Client, chid string) error {
 	chg, err := cli.Change(chid)
 	if err != nil {
 		return err
@@ -133,8 +132,8 @@ func showChange(cli *client.Client, chid string) error {
 
 	fmt.Fprintf(w, i18n.G("Status\tSpawn\tReady\tSummary\n"))
 	for _, t := range chg.Tasks {
-		spawnTime := t.SpawnTime.UTC().Format(time.RFC3339)
-		readyTime := t.ReadyTime.UTC().Format(time.RFC3339)
+		spawnTime := c.fmtTime(t.SpawnTime)
+		readyTime := c.fmtTime(t.ReadyTime)
 		if t.ReadyTime.IsZero() {
 			readyTime = "-"
 		}

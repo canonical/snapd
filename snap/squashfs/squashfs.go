@@ -28,6 +28,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -210,6 +211,7 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 	} else {
 		cmd = exec.Command("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path, relative)
 	}
+	cmd.Env = []string{"TZ=UTC"}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return walkFn(relative, nil, err)
@@ -302,4 +304,34 @@ func (s *Snap) Build(buildDir string) error {
 			"-no-fragments",
 		).Run()
 	})
+}
+
+// BuildDate returns the "Creation or last append time" as reported by unsquashfs.
+func (s *Snap) BuildDate() time.Time {
+	return BuildDate(s.path)
+}
+
+// BuildDate returns the "Creation or last append time" as reported by unsquashfs.
+func BuildDate(path string) time.Time {
+	var t0 time.Time
+
+	const prefix = "Creation or last append time "
+	m := &strutil.MatchCounter{
+		Regexp: regexp.MustCompile("(?m)^" + prefix + ".*$"),
+		N:      1,
+	}
+
+	cmd := exec.Command("unsquashfs", "-s", path)
+	cmd.Env = []string{"TZ=UTC"}
+	cmd.Stdout = m
+	cmd.Stderr = m
+	if err := cmd.Run(); err != nil {
+		return t0
+	}
+	matches, count := m.Matches()
+	if count != 1 {
+		return t0
+	}
+	t0, _ = time.Parse(time.ANSIC, matches[0][len(prefix):])
+	return t0
 }

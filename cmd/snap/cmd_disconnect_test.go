@@ -32,7 +32,7 @@ import (
 
 func (s *SnapSuite) TestDisconnectHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] disconnect [<snap>:<plug>] [<snap>:<slot>]
+  snap.test [OPTIONS] disconnect [disconnect-OPTIONS] [<snap>:<plug>] [<snap>:<slot>]
 
 The disconnect command disconnects a plug from a slot.
 It may be called in the following ways:
@@ -51,6 +51,10 @@ Application Options:
 
 Help Options:
   -h, --help               Show this help message
+
+[disconnect command options]
+          --no-wait        Do not wait for the operation to finish but just
+                           print the change id.
 `
 	rest, err := Parser().ParseArgs([]string{"disconnect", "--help"})
 	c.Assert(err.Error(), Equals, msg)
