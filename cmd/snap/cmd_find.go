@@ -39,6 +39,11 @@ import (
 var shortFindHelp = i18n.G("Find packages to install")
 var longFindHelp = i18n.G(`
 The find command queries the store for available packages in the stable channel.
+
+With the --private flag, which requires the user to be logged-in to the store
+(see 'snap help login'), it instead searches for private snaps that the user
+has developer access to, either directly or through the store's collaboration
+feature.
 `)
 
 func getPrice(prices map[string]float64, currency string) (float64, string, error) {
@@ -123,7 +128,7 @@ func showSections() error {
 	for _, sec := range sections {
 		fmt.Fprintf(Stdout, " * %s\n", sec)
 	}
-	fmt.Fprintf(Stdout, i18n.G("Please try: snap find --section=<selected section>\n"))
+	fmt.Fprintf(Stdout, i18n.G("Please try 'snap find --section=<selected section>'\n"))
 	return nil
 }
 

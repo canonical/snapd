@@ -34,8 +34,9 @@ type cmdUnalias struct {
 
 var shortUnaliasHelp = i18n.G("Unalias a manual alias or an entire snap")
 var longUnaliasHelp = i18n.G(`
-The unalias command tears down a manual alias when given one or disables all
-aliases of a snap, removing also all manual ones, when given a snap name.
+The unalias command removes a single alias if the provided argument is a manual
+alias, or disables all aliases of a snap, including manual ones, if the
+argument is a snap name.
 `)
 
 func init() {

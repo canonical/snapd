@@ -27,10 +27,10 @@ import (
 
 type cmdLogout struct{}
 
-var shortLogoutHelp = i18n.G("Log out of the store")
+var shortLogoutHelp = i18n.G("Log out of snapd and the store")
 
 var longLogoutHelp = i18n.G(`
-The logout command logs the current user out of the store.
+The logout command logs the current user out of snapd and the store.
 `)
 
 func init() {

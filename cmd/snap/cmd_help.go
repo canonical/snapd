@@ -47,11 +47,13 @@ func addHelp(parser *flags.Parser) error {
 			Message: buf.String(),
 		}
 	}
-	hlp, err := parser.AddGroup("Help Options", "", &help)
+	hlpgrp, err := parser.AddGroup("Help Options", "", &help)
 	if err != nil {
 		return err
 	}
-	parser.FindOptionByLongName("help").Description = i18n.G("Show this help message")
+	hlpgrp.Hidden = true
+	hlp := parser.FindOptionByLongName("help")
+	hlp.Description = i18n.G("Show this help message")
 	hlp.Hidden = true
 
 	return nil

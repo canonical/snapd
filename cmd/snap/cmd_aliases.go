@@ -46,7 +46,7 @@ Lists only the aliases defined by the specified snap.
 
 An alias noted as undefined means it was explicitly enabled or disabled but is
 not defined in the current revision of the snap, possibly temporarily (e.g.
-because of a revert). In any case you can clear this with 'snap alias --reset'.
+because of a revert). This can cleared with 'snap alias --reset'.
 `)
 
 func init() {
@@ -140,7 +140,7 @@ func (x *cmdAliases) Execute(args []string) error {
 		} else {
 			fmt.Fprintln(Stderr, i18n.G("No aliases are currently defined."))
 		}
-		fmt.Fprintln(Stderr, i18n.G("\nUse snap alias --help to learn how to create aliases manually."))
+		fmt.Fprintln(Stderr, i18n.G("\nUse 'snap help alias' to learn how to create aliases manually."))
 	}
 	return nil
 }

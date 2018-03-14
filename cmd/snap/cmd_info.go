@@ -53,8 +53,8 @@ The info command shows detailed information about snaps.
 
 The snaps can be specified by name or by path; names are looked for both in the
 store and in the installed snaps; paths can refer to a .snap file, or to a
-directory that contains an unpacked snap suitable for 'snap try' (like the
-'prime' directory snapcraft produces).
+directory that contains an unpacked snap suitable for 'snap try' (an example
+of this would be the 'prime' directory snapcraft produces).
 `)
 
 func init() {

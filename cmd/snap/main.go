@@ -201,8 +201,11 @@ snaps on the system. Start with 'snap list' to see installed snaps.`)
 		}
 
 		opts := cmd.Options()
+		for _, grp := range cmd.Groups() {
+			opts = append(opts, grp.Options()...)
+		}
 		if c.optDescs != nil && len(opts) != len(c.optDescs) {
-			logger.Panicf("wrong number of option descriptions for %s: expected %d, got %d", c.name, len(opts), len(c.optDescs))
+			logger.Noticef("wrong number of option descriptions for %s: expected %d, got %d", c.name, len(opts), len(c.optDescs))
 		}
 		for _, opt := range opts {
 			name := opt.LongName
@@ -364,7 +367,7 @@ func run() error {
 				return nil
 			}
 			if e.Type == flags.ErrUnknownCommand {
-				return fmt.Errorf(i18n.G(`unknown command %q, see "snap help"`), os.Args[1])
+				return fmt.Errorf(i18n.G(`unknown command %q, see 'snap help'`), os.Args[1])
 			}
 		}
 
