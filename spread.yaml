@@ -58,7 +58,7 @@ backends:
                 workers: 6
 
             - ubuntu-core-16-64:
-                image: ubuntu-os-cloud-devel/ubuntu-core-16-64
+                image: ubuntu-16.04-64
                 workers: 6
 
     linode:
