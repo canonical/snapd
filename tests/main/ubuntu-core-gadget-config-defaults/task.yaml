@@ -27,7 +27,7 @@ prepare: |
        ${TEST_SNAP_ID}:
          a: A
          b: B
-       \$core:
+       system:
          service:
            rsyslog:
              disable: true
