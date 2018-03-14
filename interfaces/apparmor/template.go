@@ -519,3 +519,159 @@ var overlayRootSnippet = `
   # details see: https://bugs.launchpad.net/apparmor/+bug/1703674
   "###UPPERDIR###/{,**/}" r,
 `
+
+// updateNSTemplate contains an apparmor profile for snap-update-ns.
+// The template contains variable references to encode per-snap layout
+// requirements so that snap-update-ns doesn't need to have broad permissions
+// to write to the whole disk or to mount and unmount anything.
+var updateNSTemplate = `
+# Description: Allows snap-update-ns to construct the mount namespace specific
+# to a particular snap (see the name below). This specifically includes the
+# precise locations of the layout elements.
+
+# vim:syntax=apparmor
+
+#include <tunables/global>
+
+profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
+  # The next four rules mirror those above. We want to be able to read
+  # and map snap-update-ns into memory but it may come from a variety of places.
+  /usr/lib{,exec,64}/snapd/snap-update-ns mr,
+  /var/lib/snapd/hostfs/usr/lib{,exec,64}/snapd/snap-update-ns mr,
+  /{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
+  /var/lib/snapd/hostfs/{,var/lib/snapd/}snap/core/*/usr/lib/snapd/snap-update-ns mr,
+
+  # Allow reading the dynamic linker cache.
+  /etc/ld.so.cache r,
+  # Allow reading, mapping and executing the dynamic linker.
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}ld-*.so mrix,
+  # Allow reading and mapping various parts of the standard library and
+  # dynamically loaded nss modules and what not.
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
+  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libpthread{,-[0-9]*}.so* mr,
+
+  # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
+  @{PROC}/@{pid}/cmdline r,
+
+  # Allow reading the os-release file (possibly a symlink to /usr/lib).
+  /{etc/,usr/lib/}os-release r,
+
+  # Allow creating/grabbing various snapd lock files.
+  /run/snapd/lock/*.lock rwk,
+
+  # Allow reading stored mount namespaces,
+  /run/snapd/ns/ r,
+  /run/snapd/ns/*.mnt r,
+
+  # Allow reading per-snap desired mount profiles. Those are written by
+  # snapd and represent the desired layout and content connections.
+  /var/lib/snapd/mount/snap.*.fstab r,
+
+  # Allow reading and writing actual per-snap mount profiles. Note that
+  # the second rule is generic to allow our tmpfile-rename approach to
+  # writing them. Those are written by snap-update-ns and represent the
+  # actual layout at a given moment.
+  /run/snapd/ns/*.fstab rw,
+  /run/snapd/ns/*.fstab.* rw,
+
+  # NOTE: at this stage the /snap directory is stable as we have called
+  # pivot_root already.
+
+  # Needed to perform mount/unmounts.
+  capability sys_admin,
+  # Needed for mimic construction.
+  capability chown,
+
+  # Allow freezing and thawing the per-snap cgroup freezers
+  /sys/fs/cgroup/freezer/snap.*/freezer.state rw,
+
+  # Support mount profiles via the content interface. This should correspond
+  # to permutations of $SNAP -> $SNAP for reading and $SNAP_{DATA,COMMON} ->
+  # $SNAP_{DATA,COMMON} for both reading and writing.
+  #
+  # Note that:
+  #   /snap/*/*/**
+  # is meant to mean:
+  #   /snap/$SNAP_NAME/$SNAP_REVISION/and-any-subdirectory
+  # but:
+  #   /var/snap/*/**
+  # is meant to mean:
+  #   /var/snap/$SNAP_NAME/$SNAP_REVISION/
+  mount options=(ro bind) /snap/*/** -> /snap/*/*/**,
+  mount options=(ro bind) /snap/*/** -> /var/snap/*/**,
+  mount options=(rw bind) /var/snap/*/** -> /var/snap/*/**,
+  mount options=(ro bind) /var/snap/*/** -> /var/snap/*/**,
+
+  # Allow creating missing mount directories under $SNAP_DATA.
+  #
+  # The "tree" of permissions is needed for SecureMkdirAll that uses
+  # open(..., O_NOFOLLOW) and mkdirat() using the resulting file
+  # descriptor.
+  / r,
+  /var/ r,
+  /var/snap/{,*/} r,
+  /var/snap/*/**/ rw,
+
+  # Allow creating placeholder directory in /tmp/.snap/ as support for
+  # the writable mimic code that can poke holes in arbitrary read-only
+  # places using tmpfs and bind mounts.
+  /tmp/ r,
+  /tmp/.snap/{,**} rw,
+  # Allow mounting/unmounting any part of $SNAP over to a temporary place
+  # in /tmp/.snap/ during the preparation of a writable mimic.
+  # FIXME: update this with per-snap snap-update-ns profiles
+  mount options=(bind, rw) /** -> /tmp/.snap/**,
+  mount options=(rbind, rw) /** -> /tmp/.snap/**,
+  # Allow mounting tmpfs over the original read-only directory.
+  # FIXME: update this with per-snap snap-update-ns profiles
+  mount fstype=tmpfs options=(rw) tmpfs -> /**,
+  # Allow bind mounting anything from the temporary place in /tmp/.snap/
+  # back to $SNAP/** (to re-construct the data that was there before).
+  # FIXME: update this with per-snap snap-update-ns profiles
+  mount options=(bind, rw) /tmp/.snap/** -> /**,
+  mount options=(rbind, rw) /tmp/.snap/** -> /**,
+  # Allow unmounting the temporary directory in /tmp once it is no longer
+  # necessary.
+  umount /tmp/.snap/**,
+  # Allow unmounting any of the above in case something fails and
+  # we start recovery.
+  umount /**,
+
+  # Allow creating missing directories anywhere under the root directory
+  # (but not in the root directory itself) where they need to be created
+  # as a mount point for layouts or for content sharing. This is a
+  # superset of other cases so they are removed
+  # FIXME: update this with per-snap snap-update-ns profiles
+  / r,
+  /** r,
+  /*/** w,
+
+  # Allow layouts to bind mount *from* $SNAP, $SNAP_DATA and $SNAP_COMMON
+  # *to* anywhere under the root directory. This is safe because the
+  # mounts happen inside an isolated mount namespace (but see below).
+  mount options=(bind) /snap/*/** -> /*/**,
+  mount options=(bind) /var/snap/*/** -> /*/**,
+  # As an exception, don't allow bind mounts to /media which has special
+  # sharing and propagates mount events outside of the snap namespace.
+  audit deny mount -> /media,
+
+  # Allow the content interface to bind fonts from the host filesystem
+  mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/*/*/**,
+  # Allow the desktop interface to bind fonts from the host filesystem
+  mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /usr/share/fonts/,
+  mount options=(ro bind) /var/lib/snapd/hostfs/usr/local/share/fonts/ -> /usr/local/share/fonts/,
+  mount options=(ro bind) /var/lib/snapd/hostfs/var/cache/fontconfig/ -> /var/cache/fontconfig/,
+
+  # Allow unmounts matching possible mounts listed above.
+  umount /*/**,
+
+  # But we don't want anyone to touch /snap/bin
+  audit deny mount /snap/bin/** -> /**,
+  audit deny mount /** -> /snap/bin/**,
+
+  # Allow the content interface to bind fonts from the host filesystem
+  mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/*/*/**,
+
+###SNIPPETS###
+}
+`
