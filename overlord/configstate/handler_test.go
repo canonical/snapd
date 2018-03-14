@@ -49,9 +49,28 @@ type configureHandlerSuite struct {
 var _ = Suite(&configureHandlerSuite{})
 
 func (s *configureHandlerSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+
 	s.state = state.New(nil)
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	coreSnapYaml := `name: core
+version: 1.0
+type: os
+`
+	snaptest.MockSnap(c, coreSnapYaml, &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(1),
+	})
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
 
 	s.restore = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 
@@ -67,6 +86,7 @@ func (s *configureHandlerSuite) SetUpTest(c *C) {
 
 func (s *configureHandlerSuite) TearDownTest(c *C) {
 	s.restore()
+	dirs.SetRootDir("/")
 }
 
 func (s *configureHandlerSuite) TestBeforeInitializesTransaction(c *C) {
@@ -91,8 +111,6 @@ func (s *configureHandlerSuite) TestBeforeInitializesTransaction(c *C) {
 func (s *configureHandlerSuite) TestBeforeInitializesTransactionUseDefaults(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("/")
 
 	const mockGadgetSnapYaml = `
 name: canonical-pc
@@ -162,8 +180,6 @@ hooks:
 func (s *configureHandlerSuite) TestBeforeUseDefaultsMissingHook(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("/")
 
 	const mockGadgetSnapYaml = `
 name: canonical-pc
