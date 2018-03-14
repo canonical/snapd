@@ -51,7 +51,19 @@ var (
 )
 
 var longInstallHelp = i18n.G(`
-The install command installs the named snap in the system.
+The install command installs the named snaps in the system.
+
+With no further options, the snaps are installed tracking the stable channel,
+with strict security confinement.
+
+Revision choice via the --revision override is limited to those that are the
+current revision of a channel.
+If the snap is one the user has developer access to, either directly or through
+the store's collaboration feature, then logging in (see 'snap help login')
+lifts this restriction.
+
+Note a later refresh will typically undo a revision override, taking the snap
+back to the current revision of the channel it's tracking.
 `)
 
 var longRemoveHelp = i18n.G(`
@@ -63,7 +75,19 @@ revision is removed.
 `)
 
 var longRefreshHelp = i18n.G(`
-The refresh command refreshes (updates) the named snap.
+The refresh command updates the specified snaps, or all snaps in the system if
+none are specified.
+
+With no further options, the snaps are refreshed to the current revision of the
+channel they're tracking, preserving their confinement options.
+
+Revision choice via the --revision override is limited to those that are the
+current revision of a channel.
+If the snap is one the user has developer access to, either directly or through
+the store's collaboration feature, then logging in (see 'snap help login')
+lifts this restriction.
+
+Note a later refresh will typically undo a revision override.
 `)
 
 var longTryHelp = i18n.G(`
@@ -683,7 +707,7 @@ func (x *cmdTry) Execute([]string) error {
 	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNotSnap {
 		return fmt.Errorf(i18n.G(`%q does not contain an unpacked snap.
 
-Try "snapcraft prime" in your project directory, then "snap try" again.`), path)
+Try "snapcraft prime" in your project directory, then 'snap try' again.`), path)
 	}
 	if err != nil {
 		return err

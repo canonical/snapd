@@ -40,10 +40,10 @@ type cmdPrepareImage struct {
 
 func init() {
 	cmd := addCommand("prepare-image",
-		i18n.G("Prepare a snappy device image"),
+		i18n.G("Prepare a core device image"),
 		i18n.G(`
-The prepare-image command is used by ubuntu-image in building a snappy device
-image.
+The prepare-image command performs some of the steps necessary for creating
+core device images.
 `),
 		func() flags.Commander {
 			return &cmdPrepareImage{}

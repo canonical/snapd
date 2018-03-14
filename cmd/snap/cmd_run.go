@@ -509,7 +509,7 @@ func straceCmd() ([]string, error) {
 	if stracePath == "" {
 		stracePath, err = exec.LookPath("strace")
 		if err != nil {
-			return nil, fmt.Errorf("cannot find an installed strace, please try: `snap install strace-static`")
+			return nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
 		}
 	}
 

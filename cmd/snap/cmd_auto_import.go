@@ -226,11 +226,11 @@ The auto-import command searches available mounted devices looking for
 assertions that are signed by trusted authorities, and potentially
 performs system changes based on them.
 
-If one or more device paths are provided via --mount, these are temporariy
+If one or more device paths are provided via --mount, these are temporarily
 mounted to be inspected as well. Even in that case the command will still
 consider all available mounted devices for inspection.
 
-Imported assertions must be made available in the auto-import.assert file
+Assertions to be imported must be made available in the auto-import.assert file
 in the root of the filesystem.
 `)
 
