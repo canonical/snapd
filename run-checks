@@ -79,7 +79,7 @@ addtrap endmsg
 append_coverage() (
     profile="$1"
     if [ -f "$profile" ]; then
-        grep -v "^mode:" -- "$profile" >> .coverage/coverage.out
+        grep -v "^mode:" -- "$profile" >> .coverage/coverage.out || true
         rm "$profile"
     fi
 )
@@ -215,11 +215,15 @@ if [ "$UNIT" = 1 ]; then
 
     # tests
     echo Running tests from "$PWD"
-    for pkg in $(go list ./... | grep -v '/vendor/' ); do
-        go test -i "$pkg"
-        $goctest -v -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
-        append_coverage .coverage/profile.out
-    done
+    if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
+        $goctest -v -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
+    else
+        for pkg in $(go list ./... | grep -v '/vendor/' ); do
+            go test -i "$pkg"
+            $goctest -v -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
+            append_coverage .coverage/profile.out
+        done
+    fi
 
     # upload to codecov.io if on travis
     if [ "${TRAVIS_BUILD_NUMBER:-}" ]; then
