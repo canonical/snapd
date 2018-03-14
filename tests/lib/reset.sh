@@ -34,9 +34,6 @@ reset_classic() {
             sh -x "${SPREAD_PATH}/cmd/snap-mgmt/snap-mgmt.sh.in" \
                 --snap-mount-dir="$SNAP_MOUNT_DIR" \
                 --purge
-            # The script above doesn't remove the snapd directory as this
-            # is normally done by the rpm packaging system.
-            rm -rf /var/lib/snapd
             ;;
         *)
             exit 1

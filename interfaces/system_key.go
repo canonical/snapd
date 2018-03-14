@@ -20,8 +20,11 @@
 package interfaces
 
 import (
+	"crypto"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 
@@ -42,6 +45,8 @@ type systemKey struct {
 	OverlayRoot      string   `yaml:"overlay-root"`
 	Core             string   `yaml:"core,omitempty"`
 	SecCompActions   []string `yaml:"seccomp-features"`
+
+	CoreSnapConfineProfileID string `yaml:"core-snap-confine-profile-id"`
 }
 
 var mockedSystemKey *systemKey
@@ -83,6 +88,16 @@ func generateSystemKey() *systemKey {
 	//
 	// FIXME: what about core18? the snapd snap?
 	sk.Core, _ = os.Readlink(filepath.Join(dirs.SnapMountDir, "core/current"))
+
+	// Take the apparmor profile of the snap-confine on the core into
+	// account - it should only change if the core changes. However
+	// in tests we do change this without changing core (and vice
+	// versa).
+	snapConfineInCore := filepath.Join(dirs.SnapMountDir, "core", sk.Core, "usr/lib/snapd/snap-confine")
+	snapConfineInCoreProfileName := strings.Replace(snapConfineInCore[1:], "/", ".", -1)
+	if hash, _, err := osutil.FileDigest(filepath.Join(dirs.SystemApparmorDir, snapConfineInCoreProfileName), crypto.SHA1); err == nil {
+		sk.CoreSnapConfineProfileID = fmt.Sprintf("%x", hash)
+	}
 
 	// Add seccomp-features
 	sk.SecCompActions = release.SecCompActions
