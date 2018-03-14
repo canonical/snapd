@@ -24,7 +24,7 @@ case "$1" in
                 fi
 
                 echo "Starting $unit"
-                systemctl start "$unit"
+                systemctl start "$unit" || true
             done
         fi
 esac
