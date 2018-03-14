@@ -493,7 +493,7 @@ func ExampleSplitSnapApp() {
 	// Output: hello-world env
 }
 
-func ExampleSplitSnapAppShort() {
+func ExampleSplitSnapApp_short() {
 	fmt.Println(snap.SplitSnapApp("hello-world"))
 	// Output: hello-world hello-world
 }
