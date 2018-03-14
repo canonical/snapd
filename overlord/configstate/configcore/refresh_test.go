@@ -79,3 +79,23 @@ func (s *refreshSuite) TestConfigureLegacyRefreshScheduleRejected(c *C) {
 	})
 	c.Assert(err, ErrorMatches, `cannot parse "8:00~12:00": not a valid interval`)
 }
+
+func (s *refreshSuite) TestConfigureRefreshHoldHappy(c *C) {
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"refresh.hold": "2018-08-18T15:00:00Z",
+		},
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *refreshSuite) TestConfigureRefreshHoldInvalid(c *C) {
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"refresh.hold": "invalid",
+		},
+	})
+	c.Assert(err, ErrorMatches, `refresh\.hold cannot be parsed:.*`)
+}
