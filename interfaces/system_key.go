@@ -46,7 +46,7 @@ type systemKey struct {
 	Core             string   `yaml:"core,omitempty"`
 	SecCompActions   []string `yaml:"seccomp-features"`
 
-	CoreSnapConfineProfileID string `yaml:"core-snap-confine-profile-id"`
+	CoreSnapConfineProfileID string `yaml:"core-snap-confine-profile-id,omitempty"`
 }
 
 var mockedSystemKey *systemKey
@@ -93,16 +93,22 @@ func generateSystemKey() *systemKey {
 	// account - it should only change if the core changes. However
 	// in tests we do change this without changing core (and vice
 	// versa).
-	snapConfineInCore := filepath.Join(dirs.SnapMountDir, "core", sk.Core, "usr/lib/snapd/snap-confine")
-	snapConfineInCoreProfileName := strings.Replace(snapConfineInCore[1:], "/", ".", -1)
-	if hash, _, err := osutil.FileDigest(filepath.Join(dirs.SystemApparmorDir, snapConfineInCoreProfileName), crypto.SHA1); err == nil {
-		sk.CoreSnapConfineProfileID = fmt.Sprintf("%x", hash)
-	}
+	sk.CoreSnapConfineProfileID = coreSnapConfineProfileID(sk.Core)
 
 	// Add seccomp-features
 	sk.SecCompActions = release.SecCompActions
 
 	return &sk
+}
+
+func coreSnapConfineProfileID(core string) string {
+	snapConfineInCore := filepath.Join(dirs.SnapMountDir, "core", core, "usr/lib/snapd/snap-confine")
+	snapConfineInCoreProfileName := strings.Replace(snapConfineInCore[1:], "/", ".", -1)
+	hash, _, err := osutil.FileDigest(filepath.Join(dirs.SystemApparmorDir, snapConfineInCoreProfileName), crypto.SHA1)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%x", hash)
 }
 
 // SystemKey outputs a string that identifies what security profiles
