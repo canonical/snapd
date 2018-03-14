@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -7087,7 +7088,7 @@ volumes:
         bootloader: grub
 `
 
-func (s *snapmgrTestSuite) prepareGadget(c *C) {
+func (s *snapmgrTestSuite) prepareGadget(c *C, extraGadgetYaml ...string) {
 	gadgetSideInfo := &snap.SideInfo{RealName: "the-gadget", SnapID: "the-gadget-id", Revision: snap.R(1)}
 	gadgetInfo := snaptest.MockSnap(c, `
 name: the-gadget
@@ -7095,7 +7096,8 @@ type: gadget
 version: 1.0
 `, gadgetSideInfo)
 
-	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0600)
+	gadgetYamlWhole := strings.Join(append([]string{gadgetYaml}, extraGadgetYaml...), "")
+	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYamlWhole), 0600)
 	c.Assert(err, IsNil)
 
 	snapstate.Set(s.state, "the-gadget", &snapstate.SnapState{
@@ -7142,6 +7144,29 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	})
 	_, err = snapstate.ConfigDefaults(s.state, "local-snap")
 	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (s *snapmgrTestSuite) TestConfigDefaultsSystem(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.prepareGadget(c, `
+defaults:
+    system:
+        foo: bar
+`)
+
+	makeInstalledMockCoreSnap(c)
+
+	defls, err := snapstate.ConfigDefaults(s.state, "core")
+	c.Assert(err, IsNil)
+	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
 }
 
 func (s *snapmgrTestSuite) TestGadgetDefaultsAreNormalizedForConfigHook(c *C) {
