@@ -59,9 +59,9 @@ func (s *humanSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *humanSuite) TestHumanTimeDST(c *check.C) {
-	c.Check(timeutil.HumanTimeSince(s.beforeDSTbegins, s.afterDSTbegins), check.Equals, "today at 00:59 GMT")
-	c.Check(timeutil.HumanTimeSince(s.beforeDSTends, s.afterDSTends), check.Equals, "today at 01:59 BST")
-	c.Check(timeutil.HumanTimeSince(s.beforeDSTbegins, s.afterDSTends), check.Equals, "218 days ago, at 00:59 GMT")
+	c.Check(timeutil.HumanTimeSince(s.beforeDSTbegins, s.afterDSTbegins, 300), check.Equals, "today at 00:59 GMT")
+	c.Check(timeutil.HumanTimeSince(s.beforeDSTends, s.afterDSTends, 300), check.Equals, "today at 01:59 BST")
+	c.Check(timeutil.HumanTimeSince(s.beforeDSTbegins, s.afterDSTends, 300), check.Equals, "218 days ago, at 00:59 GMT")
 }
 
 func (*humanSuite) TestHuman(c *check.C) {
@@ -76,4 +76,11 @@ func (*humanSuite) TestHuman(c *check.C) {
 	c.Check(timeutil.Human(now), check.Equals, "today at "+timePart)
 	c.Check(timeutil.Human(time.Date(y, m, d+1, H, M, S, 0, loc)), check.Equals, "tomorrow at "+timePart)
 	c.Check(timeutil.Human(time.Date(y, m, d+2, H, M, S, 0, loc)), check.Equals, "in 2 days, at "+timePart)
+
+	// two outside of the 60-day cutoff:
+	d1 := time.Date(y, m, d-90, H, M, S, 0, loc)
+	d2 := time.Date(y, m, d+90, H, M, S, 0, loc)
+	c.Check(timeutil.Human(d1), check.Equals, d1.Format("2006-01-02"))
+	c.Check(timeutil.Human(d2), check.Equals, d2.Format("2006-01-02"))
+
 }

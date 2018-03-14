@@ -131,6 +131,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.user2, err = auth.NewUser(s.state, "username2", "email2@test.com", "macaroon2", []string{"discharge2"})
 	c.Assert(err, IsNil)
 
+	s.state.Set("seed-time", time.Now())
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -652,6 +653,13 @@ func (s snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
 	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot update disabled snap "some-snap"`)
+}
+
+func (s snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
+	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "system", SnapID: "some-snap-id", Revision: snap.R(1)}}
+	_, err := snapstate.DoInstall(s.state, nil, snapsup, 0)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `cannot install reserved snap name 'system'`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateCreatesDiscardAfterCurrentTasks(c *C) {

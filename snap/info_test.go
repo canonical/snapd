@@ -200,13 +200,21 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	info := snaptest.MockSnap(c, sampleYaml, si)
 	// not current -> Zero
 	c.Check(info.InstallDate().IsZero(), Equals, true)
+	c.Check(snap.InstallDate(info.Name()).IsZero(), Equals, true)
 
 	mountdir := info.MountDir()
 	dir, rev := filepath.Split(mountdir)
 	c.Assert(os.MkdirAll(dir, 0755), IsNil)
-	c.Assert(os.Symlink(rev, filepath.Join(dir, "current")), IsNil)
+	cur := filepath.Join(dir, "current")
+	c.Assert(os.Symlink(rev, cur), IsNil)
+	st, err := os.Lstat(cur)
+	c.Assert(err, IsNil)
+	instTime := st.ModTime()
+	// sanity
+	c.Check(instTime.IsZero(), Equals, false)
 
-	c.Check(info.InstallDate().IsZero(), Equals, false)
+	c.Check(info.InstallDate().Equal(instTime), Equals, true)
+	c.Check(snap.InstallDate(info.Name()).Equal(instTime), Equals, true)
 }
 
 func (s *infoSuite) TestReadInfoNotFound(c *C) {
