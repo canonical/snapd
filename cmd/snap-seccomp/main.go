@@ -122,6 +122,9 @@ package main
 //#define SCMP_ARCH_S390X ARCH_BAD
 //#endif
 //
+//#ifndef SECCOMP_RET_LOG
+//#define SECCOMP_RET_LOG 0x7ffc0000U
+//#endif
 //
 //typedef struct seccomp_data kernel_seccomp_data;
 //
@@ -390,6 +393,7 @@ var seccompResolver = map[string]uint64{
 const (
 	SeccompRetAllow = C.SECCOMP_RET_ALLOW
 	SeccompRetKill  = C.SECCOMP_RET_KILL
+	SeccompRetLog   = C.SECCOMP_RET_LOG
 )
 
 // UbuntuArchToScmpArch takes a dpkg architecture and converts it to
@@ -610,48 +614,92 @@ func addSecondaryArches(secFilter *seccomp.ScmpFilter) error {
 	return nil
 }
 
+var errnoOnDenial int16 = C.EPERM
+
+func preprocess(content []byte) (unrestricted, complain bool) {
+	scanner := bufio.NewScanner(bytes.NewBuffer(content))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		switch line {
+		case "@unrestricted":
+			unrestricted = true
+		case "@complain":
+			complain = true
+		}
+	}
+	return unrestricted, complain
+}
+
+func complainAction() seccomp.ScmpAction {
+	// XXX: Work around some distributions not having a new enough
+	// libseccomp-golang that declares ActLog. Instead, we'll guess at its
+	// value by adding one to ActAllow and then verify that the string
+	// representation is what we expect for ActLog. The value and string is
+	// defined in https://github.com/seccomp/libseccomp-golang/pull/29.
+	//
+	// Ultimately, the fix for this workaround is to be able to use the
+	// GetApi() function created in the PR above. It'll tell us if the
+	// kernel, libseccomp, and libseccomp-golang all support ActLog.
+	var actLog seccomp.ScmpAction = seccomp.ActAllow + 1
+
+	if actLog.String() == "Action: Log system call" {
+		return actLog
+	}
+
+	// Because ActLog is functionally ActAllow with logging, if we don't
+	// support ActLog, fallback to ActLog.
+	return seccomp.ActAllow
+}
+
 func compile(content []byte, out string) error {
 	var err error
 	var secFilter *seccomp.ScmpFilter
 
-	secFilter, err = seccomp.NewFilter(seccomp.ActKill)
+	unrestricted, complain := preprocess(content)
+	switch {
+	case unrestricted:
+		return osutil.AtomicWrite(out, bytes.NewBufferString("@unrestricted\n"), 0644, 0)
+	case complain:
+		var complainAct seccomp.ScmpAction = complainAction()
+
+		secFilter, err = seccomp.NewFilter(complainAct)
+		if err != nil {
+			if complainAct != seccomp.ActAllow {
+				// ActLog is only supported in newer versions
+				// of the kernel, libseccomp, and
+				// libseccomp-golang. Attempt to fall back to
+				// ActAllow before erroring out.
+				complainAct = seccomp.ActAllow
+				secFilter, err = seccomp.NewFilter(complainAct)
+			}
+		}
+
+		// Set unrestricted to 'true' to fallback to the pre-ActLog
+		// behavior of simply setting the allow filter without adding
+		// any rules.
+		if complainAct == seccomp.ActAllow {
+			unrestricted = true
+		}
+	default:
+		secFilter, err = seccomp.NewFilter(seccomp.ActErrno.SetReturnCode(errnoOnDenial))
+	}
 	if err != nil {
 		return fmt.Errorf("cannot create seccomp filter: %s", err)
 	}
-
 	if err := addSecondaryArches(secFilter); err != nil {
 		return err
 	}
 
-	scanner := bufio.NewScanner(bytes.NewBuffer(content))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		// special case: unrestricted means we stop early, we just
-		// write this special tag and evalulate in snap-confine
-		if line == "@unrestricted" {
-			return osutil.AtomicWrite(out, bytes.NewBufferString(line+"\n"), 0644, 0)
-		}
-		// complain mode is a "allow-all" filter for now until
-		// we can land https://github.com/snapcore/snapd/pull/3998
-		if line == "@complain" {
-			secFilter, err = seccomp.NewFilter(seccomp.ActAllow)
-			if err != nil {
-				return fmt.Errorf("cannot create seccomp filter: %s", err)
+	if !unrestricted {
+		scanner := bufio.NewScanner(bytes.NewBuffer(content))
+		for scanner.Scan() {
+			if err := parseLine(scanner.Text(), secFilter); err != nil {
+				return fmt.Errorf("cannot parse line: %s", err)
 			}
-			if err := addSecondaryArches(secFilter); err != nil {
-				return err
-			}
-			break
 		}
-
-		// look for regular syscall/arg rule
-		if err := parseLine(line, secFilter); err != nil {
-			return fmt.Errorf("cannot parse line: %s", err)
+		if scanner.Err(); err != nil {
+			return err
 		}
-	}
-	if scanner.Err(); err != nil {
-		return err
 	}
 
 	if osutil.GetenvBool("SNAP_SECCOMP_DEBUG") {
