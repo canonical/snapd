@@ -32,7 +32,7 @@ var (
 
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the
 // InterfaceManager.
-func (m *InterfaceManager) AddForeignTaskHandlers() {
+func AddForeignTaskHandlers(m *InterfaceManager) {
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
 		return errors.New("error out")
