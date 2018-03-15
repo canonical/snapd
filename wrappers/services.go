@@ -140,13 +140,6 @@ func StartServices(apps []*snap.AppInfo, inter interacter) (err error) {
 		}
 	}
 
-	if len(services) > 0 {
-		if err := sysd.Start(services...); err != nil {
-			// cleanup was set up by iterating over apps
-			return err
-		}
-	}
-
 	return nil
 }
 
