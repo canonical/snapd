@@ -108,7 +108,7 @@ func (s *SnapSuite) TestListEmpty(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "")
-	c.Check(s.Stderr(), check.Equals, "No snaps are installed yet. Try \"snap install hello-world\".\n")
+	c.Check(s.Stderr(), check.Equals, "No snaps are installed yet. Try 'snap install hello-world'.\n")
 }
 
 func (s *SnapSuite) TestListEmptyWithQuery(c *check.C) {
