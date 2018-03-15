@@ -24,6 +24,7 @@
 #include <string.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -34,6 +35,21 @@
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
+
+#ifndef SECCOMP_FILTER_FLAG_LOG
+#define SECCOMP_FILTER_FLAG_LOG 2
+#endif
+
+#ifndef seccomp
+// prototype because we build with -Wstrict-prototypes
+int seccomp(unsigned int operation, unsigned int flags, void *args);
+
+int seccomp(unsigned int operation, unsigned int flags, void *args)
+{
+	errno = 0;
+	return syscall(__NR_seccomp, operation, flags, args);
+}
+#endif
 
 static const char *filter_profile_dir = "/var/lib/snapd/seccomp/bpf/";
 
@@ -202,8 +218,19 @@ int sc_apply_seccomp_bpf(const char *filter_profile)
 		.len = num_read / sizeof(struct sock_filter),
 		.filter = (struct sock_filter *)bpf,
 	};
-	if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0) {
-		die("cannot apply seccomp profile");
+	if (seccomp(SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_LOG, &prog) != 0) {
+		if (errno == ENOSYS) {
+			debug("kernel doesn't support the seccomp(2) syscall");
+		} else if (errno == EINVAL) {
+			debug
+			    ("kernel may not support the SECCOMP_FILTER_FLAG_LOG flag");
+		}
+
+		debug
+		    ("falling back to prctl(2) syscall to load seccomp filter");
+		if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0) {
+			die("cannot apply seccomp profile");
+		}
 	}
 	// drop privileges again
 	debug("dropping privileges after loading seccomp profile");

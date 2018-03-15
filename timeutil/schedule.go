@@ -397,9 +397,6 @@ func randDur(a, b time.Time) time.Duration {
 
 var (
 	timeNow = time.Now
-
-	// FIMXE: pass in as a parameter for next
-	maxDuration = 60 * 24 * time.Hour
 )
 
 func init() {
@@ -407,8 +404,8 @@ func init() {
 }
 
 // Next returns the earliest event after last according to the provided
-// schedule.
-func Next(schedule []*Schedule, last time.Time) time.Duration {
+// schedule but no later than maxDuration since last.
+func Next(schedule []*Schedule, last time.Time, maxDuration time.Duration) time.Duration {
 	now := timeNow()
 
 	window := ScheduleWindow{

@@ -28,13 +28,14 @@ import (
 )
 
 type cmdDisconnect struct {
+	waitMixin
 	Positionals struct {
 		Offer disconnectSlotOrPlugSpec `required:"true"`
 		Use   disconnectSlotSpec
 	} `positional-args:"true"`
 }
 
-var shortDisconnectHelp = i18n.G("Disconnects a plug from a slot")
+var shortDisconnectHelp = i18n.G("Disconnect a plug from a slot")
 var longDisconnectHelp = i18n.G(`
 The disconnect command disconnects a plug from a slot.
 It may be called in the following ways:
@@ -52,7 +53,7 @@ The snap name may be omitted for the core snap.
 func init() {
 	addCommand("disconnect", shortDisconnectHelp, longDisconnectHelp, func() flags.Commander {
 		return &cmdDisconnect{}
-	}, nil, []argDesc{
+	}, waitDescs, []argDesc{
 		// TRANSLATORS: This needs to be wrapped in <>s.
 		{name: i18n.G("<snap>:<plug>")},
 		// TRANSLATORS: This needs to be wrapped in <>s.
@@ -84,6 +85,12 @@ func (x *cmdDisconnect) Execute(args []string) error {
 		return err
 	}
 
-	_, err = wait(cli, id)
-	return err
+	if _, err := x.wait(cli, id); err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	return nil
 }
