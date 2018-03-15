@@ -88,7 +88,7 @@ func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
 		if target == "" {
 			err = fmt.Errorf("cannot create symlink with empty target")
 		} else {
-			err = secureMklinkAll(path, mode, uid, gid, target)
+			err = secureMksymlinkAll(path, mode, uid, gid, target)
 		}
 	}
 	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
