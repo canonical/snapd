@@ -400,7 +400,7 @@ version: gadget
 	c.Assert(err, IsNil)
 	serial := a.(*asserts.Serial)
 
-	privKey, err := s.mgr.KeypairManager().Get(serial.DeviceKey().ID())
+	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
 	c.Assert(err, IsNil)
 	c.Check(privKey, NotNil)
 
@@ -468,7 +468,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c *C) {
 	c.Assert(err, IsNil)
 	serial := a.(*asserts.Serial)
 
-	privKey, err := s.mgr.KeypairManager().Get(serial.DeviceKey().ID())
+	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
 	c.Assert(err, IsNil)
 	c.Check(privKey, NotNil)
 
@@ -548,7 +548,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicFallback(c *C) {
 	c.Assert(err, IsNil)
 	serial := a.(*asserts.Serial)
 
-	privKey, err := s.mgr.KeypairManager().Get(serial.DeviceKey().ID())
+	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
 	c.Assert(err, IsNil)
 	c.Check(privKey, NotNil)
 
@@ -625,7 +625,7 @@ version: gadget
 	c.Assert(err, IsNil)
 	serial := a.(*asserts.Serial)
 
-	privKey, err := s.mgr.KeypairManager().Get(serial.DeviceKey().ID())
+	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
 	c.Assert(err, IsNil)
 	c.Check(privKey, NotNil)
 
@@ -665,7 +665,7 @@ version: gadget
 		Model: "pc",
 		KeyID: privKey.PublicKey().ID(),
 	})
-	s.mgr.KeypairManager().Put(privKey)
+	devicestate.KeypairManager(s.mgr).Put(privKey)
 
 	t := s.state.NewTask("request-serial", "test")
 	chg := s.state.NewChange("become-operational", "...")
@@ -734,7 +734,7 @@ version: gadget
 		Model: "pc",
 		KeyID: privKey.PublicKey().ID(),
 	})
-	s.mgr.KeypairManager().Put(privKey)
+	devicestate.KeypairManager(s.mgr).Put(privKey)
 
 	t := s.state.NewTask("request-serial", "test")
 	chg := s.state.NewChange("become-operational", "...")
@@ -802,7 +802,7 @@ version: gadget
 		Model: "pc",
 		KeyID: privKey.PublicKey().ID(),
 	})
-	s.mgr.KeypairManager().Put(privKey)
+	devicestate.KeypairManager(s.mgr).Put(privKey)
 
 	t := s.state.NewTask("request-serial", "test")
 	chg := s.state.NewChange("become-operational", "...")
@@ -859,7 +859,7 @@ version: gadget
 		Model: "pc",
 		KeyID: privKey.PublicKey().ID(),
 	})
-	s.mgr.KeypairManager().Put(privKey)
+	devicestate.KeypairManager(s.mgr).Put(privKey)
 
 	t := s.state.NewTask("request-serial", "test")
 	chg := s.state.NewChange("become-operational", "...")
@@ -960,7 +960,7 @@ version: gadget
 	c.Assert(err, IsNil)
 	serial := a.(*asserts.Serial)
 
-	privKey, err := s.mgr.KeypairManager().Get(serial.DeviceKey().ID())
+	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
 	c.Assert(err, IsNil)
 	c.Check(privKey, NotNil)
 
@@ -1063,7 +1063,7 @@ hooks:
 		"mac": "00:00:00:00:ff:00",
 	})
 
-	privKey, err := s.mgr.KeypairManager().Get(serial.DeviceKey().ID())
+	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
 	c.Assert(err, IsNil)
 	c.Check(privKey, NotNil)
 
@@ -1130,13 +1130,13 @@ version: gadget
 	c.Check(device.KeyID, Not(Equals), "")
 	keyID := device.KeyID
 
-	c.Check(s.mgr.EnsureOperationalShouldBackoff(time.Now()), Equals, true)
-	c.Check(s.mgr.EnsureOperationalShouldBackoff(time.Now().Add(6*time.Minute)), Equals, false)
+	c.Check(devicestate.EnsureOperationalShouldBackoff(s.mgr, time.Now()), Equals, true)
+	c.Check(devicestate.EnsureOperationalShouldBackoff(s.mgr, time.Now().Add(6*time.Minute)), Equals, false)
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 1)
 
 	// try again the whole device registration process
 	s.reqID = "REQID-1"
-	s.mgr.SetLastBecomeOperationalAttempt(time.Now().Add(-15 * time.Minute))
+	devicestate.SetLastBecomeOperationalAttempt(s.mgr, time.Now().Add(-15*time.Minute))
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
@@ -1157,21 +1157,21 @@ version: gadget
 
 func (s *deviceMgrSuite) TestEnsureBecomeOperationalShouldBackoff(c *C) {
 	t0 := time.Now()
-	c.Check(s.mgr.EnsureOperationalShouldBackoff(t0), Equals, false)
-	c.Check(s.mgr.BecomeOperationalBackoff(), Equals, 5*time.Minute)
+	c.Check(devicestate.EnsureOperationalShouldBackoff(s.mgr, t0), Equals, false)
+	c.Check(devicestate.BecomeOperationalBackoff(s.mgr), Equals, 5*time.Minute)
 
 	backoffs := []time.Duration{5, 10, 20, 40, 80, 160, 320, 640, 1440, 1440}
 	t1 := t0
 	for _, m := range backoffs {
-		c.Check(s.mgr.EnsureOperationalShouldBackoff(t1.Add(time.Duration(m-1)*time.Minute)), Equals, true)
+		c.Check(devicestate.EnsureOperationalShouldBackoff(s.mgr, t1.Add(time.Duration(m-1)*time.Minute)), Equals, true)
 
 		t1 = t1.Add(time.Duration(m+1) * time.Minute)
-		c.Check(s.mgr.EnsureOperationalShouldBackoff(t1), Equals, false)
+		c.Check(devicestate.EnsureOperationalShouldBackoff(s.mgr, t1), Equals, false)
 		m *= 2
 		if m > (12 * 60) {
 			m = 24 * 60
 		}
-		c.Check(s.mgr.BecomeOperationalBackoff(), Equals, m*time.Minute)
+		c.Check(devicestate.BecomeOperationalBackoff(s.mgr), Equals, m*time.Minute)
 	}
 }
 
@@ -1362,7 +1362,7 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequestParams(c *C) {
 		Serial: "8989",
 		KeyID:  devKey.PublicKey().ID(),
 	})
-	s.mgr.KeypairManager().Put(devKey)
+	devicestate.KeypairManager(s.mgr).Put(devKey)
 	s.state.Unlock()
 
 	params, err := s.mgr.DeviceSessionRequestParams("NONCE-1")
@@ -1445,7 +1445,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlreadySeeded(c *C) {
 	})
 	defer restore()
 
-	err := s.mgr.EnsureSeedYaml()
+	err := devicestate.EnsureSeedYaml(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, false)
 }
@@ -1463,7 +1463,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlChangeInFlight(c *C) {
 	})
 	defer restore()
 
-	err := s.mgr.EnsureSeedYaml()
+	err := devicestate.EnsureSeedYaml(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, false)
 }
@@ -1478,7 +1478,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlsoOnClassic(c *C) {
 	})
 	defer restore()
 
-	err := s.mgr.EnsureSeedYaml()
+	err := devicestate.EnsureSeedYaml(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, true)
 }
@@ -1491,7 +1491,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlHappy(c *C) {
 	})
 	defer restore()
 
-	err := s.mgr.EnsureSeedYaml()
+	err := devicestate.EnsureSeedYaml(s.mgr)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
@@ -1503,7 +1503,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlHappy(c *C) {
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {
 	release.OnClassic = true
 
-	err := s.mgr.EnsureBootOk()
+	err := devicestate.EnsureBootOk(s.mgr)
 	c.Assert(err, IsNil)
 }
 
@@ -1524,7 +1524,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	})
 
 	s.state.Unlock()
-	err := s.mgr.EnsureBootOk()
+	err := devicestate.EnsureBootOk(s.mgr)
 	s.state.Lock()
 	c.Assert(err, IsNil)
 
@@ -1561,7 +1561,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c
 	})
 
 	s.state.Unlock()
-	err := s.mgr.EnsureBootOk()
+	err := devicestate.EnsureBootOk(s.mgr)
 	s.state.Lock()
 	c.Assert(err, IsNil)
 
@@ -1576,9 +1576,9 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
 	})
 	s.bootloader.SetErr = fmt.Errorf("ensure bootloader is not used")
 
-	s.mgr.SetBootOkRan(true)
+	devicestate.SetBootOkRan(s.mgr, true)
 
-	err := s.mgr.EnsureBootOk()
+	err := devicestate.EnsureBootOk(s.mgr)
 	c.Assert(err, IsNil)
 }
 
@@ -1596,7 +1596,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 
 	s.bootloader.GetErr = fmt.Errorf("bootloader err")
 
-	s.mgr.SetBootOkRan(false)
+	devicestate.SetBootOkRan(s.mgr, false)
 
 	err := s.mgr.Ensure()
 	c.Assert(err, ErrorMatches, "devicemgr: bootloader err")

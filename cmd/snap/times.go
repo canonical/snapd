@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,32 +20,25 @@
 package main
 
 import (
-	"github.com/jessevdk/go-flags"
+	"time"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/timeutil"
 )
 
-type cmdLogout struct{}
+var timeutilHuman = timeutil.Human
 
-var shortLogoutHelp = i18n.G("Log out of snapd and the store")
-
-var longLogoutHelp = i18n.G(`
-The logout command logs the current user out of snapd and the store.
-`)
-
-func init() {
-	addCommand("logout",
-		shortLogoutHelp,
-		longLogoutHelp,
-		func() flags.Commander {
-			return &cmdLogout{}
-		}, nil, nil)
+type timeMixin struct {
+	AbsTime bool `long:"abs-time"`
 }
 
-func (cmd *cmdLogout) Execute(args []string) error {
-	if len(args) > 0 {
-		return ErrExtraArgs
-	}
+var timeDescs = mixinDescs{
+	"abs-time": i18n.G("Display absolute times (in RFC 3339 format). Otherwise, display relative times up to 60 days, then YYYY-MM-DD."),
+}
 
-	return Client().Logout()
+func (mx timeMixin) fmtTime(t time.Time) string {
+	if mx.AbsTime {
+		return t.Format(time.RFC3339)
+	}
+	return timeutilHuman(t)
 }
