@@ -51,6 +51,8 @@ type DeviceManager struct {
 
 	lastBecomeOperationalAttempt time.Time
 	becomeOperationalBackoff     time.Duration
+	registered                   bool
+	reg                          chan struct{}
 }
 
 // Manager returns a new device manager.
@@ -65,7 +67,11 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 
 	}
 
-	m := &DeviceManager{state: s, keypairMgr: keypairMgr, runner: runner}
+	m := &DeviceManager{state: s, keypairMgr: keypairMgr, runner: runner, reg: make(chan struct{})}
+
+	if err := m.confirmRegistered(); err != nil {
+		return nil, err
+	}
 
 	hookManager.Register(regexp.MustCompile("^prepare-device$"), newPrepareDeviceHandler)
 
@@ -74,6 +80,30 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 
 	return m, nil
+}
+
+func (m *DeviceManager) confirmRegistered() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	device, err := auth.Device(m.state)
+	if err != nil {
+		return err
+	}
+
+	if device.Serial != "" {
+		m.registered = true
+		close(m.reg)
+	}
+	return nil
+}
+
+func (m *DeviceManager) markRegistered() {
+	if m.registered {
+		return
+	}
+	m.registered = true
+	close(m.reg)
 }
 
 type prepareDeviceHandler struct{}
@@ -430,6 +460,11 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	defer m.state.Unlock()
 
 	return Serial(m.state)
+}
+
+// Registered returns a channel that is closed when the device is known to have been registered.
+func (m *DeviceManager) Registered() <-chan struct{} {
+	return m.reg
 }
 
 // DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
