@@ -44,8 +44,8 @@ func (s *cmdfinderSuite) SetUpTest(c *C) {
 
 	db, err := advisor.Create()
 	c.Assert(err, IsNil)
-	c.Assert(db.AddSnap("foo", "foo summary", []string{"foo", "meh"}), IsNil)
-	c.Assert(db.AddSnap("bar", "bar summary", []string{"bar", "meh"}), IsNil)
+	c.Assert(db.AddSnap("foo", "1.0", "foo summary", []string{"foo", "meh"}), IsNil)
+	c.Assert(db.AddSnap("bar", "2.0", "bar summary", []string{"bar", "meh"}), IsNil)
 	c.Assert(db.Commit(), IsNil)
 }
 
@@ -99,8 +99,8 @@ func (s *cmdfinderSuite) TestFindCommandHit(c *C) {
 	cmds, err := advisor.FindCommand("meh")
 	c.Assert(err, IsNil)
 	c.Check(cmds, DeepEquals, []advisor.Command{
-		{Snap: "foo", Command: "meh"},
-		{Snap: "bar", Command: "meh"},
+		{Snap: "foo", Version: "1.0", Command: "meh"},
+		{Snap: "bar", Version: "2.0", Command: "meh"},
 	})
 }
 
@@ -114,8 +114,8 @@ func (s *cmdfinderSuite) TestFindMisspelledCommandHit(c *C) {
 	cmds, err := advisor.FindMisspelledCommand("moh")
 	c.Assert(err, IsNil)
 	c.Check(cmds, DeepEquals, []advisor.Command{
-		{Snap: "foo", Command: "meh"},
-		{Snap: "bar", Command: "meh"},
+		{Snap: "foo", Version: "1.0", Command: "meh"},
+		{Snap: "bar", Version: "2.0", Command: "meh"},
 	})
 }
 
@@ -129,8 +129,8 @@ func (s *cmdfinderSuite) TestDumpCommands(c *C) {
 	cmds, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
 	c.Check(cmds, DeepEquals, map[string][]string{
-		"foo": {"foo"},
-		"bar": {"bar"},
-		"meh": {"foo", "bar"},
+		"foo": {"foo/1.0"},
+		"bar": {"bar/2.0"},
+		"meh": {"foo/1.0", "bar/2.0"},
 	})
 }

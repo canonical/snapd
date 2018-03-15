@@ -2821,12 +2821,14 @@ const mockNamesJSON = `
         "apps": ["baz"],
         "title": "a title",
         "summary": "oneary plus twoary",
-        "package_name": "bar"
+        "package_name": "bar",
+        "version": "2.0"
       },
       {
         "aliases": [{"name": "meh", "target": "foo"}],
         "apps": ["foo"],
-        "package_name": "foo"
+        "package_name": "foo",
+        "version": "1.0"
       }
     ]
   }
@@ -2885,10 +2887,10 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 	dump, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
 	c.Check(dump, DeepEquals, map[string][]string{
-		"foo":     {"foo"},
-		"bar.baz": {"bar"},
-		"potato":  {"bar"},
-		"meh":     {"bar", "foo"},
+		"foo":     {"foo/1.0"},
+		"bar.baz": {"bar/2.0"},
+		"potato":  {"bar/2.0"},
+		"meh":     {"bar/2.0", "foo/1.0"},
 	})
 }
 
