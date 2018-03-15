@@ -4,6 +4,27 @@ snapd (2.32~pre1) xenial; urgency=medium
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 23 Feb 2018 19:16:02 +0100
 
+snapd (2.31.2) xenial; urgency=medium
+
+  *  New upstream release, LP: #1745217
+    - many: add the snapd-generator
+    - polkit: ensure error is properly set if dialog is dismissed
+    - xdgopenproxy: integrate xdg-open implementation into snapctl
+    - userd: add an OpenFile method for launching local files with xdg-
+      open
+    - configstate: when disable "ssh" we must disable the "sshd"
+      service
+    - many: remove snapd.refresh.{timer,service}
+    - interfaces/builtin: allow MM to access login1
+    - timeutil: account for 24h wrap when flattening clock spans
+    - interfaces/screen-inhibit-control,network-status: fix dbus path
+      and interface typos
+    - systemd, wrappers: start all snap services in one systemctl
+      call
+    - tests: disable interfaces-location-control on s390x
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 09 Mar 2018 11:11:31 +0100
+
 snapd (2.31.1) xenial; urgency=medium
 
   * New upstream release, LP: #1745217

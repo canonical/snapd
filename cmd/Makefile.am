@@ -445,6 +445,7 @@ system_shutdown_unit_tests_LDADD +=  $(GLIB_LIBS)
 endif
 
 ##
+<<<<<<< HEAD
 ## snap-gdb-shim
 ##
 
@@ -456,6 +457,8 @@ snap_gdb_shim_snap_gdb_shim_SOURCES = \
 snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
 
 ##
+=======
+>>>>>>> origin/release/2.31
 ## snapd-generator
 ##
 
