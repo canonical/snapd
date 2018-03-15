@@ -5,7 +5,7 @@ echo "Getting attributes from disconnect-slot-producer hook"
 
 # Read 'consumer-attr-1' attribute of the plug
 if ! output=$(snapctl get --plug :producer consumer-attr-1); then
-    echo "Expected connect-slot-producer be able to read the value of the 'consumer-attr-3' attribute of the plug"
+    echo "Expected disconnect-slot-producer be able to read the value of the 'consumer-attr-1' attribute of the plug"
     exit 1
 fi
 expected_output="consumer-value-1"
@@ -14,23 +14,23 @@ if [ "$output" != "$expected_output" ]; then
     exit 1
 fi
 
-# Read own 'producer-attr-3' attribute
-if ! output=$(snapctl get :producer producer-attr-3); then
-    echo "Expected connect-slot-producer to be able to read the value of own 'producer-attr3' attribute"
+# Read own 'before-connect' attribute
+if ! output=$(snapctl get :producer before-connect); then
+    echo "Expected disconnect-slot-producer to be able to read the value of own 'before-connect' attribute"
     exit 1
 fi
-expected_output="producer-value-3-validated"
+expected_output="slot-changed(producer-value)"
 if [ "$output" != "$expected_output" ]; then
     echo "Expected output to be '$expected_output', but it was '$output'"
     exit 1
 fi
 
-# Read 'consumer-attr-3' attribute of the plug
-if ! output=$(snapctl get --plug :producer consumer-attr-3); then
-    echo "Expected connect-slot-producer to be able to read the value of 'consumer-attr-3' attribute of the plug"
+# Read 'before-connect' attribute of the plug
+if ! output=$(snapctl get --plug :producer before-connect); then
+    echo "Expected disconnect-slot-producer to be able to read the value of 'before-connect' attribute of the plug"
     exit 1
 fi
-expected_output="consumer-value-3-validated"
+expected_output="plug-changed(consumer-value)"
 if [ "$output" != "$expected_output" ]; then
     echo "Expected output to be '$expected_output', but it was '$output'"
     exit 1
@@ -47,7 +47,6 @@ if snapctl set :producer consumer-attr-4=foo; then
     echo "Expected snapctl set to fail when run from connect-slot or disconnect-slot hook"
     exit 1
 fi
-
 
 touch "$SNAP_COMMON/disconnect-slot-producer-done"
 
