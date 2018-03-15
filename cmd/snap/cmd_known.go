@@ -41,7 +41,7 @@ type cmdKnown struct {
 	Remote bool `long:"remote"`
 }
 
-var shortKnownHelp = i18n.G("Shows known assertions of the provided type")
+var shortKnownHelp = i18n.G("Show known assertions of the provided type")
 var longKnownHelp = i18n.G(`
 The known command shows known assertions of the provided type.
 If header=value pairs are provided after the assertion type, the assertions
