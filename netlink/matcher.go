@@ -1,6 +1,7 @@
 package netlink
 
 import (
+	"fmt"
 	"regexp"
 )
 
@@ -9,6 +10,7 @@ type Matcher interface {
 	EvaluateAction(a KObjAction) bool
 	EvaluateEnv(e map[string]string) bool
 	Compile() error
+	String() string
 }
 
 type RuleDefinition struct {
@@ -76,6 +78,10 @@ func (r *RuleDefinition) Compile() error {
 		r.rule.Env[k] = reg
 	}
 	return nil
+}
+
+func (r RuleDefinition) String() string {
+	return fmt.Sprintf("Action: %v / Env: %+v", r.Action, r.Env)
 }
 
 // rule is the compiled version of the RuleDefinition
@@ -152,4 +158,12 @@ func (rs RuleDefinitions) EvaluateEnv(e map[string]string) bool {
 		}
 	}
 	return false
+}
+
+func (rs RuleDefinitions) String() string {
+	output := ""
+	for _, v := range rs.Rules {
+		output += "- " + v.String() + "\n"
+	}
+	return output
 }
