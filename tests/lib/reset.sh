@@ -18,7 +18,7 @@ reset_classic() {
             echo "snapd service or socket not active"
             exit 1
         fi
-        retries=$(( $retries - 1 ))
+        retries=$(( retries - 1 ))
         sleep 1
     done
 
