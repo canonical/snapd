@@ -30,7 +30,7 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-var shortBuyHelp = i18n.G("Buys a snap")
+var shortBuyHelp = i18n.G("Buy a snap")
 var longBuyHelp = i18n.G(`
 The buy command buys a snap from the store.
 `)
