@@ -20,6 +20,7 @@
 package advisor
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -43,7 +44,7 @@ type writer struct {
 type CommandDB interface {
 	// AddSnap adds the entries for commands pointing to the given
 	// snap name to the commands database.
-	AddSnap(snapName, summary string, commands []string) error
+	AddSnap(snapName, version, summary string, commands []string) error
 	// Commit persist the changes, and closes the database. If the
 	// database has already been committed/rollbacked, does nothing.
 	Commit() error
@@ -96,8 +97,8 @@ func Create() (CommandDB, error) {
 	return t, nil
 }
 
-func (t *writer) AddSnap(snapName, summary string, commands []string) error {
-	bname := []byte(snapName)
+func (t *writer) AddSnap(snapName, version, summary string, commands []string) error {
+	bname := []byte(fmt.Sprintf("%s/%s", snapName, version))
 
 	for _, cmd := range commands {
 		bcmd := []byte(cmd)
@@ -219,8 +220,10 @@ func (f *boltFinder) FindCommand(command string) ([]Command, error) {
 	snaps := strings.Split(string(buf), ",")
 	cmds := make([]Command, len(snaps))
 	for i, snap := range snaps {
+		l := strings.SplitN(snap, "/", 2)
 		cmds[i] = Command{
-			Snap:    snap,
+			Snap:    l[0],
+			Version: l[1],
 			Command: command,
 		}
 	}
@@ -245,5 +248,5 @@ func (f *boltFinder) FindPackage(pkgName string) (*Package, error) {
 		return nil, nil
 	}
 
-	return &Package{Snap: pkgName, Summary: string(bsummary)}, nil
+	return &Package{Snap: pkgName, Version: "", Summary: string(bsummary)}, nil
 }

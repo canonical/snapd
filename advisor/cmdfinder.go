@@ -21,6 +21,7 @@ package advisor
 
 type Command struct {
 	Snap    string
+	Version string `json:"Version,omitempty"`
 	Command string
 }
 

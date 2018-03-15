@@ -21,6 +21,7 @@ package advisor
 
 type Package struct {
 	Snap    string
+	Version string
 	Summary string
 }
 

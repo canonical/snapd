@@ -45,8 +45,8 @@ type catalogStore struct {
 func (r *catalogStore) WriteCatalogs(w io.Writer, a store.SnapAdder) error {
 	r.ops = append(r.ops, "write-catalog")
 	w.Write([]byte("pkg1\npkg2"))
-	a.AddSnap("foo", "foo summary", []string{"foo", "meh"})
-	a.AddSnap("bar", "bar summray", []string{"bar", "meh"})
+	a.AddSnap("foo", "1.0", "foo summary", []string{"foo", "meh"})
+	a.AddSnap("bar", "2.0", "bar summray", []string{"bar", "meh"})
 	return nil
 }
 
@@ -98,9 +98,9 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 	dump, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
 	c.Check(dump, DeepEquals, map[string][]string{
-		"foo": {"foo"},
-		"bar": {"bar"},
-		"meh": {"foo", "bar"},
+		"foo": {"foo/1.0"},
+		"bar": {"bar/2.0"},
+		"meh": {"foo/1.0", "bar/2.0"},
 	})
 }
 
