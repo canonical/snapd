@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -122,6 +123,7 @@ slots:
 
 func (s *ContentSuite) TestSanitizeSlotSourceAndLegacy(c *C) {
 	slot := MockSlot(c, `name: snap
+version: 0
 slots:
   content:
     source:
@@ -130,6 +132,7 @@ slots:
 `, nil, "content")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, `move the "read" attribute into the "source" section`)
 	slot = MockSlot(c, `name: snap
+version: 0
 slots:
   content:
     source:
@@ -221,7 +224,7 @@ apps:
 }
 
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
-	info := snaptest.MockInfo(c, "name: name", &snap.SideInfo{Revision: snap.R(42)})
+	info := snaptest.MockInfo(c, "{name: name, version: 0}", &snap.SideInfo{Revision: snap.R(42)})
 	c.Check(builtin.ResolveSpecialVariable("foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
 	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info), Equals, "/var/snap/name/42/foo")
@@ -234,6 +237,7 @@ func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 // Check that legacy syntax works and allows sharing read-only snap content
 func (s *ContentSuite) TestConnectedPlugSnippetSharingLegacy(c *C) {
 	const consumerYaml = `name: consumer 
+version: 0
 plugs:
  content:
   target: import
@@ -241,6 +245,7 @@ plugs:
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
 	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
 	const producerYaml = `name: producer
+version: 0
 slots:
  content:
   read:
@@ -251,7 +256,7 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []osutil.MountEntry{{
 		Name:    filepath.Join(dirs.CoreSnapMountDir, "producer/5/export"),
 		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
 		Options: []string{"bind", "ro"},
@@ -262,6 +267,7 @@ slots:
 // Check that sharing of read-only snap content is possible
 func (s *ContentSuite) TestConnectedPlugSnippetSharingSnap(c *C) {
 	const consumerYaml = `name: consumer 
+version: 0
 plugs:
  content:
   target: $SNAP/import
@@ -272,6 +278,7 @@ apps:
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
 	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
 	const producerYaml = `name: producer
+version: 0
 slots:
  content:
   read:
@@ -282,7 +289,7 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []osutil.MountEntry{{
 		Name:    filepath.Join(dirs.CoreSnapMountDir, "producer/5/export"),
 		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
 		Options: []string{"bind", "ro"},
@@ -305,6 +312,7 @@ slots:
 // Check that sharing of writable data is possible
 func (s *ContentSuite) TestConnectedPlugSnippetSharingSnapData(c *C) {
 	const consumerYaml = `name: consumer 
+version: 0
 plugs:
  content:
   target: $SNAP_DATA/import
@@ -315,6 +323,7 @@ apps:
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
 	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
 	const producerYaml = `name: producer
+version: 0
 slots:
  content:
   write:
@@ -325,7 +334,7 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []osutil.MountEntry{{
 		Name:    "/var/snap/producer/5/export",
 		Dir:     "/var/snap/consumer/7/import",
 		Options: []string{"bind"},
@@ -350,6 +359,7 @@ slots:
 // Check that sharing of writable common data is possible
 func (s *ContentSuite) TestConnectedPlugSnippetSharingSnapCommon(c *C) {
 	const consumerYaml = `name: consumer 
+version: 0
 plugs:
  content:
   target: $SNAP_COMMON/import
@@ -360,6 +370,7 @@ apps:
 	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
 	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
 	const producerYaml = `name: producer
+version: 0
 slots:
  content:
   write:
@@ -370,7 +381,7 @@ slots:
 
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, slot), IsNil)
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []osutil.MountEntry{{
 		Name:    "/var/snap/producer/common/export",
 		Dir:     "/var/snap/consumer/common/import",
 		Options: []string{"bind"},
@@ -398,6 +409,7 @@ func (s *ContentSuite) TestInterfaces(c *C) {
 
 func (s *ContentSuite) TestModernContentInterface(c *C) {
 	plug := MockPlug(c, `name: consumer
+version: 0
 plugs:
  content:
   target: $SNAP_COMMON/import
@@ -408,6 +420,7 @@ apps:
 	connectedPlug := interfaces.NewConnectedPlug(plug, nil)
 
 	slot := MockSlot(c, `name: producer
+version: 0
 slots:
  content:
   source:
@@ -428,7 +441,7 @@ slots:
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
 
 	// Analyze the mount specification.
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []osutil.MountEntry{{
 		Name:    "/var/snap/producer/common/read-common",
 		Dir:     "/var/snap/consumer/common/import/read-common",
 		Options: []string{"bind", "ro"},
@@ -475,6 +488,7 @@ slots:
 func (s *ContentSuite) TestModernContentInterfacePlugins(c *C) {
 	// Define one app snap and two snaps plugin snaps.
 	plug := MockPlug(c, `name: app
+version: 0
 plugs:
  plugins:
   interface: content
@@ -490,6 +504,7 @@ apps:
 	// XXX: realistically the plugin may be a single file and we don't support
 	// those very well.
 	slotOne := MockSlot(c, `name: plugin-one
+version: 0
 slots:
  plugin-for-app:
   interface: content
@@ -499,6 +514,7 @@ slots:
 	connectedSlotOne := interfaces.NewConnectedSlot(slotOne, nil)
 
 	slotTwo := MockSlot(c, `name: plugin-two
+version: 0
 slots:
  plugin-for-app:
   interface: content
@@ -516,7 +532,7 @@ slots:
 	}
 
 	// Analyze the mount specification.
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []osutil.MountEntry{{
 		Name:    "/snap/plugin-one/1/plugin",
 		Dir:     "/snap/app/1/plugins/plugin",
 		Options: []string{"bind", "ro"},
@@ -550,6 +566,7 @@ slots:
 
 func (s *ContentSuite) TestModernContentSameReadAndWriteClash(c *C) {
 	plug := MockPlug(c, `name: consumer
+version: 0
 plugs:
  content:
   target: $SNAP_COMMON/import
@@ -560,6 +577,7 @@ apps:
 	connectedPlug := interfaces.NewConnectedPlug(plug, nil)
 
 	slot := MockSlot(c, `name: producer
+version: 0
 slots:
  content:
   source:
@@ -577,7 +595,7 @@ slots:
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
 
 	// Analyze the mount specification
-	expectedMnt := []mount.Entry{{
+	expectedMnt := []osutil.MountEntry{{
 		Name:    "/var/snap/producer/2/directory",
 		Dir:     "/var/snap/consumer/common/import/directory",
 		Options: []string{"bind", "ro"},

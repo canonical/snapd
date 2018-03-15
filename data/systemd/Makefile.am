@@ -18,7 +18,6 @@ systemdsystemunitdir = $(SYSTEMD_SYSTEM_UNIT_DIR)
 SYSTEMD_UNITS_GENERATED := \
 	snapd.autoimport.service.in	\
 	snapd.core-fixup.service.in \
-	snapd.refresh.service.in \
 	snapd.service.in \
 	snapd.snap-repair.service.in \
 	snapd.system-shutdown.service.in
@@ -27,15 +26,9 @@ SYSTEMD_UNITS = \
 	$(SYSTEMD_UNITS_GENERATED:.in=) \
 	$(wildcard *.timer) \
 	$(wildcard *.socket) \
-	$(snap_mount_unit)
 
 
-CLEANFILES = $(SYSTEMD_UNITS_GENERATED:.in=) $(snap_mount_unit)
-
-# The special mount unit for "/snap" must be named after the path and the path
-# is a variable.  Compute it in make for simplicity. This is equivalent to
-# calling systemd-escape --path $(SNAP_MOUNT_DIR)
-snap_mount_unit=$(subst /,-,$(patsubst %/,%,$(patsubst /%,%,$(SNAP_MOUNT_DIR)))).mount
+CLEANFILES = $(SYSTEMD_UNITS_GENERATED:.in=)
 
 systemdsystemunit_DATA = $(SYSTEMD_UNITS)
 
@@ -46,10 +39,5 @@ libexec_SCRIPTS = snapd.core-fixup.sh
 		sed s:[@]libexecdir[@]:$(libexecdir):g | \
 		sed s:[@]SNAPD_ENVIRONMENT_FILE[@]:$(SNAPD_ENVIRONMENT_FILE):g | \
 		sed s:[@]bindir[@]:$(bindir):g | \
-		sed s:[@]SNAP_MOUNT_DIR[@]:$(SNAP_MOUNT_DIR):g  | \
-		cat > $@
-
-$(snap_mount_unit): snap.mount.in
-	cat $< | \
 		sed s:[@]SNAP_MOUNT_DIR[@]:$(SNAP_MOUNT_DIR):g  | \
 		cat > $@

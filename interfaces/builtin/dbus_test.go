@@ -65,6 +65,7 @@ var _ = Suite(&DbusInterfaceSuite{
 func (s *DbusInterfaceSuite) SetUpSuite(c *C) {
 	s.snapInfo = snaptest.MockInfo(c, `
 name: test-dbus
+version: 0
 slots:
   test-session-slot:
     interface: dbus

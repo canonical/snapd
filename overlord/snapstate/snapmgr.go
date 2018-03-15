@@ -61,6 +61,14 @@ type SnapSetup struct {
 	UserID  int    `json:"user-id,omitempty"`
 	Base    string `json:"base,omitempty"`
 
+	// FIXME: implement rename of this as suggested in
+	//  https://github.com/snapcore/snapd/pull/4103#discussion_r169569717
+	//
+	// Prereq is a list of snap-names that need to get installed
+	// together with this snap. Typically used when installing
+	// content-snaps with default-providers.
+	Prereq []string `json:"prereq,omitempty"`
+
 	Flags
 
 	SnapPath string `json:"snap-path,omitempty"`
@@ -358,6 +366,14 @@ func (m *SnapManager) blockedTask(cand *state.Task, running []*state.Task) bool 
 // The caller should be holding the state lock.
 func (m *SnapManager) NextRefresh() time.Time {
 	return m.autoRefresh.NextRefresh()
+}
+
+// EffectiveRefreshHold returns the time until to which refreshes are
+// held if refresh.hold configuration is set and accounting for the
+// max postponement since the last refresh.
+// The caller should be holding the state lock.
+func (m *SnapManager) EffectiveRefreshHold() (time.Time, error) {
+	return m.autoRefresh.EffectiveRefreshHold()
 }
 
 // LastRefresh returns the time the last snap update.

@@ -76,7 +76,7 @@ func (s *NetworkStatusSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.provider.app"`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "interface=com.ubuntu.connectivity1.NetworkingStatus{,/**}")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "interface=com.ubuntu.connectivity1.NetworkingStatus{,*}")
 }
 
 func (s *NetworkStatusSuite) TestAppArmorConnectedSlot(c *C) {
