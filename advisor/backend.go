@@ -183,7 +183,7 @@ func DumpCommands() (map[string][]string, error) {
 }
 
 type boltFinder struct {
-	bolt.DB
+	*bolt.DB
 }
 
 // Open the database for reading.
@@ -196,7 +196,7 @@ func Open() (Finder, error) {
 		return nil, err
 	}
 
-	return &boltFinder{*db}, nil
+	return &boltFinder{db}, nil
 }
 
 func (f *boltFinder) FindCommand(command string) ([]Command, error) {

@@ -100,7 +100,20 @@ func G(msgid string) string {
 	return locale.Gettext(msgid)
 }
 
+// https://www.gnu.org/software/gettext/manual/html_node/Plural-forms.html
+// (search for 1000)
+func ngn(d int) uint32 {
+	const max = 1000000
+	if d < 0 {
+		d = -d
+	}
+	if d > max {
+		return uint32((d % max) + max)
+	}
+	return uint32(d)
+}
+
 // NG is the shorthand for NGettext
-func NG(msgid string, msgidPlural string, n uint32) string {
-	return locale.NGettext(msgid, msgidPlural, n)
+func NG(msgid string, msgidPlural string, n int) string {
+	return locale.NGettext(msgid, msgidPlural, ngn(n))
 }

@@ -43,12 +43,14 @@ var _ = Suite(&TpmInterfaceSuite{
 })
 
 const tpmConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [tpm]
 `
 
 const tpmCoreYaml = `name: core
+version: 0
 type: os
 slots:
   tpm:
@@ -91,7 +93,7 @@ func (s *TpmInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# tpm
 KERNEL=="tpm[0-9]*", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *TpmInterfaceSuite) TestStaticInfo(c *C) {

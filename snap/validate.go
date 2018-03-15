@@ -25,10 +25,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/spdx"
+	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 // Regular expressions describing correct identifiers.
@@ -44,6 +47,68 @@ func ValidateName(name string) error {
 	valid := validSnapName.MatchString(name)
 	if !valid {
 		return fmt.Errorf("invalid snap name: %q", name)
+	}
+	return nil
+}
+
+// NB keep this in sync with snapcraft and the review tools :-)
+var isValidVersion = regexp.MustCompile("^[a-zA-Z0-9](?:[a-zA-Z0-9:.+~-]{0,30}[a-zA-Z0-9+~])?$").MatchString
+
+var isNonGraphicalASCII = regexp.MustCompile("[^[:graph:]]").MatchString
+var isInvalidFirstVersionChar = regexp.MustCompile("^[^a-zA-Z0-9]").MatchString
+var isInvalidLastVersionChar = regexp.MustCompile("[^a-zA-Z0-9+~]$").MatchString
+var invalidMiddleVersionChars = regexp.MustCompile("[^a-zA-Z0-9:.+~-]+").FindAllString
+
+// ValidateVersion checks if a string is a valid snap version.
+func ValidateVersion(version string) error {
+	if !isValidVersion(version) {
+		// maybe it was too short?
+		if len(version) == 0 {
+			return fmt.Errorf("invalid snap version: cannot be empty")
+		}
+		if isNonGraphicalASCII(version) {
+			// note that while this way of quoting the version can produce ugly
+			// output in some cases (e.g. if you're trying to set a version to
+			// "hello😁", seeing “invalid version "hello😁"” could be clearer than
+			// “invalid snap version "hello\U0001f601"”), in a lot of more
+			// interesting cases you _need_ to have the thing that's not ASCII
+			// pointed out: homoglyphs and near-homoglyphs are too hard to spot
+			// otherwise. Take for example a version of "аерс". Or "v1.0‑x".
+			return fmt.Errorf("invalid snap version %s: must be printable, non-whitespace ASCII",
+				strconv.QuoteToASCII(version))
+		}
+		// now we know it's a non-empty ASCII string, we can get serious
+		var reasons []string
+		// ... too long?
+		if len(version) > 32 {
+			reasons = append(reasons, fmt.Sprintf("cannot be longer than 32 characters (got: %d)", len(version)))
+		}
+		// started with a symbol?
+		if isInvalidFirstVersionChar(version) {
+			// note that we can only say version[0] because we know it's ASCII :-)
+			reasons = append(reasons, fmt.Sprintf("must start with an ASCII alphanumeric (and not %q)", version[0]))
+		}
+		if len(version) > 1 {
+			if isInvalidLastVersionChar(version) {
+				tpl := "must end with an ASCII alphanumeric or one of '+' or '~' (and not %q)"
+				reasons = append(reasons, fmt.Sprintf(tpl, version[len(version)-1]))
+			}
+			if len(version) > 2 {
+				if all := invalidMiddleVersionChars(version[1:len(version)-1], -1); len(all) > 0 {
+					reasons = append(reasons, fmt.Sprintf("contains invalid characters: %s", strutil.Quoted(all)))
+				}
+			}
+		}
+		switch len(reasons) {
+		case 0:
+			// huh
+			return fmt.Errorf("invalid snap version %q", version)
+		case 1:
+			return fmt.Errorf("invalid snap version %q: %s", version, reasons[0])
+		default:
+			reasons, last := reasons[:len(reasons)-1], reasons[len(reasons)-1]
+			return fmt.Errorf("invalid snap version %q: %s, and %s", version, strings.Join(reasons, ", "), last)
+		}
 	}
 	return nil
 }
@@ -138,18 +203,11 @@ func validateSocketAddrNet(socket *SocketInfo, fieldName string, address string)
 		if err := validateSocketAddrNetHost(socket, fieldName, address[:lastIndex]); err != nil {
 			return err
 		}
-		if err := validateSocketAddrNetPort(socket, fieldName, address[lastIndex+1:]); err != nil {
-			return err
-		}
-		return nil
+		return validateSocketAddrNetPort(socket, fieldName, address[lastIndex+1:])
 	}
 
 	// Address only contains a port
-	if err := validateSocketAddrNetPort(socket, fieldName, address); err != nil {
-		return err
-	}
-
-	return nil
+	return validateSocketAddrNetPort(socket, fieldName, address)
 }
 
 func validateSocketAddrNetHost(socket *SocketInfo, fieldName string, address string) error {
@@ -181,28 +239,28 @@ func Validate(info *Info) error {
 	if name == "" {
 		return fmt.Errorf("snap name cannot be empty")
 	}
-	err := ValidateName(name)
-	if err != nil {
+
+	if err := ValidateName(name); err != nil {
 		return err
 	}
 
-	err = info.Epoch.Validate()
-	if err != nil {
+	if err := ValidateVersion(info.Version); err != nil {
 		return err
 	}
 
-	license := info.License
-	if license != "" {
-		err := ValidateLicense(license)
-		if err != nil {
+	if err := info.Epoch.Validate(); err != nil {
+		return err
+	}
+
+	if license := info.License; license != "" {
+		if err := ValidateLicense(license); err != nil {
 			return err
 		}
 	}
 
 	// validate app entries
 	for _, app := range info.Apps {
-		err := ValidateApp(app)
-		if err != nil {
+		if err := ValidateApp(app); err != nil {
 			return err
 		}
 	}
@@ -221,8 +279,7 @@ func Validate(info *Info) error {
 
 	// validate hook entries
 	for _, hook := range info.Hooks {
-		err := ValidateHook(hook)
-		if err != nil {
+		if err := ValidateHook(hook); err != nil {
 			return err
 		}
 	}
@@ -232,12 +289,58 @@ func Validate(info *Info) error {
 		return err
 	}
 
-	blacklist := make([]string, 0, len(info.Layout))
+	// validate that bases do not have base fields
+	if info.Type == TypeOS || info.Type == TypeBase {
+		if info.Base != "" {
+			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.Name())
+		}
+	}
+
+	return ValidateLayoutAll(info)
+}
+
+// ValidateLayoutAll validates the consistency of all the layout elements in a snap.
+func ValidateLayoutAll(info *Info) error {
+	paths := make([]string, 0, len(info.Layout))
 	for _, layout := range info.Layout {
-		if err := ValidateLayout(layout, blacklist); err != nil {
+		paths = append(paths, layout.Path)
+	}
+	sort.Strings(paths)
+
+	// Validate that each source path is used consistently as a file or as a directory.
+	sourceKindMap := make(map[string]string)
+	for _, path := range paths {
+		layout := info.Layout[path]
+		if layout.Bind != "" {
+			// Layout refers to a directory.
+			sourcePath := info.ExpandSnapVariables(layout.Bind)
+			if kind, ok := sourceKindMap[sourcePath]; ok {
+				if kind != "dir" {
+					return fmt.Errorf("layout %q refers to directory %q but another layout treats it as file", layout.Path, layout.Bind)
+				}
+			}
+			sourceKindMap[sourcePath] = "dir"
+		}
+		if layout.BindFile != "" {
+			// Layout refers to a file.
+			sourcePath := info.ExpandSnapVariables(layout.BindFile)
+			if kind, ok := sourceKindMap[sourcePath]; ok {
+				if kind != "file" {
+					return fmt.Errorf("layout %q refers to file %q but another layout treats it as a directory", layout.Path, layout.BindFile)
+				}
+			}
+			sourceKindMap[sourcePath] = "file"
+		}
+	}
+
+	// Validate each layout item and collect resulting constraints.
+	constraints := make([]LayoutConstraint, 0, len(info.Layout))
+	for _, path := range paths {
+		layout := info.Layout[path]
+		if err := ValidateLayout(layout, constraints); err != nil {
 			return err
 		}
-		blacklist = append(blacklist, info.ExpandSnapVariables(layout.Path))
+		constraints = append(constraints, layout.constraint())
 	}
 	return nil
 }
@@ -308,7 +411,7 @@ func validateAppOrderCycles(apps map[string]*AppInfo) error {
 		app := queue[0]
 		queue = queue[1:]
 		for _, successor := range successors[app] {
-			predecessors[successor] -= 1
+			predecessors[successor]--
 			if predecessors[successor] == 0 {
 				delete(predecessors, successor)
 				queue = append(queue, successor)
@@ -353,11 +456,28 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 	return nil
 }
 
+func validateAppTimer(app *AppInfo) error {
+	if app.Timer == nil {
+		return nil
+	}
+
+	if !app.IsService() {
+		return fmt.Errorf("cannot use timer with application %q as it's not a service", app.Name)
+	}
+
+	if _, err := timeutil.ParseSchedule(app.Timer.Timer); err != nil {
+		return fmt.Errorf("application %q timer has invalid format: %v", app.Name, err)
+	}
+
+	return nil
+}
+
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml. Do not allow any of [',",`] here or snap-exec
 // will get confused.
 var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:$-]*$`)
 
+// ValidAppName tells whether a string is a valid application name.
 func ValidAppName(n string) bool {
 	var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 
@@ -414,7 +534,18 @@ func ValidateApp(app *AppInfo) error {
 		return err
 	}
 
-	return nil
+	// validate refresh-mode
+	switch app.RefreshMode {
+	case "", "endure", "restart", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
+		// valid
+	default:
+		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.RefreshMode)
+	}
+	if app.RefreshMode != "" && app.Daemon == "" {
+		return fmt.Errorf(`"refresh-mode" cannot be used for %q, only for services`, app.Name)
+	}
+
+	return validateAppTimer(app)
 }
 
 // ValidatePathVariables ensures that given path contains only $SNAP, $SNAP_DATA or $SNAP_COMMON.
@@ -444,8 +575,47 @@ func isAbsAndClean(path string) bool {
 	return (filepath.IsAbs(path) || strings.HasPrefix(path, "$")) && filepath.Clean(path) == path
 }
 
+// LayoutConstraint abstracts validation of conflicting layout elements.
+type LayoutConstraint interface {
+	IsOffLimits(path string) bool
+}
+
+// mountedTree represents a mounted file-system tree or a bind-mounted directory.
+type mountedTree string
+
+// IsOffLimits returns true if the mount point is (perhaps non-proper) prefix of a given path.
+func (mountPoint mountedTree) IsOffLimits(path string) bool {
+	return strings.HasPrefix(path, string(mountPoint)+"/") || path == string(mountPoint)
+}
+
+// mountedFile represents a bind-mounted file.
+type mountedFile string
+
+// IsOffLimits returns true if the mount point is (perhaps non-proper) prefix of a given path.
+func (mountPoint mountedFile) IsOffLimits(path string) bool {
+	return strings.HasPrefix(path, string(mountPoint)+"/") || path == string(mountPoint)
+}
+
+// symlinkFile represents a layout using symbolic link.
+type symlinkFile string
+
+// IsOffLimits returns true for mounted files  if a path is identical to the path of the mount point.
+func (mountPoint symlinkFile) IsOffLimits(path string) bool {
+	return strings.HasPrefix(path, string(mountPoint)+"/") || path == string(mountPoint)
+}
+
+func (layout *Layout) constraint() LayoutConstraint {
+	path := layout.Snap.ExpandSnapVariables(layout.Path)
+	if layout.Symlink != "" {
+		return symlinkFile(path)
+	} else if layout.BindFile != "" {
+		return mountedFile(path)
+	}
+	return mountedTree(path)
+}
+
 // ValidateLayout ensures that the given layout contains only valid subset of constructs.
-func ValidateLayout(layout *Layout, blacklist []string) error {
+func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 	si := layout.Snap
 	// Rules for validating layouts:
 	//
@@ -466,28 +636,39 @@ func ValidateLayout(layout *Layout, blacklist []string) error {
 	if !isAbsAndClean(mountPoint) {
 		return fmt.Errorf("layout %q uses invalid mount point: must be absolute and clean", layout.Path)
 	}
-	for i := range blacklist {
-		if strings.HasPrefix(mountPoint, blacklist[i]) {
-			return fmt.Errorf("layout %q underneath prior layout item %q", layout.Path, blacklist[i])
+
+	for _, path := range []string{"/proc", "/sys", "/dev", "/run", "/boot", "/lost+found", "/media"} {
+		// We use the mountedTree constraint as this has the right semantics.
+		if mountedTree(path).IsOffLimits(mountPoint) {
+			return fmt.Errorf("layout %q in an off-limits area", layout.Path)
+		}
+	}
+
+	for _, constraint := range constraints {
+		if constraint.IsOffLimits(mountPoint) {
+			return fmt.Errorf("layout %q underneath prior layout item %q", layout.Path, constraint)
 		}
 	}
 
 	var nused int
 	if layout.Bind != "" {
-		nused += 1
+		nused++
+	}
+	if layout.BindFile != "" {
+		nused++
 	}
 	if layout.Type != "" {
-		nused += 1
+		nused++
 	}
 	if layout.Symlink != "" {
-		nused += 1
+		nused++
 	}
 	if nused != 1 {
 		return fmt.Errorf("layout %q must define a bind mount, a filesystem mount or a symlink", layout.Path)
 	}
 
-	if layout.Bind != "" {
-		mountSource := layout.Bind
+	if layout.Bind != "" || layout.BindFile != "" {
+		mountSource := layout.Bind + layout.BindFile
 		if err := ValidatePathVariables(mountSource); err != nil {
 			return fmt.Errorf("layout %q uses invalid bind mount source %q: %s", layout.Path, mountSource, err)
 		}

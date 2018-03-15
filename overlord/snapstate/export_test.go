@@ -57,6 +57,7 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 		return nil
 	}
 	m.runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
+	m.runner.AddHandler("auto-connect", fakeHandler, nil)
 	m.runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
 	m.runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
 	m.runner.AddHandler("validate-snap", fakeHandler, nil)
@@ -142,6 +143,14 @@ var (
 	NewRefreshHints   = newRefreshHints
 	NewCatalogRefresh = newCatalogRefresh
 )
+
+func MockNextRefresh(ar *autoRefresh, when time.Time) {
+	ar.nextRefresh = when
+}
+
+func MockLastRefreshSchedule(ar *autoRefresh, schedule string) {
+	ar.lastRefreshSchedule = schedule
+}
 
 func MockCatalogRefreshNextRefresh(cr *catalogRefresh, when time.Time) {
 	cr.nextCatalogRefresh = when

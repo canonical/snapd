@@ -143,7 +143,12 @@ func (spec *Specification) UpdateNS() map[string][]string {
 
 func snippetFromLayout(layout *snap.Layout) string {
 	mountPoint := layout.Snap.ExpandSnapVariables(layout.Path)
-	return fmt.Sprintf("# Layout path: %[1]s\n%[1]s{,/**} mrwklix,", mountPoint)
+	if layout.Bind != "" || layout.Type == "tmpfs" {
+		return fmt.Sprintf("# Layout path: %s\n%s{,/**} mrwklix,", mountPoint, mountPoint)
+	} else if layout.BindFile != "" {
+		return fmt.Sprintf("# Layout path: %s\n%s mrwklix,", mountPoint, mountPoint)
+	}
+	return fmt.Sprintf("# Layout path: %s\n# (no extra permissions required for symlink)", mountPoint)
 }
 
 func copySnippets(m map[string][]string) map[string][]string {

@@ -45,6 +45,10 @@ capability net_admin,
 # CAP_AUDIT_READ required to read the audit log via the netlink multicast socket
 # per 'man 7 capabilities'
 capability audit_read,
+
+# CAP_AUDIT_WRITE required to write to the audit log via the netlink multicast
+# socket per 'man 7 capabilities'
+capability audit_write,
 `
 
 func init() {

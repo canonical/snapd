@@ -27,8 +27,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
@@ -46,7 +46,7 @@ const (
 
 // Change describes a change to the mount table (action and the entry to act on).
 type Change struct {
-	Entry  mount.Entry
+	Entry  osutil.MountEntry
 	Action Action
 }
 
@@ -151,7 +151,7 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 func (c *Change) ensureSource() error {
 	// We only have to do ensure bind mount source exists.
 	// This also rules out symlinks.
-	flags, _ := mount.OptsToCommonFlags(c.Entry.Options)
+	flags, _ := osutil.MountOptsToCommonFlags(c.Entry.Options)
 	if flags&syscall.MS_BIND == 0 {
 		return nil
 	}
@@ -240,7 +240,7 @@ func (c *Change) lowLevelPerform() error {
 		case "symlink":
 			// symlinks are handled in createInode directly, nothing to do here.
 		case "", "file":
-			flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
+			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
 			err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
 			logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
 		}
@@ -252,7 +252,11 @@ func (c *Change) lowLevelPerform() error {
 			err = osRemove(c.Entry.Dir)
 			logger.Debugf("remove %q (error: %v)", c.Entry.Dir, err)
 		case "", "file":
-			err = sysUnmount(c.Entry.Dir, umountNoFollow)
+			flags := umountNoFollow
+			if c.Entry.OptBool("x-snapd.detach") {
+				flags |= syscall.MNT_DETACH
+			}
+			err = sysUnmount(c.Entry.Dir, flags)
 			logger.Debugf("umount %q (error: %v)", c.Entry.Dir, err)
 		}
 		return err
@@ -268,11 +272,11 @@ func (c *Change) lowLevelPerform() error {
 // lists are processed and a "diff" of mount changes is produced. The mount
 // changes, when applied in order, transform the current profile into the
 // desired profile.
-func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
+func NeededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
 	// Copy both profiles as we will want to mutate them.
-	current := make([]mount.Entry, len(currentProfile.Entries))
+	current := make([]osutil.MountEntry, len(currentProfile.Entries))
 	copy(current, currentProfile.Entries)
-	desired := make([]mount.Entry, len(desiredProfile.Entries))
+	desired := make([]osutil.MountEntry, len(desiredProfile.Entries))
 	copy(desired, desiredProfile.Entries)
 
 	// Clean the directory part of both profiles. This is done so that we can
@@ -290,7 +294,7 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 	sort.Sort(byMagicDir(desired))
 
 	// Construct a desired directory map.
-	desiredMap := make(map[string]*mount.Entry)
+	desiredMap := make(map[string]*osutil.MountEntry)
 	for i := range desired {
 		desiredMap[desired[i].Dir] = &desired[i]
 	}
@@ -304,7 +308,7 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 	// Collect the IDs of desired changes.
 	// We need that below to keep implicit changes from the current profile.
 	for i := range desired {
-		desiredIDs[XSnapdEntryID(&desired[i])] = true
+		desiredIDs[desired[i].XSnapdEntryID()] = true
 	}
 
 	// Compute reusable entries: those which are equal in current and desired and which
@@ -333,7 +337,7 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 		// constructed using a temporary bind mount that contained the original
 		// mount entries of a directory that was hidden with a tmpfs, but this
 		// fact was lost.
-		if XSnapdSynthetic(&current[i]) && desiredIDs[XSnapdNeededBy(&current[i])] {
+		if current[i].XSnapdSynthetic() && desiredIDs[current[i].XSnapdNeededBy()] {
 			logger.Debugf("reusing synthetic entry %q", current[i])
 			reuse[dir] = true
 			continue

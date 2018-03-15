@@ -20,7 +20,6 @@
 package boot_test
 
 import (
-	"io/ioutil"
 	"path/filepath"
 	"testing"
 
@@ -34,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestBoot(t *testing.T) { TestingT(t) }
@@ -97,9 +97,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 		}
 
 		fullFn := filepath.Join(kernelAssetsDir, def[0])
-		content, err := ioutil.ReadFile(fullFn)
-		c.Assert(err, IsNil)
-		c.Assert(string(content), Equals, def[1])
+		c.Check(fullFn, testutil.FileEquals, def[1])
 	}
 
 	// remove

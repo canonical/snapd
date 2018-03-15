@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type piCfgSuite struct {
@@ -71,9 +72,7 @@ func (s *piCfgSuite) mockConfig(c *C, txt string) {
 }
 
 func (s *piCfgSuite) checkMockConfig(c *C, expected string) {
-	newContent, err := ioutil.ReadFile(s.mockConfigPath)
-	c.Assert(err, IsNil)
-	c.Check(string(newContent), Equals, expected)
+	c.Check(s.mockConfigPath, testutil.FileEquals, expected)
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigUncommentExisting(c *C) {

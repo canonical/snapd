@@ -25,6 +25,9 @@ set -o pipefail
 # shellcheck source=tests/lib/random.sh
 . "$TESTSLIB/random.sh"
 
+# shellcheck source=tests/lib/spread-funcs.sh
+. "$TESTSLIB/spread-funcs.sh"
+
 ###
 ### Utility functions reused below.
 ###
@@ -252,6 +255,8 @@ prepare_project() {
         go get -u github.com/kardianos/govendor
     fi
     quiet govendor sync
+    # govendor runs as root and will leave strange permissions
+    chown test.test -R "$SPREAD_PATH"
 
     if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
         case "$SPREAD_SYSTEM" in
@@ -317,6 +322,10 @@ prepare_project_each() {
             systemctl start systemd-journald.service
             ;;
         *)
+            # per journalctl's implementation, --rotate and --sync 'override'
+            # each other if used in a single command, with the one appearing
+            # later being effective
+            journalctl --sync
             journalctl --rotate
             sleep .1
             journalctl --vacuum-time=1ms
