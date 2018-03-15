@@ -869,7 +869,7 @@ func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
 	_, err := snap.Parser().ParseArgs(cmd)
 	c.Assert(err, check.ErrorMatches, `"/" does not contain an unpacked snap.
 
-Try "snapcraft prime" in your project directory, then "snap try" again.`)
+Try 'snapcraft prime' in your project directory, then 'snap try' again.`)
 }
 
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {
