@@ -422,7 +422,7 @@ func (s *SnapSuite) TestFindSnapSectionOverview(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `No section specified. Available sections:
  * sec1
  * sec2
-Please try: snap find --section=<selected section>
+Please try 'snap find --section=<selected section>'
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 
@@ -508,7 +508,7 @@ func (s *SnapSuite) TestFindSnapCachedSection(c *check.C) {
  * sec1
  * sec2
  * sec3
-Please try: snap find --section=<selected section>
+Please try 'snap find --section=<selected section>'
 `)
 
 	s.ResetStdStreams()

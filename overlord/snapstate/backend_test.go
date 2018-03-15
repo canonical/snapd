@@ -153,6 +153,14 @@ func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 		info.SideInfo.Paid = true
 	case "channel-for-private":
 		info.SideInfo.Private = true
+	case "channel-for-layout":
+		info.Layout = map[string]*snap.Layout{
+			"/usr": {
+				Snap:    info,
+				Path:    "/usr",
+				Symlink: "$SNAP/usr",
+			},
+		}
 	}
 
 	userID := 0
@@ -219,6 +227,16 @@ func (f *fakeStore) LookupRefresh(cand *store.RefreshCandidate, user *auth.UserS
 		},
 		Confinement:   confinement,
 		Architectures: []string{"all"},
+	}
+	switch cand.Channel {
+	case "channel-for-layout":
+		info.Layout = map[string]*snap.Layout{
+			"/usr": {
+				Snap:    info,
+				Path:    "/usr",
+				Symlink: "$SNAP/usr",
+			},
+		}
 	}
 
 	var hit snap.Revision

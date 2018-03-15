@@ -117,7 +117,7 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 	if s.privateMgr == nil {
 		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.extraIfaces, s.extraBackends)
 		c.Assert(err, IsNil)
-		mgr.AddForeignTaskHandlers()
+		ifacestate.AddForeignTaskHandlers(mgr)
 		s.privateMgr = mgr
 		s.o.AddManager(mgr)
 
