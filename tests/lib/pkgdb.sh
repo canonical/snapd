@@ -205,7 +205,7 @@ distro_install_package() {
 }
 
 distro_purge_package() {
-    set -- $(
+    set -- "$(
         for pkg in "$@" ; do
             package_name=$(distro_name_package "$pkg")
             # When we could not find a different package name for the distribution
@@ -215,7 +215,7 @@ distro_purge_package() {
             fi
             echo "$package_name"
         done
-        )
+        )"
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
