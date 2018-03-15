@@ -32,11 +32,12 @@ CLEANFILES = $(SYSTEMD_UNITS_GENERATED:.in=)
 
 systemdsystemunit_DATA = $(SYSTEMD_UNITS)
 
-libexec_SCRIPTS = snapd.core-fixup.sh
+libexecsnapddir = $(libexecdir)/snapd
+libexecsnapd_SCRIPTS = snapd.core-fixup.sh
 
 %: %.in
 	cat $< | \
-		sed s:[@]libexecdir[@]:$(libexecdir):g | \
+		sed s:[@]libexecsnapddir[@]:$(libexecsnapddir):g | \
 		sed s:[@]SNAPD_ENVIRONMENT_FILE[@]:$(SNAPD_ENVIRONMENT_FILE):g | \
 		sed s:[@]bindir[@]:$(bindir):g | \
 		sed s:[@]SNAP_MOUNT_DIR[@]:$(SNAP_MOUNT_DIR):g  | \
