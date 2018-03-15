@@ -72,7 +72,10 @@ type cmdRun struct {
 func init() {
 	addCommand("run",
 		i18n.G("Run the given snap command"),
-		i18n.G("Run the given snap command with the right confinement and environment"),
+		i18n.G(`
+The run command executes the given snap command with the right confinement
+and environment.
+`),
 		func() flags.Commander {
 			return &cmdRun{}
 		}, map[string]string{
@@ -80,7 +83,7 @@ func init() {
 			"hook":       i18n.G("Hook to run"),
 			"r":          i18n.G("Use a specific snap revision when running hook"),
 			"shell":      i18n.G("Run a shell instead of the command (useful for debugging)"),
-			"strace":     i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here."),
+			"strace":     i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
 			"gdb":        i18n.G("Run the command with gdb"),
 			"timer":      i18n.G("Run as a timer service with given schedule"),
 			"parser-ran": "",
@@ -274,19 +277,22 @@ func (x *cmdRun) useStrace() bool {
 	return x.ParserRan == 1 && x.Strace != "no-strace"
 }
 
-func (x *cmdRun) straceOpts() []string {
+func (x *cmdRun) straceOpts() (opts []string, raw bool) {
 	if x.Strace == "with-strace" {
-		return nil
+		return nil, false
 	}
 
-	var opts []string
 	// TODO: use shlex?
 	for _, opt := range strings.Split(x.Strace, " ") {
 		if strings.TrimSpace(opt) != "" {
+			if opt == "--raw" {
+				raw = true
+				continue
+			}
 			opts = append(opts, opt)
 		}
 	}
-	return opts
+	return opts, raw
 }
 
 func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
@@ -503,7 +509,7 @@ func straceCmd() ([]string, error) {
 	if stracePath == "" {
 		stracePath, err = exec.LookPath("strace")
 		if err != nil {
-			return nil, fmt.Errorf("cannot find an installed strace, please try: `snap install strace-static`")
+			return nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
 		}
 	}
 
@@ -538,7 +544,8 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 	if err != nil {
 		return err
 	}
-	cmd = append(cmd, x.straceOpts()...)
+	straceOpts, raw := x.straceOpts()
+	cmd = append(cmd, straceOpts...)
 	cmd = append(cmd, origCmd...)
 
 	// run with filter
@@ -553,6 +560,15 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 	filterDone := make(chan bool, 1)
 	go func() {
 		defer func() { filterDone <- true }()
+
+		if raw {
+			// Passing --strace='--raw' disables the filtering of
+			// early strace output. This is useful when tracking
+			// down issues with snap helpers such as snap-confine,
+			// snap-exec ...
+			io.Copy(Stderr, stderr)
+			return
+		}
 
 		r := bufio.NewReader(stderr)
 

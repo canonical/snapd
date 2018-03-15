@@ -2,7 +2,10 @@ summary: Ensure that lxd works
 
 # only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
-systems: [ubuntu-16*, ubuntu-core-*]
+#systems: [ubuntu-16*, ubuntu-core-*]
+
+# FIXME LXD has some issue on Google images.
+systems: [ubuntu-16.04-32, ubuntu-core-*]
 
 # lxd downloads can be quite slow
 kill-timeout: 25m

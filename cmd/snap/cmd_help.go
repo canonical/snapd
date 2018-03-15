@@ -20,6 +20,8 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 
 	"github.com/snapcore/snapd/i18n"
@@ -27,14 +29,43 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-var shortHelpHelp = i18n.G("Help")
+var shortHelpHelp = i18n.G("Show help about a command")
 var longHelpHelp = i18n.G(`
-The help command shows helpful information. Unlike this. ;-)
+The help command displays information about snap commands.
 `)
 
+// addHelp adds --help like what go-flags would do for us, but hidden
+func addHelp(parser *flags.Parser) error {
+	var help struct {
+		ShowHelp func() error `short:"h" long:"help"`
+	}
+	help.ShowHelp = func() error {
+		var buf bytes.Buffer
+		parser.WriteHelp(&buf)
+		return &flags.Error{
+			Type:    flags.ErrHelp,
+			Message: buf.String(),
+		}
+	}
+	hlpgrp, err := parser.AddGroup("Help Options", "", &help)
+	if err != nil {
+		return err
+	}
+	hlpgrp.Hidden = true
+	hlp := parser.FindOptionByLongName("help")
+	hlp.Description = i18n.G("Show this help message")
+	hlp.Hidden = true
+
+	return nil
+}
+
 type cmdHelp struct {
-	Manpage bool `long:"man"`
-	parser  *flags.Parser
+	Manpage    bool `long:"man" hidden:"true"`
+	Positional struct {
+		// TODO: find a way to make Command tab-complete
+		Sub string `positional-arg-name:"<command>"`
+	} `positional-args:"yes"`
+	parser *flags.Parser
 }
 
 func init() {
@@ -50,7 +81,13 @@ func (cmd cmdHelp) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-
+	if cmd.Positional.Sub != "" {
+		subcmd := cmd.parser.Find(cmd.Positional.Sub)
+		if subcmd == nil {
+			return fmt.Errorf(i18n.G("Unknown command %q. Try 'snap help'."), cmd.Positional.Sub)
+		}
+		cmd.parser.Command.Active = subcmd
+	}
 	if cmd.Manpage {
 		cmd.parser.WriteManPage(Stdout)
 		os.Exit(0)

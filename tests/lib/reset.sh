@@ -75,7 +75,7 @@ reset_classic() {
 
         # force all profiles to be re-generated
         rm -f /var/lib/snapd/system-key
-     fi
+    fi
 
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.socket
@@ -104,7 +104,9 @@ reset_all_snap() {
                 if ! systemctl status snapd.service snapd.socket; then
                     systemctl start snapd.service snapd.socket
                 fi
-                snap remove "$snap"
+                if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
+                    snap remove "$snap"
+                fi
                 ;;
         esac
     done
