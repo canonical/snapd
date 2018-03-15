@@ -36,9 +36,8 @@ libexecsnapddir = $(libexecdir)/snapd
 libexecsnapd_SCRIPTS = snapd.core-fixup.sh
 
 %: %.in
-	cat $< | \
-		sed s:[@]libexecsnapddir[@]:$(libexecsnapddir):g | \
-		sed s:[@]SNAPD_ENVIRONMENT_FILE[@]:$(SNAPD_ENVIRONMENT_FILE):g | \
-		sed s:[@]bindir[@]:$(bindir):g | \
-		sed s:[@]SNAP_MOUNT_DIR[@]:$(SNAP_MOUNT_DIR):g  | \
-		cat > $@
+	sed < $< > $@ \
+		-e s:[@]bindir[@]:$(bindir):g \
+		-e s:[@]libexecsnapddir[@]:$(libexecsnapddir):g \
+		-e s:[@]SNAPD_ENVIRONMENT_FILE[@]:$(SNAPD_ENVIRONMENT_FILE):g \
+		-e s:[@]SNAP_MOUNT_DIR[@]:$(SNAP_MOUNT_DIR):g

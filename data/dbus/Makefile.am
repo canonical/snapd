@@ -22,6 +22,7 @@ SERVICES = \
 dbusservices_DATA = $(SERVICES)
 
 %.service: %.service.in
-	cat $< | sed 's:[@]bindir[@]:${bindir}:g' | cat > $@
+	sed < $< > $@ \
+		-e s:[@]bindir[@]:${bindir}:g
 
 CLEANFILES = $(SERVICES)

@@ -311,7 +311,9 @@ snap-confine/%.1: snap-confine/%.rst
 endif
 
 snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefile
-	sed -e 's,[@]LIBEXECSNAPDDIR[@],$(libexecsnapddir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+	sed < $< > $@ \
+		-e 's,[@]LIBEXECSNAPDDIR[@],$(libexecsnapddir),g' \
+		-e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),'
 
 # Install the apparmor profile
 #
@@ -345,7 +347,9 @@ endif
 libexecsnapd_SCRIPTS = snap-mgmt/snap-mgmt
 
 snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile snap-mgmt/$(am__dirstamp)
-	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+	sed < $< > $@ \
+		-e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),'
+
 snap-mgmt/$(am__dirstamp):
 	@$(MKDIR_P) snap-mgmt
 	@: > snap-mgmt/$(am__dirstamp)

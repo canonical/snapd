@@ -14,8 +14,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 %.sh: %.sh.in
-	sed   < $< > $@ \
-		s:[@]SNAP_MOUNT_DIR[@]:${SNAP_MOUNT_DIR}:g
+	sed < $< > $@ \
+		-e 	s:[@]SNAP_MOUNT_DIR[@]:${SNAP_MOUNT_DIR}:g
 
 CLEANFILES = snapd.sh
 
