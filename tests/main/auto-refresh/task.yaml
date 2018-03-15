@@ -14,6 +14,13 @@ execute: |
     for expected in ^schedule: ^last: ^next:; do
         echo "$output" | MATCH "$expected"
     done
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        # no holding
+        ! echo "$output" | MATCH "^hold:"
+    else
+        # holding
+        echo "$output" | MATCH "^hold:"
+    fi
 
     echo "Install a snap from stable"
     snap install test-snapd-tools
