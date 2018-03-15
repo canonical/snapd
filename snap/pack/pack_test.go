@@ -131,7 +131,7 @@ apps:
   command: bin/hello-world
 `)
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
-	_, err := pack.LoadValidate(sourceDir)
+	err := pack.CheckSkeleton(sourceDir)
 	c.Assert(err, Equals, snap.ErrMissingPaths)
 }
 

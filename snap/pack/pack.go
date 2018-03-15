@@ -211,8 +211,13 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 	})
 }
 
-// LoadValidate attempts to load and validate  snap data from source directory
-func LoadValidate(sourceDir string) (*snap.Info, error) {
+// CheckSkeleton attempts to validate snap data in source directory
+func CheckSkeleton(sourceDir string) error {
+	_, err := loadAndValidate(sourceDir)
+	return err
+}
+
+func loadAndValidate(sourceDir string) (*snap.Info, error) {
 	// ensure we have valid content
 	yaml, err := ioutil.ReadFile(filepath.Join(sourceDir, "meta", "snap.yaml"))
 	if err != nil {
@@ -235,7 +240,7 @@ func LoadValidate(sourceDir string) (*snap.Info, error) {
 }
 
 func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error) {
-	info, err := LoadValidate(sourceDir)
+	info, err := loadAndValidate(sourceDir)
 	if err != nil {
 		return "", err
 	}

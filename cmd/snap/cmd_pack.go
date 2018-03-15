@@ -61,7 +61,7 @@ func (x *packCmd) Execute([]string) error {
 	}
 
 	if x.CheckSkeleton {
-		_, err := pack.LoadValidate(x.Positional.SnapDir)
+		err := pack.CheckSkeleton(x.Positional.SnapDir)
 		if err == snap.ErrMissingPaths {
 			return nil
 		}
