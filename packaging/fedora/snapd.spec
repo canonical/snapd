@@ -446,7 +446,6 @@ autoreconf --force --install --verbose
 # FIXME: add --enable-caps-over-setuid as soon as possible (setuid discouraged!)
 %configure \
     --disable-apparmor \
-    --libexecdir=%{_libexecdir}/snapd/ \
     --enable-nvidia-biarch \
     %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
     --with-snap-mount-dir=%{_sharedstatedir}/snapd/snap \
