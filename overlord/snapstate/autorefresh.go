@@ -21,7 +21,6 @@ package snapstate
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"time"
 
@@ -130,7 +129,7 @@ func (m *autoRefresh) clearRefreshHold() {
 
 // AtSeed configures refresh policies at end of seeding.
 func (m *autoRefresh) AtSeed() error {
-	// on classic hold refreshes for up to ~6h after seeding
+	// on classic hold refreshes for 2h after seeding
 	if release.OnClassic {
 		var t1 time.Time
 		tr := config.NewTransaction(m.state)
@@ -139,13 +138,10 @@ func (m *autoRefresh) AtSeed() error {
 			// already set or error
 			return err
 		}
-		// the 20mins tries to ensure that an autoRefresh.Ensure
-		// recalculating the refresh happens before the full 6h
-		// (default Ensure interval is 5mins)
-		maxDelta := 6*time.Hour - 20*time.Minute
-		delta := time.Duration(rand.Int63n(int64(maxDelta)))
+		// TODO: have a policy that if the snapd exe itself
+		// is older than X weeks/months we skip the holding?
 		now := time.Now().UTC()
-		tr.Set("core", "refresh.hold", now.Add(delta))
+		tr.Set("core", "refresh.hold", now.Add(2*time.Hour))
 		tr.Commit()
 		m.nextRefresh = now
 	}
