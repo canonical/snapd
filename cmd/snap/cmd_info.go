@@ -20,12 +20,12 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
+	"unicode"
 
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/yaml.v2"
@@ -163,27 +163,68 @@ func coalesce(snaps ...*client.Snap) *client.Snap {
 	return nil
 }
 
-// formatDescr formats a given string (typically a snap description)
+func rTrimRightSpace(text []rune) []rune {
+	j := len(text)
+	for j > 0 && unicode.IsSpace(text[j-1]) {
+		j--
+	}
+	return text[:j]
+}
+
+func rLastIndexSpace(a []rune) int {
+	for i := len(a) - 1; i >= 0; i-- {
+		if unicode.IsSpace(a[i]) {
+			return i
+		}
+	}
+	return -1
+}
+
+// this is _wrong_ for much of unicode (because the width of a rune on the
+// terminal is anything between 0 and 2, not always 1 as this code assumes)
+// but fixing that is Hard. Long story short, you can get close using a couple
+// of big unicode table. Getting it 100% requires a terminfo-alike of unicode
+// behaviour.
+// This (and probably formatDescr below) should move to strutil once we're
+// happy with it getting wider use.
+func wrap1(out io.Writer, text []rune, width int) {
+	text = rTrimRightSpace(text)
+	idx := 0
+	for idx < len(text) && unicode.IsSpace(text[idx]) {
+		idx++
+	}
+	dent := "  " + string(text[:idx])
+	text = text[idx:]
+	width -= idx + 2
+	for len(text) > width {
+		idx = rLastIndexSpace(text[:width+1])
+		if idx < 0 {
+			idx = width
+		}
+		fmt.Fprintln(out, dent+string(text[:idx]))
+		text = text[idx:]
+		idx = 0
+		for idx < len(text) && unicode.IsSpace(text[idx]) {
+			idx++
+		}
+		text = text[idx:]
+	}
+
+	fmt.Fprintln(out, dent+string(text))
+}
+
+// printDescr formats a given string (typically a snap description)
 // in a user friendly way.
 //
 // The rules are (intentionally) very simple:
-// - trim whitespace
-// - word wrap at "max" chars
-// - keep \n intact and break here
-// - ignore \r
-func formatDescr(descr string, max int) string {
-	out := bytes.NewBuffer(nil)
-	for _, line := range strings.Split(strings.TrimSpace(descr), "\n") {
-		if len(line) > max {
-			for _, chunk := range strutil.WordWrap(line, max) {
-				fmt.Fprintf(out, "  %s\n", chunk)
-			}
-		} else {
-			fmt.Fprintf(out, "  %s\n", line)
-		}
+// - trim trailing whitespace
+// - word wrap at "max" chars preserving line indent
+// - keep \n intact and break there
+func printDescr(w io.Writer, descr string, max int) {
+	descr = strings.TrimRightFunc(descr, unicode.IsSpace)
+	for _, line := range strings.Split(descr, "\n") {
+		wrap1(w, []rune(line), max)
 	}
-
-	return strings.TrimSuffix(out.String(), "\n")
 }
 
 func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, n int) {
@@ -342,7 +383,8 @@ func (x *infoCmd) Execute([]string) error {
 		}
 		fmt.Fprintf(w, "license:\t%s\n", license)
 		maybePrintPrice(w, remote, resInfo)
-		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(both.Description, termWidth))
+		fmt.Fprintln(w, "description: |")
+		printDescr(w, both.Description, termWidth)
 		maybePrintCommands(w, snapName, both.Apps, termWidth)
 		maybePrintServices(w, snapName, both.Apps, termWidth)
 
