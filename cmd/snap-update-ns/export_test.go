@@ -35,11 +35,12 @@ var (
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
 	// utils
-	PlanWritableMimic = planWritableMimic
-	ExecWritableMimic = execWritableMimic
-	SecureMkdirAll    = secureMkdirAll
-	SecureMkfileAll   = secureMkfileAll
-	SplitIntoSegments = splitIntoSegments
+	PlanWritableMimic  = planWritableMimic
+	ExecWritableMimic  = execWritableMimic
+	SecureMkdirAll     = secureMkdirAll
+	SecureMkfileAll    = secureMkfileAll
+	SecureMksymlinkAll = secureMksymlinkAll
+	SplitIntoSegments  = splitIntoSegments
 
 	// main
 	ComputeAndSaveChanges = computeAndSaveChanges
@@ -49,7 +50,8 @@ var (
 type SystemCalls interface {
 	Lstat(name string) (os.FileInfo, error)
 	ReadDir(dirname string) ([]os.FileInfo, error)
-	Symlink(oldname, newname string) error
+	Symlinkat(oldname string, dirfd int, newname string) error
+	Readlinkat(dirfd int, path string, buf []byte) (int, error)
 	Remove(name string) error
 
 	Close(fd int) error
@@ -75,7 +77,8 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	oldSysOpen := sysOpen
 	oldSysOpenat := sysOpenat
 	oldSysUnmount := sysUnmount
-	oldSysSymlink := sysSymlink
+	oldSysSymlinkat := sysSymlinkat
+	oldReadlinkat := sysReadlinkat
 
 	// override
 	osLstat = sc.Lstat
@@ -89,7 +92,8 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	sysOpen = sc.Open
 	sysOpenat = sc.Openat
 	sysUnmount = sc.Unmount
-	sysSymlink = sc.Symlink
+	sysSymlinkat = sc.Symlinkat
+	sysReadlinkat = sc.Readlinkat
 
 	return func() {
 		// restore
@@ -104,7 +108,8 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		sysOpen = oldSysOpen
 		sysOpenat = oldSysOpenat
 		sysUnmount = oldSysUnmount
-		sysSymlink = oldSysSymlink
+		sysSymlinkat = oldSysSymlinkat
+		sysReadlinkat = oldReadlinkat
 	}
 }
 
