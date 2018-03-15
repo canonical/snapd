@@ -72,6 +72,9 @@ reset_classic() {
         for unit in $mounts $services; do
             systemctl start "$unit"
         done
+
+        # force all profiles to be re-generated
+        rm -f /var/lib/snapd/system-key
     fi
 
     if [ "$1" != "--keep-stopped" ]; then
