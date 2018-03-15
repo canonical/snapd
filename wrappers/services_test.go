@@ -702,3 +702,44 @@ apps:
 	}
 
 }
+
+func (s *servicesTestSuite) TestSnapServicesActivation(c *C) {
+	const snapYaml = `name: hello-snap
+version: 1.10
+summary: hello
+description: Hello...
+apps:
+ svc1:
+  command: bin/hello
+  daemon: simple
+  plugs: [network-bind]
+  sockets:
+    sock1:
+      listen-stream: $SNAP_COMMON/sock1.socket
+      socket-mode: 0666
+ svc3:
+  command: bin/hello
+  daemon: simple
+`
+
+	var sysdLog [][]string
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	svc3Name := "snap.hello-snap.svc3.service"
+
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(12)})
+
+	// fix the apps order to make the test stable
+	err := wrappers.AddSnapServices(info, nil)
+	c.Assert(err, IsNil)
+	c.Assert(sysdLog, HasLen, 2, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Check(sysdLog, DeepEquals, [][]string{
+		// only svc3 gets started during boot
+		{"--root", dirs.GlobalRootDir, "enable", svc3Name},
+		{"daemon-reload"},
+	}, Commentf("calls: %v", sysdLog))
+}
