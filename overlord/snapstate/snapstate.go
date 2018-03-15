@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -60,6 +61,9 @@ func needsMaybeCore(typ snap.Type) int {
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
+	if snapsup.Name() == "system" {
+		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
+	}
 	if snapst.IsInstalled() && !snapst.Active {
 		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.Name())
 	}
@@ -507,6 +511,25 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 	return out
 }
 
+// validateFeatureFlags validates the given snap only uses experimental
+// features that are enabled by the user.
+func validateFeatureFlags(st *state.State, info *snap.Info) error {
+	if len(info.Layout) == 0 {
+		return nil
+	}
+
+	tr := config.NewTransaction(st)
+	var featureFlagLayouts bool
+	if err := tr.GetMaybe("core", "experimental.layouts", &featureFlagLayouts); err != nil {
+		return err
+	}
+	if featureFlagLayouts {
+		return nil
+	}
+
+	return fmt.Errorf("cannot use experimental 'layouts' feature, set option 'experimental.layouts' to true and try again")
+}
+
 // InstallPath returns a set of tasks for installing snap from a file path.
 // Note that the state must be locked by the caller.
 // The provided SideInfo can contain just a name which results in a
@@ -545,6 +568,9 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 	}
 
 	if err := validateContainer(container, info, logger.Noticef); err != nil {
+		return nil, err
+	}
+	if err := validateFeatureFlags(st, info); err != nil {
 		return nil, err
 	}
 
@@ -590,6 +616,9 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 	}
 
 	if err := validateInfoAndFlags(info, &snapst, flags); err != nil {
+		return nil, err
+	}
+	if err := validateFeatureFlags(st, info); err != nil {
 		return nil, err
 	}
 
@@ -718,6 +747,13 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		channel, flags, snapst := params(update)
 
 		if err := validateInfoAndFlags(update, snapst, flags); err != nil {
+			if refreshAll {
+				logger.Noticef("cannot update %q: %v", update.Name(), err)
+				continue
+			}
+			return nil, nil, err
+		}
+		if err := validateFeatureFlags(st, update); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.Name(), err)
 				continue

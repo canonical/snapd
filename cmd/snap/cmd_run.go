@@ -72,7 +72,10 @@ type cmdRun struct {
 func init() {
 	addCommand("run",
 		i18n.G("Run the given snap command"),
-		i18n.G("Run the given snap command with the right confinement and environment"),
+		i18n.G(`
+The run command executes the given snap command with the right confinement
+and environment.
+`),
 		func() flags.Commander {
 			return &cmdRun{}
 		}, map[string]string{
@@ -506,7 +509,7 @@ func straceCmd() ([]string, error) {
 	if stracePath == "" {
 		stracePath, err = exec.LookPath("strace")
 		if err != nil {
-			return nil, fmt.Errorf("cannot find an installed strace, please try: `snap install strace-static`")
+			return nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
 		}
 	}
 

@@ -14,12 +14,12 @@ if [ "$output" != "$expected_output" ]; then
     exit 1
 fi
 
-# Read 'producer-attr-3' attribute of the slot
-if ! output=$(snapctl get --slot :consumer producer-attr-3); then
+# Read 'before-connect' attribute of the slot
+if ! output=$(snapctl get --slot :consumer before-connect); then
     echo "Expected connect-plug-consumer be able to read the value of the 'producer-attr-3' attribute of the slot"
     exit 1
 fi
-expected_output="producer-value-3-validated"
+expected_output="slot-changed(producer-value)"
 if [ "$output" != "$expected_output" ]; then
     echo "Expected output to be '$expected_output', but it was '$output'"
     exit 1
@@ -36,12 +36,12 @@ if [ "$output" != "$expected_output" ]; then
     exit 1
 fi
 
-# Read own 'consumer-attr-3' attribute
-if ! output=$(snapctl get :consumer consumer-attr-3); then
-    echo "Expected connect-plug-consumer be able to read the value of own 'consumer-attr-3' attribute"
+# Read own 'before-connect' attribute
+if ! output=$(snapctl get :consumer before-connect); then
+    echo "Expected connect-plug-consumer be able to read the value of own 'before-connect' attribute"
     exit 1
 fi
-expected_output="consumer-value-3-validated"
+expected_output="plug-changed(consumer-value)"
 if [ "$output" != "$expected_output" ]; then
     echo "Expected output to be '$expected_output', but it was '$output'"
     exit 1
