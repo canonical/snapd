@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
@@ -124,6 +125,27 @@ func (m *autoRefresh) clearRefreshHold() {
 	tr := config.NewTransaction(m.state)
 	tr.Set("core", "refresh.hold", nil)
 	tr.Commit()
+}
+
+// AtSeed configures refresh policies at end of seeding.
+func (m *autoRefresh) AtSeed() error {
+	// on classic hold refreshes for 2h after seeding
+	if release.OnClassic {
+		var t1 time.Time
+		tr := config.NewTransaction(m.state)
+		err := tr.Get("core", "refresh.hold", &t1)
+		if !config.IsNoOption(err) {
+			// already set or error
+			return err
+		}
+		// TODO: have a policy that if the snapd exe itself
+		// is older than X weeks/months we skip the holding?
+		now := time.Now().UTC()
+		tr.Set("core", "refresh.hold", now.Add(2*time.Hour))
+		tr.Commit()
+		m.nextRefresh = now
+	}
+	return nil
 }
 
 // Ensure ensures that we refresh all installed snaps periodically
