@@ -24,8 +24,8 @@ SYSTEMD_UNITS_GENERATED := \
 
 SYSTEMD_UNITS = \
 	$(SYSTEMD_UNITS_GENERATED:.in=) \
-	$(wildcard *.timer) \
-	$(wildcard *.socket) \
+  snapd.snap-repair.timer \
+	snapd.socket
 
 
 CLEANFILES = $(SYSTEMD_UNITS_GENERATED:.in=)
