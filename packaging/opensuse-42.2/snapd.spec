@@ -123,7 +123,7 @@ export CXXFLAGS
 # apparmor kernel available in SUSE and Debian. The generated apparmor profiles
 # cannot be loaded into a vanilla kernel. As a temporary measure we just switch
 # it all off.
-%configure --disable-apparmor --libexecdir=%{_libexecdir}/snapd \
+%configure --disable-apparmor \
            --with-systemd-system-unit-dir=%{_unitdir}
 
 %build

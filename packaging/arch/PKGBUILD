@@ -76,7 +76,7 @@ build() {
   autoreconf -i -f
   ./configure \
     --prefix=/usr \
-    --libexecdir=/usr/lib/snapd \
+    --libexecdir=/usr/lib \
     --with-snap-mount-dir=/var/lib/snapd/snap \
     --disable-apparmor \
     --enable-nvidia-biarch \

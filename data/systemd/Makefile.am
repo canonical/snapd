@@ -24,21 +24,20 @@ SYSTEMD_UNITS_GENERATED := \
 
 SYSTEMD_UNITS = \
 	$(SYSTEMD_UNITS_GENERATED:.in=) \
-	$(wildcard *.timer) \
-	$(wildcard *.socket) \
-	$(snap_mount_unit)
+  snapd.snap-repair.timer \
+	snapd.socket
 
 
 CLEANFILES = $(SYSTEMD_UNITS_GENERATED:.in=)
 
 systemdsystemunit_DATA = $(SYSTEMD_UNITS)
 
-libexec_SCRIPTS = snapd.core-fixup.sh
+libexecsnapddir = $(libexecdir)/snapd
+libexecsnapd_SCRIPTS = snapd.core-fixup.sh
 
 %: %.in
-	cat $< | \
-		sed s:[@]libexecdir[@]:$(libexecdir):g | \
-		sed s:[@]SNAPD_ENVIRONMENT_FILE[@]:$(SNAPD_ENVIRONMENT_FILE):g | \
-		sed s:[@]bindir[@]:$(bindir):g | \
-		sed s:[@]SNAP_MOUNT_DIR[@]:$(SNAP_MOUNT_DIR):g  | \
-		cat > $@
+	sed < $< > $@ \
+		-e s:[@]bindir[@]:$(bindir):g \
+		-e s:[@]libexecsnapddir[@]:$(libexecsnapddir):g \
+		-e s:[@]SNAPD_ENVIRONMENT_FILE[@]:$(SNAPD_ENVIRONMENT_FILE):g \
+		-e s:[@]SNAP_MOUNT_DIR[@]:$(SNAP_MOUNT_DIR):g
