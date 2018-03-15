@@ -5496,6 +5496,26 @@ run-hook: Hold`)
 
 }
 
+func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicy(c *C) {
+	// special policy only on classic
+	r := release.MockOnClassic(true)
+	defer r()
+
+	s.snapmgr.Ensure()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// check that refresh policies have run in this case
+	var t1 time.Time
+	err := st.Get("last-refresh-hints", &t1)
+	c.Check(err, IsNil)
+	tr := config.NewTransaction(st)
+	err = tr.Get("core", "refresh.hold", &t1)
+	c.Check(err, IsNil)
+}
+
 func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {
 	var lastRefresh time.Time
 
@@ -5504,6 +5524,8 @@ func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {
 }
 
 func makeTestRefreshConfig(st *state.State) {
+	// avoid special at seed policy
+	st.Set("seeded", true)
 	now := time.Now()
 	st.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, now.Location()))
 
@@ -5750,6 +5772,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesImmediateWithUpdate(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
@@ -5860,6 +5885,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
+	// avoid special at seed policy
+	s.state.Set("seeded", true)
 	s.state.Set("last-refresh", time.Time{})
 	autoRefreshAssertionsCalled := 0
 	restore := mockAutoRefreshAssertions(func(st *state.State, userID int) error {
