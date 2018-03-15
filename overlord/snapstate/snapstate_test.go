@@ -8911,7 +8911,7 @@ func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) 
 		SnapType: "app",
 	})
 
-	_, _, err := snapstate.UpdateMany(s.state, []string{"some-snap"}, s.user.ID)
+	_, _, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
 	c.Assert(err, ErrorMatches, "cannot use experimental 'layouts' feature.*")
 
 	// enable layouts
@@ -8919,7 +8919,7 @@ func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) 
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
-	_, _, err = snapstate.UpdateMany(s.state, []string{"some-snap"}, s.user.ID)
+	_, _, err = snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap"}, s.user.ID)
 	c.Assert(err, IsNil)
 }
 
@@ -8937,7 +8937,7 @@ func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 		SnapType: "app",
 	})
 
-	refreshes, _, err := snapstate.UpdateMany(s.state, nil, s.user.ID)
+	refreshes, _, err := snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID)
 	c.Assert(err, IsNil)
 	c.Assert(refreshes, HasLen, 0)
 
@@ -8946,7 +8946,7 @@ func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 	tr.Set("core", "experimental.layouts", true)
 	tr.Commit()
 
-	refreshes, _, err = snapstate.UpdateMany(s.state, nil, s.user.ID)
+	refreshes, _, err = snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID)
 	c.Assert(err, IsNil)
 	c.Assert(refreshes, DeepEquals, []string{"some-snap"})
 }
