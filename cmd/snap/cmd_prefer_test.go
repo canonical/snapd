@@ -34,7 +34,7 @@ func (s *SnapSuite) TestPreferHelp(c *C) {
 
 The prefer command enables all aliases of the given snap in preference
 to conflicting aliases of other snaps whose aliases will be disabled
-(removed for manual ones).
+(or removed, for manual ones).
 
 [prefer command options]
           --no-wait  Do not wait for the operation to finish but just print the

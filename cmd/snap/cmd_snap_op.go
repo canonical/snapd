@@ -707,7 +707,7 @@ func (x *cmdTry) Execute([]string) error {
 	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNotSnap {
 		return fmt.Errorf(i18n.G(`%q does not contain an unpacked snap.
 
-Try "snapcraft prime" in your project directory, then 'snap try' again.`), path)
+Try 'snapcraft prime' in your project directory, then 'snap try' again.`), path)
 	}
 	if err != nil {
 		return err

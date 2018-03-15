@@ -201,11 +201,8 @@ snaps on the system. Start with 'snap list' to see installed snaps.`)
 		}
 
 		opts := cmd.Options()
-		for _, grp := range cmd.Groups() {
-			opts = append(opts, grp.Options()...)
-		}
 		if c.optDescs != nil && len(opts) != len(c.optDescs) {
-			logger.Noticef("wrong number of option descriptions for %s: expected %d, got %d", c.name, len(opts), len(c.optDescs))
+			logger.Panicf("wrong number of option descriptions for %s: expected %d, got %d", c.name, len(opts), len(c.optDescs))
 		}
 		for _, opt := range opts {
 			name := opt.LongName
