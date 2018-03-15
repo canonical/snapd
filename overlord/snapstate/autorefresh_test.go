@@ -411,13 +411,16 @@ func (s *autoRefreshTestSuite) TestAtSeedPolicy(c *C) {
 	c.Check(config.IsNoOption(err), Equals, true)
 
 	release.MockOnClassic(true)
-	// on classic it sets a refresh hold of up to ~6h
+	now := time.Now()
+	// on classic it sets a refresh hold of 2h
 	err = af.AtSeed()
 	c.Assert(err, IsNil)
 	c.Check(af.NextRefresh().IsZero(), Equals, false)
 	tr = config.NewTransaction(s.state)
 	err = tr.Get("core", "refresh.hold", &t1)
 	c.Check(err, IsNil)
+	c.Check(t1.Before(now.Add(2*time.Hour)), Equals, false)
+	c.Check(t1.After(now.Add(2*time.Hour+5*time.Minute)), Equals, false)
 
 	// nop
 	err = af.AtSeed()
