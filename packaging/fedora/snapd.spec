@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.31.1
+Version:        2.31.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -710,6 +710,23 @@ fi
 
 
 %changelog
+* Fri Mar 09 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.31.2
+ - many: add the snapd-generator
+ - polkit: ensure error is properly set if dialog is dismissed
+ - xdgopenproxy: integrate xdg-open implementation into snapctl
+ - userd: add an OpenFile method for launching local files with xdg-
+   open
+ - configstate: when disable "ssh" we must disable the "sshd"
+   service
+ - many: remove snapd.refresh.{timer,service}
+ - interfaces/builtin: allow MM to access login1
+ - timeutil: account for 24h wrap when flattening clock spans
+ - interfaces/screen-inhibit-control,network-status: fix dbus path
+   and interface typos
+ - systemd, wrappers: start all snap services in one systemctl
+   call
+ - tests: disable interfaces-location-control on s390x
 * Tue Feb 20 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.31.1
  - tests: multiple autopkgtest related fixes for 18.04
