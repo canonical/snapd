@@ -399,3 +399,80 @@ func (s *lowLevelSuite) TestRemoveFailure(c *C) {
 	c.Assert(err, ErrorMatches, "operation not permitted")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{`remove "file"`})
 }
+
+func (s *lowLevelSuite) TestSymlinkatBadFd(c *C) {
+	err := s.sys.Symlinkat("/old", 3, "new")
+	c.Assert(err, ErrorMatches, "attempting to symlinkat with an invalid file descriptor 3")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`symlinkat "/old" 3 "new"`})
+}
+
+func (s *lowLevelSuite) TestSymlinkatSuccess(c *C) {
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+	err = s.sys.Symlinkat("/old", fd, "new")
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/foo" 0 0`,
+		`symlinkat "/old" 3 "new"`,
+	})
+}
+
+func (s *lowLevelSuite) TestSymlinkatFailure(c *C) {
+	s.sys.InsertFault(`symlinkat "/old" 3 "new"`, syscall.EPERM)
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+	err = s.sys.Symlinkat("/old", fd, "new")
+	c.Assert(err, ErrorMatches, "operation not permitted")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/foo" 0 0`,
+		`symlinkat "/old" 3 "new"`,
+	})
+}
+
+func (s *lowLevelSuite) TestReadlinkat(c *C) {
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+	buf := make([]byte, 10)
+	c.Assert(func() { s.sys.Readlinkat(fd, "new", buf) }, PanicMatches,
+		`one of InsertReadlinkatResult\(\) or InsertFault\(\) for readlinkat 3 "new" <ptr> must be used`)
+}
+
+func (s *lowLevelSuite) TestReadlinkatBadFd(c *C) {
+	buf := make([]byte, 10)
+	n, err := s.sys.Readlinkat(3, "new", buf)
+	c.Assert(err, ErrorMatches, "attempting to readlinkat with an invalid file descriptor 3")
+	c.Assert(n, Equals, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`readlinkat 3 "new" <ptr>`})
+}
+
+func (s *lowLevelSuite) TestReadlinkatSuccess(c *C) {
+	s.sys.InsertReadlinkatResult(`readlinkat 3 "new" <ptr>`, "/old")
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+
+	// Buffer has enough room
+	buf := make([]byte, 10)
+	n, err := s.sys.Readlinkat(fd, "new", buf)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 4)
+	c.Assert(buf, DeepEquals, []byte{'/', 'o', 'l', 'd', 0, 0, 0, 0, 0, 0})
+
+	// Buffer is too short
+	buf = make([]byte, 2)
+	n, err = s.sys.Readlinkat(fd, "new", buf)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 2)
+	c.Assert(buf, DeepEquals, []byte{'/', 'o'})
+}
+
+func (s *lowLevelSuite) TestReadlinkatFailure(c *C) {
+	s.sys.InsertFault(`readlinkat 3 "new" <ptr>`, syscall.EPERM)
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+
+	buf := make([]byte, 10)
+	n, err := s.sys.Readlinkat(fd, "new", buf)
+	c.Assert(err, ErrorMatches, "operation not permitted")
+	c.Assert(n, Equals, 0)
+	c.Assert(buf, DeepEquals, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+}
