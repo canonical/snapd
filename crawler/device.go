@@ -53,14 +53,14 @@ func ExistingDevices(queue chan Device, errors chan error, matcher netlink.Match
 					return err
 				}
 
+				kObj := filepath.Dir(path)
+
+				// Append to env subsystem if existing
+				if link, err := os.Readlink(kObj + "/subsystem"); err == nil {
+					env["SUBSYSTEM"] = filepath.Base(link)
+				}
+
 				if matcher == nil || matcher.EvaluateEnv(env) {
-
-					kObj := filepath.Dir(path)
-
-					// Append to env subsystem if existing
-					if link, err := os.Readlink(kObj + "/subsystem"); err == nil {
-						env["SUBSYSTEM"] = filepath.Base(link)
-					}
 
 					queue <- Device{
 						KObj: kObj,
