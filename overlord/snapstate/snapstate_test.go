@@ -5505,6 +5505,26 @@ run-hook: Hold`)
 
 }
 
+func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicy(c *C) {
+	// special policy only on classic
+	r := release.MockOnClassic(true)
+	defer r()
+
+	s.snapmgr.Ensure()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// check that refresh policies have run in this case
+	var t1 time.Time
+	err := st.Get("last-refresh-hints", &t1)
+	c.Check(err, IsNil)
+	tr := config.NewTransaction(st)
+	err = tr.Get("core", "refresh.hold", &t1)
+	c.Check(err, IsNil)
+}
+
 func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {
 	var lastRefresh time.Time
 
@@ -5513,6 +5533,8 @@ func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {
 }
 
 func makeTestRefreshConfig(st *state.State) {
+	// avoid special at seed policy
+	st.Set("seeded", true)
 	now := time.Now()
 	st.Set("last-refresh", time.Date(2009, 8, 13, 8, 0, 5, 0, now.Location()))
 
@@ -5759,6 +5781,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesImmediateWithUpdate(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
@@ -5869,6 +5894,8 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	defer s.state.Unlock()
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
 
+	// avoid special at seed policy
+	s.state.Set("seeded", true)
 	s.state.Set("last-refresh", time.Time{})
 	autoRefreshAssertionsCalled := 0
 	restore := mockAutoRefreshAssertions(func(st *state.State, userID int) error {
@@ -8805,6 +8832,123 @@ func (s *snapmgrTestSuite) TestSideInfoPrivate(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapst.CurrentSideInfo().Private, Equals, true)
 	c.Check(snapst.CurrentSideInfo().Paid, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathWithLayoutsChecksFeatureFlag(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+layout:
+ /usr:
+  bind: $SNAP/usr
+`)
+	_, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "cannot use experimental 'layouts' feature.*")
+
+	// enable layouts
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", true)
+	tr.Commit()
+
+	_, err = snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", snapstate.Flags{})
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "cannot use experimental 'layouts' feature.*")
+
+	// enable layouts
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", true)
+	tr.Commit()
+
+	_, err = snapstate.Install(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestUpdateLayoutsChecksFeatureFlag(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	_, err := snapstate.Update(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, "cannot use experimental 'layouts' feature.*")
+
+	// enable layouts
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", true)
+	tr.Commit()
+
+	_, err = snapstate.Update(s.state, "some-snap", "channel-for-layout", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyExplicitLayoutsChecksFeatureFlag(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:  true,
+		Channel: "channel-for-layout",
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	_, _, err := snapstate.UpdateMany(s.state, []string{"some-snap"}, s.user.ID)
+	c.Assert(err, ErrorMatches, "cannot use experimental 'layouts' feature.*")
+
+	// enable layouts
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", true)
+	tr.Commit()
+
+	_, _, err = snapstate.UpdateMany(s.state, []string{"some-snap"}, s.user.ID)
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:  true,
+		Channel: "channel-for-layout",
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	refreshes, _, err := snapstate.UpdateMany(s.state, nil, s.user.ID)
+	c.Assert(err, IsNil)
+	c.Assert(refreshes, HasLen, 0)
+
+	// enable layouts
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.layouts", true)
+	tr.Commit()
+
+	refreshes, _, err = snapstate.UpdateMany(s.state, nil, s.user.ID)
+	c.Assert(err, IsNil)
+	c.Assert(refreshes, DeepEquals, []string{"some-snap"})
 }
 
 type canDisableSuite struct{}
