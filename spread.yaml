@@ -347,8 +347,9 @@ prepare: |
         rmdir "$DELTA_PREFIX"
     fi
 
-    # Take the MATCH function from spread and allow our shell scripts to use it.
+    # Take the MATCH and REBOOT functions from spread and allow our shell scripts to use them.
     type MATCH | tail -n +2 > $TESTSLIB/spread-funcs.sh
+    type REBOOT | tail -n +2 >> $TESTSLIB/spread-funcs.sh
 
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
