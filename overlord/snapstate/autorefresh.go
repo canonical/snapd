@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -321,7 +322,7 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
 func (m *autoRefresh) launchAutoRefresh() error {
 	m.lastRefreshAttempt = time.Now()
-	updated, tasksets, err := AutoRefresh(m.state)
+	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
 	if err != nil {
 		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
 		return err

@@ -38,6 +38,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/context"
+
 	"github.com/gorilla/mux"
 	"github.com/jessevdk/go-flags"
 
@@ -550,7 +552,8 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	theStore := getStore(c)
 
-	sections, err := theStore.Sections(user)
+	// TODO: use a per-request context
+	sections, err := theStore.Sections(context.TODO(), user)
 	switch err {
 	case nil:
 		// pass
@@ -922,7 +925,8 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 		return nil, err
 	}
 
-	updated, tasksets, err := snapstateUpdateMany(st, inst.Snaps, inst.userID)
+	// TODO: use a per-request context
+	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID)
 	if err != nil {
 		return nil, err
 	}
