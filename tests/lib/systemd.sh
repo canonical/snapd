@@ -36,3 +36,23 @@ wait_for_service() {
     echo "service $service_name did not start"
     exit 1
 }
+
+systemd_stop_units() {
+    for unit in "$@"; do
+        if systemctl is-active "$unit"; then
+            echo "Ensure the service is active before stopping it"
+            retries=20
+            systemctl status "$unit" || true
+            while systemctl status "$unit" | grep "Active: activating"; do
+                if [ $retries -eq 0 ]; then
+                    echo "$unit unit not active"
+                    exit 1
+                fi
+                retries=$(( $retries - 1 ))
+                sleep 1
+            done
+
+            systemctl stop "$unit"
+        fi
+    done
+}
