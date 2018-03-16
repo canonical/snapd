@@ -46,10 +46,10 @@ the current directory.
 
 When used with --check-skeleton, pack only checks whether snap-dir contains
 valid snap metadata and raises an error otherwise. Application commands listed
-in snap metadata file, but appearing with incorrect permission bits or missing
-from snap-dir are signaled through diagnostic messages and do not result in an
-error.
-`)
+in snap metadata file, but appearing with incorrect permission bits result in an
+error. Commands that are missing from snap-dir are listed in diagnostic
+messages.
+ `)
 
 func init() {
 	addCommand("pack",
