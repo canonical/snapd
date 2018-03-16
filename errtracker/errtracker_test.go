@@ -291,3 +291,26 @@ func (s *ErrtrackerTestSuite) TestReportRepair(c *C) {
 	c.Check(id, Equals, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
 	c.Check(n, Equals, 1)
 }
+
+func (s *ErrtrackerTestSuite) TestReportWithWhoopsiePreferencesDisabled(c *C) {
+	mockWhoopsiePrefs := filepath.Join(c.MkDir(), "whoopsie")
+	err := ioutil.WriteFile(mockWhoopsiePrefs, []byte(`
+[General]
+report_metrics=false
+`), 0644)
+	c.Assert(err, IsNil)
+	restorer := errtracker.MockWhoopsiePreferences(mockWhoopsiePrefs)
+	defer restorer()
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		c.Fatalf("The server should not be hit from here")
+	}
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+	restorer = errtracker.MockCrashDbURL(server.URL)
+	defer restorer()
+
+	id, err := errtracker.Report("some-snap", "failed to do stuff", "[failed to do stuff]", nil)
+	c.Check(err, IsNil)
+	c.Check(id, Equals, "")
+}
