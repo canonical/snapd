@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"golang.org/x/net/context"
+
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -650,7 +652,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 // RefreshCandidates gets a list of candidates for update
 // Note that the state must be locked by the caller.
 func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, error) {
-	updates, _, _, err := refreshCandidates(st, nil, user, nil)
+	updates, _, _, err := refreshCandidates(context.TODO(), st, nil, user, nil)
 	return updates, err
 }
 
@@ -660,13 +662,13 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
-func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+func UpdateMany(ctx context.Context, st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	updates, stateByID, ignoreValidation, err := refreshCandidates(st, names, user, nil)
+	updates, stateByID, ignoreValidation, err := refreshCandidates(ctx, st, names, user, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1084,7 +1086,7 @@ var AutoRefreshAssertions func(st *state.State, userID int) error
 // AutoRefresh is the wrapper that will do a refresh of all the installed
 // snaps on the system. In addition to that it will also refresh important
 // assertions.
-func AutoRefresh(st *state.State) ([]string, []*state.TaskSet, error) {
+func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskSet, error) {
 	userID := 0
 
 	if AutoRefreshAssertions != nil {
@@ -1093,7 +1095,7 @@ func AutoRefresh(st *state.State) ([]string, []*state.TaskSet, error) {
 		}
 	}
 
-	return UpdateMany(st, nil, userID)
+	return UpdateMany(ctx, st, nil, userID)
 }
 
 // Enable sets a snap to the active state
