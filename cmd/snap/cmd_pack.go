@@ -37,9 +37,19 @@ type packCmd struct {
 	} `positional-args:"yes"`
 }
 
-var shortPackHelp = i18n.G("Pack the given target dir as a snap")
+var shortPackHelp = i18n.G("Pack the given directory as a snap")
 var longPackHelp = i18n.G(`
-The pack command packs the given snap-dir as a snap.`)
+The pack command packs the given snap-dir as a snap and writes the result to
+target-dir. If target-dir is omitted, the result is written to current
+directory. If both source-dir and target-dir are omitted, the pack command packs
+the current directory.
+
+When used with --check-skeleton, pack only checks whether snap-dir contains
+valid snap metadata and raises an error otherwise. Application commands listed
+in snap metadata file, but appearing with incorrect permission bits or missing
+from snap-dir are signaled through diagnostic messages and do not result in an
+error.
+`)
 
 func init() {
 	addCommand("pack",
@@ -48,7 +58,7 @@ func init() {
 		func() flags.Commander {
 			return &packCmd{}
 		}, map[string]string{
-			"check-skeleton": i18n.G("Validate snap directory only"),
+			"check-skeleton": i18n.G("Validate snap-dir metadata only"),
 		}, nil)
 }
 
