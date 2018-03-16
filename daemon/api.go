@@ -1852,6 +1852,13 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	st.Lock()
 	defer st.Unlock()
 
+	for i := range a.Plugs {
+		a.Plugs[i].Snap = systemCoreSnapUnalias(a.Plugs[i].Snap)
+	}
+	for i := range a.Slots {
+		a.Slots[i].Snap = systemCoreSnapUnalias(a.Slots[i].Snap)
+	}
+
 	switch a.Action {
 	case "connect":
 		var connRef interfaces.ConnRef
@@ -2820,6 +2827,13 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 func systemCoreSnapUnalias(name string) string {
 	if name == "system" {
 		return "core"
+	}
+	return name
+}
+
+func systemCoreSnapAlias(name string) string {
+	if name == "core" {
+		return "system"
 	}
 	return name
 }
