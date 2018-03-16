@@ -255,6 +255,7 @@ func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
 		for {
+			// TODO: pass a proper context into Ensure
 			o.ensureTimerReset()
 			// in case of errors engine logs them,
 			// continue to the next Ensure() try for now

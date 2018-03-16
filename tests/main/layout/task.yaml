@@ -5,6 +5,8 @@ details: |
     in the area beyond the $SNAP directory. In addition all applications and
     hooks get permissions to access those areas.
 prepare: |
+    echo "Ensure feature flag is enabled"
+    snap set core experimental.layouts=true
     . $TESTSLIB/snaps.sh
     install_local test-snapd-layout
 debug: |
