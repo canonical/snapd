@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/context"
+
 	. "gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
 
@@ -798,4 +800,16 @@ func (as *authSuite) TestUsers(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(users, DeepEquals, []*auth.UserState{user1, user2})
+}
+
+func (as *authSuite) TestEnsureContexts(c *C) {
+	ctx1 := auth.EnsureContextTODO()
+	ctx2 := auth.EnsureContextTODO()
+
+	c.Check(ctx1, Not(Equals), ctx2)
+
+	c.Check(auth.IsEnsureContext(ctx1), Equals, true)
+	c.Check(auth.IsEnsureContext(ctx2), Equals, true)
+
+	c.Check(auth.IsEnsureContext(context.TODO()), Equals, false)
 }
