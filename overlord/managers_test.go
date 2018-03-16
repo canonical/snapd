@@ -1930,7 +1930,7 @@ func (s *authContextSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	defer st.Unlock()
 
 	st.Unlock()
-	_, err := s.ac.DeviceSessionRequestParams("NONCE")
+	_, err := s.ac.DeviceSessionRequestParams(context.TODO(), "NONCE")
 	st.Lock()
 	c.Check(err, Equals, auth.ErrNoSerial)
 
@@ -1951,7 +1951,7 @@ func (s *authContextSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	})
 
 	st.Unlock()
-	params, err := s.ac.DeviceSessionRequestParams("NONCE")
+	params, err := s.ac.DeviceSessionRequestParams(context.TODO(), "NONCE")
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(strings.HasPrefix(params.EncodedRequest(), "type: device-session-request\n"), Equals, true)

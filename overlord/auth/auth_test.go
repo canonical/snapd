@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -548,7 +548,7 @@ func (as *authSuite) TestAuthContextStoreIDFromEnv(c *C) {
 func (as *authSuite) TestAuthContextDeviceSessionRequestParamsNilDeviceAssertions(c *C) {
 	authContext := auth.NewAuthContext(as.state, nil)
 
-	_, err := authContext.DeviceSessionRequestParams("NONCE")
+	_, err := authContext.DeviceSessionRequestParams(context.TODO(), "NONCE")
 	c.Check(err, Equals, auth.ErrNoSerial)
 }
 
@@ -661,7 +661,10 @@ func (da *testDeviceAssertions) Serial() (*asserts.Serial, error) {
 	return a.(*asserts.Serial), nil
 }
 
-func (da *testDeviceAssertions) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
+func (da *testDeviceAssertions) DeviceSessionRequestParams(ctx context.Context, nonce string) (*auth.DeviceSessionRequestParams, error) {
+	if ctx == nil {
+		panic("context required")
+	}
 	if da.nothing {
 		return nil, state.ErrNoState
 	}
@@ -704,7 +707,7 @@ func (as *authSuite) TestAuthContextMissingDeviceAssertions(c *C) {
 	// no assertions in state
 	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{nothing: true})
 
-	_, err := authContext.DeviceSessionRequestParams("NONCE")
+	_, err := authContext.DeviceSessionRequestParams(context.TODO(), "NONCE")
 	c.Check(err, Equals, auth.ErrNoSerial)
 
 	storeID, err := authContext.StoreID("fallback")
@@ -721,7 +724,7 @@ func (as *authSuite) TestAuthContextWithDeviceAssertions(c *C) {
 	// having assertions in state
 	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{})
 
-	params, err := authContext.DeviceSessionRequestParams("NONCE-1")
+	params, err := authContext.DeviceSessionRequestParams(context.TODO(), "NONCE-1")
 	c.Assert(err, IsNil)
 
 	req := params.EncodedRequest()

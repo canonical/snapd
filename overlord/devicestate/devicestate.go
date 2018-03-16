@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -98,6 +98,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, nil
 	}
 
+	// XXX: only core
 	// Either we have a serial or we try anyway if we attempted
 	// for a while to get a serial, this would allow us to at
 	// least upgrade core if that can help.
@@ -115,6 +116,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, err
 	}
 
+	// XXX: only core
 	_, err = Serial(st)
 	if err == state.ErrNoState {
 		return false, nil

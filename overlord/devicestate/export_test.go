@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,8 @@ package devicestate
 
 import (
 	"time"
+
+	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
@@ -84,6 +86,18 @@ func BecomeOperationalBackoff(m *DeviceManager) time.Duration {
 
 func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 	m.lastBecomeOperationalAttempt = t
+}
+
+func MockWaitForRegistraionTimeout(timeout time.Duration) (restore func()) {
+	old := waitForRegistrationTimeout
+	waitForRegistrationTimeout = timeout
+	return func() {
+		waitForRegistrationTimeout = old
+	}
+}
+
+func WaitForRegistration(ctx context.Context, m *DeviceManager) (*asserts.Serial, error) {
+	return m.waitForRegistration(ctx)
 }
 
 func MockRepeatRequestSerial(label string) (restore func()) {

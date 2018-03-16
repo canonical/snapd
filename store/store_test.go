@@ -257,7 +257,10 @@ func (ac *testAuthContext) StoreID(fallback string) (string, error) {
 	return fallback, nil
 }
 
-func (ac *testAuthContext) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
+func (ac *testAuthContext) DeviceSessionRequestParams(ctx context.Context, nonce string) (*auth.DeviceSessionRequestParams, error) {
+	if ctx == nil {
+		panic("context required")
+	}
 	model, err := asserts.Decode([]byte(exModel))
 	if err != nil {
 		return nil, err

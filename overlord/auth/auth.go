@@ -30,6 +30,7 @@ import (
 	"strconv"
 
 	"golang.org/x/net/context"
+
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -373,7 +374,7 @@ type DeviceAssertions interface {
 	Serial() (*asserts.Serial, error)
 
 	// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
-	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
+	DeviceSessionRequestParams(ctx context.Context, nonce string) (*DeviceSessionRequestParams, error)
 	// ProxyStore returns the store assertion for the proxy store if one is set.
 	ProxyStore() (*asserts.Store, error)
 }
@@ -403,7 +404,7 @@ type AuthContext interface {
 
 	StoreID(fallback string) (string, error)
 
-	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
+	DeviceSessionRequestParams(ctx context.Context, nonce string) (*DeviceSessionRequestParams, error)
 	ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error)
 
 	CloudInfo() (*CloudInfo, error)
@@ -499,11 +500,11 @@ func (ac *authContext) StoreID(fallback string) (string, error) {
 }
 
 // DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions. It returns ErrNoSerial if the device serial is not yet initialized.
-func (ac *authContext) DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error) {
+func (ac *authContext) DeviceSessionRequestParams(ctx context.Context, nonce string) (*DeviceSessionRequestParams, error) {
 	if ac.deviceAsserts == nil {
 		return nil, ErrNoSerial
 	}
-	params, err := ac.deviceAsserts.DeviceSessionRequestParams(nonce)
+	params, err := ac.deviceAsserts.DeviceSessionRequestParams(ctx, nonce)
 	if err == state.ErrNoState {
 		return nil, ErrNoSerial
 	}

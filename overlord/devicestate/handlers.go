@@ -1,6 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 )
 
 func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
@@ -438,6 +439,26 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
+
+	if release.OnClassic {
+		// on classic the first time around we pause the process
+		// until the first store interaction
+		var paused bool
+		err := st.Get("registration-paused", &paused)
+		if err != nil && err != state.ErrNoState {
+			return err
+		}
+		if err == state.ErrNoState {
+			st.Set("registration-paused", true)
+			m.ensureOperationalResetAttempts()
+			paused = true
+		}
+		if paused {
+			return fmt.Errorf("on classic device registration paused until first store registration")
+		}
+	}
+
+	defer m.markRegistrationFirstAttempt()
 
 	cfg, err := getSerialRequestConfig(t)
 	if err != nil {

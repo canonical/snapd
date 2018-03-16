@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -34,6 +34,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/context"
+
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 	"gopkg.in/yaml.v2"
@@ -46,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -417,7 +420,7 @@ version: gadget
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
 }
 
-func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c *C) {
+func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
@@ -453,18 +456,91 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c *C) {
 	// avoid full seeding
 	s.seeding()
 
-	// runs the whole device registration process
+	// starts the whole device registration process that will then pause
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
 
 	becomeOperational := s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
+	becomeOp1 := becomeOperational.ID()
+
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), ErrorMatches, `(?sm).*on classic device registration paused until first store registration.*`)
+
+	// paused
+	var paused bool
+	err := s.state.Get("registration-paused", &paused)
+	c.Assert(err, IsNil)
+	c.Check(paused, Equals, true)
+
+	// we have a key already
+	device, err := auth.Device(s.state)
+	c.Assert(err, IsNil)
+	keyID := device.KeyID
+	c.Check(keyID, Not(Equals), "")
+	privKey, err := devicestate.KeypairManager(s.mgr).Get(keyID)
+	c.Assert(err, IsNil)
+	c.Check(privKey, NotNil)
+	// attempts were reset
+	c.Check(devicestate.BecomeOperationalBackoff(s.mgr), Equals, 0*time.Second)
+	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 0)
+
+	// paused
+	s.state.Unlock()
+	err = s.mgr.Ensure()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 0)
+	c.Check(s.findBecomeOperationalChange(becomeOp1), IsNil)
+
+	// retrigger registration
+	ch := make(chan *asserts.Serial, 1)
+	s.state.Unlock()
+	go func() {
+		// retriggers registration
+		p, err := s.mgr.DeviceSessionRequestParams(context.TODO(), "NONCE")
+		c.Check(err, IsNil)
+		ch <- p.Serial
+	}()
+
+	// wait for registration to be unpaused
+	for {
+		s.state.Lock()
+		err := s.state.Get("registration-paused", &paused)
+		s.state.Unlock()
+		c.Assert(err, IsNil)
+		if !paused {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+
+	s.settle(c)
+
+	var serial0 *asserts.Serial
+	select {
+	case serial0 = <-ch:
+	case <-time.After(5 * time.Second):
+		c.Fatal("waitForSerial should have returned by now")
+	}
+
+	s.state.Lock()
+
+	c.Assert(serial0, NotNil)
+
+	becomeOperational = s.findBecomeOperationalChange(becomeOp1)
+	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	device, err := auth.Device(s.state)
+	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 1)
+
+	// registered now
+	c.Check(serial0.Serial(), Equals, "9999")
+
+	device, err = auth.Device(s.state)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "classic-alt-store")
@@ -478,14 +554,56 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c *C) {
 	c.Assert(err, IsNil)
 	serial := a.(*asserts.Serial)
 
-	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
-	c.Assert(err, IsNil)
-	c.Check(privKey, NotNil)
+	// same key
+	c.Check(device.KeyID, Equals, keyID)
+	c.Check(serial.DeviceKey().ID(), Equals, keyID)
 
-	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
+	// now waitForRegistration just returns
+	serial1, err := devicestate.WaitForRegistration(context.TODO(), s.mgr)
+	c.Assert(err, IsNil)
+	c.Check(serial1.Serial(), Equals, "9999")
 }
 
-func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicFallback(c *C) {
+func (s *deviceMgrSuite) TestWaitForRegistrationGiveUpNotFirstAttempts(c *C) {
+	logbuf, r := logger.MockLogger()
+	defer r()
+	s.state.Lock()
+	defer s.state.Unlock()
+	devicestate.IncEnsureOperationalAttempts(s.state)
+	devicestate.IncEnsureOperationalAttempts(s.state)
+	// number of attempts is at 2, give up
+	_, err := devicestate.WaitForRegistration(context.TODO(), s.mgr)
+	c.Check(err, Equals, state.ErrNoState)
+	c.Check(logbuf.String(), Equals, "")
+}
+
+func (s *deviceMgrSuite) TestWaitForRegistrationGiveUpInsideEnsureLoop(c *C) {
+	logbuf, r := logger.MockLogger()
+	defer r()
+	s.state.Lock()
+	defer s.state.Unlock()
+	devicestate.IncEnsureOperationalAttempts(s.state)
+	devicestate.IncEnsureOperationalAttempts(s.state)
+	// number of attempts is at 2, give up
+	_, err := devicestate.WaitForRegistration(auth.EnsureContextTODO(), s.mgr)
+	c.Check(err, Equals, state.ErrNoState)
+	c.Check(logbuf.String(), Equals, "")
+}
+
+func (s *deviceMgrSuite) TestWaitForRegistrationGiveUpTimeout(c *C) {
+	logbuf, r1 := logger.MockLogger()
+	defer r1()
+	r2 := devicestate.MockWaitForRegistraionTimeout(100 * time.Millisecond)
+	defer r2()
+	s.state.Lock()
+	defer s.state.Unlock()
+	// will wait full timeout
+	_, err := devicestate.WaitForRegistration(context.TODO(), s.mgr)
+	c.Check(err, Equals, state.ErrNoState)
+	c.Check(logbuf.String(), Matches, "(?s).*first device registration attempt did not succeed, registration will be retried but some operations might fail until the device is registered\n")
+}
+
+func (s *deviceMgrSuite) TestDeviceRegistrationClassicFallback(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
@@ -511,63 +629,32 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassicFallback(c *C) {
 	// in this case is just marked seeded without snaps
 	s.state.Set("seeded", true)
 
-	// not started without some installation happening or happened
-	s.state.Unlock()
-	s.mgr.Ensure()
-	s.state.Lock()
-
-	becomeOperational := s.findBecomeOperationalChange()
-	c.Check(becomeOperational, IsNil)
-
-	// have a in-progress installation
-	inst := s.state.NewChange("install", "...")
-	task := s.state.NewTask("mount-snap", "...")
-	inst.AddTask(task)
-
-	// runs the whole device registration process
+	// starts the whole device registration process that will pause
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
 
-	becomeOperational = s.findBecomeOperationalChange()
+	becomeOperational := s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
-	c.Check(becomeOperational.Err(), IsNil)
+	c.Check(becomeOperational.Err(), ErrorMatches, `(?sm).*on classic device registration paused until first store registration.*`)
 
+	// paused
+	var paused bool
+	err := s.state.Get("registration-paused", &paused)
+	c.Assert(err, IsNil)
+	c.Check(paused, Equals, true)
+
+	// the fallback model was setup
 	device, err := auth.Device(s.state)
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "generic")
 	c.Check(device.Model, Equals, "generic-classic")
-	c.Check(device.Serial, Equals, "9999")
 
-	// model was installed
-	_, err = s.db.Find(asserts.ModelType, map[string]string{
-		"series":   "16",
-		"brand-id": "generic",
-		"model":    "generic-classic",
-		"classic":  "true",
-	})
+	model, err := devicestate.Model(s.state)
 	c.Assert(err, IsNil)
-
-	a, err := s.db.Find(asserts.SerialType, map[string]string{
-		"brand-id": "generic",
-		"model":    "generic-classic",
-		"serial":   "9999",
-	})
-	c.Assert(err, IsNil)
-	serial := a.(*asserts.Serial)
-
-	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
-	c.Assert(err, IsNil)
-	c.Check(privKey, NotNil)
-
-	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
-
-	// auto-refreshes are possible
-	ok, err := devicestate.CanAutoRefresh(s.state)
-	c.Assert(err, IsNil)
-	c.Check(ok, Equals, true)
+	c.Check(model.Model(), Equals, "generic-classic")
 }
 
 func (s *deviceMgrSuite) TestFullDeviceRegistrationAltBrandHappy(c *C) {
@@ -1169,6 +1256,12 @@ version: gadget
 	c.Check(devicestate.EnsureOperationalShouldBackoff(s.mgr, time.Now().Add(6*time.Minute)), Equals, false)
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 1)
 
+	// fails fast
+	s.state.Unlock()
+	_, err = s.mgr.DeviceSessionRequestParams(context.TODO(), "NONCE")
+	s.state.Lock()
+	c.Check(err, Equals, state.ErrNoState)
+
 	// try again the whole device registration process
 	s.reqID = "REQID-1"
 	devicestate.SetLastBecomeOperationalAttempt(s.mgr, time.Now().Add(-15*time.Minute))
@@ -1355,7 +1448,7 @@ func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 
 func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequestParams(c *C) {
 	// nothing there
-	_, err := s.mgr.DeviceSessionRequestParams("NONCE-1")
+	_, err := s.mgr.DeviceSessionRequestParams(context.TODO(), "NONCE-1")
 	c.Check(err, Equals, state.ErrNoState)
 
 	// have a model assertion
@@ -1400,7 +1493,7 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequestParams(c *C) {
 	devicestate.KeypairManager(s.mgr).Put(devKey)
 	s.state.Unlock()
 
-	params, err := s.mgr.DeviceSessionRequestParams("NONCE-1")
+	params, err := s.mgr.DeviceSessionRequestParams(context.TODO(), "NONCE-1")
 	c.Assert(err, IsNil)
 
 	c.Check(params.Model.Model(), Equals, "pc")
