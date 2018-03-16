@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
@@ -82,6 +83,11 @@ func (x *cmdDisconnect) Execute(args []string) error {
 	cli := Client()
 	id, err := cli.Disconnect(offer.Snap, offer.Name, use.Snap, use.Name)
 	if err != nil {
+		if client.IsInterfacesUnchangedError(err) {
+			fmt.Fprintf(Stdout, i18n.G("No connections to disconnect"))
+			fmt.Fprintf(Stdout, "\n")
+			return nil
+		}
 		return err
 	}
 

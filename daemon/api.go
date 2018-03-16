@@ -1849,6 +1849,9 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		conns, err = repo.ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
+			if len(conns) == 0 {
+				return InterfacesUnchanged("nothing to do")
+			}
 			for _, connRef := range conns {
 				var ts *state.TaskSet
 				ts, err = ifacestate.Disconnect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
@@ -1866,7 +1869,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	change := newChange(st, a.Action+"-snap", summary, tasksets, affected)
-
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
