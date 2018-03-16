@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/snapcore/snapd/osutil/sys"
@@ -35,6 +34,10 @@ func openNoFollow(path string) (int, error) {
 	if !filepath.IsAbs(path) {
 		return -1, fmt.Errorf("path %v is not absolute", path)
 	}
+	segments, err := splitIntoSegments(path)
+	if err != nil {
+		return -1, err
+	}
 	// We use the following flags to open:
 	//  O_PATH: we don't intend to use the fd for IO
 	//  O_NOFOLLOW: don't follow symlinks
@@ -44,15 +47,8 @@ func openNoFollow(path string) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-	// first component will be an empty string for an absolute path
-	components := strings.Split(path, string(filepath.Separator))[1:]
-	for _, component := range components {
-		if component == "" || component == "." || component == ".." {
-			sysClose(parentFd)
-			return -1, fmt.Errorf("bad path component %v", component)
-		}
-
-		fd, err := sysOpenat(parentFd, component, flags, 0)
+	for _, segment := range segments {
+		fd, err := sysOpenat(parentFd, segment, flags, 0)
 		if err != nil {
 			sysClose(parentFd)
 			return -1, err

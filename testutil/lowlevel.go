@@ -109,6 +109,10 @@ func formatOpenFlags(flags int) string {
 // Please expand the set of recognized flags as tests require.
 func formatMountFlags(flags int) string {
 	var fl []string
+	if flags&syscall.MS_REMOUNT == syscall.MS_REMOUNT {
+		flags ^= syscall.MS_REMOUNT
+		fl = append(fl, "MS_REMOUNT")
+	}
 	if flags&syscall.MS_BIND == syscall.MS_BIND {
 		flags ^= syscall.MS_BIND
 		fl = append(fl, "MS_BIND")

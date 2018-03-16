@@ -20,8 +20,6 @@
 package main_test
 
 import (
-	//"bytes"
-	//"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -30,9 +28,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
-	//"github.com/snapcore/snapd/logger"
-	//"github.com/snapcore/snapd/osutil"
-	//"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,22 +60,22 @@ func (s *openNoFollowSuite) TestRelativePath(c *C) {
 	c.Check(err, ErrorMatches, "path .* is not absolute")
 }
 
-func (s *openNoFollowSuite) TestBadComponents(c *C) {
+func (s *openNoFollowSuite) TestUncleanPath(c *C) {
 	base := c.MkDir()
 	path := filepath.Join(base, "test")
 	c.Assert(os.Mkdir(path, 0755), IsNil)
 
 	fd, err := update.OpenNoFollow(base + "//test")
 	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "bad path component .*")
+	c.Check(err, ErrorMatches, "cannot split unclean path .*")
 
 	fd, err = update.OpenNoFollow(base + "/./test")
 	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "bad path component .*")
+	c.Check(err, ErrorMatches, "cannot split unclean path .*")
 
 	fd, err = update.OpenNoFollow(base + "/test/../test")
 	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "bad path component .*")
+	c.Check(err, ErrorMatches, "cannot split unclean path .*")
 }
 
 func (s *openNoFollowSuite) TestFile(c *C) {
@@ -164,6 +159,55 @@ func (s *secureBindMountSuite) TestMount(c *C) {
 		`close 5`,
 		`fchdir 3`,
 		`mount "." "/stash" "" MS_BIND ""`,
+		`fchdir 4`,
+		`mount "/stash" "." "" MS_BIND ""`,
+		`unmount "/stash" MNT_DETACH`,
+		`close 4`,
+		`close 3`,
+	})
+}
+
+func (s *secureBindMountSuite) TestMountRecursive(c *C) {
+	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_REC, "/stash")
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`openat 4 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 4 "target" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`openat 5 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 5`,
+		`fchdir 3`,
+		`mount "." "/stash" "" MS_BIND|MS_REC ""`,
+		`fchdir 4`,
+		`mount "/stash" "." "" MS_BIND|MS_REC ""`,
+		`unmount "/stash" MNT_DETACH`,
+		`close 4`,
+		`close 3`,
+	})
+}
+
+func (s *secureBindMountSuite) TestMountReadOnly(c *C) {
+	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`openat 4 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 4 "target" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`openat 5 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 5`,
+		`fchdir 3`,
+		`mount "." "/stash" "" MS_BIND ""`,
+		`mount "none" "/stash" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`,
 		`fchdir 4`,
 		`mount "/stash" "." "" MS_BIND ""`,
 		`unmount "/stash" MNT_DETACH`,
