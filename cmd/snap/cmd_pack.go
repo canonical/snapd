@@ -49,7 +49,6 @@ valid snap metadata and raises an error otherwise. Application commands listed
 in snap metadata file, but appearing with incorrect permission bits result in an
 error. Commands that are missing from snap-dir are listed in diagnostic
 messages.
- `)
 `)
 
 func init() {
