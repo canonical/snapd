@@ -1599,7 +1599,7 @@ func splitQS(qs string) []string {
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := vars["name"]
+	snapName := systemCoreSnapDealias(vars["name"])
 
 	keys := splitQS(r.URL.Query().Get("keys"))
 
@@ -1642,7 +1642,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := vars["name"]
+	snapName := systemCoreSnapDealias(vars["name"])
 
 	var patchValues map[string]interface{}
 	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
@@ -2804,4 +2804,11 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), []*state.TaskSet{ts}, inst.Names)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
+func systemCoreSnapDealias(name string) string {
+	if name == "system" {
+		return "core"
+	}
+	return name
 }
