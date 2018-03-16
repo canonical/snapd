@@ -35,6 +35,8 @@ var (
 	// freezer
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
+	// safe_bindmount
+	OpenNoFollow = openNoFollow
 	// utils
 	PlanWritableMimic  = planWritableMimic
 	ExecWritableMimic  = execWritableMimic
