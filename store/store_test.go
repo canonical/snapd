@@ -2801,7 +2801,7 @@ func (s *storeTestSuite) TestSectionsQuery(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	sections, err := sto.Sections(s.user)
+	sections, err := sto.Sections(context.TODO(), s.user)
 	c.Check(err, IsNil)
 	c.Check(sections, DeepEquals, []string{"featured", "database"})
 }
