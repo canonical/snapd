@@ -22,7 +22,9 @@ package snapstate
 import (
 	"time"
 
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -40,11 +42,7 @@ func newRefreshHints(st *state.State) *refreshHints {
 }
 
 func (r *refreshHints) lastRefresh(timestampKey string) (time.Time, error) {
-	var lastRefresh time.Time
-	if err := r.state.Get(timestampKey, &lastRefresh); err != nil && err != state.ErrNoState {
-		return time.Time{}, err
-	}
-	return lastRefresh, nil
+	return getTime(r.state, timestampKey)
 }
 
 func (r *refreshHints) needsUpdate() (bool, error) {
@@ -68,11 +66,26 @@ func (r *refreshHints) refresh() error {
 	var refreshManaged bool
 	refreshManaged = refreshScheduleManaged(r.state)
 
-	_, _, _, err := refreshCandidates(r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
+	_, _, _, err := refreshCandidates(auth.EnsureContextTODO(), r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
 	// TODO: we currently set last-refresh-hints even when there was an
 	// error. In the future we may retry with a backoff.
 	r.state.Set("last-refresh-hints", time.Now())
 	return err
+}
+
+// AtSeed configures hints refresh policies at end of seeding.
+func (r *refreshHints) AtSeed() error {
+	// on classic hold hints refreshes for a full 24h
+	if release.OnClassic {
+		var t1 time.Time
+		err := r.state.Get("last-refresh-hints", &t1)
+		if err != state.ErrNoState {
+			// already set or other error
+			return err
+		}
+		r.state.Set("last-refresh-hints", time.Now())
+	}
+	return nil
 }
 
 // Ensure will ensure that refresh hints are available on a regular

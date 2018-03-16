@@ -37,7 +37,8 @@ type packCmd struct {
 
 var shortPackHelp = i18n.G("Pack the given target dir as a snap")
 var longPackHelp = i18n.G(`
-The pack command packs the given snap-dir as a snap.`)
+The pack command packs the given snap-dir as a snap.
+`)
 
 func init() {
 	addCommand("pack",
