@@ -101,7 +101,18 @@ func SecureBindMount(sourceDir, targetDir string, flags uint, stashDir string) e
 	}
 	defer sysUnmount(stashDir, syscall.MNT_DETACH);
 
-	// Step 3: chdir to the destination, and move mount the stash to "."
+	// Step 3: optionally change to readonly
+	if flags & syscall.MS_RDONLY != 0 {
+		remountFlags := syscall.MS_REMOUNT | syscall.MS_BIND | syscall.MS_RDONLY
+		if flags & syscall.MS_REC != 0 {
+			remountFlags |= syscall.MS_REC
+		}
+		if err := sysMount("none", stashDir, "", uintptr(remountFlags), ""); err != nil {
+			return err
+		}
+	}
+
+	// Step 4: chdir to the destination, and move mount the stash to "."
 	if err := sysFchdir(targetFd); err != nil {
 		return err
 	}
@@ -109,16 +120,6 @@ func SecureBindMount(sourceDir, targetDir string, flags uint, stashDir string) e
 	// that fails for shared mount namespaces
 	if err := sysMount(stashDir, ".", "", uintptr(bindFlags), ""); err != nil {
 		return err
-	}
-
-	// Step 4: optionally change to readonly
-	if flags & syscall.MS_RDONLY != 0 {
-		remountFlags := syscall.MS_REMOUNT | syscall.MS_BIND | syscall.MS_RDONLY
-		// FIXME: trying to remount "." results in EINVAL
-		if err := sysMount("none", targetDir, "", uintptr(remountFlags), ""); err != nil {
-			sysUnmount(".", syscall.MNT_DETACH)
-			return err
-		}
 	}
 
 	return nil
