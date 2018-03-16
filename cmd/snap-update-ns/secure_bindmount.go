@@ -40,7 +40,7 @@ func openNoFollow(path string) (int, error) {
 	//  O_NOFOLLOW: don't follow symlinks
 	//  O_DIRECTORY: we expect to find directories
 	flags := sys.O_PATH | syscall.O_NOFOLLOW | syscall.O_DIRECTORY
-	parentFd, err := syscall.Open("/", flags, 0)
+	parentFd, err := sysOpen("/", flags, 0)
 	if err != nil {
 		return -1, err
 	}
@@ -48,16 +48,16 @@ func openNoFollow(path string) (int, error) {
 	components := strings.Split(path, string(filepath.Separator))[1:]
 	for _, component := range components {
 		if component == "" || component == "." || component == ".." {
-			syscall.Close(parentFd)
+			sysClose(parentFd)
 			return -1, fmt.Errorf("bad path component %v", component)
 		}
 
-		fd, err := syscall.Openat(parentFd, component, flags, 0)
+		fd, err := sysOpenat(parentFd, component, flags, 0)
 		if err != nil {
-			syscall.Close(parentFd)
+			sysClose(parentFd)
 			return -1, err
 		}
-		syscall.Close(parentFd)
+		sysClose(parentFd)
 		parentFd = fd
 	}
 	return parentFd, nil
@@ -81,39 +81,42 @@ func SecureBindMount(sourceDir, targetDir string, flags uint, stashDir string) e
 	if err != nil {
 		return err
 	}
-	defer syscall.Close(sourceFd)
+	defer sysClose(sourceFd)
 	targetFd, err := openNoFollow(targetDir)
 	if err != nil {
 		return err
 	}
-	defer syscall.Close(targetFd)
+	defer sysClose(targetFd)
 
 	// Step 2: chdir to the source, and bind mount "." to the stash dir
 	bindFlags := syscall.MS_BIND
 	if flags & syscall.MS_REC != 0 {
 		bindFlags |= syscall.MS_REC
 	}
-	if err := syscall.Fchdir(sourceFd); err != nil {
+	if err := sysFchdir(sourceFd); err != nil {
 		return err
 	}
-	if err := syscall.Mount(".", stashDir, "", uintptr(bindFlags), ""); err != nil {
+	if err := sysMount(".", stashDir, "", uintptr(bindFlags), ""); err != nil {
 		return err
 	}
-	defer syscall.Unmount(stashDir, syscall.MNT_DETACH);
+	defer sysUnmount(stashDir, syscall.MNT_DETACH);
 
 	// Step 3: chdir to the destination, and move mount the stash to "."
-	if err := syscall.Fchdir(targetFd); err != nil {
+	if err := sysFchdir(targetFd); err != nil {
 		return err
 	}
-	if err := syscall.Mount(stashDir, ".", "", uintptr(bindFlags), ""); err != nil {
+	// Ideally this would be a move rather than a second bind, but
+	// that fails for shared mount namespaces
+	if err := sysMount(stashDir, ".", "", uintptr(bindFlags), ""); err != nil {
 		return err
 	}
 
 	// Step 4: optionally change to readonly
 	if flags & syscall.MS_RDONLY != 0 {
 		remountFlags := syscall.MS_REMOUNT | syscall.MS_BIND | syscall.MS_RDONLY
-		if err := syscall.Mount("none", ".", "", uintptr(remountFlags), ""); err != nil {
-			syscall.Unmount(".", syscall.MNT_DETACH)
+		// FIXME: trying to remount "." results in EINVAL
+		if err := sysMount("none", targetDir, "", uintptr(remountFlags), ""); err != nil {
+			sysUnmount(".", syscall.MNT_DETACH)
 			return err
 		}
 	}

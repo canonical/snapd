@@ -33,7 +33,7 @@ import (
 	//"github.com/snapcore/snapd/logger"
 	//"github.com/snapcore/snapd/osutil"
 	//"github.com/snapcore/snapd/osutil/sys"
-	//"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type openNoFollowSuite struct {}
@@ -130,3 +130,44 @@ func (s *openNoFollowSuite) TestSymlinkedParent(c *C) {
 	c.Check(err, ErrorMatches, "not a directory")
 }
 
+type secureBindMountSuite struct {
+	testutil.BaseTest
+	sys *testutil.SyscallRecorder
+}
+
+var _ = Suite(&secureBindMountSuite{})
+
+func (s *secureBindMountSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.sys = &testutil.SyscallRecorder{}
+	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
+}
+
+func (s *secureBindMountSuite) TearDownTest(c *C) {
+	s.sys.CheckForStrayDescriptors(c)
+	s.BaseTest.TearDownTest(c)
+}
+
+func (s *secureBindMountSuite) TestMount(c *C) {
+	err := update.SecureBindMount("/source/dir", "/target/dir", 0, "/stash")
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`openat 4 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 4 "target" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`openat 5 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 5`,
+		`fchdir 3`,
+		`mount "." "/stash" "" MS_BIND ""`,
+		`fchdir 4`,
+		`mount "/stash" "." "" MS_BIND ""`,
+		`unmount "/stash" MNT_DETACH`,
+		`close 4`,
+		`close 3`,
+	})
+}

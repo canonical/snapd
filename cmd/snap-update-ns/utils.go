@@ -53,6 +53,7 @@ var (
 	sysFstat      = syscall.Fstat
 	sysSymlinkat  = osutil.Symlinkat
 	sysReadlinkat = osutil.Readlinkat
+	sysFchdir     = syscall.Fchdir
 
 	ioutilReadDir = ioutil.ReadDir
 )

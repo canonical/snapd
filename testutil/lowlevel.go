@@ -414,3 +414,8 @@ func (sys *SyscallRecorder) Remove(name string) error {
 	call := fmt.Sprintf("remove %q", name)
 	return sys.call(call)
 }
+
+func (sys *SyscallRecorder) Fchdir(fd int) error {
+	call := fmt.Sprintf("fchdir %d", fd)
+	return sys.call(call)
+}
