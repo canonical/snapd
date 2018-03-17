@@ -3,7 +3,7 @@ summary: Ensure that the kernel-module-control interface works.
 systems: [-fedora-*, -opensuse-*]
 
 environment:
-    MODULE: minix
+    MODULE: xfs
     MODULE_PATH: /lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko
 
 details: |
@@ -57,7 +57,7 @@ execute: |
     echo "And the snap is able to insert a module"
     if lsmod | MATCH $MODULE; then
         touch module_present
-        rmmod minix
+        rmmod $MODULE
     fi
     lsmod | MATCH -v $MODULE
     test-snapd-kernel-module-consumer.insmod $MODULE_PATH
