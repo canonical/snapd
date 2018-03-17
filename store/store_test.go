@@ -48,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
-	"github.com/snapcore/snapd/jsonutil/puritan"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -3294,11 +3293,11 @@ func (s *storeTestSuite) TestRefreshForCandidates(c *C) {
 
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name.Clean(), Equals, "hello-world")
+	c.Assert(results[0].Name, Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, 26)
-	c.Assert(results[0].Version.Clean(), Equals, "6.1")
-	c.Assert(results[0].SnapID.Clean(), Equals, helloWorldSnapID)
-	c.Assert(results[0].DeveloperID.Clean(), Equals, helloWorldDeveloperID)
+	c.Assert(results[0].Version, Equals, "6.1")
+	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
+	c.Assert(results[0].DeveloperID, Equals, helloWorldDeveloperID)
 	c.Assert(results[0].Deltas, HasLen, 0)
 }
 
@@ -3341,7 +3340,7 @@ func (s *storeTestSuite) TestRefreshForCandidatesRetriesOnEOF(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 4)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name.Clean(), Equals, "hello-world")
+	c.Assert(results[0].Name, Equals, "hello-world")
 }
 
 func mockRFC(newRFC func(*Store, []*currentSnapJSON, *auth.UserState, *RefreshOptions) ([]*snapDetails, error)) func() {
@@ -3361,11 +3360,11 @@ func (s *storeTestSuite) TestLookupRefresh(c *C) {
 			Epoch:    *snap.E("0"),
 		}})
 		return []*snapDetails{{
-			Name:        puritan.NewSimpleString("hello-world"),
+			Name:        "hello-world",
 			Revision:    26,
-			Version:     puritan.NewString("6.1"),
-			SnapID:      puritan.NewSimpleString(helloWorldSnapID),
-			DeveloperID: puritan.NewSimpleString(helloWorldDeveloperID),
+			Version:     "6.1",
+			SnapID:      helloWorldSnapID,
+			DeveloperID: helloWorldDeveloperID,
 		}}, nil
 	})()
 
@@ -3396,11 +3395,11 @@ func (s *storeTestSuite) TestLookupRefreshIgnoreValidation(c *C) {
 			IgnoreValidation: true,
 		}})
 		return []*snapDetails{{
-			Name:        puritan.NewSimpleString("hello-world"),
+			Name:        "hello-world",
 			Revision:    26,
-			Version:     puritan.NewString("6.1"),
-			SnapID:      puritan.NewSimpleString(helloWorldSnapID),
-			DeveloperID: puritan.NewSimpleString(helloWorldDeveloperID),
+			Version:     "6.1",
+			SnapID:      helloWorldSnapID,
+			DeveloperID: helloWorldDeveloperID,
 		}}, nil
 	})()
 
@@ -3467,7 +3466,7 @@ func (s *storeTestSuite) TestLookupRefreshEmptyResponse(c *C) {
 func (s *storeTestSuite) TestLookupRefreshNoUpdate(c *C) {
 	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		return []*snapDetails{{
-			SnapID:   puritan.NewSimpleString(helloWorldDeveloperID),
+			SnapID:   helloWorldDeveloperID,
 			Revision: 1,
 		}}, nil
 	})()

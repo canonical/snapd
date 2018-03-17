@@ -23,32 +23,32 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/snapcore/snapd/jsonutil/puritan"
+	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
 )
 
 // storeSnap holds the information sent as JSON by the store for a snap.
 type storeSnap struct {
-	Architectures puritan.SimpleStringSlice `json:"architectures"`
-	Base          puritan.SimpleString      `json:"base"`
-	Confinement   snap.ConfinementType      `json:"confinement"`
-	Contact       puritan.String            `json:"contact"`
-	CreatedAt     puritan.SimpleString      `json:"created-at"` // revision timestamp
-	Description   puritan.Paragraph         `json:"description"`
-	Download      storeSnapDownload         `json:"download"`
-	Epoch         snap.Epoch                `json:"epoch"`
-	License       puritan.String            `json:"license"`
-	Name          puritan.SimpleString      `json:"name"`
-	Prices        puritan.PriceMap          `json:"prices"` // currency->price,  free: {"USD": "0"}
-	Private       bool                      `json:"private"`
-	Publisher     storeAccount              `json:"publisher"`
-	Revision      int                       `json:"revision"` // store revisions are ints starting at 1
-	SnapID        puritan.SimpleString      `json:"snap-id"`
-	SnapYAML      puritan.Paragraph         `json:"snap-yaml"` // optional
-	Summary       puritan.String            `json:"summary"`
-	Title         puritan.String            `json:"title"`
-	Type          snap.Type                 `json:"type"`
-	Version       puritan.String            `json:"version"`
+	Architectures []string           `json:"architectures"`
+	Base          string             `json:"base"`
+	Confinement   string             `json:"confinement"`
+	Contact       string             `json:"contact"`
+	CreatedAt     string             `json:"created-at"` // revision timestamp
+	Description   safejson.Paragraph `json:"description"`
+	Download      storeSnapDownload  `json:"download"`
+	Epoch         snap.Epoch         `json:"epoch"`
+	License       string             `json:"license"`
+	Name          string             `json:"name"`
+	Prices        map[string]string  `json:"prices"` // currency->price,  free: {"USD": "0"}
+	Private       bool               `json:"private"`
+	Publisher     storeAccount       `json:"publisher"`
+	Revision      int                `json:"revision"` // store revisions are ints starting at 1
+	SnapID        string             `json:"snap-id"`
+	SnapYAML      string             `json:"snap-yaml"` // optional
+	Summary       safejson.String    `json:"summary"`
+	Title         safejson.String    `json:"title"`
+	Type          snap.Type          `json:"type"`
+	Version       string             `json:"version"`
 
 	// TODO: not yet defined: channel map
 
@@ -57,73 +57,73 @@ type storeSnap struct {
 }
 
 type storeSnapDownload struct {
-	Sha3_384 puritan.SimpleString `json:"sha3-384"`
-	Size     int64                `json:"size"`
-	URL      puritan.String       `json:"url"`
-	Deltas   []storeSnapDelta     `json:"deltas"`
+	Sha3_384 string           `json:"sha3-384"`
+	Size     int64            `json:"size"`
+	URL      string           `json:"url"`
+	Deltas   []storeSnapDelta `json:"deltas"`
 }
 
 type storeSnapDelta struct {
-	Format   puritan.SimpleString `json:"format"`
-	Sha3_384 puritan.SimpleString `json:"sha3-384"`
-	Size     int64                `json:"size"`
-	Source   int                  `json:"source"`
-	Target   int                  `json:"target"`
-	URL      puritan.String       `json:"url"`
+	Format   string `json:"format"`
+	Sha3_384 string `json:"sha3-384"`
+	Size     int64  `json:"size"`
+	Source   int    `json:"source"`
+	Target   int    `json:"target"`
+	URL      string `json:"url"`
 }
 
 type storeAccount struct {
-	ID          puritan.SimpleString `json:"id"`
-	Username    puritan.SimpleString `json:"username"`
-	DisplayName puritan.String       `json:"display-name"`
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display-name"`
 }
 
 type storeSnapMedia struct {
-	Type   puritan.SimpleString `json:"type"` // icon/screenshot
-	URL    puritan.String       `json:"url"`
-	Width  int64                `json:"width"`
-	Height int64                `json:"height"`
+	Type   string `json:"type"` // icon/screenshot
+	URL    string `json:"url"`
+	Width  int64  `json:"width"`
+	Height int64  `json:"height"`
 }
 
 func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info := &snap.Info{}
-	info.RealName = d.Name.Clean()
+	info.RealName = d.Name
 	info.Revision = snap.R(d.Revision)
-	info.SnapID = d.SnapID.Clean()
+	info.SnapID = d.SnapID
 	info.EditedTitle = d.Title.Clean()
 	info.EditedSummary = d.Summary.Clean()
 	info.EditedDescription = d.Description.Clean()
 	info.Private = d.Private
-	info.Contact = d.Contact.Clean()
-	info.Architectures = d.Architectures.Clean()
+	info.Contact = d.Contact
+	info.Architectures = d.Architectures
 	info.Type = d.Type
-	info.Version = d.Version.Clean()
+	info.Version = d.Version
 	info.Epoch = d.Epoch
-	info.Confinement = d.Confinement
-	info.Base = d.Base.Clean()
-	info.License = d.License.Clean()
-	info.PublisherID = d.Publisher.ID.Clean()
-	info.Publisher = d.Publisher.Username.Clean()
-	info.DownloadURL = d.Download.URL.Clean()
+	info.Confinement = snap.ConfinementType(d.Confinement)
+	info.Base = d.Base
+	info.License = d.License
+	info.PublisherID = d.Publisher.ID
+	info.Publisher = d.Publisher.Username
+	info.DownloadURL = d.Download.URL
 	info.Size = d.Download.Size
-	info.Sha3_384 = d.Download.Sha3_384.Clean()
+	info.Sha3_384 = d.Download.Sha3_384
 	if len(d.Download.Deltas) > 0 {
 		deltas := make([]snap.DeltaInfo, len(d.Download.Deltas))
 		for i, d := range d.Download.Deltas {
 			deltas[i] = snap.DeltaInfo{
 				FromRevision: d.Source,
 				ToRevision:   d.Target,
-				Format:       d.Format.Clean(),
-				DownloadURL:  d.URL.Clean(),
+				Format:       d.Format,
+				DownloadURL:  d.URL,
 				Size:         d.Size,
-				Sha3_384:     d.Sha3_384.Clean(),
+				Sha3_384:     d.Sha3_384,
 			}
 		}
 		info.Deltas = deltas
 	}
 
 	// fill in the plug/slot data
-	if rawYamlInfo, err := snap.InfoFromSnapYaml([]byte(d.SnapYAML.Clean())); err == nil {
+	if rawYamlInfo, err := snap.InfoFromSnapYaml([]byte(d.SnapYAML)); err == nil {
 		if info.Plugs == nil {
 			info.Plugs = make(map[string]*snap.PlugInfo)
 		}
@@ -141,9 +141,9 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	}
 
 	// convert prices
-	if ps := d.Prices.Clean(); len(ps) > 0 {
-		prices := make(map[string]float64, len(ps))
-		for currency, priceStr := range ps {
+	if len(d.Prices) > 0 {
+		prices := make(map[string]float64, len(d.Prices))
+		for currency, priceStr := range d.Prices {
 			price, err := strconv.ParseFloat(priceStr, 64)
 			if err != nil {
 				return nil, fmt.Errorf("cannot parse snap price: %v", err)
@@ -157,14 +157,14 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	// media
 	screenshots := make([]snap.ScreenshotInfo, 0, len(d.Media))
 	for _, mediaObj := range d.Media {
-		switch mediaObj.Type.Clean() {
+		switch mediaObj.Type {
 		case "icon":
 			if info.IconURL == "" {
-				info.IconURL = mediaObj.URL.Clean()
+				info.IconURL = mediaObj.URL
 			}
 		case "screenshot":
 			screenshots = append(screenshots, snap.ScreenshotInfo{
-				URL:    mediaObj.URL.Clean(),
+				URL:    mediaObj.URL,
 				Width:  mediaObj.Width,
 				Height: mediaObj.Height,
 			})
