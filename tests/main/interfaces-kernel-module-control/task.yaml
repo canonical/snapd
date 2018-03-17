@@ -3,7 +3,7 @@ summary: Ensure that the kernel-module-control interface works.
 systems: [-fedora-*, -opensuse-*]
 
 environment:
-    MODULE: xfs
+    MODULE: minix
     MODULE_PATH: /lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko
 
 details: |
@@ -39,6 +39,11 @@ debug: |
 execute: |
     CONNECTED_PATTERN=":kernel-module-control +.*test-snapd-kernel-module-consumer"
     DISCONNECTED_PATTERN="\- +test-snapd-kernel-module-consumer:kernel-module-control"
+
+    if ! [ -f /lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko ]; then
+        echo "minix module not available in the system"
+        exit 0
+    fi
 
     echo "The plug is disconnected by default"
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
