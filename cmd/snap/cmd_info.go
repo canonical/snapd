@@ -26,6 +26,7 @@ import (
 	"strings"
 	"text/tabwriter"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/yaml.v2"
@@ -163,7 +164,8 @@ func coalesce(snaps ...*client.Snap) *client.Snap {
 	return nil
 }
 
-func rTrimRightSpace(text []rune) []rune {
+// runesTrimRightSpace returns text, with any trailing whitespace dropped.
+func runesTrimRightSpace(text []rune) []rune {
 	j := len(text)
 	for j > 0 && unicode.IsSpace(text[j-1]) {
 		j--
@@ -171,46 +173,55 @@ func rTrimRightSpace(text []rune) []rune {
 	return text[:j]
 }
 
-func rLastIndexSpace(a []rune) int {
-	for i := len(a) - 1; i >= 0; i-- {
-		if unicode.IsSpace(a[i]) {
+// runesLastIndexSpace returns the index of the last whitespace rune
+// in the text. If the text has no whitespace, returns -1.
+func runesLastIndexSpace(text []rune) int {
+	for i := len(text) - 1; i >= 0; i-- {
+		if unicode.IsSpace(text[i]) {
 			return i
 		}
 	}
 	return -1
 }
 
-// this is _wrong_ for much of unicode (because the width of a rune on the
-// terminal is anything between 0 and 2, not always 1 as this code assumes)
-// but fixing that is Hard. Long story short, you can get close using a couple
-// of big unicode table. Getting it 100% requires a terminfo-alike of unicode
-// behaviour.
-// This (and probably formatDescr below) should move to strutil once we're
-// happy with it getting wider use.
-func wrap1(out io.Writer, text []rune, width int) {
-	text = rTrimRightSpace(text)
+// wrapLine wraps a line to fit into width, preserving the line's indent, and
+// writes it out prepending padding to each line.
+func wrapLine(out io.Writer, text []rune, pad string, width int) {
+	// Note: this is _wrong_ for much of unicode (because the width of a
+	//       rune on the terminal is anything between 0 and 2, not always 1
+	//       as this code assumes) but fixing that is Hard. Long story
+	//       short, you can get close using a couple of big unicode tables
+	//       (which is what wcwidth does). Getting it 100% requires a
+	//       terminfo-alike of unicode behaviour.
+	// This (and possibly printDescr below) should move to strutil once
+	// we're happy with it getting wider (heh heh) use.
+
+	// discard any trailing whitespace
+	text = runesTrimRightSpace(text)
+	// establish the indent of the whole block
 	idx := 0
 	for idx < len(text) && unicode.IsSpace(text[idx]) {
 		idx++
 	}
-	dent := "  " + string(text[:idx])
+	indent := pad + string(text[:idx])
 	text = text[idx:]
-	width -= idx + 2
+	width -= idx + utf8.RuneCountInString(pad)
 	for len(text) > width {
-		idx = rLastIndexSpace(text[:width+1])
+		// find a good place to chop the text
+		idx = runesLastIndexSpace(text[:width+1])
 		if idx < 0 {
+			// there's no whitespace; just chop at line width
 			idx = width
 		}
-		fmt.Fprintln(out, dent+string(text[:idx]))
-		text = text[idx:]
-		idx = 0
+		fmt.Fprint(out, indent, string(text[:idx]), "\n")
+		// prune any remaining whitespace before the start of the next line
 		for idx < len(text) && unicode.IsSpace(text[idx]) {
 			idx++
 		}
 		text = text[idx:]
 	}
 
-	fmt.Fprintln(out, dent+string(text))
+	fmt.Fprint(out, indent, string(text), "\n")
 }
 
 // printDescr formats a given string (typically a snap description)
@@ -223,7 +234,7 @@ func wrap1(out io.Writer, text []rune, width int) {
 func printDescr(w io.Writer, descr string, max int) {
 	descr = strings.TrimRightFunc(descr, unicode.IsSpace)
 	for _, line := range strings.Split(descr, "\n") {
-		wrap1(w, []rune(line), max)
+		wrapLine(w, []rune(line), "  ", max)
 	}
 }
 
