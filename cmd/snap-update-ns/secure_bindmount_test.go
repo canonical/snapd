@@ -215,3 +215,121 @@ func (s *secureBindMountSuite) TestMountReadOnly(c *C) {
 		`close 3`,
 	})
 }
+
+func (s *secureBindMountSuite) TestChdirSourceFails(c *C) {
+	s.sys.InsertFault(`fchdir 3`, errTesting)
+	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
+	c.Assert(err, ErrorMatches, "testing")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`openat 4 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 4 "target" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`openat 5 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 5`,
+		`fchdir 3`,
+		`close 4`,
+		`close 3`,
+	})
+}
+
+func (s *secureBindMountSuite) TestBindMountSourceFails(c *C) {
+	s.sys.InsertFault(`mount "." "/stash" "" MS_BIND ""`, errTesting)
+	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
+	c.Assert(err, ErrorMatches, "testing")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`openat 4 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 4 "target" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`openat 5 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 5`,
+		`fchdir 3`,
+		`mount "." "/stash" "" MS_BIND ""`,
+		`close 4`,
+		`close 3`,
+	})
+}
+
+func (s *secureBindMountSuite) TestRemountStashFails(c *C) {
+	s.sys.InsertFault(`mount "none" "/stash" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`, errTesting)
+	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
+	c.Assert(err, ErrorMatches, "testing")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`openat 4 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 4 "target" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`openat 5 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 5`,
+		`fchdir 3`,
+		`mount "." "/stash" "" MS_BIND ""`,
+		`mount "none" "/stash" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`,
+		`unmount "/stash" MNT_DETACH`,
+		`close 4`,
+		`close 3`,
+	})
+}
+
+func (s *secureBindMountSuite) TestChdirTargetFails(c *C) {
+	s.sys.InsertFault(`fchdir 4`, errTesting)
+	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
+	c.Assert(err, ErrorMatches, "testing")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`openat 4 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 4 "target" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`openat 5 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 5`,
+		`fchdir 3`,
+		`mount "." "/stash" "" MS_BIND ""`,
+		`mount "none" "/stash" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`,
+		`fchdir 4`,
+		`unmount "/stash" MNT_DETACH`,
+		`close 4`,
+		`close 3`,
+	})
+}
+
+func (s *secureBindMountSuite) TestBindMountTargetFails(c *C) {
+	s.sys.InsertFault(`mount "/stash" "." "" MS_BIND ""`, errTesting)
+	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
+	c.Assert(err, ErrorMatches, "testing")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`openat 4 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`open "/" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`openat 4 "target" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 4`,
+		`openat 5 "dir" O_NOFOLLOW|O_DIRECTORY|O_PATH 0`,
+		`close 5`,
+		`fchdir 3`,
+		`mount "." "/stash" "" MS_BIND ""`,
+		`mount "none" "/stash" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`,
+		`fchdir 4`,
+		`mount "/stash" "." "" MS_BIND ""`,
+		`unmount "/stash" MNT_DETACH`,
+		`close 4`,
+		`close 3`,
+	})
+}
