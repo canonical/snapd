@@ -21,6 +21,7 @@ package main
 
 import (
 	"os"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -61,6 +62,7 @@ type SystemCalls interface {
 	Open(path string, flags int, mode uint32) (fd int, err error)
 	Openat(dirfd int, path string, flags int, mode uint32) (fd int, err error)
 	Unmount(target string, flags int) error
+	Fstat(fd int, buf *syscall.Stat_t) error
 }
 
 // MockSystemCalls replaces real system calls with those of the argument.
@@ -79,6 +81,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	oldSysUnmount := sysUnmount
 	oldSysSymlinkat := sysSymlinkat
 	oldReadlinkat := sysReadlinkat
+	oldFstat := sysFstat
 
 	// override
 	osLstat = sc.Lstat
@@ -94,6 +97,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	sysUnmount = sc.Unmount
 	sysSymlinkat = sc.Symlinkat
 	sysReadlinkat = sc.Readlinkat
+	sysFstat = sc.Fstat
 
 	return func() {
 		// restore
@@ -110,6 +114,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		sysUnmount = oldSysUnmount
 		sysSymlinkat = oldSysSymlinkat
 		sysReadlinkat = oldReadlinkat
+		sysFstat = oldFstat
 	}
 }
 
