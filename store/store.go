@@ -602,6 +602,13 @@ func (s *Store) setStoreID(r *http.Request) (customStore bool) {
 	return false
 }
 
+type deviceAuthNeed int
+
+const (
+	deviceAuthPreferred deviceAuthNeed = iota
+	deviceAuthCustomStoreOnly
+)
+
 // requestOptions specifies parameters for store requests.
 type requestOptions struct {
 	Method       string
@@ -611,9 +618,12 @@ type requestOptions struct {
 	ExtraHeaders map[string]string
 	Data         []byte
 
-	// DeviceAuthIsForCustomStore indicates whether the operation strictly
-	// requires device auth only for custom stores to work.
-	DeviceAuthIsForCustomStore bool
+	// DeviceAuthNeed indicates the level of need to supply device
+	// authorization for this request, can be:
+	//  - deviceAuthPreferred: should be provided if available
+	//  - deviceAuthCustomStoreOnly: should be provided only in case
+	//    of a custom store
+	DeviceAuthNeed deviceAuthNeed
 }
 
 func (r *requestOptions) addHeader(k, v string) {
@@ -822,7 +832,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 
 	customStore := s.setStoreID(req)
 
-	if s.authContext != nil && (customStore || !reqOptions.DeviceAuthIsForCustomStore) {
+	if s.authContext != nil && (customStore || reqOptions.DeviceAuthNeed != deviceAuthCustomStoreOnly) {
 		device, err := s.authContext.Device()
 		if err != nil {
 			return nil, err
@@ -1181,10 +1191,10 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 // Sections retrieves the list of available store sections.
 func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, error) {
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    s.endpointURL(sectionsEndpPath, nil),
-		Accept: halJsonContentType,
-		DeviceAuthIsForCustomStore: true,
+		Method:         "GET",
+		URL:            s.endpointURL(sectionsEndpPath, nil),
+		Accept:         halJsonContentType,
+		DeviceAuthNeed: deviceAuthCustomStoreOnly,
 	}
 
 	var sectionData sectionResults
@@ -1223,10 +1233,10 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 
 	u.RawQuery = q.Encode()
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    &u,
-		Accept: halJsonContentType,
-		DeviceAuthIsForCustomStore: true,
+		Method:         "GET",
+		URL:            &u,
+		Accept:         halJsonContentType,
+		DeviceAuthNeed: deviceAuthCustomStoreOnly,
 	}
 
 	// do not log body for catalog updates (its huge)
