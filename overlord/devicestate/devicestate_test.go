@@ -466,7 +466,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassic(c *C) {
 	becomeOp1 := becomeOperational.ID()
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
-	c.Check(becomeOperational.Err(), ErrorMatches, `(?sm).*on classic device registration paused until first store registration.*`)
+	c.Check(becomeOperational.Err(), ErrorMatches, `(?sm).*on classic device registration paused until first store interaction.*`)
 
 	// paused
 	var paused bool
@@ -638,7 +638,7 @@ func (s *deviceMgrSuite) TestDeviceRegistrationClassicFallback(c *C) {
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
-	c.Check(becomeOperational.Err(), ErrorMatches, `(?sm).*on classic device registration paused until first store registration.*`)
+	c.Check(becomeOperational.Err(), ErrorMatches, `(?sm).*on classic device registration paused until first store interaction.*`)
 
 	// paused
 	var paused bool

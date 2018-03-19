@@ -454,7 +454,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 			paused = true
 		}
 		if paused {
-			return fmt.Errorf("on classic device registration paused until first store registration")
+			return fmt.Errorf("on classic device registration paused until first store interaction")
 		}
 	}
 
