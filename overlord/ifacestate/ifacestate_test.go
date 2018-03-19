@@ -2221,8 +2221,8 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 	ht2 := hookstate.HookTask(st, "connect-plug hook", &hs2, nil)
 	ht2.WaitFor(ht1)
 
-	t.Set("connect-slot-task", ht1.ID())
-	t.Set("connect-plug-task", ht2.ID())
+	t.Set("connect-slot-hook-task", ht1.ID())
+	t.Set("connect-plug-hook-task", ht2.ID())
 
 	chg.AddTask(t)
 	chg.AddTask(ht1)
