@@ -2131,7 +2131,8 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnClassic(c *C) {
 	s.state.Set("seeded", true)
 	c.Check(canAutoRefresh(), Equals, false)
 
-	// seeded, model, no serial -> no auto-refresh
+	// seeded, model, no serial -> auto-refresh (which could
+	// trigger registration)
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
@@ -2139,7 +2140,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshOnClassic(c *C) {
 	s.makeModelAssertionInState(c, "canonical", "pc", map[string]string{
 		"classic": "true",
 	})
-	c.Check(canAutoRefresh(), Equals, false)
+	c.Check(canAutoRefresh(), Equals, true)
 
 	// seeded, model, serial -> auto-refresh
 	auth.SetDevice(s.state, &auth.DeviceState{

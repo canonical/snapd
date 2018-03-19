@@ -1511,7 +1511,7 @@ func (s *storeTestSuite) TestDoRequestDoesNotSetAuthForLocalOnlyUser(c *C) {
 	c.Check(string(responseData), Equals, "response-data")
 }
 
-func (s *storeTestSuite) TestDoRequestAuthNoSerial(c *C) {
+func (s *storeTestSuite) TestDoRequestAuthNoSerialDeviceAuthOptional(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.UserAgent(), Equals, userAgent)
 		// check user authorization is set
@@ -1533,7 +1533,7 @@ func (s *storeTestSuite) TestDoRequestAuthNoSerial(c *C) {
 	sto := New(&Config{}, authContext)
 
 	endpoint, _ := url.Parse(mockServer.URL)
-	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
+	reqOptions := &requestOptions{Method: "GET", URL: endpoint, DeviceAuthNeed: deviceAuthOptional}
 
 	response, err := sto.doRequest(context.TODO(), sto.client, reqOptions, s.user)
 	defer response.Body.Close()
@@ -1676,6 +1676,9 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 
 	mockServerURL, _ := url.Parse(mockServer.URL)
 
+	// behavior is eager now and will do a best-effort to wait for
+	// registration/serial
+	s.device.Serial = ""
 	// make sure device session is not set
 	s.device.SessionMacaroon = ""
 	authContext := &testAuthContext{c: c, device: s.device, user: s.user}
@@ -4487,7 +4490,7 @@ func (s *storeTestSuite) TestAssertionNotFound(c *C) {
 	cfg := Config{
 		AssertionsBaseURL: mockServerURL,
 	}
-	sto := New(&cfg, nil)
+	sto := New(&cfg, &testAuthContext{c: c})
 
 	_, err := sto.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Check(asserts.IsNotFound(err), Equals, true)

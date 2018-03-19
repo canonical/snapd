@@ -625,6 +625,7 @@ type deviceAuthNeed int
 const (
 	deviceAuthPreferred deviceAuthNeed = iota
 	deviceAuthCustomStoreOnly
+	deviceAuthOptional
 )
 
 // requestOptions specifies parameters for store requests.
@@ -639,9 +640,11 @@ type requestOptions struct {
 
 	// DeviceAuthNeed indicates the level of need to supply device
 	// authorization for this request, can be:
-	//  - deviceAuthPreferred: should be provided if available
+	//  - deviceAuthPreferred: should be provided
 	//  - deviceAuthCustomStoreOnly: should be provided only in case
 	//    of a custom store
+	//  - deviceAuthOptional: can be left out, at the moment this
+	//    means not forcing registration
 	DeviceAuthNeed deviceAuthNeed
 }
 
@@ -858,9 +861,9 @@ func (s *Store) newRequest(ctx context.Context, reqOptions *requestOptions, user
 		if err != nil {
 			return nil, err
 		}
-		// we don't have a session yet but have a serial, try
-		// to get a session
-		if device.SessionMacaroon == "" && device.Serial != "" {
+		// we don't have a session try to get a session,
+		// this will do best effor of waiting for a serial
+		if device.SessionMacaroon == "" && (device.Serial != "" || reqOptions.DeviceAuthNeed != deviceAuthOptional) {
 			err = s.refreshDeviceSession(ctx, device)
 			if err == auth.ErrNoSerial {
 				// missing serial assertion, log and continue without device authentication
@@ -1806,9 +1809,10 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	u := s.assertionsEndpointURL(path.Join(assertType.Name, path.Join(primaryKey...)), v)
 
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    u,
-		Accept: asserts.MediaType,
+		Method:         "GET",
+		URL:            u,
+		Accept:         asserts.MediaType,
+		DeviceAuthNeed: deviceAuthOptional,
 	}
 
 	var asrt asserts.Assertion

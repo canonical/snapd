@@ -211,19 +211,17 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	// conditions to trigger device registration
+	// triggering device registration
 	//
-	// * have a model assertion with a gadget (core and
-	//   device-like classic) in which case we need also to wait
-	//   for the gadget to have been installed though
-	// TODO: consider a way to support lazy registration on classic
-	// even with a gadget and some preseeded snaps
-	//
-	// * classic with a model assertion with a non-default store specified
-	// * lazy classic case (might have a model with no gadget nor store
-	//   or no model): we wait to have some snaps installed or be
-	//   in the process to install some
-
+	// * have a model assertion
+	// * on classic if we are seeded but don't have a model,
+	//   we setup the fallback generic/generic-classic
+	// * with a model assertion with a gadget (core and device-like
+	//   classic) we wait for the gadget to have been installed
+	// * otherwise we proceeded
+	// * then on classic we pause registration until the first
+	//   store interaction (registration-paused flag in state and
+	//   code in doRequestSerial)
 	var seeded bool
 	err = m.state.Get("seeded", &seeded)
 	if err != nil && err != state.ErrNoState {
@@ -262,21 +260,6 @@ func (m *DeviceManager) ensureOperational() error {
 		return fmt.Errorf("internal error: device brand and model are set but there is no model assertion")
 	}
 
-	/* XXX just lazy in any case
-	if gadget == "" && storeID == "" {
-		// classic: if we have no gadget and no non-default store
-		// wait to have snaps or snap installation
-
-		n, err := snapstate.NumSnaps(m.state)
-		if err != nil {
-			return err
-		}
-		if n == 0 && !snapstate.Installing(m.state) {
-			return nil
-		}
-	}
-	*/
-
 	// if there's a gadget specified wait for it
 	var gadgetInfo *snap.Info
 	if gadget != "" {
@@ -309,10 +292,6 @@ func (m *DeviceManager) ensureOperational() error {
 	}
 	// increment attempt count
 	incEnsureOperationalAttempts(m.state)
-
-	// XXX: some of these will need to be split and use hooks
-	// retries might need to embrace more than one "task" then,
-	// need to be careful
 
 	tasks := []*state.Task{}
 

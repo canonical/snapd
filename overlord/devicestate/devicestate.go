@@ -98,14 +98,6 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, nil
 	}
 
-	// XXX: only core
-	// Either we have a serial or we try anyway if we attempted
-	// for a while to get a serial, this would allow us to at
-	// least upgrade core if that can help.
-	if ensureOperationalAttempts(st) >= 3 {
-		return true, nil
-	}
-
 	// Check model exists, for sanity. We always have a model, either
 	// seeded or a generic one that ships with snapd.
 	_, err := Model(st)
@@ -116,7 +108,23 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, err
 	}
 
-	// XXX: only core
+	if release.OnClassic {
+		// On classic the first store interaction (which could
+		// be the first auto-refresh if we have any snaps)
+		// triggers registration.
+		return true, nil
+	}
+
+	// On core registration is started immediately so we wait for
+	// it.
+
+	// Either we have a serial or we try anyway if we attempted
+	// for a while to get a serial, this would allow us to at
+	// least upgrade core if that can help.
+	if ensureOperationalAttempts(st) >= 3 {
+		return true, nil
+	}
+
 	_, err = Serial(st)
 	if err == state.ErrNoState {
 		return false, nil
