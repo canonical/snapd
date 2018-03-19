@@ -222,10 +222,9 @@ func secureMkSymlink(fd int, segments []string, i int, oldname string) error {
 		switch err {
 		case syscall.EEXIST:
 			var objFd int
-			const O_PATH = 010000000
 			// If the file exists then just open it for examination.
 			// Maybe it's the symlink we were hoping to create.
-			objFd, err = sysOpenat(fd, segment, syscall.O_CLOEXEC|O_PATH|syscall.O_NOFOLLOW, 0)
+			objFd, err = sysOpenat(fd, segment, syscall.O_CLOEXEC|sys.O_PATH|syscall.O_NOFOLLOW, 0)
 			if err != nil {
 				return fmt.Errorf("cannot open existing file %q: %v", segment, err)
 			}
