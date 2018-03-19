@@ -205,6 +205,7 @@ distro_install_package() {
 }
 
 distro_purge_package() {
+    # shellcheck disable=SC2046
     set -- $(
         for pkg in "$@" ; do
             package_name=$(distro_name_package "$pkg")
