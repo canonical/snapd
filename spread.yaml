@@ -459,6 +459,8 @@ suites:
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
         systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+        # unittests are run as part of the autopkgtest build already
+        backends: [-autopkgtest]
         environment:
             # env vars required for coverage reporting from a spread task
             TRAVIS_BUILD_NUMBER: "$(HOST: echo $TRAVIS_BUILD_NUMBER)"
