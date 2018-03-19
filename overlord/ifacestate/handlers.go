@@ -344,7 +344,7 @@ func setDynamicHookAttributes(task *state.Task, dynamicPlugAttrs map[string]inte
 }
 
 func markConnectHooksDone(connectTask *state.Task) error {
-	for _, t := range []string{"connect-plug-task", "connect-slot-task"} {
+	for _, t := range []string{"connect-plug-hook-task", "connect-slot-hook-task"} {
 		var tid string
 		err := connectTask.Get(t, &tid)
 		if err == nil {
