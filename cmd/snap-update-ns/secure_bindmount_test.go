@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type openNoFollowSuite struct {}
+type openNoFollowSuite struct{}
 
 var _ = Suite(&openNoFollowSuite{})
 

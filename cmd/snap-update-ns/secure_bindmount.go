@@ -86,7 +86,7 @@ func SecureBindMount(sourceDir, targetDir string, flags uint, stashDir string) e
 
 	// Step 2: chdir to the source, and bind mount "." to the stash dir
 	bindFlags := syscall.MS_BIND
-	if flags & syscall.MS_REC != 0 {
+	if flags&syscall.MS_REC != 0 {
 		bindFlags |= syscall.MS_REC
 	}
 	if err := sysFchdir(sourceFd); err != nil {
@@ -95,12 +95,12 @@ func SecureBindMount(sourceDir, targetDir string, flags uint, stashDir string) e
 	if err := sysMount(".", stashDir, "", uintptr(bindFlags), ""); err != nil {
 		return err
 	}
-	defer sysUnmount(stashDir, syscall.MNT_DETACH);
+	defer sysUnmount(stashDir, syscall.MNT_DETACH)
 
 	// Step 3: optionally change to readonly
-	if flags & syscall.MS_RDONLY != 0 {
+	if flags&syscall.MS_RDONLY != 0 {
 		remountFlags := syscall.MS_REMOUNT | syscall.MS_BIND | syscall.MS_RDONLY
-		if flags & syscall.MS_REC != 0 {
+		if flags&syscall.MS_REC != 0 {
 			remountFlags |= syscall.MS_REC
 		}
 		if err := sysMount("none", stashDir, "", uintptr(remountFlags), ""); err != nil {
