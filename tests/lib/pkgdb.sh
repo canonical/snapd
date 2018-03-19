@@ -430,6 +430,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-18.04-64)
             echo "
+                linux-image-extra-$(uname -r)
                 squashfs-tools
                 "
             ;;
