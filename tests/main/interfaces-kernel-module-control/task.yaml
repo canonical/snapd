@@ -41,7 +41,7 @@ execute: |
     DISCONNECTED_PATTERN="\- +test-snapd-kernel-module-consumer:kernel-module-control"
 
     if ! [ -f /lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko ]; then
-        echo "minix module not available in the system"
+        echo "$MODULE module not available in the system"
         exit 0
     fi
 
