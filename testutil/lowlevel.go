@@ -90,6 +90,10 @@ func formatOpenFlags(flags int) string {
 		flags ^= syscall.O_EXCL
 		fl = append(fl, "O_EXCL")
 	}
+	if flags&sys.O_PATH != 0 {
+		flags ^= sys.O_PATH
+		fl = append(fl, "O_PATH")
+	}
 	if flags != 0 {
 		panic(fmt.Errorf("unrecognized open flags %d", flags))
 	}
