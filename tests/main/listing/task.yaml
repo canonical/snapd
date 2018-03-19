@@ -4,8 +4,11 @@ prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools
 
-execute: |
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
 
+execute: |
     echo "List prints core snap version"
     # most core versions should be like "16-2", so [0-9]{2}-[0-9.]+
     # but edge will have a timestamp in there, "16.2+201701010932", so add an optional \+[0-9]+ to the end
