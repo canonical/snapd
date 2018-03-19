@@ -92,8 +92,7 @@ func (m *DeviceManager) confirmRegistered() error {
 	}
 
 	if device.Serial != "" {
-		m.registered = true
-		close(m.reg)
+		m.markRegistered()
 	}
 	return nil
 }
