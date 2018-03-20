@@ -432,36 +432,19 @@ pushd ./data/selinux
 make SHARE="%{_datadir}" TARGETS="snappy"
 popd
 
-# Build snap-confine
-pushd ./cmd
-# FIXME This is a hack to get rid of a patch we have to ship for the
-# Fedora package at the moment as /usr/lib/rpm/redhat/redhat-hardened-ld
-# accidentially adds -pie for static executables. See
-# https://bugzilla.redhat.com/show_bug.cgi?id=1343892 for a few more
-# details. To prevent this from happening we drop the linker
-# script and define our LDFLAGS manually for now.
-export LDFLAGS="-Wl,-z,relro -z now"
-autoreconf --force --install --verbose
-# selinux support is not yet available, for now just disable apparmor
-# FIXME: add --enable-caps-over-setuid as soon as possible (setuid discouraged!)
-%configure \
-    --disable-apparmor \
-    --libexecdir=%{_libexecdir}/snapd/ \
-    --enable-nvidia-biarch \
-    %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
-    --with-snap-mount-dir=%{_sharedstatedir}/snapd/snap \
-    --enable-merged-usr
+make configure \
+      bindir="%{_bindir}" libexecdir="%{_libexecdir}" \
+      SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
+      SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd" \
+      APPARMOR=0 \
+      SECCOMP=1 \
+      MERGED_USR=1 \
+      NVIDIA_BIARCH=1 \
+      %{?with_multilib:LIB32_DIR=%{_prefix}/lib}
 
-%make_build
-popd
+%make_build \
+    LDFLAGS="-Wl,-z,relro -z now" \
 
-# Build systemd units, dbus services, and env files
-pushd ./data
-make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
-     SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
-     SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
-     SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
-popd
 
 %install
 install -d -p %{buildroot}%{_bindir}
@@ -523,10 +506,7 @@ popd
 
 # Install all systemd and dbus units, and env files
 pushd ./data
-%make_install BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
-              SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
-              SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
-              SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
+%make_install
 
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
