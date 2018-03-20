@@ -51,6 +51,8 @@ backends:
         systems:
             - ubuntu-14.04-64:
                 workers: 6
+            - ubuntu-16.04-32:
+                workers: 6
             - ubuntu-16.04-64:
                 workers: 8
             # disabled because of: cannot connect: cannot connect to google:ubuntu-18.04-64 (mar200647-634341): ssh: handshake failed: EOF
@@ -79,10 +81,6 @@ backends:
             HTTP_PROXY: null
             HTTPS_PROXY: null
         systems:
-            - ubuntu-16.04-32:
-                kernel: GRUB 2
-                workers: 6
-
             - debian-sid-64:
                 kernel: GRUB 2
                 workers: 6
