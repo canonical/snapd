@@ -2,8 +2,6 @@
 
 set -e
 
-#DEBHELPER#
-
 
 case "$1" in
     configure)
@@ -30,3 +28,5 @@ case "$1" in
             done
         fi
 esac
+
+#DEBHELPER#
