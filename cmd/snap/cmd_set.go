@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/jsonutil"
 )
 
-var shortSetHelp = i18n.G("Changes configuration options")
+var shortSetHelp = i18n.G("Change configuration options")
 var longSetHelp = i18n.G(`
 The set command changes the provided configuration options as requested.
 
