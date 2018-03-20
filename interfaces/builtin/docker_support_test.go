@@ -172,16 +172,15 @@ apps:
 }
 
 func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedBad(c *C) {
-	var mockSnapYaml = []byte(`name: docker
+	var mockSnapYaml = `name: docker
 version: 1.0
 plugs:
  privileged:
   interface: docker-support
   privileged-containers: bad
-`)
+`
 
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 
 	plug := info.Plugs["privileged"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, "docker-support plug requires bool with 'privileged-containers'")

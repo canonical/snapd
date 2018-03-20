@@ -74,7 +74,9 @@ func MockInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 		sideInfo = &snap.SideInfo{}
 	}
 
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	restoreSanitize()
 	c.Assert(err, check.IsNil)
 	snapInfo.SideInfo = *sideInfo
 	err = snap.Validate(snapInfo)
