@@ -49,10 +49,14 @@ backends:
         key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
         location: computeengine/us-east1-b
         systems:
-            - ubuntu-16.04-64:
-                workers: 8
             - ubuntu-14.04-64:
                 workers: 6
+            - ubuntu-16.04-64:
+                workers: 8
+            # disabled because of: cannot connect: cannot connect to google:ubuntu-18.04-64 (mar200647-634341): ssh: handshake failed: EOF
+            #- ubuntu-18.04-64:
+            #    image: ubuntu-os-cloud-devel/ubuntu-1804-lts
+            #    workers: 6
 
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
@@ -439,6 +443,8 @@ suites:
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
         systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+        # unittests are run as part of the autopkgtest build already
+        backends: [-autopkgtest]
         environment:
             # env vars required for coverage reporting from a spread task
             TRAVIS_BUILD_NUMBER: "$(HOST: echo $TRAVIS_BUILD_NUMBER)"
