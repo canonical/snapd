@@ -13,14 +13,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-BINDIR := /usr/bin
-DBUSSERVICESDIR := /usr/share/dbus-1/services
+include ../../build-config
+
+DBUSSERVICESDIR = $(shell pkg-config --variable=session_bus_services_dir dbus-1)
 
 SERVICES_GENERATED := $(patsubst %.service.in,%.service,$(wildcard *.service.in))
 SERVICES := ${SERVICES_GENERATED}
 
 %.service: %.service.in
-	cat $< | sed 's:@bindir@:${BINDIR}:g' | cat > $@
+	cat $< | sed 's:@bindir@:${bindir}:g' | cat > $@
 
 all: ${SERVICES}
 
