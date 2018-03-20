@@ -29,12 +29,16 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type InfoSnapYamlTestSuite struct{}
+type InfoSnapYamlTestSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&InfoSnapYamlTestSuite{})
 
@@ -42,6 +46,15 @@ var mockYaml = []byte(`name: foo
 version: 1.0
 type: app
 `)
+
+func (s *InfoSnapYamlTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+}
+
+func (s *InfoSnapYamlTestSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
 
 func (s *InfoSnapYamlTestSuite) TestSimple(c *C) {
 	info, err := snap.InfoFromSnapYaml(mockYaml)
@@ -58,16 +71,20 @@ func (s *InfoSnapYamlTestSuite) TestFail(c *C) {
 
 type YamlSuite struct {
 	restore func()
+	testutil.BaseTest
 }
 
 var _ = Suite(&YamlSuite{})
 
 func (s *YamlSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	hookType := snap.NewHookType(regexp.MustCompile(".*"))
 	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
 }
 
 func (s *YamlSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	s.restore()
 }
 

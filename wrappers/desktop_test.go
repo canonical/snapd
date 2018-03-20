@@ -36,6 +36,7 @@ import (
 )
 
 type desktopSuite struct {
+	testutil.BaseTest
 	tempdir string
 
 	mockUpdateDesktopDatabase *testutil.MockCmd
@@ -44,6 +45,8 @@ type desktopSuite struct {
 var _ = Suite(&desktopSuite{})
 
 func (s *desktopSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
 
@@ -51,6 +54,7 @@ func (s *desktopSuite) SetUpTest(c *C) {
 }
 
 func (s *desktopSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	s.mockUpdateDesktopDatabase.Restore()
 	dirs.SetRootDir("")
 }
@@ -133,9 +137,20 @@ func (s *desktopSuite) TestAddPackageDesktopFilesCleanup(c *C) {
 
 // sanitize
 
-type sanitizeDesktopFileSuite struct{}
+type sanitizeDesktopFileSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&sanitizeDesktopFileSuite{})
+
+func (s *sanitizeDesktopFileSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+}
+
+func (s *sanitizeDesktopFileSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeIgnoreNotWhitelisted(c *C) {
 	snap := &snap.Info{SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(12)}}

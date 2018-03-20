@@ -747,6 +747,10 @@ slots:
 	err = assertstate.Add(st, snapDecl)
 	c.Assert(err, IsNil)
 
+	// mock SanitizePlugsSlots so that unknown interfaces are not rejected
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	defer restoreSanitize()
+
 	ts, err := snapstate.InstallPath(st, si, snapPath, "", snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
