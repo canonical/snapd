@@ -352,6 +352,41 @@ func (s *lowLevelSuite) TestFstatFailure(c *C) {
 	c.Assert(buf, Equals, syscall.Stat_t{})
 }
 
+func (s *lowLevelSuite) TestFstatfs(c *C) {
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+	var buf syscall.Statfs_t
+	c.Assert(func() { s.sys.Fstatfs(fd, &buf) }, PanicMatches,
+		`one of InsertFstatfsResult\(\) or InsertFault\(\) for fstatfs 3 <ptr> must be used`)
+}
+
+func (s *lowLevelSuite) TestFstatfsBadFd(c *C) {
+	var buf syscall.Statfs_t
+	err := s.sys.Fstatfs(3, &buf)
+	c.Assert(err, ErrorMatches, "attempting to fstatfs with an invalid file descriptor 3")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`fstatfs 3 <ptr>`})
+}
+
+func (s *lowLevelSuite) TestFstatfsSuccess(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: 0x123})
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+	var buf syscall.Statfs_t
+	err = s.sys.Fstatfs(fd, &buf)
+	c.Assert(err, IsNil)
+	c.Assert(buf, Equals, syscall.Statfs_t{Type: 0x123})
+}
+
+func (s *lowLevelSuite) TestFstatfsFailure(c *C) {
+	s.sys.InsertFault(`fstatfs 3 <ptr>`, syscall.EPERM)
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+	var buf syscall.Statfs_t
+	err = s.sys.Fstatfs(fd, &buf)
+	c.Assert(err, ErrorMatches, "operation not permitted")
+	c.Assert(buf, Equals, syscall.Statfs_t{})
+}
+
 func (s *lowLevelSuite) TestReadDir(c *C) {
 	c.Assert(func() { s.sys.ReadDir("/foo") }, PanicMatches,
 		`one of InsertReadDirResult\(\) or InsertFault\(\) for readdir "/foo" must be used`)

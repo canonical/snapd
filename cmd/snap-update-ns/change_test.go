@@ -46,6 +46,22 @@ func (s *changeSuite) SetUpTest(c *C) {
 	// Mock and record system interactions.
 	s.sys = &testutil.SyscallRecorder{}
 	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
+	// Allow writing anywhere
+	restore := update.MockTrespassing([]string{
+		// Special paths used for testing.
+		// It's easier to allow than than to change all the tests now.
+		"/abs/",
+		"/base/",
+		"/name",
+		"/path/",
+		"/rofs/",
+		"/source/",
+		"/target/",
+		// The regularly allowed places
+		"/var/snap/",
+		"/tmp/",
+	})
+	s.BaseTest.AddCleanup(restore)
 }
 
 func (s *changeSuite) TestFakeFileInfo(c *C) {

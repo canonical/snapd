@@ -21,7 +21,6 @@ execute: |
         test-snapd-layout.sh -c "true"
 
         echo "layout declarations are honored"
-
         test-snapd-layout.sh -c "test -d /etc/demo"
         test-snapd-layout.sh -c "test -f /etc/demo.conf"
         test-snapd-layout.sh -c "test -h /etc/demo.cfg"
@@ -30,6 +29,15 @@ execute: |
         test-snapd-layout.sh -c "test -d /var/lib/demo"
         test-snapd-layout.sh -c "test -d /var/cache/demo"
         test-snapd-layout.sh -c "test -d /opt/demo"
+
+        echo "layout declarations didn't leak to the host"
+        test ! -e /etc/demo
+        test ! -e /etc/demo.conf
+        test ! -e /etc/demo.cfg
+        test ! -e /usr/share/demo
+        test ! -e /var/lib/demo
+        test ! -e /var/cache/demo
+        test ! -e /opt/demo
 
         echo "layout locations pointing to SNAP_DATA and SNAP_COMMON are writable"
         echo "and the writes go to the right place in the backing store"

@@ -91,12 +91,12 @@ func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
 			err = secureMksymlinkAll(path, mode, uid, gid, target)
 		}
 	}
-	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
+	if err2, ok := err.(MimicRequiredError); ok && pokeHoles {
 		// If the writing failed because the underlying file-system is read-only
 		// we can construct a writable mimic to fix that.
-		changes, err = createWritableMimic(err2.Path, path)
+		changes, err = createWritableMimic(err2.MimicPath(), path)
 		if err != nil {
-			err = fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
+			err = fmt.Errorf("cannot create writable mimic over %q: %s", err2.MimicPath(), err)
 		} else {
 			// Try once again. Note that we care *just* about the error. We have already
 			// performed the hole poking and thus additional changes must be nil.

@@ -34,7 +34,10 @@ import (
 
 // not available through syscall
 const (
-	umountNoFollow = 8
+	umountNoFollow   = 8
+	TMPFS_MAGIC      = 0x01021994
+	SQUASHFS_MAGIC   = 0x73717368
+	EXT4_SUPER_MAGIC = 0xef53
 )
 
 // For mocking everything during testing.
@@ -51,6 +54,7 @@ var (
 	sysUnmount    = syscall.Unmount
 	sysFchown     = sys.Fchown
 	sysFstat      = syscall.Fstat
+	sysFstatfs    = syscall.Fstatfs
 	sysSymlinkat  = osutil.Symlinkat
 	sysReadlinkat = osutil.Readlinkat
 
@@ -62,8 +66,86 @@ type ReadOnlyFsError struct {
 	Path string
 }
 
+// Error returns a formatted error message.
 func (e *ReadOnlyFsError) Error() string {
 	return fmt.Sprintf("cannot operate on read-only filesystem at %s", e.Path)
+}
+
+// MimicPath returns the path of the directory where a mimic ought to be constructed.
+func (e *ReadOnlyFsError) MimicPath() string {
+	return e.Path
+}
+
+// TrespassingError is an error when filesystem operation would affect the host.
+type TrespassingError struct {
+	Path string
+}
+
+// MimicPath returns the path of the directory where a mimic ought to be constructed.
+func (e *TrespassingError) Error() string {
+	return fmt.Sprintf("cannot trespass on host filesystem at %s", e.Path)
+}
+
+// MimicPath returns the path of the directory where a mimic ought to be constructed.
+func (e *TrespassingError) MimicPath() string {
+	return e.Path
+}
+
+// TODO: Handle /home/*/snap/* when we do per-user mount namespaces and allow
+// defining layout items that refer to SNAP_USER_DATA and SNAP_USER_COMMON.
+//
+// Note that /snap is "not allowed" because it is handled by existing EROFS code.
+// and thus doesn't need any extra logic.
+var allowedPaths = []string{"/var/snap/", "/tmp/"}
+
+// MimicRequiredError describes errors that require construction of a writable mimic.
+type MimicRequiredError interface {
+	Error() string
+	MimicPath() string
+}
+
+// checkTrespassing returns an error if path cannot be written to without a mimic.
+//
+// Determine if path can be used for writing in a way that does not leak to
+// unexpected places in the host. There are some very well defined places that
+// are always safe to write because snaps are expected to write there:
+// $SNAP_DATA, $SNAP_COMMON and (TBD) per-user variants of those.
+//
+// In addition some places are safe because snap-confine arranges the execution
+// environment so that it is simply safe anyway. Currently this is only /tmp
+// because it is private to the snap and doesn't leak into the host
+func checkTrespassing(fd int, segments []string, i int) error {
+	// If the full path is allowed there's no problem. We don't go and check
+	// the filesystem type because it is just going to spam tests with extra
+	// fstatfs calls and it doesn't change anything.
+	p := "/" + strings.Join(segments, "/") + "/"
+	for _, prefix := range allowedPaths {
+		if strings.HasPrefix(p, prefix) {
+			return nil
+		}
+	}
+
+	// Otherwise it depends on where we are. The filesystem can be either
+	// tmpfs or squashfs. Those are "safe" because tmpfs is usually made by
+	// us for a writable mimic (this is not a perfect check) and squashfs is
+	// always read only so we will fail on the write operation anyway.
+	// All other filesystems are not allowed and will return an error that
+	// triggers mimic construction.
+	var fsData syscall.Statfs_t
+	if err := sysFstatfs(fd, &fsData); err != nil {
+		return fmt.Errorf("cannot fstatfs path segment %q: %s", segments[i], err)
+	}
+	if fsData.Type == TMPFS_MAGIC || fsData.Type == SQUASHFS_MAGIC {
+		return nil
+	}
+	if i == 0 {
+		// We want to create a mimic at the next viable location.
+		// But not at the root directory because that's meaningless.
+		i = 1
+	}
+	p = "/" + strings.Join(segments[:i], "/")
+	logger.Debugf("trespassing error segments:%q, i:%d => path: %q", segments, i, p)
+	return &TrespassingError{Path: p}
 }
 
 // Create directories for all but the last segments and return the file
@@ -113,6 +195,10 @@ func secureMkPrefix(segments []string, perm os.FileMode, uid sys.UserID, gid sys
 func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
 	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> ...", fd, segments, i, perm, uid, gid)
 
+	if err := checkTrespassing(fd, segments, i); err != nil {
+		return -1, err
+	}
+
 	segment := segments[i]
 	made := true
 	var err error
@@ -159,6 +245,11 @@ func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid sys.Use
 // Newly created files have the specified mode and ownership.
 func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	logger.Debugf("secure-mk-file %d %q %d %v %d %d", fd, segments, i, perm, uid, gid)
+
+	if err := checkTrespassing(fd, segments, i); err != nil {
+		return err
+	}
+
 	segment := segments[i]
 	made := true
 	var newFd int
@@ -209,6 +300,11 @@ func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid sys.Us
 // Existing and identical symlinks are reused without errors.
 func secureMkSymlink(fd int, segments []string, i int, oldname string) error {
 	logger.Debugf("secure-mk-symlink %d %q %d %q", fd, segments, i, oldname)
+
+	if err := checkTrespassing(fd, segments, i); err != nil {
+		return err
+	}
+
 	segment := segments[i]
 	var err error
 
@@ -400,7 +496,7 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 	// We need a place for "safe keeping" of what is present in the original
 	// directory as we are about to attach a tmpfs there, which will hide
 	// everything inside.
-	logger.Debugf("create-writable-mimic %q", dir)
+	logger.Debugf("plan-writable-mimic %q", dir)
 	safeKeepingDir := filepath.Join("/tmp/.snap/", dir)
 
 	var changes []*Change
@@ -500,6 +596,8 @@ type FatalError struct {
 // returned. If the undo plan fails the function returns a FatalError as it
 // cannot fix the system from an inconsistent state.
 func execWritableMimic(plan []*Change) ([]*Change, error) {
+	logger.Debugf("execute-writable-mimic")
+
 	undoChanges := make([]*Change, 0, len(plan)-2)
 	for i, change := range plan {
 		if _, err := changePerform(change); err != nil {

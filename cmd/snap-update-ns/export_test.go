@@ -63,6 +63,7 @@ type SystemCalls interface {
 	Openat(dirfd int, path string, flags int, mode uint32) (fd int, err error)
 	Unmount(target string, flags int) error
 	Fstat(fd int, buf *syscall.Stat_t) error
+	Fstatfs(fd int, buf *syscall.Statfs_t) error
 }
 
 // MockSystemCalls replaces real system calls with those of the argument.
@@ -82,6 +83,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	oldSysSymlinkat := sysSymlinkat
 	oldReadlinkat := sysReadlinkat
 	oldFstat := sysFstat
+	oldFstatfs := sysFstatfs
 
 	// override
 	osLstat = sc.Lstat
@@ -98,6 +100,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	sysSymlinkat = sc.Symlinkat
 	sysReadlinkat = sc.Readlinkat
 	sysFstat = sc.Fstat
+	sysFstatfs = sc.Fstatfs
 
 	return func() {
 		// restore
@@ -115,6 +118,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		sysSymlinkat = oldSysSymlinkat
 		sysReadlinkat = oldReadlinkat
 		sysFstat = oldFstat
+		sysFstatfs = oldFstatfs
 	}
 }
 
@@ -151,5 +155,13 @@ func MockReadlink(fn func(string) (string, error)) (restore func()) {
 	osReadlink = fn
 	return func() {
 		osReadlink = old
+	}
+}
+
+func MockTrespassing(mockAllowedPaths []string) (restore func()) {
+	old := allowedPaths
+	allowedPaths = mockAllowedPaths
+	return func() {
+		allowedPaths = old
 	}
 }
