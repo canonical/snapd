@@ -301,6 +301,12 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 			"snap-bin-dir":   dirs.SnapBinariesDir,
 		},
 		"refresh": refreshInfo,
+		"urls": map[string]interface{}{
+			"account-create":          "https://login.ubuntu.com/+login",
+			"account-forgot-password": "https://login.ubuntu.com/+forgot_password",
+			"payment-setup":           "https://my.ubuntu.com/payment/edit",
+			"payment-tos":             "https://my.ubuntu.com/payment/edit",
+		},
 	}
 	// NOTE: Right now we don't have a good way to differentiate if we
 	// only have partial confinement (ala AppArmor disabled and Seccomp
