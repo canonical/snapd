@@ -13,7 +13,7 @@ case "$1" in
         # ensure we undo the stopping of the snap.mount unit
         # that we had in 2.31 and 2.31.1
         if dpkg --compare-versions "$2" ge-nl "2.31" && \
-                dpkg --compare-versions "$2" lt-nl "2.31.2"; then
+                dpkg --compare-versions "$2" lt-nl "2.32+18.04~pre6"; then
             units=$(systemctl list-unit-files --full | grep '^snap[-.]' | cut -f1 -d ' ' | grep -vF snap.mount.service || true)
             mounts=$(echo "$units" | grep '^snap[-.].*\.mount$' || true)
             for unit in $mounts; do
