@@ -104,7 +104,7 @@ int main(int argc, char **argv)
 
 	// We've been asked to print the version string so let's just do that.
 	if (sc_args_is_version_query(args)) {
-		printf("%s %s\n", PACKAGE, PACKAGE_VERSION);
+		printf("snap-confine %s\n", PACKAGE_VERSION);
 		return 0;
 	}
 
