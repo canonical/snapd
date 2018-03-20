@@ -760,7 +760,7 @@ func (s *SnapSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// and run it under strace
-	rest, err := snaprun.Parser().ParseArgs([]string{"run", "--strace=-tt --raw", "snapname.app", "--arg1", "arg2"})
+	rest, err := snaprun.Parser().ParseArgs([]string{"run", `--strace=-tt --raw -o "file with spaces"`, "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
@@ -771,6 +771,8 @@ func (s *SnapSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 			"-f",
 			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday",
 			"-tt",
+			"-o",
+			"file with spaces",
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),

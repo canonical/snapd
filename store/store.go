@@ -184,8 +184,7 @@ func useDeltas() bool {
 		return false
 	}
 
-	deltasDefault := release.OnClassic
-	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault)
+	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", true)
 }
 
 func useStaging() bool {
@@ -589,7 +588,7 @@ func authenticateDevice(r *http.Request, device *auth.DeviceState, apiLevel apiL
 	}
 }
 
-func (s *Store) setStoreID(r *http.Request, apiLevel apiLevel) {
+func (s *Store) setStoreID(r *http.Request, apiLevel apiLevel) (customStore bool) {
 	storeID := s.fallbackStoreID
 	if s.authContext != nil {
 		cand, err := s.authContext.StoreID(storeID)
@@ -601,7 +600,9 @@ func (s *Store) setStoreID(r *http.Request, apiLevel apiLevel) {
 	}
 	if storeID != "" {
 		r.Header.Set(hdrSnapDeviceStore[apiLevel], storeID)
+		return true
 	}
+	return false
 }
 
 type apiLevel int
@@ -619,6 +620,13 @@ var (
 	hdrSnapClassic             = []string{"X-Ubuntu-Classic", "Snap-Classic"}
 )
 
+type deviceAuthNeed int
+
+const (
+	deviceAuthPreferred deviceAuthNeed = iota
+	deviceAuthCustomStoreOnly
+)
+
 // requestOptions specifies parameters for store requests.
 type requestOptions struct {
 	Method       string
@@ -628,6 +636,13 @@ type requestOptions struct {
 	APILevel     apiLevel
 	ExtraHeaders map[string]string
 	Data         []byte
+
+	// DeviceAuthNeed indicates the level of need to supply device
+	// authorization for this request, can be:
+	//  - deviceAuthPreferred: should be provided if available
+	//  - deviceAuthCustomStoreOnly: should be provided only in case
+	//    of a custom store
+	DeviceAuthNeed deviceAuthNeed
 }
 
 func (r *requestOptions) addHeader(k, v string) {
@@ -834,7 +849,9 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		return nil, err
 	}
 
-	if s.authContext != nil {
+	customStore := s.setStoreID(req, reqOptions.APILevel)
+
+	if s.authContext != nil && (customStore || reqOptions.DeviceAuthNeed != deviceAuthCustomStoreOnly) {
 		device, err := s.authContext.Device()
 		if err != nil {
 			return nil, err
@@ -875,8 +892,6 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	for header, value := range reqOptions.ExtraHeaders {
 		req.Header.Set(header, value)
 	}
-
-	s.setStoreID(req, reqOptions.APILevel)
 
 	return req, nil
 }
@@ -1187,11 +1202,12 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 }
 
 // Sections retrieves the list of available store sections.
-func (s *Store) Sections(user *auth.UserState) ([]string, error) {
+func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, error) {
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    s.endpointURL(sectionsEndpPath, nil),
-		Accept: halJsonContentType,
+		Method:         "GET",
+		URL:            s.endpointURL(sectionsEndpPath, nil),
+		Accept:         halJsonContentType,
+		DeviceAuthNeed: deviceAuthCustomStoreOnly,
 	}
 
 	var sectionData sectionResults
@@ -1218,7 +1234,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 
 // WriteCatalogs queries the "commands" endpoint and writes the
 // command names into the given io.Writer.
-func (s *Store) WriteCatalogs(names io.Writer, adder SnapAdder) error {
+func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAdder) error {
 	u := *s.endpointURL(commandsEndpPath, nil)
 
 	q := u.Query()
@@ -1230,9 +1246,10 @@ func (s *Store) WriteCatalogs(names io.Writer, adder SnapAdder) error {
 
 	u.RawQuery = q.Encode()
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    &u,
-		Accept: halJsonContentType,
+		Method:         "GET",
+		URL:            &u,
+		Accept:         halJsonContentType,
+		DeviceAuthNeed: deviceAuthCustomStoreOnly,
 	}
 
 	// do not log body for catalog updates (its huge)
@@ -1241,7 +1258,7 @@ func (s *Store) WriteCatalogs(names io.Writer, adder SnapAdder) error {
 		Timeout:    10 * time.Second,
 	})
 	doRequest := func() (*http.Response, error) {
-		return s.doRequest(context.TODO(), client, reqOptions, nil)
+		return s.doRequest(ctx, client, reqOptions, nil)
 	}
 	readResponse := func(resp *http.Response) error {
 		return decodeCatalog(resp, names, adder)
@@ -1320,7 +1337,7 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 }
 
 // query the store for the information about currently offered revisions of snaps
-func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth.UserState, flags *RefreshOptions) ([]*snapDetails, error) {
+func (s *Store) refreshForCandidates(ctx context.Context, currentSnaps []*currentSnapJSON, user *auth.UserState, flags *RefreshOptions) ([]*snapDetails, error) {
 	if flags == nil {
 		flags = &RefreshOptions{}
 	}
@@ -1356,7 +1373,7 @@ func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth
 	}
 
 	var updateData searchResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &updateData, nil)
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &updateData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1379,7 +1396,7 @@ func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState)
 		return nil, ErrLocalSnap
 	}
 
-	latest, err := refreshForCandidates(s, []*currentSnapJSON{cur}, user, nil)
+	latest, err := refreshForCandidates(s, context.TODO(), []*currentSnapJSON{cur}, user, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1398,7 +1415,7 @@ func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState)
 
 // ListRefresh returns the available updates for a list of refresh candidates.
 // NOTE ListRefresh can return nil, nil if e.g. all local snaps are passed in
-func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState, flags *RefreshOptions) (snaps []*snap.Info, err error) {
+func (s *Store) ListRefresh(ctx context.Context, installed []*RefreshCandidate, user *auth.UserState, flags *RefreshOptions) (snaps []*snap.Info, err error) {
 	candidateMap := map[string]*RefreshCandidate{}
 	currentSnaps := make([]*currentSnapJSON, 0, len(installed))
 	for _, cs := range installed {
@@ -1410,7 +1427,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState,
 		candidateMap[cs.SnapID] = cs
 	}
 
-	latest, err := s.refreshForCandidates(currentSnaps, user, flags)
+	latest, err := s.refreshForCandidates(ctx, currentSnaps, user, flags)
 	if err != nil {
 		return nil, err
 	}

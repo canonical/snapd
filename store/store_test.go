@@ -1099,9 +1099,9 @@ func (s *storeTestSuite) TestUseDeltas(c *C) {
 		wantDelta bool
 	}{
 		{env: "", classic: false, exeInHost: false, exeInCore: false, wantDelta: false},
-		{env: "", classic: false, exeInHost: false, exeInCore: true, wantDelta: false},
-		{env: "", classic: false, exeInHost: true, exeInCore: false, wantDelta: false},
-		{env: "", classic: false, exeInHost: true, exeInCore: true, wantDelta: false},
+		{env: "", classic: false, exeInHost: false, exeInCore: true, wantDelta: true},
+		{env: "", classic: false, exeInHost: true, exeInCore: false, wantDelta: true},
+		{env: "", classic: false, exeInHost: true, exeInCore: true, wantDelta: true},
 		{env: "", classic: true, exeInHost: false, exeInCore: false, wantDelta: false},
 		{env: "", classic: true, exeInHost: false, exeInCore: true, wantDelta: true},
 		{env: "", classic: true, exeInHost: true, exeInCore: false, wantDelta: true},
@@ -2771,6 +2771,8 @@ func (s *storeTestSuite) TestSectionsQuery(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", sectionsPath)
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
+
 		switch n {
 		case 0:
 			// All good.
@@ -2790,9 +2792,43 @@ func (s *storeTestSuite) TestSectionsQuery(c *C) {
 	cfg := Config{
 		StoreBaseURL: serverURL,
 	}
-	sto := New(&cfg, nil)
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := New(&cfg, authContext)
 
-	sections, err := sto.Sections(s.user)
+	sections, err := sto.Sections(context.TODO(), s.user)
+	c.Check(err, IsNil)
+	c.Check(sections, DeepEquals, []string{"featured", "database"})
+}
+
+func (s *storeTestSuite) TestSectionsQueryCustomStore(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", sectionsPath)
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		switch n {
+		case 0:
+			// All good.
+		default:
+			c.Fatalf("what? %d", n)
+		}
+
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.WriteHeader(200)
+		io.WriteString(w, MockSectionsJSON)
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	cfg := Config{
+		StoreBaseURL: serverURL,
+	}
+	authContext := &testAuthContext{c: c, device: s.device, storeID: "my-brand-store"}
+	sto := New(&cfg, authContext)
+
+	sections, err := sto.Sections(context.TODO(), s.user)
 	c.Check(err, IsNil)
 	c.Check(sections, DeepEquals, []string{"featured", "database"})
 }
@@ -2840,6 +2876,8 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
+
 		switch n {
 		case 0:
 			query := r.URL.Query()
@@ -2864,14 +2902,15 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 	defer mockServer.Close()
 
 	serverURL, _ := url.Parse(mockServer.URL)
-	sto := New(&Config{StoreBaseURL: serverURL}, nil)
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := New(&Config{StoreBaseURL: serverURL}, authContext)
 
 	db, err := advisor.Create()
 	c.Assert(err, IsNil)
 	defer db.Rollback()
 
 	var bufNames bytes.Buffer
-	err = sto.WriteCatalogs(&bufNames, db)
+	err = sto.WriteCatalogs(context.TODO(), &bufNames, db)
 	c.Assert(err, IsNil)
 	db.Commit()
 	c.Check(bufNames.String(), Equals, "bar\nfoo\n")
@@ -3277,7 +3316,7 @@ func (s *storeTestSuite) TestRefreshForCandidates(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.refreshForCandidates([]*currentSnapJSON{
+	results, err := sto.refreshForCandidates(context.TODO(), []*currentSnapJSON{
 		{
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
@@ -3326,7 +3365,7 @@ func (s *storeTestSuite) TestRefreshForCandidatesRetriesOnEOF(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.refreshForCandidates([]*currentSnapJSON{{
+	results, err := sto.refreshForCandidates(context.TODO(), []*currentSnapJSON{{
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 1,
@@ -3337,7 +3376,7 @@ func (s *storeTestSuite) TestRefreshForCandidatesRetriesOnEOF(c *C) {
 	c.Assert(results[0].Name, Equals, "hello-world")
 }
 
-func mockRFC(newRFC func(*Store, []*currentSnapJSON, *auth.UserState, *RefreshOptions) ([]*snapDetails, error)) func() {
+func mockRFC(newRFC func(*Store, context.Context, []*currentSnapJSON, *auth.UserState, *RefreshOptions) ([]*snapDetails, error)) func() {
 	oldRFC := refreshForCandidates
 	refreshForCandidates = newRFC
 	return func() {
@@ -3346,7 +3385,7 @@ func mockRFC(newRFC func(*Store, []*currentSnapJSON, *auth.UserState, *RefreshOp
 }
 
 func (s *storeTestSuite) TestLookupRefresh(c *C) {
-	defer mockRFC(func(_ *Store, currentSnaps []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
+	defer mockRFC(func(_ *Store, _ context.Context, currentSnaps []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		c.Check(currentSnaps, DeepEquals, []*currentSnapJSON{{
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
@@ -3380,7 +3419,7 @@ func (s *storeTestSuite) TestLookupRefresh(c *C) {
 }
 
 func (s *storeTestSuite) TestLookupRefreshIgnoreValidation(c *C) {
-	defer mockRFC(func(_ *Store, currentSnaps []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
+	defer mockRFC(func(_ *Store, _ context.Context, currentSnaps []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		c.Check(currentSnaps, DeepEquals, []*currentSnapJSON{{
 			SnapID:           helloWorldSnapID,
 			Channel:          "stable",
@@ -3413,7 +3452,7 @@ func (s *storeTestSuite) TestLookupRefreshIgnoreValidation(c *C) {
 }
 
 func (s *storeTestSuite) TestLookupRefreshLocalSnap(c *C) {
-	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
+	defer mockRFC(func(_ *Store, _ context.Context, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		panic("unexpected call to refreshForCandidates")
 	})()
 
@@ -3428,7 +3467,7 @@ func (s *storeTestSuite) TestLookupRefreshLocalSnap(c *C) {
 
 func (s *storeTestSuite) TestLookupRefreshRFCError(c *C) {
 	anError := errors.New("ouchie")
-	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
+	defer mockRFC(func(_ *Store, _ context.Context, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		return nil, anError
 	})()
 
@@ -3443,7 +3482,7 @@ func (s *storeTestSuite) TestLookupRefreshRFCError(c *C) {
 }
 
 func (s *storeTestSuite) TestLookupRefreshEmptyResponse(c *C) {
-	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
+	defer mockRFC(func(_ *Store, _ context.Context, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		return nil, nil
 	})()
 
@@ -3458,7 +3497,7 @@ func (s *storeTestSuite) TestLookupRefreshEmptyResponse(c *C) {
 }
 
 func (s *storeTestSuite) TestLookupRefreshNoUpdate(c *C) {
-	defer mockRFC(func(_ *Store, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
+	defer mockRFC(func(_ *Store, _ context.Context, _ []*currentSnapJSON, _ *auth.UserState, _ *RefreshOptions) ([]*snapDetails, error) {
 		return []*snapDetails{{
 			SnapID:   helloWorldDeveloperID,
 			Revision: 1,
@@ -3514,7 +3553,7 @@ func (s *storeTestSuite) TestListRefresh(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.ListRefresh([]*RefreshCandidate{
+	results, err := sto.ListRefresh(context.TODO(), []*RefreshCandidate{
 		{
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
@@ -3571,7 +3610,7 @@ func (s *storeTestSuite) TestListRefreshIgnoreValidation(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.ListRefresh([]*RefreshCandidate{
+	results, err := sto.ListRefresh(context.TODO(), []*RefreshCandidate{
 		{
 			SnapID:           helloWorldSnapID,
 			Channel:          "stable",
@@ -3625,7 +3664,7 @@ func (s *storeTestSuite) TestListRefreshDefaultChannelIsStable(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.ListRefresh([]*RefreshCandidate{
+	results, err := sto.ListRefresh(context.TODO(), []*RefreshCandidate{
 		{
 			SnapID:   helloWorldSnapID,
 			Revision: snap.R(1),
@@ -3672,7 +3711,7 @@ func (s *storeTestSuite) TestListRefreshRetryOnEOF(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.ListRefresh([]*RefreshCandidate{{
+	results, err := sto.ListRefresh(context.TODO(), []*RefreshCandidate{{
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(1),
@@ -3713,7 +3752,7 @@ func (s *storeTestSuite) TestUnexpectedEOFhandling(c *C) {
 		authContext := &testAuthContext{c: c, device: s.device}
 		sto := New(&cfg, authContext)
 
-		_, err := sto.refreshForCandidates([]*currentSnapJSON{{
+		_, err := sto.refreshForCandidates(context.TODO(), []*currentSnapJSON{{
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
 			Revision: 1,
@@ -3757,7 +3796,7 @@ func (s *storeTestSuite) TestRefreshForCandidatesEOF(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	_, err := sto.refreshForCandidates([]*currentSnapJSON{{
+	_, err := sto.refreshForCandidates(context.TODO(), []*currentSnapJSON{{
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 1,
@@ -3788,7 +3827,7 @@ func (s *storeTestSuite) TestRefreshForCandidatesUnauthorised(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	_, err := sto.refreshForCandidates([]*currentSnapJSON{{
+	_, err := sto.refreshForCandidates(context.TODO(), []*currentSnapJSON{{
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 24,
@@ -3806,7 +3845,7 @@ func (s *storeTestSuite) TestRefreshForCandidatesFailOnDNS(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	_, err = sto.refreshForCandidates([]*currentSnapJSON{{
+	_, err = sto.refreshForCandidates(context.TODO(), []*currentSnapJSON{{
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 24,
@@ -3832,7 +3871,7 @@ func (s *storeTestSuite) TestRefreshForCandidates500(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	_, err := sto.refreshForCandidates([]*currentSnapJSON{{
+	_, err := sto.refreshForCandidates(context.TODO(), []*currentSnapJSON{{
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 24,
@@ -3859,7 +3898,7 @@ func (s *storeTestSuite) TestRefreshForCandidates500DurationExceeded(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	_, err := sto.refreshForCandidates([]*currentSnapJSON{{
+	_, err := sto.refreshForCandidates(context.TODO(), []*currentSnapJSON{{
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: 24,
@@ -3915,7 +3954,7 @@ func (s *storeTestSuite) TestListRefreshSkipCurrent(c *C) {
 	}
 	sto := New(&cfg, nil)
 
-	results, err := sto.ListRefresh([]*RefreshCandidate{{
+	results, err := sto.ListRefresh(context.TODO(), []*RefreshCandidate{{
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(26),
@@ -3958,7 +3997,7 @@ func (s *storeTestSuite) TestListRefreshSkipBlocked(c *C) {
 	}
 	sto := New(&cfg, nil)
 
-	results, err := sto.ListRefresh([]*RefreshCandidate{{
+	results, err := sto.ListRefresh(context.TODO(), []*RefreshCandidate{{
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(25),
@@ -4030,7 +4069,7 @@ func (s *storeTestSuite) TestDefaultsDeltasOnClassicOnly(c *C) {
 		onClassic      bool
 		deltaFormatStr string
 	}{
-		{false, ""},
+		{true, "xdelta3"},
 		{true, "xdelta3"},
 	} {
 		restore := release.MockOnClassic(t.onClassic)
@@ -4048,7 +4087,7 @@ func (s *storeTestSuite) TestDefaultsDeltasOnClassicOnly(c *C) {
 		}
 		sto := New(&cfg, nil)
 
-		sto.refreshForCandidates([]*currentSnapJSON{{
+		sto.refreshForCandidates(context.TODO(), []*currentSnapJSON{{
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
 			Revision: 1,
@@ -4096,7 +4135,7 @@ func (s *storeTestSuite) TestListRefreshWithDeltas(c *C) {
 	}
 	sto := New(&cfg, nil)
 
-	results, err := sto.ListRefresh([]*RefreshCandidate{{
+	results, err := sto.ListRefresh(context.TODO(), []*RefreshCandidate{{
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(24),
@@ -4165,7 +4204,7 @@ func (s *storeTestSuite) TestListRefreshWithoutDeltas(c *C) {
 	}
 	sto := New(&cfg, nil)
 
-	results, err := sto.ListRefresh([]*RefreshCandidate{{
+	results, err := sto.ListRefresh(context.TODO(), []*RefreshCandidate{{
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(24),
@@ -4190,7 +4229,7 @@ func (s *storeTestSuite) TestUpdateNotSendLocalRevs(c *C) {
 	}
 	sto := New(&cfg, nil)
 
-	_, err := sto.ListRefresh([]*RefreshCandidate{{
+	_, err := sto.ListRefresh(context.TODO(), []*RefreshCandidate{{
 		SnapID:   helloWorldSnapID,
 		Channel:  "stable",
 		Revision: snap.R(-2),
@@ -4226,7 +4265,7 @@ func (s *storeTestSuite) TestListRefreshOptions(c *C) {
 		}
 		sto := New(&cfg, nil)
 
-		_, err := sto.ListRefresh([]*RefreshCandidate{{
+		_, err := sto.ListRefresh(context.TODO(), []*RefreshCandidate{{
 			SnapID:   helloWorldSnapID,
 			Channel:  "stable",
 			Revision: snap.R(24),

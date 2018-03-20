@@ -5,6 +5,9 @@ set -e -x
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
 
+# shellcheck source=tests/lib/systemd.sh
+. "$TESTSLIB/systemd.sh"
+
 reset_classic() {
     # Reload all service units as in some situations the unit might
     # have changed on the disk.
@@ -18,11 +21,11 @@ reset_classic() {
             echo "snapd service or socket not active"
             exit 1
         fi
-        retries=$(( $retries - 1 ))
+        retries=$(( retries - 1 ))
         sleep 1
     done
 
-    systemctl stop snapd.service snapd.socket
+    systemd_stop_units snapd.service snapd.socket
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
@@ -72,6 +75,9 @@ reset_classic() {
         for unit in $mounts $services; do
             systemctl start "$unit"
         done
+
+        # force all profiles to be re-generated
+        rm -f /var/lib/snapd/system-key
     fi
 
     if [ "$1" != "--keep-stopped" ]; then
@@ -101,7 +107,9 @@ reset_all_snap() {
                 if ! systemctl status snapd.service snapd.socket; then
                     systemctl start snapd.service snapd.socket
                 fi
-                snap remove "$snap"
+                if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
+                    snap remove "$snap"
+                fi
                 ;;
         esac
     done

@@ -20,7 +20,9 @@
 package squashfs
 
 import (
+	"errors"
 	"io/ioutil"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/testutil"
@@ -44,6 +47,11 @@ type SquashfsTestSuite struct {
 var _ = Suite(&SquashfsTestSuite{})
 
 func makeSnap(c *C, manifest, data string) *Snap {
+	cur, _ := os.Getwd()
+	return makeSnapInDir(c, cur, manifest, data)
+}
+
+func makeSnapInDir(c *C, dir, manifest, data string) *Snap {
 	tmp := c.MkDir()
 	err := os.MkdirAll(filepath.Join(tmp, "meta", "hooks", "dir"), 0755)
 	c.Assert(err, IsNil)
@@ -71,8 +79,7 @@ func makeSnap(c *C, manifest, data string) *Snap {
 	c.Assert(err, IsNil)
 
 	// build it
-	cur, _ := os.Getwd()
-	snap := New(filepath.Join(cur, "foo.snap"))
+	snap := New(filepath.Join(dir, "foo.snap"))
 	err = snap.Build(tmp)
 	c.Assert(err, IsNil)
 
@@ -80,31 +87,82 @@ func makeSnap(c *C, manifest, data string) *Snap {
 }
 
 func (s *SquashfsTestSuite) SetUpTest(c *C) {
-	err := os.Chdir(c.MkDir())
+	d := c.MkDir()
+	dirs.SetRootDir(d)
+	err := os.Chdir(d)
 	c.Assert(err, IsNil)
 }
 
-func (s *SquashfsTestSuite) TestInstallSimple(c *C) {
+func (s *SquashfsTestSuite) TestInstallSimpleNoCp(c *C) {
+	// mock cp but still cp
+	cmd := testutil.MockCommand(c, "cp", `#!/bin/sh
+exec /bin/cp "$@"
+`)
+	defer cmd.Restore()
+	// mock link but still link
+	linked := 0
+	r := mockLink(func(a, b string) error {
+		linked++
+		return os.Link(a, b)
+	})
+	defer r()
+
 	snap := makeSnap(c, "name: test", "")
 	targetPath := filepath.Join(c.MkDir(), "target.snap")
 	mountDir := c.MkDir()
 	err := snap.Install(targetPath, mountDir)
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(targetPath), Equals, true)
+	c.Check(linked, Equals, 1)
+	c.Check(cmd.Calls(), HasLen, 0)
+}
+
+func mockLink(newLink func(string, string) error) (restore func()) {
+	oldLink := osLink
+	osLink = newLink
+	return func() {
+		osLink = oldLink
+	}
+}
+
+func noLink() func() {
+	return mockLink(func(string, string) error { return errors.New("no.") })
 }
 
 func (s *SquashfsTestSuite) TestInstallNotCopyTwice(c *C) {
+	// first, disable os.Link
+	defer noLink()()
+
+	// then, mock cp but still cp
+	cmd := testutil.MockCommand(c, "cp", `#!/bin/sh
+exec /bin/cp "$@"
+`)
+	defer cmd.Restore()
+
 	snap := makeSnap(c, "name: test2", "")
 	targetPath := filepath.Join(c.MkDir(), "target.snap")
 	mountDir := c.MkDir()
 	err := snap.Install(targetPath, mountDir)
 	c.Assert(err, IsNil)
+	c.Check(cmd.Calls(), HasLen, 1)
 
-	cmd := testutil.MockCommand(c, "cp", "")
-	defer cmd.Restore()
 	err = snap.Install(targetPath, mountDir)
 	c.Assert(err, IsNil)
-	c.Assert(cmd.Calls(), HasLen, 0)
+	c.Check(cmd.Calls(), HasLen, 1) // and not 2 \o/
+}
+
+func (s *SquashfsTestSuite) TestInstallSeedNoLink(c *C) {
+	defer noLink()()
+
+	c.Assert(os.MkdirAll(dirs.SnapSeedDir, 0755), IsNil)
+	snap := makeSnapInDir(c, dirs.SnapSeedDir, "name: test2", "")
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	_, err := os.Lstat(targetPath)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	err = snap.Install(targetPath, c.MkDir())
+	c.Assert(err, IsNil)
+	c.Check(osutil.IsSymlink(targetPath), Equals, true) // \o/
 }
 
 func (s *SquashfsTestSuite) TestPath(c *C) {
@@ -350,4 +408,20 @@ func (s *SquashfsTestSuite) TestUnsquashfsStderrWriter(c *C) {
 			c.Check(usw.Err(), IsNil)
 		}
 	}
+}
+
+func (s *SquashfsTestSuite) TestBuildDate(c *C) {
+	// make a directory
+	d := c.MkDir()
+	// set its time waaay back
+	now := time.Now()
+	then := now.Add(-10000 * time.Hour)
+	c.Assert(os.Chtimes(d, then, then), IsNil)
+	// make a snap using this directory
+	filename := filepath.Join(c.MkDir(), "foo.snap")
+	snap := New(filename)
+	c.Assert(snap.Build(d), IsNil)
+	// and see it's BuildDate is _now_, not _then_.
+	c.Check(BuildDate(filename), Equals, snap.BuildDate())
+	c.Check(math.Abs(now.Sub(snap.BuildDate()).Seconds()) <= 61, Equals, true, Commentf("Unexpected build date %s", snap.BuildDate()))
 }

@@ -39,7 +39,9 @@ type systemKey struct {
 	BuildID          string   `yaml:"build-id"`
 	AppArmorFeatures []string `yaml:"apparmor-features"`
 	NFSHome          bool     `yaml:"nfs-home"`
+	OverlayRoot      string   `yaml:"overlay-root"`
 	Core             string   `yaml:"core,omitempty"`
+	SecCompActions   []string `yaml:"seccomp-features"`
 }
 
 var (
@@ -60,7 +62,7 @@ func generateSystemKey() *systemKey {
 	}
 	sk.BuildID = buildID
 
-	// Add apparmor-feature (which is already sorted)
+	// Add apparmor-features (which is already sorted)
 	sk.AppArmorFeatures = release.AppArmorFeatures()
 
 	// Add if home is using NFS, if so we need to have a different
@@ -70,12 +72,23 @@ func generateSystemKey() *systemKey {
 	if err != nil {
 		logger.Noticef("cannot determine nfs usage in generateSystemKey: %v", err)
 	}
+
+	// Add if '/' is on overlayfs so we can add AppArmor rules for
+	// upperdir such that if this changes, we change our profile.
+	sk.OverlayRoot, err = osutil.IsRootWritableOverlay()
+	if err != nil {
+		logger.Noticef("cannot determine root filesystem on overlay in generateSystemKey: %v", err)
+	}
+
 	// Add the current Core path, we need this because we call helpers
 	// like snap-confine from core that will need an updated profile
 	// if it changes
 	//
 	// FIXME: what about core18? the snapd snap?
 	sk.Core, _ = os.Readlink(filepath.Join(dirs.SnapMountDir, "core/current"))
+
+	// Add seccomp-features
+	sk.SecCompActions = release.SecCompActions
 
 	return &sk
 }

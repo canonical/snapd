@@ -28,7 +28,9 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"time"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -50,6 +52,8 @@ func (s *Snap) Path() string {
 func New(snapPath string) *Snap {
 	return &Snap{path: snapPath}
 }
+
+var osLink = os.Link
 
 func (s *Snap) Install(targetPath, mountDir string) error {
 
@@ -82,7 +86,13 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	// link(2) returns EPERM on filesystems that don't support
 	// hard links (like vfat), so checking the error here doesn't
 	// make sense vs just trying to copy it.
-	if err := os.Link(s.path, targetPath); err == nil {
+	if err := osLink(s.path, targetPath); err == nil {
+		return nil
+	}
+
+	// if the file is a seed, but the hardlink failed, symlinking it
+	// saves the copy (which in livecd is expensive) so try that next
+	if filepath.Dir(s.path) == dirs.SnapSeedDir && os.Symlink(s.path, targetPath) == nil {
 		return nil
 	}
 
@@ -210,6 +220,7 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 	} else {
 		cmd = exec.Command("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path, relative)
 	}
+	cmd.Env = []string{"TZ=UTC"}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return walkFn(relative, nil, err)
@@ -302,4 +313,34 @@ func (s *Snap) Build(buildDir string) error {
 			"-no-fragments",
 		).Run()
 	})
+}
+
+// BuildDate returns the "Creation or last append time" as reported by unsquashfs.
+func (s *Snap) BuildDate() time.Time {
+	return BuildDate(s.path)
+}
+
+// BuildDate returns the "Creation or last append time" as reported by unsquashfs.
+func BuildDate(path string) time.Time {
+	var t0 time.Time
+
+	const prefix = "Creation or last append time "
+	m := &strutil.MatchCounter{
+		Regexp: regexp.MustCompile("(?m)^" + prefix + ".*$"),
+		N:      1,
+	}
+
+	cmd := exec.Command("unsquashfs", "-s", path)
+	cmd.Env = []string{"TZ=UTC"}
+	cmd.Stdout = m
+	cmd.Stderr = m
+	if err := cmd.Run(); err != nil {
+		return t0
+	}
+	matches, count := m.Matches()
+	if count != 1 {
+		return t0
+	}
+	t0, _ = time.Parse(time.ANSIC, matches[0][len(prefix):])
+	return t0
 }
