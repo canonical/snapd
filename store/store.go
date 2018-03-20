@@ -585,7 +585,7 @@ func authenticateDevice(r *http.Request, device *auth.DeviceState) {
 	}
 }
 
-func (s *Store) setStoreID(r *http.Request) {
+func (s *Store) setStoreID(r *http.Request) (customStore bool) {
 	storeID := s.fallbackStoreID
 	if s.authContext != nil {
 		cand, err := s.authContext.StoreID(storeID)
@@ -597,8 +597,17 @@ func (s *Store) setStoreID(r *http.Request) {
 	}
 	if storeID != "" {
 		r.Header.Set("X-Ubuntu-Store", storeID)
+		return true
 	}
+	return false
 }
+
+type deviceAuthNeed int
+
+const (
+	deviceAuthPreferred deviceAuthNeed = iota
+	deviceAuthCustomStoreOnly
+)
 
 // requestOptions specifies parameters for store requests.
 type requestOptions struct {
@@ -608,6 +617,13 @@ type requestOptions struct {
 	ContentType  string
 	ExtraHeaders map[string]string
 	Data         []byte
+
+	// DeviceAuthNeed indicates the level of need to supply device
+	// authorization for this request, can be:
+	//  - deviceAuthPreferred: should be provided if available
+	//  - deviceAuthCustomStoreOnly: should be provided only in case
+	//    of a custom store
+	DeviceAuthNeed deviceAuthNeed
 }
 
 func (r *requestOptions) addHeader(k, v string) {
@@ -814,7 +830,9 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		return nil, err
 	}
 
-	if s.authContext != nil {
+	customStore := s.setStoreID(req)
+
+	if s.authContext != nil && (customStore || reqOptions.DeviceAuthNeed != deviceAuthCustomStoreOnly) {
 		device, err := s.authContext.Device()
 		if err != nil {
 			return nil, err
@@ -860,8 +878,6 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	for header, value := range reqOptions.ExtraHeaders {
 		req.Header.Set(header, value)
 	}
-
-	s.setStoreID(req)
 
 	return req, nil
 }
@@ -1175,9 +1191,10 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 // Sections retrieves the list of available store sections.
 func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, error) {
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    s.endpointURL(sectionsEndpPath, nil),
-		Accept: halJsonContentType,
+		Method:         "GET",
+		URL:            s.endpointURL(sectionsEndpPath, nil),
+		Accept:         halJsonContentType,
+		DeviceAuthNeed: deviceAuthCustomStoreOnly,
 	}
 
 	var sectionData sectionResults
@@ -1216,9 +1233,10 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 
 	u.RawQuery = q.Encode()
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    &u,
-		Accept: halJsonContentType,
+		Method:         "GET",
+		URL:            &u,
+		Accept:         halJsonContentType,
+		DeviceAuthNeed: deviceAuthCustomStoreOnly,
 	}
 
 	// do not log body for catalog updates (its huge)
