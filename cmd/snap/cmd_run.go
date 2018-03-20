@@ -492,9 +492,16 @@ func straceCmd() ([]string, error) {
 		return nil, fmt.Errorf("cannot use strace without sudo: %s", err)
 	}
 
-	// try strace from the snap first, we use new syscalls like
+	// Try strace from the snap first, we use new syscalls like
 	// "_newselect" that are known to not work with the strace of e.g.
-	// ubuntu 14.04
+	// ubuntu 14.04.
+	//
+	// TODO: some architectures do not have some syscalls (e.g.
+	// s390x does not have _newselect). In
+	// https://github.com/strace/strace/issues/57 options are
+	// discussed.  We could use "-e trace=?syscall" but that is
+	// only available since strace 4.17 which is not even in
+	// ubutnu 17.10.
 	var stracePath string
 	cand := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
 	if osutil.FileExists(cand) {
