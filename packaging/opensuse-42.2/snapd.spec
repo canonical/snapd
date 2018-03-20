@@ -107,9 +107,6 @@ the system:snappy repository.
 # Set the version that is compiled into the various executables
 ./mkversion.sh %{version}-%{release}
 
-# Generate autotools build system files
-cd cmd && autoreconf -i -f
-
 # Enable hardening; We can't use -pie here as this conflicts with
 # our build of static binaries for snap-confine. Also see
 # https://bugzilla.redhat.com/show_bug.cgi?id=1343892
@@ -123,7 +120,7 @@ export CXXFLAGS
 # apparmor kernel available in SUSE and Debian. The generated apparmor profiles
 # cannot be loaded into a vanilla kernel. As a temporary measure we just switch
 # it all off.
-%configure --disable-apparmor --libexecdir=%{_libexecdir}/snapd
+make configure APPARMOR=0 libexecdir=%{_libexecdir}
 
 %build
 # Build golang executables
