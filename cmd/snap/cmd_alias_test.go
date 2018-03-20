@@ -30,18 +30,12 @@ import (
 
 func (s *SnapSuite) TestAliasHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] alias [alias-OPTIONS] [<snap.app>] [<alias>]
+  snap.test alias [alias-OPTIONS] [<snap.app>] [<alias>]
 
 The alias command aliases the given snap application to the given alias.
 
 Once this manual alias is setup the respective application command can be
 invoked just using the alias.
-
-Application Options:
-      --version         Print the version and exit
-
-Help Options:
-  -h, --help            Show this help message
 
 [alias command options]
           --no-wait     Do not wait for the operation to finish but just print

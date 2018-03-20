@@ -32,6 +32,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mvo5/goconfigparser"
 	"gopkg.in/mgo.v2/bson"
 
 	"github.com/snapcore/snapd/arch"
@@ -56,10 +57,32 @@ var (
 	mockedHostSnapd = ""
 	mockedCoreSnapd = ""
 
-	snapConfineProfile = "/etc/apparmor.d/usr.lib.snapd.snap-confine"
+	snapConfineProfile  = "/etc/apparmor.d/usr.lib.snapd.snap-confine"
+	whoopsiePreferences = "/etc/whoopsie"
 
 	timeNow = time.Now
 )
+
+func whoopsieEnabled() bool {
+	dflt := true
+
+	cfg := goconfigparser.New()
+	err := cfg.ReadFile(whoopsiePreferences)
+	if os.IsNotExist(err) {
+		return dflt
+	}
+	if err != nil {
+		logger.Noticef("cannot read whoopsie config %q: %v", whoopsiePreferences, err)
+		return dflt
+	}
+
+	reportMetricsEnabled, err := cfg.Getbool("General", "report_metrics")
+	if err != nil {
+		logger.Noticef("cannot parse whoopsie config %q: %v", whoopsiePreferences, err)
+		return dflt
+	}
+	return reportMetricsEnabled
+}
 
 // distroRelease returns a distro release as it is expected by daisy.ubuntu.com
 func distroRelease() string {
@@ -143,6 +166,10 @@ func report(errMsg, dupSig string, extra map[string]string) (string, error) {
 	}
 	if extra == nil || extra["ProblemType"] == "" {
 		return "", fmt.Errorf(`key "ProblemType" not set in %v`, extra)
+	}
+
+	if !whoopsieEnabled() {
+		return "", nil
 	}
 
 	machineID, err := readMachineID()
