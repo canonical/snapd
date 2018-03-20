@@ -80,14 +80,14 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
     # for stability, predicability and easy of deployment. We need to link some
     # things dynamically though: udev has no stable IPC protocol between
     # libudev and udevd so we need to link with it dynamically.
-    VENDOR_ARGS=--enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp
+    VENDOR_ARGS=NVIDIA_MULTIARCH=1 APPARMOR=1 STATIC_LIBAPPARMOR=1 STATIC_LIBCAP=1 STATIC_LIBSECCOMP=1
     BUILT_USING_PACKAGES=libcap-dev libapparmor-dev libseccomp-dev
 else
 ifeq ($(shell dpkg-vendor --query Vendor),Debian)
-    VENDOR_ARGS=--disable-apparmor --disable-seccomp
+    VENDOR_ARGS=APPARMOR=0 SECCOMP=0
     BUILT_USING_PACKAGES=libcap-dev
 else
-    VENDOR_ARGS=--disable-apparmor
+    VENDOR_ARGS=APPARMOR=0
 endif
 endif
 BUILT_USING=$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W $(BUILT_USING_PACKAGES))
@@ -117,9 +117,7 @@ ifneq (,$(TEST_GITHUB_AUTOPKGTEST))
         )
 endif
 	dh_clean
-	$(MAKE) -C data clean
-	# XXX: hacky
-	$(MAKE) -C cmd distclean || true
+	$(MAKE) clean || true
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -138,12 +136,8 @@ override_dh_auto_build:
 	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
 
 	# Build C bits, sadly manually
-	cd cmd && ( autoreconf -i -f )
-	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
-	$(MAKE) -C cmd all
-
-	# Generate the real systemd/dbus/env config files
-	$(MAKE) -C data all
+	$(MAKE) configure $(VENDOR_ARGS)
+	$(MAKE) all
 
 override_dh_auto_test:
 	dh_auto_test -- $(GCCGOFLAGS)
@@ -182,13 +176,13 @@ override_dh_install:
 	# install snapd's systemd units / upstart jobs, done
 	# here instead of debian/snapd.install because the
 	# ubuntu/14.04 release branch adds/changes bits here
-	$(MAKE) -C data install DESTDIR=$(CURDIR)/debian/snapd/ \
-		SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
+	$(MAKE) -C data install DESTDIR=$(CURDIR)/debian/snapd/
 	# we called this apps-bin-path.sh instead of snapd.sh, and
 	# it's a conf file so we're stuck with it
 	mv debian/snapd/etc/profile.d/snapd.sh debian/snapd/etc/profile.d/apps-bin-path.sh
 
 	# trusty needs this to make /snap rshared
+	mkdir -p debian/snapd/${SYSTEMD_UNITS_DESTDIR}
 	install --mode=0644 debian/snap.mount.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 
 	$(MAKE) -C cmd install DESTDIR=$(CURDIR)/debian/tmp
