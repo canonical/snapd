@@ -102,25 +102,64 @@ var isValidDesktopFileLine = regexp.MustCompile(strings.Join([]string{
 	"^TargetEnvironment=",
 }, "|")).Match
 
-// rewriteExecLine rewrites a "Exec=" line to use the wrapper path for snap application.
-func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
+type execRewriterImpl struct {
+	// strict enables fallback to matching a desktop file with snap
+	// application using the application's name
+	strict bool
+	// rewriter matches given app with a desktop file and returns a rewritten
+	// exec line or an empty string
+	rewriter func(app *snap.AppInfo, desktopFile, execLine string) string
+}
+
+// appExecRewriter matches a snap app with desktop file and an exec command by
+// looking at snap command wrapper, returns an updated command or an empty
+// string
+func appExecRewriter(app *snap.AppInfo, desktopFile, execCmd string) string {
 	env := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s ", desktopFile)
 
+	wrapper := app.WrapperPath()
+	validCmd := filepath.Base(wrapper)
+	// check the prefix to allow %flag style args
+	// this is ok because desktop files are not run through sh
+	// so we don't have to worry about the arguments too much
+	if execCmd == validCmd {
+		return env + wrapper
+	} else if strings.HasPrefix(execCmd, validCmd+" ") {
+		return fmt.Sprintf("%s%s%s", env, wrapper, execCmd[len(validCmd):])
+	}
+	return ""
+}
+
+// appAutostartExecRewriter matches a snap app with a desktop file and an exec
+// command by inspecting the application's autostart declaration, returns an
+// updated command or an empty string
+func appAutostartExecRewriter(app *snap.AppInfo, desktopFile, execCmd string) string {
+	if app.Autostart != filepath.Base(desktopFile) {
+		return ""
+	}
+
+	cmd := execCmd
+	if pos := strings.Index(execCmd, " "); pos != -1 {
+		cmd = execCmd[0:pos]
+	}
+
+	return fmt.Sprintf("%s%s", app.WrapperPath(), execCmd[len(cmd):])
+}
+
+func (e *execRewriterImpl) rewrite(s *snap.Info, desktopFile, line string) (string, error) {
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range s.Apps {
-		wrapper := app.WrapperPath()
-		validCmd := filepath.Base(wrapper)
-		// check the prefix to allow %flag style args
-		// this is ok because desktop files are not run through sh
-		// so we don't have to worry about the arguments too much
-		if cmd == validCmd {
-			return "Exec=" + env + wrapper, nil
-		} else if strings.HasPrefix(cmd, validCmd+" ") {
-			return fmt.Sprintf("Exec=%s%s%s", env, wrapper, line[len("Exec=")+len(validCmd):]), nil
+		newCmd := e.rewriter(app, desktopFile, cmd)
+		if newCmd != "" {
+			return "Exec=" + newCmd, nil
 		}
 	}
 
-	logger.Noticef("cannot use line %q for desktop file %q (snap %s)", line, desktopFile, s.Name())
+	logger.Noticef("cannot use exec line %q for desktop file %q (snap %s)", line, desktopFile, s.Name())
+	if e.strict {
+		return "", fmt.Errorf("invalid exec command: %q", cmd)
+	}
+
 	// The Exec= line in the desktop file is invalid. Instead of failing
 	// hard we rewrite the Exec= line. The convention is that the desktop
 	// file has the same name as the application we can use this fact here.
@@ -128,6 +167,7 @@ func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 	desktopFileApp := strings.TrimSuffix(df, filepath.Ext(df))
 	app, ok := s.Apps[desktopFileApp]
 	if ok {
+		env := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s ", desktopFile)
 		newExec := fmt.Sprintf("Exec=%s%s", env, app.WrapperPath())
 		logger.Noticef("rewriting desktop file %q to %q", desktopFile, newExec)
 		return newExec, nil
@@ -136,7 +176,26 @@ func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 	return "", fmt.Errorf("invalid exec command: %q", cmd)
 }
 
-func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []byte {
+// SanitizeAutostartDesktopFile inspects an autostart desktop file and its
+// content, returns an updated content with invalid lines filtered out and Exec
+// line rewritten to match the snap's context
+func SanitizeAutostartDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []byte {
+	return sanitizeDesktopFile(s, desktopFile, rawcontent, &execRewriterImpl{strict: true, rewriter: appAutostartExecRewriter})
+}
+
+// SanitizeAutostartDesktopFile inspects an desktop file and its content,
+// returns an updated content with invalid lines filtered out and Exec line
+// rewritten to match the snap's context
+func SanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []byte {
+	return sanitizeDesktopFile(s, desktopFile, rawcontent, &execRewriterImpl{rewriter: appExecRewriter})
+}
+
+type execRewriter interface {
+	// rewrite rewrites a "Exec=" line to use the wrapper path for snap application.
+	rewrite(s *snap.Info, desktopFile, execCmd string) (string, error)
+}
+
+func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte, execRewriter execRewriter) []byte {
 	var newContent bytes.Buffer
 	mountDir := []byte(s.MountDir())
 	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
@@ -151,7 +210,7 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 		// rewrite exec lines to an absolute path for the binary
 		if bytes.HasPrefix(bline, []byte("Exec=")) {
 			var err error
-			line, err := rewriteExecLine(s, desktopFile, string(bline))
+			line, err := execRewriter.rewrite(s, desktopFile, string(bline))
 			if err != nil {
 				// something went wrong, ignore the line
 				continue
@@ -215,7 +274,7 @@ func AddSnapDesktopFiles(s *snap.Info) (err error) {
 		}
 
 		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.Name(), filepath.Base(df)))
-		content = sanitizeDesktopFile(s, installedDesktopFileName, content)
+		content = SanitizeDesktopFile(s, installedDesktopFileName, content)
 		if err := osutil.AtomicWriteFile(installedDesktopFileName, content, 0755, 0); err != nil {
 			return err
 		}
