@@ -1,3 +1,20 @@
+snapd (2.32+18.04~pre6) bionic; urgency=medium
+
+  *  New upstream pre-release, LP: #1756173
+    - snapstate: add compat mode for default-provider"snapname:ifname",
+      we deal with this gracefully by just stripping ofthe part after
+      the ":".
+    - snap-confine: fallback to /lib/udev/snappy-app-dev if the core is
+      older
+    - tests: a bunch of test fixes for s390x
+    - packaging: recommend "gnupg" instead of "gnupg1 | gnupg"
+    - interfaces/builtin: let MM change qmi device attributes
+    - debian: undo snap.mount system unit removal
+    - snap: don't create empty Change with "Hold" state on disconnect
+    - tests: make autopkgtest tests more targeted
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 20 Mar 2018 20:31:03 +0100
+
 snapd (2.32~pre5) xenial; urgency=medium
 
   *  New upstream pre-release, LP: #1756173
