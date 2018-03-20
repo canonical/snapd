@@ -1,7 +1,7 @@
 # Author: Jamie Strandboge <jamie@canonical.com>
 #include <tunables/global>
 
-@LIBEXECDIR@/snap-confine (attach_disconnected) {
+@LIBEXECSNAPDDIR@/snap-confine (attach_disconnected) {
     # Include any additional files that snapd chose to generate.
     # - for $HOME on NFS
     # - for $HOME on encrypted media
@@ -36,7 +36,7 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
 
-    @LIBEXECDIR@/snap-confine mr,
+    @LIBEXECSNAPDDIR@/snap-confine mr,
 
     /dev/null rw,
     /dev/full rw,
@@ -188,7 +188,7 @@
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/usr/src/,
 
     # allow making host snap-exec available inside base snaps
-    mount options=(rw bind) @LIBEXECDIR@/ -> /tmp/snap.rootfs_*/usr/lib/snapd/,
+    mount options=(rw bind) @LIBEXECSNAPDDIR@/ -> /tmp/snap.rootfs_*/usr/lib/snapd/,
     mount options=(rw slave) -> /tmp/snap.rootfs_*/usr/lib/snapd/,
 
     # allow making re-execed host snap-exec available inside base snaps
@@ -363,18 +363,18 @@
     /run/snapd/ns/ rw,
     /run/snapd/ns/*.lock rwk,
     /run/snapd/ns/*.mnt rw,
-    ptrace (read, readby, tracedby) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
+    ptrace (read, readby, tracedby) peer=@LIBEXECSNAPDDIR@/snap-confine//mount-namespace-capture-helper,
     @{PROC}/*/mountinfo r,
     capability sys_chroot,
     capability sys_admin,
-    signal (send, receive) set=(abrt) peer=@LIBEXECDIR@/snap-confine,
-    signal (send) set=(int) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
-    signal (send, receive) set=(int, alrm, exists) peer=@LIBEXECDIR@/snap-confine,
-    signal (receive) set=(exists) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
+    signal (send, receive) set=(abrt) peer=@LIBEXECSNAPDDIR@/snap-confine,
+    signal (send) set=(int) peer=@LIBEXECSNAPDDIR@/snap-confine//mount-namespace-capture-helper,
+    signal (send, receive) set=(int, alrm, exists) peer=@LIBEXECSNAPDDIR@/snap-confine,
+    signal (receive) set=(exists) peer=@LIBEXECSNAPDDIR@/snap-confine//mount-namespace-capture-helper,
 
     # workaround for linux 4.13/upstream, see
     # https://forum.snapcraft.io/t/snapd-2-27-6-2-in-debian-sid-blocked-on-apparmor-in-kernel-4-13-0-1/2813/3
-    ptrace (trace, tracedby) peer=@LIBEXECDIR@/snap-confine,
+    ptrace (trace, tracedby) peer=@LIBEXECSNAPDDIR@/snap-confine,
 
     # For aa_change_hat() to go into ^mount-namespace-capture-helper
     @{PROC}/[0-9]*/attr/current w,
@@ -405,7 +405,7 @@
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
 
-        @LIBEXECDIR@/snap-confine mr,
+        @LIBEXECSNAPDDIR@/snap-confine mr,
 
         /dev/null rw,
         /dev/full rw,
@@ -428,19 +428,19 @@
         # NOTE: the source name is / even though we map /proc/123/ns/mnt
         mount options=(rw bind) / -> /run/snapd/ns/*.mnt,
         # This is the SIGALRM that we send and receive if a timeout expires
-        signal (send, receive) set=(alrm) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
+        signal (send, receive) set=(alrm) peer=@LIBEXECSNAPDDIR@/snap-confine//mount-namespace-capture-helper,
         # Those two rules are exactly the same but we don't know if the parent process is still alive
         # and hence has the appropriate label or is already dead and hence has no label.
-        signal (send) set=(exists) peer=@LIBEXECDIR@/snap-confine,
+        signal (send) set=(exists) peer=@LIBEXECSNAPDDIR@/snap-confine,
         signal (send) set=(exists) peer=unconfined,
         # This is so that we can abort
-        signal (send, receive) set=(abrt) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
+        signal (send, receive) set=(abrt) peer=@LIBEXECSNAPDDIR@/snap-confine//mount-namespace-capture-helper,
         #  This is the signal we get if snap-confine dies (we subscribe to it with prctl)
-        signal (receive) set=(int) peer=@LIBEXECDIR@/snap-confine,
+        signal (receive) set=(int) peer=@LIBEXECSNAPDDIR@/snap-confine,
         # This allows snap-confine to be killed from the outside.
         signal (receive) peer=unconfined,
         # This allows snap-confine to wait for us
-        ptrace (read, trace, tracedby) peer=@LIBEXECDIR@/snap-confine,
+        ptrace (read, trace, tracedby) peer=@LIBEXECSNAPDDIR@/snap-confine,
     }
 
     # Allow snap-confine to be killed
