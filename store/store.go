@@ -2132,7 +2132,7 @@ var installRefreshFields = getStructFields(storeSnap{})
 // installed snaps in installedCtxt. If the request was overall
 // successul (200) but there were reported errors it will return both
 // the snap infos and an InstallRefreshError.
-func (s *Store) InstallRefresh(installedCtxt []*CurrentSnap, actions []*InstallRefreshAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
+func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap, actions []*InstallRefreshAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
 	if opts == nil {
 		opts = &RefreshOptions{}
 	}
@@ -2217,7 +2217,7 @@ func (s *Store) InstallRefresh(installedCtxt []*CurrentSnap, actions []*InstallR
 	}
 
 	var results installRefreshResp
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &results, nil)
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &results, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -5440,7 +5440,7 @@ func (s *storeTestSuite) TestInstallRefresh(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh([]*CurrentSnap{
+	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5506,7 +5506,7 @@ func (s *storeTestSuite) TestInstallRefreshNoResults(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh([]*CurrentSnap{
+	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5519,7 +5519,7 @@ func (s *storeTestSuite) TestInstallRefreshNoResults(c *C) {
 	c.Check(err, DeepEquals, &InstallRefreshError{NoResults: true})
 
 	// local no-op
-	results, err = sto.InstallRefresh(nil, nil, nil, nil)
+	results, err = sto.InstallRefresh(context.TODO(), nil, nil, nil, nil)
 	c.Check(results, HasLen, 0)
 	c.Check(err, DeepEquals, &InstallRefreshError{NoResults: true})
 
@@ -5567,7 +5567,7 @@ func (s *storeTestSuite) TestInstallRefreshRefreshedDateIsOptional(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh([]*CurrentSnap{
+	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5639,7 +5639,7 @@ func (s *storeTestSuite) TestInstallRefreshSkipBlocked(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh([]*CurrentSnap{
+	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5723,7 +5723,7 @@ func (s *storeTestSuite) TestInstallRefreshSkipCurrent(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh([]*CurrentSnap{
+	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5797,7 +5797,7 @@ func (s *storeTestSuite) TestInstallRefreshRetryOnEOF(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh([]*CurrentSnap{
+	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5879,7 +5879,7 @@ func (s *storeTestSuite) TestInstallRefreshIgnoreValidation(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh([]*CurrentSnap{
+	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
 		{
 			Name:             "hello-world",
 			SnapID:           helloWorldSnapID,
@@ -5961,7 +5961,7 @@ func (s *storeTestSuite) TestInstallFallbackChannelIsStable(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh([]*CurrentSnap{
+	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
 		{
 			Name:          "hello-world",
 			SnapID:        helloWorldSnapID,
@@ -6052,7 +6052,7 @@ func (s *storeTestSuite) TestInstallRefreshNonDefaultsHeaders(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(cfg, authContext)
 
-	results, err := sto.InstallRefresh([]*CurrentSnap{
+	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6140,7 +6140,7 @@ func (s *storeTestSuite) TestInstallRefreshWithDeltas(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh([]*CurrentSnap{
+	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6222,7 +6222,7 @@ func (s *storeTestSuite) TestInstallRefreshOptions(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh([]*CurrentSnap{
+	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6311,7 +6311,7 @@ func (s *storeTestSuite) TestInstallRefreshInstall(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(nil,
+	results, err := sto.InstallRefresh(context.TODO(), nil,
 		[]*InstallRefreshAction{
 			{
 				Action:  "install",
@@ -6398,7 +6398,7 @@ func (s *storeTestSuite) TestInstallRefreshInstallWithRevision(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(nil,
+	results, err := sto.InstallRefresh(context.TODO(), nil,
 		[]*InstallRefreshAction{
 			{
 				Action:   "install",
@@ -6484,7 +6484,7 @@ func (s *storeTestSuite) TestInstallRefreshRevisionNotAvailable(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh([]*CurrentSnap{
+	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6582,7 +6582,7 @@ func (s *storeTestSuite) TestInstallRefreshSnapNotFound(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh([]*CurrentSnap{
+	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6664,7 +6664,7 @@ func (s *storeTestSuite) TestInstallRefreshOtherErrors(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(nil, []*InstallRefreshAction{
+	results, err := sto.InstallRefresh(context.TODO(), nil, []*InstallRefreshAction{
 		{
 			Action:  "install",
 			Name:    "foo",
