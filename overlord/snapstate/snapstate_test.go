@@ -8488,6 +8488,18 @@ func (s contentStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap
 				},
 			},
 		}
+	case "snap-content-plug-compat":
+		info.Plugs = map[string]*snap.PlugInfo{
+			"some-plug": {
+				Snap:      info,
+				Name:      "shared-content",
+				Interface: "content",
+				Attrs: map[string]interface{}{
+					"default-provider": "snap-content-slot:some-slot",
+					"content":          "shared-content",
+				},
+			},
+		}
 	case "snap-content-slot":
 		info.Slots = map[string]*snap.SlotInfo{
 			"some-slot": {
@@ -8724,6 +8736,39 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderCircular(c *C) {
 	c.Check(s.fakeBackend.ops, testutil.DeepContains, fakeOp{
 		op:   "link-snap",
 		name: filepath.Join(dirs.SnapMountDir, "snap-content-circular2/11"),
+	})
+}
+
+func (s *snapmgrTestSuite) TestInstallDefaultProviderCompat(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Install(s.state, "snap-content-plug-compat", "some-channel", snap.R(42), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+	// and both circular snaps got linked
+	c.Check(s.fakeBackend.ops, testutil.DeepContains, fakeOp{
+		op:   "link-snap",
+		name: filepath.Join(dirs.SnapMountDir, "snap-content-plug-compat/42"),
+	})
+	c.Check(s.fakeBackend.ops, testutil.DeepContains, fakeOp{
+		op:   "link-snap",
+		name: filepath.Join(dirs.SnapMountDir, "snap-content-slot/11"),
 	})
 }
 
