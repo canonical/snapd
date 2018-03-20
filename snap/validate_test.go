@@ -27,9 +27,13 @@ import (
 	. "gopkg.in/check.v1"
 
 	. "github.com/snapcore/snapd/snap"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
-type ValidateSuite struct{}
+type ValidateSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&ValidateSuite{})
 
@@ -53,6 +57,15 @@ func createSampleApp() *AppInfo {
 	}
 	socket.App = app
 	return app
+}
+
+func (s *ValidateSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(MockSanitizePlugsSlots(func(snapInfo *Info) {}))
+}
+
+func (s *ValidateSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *ValidateSuite) TestValidateName(c *C) {
