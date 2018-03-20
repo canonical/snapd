@@ -205,6 +205,7 @@ distro_install_package() {
 }
 
 distro_purge_package() {
+    # shellcheck disable=SC2046
     set -- $(
         for pkg in "$@" ; do
             package_name=$(distro_name_package "$pkg")
@@ -426,6 +427,12 @@ pkg_dependencies_ubuntu_classic(){
         ubuntu-17.10-64)
             echo "
                 linux-image-extra-4.13.0-16-generic
+                "
+            ;;
+        ubuntu-18.04-64)
+            echo "
+                linux-image-extra-$(uname -r)
+                squashfs-tools
                 "
             ;;
         ubuntu-*)
