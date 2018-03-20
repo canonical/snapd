@@ -52,7 +52,6 @@ backends:
                 workers: 8
             - ubuntu-16.04-32:
                 workers: 6
-                image: ubuntu-xenial-cloudimg-i386
             - ubuntu-14.04-64:
                 workers: 6
 
