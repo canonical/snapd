@@ -39,18 +39,22 @@ import (
 func TestBoot(t *testing.T) { TestingT(t) }
 
 type kernelOSSuite struct {
+	testutil.BaseTest
 	bootloader *boottest.MockBootloader
 }
 
 var _ = Suite(&kernelOSSuite{})
 
 func (s *kernelOSSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	dirs.SetRootDir(c.MkDir())
 	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
 	partition.ForceBootloader(s.bootloader)
 }
 
 func (s *kernelOSSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
 }

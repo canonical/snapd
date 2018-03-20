@@ -31,7 +31,9 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type detailsV2Suite struct{}
+type detailsV2Suite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&detailsV2Suite{})
 
@@ -124,6 +126,15 @@ const (
   ]
 }`
 )
+
+func (s *detailsV2Suite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+}
+
+func (s *detailsV2Suite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
 
 func (s *detailsV2Suite) TestInfoFromStoreSnapSimple(c *C) {
 	var snp storeSnap
