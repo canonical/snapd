@@ -9,47 +9,34 @@ BUILD_DIR=${BUILD_DIR:-.}
 selfdir=$(dirname "$0")
 SRC_DIR=$(readlink -f "$selfdir")
 
-# We need the VERSION file to configure
-if [ ! -e VERSION ]; then
-	( cd .. && ./mkversion.sh )
-fi
-
-# Sanity check, are we in the right directory?
-test -f configure.ac
-
-# Regenerate the build system
-rm -f config.status
-autoreconf -i -f
-
 # Configure the build
 extra_opts=
 # shellcheck disable=SC1091
 . /etc/os-release
 case "$ID" in
 	arch)
-		extra_opts="--libexecdir=/usr/lib/snapd --with-snap-mount-dir=/var/lib/snapd/snap --disable-apparmor --enable-nvidia-biarch --enable-merged-usr"
+		extra_opts="libexecdir=/usr/lib SNAP_MOUNT_DIR=/var/lib/snapd/snap APPARMOR=0 NVIDIA_BIARCH=1 MERGED_USR=1"
 		;;
 	debian)
-		extra_opts="--libexecdir=/usr/lib/snapd"
+		extra_opts="libexecdir=/usr/lib"
 		;;
 	ubuntu)
-		extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+		extra_opts="libexecdir=/usr/lib NVIDIA_MULTIARCH=1 STATIC_LIBCAP=1 STATIC_LIBAPPARMOR=1 STATIC_LIBSECCOMP=1 APPARMOR=1 HOST_ARCH_TRIPLET=$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
 		if [ "$(dpkg-architecture -qDEB_HOST_ARCH)" = "amd64" ]; then
-			extra_opts="$extra_opts --with-host-arch-32bit-triplet=$(dpkg-architecture -ai386 -qDEB_HOST_MULTIARCH)"
+			extra_opts="$extra_opts HOST_ARCH_32BIT_TRIPLET=$(dpkg-architecture -ai386 -qDEB_HOST_MULTIARCH)"
 		fi
 		;;
 	fedora|centos|rhel)
-		extra_opts="--libexecdir=/usr/libexec/snapd --with-snap-mount-dir=/var/lib/snapd/snap --enable-merged-usr --disable-apparmor"
+		extra_opts="libexecdir=/usr/libexec SNAP_MOUNT_DIR=/var/lib/snapd/snap MERGED_USR=1 APPARMOR=0"
 		;;
 	opensuse)
-		extra_opts="--libexecdir=/usr/lib/snapd"
+		extra_opts="libexecdir=/usr/lib"
 		;;
 	solus)
-		extra_opts="--enable-nvidia-biarch"
+		extra_opts="NVIDIA_BIARCH=1"
 		;;
 esac
 
 echo "Configuring in build directory $BUILD_DIR with: $extra_opts"
-mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
 # shellcheck disable=SC2086
-"${SRC_DIR}/configure" --enable-maintainer-mode --prefix=/usr $extra_opts "$@"
+(cd .. && make configure prefix=/usr $extra_opts "$@")
