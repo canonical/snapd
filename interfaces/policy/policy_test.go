@@ -533,6 +533,9 @@ slots:
      interface: plug-plug-attr
      c: "C"
 
+   plug-plug-attr-dynamic:
+     interface: plug-plug-attr
+
    plug-slot-attr-mismatch:
      interface: plug-slot-attr
      c: "Z"
@@ -1650,6 +1653,26 @@ func (s *policySuite) TestSlotDollarPlugDynamicAttrConnection(c *C) {
 			"c": "C",
 		}),
 		Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots["slot-plug-attr"], nil),
+		BaseDeclaration: s.baseDecl,
+	}
+	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestPlugDollarSlotDynamicAttrConnection(c *C) {
+	// "c" attribute of the slot missing
+	cand := policy.ConnectCandidate{
+		Plug:            interfaces.NewConnectedPlug(s.plugSnap.Plugs["plug-plug-attr"], nil),
+		Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots["plug-plug-attr-dynamic"], map[string]interface{}{}),
+		BaseDeclaration: s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// plug attr == slot attr, "c" attribute of the slot provided by dynamic attribute
+	cand = policy.ConnectCandidate{
+		Plug: interfaces.NewConnectedPlug(s.plugSnap.Plugs["plug-plug-attr"], nil),
+		Slot: interfaces.NewConnectedSlot(s.slotSnap.Slots["plug-plug-attr-dynamic"], map[string]interface{}{
+			"c": "C",
+		}),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), IsNil)
