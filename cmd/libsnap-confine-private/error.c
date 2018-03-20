@@ -16,9 +16,6 @@
  */
 #include "error.h"
 
-// To get vasprintf
-#define _GNU_SOURCE
-
 #include "utils.h"
 
 #include <errno.h>

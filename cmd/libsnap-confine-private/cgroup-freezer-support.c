@@ -1,5 +1,4 @@
 // For AT_EMPTY_PATH and O_PATH
-#define _GNU_SOURCE
 
 #include "cgroup-freezer-support.h"
 

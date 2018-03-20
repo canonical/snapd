@@ -17,8 +17,6 @@
 
 #include "privs.h"
 
-#define _GNU_SOURCE
-
 #include <unistd.h>
 
 #include <grp.h>
