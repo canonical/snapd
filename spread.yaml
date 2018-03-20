@@ -53,10 +53,9 @@ backends:
                 workers: 6
             - ubuntu-16.04-64:
                 workers: 8
-            # disabled because of: cannot connect: cannot connect to google:ubuntu-18.04-64 (mar200647-634341): ssh: handshake failed: EOF
-            #- ubuntu-18.04-64:
-            #    image: ubuntu-os-cloud-devel/ubuntu-1804-lts
-            #    workers: 6
+            - ubuntu-18.04-64:
+                image: ubuntu-os-cloud-devel/ubuntu-1804-lts
+                workers: 6
 
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
