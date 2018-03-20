@@ -16,7 +16,7 @@ execute: |
     }
 
     echo "Ensure a valid system-key file is on-disk"
-    cat /var/lib/snapd/system-key | MATCH "build-id: [0-9a-z]+"
+    cat /var/lib/snapd/system-key | MATCH '"build_id":"[0-9a-z]+"'
     buf="$(stat /var/lib/snapd/system-key)"
     system_key_content="$(cat /var/lib/snapd/system-key)"
 
@@ -35,3 +35,16 @@ execute: |
         echo "system-key *not* rewriten test broken"
         exit 1
     fi
+
+    echo "Ensure snap run waits for system key updates"
+    snap install test-snapd-tools
+    echo "Change system-key, this ensure that snap run will wait"
+    printf "something: new\n" >> /var/lib/snapd/system-key
+    if SNAPD_DEBUG_SYSTEM_KEY_WAIT_TIMEOUT=5 test-snapd-tools.echo bad; then
+        echo "snap run should have errored because of changed system-key"
+        exit 1
+    fi
+
+    echo "Things work again after a restart of snapd"
+    restart_snapd
+    test-snapd-tools.echo good

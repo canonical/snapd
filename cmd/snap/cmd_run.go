@@ -37,6 +37,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -91,6 +92,33 @@ and environment.
 		}, nil)
 }
 
+func maybeWaitForSecurityProfileRegeneration() error {
+	// check if the security profiles key has changed, if so, we need
+	// to wait for snapd to re-generate all profiles
+	//
+	// (wait up to 1500 * 200ms = 300s)
+	timeout := 1500
+	if timeoutEnv := os.Getenv("SNAPD_DEBUG_SYSTEM_KEY_WAIT_TIMEOUT"); timeoutEnv != "" {
+		if i, err := strconv.Atoi(timeoutEnv); err == nil {
+			timeout = i
+		}
+	}
+	for i := 0; i < timeout; i++ {
+		mismatch, err := interfaces.SystemKeyMismatch()
+		if err != nil {
+			// there is nothing we can do
+			logger.Debugf("SystemKeyMismatch returned an error: %v", err)
+			return nil
+		}
+		if !mismatch {
+			return nil
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	return fmt.Errorf("timeout waiting for snap system profiles to get updated")
+}
+
 func (x *cmdRun) Execute(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf(i18n.G("need the application to run as argument"))
@@ -115,6 +143,10 @@ func (x *cmdRun) Execute(args []string) error {
 	if x.HookName != "" && len(args) > 0 {
 		// TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
 		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.HookName, strings.Join(args, " "))
+	}
+
+	if err := maybeWaitForSecurityProfileRegeneration(); err != nil {
+		return err
 	}
 
 	// Now actually handle the dispatching
