@@ -390,7 +390,10 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 	synth, err := chg.Perform()
 	c.Assert(err, IsNil)
 	c.Assert(synth, DeepEquals, []*update.Change{
-		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/rofs", Type: "tmpfs"}},
+		{Action: update.Mount, Entry: osutil.MountEntry{
+			Name: "tmpfs", Dir: "/rofs", Type: "tmpfs",
+			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/target"}},
+		},
 	})
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		// sniff mount target
@@ -746,7 +749,10 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 	synth, err := chg.Perform()
 	c.Assert(err, IsNil)
 	c.Assert(synth, DeepEquals, []*update.Change{
-		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/rofs", Type: "tmpfs"}},
+		{Action: update.Mount, Entry: osutil.MountEntry{
+			Name: "tmpfs", Dir: "/rofs", Type: "tmpfs",
+			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/target"}},
+		},
 	})
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		// sniff mount target
@@ -1021,7 +1027,10 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 	synth, err := chg.Perform()
 	c.Assert(err, IsNil)
 	c.Assert(synth, DeepEquals, []*update.Change{
-		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/rofs", Type: "tmpfs"}},
+		{Action: update.Mount, Entry: osutil.MountEntry{
+			Name: "tmpfs", Dir: "/rofs", Type: "tmpfs",
+			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/target"}},
+		},
 	})
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		// sniff mount target
@@ -1172,24 +1181,24 @@ func (s *changeSuite) TestPerformCreateSymlink(c *C) {
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/name"`,
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`symlinkat "/oldname" 3 "name"`,
 		`close 3`,
-		`symlink "/name" -> "/oldname"`,
 	})
 }
 
 // Change.Perform wants to create a symlink but it fails.
 func (s *changeSuite) TestPerformCreateSymlinkWithError(c *C) {
 	s.sys.InsertFault(`lstat "/name"`, syscall.ENOENT)
-	s.sys.InsertFault(`symlink "/name" -> "/oldname"`, errTesting)
+	s.sys.InsertFault(`symlinkat "/oldname" 3 "name"`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
 	synth, err := chg.Perform()
-	c.Assert(err, ErrorMatches, `cannot create path "/name": testing`)
+	c.Assert(err, ErrorMatches, `cannot create path "/name": cannot create symlink "name": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/name"`,
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`symlinkat "/oldname" 3 "name"`,
 		`close 3`,
-		`symlink "/name" -> "/oldname"`,
 	})
 }
 
@@ -1218,9 +1227,9 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDir(c *C) {
 		`mkdirat 3 "base" 0755`,
 		`openat 3 "base" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`fchown 4 0 0`,
-		`close 4`,
 		`close 3`,
-		`symlink "/base/name" -> "/oldname"`,
+		`symlinkat "/oldname" 4 "name"`,
+		`close 4`,
 	})
 }
 
@@ -1244,8 +1253,8 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirWithErrors(c *C) {
 func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C) {
 	s.sys.InsertFault(`lstat "/rofs/name"`, syscall.ENOENT)
 	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST)
-	s.sys.InsertFault(`symlink "/rofs/name" -> "/oldname"`, syscall.EROFS, nil) // works on 2nd try
-	s.sys.InsertReadDirResult(`readdir "/rofs"`, nil)                           // pretend /rofs is empty.
+	s.sys.InsertFault(`symlinkat "/oldname" 4 "name"`, syscall.EROFS, nil) // works on 2nd try
+	s.sys.InsertReadDirResult(`readdir "/rofs"`, nil)                      // pretend /rofs is empty.
 	s.sys.InsertFault(`lstat "/tmp/.snap/rofs"`, syscall.ENOENT)
 	s.sys.InsertLstatResult(`lstat "/rofs"`, testutil.FileInfoDir)
 
@@ -1253,21 +1262,23 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 	synth, err := chg.Perform()
 	c.Assert(err, IsNil)
 	c.Assert(synth, DeepEquals, []*update.Change{
-		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/rofs", Type: "tmpfs"}},
+		{Action: update.Mount, Entry: osutil.MountEntry{
+			Name: "tmpfs", Dir: "/rofs", Type: "tmpfs",
+			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/name"}},
+		},
 	})
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		// sniff symlink name
 		`lstat "/rofs/name"`,
 
 		// create base name (/rofs)
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
 		`mkdirat 3 "rofs" 0755`,
-		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
-		`close 4`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
 		`close 3`,
-
 		// create symlink
-		`symlink "/rofs/name" -> "/oldname"`,
+		`symlinkat "/oldname" 4 "name"`, // (inserted fault happens here)
+		`close 4`,
 
 		// error, read only filesystem, create a mimic
 		`readdir "/rofs"`,
@@ -1296,11 +1307,10 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`mkdirat 3 "rofs" 0755`,
 		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
-		`close 4`,
 		`close 3`,
-
 		// create symlink
-		`symlink "/rofs/name" -> "/oldname"`,
+		`symlinkat "/oldname" 4 "name"`, // (inserted fault happens here)
+		`close 4`,
 	})
 }
 
@@ -1313,6 +1323,48 @@ func (s *changeSuite) TestPerformCreateSymlinkWithFileInTheWay(c *C) {
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/name"`,
+	})
+}
+
+// Change.Perform wants to create a symlink but a correct symlink is already present.
+func (s *changeSuite) TestPerformCreateSymlinkWithGoodSymlinkPresent(c *C) {
+	s.sys.InsertLstatResult(`lstat "/name"`, testutil.FileInfoSymlink)
+	s.sys.InsertFault(`symlinkat "/oldname" 3 "name"`, syscall.EEXIST)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Mode: syscall.S_IFLNK})
+	s.sys.InsertReadlinkatResult(`readlinkat 4 "" <ptr>`, "/oldname")
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
+	synth, err := chg.Perform()
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/name"`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,   // -> 3
+		`symlinkat "/oldname" 3 "name"`,                 // -> EEXIST
+		`openat 3 "name" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, // -> 4
+		`fstat 4 <ptr>`,
+		`readlinkat 4 "" <ptr>`,
+		`close 3`,
+	})
+}
+
+// Change.Perform wants to create a symlink but a incorrect symlink is already present.
+func (s *changeSuite) TestPerformCreateSymlinkWithBadSymlinkPresent(c *C) {
+	s.sys.InsertLstatResult(`lstat "/name"`, testutil.FileInfoSymlink)
+	s.sys.InsertFault(`symlinkat "/oldname" 3 "name"`, syscall.EEXIST)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Mode: syscall.S_IFLNK})
+	s.sys.InsertReadlinkatResult(`readlinkat 4 "" <ptr>`, "/evil")
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
+	synth, err := chg.Perform()
+	c.Assert(err, ErrorMatches, `cannot create path "/name": cannot create symbolic link "name": existing symbolic link in the way`)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/name"`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,   // -> 3
+		`symlinkat "/oldname" 3 "name"`,                 // -> EEXIST
+		`openat 3 "name" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, // -> 4
+		`fstat 4 <ptr>`,
+		`readlinkat 4 "" <ptr>`,
+		`close 3`,
 	})
 }
 
