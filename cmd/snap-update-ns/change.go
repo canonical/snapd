@@ -94,7 +94,7 @@ func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
 	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
 		// If the writing failed because the underlying file-system is read-only
 		// we can construct a writable mimic to fix that.
-		changes, err = createWritableMimic(err2.Path)
+		changes, err = createWritableMimic(err2.Path, path)
 		if err != nil {
 			err = fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
 		} else {
@@ -135,9 +135,12 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 				err = fmt.Errorf("cannot use %q as mount point: not a regular file", path)
 			}
 		case "symlink":
-			// When we want to create a symlink we just need the empty
-			// space so anything that is in the way is a problem.
-			err = fmt.Errorf("cannot create symlink in %q: existing file in the way", path)
+			if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
+				// Create path verifies the symlink or fails if it is not what we wanted.
+				_, err = c.createPath(path, false)
+			} else {
+				err = fmt.Errorf("cannot create symlink in %q: existing file in the way", path)
+			}
 		}
 	} else if os.IsNotExist(err) {
 		changes, err = c.createPath(path, true)
