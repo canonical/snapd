@@ -24,6 +24,8 @@ find "$HERE" -name "*.go" -type f -print0 | xargs -0 \
     --keyword=i18n.G \
     --keyword-plural=i18n.DG
 
+sed -i 's/charset=CHARSET/charset=UTF-8/' "$OUTPUT"
+
 xgettext "$HERE"/data/polkit/*.policy \
     -o "$OUTPUT" \
     --its="$HERE/po/its/polkit.its" \
