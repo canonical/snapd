@@ -379,6 +379,7 @@ pkg_dependencies_ubuntu_generic(){
         libglib2.0-dev
         libseccomp-dev
         libudev-dev
+        man
         netcat-openbsd
         pkg-config
         python3-docutils
@@ -463,6 +464,7 @@ pkg_dependencies_fedora(){
         git
         golang
         jq
+        man
         mock
         redhat-lsb-core
         rpm-build
@@ -479,6 +481,7 @@ pkg_dependencies_opensuse(){
         golang-packaging
         jq
         lsb-release
+        man
         netcat-openbsd
         osc
         uuidd
