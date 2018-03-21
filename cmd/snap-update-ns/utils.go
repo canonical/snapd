@@ -67,6 +67,46 @@ func (e *ReadOnlyFsError) Error() string {
 	return fmt.Sprintf("cannot operate on read-only filesystem at %s", e.Path)
 }
 
+// secureOpenPath creates a path file descriptor for the given
+// directory, making sure no components are symbolic links.
+//
+// The file descriptor is opened using the O_PATH, O_NOFOLLOW,
+// O_DIRECTORY, and O_CLOEXEC flags.
+func secureOpenPath(path string) (int, error) {
+	if !filepath.IsAbs(path) {
+		return -1, fmt.Errorf("path %v is not absolute", path)
+	}
+	segments, err := splitIntoSegments(path)
+	if err != nil {
+		return -1, err
+	}
+	// We use the following flags to open:
+	//  O_PATH: we don't intend to use the fd for IO
+	//  O_NOFOLLOW: don't follow symlinks
+	//  O_DIRECTORY: we expect to find directories
+	//  O_CLOEXEC: don't leak file descriptors over exec() boundaries
+	const openFlags = sys.O_PATH | syscall.O_NOFOLLOW | syscall.O_DIRECTORY | syscall.O_CLOEXEC
+	var fd int
+	fd, err = sysOpen("/", openFlags, 0)
+	if err != nil {
+		return -1, err
+	}
+	if len(segments) > 1 {
+		defer sysClose(fd)
+	}
+	for i, segment := range segments {
+		fd, err = sysOpenat(fd, segment, openFlags, 0)
+		if err != nil {
+			return -1, err
+		}
+		// Keep the final FD open (caller needs to close it).
+		if i < len(segments)-1 {
+			defer sysClose(fd)
+		}
+	}
+	return fd, nil
+}
+
 // Create directories for all but the last segments and return the file
 // descriptor to the leaf directory. This function is a base for secure
 // variants of mkdir, touch and symlink.

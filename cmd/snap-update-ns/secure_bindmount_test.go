@@ -20,9 +20,6 @@
 package main_test
 
 import (
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"syscall"
 
 	. "gopkg.in/check.v1"
@@ -30,100 +27,6 @@ import (
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/testutil"
 )
-
-type secureOpenPathSuite struct{}
-
-var _ = Suite(&secureOpenPathSuite{})
-
-func (s *secureOpenPathSuite) TestDirectory(c *C) {
-	path := filepath.Join(c.MkDir(), "test")
-	c.Assert(os.Mkdir(path, 0755), IsNil)
-
-	fd, err := update.SecureOpenPath(path)
-	c.Assert(err, IsNil)
-	defer syscall.Close(fd)
-
-	// check that the file descriptor is for the expected path
-	origDir, err := os.Getwd()
-	c.Assert(err, IsNil)
-	defer os.Chdir(origDir)
-
-	c.Assert(syscall.Fchdir(fd), IsNil)
-	cwd, err := os.Getwd()
-	c.Assert(err, IsNil)
-	c.Check(cwd, Equals, path)
-}
-
-func (s *secureOpenPathSuite) TestRelativePath(c *C) {
-	fd, err := update.SecureOpenPath("relative/path")
-	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "path .* is not absolute")
-}
-
-func (s *secureOpenPathSuite) TestUncleanPath(c *C) {
-	base := c.MkDir()
-	path := filepath.Join(base, "test")
-	c.Assert(os.Mkdir(path, 0755), IsNil)
-
-	fd, err := update.SecureOpenPath(base + "//test")
-	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "cannot split unclean path .*")
-
-	fd, err = update.SecureOpenPath(base + "/./test")
-	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "cannot split unclean path .*")
-
-	fd, err = update.SecureOpenPath(base + "/test/../test")
-	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "cannot split unclean path .*")
-}
-
-func (s *secureOpenPathSuite) TestFile(c *C) {
-	path := filepath.Join(c.MkDir(), "file.txt")
-	c.Assert(ioutil.WriteFile(path, []byte("hello"), 0644), IsNil)
-
-	fd, err := update.SecureOpenPath(path)
-	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "not a directory")
-}
-
-func (s *secureOpenPathSuite) TestNotFound(c *C) {
-	path := filepath.Join(c.MkDir(), "test")
-
-	fd, err := update.SecureOpenPath(path)
-	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "no such file or directory")
-}
-
-func (s *secureOpenPathSuite) TestSymlink(c *C) {
-	base := c.MkDir()
-	dir := filepath.Join(base, "test")
-	c.Assert(os.Mkdir(dir, 0755), IsNil)
-
-	symlink := filepath.Join(base, "symlink")
-	c.Assert(os.Symlink(dir, symlink), IsNil)
-
-	fd, err := update.SecureOpenPath(symlink)
-	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "not a directory")
-}
-
-func (s *secureOpenPathSuite) TestSymlinkedParent(c *C) {
-	base := c.MkDir()
-	dir := filepath.Join(base, "dir1")
-	symlink := filepath.Join(base, "symlink")
-
-	path := filepath.Join(dir, "dir2")
-	symlinkedPath := filepath.Join(symlink, "dir2")
-
-	c.Assert(os.Mkdir(dir, 0755), IsNil)
-	c.Assert(os.Symlink(dir, symlink), IsNil)
-	c.Assert(os.Mkdir(path, 0755), IsNil)
-
-	fd, err := update.SecureOpenPath(symlinkedPath)
-	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "not a directory")
-}
 
 type secureBindMountSuite struct {
 	testutil.BaseTest
