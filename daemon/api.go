@@ -252,10 +252,11 @@ var (
 
 	snapshotCmd = &Command{
 		// TODO: also support /v2/snapshots/<id>
-		Path:   "/v2/snapshots",
-		UserOK: true,
-		GET:    listSnapshots,
-		POST:   changeSnapshots,
+		Path:     "/v2/snapshots",
+		UserOK:   true,
+		PolkitOK: "io.snapcraft.snapd.manage",
+		GET:      listSnapshots,
+		POST:     changeSnapshots,
 	}
 )
 
@@ -854,7 +855,7 @@ type snapInstruction struct {
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
 	License  *licenseData `json:"license"`
 	Snaps    []string     `json:"snaps"`
-	Homes    []string     `json:"homes"`
+	Users    []string     `json:"users"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -897,7 +898,7 @@ var (
 
 	snapshotList    = snapshotstate.List
 	snapshotCheck   = snapshotstate.Check
-	snapshotLose    = snapshotstate.Lose
+	snapshotForget  = snapshotstate.Forget
 	snapshotRestore = snapshotstate.Restore
 	snapshotSave    = snapshotstate.Save
 
@@ -1159,24 +1160,7 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
-	if len(inst.Homes) == 0 {
-		homes, err := filepath.Glob(filepath.Join(dirs.GlobalRootDir, "home/*"))
-		if err != nil {
-			// can't happen
-			return nil, err
-		}
-		homes = append(homes, filepath.Join(dirs.GlobalRootDir, "root"))
-		inst.Homes = make([]string, 0, len(homes))
-		for _, home := range homes {
-			home, err = filepath.EvalSymlinks(home)
-			if err != nil {
-				continue
-			}
-			inst.Homes = append(inst.Homes, home)
-		}
-	}
-
-	shID, snapshotted, ts, err := snapshotSave(st, inst.Snaps, inst.Homes)
+	shID, snapshotted, ts, err := snapshotSave(st, inst.Snaps, inst.Users)
 	if err != nil {
 		return nil, err
 	}
@@ -2889,17 +2873,21 @@ func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
-	var op client.SnapshotOp
+	var action client.SnapshotAction
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&op); err != nil {
+	if err := decoder.Decode(&action); err != nil {
 		return BadRequest("cannot decode request body into snapshot operation: %v", err)
 	}
 	if decoder.More() {
 		return BadRequest("extra content found after snapshot operation")
 	}
 
-	if op.ID == 0 {
+	if action.ID == 0 {
 		return BadRequest("snapshot operation requires snapshot ID")
+	}
+
+	if action.Action == "" {
+		return BadRequest("snapshot operation requires action")
 	}
 
 	var affected []string
@@ -2910,20 +2898,18 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 	st.Lock()
 	defer st.Unlock()
 
-	switch op.Action {
-	case "":
-		return BadRequest("snapshot operation requires action")
+	switch action.Action {
 	case "check":
-		affected, ts, err = snapshotCheck(st, op.ID, op.Snaps, op.Homes)
+		affected, ts, err = snapshotCheck(st, action.ID, action.Snaps, action.Users)
 	case "restore":
-		affected, ts, err = snapshotRestore(st, op.ID, op.Snaps, op.Homes)
-	case "lose":
-		if len(op.Homes) != 0 {
-			return BadRequest(`snapshot "lose" operation cannot specify homes`)
+		affected, ts, err = snapshotRestore(st, action.ID, action.Snaps, action.Users)
+	case "forget":
+		if len(action.Users) != 0 {
+			return BadRequest(`snapshot "forget" operation cannot specify users`)
 		}
-		affected, ts, err = snapshotLose(st, op.ID, op.Snaps)
+		affected, ts, err = snapshotForget(st, action.ID, action.Snaps)
 	default:
-		return BadRequest("unknown snapshot operation %q", op.Action)
+		return BadRequest("unknown snapshot operation %q", action.Action)
 	}
 
 	switch err {
@@ -2931,14 +2917,11 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 		// woo
 	case client.ErrSnapshotNotFound, client.ErrSnapshotSnapsNotFound:
 		return NotFound(err.Error())
-	case client.ErrSnapshotUnsupported, client.ErrSnapshotSizeMismatch, client.ErrSnapshotHashMismatch:
-		// TODO: something more specific?
-		fallthrough
 	default:
 		return InternalError("%v", err)
 	}
 
-	chg := st.NewChange(op.Action+"-snapshot", op.String())
+	chg := st.NewChange(action.Action+"-snapshot", action.String())
 	chg.AddAll(ts)
 	// TODO: look at dropping this duplication
 	chg.Set("snap-names", affected)

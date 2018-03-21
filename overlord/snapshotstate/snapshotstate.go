@@ -21,13 +21,11 @@ package snapshotstate
 
 import (
 	"fmt"
-	"path/filepath"
 	"sort"
 
 	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -72,30 +70,11 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 	return names, nil
 }
 
-func allHomes() ([]string, error) {
-	snapHomes, err := filepath.Glob(filepath.Join(dirs.GlobalRootDir, "home/*/snap"))
-	if err != nil {
-		// can't happen?
-		return nil, err
-	}
-	snapHomes = append(snapHomes, filepath.Join(dirs.GlobalRootDir, "root/snap"))
-	homes := make([]string, 0, len(snapHomes))
-	for _, home := range snapHomes {
-		home, err = filepath.EvalSymlinks(home)
-		if err != nil {
-			continue
-		}
-		homes = append(homes, filepath.Dir(home))
-	}
-
-	return homes, nil
-}
-
 func snapNamesInSnapshot(snapshotID uint64, requested []string) (snapsFound []string, filenames []string, err error) {
 	sort.Strings(requested)
 	found := false
 	err = backend.Iter(context.Background(), func(r *backend.Reader) error {
-		if r.ID == snapshotID {
+		if r.SetID == snapshotID {
 			found = true
 			if len(requested) == 0 || strutil.SortedListContains(requested, r.Snap) {
 				snapsFound = append(snapsFound, r.Snap)
@@ -118,7 +97,7 @@ func snapNamesInSnapshot(snapshotID uint64, requested []string) (snapsFound []st
 }
 
 // some snapshot ops only conflict with other snapshot ops (in
-// particular check, lose and restore)
+// particular check, forget and restore)
 func checkSnapshotChangeConflict(st *state.State, snapshotID uint64, conflictingKinds ...string) error {
 	for _, task := range st.Tasks() {
 		chg := task.Change()
@@ -149,15 +128,8 @@ var List = backend.List
 
 // Save creates a taskset for taking snapshots of snaps' data.
 // Note that the state must be locked by the caller.
-func Save(st *state.State, snapNames []string, homes []string) (uint64, []string, *state.TaskSet, error) {
+func Save(st *state.State, snapNames []string, users []string) (uint64, []string, *state.TaskSet, error) {
 	var err error
-
-	if len(homes) == 0 {
-		homes, err = allHomes()
-		if err != nil {
-			return 0, nil, nil, err
-		}
-	}
 
 	if len(snapNames) == 0 {
 		snapNames, err = allActiveSnapNames(st)
@@ -183,7 +155,7 @@ func Save(st *state.State, snapNames []string, homes []string) (uint64, []string
 		shot := shotState{
 			ID:    shID,
 			Snap:  name,
-			Homes: homes,
+			Users: users,
 		}
 		task.Set("shot", &shot)
 		task.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: name}})
@@ -195,7 +167,7 @@ func Save(st *state.State, snapNames []string, homes []string) (uint64, []string
 
 // Restore creates a taskset for restoring a snapshot's data.
 // Note that the state must be locked by the caller.
-func Restore(st *state.State, snapshotID uint64, snapNames []string, homes []string) ([]string, *state.TaskSet, error) {
+func Restore(st *state.State, snapshotID uint64, snapNames []string, users []string) ([]string, *state.TaskSet, error) {
 	snapNames, filenames, err := snapNamesInSnapshot(snapshotID, snapNames)
 	if err != nil {
 		return nil, nil, err
@@ -205,8 +177,8 @@ func Restore(st *state.State, snapshotID uint64, snapNames []string, homes []str
 		return nil, nil, err
 	}
 
-	// restore needs to conflict with lose of itself
-	if err := checkSnapshotChangeConflict(st, snapshotID, "lose-snapshot"); err != nil {
+	// restore needs to conflict with forget of itself
+	if err := checkSnapshotChangeConflict(st, snapshotID, "forget-snapshot"); err != nil {
 		return nil, nil, err
 	}
 
@@ -218,7 +190,7 @@ func Restore(st *state.State, snapshotID uint64, snapNames []string, homes []str
 		shot := shotState{
 			ID:       snapshotID,
 			Snap:     name,
-			Homes:    homes,
+			Users:    users,
 			Filename: filenames[i],
 		}
 		task.Set("shot", &shot)
@@ -232,9 +204,9 @@ func Restore(st *state.State, snapshotID uint64, snapNames []string, homes []str
 
 // Check creates a taskset for checking a snapshot's data.
 // Note that the state must be locked by the caller.
-func Check(st *state.State, snapshotID uint64, snapNames []string, homes []string) ([]string, *state.TaskSet, error) {
-	// check needs to conflict with lose of itself
-	if err := checkSnapshotChangeConflict(st, snapshotID, "lose-snapshot"); err != nil {
+func Check(st *state.State, snapshotID uint64, snapNames []string, users []string) ([]string, *state.TaskSet, error) {
+	// check needs to conflict with forget of itself
+	if err := checkSnapshotChangeConflict(st, snapshotID, "forget-snapshot"); err != nil {
 		return nil, nil, err
 	}
 
@@ -251,7 +223,7 @@ func Check(st *state.State, snapshotID uint64, snapNames []string, homes []strin
 		shot := shotState{
 			ID:       snapshotID,
 			Snap:     name,
-			Homes:    homes,
+			Users:    users,
 			Filename: filenames[i],
 		}
 		task.Set("shot", &shot)
@@ -261,10 +233,10 @@ func Check(st *state.State, snapshotID uint64, snapNames []string, homes []strin
 	return snapNames, ts, nil
 }
 
-// Lose creates a taskset for deletinig a snapshot.
+// Forget creates a taskset for deletinig a snapshot.
 // Note that the state must be locked by the caller.
-func Lose(st *state.State, snapshotID uint64, snapNames []string) ([]string, *state.TaskSet, error) {
-	// lose needs to conflict with check and restore
+func Forget(st *state.State, snapshotID uint64, snapNames []string) ([]string, *state.TaskSet, error) {
+	// forget needs to conflict with check and restore
 	if err := checkSnapshotChangeConflict(st, snapshotID, "check-snapshot", "restore-snapshot"); err != nil {
 		return nil, nil, err
 	}
@@ -278,7 +250,7 @@ func Lose(st *state.State, snapshotID uint64, snapNames []string) ([]string, *st
 
 	for i, name := range snapNames {
 		desc := fmt.Sprintf("Removing snapshot #%d for snap %q", snapshotID, name)
-		task := st.NewTask("lose-snapshot", desc)
+		task := st.NewTask("forget-snapshot", desc)
 		shot := shotState{
 			ID:       snapshotID,
 			Snap:     name,

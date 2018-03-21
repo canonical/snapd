@@ -40,7 +40,7 @@ type SnapOptions struct {
 	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
 	Unaliased        bool   `json:"unaliased,omitempty"`
 
-	Homes []string `json:"homes,omitempty"`
+	Users []string `json:"users,omitempty"`
 }
 
 func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
@@ -76,7 +76,7 @@ type actionData struct {
 type multiActionData struct {
 	Action string   `json:"action"`
 	Snaps  []string `json:"snaps,omitempty"`
-	Homes  []string `json:"homes,omitempty"`
+	Users  []string `json:"users,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
@@ -127,8 +127,8 @@ func (client *Client) Switch(name string, options *SnapOptions) (changeID string
 }
 
 // SnapshotMany snapshots many snaps (all, if empty)
-func (client *Client) SnapshotMany(names []string, homes []string) (changeID string, err error) {
-	return client.doMultiSnapAction("snapshot", names, &SnapOptions{Homes: homes})
+func (client *Client) SnapshotMany(names []string, users []string) (changeID string, err error) {
+	return client.doMultiSnapAction("snapshot", names, &SnapOptions{Users: users})
 }
 
 var ErrDangerousNotApplicable = fmt.Errorf("dangerous option only meaningful when installing from a local file")
@@ -160,11 +160,10 @@ func (client *Client) doMultiSnapAction(actionName string, snaps []string, optio
 		Snaps:  snaps,
 	}
 	if options != nil {
-		if actionName == "snapshot" {
-			action.Homes = options.Homes
-		} else {
+		if actionName != "snapshot" {
 			return "", fmt.Errorf("cannot use options for multi-action") // (yet)
 		}
+		action.Users = options.Users
 	}
 	data, err := json.Marshal(&action)
 	if err != nil {

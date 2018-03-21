@@ -41,8 +41,8 @@ type SnapshotManager struct {
 // Manager returns a new SnapshotManager
 func Manager(st *state.State) *SnapshotManager {
 	runner := state.NewTaskRunner(st)
-	runner.AddHandler("save-snapshot", doSave, doLose)
-	runner.AddHandler("lose-snapshot", doLose, nil)
+	runner.AddHandler("save-snapshot", doSave, doForget)
+	runner.AddHandler("forget-snapshot", doForget, nil)
 	runner.AddHandler("check-snapshot", doCheck, nil)
 	runner.AddHandler("restore-snapshot", doRestore, undoRestore)
 	runner.AddCleanup("restore-snapshot", cleanupRestore)
@@ -73,13 +73,13 @@ func (m *SnapshotManager) Stop() {
 type shotState struct {
 	ID       uint64   `json:"id"`
 	Snap     string   `json:"snap"`
-	Homes    []string `json:"homes"`
+	Users    []string `json:"users"`
 	Filename string   `json:"filename"`
 }
 
 func filename(id uint64, si *snap.Info) string {
 	skel := &client.Snapshot{
-		ID:       id,
+		SetID:    id,
 		Snap:     si.Name(),
 		Revision: si.Revision,
 		Version:  si.Version,
@@ -87,7 +87,7 @@ func filename(id uint64, si *snap.Info) string {
 	return backend.Filename(skel)
 }
 
-func prepareSave(task *state.Task, tomb *tomb.Tomb) (*shotState, *snap.Info, *json.RawMessage, error) {
+func prepareSave(task *state.Task) (*shotState, *snap.Info, *json.RawMessage, error) {
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
@@ -112,15 +112,15 @@ func prepareSave(task *state.Task, tomb *tomb.Tomb) (*shotState, *snap.Info, *js
 }
 
 func doSave(task *state.Task, tomb *tomb.Tomb) error {
-	shot, cur, cfg, err := prepareSave(task, tomb)
+	shot, cur, cfg, err := prepareSave(task)
 	if err != nil {
 		return err
 	}
-	_, err = backend.Save(tomb.Context(nil), shot.ID, cur, cfg, shot.Homes)
+	_, err = backend.Save(tomb.Context(nil), shot.ID, cur, cfg, shot.Users)
 	return err
 }
 
-func prepareRestore(task *state.Task, tomb *tomb.Tomb) (*shotState, *json.RawMessage, *backend.Reader, error) {
+func prepareRestore(task *state.Task) (*shotState, *json.RawMessage, *backend.Reader, error) {
 	st := task.State()
 
 	st.Lock()
@@ -145,12 +145,12 @@ func prepareRestore(task *state.Task, tomb *tomb.Tomb) (*shotState, *json.RawMes
 }
 
 func doRestore(task *state.Task, tomb *tomb.Tomb) error {
-	shot, oldCfg, reader, err := prepareRestore(task, tomb)
+	shot, oldCfg, reader, err := prepareRestore(task)
 	if err != nil {
 		return err
 	}
 
-	backup, err := reader.RestoreLeavingBackup(tomb.Context(nil), shot.Homes, task.Logf)
+	backup, err := reader.RestoreLeavingBackup(tomb.Context(nil), shot.Users, task.Logf)
 	if err != nil {
 		return err
 	}
@@ -191,7 +191,6 @@ func undoRestore(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func cleanupRestore(task *state.Task, _ *tomb.Tomb) error {
-	println("*** cleanup restore")
 	var backup backend.Backup
 
 	st := task.State()
@@ -225,10 +224,10 @@ func doCheck(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	return sh.Check(tomb.Context(nil), shot.Homes)
+	return sh.Check(tomb.Context(nil), shot.Users)
 }
 
-func doLose(task *state.Task, _ *tomb.Tomb) error {
+func doForget(task *state.Task, _ *tomb.Tomb) error {
 	// note this is also undoSave
 	st := task.State()
 	st.Lock()

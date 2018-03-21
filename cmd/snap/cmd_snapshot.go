@@ -1,3 +1,22 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2018 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package main
 
 import (
@@ -28,30 +47,49 @@ type savedCmd struct {
 
 var shortSavedHelp = i18n.G("List currently stored snapshots")
 var longSavedHelp = i18n.G(`
-The saved command lists the snapshots that have been created previously with the 'save' command.
+The saved command lists the snapshots that have been created previously with
+the 'save' command.
 `)
 
-func (x *savedCmd) tabline(sg *client.SnapshotGroup, extraWidth int) string {
+func wjoin(shots []*client.Snapshot, width int) string {
+	if len(shots) == 0 {
+		return ""
+	}
+	// we know snap names are all ascii, and … is 3 bytes
+	out := make([]byte, width+2)
+	w := 0
+	shots, last := shots[:len(shots)-1], shots[len(shots)-1]
+	for _, sh := range shots {
+		// if you can't put at least ", …" after this, stop now
+		if w+len(sh.Snap)+3 > width {
+			w += copy(out[w:], "…")
+			return string(out[:w])
+		}
+		w += copy(out[w:], sh.Snap)
+		w += copy(out[w:], ", ")
+	}
+	if w+len(last.Snap) > width {
+		w += copy(out[w:], "…")
+		return string(out[:w])
+	}
+	w += copy(out[w:], last.Snap)
+	return string(out[:w])
+}
+
+func (x *savedCmd) tabline(sg *client.SnapshotSet, extraWidth int) string {
 	if len(sg.Snapshots) == 0 {
 		return fmt.Sprintf("%d\t-\t-\t-", sg.ID)
 	}
-	mint := sg.MinTime()
-	snapNames := make([]string, 0, len(sg.Snapshots))
-	var sz int64
-	for _, sh := range sg.Snapshots {
-		snapNames = append(snapNames, sh.Snap)
-		sz += sh.Size
-	}
-	snaps := strings.Join(snapNames, ", ")
+	mint := sg.Time()
+	sz := sg.Size()
+
+	width := 1000
 	if !x.Wide {
-		width, _ := termSize()
+		width, _ = termSize()
 		// size (5) + gutters (3+2+2; why is the first gutter 3?)
 		width -= 12 + extraWidth
-		if len(snaps) > width {
-			snaps = snaps[:width-1] + "…"
-		}
 	}
-	return fmt.Sprintf("%d\t%s\t%s\t%s", sg.ID, x.fmtTime(mint), snaps, fmtSize(sz))
+	return fmt.Sprintf("%d\t%s\t%s\t%s", sg.ID, x.fmtTime(mint), wjoin(sg.Snapshots, width), fmtSize(sz))
 }
 
 func (x *savedCmd) Execute([]string) error {
@@ -66,9 +104,10 @@ func (x *savedCmd) Execute([]string) error {
 	w := tabWriter()
 	defer w.Flush()
 
-	fmt.Fprintln(w, "ID\tDate\tSnaps\tSize")
+	// TRANSLATORS: 'Set' as in group or bag of things
+	fmt.Fprintln(w, "Set\tDate\tSnaps\tSize")
 	// the list is ordered by id
-	minTimeWidth := len(x.fmtTime(list[0].MinTime()))
+	minTimeWidth := len(x.fmtTime(list[0].Time()))
 	maxIDwidth := len(strconv.FormatUint(list[len(list)-1].ID, 10))
 	extraWidth := maxIDwidth + minTimeWidth
 
@@ -82,7 +121,7 @@ func (x *savedCmd) Execute([]string) error {
 type saveCmd struct {
 	waitMixin
 	timeMixin
-	Homes      []string `long:"homes"`
+	Users      []string `long:"users"`
 	Positional struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -95,7 +134,7 @@ The save command creates a snapshot of the current data for the given snaps.
 
 func (x *saveCmd) Execute([]string) error {
 	cli := Client()
-	changeID, err := cli.SnapshotMany(installedSnapNames(x.Positional.Snaps), x.Homes)
+	changeID, err := cli.SnapshotMany(installedSnapNames(x.Positional.Snaps), x.Users)
 	if err != nil {
 		return err
 	}
@@ -117,7 +156,7 @@ func (x *saveCmd) Execute([]string) error {
 	return y.Execute(nil)
 }
 
-type loseCmd struct {
+type forgetCmd struct {
 	waitMixin
 	Positional struct {
 		ID    snapshotID          `positional-arg-name:"<id>"`
@@ -125,15 +164,15 @@ type loseCmd struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-var shortLoseHelp = i18n.G("Delete a snapshot")
-var longLoseHelp = i18n.G(`
-The lose command deletes a snapshot.
+var shortForgetHelp = i18n.G("Delete a snapshot")
+var longForgetHelp = i18n.G(`
+The forget command deletes a snapshot.
 `)
 
-func (x *loseCmd) Execute([]string) error {
+func (x *forgetCmd) Execute([]string) error {
 	cli := Client()
 	snaps := installedSnapNames(x.Positional.Snaps)
-	changeID, err := cli.LoseSnapshot(uint64(x.Positional.ID), snaps)
+	changeID, err := cli.ForgetSnapshot(uint64(x.Positional.ID), snaps)
 	if err != nil {
 		return err
 	}
@@ -147,16 +186,16 @@ func (x *loseCmd) Execute([]string) error {
 
 	if len(snaps) > 0 {
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d of snaps %s is lost to the ages.\n"), x.Positional.ID, strutil.Quoted(snaps))
+		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d of snaps %s forgotten.\n"), x.Positional.ID, strutil.Quoted(snaps))
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d is lost to the ages.\n"), x.Positional.ID)
+		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d forgotten.\n"), x.Positional.ID)
 	}
 	return nil
 }
 
-type checkCmd struct {
+type checkSnapshotCmd struct {
 	waitMixin
-	Homes      string `long:"homes"`
+	Users      string `long:"users"`
 	Positional struct {
 		ID    snapshotID          `positional-arg-name:"<id>"`
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
@@ -168,11 +207,11 @@ var longCheckHelp = i18n.G(`
 The check command checks a snapshot against its hashsums.
 `)
 
-func (x *checkCmd) Execute([]string) error {
+func (x *checkSnapshotCmd) Execute([]string) error {
 	cli := Client()
 	snaps := installedSnapNames(x.Positional.Snaps)
-	homes := strings.Split(x.Homes, ",")
-	changeID, err := cli.CheckSnapshot(uint64(x.Positional.ID), snaps, homes)
+	users := strings.Split(x.Users, ",")
+	changeID, err := cli.CheckSnapshot(uint64(x.Positional.ID), snaps, users)
 	if err != nil {
 		return err
 	}
@@ -187,17 +226,17 @@ func (x *checkCmd) Execute([]string) error {
 	// TODO: also mention the home archives that were actually checked
 	if len(snaps) > 0 {
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d is probably *fine*, at least for snaps %s.\n"),
+		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d of snaps %s check passed.\n"),
 			x.Positional.ID, strutil.Quoted(snaps))
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d is probably *fine*.\n"), x.Positional.ID)
+		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d check passed.\n"), x.Positional.ID)
 	}
 	return nil
 }
 
 type restoreCmd struct {
 	waitMixin
-	Homes      string `long:"homes"`
+	Users      string `long:"users"`
 	Positional struct {
 		ID    snapshotID          `positional-arg-name:"<id>"`
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
@@ -212,8 +251,8 @@ The restore command restores a snapshot.
 func (x *restoreCmd) Execute([]string) error {
 	cli := Client()
 	snaps := installedSnapNames(x.Positional.Snaps)
-	homes := strings.Split(x.Homes, ",")
-	changeID, err := cli.RestoreSnapshot(uint64(x.Positional.ID), snaps, homes)
+	users := strings.Split(x.Users, ",")
+	changeID, err := cli.RestoreSnapshot(uint64(x.Positional.ID), snaps, users)
 	if err != nil {
 		return err
 	}
@@ -228,10 +267,10 @@ func (x *restoreCmd) Execute([]string) error {
 	// TODO: also mention the home archives that were actually restoreed
 	if len(snaps) > 0 {
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d of %s has been restored.\n"),
+		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d of %s restored.\n"),
 			x.Positional.ID, strutil.Quoted(snaps))
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d has been restored.\n"), x.Positional.ID)
+		fmt.Fprintf(Stdout, i18n.G("Snapshot #%d restored.\n"), x.Positional.ID)
 	}
 	return nil
 }
@@ -254,26 +293,32 @@ func init() {
 		longSaveHelp,
 		func() flags.Commander {
 			return &saveCmd{}
-		}, nil, nil)
+		}, timeDescs.also(waitDescs).also(map[string]string{
+			"users": i18n.G("Only snapshot these users' files."),
+		}), nil)
 
 	addCommand("restore",
 		shortRestoreHelp,
 		longRestoreHelp,
 		func() flags.Commander {
 			return &restoreCmd{}
-		}, nil, nil)
+		}, waitDescs.also(map[string]string{
+			"users": i18n.G("Only restore these users' files."),
+		}), nil)
 
-	addCommand("lose",
-		shortLoseHelp,
-		longLoseHelp,
+	addCommand("forget",
+		shortForgetHelp,
+		longForgetHelp,
 		func() flags.Commander {
-			return &loseCmd{}
-		}, nil, nil)
+			return &forgetCmd{}
+		}, waitDescs, nil)
 
 	addCommand("check-snapshot",
 		shortCheckHelp,
 		longCheckHelp,
 		func() flags.Commander {
-			return &checkCmd{}
-		}, nil, nil)
+			return &checkSnapshotCmd{}
+		}, waitDescs.also(map[string]string{
+			"users": i18n.G("Only check these users' files."),
+		}), nil)
 }

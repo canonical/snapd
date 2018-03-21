@@ -1,3 +1,22 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2018 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package backend
 
 import (
@@ -57,7 +76,7 @@ func Open(fn string) (rsh *Reader, e error) {
 		return nil, err
 	}
 	if sz.size != metaHashSize {
-		return nil, client.ErrSnapshotSizeMismatch
+		return nil, fmt.Errorf("declared hash size (%d) does not match actual (%d)", metaHashSize, sz.size)
 	}
 	metaHash := string(bytes.TrimSpace(metaHashBuf))
 
@@ -71,19 +90,19 @@ func Open(fn string) (rsh *Reader, e error) {
 	}
 
 	if err := jsonutil.DecodeWithNumber(io.TeeReader(metaReader, io.MultiWriter(hasher, &sz)), &rsh.Snapshot); err != nil {
-		return nil, client.ErrSnapshotUnsupported
+		return nil, err
 	}
 	if sz.size != metaSize {
-		return nil, client.ErrSnapshotSizeMismatch
+		return nil, fmt.Errorf("declared metadata size (%d) does not match actual (%d)", metaSize, sz.size)
 	}
 
 	actualMetaHash := fmt.Sprintf("%x", hasher.Sum(nil))
 	if actualMetaHash != metaHash {
-		return nil, client.ErrSnapshotHashMismatch
+		return nil, fmt.Errorf("main hash mismatch")
 	}
 
-	if rsh.Uninitialised() {
-		return nil, client.ErrSnapshotUnsupported
+	if rsh.IsValid() {
+		return nil, fmt.Errorf("invalid snapshot")
 	}
 
 	return rsh, nil
@@ -101,33 +120,33 @@ func (r *Reader) checkOne(ctx context.Context, entry string, hasher hash.Hash) e
 	}
 	defer body.Close()
 
-	hashsum := r.Hashsums[entry]
+	hashsum := r.SHA3_384[entry]
 	readSize, err := io.Copy(io.MultiWriter(osutil.ContextWriter(ctx), hasher), body)
 	if err != nil {
 		return err
 	}
 
 	if readSize != reportedSize {
-		return client.ErrSnapshotSizeMismatch
+		return fmt.Errorf("snapshot entry %q size (%d) different from actual (%d)", entry, reportedSize, readSize)
 	}
 
 	sha3 := fmt.Sprintf("%x", hasher.Sum(nil))
 	if sha3 != hashsum {
-		return client.ErrSnapshotHashMismatch
+		return fmt.Errorf("snapshot entry %q hash mismatch", entry)
 	}
 	return nil
 }
 
 // Check that the data contained in the snapshot matches its hashsums.
-func (r *Reader) Check(ctx context.Context, homes []string) error {
-	sort.Strings(homes)
+func (r *Reader) Check(ctx context.Context, usernames []string) error {
+	sort.Strings(usernames)
 
 	hasher := crypto.SHA3_384.New()
-	for entry := range r.Hashsums {
-		if len(homes) > 0 && isUserArchive(entry) {
-			home := userHome(entry)
-			if !strutil.SortedListContains(homes, home) {
-				logger.Debugf("skipping check of %q", home)
+	for entry := range r.SHA3_384 {
+		if len(usernames) > 0 && isUserArchive(entry) {
+			username := entryUsername(entry)
+			if !strutil.SortedListContains(usernames, username) {
+				logger.Debugf("skipping check of %q", username)
 				continue
 			}
 		}
@@ -151,18 +170,18 @@ type Logf func(format string, args ...interface{})
 //
 // If successful this will replace the existing data (for the revision
 // in the snapshot) with that contained in the snapshot.
-func (r *Reader) Restore(ctx context.Context, homes []string, logf Logf) error {
-	_, err := r.restore(ctx, false, homes, logf)
+func (r *Reader) Restore(ctx context.Context, usernames []string, logf Logf) error {
+	_, err := r.restore(ctx, false, usernames, logf)
 	return err
 }
 
 // RestoreLeavingBackup is like Restore, but it leaves the old data in
 // a backup directory.
-func (r *Reader) RestoreLeavingBackup(ctx context.Context, homes []string, logf Logf) (*Backup, error) {
-	return r.restore(ctx, true, homes, logf)
+func (r *Reader) RestoreLeavingBackup(ctx context.Context, usernames []string, logf Logf) (*Backup, error) {
+	return r.restore(ctx, true, usernames, logf)
 }
 
-func (r *Reader) restore(ctx context.Context, leaveBackup bool, homes []string, logf Logf) (b *Backup, e error) {
+func (r *Reader) restore(ctx context.Context, leaveBackup bool, usernames []string, logf Logf) (b *Backup, e error) {
 	b = &Backup{}
 	defer func() {
 		if e != nil {
@@ -176,13 +195,13 @@ func (r *Reader) restore(ctx context.Context, leaveBackup bool, homes []string, 
 		}
 	}()
 
-	sort.Strings(homes)
+	sort.Strings(usernames)
 	isRoot := sys.Geteuid() == 0
 	si := snap.MinimalPlaceInfo(r.Snap, r.Revision)
 	hasher := crypto.SHA3_384.New()
 	var sz sizer
 
-	for entry := range r.Hashsums {
+	for entry := range r.SHA3_384 {
 		if err := ctx.Err(); err != nil {
 			return b, err
 		}
@@ -193,16 +212,22 @@ func (r *Reader) restore(ctx context.Context, leaveBackup bool, homes []string, 
 		gid := sys.GroupID(osutil.NoChown)
 
 		if isUser {
-			home := userHome(entry)
-			if len(homes) > 0 && !strutil.SortedListContains(homes, home) {
-				logger.Debugf("skipping restore of %q", home)
+			username := entryUsername(entry)
+			if len(usernames) > 0 && !strutil.SortedListContains(usernames, username) {
+				logger.Debugf("skipping restore of user %q", username)
 				continue
 			}
-			dest = si.UserDataDir(home)
-			fi, err := os.Stat(home)
+			usr, err := userLookup(username)
+			if err != nil {
+				logf("skipping restore of user %q: %v", username, err)
+				continue
+			}
+
+			dest = si.UserDataDir(usr.HomeDir)
+			fi, err := os.Stat(usr.HomeDir)
 			if err != nil {
 				if osutil.IsDirNotExist(err) {
-					logf("skipping restore of %q as %q doesn't exist", dest, home)
+					logf("skipping restore of %q as %q doesn't exist", dest, usr.HomeDir)
 				} else {
 					logf("skipping restore of %q: %v", dest, err)
 				}
@@ -210,12 +235,12 @@ func (r *Reader) restore(ctx context.Context, leaveBackup bool, homes []string, 
 			}
 
 			if !fi.IsDir() {
-				logf("skipping restore of %q as %q is not a directory", dest, home)
+				logf("skipping restore of %q as %q is not a directory", dest, usr.HomeDir)
 				continue
 			}
 
 			if st, ok := fi.Sys().(*syscall.Stat_t); ok && isRoot {
-				// the mkdir below will use the uid/gid of home
+				// the mkdir below will use the uid/gid of usr.HomeDir
 				if st.Uid > 0 {
 					uid = sys.UserID(st.Uid)
 				}
@@ -268,7 +293,7 @@ func (r *Reader) restore(ctx context.Context, leaveBackup bool, homes []string, 
 			return b, err
 		}
 
-		hashsum := r.Hashsums[entry]
+		hashsum := r.SHA3_384[entry]
 
 		tr := io.TeeReader(body, io.MultiWriter(hasher, &sz))
 
@@ -276,7 +301,7 @@ func (r *Reader) restore(ctx context.Context, leaveBackup bool, homes []string, 
 		// that calling out to tar has issues -- there are a lot of
 		// special cases we'd need to consider otherwise
 		cmd := exec.Command("tar",
-			"--extract", // "--verbose", "--verbose",
+			"--extract",
 			"--preserve-permissions", "--preserve-order", "--gunzip",
 			"--directory", tempdir)
 		cmd.Env = []string{}
@@ -290,11 +315,11 @@ func (r *Reader) restore(ctx context.Context, leaveBackup bool, homes []string, 
 
 		sha3 := fmt.Sprintf("%x", hasher.Sum(nil))
 		if sha3 != hashsum {
-			return b, client.ErrSnapshotHashMismatch
+			return b, fmt.Errorf("snapshot checksum mismatch")
 		}
 
 		if sz.size != reportedSize {
-			return b, client.ErrSnapshotSizeMismatch
+			return b, fmt.Errorf("snapshot size mismatch")
 		}
 
 		// TODO: something with Config

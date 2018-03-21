@@ -1,3 +1,22 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2018 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package backend
 
 import (
@@ -5,9 +24,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -16,6 +38,7 @@ import (
 
 func nextBackup(fn string) (string, error) {
 	// this is a TOCTOU problem
+	// (but the directory and its parent should be root:root and 0700, so it's probably ok)
 	for n := 1; n < 100; n++ {
 		cand := fmt.Sprintf("%s.~%d~", fn, n)
 		if exists, _, _ := osutil.DirExists(cand); !exists {
@@ -63,18 +86,17 @@ func member(f *os.File, member string) (r io.ReadCloser, sz int64, err error) {
 	return nil, -1, fmt.Errorf("missing archive member %q", member)
 }
 
-func userArchiveName(userHome string) string {
-	userHome = dirs.StripRootDir(userHome)
-	return filepath.Join(userArchivePrefix, userHome+userArchiveSuffix)
+func userArchiveName(usr *user.User) string {
+	return filepath.Join(userArchivePrefix, usr.Username+userArchiveSuffix)
 }
 
-func isUserArchive(userArchive string) bool {
-	return strings.HasPrefix(userArchive, userArchivePrefix) && strings.HasSuffix(userArchive, userArchiveSuffix)
+func isUserArchive(entry string) bool {
+	return strings.HasPrefix(entry, userArchivePrefix) && strings.HasSuffix(entry, userArchiveSuffix)
 }
 
-func userHome(userArchive string) string {
-	// this _will_ panic if !isUserArchive(userArchive)
-	return filepath.Join(dirs.GlobalRootDir, userArchive[len(userArchivePrefix):len(userArchive)-len(userArchiveSuffix)])
+func entryUsername(entry string) string {
+	// this _will_ panic if !isUserArchive(entry)
+	return entry[len(userArchivePrefix) : len(entry)-len(userArchiveSuffix)]
 }
 
 type bySnap []*client.Snapshot
@@ -83,8 +105,70 @@ func (a bySnap) Len() int           { return len(a) }
 func (a bySnap) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a bySnap) Less(i, j int) bool { return a[i].Snap < a[j].Snap }
 
-type byID []client.SnapshotGroup
+type byID []client.SnapshotSet
 
 func (a byID) Len() int           { return len(a) }
 func (a byID) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a byID) Less(i, j int) bool { return a[i].ID < a[j].ID }
+
+var (
+	userLookup   = user.Lookup
+	userLookupId = user.LookupId
+)
+
+func usersForUsernames(usernames []string) ([]*user.User, error) {
+	if len(usernames) == 0 {
+		return allUsers()
+	}
+	users := make([]*user.User, 0, len(usernames))
+	for _, username := range usernames {
+		usr, err := userLookup(username)
+		if err != nil {
+			if _, ok := err.(*user.UnknownUserError); !ok {
+				return nil, err
+			}
+			usr, err = userLookupId(username)
+			if err != nil {
+				return nil, err
+			}
+		}
+		users = append(users, usr)
+
+	}
+	return users, nil
+}
+
+func allUsers() ([]*user.User, error) {
+	ds, err := filepath.Glob(dirs.SnapDataHomeGlob)
+	if err != nil {
+		// can't happen?
+		return nil, err
+	}
+
+	users := make([]*user.User, 1, len(ds)+1)
+	root, err := user.LookupId("0")
+	if err != nil {
+		return nil, err
+	}
+	users[0] = root
+	seen := make(map[uint32]struct{}, len(ds)+1)
+	var yes struct{}
+	var st syscall.Stat_t
+	for _, d := range ds {
+		err := syscall.Stat(d, &st)
+		if err != nil {
+			continue
+		}
+		if _, ok := seen[st.Uid]; ok {
+			continue
+		}
+		seen[st.Uid] = yes
+		usr, err := user.LookupId(strconv.FormatUint(uint64(st.Uid), 10))
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, usr)
+	}
+
+	return users, nil
+}

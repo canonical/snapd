@@ -1,3 +1,22 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2018 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package backend
 
 import (
@@ -32,11 +51,10 @@ const (
 	userArchiveSuffix = ".tgz"
 )
 
-// Iter loops over all valid snapshots in the snapshots directory,
-// applying the given function to each. It is that function's
-// responsibility to close the snapshot it's passed. If the function
-// returns error, iteration is stopped (and if the error isn't EOF,
-// it's returned as the error of the iterator).
+// Iter loops over all valid snapshots in the snapshots directory, applying
+// the given function to each. The snapshot will be closed after the function
+// returns. If the function returns error, iteration is stopped (and if the
+// error isn't EOF, it's returned as the error of the iterator).
 func Iter(ctx context.Context, f func(*Reader) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -64,10 +82,9 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 				continue
 			}
 			err = f(rsh)
-			if err != nil {
-				break
+			if closeError := rsh.Close(); err == nil {
+				err = closeError
 			}
-			err = rsh.Close()
 			if err != nil {
 				break
 			}
@@ -84,26 +101,26 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 // List valid snapshots
 //
 // The snapshots are closed before returning.
-func List(ctx context.Context, snapshotID uint64, snapNames []string) ([]client.SnapshotGroup, error) {
+func List(ctx context.Context, snapshotID uint64, snapNames []string) ([]client.SnapshotSet, error) {
 	shotsmap := map[uint64][]*client.Snapshot{}
 	err := Iter(ctx, func(sh *Reader) error {
-		if snapshotID == 0 || sh.ID == snapshotID {
+		if snapshotID == 0 || sh.SetID == snapshotID {
 			if len(snapNames) == 0 || strutil.ListContains(snapNames, sh.Snap) {
-				shotsmap[sh.ID] = append(shotsmap[sh.ID], &sh.Snapshot)
+				shotsmap[sh.SetID] = append(shotsmap[sh.SetID], &sh.Snapshot)
 			}
 		}
 		return nil
 	})
 
-	groups := make([]client.SnapshotGroup, 0, len(shotsmap))
+	sets := make([]client.SnapshotSet, 0, len(shotsmap))
 	for id, shots := range shotsmap {
 		sort.Sort(bySnap(shots))
-		groups = append(groups, client.SnapshotGroup{ID: id, Snapshots: shots})
+		sets = append(sets, client.SnapshotSet{ID: id, Snapshots: shots})
 	}
 
-	sort.Sort(byID(groups))
+	sort.Sort(byID(sets))
 
-	return groups, err
+	return sets, err
 }
 
 var isValidVersion = regexp.MustCompile("^[a-zA-Z0-9.+~-]{1,32}$").MatchString
@@ -113,31 +130,31 @@ func Filename(sh *client.Snapshot) string {
 	var basename string
 	if snap.ValidateName(sh.Snap) == nil {
 		if isValidVersion(sh.Version) {
-			basename = fmt.Sprintf("%s_%s_%d.zip", sh.Snap, sh.Version, sh.ID)
+			basename = fmt.Sprintf("%s_%s_%d.zip", sh.Snap, sh.Version, sh.SetID)
 		} else {
 			// AFAIK snapcraft would fail these, but we're more generous
-			basename = fmt.Sprintf("%s_rev%s_%d.zip", sh.Snap, sh.Revision, sh.ID)
+			basename = fmt.Sprintf("%s_rev%s_%d.zip", sh.Snap, sh.Revision, sh.SetID)
 		}
 	} else {
 		// just give up
-		basename = fmt.Sprintf("%d.zip", sh.ID)
+		basename = fmt.Sprintf("%d.zip", sh.SetID)
 	}
 	return filepath.Join(dirs.SnapshotDir, basename)
 }
 
 // Save a snapshot
-func Save(ctx context.Context, id uint64, si *snap.Info, cfg *json.RawMessage, homes []string) (sh *client.Snapshot, e error) {
+func Save(ctx context.Context, id uint64, si *snap.Info, cfg *json.RawMessage, usernames []string) (sh *client.Snapshot, e error) {
 	if err := os.MkdirAll(dirs.SnapshotDir, 0700); err != nil {
 		return nil, err
 	}
 
 	sh = &client.Snapshot{
-		ID:       id,
+		SetID:    id,
 		Snap:     si.Name(),
 		Revision: si.Revision,
 		Version:  si.Version,
 		Time:     time.Now(),
-		Hashsums: make(map[string]string),
+		SHA3_384: make(map[string]string),
 		Size:     0,
 		Config:   cfg,
 	}
@@ -150,14 +167,23 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg *json.RawMessage, h
 	defer aw.Cancel()
 
 	w := zip.NewWriter(aw)
+	// Note we don't “defer w.Close()” because Close on zip.Writers:
+	// 1. doesn't close the file descriptor (that's done by Cancel, above)
+	// 2. writes out the central directory of the zip
+	// (yes they're weird in this way: why is that called Close, even)
 	hasher := crypto.SHA3_384.New()
 	if err := addToZip(ctx, sh, w, archiveName, si.DataDir(), hasher); err != nil {
 		return nil, err
 	}
 	hasher.Reset()
 
-	for _, home := range homes {
-		if err := addToZip(ctx, sh, w, userArchiveName(home), si.UserDataDir(home), hasher); err != nil {
+	users, err := usersForUsernames(usernames)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, usr := range users {
+		if err := addToZip(ctx, sh, w, userArchiveName(usr), si.UserDataDir(usr.HomeDir), hasher); err != nil {
 			return nil, err
 		}
 		hasher.Reset()
@@ -205,7 +231,7 @@ func addToZip(ctx context.Context, sh *client.Snapshot, w *zip.Writer, entry, di
 	var sz sizer
 
 	cmd := exec.Command("tar",
-		"--create", // "--verbose", "--verbose",
+		"--create",
 		"--sparse", "--gzip",
 		"--directory", parent, dir, "common")
 	cmd.Env = []string{"GZIP=-9 -n"}
@@ -213,7 +239,7 @@ func addToZip(ctx context.Context, sh *client.Snapshot, w *zip.Writer, entry, di
 	cmd.Stderr = os.Stderr
 	osutil.RunWithContext(ctx, cmd)
 
-	sh.Hashsums[entry] = fmt.Sprintf("%x", hasher.Sum(nil))
+	sh.SHA3_384[entry] = fmt.Sprintf("%x", hasher.Sum(nil))
 	sh.Size += sz.size
 
 	return nil

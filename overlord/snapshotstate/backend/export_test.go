@@ -19,16 +19,22 @@
 
 package backend
 
-type sizer struct {
-	size int64
+import (
+	"os/user"
+)
+
+func MockUserLookup(newLookup func(string) (*user.User, error)) func() {
+	oldLookup := userLookup
+	userLookup = newLookup
+	return func() {
+		userLookup = oldLookup
+	}
 }
 
-func (sz *sizer) Write(data []byte) (n int, err error) {
-	n = len(data)
-	sz.size += int64(n)
-	return
-}
-
-func (sz *sizer) Reset() {
-	sz.size = 0
+func MockUserLookupId(newLookupId func(string) (*user.User, error)) func() {
+	oldLookupId := userLookupId
+	userLookupId = newLookupId
+	return func() {
+		userLookupId = oldLookupId
+	}
 }
