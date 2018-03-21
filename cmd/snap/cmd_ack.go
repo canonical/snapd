@@ -34,11 +34,11 @@ type cmdAck struct {
 	} `positional-args:"true" required:"true"`
 }
 
-var shortAckHelp = i18n.G("Adds an assertion to the system")
+var shortAckHelp = i18n.G("Add an assertion to the system")
 var longAckHelp = i18n.G(`
 The ack command tries to add an assertion to the system assertion database.
 
-The assertion may also be a newer revision of a preexisting assertion that it
+The assertion may also be a newer revision of a pre-existing assertion that it
 will replace.
 
 To succeed the assertion must be valid, its signature verified with a known

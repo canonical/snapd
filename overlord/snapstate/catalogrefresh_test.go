@@ -23,6 +23,8 @@ import (
 	"io"
 	"time"
 
+	"golang.org/x/net/context"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/advisor"
@@ -42,7 +44,10 @@ type catalogStore struct {
 	ops []string
 }
 
-func (r *catalogStore) WriteCatalogs(w io.Writer, a store.SnapAdder) error {
+func (r *catalogStore) WriteCatalogs(ctx context.Context, w io.Writer, a store.SnapAdder) error {
+	if ctx == nil || !auth.IsEnsureContext(ctx) {
+		panic("Ensure marked context required")
+	}
 	r.ops = append(r.ops, "write-catalog")
 	w.Write([]byte("pkg1\npkg2"))
 	a.AddSnap("foo", "foo summary", []string{"foo", "meh"})
@@ -50,7 +55,10 @@ func (r *catalogStore) WriteCatalogs(w io.Writer, a store.SnapAdder) error {
 	return nil
 }
 
-func (r *catalogStore) Sections(*auth.UserState) ([]string, error) {
+func (r *catalogStore) Sections(ctx context.Context, _ *auth.UserState) ([]string, error) {
+	if ctx == nil || !auth.IsEnsureContext(ctx) {
+		panic("Ensure marked context required")
+	}
 	r.ops = append(r.ops, "sections")
 	return []string{"section1", "section2"}, nil
 }

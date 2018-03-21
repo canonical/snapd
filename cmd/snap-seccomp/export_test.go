@@ -39,3 +39,11 @@ func MockArchUbuntuKernelArchitecture(f func() string) (restore func()) {
 		archUbuntuKernelArchitecture = realArchUbuntuKernelArchitecture
 	}
 }
+
+func MockErrnoOnDenial(i int16) (retore func()) {
+	origErrnoOnDenial := errnoOnDenial
+	errnoOnDenial = i
+	return func() {
+		errnoOnDenial = origErrnoOnDenial
+	}
+}

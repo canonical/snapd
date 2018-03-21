@@ -38,6 +38,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/context"
+
 	"github.com/gorilla/mux"
 	"github.com/jessevdk/go-flags"
 
@@ -266,6 +268,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	defer st.Unlock()
 	nextRefresh := snapMgr.NextRefresh()
 	lastRefresh, _ := snapMgr.LastRefresh()
+	refreshHold, _ := snapMgr.EffectiveRefreshHold()
 	refreshScheduleStr, legacySchedule, err := snapMgr.RefreshSchedule()
 	if err != nil {
 		return InternalError("cannot get refresh schedule: %s", err)
@@ -277,6 +280,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	refreshInfo := client.RefreshInfo{
 		Last: formatRefreshTime(lastRefresh),
+		Hold: formatRefreshTime(refreshHold),
 		Next: formatRefreshTime(nextRefresh),
 	}
 	if !legacySchedule {
@@ -548,7 +552,8 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	theStore := getStore(c)
 
-	sections, err := theStore.Sections(user)
+	// TODO: use a per-request context
+	sections, err := theStore.Sections(context.TODO(), user)
 	switch err {
 	case nil:
 		// pass
@@ -920,7 +925,8 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 		return nil, err
 	}
 
-	updated, tasksets, err := snapstateUpdateMany(st, inst.Snaps, inst.userID)
+	// TODO: use a per-request context
+	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1587,7 +1593,7 @@ func splitQS(qs string) []string {
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := vars["name"]
+	snapName := systemCoreSnapUnalias(vars["name"])
 
 	keys := splitQS(r.URL.Query().Get("keys"))
 
@@ -1630,7 +1636,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := vars["name"]
+	snapName := systemCoreSnapUnalias(vars["name"])
 
 	var patchValues map[string]interface{}
 	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
@@ -1847,6 +1853,9 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		conns, err = repo.ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
+			if len(conns) == 0 {
+				return InterfacesUnchanged("nothing to do")
+			}
 			for _, connRef := range conns {
 				var ts *state.TaskSet
 				ts, err = ifacestate.Disconnect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
@@ -1864,7 +1873,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	change := newChange(st, a.Action+"-snap", summary, tasksets, affected)
-
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
@@ -2790,4 +2798,11 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, inst.Names)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
+func systemCoreSnapUnalias(name string) string {
+	if name == "system" {
+		return "core"
+	}
+	return name
 }
