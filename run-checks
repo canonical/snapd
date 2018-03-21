@@ -16,6 +16,16 @@ else
     goctest="go test"
 fi
 COVERMODE=${COVERMODE:-atomic}
+
+# add workaround for https://github.com/golang/go/issues/24449
+if [ "$(uname -m)" = "s390x" ]; then
+    if go version | grep -q go1.10; then
+        echo "covermode 'atomic' crashes on s390x with go1.10, reseting "
+        echo "to 'set'. see https://github.com/golang/go/issues/24449"
+        COVERMODE="set"
+    fi
+fi
+
 export GOPATH="${GOPATH:-$(realpath "$(dirname "$0")"/../../../../)}"
 export PATH="$PATH:${GOPATH%%:*}/bin"
 
@@ -79,7 +89,7 @@ addtrap endmsg
 append_coverage() (
     profile="$1"
     if [ -f "$profile" ]; then
-        grep -v "^mode:" -- "$profile" >> .coverage/coverage.out
+        grep -v "^mode:" -- "$profile" >> .coverage/coverage.out || true
         rm "$profile"
     fi
 )
@@ -215,11 +225,15 @@ if [ "$UNIT" = 1 ]; then
 
     # tests
     echo Running tests from "$PWD"
-    for pkg in $(go list ./... | grep -v '/vendor/' ); do
-        go test -i "$pkg"
-        $goctest -v -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
-        append_coverage .coverage/profile.out
-    done
+    if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
+        $goctest -v -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
+    else
+        for pkg in $(go list ./... | grep -v '/vendor/' ); do
+            go test -i "$pkg"
+            $goctest -v -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
+            append_coverage .coverage/profile.out
+        done
+    fi
 
     # upload to codecov.io if on travis
     if [ "${TRAVIS_BUILD_NUMBER:-}" ]; then
@@ -247,7 +261,7 @@ fi
 
 UNCLEAN="$(git status -s|grep '^??')" || true
 SKIP_UNCLEAN=${SKIP_UNCLEAN=}
-if [[ -n "$UNCLEAN" && -z "$SKIP_UNCLEAN" ]]; then
+if [ -n "$UNCLEAN" ] && [ -z "$SKIP_UNCLEAN" ]; then
     cat <<EOF
 
 There are files left in the git tree after the tests:

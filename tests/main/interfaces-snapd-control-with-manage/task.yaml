@@ -49,7 +49,10 @@ restore: |
     fi
     . $TESTSLIB/store.sh
     teardown_fake_store $BLOB_DIR
-    
+
+debug: |
+    jq .data.auth.device /var/lib/snapd/state.json
+
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
