@@ -29,10 +29,11 @@ import (
 )
 
 type BackendSuite struct {
-	Backend interfaces.SecurityBackend
-	Repo    *interfaces.Repository
-	Iface   *TestInterface
-	RootDir string
+	Backend         interfaces.SecurityBackend
+	Repo            *interfaces.Repository
+	Iface           *TestInterface
+	RootDir         string
+	restoreSanitize func()
 }
 
 func (s *BackendSuite) SetUpTest(c *C) {
@@ -44,10 +45,13 @@ func (s *BackendSuite) SetUpTest(c *C) {
 	s.Iface = &TestInterface{InterfaceName: "iface"}
 	err := s.Repo.AddInterface(s.Iface)
 	c.Assert(err, IsNil)
+
+	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 }
 
 func (s *BackendSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	s.restoreSanitize()
 }
 
 // Tests for Setup() and Remove()
