@@ -36,7 +36,7 @@ var (
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
 	// safe_bindmount
-	OpenNoFollow = openNoFollow
+	SecureOpenPath = secureOpenPath
 	// utils
 	PlanWritableMimic  = planWritableMimic
 	ExecWritableMimic  = execWritableMimic

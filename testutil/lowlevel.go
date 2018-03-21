@@ -421,5 +421,9 @@ func (sys *SyscallRecorder) Remove(name string) error {
 
 func (sys *SyscallRecorder) Fchdir(fd int) error {
 	call := fmt.Sprintf("fchdir %d", fd)
+	if _, ok := sys.fds[fd]; !ok {
+		sys.calls = append(sys.calls, call)
+		return fmt.Errorf("attempting to fchdir with an invalid file descriptor %d", fd)
+	}
 	return sys.call(call)
 }

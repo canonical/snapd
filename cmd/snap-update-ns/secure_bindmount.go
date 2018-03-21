@@ -28,9 +28,12 @@ import (
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
-// openNoFollow creates a path file descriptor for the given
-// directory, making sure no components are symbolic links
-func openNoFollow(path string) (int, error) {
+// secureOpenPath creates a path file descriptor for the given
+// directory, making sure no components are symbolic links.
+//
+// The file descriptor is opened using the O_PATH, O_NOFOLLOW,
+// O_DIRECTORY, and O_CLOEXEC flags.
+func secureOpenPath(path string) (int, error) {
 	if !filepath.IsAbs(path) {
 		return -1, fmt.Errorf("path %v is not absolute", path)
 	}
@@ -42,21 +45,27 @@ func openNoFollow(path string) (int, error) {
 	//  O_PATH: we don't intend to use the fd for IO
 	//  O_NOFOLLOW: don't follow symlinks
 	//  O_DIRECTORY: we expect to find directories
-	flags := sys.O_PATH | syscall.O_NOFOLLOW | syscall.O_DIRECTORY
-	parentFd, err := sysOpen("/", flags, 0)
+	//  O_CLOEXEC: don't leak file descriptors over exec() boundaries
+	const openFlags = sys.O_PATH | syscall.O_NOFOLLOW | syscall.O_DIRECTORY | syscall.O_CLOEXEC
+	var fd int
+	fd, err = sysOpen("/", openFlags, 0)
 	if err != nil {
 		return -1, err
 	}
-	for _, segment := range segments {
-		fd, err := sysOpenat(parentFd, segment, flags, 0)
+	if len(segments) > 1 {
+		defer sysClose(fd)
+	}
+	for i, segment := range segments {
+		fd, err = sysOpenat(fd, segment, openFlags, 0)
 		if err != nil {
-			sysClose(parentFd)
 			return -1, err
 		}
-		sysClose(parentFd)
-		parentFd = fd
+		// Keep the final FD open (caller needs to close it).
+		if i < len(segments)-1 {
+			defer sysClose(fd)
+		}
 	}
-	return parentFd, nil
+	return fd, nil
 }
 
 // SecureBindMount performs a bind mount between two absolute paths
@@ -73,22 +82,19 @@ func SecureBindMount(sourceDir, targetDir string, flags uint, stashDir string) e
 	// Step 1: acquire file descriptors representing the source
 	// and destination directories, ensuring no symlinks are
 	// followed.
-	sourceFd, err := openNoFollow(sourceDir)
+	sourceFd, err := secureOpenPath(sourceDir)
 	if err != nil {
 		return err
 	}
 	defer sysClose(sourceFd)
-	targetFd, err := openNoFollow(targetDir)
+	targetFd, err := secureOpenPath(targetDir)
 	if err != nil {
 		return err
 	}
 	defer sysClose(targetFd)
 
 	// Step 2: chdir to the source, and bind mount "." to the stash dir
-	bindFlags := syscall.MS_BIND
-	if flags&syscall.MS_REC != 0 {
-		bindFlags |= syscall.MS_REC
-	}
+	bindFlags := syscall.MS_BIND | (flags&syscall.MS_REC)
 	if err := sysFchdir(sourceFd); err != nil {
 		return err
 	}
