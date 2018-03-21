@@ -6,6 +6,10 @@ summary: Ensure that the ubuntu-core -> core transition works with auth.json
 # fishy going on and the snapd service gets terminated during the process.
 systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*]
 
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
+
 warn-timeout: 1m
 kill-timeout: 5m
 debug: |

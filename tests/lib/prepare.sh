@@ -10,6 +10,8 @@ set -eux
 . "$TESTSLIB/pkgdb.sh"
 # shellcheck source=tests/lib/boot.sh
 . "$TESTSLIB/boot.sh"
+# shellcheck source=tests/lib/spread-funcs.sh
+. "$TESTSLIB/spread-funcs.sh"
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -34,7 +36,7 @@ disable_refreshes() {
 
     echo "Minimize risk of hitting refresh schedule"
     snap set core refresh.schedule=00:00-23:59
-    snap refresh --time|MATCH "last: 2[0-9]{3}"
+    snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
 
     echo "Ensure jq is gone"
     snap remove jq
@@ -208,7 +210,7 @@ prepare_classic() {
             done
             # Copy all of the snaps back to the spool directory. From there we
             # will reuse them during subsequent `snap install` operations.
-            cp *.snap /var/lib/snapd/snaps/
+            cp -- *.snap /var/lib/snapd/snaps/
             set +x
         )
 
