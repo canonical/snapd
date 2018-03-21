@@ -20,7 +20,9 @@
 package apparmor
 
 import (
+	"bytes"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -80,19 +82,35 @@ func (spec *Specification) AddUpdateNS(snippet string) {
 }
 
 // AddSnapLayout adds apparmor snippets based on the layout of the snap.
+//
+// The per-snap snap-update-ns profiles are composed via a template and
+// snippets for the snap. The snippets may allow (depending on the snippet):
+// - mount profiles via the content interface
+// - creating missing mount point directories under $SNAP* (the 'tree'
+//   of permissions is needed for SecureMkDirAll that uses
+//   open(..., O_NOFOLLOW) and mkdirat() using the resulting file descriptor)
+// - creating a placeholder directory in /tmp/.snap/ in the per-snap mount
+//   namespace to support writable mimic which uses tmpfs and bind mount to
+//   poke holes in arbitrary read-only locations
+// - mounting/unmounting any part of $SNAP into placeholder directory
+// - mounting/unmounting tmpfs over the original $SNAP/** location
+// - mounting/unmounting from placeholder back to $SNAP/** (for reconstructing
+//   the data)
+// Importantly, the above mount operations are happening within the per-snap
+// mount namespace.
 func (spec *Specification) AddSnapLayout(si *snap.Info) {
 	if len(si.Layout) == 0 {
 		return
 	}
 
-	// walk the layout elements in deterministic order, by mount point name
+	// Walk the layout elements in deterministic order, by mount point name.
 	paths := make([]string, 0, len(si.Layout))
 	for path := range si.Layout {
 		paths = append(paths, path)
 	}
 	sort.Strings(paths)
 
-	// get tags describing all apps and hooks
+	// Get tags describing all apps and hooks.
 	tags := make([]string, 0, len(si.Apps)+len(si.Hooks))
 	for _, app := range si.Apps {
 		tags = append(tags, app.SecurityTag())
@@ -101,7 +119,7 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 		tags = append(tags, hook.SecurityTag())
 	}
 
-	// append layout snippets to all tags; the layout applies equally to the
+	// Append layout snippets to all tags; the layout applies equally to the
 	// entire snap as the entire snap uses one mount namespace.
 	if spec.snippets == nil {
 		spec.snippets = make(map[string][]string)
@@ -113,6 +131,137 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 		}
 		sort.Strings(spec.snippets[tag])
 	}
+	// Append update-ns snippets that allow constructing the layout.
+	for _, path := range paths {
+		var buf bytes.Buffer
+		l := si.Layout[path]
+		fmt.Fprintf(&buf, "  # Layout %s\n", l)
+		path := si.ExpandSnapVariables(l.Path)
+		switch {
+		case l.Bind != "":
+			bind := si.ExpandSnapVariables(l.Bind)
+			// Allow bind mounting the layout element.
+			fmt.Fprintf(&buf, "  mount options=(rbind, rw) %s/ -> %s/,\n", bind, path)
+			fmt.Fprintf(&buf, "  umount %s/,\n", path)
+			// Allow constructing writable mimic in both bind-mount source and mount point.
+			WritableProfile(&buf, path)
+			WritableProfile(&buf, bind)
+		case l.BindFile != "":
+			bindFile := si.ExpandSnapVariables(l.BindFile)
+			// Allow bind mounting the layout element.
+			fmt.Fprintf(&buf, "  mount options=(bind, rw) %s -> %s,\n", bindFile, path)
+			fmt.Fprintf(&buf, "  umount %s,\n", path)
+			// Allow constructing writable mimic in both bind-mount source and mount point.
+			WritableFileProfile(&buf, path)
+			WritableFileProfile(&buf, bindFile)
+		case l.Type == "tmpfs":
+			fmt.Fprintf(&buf, "  mount fstype=tmpfs tmpfs -> %s/,\n", path)
+			fmt.Fprintf(&buf, "  umount %s/,\n", path)
+			// Allow constructing writable mimic to mount point.
+			WritableProfile(&buf, path)
+		case l.Symlink != "":
+			// Allow constructing writable mimic to symlink parent directory.
+			fmt.Fprintf(&buf, "  %s rw,\n", path)
+			WritableProfile(&buf, path)
+		}
+		spec.AddUpdateNS(buf.String())
+	}
+}
+
+// isProbably writable returns true if the path is probably representing writable area.
+func isProbablyWritable(path string) bool {
+	return strings.HasPrefix(path, "/var/snap/") || strings.HasPrefix(path, "/home/") || strings.HasPrefix(path, "/root/")
+}
+
+// isProbablyPresent returns true if the path is probably already present.
+//
+// This is used as a simple hint to not inject writable path rules for things
+// that we don't expect to create as they are already present in the skeleton
+// file-system tree.
+func isProbablyPresent(path string) bool {
+	return path == "/" || path == "/snap" || path == "/var" || path == "/var/snap" || path == "/tmp" || path == "/usr" || path == "/etc"
+}
+
+// WritableFileProfile writes a profile for snap-update-ns for making given file writable.
+func WritableFileProfile(buf *bytes.Buffer, path string) {
+	if path == "/" {
+		return
+	}
+	if isProbablyWritable(path) {
+		fmt.Fprintf(buf, "  # Writable file %s\n", path)
+		fmt.Fprintf(buf, "  %s rw,\n", path)
+		for p := parent(path); !isProbablyPresent(p); p = parent(p) {
+			fmt.Fprintf(buf, "  %s/ rw,\n", p)
+		}
+	} else {
+		parentPath := parent(path)
+		fmt.Fprintf(buf, "  # Writable mimic %s\n", parentPath)
+		// Allow setting the read-only directory aside via a bind mount.
+		fmt.Fprintf(buf, "  mount options=(rbind, rw) %s/ -> /tmp/.snap%s/,\n", parentPath, parentPath)
+		// Allow mounting tmpfs over the read-only directory.
+		fmt.Fprintf(buf, "  mount fstype=tmpfs options=(rw) tmpfs -> %s/,\n", parentPath)
+		// Allow bind mounting things to reconstruct the now-writable parent directory.
+		fmt.Fprintf(buf, "  mount options=(rbind, rw) /tmp/.snap%s/** -> %s/**,\n", parentPath, parentPath)
+		fmt.Fprintf(buf, "  mount options=(bind, rw) /tmp/.snap%s/* -> %s/*,\n", parentPath, parentPath)
+		// Allow unmounting the temporary directory.
+		fmt.Fprintf(buf, "  umount /tmp/.snap%s/,\n", parentPath)
+		// Allow unmounting the destination directory as well as anything inside.
+		// This lets us perform the undo plan in case the writable mimic fails.
+		fmt.Fprintf(buf, "  umount %s{,/**},\n", parentPath)
+		// Allow creating directories on demand.
+		fmt.Fprintf(buf, "  %s/** rw,\n", parentPath)
+		for p := parentPath; !isProbablyPresent(p); p = parent(p) {
+			fmt.Fprintf(buf, "  %s/ rw,\n", p)
+		}
+		fmt.Fprintf(buf, "  /tmp/.snap%s/** rw,\n", parentPath)
+		for p := filepath.Join("/tmp/.snap/", parentPath); !isProbablyPresent(p); p = parent(p) {
+			fmt.Fprintf(buf, "  %s/ rw,\n", p)
+		}
+	}
+}
+
+// WritableProfile writes a profile for snap-update-ns for making given directory writable.
+func WritableProfile(buf *bytes.Buffer, path string) {
+	if path == "/" {
+		return
+	}
+	if isProbablyWritable(path) {
+		fmt.Fprintf(buf, "  # Writable directory %s\n", path)
+		for p := path; !isProbablyPresent(p); p = parent(p) {
+			fmt.Fprintf(buf, "  %s/ rw,\n", p)
+		}
+	} else {
+		parentPath := parent(path)
+		fmt.Fprintf(buf, "  # Writable mimic %s\n", parentPath)
+		// Allow setting the read-only directory aside via a bind mount.
+		fmt.Fprintf(buf, "  mount options=(rbind, rw) %s/ -> /tmp/.snap%s/,\n", parentPath, parentPath)
+		// Allow mounting tmpfs over the read-only directory.
+		fmt.Fprintf(buf, "  mount fstype=tmpfs options=(rw) tmpfs -> %s/,\n", parentPath)
+		// Allow bind mounting things to reconstruct the now-writable parent directory.
+		fmt.Fprintf(buf, "  mount options=(rbind, rw) /tmp/.snap%s/** -> %s/**,\n", parentPath, parentPath)
+		fmt.Fprintf(buf, "  mount options=(bind, rw) /tmp/.snap%s/* -> %s/*,\n", parentPath, parentPath)
+		// Allow unmounting the temporary directory.
+		fmt.Fprintf(buf, "  umount /tmp/.snap%s/,\n", parentPath)
+		// Allow unmounting the destination directory as well as anything inside.
+		// This lets us perform the undo plan in case the writable mimic fails.
+		fmt.Fprintf(buf, "  umount %s{,/**},\n", parentPath)
+		// Allow creating directories on demand.
+		fmt.Fprintf(buf, "  %s/** rw,\n", parentPath)
+		for p := parentPath; !isProbablyPresent(p); p = parent(p) {
+			fmt.Fprintf(buf, "  %s/ rw,\n", p)
+		}
+		fmt.Fprintf(buf, "  /tmp/.snap%s/** rw,\n", parentPath)
+		for p := filepath.Join("/tmp/.snap/", parentPath); !isProbablyPresent(p); p = parent(p) {
+			fmt.Fprintf(buf, "  %s/ rw,\n", p)
+		}
+	}
+}
+
+// parent returns the parent directory of a given path.
+func parent(path string) string {
+	result, _ := filepath.Split(path)
+	result = filepath.Clean(result)
+	return result
 }
 
 // Snippets returns a deep copy of all the added application snippets.
