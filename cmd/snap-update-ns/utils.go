@@ -396,7 +396,7 @@ func secureMksymlinkAll(name string, perm os.FileMode, uid sys.UserID, gid sys.G
 // be used with. Since the original directory is hidden the algorithm relies on
 // a temporary directory where the original is bind-mounted during the
 // progression of the algorithm.
-func planWritableMimic(dir string) ([]*Change, error) {
+func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 	// We need a place for "safe keeping" of what is present in the original
 	// directory as we are about to attach a tmpfs there, which will hide
 	// everything inside.
@@ -426,7 +426,10 @@ func planWritableMimic(dir string) ([]*Change, error) {
 	})
 	// Mount tmpfs over the original directory, hiding its contents.
 	changes = append(changes, &Change{
-		Action: Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: dir, Type: "tmpfs"},
+		Action: Mount, Entry: osutil.MountEntry{
+			Name: "tmpfs", Dir: dir, Type: "tmpfs",
+			Options: []string{"x-snapd.synthetic", fmt.Sprintf("x-snapd.needed-by=%s", neededBy)},
+		},
 	})
 	// Iterate over the items in the original directory (nothing is mounted _yet_).
 	entries, err := ioutilReadDir(dir)
@@ -445,18 +448,21 @@ func planWritableMimic(dir string) ([]*Change, error) {
 		switch {
 		case m.IsDir():
 			ch.Entry.Options = []string{"rbind"}
-			changes = append(changes, ch)
 		case m.IsRegular():
 			ch.Entry.Options = []string{"bind", "x-snapd.kind=file"}
-			changes = append(changes, ch)
 		case m&os.ModeSymlink != 0:
 			if target, err := osReadlink(filepath.Join(dir, fi.Name())); err == nil {
 				ch.Entry.Options = []string{"x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", target)}
-				changes = append(changes, ch)
+			} else {
+				continue
 			}
 		default:
 			logger.Noticef("skipping unsupported file %s", fi)
+			continue
 		}
+		ch.Entry.Options = append(ch.Entry.Options, "x-snapd.synthetic")
+		ch.Entry.Options = append(ch.Entry.Options, fmt.Sprintf("x-snapd.needed-by=%s", neededBy))
+		changes = append(changes, ch)
 	}
 	// Finally unbind the safe-keeping directory as we don't need it anymore.
 	changes = append(changes, &Change{
@@ -567,8 +573,8 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 	return undoChanges, nil
 }
 
-func createWritableMimic(dir string) ([]*Change, error) {
-	plan, err := planWritableMimic(dir)
+func createWritableMimic(dir, neededBy string) ([]*Change, error) {
+	plan, err := planWritableMimic(dir, neededBy)
 	if err != nil {
 		return nil, err
 	}

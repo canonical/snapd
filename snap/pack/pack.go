@@ -211,24 +211,36 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 	})
 }
 
-func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error) {
+// CheckSkeleton attempts to validate snap data in source directory
+func CheckSkeleton(sourceDir string) error {
+	_, err := loadAndValidate(sourceDir)
+	return err
+}
+
+func loadAndValidate(sourceDir string) (*snap.Info, error) {
 	// ensure we have valid content
 	yaml, err := ioutil.ReadFile(filepath.Join(sourceDir, "meta", "snap.yaml"))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	info, err := snap.InfoFromSnapYaml(yaml)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	err = snap.Validate(info)
-	if err != nil {
-		return "", err
+	if err := snap.Validate(info); err != nil {
+		return nil, err
 	}
 
-	err = snap.ValidateContainer(snapdir.New(sourceDir), info, logger.Noticef)
+	if err := snap.ValidateContainer(snapdir.New(sourceDir), info, logger.Noticef); err != nil {
+		return nil, err
+	}
+	return info, nil
+}
+
+func prepare(sourceDir, targetDir, buildDir string) (snapName string, err error) {
+	info, err := loadAndValidate(sourceDir)
 	if err != nil {
 		return "", err
 	}

@@ -1,5 +1,9 @@
 summary: Check that `snap run` runs
 
+# strace does not support _newselect on s390x
+# (https://github.com/strace/strace/issues/57)
+systems: [-*-s390x]
+
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local basic-run

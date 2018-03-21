@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"golang.org/x/net/context"
 
@@ -499,7 +500,11 @@ func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
 				if err != nil || dprovider == "" {
 					continue
 				}
-				out = append(out, dprovider)
+				// The default-provider is a name. However old
+				// documentation said it is "snapname:ifname",
+				// we deal with this gracefully by just
+				// stripping of the part after the ":"
+				out = append(out, strings.Split(dprovider, ":")[0])
 			}
 		}
 	}
