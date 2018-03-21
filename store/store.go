@@ -2259,7 +2259,7 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 					continue
 				}
 			} else {
-				if cur := curSnaps[res.SnapID]; cur != nil {
+				if cur := curSnaps[res.InstanceKey]; cur != nil {
 					refreshErrors[cur.Name] = translateInstallRefreshError("refresh", res.Error.Code, res.Error.Message)
 					continue
 				}
