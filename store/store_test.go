@@ -5400,19 +5400,22 @@ func (s *storeTestSuite) TestInstallRefresh(c *C) {
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
 			"tracking-channel": "beta",
 			"refreshed-date":   helloRefreshedDateStr,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":  "refresh",
-			"snap-id": helloWorldSnapID,
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
 		})
 
 		io.WriteString(w, `{
   "results": [{
      "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -5486,6 +5489,7 @@ func (s *storeTestSuite) TestInstallRefreshNoResults(c *C) {
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
 			"tracking-channel": "beta",
 			"refreshed-date":   helloRefreshedDateStr,
@@ -5547,7 +5551,9 @@ func (s *storeTestSuite) TestInstallRefreshRefreshedDateIsOptional(c *C) {
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
-			"snap-id":          helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+			"instance-key": helloWorldSnapID,
+
 			"revision":         float64(1),
 			"tracking-channel": "beta",
 		})
@@ -5598,20 +5604,23 @@ func (s *storeTestSuite) TestInstallRefreshSkipBlocked(c *C) {
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":  "refresh",
-			"snap-id": helloWorldSnapID,
-			"channel": "stable",
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+			"channel":      "stable",
 		})
 
 		io.WriteString(w, `{
   "results": [{
      "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -5682,20 +5691,23 @@ func (s *storeTestSuite) TestInstallRefreshSkipCurrent(c *C) {
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":  "refresh",
-			"snap-id": helloWorldSnapID,
-			"channel": "stable",
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+			"channel":      "stable",
 		})
 
 		io.WriteString(w, `{
   "results": [{
      "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -5770,6 +5782,7 @@ func (s *storeTestSuite) TestInstallRefreshRetryOnEOF(c *C) {
 		io.WriteString(w, `{
   "results": [{
      "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -5836,6 +5849,7 @@ func (s *storeTestSuite) TestInstallRefreshIgnoreValidation(c *C) {
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
 			"snap-id":           helloWorldSnapID,
+			"instance-key":      helloWorldSnapID,
 			"revision":          float64(1),
 			"tracking-channel":  "stable",
 			"refreshed-date":    helloRefreshedDateStr,
@@ -5844,6 +5858,7 @@ func (s *storeTestSuite) TestInstallRefreshIgnoreValidation(c *C) {
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
 			"action":            "refresh",
+			"instance-key":      helloWorldSnapID,
 			"snap-id":           helloWorldSnapID,
 			"channel":           "stable",
 			"ignore-validation": false,
@@ -5852,6 +5867,7 @@ func (s *storeTestSuite) TestInstallRefreshIgnoreValidation(c *C) {
 		io.WriteString(w, `{
   "results": [{
      "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -5921,19 +5937,22 @@ func (s *storeTestSuite) TestInstallFallbackChannelIsStable(c *C) {
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":  "refresh",
-			"snap-id": helloWorldSnapID,
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
 		})
 
 		io.WriteString(w, `{
   "results": [{
      "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -6010,19 +6029,22 @@ func (s *storeTestSuite) TestInstallRefreshNonDefaultsHeaders(c *C) {
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
 			"tracking-channel": "beta",
 			"refreshed-date":   helloRefreshedDateStr,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":  "refresh",
-			"snap-id": helloWorldSnapID,
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
 		})
 
 		io.WriteString(w, `{
   "results": [{
      "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -6100,19 +6122,22 @@ func (s *storeTestSuite) TestInstallRefreshWithDeltas(c *C) {
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
 			"tracking-channel": "beta",
 			"refreshed-date":   helloRefreshedDateStr,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":  "refresh",
-			"snap-id": helloWorldSnapID,
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
 		})
 
 		io.WriteString(w, `{
   "results": [{
      "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -6181,20 +6206,23 @@ func (s *storeTestSuite) TestInstallRefreshOptions(c *C) {
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
 			"revision":         float64(1),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":  "refresh",
-			"snap-id": helloWorldSnapID,
-			"channel": "stable",
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+			"channel":      "stable",
 		})
 
 		io.WriteString(w, `{
   "results": [{
      "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -6275,14 +6303,16 @@ func (s *storeTestSuite) TestInstallRefreshInstall(c *C) {
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"name":    "hello-world",
-			"channel": "beta",
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "hello-world",
+			"channel":      "beta",
 		})
 
 		io.WriteString(w, `{
   "results": [{
      "result": "install",
+     "instance-key": "install-1",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "effective-channel": "candidate",
@@ -6363,14 +6393,16 @@ func (s *storeTestSuite) TestInstallRefreshInstallWithRevision(c *C) {
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":   "install",
-			"name":     "hello-world",
-			"revision": float64(28),
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "hello-world",
+			"revision":     float64(28),
 		})
 
 		io.WriteString(w, `{
   "results": [{
      "result": "install",
+     "instance-key": "install-1",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "snap": {
@@ -6437,25 +6469,29 @@ func (s *storeTestSuite) TestInstallRefreshRevisionNotAvailable(c *C) {
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 		})
 		c.Assert(req.Actions, HasLen, 2)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":  "refresh",
-			"snap-id": helloWorldSnapID,
-			"channel": "stable",
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+			"channel":      "stable",
 		})
 		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"name":    "foo",
-			"channel": "stable",
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "foo",
+			"channel":      "stable",
 		})
 
 		io.WriteString(w, `{
   "results": [{
      "result": "error",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "name": "hello-world",
      "error": {
@@ -6464,6 +6500,7 @@ func (s *storeTestSuite) TestInstallRefreshRevisionNotAvailable(c *C) {
      }
   }, {
      "result": "error",
+     "instance-key": "install-1",
      "snap-id": "foo-id",
      "name": "foo",
      "error": {
@@ -6537,25 +6574,29 @@ func (s *storeTestSuite) TestInstallRefreshSnapNotFound(c *C) {
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
 			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
 			"revision":         float64(26),
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 		})
 		c.Assert(req.Actions, HasLen, 2)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":  "refresh",
-			"snap-id": helloWorldSnapID,
-			"channel": "stable",
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+			"channel":      "stable",
 		})
 		c.Assert(req.Actions[1], DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"name":    "foo",
-			"channel": "stable",
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "foo",
+			"channel":      "stable",
 		})
 
 		io.WriteString(w, `{
   "results": [{
      "result": "error",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
      "error": {
        "code": "id-not-found",
@@ -6563,6 +6604,7 @@ func (s *storeTestSuite) TestInstallRefreshSnapNotFound(c *C) {
      }
   }, {
      "result": "error",
+     "instance-key": "install-1",
      "name": "foo",
      "error": {
        "code": "name-not-found",
@@ -6635,9 +6677,10 @@ func (s *storeTestSuite) TestInstallRefreshOtherErrors(c *C) {
 		c.Assert(req.Context, HasLen, 0)
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":  "install",
-			"name":    "foo",
-			"channel": "stable",
+			"action":       "install",
+			"instance-key": "install-1",
+			"name":         "foo",
+			"channel":      "stable",
 		})
 
 		io.WriteString(w, `{

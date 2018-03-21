@@ -2066,6 +2066,7 @@ type CurrentSnap struct {
 
 type contextSnapJSON struct {
 	SnapID           string     `json:"snap-id"`
+	InstanceKey      string     `json:"instance-key"`
 	Revision         int        `json:"revision"`
 	TrackingChannel  string     `json:"tracking-channel"`
 	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
@@ -2091,6 +2092,7 @@ type InstallRefreshAction struct {
 
 type installRefreshActionJSON struct {
 	Action           string      `json:"action"`
+	InstanceKey      string      `json:"instance-key"`
 	Name             string      `json:"name,omitempty"`
 	SnapID           string      `json:"snap-id,omitempty"`
 	Channel          string      `json:"channel,omitempty"`
@@ -2101,10 +2103,11 @@ type installRefreshActionJSON struct {
 
 type installRefreshResult struct {
 	Result           string    `json:"result"`
-	SnapID           string    `json:"snap-id,omitempty"`
+	InstanceKey      string    `json:"instance-key"`
+	SnapID           string    `json:"snap-id,omitempy"`
 	Name             string    `json:"name,omitempty"`
 	Snap             storeSnap `json:"snap"`
-	EffectiveChannel string    `json:"effective-channel"`
+	EffectiveChannel string    `json:"effective-channel,omitempty"`
 	Error            struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
@@ -2142,6 +2145,10 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 		return nil, &InstallRefreshError{NoResults: true}
 	}
 
+	// TODO: the store already requires instance-key but doesn't
+	// yet support repeating in context or sending actions for the
+	// same snap-id, for now we keep instance-key handling internal
+
 	curSnaps := make(map[string]*CurrentSnap, len(installedCtxt))
 	ctxtSnapJSONs := make([]*contextSnapJSON, len(installedCtxt))
 	for i, curSnap := range installedCtxt {
@@ -2159,6 +2166,7 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 		}
 		ctxtSnapJSONs[i] = &contextSnapJSON{
 			SnapID:           curSnap.SnapID,
+			InstanceKey:      curSnap.SnapID,
 			Revision:         curSnap.Revision.N,
 			TrackingChannel:  channel,
 			IgnoreValidation: curSnap.IgnoreValidation,
@@ -2166,6 +2174,8 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 		}
 	}
 
+	installNum := 0
+	installKeys := make(map[string]bool, len(actions))
 	actionJSONs := make([]*installRefreshActionJSON, len(actions))
 	for i, a := range actions {
 		var ignoreValidation *bool
@@ -2177,8 +2187,16 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 			ignoreValidation = &f
 		}
 
+		instanceKey := a.SnapID
+		if a.Action == "install" {
+			installNum++
+			instanceKey = fmt.Sprintf("install-%d", installNum)
+			installKeys[instanceKey] = true
+		}
+
 		aJSON := &installRefreshActionJSON{
 			Action:           a.Action,
+			InstanceKey:      instanceKey,
 			SnapID:           a.SnapID,
 			Name:             a.Name,
 			Channel:          a.Channel,
@@ -2235,13 +2253,16 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 	var snaps []*snap.Info
 	for _, res := range results.Results {
 		if res.Result == "error" {
-			if cur := curSnaps[res.SnapID]; cur != nil {
-				refreshErrors[cur.Name] = translateInstallRefreshError("refresh", res.Error.Code, res.Error.Message)
-				continue
-			}
-			if res.Name != "" {
-				installErrors[res.Name] = translateInstallRefreshError("install", res.Error.Code, res.Error.Message)
-				continue
+			if installKeys[res.InstanceKey] {
+				if res.Name != "" {
+					installErrors[res.Name] = translateInstallRefreshError("install", res.Error.Code, res.Error.Message)
+					continue
+				}
+			} else {
+				if cur := curSnaps[res.SnapID]; cur != nil {
+					refreshErrors[cur.Name] = translateInstallRefreshError("refresh", res.Error.Code, res.Error.Message)
+					continue
+				}
 			}
 			otherErrors = append(otherErrors, translateInstallRefreshError("-", res.Error.Code, res.Error.Message))
 			continue
