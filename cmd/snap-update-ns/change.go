@@ -94,7 +94,7 @@ func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
 	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
 		// If the writing failed because the underlying file-system is read-only
 		// we can construct a writable mimic to fix that.
-		changes, err = createWritableMimic(err2.Path)
+		changes, err = createWritableMimic(err2.Path, path)
 		if err != nil {
 			err = fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
 		} else {
