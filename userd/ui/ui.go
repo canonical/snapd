@@ -56,7 +56,7 @@ var hasKDialogExecutable = func() bool {
 
 func MockHasZenityExecutable(f func() bool) func() {
 	oldHasZenityExecutable := hasZenityExecutable
-	hasZenityExecutable := f
+	hasZenityExecutable = f
 	return func() {
 		hasZenityExecutable = oldHasZenityExecutable
 	}
@@ -64,7 +64,7 @@ func MockHasZenityExecutable(f func() bool) func() {
 
 func MockHasKDialogExecutable(f func() bool) func() {
 	oldHasKDialogExecutable := hasKDialogExecutable
-	hasKDialogExecutable := f
+	hasKDialogExecutable = f
 	return func() {
 		hasKDialogExecutable = oldHasKDialogExecutable
 	}
