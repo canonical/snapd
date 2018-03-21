@@ -68,6 +68,15 @@ var mockClassicSnapInfo = &snap.Info{
 	Confinement: snap.ClassicConfinement,
 }
 
+func (s *HTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+}
+
+func (s *HTestSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
+
 func (ts *HTestSuite) TestBasic(c *C) {
 	env := basicEnv(mockSnapInfo)
 

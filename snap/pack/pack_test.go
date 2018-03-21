@@ -48,6 +48,7 @@ var _ = Suite(&packSuite{})
 
 func (s *packSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	// chdir into a tempdir
 	pwd, err := os.Getwd()
@@ -58,6 +59,10 @@ func (s *packSuite) SetUpTest(c *C) {
 
 	// use fake root
 	dirs.SetRootDir(c.MkDir())
+}
+
+func (s *packSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 }
 
 func makeExampleSnapSourceDir(c *C, snapYamlContent string) string {

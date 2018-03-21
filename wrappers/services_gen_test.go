@@ -29,11 +29,14 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/wrappers"
 )
 
-type servicesWrapperGenSuite struct{}
+type servicesWrapperGenSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&servicesWrapperGenSuite{})
 
@@ -92,6 +95,15 @@ Type=%s
 %s`
 	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, mountUnitPrefix, mountUnitPrefix, "forking", "\n[Install]\nWantedBy=multi-user.target\n")
 )
+
+func (s *servicesWrapperGenSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+}
+
+func (s *servicesWrapperGenSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFile(c *C) {
 	yamlText := `
