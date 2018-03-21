@@ -27,9 +27,12 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 type specSuite struct {
+	testutil.BaseTest
 	iface    *ifacetest.TestInterface
 	spec     *apparmor.Specification
 	plugInfo *snap.PlugInfo
@@ -83,9 +86,16 @@ var _ = Suite(&specSuite{
 })
 
 func (s *specSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
 	s.spec = &apparmor.Specification{}
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+}
+
+func (s *specSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 }
 
 // The spec.Specification can be used through the interfaces.Specification interface
