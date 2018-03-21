@@ -33,18 +33,12 @@ import (
 
 func (s *SnapSuite) TestInterfaceHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] interface [interface-OPTIONS] [<interface>]
+  snap.test interface [interface-OPTIONS] [<interface>]
 
 The interface command shows details of snap interfaces.
 
 If no interface name is provided, a list of interface names with at least
 one connection is shown, or a list of all interfaces if --all is provided.
-
-Application Options:
-      --version          Print the version and exit
-
-Help Options:
-  -h, --help             Show this help message
 
 [interface command options]
           --attrs        Show interface attributes

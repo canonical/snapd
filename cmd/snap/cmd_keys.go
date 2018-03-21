@@ -36,7 +36,10 @@ type cmdKeys struct {
 func init() {
 	cmd := addCommand("keys",
 		i18n.G("List cryptographic keys"),
-		i18n.G("List cryptographic keys that can be used for signing assertions."),
+		i18n.G(`
+The keys command lists cryptographic keys that can be used for signing
+assertions.
+`),
 		func() flags.Commander {
 			return &cmdKeys{}
 		}, map[string]string{"json": i18n.G("Output results in JSON format")}, nil)

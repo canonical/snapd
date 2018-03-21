@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -14,35 +13,12 @@ import (
 	"github.com/snapcore/snapd/strutil/quantity"
 )
 
-type timeOpts struct {
-	AbsTime bool `long:"absolute-times"`
-	RelTime bool `long:"relative-times"`
-}
-
-var timeDescs = mixinDescs{
-	"absolute-times": i18n.G("Always display absolute times (in YYYY-MM-DD HH:MM format)."),
-	"relative-times": i18n.G("Always display relative times. If neither absolute nor relative times are requested, relative times are used for up to 30 days, and then absolute times in YYYY-MM-DD format."),
-}
-
 func fmtSize(size int64) string {
 	return quantity.FormatAmount(uint64(size), -1)
 }
 
-func (opt timeOpts) fmtTime(t time.Time) string {
-	if opt.AbsTime && !opt.RelTime {
-		return t.Round(time.Minute).Format("2006-01-02 15:04")
-	}
-	ago := time.Since(t)
-	if (opt.RelTime && !opt.AbsTime) || ago < 30*24*time.Hour {
-		// TRANSLATORS: %s is a (separately translated) compact representation of a duration (e.g. 1h30m)
-		return fmt.Sprintf(i18n.G("%s ago"), quantity.FormatDuration(ago.Seconds()))
-	}
-
-	return t.Round(24 * time.Hour).Format("2006-01-02")
-}
-
 type savedCmd struct {
-	timeOpts
+	timeMixin
 	Wide       bool       `long:"wide"`
 	ID         snapshotID `long:"id"`
 	Positional struct {
@@ -105,7 +81,7 @@ func (x *savedCmd) Execute([]string) error {
 
 type saveCmd struct {
 	waitMixin
-	timeOpts
+	timeMixin
 	Homes      []string `long:"homes"`
 	Positional struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
@@ -134,8 +110,8 @@ func (x *saveCmd) Execute([]string) error {
 	var shID snapshotID
 	chg.Get("snapshot-id", &shID)
 	y := &savedCmd{
-		timeOpts: x.timeOpts,
-		ID:       shID,
+		timeMixin: x.timeMixin,
+		ID:        shID,
 	}
 	y.Positional.Snaps = x.Positional.Snaps
 	return y.Execute(nil)

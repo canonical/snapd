@@ -21,6 +21,7 @@ package configcore
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/timeutil"
@@ -36,6 +37,16 @@ func validateRefreshSchedule(tr Conf) error {
 		// refresh.timer is not set
 		if _, err = timeutil.ParseSchedule(refreshTimerStr); err != nil {
 			return err
+		}
+	}
+
+	refreshHoldStr, err := coreCfg(tr, "refresh.hold")
+	if err != nil {
+		return err
+	}
+	if refreshHoldStr != "" {
+		if _, err := time.Parse(time.RFC3339, refreshHoldStr); err != nil {
+			return fmt.Errorf("refresh.hold cannot be parsed: %v", err)
 		}
 	}
 

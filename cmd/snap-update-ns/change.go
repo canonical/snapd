@@ -27,8 +27,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
@@ -46,7 +46,7 @@ const (
 
 // Change describes a change to the mount table (action and the entry to act on).
 type Change struct {
-	Entry  mount.Entry
+	Entry  osutil.MountEntry
 	Action Action
 }
 
@@ -88,13 +88,13 @@ func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
 		if target == "" {
 			err = fmt.Errorf("cannot create symlink with empty target")
 		} else {
-			err = secureMklinkAll(path, mode, uid, gid, target)
+			err = secureMksymlinkAll(path, mode, uid, gid, target)
 		}
 	}
 	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
 		// If the writing failed because the underlying file-system is read-only
 		// we can construct a writable mimic to fix that.
-		changes, err = createWritableMimic(err2.Path)
+		changes, err = createWritableMimic(err2.Path, path)
 		if err != nil {
 			err = fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
 		} else {
@@ -102,6 +102,8 @@ func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
 			// performed the hole poking and thus additional changes must be nil.
 			_, err = c.createPath(path, false)
 		}
+	} else if err != nil {
+		err = fmt.Errorf("cannot create path %q: %s", path, err)
 	}
 	return changes, err
 }
@@ -126,22 +128,22 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 		switch kind {
 		case "":
 			if !fi.Mode().IsDir() {
-				err = fmt.Errorf("cannot use %q for mounting: not a directory", path)
+				err = fmt.Errorf("cannot use %q as mount point: not a directory", path)
 			}
 		case "file":
 			if !fi.Mode().IsRegular() {
-				err = fmt.Errorf("cannot use %q for mounting: not a regular file", path)
+				err = fmt.Errorf("cannot use %q as mount point: not a regular file", path)
 			}
 		case "symlink":
-			// When we want to create a symlink we just need the empty
-			// space so anything that is in the way is a problem.
-			err = fmt.Errorf("cannot create symlink in %q: existing file in the way", path)
+			if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
+				// Create path verifies the symlink or fails if it is not what we wanted.
+				_, err = c.createPath(path, false)
+			} else {
+				err = fmt.Errorf("cannot create symlink in %q: existing file in the way", path)
+			}
 		}
 	} else if os.IsNotExist(err) {
 		changes, err = c.createPath(path, true)
-		if err != nil {
-			err = fmt.Errorf("cannot create path %q: %s", path, err)
-		}
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
@@ -152,7 +154,7 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 func (c *Change) ensureSource() error {
 	// We only have to do ensure bind mount source exists.
 	// This also rules out symlinks.
-	flags, _ := mount.OptsToCommonFlags(c.Entry.Options)
+	flags, _ := osutil.MountOptsToCommonFlags(c.Entry.Options)
 	if flags&syscall.MS_BIND == 0 {
 		return nil
 	}
@@ -168,18 +170,15 @@ func (c *Change) ensureSource() error {
 		switch kind {
 		case "":
 			if !fi.Mode().IsDir() {
-				err = fmt.Errorf("cannot use %q for mounting: not a directory", path)
+				err = fmt.Errorf("cannot use %q as bind-mount source: not a directory", path)
 			}
 		case "file":
 			if !fi.Mode().IsRegular() {
-				err = fmt.Errorf("cannot use %q for mounting: not a regular file", path)
+				err = fmt.Errorf("cannot use %q as bind-mount source: not a regular file", path)
 			}
 		}
 	} else if os.IsNotExist(err) {
 		_, err = c.createPath(path, false)
-		if err != nil {
-			err = fmt.Errorf("cannot create path %q: %s", path, err)
-		}
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
@@ -244,7 +243,7 @@ func (c *Change) lowLevelPerform() error {
 		case "symlink":
 			// symlinks are handled in createInode directly, nothing to do here.
 		case "", "file":
-			flags, unparsed := mount.OptsToCommonFlags(c.Entry.Options)
+			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
 			err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
 			logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
 		}
@@ -256,7 +255,11 @@ func (c *Change) lowLevelPerform() error {
 			err = osRemove(c.Entry.Dir)
 			logger.Debugf("remove %q (error: %v)", c.Entry.Dir, err)
 		case "", "file":
-			err = sysUnmount(c.Entry.Dir, umountNoFollow)
+			flags := umountNoFollow
+			if c.Entry.OptBool("x-snapd.detach") {
+				flags |= syscall.MNT_DETACH
+			}
+			err = sysUnmount(c.Entry.Dir, flags)
 			logger.Debugf("umount %q (error: %v)", c.Entry.Dir, err)
 		}
 		return err
@@ -272,11 +275,11 @@ func (c *Change) lowLevelPerform() error {
 // lists are processed and a "diff" of mount changes is produced. The mount
 // changes, when applied in order, transform the current profile into the
 // desired profile.
-func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
+func NeededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
 	// Copy both profiles as we will want to mutate them.
-	current := make([]mount.Entry, len(currentProfile.Entries))
+	current := make([]osutil.MountEntry, len(currentProfile.Entries))
 	copy(current, currentProfile.Entries)
-	desired := make([]mount.Entry, len(desiredProfile.Entries))
+	desired := make([]osutil.MountEntry, len(desiredProfile.Entries))
 	copy(desired, desiredProfile.Entries)
 
 	// Clean the directory part of both profiles. This is done so that we can
@@ -294,7 +297,7 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 	sort.Sort(byMagicDir(desired))
 
 	// Construct a desired directory map.
-	desiredMap := make(map[string]*mount.Entry)
+	desiredMap := make(map[string]*osutil.MountEntry)
 	for i := range desired {
 		desiredMap[desired[i].Dir] = &desired[i]
 	}
@@ -308,7 +311,7 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 	// Collect the IDs of desired changes.
 	// We need that below to keep implicit changes from the current profile.
 	for i := range desired {
-		desiredIDs[XSnapdEntryID(&desired[i])] = true
+		desiredIDs[desired[i].XSnapdEntryID()] = true
 	}
 
 	// Compute reusable entries: those which are equal in current and desired and which
@@ -337,7 +340,7 @@ func NeededChanges(currentProfile, desiredProfile *mount.Profile) []*Change {
 		// constructed using a temporary bind mount that contained the original
 		// mount entries of a directory that was hidden with a tmpfs, but this
 		// fact was lost.
-		if XSnapdSynthetic(&current[i]) && desiredIDs[XSnapdNeededBy(&current[i])] {
+		if current[i].XSnapdSynthetic() && desiredIDs[current[i].XSnapdNeededBy()] {
 			logger.Debugf("reusing synthetic entry %q", current[i])
 			reuse[dir] = true
 			continue

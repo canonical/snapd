@@ -68,6 +68,7 @@ var _ = Suite(&BoolFileInterfaceSuite{
 func (s *BoolFileInterfaceSuite) SetUpTest(c *C) {
 	plugSnapinfo := snaptest.MockInfo(c, `
 name: other
+version: 0
 plugs:
  plug: bool-file
 apps:
@@ -76,6 +77,7 @@ apps:
 `, nil)
 	info := snaptest.MockInfo(c, `
 name: ubuntu-core
+version: 0
 slots:
     gpio:
         interface: bool-file

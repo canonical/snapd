@@ -46,18 +46,21 @@ var _ = Suite(&AvahiObserveInterfaceSuite{
 })
 
 const avahiObserveConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [avahi-observe]
 `
 
 const avahiObserveProducerYaml = `name: producer
+version: 0
 apps:
  app:
   slots: [avahi-observe]
 `
 
 const avahiObserveCoreYaml = `name: core
+version: 0
 slots:
   avahi-observe:
 `

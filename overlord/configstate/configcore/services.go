@@ -35,9 +35,8 @@ func (l *sysdLogger) Notify(status string) {
 
 // swtichDisableService switches a service in/out of disabled state
 // where "true" means disabled and "false" means enabled.
-func switchDisableService(service, value string) error {
+func switchDisableService(serviceName, value string) error {
 	sysd := systemd.New(dirs.GlobalRootDir, &sysdLogger{})
-	serviceName := fmt.Sprintf("%s.service", service)
 
 	switch value {
 	case "true":
@@ -62,16 +61,18 @@ func switchDisableService(service, value string) error {
 }
 
 // services that can be disabled
-var services = []string{"ssh", "rsyslog"}
-
 func handleServiceDisableConfiguration(tr Conf) error {
+	var services = []struct{ configName, systemdName string }{
+		{"ssh", "sshd.service"},
+		{"rsyslog", "rsyslog.service"},
+	}
 	for _, service := range services {
-		output, err := coreCfg(tr, fmt.Sprintf("service.%s.disable", service))
+		output, err := coreCfg(tr, fmt.Sprintf("service.%s.disable", service.configName))
 		if err != nil {
 			return err
 		}
 		if output != "" {
-			if err := switchDisableService(service, output); err != nil {
+			if err := switchDisableService(service.systemdName, output); err != nil {
 				return err
 			}
 		}

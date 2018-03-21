@@ -30,17 +30,15 @@ import (
 
 func (s *SnapSuite) TestPreferHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] prefer [<snap>]
+  snap.test prefer [prefer-OPTIONS] [<snap>]
 
 The prefer command enables all aliases of the given snap in preference
 to conflicting aliases of other snaps whose aliases will be disabled
-(removed for manual ones).
+(or removed, for manual ones).
 
-Application Options:
-      --version     Print the version and exit
-
-Help Options:
-  -h, --help        Show this help message
+[prefer command options]
+          --no-wait  Do not wait for the operation to finish but just print the
+                     change id.
 `
 	rest, err := Parser().ParseArgs([]string{"prefer", "--help"})
 	c.Assert(err.Error(), Equals, msg)

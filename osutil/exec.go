@@ -36,6 +36,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/strutil"
 )
 
 func parseCoreLdSoConf(confPath string) []string {
@@ -140,12 +141,7 @@ func CommandFromCore(name string, cmdArgs ...string) (*exec.Cmd, error) {
 	return exec.Command(coreLdSo, allArgs...), nil
 }
 
-var (
-	syscallKill    = syscall.Kill
-	syscallGetpgid = syscall.Getpgid
-
-	cmdWaitTimeout = 5 * time.Second
-)
+var cmdWaitTimeout = 5 * time.Second
 
 // KillProcessGroup kills the process group associated with the given command.
 //
@@ -184,9 +180,9 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.
-	var buffer bytes.Buffer
-	command.Stdout = &buffer
-	command.Stderr = &buffer
+	buffer := strutil.NewLimitedBuffer(100, 10*1024)
+	command.Stdout = buffer
+	command.Stderr = buffer
 
 	// Actually run the command.
 	if err := command.Start(); err != nil {
@@ -233,7 +229,7 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 		// cmd.Wait came back from waiting the killed process
 		break
 	}
-	fmt.Fprintf(&buffer, "\n<%s>", abortOrTimeoutError)
+	fmt.Fprintf(buffer, "\n<%s>", abortOrTimeoutError)
 
 	return buffer.Bytes(), abortOrTimeoutError
 }
