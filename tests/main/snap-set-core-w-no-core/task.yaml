@@ -13,4 +13,4 @@ execute: |
     distro_install_build_snapd
 
     echo "Check that we can set core config nevertheless"
-    snap set core core.system.power-key-action="ignore"
+    snap set core system.power-key-action="ignore"
