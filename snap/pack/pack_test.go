@@ -123,6 +123,18 @@ apps:
 	c.Assert(err, Equals, snap.ErrMissingPaths)
 }
 
+func (s *packSuite) TestValidateMissingAppFailsWithErrMissingPaths(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+apps:
+ foo:
+  command: bin/hello-world
+`)
+	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
+	err := pack.CheckSkeleton(sourceDir)
+	c.Assert(err, Equals, snap.ErrMissingPaths)
+}
+
 func (s *packSuite) TestCopyCopies(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, "{name: hello, version: 0}")
 	// actually this'll be on /tmp so it'll be a link
