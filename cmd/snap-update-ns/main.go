@@ -125,6 +125,10 @@ func run() error {
 }
 
 func computeAndSaveChanges(snapName string) error {
+	// Allow creating directories related to this snap name.
+	// This allows /snap/foo without allowing /snap/bin, for example.
+	allowedPaths = append(allowedPaths, fmt.Sprintf("/snap/%s/", snapName))
+
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.

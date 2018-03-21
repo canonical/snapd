@@ -716,6 +716,37 @@ func (s *utilsSuite) TestSecureMkdirAllInEtc(c *C) {
 	})
 }
 
+// We want to create a directory in /snap/foo/42/dir and want to know what happens.
+func (s *utilsSuite) TestSecureMkdirAllInSNAP(c *C) {
+	// Allow creating directories under /snap/ related to this snap ("foo").
+	// This matches what is done inside computeAndSaveChanges().
+	defer update.MockTrespassing([]string{"/snap/foo/"})()
+
+	s.sys.InsertFault(`mkdirat 3 "snap" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 4 "foo" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 5 "42" 0755`, syscall.EEXIST)
+
+	err := update.SecureMkdirAll("/snap/foo/42/dir", 0755, 0, 0)
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 3 "snap" 0755`,
+		`openat 3 "snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 4 "foo" 0755`,
+		`openat 4 "foo" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 5 "42" 0755`,
+		`openat 5 "42" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`close 5`,
+		`close 4`,
+		`close 3`,
+		`mkdirat 6 "dir" 0755`,
+		`openat 6 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`fchown 3 0 0`,
+		`close 3`,
+		`close 6`,
+	})
+}
+
 // We want to create a symlink in /etc which is a tmpfs so that is ok.
 func (s *utilsSuite) TestSecureMksymlinkAllInEtcAfterMimic(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SQUASHFS_MAGIC})

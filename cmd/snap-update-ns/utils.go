@@ -96,7 +96,7 @@ func (e *TrespassingError) MimicPath() string {
 //
 // Note that /snap is "not allowed" because it is handled by existing EROFS code.
 // and thus doesn't need any extra logic.
-var allowedPaths = []string{"/var/snap/", "/tmp/"}
+var allowedPaths = []string{"/var/snap/", "/tmp/", "/snap/$SNAP_NAME/$SNAP_REVISION/"}
 
 // MimicRequiredError describes errors that require construction of a writable mimic.
 type MimicRequiredError interface {
@@ -131,6 +131,10 @@ func checkTrespassing(fd int, segments []string, i int) error {
 	// always read only so we will fail on the write operation anyway.
 	// All other filesystems are not allowed and will return an error that
 	// triggers mimic construction.
+	//
+	// Note that some paths are always disallowed but this happens earlier
+	// at snap validation stage. This most notably includes /run, which is
+	// a tmpfs filesystem.
 	var fsData syscall.Statfs_t
 	if err := sysFstatfs(fd, &fsData); err != nil {
 		return fmt.Errorf("cannot fstatfs path segment %q: %s", segments[i], err)
