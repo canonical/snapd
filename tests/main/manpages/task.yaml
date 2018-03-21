@@ -1,12 +1,8 @@
 summary: the essential manual pages are installed by the native package
+
 # core systems don't ship man or manual pages
 systems: [-ubuntu-core-16-*]
-prepare: |
-    . "$TESTSLIB/pkgdb.sh"
-    distro_install_package man
-restore: |
-    . "$TESTSLIB/pkgdb.sh"
-    distro_purge_package man
+
 execute: |
     for manpage in snap snap-confine snap-discard-ns; do
         if ! LC_ALL=C man --what $manpage; then
