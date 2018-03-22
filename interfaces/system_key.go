@@ -55,7 +55,10 @@ type systemKey struct {
 	// IMPORTANT: when adding new inputs bump this version
 	Version string `json:"version"`
 
-	BuildID          string   `json:"build_id"`
+	BuildIDs struct {
+		HostSnapd     string `json:"host_snapd"`
+		CoreSnapSnapd string `json:"core_snap_snapd"`
+	} `json:"build_ids"`
 	AppArmorFeatures []string `json:"apparmor_features"`
 	NFSHome          bool     `json:"nfs_home"`
 	OverlayRoot      string   `json:"overlay_root"`
@@ -76,11 +79,18 @@ func generateSystemKey() *systemKey {
 
 	var sk systemKey
 	sk.Version = "1"
-	buildID, err := osutil.MyBuildID()
+
+	buildID, err := osutil.ReadBuildID(filepath.Join(dirs.DistroLibExecDir, "snapd"))
 	if err != nil {
 		buildID = ""
 	}
-	sk.BuildID = buildID
+	sk.BuildIDs.HostSnapd = buildID
+
+	buildID, err = osutil.ReadBuildID(filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd"))
+	if err != nil {
+		buildID = ""
+	}
+	sk.BuildIDs.CoreSnapSnapd = buildID
 
 	// Add apparmor-features (which is already sorted)
 	sk.AppArmorFeatures = release.AppArmorFeatures()
@@ -115,13 +125,7 @@ func generateSystemKey() *systemKey {
 
 // WriteSystemKey will write the current system-key to disk
 func WriteSystemKey() error {
-	sk := generateSystemKey()
-
-	// special case: unknown build-ids always trigger a rebuild
-	if sk.BuildID == "" {
-		return nil
-	}
-	sks, err := json.Marshal(sk)
+	sks, err := json.Marshal(generateSystemKey())
 	if err != nil {
 		panic(err)
 	}

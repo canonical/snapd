@@ -85,7 +85,7 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
 
 	overlayRoot, err := osutil.IsRootWritableOverlay()
 	c.Assert(err, IsNil)
-	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":"1","build_id":"%s","apparmor_features":%s,"nfs_home":%v,"overlay_root":%q,"seccomp_features":%s}`, s.buildID, apparmorFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
+	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":"1","build_ids":{"host_snapd":"","core_snap_snapd":""},"apparmor_features":%s,"nfs_home":%v,"overlay_root":%q,"seccomp_features":%s}`, apparmorFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {

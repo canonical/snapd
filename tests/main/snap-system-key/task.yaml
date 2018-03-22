@@ -16,7 +16,8 @@ execute: |
     }
 
     echo "Ensure a valid system-key file is on-disk"
-    cat /var/lib/snapd/system-key | MATCH '"build_id":"[0-9a-z]+"'
+    cat /var/lib/snapd/system-key | MATCH '"host_snapd":"[0-9a-z]+"'
+    cat /var/lib/snapd/system-key | MATCH '"core_snap_snapd":"[0-9a-z]+"'
     buf="$(stat /var/lib/snapd/system-key)"
     system_key_content="$(cat /var/lib/snapd/system-key)"
 
