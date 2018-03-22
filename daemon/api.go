@@ -248,7 +248,17 @@ var (
 		GET:    getAliases,
 		POST:   changeAliases,
 	}
+
+	buildID = "unknown"
 )
+
+func init() {
+	// cache the build-id on startup to ensure that changes in
+	// the underlying binary do not affect us
+	if bid, err := osutil.MyBuildID(); err == nil {
+		buildID = bid
+	}
+}
 
 func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse([]string{"TBD"}, nil)
@@ -296,6 +306,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"on-classic":     release.OnClassic,
 		"managed":        len(users) > 0,
 		"kernel-version": release.KernelVersion(),
+		"build-id":       buildID,
 		"locations": map[string]interface{}{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
