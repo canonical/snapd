@@ -91,9 +91,6 @@ prepare_project() {
 prepare_project_each() {
     do_phase prepare_project_each
 
-    # Clear the kernel ring buffer.
-    dmesg -c > /dev/null
-
     fixup_dev_random
 }
 
