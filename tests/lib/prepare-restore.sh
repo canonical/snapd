@@ -190,13 +190,6 @@ install_dependencies_from_published(){
 prepare_project() {
     do_phase prepare_project
 
-    # Check if running inside a container.
-    # The testsuite will not work in such an environment
-    if systemd-detect-virt -c; then
-        echo "Tests cannot run inside a container"
-        exit 1
-    fi
-
     # Set REUSE_PROJECT to reuse the previous prepare when also reusing the server.
     [ "$REUSE_PROJECT" != 1 ] || exit 0
     echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
