@@ -9,12 +9,11 @@ prepare: |
     snap set core experimental.layouts=true
     . $TESTSLIB/snaps.sh
     install_local test-snapd-layout
-restore: |
-    # XXX: Those are going to be handled automatically with writabe mimic over /etc
-    # For now this unbreaks master.
-    rm -f /etc/demo.conf
-    rm -f /etc/demo.cfg
-    rm -rf /etc/demo
+debug: |
+    ls -ld /etc || :
+    ls -ld /etc/demo || :
+    ls -ld /etc/demo.conf || :
+    ls -ld /etc/demo.cfg || :
 execute: |
     . $TESTSLIB/snaps.sh
     for i in $(seq 2); do
