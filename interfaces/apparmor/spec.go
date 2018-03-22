@@ -39,8 +39,8 @@ type Specification struct {
 	// for snap application and hook processes. The security tag encodes the identity
 	// of the application or hook.
 	snippets map[string][]string
-	// updateNS are indexed by snap name and describe parts of apparmor policy
-	// for snap-update-ns executing on behalf of a given snap.
+	// updateNS describe parts of apparmor policy for snap-update-ns executing
+	// on behalf of a given snap.
 	updateNS []string
 }
 
