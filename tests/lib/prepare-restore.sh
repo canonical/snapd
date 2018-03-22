@@ -20,6 +20,7 @@ do_phase() {
             # shellcheck disable=SC1090
             . "$module"
             if [ "$(type -t "on_$phase")" = "function" ]; then
+                echo "running phase $phase for module $module" >> /tmp/prepare-restore.log
                 "on_$phase"
             fi
         )
