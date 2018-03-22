@@ -99,6 +99,7 @@ static const char *nvidia_globs[] = {
 	"libnvidia-ml.so*",
 	"libnvidia-ptxjitcompiler.so*",
 	"libnvidia-tls.so*",
+	"tls/libnvidia-tls.so*",
 	"vdpau/libvdpau_nvidia.so*",
 };
 
