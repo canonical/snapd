@@ -33,18 +33,20 @@ on_prepare_project_each() {
             ;;
     esac
 
-    # Disable journal rate limiting. This lets us capture all the messages even
-    # if the burst rate is very high.
-    mkdir -p /etc/systemd/journald.conf.d/
-    cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
-    [Journal]
-    RateLimitIntervalSec=0
-    RateLimitBurst=0
+    if [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
+        # Disable journal rate limiting. This lets us capture all the messages even
+        # if the burst rate is very high.
+        mkdir -p /etc/systemd/journald.conf.d/
+        cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
+[Journal]
+RateLimitIntervalSec=0
+RateLimitBurst=0
 EOF
-    systemctl restart systemd-journald.service
+        systemctl restart systemd-journald.service
+    fi
 }
 
 on_restore_project() {
-    rm -rf /etc/systemd/journald.conf.d/no-rate-limit.conf
+    rm -rf /etc/systemd/journald.conf.d/no-rate-limit.conf || true
     rmdir /etc/systemd/journald.conf.d || true
 }
