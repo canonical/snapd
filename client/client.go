@@ -429,6 +429,7 @@ type SysInfo struct {
 
 	Refresh     RefreshInfo `json:"refresh,omitempty"`
 	Confinement string      `json:"confinement"`
+	BuildID     string      `json:"build-id"`
 }
 
 func (rsp *response) err() error {
