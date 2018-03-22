@@ -29,7 +29,7 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-var shortCreateUserHelp = i18n.G("Creates a local system user")
+var shortCreateUserHelp = i18n.G("Create a local system user")
 var longCreateUserHelp = i18n.G(`
 The create-user command creates a local system user with the username and SSH
 keys registered on the store account identified by the provided email address.

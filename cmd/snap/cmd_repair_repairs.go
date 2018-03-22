@@ -54,7 +54,7 @@ type cmdShowRepair struct {
 	} `positional-args:"yes"`
 }
 
-var shortRepairHelp = i18n.G("Shows specific repairs")
+var shortRepairHelp = i18n.G("Show specific repairs")
 var longRepairHelp = i18n.G(`
 The repair command shows the details about one or multiple repairs.
 `)

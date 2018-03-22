@@ -11,7 +11,10 @@ details: |
 prepare: |
     echo "Ensure an empty state so that installing test-snapd-content-plug"
     echo "will pull in test-snapd-content-slot *and* core"
-    systemctl stop snapd
+
+    . "$TESTSLIB/systemd.sh"
+
+    systemd_stop_units snapd.service
     rm -f /var/lib/snapd/state.json
     systemctl start snapd
 
