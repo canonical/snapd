@@ -4,7 +4,7 @@
 . "$TESTSLIB/quiet.sh"
 
 on_prepare_project() {
-    if ! id test >& /dev/null; then
+    if ! id test >/dev/null 2>&1; then
         quiet groupadd --gid 12345 test
         case "$SPREAD_SYSTEM" in
             ubuntu-*)
