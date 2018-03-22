@@ -62,9 +62,9 @@ func checkAuthorization(subject authSubject, actionId string, details map[string
 	return result.IsAuthorized, err
 }
 
-// CheckAuthorizationForPid queries polkit to determine whether a process is
+// CheckAuthorization queries polkit to determine whether a process is
 // authorized to perform an action.
-func CheckAuthorizationForPid(pid uint32, actionId string, details map[string]string, flags CheckFlags) (bool, error) {
+func CheckAuthorization(pid uint32, uid uint32, actionId string, details map[string]string, flags CheckFlags) (bool, error) {
 	subject := authSubject{
 		Kind:    "unix-process",
 		Details: make(map[string]dbus.Variant),
@@ -75,6 +75,7 @@ func CheckAuthorizationForPid(pid uint32, actionId string, details map[string]st
 		return false, err
 	}
 	subject.Details["start-time"] = dbus.MakeVariant(startTime)
+	subject.Details["uid"] = dbus.MakeVariant(uid)
 	return checkAuthorization(subject, actionId, details, flags)
 }
 
