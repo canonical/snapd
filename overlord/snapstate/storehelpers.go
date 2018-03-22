@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"sort"
 
+	"golang.org/x/net/context"
+
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -187,7 +189,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, channel string, re
 	return snap, err
 }
 
-func refreshCandidates(st *state.State, names []string, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
+func refreshCandidates(ctx context.Context, st *state.State, names []string, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
 	snapStates, err := All(st)
 	if err != nil {
 		return nil, nil, nil, err
@@ -285,7 +287,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState, fl
 		}
 
 		st.Unlock()
-		updatesForUser, err := theStore.ListRefresh(candidatesInfo, u, flags)
+		updatesForUser, err := theStore.ListRefresh(ctx, candidatesInfo, u, flags)
 		st.Lock()
 		if err != nil {
 			return nil, nil, nil, err

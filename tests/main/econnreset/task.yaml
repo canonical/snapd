@@ -5,6 +5,10 @@ restore: |
 
     rm -f test-snapd-huge_*
 
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
+
 execute: |
     echo "Downloading a large snap in the background"
     su -c "/usr/bin/env SNAPD_DEBUG=1 snap download --edge test-snapd-huge 2>snap-download.log" test &
