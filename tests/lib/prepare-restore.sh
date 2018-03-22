@@ -54,58 +54,30 @@ prepare_project() {
     do_phase prepare_project
 }
 
-prepare_project_each() {
-    do_phase prepare_project_each
-}
-
-prepare_suite() {
-    do_phase prepare_suite
-}
-
-prepare_suite_each() {
-    do_phase prepare_suite_each
-}
-
-restore_suite_each() {
-    do_phase restore_suite_each
-}
-
-restore_suite() {
-    do_phase restore_suite
-}
-
-restore_project_each() {
-    do_phase restore_project_each
-}
-
-restore_project() {
-    do_phase restore_project
-}
-
 case "$1" in
     --prepare-project)
-        prepare_project
+        do_phase prepare_project
         ;;
     --prepare-project-each)
-        prepare_project_each
+        do_phase prepare_project_each
         ;;
     --prepare-suite)
-        prepare_suite
+        do_phase prepare_suite
         ;;
     --prepare-suite-each)
-        prepare_suite_each
+        do_phase prepare_suite_each
         ;;
     --restore-suite-each)
-        restore_suite_each
+        do_phase restore_suite_each
         ;;
     --restore-suite)
-        restore_suite
+        do_phase restore_suite
         ;;
     --restore-project-each)
-        restore_project_each
+        do_phase restore_project_each
         ;;
     --restore-project)
-        restore_project
+        do_phase restore_project
         ;;
     *)
         echo "unsupported argument: $1"
