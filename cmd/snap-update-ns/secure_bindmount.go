@@ -27,8 +27,12 @@ import (
 // SecureBindMount performs a bind mount between two absolute paths
 // containing no symlinks, using a private stash directory as an
 // intermediate step
+//
+// Since this function uses chdir() internally, it should not be
+// called in parallel with code that depends on the current working
+// directory.
 func SecureBindMount(sourceDir, targetDir string, flags uint, stashDir string) error {
-	// Save source directory, since we use chdir internally
+	// Save current directory, since we use chdir internally
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -57,7 +61,7 @@ func SecureBindMount(sourceDir, targetDir string, flags uint, stashDir string) e
 	if err := sysMount(".", stashDir, "", uintptr(bindFlags), ""); err != nil {
 		return err
 	}
-	defer sysUnmount(stashDir, syscall.MNT_DETACH)
+	defer sysUnmount(stashDir, syscall.MNT_DETACH|umountNoFollow)
 
 	// Step 3: optionally change to readonly
 	if flags&syscall.MS_RDONLY != 0 {

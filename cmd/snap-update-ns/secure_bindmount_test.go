@@ -50,23 +50,23 @@ func (s *secureBindMountSuite) TestMount(c *C) {
 	err := update.SecureBindMount("/source/dir", "/target/dir", 0, "/stash")
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`fchdir 5`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 5
+		`close 4`, // "/source"
+		`close 3`, // "/"
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 6
+		`close 4`,  // "/target"
+		`close 3`,  // "/"
+		`fchdir 5`, // "/source/dir"
 		`mount "." "/stash" "" MS_BIND ""`,
-		`fchdir 6`,
+		`fchdir 6`, // "/target/dir"
 		`mount "/stash" "." "" MS_BIND ""`,
-		`unmount "/stash" MNT_DETACH`,
-		`close 6`,
-		`close 5`,
+		`unmount "/stash" UMOUNT_NOFOLLOW|MNT_DETACH`,
+		`close 6`, // "/target/dir"
+		`close 5`, // "/source/dir"
 	})
 }
 
@@ -74,23 +74,23 @@ func (s *secureBindMountSuite) TestMountRecursive(c *C) {
 	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_REC, "/stash")
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`fchdir 5`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 5
+		`close 4`, // "/source"
+		`close 3`, // "/"
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 6
+		`close 4`,  // "/target"
+		`close 3`,  // "/"
+		`fchdir 5`, // "/source/dir"
 		`mount "." "/stash" "" MS_BIND|MS_REC ""`,
-		`fchdir 6`,
+		`fchdir 6`, // "/target/dir"
 		`mount "/stash" "." "" MS_BIND|MS_REC ""`,
-		`unmount "/stash" MNT_DETACH`,
-		`close 6`,
-		`close 5`,
+		`unmount "/stash" UMOUNT_NOFOLLOW|MNT_DETACH`,
+		`close 6`, // "/target/dir"
+		`close 5`, // "/source/dir"
 	})
 }
 
@@ -98,24 +98,24 @@ func (s *secureBindMountSuite) TestMountReadOnly(c *C) {
 	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`fchdir 5`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 5
+		`close 4`, // "/source"
+		`close 3`, // "/"
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 6
+		`close 4`,  // "/target"
+		`close 3`,  // "/"
+		`fchdir 5`, // "/source/dir"
 		`mount "." "/stash" "" MS_BIND ""`,
 		`mount "none" "/stash" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`,
-		`fchdir 6`,
+		`fchdir 6`, // "/target/dir"
 		`mount "/stash" "." "" MS_BIND ""`,
-		`unmount "/stash" MNT_DETACH`,
-		`close 6`,
-		`close 5`,
+		`unmount "/stash" UMOUNT_NOFOLLOW|MNT_DETACH`,
+		`close 6`, // "/target/dir"
+		`close 5`, // "/source/dir"
 	})
 }
 
@@ -124,19 +124,19 @@ func (s *secureBindMountSuite) TestChdirSourceFails(c *C) {
 	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`fchdir 5`,
-		`close 6`,
-		`close 5`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 5
+		`close 4`, // "/source"
+		`close 3`, // "/"
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 6
+		`close 4`,  // "/target"
+		`close 3`,  // "/"
+		`fchdir 5`, // "/source/dir"
+		`close 6`,  // "/target/dir"
+		`close 5`,  // "/source/dir"
 	})
 }
 
@@ -145,20 +145,20 @@ func (s *secureBindMountSuite) TestBindMountSourceFails(c *C) {
 	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`fchdir 5`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 5
+		`close 4`, // "/source"
+		`close 3`, // "/"
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 6
+		`close 4`,  // "/target"
+		`close 3`,  // "/"
+		`fchdir 5`, // "/source/dir"
 		`mount "." "/stash" "" MS_BIND ""`,
-		`close 6`,
-		`close 5`,
+		`close 6`, // "/target/dir"
+		`close 5`, // "/source/dir"
 	})
 }
 
@@ -167,22 +167,22 @@ func (s *secureBindMountSuite) TestRemountStashFails(c *C) {
 	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`fchdir 5`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 5
+		`close 4`, // "/source"
+		`close 3`, // "/"
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 6
+		`close 4`,  // "/target"
+		`close 3`,  // "/"
+		`fchdir 5`, // "/source/dir"
 		`mount "." "/stash" "" MS_BIND ""`,
 		`mount "none" "/stash" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`,
-		`unmount "/stash" MNT_DETACH`,
-		`close 6`,
-		`close 5`,
+		`unmount "/stash" UMOUNT_NOFOLLOW|MNT_DETACH`,
+		`close 6`, // "/target/dir"
+		`close 5`, // "/source/dir"
 	})
 }
 
@@ -191,23 +191,23 @@ func (s *secureBindMountSuite) TestChdirTargetFails(c *C) {
 	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`fchdir 5`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 5
+		`close 4`, // "/source"
+		`close 3`, // "/"
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 6
+		`close 4`,  // "/target"
+		`close 3`,  // "/"
+		`fchdir 5`, // "/source/dir"
 		`mount "." "/stash" "" MS_BIND ""`,
 		`mount "none" "/stash" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`,
-		`fchdir 6`,
-		`unmount "/stash" MNT_DETACH`,
-		`close 6`,
-		`close 5`,
+		`fchdir 6`, // "/target/dir"
+		`unmount "/stash" UMOUNT_NOFOLLOW|MNT_DETACH`,
+		`close 6`, // "/target/dir"
+		`close 5`, // "/source/dir"
 	})
 }
 
@@ -216,23 +216,23 @@ func (s *secureBindMountSuite) TestBindMountTargetFails(c *C) {
 	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
-		`close 4`,
-		`close 3`,
-		`fchdir 5`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 5
+		`close 4`, // "/source"
+		`close 3`, // "/"
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,    // -> 6
+		`close 4`,  // "/target"
+		`close 3`,  // "/"
+		`fchdir 5`, // "/source/dir"
 		`mount "." "/stash" "" MS_BIND ""`,
 		`mount "none" "/stash" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`,
-		`fchdir 6`,
+		`fchdir 6`, // "/target/dir"
 		`mount "/stash" "." "" MS_BIND ""`,
-		`unmount "/stash" MNT_DETACH`,
-		`close 6`,
-		`close 5`,
+		`unmount "/stash" UMOUNT_NOFOLLOW|MNT_DETACH`,
+		`close 6`, // "/target/dir"
+		`close 5`, // "/source/dir"
 	})
 }
