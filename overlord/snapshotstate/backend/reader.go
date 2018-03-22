@@ -22,6 +22,7 @@ package backend
 import (
 	"bytes"
 	"crypto"
+	"errors"
 	"fmt"
 	"hash"
 	"io"
@@ -49,7 +50,14 @@ type Reader struct {
 	client.Snapshot
 }
 
-// Open a Snapshot given its full filename
+// Open a Snapshot given its full filename.
+//
+// If the returned error is nil, the caller must close the reader (or
+// its file) when done with it.
+//
+// If the returned error is non-nil, the returned Reader will be nil,
+// *or* have a non-empty Broken; in the latter case its file will be
+// closed.
 func Open(fn string) (rsh *Reader, e error) {
 	f, err := os.Open(fn)
 	if err != nil {
@@ -65,44 +73,52 @@ func Open(fn string) (rsh *Reader, e error) {
 		File: f,
 	}
 
-	// First, grab the metadata hash
+	// first try to load the metadata itself
 	var sz sizer
-	metaHashReader, metaHashSize, err := member(f, metaHashName)
-	if err != nil {
-		return nil, err
-	}
-	metaHashBuf, err := ioutil.ReadAll(io.TeeReader(metaHashReader, &sz))
-	if err != nil {
-		return nil, err
-	}
-	if sz.size != metaHashSize {
-		return nil, fmt.Errorf("declared hash size (%d) does not match actual (%d)", metaHashSize, sz.size)
-	}
-	metaHash := string(bytes.TrimSpace(metaHashBuf))
-
-	// Next, grab the metadata itself
-	sz.Reset()
-
 	hasher := crypto.SHA3_384.New()
 	metaReader, metaSize, err := member(f, metadataName)
 	if err != nil {
+		// no metadata file -> nothing to do :-(
 		return nil, err
 	}
 
 	if err := jsonutil.DecodeWithNumber(io.TeeReader(metaReader, io.MultiWriter(hasher, &sz)), &rsh.Snapshot); err != nil {
 		return nil, err
 	}
+
+	// OK, from here on we have a Snapshot
+
+	if rsh.IsValid() {
+		rsh.Broken = "invalid snapshot"
+		return rsh, errors.New(rsh.Broken)
+	}
+
 	if sz.size != metaSize {
-		return nil, fmt.Errorf("declared metadata size (%d) does not match actual (%d)", metaSize, sz.size)
+		rsh.Broken = fmt.Sprintf("declared metadata size (%d) does not match actual (%d)", metaSize, sz.size)
+		return rsh, errors.New(rsh.Broken)
 	}
 
 	actualMetaHash := fmt.Sprintf("%x", hasher.Sum(nil))
-	if actualMetaHash != metaHash {
-		return nil, fmt.Errorf("main hash mismatch")
-	}
 
-	if rsh.IsValid() {
-		return nil, fmt.Errorf("invalid snapshot")
+	// grab the metadata hash
+	sz.Reset()
+	metaHashReader, metaHashSize, err := member(f, metaHashName)
+	if err != nil {
+		rsh.Broken = err.Error()
+		return rsh, err
+	}
+	metaHashBuf, err := ioutil.ReadAll(io.TeeReader(metaHashReader, &sz))
+	if err != nil {
+		rsh.Broken = err.Error()
+		return rsh, err
+	}
+	if sz.size != metaHashSize {
+		rsh.Broken = fmt.Sprintf("declared hash size (%d) does not match actual (%d)", metaHashSize, sz.size)
+		return rsh, errors.New(rsh.Broken)
+	}
+	if actualMetaHash != string(bytes.TrimSpace(metaHashBuf)) {
+		rsh.Broken = "main hash mismatch"
+		return rsh, errors.New(rsh.Broken)
 	}
 
 	return rsh, nil
@@ -110,6 +126,9 @@ func Open(fn string) (rsh *Reader, e error) {
 
 // Filename that the Reader reads from.
 func (r *Reader) Filename() string {
+	if r.File != nil {
+		return r.File.Name()
+	}
 	return Filename(&r.Snapshot)
 }
 

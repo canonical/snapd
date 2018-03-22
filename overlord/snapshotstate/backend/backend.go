@@ -29,7 +29,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"time"
 
@@ -37,6 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -51,8 +51,14 @@ const (
 	userArchiveSuffix = ".tgz"
 )
 
-// Iter loops over all valid snapshots in the snapshots directory, applying
-// the given function to each. The snapshot will be closed after the function
+var (
+	dirOpen  = os.Open
+	dirNames = (*os.File).Readdirnames
+	open     = Open
+)
+
+// Iter loops over all snapshots in the snapshots directory, applying the
+// given function to each. The snapshot will be closed after the function
 // returns. If the function returns error, iteration is stopped (and if the
 // error isn't EOF, it's returned as the error of the iterator).
 func Iter(ctx context.Context, f func(*Reader) error) error {
@@ -60,30 +66,36 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 		return err
 	}
 
-	dir, err := os.Open(dirs.SnapshotDir)
-	if osutil.IsDirNotExist(err) {
-		// no dir -> no snapshots
-		return nil
+	dir, err := dirOpen(dirs.SnapshotDir)
+	if err != nil {
+		if osutil.IsDirNotExist(err) {
+			// no dir -> no snapshots
+			return nil
+		}
+		return fmt.Errorf("cannot open snapshots directory: %v", err)
 	}
+	defer dir.Close()
 
 	var names []string
 	for err == nil {
-		names, err = dir.Readdirnames(100)
+		names, err = dirNames(dir, 100)
 		for _, name := range names {
 			if err = ctx.Err(); err != nil {
 				break
 			}
 
-			var rsh *Reader
-			// wish dirs had Open() that did openat
-			rsh, err = Open(filepath.Join(dirs.SnapshotDir, name))
-			if err != nil {
-				err = nil
-				continue
+			filename := filepath.Join(dirs.SnapshotDir, name)
+			rsh, openError := open(filename)
+			if rsh != nil {
+				err = f(rsh)
+			} else {
+				// TODO: use warnings instead
+				logger.Noticef("cannot open snapshot %q: %v", name, openError)
 			}
-			err = f(rsh)
-			if closeError := rsh.Close(); err == nil {
-				err = closeError
+			if openError == nil {
+				if closeError := rsh.Close(); err == nil {
+					err = closeError
+				}
 			}
 			if err != nil {
 				break
@@ -123,23 +135,10 @@ func List(ctx context.Context, snapshotID uint64, snapNames []string) ([]client.
 	return sets, err
 }
 
-var isValidVersion = regexp.MustCompile("^[a-zA-Z0-9.+~-]{1,32}$").MatchString
-
 // Filename of the given client.Snapshot in this backend.
 func Filename(sh *client.Snapshot) string {
-	var basename string
-	if snap.ValidateName(sh.Snap) == nil {
-		if isValidVersion(sh.Version) {
-			basename = fmt.Sprintf("%s_%s_%d.zip", sh.Snap, sh.Version, sh.SetID)
-		} else {
-			// AFAIK snapcraft would fail these, but we're more generous
-			basename = fmt.Sprintf("%s_rev%s_%d.zip", sh.Snap, sh.Revision, sh.SetID)
-		}
-	} else {
-		// just give up
-		basename = fmt.Sprintf("%d.zip", sh.SetID)
-	}
-	return filepath.Join(dirs.SnapshotDir, basename)
+	// this _needs_ the snap name and version to be valid
+	return filepath.Join(dirs.SnapshotDir, fmt.Sprintf("%d_%s_%s.zip", sh.SetID, sh.Snap, sh.Version))
 }
 
 // Save a snapshot

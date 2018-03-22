@@ -43,7 +43,7 @@ type SnapshotAction struct {
 	ID     uint64   `json:"id"`
 	Action string   `json:"action"`
 	Snaps  []string `json:"snaps,omitempty"`
-	Users  []string `json:"snaps,omitempty"`
+	Users  []string `json:"users,omitempty"`
 }
 
 func (action *SnapshotAction) String() string {
@@ -64,25 +64,29 @@ func (action *SnapshotAction) String() string {
 type Snapshot struct {
 	// SetID is the ID of the snapshot set (a snapshot set is a "snap save" invocation)
 	SetID uint64 `json:"snapshot"`
-	// the snap this data is for
-	Snap string `json:"snap"`
-	// the snap's revision
-	Revision snap.Revision `json:"revision"`
-	// the snap's version
-	Version string `json:"version"`
 	// the time this snapshot's data collection was started
 	Time time.Time `json:"time"`
+
+	// information about the snap this data is for
+	Snap     string        `json:"snap"`
+	Revision snap.Revision `json:"revision"`
+	Epoch    snap.Epoch    `json:"epoch,omitempty"`
+	Summary  string        `json:"summary"`
+	Version  string        `json:"version"`
+
+	// the system's config
+	Config *json.RawMessage `json:"config,omitempty"`
 
 	// the hash of the archives' data, keyed by archive path
 	// (either 'archive.tgz' for the system archive, or
 	// user/<username>.tgz for each user)
 	SHA3_384 map[string]string `json:"sha3-384"`
-	// the system's config
-	Config *json.RawMessage `json:"config,omitempty"`
 	// the sum of the archive sizes
 	Size int64 `json:"size,omitempty"`
+	// if the snapshot failed to open this will be the reason why
+	Broken string `json:"broken,omitempty"`
 
-	// TBD: look int having snapd sign these
+	// TBD: look into having snapd sign these
 }
 
 // IsValid checks whether the snapshot is missing information that

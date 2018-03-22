@@ -20,6 +20,7 @@
 package backend
 
 import (
+	"os"
 	"os/user"
 )
 
@@ -36,5 +37,29 @@ func MockUserLookupId(newLookupId func(string) (*user.User, error)) func() {
 	userLookupId = newLookupId
 	return func() {
 		userLookupId = oldLookupId
+	}
+}
+
+func MockDirOpen(newDirOpen func(string) (*os.File, error)) func() {
+	oldDirOpen := dirOpen
+	dirOpen = newDirOpen
+	return func() {
+		dirOpen = oldDirOpen
+	}
+}
+
+func MockDirNames(newDirNames func(*os.File, int) ([]string, error)) func() {
+	oldDirNames := dirNames
+	dirNames = newDirNames
+	return func() {
+		dirNames = oldDirNames
+	}
+}
+
+func MockOpen(newOpen func(string) (*Reader, error)) func() {
+	oldOpen := open
+	open = newOpen
+	return func() {
+		open = oldOpen
 	}
 }

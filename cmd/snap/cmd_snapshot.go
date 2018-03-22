@@ -21,12 +21,10 @@ package main
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/strutil/quantity"
@@ -38,7 +36,6 @@ func fmtSize(size int64) string {
 
 type savedCmd struct {
 	timeMixin
-	Wide       bool       `long:"wide"`
 	ID         snapshotID `long:"id"`
 	Positional struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
@@ -51,70 +48,39 @@ The saved command lists the snapshots that have been created previously with
 the 'save' command.
 `)
 
-func wjoin(shots []*client.Snapshot, width int) string {
-	if len(shots) == 0 {
-		return ""
-	}
-	// we know snap names are all ascii, and … is 3 bytes
-	out := make([]byte, width+2)
-	w := 0
-	shots, last := shots[:len(shots)-1], shots[len(shots)-1]
-	for _, sh := range shots {
-		// if you can't put at least ", …" after this, stop now
-		if w+len(sh.Snap)+3 > width {
-			w += copy(out[w:], "…")
-			return string(out[:w])
-		}
-		w += copy(out[w:], sh.Snap)
-		w += copy(out[w:], ", ")
-	}
-	if w+len(last.Snap) > width {
-		w += copy(out[w:], "…")
-		return string(out[:w])
-	}
-	w += copy(out[w:], last.Snap)
-	return string(out[:w])
-}
-
-func (x *savedCmd) tabline(sg *client.SnapshotSet, extraWidth int) string {
-	if len(sg.Snapshots) == 0 {
-		return fmt.Sprintf("%d\t-\t-\t-", sg.ID)
-	}
-	mint := sg.Time()
-	sz := sg.Size()
-
-	width := 1000
-	if !x.Wide {
-		width, _ = termSize()
-		// size (5) + gutters (3+2+2; why is the first gutter 3?)
-		width -= 12 + extraWidth
-	}
-	return fmt.Sprintf("%d\t%s\t%s\t%s", sg.ID, x.fmtTime(mint), wjoin(sg.Snapshots, width), fmtSize(sz))
-}
-
 func (x *savedCmd) Execute([]string) error {
 	list, err := Client().Snapshots(uint64(x.ID), installedSnapNames(x.Positional.Snaps))
 	if err != nil {
 		return err
 	}
 	if len(list) == 0 {
-		fmt.Fprintln(Stdout, "No snapshots found.")
+		fmt.Fprintln(Stdout, i18n.G("No snapshots found."))
 		return nil
 	}
 	w := tabWriter()
 	defer w.Flush()
 
-	// TRANSLATORS: 'Set' as in group or bag of things
-	fmt.Fprintln(w, "Set\tDate\tSnaps\tSize")
-	// the list is ordered by id
-	minTimeWidth := len(x.fmtTime(list[0].Time()))
-	maxIDwidth := len(strconv.FormatUint(list[len(list)-1].ID, 10))
-	extraWidth := maxIDwidth + minTimeWidth
-
+	fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		// TRANSLATORS: 'Set' as in group or bag of things
+		i18n.G("Set"),
+		"Snap",
+		i18n.G("Time"), // TODO: make this 'Age', use shorter format
+		i18n.G("Version"),
+		// TRANSLATORS: 'Rev' is an abbreviation of 'Revision'
+		i18n.G("Rev"),
+		i18n.G("Size"),
+		// TRANSLATORS: 'Notes' as in 'Comments'
+		i18n.G("Notes"))
 	for _, sg := range list {
-		fmt.Fprintln(w, x.tabline(&sg, extraWidth))
+		for _, sh := range sg.Snapshots {
+			note := "-"
+			if sh.Broken != "" {
+				note = "broken: " + sh.Broken
+			}
+			size := quantity.FormatAmount(uint64(sh.Size), -1) + "B"
+			fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\n", sg.ID, sh.Snap, x.fmtTime(sh.Time), sh.Version, sh.Revision, size, note)
+		}
 	}
-
 	return nil
 }
 
@@ -204,7 +170,7 @@ type checkSnapshotCmd struct {
 
 var shortCheckHelp = i18n.G("Check a snapshot")
 var longCheckHelp = i18n.G(`
-The check command checks a snapshot against its hashsums.
+The check-snapshot command checks a snapshot against its hashsums.
 `)
 
 func (x *checkSnapshotCmd) Execute([]string) error {
@@ -283,8 +249,7 @@ func init() {
 			return &savedCmd{}
 		},
 		timeDescs.also(map[string]string{
-			"wide": i18n.G("Ignore terminal width and print all available information"),
-			"id":   i18n.G("Only list this snapshot."),
+			"id": i18n.G("Only list this snapshot."),
 		}),
 		nil)
 

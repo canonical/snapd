@@ -21,6 +21,7 @@ package backend_test
 
 import (
 	"encoding/json"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -119,7 +120,152 @@ func hashkeys(sh *client.Snapshot) (keys []string) {
 	return keys
 }
 
-func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
+func (s *snapshotSuite) TestIterBailsIfContextDone(c *check.C) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	triedToOpenDir := false
+	defer backend.MockDirOpen(func(string) (*os.File, error) {
+		triedToOpenDir = true
+		return nil, nil // deal with it
+	})()
+
+	err := backend.Iter(ctx, nil)
+	c.Check(err, check.Equals, context.Canceled)
+	c.Check(triedToOpenDir, check.Equals, false)
+}
+
+func (s *snapshotSuite) TestIterBailsIfContextDoneMidway(c *check.C) {
+	ctx, cancel := context.WithCancel(context.Background())
+	triedToOpenDir := false
+	defer backend.MockDirOpen(func(string) (*os.File, error) {
+		triedToOpenDir = true
+		return os.Open(os.DevNull)
+	})()
+	readNames := 0
+	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
+		readNames++
+		cancel()
+		return []string{"hello"}, nil
+	})()
+	triedToOpenSnapshot := false
+	defer backend.MockOpen(func(string) (*backend.Reader, error) {
+		triedToOpenSnapshot = true
+		return nil, nil
+	})()
+
+	err := backend.Iter(ctx, nil)
+	c.Check(err, check.Equals, context.Canceled)
+	c.Check(triedToOpenDir, check.Equals, true)
+	// bails as soon as
+	c.Check(readNames, check.Equals, 1)
+	c.Check(triedToOpenSnapshot, check.Equals, false)
+}
+
+func (s *snapshotSuite) TestIterReturnsOkIfSnapshotDirNonexistent(c *check.C) {
+	triedToOpenDir := false
+	defer backend.MockDirOpen(func(string) (*os.File, error) {
+		triedToOpenDir = true
+		return nil, os.ErrNotExist
+	})()
+
+	err := backend.Iter(context.Background(), nil)
+	c.Check(err, check.IsNil)
+	c.Check(triedToOpenDir, check.Equals, true)
+}
+
+func (s *snapshotSuite) TestIterBailsIfSnapshotDirFails(c *check.C) {
+	triedToOpenDir := false
+	defer backend.MockDirOpen(func(string) (*os.File, error) {
+		triedToOpenDir = true
+		return nil, os.ErrInvalid
+	})()
+
+	err := backend.Iter(context.Background(), nil)
+	c.Check(err, check.ErrorMatches, "cannot open snapshots directory: invalid argument")
+	c.Check(triedToOpenDir, check.Equals, true)
+}
+
+func (s *snapshotSuite) TestIterWarnsOnOpenErrorIfSnapshotNil(c *check.C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+	triedToOpenDir := false
+	defer backend.MockDirOpen(func(string) (*os.File, error) {
+		triedToOpenDir = true
+		return os.Open(os.DevNull)
+	})()
+	readNames := 0
+	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
+		readNames++
+		if readNames > 1 {
+			return nil, io.EOF
+		}
+		return []string{"hello"}, nil
+	})()
+	triedToOpenSnapshot := false
+	defer backend.MockOpen(func(string) (*backend.Reader, error) {
+		triedToOpenSnapshot = true
+		return nil, os.ErrInvalid
+	})()
+
+	calledF := false
+	f := func(sh *backend.Reader) error {
+		calledF = true
+		return nil
+	}
+
+	err := backend.Iter(context.Background(), f)
+	// snapshot open errors are not failures:
+	c.Check(err, check.IsNil)
+	c.Check(triedToOpenDir, check.Equals, true)
+	c.Check(readNames, check.Equals, 2)
+	c.Check(triedToOpenSnapshot, check.Equals, true)
+	c.Check(logbuf.String(), check.Matches, `.* cannot open snapshot "hello": invalid argument\n`)
+	c.Check(calledF, check.Equals, false)
+}
+
+func (s *snapshotSuite) TestIterCallsFuncIfSnapshotNotNil(c *check.C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+	triedToOpenDir := false
+	defer backend.MockDirOpen(func(string) (*os.File, error) {
+		triedToOpenDir = true
+		return os.Open(os.DevNull)
+	})()
+	readNames := 0
+	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
+		readNames++
+		if readNames > 1 {
+			return nil, io.EOF
+		}
+		return []string{"hello"}, nil
+	})()
+	triedToOpenSnapshot := false
+	defer backend.MockOpen(func(string) (*backend.Reader, error) {
+		triedToOpenSnapshot = true
+		// NOTE non-nil reader, and error, returned
+		r := backend.Reader{}
+		r.Broken = "xyzzy"
+		return &r, os.ErrInvalid
+	})()
+
+	calledF := false
+	f := func(sh *backend.Reader) error {
+		c.Check(sh.Broken, check.Equals, "xyzzy")
+		calledF = true
+		return nil
+	}
+
+	err := backend.Iter(context.Background(), f)
+	// snapshot open errors are not failures:
+	c.Check(err, check.IsNil)
+	c.Check(triedToOpenDir, check.Equals, true)
+	c.Check(readNames, check.Equals, 2)
+	c.Check(triedToOpenSnapshot, check.Equals, true)
+	c.Check(logbuf.String(), check.Equals, "")
+	c.Check(calledF, check.Equals, true)
+}
+
+func (s *snapshotSuite) xTestHappyRoundtrip(c *check.C) {
 	logger.SimpleSetup()
 
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42)}, Version: "v1.33"}
@@ -133,7 +279,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	c.Check(shw.Version, check.Equals, info.Version)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 	c.Check(string(*shw.Config), check.DeepEquals, string(cfg))
-	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotDir, "hello-snap_v1.33_12.zip"))
+	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotDir, "12_hello-snap_v1.33.zip"))
 	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
 
 	shs, err := backend.List(context.TODO(), 0, nil)
