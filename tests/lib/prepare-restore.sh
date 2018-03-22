@@ -90,8 +90,6 @@ prepare_project() {
 
 prepare_project_each() {
     do_phase prepare_project_each
-
-    fixup_dev_random
 }
 
 prepare_suite() {
