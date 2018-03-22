@@ -43,14 +43,16 @@ var (
 	osReadlink = os.Readlink
 	osRemove   = os.Remove
 
-	sysClose   = syscall.Close
-	sysMkdirat = syscall.Mkdirat
-	sysMount   = syscall.Mount
-	sysOpen    = syscall.Open
-	sysOpenat  = syscall.Openat
-	sysUnmount = syscall.Unmount
-	sysFchown  = sys.Fchown
-	sysSymlink = syscall.Symlink
+	sysClose      = syscall.Close
+	sysMkdirat    = syscall.Mkdirat
+	sysMount      = syscall.Mount
+	sysOpen       = syscall.Open
+	sysOpenat     = syscall.Openat
+	sysUnmount    = syscall.Unmount
+	sysFchown     = sys.Fchown
+	sysFstat      = syscall.Fstat
+	sysSymlinkat  = osutil.Symlinkat
+	sysReadlinkat = osutil.Readlinkat
 
 	ioutilReadDir = ioutil.ReadDir
 )
@@ -202,6 +204,62 @@ func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid sys.Us
 	return nil
 }
 
+// secureMkSymlink creates a symlink at i-th entry of absolute path represented by
+// segments. This function is meant to be used to create the leaf symlink.
+// Existing and identical symlinks are reused without errors.
+func secureMkSymlink(fd int, segments []string, i int, oldname string) error {
+	logger.Debugf("secure-mk-symlink %d %q %d %q", fd, segments, i, oldname)
+	segment := segments[i]
+	var err error
+
+	// Open the final path segment as a file. Try to create the file (so that
+	// we know if we need to chown it) but fall back to just opening an
+	// existing one.
+
+	// TODO: don't write links outside of tmpfs or $SNAP_{,USER_}{DATA,COMMON}
+	err = sysSymlinkat(oldname, fd, segment)
+	if err != nil {
+		switch err {
+		case syscall.EEXIST:
+			var objFd int
+			// If the file exists then just open it for examination.
+			// Maybe it's the symlink we were hoping to create.
+			objFd, err = sysOpenat(fd, segment, syscall.O_CLOEXEC|sys.O_PATH|syscall.O_NOFOLLOW, 0)
+			if err != nil {
+				return fmt.Errorf("cannot open existing file %q: %v", segment, err)
+			}
+			var statBuf syscall.Stat_t
+			err = sysFstat(objFd, &statBuf)
+			if err != nil {
+				return fmt.Errorf("cannot inspect existing file %q: %v", segment, err)
+			}
+			if statBuf.Mode&syscall.S_IFLNK != syscall.S_IFLNK {
+				return fmt.Errorf("cannot create symbolic link %q: existing file in the way", segment)
+			}
+			var n int
+			buf := make([]byte, len(oldname)+2)
+			n, err = sysReadlinkat(objFd, "", buf)
+			if err != nil {
+				return fmt.Errorf("cannot read symbolic link %q: %v", segment, err)
+			}
+			if string(buf[:n]) != oldname {
+				return fmt.Errorf("cannot create symbolic link %q: existing symbolic link in the way", segment)
+			}
+			return nil
+		case syscall.EROFS:
+			// Treat EROFS specially: this is a hint that we have to poke a
+			// hole using tmpfs. The path below is the location where we
+			// need to poke the hole.
+			p := "/" + strings.Join(segments[:i], "/")
+			return &ReadOnlyFsError{Path: p}
+		default:
+			return fmt.Errorf("cannot create symlink %q: %v", segment, err)
+		}
+	}
+
+	return nil
+}
+
 func splitIntoSegments(name string) ([]string, error) {
 	if name != filepath.Clean(name) {
 		return nil, fmt.Errorf("cannot split unclean path %q", name)
@@ -294,16 +352,35 @@ func secureMkfileAll(name string, perm os.FileMode, uid sys.UserID, gid sys.Grou
 	return err
 }
 
-func secureMklinkAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
-	parent := filepath.Dir(name)
-	err := secureMkdirAll(parent, perm, uid, gid)
+func secureMksymlinkAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
+	logger.Debugf("secure-mksymlink-all %q %q %d %d %q", name, perm, uid, gid, oldname)
+
+	// Only support absolute paths to avoid bugs in snap-confine when
+	// called from anywhere.
+	if !filepath.IsAbs(name) {
+		return fmt.Errorf("cannot create symlink with relative path: %q", name)
+	}
+	// Only support file names, not directory names.
+	if strings.HasSuffix(name, "/") {
+		return fmt.Errorf("cannot create non-file path: %q", name)
+	}
+
+	// Split the path into segments.
+	segments, err := splitIntoSegments(name)
 	if err != nil {
 		return err
 	}
-	// TODO: roll this uber securely like the code above does using linkat(2).
-	err = sysSymlink(oldname, name)
-	if err == syscall.EROFS {
-		return &ReadOnlyFsError{Path: parent}
+
+	// Create the prefix.
+	fd, err := secureMkPrefix(segments, perm, uid, gid)
+	if err != nil {
+		return err
+	}
+	defer sysClose(fd)
+
+	if len(segments) > 0 {
+		// Create the final segment as a symlink.
+		err = secureMkSymlink(fd, segments, len(segments)-1, oldname)
 	}
 	return err
 }
