@@ -21,6 +21,9 @@ package configcore
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -37,22 +40,41 @@ func (l *sysdLogger) Notify(status string) {
 // where "true" means disabled and "false" means enabled.
 func switchDisableService(serviceName, value string) error {
 	sysd := systemd.New(dirs.GlobalRootDir, &sysdLogger{})
+	sshCanary := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_not_to_be_run")
 
 	switch value {
 	case "true":
-		if err := sysd.Disable(serviceName); err != nil {
-			return err
-		}
-		if err := sysd.Mask(serviceName); err != nil {
-			return err
+		if serviceName == "ssh.service" {
+			if err := ioutil.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0644); err != nil {
+				return err
+			}
+		} else {
+			if err := sysd.Disable(serviceName); err != nil {
+				return err
+			}
+			if err := sysd.Mask(serviceName); err != nil {
+				return err
+			}
 		}
 		return sysd.Stop(serviceName, 5*time.Minute)
 	case "false":
-		if err := sysd.Unmask(serviceName); err != nil {
-			return err
-		}
-		if err := sysd.Enable(serviceName); err != nil {
-			return err
+		if serviceName == "ssh.service" {
+			err := os.Remove(sshCanary)
+			if err != nil && !os.IsNotExist(err) {
+				return err
+			}
+			// Unmask both sshd.service and ssh.service and ignore the
+			// errors, if any. This undoes the damage done by earlier
+			// versions of snapd.
+			sysd.Unmask("sshd.service")
+			sysd.Unmask("ssh.service")
+		} else {
+			if err := sysd.Unmask(serviceName); err != nil {
+				return err
+			}
+			if err := sysd.Enable(serviceName); err != nil {
+				return err
+			}
 		}
 		return sysd.Start(serviceName)
 	default:
@@ -63,7 +85,7 @@ func switchDisableService(serviceName, value string) error {
 // services that can be disabled
 func handleServiceDisableConfiguration(tr Conf) error {
 	var services = []struct{ configName, systemdName string }{
-		{"ssh", "sshd.service"},
+		{"ssh", "ssh.service"},
 		{"rsyslog", "rsyslog.service"},
 	}
 	for _, service := range services {
