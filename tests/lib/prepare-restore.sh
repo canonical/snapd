@@ -8,26 +8,6 @@ set -e
 # failing if foo fails, not just if bar fails.
 set -o pipefail
 
-# shellcheck source=tests/lib/quiet.sh
-. "$TESTSLIB/quiet.sh"
-
-# XXX: boot.sh has side-effects
-# shellcheck source=tests/lib/boot.sh
-. "$TESTSLIB/boot.sh"
-
-# XXX: dirs.sh has side-effects
-# shellcheck source=tests/lib/dirs.sh
-. "$TESTSLIB/dirs.sh"
-
-# shellcheck source=tests/lib/pkgdb.sh
-. "$TESTSLIB/pkgdb.sh"
-
-# shellcheck source=tests/lib/random.sh
-. "$TESTSLIB/random.sh"
-
-# shellcheck source=tests/lib/spread-funcs.sh
-. "$TESTSLIB/spread-funcs.sh"
-
 ###
 ### Utility functions reused below.
 ###
