@@ -73,19 +73,9 @@ prepare_project() {
 
     do_phase prepare_project
 
-    # Build fakestore.
-    fakestore_tags=
-    if [ "$REMOTE_STORE" = staging ]; then
-        fakestore_tags="-tags withstagingkeys"
-    fi
-
-    # eval to prevent expansion errors on opensuse (the variable keeps quotes)
-    eval "go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
-
     # Build additional utilities we need for testing
     go get ./tests/lib/fakedevicesvc
     go get ./tests/lib/systemd-escape
-
 }
 
 prepare_project_each() {
@@ -122,9 +112,6 @@ restore_suite_each() {
 
 restore_suite() {
     do_phase restore_suite
-
-    # shellcheck source=tests/lib/reset.sh
-    "$TESTSLIB"/reset.sh --store
     if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
         # shellcheck source=tests/lib/pkgdb.sh
         . $TESTSLIB/pkgdb.sh
@@ -138,8 +125,6 @@ restore_suite() {
 
 restore_project_each() {
     do_phase restore_project_each
-
-    restore_dev_random
 
     # Udev rules are notoriously hard to write and seemingly correct but subtly
     # wrong rules can pass review. Whenever that happens udev logs an error
