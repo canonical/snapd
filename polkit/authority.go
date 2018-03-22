@@ -74,6 +74,9 @@ func CheckAuthorization(pid uint32, uid uint32, actionId string, details map[str
 	if err != nil {
 		return false, err
 	}
+	// While discovering the pid's start time is racy, it isn't security
+	// relevant since it only impacts expiring the permission after
+	// process exit.
 	subject.Details["start-time"] = dbus.MakeVariant(startTime)
 	subject.Details["uid"] = dbus.MakeVariant(uid)
 	return checkAuthorization(subject, actionId, details, flags)

@@ -162,6 +162,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 				flags |= polkit.CheckAllowInteraction
 			}
 		}
+		// Pass both pid and uid from the peer ucred to avoid pid race
 		if authorized, err := polkitCheckAuthorization(pid, uid, c.PolkitOK, nil, flags); err == nil {
 			if authorized {
 				// polkit says user is authorised
