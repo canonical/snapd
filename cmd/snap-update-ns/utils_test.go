@@ -649,6 +649,48 @@ func (s *realSystemSuite) TestSecureMkfileAllForReal(c *C) {
 	c.Check(fi.Mode().Perm(), Equals, os.FileMode(0750))
 }
 
+// Check that we can actually create symlinks.
+// This doesn't test the chown logic as that requires root.
+func (s *realSystemSuite) TestSecureMksymlinkAllForReal(c *C) {
+	d := c.MkDir()
+
+	// Create symlink f1 that points to "oldname" and check that it
+	// is correct. Note that symlink permissions are always set to 0777
+	f1 := filepath.Join(d, "symlink")
+	err := update.SecureMksymlinkAll(f1, 0755, sys.FlagID, sys.FlagID, "oldname")
+	c.Assert(err, IsNil)
+	fi, err := os.Lstat(f1)
+	c.Assert(err, IsNil)
+	c.Check(fi.Mode()&os.ModeSymlink, Equals, os.ModeSymlink)
+	c.Check(fi.Mode().Perm(), Equals, os.FileMode(0777))
+
+	target, err := os.Readlink(f1)
+	c.Assert(err, IsNil)
+	c.Check(target, Equals, "oldname")
+
+	// Create an identical symlink to see that it doesn't fail.
+	err = update.SecureMksymlinkAll(f1, 0755, sys.FlagID, sys.FlagID, "oldname")
+	c.Assert(err, IsNil)
+
+	// Create a different symlink and see that it fails now
+	err = update.SecureMksymlinkAll(f1, 0755, sys.FlagID, sys.FlagID, "other")
+	c.Assert(err, ErrorMatches, `cannot create symbolic link "symlink": existing symbolic link in the way`)
+
+	// Create an file and check that it clashes with a symlink we attempt to create.
+	f2 := filepath.Join(d, "file")
+	err = update.SecureMkfileAll(f2, 0755, sys.FlagID, sys.FlagID)
+	c.Assert(err, IsNil)
+	err = update.SecureMksymlinkAll(f2, 0755, sys.FlagID, sys.FlagID, "oldname")
+	c.Assert(err, ErrorMatches, `cannot create symbolic link "file": existing file in the way`)
+
+	// Create an file and check that it clashes with a symlink we attempt to create.
+	f3 := filepath.Join(d, "dir")
+	err = update.SecureMkdirAll(f3, 0755, sys.FlagID, sys.FlagID)
+	c.Assert(err, IsNil)
+	err = update.SecureMksymlinkAll(f3, 0755, sys.FlagID, sys.FlagID, "oldname")
+	c.Assert(err, ErrorMatches, `cannot create symbolic link "dir": existing file in the way`)
+}
+
 func (s *utilsSuite) TestCleanTrailingSlash(c *C) {
 	// This is a sanity test for the use of filepath.Clean in secureMk{dir,file}All
 	c.Assert(filepath.Clean("/path/"), Equals, "/path")

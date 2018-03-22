@@ -90,6 +90,10 @@ func formatOpenFlags(flags int) string {
 		flags ^= syscall.O_EXCL
 		fl = append(fl, "O_EXCL")
 	}
+	if flags&sys.O_PATH != 0 {
+		flags ^= sys.O_PATH
+		fl = append(fl, "O_PATH")
+	}
 	if flags != 0 {
 		panic(fmt.Errorf("unrecognized open flags %d", flags))
 	}
@@ -159,9 +163,11 @@ type SyscallRecorder struct {
 	calls []string
 	// Error function for a given system call.
 	errors map[string]func() error
-	// pre-arranged result of lstat and readdir calls
-	lstats   map[string]os.FileInfo
-	readdirs map[string][]os.FileInfo
+	// pre-arranged result of lstat, fstat and readdir calls.
+	lstats      map[string]os.FileInfo
+	fstats      map[string]syscall.Stat_t
+	readdirs    map[string][]os.FileInfo
+	readlinkats map[string]string
 	// allocated file descriptors
 	fds map[int]string
 }
@@ -323,6 +329,30 @@ func (sys *SyscallRecorder) Lstat(name string) (os.FileInfo, error) {
 	panic(fmt.Sprintf("one of InsertLstatResult() or InsertFault() for %s must be used", call))
 }
 
+// InsertFstatResult makes given subsequent call fstat return the specified stat buffer.
+func (sys *SyscallRecorder) InsertFstatResult(call string, buf syscall.Stat_t) {
+	if sys.fstats == nil {
+		sys.fstats = make(map[string]syscall.Stat_t)
+	}
+	sys.fstats[call] = buf
+}
+
+func (sys *SyscallRecorder) Fstat(fd int, buf *syscall.Stat_t) error {
+	call := fmt.Sprintf("fstat %d <ptr>", fd)
+	if _, ok := sys.fds[fd]; !ok {
+		sys.calls = append(sys.calls, call)
+		return fmt.Errorf("attempting to fstat with an invalid file descriptor %d", fd)
+	}
+	if err := sys.call(call); err != nil {
+		return err
+	}
+	if b, ok := sys.fstats[call]; ok {
+		*buf = b
+		return nil
+	}
+	panic(fmt.Sprintf("one of InsertFstatResult() or InsertFault() for %s must be used", call))
+}
+
 // InsertReadDirResult makes given subsequent call readdir return the specified fake file infos.
 func (sys *SyscallRecorder) InsertReadDirResult(call string, infos []os.FileInfo) {
 	if sys.readdirs == nil {
@@ -345,6 +375,39 @@ func (sys *SyscallRecorder) ReadDir(dirname string) ([]os.FileInfo, error) {
 func (sys *SyscallRecorder) Symlink(oldname, newname string) error {
 	call := fmt.Sprintf("symlink %q -> %q", newname, oldname)
 	return sys.call(call)
+}
+
+func (sys *SyscallRecorder) Symlinkat(oldname string, dirfd int, newname string) error {
+	call := fmt.Sprintf("symlinkat %q %d %q", oldname, dirfd, newname)
+	if _, ok := sys.fds[dirfd]; !ok {
+		sys.calls = append(sys.calls, call)
+		return fmt.Errorf("attempting to symlinkat with an invalid file descriptor %d", dirfd)
+	}
+	return sys.call(call)
+}
+
+// InsertReadlinkatResult makes given subsequent call to readlinkat return the specified oldname.
+func (sys *SyscallRecorder) InsertReadlinkatResult(call, oldname string) {
+	if sys.readlinkats == nil {
+		sys.readlinkats = make(map[string]string)
+	}
+	sys.readlinkats[call] = oldname
+}
+
+func (sys *SyscallRecorder) Readlinkat(dirfd int, path string, buf []byte) (int, error) {
+	call := fmt.Sprintf("readlinkat %d %q <ptr>", dirfd, path)
+	if _, ok := sys.fds[dirfd]; !ok {
+		sys.calls = append(sys.calls, call)
+		return 0, fmt.Errorf("attempting to readlinkat with an invalid file descriptor %d", dirfd)
+	}
+	if err := sys.call(call); err != nil {
+		return 0, err
+	}
+	if oldname, ok := sys.readlinkats[call]; ok {
+		n := copy(buf, oldname)
+		return n, nil
+	}
+	panic(fmt.Sprintf("one of InsertReadlinkatResult() or InsertFault() for %s must be used", call))
 }
 
 func (sys *SyscallRecorder) Remove(name string) error {
