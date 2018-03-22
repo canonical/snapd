@@ -72,10 +72,6 @@ prepare_project() {
     echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
 
     do_phase prepare_project
-
-    # Build additional utilities we need for testing
-    go get ./tests/lib/fakedevicesvc
-    go get ./tests/lib/systemd-escape
 }
 
 prepare_project_each() {
