@@ -20,12 +20,14 @@
 package advisor
 
 import (
+	"os"
 	"strings"
 	"time"
 
 	"github.com/snapcore/bolt"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 var (
@@ -188,6 +190,9 @@ type boltFinder struct {
 
 // Open the database for reading.
 func Open() (Finder, error) {
+	if !osutil.FileExists(dirs.SnapCommandsDB) {
+		return nil, os.ErrNotExist
+	}
 	db, err := bolt.Open(dirs.SnapCommandsDB, 0644, &bolt.Options{
 		ReadOnly: true,
 		Timeout:  1 * time.Second,
