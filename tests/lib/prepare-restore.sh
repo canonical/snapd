@@ -55,8 +55,6 @@ do_phase() {
 ###
 
 prepare_project() {
-    do_phase prepare_project
-
     # Set REUSE_PROJECT to reuse the previous prepare when also reusing the server.
     [ "$REUSE_PROJECT" != 1 ] || exit 0
     echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
@@ -75,6 +73,7 @@ prepare_project() {
     fi
 
 
+    do_phase prepare_project
 
     # Build fakestore.
     fakestore_tags=
