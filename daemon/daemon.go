@@ -94,7 +94,7 @@ const (
 	accessForbidden
 )
 
-var polkitCheckAuthorizationForPid = polkit.CheckAuthorizationForPid
+var polkitCheckAuthorization = polkit.CheckAuthorization
 
 // canAccess checks the following properties:
 //
@@ -162,7 +162,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 				flags |= polkit.CheckAllowInteraction
 			}
 		}
-		if authorized, err := polkitCheckAuthorizationForPid(pid, c.PolkitOK, nil, flags); err == nil {
+		if authorized, err := polkitCheckAuthorization(pid, uid, c.PolkitOK, nil, flags); err == nil {
 			if authorized {
 				// polkit says user is authorised
 				return accessOK
