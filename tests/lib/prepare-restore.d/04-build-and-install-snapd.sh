@@ -167,3 +167,17 @@ on_prepare_project() {
         install_dependencies_from_published "$SNAPD_PUBLISHED_VERSION"
     fi
 }
+
+# Purge snapd from the system when the suite is complete.  This should remove
+# all of the package bits, the state and all the installed snaps and their data
+on_restore_suite() {
+	if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+		# shellcheck source=tests/lib/pkgdb.sh
+		. "$TESTSLIB"/pkgdb.sh
+		distro_purge_package snapd
+		if [[ "$SPREAD_SYSTEM" != opensuse-* ]]; then
+			# A snap-confine package never existed on openSUSE
+			distro_purge_package snap-confine
+		fi
+	fi
+}

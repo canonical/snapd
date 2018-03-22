@@ -108,15 +108,6 @@ restore_suite_each() {
 
 restore_suite() {
     do_phase restore_suite
-    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-        # shellcheck source=tests/lib/pkgdb.sh
-        . $TESTSLIB/pkgdb.sh
-        distro_purge_package snapd
-        if [[ "$SPREAD_SYSTEM" != opensuse-* ]]; then
-            # A snap-confine package never existed on openSUSE
-            distro_purge_package snap-confine
-        fi
-    fi
 }
 
 restore_project_each() {
