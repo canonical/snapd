@@ -38,9 +38,16 @@ case "$ID" in
 				extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp"
 				;;
 			*)
-				extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --enable-static-libcap"
+				extra_opts="--libexecdir=/usr/lib/snapd --enable-static-libcap --enable-nvidia-multiarch"
 				;;
 		esac
+		dpkg_architecture=$(which dpkg-architecture 2>/dev/null)
+		if [ -n "$dpkg_architecture" ]; then
+				extra_opts="$extra_opts  --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+				if [ "$(dpkg-architecture -qDEB_HOST_ARCH)" = "amd64" ]; then
+					extra_opts="$extra_opts --with-host-arch-32bit-triplet=$(dpkg-architecture -ai386 -qDEB_HOST_MULTIARCH)"
+				fi
+		fi
 		;;
 	fedora|centos|rhel)
 		extra_opts="--libexecdir=/usr/libexec/snapd --with-snap-mount-dir=/var/lib/snapd/snap --enable-merged-usr --disable-apparmor"
