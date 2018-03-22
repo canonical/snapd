@@ -44,6 +44,7 @@ prepare_project() {
         exit 1
     fi
 
+    # This is here because it does "exit 0" and the phased scripts cannot do that.
     if [ "$SPREAD_BACKEND" = external ]; then
         chown test.test -R "$PROJECT_PATH"
         exit 0
