@@ -57,7 +57,6 @@ do_phase() {
 prepare_project() {
     # Set REUSE_PROJECT to reuse the previous prepare when also reusing the server.
     [ "$REUSE_PROJECT" != 1 ] || exit 0
-    echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
 
     # check that we are not updating
     if [ "$(bootenv snap_mode)" = "try" ]; then
@@ -65,13 +64,12 @@ prepare_project() {
         exit 1
     fi
 
-    # declare the "quiet" wrapper
-
     if [ "$SPREAD_BACKEND" = external ]; then
         chown test.test -R "$PROJECT_PATH"
         exit 0
     fi
 
+    echo "Running with SNAP_REEXEC: $SNAP_REEXEC"
 
     do_phase prepare_project
 
