@@ -8,10 +8,6 @@ set -e
 # failing if foo fails, not just if bar fails.
 set -o pipefail
 
-###
-### Utility functions reused below.
-###
-
 # Run a set of scripts in the prepare-restore.d directory. From each
 # script run, if present, the function on_$phase, where phase is one of
 # {prepare,restore}_{project,suite}{,_each}.
@@ -29,10 +25,6 @@ do_phase() {
         )
     done
 }
-
-###
-### Prepare / restore functions for {project,suite}
-###
 
 prepare_project() {
     # Set REUSE_PROJECT to reuse the previous prepare when also reusing the server.
