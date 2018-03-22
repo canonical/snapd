@@ -2357,6 +2357,7 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 
 	// run manager again, but this time the snapsystemkey file should
 	// not be rewriten as the systemKey inputs have not changed
+	time.Sleep(20 * time.Millisecond)
 	s.privateMgr = nil
 	_ = s.manager(c)
 	stat2, err := os.Stat(dirs.SnapSystemKeyFile)

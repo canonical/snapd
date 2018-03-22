@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -40,7 +41,7 @@ import (
 // - "snapd" needs to re-generate security profiles
 // - "snap run" cannot wait for those security profiles
 var (
-	ErrSystemKeyIncomparableVersions = errors.New("system-key version mismatch")
+	ErrSystemKeyIncomparableVersions = errors.New("system-key versions not comparable")
 	ErrSystemKeyMissing              = errors.New("system-key missing on disk")
 )
 
@@ -182,6 +183,16 @@ func SystemKeyMismatch() (bool, error) {
 	mySystemKeyJSON, err := json.Marshal(mySystemKey)
 	if err != nil {
 		return false, err
+	}
+
+	// special case to detect local runs
+	if mockedSystemKey == nil {
+		if exe, err := os.Readlink("/proc/self/exe"); err == nil {
+			// detect running local local builds
+			if !strings.HasPrefix(exe, "/usr") && !strings.HasPrefix(exe, "/snap") {
+				return false, ErrSystemKeyIncomparableVersions
+			}
+		}
 	}
 
 	return string(mySystemKeyJSON) != string(raw), nil
