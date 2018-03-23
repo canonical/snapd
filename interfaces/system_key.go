@@ -85,7 +85,7 @@ func generateSystemKey() *systemKey {
 	sk.Core, _ = os.Readlink(filepath.Join(dirs.SnapMountDir, "core/current"))
 
 	// Add seccomp-features
-	sk.SecCompActions = release.SecCompActions
+	sk.SecCompActions = release.SecCompActions()
 
 	return &sk
 }
