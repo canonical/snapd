@@ -2350,7 +2350,7 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
 
 	_ = s.manager(c)
-	c.Check(dirs.SnapSystemKeyFile, testutil.FileMatches, `{.*"build_id":.*`)
+	c.Check(dirs.SnapSystemKeyFile, testutil.FileMatches, `{.*"build-id":.*`)
 
 	stat, err := os.Stat(dirs.SnapSystemKeyFile)
 	c.Assert(err, IsNil)

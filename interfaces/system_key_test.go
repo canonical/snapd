@@ -85,14 +85,14 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
 
 	overlayRoot, err := osutil.IsRootWritableOverlay()
 	c.Assert(err, IsNil)
-	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build_id":"","apparmor_features":%s,"nfs_home":%v,"overlay_root":%q,"seccomp_features":%s}`, apparmorFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
+	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build-id":"","apparmor-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s}`, apparmorFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
 	s.AddCleanup(interfaces.MockSystemKey(`
 {
-"build_id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
-"apparmor_features": ["caps", "dbus"]
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
 }
 `))
 
@@ -111,7 +111,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
 	// change our system-key to have more apparmor features
 	s.AddCleanup(interfaces.MockSystemKey(`
 {
-"build_id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
 "apparmor_features": ["caps", "dbus", "more", "and", "more"]
 }
 `))
@@ -125,13 +125,13 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchVersions(c *C) {
 	s.AddCleanup(interfaces.MockSystemKey(`
 {
 "version":1,
-"build_id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"
 }`))
 	// and the on-disk version is v2
 	err := ioutil.WriteFile(dirs.SnapSystemKeyFile, []byte(`
 {
 "version":2,
-"build_id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"
 }`), 0644)
 	c.Assert(err, IsNil)
 

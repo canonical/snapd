@@ -57,11 +57,11 @@ type systemKey struct {
 	// IMPORTANT: when adding new inputs bump this version
 	Version int `json:"version"`
 
-	BuildID          string   `json:"build_id"`
-	AppArmorFeatures []string `json:"apparmor_features"`
-	NFSHome          bool     `json:"nfs_home"`
-	OverlayRoot      string   `json:"overlay_root"`
-	SecCompActions   []string `json:"seccomp_features"`
+	BuildID          string   `json:"build-id"`
+	AppArmorFeatures []string `json:"apparmor-features"`
+	NFSHome          bool     `json:"nfs-home"`
+	OverlayRoot      string   `json:"overlay-root"`
+	SecCompActions   []string `json:"seccomp-features"`
 }
 
 var (
@@ -72,7 +72,7 @@ var (
 func findSnapdPath() (string, error) {
 	snapdPath := filepath.Join(dirs.DistroLibExecDir, "snapd")
 
-	// find the right snapdPath
+	// find the right snapdPath by looking if we are re-execing or not
 	exe, err := os.Readlink("/proc/self/exe")
 	if err != nil {
 		return "", err
