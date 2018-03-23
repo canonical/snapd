@@ -190,6 +190,10 @@ type boltFinder struct {
 
 // Open the database for reading.
 func Open() (Finder, error) {
+	// Check for missing file manually to workaround bug in bolt.
+	// bolt.Open() is using os.OpenFile(.., os.O_RDONLY |
+	// os.O_CREATE) even if ReadOnly mode is used. So we would get
+	// a misleading "permission denied" error without this check.
 	if !osutil.FileExists(dirs.SnapCommandsDB) {
 		return nil, os.ErrNotExist
 	}
