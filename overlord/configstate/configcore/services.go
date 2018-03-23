@@ -66,7 +66,11 @@ func switchDisableSSHService(serviceName, value string) error {
 
 // switchDisableTypicalService switches a service in/out of disabled state
 // where "true" means disabled and "false" means enabled.
-func switchDisableTypicalService(serviceName, value string) error {
+func switchDisableService(serviceName, value string) error {
+	if serviceName == "ssh.service" {
+		return switchDisableSSHService(serviceName, value)
+	}
+
 	sysd := systemd.New(dirs.GlobalRootDir, &sysdLogger{})
 
 	switch value {
@@ -89,13 +93,6 @@ func switchDisableTypicalService(serviceName, value string) error {
 	default:
 		return fmt.Errorf("option %q has invalid value %q", serviceName, value)
 	}
-}
-
-func switchDisableService(serviceName, value string) error {
-	if serviceName == "ssh.service" {
-		return switchDisableSSHService(serviceName, value)
-	}
-	return switchDisableTypicalService(serviceName, value)
 }
 
 // services that can be disabled
