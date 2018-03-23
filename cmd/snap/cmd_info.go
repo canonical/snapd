@@ -186,13 +186,16 @@ func runesLastIndexSpace(text []rune) int {
 
 // wrapLine wraps a line to fit into width, preserving the line's indent, and
 // writes it out prepending padding to each line.
-func wrapLine(out io.Writer, text []rune, pad string, width int) {
-	// Note: this is _wrong_ for much of unicode (because the width of a
-	//       rune on the terminal is anything between 0 and 2, not always 1
-	//       as this code assumes) but fixing that is Hard. Long story
-	//       short, you can get close using a couple of big unicode tables
-	//       (which is what wcwidth does). Getting it 100% requires a
-	//       terminfo-alike of unicode behaviour.
+func wrapLine(out io.Writer, text []rune, pad string, width int) error {
+	// Note: this is _wrong_ for much of unicode (because the width of a rune on
+	//       the terminal is anything between 0 and 2, not always 1 as this code
+	//       assumes) but fixing that is Hard. Long story short, you can get close
+	//       using a couple of big unicode tables (which is what wcwidth
+	//       does). Getting it 100% requires a terminfo-alike of unicode behaviour.
+	//       However, before this we'd count bytes instead of runes, so we'd be
+	//       even more broken. Think of it as successive approximations... at least
+	//       with this work we share tabwriter's opinion on the width of things!
+
 	// This (and possibly printDescr below) should move to strutil once
 	// we're happy with it getting wider (heh heh) use.
 
@@ -206,22 +209,26 @@ func wrapLine(out io.Writer, text []rune, pad string, width int) {
 	indent := pad + string(text[:idx])
 	text = text[idx:]
 	width -= idx + utf8.RuneCountInString(pad)
-	for len(text) > width {
+	var err error
+	for len(text) > width && err == nil {
 		// find a good place to chop the text
 		idx = runesLastIndexSpace(text[:width+1])
 		if idx < 0 {
 			// there's no whitespace; just chop at line width
 			idx = width
 		}
-		fmt.Fprint(out, indent, string(text[:idx]), "\n")
+		_, err = fmt.Fprint(out, indent, string(text[:idx]), "\n")
 		// prune any remaining whitespace before the start of the next line
 		for idx < len(text) && unicode.IsSpace(text[idx]) {
 			idx++
 		}
 		text = text[idx:]
 	}
-
-	fmt.Fprint(out, indent, string(text), "\n")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(out, indent, string(text), "\n")
+	return err
 }
 
 // printDescr formats a given string (typically a snap description)
@@ -231,11 +238,16 @@ func wrapLine(out io.Writer, text []rune, pad string, width int) {
 // - trim trailing whitespace
 // - word wrap at "max" chars preserving line indent
 // - keep \n intact and break there
-func printDescr(w io.Writer, descr string, max int) {
+func printDescr(w io.Writer, descr string, max int) error {
+	var err error
 	descr = strings.TrimRightFunc(descr, unicode.IsSpace)
 	for _, line := range strings.Split(descr, "\n") {
-		wrapLine(w, []rune(line), "  ", max)
+		err = wrapLine(w, []rune(line), "  ", max)
+		if err != nil {
+			break
+		}
 	}
+	return err
 }
 
 func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, n int) {
