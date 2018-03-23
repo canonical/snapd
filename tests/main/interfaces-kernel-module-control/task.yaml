@@ -1,6 +1,7 @@
 summary: Ensure that the kernel-module-control interface works.
 
-systems: [-fedora-*, -opensuse-*]
+# the s390x kernel has no minix module
+systems: [-fedora-*, -opensuse-*, -ubuntu-*-s390x]
 
 environment:
     MODULE: minix
@@ -40,6 +41,11 @@ execute: |
     CONNECTED_PATTERN=":kernel-module-control +.*test-snapd-kernel-module-consumer"
     DISCONNECTED_PATTERN="\- +test-snapd-kernel-module-consumer:kernel-module-control"
 
+    if ! [ -f /lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko ]; then
+        echo "$MODULE module not available in the system"
+        exit 0
+    fi
+
     echo "The plug is disconnected by default"
     snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
@@ -57,7 +63,7 @@ execute: |
     echo "And the snap is able to insert a module"
     if lsmod | MATCH $MODULE; then
         touch module_present
-        rmmod minix
+        rmmod $MODULE
     fi
     lsmod | MATCH -v $MODULE
     test-snapd-kernel-module-consumer.insmod $MODULE_PATH

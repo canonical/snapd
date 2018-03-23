@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
+	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/x11"
 )
@@ -277,22 +278,25 @@ func (x *cmdRun) useStrace() bool {
 	return x.ParserRan == 1 && x.Strace != "no-strace"
 }
 
-func (x *cmdRun) straceOpts() (opts []string, raw bool) {
+func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 	if x.Strace == "with-strace" {
-		return nil, false
+		return nil, false, nil
 	}
 
-	// TODO: use shlex?
-	for _, opt := range strings.Split(x.Strace, " ") {
-		if strings.TrimSpace(opt) != "" {
-			if opt == "--raw" {
-				raw = true
-				continue
-			}
-			opts = append(opts, opt)
-		}
+	split, err := shlex.Split(x.Strace)
+	if err != nil {
+		return nil, false, err
 	}
-	return opts, raw
+
+	opts = make([]string, 0, len(split))
+	for _, opt := range split {
+		if opt == "--raw" {
+			raw = true
+			continue
+		}
+		opts = append(opts, opt)
+	}
+	return opts, raw, nil
 }
 
 func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
@@ -498,9 +502,16 @@ func straceCmd() ([]string, error) {
 		return nil, fmt.Errorf("cannot use strace without sudo: %s", err)
 	}
 
-	// try strace from the snap first, we use new syscalls like
+	// Try strace from the snap first, we use new syscalls like
 	// "_newselect" that are known to not work with the strace of e.g.
-	// ubuntu 14.04
+	// ubuntu 14.04.
+	//
+	// TODO: some architectures do not have some syscalls (e.g.
+	// s390x does not have _newselect). In
+	// https://github.com/strace/strace/issues/57 options are
+	// discussed.  We could use "-e trace=?syscall" but that is
+	// only available since strace 4.17 which is not even in
+	// ubutnu 17.10.
 	var stracePath string
 	cand := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
 	if osutil.FileExists(cand) {
@@ -544,7 +555,10 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 	if err != nil {
 		return err
 	}
-	straceOpts, raw := x.straceOpts()
+	straceOpts, raw, err := x.straceOpts()
+	if err != nil {
+		return err
+	}
 	cmd = append(cmd, straceOpts...)
 	cmd = append(cmd, origCmd...)
 

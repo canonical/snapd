@@ -46,11 +46,14 @@ type policySuite struct {
 
 	randomSnap *snap.Info
 	randomDecl *asserts.SnapDeclaration
+
+	restoreSanitize func()
 }
 
 var _ = Suite(&policySuite{})
 
 func (s *policySuite) SetUpSuite(c *C) {
+	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	a, err := asserts.Decode([]byte(`type: base-declaration
 authority-id: canonical
 series: 16
@@ -709,6 +712,10 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 AXNpZw==`))
 	c.Assert(err, IsNil)
 	s.randomDecl = a.(*asserts.SnapDeclaration)
+}
+
+func (s *policySuite) TearDownSuite(c *C) {
+	s.restoreSanitize()
 }
 
 func (s *policySuite) TestBaselineDefaultIsAllow(c *C) {

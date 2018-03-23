@@ -32,6 +32,7 @@ import (
 )
 
 type RepositorySuite struct {
+	testutil.BaseTest
 	iface     Interface
 	plug      *snap.PlugInfo
 	slot      *snap.SlotInfo
@@ -48,6 +49,9 @@ var _ = Suite(&RepositorySuite{
 })
 
 func (s *RepositorySuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
 	consumer := snaptest.MockInfo(c, `
 name: consumer
 version: 0
@@ -91,6 +95,10 @@ slots:
 	s.testRepo = NewRepository()
 	err := s.testRepo.AddInterface(s.iface)
 	c.Assert(err, IsNil)
+}
+
+func (s *RepositorySuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 }
 
 func addPlugsSlots(c *C, repo *Repository, yamls ...string) []*snap.Info {
@@ -1522,12 +1530,16 @@ plugs:
 // Tests for AddSnap and RemoveSnap
 
 type AddRemoveSuite struct {
+	testutil.BaseTest
 	repo *Repository
 }
 
 var _ = Suite(&AddRemoveSuite{})
 
 func (s *AddRemoveSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
 	s.repo = NewRepository()
 	err := s.repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface"})
 	c.Assert(err, IsNil)
@@ -1537,6 +1549,10 @@ func (s *AddRemoveSuite) SetUpTest(c *C) {
 		BeforePrepareSlotCallback: func(slot *snap.SlotInfo) error { return fmt.Errorf("slot is invalid") },
 	})
 	c.Assert(err, IsNil)
+}
+
+func (s *AddRemoveSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 }
 
 const testConsumerYaml = `
@@ -1666,6 +1682,7 @@ func (s *AddRemoveSuite) TestRemoveSnapErrorsOnStillConnectedSlot(c *C) {
 }
 
 type DisconnectSnapSuite struct {
+	testutil.BaseTest
 	repo   *Repository
 	s1, s2 *snap.Info
 }
@@ -1673,6 +1690,9 @@ type DisconnectSnapSuite struct {
 var _ = Suite(&DisconnectSnapSuite{})
 
 func (s *DisconnectSnapSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
 	s.repo = NewRepository()
 
 	err := s.repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "iface-a"})
@@ -1702,6 +1722,10 @@ slots:
 	c.Assert(err, IsNil)
 	err = s.repo.AddSnap(s.s2)
 	c.Assert(err, IsNil)
+}
+
+func (s *DisconnectSnapSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *DisconnectSnapSuite) TestNotConnected(c *C) {
