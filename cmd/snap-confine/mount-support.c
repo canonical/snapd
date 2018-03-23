@@ -157,9 +157,6 @@ static void sc_setup_mount_profiles(struct sc_apparmor *apparmor,
 		die("cannot fork to run snap-update-ns");
 	}
 	if (child == 0) {
-		// NOTE: This code is temporarily disabled for the 2.32 release so that
-		// we can approach this with less urgency for 2.33.
-#if 0
 		// We are the child, execute snap-update-ns under a dedicated profile.
 		char profile[PATH_MAX] = { 0 };
 		sc_must_snprintf(profile, sizeof profile, "snap-update-ns.%s",
@@ -167,7 +164,6 @@ static void sc_setup_mount_profiles(struct sc_apparmor *apparmor,
 		debug("launching snap-update-ns under per-snap profile %s",
 		      profile);
 		sc_maybe_aa_change_onexec(apparmor, profile);
-#endif
 		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
 		snap_name_copy = strdup(snap_name);
 		if (snap_name_copy == NULL) {
