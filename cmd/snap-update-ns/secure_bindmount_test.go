@@ -119,6 +119,12 @@ func (s *secureBindMountSuite) TestMountReadOnly(c *C) {
 	})
 }
 
+func (s *secureBindMountSuite) TestMountReadOnlyRecursive(c *C) {
+	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY|syscall.MS_REC, "/stash")
+	c.Assert(err, ErrorMatches, "cannot use MS_RDONLY and MS_REC together")
+	c.Check(s.sys.Calls(), DeepEquals, []string(nil))
+}
+
 func (s *secureBindMountSuite) TestChdirSourceFails(c *C) {
 	s.sys.InsertFault(`fchdir 5`, errTesting)
 	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")

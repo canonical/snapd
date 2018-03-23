@@ -20,6 +20,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 )
@@ -32,6 +33,13 @@ import (
 // called in parallel with code that depends on the current working
 // directory.
 func SecureBindMount(sourceDir, targetDir string, flags uint, stashDir string) error {
+	// The kernel doesn't support recursively switching a tree of
+	// bind mounts to read only, and we haven't written a work
+	// around.
+	if flags&syscall.MS_RDONLY != 0 && flags&syscall.MS_REC != 0 {
+		return fmt.Errorf("cannot use MS_RDONLY and MS_REC together")
+	}
+
 	// Save current directory, since we use chdir internally
 	cwd, err := os.Getwd()
 	if err != nil {
