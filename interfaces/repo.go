@@ -192,6 +192,9 @@ func (r *Repository) Info(opts *InfoOptions) []*Info {
 }
 
 func (r *Repository) ConnectionsInfo(snapNames []string, includeDisconnected bool) []*ConnectionInfo {
+	r.m.Lock()
+	defer r.m.Unlock()
+
 	snaps := make(map[string]bool)
 	for _, n := range snapNames {
 		snaps[n] = true
