@@ -36,50 +36,66 @@ func (l *sysdLogger) Notify(status string) {
 	fmt.Fprintf(Stderr, "sysd: %s\n", status)
 }
 
-// swtichDisableService switches a service in/out of disabled state
-// where "true" means disabled and "false" means enabled.
-func switchDisableService(serviceName, value string) error {
+// switchDisableSSHService handles the special case of disabling/enabling ssh
+// service on core devices.
+func switchDisableSSHService(serviceName, value string) error {
 	sysd := systemd.New(dirs.GlobalRootDir, &sysdLogger{})
 	sshCanary := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_not_to_be_run")
 
 	switch value {
 	case "true":
-		if serviceName == "ssh.service" {
-			if err := ioutil.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0644); err != nil {
-				return err
-			}
-		} else {
-			if err := sysd.Disable(serviceName); err != nil {
-				return err
-			}
-			if err := sysd.Mask(serviceName); err != nil {
-				return err
-			}
+		if err := ioutil.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0644); err != nil {
+			return err
 		}
 		return sysd.Stop(serviceName, 5*time.Minute)
 	case "false":
-		if serviceName == "ssh.service" {
-			err := os.Remove(sshCanary)
-			if err != nil && !os.IsNotExist(err) {
-				return err
-			}
-			// Unmask both sshd.service and ssh.service and ignore the
-			// errors, if any. This undoes the damage done by earlier
-			// versions of snapd.
-			sysd.Unmask("sshd.service")
-			sysd.Unmask("ssh.service")
-		} else {
-			if err := sysd.Unmask(serviceName); err != nil {
-				return err
-			}
-			if err := sysd.Enable(serviceName); err != nil {
-				return err
-			}
+		err := os.Remove(sshCanary)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		// Unmask both sshd.service and ssh.service and ignore the
+		// errors, if any. This undoes the damage done by earlier
+		// versions of snapd.
+		sysd.Unmask("sshd.service")
+		sysd.Unmask("ssh.service")
+		return sysd.Start(serviceName)
+	default:
+		return fmt.Errorf("option %q has invalid value %q", serviceName, value)
+	}
+}
+
+// switchDisableTypicalService switches a service in/out of disabled state
+// where "true" means disabled and "false" means enabled.
+func switchDisableTypicalService(serviceName, value string) error {
+	sysd := systemd.New(dirs.GlobalRootDir, &sysdLogger{})
+
+	switch value {
+	case "true":
+		if err := sysd.Disable(serviceName); err != nil {
+			return err
+		}
+		if err := sysd.Mask(serviceName); err != nil {
+			return err
+		}
+		return sysd.Stop(serviceName, 5*time.Minute)
+	case "false":
+		if err := sysd.Unmask(serviceName); err != nil {
+			return err
+		}
+		if err := sysd.Enable(serviceName); err != nil {
+			return err
 		}
 		return sysd.Start(serviceName)
 	default:
 		return fmt.Errorf("option %q has invalid value %q", serviceName, value)
 	}
+}
+
+func switchDisableService(serviceName, value string) error {
+	if serviceName == "ssh.service" {
+		return switchDisableSSHService(serviceName, value)
+	}
+	return switchDisableTypicalService(serviceName, value)
 }
 
 // services that can be disabled
