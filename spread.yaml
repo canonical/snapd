@@ -49,9 +49,9 @@ backends:
         key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
         location: computeengine/us-east1-b
         systems:
-            - ubuntu-16.04-32:
-                workers: 6
             - ubuntu-14.04-64:
+                workers: 6
+            - ubuntu-16.04-32:
                 workers: 6
             - ubuntu-16.04-64:
                 workers: 8
@@ -61,6 +61,10 @@ backends:
 
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
+                workers: 6
+
+            - debian-9-64:
+                image: debian-9-stretch
                 workers: 6
 
             - opensuse-42.2-64:
@@ -84,9 +88,6 @@ backends:
             HTTP_PROXY: null
             HTTPS_PROXY: null
         systems:
-            - debian-9-64:
-                kernel: GRUB 2
-                workers: 6
             - debian-sid-64:
                 kernel: GRUB 2
                 workers: 6
