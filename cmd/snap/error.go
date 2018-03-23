@@ -128,7 +128,7 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 		}
 	case client.ErrorKindSnapAlreadyInstalled:
 		isError = false
-		msg = i18n.G(`snap %q is already installed, see "snap refresh --help"`)
+		msg = i18n.G(`snap %q is already installed, see 'snap help refresh'`)
 	case client.ErrorKindSnapNeedsDevMode:
 		msg = i18n.G(`
 The publisher of snap %q has indicated that they do not consider this revision
@@ -153,7 +153,7 @@ If you understand and want to proceed repeat the command including --classic.
 		u, _ := user.Current()
 		if u != nil && u.Username == "root" {
 			// TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
-			msg = fmt.Sprintf(i18n.G(`%s (see "snap login --help")`), err.Message)
+			msg = fmt.Sprintf(i18n.G(`%s (see 'snap help login')`), err.Message)
 		} else {
 			// TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 			msg = fmt.Sprintf(i18n.G(`%s (try with sudo)`), err.Message)

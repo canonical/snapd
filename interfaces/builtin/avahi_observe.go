@@ -116,7 +116,7 @@ dbus (send)
     bus=system
     interface=org.freedesktop.Avahi.Server
     member=StateChanged
-    peer=(name=org.freedesktop.Avahi, label=###PLUG_SECURITY_TAGS###),
+    peer=(label=###PLUG_SECURITY_TAGS###),
 
 # address resolving
 dbus (receive)
@@ -140,7 +140,7 @@ dbus (receive)
 dbus (send)
     bus=system
     interface=org.freedesktop.Avahi.HostNameResolver
-    peer=(name=org.freedesktop.Avahi, label=###PLUG_SECURITY_TAGS###),
+    peer=(label=###PLUG_SECURITY_TAGS###),
 
 # service resolving
 dbus (receive)
@@ -152,7 +152,7 @@ dbus (receive)
 dbus (send)
     bus=system
     interface=org.freedesktop.Avahi.ServiceResolver
-    peer=(name=org.freedesktop.Avahi, label=###PLUG_SECURITY_TAGS###),
+    peer=(label=###PLUG_SECURITY_TAGS###),
 
 # domain browsing
 dbus (receive)
@@ -164,7 +164,7 @@ dbus (receive)
 dbus (send)
     bus=system
     interface=org.freedesktop.Avahi.DomainBrowser
-    peer=(name=org.freedesktop.Avahi, label=###PLUG_SECURITY_TAGS###),
+    peer=(label=###PLUG_SECURITY_TAGS###),
 
 # record browsing
 dbus (receive)
@@ -176,7 +176,7 @@ dbus (receive)
 dbus (send)
     bus=system
     interface=org.freedesktop.Avahi.RecordBrowser
-    peer=(name=org.freedesktop.Avahi, label=###PLUG_SECURITY_TAGS###),
+    peer=(label=###PLUG_SECURITY_TAGS###),
 
 # service browsing
 dbus (receive)
@@ -188,7 +188,7 @@ dbus (receive)
 dbus (send)
     bus=system
     interface=org.freedesktop.Avahi.ServiceBrowser
-    peer=(name=org.freedesktop.Avahi, label=###PLUG_SECURITY_TAGS###),
+    peer=(label=###PLUG_SECURITY_TAGS###),
 
 # service type browsing
 dbus (receive)
@@ -200,7 +200,7 @@ dbus (receive)
 dbus (send)
     bus=system
     interface=org.freedesktop.Avahi.ServiceTypeBrowser
-    peer=(name=org.freedesktop.Avahi, label=###PLUG_SECURITY_TAGS###),
+    peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
 // Note: avahiObservePermanentSlotDBus is used by avahi-control in DBusPermanentSlot

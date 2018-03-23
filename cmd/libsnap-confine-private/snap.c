@@ -123,15 +123,19 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 		goto out;
 	}
 	bool got_letter = false;
+	int n = 0, m;
 	for (; *p != '\0';) {
-		if (skip_lowercase_letters(&p) > 0) {
+		if ((m = skip_lowercase_letters(&p)) > 0) {
+			n += m;
 			got_letter = true;
 			continue;
 		}
-		if (skip_digits(&p) > 0) {
+		if ((m = skip_digits(&p)) > 0) {
+			n += m;
 			continue;
 		}
 		if (skip_one_char(&p, '-') > 0) {
+			n++;
 			if (*p == '\0') {
 				err =
 				    sc_error_init(SC_SNAP_DOMAIN,
@@ -155,6 +159,10 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 	if (!got_letter) {
 		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
 				    "snap name must contain at least one letter");
+	}
+	if (n > 40) {
+		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
+				    "snap name must be shorter than 40 characters");
 	}
 
  out:

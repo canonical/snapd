@@ -56,13 +56,13 @@ func (s *SnapSuite) TestChangeSimple(c *check.C) {
 	expectedChange := `(?ms)Status +Spawn +Ready +Summary
 Do +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary
 `
-	rest, err := snap.Parser().ParseArgs([]string{"change", "42"})
+	rest, err := snap.Parser().ParseArgs([]string{"change", "--abs-time", "42"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, expectedChange)
 	c.Check(s.Stderr(), check.Equals, "")
 
-	rest, err = snap.Parser().ParseArgs([]string{"tasks", "42"})
+	rest, err = snap.Parser().ParseArgs([]string{"tasks", "--abs-time", "42"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, expectedChange)
@@ -144,19 +144,19 @@ func (s *SnapSuite) TestTasksLast(c *check.C) {
 	expectedChange := `(?ms)Status +Spawn +Ready +Summary
 Do +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary
 `
-	rest, err := snap.Parser().ParseArgs([]string{"tasks", "--last=install"})
+	rest, err := snap.Parser().ParseArgs([]string{"tasks", "--abs-time", "--last=install"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, expectedChange)
 	c.Check(s.Stderr(), check.Equals, "")
 
-	_, err = snap.Parser().ParseArgs([]string{"tasks", "--last=foobar"})
+	_, err = snap.Parser().ParseArgs([]string{"tasks", "--abs-time", "--last=foobar"})
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, `no changes of type "foobar" found`)
 }
 
 func (s *SnapSuite) TestTasksSyntaxError(c *check.C) {
-	_, err := snap.Parser().ParseArgs([]string{"tasks", "--last=install", "42"})
+	_, err := snap.Parser().ParseArgs([]string{"tasks", "--abs-time", "--last=install", "42"})
 	c.Assert(err, check.NotNil)
 	c.Assert(err, check.ErrorMatches, `cannot use change ID and type together`)
 
@@ -190,7 +190,7 @@ func (s *SnapSuite) TestChangeProgress(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"change", "42"})
+	rest, err := snap.Parser().ParseArgs([]string{"change", "--abs-time", "42"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?ms)Status +Spawn +Ready +Summary

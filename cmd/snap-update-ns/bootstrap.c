@@ -133,15 +133,19 @@ int validate_snap_name(const char* snap_name)
         return -1;
     }
     bool got_letter = false;
+    int n=0, m;
     for (; *p != '\0';) {
-        if (skip_lowercase_letters(&p) > 0) {
+        if ((m = skip_lowercase_letters(&p)) > 0) {
+            n += m;
             got_letter = true;
             continue;
         }
-        if (skip_digits(&p) > 0) {
+        if ((m = skip_digits(&p)) > 0) {
+            n += m;
             continue;
         }
         if (skip_one_char(&p, '-') > 0) {
+            n++;
             if (*p == '\0') {
                 bootstrap_msg = "snap name cannot end with a dash";
                 return -1;
@@ -157,6 +161,10 @@ int validate_snap_name(const char* snap_name)
     }
     if (!got_letter) {
         bootstrap_msg = "snap name must contain at least one letter";
+        return -1;
+    }
+    if (n > 40) {
+        bootstrap_msg = "snap name must be shorter than 40 characters";
         return -1;
     }
 

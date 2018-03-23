@@ -20,7 +20,6 @@
 package boot_test
 
 import (
-	"io/ioutil"
 	"path/filepath"
 	"testing"
 
@@ -34,23 +33,28 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestBoot(t *testing.T) { TestingT(t) }
 
 type kernelOSSuite struct {
+	testutil.BaseTest
 	bootloader *boottest.MockBootloader
 }
 
 var _ = Suite(&kernelOSSuite{})
 
 func (s *kernelOSSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	dirs.SetRootDir(c.MkDir())
 	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
 	partition.ForceBootloader(s.bootloader)
 }
 
 func (s *kernelOSSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
 }
@@ -97,9 +101,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 		}
 
 		fullFn := filepath.Join(kernelAssetsDir, def[0])
-		content, err := ioutil.ReadFile(fullFn)
-		c.Assert(err, IsNil)
-		c.Assert(string(content), Equals, def[1])
+		c.Check(fullFn, testutil.FileEquals, def[1])
 	}
 
 	// remove
@@ -152,7 +154,7 @@ func (s *kernelOSSuite) TestSetNextBootOnClassic(c *C) {
 	defer restore()
 
 	// Create a fake OS snap that we try to update
-	snapInfo := snaptest.MockSnap(c, "name: os\ntype: os", "SNAP", &snap.SideInfo{Revision: snap.R(42)})
+	snapInfo := snaptest.MockSnap(c, "name: os\ntype: os", &snap.SideInfo{Revision: snap.R(42)})
 	err := boot.SetNextBoot(snapInfo)
 	c.Assert(err, IsNil)
 

@@ -129,14 +129,14 @@ func computeAndSaveChanges(snapName string) error {
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
-	desired, err := mount.LoadProfile(desiredProfilePath)
+	desired, err := osutil.LoadMountProfile(desiredProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load desired mount profile of snap %q: %s", snapName, err)
 	}
 	debugShowProfile(desired, "desired mount profile")
 
 	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
-	currentBefore, err := mount.LoadProfile(currentProfilePath)
+	currentBefore, err := osutil.LoadMountProfile(currentProfilePath)
 	if err != nil {
 		return fmt.Errorf("cannot load current mount profile of snap %q: %s", snapName, err)
 	}
@@ -152,8 +152,6 @@ func computeAndSaveChanges(snapName string) error {
 	for _, change := range changesNeeded {
 		logger.Debugf("\t * %s", change)
 		synthesised, err := changePerform(change)
-		// NOTE: we may have done something even if Perform itself has failed.
-		// We need to collect synthesized changes and store them.
 		changesMade = append(changesMade, synthesised...)
 		if len(synthesised) > 0 {
 			logger.Debugf("\tsynthesised additional mount changes:")
@@ -162,15 +160,21 @@ func computeAndSaveChanges(snapName string) error {
 			}
 		}
 		if err != nil {
+			// NOTE: we may have done something even if Perform itself has failed.
+			// We need to collect synthesized changes and store them.
+			if change.Entry.XSnapdOrigin() == "layout" {
+				return err
+			}
 			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			continue
 		}
+
 		changesMade = append(changesMade, change)
 	}
 
 	// Compute the new current profile so that it contains only changes that were made
 	// and save it back for next runs.
-	var currentAfter mount.Profile
+	var currentAfter osutil.MountProfile
 	for _, change := range changesMade {
 		if change.Action == Mount || change.Action == Keep {
 			currentAfter.Entries = append(currentAfter.Entries, change.Entry)
@@ -185,7 +189,7 @@ func computeAndSaveChanges(snapName string) error {
 	return nil
 }
 
-func debugShowProfile(profile *mount.Profile, header string) {
+func debugShowProfile(profile *osutil.MountProfile, header string) {
 	if len(profile.Entries) > 0 {
 		logger.Debugf("%s:", header)
 		for _, entry := range profile.Entries {

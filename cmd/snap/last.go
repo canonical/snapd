@@ -33,7 +33,7 @@ type changeIDMixin struct {
 	} `positional-args:"yes"`
 }
 
-var changeIDMixinOptDesc = map[string]string{
+var changeIDMixinOptDesc = mixinDescs{
 	"last": i18n.G("Select last change of given type (install, refresh, remove, try, auto-refresh etc.)"),
 }
 

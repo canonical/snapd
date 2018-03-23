@@ -18,7 +18,10 @@ execute: |
     . "$TESTSLIB/snaps.sh"
 
     echo "Remove snapd and snap-confine"
-    distro_purge_package snapd snapd-selinux snap-confine || true
+    distro_purge_package snapd snap-confine || true
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]] ; then
+        distro_purge_package snapd-selinux || true
+    fi
 
     echo "Install previous snapd version from the store"
     distro_install_package snap-confine snapd

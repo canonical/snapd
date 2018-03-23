@@ -285,6 +285,7 @@ func (s *snapmgrTestSuite) TestRefreshAliases(c *C) {
 
 	info := snaptest.MockInfo(c, `
 name: alias-snap
+version: 0
 apps:
     cmd1:
     cmd2:
