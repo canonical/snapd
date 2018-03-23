@@ -109,11 +109,12 @@ func maybeWaitForSecurityProfileRegeneration() error {
 	// We have a mismatch, try to connect to snapd, once we can
 	// connect we just continue because that means snapd has
 	// generated new profiles.
-	sleep := 200 * time.Millisecond
-	timeout := int(300 * time.Second / sleep)
-	if timeoutEnv := os.Getenv("SNAPD_DEBUG_SYSTEM_KEY_WAIT_TIMEOUT_SEC"); timeoutEnv != "" {
+	//
+	// connect timeout is 5s
+	timeout := 12
+	if timeoutEnv := os.Getenv("SNAPD_DEBUG_SYSTEM_KEY_RETRY"); timeoutEnv != "" {
 		if i, err := strconv.Atoi(timeoutEnv); err == nil {
-			timeout = int(time.Duration(i) * time.Second / sleep)
+			timeout = i
 		}
 	}
 
@@ -122,7 +123,6 @@ func maybeWaitForSecurityProfileRegeneration() error {
 		if _, err := cli.SysInfo(); err == nil {
 			return nil
 		}
-		time.Sleep(sleep)
 	}
 
 	return fmt.Errorf("timeout waiting for snap system profiles to get updated")

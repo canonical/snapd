@@ -2,14 +2,14 @@ summary: Ensure security profile re-generation works with system-key
 
 execute: |
     stop_snapd() {
-        systemctl stop snapd.service
+        systemctl stop snapd.service snapd.socket
         while [ "$(systemctl show -pActiveState snapd.service)" != "ActiveState=inactive" ]; do
             systemctl show -pActiveState snapd.service
             sleep 1
         done
     }
     start_snapd() {
-        systemctl start snapd.service
+        systemctl start snapd.service snapd.socket
         while [ "$(systemctl show -pActiveState snapd.service)" != "ActiveState=active" ]; do
             systemctl show -pActiveState snapd.service
             sleep 1
@@ -46,7 +46,7 @@ execute: |
     echo "Change system-key, this ensure that snap run will wait"
     printf '{"version":1}' > /var/lib/snapd/system-key
     stop_snapd
-    if SNAPD_DEBUG_SYSTEM_KEY_WAIT_TIMEOUT_SEC=5 test-snapd-tools.echo bad; then
+    if SNAPD_DEBUG_SYSTEM_KEY_RETRY=1 test-snapd-tools.echo bad; then
         echo "snap run should have errored because of changed system-key"
         exit 1
     fi
