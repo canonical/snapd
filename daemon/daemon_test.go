@@ -57,7 +57,7 @@ type daemonSuite struct {
 
 var _ = check.Suite(&daemonSuite{})
 
-func (s *daemonSuite) checkAuthorizationForPid(pid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+func (s *daemonSuite) checkAuthorization(pid uint32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 	s.lastPolkitFlags = flags
 	return s.authorized, s.err
 }
@@ -66,7 +66,7 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, check.IsNil)
-	polkitCheckAuthorizationForPid = s.checkAuthorizationForPid
+	polkitCheckAuthorization = s.checkAuthorization
 }
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
@@ -77,7 +77,7 @@ func (s *daemonSuite) TearDownTest(c *check.C) {
 }
 
 func (s *daemonSuite) TearDownSuite(c *check.C) {
-	polkitCheckAuthorizationForPid = polkit.CheckAuthorizationForPid
+	polkitCheckAuthorization = polkit.CheckAuthorization
 }
 
 // build a new daemon, with only a little of Init(), suitable for the tests
@@ -269,8 +269,8 @@ func (s *daemonSuite) TestPolkitAccessForGet(c *check.C) {
 
 	// for UserOK commands, polkit is not consulted
 	cmd.UserOK = true
-	polkitCheckAuthorizationForPid = func(pid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
-		panic("polkit.CheckAuthorizationForPid called")
+	polkitCheckAuthorization = func(pid uint32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+		panic("polkit.CheckAuthorization called")
 	}
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
 }

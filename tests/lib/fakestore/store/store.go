@@ -182,6 +182,9 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 		return nil, errInfo
 	}
 
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	defer restoreSanitize()
+
 	info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), 400)
@@ -313,6 +316,9 @@ func (s *Store) collectSnaps() (map[string]string, error) {
 	}
 
 	snaps := map[string]string{}
+
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	defer restoreSanitize()
 
 	for _, fn := range snapFns {
 		snapFile, err := snap.Open(fn)
