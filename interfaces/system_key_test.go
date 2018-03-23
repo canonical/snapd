@@ -71,7 +71,7 @@ func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
 		apparmorFeaturesStr = "\n- " + strings.Join(apparmorFeatures, "\n- ") + "\n"
 	}
 
-	seccompActions := release.SecCompActions
+	seccompActions := release.SecCompActions()
 	var seccompActionsStr string
 	if len(seccompActions) == 0 {
 		seccompActionsStr = " []\n"
