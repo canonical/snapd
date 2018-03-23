@@ -85,7 +85,7 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
 
 	overlayRoot, err := osutil.IsRootWritableOverlay()
 	c.Assert(err, IsNil)
-	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":"1","build_ids":{"host_snapd":"","core_snap_snapd":""},"apparmor_features":%s,"nfs_home":%v,"overlay_root":%q,"seccomp_features":%s}`, apparmorFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
+	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build_ids":{"host_snapd":"","core_snap_snapd":""},"apparmor_features":%s,"nfs_home":%v,"overlay_root":%q,"seccomp_features":%s}`, apparmorFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
@@ -124,13 +124,13 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchVersions(c *C) {
 	// we calculcate v1
 	s.AddCleanup(interfaces.MockSystemKey(`
 {
-"version":"1",
+"version":1,
 "build_id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"
 }`))
 	// and the on-disk version is v2
 	err := ioutil.WriteFile(dirs.SnapSystemKeyFile, []byte(`
 {
-"version":"2",
+"version":2,
 "build_id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"
 }`), 0644)
 	c.Assert(err, IsNil)

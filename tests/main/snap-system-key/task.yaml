@@ -41,7 +41,7 @@ execute: |
     snap install test-snapd-tools
     echo "Change system-key, this ensure that snap run will wait"
     printf "something: new\n" >> /var/lib/snapd/system-key
-    if SNAPD_DEBUG_SYSTEM_KEY_WAIT_TIMEOUT=5 test-snapd-tools.echo bad; then
+    if SNAPD_DEBUG_SYSTEM_KEY_WAIT_TIMEOUT_SEC=5 test-snapd-tools.echo bad; then
         echo "snap run should have errored because of changed system-key"
         exit 1
     fi

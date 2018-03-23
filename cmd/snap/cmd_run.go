@@ -95,12 +95,11 @@ and environment.
 func maybeWaitForSecurityProfileRegeneration() error {
 	// check if the security profiles key has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
-	//
-	// (wait up to 1500 * 200ms = 300s)
-	timeout := 1500
-	if timeoutEnv := os.Getenv("SNAPD_DEBUG_SYSTEM_KEY_WAIT_TIMEOUT"); timeoutEnv != "" {
+	sleep := 200 * time.Millisecond
+	timeout := int(300 * time.Second / sleep)
+	if timeoutEnv := os.Getenv("SNAPD_DEBUG_SYSTEM_KEY_WAIT_TIMEOUT_SEC"); timeoutEnv != "" {
 		if i, err := strconv.Atoi(timeoutEnv); err == nil {
-			timeout = i
+			timeout = int(time.Duration(i) * time.Second / sleep)
 		}
 	}
 	for i := 0; i < timeout; i++ {
@@ -113,7 +112,7 @@ func maybeWaitForSecurityProfileRegeneration() error {
 		if !mismatch {
 			return nil
 		}
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(sleep)
 	}
 
 	return fmt.Errorf("timeout waiting for snap system profiles to get updated")

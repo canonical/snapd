@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -54,8 +55,16 @@ var (
 // *must* be cheap to calculate it (no hashes of big binaries etc).
 type systemKey struct {
 	// IMPORTANT: when adding new inputs bump this version
-	Version string `json:"version"`
+	Version int `json:"version"`
 
+	// The build-ids of both the core snap snapd and the host
+	// snapd are used as inputs. This may lead to more regens
+	// than strictly necessary. The alternative is to try to
+	// figure out which one will be run, this means to look
+	// for re-exec behaviour and for potential SNAP_REEXEC=0
+	// in the snapd service file or /etc/environment. So
+	// this approach is conservative by looking at both
+	// at the expense of potential extra re-gens.
 	BuildIDs struct {
 		HostSnapd     string `json:"host_snapd"`
 		CoreSnapSnapd string `json:"core_snap_snapd"`
@@ -79,7 +88,7 @@ func generateSystemKey() *systemKey {
 	}
 
 	var sk systemKey
-	sk.Version = "1"
+	sk.Version = 1
 
 	buildID, err := osutil.ReadBuildID(filepath.Join(dirs.DistroLibExecDir, "snapd"))
 	if err != nil {
@@ -180,22 +189,19 @@ func SystemKeyMismatch() (bool, error) {
 	if mySystemKey.Version != diskSystemKey.Version {
 		return false, ErrSystemKeyIncomparableVersions
 	}
-	mySystemKeyJSON, err := json.Marshal(mySystemKey)
-	if err != nil {
-		return false, err
-	}
 
 	// special case to detect local runs
 	if mockedSystemKey == nil {
 		if exe, err := os.Readlink("/proc/self/exe"); err == nil {
 			// detect running local local builds
 			if !strings.HasPrefix(exe, "/usr") && !strings.HasPrefix(exe, "/snap") {
+				logger.Noticef("running from non-installed location %s: ignoring system-key", exe)
 				return false, ErrSystemKeyIncomparableVersions
 			}
 		}
 	}
 
-	return string(mySystemKeyJSON) != string(raw), nil
+	return !reflect.DeepEqual(mySystemKey, &diskSystemKey), nil
 }
 
 func MockSystemKey(s string) func() {
