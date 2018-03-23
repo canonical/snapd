@@ -113,6 +113,13 @@ type Info struct {
 	Slots   []*snap.SlotInfo
 }
 
+type ConnectionInfo struct {
+	Interface string
+	Notes     string
+	Plug      *snap.PlugInfo
+	Slot      *snap.SlotInfo
+}
+
 // ConnRef holds information about plug and slot reference that form a particular connection.
 type ConnRef struct {
 	PlugRef PlugRef

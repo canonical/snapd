@@ -159,3 +159,38 @@ func (c bySlotInfo) Less(i, j int) bool {
 	}
 	return c[i].Name < c[j].Name
 }
+
+type connectionOrder []*ConnectionInfo
+
+func (c connectionOrder) Len() int {
+	return len(c)
+}
+
+func (c connectionOrder) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
+}
+
+func (c connectionOrder) Less(i, j int) bool {
+	if c[i].Plug == nil {
+		return c[j].Plug == nil
+	}
+	if c[j].Plug == nil {
+		return true
+	}
+	if c[i].Slot == nil {
+		return c[j].Slot == nil
+	}
+	if c[j].Slot == nil {
+		return true
+	}
+	if c[i].Plug.Snap.Name() != c[j].Plug.Snap.Name() {
+		return c[i].Plug.Snap.Name() < c[j].Plug.Snap.Name()
+	}
+	if c[i].Slot.Snap.Name() != c[j].Slot.Snap.Name() {
+		return c[i].Slot.Snap.Name() < c[j].Slot.Snap.Name()
+	}
+	if c[i].Plug.Name != c[j].Plug.Name {
+		return c[i].Plug.Name < c[j].Plug.Name
+	}
+	return c[i].Slot.Name < c[j].Slot.Name
+}
