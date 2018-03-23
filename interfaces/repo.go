@@ -214,7 +214,7 @@ func (r *Repository) ConnectionsInfo(snapNames []string, includeDisconnected boo
 						Plug:      plugInfo,
 						Slot:      slotInfo,
 						Interface: plugInfo.Interface,
-						Notes:     "", // TODO
+						Notes:     nil, // TODO
 					}
 					conns = append(conns, conn)
 				}
@@ -224,7 +224,7 @@ func (r *Repository) ConnectionsInfo(snapNames []string, includeDisconnected boo
 						Plug:      plugInfo,
 						Slot:      nil,
 						Interface: plugInfo.Interface,
-						Notes:     "", // TODO
+						Notes:     nil, // TODO
 					}
 					conns = append(conns, conn)
 				}
@@ -244,7 +244,7 @@ func (r *Repository) ConnectionsInfo(snapNames []string, includeDisconnected boo
 						Plug:      nil,
 						Slot:      slotInfo,
 						Interface: slotInfo.Interface,
-						Notes:     "", // TODO
+						Notes:     nil, // TODO
 					}
 					conns = append(conns, conn)
 				}

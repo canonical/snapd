@@ -115,7 +115,7 @@ type Info struct {
 
 type ConnectionInfo struct {
 	Interface string
-	Notes     string
+	Notes     []string
 	Plug      *snap.PlugInfo
 	Slot      *snap.SlotInfo
 }
