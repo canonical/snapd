@@ -195,7 +195,7 @@ distro_install_package() {
                 ;;
         opensuse-*)
             # shellcheck disable=SC2086
-            quiet zypper install -y -l $ZYPPER_FLAGS "${pkg_names[@]}"
+            quiet zypper install -y $ZYPPER_FLAGS "${pkg_names[@]}"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
