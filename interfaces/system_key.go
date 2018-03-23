@@ -57,22 +57,10 @@ type systemKey struct {
 	// IMPORTANT: when adding new inputs bump this version
 	Version int `json:"version"`
 
-	// The build-ids of both the core snap snapd and the host
-	// snapd are used as inputs. This may lead to more regens
-	// than strictly necessary. The alternative is to try to
-	// figure out which one will be run, this means to look
-	// for re-exec behaviour and for potential SNAP_REEXEC=0
-	// in the snapd service file or /etc/environment. So
-	// this approach is conservative by looking at both
-	// at the expense of potential extra re-gens.
-	BuildIDs struct {
-		HostSnapd     string `json:"host_snapd"`
-		CoreSnapSnapd string `json:"core_snap_snapd"`
-	} `json:"build_ids"`
+	BuildID          string   `json:"build_id"`
 	AppArmorFeatures []string `json:"apparmor_features"`
 	NFSHome          bool     `json:"nfs_home"`
 	OverlayRoot      string   `json:"overlay_root"`
-	Core             string   `json:"core,omitempty"`
 	SecCompActions   []string `json:"seccomp_features"`
 }
 
@@ -81,26 +69,37 @@ var (
 	mockedSystemKey *systemKey
 )
 
+func findSnapdPath() (string, error) {
+	snapdPath := filepath.Join(dirs.DistroLibExecDir, "snapd")
+
+	// find the right snapdPath
+	exe, err := os.Readlink("/proc/self/exe")
+	if err != nil {
+		return "", err
+	}
+
+	if strings.HasPrefix(exe, dirs.SnapMountDir) {
+		return filepath.Join(dirs.SnapMountDir, "core/current/usr/lib/snapd/snapd"), nil
+	}
+	return snapdPath, nil
+}
+
 func generateSystemKey() *systemKey {
 	// for testing only
 	if mockedSystemKey != nil {
 		return mockedSystemKey
 	}
 
-	var sk systemKey
-	sk.Version = 1
-
-	buildID, err := osutil.ReadBuildID(filepath.Join(dirs.DistroLibExecDir, "snapd"))
-	if err != nil {
-		buildID = ""
+	var err error
+	sk := &systemKey{
+		Version: 1,
 	}
-	sk.BuildIDs.HostSnapd = buildID
 
-	buildID, err = osutil.ReadBuildID(filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd"))
-	if err != nil {
-		buildID = ""
+	if snapdPath, err := findSnapdPath(); err == nil {
+		if buildID, err := osutil.ReadBuildID(snapdPath); err == nil {
+			sk.BuildID = buildID
+		}
 	}
-	sk.BuildIDs.CoreSnapSnapd = buildID
 
 	// Add apparmor-features (which is already sorted)
 	sk.AppArmorFeatures = release.AppArmorFeatures()
@@ -120,17 +119,10 @@ func generateSystemKey() *systemKey {
 		logger.Noticef("cannot determine root filesystem on overlay in generateSystemKey: %v", err)
 	}
 
-	// Add the current Core path, we need this because we call helpers
-	// like snap-confine from core that will need an updated profile
-	// if it changes
-	//
-	// FIXME: what about core18? the snapd snap?
-	sk.Core, _ = os.Readlink(filepath.Join(dirs.SnapMountDir, "core/current"))
-
 	// Add seccomp-features
 	sk.SecCompActions = release.SecCompActions
 
-	return &sk
+	return sk
 }
 
 // WriteSystemKey will write the current system-key to disk
