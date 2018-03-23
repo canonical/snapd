@@ -25,6 +25,9 @@ set -o pipefail
 # shellcheck source=tests/lib/random.sh
 . "$TESTSLIB/random.sh"
 
+# shellcheck source=tests/lib/spread-funcs.sh
+. "$TESTSLIB/spread-funcs.sh"
+
 ###
 ### Utility functions reused below.
 ###
@@ -252,6 +255,8 @@ prepare_project() {
         go get -u github.com/kardianos/govendor
     fi
     quiet govendor sync
+    # govendor runs as root and will leave strange permissions
+    chown test.test -R "$SPREAD_PATH"
 
     if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
         case "$SPREAD_SYSTEM" in
@@ -317,6 +322,10 @@ prepare_project_each() {
             systemctl start systemd-journald.service
             ;;
         *)
+            # per journalctl's implementation, --rotate and --sync 'override'
+            # each other if used in a single command, with the one appearing
+            # later being effective
+            journalctl --sync
             journalctl --rotate
             sleep .1
             journalctl --vacuum-time=1ms
@@ -327,6 +336,44 @@ prepare_project_each() {
     dmesg -c > /dev/null
 
     fixup_dev_random
+}
+
+prepare_suite() {
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        prepare_all_snap
+    else
+        prepare_classic
+    fi
+}
+
+prepare_suite_each() {
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --reuse-core
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+        prepare_each_classic
+    fi
+}
+
+restore_suite_each() {
+    true
+}
+
+restore_suite() {
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --store
+    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+        # shellcheck source=tests/lib/pkgdb.sh
+        . $TESTSLIB/pkgdb.sh
+        distro_purge_package snapd
+        if [[ "$SPREAD_SYSTEM" != opensuse-* ]]; then
+            # A snap-confine package never existed on openSUSE
+            distro_purge_package snap-confine
+        fi
+    fi
 }
 
 restore_project_each() {
@@ -366,6 +413,18 @@ case "$1" in
     --prepare-project-each)
         prepare_project_each
         ;;
+    --prepare-suite)
+        prepare_suite
+        ;;
+    --prepare-suite-each)
+        prepare_suite_each
+        ;;
+    --restore-suite-each)
+        restore_suite_each
+        ;;
+    --restore-suite)
+        restore_suite
+        ;;
     --restore-project-each)
         restore_project_each
         ;;
@@ -374,7 +433,7 @@ case "$1" in
         ;;
     *)
         echo "unsupported argument: $1"
-        echo "try one of --{prepare,restore}-project{,-each}"
+        echo "try one of --{prepare,restore}-{project,suite}{,-each}"
         exit 1
         ;;
 esac

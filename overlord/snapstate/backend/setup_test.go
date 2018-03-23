@@ -21,9 +21,9 @@ package backend_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -40,6 +40,7 @@ import (
 )
 
 type setupSuite struct {
+	testutil.BaseTest
 	be                backend.Backend
 	umount            *testutil.MockCmd
 	systemctlRestorer func()
@@ -48,6 +49,9 @@ type setupSuite struct {
 var _ = Suite(&setupSuite{})
 
 func (s *setupSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
 	dirs.SetRootDir(c.MkDir())
 
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
@@ -61,6 +65,7 @@ func (s *setupSuite) SetUpTest(c *C) {
 }
 
 func (s *setupSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
 	s.umount.Restore()
@@ -83,10 +88,8 @@ func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
 
 	// ensure the right unit is created
 	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14"))
-	content, err := ioutil.ReadFile(mup)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, fmt.Sprintf("(?ms).*^Where=%s", filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14")))
-	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/hello_14.snap")
+	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14")))
+	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/hello_14.snap")
 
 	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
 	// mount dir was created
@@ -242,4 +245,34 @@ type: kernel
 
 	l, _ = filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
 	c.Assert(l, HasLen, 0)
+}
+
+func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {
+	snapPath := makeTestSnap(c, helloYaml1)
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		// mount unit start fails
+		if len(cmd) >= 2 && cmd[0] == "start" && strings.HasSuffix(cmd[1], ".mount") {
+			return nil, fmt.Errorf("failed")
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	err := s.be.SetupSnap(snapPath, &si, progress.Null)
+	c.Assert(err, ErrorMatches, "failed")
+
+	// everything is gone
+	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
+	c.Check(l, HasLen, 0)
+
+	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
+	c.Check(osutil.FileExists(minInfo.MountDir()), Equals, false)
+	c.Check(osutil.FileExists(minInfo.MountFile()), Equals, false)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello_14.snap")), Equals, false)
 }

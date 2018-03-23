@@ -39,6 +39,10 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/net/context"
+	"golang.org/x/net/context/ctxhttp"
+	"gopkg.in/retry.v1"
+
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
@@ -50,10 +54,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-
-	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
-	"gopkg.in/retry.v1"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -83,94 +84,6 @@ var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
 		Factor:  2.5,
 	},
 ))
-
-func infoFromRemote(d *snapDetails) *snap.Info {
-	info := &snap.Info{}
-	info.Architectures = d.Architectures
-	info.Type = d.Type
-	info.Version = d.Version
-	info.Epoch = d.Epoch
-	info.RealName = d.Name
-	info.SnapID = d.SnapID
-	info.Revision = snap.R(d.Revision)
-	info.EditedTitle = d.Title
-	info.EditedSummary = d.Summary
-	info.EditedDescription = d.Description
-	// FIXME: should this be publisherID?
-	info.PublisherID = d.DeveloperID
-	info.Publisher = d.Publisher
-	info.Channel = d.Channel
-	info.Sha3_384 = d.DownloadSha3_384
-	info.Size = d.DownloadSize
-	info.IconURL = d.IconURL
-	info.AnonDownloadURL = d.AnonDownloadURL
-	info.DownloadURL = d.DownloadURL
-	info.Prices = d.Prices
-	info.Private = d.Private
-	info.Paid = len(info.Prices) > 0
-	info.Confinement = snap.ConfinementType(d.Confinement)
-	info.Contact = d.Contact
-	info.License = d.License
-	info.Base = d.Base
-
-	deltas := make([]snap.DeltaInfo, len(d.Deltas))
-	for i, d := range d.Deltas {
-		deltas[i] = snap.DeltaInfo{
-			FromRevision:    d.FromRevision,
-			ToRevision:      d.ToRevision,
-			Format:          d.Format,
-			AnonDownloadURL: d.AnonDownloadURL,
-			DownloadURL:     d.DownloadURL,
-			Size:            d.Size,
-			Sha3_384:        d.Sha3_384,
-		}
-	}
-	info.Deltas = deltas
-
-	screenshots := make([]snap.ScreenshotInfo, 0, len(d.ScreenshotURLs))
-	for _, url := range d.ScreenshotURLs {
-		screenshots = append(screenshots, snap.ScreenshotInfo{
-			URL: url,
-		})
-	}
-	info.Screenshots = screenshots
-	// FIXME: once the store sends "contact" for everything, remove
-	//        the "SupportURL" part of the if
-	if info.Contact == "" {
-		info.Contact = d.SupportURL
-	}
-
-	// fill in the tracks data
-	if len(d.ChannelMapList) > 0 {
-		info.Channels = make(map[string]*snap.ChannelSnapInfo)
-		info.Tracks = make([]string, len(d.ChannelMapList))
-		for i, cm := range d.ChannelMapList {
-			info.Tracks[i] = cm.Track
-			for _, ch := range cm.SnapDetails {
-				// nothing in this channel
-				if ch.Info == "" {
-					continue
-				}
-				var k string
-				if strings.HasPrefix(ch.Channel, cm.Track) {
-					k = ch.Channel
-				} else {
-					k = fmt.Sprintf("%s/%s", cm.Track, ch.Channel)
-				}
-				info.Channels[k] = &snap.ChannelSnapInfo{
-					Revision:    snap.R(ch.Revision),
-					Confinement: snap.ConfinementType(ch.Confinement),
-					Version:     ch.Version,
-					Channel:     ch.Channel,
-					Epoch:       ch.Epoch,
-					Size:        ch.DownloadSize,
-				}
-			}
-		}
-	}
-
-	return info
-}
 
 // Config represents the configuration to access the snap store
 type Config struct {
@@ -245,7 +158,7 @@ func respToError(resp *http.Response, msg string) error {
 	return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL)
 }
 
-func getStructFields(s interface{}) []string {
+func getStructFields(s interface{}, exceptions ...string) []string {
 	st := reflect.TypeOf(s)
 	num := st.NumField()
 	fields := make([]string, 0, num)
@@ -255,7 +168,7 @@ func getStructFields(s interface{}) []string {
 		if idx > -1 {
 			tag = tag[:idx]
 		}
-		if tag != "" {
+		if tag != "" && !strutil.ListContains(exceptions, tag) {
 			fields = append(fields, tag)
 		}
 	}
@@ -271,8 +184,7 @@ func useDeltas() bool {
 		return false
 	}
 
-	deltasDefault := release.OnClassic
-	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault)
+	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", true)
 }
 
 func useStaging() bool {
@@ -395,11 +307,8 @@ type sectionResults struct {
 	} `json:"_embedded"`
 }
 
-// The fields we are interested in
-var detailFields = getStructFields(snapDetails{})
-
-// The fields we are interested in for snap.ChannelSnapInfos
-var channelSnapInfoFields = getStructFields(channelSnapInfoDetails{})
+// The fields we are interested in (not you, snap_yaml_raw)
+var detailFields = getStructFields(snapDetails{}, "snap_yaml_raw")
 
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta3"
@@ -477,6 +386,16 @@ func (s *Store) defaultSnapQuery() url.Values {
 	q := url.Values{}
 	if len(s.detailFields) != 0 {
 		q.Set("fields", strings.Join(s.detailFields, ","))
+	}
+	return q
+}
+
+func (s *Store) queryForSnapInfo() url.Values {
+	// like defaultSnapQuery, plus a couple
+	q := url.Values{}
+	if len(s.detailFields) != 0 {
+		fields := append(s.detailFields, "snap_yaml_raw")
+		q.Set("fields", strings.Join(fields, ","))
 	}
 	return q
 }
@@ -666,7 +585,7 @@ func authenticateDevice(r *http.Request, device *auth.DeviceState) {
 	}
 }
 
-func (s *Store) setStoreID(r *http.Request) {
+func (s *Store) setStoreID(r *http.Request) (customStore bool) {
 	storeID := s.fallbackStoreID
 	if s.authContext != nil {
 		cand, err := s.authContext.StoreID(storeID)
@@ -678,8 +597,17 @@ func (s *Store) setStoreID(r *http.Request) {
 	}
 	if storeID != "" {
 		r.Header.Set("X-Ubuntu-Store", storeID)
+		return true
 	}
+	return false
 }
+
+type deviceAuthNeed int
+
+const (
+	deviceAuthPreferred deviceAuthNeed = iota
+	deviceAuthCustomStoreOnly
+)
 
 // requestOptions specifies parameters for store requests.
 type requestOptions struct {
@@ -689,6 +617,13 @@ type requestOptions struct {
 	ContentType  string
 	ExtraHeaders map[string]string
 	Data         []byte
+
+	// DeviceAuthNeed indicates the level of need to supply device
+	// authorization for this request, can be:
+	//  - deviceAuthPreferred: should be provided if available
+	//  - deviceAuthCustomStoreOnly: should be provided only in case
+	//    of a custom store
+	DeviceAuthNeed deviceAuthNeed
 }
 
 func (r *requestOptions) addHeader(k, v string) {
@@ -803,57 +738,84 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestO
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
 func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
-	req, err := s.newRequest(reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-
-	var resp *http.Response
-	if ctx != nil {
-		resp, err = ctxhttp.Do(ctx, client, req)
-	} else {
-		resp, err = client.Do(req)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	wwwAuth := resp.Header.Get("WWW-Authenticate")
-	if resp.StatusCode == 401 {
-		refreshed := false
-		if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
-			// refresh user
-			err = s.refreshUser(user)
-			if err != nil {
-				return nil, err
-			}
-			refreshed = true
+	authRefreshes := 0
+	for {
+		req, err := s.newRequest(reqOptions, user)
+		if err != nil {
+			return nil, err
 		}
-		if strings.Contains(wwwAuth, "refresh_device_session=1") {
-			// refresh device session
-			if s.authContext == nil {
-				return nil, fmt.Errorf("internal error: no authContext")
-			}
-			device, err := s.authContext.Device()
-			if err != nil {
-				return nil, err
-			}
 
-			err = s.refreshDeviceSession(device)
-			if err != nil {
-				return nil, err
-			}
-			refreshed = true
+		var resp *http.Response
+		if ctx != nil {
+			resp, err = ctxhttp.Do(ctx, client, req)
+		} else {
+			resp, err = client.Do(req)
 		}
-		if refreshed {
-			// close previous response and retry
-			// TODO: make this non-recursive or add a recursion limit
-			resp.Body.Close()
-			return s.doRequest(ctx, client, reqOptions, user)
+		if err != nil {
+			return nil, err
+		}
+
+		wwwAuth := resp.Header.Get("WWW-Authenticate")
+		if resp.StatusCode == 401 && authRefreshes < 4 {
+			// 4 tries: 2 tries for each in case both user
+			// and device need refreshing
+			var refreshNeed authRefreshNeed
+			refresh := false
+			if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
+				// refresh user
+				refreshNeed.user = true
+				refresh = true
+			}
+			if strings.Contains(wwwAuth, "refresh_device_session=1") {
+				// refresh device session
+				refreshNeed.device = true
+				refresh = true
+			}
+			if refresh {
+				err := s.refreshAuth(user, refreshNeed)
+				if err != nil {
+					return nil, err
+				}
+				// close previous response and retry
+				resp.Body.Close()
+				authRefreshes++
+				continue
+			}
+		}
+
+		return resp, err
+	}
+}
+
+type authRefreshNeed struct {
+	device bool
+	user   bool
+}
+
+func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
+	if need.user {
+		// refresh user
+		err := s.refreshUser(user)
+		if err != nil {
+			return err
 		}
 	}
+	if need.device {
+		// refresh device session
+		if s.authContext == nil {
+			return fmt.Errorf("internal error: no authContext")
+		}
+		device, err := s.authContext.Device()
+		if err != nil {
+			return err
+		}
 
-	return resp, err
+		err = s.refreshDeviceSession(device)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // build a new http.Request with headers for the store
@@ -868,7 +830,9 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		return nil, err
 	}
 
-	if s.authContext != nil {
+	customStore := s.setStoreID(req)
+
+	if s.authContext != nil && (customStore || reqOptions.DeviceAuthNeed != deviceAuthCustomStoreOnly) {
 		device, err := s.authContext.Device()
 		if err != nil {
 			return nil, err
@@ -899,7 +863,13 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set("X-Ubuntu-Series", s.series)
 	req.Header.Set("X-Ubuntu-Classic", strconv.FormatBool(release.OnClassic))
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
+	// still send this for now
 	req.Header.Set("X-Ubuntu-No-CDN", strconv.FormatBool(s.noCDN))
+	// TODO: do this only for download
+	err = s.cdnHeader(req, reqOptions)
+	if err != nil {
+		return nil, err
+	}
 
 	if reqOptions.ContentType != "" {
 		req.Header.Set("Content-Type", reqOptions.ContentType)
@@ -909,9 +879,45 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		req.Header.Set(header, value)
 	}
 
-	s.setStoreID(req)
-
 	return req, nil
+}
+
+func (s *Store) cdnHeader(req *http.Request, reqOptions *requestOptions) error {
+	if s.noCDN {
+		req.Header.Set("Snap-CDN", "none")
+		return nil
+	}
+
+	if s.authContext == nil {
+		return nil
+	}
+
+	// set Snap-CDN from cloud instance information
+	// if available
+
+	// TODO: do we want a more complex retry strategy
+	// where we first to send this header and if the
+	// operation fails that way to even get the connection
+	// then we retry without sending this?
+
+	cloudInfo, err := s.authContext.CloudInfo()
+	if err != nil {
+		return err
+	}
+
+	if cloudInfo != nil {
+		cdnParams := []string{fmt.Sprintf("cloud-name=%q", cloudInfo.Name)}
+		if cloudInfo.Region != "" {
+			cdnParams = append(cdnParams, fmt.Sprintf("region=%q", cloudInfo.Region))
+		}
+		if cloudInfo.AvailabilityZone != "" {
+			cdnParams = append(cdnParams, fmt.Sprintf("availability-zone=%q", cloudInfo.AvailabilityZone))
+		}
+
+		req.Header.Set("Snap-CDN", strings.Join(cdnParams, " "))
+	}
+
+	return nil
 }
 
 func (s *Store) extractSuggestedCurrency(resp *http.Response) {
@@ -1034,7 +1040,7 @@ type SnapSpec struct {
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
 func (s *Store) SnapInfo(snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	query := s.defaultSnapQuery()
+	query := s.queryForSnapInfo()
 
 	channel := snapSpec.Channel
 	var sel string
@@ -1183,11 +1189,12 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 }
 
 // Sections retrieves the list of available store sections.
-func (s *Store) Sections(user *auth.UserState) ([]string, error) {
+func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, error) {
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    s.endpointURL(sectionsEndpPath, nil),
-		Accept: halJsonContentType,
+		Method:         "GET",
+		URL:            s.endpointURL(sectionsEndpPath, nil),
+		Accept:         halJsonContentType,
+		DeviceAuthNeed: deviceAuthCustomStoreOnly,
 	}
 
 	var sectionData sectionResults
@@ -1214,7 +1221,7 @@ func (s *Store) Sections(user *auth.UserState) ([]string, error) {
 
 // WriteCatalogs queries the "commands" endpoint and writes the
 // command names into the given io.Writer.
-func (s *Store) WriteCatalogs(names io.Writer, adder SnapAdder) error {
+func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAdder) error {
 	u := *s.endpointURL(commandsEndpPath, nil)
 
 	q := u.Query()
@@ -1226,9 +1233,10 @@ func (s *Store) WriteCatalogs(names io.Writer, adder SnapAdder) error {
 
 	u.RawQuery = q.Encode()
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    &u,
-		Accept: halJsonContentType,
+		Method:         "GET",
+		URL:            &u,
+		Accept:         halJsonContentType,
+		DeviceAuthNeed: deviceAuthCustomStoreOnly,
 	}
 
 	// do not log body for catalog updates (its huge)
@@ -1237,7 +1245,7 @@ func (s *Store) WriteCatalogs(names io.Writer, adder SnapAdder) error {
 		Timeout:    10 * time.Second,
 	})
 	doRequest := func() (*http.Response, error) {
-		return s.doRequest(context.TODO(), client, reqOptions, nil)
+		return s.doRequest(ctx, client, reqOptions, nil)
 	}
 	readResponse := func(resp *http.Response) error {
 		return decodeCatalog(resp, names, adder)
@@ -1316,7 +1324,7 @@ func currentSnap(cs *RefreshCandidate) *currentSnapJSON {
 }
 
 // query the store for the information about currently offered revisions of snaps
-func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth.UserState, flags *RefreshOptions) ([]*snapDetails, error) {
+func (s *Store) refreshForCandidates(ctx context.Context, currentSnaps []*currentSnapJSON, user *auth.UserState, flags *RefreshOptions) ([]*snapDetails, error) {
 	if flags == nil {
 		flags = &RefreshOptions{}
 	}
@@ -1352,7 +1360,7 @@ func (s *Store) refreshForCandidates(currentSnaps []*currentSnapJSON, user *auth
 	}
 
 	var updateData searchResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &updateData, nil)
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &updateData, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1375,7 +1383,7 @@ func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState)
 		return nil, ErrLocalSnap
 	}
 
-	latest, err := refreshForCandidates(s, []*currentSnapJSON{cur}, user, nil)
+	latest, err := refreshForCandidates(s, context.TODO(), []*currentSnapJSON{cur}, user, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1394,7 +1402,7 @@ func (s *Store) LookupRefresh(installed *RefreshCandidate, user *auth.UserState)
 
 // ListRefresh returns the available updates for a list of refresh candidates.
 // NOTE ListRefresh can return nil, nil if e.g. all local snaps are passed in
-func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState, flags *RefreshOptions) (snaps []*snap.Info, err error) {
+func (s *Store) ListRefresh(ctx context.Context, installed []*RefreshCandidate, user *auth.UserState, flags *RefreshOptions) (snaps []*snap.Info, err error) {
 	candidateMap := map[string]*RefreshCandidate{}
 	currentSnaps := make([]*currentSnapJSON, 0, len(installed))
 	for _, cs := range installed {
@@ -1406,7 +1414,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState,
 		candidateMap[cs.SnapID] = cs
 	}
 
-	latest, err := s.refreshForCandidates(currentSnaps, user, flags)
+	latest, err := s.refreshForCandidates(ctx, currentSnaps, user, flags)
 	if err != nil {
 		return nil, err
 	}

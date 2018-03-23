@@ -37,9 +37,9 @@ type StoreService interface {
 	SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
 	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
 	LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error)
-	ListRefresh([]*store.RefreshCandidate, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error)
-	Sections(user *auth.UserState) ([]string, error)
-	WriteCatalogs(names io.Writer, adder store.SnapAdder) error
+	ListRefresh(context.Context, []*store.RefreshCandidate, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error)
+	Sections(ctx context.Context, user *auth.UserState) ([]string, error)
+	WriteCatalogs(ctx context.Context, names io.Writer, adder store.SnapAdder) error
 	Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
@@ -55,7 +55,7 @@ type managerBackend interface {
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info) error
 	StartServices(svcs []*snap.AppInfo, meter progress.Meter) error
-	StopServices(svcs []*snap.AppInfo, meter progress.Meter) error
+	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter) error
 
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error

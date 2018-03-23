@@ -27,9 +27,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/jessevdk/go-flags"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
@@ -40,15 +39,23 @@ import (
 )
 
 type infoCmd struct {
+	timeMixin
+
 	Verbose    bool `long:"verbose"`
 	Positional struct {
 		Snaps []anySnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
-var shortInfoHelp = i18n.G("Show detailed information about a snap")
+var shortInfoHelp = i18n.G("Show detailed information about snaps")
 var longInfoHelp = i18n.G(`
-The info command shows detailed information about a snap, be it by name or by path.`)
+The info command shows detailed information about snaps.
+
+The snaps can be specified by name or by path; names are looked for both in the
+store and in the installed snaps; paths can refer to a .snap file, or to a
+directory that contains an unpacked snap suitable for 'snap try' (an example
+of this would be the 'prime' directory snapcraft produces).
+`)
 
 func init() {
 	addCommand("info",
@@ -56,9 +63,9 @@ func init() {
 		longInfoHelp,
 		func() flags.Commander {
 			return &infoCmd{}
-		}, map[string]string{
+		}, timeDescs.also(map[string]string{
 			"verbose": i18n.G("Include a verbose list of a snap's notes (otherwise, summarise notes)"),
-		}, nil)
+		}), nil)
 }
 
 func norm(path string) string {
@@ -237,15 +244,16 @@ func maybePrintServices(w io.Writer, snapName string, allApps []client.AppInfo, 
 	}
 }
 
+var channelRisks = []string{"stable", "candidate", "beta", "edge"}
+
 // displayChannels displays channels and tracks in the right order
-func displayChannels(w io.Writer, remote *client.Snap) {
-	// \t\t\t so we get "installed" lined up with "channels"
-	fmt.Fprintf(w, "channels:\t\t\t\n")
+func displayChannels(w io.Writer, chantpl string, remote *client.Snap) {
+	fmt.Fprintf(w, "channels:"+strings.Repeat("\t", strings.Count(chantpl, "\t"))+"\n")
 
 	// order by tracks
 	for _, tr := range remote.Tracks {
 		trackHasOpenChannel := false
-		for _, risk := range []string{"stable", "candidate", "beta", "edge"} {
+		for _, risk := range channelRisks {
 			chName := fmt.Sprintf("%s/%s", tr, risk)
 			ch, ok := remote.Channels[chName]
 			if tr == "latest" {
@@ -265,7 +273,7 @@ func displayChannels(w io.Writer, remote *client.Snap) {
 					version = "–" // that's an en dash (so yaml is happy)
 				}
 			}
-			fmt.Fprintf(w, "  %s:\t%s\t%s\t%s\t%s\n", chName, version, revision, size, notes)
+			fmt.Fprintf(w, "  "+chantpl, chName, version, revision, size, notes)
 		}
 	}
 }
@@ -281,6 +289,13 @@ func formatSummary(raw string) string {
 func (x *infoCmd) Execute([]string) error {
 	cli := Client()
 
+	termWidth, _ := termSize()
+	termWidth -= 3
+	if termWidth > 100 {
+		// any wider than this and it gets hard to read
+		termWidth = 100
+	}
+
 	w := tabwriter.NewWriter(Stdout, 2, 2, 1, ' ', 0)
 
 	noneOK := true
@@ -288,6 +303,10 @@ func (x *infoCmd) Execute([]string) error {
 		snapName := string(snapName)
 		if i > 0 {
 			fmt.Fprintln(w, "---")
+		}
+		if snapName == "system" {
+			fmt.Fprintln(w, "system: You can't have it.")
+			continue
 		}
 
 		if tryDirect(w, snapName, x.Verbose) {
@@ -323,11 +342,7 @@ func (x *infoCmd) Execute([]string) error {
 		}
 		fmt.Fprintf(w, "license:\t%s\n", license)
 		maybePrintPrice(w, remote, resInfo)
-		// FIXME: find out for real
-		termWidth := 77
 		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(both.Description, termWidth))
-		maybePrintType(w, both.Type)
-		maybePrintID(w, both)
 		maybePrintCommands(w, snapName, both.Apps, termWidth)
 		maybePrintServices(w, snapName, both.Apps, termWidth)
 
@@ -337,8 +352,8 @@ func (x *infoCmd) Execute([]string) error {
 			fmt.Fprintf(w, "  confinement:\t%s\n", both.Confinement)
 		}
 
+		var notes *Notes
 		if local != nil {
-			var notes *Notes
 			if x.Verbose {
 				jailMode := local.Confinement == client.DevModeConfinement && !local.DevMode
 				fmt.Fprintf(w, "  devmode:\t%t\n", local.DevMode)
@@ -355,14 +370,31 @@ func (x *infoCmd) Execute([]string) error {
 			} else {
 				notes = NotesFromLocal(local)
 			}
-
-			fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
-			fmt.Fprintf(w, "installed:\t%s\t(%s)\t%s\t%s\n", local.Version, local.Revision, strutil.SizeToStr(local.InstalledSize), notes)
-			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate)
+		}
+		// stops the notes etc trying to be aligned with channels
+		w.Flush()
+		maybePrintType(w, both.Type)
+		maybePrintID(w, both)
+		if local != nil {
+			if local.TrackingChannel != "" {
+				fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
+			}
+			if !local.InstallDate.IsZero() {
+				fmt.Fprintf(w, "refresh-date:\t%s\n", x.fmtTime(local.InstallDate))
+			}
 		}
 
+		chantpl := "%s:\t%s %s %s %s\n"
 		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
-			displayChannels(w, remote)
+			chantpl = "%s:\t%s\t%s\t%s\t%s\n"
+
+			w.Flush()
+			displayChannels(w, chantpl, remote)
+		}
+		if local != nil {
+			revstr := fmt.Sprintf("(%s)", local.Revision)
+			fmt.Fprintf(w, chantpl,
+				"installed", local.Version, revstr, strutil.SizeToStr(local.InstalledSize), notes)
 		}
 
 	}

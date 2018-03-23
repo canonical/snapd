@@ -49,10 +49,10 @@
 			"revisionTime": "2015-02-12T09:37:50Z"
 		},
 		{
-			"checksumSHA1": "EoJqr2ZG7jODFsCnKwrn4JWRS+Y=",
+			"checksumSHA1": "uSjL89zodhV0X/LvyZ67FlKYKvg=",
 			"path": "github.com/mvo5/libseccomp-golang",
-			"revision": "84e1d1c75beaa58be6a76d2fc94d95eb8c1583b6",
-			"revisionTime": "2017-06-14T13:46:31Z"
+			"revision": "f4de83b52afb3c19190eb65cc92429feaaf0e8b6",
+			"revisionTime": "2018-03-08T15:25:21Z"
 		},
 		{
 			"checksumSHA1": "lG6diF/yE9cGgQIKRAlsaeYAjO4=",
@@ -72,6 +72,13 @@
 			"path": "github.com/snapcore/bolt",
 			"revision": "9eca199504ee1299394669820724322b5bfc070a",
 			"revisionTime": "2018-01-18T17:01:45Z"
+		},
+		{
+			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
+			"path": "github.com/snapcore/squashfuse",
+			"revision": "319f6d41a0419465a55d9dcb848d2408b97764f9",
+			"revisionTime": "2017-12-20T16:53:23Z",
+			"tree": true
 		},
 		{
 			"checksumSHA1": "TT1rac6kpQp2vz24m5yDGUNQ/QQ=",

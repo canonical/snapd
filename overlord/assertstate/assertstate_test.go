@@ -1015,6 +1015,7 @@ func (s *assertMgrSuite) TestAutoAliasesTemporaryFallback(c *C) {
 
 	info := snaptest.MockInfo(c, `
 name: foo
+version: 0
 apps:
    cmd1:
      aliases: [alias1]

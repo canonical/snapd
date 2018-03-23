@@ -61,7 +61,7 @@ type daemonSuite struct {
 
 var _ = check.Suite(&daemonSuite{})
 
-func (s *daemonSuite) checkAuthorizationForPid(pid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+func (s *daemonSuite) checkAuthorization(pid uint32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 	s.lastPolkitFlags = flags
 	return s.authorized, s.err
 }
@@ -70,12 +70,12 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, check.IsNil)
-	polkitCheckAuthorizationForPid = s.checkAuthorizationForPid
 	systemdSdNotify = func(notif string) error {
 		s.notified = append(s.notified, notif)
 		return nil
 	}
 	s.notified = nil
+	polkitCheckAuthorization = s.checkAuthorization
 }
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
@@ -87,7 +87,7 @@ func (s *daemonSuite) TearDownTest(c *check.C) {
 }
 
 func (s *daemonSuite) TearDownSuite(c *check.C) {
-	polkitCheckAuthorizationForPid = polkit.CheckAuthorizationForPid
+	polkitCheckAuthorization = polkit.CheckAuthorization
 }
 
 // build a new daemon, with only a little of Init(), suitable for the tests
@@ -211,11 +211,30 @@ func (s *daemonSuite) TestGuestAccess(c *check.C) {
 	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
 	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
 	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
+}
 
-	// Since this request has no RemoteAddr, it must be coming from the snap
-	// socket instead of the snapd one. In that case, if SnapOK is true, this
-	// command should be wide open for all HTTP methods.
-	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
+func (s *daemonSuite) TestSnapctlAccessSnapOKWithUser(c *check.C) {
+	remoteAddr := "pid=100;uid=1000;socket=" + dirs.SnapSocket
+	get := &http.Request{Method: "GET", RemoteAddr: remoteAddr}
+	put := &http.Request{Method: "PUT", RemoteAddr: remoteAddr}
+	pst := &http.Request{Method: "POST", RemoteAddr: remoteAddr}
+	del := &http.Request{Method: "DELETE", RemoteAddr: remoteAddr}
+
+	cmd := &Command{d: newTestDaemon(c), SnapOK: true}
+	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
+	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
+	c.Check(cmd.canAccess(pst, nil), check.Equals, accessOK)
+	c.Check(cmd.canAccess(del, nil), check.Equals, accessOK)
+}
+
+func (s *daemonSuite) TestSnapctlAccessSnapOKWithRoot(c *check.C) {
+	remoteAddr := "pid=100;uid=0;socket=" + dirs.SnapSocket
+	get := &http.Request{Method: "GET", RemoteAddr: remoteAddr}
+	put := &http.Request{Method: "PUT", RemoteAddr: remoteAddr}
+	pst := &http.Request{Method: "POST", RemoteAddr: remoteAddr}
+	del := &http.Request{Method: "DELETE", RemoteAddr: remoteAddr}
+
+	cmd := &Command{d: newTestDaemon(c), SnapOK: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
 	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
 	c.Check(cmd.canAccess(pst, nil), check.Equals, accessOK)
@@ -298,8 +317,8 @@ func (s *daemonSuite) TestPolkitAccessForGet(c *check.C) {
 
 	// for UserOK commands, polkit is not consulted
 	cmd.UserOK = true
-	polkitCheckAuthorizationForPid = func(pid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
-		panic("polkit.CheckAuthorizationForPid called")
+	polkitCheckAuthorization = func(pid uint32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+		panic("polkit.CheckAuthorization called")
 	}
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
 }
