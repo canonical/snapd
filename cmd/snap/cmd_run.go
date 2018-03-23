@@ -106,8 +106,16 @@ func maybeWaitForSecurityProfileRegeneration() error {
 	}
 
 	// We have a mismatch, try to connect to snapd, once we can
-	// connect we just continue because that means snapd has
-	// generated new profiles.
+	// connect we just continue because that usually means that
+	// a new snapd is ready and has generated profiles.
+	//
+	// There is a corner case if an upgrade leaves the old snapd
+	// running and we connect to the old snapd. Handling this
+	// correctly is tricky because our "snap run" pipeline may
+	// depend on profiles written by the new snapd. So for now we
+	// just continue and hope for the best. The real fix for this
+	// is to fix the packaging so that snapd is stopped, upgraded
+	// and started.
 	//
 	// connect timeout for client is 5s on each try, so 12*5s = 60s
 	timeout := 12

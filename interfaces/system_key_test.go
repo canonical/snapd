@@ -50,7 +50,12 @@ func (s *systemKeySuite) SetUpTest(c *C) {
 
 	s.tmp = c.MkDir()
 	dirs.SetRootDir(s.tmp)
-	os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
+	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.DistroLibExecDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.Symlink("/proc/self/exe", filepath.Join(dirs.DistroLibExecDir, "snapd"))
+	c.Assert(err, IsNil)
 
 	s.apparmorFeatures = filepath.Join(s.tmp, "/sys/kernel/security/apparmor/features")
 	id, err := osutil.MyBuildID()
@@ -83,9 +88,12 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
 	nfsHome, err := osutil.IsHomeUsingNFS()
 	c.Assert(err, IsNil)
 
+	buildID, err := osutil.ReadBuildID("/proc/self/exe")
+	c.Assert(err, IsNil)
+
 	overlayRoot, err := osutil.IsRootWritableOverlay()
 	c.Assert(err, IsNil)
-	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build-id":"","apparmor-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s}`, apparmorFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
+	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build-id":"%s","apparmor-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s}`, buildID, apparmorFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
@@ -137,5 +145,5 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchVersions(c *C) {
 
 	// when we encounter different versions we get the right error
 	_, err = interfaces.SystemKeyMismatch()
-	c.Assert(err, Equals, interfaces.ErrSystemKeyIncomparableVersions)
+	c.Assert(err, Equals, interfaces.ErrSystemKeyVersion)
 }
