@@ -77,7 +77,7 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
 	apparmorFeaturesStr, err := json.Marshal(release.AppArmorFeatures())
 	c.Assert(err, IsNil)
 
-	seccompActionsStr, err := json.Marshal(release.SecCompActions)
+	seccompActionsStr, err := json.Marshal(release.SecCompActions())
 	c.Assert(err, IsNil)
 
 	nfsHome, err := osutil.IsHomeUsingNFS()

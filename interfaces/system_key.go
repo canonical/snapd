@@ -120,7 +120,7 @@ func generateSystemKey() *systemKey {
 	}
 
 	// Add seccomp-features
-	sk.SecCompActions = release.SecCompActions
+	sk.SecCompActions = release.SecCompActions()
 
 	return sk
 }
