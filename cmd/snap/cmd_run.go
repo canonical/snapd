@@ -96,21 +96,20 @@ func maybeWaitForSecurityProfileRegeneration() error {
 	// check if the security profiles key has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
 	mismatch, err := interfaces.SystemKeyMismatch()
-	if err != nil {
-		// something went wrong with the system-key compare, there
-		// is nothing we can do but continue and hope for the best
-		logger.Debugf("SystemKeyMismatch returned an error: %v", err)
+	if err == nil && !mismatch {
 		return nil
 	}
-	if !mismatch {
-		return nil
+	// something went wrong with the system-key compare, try to
+	// reach snapd before continuing
+	if err != nil {
+		logger.Debugf("SystemKeyMismatch returned an error: %v", err)
 	}
 
 	// We have a mismatch, try to connect to snapd, once we can
 	// connect we just continue because that means snapd has
 	// generated new profiles.
 	//
-	// connect timeout is 5s
+	// connect timeout for client is 5s on each try, so 12*5s = 60s
 	timeout := 12
 	if timeoutEnv := os.Getenv("SNAPD_DEBUG_SYSTEM_KEY_RETRY"); timeoutEnv != "" {
 		if i, err := strconv.Atoi(timeoutEnv); err == nil {
@@ -123,6 +122,8 @@ func maybeWaitForSecurityProfileRegeneration() error {
 		if _, err := cli.SysInfo(); err == nil {
 			return nil
 		}
+		// sleep a litte bit for good measure
+		time.Sleep(1 * time.Second)
 	}
 
 	return fmt.Errorf("timeout waiting for snap system profiles to get updated")
