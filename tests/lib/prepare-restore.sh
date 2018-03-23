@@ -32,25 +32,6 @@ set -o pipefail
 ### Utility functions reused below.
 ###
 
-# Run a set of scripts in the prepare-restore.d directory. From each
-# script run, if present, the function on_$phase, where phase is one of
-# {prepare,restore}_{project,suite}{,_each}.
-do_phase() {
-    phase="$1" && shift
-    for module in "$TESTSLIB"/prepare-restore.d/*.sh; do
-        (
-            set -u
-            set -e
-            # shellcheck disable=SC1090
-            . "$module"
-            if [ "$(type -t "on_$phase")" = "function" ]; then
-                "on_$phase"
-            fi
-        )
-    done
-}
-
-
 create_test_user(){
    if ! id test >& /dev/null; then
         quiet groupadd --gid 12345 test
@@ -188,8 +169,6 @@ install_dependencies_from_published(){
 ###
 
 prepare_project() {
-    do_phase prepare_project
-
     # Check if running inside a container.
     # The testsuite will not work in such an environment
     if systemd-detect-virt -c; then
@@ -321,8 +300,6 @@ EOF
 }
 
 prepare_project_each() {
-    do_phase prepare_project_each
-
     # We want to rotate the logs so that when inspecting or dumping them we
     # will just see logs since the test has started.
 
@@ -362,8 +339,6 @@ prepare_project_each() {
 }
 
 prepare_suite() {
-    do_phase prepare_suite
-
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
     if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
@@ -374,8 +349,6 @@ prepare_suite() {
 }
 
 prepare_suite_each() {
-    do_phase prepare_suite_each
-
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
     # shellcheck source=tests/lib/prepare.sh
@@ -386,12 +359,10 @@ prepare_suite_each() {
 }
 
 restore_suite_each() {
-    do_phase restore_suite_each
+    true
 }
 
 restore_suite() {
-    do_phase restore_suite
-
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --store
     if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
@@ -406,8 +377,6 @@ restore_suite() {
 }
 
 restore_project_each() {
-    do_phase restore_project_each
-
     restore_dev_random
 
     # Udev rules are notoriously hard to write and seemingly correct but subtly
@@ -421,8 +390,6 @@ restore_project_each() {
 }
 
 restore_project() {
-    do_phase restore_project
-
     # We use a trick to accelerate prepare/restore code in certain suites. That
     # code uses a tarball to store the vanilla state. Here we just remove this
     # tarball.
