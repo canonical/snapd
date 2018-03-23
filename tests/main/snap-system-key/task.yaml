@@ -30,9 +30,9 @@ execute: |
     fi
 
     echo "Ensure that the system-key is rewritten if system-key changes"
-    printf "something: new\n" >> /var/lib/snapd/system-key
+    printf '{"version":1}' > /var/lib/snapd/system-key
     restart_snapd
-    if grep "something: new" /var/lib/snapd/system-key; then
+    if grep '{"version":1}' /var/lib/snapd/system-key; then
         echo "system-key *not* rewriten test broken"
         exit 1
     fi
@@ -40,7 +40,7 @@ execute: |
     echo "Ensure snap run waits for system key updates"
     snap install test-snapd-tools
     echo "Change system-key, this ensure that snap run will wait"
-    printf "something: new\n" >> /var/lib/snapd/system-key
+    printf '{"version":1}' > /var/lib/snapd/system-key
     if SNAPD_DEBUG_SYSTEM_KEY_WAIT_TIMEOUT_SEC=5 test-snapd-tools.echo bad; then
         echo "snap run should have errored because of changed system-key"
         exit 1

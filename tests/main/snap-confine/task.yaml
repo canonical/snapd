@@ -18,16 +18,19 @@ restore: |
 execute: |
     . $TESTSLIB/dirs.sh
 
-    echo "Simulating broken current symlink for core"
-    mv $SNAP_MOUNT_DIR/core/current $SNAP_MOUNT_DIR/core/current.renamed
-
-    if test-snapd-tools.echo hello 2>snap-confine.stderr; then
-        echo "test-snapd-tools.echo should fail to run, test broken"
-    fi
-    cat snap-confine.stderr | MATCH 'cannot locate the core or legacy core snap \(current symlink missing\?\):'
+    # With system-key a broken current symlink will force snap-run to
+    # wait for snapd to be ready - so this part of the test is disabled
+    # for now.
+    #
+    #echo "Simulating broken current symlink for core"
+    #mv $SNAP_MOUNT_DIR/core/current $SNAP_MOUNT_DIR/core/current.renamed
+    #if test-snapd-tools.echo hello 2>snap-confine.stderr; then
+    #    echo "test-snapd-tools.echo should fail to run, test broken"
+    #fi
+    #cat snap-confine.stderr | MATCH 'cannot locate the core or legacy core snap \(current symlink missing\?\):'
+    #mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current
 
     echo "Test nvidia device fix"
-    mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current
     # For https://github.com/snapcore/snapd/pull/4042
     echo "Simulate nvidia device tags"
     mkdir -p /run/udev/tags/snap_test-snapd-tools_echo
