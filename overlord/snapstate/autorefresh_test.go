@@ -25,6 +25,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"golang.org/x/net/context"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
@@ -47,7 +49,10 @@ type autoRefreshStore struct {
 	listRefreshErr error
 }
 
-func (r *autoRefreshStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
+func (r *autoRefreshStore) ListRefresh(ctx context.Context, cands []*store.RefreshCandidate, _ *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
+	if ctx == nil || !auth.IsEnsureContext(ctx) {
+		panic("Ensure marked context required")
+	}
 	r.ops = append(r.ops, "list-refresh")
 	return nil, r.listRefreshErr
 }

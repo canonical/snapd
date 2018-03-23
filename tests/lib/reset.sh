@@ -5,6 +5,9 @@ set -e -x
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
 
+# shellcheck source=tests/lib/systemd.sh
+. "$TESTSLIB/systemd.sh"
+
 reset_classic() {
     # Reload all service units as in some situations the unit might
     # have changed on the disk.
@@ -18,11 +21,11 @@ reset_classic() {
             echo "snapd service or socket not active"
             exit 1
         fi
-        retries=$(( $retries - 1 ))
+        retries=$(( retries - 1 ))
         sleep 1
     done
 
-    systemctl stop snapd.service snapd.socket
+    systemd_stop_units snapd.service snapd.socket
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)

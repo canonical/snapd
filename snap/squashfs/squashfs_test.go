@@ -423,5 +423,5 @@ func (s *SquashfsTestSuite) TestBuildDate(c *C) {
 	c.Assert(snap.Build(d), IsNil)
 	// and see it's BuildDate is _now_, not _then_.
 	c.Check(BuildDate(filename), Equals, snap.BuildDate())
-	c.Check(math.Abs(now.Sub(snap.BuildDate()).Seconds()) <= 61, Equals, true)
+	c.Check(math.Abs(now.Sub(snap.BuildDate()).Seconds()) <= 61, Equals, true, Commentf("Unexpected build date %s", snap.BuildDate()))
 }
