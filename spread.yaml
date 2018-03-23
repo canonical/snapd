@@ -366,7 +366,8 @@ prepare: |
                 dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             opensuse-*)
-                zypper -q install -y --gpg-auto-import-keys xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
+                zypper -q --gpg-auto-import-keys refresh
+                zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
         esac
         rm -f "$tf"
