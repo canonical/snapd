@@ -43,10 +43,10 @@ type cmdDownload struct {
 	} `positional-args:"true" required:"true"`
 }
 
-var shortDownloadHelp = i18n.G("Downloads the given snap")
+var shortDownloadHelp = i18n.G("Download the given snap")
 var longDownloadHelp = i18n.G(`
 The download command downloads the given snap and its supporting assertions
-to the current directory under .snap and .assert file extensions, respectively.
+to the current directory with .snap and .assert file extensions, respectively.
 `)
 
 func init() {
