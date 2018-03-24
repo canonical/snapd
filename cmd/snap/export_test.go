@@ -42,6 +42,7 @@ var (
 	AdviseCommand      = adviseCommand
 	Antialias          = antialias
 	FormatChannel      = fmtChannel
+	PrintDescr         = printDescr
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
