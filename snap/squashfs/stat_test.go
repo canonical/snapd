@@ -114,7 +114,7 @@ func (s *SquashfsTestSuite) TestStatUserGroup(c *C) {
 			user:  user,
 			group: group,
 			size:  20,
-			mtime: time.Date(2017, 12, 8, 11, 19, 0, 0, time.Local),
+			mtime: time.Date(2017, 12, 8, 11, 19, 0, 0, time.UTC),
 		}
 
 		com := Commentf("%q", raw)
@@ -142,7 +142,7 @@ func (s *SquashfsTestSuite) TestStatPath(c *C) {
 			user:  "user",
 			group: "group",
 			size:  20,
-			mtime: time.Date(2017, 12, 8, 11, 19, 0, 0, time.Local),
+			mtime: time.Date(2017, 12, 8, 11, 19, 0, 0, time.UTC),
 		}
 
 		com := Commentf("%q", raw)
@@ -161,7 +161,7 @@ func (s *SquashfsTestSuite) TestStatBlock(c *C) {
 		path:  "/dev/loop0",
 		user:  "root",
 		group: "disk",
-		mtime: time.Date(2017, 12, 5, 10, 29, 0, 0, time.Local),
+		mtime: time.Date(2017, 12, 5, 10, 29, 0, 0, time.UTC),
 	})
 	// note the major and minor numbers are ignored (for now)
 }
@@ -175,7 +175,7 @@ func (s *SquashfsTestSuite) TestStatCharacter(c *C) {
 		path:  "/dev/dsp",
 		user:  "root",
 		group: "audio",
-		mtime: time.Date(2017, 12, 5, 10, 29, 0, 0, time.Local),
+		mtime: time.Date(2017, 12, 5, 10, 29, 0, 0, time.UTC),
 	})
 	// note the major and minor numbers are ignored (for now)
 }
@@ -190,7 +190,7 @@ func (s *SquashfsTestSuite) TestStatSymlink(c *C) {
 		user:  "root",
 		group: "root",
 		size:  4,
-		mtime: time.Date(2017, 12, 5, 10, 29, 0, 0, time.Local),
+		mtime: time.Date(2017, 12, 5, 10, 29, 0, 0, time.UTC),
 	})
 }
 
@@ -203,7 +203,7 @@ func (s *SquashfsTestSuite) TestStatNamedPipe(c *C) {
 		path:  "/afifo",
 		user:  "john",
 		group: "john",
-		mtime: time.Date(2018, 1, 9, 10, 24, 0, 0, time.Local),
+		mtime: time.Date(2018, 1, 9, 10, 24, 0, 0, time.UTC),
 	})
 }
 
@@ -216,7 +216,7 @@ func (s *SquashfsTestSuite) TestStatSocket(c *C) {
 		path:  "/asock",
 		user:  "john",
 		group: "john",
-		mtime: time.Date(2018, 1, 9, 10, 24, 0, 0, time.Local),
+		mtime: time.Date(2018, 1, 9, 10, 24, 0, 0, time.UTC),
 	})
 }
 
@@ -235,7 +235,7 @@ func (s *SquashfsTestSuite) TestStatLength(c *C) {
 			user:  "user",
 			group: "group",
 			size:  n,
-			mtime: time.Date(2017, 12, 8, 11, 19, 0, 0, time.Local),
+			mtime: time.Date(2017, 12, 8, 11, 19, 0, 0, time.UTC),
 		}
 
 		com := Commentf("%q", raw)
@@ -255,7 +255,7 @@ func (s *SquashfsTestSuite) TestStatModeBits(c *C) {
 			user:  "user",
 			group: "group",
 			size:  int64(53595),
-			mtime: time.Date(2017, 12, 8, 11, 19, 0, 0, time.Local),
+			mtime: time.Date(2017, 12, 8, 11, 19, 0, 0, time.UTC),
 		}
 
 		com := Commentf("%q vs %o", raw, i)

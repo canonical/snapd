@@ -29,7 +29,7 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-var shortVersionHelp = i18n.G("Shows version details")
+var shortVersionHelp = i18n.G("Show version details")
 var longVersionHelp = i18n.G(`
 The version command displays the versions of the running client, server,
 and operating system.

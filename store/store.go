@@ -85,119 +85,6 @@ var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
 	},
 ))
 
-func infoFromRemote(d *snapDetails) *snap.Info {
-	info := &snap.Info{}
-	info.Architectures = d.Architectures
-	info.Type = d.Type
-	info.Version = d.Version
-	info.Epoch = d.Epoch
-	info.RealName = d.Name
-	info.SnapID = d.SnapID
-	info.Revision = snap.R(d.Revision)
-	info.EditedTitle = d.Title
-	info.EditedSummary = d.Summary
-	info.EditedDescription = d.Description
-	// Note that the store side is using confusing terminology here.
-	// What the store calls "developer" is actually the publisher
-	// username.
-	//
-	// It also sends "publisher" which is the "publisher display name"
-	// which we cannot use currently because it is not validated
-	// (i.e. the publisher could put anything in there and mislead
-	// the users this way).
-	info.Publisher = d.Developer
-	info.PublisherID = d.DeveloperID
-	info.Channel = d.Channel
-	info.Sha3_384 = d.DownloadSha3_384
-	info.Size = d.DownloadSize
-	info.IconURL = d.IconURL
-	info.AnonDownloadURL = d.AnonDownloadURL
-	info.DownloadURL = d.DownloadURL
-	info.Prices = d.Prices
-	info.Private = d.Private
-	info.Paid = len(info.Prices) > 0
-	info.Confinement = snap.ConfinementType(d.Confinement)
-	info.Contact = d.Contact
-	info.License = d.License
-	info.Base = d.Base
-
-	deltas := make([]snap.DeltaInfo, len(d.Deltas))
-	for i, d := range d.Deltas {
-		deltas[i] = snap.DeltaInfo{
-			FromRevision:    d.FromRevision,
-			ToRevision:      d.ToRevision,
-			Format:          d.Format,
-			AnonDownloadURL: d.AnonDownloadURL,
-			DownloadURL:     d.DownloadURL,
-			Size:            d.Size,
-			Sha3_384:        d.Sha3_384,
-		}
-	}
-	info.Deltas = deltas
-
-	screenshots := make([]snap.ScreenshotInfo, 0, len(d.ScreenshotURLs))
-	for _, url := range d.ScreenshotURLs {
-		screenshots = append(screenshots, snap.ScreenshotInfo{
-			URL: url,
-		})
-	}
-	info.Screenshots = screenshots
-	// FIXME: once the store sends "contact" for everything, remove
-	//        the "SupportURL" part of the if
-	if info.Contact == "" {
-		info.Contact = d.SupportURL
-	}
-
-	// fill in the plug/slot data
-	if rawYamlInfo, err := snap.InfoFromSnapYaml([]byte(d.SnapYAML)); err == nil {
-		if info.Plugs == nil {
-			info.Plugs = make(map[string]*snap.PlugInfo)
-		}
-		for k, v := range rawYamlInfo.Plugs {
-			info.Plugs[k] = v
-			info.Plugs[k].Snap = info
-		}
-		if info.Slots == nil {
-			info.Slots = make(map[string]*snap.SlotInfo)
-		}
-		for k, v := range rawYamlInfo.Slots {
-			info.Slots[k] = v
-			info.Slots[k].Snap = info
-		}
-	}
-
-	// fill in the tracks data
-	if len(d.ChannelMapList) > 0 {
-		info.Channels = make(map[string]*snap.ChannelSnapInfo)
-		info.Tracks = make([]string, len(d.ChannelMapList))
-		for i, cm := range d.ChannelMapList {
-			info.Tracks[i] = cm.Track
-			for _, ch := range cm.SnapDetails {
-				// nothing in this channel
-				if ch.Info == "" {
-					continue
-				}
-				var k string
-				if strings.HasPrefix(ch.Channel, cm.Track) {
-					k = ch.Channel
-				} else {
-					k = fmt.Sprintf("%s/%s", cm.Track, ch.Channel)
-				}
-				info.Channels[k] = &snap.ChannelSnapInfo{
-					Revision:    snap.R(ch.Revision),
-					Confinement: snap.ConfinementType(ch.Confinement),
-					Version:     ch.Version,
-					Channel:     ch.Channel,
-					Epoch:       ch.Epoch,
-					Size:        ch.DownloadSize,
-				}
-			}
-		}
-	}
-
-	return info
-}
-
 // Config represents the configuration to access the snap store
 type Config struct {
 	// Store API base URLs. The assertions url is only separate because it can
@@ -297,8 +184,7 @@ func useDeltas() bool {
 		return false
 	}
 
-	deltasDefault := release.OnClassic
-	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", deltasDefault)
+	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", true)
 }
 
 func useStaging() bool {
@@ -699,7 +585,7 @@ func authenticateDevice(r *http.Request, device *auth.DeviceState) {
 	}
 }
 
-func (s *Store) setStoreID(r *http.Request) {
+func (s *Store) setStoreID(r *http.Request) (customStore bool) {
 	storeID := s.fallbackStoreID
 	if s.authContext != nil {
 		cand, err := s.authContext.StoreID(storeID)
@@ -711,8 +597,17 @@ func (s *Store) setStoreID(r *http.Request) {
 	}
 	if storeID != "" {
 		r.Header.Set("X-Ubuntu-Store", storeID)
+		return true
 	}
+	return false
 }
+
+type deviceAuthNeed int
+
+const (
+	deviceAuthPreferred deviceAuthNeed = iota
+	deviceAuthCustomStoreOnly
+)
 
 // requestOptions specifies parameters for store requests.
 type requestOptions struct {
@@ -722,6 +617,13 @@ type requestOptions struct {
 	ContentType  string
 	ExtraHeaders map[string]string
 	Data         []byte
+
+	// DeviceAuthNeed indicates the level of need to supply device
+	// authorization for this request, can be:
+	//  - deviceAuthPreferred: should be provided if available
+	//  - deviceAuthCustomStoreOnly: should be provided only in case
+	//    of a custom store
+	DeviceAuthNeed deviceAuthNeed
 }
 
 func (r *requestOptions) addHeader(k, v string) {
@@ -885,6 +787,37 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 	}
 }
 
+type authRefreshNeed struct {
+	device bool
+	user   bool
+}
+
+func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
+	if need.user {
+		// refresh user
+		err := s.refreshUser(user)
+		if err != nil {
+			return err
+		}
+	}
+	if need.device {
+		// refresh device session
+		if s.authContext == nil {
+			return fmt.Errorf("internal error: no authContext")
+		}
+		device, err := s.authContext.Device()
+		if err != nil {
+			return err
+		}
+
+		err = s.refreshDeviceSession(device)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // build a new http.Request with headers for the store
 func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*http.Request, error) {
 	var body io.Reader
@@ -897,7 +830,9 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		return nil, err
 	}
 
-	if s.authContext != nil {
+	customStore := s.setStoreID(req)
+
+	if s.authContext != nil && (customStore || reqOptions.DeviceAuthNeed != deviceAuthCustomStoreOnly) {
 		device, err := s.authContext.Device()
 		if err != nil {
 			return nil, err
@@ -944,8 +879,6 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		req.Header.Set(header, value)
 	}
 
-	s.setStoreID(req)
-
 	return req, nil
 }
 
@@ -983,37 +916,7 @@ func (s *Store) cdnHeader(req *http.Request, reqOptions *requestOptions) error {
 
 		req.Header.Set("Snap-CDN", strings.Join(cdnParams, " "))
 	}
-	return nil
-}
 
-type authRefreshNeed struct {
-	device bool
-	user   bool
-}
-
-func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
-	if need.user {
-		// refresh user
-		err := s.refreshUser(user)
-		if err != nil {
-			return err
-		}
-	}
-	if need.device {
-		// refresh device session
-		if s.authContext == nil {
-			return fmt.Errorf("internal error: no authContext")
-		}
-		device, err := s.authContext.Device()
-		if err != nil {
-			return err
-		}
-
-		err = s.refreshDeviceSession(device)
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -1288,9 +1191,10 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 // Sections retrieves the list of available store sections.
 func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, error) {
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    s.endpointURL(sectionsEndpPath, nil),
-		Accept: halJsonContentType,
+		Method:         "GET",
+		URL:            s.endpointURL(sectionsEndpPath, nil),
+		Accept:         halJsonContentType,
+		DeviceAuthNeed: deviceAuthCustomStoreOnly,
 	}
 
 	var sectionData sectionResults
@@ -1329,9 +1233,10 @@ func (s *Store) WriteCatalogs(ctx context.Context, names io.Writer, adder SnapAd
 
 	u.RawQuery = q.Encode()
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    &u,
-		Accept: halJsonContentType,
+		Method:         "GET",
+		URL:            &u,
+		Accept:         halJsonContentType,
+		DeviceAuthNeed: deviceAuthCustomStoreOnly,
 	}
 
 	// do not log body for catalog updates (its huge)
