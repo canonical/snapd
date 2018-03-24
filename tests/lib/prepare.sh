@@ -369,32 +369,35 @@ EOF
         # - uids between classic/core differ
         # - passwd,shadow on core are read-only
         # - we cannot add root to extrausers as system passwd is searched first
-        # So we do:
-        # - take core passwd without "root" as extrausers
-        # - append root,ubuntu,test to extrausers
-        # - bind mount extrausers to /etc via custom systemd job
-        mkdir -p /mnt/system-data/var/lib/extrausers/
-        touch /mnt/system-data/var/lib/extrausers/sub{uid,gid}
+        # So we create the user db we need in /root/test-etc/*:
+        # - take core passwd without "root"
+        # - append root,ubuntu,test there
+        # - make sure the group matches
+        # - bind mount /root/test-etc/* to /etc/* via custom systemd job
+        mkdir -p /mnt/system-data/root/test-etc
         mkdir -p /mnt/system-data/etc/systemd/system/multi-user.target.wants
         for f in group gshadow passwd shadow; do
             # the passwd from core without root
-            tail -n +2 "$UNPACKD/etc/$f" > /mnt/system-data/var/lib/extrausers/$f
+            tail -n +2 "$UNPACKD/etc/$f" > /mnt/system-data/root/test-etc/$f
             # append this systems root user so that linode can connect
-            head -n1 /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
+            head -n1 /etc/$f >> /mnt/system-data/root/test-etc/$f
             # append ubuntu, test user for the testing
-            tail -n2 /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
+            tail -n2 /etc/$f >> /mnt/system-data/root/test-etc/$f
 
-            # now bind mount those passwd files on boot
+            # make sure the group is as expected
+            chgrp --reference "$UNPACKD/etc/$f" /mnt/system-data/root/test-etc/$f
+
+            # now bind mount read-only those passwd files on boot
             cat <<EOF > /mnt/system-data/etc/systemd/system/etc-$f.mount
 [Unit]
-Description=Mount extrausers $f over system $f
+Description=Mount root/test-etc/$f over system etc/$f
 Before=ssh.service
 
 [Mount]
-What=/var/lib/extrausers/$f
+What=/root/test-etc/$f
 Where=/etc/$f
 Type=none
-Options=bind
+Options=bind,ro
 
 [Install]
 WantedBy=multi-user.target
