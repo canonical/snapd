@@ -365,28 +365,28 @@ EOF
         # build the user database - this is complicated because:
         # - spread on linode wants to login as "root"
         # - "root" login on the stock core snap is disabled
-        # - we need to add our ubuntu and test users too
         # - uids between classic/core differ
         # - passwd,shadow on core are read-only
         # - we cannot add root to extrausers as system passwd is searched first
+        # - we need to add our ubuntu and test users too
         # So we create the user db we need in /root/test-etc/*:
         # - take core passwd without "root"
-        # - append root,ubuntu,test there
+        # - append root
         # - make sure the group matches
         # - bind mount /root/test-etc/* to /etc/* via custom systemd job
+        # We also create /var/lib/extrausers/* and append ubuntu,test there
         mkdir -p /mnt/system-data/root/test-etc
+        mkdir -p /mnt/system-data/var/lib/extrausers/
+        touch /mnt/system-data/var/lib/extrausers/sub{uid,gid}
         mkdir -p /mnt/system-data/etc/systemd/system/multi-user.target.wants
         for f in group gshadow passwd shadow; do
             # the passwd from core without root
             tail -n +2 "$UNPACKD/etc/$f" > /mnt/system-data/root/test-etc/$f
             # append this systems root user so that linode can connect
             head -n1 /etc/$f >> /mnt/system-data/root/test-etc/$f
-            # append ubuntu, test user for the testing
-            tail -n2 /etc/$f >> /mnt/system-data/root/test-etc/$f
 
             # make sure the group is as expected
             chgrp --reference "$UNPACKD/etc/$f" /mnt/system-data/root/test-etc/$f
-
             # now bind mount read-only those passwd files on boot
             cat <<EOF > /mnt/system-data/etc/systemd/system/etc-$f.mount
 [Unit]
@@ -403,6 +403,12 @@ Options=bind,ro
 WantedBy=multi-user.target
 EOF
             ln -s /etc/systemd/system/etc-$f.mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-$f.mount
+
+            # create /var/lib/extrausers/$f
+            # append ubuntu, test user for the testing
+            cp -a "$UNPACKD/var/lib/extrausers/$f" /mnt/system-data/var/lib/extrausers/$f
+            tail -n2 /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
+
         done
 
         # ensure spread -reuse works in the core image as well
