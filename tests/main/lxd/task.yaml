@@ -11,10 +11,6 @@ systems: [ubuntu-16.04-32, ubuntu-core-*]
 # with the distro
 backends: [-autopkgtest]
 
-# autopkgtest run only a subset of tests that deals with the integration
-# with the distro
-backends: [-autopkgtest]
-
 # lxd downloads can be quite slow
 kill-timeout: 25m
 
