@@ -122,7 +122,7 @@ distro_install_local_package() {
             quiet dnf -y install "$@"
             ;;
         opensuse-*)
-            quiet zypper install -y "$@"
+            quiet rpm -i "$@"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -246,7 +246,7 @@ distro_update_package_db() {
             quiet dnf makecache
             ;;
         opensuse-*)
-            quiet zypper refresh
+            quiet zypper --gpg-auto-import-keys refresh
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -379,6 +379,7 @@ pkg_dependencies_ubuntu_generic(){
         libglib2.0-dev
         libseccomp-dev
         libudev-dev
+        man
         netcat-openbsd
         pkg-config
         python3-docutils
@@ -463,6 +464,7 @@ pkg_dependencies_fedora(){
         git
         golang
         jq
+        man
         mock
         redhat-lsb-core
         rpm-build
@@ -472,12 +474,14 @@ pkg_dependencies_fedora(){
 
 pkg_dependencies_opensuse(){
     echo "
+        apparmor-profiles
         curl
         expect
         git
         golang-packaging
         jq
         lsb-release
+        man
         netcat-openbsd
         osc
         uuidd
