@@ -446,21 +446,19 @@ autoreconf --force --install --verbose
 # FIXME: add --enable-caps-over-setuid as soon as possible (setuid discouraged!)
 %configure \
     --disable-apparmor \
-    --libexecdir=%{_libexecdir}/snapd/ \
     --enable-nvidia-biarch \
     %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
     --with-snap-mount-dir=%{_sharedstatedir}/snapd/snap \
-    --enable-merged-usr
+    --enable-merged-usr \
+    --with-systemd-system-unit-dir=%{_unitdir} \
+    --with-snapd-environment-file=%{_sysconfdir}/sysconfig/snapd
 
 %make_build
 popd
 
 # Build systemd units, dbus services, and env files
 pushd ./data
-make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
-     SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
-     SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
-     SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
+make
 popd
 
 %install
@@ -523,11 +521,7 @@ popd
 
 # Install all systemd and dbus units, and env files
 pushd ./data
-%make_install BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
-              SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
-              SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
-              SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
-
+%make_install
 # Remove snappy core specific units
 rm -fv %{buildroot}%{_unitdir}/snapd.system-shutdown.service
 rm -fv %{buildroot}%{_unitdir}/snapd.snap-repair.*

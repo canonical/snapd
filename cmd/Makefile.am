@@ -1,8 +1,10 @@
+libexecsnapddir = $(libexecdir)/snapd
 
 EXTRA_DIST = VERSION snap-confine/PORTING
 CLEANFILES =
+DISTCLEANFILES =
 TESTS =
-libexec_PROGRAMS =
+libexecsnapd_PROGRAMS =
 dist_man_MANS =
 noinst_PROGRAMS =
 noinst_LIBRARIES =
@@ -54,12 +56,12 @@ fmt: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
 hack: snap-confine/snap-confine snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp
-	sudo install -D -m 6755 snap-confine/snap-confine $(DESTDIR)$(libexecdir)/snap-confine
-	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real
+	sudo install -D -m 6755 snap-confine/snap-confine $(DESTDIR)$(libexecsnapddir)/snap-confine
+	sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecsnapddir))).snap-confine.real
 	sudo install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
 	sudo apparmor_parser -r snap-confine/snap-confine.apparmor
-	sudo install -m 755 snap-update-ns/snap-update-ns $(DESTDIR)$(libexecdir)/snap-update-ns
-	sudo install -m 755 snap-seccomp/snap-seccomp $(DESTDIR)$(libexecdir)/snap-seccomp
+	sudo install -m 755 snap-update-ns/snap-update-ns $(DESTDIR)$(libexecsnapddir)/snap-update-ns
+	sudo install -m 755 snap-seccomp/snap-seccomp $(DESTDIR)$(libexecsnapddir)/snap-seccomp
 
 # for the hack target also:
 snap-update-ns/snap-update-ns: snap-update-ns/*.go snap-update-ns/*.[ch]
@@ -176,7 +178,7 @@ decode-mount-opts/decode-mount-opts$(EXEEXT): LIBS += -Wl,-Bstatic $(decode_moun
 ## snap-confine
 ##
 
-libexec_PROGRAMS += snap-confine/snap-confine
+libexecsnapd_PROGRAMS += snap-confine/snap-confine
 if HAVE_RST2MAN
 dist_man_MANS += snap-confine/snap-confine.1
 CLEANFILES += snap-confine/snap-confine.1
@@ -205,7 +207,7 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/user-support.c \
 	snap-confine/user-support.h
 
-snap_confine_snap_confine_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\" -DNATIVE_LIBDIR=\"$(libdir)\"
+snap_confine_snap_confine_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS) -DNATIVE_LIBDIR=\"$(libdir)\"
 snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
 snap_confine_snap_confine_LDADD = libsnap-confine-private.a
 snap_confine_snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
@@ -309,7 +311,9 @@ snap-confine/%.1: snap-confine/%.rst
 endif
 
 snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefile
-	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+	sed < $< > $@ \
+		-e 's,[@]LIBEXECSNAPDDIR[@],$(libexecsnapddir),g' \
+		-e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),'
 
 # Install the apparmor profile
 #
@@ -319,7 +323,7 @@ snap-confine/snap-confine.apparmor: snap-confine/snap-confine.apparmor.in Makefi
 install-data-local:: snap-confine/snap-confine.apparmor
 if APPARMOR
 	install -d -m 755 $(DESTDIR)/etc/apparmor.d/
-	install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
+	install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecsnapddir))).snap-confine
 endif
 	install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
 
@@ -330,21 +334,26 @@ install-data-local::
 install-exec-hook::
 if CAPS_OVER_SETUID
 # Ensure that snap-confine has CAP_SYS_ADMIN capability
-	setcap cap_sys_admin=pe $(DESTDIR)$(libexecdir)/snap-confine
+	setcap cap_sys_admin=pe $(DESTDIR)$(libexecsnapddir)/snap-confine
 else
 # Ensure that snap-confine is u+s,g+s (setuid and setgid)
-	chmod 6755 $(DESTDIR)$(libexecdir)/snap-confine
+	chmod 6755 $(DESTDIR)$(libexecsnapddir)/snap-confine
 endif
 
 ##
 ## snap-mgmt
 ##
 
-libexec_PROGRAMS += snap-mgmt/snap-mgmt
+libexecsnapd_SCRIPTS = snap-mgmt/snap-mgmt
 
 snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile snap-mgmt/$(am__dirstamp)
-	sed -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
+	sed < $< > $@ \
+		-e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),'
 
+snap-mgmt/$(am__dirstamp):
+	@$(MKDIR_P) snap-mgmt
+	@: > snap-mgmt/$(am__dirstamp)
+DISTCLEANFILES += snap-mgmt/$(am__dirstamp)
 
 ##
 ## ubuntu-core-launcher
@@ -352,7 +361,7 @@ snap-mgmt/snap-mgmt: snap-mgmt/snap-mgmt.sh.in Makefile snap-mgmt/$(am__dirstamp
 
 install-exec-hook::
 	install -d -m 755 $(DESTDIR)$(bindir)
-	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
+	ln -sf $(libexecsnapddir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
 
 ##
 ## snap-device-helper
@@ -366,14 +375,14 @@ EXTRA_DIST += \
 #
 # Install support script for udev rules
 install-exec-local::
-	install -d -m 755 $(DESTDIR)$(libexecdir)
-	install -m 755 $(srcdir)/snap-confine/snap-device-helper $(DESTDIR)$(libexecdir)
+	install -d -m 755 $(DESTDIR)$(libexecsnapddir)
+	install -m 755 $(srcdir)/snap-confine/snap-device-helper $(DESTDIR)$(libexecsnapddir)
 
 ##
 ## snap-discard-ns
 ##
 
-libexec_PROGRAMS += snap-discard-ns/snap-discard-ns
+libexecsnapd_PROGRAMS += snap-discard-ns/snap-discard-ns
 if HAVE_RST2MAN
 dist_man_MANS += snap-discard-ns/snap-discard-ns.5
 CLEANFILES += snap-discard-ns/snap-discard-ns.5
@@ -423,7 +432,7 @@ endif
 ## system-shutdown
 ##
 
-libexec_PROGRAMS += system-shutdown/system-shutdown
+libexecsnapd_PROGRAMS += system-shutdown/system-shutdown
 
 system_shutdown_system_shutdown_SOURCES = \
 	system-shutdown/system-shutdown-utils.c \
@@ -448,7 +457,7 @@ endif
 ## snap-gdb-shim
 ##
 
-libexec_PROGRAMS += snap-gdb-shim/snap-gdb-shim
+libexecsnapd_PROGRAMS += snap-gdb-shim/snap-gdb-shim
 
 snap_gdb_shim_snap_gdb_shim_SOURCES = \
 	snap-gdb-shim/snap-gdb-shim.c
@@ -459,7 +468,7 @@ snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
 ## snapd-generator
 ##
 
-libexec_PROGRAMS += snapd-generator/snapd-generator
+libexecsnapd_PROGRAMS += snapd-generator/snapd-generator
 
 snapd_generator_snapd_generator_SOURCES = snapd-generator/main.c
 snapd_generator_snapd_generator_LDADD = libsnap-confine-private.a

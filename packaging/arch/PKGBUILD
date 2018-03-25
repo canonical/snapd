@@ -69,25 +69,24 @@ build() {
   $gobuild -o $GOPATH/bin/snap-update-ns -ldflags '-extldflags "-static"' "${_gourl}/cmd/snap-update-ns"
   CGO_ENABLED=0 $gobuild -o $GOPATH/bin/snap-exec "${_gourl}/cmd/snap-exec"
 
-  # Generate data files such as real systemd units, dbus service, environment
-  # setup helpers out of the available templates
-  make -C data \
-       BINDIR=/bin \
-       LIBEXECDIR=/usr/lib \
-       SYSTEMDSYSTEMUNITDIR=/usr/lib/systemd/system \
-       SNAP_MOUNT_DIR=/var/lib/snapd/snap \
-       SNAPD_ENVIRONMENT_FILE=/etc/default/snapd
+  # Build snap-confine
+  pushd cmd
+  # Sync actual parameters with cmd/autogen.sh
 
-  cd cmd
   autoreconf -i -f
   ./configure \
     --prefix=/usr \
-    --libexecdir=/usr/lib/snapd \
+    --libexecdir=/usr/lib \
     --with-snap-mount-dir=/var/lib/snapd/snap \
     --disable-apparmor \
     --enable-nvidia-biarch \
-    --enable-merged-usr
+    --enable-merged-usr \
+    --with-systemd-system-unit-dir=/lib/systemd/system \
+    --with-snapd-environment-file=/etc/default/snapd
   make $MAKEFLAGS
+  popd
+
+  make -C data
 }
 
 check() {
@@ -117,12 +116,7 @@ package() {
     "$pkgdir/usr/lib/snapd/etelpmoc.sh"
 
   # Install systemd units, dbus services and a script for environment variables
-  make -C data/ install \
-     DBUSSERVICESDIR=/usr/share/dbus-1/services \
-     BINDIR=/usr/bin \
-     SYSTEMDSYSTEMUNITDIR=/usr/lib/systemd/system \
-     SNAP_MOUNT_DIR=/var/lib/snapd/snap \
-     DESTDIR="$pkgdir"
+  make -C data/ install DESTDIR="$pkgdir/"
 
   # Install polkit policy
   install -Dm644 data/polkit/io.snapcraft.snapd.policy \

@@ -217,4 +217,8 @@ AC_SUBST(LIB32_DIR)
 AC_DEFINE_UNQUOTED([LIB32_DIR], "${LIB32_DIR}", [Location of the lib32 directory])
 
 AC_CONFIG_FILES([Makefile])
+
+AC_CONFIG_SUBDIRS([../data])
+
 AC_OUTPUT
+
