@@ -47,6 +47,7 @@ var _ = Suite(&X11InterfaceSuite{
 })
 
 const x11MockPlugSnapInfoYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [x11]
@@ -54,6 +55,7 @@ apps:
 
 // an x11 slot on an x11 snap (as installed on a core/all-snap system)
 const x11CoreYaml = `name: x11
+version: 0
 apps:
  app1:
   slots: [x11]
@@ -61,6 +63,7 @@ apps:
 
 // an x11 slot on the core snap (as automatically added on classic)
 const x11ClassicYaml = `name: core
+version: 0
 type: os
 slots:
  x11:
