@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.32
+Version:        2.32.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -722,6 +722,17 @@ fi
 
 
 %changelog
+* Mon Mar 26 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.1
+ - cmd/snapd: make sure signal handlers are established during early
+   daemon startup
+ - osutil: use tilde suffix for temporary files used for atomic
+   replacement
+ - cmd/snap-confine: apparmor: allow creating prefix path for
+   gl/vulkan
+ - tests: disentangle etc vs extrausers in core tests
+ - packaging: fix changelogs' typo
+
 * Sat Mar 24 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32
  - snap: make `snap run` look at the system-key for security profiles
