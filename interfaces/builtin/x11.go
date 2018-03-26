@@ -178,12 +178,11 @@ func (iface *x11Interface) UDevPermanentSlot(spec *udev.Specification, slot *sna
 
 func init() {
 	registerIface(&x11Interface{commonInterface{
-		name:                   "x11",
-		summary:                x11Summary,
-		implicitOnClassic:      true,
-		baseDeclarationSlots:   x11BaseDeclarationSlots,
-		connectedPlugAppArmor:  x11ConnectedPlugAppArmor,
-		connectedPlugSecComp:   x11ConnectedPlugSecComp,
-		rejectAutoConnectPairs: false,
+		name:                  "x11",
+		summary:               x11Summary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  x11BaseDeclarationSlots,
+		connectedPlugAppArmor: x11ConnectedPlugAppArmor,
+		connectedPlugSecComp:  x11ConnectedPlugSecComp,
 	}})
 }
