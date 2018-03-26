@@ -265,6 +265,28 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	return nil
 }
 
+func (iface *contentInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	contentSnippet := bytes.NewBuffer(nil)
+	writePaths := iface.path(slot, "write")
+	if len(writePaths) > 0 {
+		fmt.Fprintf(contentSnippet, `
+# In addition to the bind mount, add any AppArmor rules so that
+# the slot may directly access the plug implementation's files. Due
+# to a limitation in the kernel's LSM hooks for AF_UNIX, these
+# are needed for using named sockets within the exported
+# directory.
+`)
+		for _, w := range writePaths {
+			_, target := sourceTarget(plug, slot, w)
+			fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
+				target)
+		}
+	}
+
+	spec.AddSnippet(contentSnippet.String())
+	return nil
+}
+
 func (iface *contentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
