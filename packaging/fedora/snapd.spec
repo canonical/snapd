@@ -760,7 +760,7 @@ fi
  - snapstate: put layout feature behind feature flag
  - errtracker: respect the /etc/whoopsie configuration
  - overlord/snapstate: hold refreshes for 2h after seeding on classic
- - many: cherry-pick relevent `go vet` 1.10 fixes to 2.32
+ - many: cherry-pick relevant `go vet` 1.10 fixes to 2.32
  - snap/squashfs: when installing from seed, try symlink before cp
  - wrappers: services which are socket or timer activated should not
    be started during boot
