@@ -343,8 +343,8 @@ slots:
   /tmp/.snap/snap/ rw,
   /tmp/.snap/ rw,
 `
-	c.Assert(updateNS["consumer"][0], Equals, profile0)
-	c.Assert(updateNS, DeepEquals, map[string][]string{"consumer": {profile0}})
+	c.Assert(updateNS[0], Equals, profile0)
+	c.Assert(updateNS, DeepEquals, []string{profile0})
 }
 
 // Check that sharing of writable data is possible
@@ -406,8 +406,8 @@ slots:
   /var/snap/consumer/7/ rw,
   /var/snap/consumer/ rw,
 `
-	c.Assert(updateNS["consumer"][0], Equals, profile0)
-	c.Assert(updateNS, DeepEquals, map[string][]string{"consumer": {profile0}})
+	c.Assert(updateNS[0], Equals, profile0)
+	c.Assert(updateNS, DeepEquals, []string{profile0})
 }
 
 // Check that sharing of writable common data is possible
@@ -469,8 +469,8 @@ slots:
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
 `
-	c.Assert(updateNS["consumer"][0], Equals, profile0)
-	c.Assert(updateNS, DeepEquals, map[string][]string{"consumer": {profile0}})
+	c.Assert(updateNS[0], Equals, profile0)
+	c.Assert(updateNS, DeepEquals, []string{profile0})
 }
 
 func (s *ContentSuite) TestInterfaces(c *C) {
@@ -631,12 +631,12 @@ slots:
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
 `
-	c.Assert(updateNS["consumer"][0], Equals, profile0)
-	c.Assert(updateNS["consumer"][1], Equals, profile1)
-	c.Assert(updateNS["consumer"][2], Equals, profile2)
-	c.Assert(updateNS["consumer"][3], Equals, profile3)
-	c.Assert(updateNS["consumer"][4], Equals, profile4)
-	c.Assert(updateNS, DeepEquals, map[string][]string{"consumer": {profile0, profile1, profile2, profile3, profile4}})
+	c.Assert(updateNS[0], Equals, profile0)
+	c.Assert(updateNS[1], Equals, profile1)
+	c.Assert(updateNS[2], Equals, profile2)
+	c.Assert(updateNS[3], Equals, profile3)
+	c.Assert(updateNS[4], Equals, profile4)
+	c.Assert(updateNS, DeepEquals, []string{profile0, profile1, profile2, profile3, profile4})
 }
 
 func (s *ContentSuite) TestModernContentInterfacePlugins(c *C) {

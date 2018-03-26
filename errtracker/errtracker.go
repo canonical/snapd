@@ -64,20 +64,22 @@ var (
 )
 
 func whoopsieEnabled() bool {
+	dflt := true
+
 	cfg := goconfigparser.New()
 	err := cfg.ReadFile(whoopsiePreferences)
 	if os.IsNotExist(err) {
-		return true
+		return dflt
 	}
 	if err != nil {
 		logger.Noticef("cannot read whoopsie config %q: %v", whoopsiePreferences, err)
-		return true
+		return dflt
 	}
 
 	reportMetricsEnabled, err := cfg.Getbool("General", "report_metrics")
 	if err != nil {
 		logger.Noticef("cannot parse whoopsie config %q: %v", whoopsiePreferences, err)
-		return true
+		return dflt
 	}
 	return reportMetricsEnabled
 }

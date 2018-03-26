@@ -173,7 +173,7 @@ type Info struct {
 	// The information in all the remaining fields is not sourced from the snap blob itself.
 	SideInfo
 
-	// Broken marks if set whether the snap is broken and the reason.
+	// Broken marks whether the snap is broken and the reason.
 	Broken string
 
 	// The information in these fields is ephemeral, available only from the store.
@@ -379,6 +379,22 @@ func (s *Info) ExpandSnapVariables(path string) string {
 	})
 }
 
+// InstallDate returns the "install date" of the snap.
+//
+// If the snap is not active, it'll return a zero time; otherwise
+// it'll return the modtime of the "current" symlink. Sneaky.
+func (s *Info) InstallDate() time.Time {
+	dir, rev := filepath.Split(s.MountDir())
+	cur := filepath.Join(dir, "current")
+	tag, err := os.Readlink(cur)
+	if err == nil && tag == rev {
+		if st, err := os.Lstat(cur); err == nil {
+			return st.ModTime()
+		}
+	}
+	return time.Time{}
+}
+
 func BadInterfacesSummary(snapInfo *Info) string {
 	inverted := make(map[string][]string)
 	for name, reason := range snapInfo.BadInterfaces {
@@ -571,6 +587,8 @@ type AppInfo struct {
 	Before []string
 
 	Timer *TimerInfo
+
+	Autostart string
 }
 
 // ScreenshotInfo provides information about a screenshot.
