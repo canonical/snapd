@@ -1,3 +1,17 @@
+snapd (2.32.1~14.04) trusty; urgency=medium
+
+  *  New upstream release, LP: #1756173
+    - cmd/snapd: make sure signal handlers are established during early
+      daemon startup
+    - osutil: use tilde suffix for temporary files used for atomic
+      replacement
+    - cmd/snap-confine: apparmor: allow creating prefix path for
+      gl/vulkan
+    - tests: disentangle etc vs extrausers in core tests
+    - packaging: fix changelogs' typo
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 26 Mar 2018 21:02:32 +0200
+
 snapd (2.32~14.04) trusty; urgency=medium
 
   *  New upstream release, LP: #1756173
