@@ -780,3 +780,41 @@ slots:
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
 }
+
+// Check that slot can access shared directory in plug's namespace
+func (s *ContentSuite) TestSlotCanAccessConnectedPlugSharedDirectory(c *C) {
+	const consumerYaml = `name: consumer
+version: 0
+plugs:
+ content:
+  target: $SNAP_COMMON/import
+`
+	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
+	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
+	const producerYaml = `name: producer
+version: 0
+slots:
+ content:
+  write:
+   - $SNAP_COMMON/export
+apps:
+  app:
+    command: bar
+`
+	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
+	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
+	expected := `
+# In addition to the bind mount, add any AppArmor rules so that
+# the slot may directly access the plug implementation's files. Due
+# to a limitation in the kernel's LSM hooks for AF_UNIX, these
+# are needed for using named sockets within the exported
+# directory.
+/var/snap/consumer/common/import/** mrwklix,
+`
+	c.Assert(apparmorSpec.SnippetForTag("snap.producer.app"), Equals, expected)
+}
