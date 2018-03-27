@@ -182,6 +182,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	snap.renameClashingCorePlugs()
 
 	snap.BadInterfaces = make(map[string]string)
+	SanitizePlugsSlots(snap)
 
 	// FIXME: validation of the fields
 	return snap, nil

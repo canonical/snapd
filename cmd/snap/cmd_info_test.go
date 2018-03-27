@@ -442,3 +442,35 @@ installed:    2.10 (1) 1kB disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
+
+func (infoSuite) TestDescr(c *check.C) {
+	for k, v := range map[string]string{
+		"": "  \n",
+		`one:
+ * two three four five six  
+   * seven height nine ten
+`: `  one:
+   * two three four
+   five six
+     * seven height
+     nine ten
+`,
+		"abcdefghijklm nopqrstuvwxyz ABCDEFGHIJKLMNOPQR STUVWXYZ": `
+  abcdefghijklm
+  nopqrstuvwxyz
+  ABCDEFGHIJKLMNOPQR
+  STUVWXYZ
+`[1:],
+		// not much we can do when it won't fit
+		"abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ": `
+  abcdefghijklmnopqr
+  stuvwxyz
+  ABCDEFGHIJKLMNOPQR
+  STUVWXYZ
+`[1:],
+	} {
+		var buf bytes.Buffer
+		snap.PrintDescr(&buf, k, 20)
+		c.Check(buf.String(), check.Equals, v, check.Commentf("%q", k))
+	}
+}
