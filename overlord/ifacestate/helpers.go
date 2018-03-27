@@ -211,10 +211,13 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 			continue
 		}
 		if err := m.repo.Connect(connRef); err != nil {
+			// FIXME: we may encounter an error here if there is a stray connection in the state,
+			// they should be cleaned up
 			logger.Noticef("%s", err)
+		} else {
+			affected[connRef.PlugRef.Snap] = true
+			affected[connRef.SlotRef.Snap] = true
 		}
-		affected[connRef.PlugRef.Snap] = true
-		affected[connRef.SlotRef.Snap] = true
 	}
 	result := make([]string, 0, len(affected))
 	for name := range affected {

@@ -1209,6 +1209,42 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	})
 }
 
+func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyIgnoresStrayConnection(c *C) {
+	// Add an OS snap
+	snapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
+
+	_ = s.manager(c)
+
+	// Put fake information about connections for another snap into the state.
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"removed-snap:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network",
+		},
+	})
+	s.state.Unlock()
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that the tasks don't report errors caused by bad connections
+	for _, t := range change.Tasks() {
+		c.Assert(t.Log(), HasLen, 0)
+	}
+}
+
 // The setup-profiles task will add implicit slots necessary for the OS snap.
 func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 	// Initialize the manager.
