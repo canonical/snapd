@@ -67,6 +67,12 @@
 			"revisionTime": "2016-07-14T06:47:45Z"
 		},
 		{
+			"checksumSHA1": "1vEOSFGMV6arGVXihOnqhpkO5o4=",
+			"path": "github.com/pilebones/go-udev",
+			"revision": "02dfd8edaaf3a7a46ad1509ae44c8f08dfaf8ece",
+			"revisionTime": "2018-03-15T12:37:24Z"
+		},
+		{
 			"checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
 			"comment": "fork of boltdb/bolt to fix build failure on ppc. upstream: https://github.com/boltdb/bolt/pull/740 and https://github.com/coreos/bbolt/pull/73",
 			"path": "github.com/snapcore/bolt",
