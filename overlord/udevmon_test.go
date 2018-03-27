@@ -40,14 +40,9 @@ func (s *udevMonitorSuite) TestSmoke(c *C) {
 	}
 }
 
-/*
-func (s *udevMonitorSuite) TestTwoInstances(c *C) {
-	mon := overlord.NewUDevMonitor()
-	c.Assert(mon, NotNil)
-
-	c.Assert(mon.Run(), IsNil)
-
-	mon = overlord.NewUDevMonitor()
-	c.Assert(mon, NotNil)
-	c.Assert(mon.Run(), IsNil)
-}*/
+func (s *udevMonitorSuite) TestSingleton(c *C) {
+	mon1, _ := overlord.NewUDevMonitor()
+	c.Assert(mon1, NotNil)
+	mon2, _ := overlord.NewUDevMonitor()
+	c.Assert(mon1, Equals, mon2)
+}
