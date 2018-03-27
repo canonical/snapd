@@ -33,13 +33,9 @@ case "$ID" in
 		extra_opts="--libexecdir=/usr/lib/snapd"
 		;;
 	ubuntu)
-		extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp"
-		dpkg_architecture=$(which dpkg-architecture 2>/dev/null)
-		if [ -n "$dpkg_architecture" ]; then
-				extra_opts="$extra_opts  --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
-				if [ "$(dpkg-architecture -qDEB_HOST_ARCH)" = "amd64" ]; then
-					extra_opts="$extra_opts --with-host-arch-32bit-triplet=$(dpkg-architecture -ai386 -qDEB_HOST_MULTIARCH)"
-				fi
+		extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+		if [ "$(dpkg-architecture -qDEB_HOST_ARCH)" = "amd64" ]; then
+			extra_opts="$extra_opts --with-host-arch-32bit-triplet=$(dpkg-architecture -ai386 -qDEB_HOST_MULTIARCH)"
 		fi
 		;;
 	fedora|centos|rhel)
