@@ -80,6 +80,7 @@ type Overlord struct {
 	deviceMgr  *devicestate.DeviceManager
 	cmdMgr     *cmdstate.CommandManager
 	unknownMgr *UnknownTaskManager
+	udevMon    *UDevMonitor
 }
 
 var storeNew = store.New
@@ -136,6 +137,11 @@ func New() (*Overlord, error) {
 	o.addManager(deviceMgr)
 
 	o.addManager(cmdstate.Manager(s))
+
+	o.udevMon, err = NewUDevMonitor()
+	if err != nil {
+		return nil, err
+	}
 
 	configstateInit(hookMgr)
 
@@ -254,6 +260,11 @@ func (o *Overlord) SetRestartHandler(handleRestart func(t state.RestartType)) {
 func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
+		if o.udevMon != nil {
+			if err := o.udevMon.Run(); err != nil {
+				return err
+			}
+		}
 		for {
 			// TODO: pass a proper context into Ensure
 			o.ensureTimerReset()
@@ -262,6 +273,9 @@ func (o *Overlord) Loop() {
 			o.stateEng.Ensure()
 			select {
 			case <-o.loopTomb.Dying():
+				if o.udevMon != nil {
+					o.udevMon.Stop()
+				}
 				return nil
 			case <-o.ensureTimer.C:
 			case <-o.pruneTicker.C:
