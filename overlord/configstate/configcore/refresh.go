@@ -28,15 +28,6 @@ import (
 )
 
 func validateRefreshSchedule(tr Conf) error {
-	scheduleSet := false
-	defer func() {
-		if scheduleSet {
-			// give an immediate chance to recompute the
-			// next refresh time
-			tr.State().EnsureBefore(0)
-		}
-	}()
-
 	refreshTimerStr, err := coreCfg(tr, "refresh.timer")
 	if err != nil {
 		return err
@@ -47,7 +38,6 @@ func validateRefreshSchedule(tr Conf) error {
 		if _, err = timeutil.ParseSchedule(refreshTimerStr); err != nil {
 			return err
 		}
-		scheduleSet = true
 	}
 
 	refreshHoldStr, err := coreCfg(tr, "refresh.hold")
@@ -76,15 +66,9 @@ func validateRefreshSchedule(tr Conf) error {
 		if !devicestate.CanManageRefreshes(st) {
 			return fmt.Errorf("cannot set schedule to managed")
 		}
-		scheduleSet = true
 		return nil
 	}
 
 	_, err = timeutil.ParseLegacySchedule(refreshScheduleStr)
-	if err != nil {
-		return err
-	}
-
-	scheduleSet = true
-	return nil
+	return err
 }

@@ -20,37 +20,13 @@
 package configcore_test
 
 import (
-	"time"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/overlord/state"
 )
 
 type refreshSuite struct {
 	configcoreSuite
-	b *fakeStateBackend
-}
-
-type fakeStateBackend struct {
-	ensureBeforeCalls []time.Duration
-}
-
-func (fsb *fakeStateBackend) Checkpoint(_ []byte) error {
-	return nil
-}
-
-func (fsb *fakeStateBackend) RequestRestart(_ state.RestartType) {}
-
-func (fsb *fakeStateBackend) EnsureBefore(d time.Duration) {
-	fsb.ensureBeforeCalls = append(fsb.ensureBeforeCalls, d)
-}
-
-func (s *refreshSuite) SetUpTest(c *C) {
-	s.configcoreSuite.SetUpTest(c)
-	s.b = &fakeStateBackend{}
-	s.state = state.New(s.b)
 }
 
 var _ = Suite(&refreshSuite{})
@@ -63,7 +39,6 @@ func (s *refreshSuite) TestConfigureRefreshTimerHappy(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	c.Check(s.b.ensureBeforeCalls, DeepEquals, []time.Duration{0})
 }
 
 func (s *refreshSuite) TestConfigureRefreshTimerRejected(c *C) {
@@ -74,7 +49,6 @@ func (s *refreshSuite) TestConfigureRefreshTimerRejected(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, `cannot parse "invalid": "invalid" is not a valid weekday`)
-	c.Check(s.b.ensureBeforeCalls, HasLen, 0)
 }
 
 func (s *refreshSuite) TestConfigureLegacyRefreshScheduleHappy(c *C) {
@@ -85,7 +59,6 @@ func (s *refreshSuite) TestConfigureLegacyRefreshScheduleHappy(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	c.Check(s.b.ensureBeforeCalls, DeepEquals, []time.Duration{0})
 }
 
 func (s *refreshSuite) TestConfigureLegacyRefreshScheduleRejected(c *C) {
@@ -105,8 +78,6 @@ func (s *refreshSuite) TestConfigureLegacyRefreshScheduleRejected(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, `cannot parse "8:00~12:00": not a valid interval`)
-
-	c.Check(s.b.ensureBeforeCalls, HasLen, 0)
 }
 
 func (s *refreshSuite) TestConfigureRefreshHoldHappy(c *C) {
