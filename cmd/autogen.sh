@@ -33,14 +33,7 @@ case "$ID" in
 		extra_opts="--libexecdir=/usr/lib/snapd"
 		;;
 	ubuntu)
-		case "$VERSION_ID" in
-			16.04)
-				extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp"
-				;;
-			*)
-				extra_opts="--libexecdir=/usr/lib/snapd --enable-static-libcap --enable-nvidia-multiarch"
-				;;
-		esac
+		extra_opts="--libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --enable-static-libseccomp"
 		dpkg_architecture=$(which dpkg-architecture 2>/dev/null)
 		if [ -n "$dpkg_architecture" ]; then
 				extra_opts="$extra_opts  --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
@@ -63,4 +56,4 @@ esac
 echo "Configuring in build directory $BUILD_DIR with: $extra_opts"
 mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR"
 # shellcheck disable=SC2086
-"${SRC_DIR}/configure" --enable-maintainer-mode --prefix=/usr $extra_opts
+"${SRC_DIR}/configure" --enable-maintainer-mode --prefix=/usr $extra_opts "$@"
