@@ -110,10 +110,7 @@ const (
 
 type ResultInfo struct {
 	SuggestedCurrency string `json:"suggested-currency"`
-	Restarting        string `json:"restarting"`
 }
-
-var ErrRebooting = errors.New("the system is being rebooted")
 
 // FindOptions supports exactly one of the following options:
 // - Refresh: only return snaps that are refreshable

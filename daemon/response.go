@@ -57,11 +57,14 @@ type resp struct {
 	Type   ResponseType `json:"type"`
 	Result interface{}  `json:"result,omitempty"`
 	*Meta
-	Restarting string `json:"restarting,omitempty"`
+	Maintenance *errorResult `json:"maintenance,omitempty"`
 }
 
-func (r *resp) transmitRestarting(restarting string) {
-	r.Restarting = restarting
+func (r *resp) transmitMaintenance(kind errorKind, message string) {
+	r.Maintenance = &errorResult{
+		Kind:    kind,
+		Message: message,
+	}
 }
 
 // TODO This is being done in a rush to get the proper external
@@ -86,17 +89,17 @@ type respJSON struct {
 	StatusText string       `json:"status"`
 	Result     interface{}  `json:"result"`
 	*Meta
-	Restarting string `json:"restarting,omitempty"`
+	Maintenance *errorResult `json:"maintenance,omitempty"`
 }
 
 func (r *resp) MarshalJSON() ([]byte, error) {
 	return json.Marshal(respJSON{
-		Type:       r.Type,
-		Status:     r.Status,
-		StatusText: http.StatusText(r.Status),
-		Result:     r.Result,
-		Meta:       r.Meta,
-		Restarting: r.Restarting,
+		Type:        r.Type,
+		Status:      r.Status,
+		StatusText:  http.StatusText(r.Status),
+		Result:      r.Result,
+		Meta:        r.Meta,
+		Maintenance: r.Maintenance,
 	})
 }
 
@@ -154,6 +157,9 @@ const (
 
 	errorKindNetworkTimeout      = errorKind("network-timeout")
 	errorKindInterfacesUnchanged = errorKind("interfaces-unchanged")
+
+	errorKindDaemonRestart = errorKind("daemon-restart")
+	errorKindSystemRestart = errorKind("system-restart")
 )
 
 type errorValue interface{}

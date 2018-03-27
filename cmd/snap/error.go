@@ -81,13 +81,7 @@ func fill(para string, indent int) string {
 	return strings.TrimSpace(buf.String())
 }
 
-const rebootingMsg = "snapd is in the process of rebooting the system"
-
 func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (string, error) {
-	if e == client.ErrRebooting {
-		return rebootingMsg, nil
-	}
-
 	// do this here instead of in the caller for more DRY
 	err, ok := e.(*client.Error)
 	if !ok {
@@ -171,6 +165,10 @@ If you understand and want to proceed repeat the command including --classic.
 		isError = true
 		usesSnapName = false
 		msg = i18n.G("unable to contact snap store")
+	case client.ErrorKindSystemRestart:
+		isError = false
+		usesSnapName = false
+		msg = i18n.G("snapd is about to reboot the system")
 	default:
 		usesSnapName = false
 		msg = err.Message

@@ -84,7 +84,7 @@ func (wmx waitMixin) wait(cli *client.Client, id string) (*client.Change, error)
 	for {
 		var rebootingErr error
 		chg, err := cli.Change(id)
-		if err != nil && err != client.ErrRebooting {
+		if err != nil {
 			// a client.Error means we were able to communicate with
 			// the server (got an answer)
 			if e, ok := err.(*client.Error); ok {
@@ -105,8 +105,8 @@ func (wmx waitMixin) wait(cli *client.Client, id string) (*client.Change, error)
 			time.Sleep(pollTime)
 			continue
 		}
-		if err == client.ErrRebooting {
-			rebootingErr = err
+		if maintErr, ok := cli.Maintenance().(*client.Error); ok && maintErr.Kind == client.ErrorKindSystemRestart {
+			rebootingErr = maintErr
 		}
 		if !tMax.IsZero() {
 			pb.Finished()

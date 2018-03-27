@@ -89,13 +89,14 @@ func (cs *clientSuite) TestClientChangeRestartingState(c *check.C) {
   "status": "Do",
   "ready": false
 },
- "restarting": "system"
+ "maintenance": {"kind": "system-restart", "message": "system is restarting"}
 }`
 
 	chg, err := cs.cli.Change("uno")
 	c.Check(chg, check.NotNil)
 	c.Check(chg.ID, check.Equals, "uno")
-	c.Check(err, check.Equals, client.ErrRebooting)
+	c.Check(err, check.IsNil)
+	c.Check(cs.cli.Maintenance(), check.NotNil)
 }
 
 func (cs *clientSuite) TestClientChangeError(c *check.C) {
@@ -198,22 +199,6 @@ func (cs *clientSuite) TestClientChangesData(c *check.C) {
 
 	err = chg.Get("missing", &n)
 	c.Assert(err, check.Equals, client.ErrNoData)
-}
-
-func (cs *clientSuite) TestClientChangesRestartingState(c *check.C) {
-	cs.rsp = `{"type": "sync", "result": [{
-  "id":   "uno",
-  "kind": "foo",
-  "summary": "...",
-  "status": "Do",
-  "ready": false
-}],
-  "restarting": "system"
-}`
-
-	chgs, err := cs.cli.Changes(&client.ChangesOptions{Selector: client.ChangesAll})
-	c.Check(chgs, check.HasLen, 1)
-	c.Assert(err, check.Equals, client.ErrRebooting)
 }
 
 func (cs *clientSuite) TestClientAbort(c *check.C) {

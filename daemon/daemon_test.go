@@ -165,11 +165,11 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	cmd.ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	var rst struct {
-		Restarting string `json:"restarting"`
+		Maintenance *errorResult `json:"maintenance"`
 	}
 	err = json.Unmarshal(rec.Body.Bytes(), &rst)
 	c.Assert(err, check.IsNil)
-	c.Check(rst.Restarting, check.Equals, "")
+	c.Check(rst.Maintenance, check.IsNil)
 
 	state.MockRestarting(d.overlord.State(), state.RestartSystem)
 	rec = httptest.NewRecorder()
@@ -177,7 +177,10 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	c.Check(rec.Code, check.Equals, 200)
 	err = json.Unmarshal(rec.Body.Bytes(), &rst)
 	c.Assert(err, check.IsNil)
-	c.Check(rst.Restarting, check.Equals, "system")
+	c.Check(rst.Maintenance, check.DeepEquals, &errorResult{
+		Kind:    errorKindSystemRestart,
+		Message: "system is restarting",
+	})
 
 	state.MockRestarting(d.overlord.State(), state.RestartDaemon)
 	rec = httptest.NewRecorder()
@@ -185,7 +188,10 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	c.Check(rec.Code, check.Equals, 200)
 	err = json.Unmarshal(rec.Body.Bytes(), &rst)
 	c.Assert(err, check.IsNil)
-	c.Check(rst.Restarting, check.Equals, "daemon")
+	c.Check(rst.Maintenance, check.DeepEquals, &errorResult{
+		Kind:    errorKindDaemonRestart,
+		Message: "daemon is restarting",
+	})
 }
 
 func (s *daemonSuite) TestGuestAccess(c *check.C) {
