@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/snap"
 )
@@ -35,6 +36,6 @@ func templateVariables(info *snap.Info, securityTag string) string {
 	fmt.Fprintf(&buf, "@{SNAP_REVISION}=\"%s\"\n", info.Revision)
 	fmt.Fprintf(&buf, "@{PROFILE_DBUS}=\"%s\"\n",
 		dbus.SafePath(securityTag))
-	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"/snap\"")
+	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"{/snap,%s}\"", dirs.SnapMountDir)
 	return buf.String()
 }
