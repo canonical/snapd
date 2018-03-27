@@ -1124,6 +1124,7 @@ func (s *SnapOpSuite) TestNoWait(c *check.C) {
 		{"revert", "--no-wait", "foo"},
 		{"refresh", "--no-wait", "foo"},
 		{"refresh", "--no-wait", "foo", "bar"},
+		{"refresh", "--no-wait"},
 		{"enable", "--no-wait", "foo"},
 		{"disable", "--no-wait", "foo"},
 		{"try", "--no-wait", "."},
@@ -1151,6 +1152,95 @@ func (s *SnapOpSuite) TestNoWait(c *check.C) {
 		// reset
 		s.srv.n = 0
 		s.stdout.Reset()
+	}
+}
+
+func (s *SnapOpSuite) TestNoWaitImmediateError(c *check.C) {
+
+	cmds := [][]string{
+		{"remove", "--no-wait", "foo"},
+		{"remove", "--no-wait", "foo", "bar"},
+		{"install", "--no-wait", "foo"},
+		{"install", "--no-wait", "foo", "bar"},
+		{"revert", "--no-wait", "foo"},
+		{"refresh", "--no-wait", "foo"},
+		{"refresh", "--no-wait", "foo", "bar"},
+		{"refresh", "--no-wait"},
+		{"enable", "--no-wait", "foo"},
+		{"disable", "--no-wait", "foo"},
+		{"try", "--no-wait", "."},
+		{"switch", "--no-wait", "--channel=foo", "bar"},
+		// commands that use waitMixin from elsewhere
+		{"start", "--no-wait", "foo"},
+		{"stop", "--no-wait", "foo"},
+		{"restart", "--no-wait", "foo"},
+		{"alias", "--no-wait", "foo", "bar"},
+		{"unalias", "--no-wait", "foo"},
+		{"prefer", "--no-wait", "foo"},
+		{"set", "--no-wait", "foo", "bar=baz"},
+		{"disconnect", "--no-wait", "foo:bar"},
+		{"connect", "--no-wait", "foo:bar"},
+	}
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "failure"}}`)
+	})
+
+	for _, cmd := range cmds {
+		_, err := snap.Parser().ParseArgs(cmd)
+		c.Assert(err, check.ErrorMatches, "failure", check.Commentf("%v", cmd))
+	}
+}
+
+func (s *SnapOpSuite) TestWaitServerError(c *check.C) {
+	r := snap.MockMaxGoneTime(0)
+	defer r()
+
+	cmds := [][]string{
+		{"remove", "foo"},
+		{"remove", "foo", "bar"},
+		{"install", "foo"},
+		{"install", "foo", "bar"},
+		{"revert", "foo"},
+		{"refresh", "foo"},
+		{"refresh", "foo", "bar"},
+		{"refresh"},
+		{"enable", "foo"},
+		{"disable", "foo"},
+		{"try", "."},
+		{"switch", "--channel=foo", "bar"},
+		// commands that use waitMixin from elsewhere
+		{"start", "foo"},
+		{"stop", "foo"},
+		{"restart", "foo"},
+		{"alias", "foo", "bar"},
+		{"unalias", "foo"},
+		{"prefer", "foo"},
+		{"set", "foo", "bar=baz"},
+		{"disconnect", "foo:bar"},
+		{"connect", "foo:bar"},
+	}
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		if n == 1 {
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+			return
+		}
+		if n == 3 {
+			fmt.Fprintln(w, `{"type": "error", "result": {"message": "unexpected request"}}`)
+			return
+		}
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "server error"}}`)
+	})
+
+	for _, cmd := range cmds {
+		_, err := snap.Parser().ParseArgs(cmd)
+		c.Assert(err, check.ErrorMatches, "server error", check.Commentf("%v", cmd))
+		// reset
+		n = 0
 	}
 }
 
