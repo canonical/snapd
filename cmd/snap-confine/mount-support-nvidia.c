@@ -28,6 +28,8 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <unistd.h>
+/* POSIX version of basename() and dirname() */
+#include <libgen.h>
 
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
@@ -123,6 +125,7 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 						   const char *glob_list[],
 						   size_t glob_list_len)
 {
+	size_t source_dir_len = strlen(source_dir);
 	glob_t glob_res SC_CLEANUP(globfree) = {
 	.gl_pathv = NULL};
 	// Find all the entries matching the list of globs
@@ -145,10 +148,36 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 	for (size_t i = 0; i < glob_res.gl_pathc; ++i) {
 		char symlink_name[512] = { 0 };
 		char symlink_target[512] = { 0 };
+		char prefix_dir[512] = { 0 };
 		const char *pathname = glob_res.gl_pathv[i];
-		char *pathname_copy
+		char *pathname_copy1
 		    SC_CLEANUP(sc_cleanup_string) = strdup(pathname);
-		char *filename = basename(pathname_copy);
+		char *pathname_copy2
+		    SC_CLEANUP(sc_cleanup_string) = strdup(pathname);
+		if (pathname_copy1 == NULL || pathname_copy2 == NULL) {
+			die("failed to copy pathname");
+		}
+		// POSIX dirname() and basename() may modify their input arguments
+		char *filename = basename(pathname_copy1);
+		char *directory_name = dirname(pathname_copy2);
+		sc_must_snprintf(prefix_dir, sizeof prefix_dir, "%s",
+				 libgl_dir);
+
+		if (strlen(directory_name) > source_dir_len) {
+			// Additional path elements between source_dir and dirname, meaning the
+			// actual file is not placed directly under source_dir but under one or
+			// more directories below source_dir. Make sure to recreate the whole
+			// prefix
+			sc_must_snprintf(prefix_dir, sizeof prefix_dir,
+					 "%s%s", libgl_dir,
+					 &directory_name[source_dir_len]);
+			debug("prefix dir path: %s", prefix_dir);
+			if (sc_nonfatal_mkpath(prefix_dir, 0755) != 0) {
+				die("failed to create prefix path: %s",
+				    prefix_dir);
+			}
+		}
+
 		struct stat stat_buf;
 		int err = lstat(pathname, &stat_buf);
 		if (err != 0) {
@@ -189,7 +218,7 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 			continue;
 		}
 		sc_must_snprintf(symlink_name, sizeof symlink_name,
-				 "%s/%s", libgl_dir, filename);
+				 "%s/%s", prefix_dir, filename);
 		debug("creating symbolic link %s -> %s", symlink_name,
 		      symlink_target);
 
