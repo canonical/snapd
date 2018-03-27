@@ -447,6 +447,9 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 
 		debug("using arch triplet %s", HOST_ARCH_TRIPLET);
 
+		// sc_mkdir_and_mount_and_glob_files() takes an array of strings, so
+		// initialize native_sources accordingly, but calculate the array length
+		// dynamically to make adjustments to native_sources easier.
 		const char *native_sources[] = { native_libdir };
 		const size_t native_sources_len =
 		    sizeof native_sources / sizeof *native_sources;
@@ -463,6 +466,10 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 
 			debug("using 32-bit arch triplet %s",
 			      HOST_ARCH32_TRIPLET);
+
+			// sc_mkdir_and_mount_and_glob_files() takes an array of strings, so
+			// initialize lib32_sources accordingly, but calculate the array length
+			// dynamically to make adjustments to lib32_sources easier.
 			const char *lib32_sources[] = { lib32_libdir };
 			const size_t lib32_sources_len =
 			    sizeof lib32_sources / sizeof *lib32_sources;
