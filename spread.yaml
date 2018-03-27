@@ -51,15 +51,29 @@ backends:
         systems:
             - ubuntu-14.04-64:
                 workers: 6
+            - ubuntu-16.04-32:
+                workers: 6
             - ubuntu-16.04-64:
                 workers: 8
             - ubuntu-18.04-64:
-                image: ubuntu-os-cloud-devel/ubuntu-1804-lts
+                image: ubuntu-os-cloud-devel/daily-ubuntu-1804-bionic-v20180315
                 workers: 6
 
             - ubuntu-core-16-64:
                 image: ubuntu-16.04-64
                 workers: 6
+
+            - debian-9-64:
+                image: debian-9-stretch
+                workers: 6
+
+            - opensuse-42.2-64:
+                image: opensuse-leap-42-2
+                workers: 4
+                manual: true
+            - opensuse-42.3-64:
+                image: opensuse-cloud/opensuse-leap-42-3-v20180116
+                workers: 4
 
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
@@ -74,13 +88,6 @@ backends:
             HTTP_PROXY: null
             HTTPS_PROXY: null
         systems:
-            - ubuntu-16.04-32:
-                kernel: GRUB 2
-                workers: 6
-
-            - debian-9-64:
-                kernel: GRUB 2
-                workers: 6
             - debian-sid-64:
                 kernel: GRUB 2
                 workers: 6
@@ -95,8 +102,6 @@ backends:
                 workers: 4
                 manual: true
 
-            - opensuse-42.2-64:
-                workers: 4
     qemu:
         systems:
             - ubuntu-14.04-32:
@@ -338,6 +343,7 @@ prepare: |
                 dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             opensuse-*)
+                zypper -q --gpg-auto-import-keys refresh
                 zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
         esac
@@ -363,6 +369,8 @@ restore: |
     "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
+    # XXX: something is hosing the filesystem so look for signs of that
+    ! grep -F "//deleted /etc" /proc/self/mountinfo
 
 suites:
     tests/main/:

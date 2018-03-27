@@ -349,6 +349,9 @@ func createTestDevice() *auth.DeviceState {
 }
 
 func (s *storeTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
 	s.store = New(nil, nil)
 	s.origDownloadFunc = download
 	dirs.SetRootDir(c.MkDir())
@@ -385,6 +388,7 @@ func (s *storeTestSuite) TearDownTest(c *C) {
 	download = s.origDownloadFunc
 	s.mockXDelta.Restore()
 	s.restoreLogger()
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *storeTestSuite) expectedAuthorization(c *C, user *auth.UserState) string {
@@ -2777,6 +2781,8 @@ func (s *storeTestSuite) TestSectionsQuery(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", sectionsPath)
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
+
 		switch n {
 		case 0:
 			// All good.
@@ -2796,7 +2802,41 @@ func (s *storeTestSuite) TestSectionsQuery(c *C) {
 	cfg := Config{
 		StoreBaseURL: serverURL,
 	}
-	sto := New(&cfg, nil)
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := New(&cfg, authContext)
+
+	sections, err := sto.Sections(context.TODO(), s.user)
+	c.Check(err, IsNil)
+	c.Check(sections, DeepEquals, []string{"featured", "database"})
+}
+
+func (s *storeTestSuite) TestSectionsQueryCustomStore(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", sectionsPath)
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		switch n {
+		case 0:
+			// All good.
+		default:
+			c.Fatalf("what? %d", n)
+		}
+
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.WriteHeader(200)
+		io.WriteString(w, MockSectionsJSON)
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	cfg := Config{
+		StoreBaseURL: serverURL,
+	}
+	authContext := &testAuthContext{c: c, device: s.device, storeID: "my-brand-store"}
+	sto := New(&cfg, authContext)
 
 	sections, err := sto.Sections(context.TODO(), s.user)
 	c.Check(err, IsNil)
@@ -2846,6 +2886,8 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
+
 		switch n {
 		case 0:
 			query := r.URL.Query()
@@ -2870,7 +2912,8 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 	defer mockServer.Close()
 
 	serverURL, _ := url.Parse(mockServer.URL)
-	sto := New(&Config{StoreBaseURL: serverURL}, nil)
+	authContext := &testAuthContext{c: c, device: s.device}
+	sto := New(&Config{StoreBaseURL: serverURL}, authContext)
 
 	db, err := advisor.Create()
 	c.Assert(err, IsNil)

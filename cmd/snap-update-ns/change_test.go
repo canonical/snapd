@@ -390,7 +390,10 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 	synth, err := chg.Perform()
 	c.Assert(err, IsNil)
 	c.Assert(synth, DeepEquals, []*update.Change{
-		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/rofs", Type: "tmpfs"}},
+		{Action: update.Mount, Entry: osutil.MountEntry{
+			Name: "tmpfs", Dir: "/rofs", Type: "tmpfs",
+			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/target"}},
+		},
 	})
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		// sniff mount target
@@ -746,7 +749,10 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 	synth, err := chg.Perform()
 	c.Assert(err, IsNil)
 	c.Assert(synth, DeepEquals, []*update.Change{
-		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/rofs", Type: "tmpfs"}},
+		{Action: update.Mount, Entry: osutil.MountEntry{
+			Name: "tmpfs", Dir: "/rofs", Type: "tmpfs",
+			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/target"}},
+		},
 	})
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		// sniff mount target
@@ -1021,7 +1027,10 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 	synth, err := chg.Perform()
 	c.Assert(err, IsNil)
 	c.Assert(synth, DeepEquals, []*update.Change{
-		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/rofs", Type: "tmpfs"}},
+		{Action: update.Mount, Entry: osutil.MountEntry{
+			Name: "tmpfs", Dir: "/rofs", Type: "tmpfs",
+			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/target"}},
+		},
 	})
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		// sniff mount target
@@ -1253,7 +1262,10 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 	synth, err := chg.Perform()
 	c.Assert(err, IsNil)
 	c.Assert(synth, DeepEquals, []*update.Change{
-		{Action: update.Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/rofs", Type: "tmpfs"}},
+		{Action: update.Mount, Entry: osutil.MountEntry{
+			Name: "tmpfs", Dir: "/rofs", Type: "tmpfs",
+			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/name"}},
+		},
 	})
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		// sniff symlink name
