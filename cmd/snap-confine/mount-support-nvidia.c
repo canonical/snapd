@@ -439,15 +439,15 @@ static int sc_mount_nvidia_is_driver_in_dir(const char *dir)
 
 static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 {
+	const char *native_libdir = NATIVE_LIBDIR "/" HOST_ARCH_TRIPLET;
+	const char *lib32_libdir = NATIVE_LIBDIR "/" HOST_ARCH32_TRIPLET;
+
 	if ((strlen(HOST_ARCH_TRIPLET) > 0) &&
-	    (sc_mount_nvidia_is_driver_in_dir
-	     (NATIVE_LIBDIR "/" HOST_ARCH_TRIPLET) == 1)) {
+	    (sc_mount_nvidia_is_driver_in_dir(native_libdir) == 1)) {
 
 		debug("using arch triplet %s", HOST_ARCH_TRIPLET);
 
-		const char *native_sources[] = {
-			NATIVE_LIBDIR "/" HOST_ARCH_TRIPLET,
-		};
+		const char *native_sources[] = { native_libdir };
 		const size_t native_sources_len =
 		    sizeof native_sources / sizeof *native_sources;
 		// Primary arch
@@ -459,14 +459,11 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 
 		// Alternative 32-bit support
 		if ((strlen(HOST_ARCH32_TRIPLET) > 0) &&
-		    (sc_mount_nvidia_is_driver_in_dir
-		     (NATIVE_LIBDIR "/" HOST_ARCH32_TRIPLET) == 1)) {
+		    (sc_mount_nvidia_is_driver_in_dir(lib32_libdir) == 1)) {
 
 			debug("using 32-bit arch triplet %s",
 			      HOST_ARCH32_TRIPLET);
-			const char *lib32_sources[] = {
-				NATIVE_LIBDIR "/" HOST_ARCH32_TRIPLET,
-			};
+			const char *lib32_sources[] = { lib32_libdir };
 			const size_t lib32_sources_len =
 			    sizeof lib32_sources / sizeof *lib32_sources;
 			sc_mkdir_and_mount_and_glob_files(rootfs_dir,
