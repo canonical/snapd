@@ -31,6 +31,7 @@ import (
 
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -74,6 +75,9 @@ func (s *SnapSuite) TestInvalidParameters(c *check.C) {
 }
 
 func (s *SnapSuite) TestSnapRunWhenMissingConfine(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	// mock installed snap
 	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R("x2"),
