@@ -34,6 +34,11 @@ var (
 	once    sync.Once
 )
 
+type udevMonitor interface {
+	Run() error
+	Stop()
+}
+
 type UDevMonitor struct {
 	netlinkConn *netlink.UEventConn
 	stop        chan struct{}
@@ -68,7 +73,6 @@ func (m *UDevMonitor) Run() error {
 	m.crawlerStop = crawler.ExistingDevices(devs, cerrors, nil)
 
 	go func() {
-		//defer m.netlinkConn.Close()
 		events := make(chan netlink.UEvent)
 		errors := make(chan error)
 
