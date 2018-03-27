@@ -206,7 +206,7 @@ func (r *Repository) ConnectionsInfo(snapNames []string, includeDisconnected boo
 		for _, plugInfo := range snapPlugs {
 			// check if plug is connected to any slot
 			if slots, ok := r.plugSlots[plugInfo]; ok {
-				for slotInfo, _ := range slots {
+				for slotInfo := range slots {
 					if len(snaps) > 0 && !(snaps[plugInfo.Snap.Name()] || snaps[slotInfo.Snap.Name()]) {
 						break
 					}

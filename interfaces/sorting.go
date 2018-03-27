@@ -171,26 +171,45 @@ func (c connectionOrder) Swap(i, j int) {
 }
 
 func (c connectionOrder) Less(i, j int) bool {
-	if c[i].Plug == nil {
-		return c[j].Plug == nil
+	var plugSnapA, plugNameA, slotSnapA, slotNameA string
+	var plugSnapB, plugNameB, slotSnapB, slotNameB string
+	if c[i].Plug != nil {
+		plugSnapA = c[i].Plug.Snap.Name()
+		plugNameA = c[i].Plug.Name
 	}
-	if c[j].Plug == nil {
+	if c[i].Slot != nil {
+		slotSnapA = c[i].Slot.Snap.Name()
+		slotNameA = c[i].Slot.Name
+	}
+	if c[j].Plug != nil {
+		plugSnapB = c[j].Plug.Snap.Name()
+		plugNameB = c[j].Plug.Name
+	}
+	if c[j].Slot != nil {
+		slotSnapB = c[j].Slot.Snap.Name()
+		slotNameB = c[j].Slot.Name
+	}
+
+	if plugNameA == "" {
+		return plugNameB == ""
+	}
+	if plugNameB == "" {
 		return true
 	}
-	if c[i].Slot == nil {
-		return c[j].Slot == nil
+	if slotNameA == "" {
+		return slotNameB == ""
 	}
-	if c[j].Slot == nil {
+	if slotNameB == "" {
 		return true
 	}
-	if c[i].Plug.Snap.Name() != c[j].Plug.Snap.Name() {
-		return c[i].Plug.Snap.Name() < c[j].Plug.Snap.Name()
+	if plugSnapA != plugSnapB {
+		return plugSnapA < plugSnapB
 	}
-	if c[i].Slot.Snap.Name() != c[j].Slot.Snap.Name() {
-		return c[i].Slot.Snap.Name() < c[j].Slot.Snap.Name()
+	if slotSnapA != slotSnapB {
+		return slotSnapA < slotSnapB
 	}
-	if c[i].Plug.Name != c[j].Plug.Name {
-		return c[i].Plug.Name < c[j].Plug.Name
+	if plugNameA != plugNameB {
+		return plugNameA < plugNameB
 	}
-	return c[i].Slot.Name < c[j].Slot.Name
+	return slotNameA < slotNameB
 }
