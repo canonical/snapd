@@ -184,8 +184,8 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 	return accessUnauthorized
 }
 
-type restartingTransmitter interface {
-	transmitRestarting(restarting string)
+type maintenanceTransmitter interface {
+	transmitMaintenance(kind errorKind, message string)
 }
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -224,13 +224,13 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rsp = rspf(c, r, user)
 	}
 
-	if rstTrasmitter, ok := rsp.(restartingTransmitter); ok {
+	if maintTrasmitter, ok := rsp.(maintenanceTransmitter); ok {
 		_, rst := st.Restarting()
 		switch rst {
 		case state.RestartSystem:
-			rstTrasmitter.transmitRestarting("system")
+			maintTrasmitter.transmitMaintenance(errorKindSystemRestart, "system is restarting")
 		case state.RestartDaemon:
-			rstTrasmitter.transmitRestarting("daemon")
+			maintTrasmitter.transmitMaintenance(errorKindDaemonRestart, "daemon is restarting")
 		}
 	}
 

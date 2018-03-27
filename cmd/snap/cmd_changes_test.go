@@ -75,7 +75,7 @@ func (s *SnapSuite) TestChangeSimpleRebooting(c *check.C) {
 		if n < 2 {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
-			fmt.Fprintln(w, strings.Replace(mockChangeJSON, `"type": "sync"`, `"type": "sync", "restarting": "system"`, 1))
+			fmt.Fprintln(w, strings.Replace(mockChangeJSON, `"type": "sync"`, `"type": "sync", "maintenance": {"kind": "system-restart", "message": "system is restarting"}`, 1))
 		} else {
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -85,7 +85,7 @@ func (s *SnapSuite) TestChangeSimpleRebooting(c *check.C) {
 
 	_, err := snap.Parser().ParseArgs([]string{"change", "42"})
 	c.Assert(err, check.IsNil)
-	c.Check(s.Stderr(), check.Equals, "WARNING: snapd is in the process of rebooting the system\n")
+	c.Check(s.Stderr(), check.Equals, "WARNING: snapd is about to reboot the system\n")
 }
 
 var mockChangesJSON = `{"type": "sync", "result": [

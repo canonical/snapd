@@ -75,6 +75,8 @@ type Client struct {
 
 	disableAuth bool
 	interactive bool
+
+	maintenance error
 }
 
 // New returns a new instance of Client
@@ -108,6 +110,11 @@ func New(config *Config) *Client {
 		disableAuth: config.DisableAuth,
 		interactive: config.Interactive,
 	}
+}
+
+// Maintenance returns an error reflecting the daemon maintenance status or nil.
+func (client *Client) Maintenance() error {
+	return client.maintenance
 }
 
 func (client *Client) WhoAmI() (string, error) {
@@ -265,7 +272,7 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
 		return nil, err
 	}
-	if err := rsp.err(); err != nil {
+	if err := rsp.err(client); err != nil {
 		return nil, err
 	}
 	if rsp.Type != "sync" {
@@ -287,7 +294,7 @@ func (client *Client) doAsync(method, path string, query url.Values, headers map
 	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
 		return "", err
 	}
-	if err := rsp.err(); err != nil {
+	if err := rsp.err(client); err != nil {
 		return "", err
 	}
 	if rsp.Type != "async" {
@@ -340,6 +347,8 @@ type response struct {
 	Change     string          `json:"change"`
 
 	ResultInfo
+
+	Maintenance *Error `json:"maintenance"`
 }
 
 // Error is the real value of response.Result when an error occurs.
@@ -377,6 +386,9 @@ const (
 
 	ErrorKindNetworkTimeout      = "network-timeout"
 	ErrorKindInterfacesUnchanged = "interfaces-unchanged"
+
+	ErrorKindSystemRestart = "system-restart"
+	ErrorKindDaemonRestart = "daemon-restart"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
@@ -431,7 +443,16 @@ type SysInfo struct {
 	Confinement string      `json:"confinement"`
 }
 
-func (rsp *response) err() error {
+func (rsp *response) err(cli *Client) error {
+	if cli != nil {
+		maintErr := rsp.Maintenance
+		// avoid setting to (*client.Error)(nil)
+		if maintErr != nil {
+			cli.maintenance = maintErr
+		} else {
+			cli.maintenance = nil
+		}
+	}
 	if rsp.Type != "error" {
 		return nil
 	}
@@ -456,7 +477,7 @@ func parseError(r *http.Response) error {
 		return fmt.Errorf("cannot unmarshal error: %v", err)
 	}
 
-	err := rsp.err()
+	err := rsp.err(nil)
 	if err == nil {
 		return fmt.Errorf("server error: %q", r.Status)
 	}

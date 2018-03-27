@@ -69,7 +69,7 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 		if !t.rebooting {
 			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
 		} else {
-			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}, "restarting": "system"}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}, "maintenance": {"kind": "system-restart", "message": "system is restarting"}}}`)
 		}
 	case 2:
 		t.c.Check(r.Method, check.Equals, "GET")
@@ -170,13 +170,13 @@ func (s *SnapOpSuite) TestWaitRebooting(c *check.C) {
 "status": "Doing",
 "tasks": [{"kind": "bar", "summary": "...", "status": "Doing", "progress": {"done": 1, "total": 1}, "log": ["INFO: info"]}]
 },
-"restarting": "system"}`)
+"maintenance": {"kind": "system-restart", "message": "system is restarting"}}`)
 	})
 
 	cli := snap.Client()
 	chg, err := snap.Wait(cli, "x")
 	c.Assert(chg, check.IsNil)
-	c.Assert(err, check.Equals, client.ErrRebooting)
+	c.Assert(err, check.DeepEquals, &client.Error{Kind: client.ErrorKindSystemRestart, Message: "system is restarting"})
 
 	// last available info is still displayed
 	c.Check(meter.Notices, testutil.Contains, "INFO: info")
@@ -774,7 +774,7 @@ func (s *SnapOpSuite) TestRefreshOneRebooting(c *check.C) {
 
 	err := snap.RunMain()
 	c.Check(err, check.IsNil)
-	c.Check(s.Stderr(), check.Matches, `snapd is in the process of rebooting the system\n`)
+	c.Check(s.Stderr(), check.Equals, "snapd is about to reboot the system\n")
 
 }
 
