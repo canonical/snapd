@@ -211,8 +211,11 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 			continue
 		}
 		if err := m.repo.Connect(connRef); err != nil {
-			// FIXME: we may encounter an error here if there is a stray connection in the state,
-			// they should be cleaned up
+			if _, ok := err.(*interfaces.NoSuchPlugSlot); ok {
+				// FIXME: we may encounter an error here if there is a stray connection in the state,
+				// they should be cleaned up
+				continue
+			}
 			logger.Noticef("%s", err)
 		} else {
 			affected[connRef.PlugRef.Snap] = true
