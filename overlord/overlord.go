@@ -80,7 +80,7 @@ type Overlord struct {
 	deviceMgr  *devicestate.DeviceManager
 	cmdMgr     *cmdstate.CommandManager
 	unknownMgr *UnknownTaskManager
-	udevMon    *UDevMonitor
+	udevMon    udevMonitor
 }
 
 var storeNew = store.New
@@ -418,6 +418,7 @@ func Mock() *Overlord {
 	o.stateEng = NewStateEngine(state.New(mockBackend{o: o}))
 	o.unknownMgr = NewUnknownTaskManager(o.stateEng.State())
 	o.stateEng.AddManager(o.unknownMgr)
+	o.udevMon = &UDevMonitorMock{}
 
 	return o
 }
@@ -453,3 +454,8 @@ func (mb mockBackend) EnsureBefore(d time.Duration) {
 func (mb mockBackend) RequestRestart(t state.RestartType) {
 	mb.o.requestRestart(t)
 }
+
+type UDevMonitorMock struct{}
+
+func (u *UDevMonitorMock) Run() error { return nil }
+func (u *UDevMonitorMock) Stop()      {}
