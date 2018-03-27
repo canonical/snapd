@@ -809,11 +809,10 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	expected := `
-# In addition to the bind mount, add any AppArmor rules so that
-# the slot may directly access the plug implementation's files. Due
-# to a limitation in the kernel's LSM hooks for AF_UNIX, these
-# are needed for using named sockets within the exported
-# directory.
+# When the content interface is writable, allow this slot
+# implementation to access the slot's exported files at the plugging
+# snap's mountpoint to accommodate software where the plugging app
+# tells the slotting app about files to share.
 /var/snap/consumer/common/import/** mrwklix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.producer.app"), Equals, expected)

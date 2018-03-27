@@ -270,11 +270,10 @@ func (iface *contentInterface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 	writePaths := iface.path(slot, "write")
 	if len(writePaths) > 0 {
 		fmt.Fprintf(contentSnippet, `
-# In addition to the bind mount, add any AppArmor rules so that
-# the slot may directly access the plug implementation's files. Due
-# to a limitation in the kernel's LSM hooks for AF_UNIX, these
-# are needed for using named sockets within the exported
-# directory.
+# When the content interface is writable, allow this slot
+# implementation to access the slot's exported files at the plugging
+# snap's mountpoint to accommodate software where the plugging app
+# tells the slotting app about files to share.
 `)
 		for _, w := range writePaths {
 			_, target := sourceTarget(plug, slot, w)
