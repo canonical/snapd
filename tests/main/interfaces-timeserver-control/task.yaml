@@ -4,6 +4,9 @@ details: |
     This test makes sure that a snap using the timeserver-control interface
     can access timeserver information and update it.
 
+# Debian sid is skipped because "timedatectl set-ntp" fails
+systems: [-debian-sid-*]
+
 prepare: |
     . $TESTSLIB/snaps.sh
 
