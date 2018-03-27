@@ -5,9 +5,11 @@
 # snapd-$VERSION. The Debian tarball contains the vendor/ directory which must
 # be removed from one of those.
 #
-# Example usage:
+# Example usage, using tarball from the archive or from the image ppa:
 #
 # $ wget https://launchpad.net/ubuntu/+archive/primary/+files/snapd_2.31.2.tar.xz 
+# $ wget https://launchpad.net/~snappy-dev/+archive/ubuntu/image/+files/snapd_2.32.1.tar.xz
+#
 # $ repack-debian-tarball.sh snapd_2.31.2.tar.xz
 #
 # This will produce three files that need to be added to the github release page:
@@ -42,27 +44,38 @@ fakeroot tar \
 	--file="$debian_tarball" \
 	--directory="$scratch_dir/"
 
+# Top-level directory may be either snappy.upstream or snapd.upstream, because
+# of small differences between the release manager's laptop and desktop machines.
+if [ -d "$scratch_dir/snapd.upstream" ]; then
+	top_dir=snapd.upstream
+elif [ -d "$scratch_dir/snappy.upstream" ]; then
+	top_dir=snappy.upstream
+else
+	echo "Unexpected contents of given tarball, expected snap{py,d}.upstream/"
+	exit 1
+fi
+
 # Pack a fully copy with vendor tree
 fakeroot tar \
 	--create \
-	--transform="s/snapd.upstream/snapd-$upstream_version/" \
+	--transform="s/$top_dir/snapd-$upstream_version/" \
 	--file=snapd_"$upstream_version".vendor.tar.xz \
 	--auto-compress \
-	--directory="$scratch_dir/" snapd.upstream
+	--directory="$scratch_dir/" "$top_dir"
 
 # Pack a copy without vendor tree
 fakeroot tar \
 	--create \
-	--transform="s/snapd.upstream/snapd-$upstream_version/" \
+	--transform="s/$top_dir/snapd-$upstream_version/" \
 	--exclude='snapd*/vendor/*' \
 	--file=snapd_"$upstream_version".no-vendor.tar.xz \
 	--auto-compress \
-	--directory="$scratch_dir/" snapd.upstream
+	--directory="$scratch_dir/" "$top_dir"
 
 # Pack a copy of the vendor tree
 fakeroot tar \
 	--create \
-	--transform="s/snapd.upstream/snapd-$upstream_version/" \
+	--transform="s/$top_dir/snapd-$upstream_version/" \
 	--file=snapd_"$upstream_version".only-vendor.tar.xz \
 	--auto-compress \
-	--directory="$scratch_dir/" snapd.upstream/vendor/ 
+	--directory="$scratch_dir/" "$top_dir"/vendor/
