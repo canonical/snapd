@@ -302,11 +302,11 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	m := map[string]interface{}{
 		"series":         release.Series,
 		"version":        c.d.Version,
+		"build-id":       buildID,
 		"os-release":     release.ReleaseInfo,
 		"on-classic":     release.OnClassic,
 		"managed":        len(users) > 0,
 		"kernel-version": release.KernelVersion(),
-		"build-id":       buildID,
 		"locations": map[string]interface{}{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
