@@ -141,11 +141,14 @@ func (s *autostartSuite) TestTryAutostartAppValid(c *C) {
 Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 `))
 
-	cmd, err := userd.TryAutostartApp("snapname", fooDesktopFile)
+	cmd, err := userd.AutostartCmd("snapname", fooDesktopFile)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Path, Equals, appWrapperPath)
 
+	err = cmd.Start()
+	c.Assert(err, IsNil)
 	cmd.Wait()
+
 	c.Assert(appCmd.Calls(), DeepEquals,
 		[][]string{
 			{
@@ -168,7 +171,7 @@ func (s *autostartSuite) TestTryAutostartAppNoMatchingApp(c *C) {
 Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 `))
 
-	cmd, err := userd.TryAutostartApp("snapname", fooDesktopFile)
+	cmd, err := userd.AutostartCmd("snapname", fooDesktopFile)
 	c.Assert(cmd, IsNil)
 	c.Assert(err, ErrorMatches, `cannot match desktop file with snap "snapname" applications`)
 }
@@ -180,7 +183,7 @@ func (s *autostartSuite) TestTryAutostartAppNoSnap(c *C) {
 Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 `))
 
-	cmd, err := userd.TryAutostartApp("snapname", fooDesktopFile)
+	cmd, err := userd.AutostartCmd("snapname", fooDesktopFile)
 	c.Assert(cmd, IsNil)
 	c.Assert(err, ErrorMatches, `cannot obtain snap information for snap "snapname".*`)
 }
@@ -194,7 +197,7 @@ func (s *autostartSuite) TestTryAutostartAppBadExec(c *C) {
 Foo=bar
 `))
 
-	cmd, err := userd.TryAutostartApp("snapname", fooDesktopFile)
+	cmd, err := userd.AutostartCmd("snapname", fooDesktopFile)
 	c.Assert(cmd, IsNil)
 	c.Assert(err, ErrorMatches, `cannot determine startup command: Exec not found or invalid`)
 }

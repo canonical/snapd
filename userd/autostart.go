@@ -98,7 +98,7 @@ func getCurrentSnapInfo(snapName string) (*snap.Info, error) {
 	return snap.ReadInfo(snapName, &snap.SideInfo{Revision: revision})
 }
 
-func tryAutostartApp(snapName, desktopFilePath string) (*exec.Cmd, error) {
+func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
 	desktopFile := filepath.Base(desktopFilePath)
 
 	info, err := getCurrentSnapInfo(snapName)
@@ -138,11 +138,6 @@ func tryAutostartApp(snapName, desktopFilePath string) (*exec.Cmd, error) {
 	}
 
 	cmd := exec.Command(app.WrapperPath(), split[1:]...)
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("cannot autostart %q: %v", desktopFile, err)
-	}
 	return cmd, nil
 }
 
@@ -197,9 +192,15 @@ func AutostartSessionApps() error {
 
 		logger.Debugf("snap name: %q", snapName)
 
-		if _, err := tryAutostartApp(snapName, desktopFilePath); err != nil {
-			logger.Debugf("error encountered when trying to autostart %v for snap %q: %v", desktopFile, snapName, err)
+		cmd, err := autostartCmd(snapName, desktopFilePath)
+		if err != nil {
 			failedApps[desktopFile] = err
+			continue
+		}
+		cmd.Stderr = os.Stderr
+		cmd.Stdout = os.Stdout
+		if err := cmd.Start(); err != nil {
+			failedApps[desktopFile] = fmt.Errorf("cannot autostart %q: %v", desktopFile, err)
 		}
 	}
 	if len(failedApps) > 0 {

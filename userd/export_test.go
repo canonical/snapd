@@ -28,8 +28,8 @@ import (
 var (
 	SnapFromPid = snapFromPid
 
-	FindExec        = findExec
-	TryAutostartApp = tryAutostartApp
+	FindExec     = findExec
+	AutostartCmd = autostartCmd
 )
 
 func MockSnapFromSender(f func(*dbus.Conn, dbus.Sender) (string, error)) func() {
