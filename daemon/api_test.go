@@ -105,6 +105,8 @@ type apiBaseSuite struct {
 	jctlFollows        []bool
 	jctlRCs            []io.ReadCloser
 	jctlErrs           []error
+
+	restoreSanitize func()
 }
 
 func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
@@ -160,6 +162,7 @@ func (s *apiBaseSuite) SetUpSuite(c *check.C) {
 	s.restoreRelease = release.MockForcedDevmode(false)
 	s.systemctlRestorer = systemd.MockSystemctl(s.systemctl)
 	s.journalctlRestorer = systemd.MockJournalctl(s.journalctl)
+	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 }
 
 func (s *apiBaseSuite) TearDownSuite(c *check.C) {
@@ -167,6 +170,7 @@ func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 	s.restoreRelease()
 	s.systemctlRestorer()
 	s.journalctlRestorer()
+	s.restoreSanitize()
 }
 
 func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
