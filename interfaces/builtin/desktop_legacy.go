@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -34,7 +34,7 @@ const desktopLegacyBaseDeclarationSlots = `
 
 const desktopLegacyConnectedPlugAppArmor = `
 # Description: Can access common desktop legacy methods. This gives privileged
-# access to the user's input.
+# access to the user's input and screen output.
 
 # accessibility (a11y)
 #include <abstractions/dbus-session-strict>
@@ -224,6 +224,19 @@ dbus (send)
     path=/org/gtk/vfs/mounttracker
     interface=org.gtk.vfs.MountTracker
     member=LookupMount,
+
+# gnome-shell screenshot and screencast
+dbus (send)
+    bus=session
+    path=/org/gnome/Shell/Screen{cast,shot}
+    interface=org.freedesktop.DBus.Properties
+    member=Get{,All}
+    peer=(label=unconfined),
+dbus (send)
+    bus=session
+    path=/org/gnome/Shell/Screen{cast,shot}
+    interface=org.gnome.Shell.Screen{cast,shot}
+    peer=(label=unconfined),
 `
 
 const desktopLegacyConnectedPlugSecComp = `
