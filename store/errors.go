@@ -111,10 +111,9 @@ func (e InvalidAuthDataError) Error() string {
 	return strings.Join(es, "  ")
 }
 
-// InstallRefreshError conveys errors that were reported on otherwise overall successful install/refresh request.
-type InstallRefreshError struct {
-	// NoResults is set if the there were no results in the
-	// install/refresh response.
+// SnapActionError conveys errors that were reported on otherwise overall successful snap action (install/refresh) request.
+type SnapActionError struct {
+	// NoResults is set if the there were no results in the response
 	NoResults bool
 	// Refresh errors by snap name.
 	Refresh map[string]error
@@ -124,7 +123,7 @@ type InstallRefreshError struct {
 	Other []error
 }
 
-func (e InstallRefreshError) Error() string {
+func (e SnapActionError) Error() string {
 	var es []string
 	if len(e.Refresh) > 0 {
 		es = append(es, "cannot refresh:")
@@ -157,7 +156,7 @@ var (
 	errDeviceAuthorizationNeedsRefresh = errors.New("soft-expired device authorization needs refresh")
 )
 
-func translateInstallRefreshError(action, code, message string) error {
+func translateSnapActionError(action, code, message string) error {
 	switch code {
 	case "revision-not-found":
 		if action == "refresh" {
