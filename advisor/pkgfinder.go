@@ -19,6 +19,10 @@
 
 package advisor
 
+import (
+	"os"
+)
+
 type Package struct {
 	Snap    string
 	Summary string
@@ -26,6 +30,9 @@ type Package struct {
 
 func FindPackage(pkgName string) (*Package, error) {
 	finder, err := newFinder()
+	if err != nil && os.IsNotExist(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}

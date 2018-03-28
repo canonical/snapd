@@ -2137,6 +2137,15 @@ var snapActionFields = getStructFields(storeSnap{})
 // successul (200) but there were reported errors it will return both
 // the snap infos and an SnapActionError.
 func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
+	if opts == nil {
+		opts = &RefreshOptions{}
+	}
+
+	if len(currentSnaps) == 0 && len(actions) == 0 {
+		// nothing to do
+		return nil, &SnapActionError{NoResults: true}
+	}
+
 	authRefreshes := 0
 	for {
 		snaps, err := s.snapAction(ctx, currentSnaps, actions, user, opts)
@@ -2172,14 +2181,6 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 }
 
 func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
-	if opts == nil {
-		opts = &RefreshOptions{}
-	}
-
-	if len(currentSnaps) == 0 && len(actions) == 0 {
-		// nothing to do
-		return nil, &SnapActionError{NoResults: true}
-	}
 
 	// TODO: the store already requires instance-key but doesn't
 	// yet support repeating in context or sending actions for the

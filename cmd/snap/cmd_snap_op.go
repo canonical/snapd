@@ -35,13 +35,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func lastLogStr(logs []string) string {
-	if len(logs) == 0 {
-		return ""
-	}
-	return logs[len(logs)-1]
-}
-
 var (
 	shortInstallHelp = i18n.G("Install a snap to the system")
 	shortRemoveHelp  = i18n.G("Remove a snap from the system")
@@ -540,11 +533,11 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 		return nil
 	}
 
-	if _, err := x.wait(cli, changeID); err == noWait {
-		if err != noWait {
-			return err
+	if _, err := x.wait(cli, changeID); err != nil {
+		if err == noWait {
+			return nil
 		}
-		return nil
+		return err
 	}
 
 	return showDone([]string{name}, "refresh")

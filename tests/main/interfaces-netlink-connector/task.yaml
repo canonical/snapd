@@ -5,10 +5,6 @@ details: |
 
     The test-snapd-netlink-connector snap creates a netlink socket and binds it. 
 
-environment:
-    CONNECTED_PATTERN: ':netlink-connector +test-snapd-netlink-connector'
-    DISCONNECTED_PATTERN: '\- +test-snapd-netlink-connector:netlink-connector'
-
 prepare: |
     . $TESTSLIB/snaps.sh
 
@@ -17,11 +13,10 @@ prepare: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "\- +test-snapd-netlink-connector:netlink-connector"
 
     echo "When the interface is connected"
     snap connect test-snapd-netlink-connector:netlink-connector
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to create and bind a netlink socket"
     test-snapd-netlink-connector.bind
@@ -32,7 +27,6 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-netlink-connector:netlink-connector
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to bind the netlink socket"
     if test-snapd-netlink-connector.bind; then
