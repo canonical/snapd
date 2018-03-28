@@ -3,6 +3,8 @@ summary: Ensure that the removable-media interface works.
 details: |
     The removable-media interface allows to access to removable storage filesystems.
 
+manual: true
+
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-removable-media
