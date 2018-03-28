@@ -29,15 +29,27 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) {
 	TestingT(t)
 }
 
-type CoreSuite struct{}
+type CoreSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&CoreSuite{})
+
+func (s *CoreSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+}
+
+func (s *CoreSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
 
 func (s *CoreSuite) TestValidateName(c *C) {
 	validNames := []string{

@@ -9,10 +9,6 @@ details: |
 # is not available in its kernel
 systems: [-ubuntu-14.04-*]
 
-environment:
-    CONNECTED_PATTERN: ':netlink-audit +test-snapd-netlink-audit'
-    DISCONNECTED_PATTERN: '\- +test-snapd-netlink-audit:netlink-audit'
-
 prepare: |
     . $TESTSLIB/snaps.sh
 
@@ -20,8 +16,8 @@ prepare: |
     install_local test-snapd-netlink-audit
 
 execute: |
-    echo "The interface is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    echo "The interface is disconnected by default"
+    snap interfaces | MATCH "\- +test-snapd-netlink-audit:netlink-audit"
 
     echo "When the interface is connected"
     snap connect test-snapd-netlink-audit:netlink-audit
@@ -35,7 +31,6 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-netlink-audit:netlink-audit
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to bind the netlink socket"
     if test-snapd-netlink-audit.bind; then

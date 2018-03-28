@@ -17,7 +17,7 @@ execute: |
     test-snapd-tools.env | egrep '^(SNAP|PATH|HOME)=' | sort > misc-vars.txt
 
     echo "Ensure that SNAP environment variables are what we expect"
-    MATCH '^SNAP_ARCH=(amd64|i386|arm64|armhf|ppc64el)$'                  < snap-vars.txt
+    MATCH '^SNAP_ARCH=(amd64|i386|arm64|armhf|ppc64el|s390x)$'            < snap-vars.txt
     MATCH '^SNAP_COMMON=/var/snap/test-snapd-tools/common$'               < snap-vars.txt
     MATCH '^SNAP_DATA=/var/snap/test-snapd-tools/x1$'                     < snap-vars.txt
     MATCH '^SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void$' < snap-vars.txt

@@ -48,6 +48,7 @@ var _ = Suite(&packSuite{})
 
 func (s *packSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	// chdir into a tempdir
 	pwd, err := os.Getwd()
@@ -58,6 +59,10 @@ func (s *packSuite) SetUpTest(c *C) {
 
 	// use fake root
 	dirs.SetRootDir(c.MkDir())
+}
+
+func (s *packSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 }
 
 func makeExampleSnapSourceDir(c *C, snapYamlContent string) string {
@@ -120,6 +125,18 @@ apps:
 `)
 	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
 	_, err := pack.Snap(sourceDir, "")
+	c.Assert(err, Equals, snap.ErrMissingPaths)
+}
+
+func (s *packSuite) TestValidateMissingAppFailsWithErrMissingPaths(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+apps:
+ foo:
+  command: bin/hello-world
+`)
+	c.Assert(os.Remove(filepath.Join(sourceDir, "bin", "hello-world")), IsNil)
+	err := pack.CheckSkeleton(sourceDir)
 	c.Assert(err, Equals, snap.ErrMissingPaths)
 }
 
