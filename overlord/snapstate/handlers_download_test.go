@@ -95,7 +95,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 		},
 		{
 			op: "storesvc-install-refresh:action",
-			action: store.InstallRefreshAction{
+			action: store.SnapAction{
 				Action:  "install",
 				Name:    "foo",
 				Channel: "some-channel",

@@ -108,7 +108,7 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 		channel = ""
 	}
 
-	action := &store.InstallRefreshAction{
+	action := &store.SnapAction{
 		Action: "install",
 		Name:   name,
 		// the desired channel
@@ -119,7 +119,7 @@ func installInfo(st *state.State, name, channel string, revision snap.Revision, 
 
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.InstallRefresh(context.TODO(), installedCtxt, []*store.InstallRefreshAction{action}, user, nil)
+	res, err := theStore.SnapAction(context.TODO(), installedCtxt, []*store.SnapAction{action}, user, nil)
 	st.Lock()
 
 	return singleActionResult(name, action.Action, res, err)
@@ -140,14 +140,14 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 		return nil, err
 	}
 
-	var flags store.InstallRefreshActionFlags
+	var flags store.SnapActionFlags
 	if opts.ignoreValidation {
-		flags = store.InstallRefreshIgnoreValidation
+		flags = store.SnapActionIgnoreValidation
 	} else {
-		flags = store.InstallRefreshEnforceValidation
+		flags = store.SnapActionEnforceValidation
 	}
 
-	action := &store.InstallRefreshAction{
+	action := &store.SnapAction{
 		Action: "refresh",
 		SnapID: curInfo.SnapID,
 		// the desired channel
@@ -162,7 +162,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.InstallRefresh(context.TODO(), installedCtxt, []*store.InstallRefreshAction{action}, user, nil)
+	res, err := theStore.SnapAction(context.TODO(), installedCtxt, []*store.SnapAction{action}, user, nil)
 	st.Lock()
 
 	return singleActionResult(curInfo.Name(), action.Action, res, err)
@@ -194,17 +194,17 @@ func singleActionResult(name, action string, results []*snap.Info, e error) (inf
 		return results[0], nil
 	}
 
-	if irErr, ok := e.(*store.InstallRefreshError); ok {
-		if len(irErr.Other) != 0 {
-			return nil, irErr
+	if saErr, ok := e.(*store.SnapActionError); ok {
+		if len(saErr.Other) != 0 {
+			return nil, saErr
 		}
 
 		var snapErr error
 		switch action {
 		case "refresh":
-			snapErr = irErr.Refresh[name]
+			snapErr = saErr.Refresh[name]
 		case "install":
-			snapErr = irErr.Install[name]
+			snapErr = saErr.Install[name]
 			if snapErr == store.ErrRevisionNotAvailable {
 				// TODO: this preserves old behavior
 				// but do we want to keep it?
@@ -216,7 +216,7 @@ func singleActionResult(name, action string, results []*snap.Info, e error) (inf
 		}
 
 		// no result, atypical case
-		if irErr.NoResults {
+		if saErr.NoResults {
 			switch action {
 			case "refresh":
 				return nil, store.ErrNoUpdateAvailable
@@ -242,7 +242,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 		return nil, err
 	}
 
-	action := &store.InstallRefreshAction{
+	action := &store.SnapAction{
 		Action: "refresh",
 		SnapID: curInfo.SnapID,
 		// the desired revision
@@ -251,7 +251,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.InstallRefresh(context.TODO(), installedCtxt, []*store.InstallRefreshAction{action}, user, nil)
+	res, err := theStore.SnapAction(context.TODO(), installedCtxt, []*store.SnapAction{action}, user, nil)
 	st.Lock()
 
 	return singleActionResult(curInfo.Name(), action.Action, res, err)
@@ -312,7 +312,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	sort.Strings(names)
 
 	installedCtxt := make([]*store.CurrentSnap, 0, len(snapStates))
-	actionsByUserID := make(map[int][]*store.InstallRefreshAction)
+	actionsByUserID := make(map[int][]*store.SnapAction)
 	stateByID := make(map[string]*SnapState, len(snapStates))
 	ignoreValidation := make(map[string]bool)
 	fallbackID := idForUser(user)
@@ -365,7 +365,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		if userID == 0 {
 			userID = fallbackID
 		}
-		actionsByUserID[userID] = append(actionsByUserID[userID], &store.InstallRefreshAction{
+		actionsByUserID[userID] = append(actionsByUserID[userID], &store.SnapAction{
 			Action: "refresh",
 			SnapID: snapInfo.SnapID,
 		})
@@ -385,15 +385,15 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		}
 
 		st.Unlock()
-		updatesForUser, err := theStore.InstallRefresh(ctx, installedCtxt, actions, u, opts)
+		updatesForUser, err := theStore.SnapAction(ctx, installedCtxt, actions, u, opts)
 		st.Lock()
 		if err != nil {
-			irErr, ok := err.(*store.InstallRefreshError)
+			saErr, ok := err.(*store.SnapActionError)
 			if !ok {
 				return nil, nil, nil, err
 			}
 			// TODO: use the warning infra here when we have it
-			logger.Noticef("%v", irErr)
+			logger.Noticef("%v", saErr)
 		}
 
 		for _, snapInfo := range updatesForUser {

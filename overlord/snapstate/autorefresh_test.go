@@ -57,7 +57,7 @@ func (r *autoRefreshStore) ListRefresh(ctx context.Context, cands []*store.Refre
 	return nil, r.listRefreshErr
 }
 
-func (r *autoRefreshStore) InstallRefresh(ctx context.Context, installedCtxt []*store.CurrentSnap, actions []*store.InstallRefreshAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
 	if ctx == nil || !auth.IsEnsureContext(ctx) {
 		panic("Ensure marked context required")
 	}

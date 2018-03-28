@@ -49,7 +49,7 @@ type fakeOp struct {
 	stype   snap.Type
 
 	installedCtxt []store.CurrentSnap
-	action        store.InstallRefreshAction
+	action        store.SnapAction
 
 	old string
 
@@ -103,7 +103,7 @@ func (bna byName) Less(i, j int) bool {
 	return bna[i].Name < bna[j].Name
 }
 
-type byAction []*store.InstallRefreshAction
+type byAction []*store.SnapAction
 
 func (ba byAction) Len() int      { return len(ba) }
 func (ba byAction) Swap(i, j int) { ba[i], ba[j] = ba[j], ba[i] }
@@ -298,22 +298,22 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	return nil, store.ErrNoUpdateAvailable
 }
 
-func (f *fakeStore) InstallRefresh(ctx context.Context, installedCtxt []*store.CurrentSnap, actions []*store.InstallRefreshAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
 	if ctx == nil {
 		panic("context required")
 	}
 	f.pokeStateLock()
 
-	if len(installedCtxt) == 0 && len(actions) == 0 {
+	if len(currentSnaps) == 0 && len(actions) == 0 {
 		return nil, nil
 	}
 	if len(actions) > 3 {
-		panic("fake InstallRefresh unexpectedly called with more than 3 actions")
+		panic("fake SnapAction unexpectedly called with more than 3 actions")
 	}
 
-	curByID := make(map[string]*store.CurrentSnap, len(installedCtxt))
-	ctxt := make(byName, len(installedCtxt))
-	for i, cur := range installedCtxt {
+	curByID := make(map[string]*store.CurrentSnap, len(currentSnaps))
+	ctxt := make(byName, len(currentSnaps))
+	for i, cur := range currentSnaps {
 		if cur.Name == "" || cur.SnapID == "" || cur.Revision.Unset() {
 			return nil, fmt.Errorf("internal error: incomplete current snap info")
 		}
@@ -372,9 +372,9 @@ func (f *fakeStore) InstallRefresh(ctx context.Context, installedCtxt []*store.C
 			channel = cur.TrackingChannel
 		}
 		ignoreValidation := cur.IgnoreValidation
-		if a.Flags&store.InstallRefreshIgnoreValidation != 0 {
+		if a.Flags&store.SnapActionIgnoreValidation != 0 {
 			ignoreValidation = true
-		} else if a.Flags&store.InstallRefreshEnforceValidation != 0 {
+		} else if a.Flags&store.SnapActionEnforceValidation != 0 {
 			ignoreValidation = false
 		}
 		cand := refreshCand{
@@ -418,7 +418,7 @@ func (f *fakeStore) InstallRefresh(ctx context.Context, installedCtxt []*store.C
 		if len(installErrors) == 0 {
 			installErrors = nil
 		}
-		return res, &store.InstallRefreshError{
+		return res, &store.SnapActionError{
 			NoResults: len(refreshErrors)+len(installErrors)+len(res) == 0,
 			Refresh:   refreshErrors,
 			Install:   installErrors,

@@ -47,7 +47,7 @@ type fakeStore struct {
 	storetest.Store
 }
 
-func (f *fakeStore) InstallRefresh(_ context.Context, installedCtxt []*store.CurrentSnap, actions []*store.InstallRefreshAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (f *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
 	if len(actions) == 1 && actions[0].Action == "install" {
 		return []*snap.Info{{
 			SideInfo: snap.SideInfo{

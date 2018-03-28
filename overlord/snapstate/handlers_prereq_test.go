@@ -128,7 +128,7 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 		},
 		{
 			op: "storesvc-install-refresh:action",
-			action: store.InstallRefreshAction{
+			action: store.SnapAction{
 				Action:  "install",
 				Name:    "prereq1",
 				Channel: "stable",
@@ -140,7 +140,7 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 		},
 		{
 			op: "storesvc-install-refresh:action",
-			action: store.InstallRefreshAction{
+			action: store.SnapAction{
 				Action:  "install",
 				Name:    "prereq2",
 				Channel: "stable",
@@ -152,7 +152,7 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 		},
 		{
 			op: "storesvc-install-refresh:action",
-			action: store.InstallRefreshAction{
+			action: store.SnapAction{
 				Action:  "install",
 				Name:    "some-base",
 				Channel: "stable",

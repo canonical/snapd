@@ -57,8 +57,8 @@ func (Store) ListRefresh(context.Context, []*store.RefreshCandidate, *auth.UserS
 	panic("Store.ListRefresh not expected")
 }
 
-func (Store) InstallRefresh(context.Context, []*store.CurrentSnap, []*store.InstallRefreshAction, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error) {
-	panic("Store.InstallRefresh not expected")
+func (Store) SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error) {
+	panic("Store.SnapAction not expected")
 }
 
 func (Store) Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error {

@@ -86,8 +86,8 @@ type apiBaseSuite struct {
 	d                 *Daemon
 	user              *auth.UserState
 	restoreBackends   func()
-	installedCtxt     []*store.CurrentSnap
-	actions           []*store.InstallRefreshAction
+	currentSnaps      []*store.CurrentSnap
+	actions           []*store.SnapAction
 	buyOptions        *store.BuyOptions
 	buyResult         *store.BuyResult
 	storeSigning      *assertstest.StoreStack
@@ -127,11 +127,11 @@ func (s *apiBaseSuite) Find(search *store.Search, user *auth.UserState) ([]*snap
 	return s.rsnaps, s.err
 }
 
-func (s *apiBaseSuite) InstallRefresh(ctx context.Context, installedCtxt []*store.CurrentSnap, actions []*store.InstallRefreshAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
 	if ctx == nil {
 		panic("context required")
 	}
-	s.installedCtxt = installedCtxt
+	s.currentSnaps = currentSnaps
 	s.actions = actions
 	s.user = user
 
@@ -227,7 +227,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.vars = nil
 	s.user = nil
 	s.d = nil
-	s.installedCtxt = nil
+	s.currentSnaps = nil
 	s.actions = nil
 	// Disable real security backends for all API tests
 	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
@@ -1498,7 +1498,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 
 	c.Check(s.storeSearch, check.DeepEquals, store.Search{Query: "hi"})
-	c.Check(s.installedCtxt, check.HasLen, 0)
+	c.Check(s.currentSnaps, check.HasLen, 0)
 	c.Check(s.actions, check.HasLen, 0)
 }
 
@@ -1522,7 +1522,7 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
-	c.Check(s.installedCtxt, check.HasLen, 1)
+	c.Check(s.currentSnaps, check.HasLen, 1)
 	c.Check(s.actions, check.HasLen, 1)
 }
 
@@ -1560,7 +1560,7 @@ func (s *apiSuite) TestFindRefreshSideloaded(c *check.C) {
 
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 0)
-	c.Check(s.installedCtxt, check.HasLen, 0)
+	c.Check(s.currentSnaps, check.HasLen, 0)
 	c.Check(s.actions, check.HasLen, 0)
 }
 

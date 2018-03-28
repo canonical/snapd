@@ -1144,7 +1144,7 @@ type sneakyStore struct {
 	state *state.State
 }
 
-func (s sneakyStore) InstallRefresh(ctx context.Context, installedCtxt []*store.CurrentSnap, actions []*store.InstallRefreshAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (s sneakyStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
 	s.state.Lock()
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
@@ -1154,7 +1154,7 @@ func (s sneakyStore) InstallRefresh(ctx context.Context, installedCtxt []*store.
 		SnapType: "app",
 	})
 	s.state.Unlock()
-	return s.fakeStore.InstallRefresh(ctx, installedCtxt, actions, user, opts)
+	return s.fakeStore.SnapAction(ctx, currentSnaps, actions, user, opts)
 }
 
 func (s *snapmgrTestSuite) TestInstallStateConflict(c *C) {
@@ -1608,7 +1608,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		},
 		{
 			op: "storesvc-install-refresh:action",
-			action: store.InstallRefreshAction{
+			action: store.SnapAction{
 				Action:  "install",
 				Name:    "some-snap",
 				Channel: "some-channel",
@@ -1765,7 +1765,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 		},
 		{
 			op: "storesvc-install-refresh:action",
-			action: store.InstallRefreshAction{
+			action: store.SnapAction{
 				Action:   "install",
 				Name:     "some-snap",
 				Revision: snap.R(42),
@@ -1953,11 +1953,11 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		{
 			op: "storesvc-install-refresh:action",
-			action: store.InstallRefreshAction{
+			action: store.SnapAction{
 				Action:  "refresh",
 				SnapID:  "services-snap-id",
 				Channel: "some-channel",
-				Flags:   store.InstallRefreshEnforceValidation,
+				Flags:   store.SnapActionEnforceValidation,
 			},
 			revno:  snap.R(11),
 			userID: 1,
@@ -2429,11 +2429,11 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op: "storesvc-install-refresh:action",
-			action: store.InstallRefreshAction{
+			action: store.SnapAction{
 				Action:  "refresh",
 				SnapID:  "some-snap-id",
 				Channel: "some-channel",
-				Flags:   store.InstallRefreshEnforceValidation,
+				Flags:   store.SnapActionEnforceValidation,
 			},
 			revno:  snap.R(11),
 			userID: 1,
@@ -2601,11 +2601,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op: "storesvc-install-refresh:action",
-			action: store.InstallRefreshAction{
+			action: store.SnapAction{
 				Action:  "refresh",
 				SnapID:  "some-snap-id",
 				Channel: "some-channel",
-				Flags:   store.InstallRefreshEnforceValidation,
+				Flags:   store.SnapActionEnforceValidation,
 			},
 			revno:  snap.R(11),
 			userID: 1,
@@ -2761,8 +2761,8 @@ type noResultsStore struct {
 	*fakeStore
 }
 
-func (n noResultsStore) InstallRefresh(ctx context.Context, installedCtxt []*store.CurrentSnap, actions []*store.InstallRefreshAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
-	return nil, &store.InstallRefreshError{NoResults: true}
+func (n noResultsStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+	return nil, &store.SnapActionError{NoResults: true}
 }
 
 func (s *snapmgrTestSuite) TestUpdateNoStoreResults(c *C) {
@@ -2886,11 +2886,11 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 
 		{
 			op: "storesvc-install-refresh:action",
-			action: store.InstallRefreshAction{
+			action: store.SnapAction{
 				Action:  "refresh",
 				SnapID:  "some-snap-id",
 				Channel: "channel-for-7",
-				Flags:   store.InstallRefreshEnforceValidation,
+				Flags:   store.SnapActionEnforceValidation,
 			},
 			userID: 1,
 		},
@@ -3158,11 +3158,11 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
 		op:    "storesvc-install-refresh:action",
 		revno: snap.R(11),
-		action: store.InstallRefreshAction{
+		action: store.SnapAction{
 			Action:  "refresh",
 			SnapID:  "some-snap-id",
 			Channel: "stable",
-			Flags:   store.InstallRefreshIgnoreValidation,
+			Flags:   store.SnapActionIgnoreValidation,
 		},
 		userID: 1,
 	})
@@ -3205,7 +3205,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
 		op:    "storesvc-install-refresh:action",
 		revno: snap.R(12),
-		action: store.InstallRefreshAction{
+		action: store.SnapAction{
 			Action: "refresh",
 			SnapID: "some-snap-id",
 			Flags:  0,
@@ -3256,11 +3256,11 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
 		op:    "storesvc-install-refresh:action",
 		revno: snap.R(11),
-		action: store.InstallRefreshAction{
+		action: store.SnapAction{
 			Action:  "refresh",
 			SnapID:  "some-snap-id",
 			Channel: "stable",
-			Flags:   store.InstallRefreshEnforceValidation,
+			Flags:   store.SnapActionEnforceValidation,
 		},
 		userID: 1,
 	})
@@ -5685,7 +5685,7 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 		},
 		{
 			op: "storesvc-install-refresh:action",
-			action: store.InstallRefreshAction{
+			action: store.SnapAction{
 				Action:  "install",
 				Name:    "some-snap",
 				Channel: "some-channel",
@@ -7771,7 +7771,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 		},
 		{
 			op: "storesvc-install-refresh:action",
-			action: store.InstallRefreshAction{
+			action: store.SnapAction{
 				Action:  "install",
 				Name:    "core",
 				Channel: "beta",
@@ -8405,7 +8405,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		},
 		{
 			op: "storesvc-install-refresh:action",
-			action: store.InstallRefreshAction{
+			action: store.SnapAction{
 				Action:   "install",
 				Name:     "some-snap",
 				Revision: snap.R(42),
@@ -8421,7 +8421,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		},
 		{
 			op: "storesvc-install-refresh:action",
-			action: store.InstallRefreshAction{
+			action: store.SnapAction{
 				Action:  "install",
 				Name:    "core",
 				Channel: "stable",
@@ -8716,7 +8716,7 @@ type behindYourBackStore struct {
 	chg                  *state.Change
 }
 
-func (s behindYourBackStore) InstallRefresh(ctx context.Context, installedCtxt []*store.CurrentSnap, actions []*store.InstallRefreshAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+func (s behindYourBackStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
 	if len(actions) == 1 && actions[0].Action == "install" && actions[0].Name == "core" {
 		s.state.Lock()
 		if !s.coreInstallRequested {
@@ -8751,7 +8751,7 @@ func (s behindYourBackStore) InstallRefresh(ctx context.Context, installedCtxt [
 		s.state.Unlock()
 	}
 
-	return s.fakeStore.InstallRefresh(ctx, installedCtxt, actions, user, opts)
+	return s.fakeStore.SnapAction(ctx, currentSnaps, actions, user, opts)
 }
 
 // this test the scenario that some-snap gets installed and during the
@@ -8839,8 +8839,8 @@ type contentStore struct {
 	state *state.State
 }
 
-func (s contentStore) InstallRefresh(ctx context.Context, installedCtxt []*store.CurrentSnap, actions []*store.InstallRefreshAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
-	snaps, err := s.fakeStore.InstallRefresh(ctx, installedCtxt, actions, user, opts)
+func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+	snaps, err := s.fakeStore.SnapAction(ctx, currentSnaps, actions, user, opts)
 	if len(snaps) != 1 {
 		panic("expected to be queried for install of only one snap at a time")
 	}
@@ -8957,7 +8957,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		userID: 1,
 	}, {
 		op: "storesvc-install-refresh:action",
-		action: store.InstallRefreshAction{
+		action: store.SnapAction{
 			Action:   "install",
 			Name:     "snap-content-plug",
 			Revision: snap.R(42),
@@ -8969,7 +8969,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		userID: 1,
 	}, {
 		op: "storesvc-install-refresh:action",
-		action: store.InstallRefreshAction{
+		action: store.SnapAction{
 			Action:  "install",
 			Name:    "snap-content-slot",
 			Channel: "stable",

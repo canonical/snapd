@@ -39,7 +39,7 @@ type StoreService interface {
 	LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error)
 
 	ListRefresh(context.Context, []*store.RefreshCandidate, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error)
-	InstallRefresh(ctx context.Context, installedCtxt []*store.CurrentSnap, actions []*store.InstallRefreshAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error)
+	SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error)
 
 	Sections(ctx context.Context, user *auth.UserState) ([]string, error)
 	WriteCatalogs(ctx context.Context, names io.Writer, adder store.SnapAdder) error
