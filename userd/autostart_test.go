@@ -73,7 +73,7 @@ func (s *autostartSuite) TestFindExec(c *C) {
 Exec=foo --bar
 `
 	allGoodWithFlags := `[Desktop Entry]
-Exec=foo --bar %U %D +%s
+Exec=foo --bar "%%p" %U %D +%s %%
 `
 	noExec := `[Desktop Entry]
 Type=Application
@@ -102,7 +102,7 @@ Exec=
 		err: "Exec not found or invalid",
 	}, {
 		in:  allGoodWithFlags,
-		out: "foo --bar   +%s",
+		out: `foo --bar "%p"   + %`,
 	}} {
 		c.Logf("tc %d", i)
 

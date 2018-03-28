@@ -37,10 +37,29 @@ import (
 	"github.com/snapcore/snapd/strutil/shlex"
 )
 
-var (
-	replacedDesktopKeys = []string{"%f", "%F", "%u", "%U", "%d", "%D",
-		"%n", "%N", "%i", "%c", "%k", "%v", "%m"}
-)
+// expandDesktopFields processes the input string and expands any %<char>
+// patterns. '%%' expands to '%', all other patterns expand to empty strings.
+func expandDesktopFields(in string) string {
+	raw := []rune(in)
+	out := make([]rune, 0, len(raw))
+
+	var hasKey bool
+	for _, r := range raw {
+		if hasKey {
+			hasKey = false
+			// only allow %% -> % expansion, drop other keys
+			if r == '%' {
+				out = append(out, r)
+			}
+			continue
+		} else if r == '%' {
+			hasKey = true
+			continue
+		}
+		out = append(out, r)
+	}
+	return string(out)
+}
 
 func findExec(desktopFileContent []byte) (string, error) {
 	scanner := bufio.NewScanner(bytes.NewBuffer(desktopFileContent))
@@ -52,10 +71,8 @@ func findExec(desktopFileContent []byte) (string, error) {
 			continue
 		}
 
-		execCmd = string(bline[len("Exec="):])
-		for _, key := range replacedDesktopKeys {
-			execCmd = strings.Replace(execCmd, key, "", -1)
-		}
+		full := string(bline[len("Exec="):])
+		execCmd = expandDesktopFields(full)
 		break
 	}
 
