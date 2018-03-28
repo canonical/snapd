@@ -29,13 +29,13 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs"
 
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestBackend(t *testing.T) { TestingT(t) }
 
 func makeTestSnap(c *C, snapYamlContent string) string {
-	info, err := snap.InfoFromSnapYaml([]byte(snapYamlContent))
-	c.Assert(err, IsNil)
+	info := snaptest.MockInfo(c, snapYamlContent, nil)
 	var files [][]string
 	for _, app := range info.Apps {
 		// files is a list of (filename, content)
@@ -44,9 +44,20 @@ func makeTestSnap(c *C, snapYamlContent string) string {
 	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, files)
 }
 
-type backendSuite struct{}
+type backendSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&backendSuite{})
+
+func (s *backendSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+}
+
+func (s *backendSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
 
 func (s *backendSuite) TestOpenSnapFile(c *C) {
 	const yaml = `name: hello

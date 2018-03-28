@@ -9,6 +9,11 @@ prepare: |
     snap set core experimental.layouts=true
     . $TESTSLIB/snaps.sh
     install_local test-snapd-layout
+debug: |
+    ls -ld /etc || :
+    ls -ld /etc/demo || :
+    ls -ld /etc/demo.conf || :
+    ls -ld /etc/demo.cfg || :
 execute: |
     . $TESTSLIB/snaps.sh
     for i in $(seq 2); do

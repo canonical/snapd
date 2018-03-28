@@ -272,6 +272,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err != nil {
 		return fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
+
+	// Add snippets derived from the layout definition.
 	spec.(*Specification).AddSnapLayout(snapInfo)
 
 	// core on classic is special
@@ -366,7 +368,7 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 	// If we have neither then we don't have any need to create an executing environment.
 	// This applies to, for example, kernel snaps or gadget snaps (unless they have hooks).
 	if len(content) > 0 {
-		snippets := strings.Join(spec.UpdateNS()[snapInfo.Name()], "\n")
+		snippets := strings.Join(spec.UpdateNS(), "\n")
 		addUpdateNSProfile(snapInfo, opts, snippets, content)
 	}
 
