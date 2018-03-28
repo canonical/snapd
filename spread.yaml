@@ -56,7 +56,7 @@ backends:
             - ubuntu-16.04-64:
                 workers: 8
             - ubuntu-18.04-64:
-                image: ubuntu-os-cloud-devel/daily-ubuntu-1804-bionic-v20180315
+                image: ubuntu-os-cloud-devel/daily-ubuntu-1804-bionic-v20180327
                 workers: 6
 
             - ubuntu-core-16-64:
@@ -369,6 +369,8 @@ restore: |
     "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
+    # XXX: something is hosing the filesystem so look for signs of that
+    ! grep -F "//deleted /etc" /proc/self/mountinfo
 
 suites:
     tests/main/:
