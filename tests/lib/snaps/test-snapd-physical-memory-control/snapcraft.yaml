@@ -1,0 +1,17 @@
+name: test-snapd-physical-memory-control
+version: 1.0
+summary: Basic physical-memory-control snap
+description: A basic snap which access physical memory
+grade: stable
+confinement: strict
+
+apps:
+  physical-mem:
+    command: physical-mem
+    plugs: [physical-memory-control]
+
+parts:
+    physical-mem:
+        source: .
+        plugin: make
+        artifacts: [physical-mem]

@@ -1,0 +1,41 @@
+summary: Ensure that the physical memory control interface works.
+
+details: |
+    The physical-memory-control interface allows read/write access to all physical memory.
+
+environment:
+    CONNECTED_PATTERN: ':physical-memory-control +test-snapd-physical-memory-control'
+    DISCONNECTED_PATTERN: '\- +test-snapd-physical-memory-control:physical-memory-control'
+
+prepare: |
+    echo "Given the test-snapd-physical-memory-control snap is installed"
+    snap install test-snapd-physical-memory-control
+
+restore: |
+    rm -f call.error
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    echo "When the interface is connected"
+    snap connect test-snapd-physical-memory-control:physical-memory-control
+    snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+    echo "Then the snap is able read and write the physical memory"
+    test-snapd-physical-memory-control.physical-mem
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-physical-memory-control:physical-memory-control
+    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+
+    echo "Then the snap is not able to access the physical memory"
+    if test-snapd-physical-memory-control.physical-mem 2>${PWD}/call.error; then
+        echo "Expected permission error reading the physical memory with disconnected plug"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
