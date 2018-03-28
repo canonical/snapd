@@ -124,10 +124,10 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 	defer s.state.Unlock()
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "storesvc-install-refresh",
+			op: "storesvc-snap-action",
 		},
 		{
-			op: "storesvc-install-refresh:action",
+			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:  "install",
 				Name:    "prereq1",
@@ -136,10 +136,10 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op: "storesvc-install-refresh",
+			op: "storesvc-snap-action",
 		},
 		{
-			op: "storesvc-install-refresh:action",
+			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:  "install",
 				Name:    "prereq2",
@@ -148,10 +148,10 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op: "storesvc-install-refresh",
+			op: "storesvc-snap-action",
 		},
 		{
-			op: "storesvc-install-refresh:action",
+			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:  "install",
 				Name:    "some-base",

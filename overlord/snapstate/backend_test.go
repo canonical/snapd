@@ -48,8 +48,8 @@ type fakeOp struct {
 	sinfo   snap.SideInfo
 	stype   snap.Type
 
-	installedCtxt []store.CurrentSnap
-	action        store.SnapAction
+	curSnaps []store.CurrentSnap
+	action   store.SnapAction
 
 	old string
 
@@ -312,24 +312,24 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 	}
 
 	curByID := make(map[string]*store.CurrentSnap, len(currentSnaps))
-	ctxt := make(byName, len(currentSnaps))
+	curSnaps := make(byName, len(currentSnaps))
 	for i, cur := range currentSnaps {
 		if cur.Name == "" || cur.SnapID == "" || cur.Revision.Unset() {
 			return nil, fmt.Errorf("internal error: incomplete current snap info")
 		}
 		curByID[cur.SnapID] = cur
-		ctxt[i] = *cur
+		curSnaps[i] = *cur
 	}
-	sort.Sort(ctxt)
+	sort.Sort(curSnaps)
 
 	userID := 0
 	if user != nil {
 		userID = user.ID
 	}
-	if len(ctxt) == 0 {
-		ctxt = nil
+	if len(curSnaps) == 0 {
+		curSnaps = nil
 	}
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-install-refresh", installedCtxt: ctxt, userID: userID})
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap-action", curSnaps: curSnaps, userID: userID})
 
 	sorted := make(byAction, len(actions))
 	copy(sorted, actions)
@@ -351,7 +351,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				continue
 			}
 			f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
-				op:     "storesvc-install-refresh:action",
+				op:     "storesvc-snap-action:action",
 				action: *a,
 				revno:  info.Revision,
 				userID: userID,
@@ -393,7 +393,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			hit = info.Revision
 		}
 		f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
-			op:     "storesvc-install-refresh:action",
+			op:     "storesvc-snap-action:action",
 			action: *a,
 			revno:  hit,
 			userID: userID,

@@ -1603,11 +1603,11 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	}})
 	expected := fakeOps{
 		{
-			op:     "storesvc-install-refresh",
+			op:     "storesvc-snap-action",
 			userID: 1,
 		},
 		{
-			op: "storesvc-install-refresh:action",
+			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:  "install",
 				Name:    "some-snap",
@@ -1760,11 +1760,11 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	}})
 	expected := fakeOps{
 		{
-			op:     "storesvc-install-refresh",
+			op:     "storesvc-snap-action",
 			userID: 1,
 		},
 		{
-			op: "storesvc-install-refresh:action",
+			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:   "install",
 				Name:     "some-snap",
@@ -1941,8 +1941,8 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op: "storesvc-install-refresh",
-			installedCtxt: []store.CurrentSnap{{
+			op: "storesvc-snap-action",
+			curSnaps: []store.CurrentSnap{{
 				Name:            "services-snap",
 				SnapID:          "services-snap-id",
 				Revision:        snap.R(7),
@@ -1952,7 +1952,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			userID: 1,
 		},
 		{
-			op: "storesvc-install-refresh:action",
+			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:  "refresh",
 				SnapID:  "services-snap-id",
@@ -2138,7 +2138,7 @@ func (s *snapmgrTestSuite) TestUpdateRememberedUserRunThrough(c *C) {
 
 	for _, op := range s.fakeBackend.ops {
 		switch op.op {
-		case "storesvc-install-refresh":
+		case "storesvc-snap-action":
 			c.Check(op.userID, Equals, 1)
 		case "storesvc-download":
 			snapName := op.name
@@ -2179,7 +2179,7 @@ func (s *snapmgrTestSuite) TestUpdateToRevisionRememberedUserRunThrough(c *C) {
 
 	for _, op := range s.fakeBackend.ops {
 		switch op.op {
-		case "storesvc-install-refresh:action":
+		case "storesvc-snap-action:action":
 			c.Check(op.userID, Equals, 1)
 		case "storesvc-download":
 			snapName := op.name
@@ -2254,14 +2254,14 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 	di := 0
 	for _, op := range s.fakeBackend.ops {
 		switch op.op {
-		case "storesvc-install-refresh":
+		case "storesvc-snap-action":
 			ir++
-			c.Check(op.installedCtxt, DeepEquals, []store.CurrentSnap{
+			c.Check(op.curSnaps, DeepEquals, []store.CurrentSnap{
 				{Name: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
 				{Name: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2)},
 				{Name: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5)},
 			})
-		case "storesvc-install-refresh:action":
+		case "storesvc-snap-action:action":
 			snapID := op.action.SnapID
 			seen[snapIDuserID{snapID: snapID, userID: op.userID}] = true
 		case "storesvc-download":
@@ -2345,14 +2345,14 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 	di := 0
 	for _, op := range s.fakeBackend.ops {
 		switch op.op {
-		case "storesvc-install-refresh":
+		case "storesvc-snap-action":
 			ir++
-			c.Check(op.installedCtxt, DeepEquals, []store.CurrentSnap{
+			c.Check(op.curSnaps, DeepEquals, []store.CurrentSnap{
 				{Name: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
 				{Name: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2)},
 				{Name: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5)},
 			})
-		case "storesvc-install-refresh:action":
+		case "storesvc-snap-action:action":
 			snapID := op.action.SnapID
 			seen[snapIDuserID{snapID: snapID, userID: op.userID}] = true
 		case "storesvc-download":
@@ -2418,8 +2418,8 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op: "storesvc-install-refresh",
-			installedCtxt: []store.CurrentSnap{{
+			op: "storesvc-snap-action",
+			curSnaps: []store.CurrentSnap{{
 				Name:          "some-snap",
 				SnapID:        "some-snap-id",
 				Revision:      snap.R(7),
@@ -2428,7 +2428,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			userID: 1,
 		},
 		{
-			op: "storesvc-install-refresh:action",
+			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:  "refresh",
 				SnapID:  "some-snap-id",
@@ -2589,8 +2589,8 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op: "storesvc-install-refresh",
-			installedCtxt: []store.CurrentSnap{{
+			op: "storesvc-snap-action",
+			curSnaps: []store.CurrentSnap{{
 				Name:            "some-snap",
 				SnapID:          "some-snap-id",
 				Revision:        snap.R(7),
@@ -2600,7 +2600,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			userID: 1,
 		},
 		{
-			op: "storesvc-install-refresh:action",
+			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:  "refresh",
 				SnapID:  "some-snap-id",
@@ -2869,12 +2869,12 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 	s.state.Lock()
 
 	expected := fakeOps{
-		// we just expect the "storesvc-install-refresh" ops, we
+		// we just expect the "storesvc-snap-action" ops, we
 		// don't have a fakeOp for switchChannel because it has
 		// not a backend method, it just manipulates the state
 		{
-			op: "storesvc-install-refresh",
-			installedCtxt: []store.CurrentSnap{{
+			op: "storesvc-snap-action",
+			curSnaps: []store.CurrentSnap{{
 				Name:            "some-snap",
 				SnapID:          "some-snap-id",
 				Revision:        snap.R(7),
@@ -2885,7 +2885,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 		},
 
 		{
-			op: "storesvc-install-refresh:action",
+			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:  "refresh",
 				SnapID:  "some-snap-id",
@@ -3145,8 +3145,8 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
-		op: "storesvc-install-refresh",
-		installedCtxt: []store.CurrentSnap{{
+		op: "storesvc-snap-action",
+		curSnaps: []store.CurrentSnap{{
 			Name:             "some-snap",
 			SnapID:           "some-snap-id",
 			Revision:         snap.R(7),
@@ -3156,7 +3156,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 		userID: 1,
 	})
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
-		op:    "storesvc-install-refresh:action",
+		op:    "storesvc-snap-action:action",
 		revno: snap.R(11),
 		action: store.SnapAction{
 			Action:  "refresh",
@@ -3191,8 +3191,8 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	c.Check(tts, HasLen, 1)
 
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
-		op: "storesvc-install-refresh",
-		installedCtxt: []store.CurrentSnap{{
+		op: "storesvc-snap-action",
+		curSnaps: []store.CurrentSnap{{
 			Name:             "some-snap",
 			SnapID:           "some-snap-id",
 			Revision:         snap.R(11),
@@ -3203,7 +3203,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 		userID: 1,
 	})
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
-		op:    "storesvc-install-refresh:action",
+		op:    "storesvc-snap-action:action",
 		revno: snap.R(12),
 		action: store.SnapAction{
 			Action: "refresh",
@@ -3242,8 +3242,8 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
-		op: "storesvc-install-refresh",
-		installedCtxt: []store.CurrentSnap{{
+		op: "storesvc-snap-action",
+		curSnaps: []store.CurrentSnap{{
 			Name:             "some-snap",
 			SnapID:           "some-snap-id",
 			Revision:         snap.R(12),
@@ -3254,7 +3254,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 		userID: 1,
 	})
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
-		op:    "storesvc-install-refresh:action",
+		op:    "storesvc-snap-action:action",
 		revno: snap.R(11),
 		action: store.SnapAction{
 			Action:  "refresh",
@@ -3377,8 +3377,8 @@ func (s *snapmgrTestSuite) TestSingleUpdateBlockedRevision(c *C) {
 
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
-		op: "storesvc-install-refresh",
-		installedCtxt: []store.CurrentSnap{{
+		op: "storesvc-snap-action",
+		curSnaps: []store.CurrentSnap{{
 			Name:          "some-snap",
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(7),
@@ -3417,8 +3417,8 @@ func (s *snapmgrTestSuite) TestMultiUpdateBlockedRevision(c *C) {
 
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
-		op: "storesvc-install-refresh",
-		installedCtxt: []store.CurrentSnap{{
+		op: "storesvc-snap-action",
+		curSnaps: []store.CurrentSnap{{
 			Name:          "some-snap",
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(7),
@@ -3456,8 +3456,8 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
-		op: "storesvc-install-refresh",
-		installedCtxt: []store.CurrentSnap{{
+		op: "storesvc-snap-action",
+		curSnaps: []store.CurrentSnap{{
 			Name:          "some-snap",
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(7),
@@ -5680,11 +5680,11 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 
 	expected := fakeOps{
 		{
-			op:     "storesvc-install-refresh",
+			op:     "storesvc-snap-action",
 			userID: 1,
 		},
 		{
-			op: "storesvc-install-refresh:action",
+			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:  "install",
 				Name:    "some-snap",
@@ -7764,13 +7764,13 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 	}})
 	expected := fakeOps{
 		{
-			op: "storesvc-install-refresh",
-			installedCtxt: []store.CurrentSnap{
+			op: "storesvc-snap-action",
+			curSnaps: []store.CurrentSnap{
 				{Name: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1), TrackingChannel: "beta", RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
 			},
 		},
 		{
-			op: "storesvc-install-refresh:action",
+			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:  "install",
 				Name:    "core",
@@ -8400,11 +8400,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 	expected := fakeOps{
 		// we check the snap
 		{
-			op:     "storesvc-install-refresh",
+			op:     "storesvc-snap-action",
 			userID: 1,
 		},
 		{
-			op: "storesvc-install-refresh:action",
+			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:   "install",
 				Name:     "some-snap",
@@ -8416,11 +8416,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		// then we check core because its not installed already
 		// and continue with that
 		{
-			op:     "storesvc-install-refresh",
+			op:     "storesvc-snap-action",
 			userID: 1,
 		},
 		{
-			op: "storesvc-install-refresh:action",
+			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:  "install",
 				Name:    "core",
@@ -8953,10 +8953,10 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 	expected := fakeOps{{
-		op:     "storesvc-install-refresh",
+		op:     "storesvc-snap-action",
 		userID: 1,
 	}, {
-		op: "storesvc-install-refresh:action",
+		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
 			Action:   "install",
 			Name:     "snap-content-plug",
@@ -8965,10 +8965,10 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		revno:  snap.R(42),
 		userID: 1,
 	}, {
-		op:     "storesvc-install-refresh",
+		op:     "storesvc-snap-action",
 		userID: 1,
 	}, {
-		op: "storesvc-install-refresh:action",
+		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
 			Action:  "install",
 			Name:    "snap-content-slot",

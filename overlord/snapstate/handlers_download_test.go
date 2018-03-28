@@ -91,10 +91,10 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 	// the compat code called the store "Snap" endpoint
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "storesvc-install-refresh",
+			op: "storesvc-snap-action",
 		},
 		{
-			op: "storesvc-install-refresh:action",
+			op: "storesvc-snap-action:action",
 			action: store.SnapAction{
 				Action:  "install",
 				Name:    "foo",
