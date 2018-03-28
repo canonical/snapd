@@ -44,9 +44,9 @@ disable_refreshes() {
 
 setup_systemd_snapd_overrides() {
     START_LIMIT_INTERVAL="StartLimitInterval=0"
-    if [[ "$SPREAD_SYSTEM" = opensuse-42.2-* ]]; then
+    if [[ "$SPREAD_SYSTEM" =~ opensuse-42.[23]-* ]]; then
         # StartLimitInterval is not supported by the systemd version
-        # openSUSE 42.2 ships.
+        # openSUSE 42.2/3 ship.
         START_LIMIT_INTERVAL=""
     fi
 
