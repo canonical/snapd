@@ -377,7 +377,7 @@ const (
 	sectionsEndpPath    = "api/v1/snaps/sections"
 	commandsEndpPath    = "api/v1/snaps/names"
 	// v2
-	installRefreshEndpPath = "/v2/snaps/refresh"
+	snapActionEndpPath = "/v2/snaps/refresh"
 
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
@@ -2052,7 +2052,7 @@ func (s *Store) SetCacheDownloads(fileCount int) {
 	}
 }
 
-// install/refresh
+// snap action: install/refresh
 
 type CurrentSnap struct {
 	Name             string
@@ -2064,7 +2064,7 @@ type CurrentSnap struct {
 	Block            []snap.Revision
 }
 
-type contextSnapJSON struct {
+type currentSnapV2JSON struct {
 	SnapID           string     `json:"snap-id"`
 	InstanceKey      string     `json:"instance-key"`
 	Revision         int        `json:"revision"`
@@ -2073,24 +2073,24 @@ type contextSnapJSON struct {
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
 }
 
-type InstallRefreshActionFlags int
+type SnapActionFlags int
 
 const (
-	InstallRefreshIgnoreValidation InstallRefreshActionFlags = 1 << iota
-	InstallRefreshEnforceValidation
+	SnapActionIgnoreValidation SnapActionFlags = 1 << iota
+	SnapActionEnforceValidation
 )
 
-type InstallRefreshAction struct {
+type SnapAction struct {
 	Action   string
 	Name     string
 	SnapID   string
 	Channel  string
 	Revision snap.Revision
-	Flags    InstallRefreshActionFlags
+	Flags    SnapActionFlags
 	Epoch    *snap.Epoch
 }
 
-type installRefreshActionJSON struct {
+type snapActionJSON struct {
 	Action           string      `json:"action"`
 	InstanceKey      string      `json:"instance-key"`
 	Name             string      `json:"name,omitempty"`
@@ -2101,7 +2101,7 @@ type installRefreshActionJSON struct {
 	IgnoreValidation *bool       `json:"ignore-validation,omitempty"`
 }
 
-type installRefreshResult struct {
+type snapActionResult struct {
 	Result           string    `json:"result"`
 	InstanceKey      string    `json:"instance-key"`
 	SnapID           string    `json:"snap-id,omitempy"`
@@ -2114,44 +2114,44 @@ type installRefreshResult struct {
 	} `json:"error"`
 }
 
-type installRefreshWrapper struct {
-	Context []*contextSnapJSON          `json:"context"`
-	Actions []*installRefreshActionJSON `json:"actions"`
-	Fields  []string                    `json:"fields"`
+type snapActionWrapper struct {
+	Context []*currentSnapV2JSON `json:"context"`
+	Actions []*snapActionJSON    `json:"actions"`
+	Fields  []string             `json:"fields"`
 }
 
-type installRefreshResp struct {
-	Results   []*installRefreshResult `json:"results"`
+type snapActionResp struct {
+	Results   []*snapActionResult `json:"results"`
 	ErrorList []struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
 	} `json:"error-list"`
 }
 
-var installRefreshFields = getStructFields(storeSnap{})
+var snapActionFields = getStructFields(storeSnap{})
 
-// InstallRefresh queries the store for snap information for the given
+// SnapAction queries the store for snap information for the given
 // install/refresh actions, given the context information about
-// installed snaps in installedCtxt. If the request was overall
+// current installed snaps in currentSnaps. If the request was overall
 // successul (200) but there were reported errors it will return both
-// the snap infos and an InstallRefreshError.
-func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap, actions []*InstallRefreshAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
+// the snap infos and an SnapActionError.
+func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, user *auth.UserState, opts *RefreshOptions) ([]*snap.Info, error) {
 	if opts == nil {
 		opts = &RefreshOptions{}
 	}
 
-	if len(installedCtxt) == 0 && len(actions) == 0 {
+	if len(currentSnaps) == 0 && len(actions) == 0 {
 		// nothing to do
-		return nil, &InstallRefreshError{NoResults: true}
+		return nil, &SnapActionError{NoResults: true}
 	}
 
 	// TODO: the store already requires instance-key but doesn't
 	// yet support repeating in context or sending actions for the
 	// same snap-id, for now we keep instance-key handling internal
 
-	curSnaps := make(map[string]*CurrentSnap, len(installedCtxt))
-	ctxtSnapJSONs := make([]*contextSnapJSON, len(installedCtxt))
-	for i, curSnap := range installedCtxt {
+	curSnaps := make(map[string]*CurrentSnap, len(currentSnaps))
+	curSnapJSONs := make([]*currentSnapV2JSON, len(currentSnaps))
+	for i, curSnap := range currentSnaps {
 		if curSnap.SnapID == "" || curSnap.Name == "" || curSnap.Revision.Unset() {
 			return nil, fmt.Errorf("internal error: invalid current snap information")
 		}
@@ -2164,7 +2164,7 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 		if !curSnap.RefreshedDate.IsZero() {
 			refreshedDate = &curSnap.RefreshedDate
 		}
-		ctxtSnapJSONs[i] = &contextSnapJSON{
+		curSnapJSONs[i] = &currentSnapV2JSON{
 			SnapID:           curSnap.SnapID,
 			InstanceKey:      curSnap.SnapID,
 			Revision:         curSnap.Revision.N,
@@ -2176,13 +2176,13 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 
 	installNum := 0
 	installKeys := make(map[string]bool, len(actions))
-	actionJSONs := make([]*installRefreshActionJSON, len(actions))
+	actionJSONs := make([]*snapActionJSON, len(actions))
 	for i, a := range actions {
 		var ignoreValidation *bool
-		if a.Flags&InstallRefreshIgnoreValidation != 0 {
+		if a.Flags&SnapActionIgnoreValidation != 0 {
 			var t = true
 			ignoreValidation = &t
-		} else if a.Flags&InstallRefreshEnforceValidation != 0 {
+		} else if a.Flags&SnapActionEnforceValidation != 0 {
 			var f = false
 			ignoreValidation = &f
 		}
@@ -2194,7 +2194,7 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 			installKeys[instanceKey] = true
 		}
 
-		aJSON := &installRefreshActionJSON{
+		aJSON := &snapActionJSON{
 			Action:           a.Action,
 			InstanceKey:      instanceKey,
 			SnapID:           a.SnapID,
@@ -2208,10 +2208,10 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 	}
 
 	// build input for the install/refresh endpoint
-	jsonData, err := json.Marshal(installRefreshWrapper{
-		Context: ctxtSnapJSONs,
+	jsonData, err := json.Marshal(snapActionWrapper{
+		Context: curSnapJSONs,
 		Actions: actionJSONs,
-		Fields:  installRefreshFields,
+		Fields:  snapActionFields,
 	})
 	if err != nil {
 		return nil, err
@@ -2219,7 +2219,7 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 
 	reqOptions := &requestOptions{
 		Method:      "POST",
-		URL:         s.endpointURL(installRefreshEndpPath, nil),
+		URL:         s.endpointURL(snapActionEndpPath, nil),
 		Accept:      jsonContentType,
 		ContentType: jsonContentType,
 		Data:        jsonData,
@@ -2234,7 +2234,7 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 		reqOptions.addHeader("Snap-Refresh-Managed", "true")
 	}
 
-	var results installRefreshResp
+	var results snapActionResp
 	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &results, nil)
 	if err != nil {
 		return nil, err
@@ -2255,16 +2255,16 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 		if res.Result == "error" {
 			if installKeys[res.InstanceKey] {
 				if res.Name != "" {
-					installErrors[res.Name] = translateInstallRefreshError("install", res.Error.Code, res.Error.Message)
+					installErrors[res.Name] = translateSnapActionError("install", res.Error.Code, res.Error.Message)
 					continue
 				}
 			} else {
-				if cur := curSnaps[res.SnapID]; cur != nil {
-					refreshErrors[cur.Name] = translateInstallRefreshError("refresh", res.Error.Code, res.Error.Message)
+				if cur := curSnaps[res.InstanceKey]; cur != nil {
+					refreshErrors[cur.Name] = translateSnapActionError("refresh", res.Error.Code, res.Error.Message)
 					continue
 				}
 			}
-			otherErrors = append(otherErrors, translateInstallRefreshError("-", res.Error.Code, res.Error.Message))
+			otherErrors = append(otherErrors, translateSnapActionError("-", res.Error.Code, res.Error.Message))
 			continue
 		}
 		snapInfo, err := infoFromStoreSnap(&res.Snap)
@@ -2287,7 +2287,7 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 	}
 
 	for _, errObj := range results.ErrorList {
-		otherErrors = append(otherErrors, translateInstallRefreshError("-", errObj.Code, errObj.Message))
+		otherErrors = append(otherErrors, translateSnapActionError("-", errObj.Code, errObj.Message))
 	}
 
 	// XXX: handle refreshing macaroons as needed
@@ -2300,7 +2300,7 @@ func (s *Store) InstallRefresh(ctx context.Context, installedCtxt []*CurrentSnap
 		if len(installErrors) == 0 {
 			installErrors = nil
 		}
-		return snaps, &InstallRefreshError{
+		return snaps, &SnapActionError{
 			NoResults: len(results.Results) == 0,
 			Refresh:   refreshErrors,
 			Install:   installErrors,
