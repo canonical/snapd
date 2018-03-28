@@ -159,7 +159,7 @@ func AutostartSessionApps() error {
 		return err
 	}
 
-	usrSnapDir := filepath.Join(usr.HomeDir, "snap")
+	usrSnapDir := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
 
 	glob := filepath.Join(usrSnapDir, "*/current/.config/autostart/*.desktop")
 	matches, err := filepath.Glob(glob)
