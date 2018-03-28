@@ -43,8 +43,11 @@ type cmdSignBuild struct {
 	Grade       string  `long:"grade" choice:"devel" choice:"stable" default:"stable"`
 }
 
-var shortSignBuildHelp = i18n.G("Create snap build assertion")
-var longSignBuildHelp = i18n.G("Create snap-build assertion for the provided snap file.")
+var shortSignBuildHelp = i18n.G("Create a snap-build assertion")
+var longSignBuildHelp = i18n.G(`
+The sign-build command creates a snap-build assertion for the provided
+snap file.
+`)
 
 func init() {
 	cmd := addCommand("sign-build",

@@ -48,6 +48,9 @@ make_snap_installable(){
 }
 
 setup_fake_store(){
+    # before switching make sure we have a session macaroon
+    snap find test-snapd-tools
+
     local top_dir=$1
 
     mkdir -p "$top_dir/asserts"

@@ -145,7 +145,8 @@ const (
 
 	errorKindBadQuery = errorKind("bad-query")
 
-	errorKindNetworkTimeout = errorKind("network-timeout")
+	errorKindNetworkTimeout      = errorKind("network-timeout")
+	errorKindInterfacesUnchanged = errorKind("interfaces-unchanged")
 )
 
 type errorValue interface{}
@@ -284,6 +285,20 @@ func AssertResponse(asserts []asserts.Assertion, bundle bool) Response {
 		bundle = true
 	}
 	return &assertResponse{assertions: asserts, bundle: bundle}
+}
+
+// InterfacesUnchanged is an error responder used when an operation
+// that would normally change interfaces finds it has nothing to do
+func InterfacesUnchanged(format string, v ...interface{}) Response {
+	res := &errorResult{
+		Message: fmt.Sprintf(format, v...),
+		Kind:    errorKindInterfacesUnchanged,
+	}
+	return &resp{
+		Type:   ResponseTypeError,
+		Result: res,
+		Status: 400,
+	}
 }
 
 func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {

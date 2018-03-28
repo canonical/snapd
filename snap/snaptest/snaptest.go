@@ -40,6 +40,9 @@ import (
 func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	c.Assert(sideInfo, check.Not(check.IsNil))
 
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	defer restoreSanitize()
+
 	// Parse the yaml (we need the Name).
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
 	c.Assert(err, check.IsNil)
@@ -74,6 +77,8 @@ func MockInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 		sideInfo = &snap.SideInfo{}
 	}
 
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	defer restoreSanitize()
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
 	c.Assert(err, check.IsNil)
 	snapInfo.SideInfo = *sideInfo
@@ -90,6 +95,9 @@ func MockInvalidInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap
 	if sideInfo == nil {
 		sideInfo = &snap.SideInfo{}
 	}
+
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	defer restoreSanitize()
 
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
 	c.Assert(err, check.IsNil)
@@ -134,6 +142,9 @@ func MakeTestSnapWithFiles(c *check.C, snapYamlContent string, files [][]string)
 	}
 
 	PopulateDir(snapSource, files)
+
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	defer restoreSanitize()
 
 	err = osutil.ChDir(snapSource, func() error {
 		var err error
