@@ -132,7 +132,7 @@ const (
 	searchPath         = "/api/v1/snaps/search"
 	sectionsPath       = "/api/v1/snaps/sections"
 	// v2
-	installRefreshPath = "/v2/snaps/refresh"
+	snapActionPath = "/v2/snaps/refresh"
 )
 
 // Build details path for a snap name.
@@ -5365,12 +5365,12 @@ func init() {
 	helloRefreshedDate = t
 }
 
-func (s *storeTestSuite) TestInstallRefresh(c *C) {
+func (s *storeTestSuite) TestSnapAction(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -5395,7 +5395,7 @@ func (s *storeTestSuite) TestInstallRefresh(c *C) {
 		err = json.Unmarshal(jsonReq, &req)
 		c.Assert(err, IsNil)
 
-		c.Check(req.Fields, DeepEquals, installRefreshFields)
+		c.Check(req.Fields, DeepEquals, snapActionFields)
 
 		c.Assert(req.Context, HasLen, 1)
 		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
@@ -5443,7 +5443,7 @@ func (s *storeTestSuite) TestInstallRefresh(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5451,7 +5451,7 @@ func (s *storeTestSuite) TestInstallRefresh(c *C) {
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*InstallRefreshAction{
+	}, []*SnapAction{
 		{
 			Action: "refresh",
 			SnapID: helloWorldSnapID,
@@ -5467,12 +5467,12 @@ func (s *storeTestSuite) TestInstallRefresh(c *C) {
 	c.Assert(results[0].Deltas, HasLen, 0)
 }
 
-func (s *storeTestSuite) TestInstallRefreshNoResults(c *C) {
+func (s *storeTestSuite) TestSnapActionNoResults(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -5510,7 +5510,7 @@ func (s *storeTestSuite) TestInstallRefreshNoResults(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5520,22 +5520,22 @@ func (s *storeTestSuite) TestInstallRefreshNoResults(c *C) {
 		},
 	}, nil, nil, nil)
 	c.Check(results, HasLen, 0)
-	c.Check(err, DeepEquals, &InstallRefreshError{NoResults: true})
+	c.Check(err, DeepEquals, &SnapActionError{NoResults: true})
 
 	// local no-op
-	results, err = sto.InstallRefresh(context.TODO(), nil, nil, nil, nil)
+	results, err = sto.SnapAction(context.TODO(), nil, nil, nil, nil)
 	c.Check(results, HasLen, 0)
-	c.Check(err, DeepEquals, &InstallRefreshError{NoResults: true})
+	c.Check(err, DeepEquals, &SnapActionError{NoResults: true})
 
 	c.Check(err.Error(), Equals, "no install/refresh information results from the store")
 }
 
-func (s *storeTestSuite) TestInstallRefreshRefreshedDateIsOptional(c *C) {
+func (s *storeTestSuite) TestSnapActionRefreshedDateIsOptional(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -5573,7 +5573,7 @@ func (s *storeTestSuite) TestInstallRefreshRefreshedDateIsOptional(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5582,12 +5582,12 @@ func (s *storeTestSuite) TestInstallRefreshRefreshedDateIsOptional(c *C) {
 		},
 	}, nil, nil, nil)
 	c.Check(results, HasLen, 0)
-	c.Check(err, DeepEquals, &InstallRefreshError{NoResults: true})
+	c.Check(err, DeepEquals, &SnapActionError{NoResults: true})
 }
 
-func (s *storeTestSuite) TestInstallRefreshSkipBlocked(c *C) {
+func (s *storeTestSuite) TestSnapActionSkipBlocked(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -5648,7 +5648,7 @@ func (s *storeTestSuite) TestInstallRefreshSkipBlocked(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5657,7 +5657,7 @@ func (s *storeTestSuite) TestInstallRefreshSkipBlocked(c *C) {
 			RefreshedDate:   helloRefreshedDate,
 			Block:           []snap.Revision{snap.R(26)},
 		},
-	}, []*InstallRefreshAction{
+	}, []*SnapAction{
 		{
 			Action:  "refresh",
 			SnapID:  helloWorldSnapID,
@@ -5665,16 +5665,16 @@ func (s *storeTestSuite) TestInstallRefreshSkipBlocked(c *C) {
 		},
 	}, nil, nil)
 	c.Assert(results, HasLen, 0)
-	c.Check(err, DeepEquals, &InstallRefreshError{
+	c.Check(err, DeepEquals, &SnapActionError{
 		Refresh: map[string]error{
 			"hello-world": ErrNoUpdateAvailable,
 		},
 	})
 }
 
-func (s *storeTestSuite) TestInstallRefreshSkipCurrent(c *C) {
+func (s *storeTestSuite) TestSnapActionSkipCurrent(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -5735,7 +5735,7 @@ func (s *storeTestSuite) TestInstallRefreshSkipCurrent(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -5743,7 +5743,7 @@ func (s *storeTestSuite) TestInstallRefreshSkipCurrent(c *C) {
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*InstallRefreshAction{
+	}, []*SnapAction{
 		{
 			Action:  "refresh",
 			SnapID:  helloWorldSnapID,
@@ -5751,18 +5751,18 @@ func (s *storeTestSuite) TestInstallRefreshSkipCurrent(c *C) {
 		},
 	}, nil, nil)
 	c.Assert(results, HasLen, 0)
-	c.Check(err, DeepEquals, &InstallRefreshError{
+	c.Check(err, DeepEquals, &SnapActionError{
 		Refresh: map[string]error{
 			"hello-world": ErrNoUpdateAvailable,
 		},
 	})
 }
 
-func (s *storeTestSuite) TestInstallRefreshRetryOnEOF(c *C) {
+func (s *storeTestSuite) TestSnapActionRetryOnEOF(c *C) {
 	n := 0
 	var mockServer *httptest.Server
 	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		n++
 		if n < 4 {
 			io.WriteString(w, "{")
@@ -5810,14 +5810,14 @@ func (s *storeTestSuite) TestInstallRefreshRetryOnEOF(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
 			TrackingChannel: "stable",
 			Revision:        snap.R(1),
 		},
-	}, []*InstallRefreshAction{
+	}, []*SnapAction{
 		{
 			Action:  "refresh",
 			SnapID:  helloWorldSnapID,
@@ -5830,9 +5830,9 @@ func (s *storeTestSuite) TestInstallRefreshRetryOnEOF(c *C) {
 	c.Assert(results[0].Name(), Equals, "hello-world")
 }
 
-func (s *storeTestSuite) TestInstallRefreshIgnoreValidation(c *C) {
+func (s *storeTestSuite) TestSnapActionIgnoreValidation(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -5895,7 +5895,7 @@ func (s *storeTestSuite) TestInstallRefreshIgnoreValidation(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
 		{
 			Name:             "hello-world",
 			SnapID:           helloWorldSnapID,
@@ -5904,12 +5904,12 @@ func (s *storeTestSuite) TestInstallRefreshIgnoreValidation(c *C) {
 			RefreshedDate:    helloRefreshedDate,
 			IgnoreValidation: true,
 		},
-	}, []*InstallRefreshAction{
+	}, []*SnapAction{
 		{
 			Action:  "refresh",
 			SnapID:  helloWorldSnapID,
 			Channel: "stable",
-			Flags:   InstallRefreshEnforceValidation,
+			Flags:   SnapActionEnforceValidation,
 		},
 	}, nil, nil)
 	c.Assert(err, IsNil)
@@ -5920,7 +5920,7 @@ func (s *storeTestSuite) TestInstallRefreshIgnoreValidation(c *C) {
 
 func (s *storeTestSuite) TestInstallFallbackChannelIsStable(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -5980,14 +5980,14 @@ func (s *storeTestSuite) TestInstallFallbackChannelIsStable(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
 		{
 			Name:          "hello-world",
 			SnapID:        helloWorldSnapID,
 			RefreshedDate: helloRefreshedDate,
 			Revision:      snap.R(1),
 		},
-	}, []*InstallRefreshAction{
+	}, []*SnapAction{
 		{
 			Action: "refresh",
 			SnapID: helloWorldSnapID,
@@ -6000,12 +6000,12 @@ func (s *storeTestSuite) TestInstallFallbackChannelIsStable(c *C) {
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
 }
 
-func (s *storeTestSuite) TestInstallRefreshNonDefaultsHeaders(c *C) {
+func (s *storeTestSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -6074,7 +6074,7 @@ func (s *storeTestSuite) TestInstallRefreshNonDefaultsHeaders(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6082,7 +6082,7 @@ func (s *storeTestSuite) TestInstallRefreshNonDefaultsHeaders(c *C) {
 			RefreshedDate:   helloRefreshedDate,
 			Revision:        snap.R(1),
 		},
-	}, []*InstallRefreshAction{
+	}, []*SnapAction{
 		{
 			Action: "refresh",
 			SnapID: helloWorldSnapID,
@@ -6098,13 +6098,13 @@ func (s *storeTestSuite) TestInstallRefreshNonDefaultsHeaders(c *C) {
 	c.Assert(results[0].Deltas, HasLen, 0)
 }
 
-func (s *storeTestSuite) TestInstallRefreshWithDeltas(c *C) {
+func (s *storeTestSuite) TestSnapActionWithDeltas(c *C) {
 	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
 	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
 	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -6165,7 +6165,7 @@ func (s *storeTestSuite) TestInstallRefreshWithDeltas(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6173,7 +6173,7 @@ func (s *storeTestSuite) TestInstallRefreshWithDeltas(c *C) {
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*InstallRefreshAction{
+	}, []*SnapAction{
 		{
 			Action: "refresh",
 			SnapID: helloWorldSnapID,
@@ -6185,9 +6185,9 @@ func (s *storeTestSuite) TestInstallRefreshWithDeltas(c *C) {
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
-func (s *storeTestSuite) TestInstallRefreshOptions(c *C) {
+func (s *storeTestSuite) TestSnapActionOptions(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -6250,7 +6250,7 @@ func (s *storeTestSuite) TestInstallRefreshOptions(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6258,7 +6258,7 @@ func (s *storeTestSuite) TestInstallRefreshOptions(c *C) {
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*InstallRefreshAction{
+	}, []*SnapAction{
 		{
 			Action:  "refresh",
 			SnapID:  helloWorldSnapID,
@@ -6271,12 +6271,12 @@ func (s *storeTestSuite) TestInstallRefreshOptions(c *C) {
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
-func (s *storeTestSuite) TestInstallRefreshInstall(c *C) {
+func (s *storeTestSuite) TestSnapActionInstall(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -6341,8 +6341,8 @@ func (s *storeTestSuite) TestInstallRefreshInstall(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), nil,
-		[]*InstallRefreshAction{
+	results, err := sto.SnapAction(context.TODO(), nil,
+		[]*SnapAction{
 			{
 				Action:  "install",
 				Name:    "hello-world",
@@ -6361,12 +6361,12 @@ func (s *storeTestSuite) TestInstallRefreshInstall(c *C) {
 	c.Assert(results[0].Channel, Equals, "candidate")
 }
 
-func (s *storeTestSuite) TestInstallRefreshInstallWithRevision(c *C) {
+func (s *storeTestSuite) TestSnapActionInstallWithRevision(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -6430,8 +6430,8 @@ func (s *storeTestSuite) TestInstallRefreshInstallWithRevision(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), nil,
-		[]*InstallRefreshAction{
+	results, err := sto.SnapAction(context.TODO(), nil,
+		[]*SnapAction{
 			{
 				Action:   "install",
 				Name:     "hello-world",
@@ -6450,9 +6450,9 @@ func (s *storeTestSuite) TestInstallRefreshInstallWithRevision(c *C) {
 	c.Assert(results[0].Channel, Equals, "")
 }
 
-func (s *storeTestSuite) TestInstallRefreshRevisionNotAvailable(c *C) {
+func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -6521,7 +6521,7 @@ func (s *storeTestSuite) TestInstallRefreshRevisionNotAvailable(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6529,7 +6529,7 @@ func (s *storeTestSuite) TestInstallRefreshRevisionNotAvailable(c *C) {
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*InstallRefreshAction{
+	}, []*SnapAction{
 		{
 			Action:  "refresh",
 			SnapID:  helloWorldSnapID,
@@ -6541,7 +6541,7 @@ func (s *storeTestSuite) TestInstallRefreshRevisionNotAvailable(c *C) {
 		},
 	}, nil, nil)
 	c.Assert(results, HasLen, 0)
-	c.Check(err, DeepEquals, &InstallRefreshError{
+	c.Check(err, DeepEquals, &SnapActionError{
 		Refresh: map[string]error{
 			"hello-world": ErrNoUpdateAvailable,
 		},
@@ -6555,9 +6555,9 @@ cannot install:
  - "foo": no snap revision given constraints`)
 }
 
-func (s *storeTestSuite) TestInstallRefreshSnapNotFound(c *C) {
+func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -6624,7 +6624,7 @@ func (s *storeTestSuite) TestInstallRefreshSnapNotFound(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6632,7 +6632,7 @@ func (s *storeTestSuite) TestInstallRefreshSnapNotFound(c *C) {
 			Revision:        snap.R(26),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*InstallRefreshAction{
+	}, []*SnapAction{
 		{
 			Action:  "refresh",
 			SnapID:  helloWorldSnapID,
@@ -6644,7 +6644,7 @@ func (s *storeTestSuite) TestInstallRefreshSnapNotFound(c *C) {
 		},
 	}, nil, nil)
 	c.Assert(results, HasLen, 0)
-	c.Check(err, DeepEquals, &InstallRefreshError{
+	c.Check(err, DeepEquals, &SnapActionError{
 		Refresh: map[string]error{
 			"hello-world": ErrSnapNotFound,
 		},
@@ -6658,9 +6658,9 @@ cannot install:
  - "foo": snap not found`)
 }
 
-func (s *storeTestSuite) TestInstallRefreshOtherErrors(c *C) {
+func (s *storeTestSuite) TestSnapActionOtherErrors(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertRequest(c, r, "POST", installRefreshPath)
+		assertRequest(c, r, "POST", snapActionPath)
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
@@ -6707,7 +6707,7 @@ func (s *storeTestSuite) TestInstallRefreshOtherErrors(c *C) {
 	authContext := &testAuthContext{c: c, device: s.device}
 	sto := New(&cfg, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), nil, []*InstallRefreshAction{
+	results, err := sto.SnapAction(context.TODO(), nil, []*SnapAction{
 		{
 			Action:  "install",
 			Name:    "foo",
@@ -6715,7 +6715,7 @@ func (s *storeTestSuite) TestInstallRefreshOtherErrors(c *C) {
 		},
 	}, nil, nil)
 	c.Assert(results, HasLen, 0)
-	c.Check(err, DeepEquals, &InstallRefreshError{
+	c.Check(err, DeepEquals, &SnapActionError{
 		Other: []error{
 			fmt.Errorf("other error one"),
 			fmt.Errorf("global error"),
@@ -6726,9 +6726,9 @@ func (s *storeTestSuite) TestInstallRefreshOtherErrors(c *C) {
  - global error`)
 }
 
-func (s *storeTestSuite) TestInstallRefreshRefreshesBothAuths(c *C) {
-	// install/refresh has is its own custom way to signal
-	// macaroon refreshes that allows to do a best effort
+func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {
+	// snap action (install/refresh) has is its own custom way to
+	// signal macaroon refreshes that allows to do a best effort
 	// with the available results
 
 	refresh, err := makeTestRefreshDischargeResponse()
@@ -6752,7 +6752,7 @@ func (s *storeTestSuite) TestInstallRefreshRefreshesBothAuths(c *C) {
 		c.Check(r.UserAgent(), Equals, userAgent)
 
 		switch r.URL.Path {
-		case installRefreshPath:
+		case snapActionPath:
 			n++
 			type errObj struct {
 				Code    string `json:"code"`
@@ -6835,7 +6835,7 @@ func (s *storeTestSuite) TestInstallRefreshRefreshesBothAuths(c *C) {
 		StoreBaseURL: mockServerURL,
 	}, authContext)
 
-	results, err := sto.InstallRefresh(context.TODO(), []*CurrentSnap{
+	results, err := sto.SnapAction(context.TODO(), []*CurrentSnap{
 		{
 			Name:            "hello-world",
 			SnapID:          helloWorldSnapID,
@@ -6843,7 +6843,7 @@ func (s *storeTestSuite) TestInstallRefreshRefreshesBothAuths(c *C) {
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
 		},
-	}, []*InstallRefreshAction{
+	}, []*SnapAction{
 		{
 			Action: "refresh",
 			SnapID: helloWorldSnapID,
