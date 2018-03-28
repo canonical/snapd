@@ -27,9 +27,12 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 type specSuite struct {
+	testutil.BaseTest
 	iface    *ifacetest.TestInterface
 	spec     *apparmor.Specification
 	plugInfo *snap.PlugInfo
@@ -83,9 +86,16 @@ var _ = Suite(&specSuite{
 })
 
 func (s *specSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
 	s.spec = &apparmor.Specification{}
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil)
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil)
+}
+
+func (s *specSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 }
 
 // The spec.Specification can be used through the interfaces.Specification interface
@@ -103,7 +113,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 
 // AddSnippet adds a snippet for the given security tag.
 func (s *specSuite) TestAddSnippet(c *C) {
-	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"}, "demo")
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
 	defer restore()
 
 	// Add two snippets in the context we are in.
@@ -122,7 +132,7 @@ func (s *specSuite) TestAddSnippet(c *C) {
 
 // AddUpdateNS adds a snippet for the snap-update-ns profile for a given snap.
 func (s *specSuite) TestAddUpdateNS(c *C) {
-	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"}, "demo")
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.demo.command", "snap.demo.service"})
 	defer restore()
 
 	// Add a two snap-update-ns snippets in the context we are in.
@@ -130,8 +140,8 @@ func (s *specSuite) TestAddUpdateNS(c *C) {
 	s.spec.AddUpdateNS("s-u-n snippet 2")
 
 	// The snippets were recorded correctly and in the right place.
-	c.Assert(s.spec.UpdateNS(), DeepEquals, map[string][]string{
-		"demo": {"s-u-n snippet 1", "s-u-n snippet 2"},
+	c.Assert(s.spec.UpdateNS(), DeepEquals, []string{
+		"s-u-n snippet 1", "s-u-n snippet 2",
 	})
 	c.Assert(s.spec.SnippetForTag("snap.demo.command"), Equals, "")
 	c.Assert(s.spec.SecurityTags(), HasLen, 0)
@@ -144,26 +154,129 @@ apps:
   vanguard:
     command: vanguard
 layout:
-  /usr:
-    bind: $SNAP/usr
-  /mytmp:
+  /usr/foo:
+    bind: $SNAP/usr/foo
+  /var/tmp:
     type: tmpfs
     mode: 1777
-  /mylink:
-    symlink: $SNAP/link/target
+  /var/cache/mylink:
+    symlink: $SNAP_DATA/link/target
   /etc/foo.conf:
     bind-file: $SNAP/foo.conf
 `
 
 func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 	snapInfo := snaptest.MockInfo(c, snapWithLayout, &snap.SideInfo{Revision: snap.R(42)})
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.vanguard.vanguard"})
+	defer restore()
+
 	s.spec.AddSnapLayout(snapInfo)
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.vanguard.vanguard": {
 			"# Layout path: /etc/foo.conf\n/etc/foo.conf mrwklix,",
-			"# Layout path: /mylink\n# (no extra permissions required for symlink)",
-			"# Layout path: /mytmp\n/mytmp{,/**} mrwklix,",
-			"# Layout path: /usr\n/usr{,/**} mrwklix,",
+			"# Layout path: /usr/foo\n/usr/foo{,/**} mrwklix,",
+			"# Layout path: /var/cache/mylink\n# (no extra permissions required for symlink)",
+			"# Layout path: /var/tmp\n/var/tmp{,/**} mrwklix,",
 		},
 	})
+
+	profile0 := `  # Layout /etc/foo.conf: bind-file $SNAP/foo.conf
+  mount options=(bind, rw) /snap/vanguard/42/foo.conf -> /etc/foo.conf,
+  umount /etc/foo.conf,
+  # Writable mimic /etc
+  mount options=(rbind, rw) /etc/ -> /tmp/.snap/etc/,
+  mount fstype=tmpfs options=(rw) tmpfs -> /etc/,
+  mount options=(rbind, rw) /tmp/.snap/etc/** -> /etc/**,
+  mount options=(bind, rw) /tmp/.snap/etc/* -> /etc/*,
+  umount /tmp/.snap/etc/,
+  umount /etc{,/**},
+  /etc/** rw,
+  /tmp/.snap/etc/** rw,
+  /tmp/.snap/etc/ rw,
+  /tmp/.snap/ rw,
+  # Writable mimic /snap/vanguard/42
+  mount options=(rbind, rw) /snap/vanguard/42/ -> /tmp/.snap/snap/vanguard/42/,
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/,
+  mount options=(rbind, rw) /tmp/.snap/snap/vanguard/42/** -> /snap/vanguard/42/**,
+  mount options=(bind, rw) /tmp/.snap/snap/vanguard/42/* -> /snap/vanguard/42/*,
+  umount /tmp/.snap/snap/vanguard/42/,
+  umount /snap/vanguard/42{,/**},
+  /snap/vanguard/42/** rw,
+  /snap/vanguard/42/ rw,
+  /snap/vanguard/ rw,
+  /tmp/.snap/snap/vanguard/42/** rw,
+  /tmp/.snap/snap/vanguard/42/ rw,
+  /tmp/.snap/snap/vanguard/ rw,
+  /tmp/.snap/snap/ rw,
+  /tmp/.snap/ rw,
+`
+	profile1 := `  # Layout /usr/foo: bind $SNAP/usr/foo
+  mount options=(rbind, rw) /snap/vanguard/42/usr/foo/ -> /usr/foo/,
+  umount /usr/foo/,
+  # Writable mimic /usr
+  mount options=(rbind, rw) /usr/ -> /tmp/.snap/usr/,
+  mount fstype=tmpfs options=(rw) tmpfs -> /usr/,
+  mount options=(rbind, rw) /tmp/.snap/usr/** -> /usr/**,
+  mount options=(bind, rw) /tmp/.snap/usr/* -> /usr/*,
+  umount /tmp/.snap/usr/,
+  umount /usr{,/**},
+  /usr/** rw,
+  /tmp/.snap/usr/** rw,
+  /tmp/.snap/usr/ rw,
+  /tmp/.snap/ rw,
+  # Writable mimic /snap/vanguard/42/usr
+  mount options=(rbind, rw) /snap/vanguard/42/usr/ -> /tmp/.snap/snap/vanguard/42/usr/,
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/usr/,
+  mount options=(rbind, rw) /tmp/.snap/snap/vanguard/42/usr/** -> /snap/vanguard/42/usr/**,
+  mount options=(bind, rw) /tmp/.snap/snap/vanguard/42/usr/* -> /snap/vanguard/42/usr/*,
+  umount /tmp/.snap/snap/vanguard/42/usr/,
+  umount /snap/vanguard/42/usr{,/**},
+  /snap/vanguard/42/usr/** rw,
+  /snap/vanguard/42/usr/ rw,
+  /snap/vanguard/42/ rw,
+  /snap/vanguard/ rw,
+  /tmp/.snap/snap/vanguard/42/usr/** rw,
+  /tmp/.snap/snap/vanguard/42/usr/ rw,
+  /tmp/.snap/snap/vanguard/42/ rw,
+  /tmp/.snap/snap/vanguard/ rw,
+  /tmp/.snap/snap/ rw,
+  /tmp/.snap/ rw,
+`
+	profile2 := `  # Layout /var/cache/mylink: symlink $SNAP_DATA/link/target
+  /var/cache/mylink rw,
+  # Writable mimic /var/cache
+  mount options=(rbind, rw) /var/cache/ -> /tmp/.snap/var/cache/,
+  mount fstype=tmpfs options=(rw) tmpfs -> /var/cache/,
+  mount options=(rbind, rw) /tmp/.snap/var/cache/** -> /var/cache/**,
+  mount options=(bind, rw) /tmp/.snap/var/cache/* -> /var/cache/*,
+  umount /tmp/.snap/var/cache/,
+  umount /var/cache{,/**},
+  /var/cache/** rw,
+  /var/cache/ rw,
+  /tmp/.snap/var/cache/** rw,
+  /tmp/.snap/var/cache/ rw,
+  /tmp/.snap/var/ rw,
+  /tmp/.snap/ rw,
+`
+	profile3 := `  # Layout /var/tmp: type tmpfs, mode: 01777
+  mount fstype=tmpfs tmpfs -> /var/tmp/,
+  umount /var/tmp/,
+  # Writable mimic /var
+  mount options=(rbind, rw) /var/ -> /tmp/.snap/var/,
+  mount fstype=tmpfs options=(rw) tmpfs -> /var/,
+  mount options=(rbind, rw) /tmp/.snap/var/** -> /var/**,
+  mount options=(bind, rw) /tmp/.snap/var/* -> /var/*,
+  umount /tmp/.snap/var/,
+  umount /var{,/**},
+  /var/** rw,
+  /tmp/.snap/var/** rw,
+  /tmp/.snap/var/ rw,
+  /tmp/.snap/ rw,
+`
+	updateNS := s.spec.UpdateNS()
+	c.Assert(updateNS[0], Equals, profile0)
+	c.Assert(updateNS[1], Equals, profile1)
+	c.Assert(updateNS[2], Equals, profile2)
+	c.Assert(updateNS[3], Equals, profile3)
+	c.Assert(updateNS, DeepEquals, []string{profile0, profile1, profile2, profile3})
 }

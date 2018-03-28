@@ -2,8 +2,6 @@
 
 set -e
 
-#DEBHELPER#
-
 
 case "$1" in
     configure)
@@ -22,7 +20,7 @@ case "$1" in
         # affected users safe let's start all the per-snap mount units so that snaps no
         # longer appear as broken after update.
         if dpkg --compare-versions "$2" ge-nl "2.31" && \
-                dpkg --compare-versions "$2" lt-nl "2.31.2"; then
+                dpkg --compare-versions "$2" lt-nl "2.32"; then
             units=$(systemctl list-unit-files --full | grep '^snap[-.]' | cut -f1 -d ' ' | grep -vF snap.mount.service || true)
             mounts=$(echo "$units" | grep '^snap[-.].*\.mount$' || true)
             for unit in $mounts; do
@@ -37,3 +35,5 @@ case "$1" in
             done
         fi
 esac
+
+#DEBHELPER#
