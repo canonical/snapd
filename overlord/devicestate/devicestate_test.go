@@ -465,8 +465,9 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassic(c *C) {
 	c.Assert(becomeOperational, NotNil)
 	becomeOp1 := becomeOperational.ID()
 
+	c.Check(becomeOperational.Summary(), Equals, "Prepare device")
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
-	c.Check(becomeOperational.Err(), ErrorMatches, `(?sm).*on classic device registration paused until first store interaction.*`)
+	c.Check(becomeOperational.Err(), IsNil)
 
 	// paused
 	var paused bool
@@ -482,6 +483,8 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassic(c *C) {
 	privKey, err := devicestate.KeypairManager(s.mgr).Get(keyID)
 	c.Assert(err, IsNil)
 	c.Check(privKey, NotNil)
+	// we don't have a serial yet
+	c.Check(device.Serial, Equals, "")
 	// attempts were reset
 	c.Check(devicestate.BecomeOperationalBackoff(s.mgr), Equals, 0*time.Second)
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 0)
@@ -532,6 +535,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassic(c *C) {
 	becomeOperational = s.findBecomeOperationalChange(becomeOp1)
 	c.Assert(becomeOperational, NotNil)
 
+	c.Check(becomeOperational.Summary(), Equals, "Initialize device")
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
@@ -638,7 +642,7 @@ func (s *deviceMgrSuite) TestDeviceRegistrationClassicFallback(c *C) {
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
-	c.Check(becomeOperational.Err(), ErrorMatches, `(?sm).*on classic device registration paused until first store interaction.*`)
+	c.Check(becomeOperational.Err(), IsNil)
 
 	// paused
 	var paused bool
@@ -651,6 +655,8 @@ func (s *deviceMgrSuite) TestDeviceRegistrationClassicFallback(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "generic")
 	c.Check(device.Model, Equals, "generic-classic")
+	// no serial yet
+	c.Check(device.Serial, Equals, "")
 
 	model, err := devicestate.Model(s.state)
 	c.Assert(err, IsNil)

@@ -218,7 +218,7 @@ func (m *DeviceManager) ensureOperational() error {
 	//   we setup the fallback generic/generic-classic
 	// * with a model assertion with a gadget (core and device-like
 	//   classic) we wait for the gadget to have been installed
-	// * otherwise we proceeded
+	// * otherwise we proceed
 	// * then on classic we pause registration until the first
 	//   store interaction (registration-paused flag in state and
 	//   code in doRequestSerial)
@@ -274,6 +274,7 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 	}
 
+	full := true // do all: prepare-device + key gen + request serial
 	if release.OnClassic {
 		// paused?
 		var paused bool
@@ -284,14 +285,20 @@ func (m *DeviceManager) ensureOperational() error {
 		if paused {
 			return nil
 		}
+		// on classic the first time around we just do
+		// prepare-device + key gen and then pause the process
+		// until the first store interaction
+		full = err != state.ErrNoState
 	}
 
-	// have some backoff between full retries
-	if m.ensureOperationalShouldBackoff(time.Now()) {
-		return nil
+	if full {
+		// have some backoff between full retries
+		if m.ensureOperationalShouldBackoff(time.Now()) {
+			return nil
+		}
+		// increment attempt count
+		incEnsureOperationalAttempts(m.state)
 	}
-	// increment attempt count
-	incEnsureOperationalAttempts(m.state)
 
 	tasks := []*state.Task{}
 
@@ -314,14 +321,59 @@ func (m *DeviceManager) ensureOperational() error {
 		genKey.WaitFor(prepareDevice)
 	}
 	tasks = append(tasks, genKey)
-	requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
-	requestSerial.WaitFor(genKey)
-	tasks = append(tasks, requestSerial)
 
-	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
+	if full {
+		requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
+		requestSerial.WaitFor(genKey)
+		tasks = append(tasks, requestSerial)
+	}
+
+	msg := i18n.G("Initialize device")
+	if !full {
+		// just prepare-device + key gen
+		msg = i18n.G("Prepare device")
+	}
+	chg := m.state.NewChange("become-operational", msg)
 	chg.AddAll(state.NewTaskSet(tasks...))
 
+	if !full {
+		m.state.Set("registration-paused", true)
+	}
+
 	return nil
+}
+
+// waitForRegistrationTimeout is the timeout after which waitForRegistration will give up, about the same as network retries max timeout
+var waitForRegistrationTimeout = 30 * time.Second
+
+// waitForRegistration does a best-effort of waiting for registration to occur.
+// Assumes it hasn't happened yet and that state is locked.
+func (m *DeviceManager) waitForRegistration(ctx context.Context) (*asserts.Serial, error) {
+	m.state.Set("registration-paused", false)
+	m.state.EnsureBefore(0)
+	if auth.IsEnsureContext(ctx) {
+		return nil, state.ErrNoState
+	}
+	if ensureOperationalAttempts(m.state) > 1 {
+		// we are in the subsequent retries phase, do not wait
+		return nil, state.ErrNoState
+	}
+	m.state.Unlock()
+	select {
+	case <-m.Registered():
+		// registered
+	case <-m.regFirstAttempt:
+		// first registration attempt finished (successfully or not)
+	case <-time.After(waitForRegistrationTimeout):
+		// neither, timed out
+	}
+	m.state.Lock()
+
+	// mark first attempt here as well in case we failed earlier
+	// than normally expected, and reached the timeout
+	m.markRegistrationFirstAttempt()
+
+	return Serial(m.state)
 }
 
 var populateStateFromSeed = populateStateFromSeedImpl
@@ -478,39 +530,6 @@ func (m *DeviceManager) Model() (*asserts.Model, error) {
 func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	m.state.Lock()
 	defer m.state.Unlock()
-
-	return Serial(m.state)
-}
-
-// waitForRegistrationTimeout is the timeout after which waitForRegistration will give up, about the same as network retries max timeout
-var waitForRegistrationTimeout = 30 * time.Second
-
-// waitForRegistration does a best-effort of waiting for registration to occur.
-// Assumes it hasn't happened yet and that state is locked.
-func (m *DeviceManager) waitForRegistration(ctx context.Context) (*asserts.Serial, error) {
-	m.state.Set("registration-paused", false)
-	m.state.EnsureBefore(0)
-	if auth.IsEnsureContext(ctx) {
-		return nil, state.ErrNoState
-	}
-	if ensureOperationalAttempts(m.state) > 1 {
-		// we are in the subsequent retries phase, do not wait
-		return nil, state.ErrNoState
-	}
-	m.state.Unlock()
-	select {
-	case <-m.Registered():
-		// registered
-	case <-m.regFirstAttempt:
-		// first registration attempt finished (successfully or not)
-	case <-time.After(waitForRegistrationTimeout):
-		// neither, timed out
-	}
-	m.state.Lock()
-
-	// mark first attempt here as well in case we failed earlier
-	// than normally expected, and reached the timeout
-	m.markRegistrationFirstAttempt()
 
 	return Serial(m.state)
 }
