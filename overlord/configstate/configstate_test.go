@@ -184,9 +184,9 @@ func (wm *witnessManager) Ensure() error {
 	wm.state.Lock()
 	defer wm.state.Unlock()
 	t := config.NewTransaction(wm.state)
-	var witness2 bool
-	t.GetMaybe("core", "witness", &witness2)
-	if witness2 {
+	var witnessCfg bool
+	t.GetMaybe("core", "witness", &witnessCfg)
+	if witnessCfg {
 		wm.committed = true
 	}
 	return nil
@@ -200,12 +200,12 @@ func (wm *witnessManager) Wait() {
 
 func (s *configcoreHijackSuite) TestHijack(c *C) {
 	configcoreRan := false
-	witness1 := false
+	witnessCfg := false
 	witnessConfigcoreRun := func(conf configcore.Conf) error {
 		// called with no state lock!
 		conf.State().Lock()
 		defer conf.State().Unlock()
-		err := conf.Get("core", "witness", &witness1)
+		err := conf.Get("core", "witness", &witnessCfg)
 		c.Assert(err, IsNil)
 		configcoreRan = true
 		return nil
@@ -213,10 +213,10 @@ func (s *configcoreHijackSuite) TestHijack(c *C) {
 	r := configstate.MockConfigcoreRun(witnessConfigcoreRun)
 	defer r()
 
-	witness := &witnessManager{
+	witnessMgr := &witnessManager{
 		state: s.state,
 	}
-	s.o.AddManager(witness)
+	s.o.AddManager(witnessMgr)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -228,9 +228,13 @@ func (s *configcoreHijackSuite) TestHijack(c *C) {
 	chg := s.state.NewChange("configure-core", "configure core")
 	chg.AddAll(ts)
 
+	// this will be run by settle helper once no more Ensure are
+	// scheduled, the witnessMgr Ensure would not see the
+	// committed config unless an additional Ensure Loop is
+	// scheduled when committing the configuration
 	observe := func() {
-		c.Check(witness1, Equals, true)
-		c.Check(witness.committed, Equals, true)
+		c.Check(witnessCfg, Equals, true)
+		c.Check(witnessMgr.committed, Equals, true)
 	}
 
 	s.state.Unlock()
