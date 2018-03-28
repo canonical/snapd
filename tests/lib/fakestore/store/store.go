@@ -100,7 +100,7 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(topDir))))
 	mux.HandleFunc("/api/v1/snaps/assertions/", store.assertionsEndpoint)
 	// v2
-	mux.HandleFunc("/v2/snaps/refresh", store.installRefreshEndpoint)
+	mux.HandleFunc("/v2/snaps/refresh", store.snapActionEndpoint)
 
 	return store
 }
@@ -484,33 +484,37 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 	return bs, nil
 }
 
-type contextSnap struct {
+type currentSnap struct {
 	SnapID      string `json:"snap-id"`
 	InstanceKey string `json:"instance-key"`
 }
 
-type installRefreshAction struct {
+type snapAction struct {
 	Action      string `json:"action"`
 	InstanceKey string `json:"instance-key"`
 	SnapID      string `json:"snap-id"`
 	Name        string `json:"name"`
 }
 
-type installRefreshReqJSON struct {
-	Context []contextSnap          `json:"context"`
-	Fields  []string               `json:"fields"`
-	Actions []installRefreshAction `json:"actions"`
+type snapActionRequest struct {
+	Context []currentSnap `json:"context"`
+	Fields  []string      `json:"fields"`
+	Actions []snapAction  `json:"actions"`
 }
 
-type installRefreshResult struct {
-	Result      string        `json:"result"`
-	InstanceKey string        `json:"instance-key"`
-	SnapID      string        `json:"snap-id"`
-	Name        string        `json:"name"`
-	Snap        detailsV2JSON `json:"snap"`
+type snapActionResult struct {
+	Result      string          `json:"result"`
+	InstanceKey string          `json:"instance-key"`
+	SnapID      string          `json:"snap-id"`
+	Name        string          `json:"name"`
+	Snap        detailsResultV2 `json:"snap"`
 }
 
-type detailsV2JSON struct {
+type snapActionResultList struct {
+	Results []*snapActionResult `json:"results"`
+}
+
+type detailsResultV2 struct {
 	Architectures []string `json:"architectures"`
 	SnapID        string   `json:"snap-id"`
 	Name          string   `json:"name"`
@@ -527,13 +531,9 @@ type detailsV2JSON struct {
 	Revision int    `json:"revision"`
 }
 
-type installRefreshRespJSON struct {
-	Results []*installRefreshResult `json:"results"`
-}
-
-func (s *Store) installRefreshEndpoint(w http.ResponseWriter, req *http.Request) {
-	var reqData installRefreshReqJSON
-	var replyData installRefreshRespJSON
+func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
+	var reqData snapActionRequest
+	var replyData snapActionResultList
 
 	decoder := json.NewDecoder(req.Body)
 	if err := decoder.Decode(&reqData); err != nil {
@@ -567,9 +567,9 @@ func (s *Store) installRefreshEndpoint(w http.ResponseWriter, req *http.Request)
 
 	actions := reqData.Actions
 	if len(actions) == 1 && actions[0].Action == "refresh-all" {
-		actions = make([]installRefreshAction, len(reqData.Context))
+		actions = make([]snapAction, len(reqData.Context))
 		for i, s := range reqData.Context {
-			actions[i] = installRefreshAction{
+			actions[i] = snapAction{
 				Action:      "refresh",
 				SnapID:      s.SnapID,
 				InstanceKey: s.InstanceKey,
@@ -599,12 +599,12 @@ func (s *Store) installRefreshEndpoint(w http.ResponseWriter, req *http.Request)
 				return
 			}
 
-			res := &installRefreshResult{
+			res := &snapActionResult{
 				Result:      a.Action,
 				InstanceKey: a.InstanceKey,
 				SnapID:      essInfo.SnapID,
 				Name:        essInfo.Name,
-				Snap: detailsV2JSON{
+				Snap: detailsResultV2{
 					Architectures: []string{"all"},
 					SnapID:        essInfo.SnapID,
 					Name:          essInfo.Name,
