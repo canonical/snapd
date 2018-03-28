@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -170,28 +171,70 @@ func (s *configcoreHijackSuite) SetUpTest(c *C) {
 	configstate.Init(hookMgr)
 }
 
+type witnessManager struct {
+	state     *state.State
+	committed bool
+}
+
+func (m *witnessManager) KnownTaskKinds() []string {
+	return nil
+}
+
+func (wm *witnessManager) Ensure() error {
+	wm.state.Lock()
+	defer wm.state.Unlock()
+	t := config.NewTransaction(wm.state)
+	var witness2 bool
+	t.GetMaybe("core", "witness", &witness2)
+	if witness2 {
+		wm.committed = true
+	}
+	return nil
+}
+
+func (wm *witnessManager) Stop() {
+}
+
+func (wm *witnessManager) Wait() {
+}
+
 func (s *configcoreHijackSuite) TestHijack(c *C) {
 	configcoreRan := false
+	witness1 := false
 	witnessConfigcoreRun := func(conf configcore.Conf) error {
 		// called with no state lock!
 		conf.State().Lock()
 		defer conf.State().Unlock()
+		err := conf.Get("core", "witness", &witness1)
+		c.Assert(err, IsNil)
 		configcoreRan = true
 		return nil
 	}
 	r := configstate.MockConfigcoreRun(witnessConfigcoreRun)
 	defer r()
 
+	witness := &witnessManager{
+		state: s.state,
+	}
+	s.o.AddManager(witness)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts := configstate.Configure(s.state, "core", nil, 0)
+	ts := configstate.Configure(s.state, "core", map[string]interface{}{
+		"witness": true,
+	}, 0)
 
 	chg := s.state.NewChange("configure-core", "configure core")
 	chg.AddAll(ts)
 
+	observe := func() {
+		c.Check(witness1, Equals, true)
+		c.Check(witness.committed, Equals, true)
+	}
+
 	s.state.Unlock()
-	err := s.o.Settle(5 * time.Second)
+	err := s.o.SettleObserveBeforeCleanups(5*time.Second, observe)
 	s.state.Lock()
 	c.Assert(err, IsNil)
 
