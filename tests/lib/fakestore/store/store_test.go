@@ -395,7 +395,7 @@ func (s *storeTestSuite) TestAssertionsEndpointNotFound(c *C) {
 	c.Check(respObj["status"], Equals, float64(404))
 }
 
-func (s *storeTestSuite) TestInstallRefreshEndpoint(c *C) {
+func (s *storeTestSuite) TestSnapActionEndpoint(c *C) {
 	snapFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1")
 
 	resp, err := s.StorePostJSON("/v2/snaps/refresh", []byte(`{
@@ -436,7 +436,7 @@ func (s *storeTestSuite) TestInstallRefreshEndpoint(c *C) {
 	})
 }
 
-func (s *storeTestSuite) TestInstallRefreshEndpointWithAssertions(c *C) {
+func (s *storeTestSuite) TestSnapActionEndpointWithAssertions(c *C) {
 	snapFn := s.makeTestSnap(c, "name: foo\nversion: 10")
 	s.makeAssertions(c, snapFn, "foo", "xidididididididididididididididid", "foo-devel", "foo-devel-id", 99)
 
@@ -478,7 +478,7 @@ func (s *storeTestSuite) TestInstallRefreshEndpointWithAssertions(c *C) {
 	})
 }
 
-func (s *storeTestSuite) TestInstallRefreshEndpointRefreshAll(c *C) {
+func (s *storeTestSuite) TestSnapActionEndpointRefreshAll(c *C) {
 	snapFn := s.makeTestSnap(c, "name: test-snapd-tools\nversion: 1")
 
 	resp, err := s.StorePostJSON("/v2/snaps/refresh", []byte(`{
@@ -519,7 +519,7 @@ func (s *storeTestSuite) TestInstallRefreshEndpointRefreshAll(c *C) {
 	})
 }
 
-func (s *storeTestSuite) TestInstallRefreshEndpointWithAssertionsInstall(c *C) {
+func (s *storeTestSuite) TestSnapActionEndpointWithAssertionsInstall(c *C) {
 	snapFn := s.makeTestSnap(c, "name: foo\nversion: 10")
 	s.makeAssertions(c, snapFn, "foo", "xidididididididididididididididid", "foo-devel", "foo-devel-id", 99)
 

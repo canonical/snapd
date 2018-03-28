@@ -351,6 +351,9 @@ func createTestDevice() *auth.DeviceState {
 }
 
 func (s *storeTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
 	s.store = New(nil, nil)
 	s.origDownloadFunc = download
 	dirs.SetRootDir(c.MkDir())
@@ -387,6 +390,7 @@ func (s *storeTestSuite) TearDownTest(c *C) {
 	download = s.origDownloadFunc
 	s.mockXDelta.Restore()
 	s.restoreLogger()
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *storeTestSuite) expectedAuthorization(c *C, user *auth.UserState) string {
