@@ -16,7 +16,7 @@
 BINDIR := /usr/bin
 DATADIR := /usr/share
 
-SOURCES := $(wildcard *.in)
+SOURCES := snap-userd-autostart.desktop.in
 DESKTOP_FILES = $(SOURCES:.in=)
 
 .PHONY: all
