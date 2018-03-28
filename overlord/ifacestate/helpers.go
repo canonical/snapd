@@ -211,9 +211,11 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 			continue
 		}
 		if err := m.repo.Connect(connRef); err != nil {
-			if _, ok := err.(*interfaces.NoSuchPlugSlot); ok {
-				// FIXME: we may encounter an error here if there is a stray connection in the state,
-				// they should be cleaned up
+			if _, ok := err.(*interfaces.UnknownPlugSlotError); ok {
+				// Some versions of snapd may have left stray connections that
+				// don't have the corresponding plug or slot anymore. Before we
+				// choose how to deal with this data we want to silently ignore
+				// that error not to worry the users.
 				continue
 			}
 			logger.Noticef("%s", err)

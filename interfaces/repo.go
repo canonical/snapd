@@ -28,24 +28,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type NoSuchPlugSlot struct {
-	msg      string
-	Snap     string
-	PlugSlot string
-}
-
-func (e *NoSuchPlugSlot) Error() string {
-	return e.msg
-}
-
-func NewNoSuchPlugSlotError(msg, snap, plugSlot string) *NoSuchPlugSlot {
-	return &NoSuchPlugSlot{
-		msg:      msg,
-		Snap:     snap,
-		PlugSlot: plugSlot,
-	}
-}
-
 // Repository stores all known snappy plugs and slots and ifaces.
 type Repository struct {
 	// Protects the internals from concurrent access.
@@ -571,12 +553,12 @@ func (r *Repository) Connect(ref ConnRef) error {
 	// Ensure that such plug exists
 	plug := r.plugs[plugSnapName][plugName]
 	if plug == nil {
-		return NewNoSuchPlugSlotError(fmt.Sprintf("cannot connect plug %q from snap %q, no such plug", plugName, plugSnapName), plugSnapName, plugName)
+		return &UnknownPlugSlotError{Msg: fmt.Sprintf("cannot connect plug %q from snap %q, no such plug", plugName, plugSnapName)}
 	}
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return NewNoSuchPlugSlotError(fmt.Sprintf("cannot connect plug to slot %q from snap %q, no such slot", slotName, slotSnapName), slotSnapName, slotName)
+		return &UnknownPlugSlotError{fmt.Sprintf("cannot connect plug to slot %q from snap %q, no such slot", slotName, slotSnapName)}
 	}
 	// Ensure that plug and slot are compatible
 	if slot.Interface != plug.Interface {

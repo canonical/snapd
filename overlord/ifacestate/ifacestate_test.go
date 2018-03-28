@@ -20,6 +20,7 @@
 package ifacestate_test
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"sort"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -61,6 +63,7 @@ type interfaceManagerSuite struct {
 	secBackend     *ifacetest.TestSecurityBackend
 	mockSnapCmd    *testutil.MockCmd
 	storeSigning   *assertstest.StoreStack
+	log            *bytes.Buffer
 }
 
 var _ = Suite(&interfaceManagerSuite{})
@@ -100,6 +103,10 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	// just load the test backend here and this is nicely integrated with
 	// extraBackends above.
 	s.BaseTest.AddCleanup(ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend}))
+
+	buf, restore := logger.MockLogger()
+	s.BaseTest.AddCleanup(restore)
+	s.log = buf
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
@@ -642,6 +649,41 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 
 	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
+}
+
+func (s *interfaceManagerSuite) TestStrayConnectionsIgnored(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	// Put a stray connection in the state so that it automatically gets set up
+	// when we create the manager.
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+	s.state.Unlock()
+
+	// Initialize the manager. This registers both snaps and reloads the connection.
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that nothing got connected.
+	repo := mgr.Repository()
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 0)
+
+	// Ensure that nothing to setup.
+	c.Assert(s.secBackend.SetupCalls, HasLen, 0)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
+
+	// Ensure that nothing, crucially, got logged about that connection.
+	// We still have an error logged about the system key but this is just
+	// a bit of test mocking missing.
+	logLines := strings.Split(s.log.String(), "\n")
+	c.Assert(logLines, HasLen, 2)
+	c.Assert(logLines[0], testutil.Contains, "error trying to compare the snap system key:")
+	c.Assert(logLines[1], Equals, "")
 }
 
 func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
