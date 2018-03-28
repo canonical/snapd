@@ -86,7 +86,14 @@ func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, ui
 			}
 		}
 	}
-	tmp := filename + "." + strutil.MakeRandomString(12)
+	// The tilde is appended so that programs that inspect all files in some
+	// directory are more likely to ignore this file as an editor backup file.
+	//
+	// This fixes an issue in apparmor-utils package, specifically in
+	// aa-enforce. Tools from this package enumerate all profiles by loading
+	// parsing any file found in /etc/apparmor.d/, skipping only very specific
+	// suffixes, such as the one we selected below.
+	tmp := filename + "." + strutil.MakeRandomString(12) + "~"
 
 	fd, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, perm)
 	if err != nil {

@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -34,36 +35,53 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func lastLogStr(logs []string) string {
-	if len(logs) == 0 {
-		return ""
-	}
-	return logs[len(logs)-1]
-}
-
 var (
-	shortInstallHelp = i18n.G("Installs a snap to the system")
-	shortRemoveHelp  = i18n.G("Removes a snap from the system")
-	shortRefreshHelp = i18n.G("Refreshes a snap in the system")
-	shortTryHelp     = i18n.G("Tests a snap in the system")
-	shortEnableHelp  = i18n.G("Enables a snap in the system")
-	shortDisableHelp = i18n.G("Disables a snap in the system")
+	shortInstallHelp = i18n.G("Install a snap to the system")
+	shortRemoveHelp  = i18n.G("Remove a snap from the system")
+	shortRefreshHelp = i18n.G("Refresh a snap in the system")
+	shortTryHelp     = i18n.G("Test a snap in the system")
+	shortEnableHelp  = i18n.G("Enable a snap in the system")
+	shortDisableHelp = i18n.G("Disable a snap in the system")
 )
 
 var longInstallHelp = i18n.G(`
-The install command installs the named snap in the system.
+The install command installs the named snaps in the system.
+
+With no further options, the snaps are installed tracking the stable channel,
+with strict security confinement.
+
+Revision choice via the --revision override is limited to those that are the
+current revision of a channel.
+If the snap is one the user has developer access to, either directly or through
+the store's collaboration feature, then logging in (see 'snap help login')
+lifts this restriction.
+
+Note a later refresh will typically undo a revision override, taking the snap
+back to the current revision of the channel it's tracking.
 `)
 
 var longRemoveHelp = i18n.G(`
 The remove command removes the named snap from the system.
 
-By default all the snap revisions are removed, including their data and the common
-data directory. When a --revision option is passed only the specified revision is
-removed.
+By default all the snap revisions are removed, including their data and the
+common data directory. When a --revision option is passed only the specified
+revision is removed.
 `)
 
 var longRefreshHelp = i18n.G(`
-The refresh command refreshes (updates) the named snap.
+The refresh command updates the specified snaps, or all snaps in the system if
+none are specified.
+
+With no further options, the snaps are refreshed to the current revision of the
+channel they're tracking, preserving their confinement options.
+
+Revision choice via the --revision override is limited to those that are the
+current revision of a channel.
+If the snap is one the user has developer access to, either directly or through
+the store's collaboration feature, then logging in (see 'snap help login')
+lifts this restriction.
+
+Note a later refresh will typically undo a revision override.
 `)
 
 var longTryHelp = i18n.G(`
@@ -83,7 +101,7 @@ The enable command enables a snap that was previously disabled.
 
 var longDisableHelp = i18n.G(`
 The disable command disables a snap. The binaries and services of the
-snap will no longer be available. But all the data is still available
+snap will no longer be available, but all the data is still available
 and the snap can easily be enabled again.
 `)
 
@@ -459,6 +477,7 @@ func (x *cmdInstall) Execute([]string) error {
 }
 
 type cmdRefresh struct {
+	timeMixin
 	waitMixin
 	channelMixin
 	modeMixin
@@ -514,11 +533,11 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 		return nil
 	}
 
-	if _, err := x.wait(cli, changeID); err == noWait {
-		if err != noWait {
-			return err
+	if _, err := x.wait(cli, changeID); err != nil {
+		if err == noWait {
+			return nil
 		}
-		return nil
+		return err
 	}
 
 	return showDone([]string{name}, "refresh")
@@ -538,13 +557,17 @@ func (x *cmdRefresh) showRefreshTimes() error {
 	} else {
 		return errors.New("internal error: both refresh.timer and refresh.schedule are empty")
 	}
-	if sysinfo.Refresh.Last != "" {
-		fmt.Fprintf(Stdout, "last: %s\n", sysinfo.Refresh.Last)
+	if t, err := time.Parse(time.RFC3339, sysinfo.Refresh.Last); err == nil {
+		fmt.Fprintf(Stdout, "last: %s\n", x.fmtTime(t))
 	} else {
 		fmt.Fprintf(Stdout, "last: n/a\n")
 	}
-	if sysinfo.Refresh.Next != "" {
-		fmt.Fprintf(Stdout, "next: %s\n", sysinfo.Refresh.Next)
+
+	if t, err := time.Parse(time.RFC3339, sysinfo.Refresh.Hold); err == nil {
+		fmt.Fprintf(Stdout, "hold: %s\n", x.fmtTime(t))
+	}
+	if t, err := time.Parse(time.RFC3339, sysinfo.Refresh.Next); err == nil {
+		fmt.Fprintf(Stdout, "next: %s\n", x.fmtTime(t))
 	} else {
 		fmt.Fprintf(Stdout, "next: n/a\n")
 	}
@@ -683,7 +706,7 @@ func (x *cmdTry) Execute([]string) error {
 	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNotSnap {
 		return fmt.Errorf(i18n.G(`%q does not contain an unpacked snap.
 
-Try "snapcraft prime" in your project directory, then "snap try" again.`), path)
+Try 'snapcraft prime' in your project directory, then 'snap try' again.`), path)
 	}
 	if err != nil {
 		return err
@@ -880,7 +903,7 @@ func init() {
 			"unaliased":       i18n.G("Install the given snap without enabling its automatic aliases"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
-		waitDescs.also(channelDescs).also(modeDescs).also(map[string]string{
+		waitDescs.also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
 			"amend":             i18n.G("Allow refresh attempt on snap unknown to the store"),
 			"revision":          i18n.G("Refresh to the given revision"),
 			"list":              i18n.G("Show available snaps for refresh but do not perform a refresh"),

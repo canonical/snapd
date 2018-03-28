@@ -33,7 +33,7 @@ type cmdConnect struct {
 	} `positional-args:"true"`
 }
 
-var shortConnectHelp = i18n.G("Connects a plug to a slot")
+var shortConnectHelp = i18n.G("Connect a plug to a slot")
 var longConnectHelp = i18n.G(`
 The connect command connects a plug to a slot.
 It may be called in the following ways:

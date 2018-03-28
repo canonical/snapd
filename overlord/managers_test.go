@@ -34,6 +34,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/context"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -745,6 +747,10 @@ slots:
 	err = assertstate.Add(st, snapDecl)
 	c.Assert(err, IsNil)
 
+	// mock SanitizePlugsSlots so that unknown interfaces are not rejected
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	defer restoreSanitize()
+
 	ts, err := snapstate.InstallPath(st, si, snapPath, "", snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
@@ -838,7 +844,7 @@ version: @VERSION@
 	snapPath, _ = ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
 	ms.serveSnap(snapPath, revno)
 
-	updated, tss, err := snapstate.UpdateMany(st, []string{"foo"}, 0)
+	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, []string{"foo"}, 0)
 	c.Check(updated, IsNil)
 	c.Check(tss, IsNil)
 	// no validation we, get an error
@@ -858,7 +864,7 @@ version: @VERSION@
 	c.Assert(err, IsNil)
 
 	// ... and try again
-	updated, tss, err = snapstate.UpdateMany(st, []string{"foo"}, 0)
+	updated, tss, err = snapstate.UpdateMany(context.TODO(), st, []string{"foo"}, 0)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
 	c.Assert(tss, HasLen, 1)
@@ -1347,7 +1353,7 @@ apps:
 	ms.serveSnap(fooPath, "15")
 
 	// refresh all
-	updated, tss, err := snapstate.UpdateMany(st, nil, 0)
+	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
 	c.Assert(tss, HasLen, 1)
@@ -1593,7 +1599,7 @@ apps:
 	err = assertstate.RefreshSnapDeclarations(st, 0)
 	c.Assert(err, IsNil)
 
-	updated, tss, err := snapstate.UpdateMany(st, nil, 0)
+	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0)
 	c.Assert(err, IsNil)
 	sort.Strings(updated)
 	c.Assert(updated, DeepEquals, []string{"bar", "foo"})

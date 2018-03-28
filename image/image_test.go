@@ -64,6 +64,7 @@ func (s *emptyStore) Assertion(assertType *asserts.AssertionType, primaryKey []s
 func Test(t *testing.T) { TestingT(t) }
 
 type imageSuite struct {
+	testutil.BaseTest
 	root       string
 	bootloader *boottest.MockBootloader
 
@@ -86,6 +87,9 @@ func (s *imageSuite) SetUpTest(c *C) {
 	s.root = c.MkDir()
 	s.bootloader = boottest.NewMockBootloader("grub", c.MkDir())
 	partition.ForceBootloader(s.bootloader)
+
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.stdout = &bytes.Buffer{}
 	image.Stdout = s.stdout
@@ -159,6 +163,7 @@ func (s *imageSuite) addSystemSnapAssertions(c *C, snapName string, publisher st
 }
 
 func (s *imageSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	partition.ForceBootloader(nil)
 	image.Stdout = os.Stdout
 	image.Stderr = os.Stderr

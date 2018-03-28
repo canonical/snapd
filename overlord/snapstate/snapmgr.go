@@ -368,6 +368,14 @@ func (m *SnapManager) NextRefresh() time.Time {
 	return m.autoRefresh.NextRefresh()
 }
 
+// EffectiveRefreshHold returns the time until to which refreshes are
+// held if refresh.hold configuration is set and accounting for the
+// max postponement since the last refresh.
+// The caller should be holding the state lock.
+func (m *SnapManager) EffectiveRefreshHold() (time.Time, error) {
+	return m.autoRefresh.EffectiveRefreshHold()
+}
+
 // LastRefresh returns the time the last snap update.
 // The caller should be holding the state lock.
 func (m *SnapManager) LastRefresh() (time.Time, error) {
@@ -478,10 +486,30 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	return nil
 }
 
+// atSeed implements at seeding policy for refreshes.
+func (m *SnapManager) atSeed() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != state.ErrNoState {
+		// already seeded or other error
+		return err
+	}
+	if err := m.autoRefresh.AtSeed(); err != nil {
+		return err
+	}
+	if err := m.refreshHints.AtSeed(); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	// do not exit right away on error
 	errs := []error{
+		m.atSeed(),
 		m.ensureAliasesV2(),
 		m.ensureForceDevmodeDropsDevmodeFromState(),
 		m.ensureUbuntuCoreTransition(),

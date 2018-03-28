@@ -117,7 +117,7 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 	if s.privateMgr == nil {
 		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.extraIfaces, s.extraBackends)
 		c.Assert(err, IsNil)
-		mgr.AddForeignTaskHandlers()
+		ifacestate.AddForeignTaskHandlers(mgr)
 		s.privateMgr = mgr
 		s.o.AddManager(mgr)
 
@@ -2342,7 +2342,7 @@ func (s *interfaceManagerSuite) TestConnectHandlesAutoconnect(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKeyFile(c *C) {
-	restore := interfaces.MockSystemKey("build-id: something")
+	restore := interfaces.MockSystemKey(`{"core": "123"}`)
 	defer restore()
 
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
@@ -2350,13 +2350,14 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
 
 	_ = s.manager(c)
-	c.Check(dirs.SnapSystemKeyFile, testutil.FileMatches, "(?sm).*build-id:.*")
+	c.Check(dirs.SnapSystemKeyFile, testutil.FileMatches, `{.*"build-id":.*`)
 
 	stat, err := os.Stat(dirs.SnapSystemKeyFile)
 	c.Assert(err, IsNil)
 
 	// run manager again, but this time the snapsystemkey file should
 	// not be rewriten as the systemKey inputs have not changed
+	time.Sleep(20 * time.Millisecond)
 	s.privateMgr = nil
 	_ = s.manager(c)
 	stat2, err := os.Stat(dirs.SnapSystemKeyFile)
