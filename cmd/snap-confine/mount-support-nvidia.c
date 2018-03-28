@@ -127,7 +127,6 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 						   const char *glob_list[],
 						   size_t glob_list_len)
 {
-	debug("libgl dir: %s source dir: %s", libgl_dir, source_dir);
 	size_t source_dir_len = strlen(source_dir);
 	glob_t glob_res SC_CLEANUP(globfree) = {
 	.gl_pathv = NULL};
@@ -153,7 +152,6 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 		char symlink_target[512] = { 0 };
 		char prefix_dir[512] = { 0 };
 		const char *pathname = glob_res.gl_pathv[i];
-		debug("pathname: %s", pathname);
 		char *pathname_copy1
 		    SC_CLEANUP(sc_cleanup_string) = strdup(pathname);
 		char *pathname_copy2
@@ -175,7 +173,6 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 			sc_must_snprintf(prefix_dir, sizeof prefix_dir,
 					 "%s%s", libgl_dir,
 					 &directory_name[source_dir_len]);
-			debug("prefix dir path: %s", prefix_dir);
 			if (sc_nonfatal_mkpath(prefix_dir, 0755) != 0) {
 				die("failed to create prefix path: %s",
 				    prefix_dir);
@@ -445,8 +442,6 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 	if ((strlen(HOST_ARCH_TRIPLET) > 0) &&
 	    (sc_mount_nvidia_is_driver_in_dir(native_libdir) == 1)) {
 
-		debug("using arch triplet %s", HOST_ARCH_TRIPLET);
-
 		// sc_mkdir_and_mount_and_glob_files() takes an array of strings, so
 		// initialize native_sources accordingly, but calculate the array length
 		// dynamically to make adjustments to native_sources easier.
@@ -463,9 +458,6 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 		// Alternative 32-bit support
 		if ((strlen(HOST_ARCH32_TRIPLET) > 0) &&
 		    (sc_mount_nvidia_is_driver_in_dir(lib32_libdir) == 1)) {
-
-			debug("using 32-bit arch triplet %s",
-			      HOST_ARCH32_TRIPLET);
 
 			// sc_mkdir_and_mount_and_glob_files() takes an array of strings, so
 			// initialize lib32_sources accordingly, but calculate the array length
