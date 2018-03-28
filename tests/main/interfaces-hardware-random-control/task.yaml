@@ -23,15 +23,11 @@ restore: |
     rm -f hw.error
 
 execute: |
-    CONNECTED_PATTERN=":hardware-random-control +test-snapd-hardware-random-control"
-    DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-hardware-random-control:hardware-random-control"
-
-    echo "Then it is not connected by default"
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    echo "The interface is not connected by default"
+    snap interfaces | MATCH "\- +test-snapd-hardware-random-control:hardware-random-control"
 
     echo "When the plug is connected"
     snap connect test-snapd-hardware-random-control:hardware-random-control
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to read hardware random information"
     test-snapd-hardware-random-control.check 2>hw.error

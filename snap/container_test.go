@@ -29,6 +29,8 @@ import (
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 type FileSuite struct{}
@@ -55,12 +57,22 @@ func (s *FileSuite) TestFileOpenForSnapDirErrors(c *C) {
 }
 
 type validateSuite struct {
+	testutil.BaseTest
 	log func(string, ...interface{})
 }
 
 var _ = Suite(&validateSuite{})
 
 func discard(string, ...interface{}) {}
+
+func (s *validateSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+}
+
+func (s *validateSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
 
 func (s *validateSuite) TestValidateContainerReallyEmptyFails(c *C) {
 	const yaml = `name: empty-snap
