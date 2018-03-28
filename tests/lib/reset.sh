@@ -9,6 +9,16 @@ set -e -x
 . "$TESTSLIB/systemd.sh"
 
 reset_classic() {
+    echo "Ensure apparmor profile for snap-confine is parsable"
+    for f in /etc/apparmor.d/usr.lib.snapd.snap-confine*; do
+        if which apparmor_parser 2>/dev/null; then
+            apparmor_parser -QTK $f
+        fi
+        if which aa-enforce 2>/dev/null; then
+            aa-enforce $f
+        fi
+    done
+
     # Reload all service units as in some situations the unit might
     # have changed on the disk.
     systemctl daemon-reload
