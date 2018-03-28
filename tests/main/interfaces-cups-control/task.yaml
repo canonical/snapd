@@ -46,17 +46,11 @@ debug: |
     journalctl -u cpus || true
 
 execute: |
-    CONNECTED_PATTERN=":cups-control +test-snapd-cups-control-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-cups-control-consumer:cups-control"
-
-    echo "Then it is not shown as connected"
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
-
-    echo "===================================="
+    echo "Then the plug is disconnected by default"
+    snap interfaces | MATCH "^\- +test-snapd-cups-control-consumer:cups-control"
 
     echo "When the plug is connected"
     snap connect test-snapd-cups-control-consumer:cups-control
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command is able to print files"
     echo "Hello World" > $TEST_FILE
@@ -67,11 +61,8 @@ execute: |
         exit 0
     fi
 
-    echo "===================================="
-
     echo "When the plug is disconnected"
     snap disconnect test-snapd-cups-control-consumer:cups-control
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command is not able to print files"
     if test-snapd-cups-control-consumer.lpr $TEST_FILE 2>print.error; then
