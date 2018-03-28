@@ -124,26 +124,49 @@ type SnapActionError struct {
 }
 
 func (e SnapActionError) Error() string {
-	var es []string
-	if len(e.Refresh) > 0 {
-		es = append(es, "cannot refresh:")
-		for name, e := range e.Refresh {
-			es = append(es, fmt.Sprintf(" - %q: %v", name, e))
+	nRefresh := len(e.Refresh)
+	nInstall := len(e.Install)
+	nOther := len(e.Other)
+
+	// single error
+	if nRefresh+nInstall+nOther == 1 {
+		if nOther == 0 {
+			op := "refresh"
+			errs := e.Refresh
+			if nInstall > 0 {
+				op = "install"
+				errs = e.Install
+			}
+			for name, e := range errs {
+				return fmt.Sprintf("cannot %s snap %q: %v", op, name, e)
+			}
+		} else {
+			return fmt.Sprintf("cannot refresh or install: %v", e.Other[0])
 		}
 	}
-	if len(e.Install) > 0 {
-		es = append(es, "cannot install:")
-		for name, e := range e.Install {
-			es = append(es, fmt.Sprintf(" - %q: %v", name, e))
-		}
+
+	header := "cannot refresh:"
+	if nInstall > 0 {
+		header = "cannot install:"
 	}
-	if len(e.Other) > 0 {
-		es = append(es, "other install/refresh errors:")
-		for _, e := range e.Other {
-			es = append(es, fmt.Sprintf(" - %v", e))
-		}
+	if nOther > 0 || (nInstall > 0 && nRefresh > 0) {
+		header = "cannot refresh or install:"
 	}
-	if e.NoResults && len(es) == 0 {
+	es := []string{header}
+
+	for name, e := range e.Refresh {
+		es = append(es, fmt.Sprintf("snap %q: %v", name, e))
+	}
+
+	for name, e := range e.Install {
+		es = append(es, fmt.Sprintf("snap %q: %v", name, e))
+	}
+
+	for _, e := range e.Other {
+		es = append(es, fmt.Sprintf("* %v", e))
+	}
+
+	if e.NoResults && len(es) == 1 {
 		// this is an atypical result
 		return "no install/refresh information results from the store"
 	}

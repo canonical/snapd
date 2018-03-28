@@ -6549,10 +6549,6 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 			"foo": ErrRevisionNotAvailable,
 		},
 	})
-	c.Check(err.Error(), Equals, `cannot refresh:
- - "hello-world": snap has no updates available
-cannot install:
- - "foo": no snap revision given constraints`)
 }
 
 func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
@@ -6652,10 +6648,6 @@ func (s *storeTestSuite) TestSnapActionSnapNotFound(c *C) {
 			"foo": ErrSnapNotFound,
 		},
 	})
-	c.Check(err.Error(), Equals, `cannot refresh:
- - "hello-world": snap not found
-cannot install:
- - "foo": snap not found`)
 }
 
 func (s *storeTestSuite) TestSnapActionOtherErrors(c *C) {
@@ -6721,9 +6713,75 @@ func (s *storeTestSuite) TestSnapActionOtherErrors(c *C) {
 			fmt.Errorf("global error"),
 		},
 	})
-	c.Check(err.Error(), Equals, `other install/refresh errors:
- - other error one
- - global error`)
+}
+
+func (s *storeTestSuite) TestSnapActionErrorError(c *C) {
+	e := &SnapActionError{Refresh: map[string]error{
+		"foo": fmt.Errorf("sad refresh"),
+	}}
+	c.Check(e.Error(), Equals, `cannot refresh snap "foo": sad refresh`)
+
+	e = &SnapActionError{Refresh: map[string]error{
+		"foo": fmt.Errorf("sad refresh 1"),
+		"bar": fmt.Errorf("sad refresh 2"),
+	}}
+	errMsg := e.Error()
+	c.Check(strings.HasPrefix(errMsg, "cannot refresh:\n"), Equals, true)
+	c.Check(errMsg, testutil.Contains, "\nsnap \"foo\": sad refresh 1")
+	c.Check(errMsg, testutil.Contains, "\nsnap \"bar\": sad refresh 2")
+
+	e = &SnapActionError{Install: map[string]error{
+		"foo": fmt.Errorf("sad install"),
+	}}
+	c.Check(e.Error(), Equals, `cannot install snap "foo": sad install`)
+
+	e = &SnapActionError{Install: map[string]error{
+		"foo": fmt.Errorf("sad install 1"),
+		"bar": fmt.Errorf("sad install 2"),
+	}}
+	errMsg = e.Error()
+	c.Check(strings.HasPrefix(errMsg, "cannot install:\n"), Equals, true)
+	c.Check(errMsg, testutil.Contains, "\nsnap \"foo\": sad install 1")
+	c.Check(errMsg, testutil.Contains, "\nsnap \"bar\": sad install 2")
+
+	e = &SnapActionError{Refresh: map[string]error{
+		"foo": fmt.Errorf("sad refresh 1"),
+	},
+		Install: map[string]error{
+			"bar": fmt.Errorf("sad install 2"),
+		}}
+	c.Check(e.Error(), Equals, `cannot refresh or install:
+snap "foo": sad refresh 1
+snap "bar": sad install 2`)
+
+	e = &SnapActionError{
+		NoResults: true,
+		Other:     []error{fmt.Errorf("other error")},
+	}
+	c.Check(e.Error(), Equals, `cannot refresh or install: other error`)
+
+	e = &SnapActionError{
+		Other: []error{fmt.Errorf("other error 1"), fmt.Errorf("other error 2")},
+	}
+	c.Check(e.Error(), Equals, `cannot refresh or install:
+* other error 1
+* other error 2`)
+
+	e = &SnapActionError{
+		Install: map[string]error{
+			"bar": fmt.Errorf("sad install"),
+		},
+		Other: []error{fmt.Errorf("other error 1"), fmt.Errorf("other error 2")},
+	}
+	c.Check(e.Error(), Equals, `cannot refresh or install:
+snap "bar": sad install
+* other error 1
+* other error 2`)
+
+	e = &SnapActionError{
+		NoResults: true,
+	}
+	c.Check(e.Error(), Equals, "no install/refresh information results from the store")
 }
 
 func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {

@@ -377,7 +377,7 @@ const (
 	sectionsEndpPath    = "api/v1/snaps/sections"
 	commandsEndpPath    = "api/v1/snaps/names"
 	// v2
-	snapActionEndpPath = "/v2/snaps/refresh"
+	snapActionEndpPath = "v2/snaps/refresh"
 
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
@@ -608,8 +608,8 @@ func (s *Store) setStoreID(r *http.Request, apiLevel apiLevel) (customStore bool
 type apiLevel int
 
 const (
-	apiV1 apiLevel = 0
-	apiV2 apiLevel = 1
+	apiV1Endps apiLevel = 0 // api/v1 endpoints
+	apiV2Endps apiLevel = 1 // v2 endpoints
 )
 
 var (
@@ -882,7 +882,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set(hdrSnapDeviceArchitecture[reqOptions.APILevel], s.architecture)
 	req.Header.Set(hdrSnapDeviceSeries[reqOptions.APILevel], s.series)
 	req.Header.Set(hdrSnapClassic[reqOptions.APILevel], strconv.FormatBool(release.OnClassic))
-	if reqOptions.APILevel == apiV1 {
+	if reqOptions.APILevel == apiV1Endps {
 		req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 	}
 
@@ -2115,13 +2115,13 @@ type snapActionResult struct {
 	} `json:"error"`
 }
 
-type snapActionWrapper struct {
+type snapActionRequest struct {
 	Context []*currentSnapV2JSON `json:"context"`
 	Actions []*snapActionJSON    `json:"actions"`
 	Fields  []string             `json:"fields"`
 }
 
-type snapActionResp struct {
+type snapActionResultList struct {
 	Results   []*snapActionResult `json:"results"`
 	ErrorList []struct {
 		Code    string `json:"code"`
@@ -2244,7 +2244,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	// build input for the install/refresh endpoint
-	jsonData, err := json.Marshal(snapActionWrapper{
+	jsonData, err := json.Marshal(snapActionRequest{
 		Context: curSnapJSONs,
 		Actions: actionJSONs,
 		Fields:  snapActionFields,
@@ -2259,7 +2259,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		Accept:      jsonContentType,
 		ContentType: jsonContentType,
 		Data:        jsonData,
-		APILevel:    apiV2,
+		APILevel:    apiV2Endps,
 	}
 
 	if useDeltas() {
@@ -2270,7 +2270,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		reqOptions.addHeader("Snap-Refresh-Managed", "true")
 	}
 
-	var results snapActionResp
+	var results snapActionResultList
 	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &results, nil)
 	if err != nil {
 		return nil, err
