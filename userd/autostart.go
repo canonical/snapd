@@ -28,6 +28,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -85,7 +86,7 @@ func tryAutostartApp(snapName, desktopFilePath string) (*exec.Cmd, error) {
 
 	info, err := getCurrentSnapInfo(snapName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to obtain snap information for snap %q: %v", snapName, err)
+		return nil, fmt.Errorf("cannot obtain snap information for snap %q: %v", snapName, err)
 	}
 
 	var app *snap.AppInfo
@@ -96,7 +97,7 @@ func tryAutostartApp(snapName, desktopFilePath string) (*exec.Cmd, error) {
 		}
 	}
 	if app == nil {
-		return nil, fmt.Errorf("failed to match desktop file %q with snap %q applications", desktopFile, snapName)
+		return nil, fmt.Errorf("cannot match desktop file with snap %q applications", snapName)
 	}
 
 	content, err := ioutil.ReadFile(desktopFilePath)
@@ -104,9 +105,13 @@ func tryAutostartApp(snapName, desktopFilePath string) (*exec.Cmd, error) {
 		return nil, err
 	}
 
+	// NOTE: Ignore all fields and just look for Exec=..., this also means
+	// that fields with meaning such as TryExec, X-GNOME-Autostart and so on
+	// are ignored
+
 	command, err := findExec(content)
 	if err != nil {
-		return nil, fmt.Errorf("failed to determine startup command: %v", err)
+		return nil, fmt.Errorf("cannot determine startup command: %v", err)
 	}
 	logger.Debugf("exec line: %v", command)
 
@@ -119,17 +124,25 @@ func tryAutostartApp(snapName, desktopFilePath string) (*exec.Cmd, error) {
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to autostart %q: %v", desktopFile, err)
+		return nil, fmt.Errorf("cannot autostart %q: %v", desktopFile, err)
 	}
 	return cmd, nil
 }
 
+// failedAutostartError keeps track of errors that occurred when starting an
+// application for a specific desktop file, desktop file name is as a key
 type failedAutostartError map[string]error
 
 func (f failedAutostartError) Error() string {
 	var out bytes.Buffer
-	for app, err := range f {
-		fmt.Fprintf(&out, "- %q: %v\n", app, err)
+
+	dfiles := make([]string, 0, len(f))
+	for desktopFile := range f {
+		dfiles = append(dfiles, desktopFile)
+	}
+	sort.Strings(dfiles)
+	for _, desktopFile := range dfiles {
+		fmt.Fprintf(&out, "- %q: %v\n", desktopFile, f[desktopFile])
 	}
 	return out.String()
 }
@@ -138,6 +151,8 @@ var userCurrent = user.Current
 
 // AutostartSessionApps starts applications which have placed their desktop
 // files in $SNAP_USER_DATA/.config/autostart
+//
+// NOTE: By the spec, the actual path is $SNAP_USER_DATA/${XDG_CONFIG_DIR}/autostart
 func AutostartSessionApps() error {
 	usr, err := userCurrent()
 	if err != nil {

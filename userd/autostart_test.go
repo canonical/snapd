@@ -170,7 +170,7 @@ Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 
 	cmd, err := userd.TryAutostartApp("snapname", fooDesktopFile)
 	c.Assert(cmd, IsNil)
-	c.Assert(err, ErrorMatches, `failed to match desktop file "foo-no-match.desktop" with snap "snapname" applications`)
+	c.Assert(err, ErrorMatches, `cannot match desktop file with snap "snapname" applications`)
 }
 
 func (s *autostartSuite) TestTryAutostartAppNoSnap(c *C) {
@@ -182,7 +182,7 @@ Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 
 	cmd, err := userd.TryAutostartApp("snapname", fooDesktopFile)
 	c.Assert(cmd, IsNil)
-	c.Assert(err, ErrorMatches, `failed to obtain snap information for snap "snapname".*`)
+	c.Assert(err, ErrorMatches, `cannot obtain snap information for snap "snapname".*`)
 }
 
 func (s *autostartSuite) TestTryAutostartAppBadExec(c *C) {
@@ -196,7 +196,7 @@ Foo=bar
 
 	cmd, err := userd.TryAutostartApp("snapname", fooDesktopFile)
 	c.Assert(cmd, IsNil)
-	c.Assert(err, ErrorMatches, `failed to determine startup command: Exec not found or invalid`)
+	c.Assert(err, ErrorMatches, `cannot determine startup command: Exec not found or invalid`)
 }
 
 func mockSnapCurrent(c *C, mockYaml string) *snap.Info {
@@ -241,23 +241,8 @@ Exec=no-snap
 
 	err := userd.AutostartSessionApps()
 	c.Assert(err, NotNil)
-	desc := strings.Split(err.Error(), "\n")
-	expected := map[string]int{
-		`- "no-match.desktop": failed to match desktop file`:                      0,
-		`- "no-snap.desktop": failed to obtain snap information for snap "c-foo"`: 0,
-		`- "foo-stable.desktop": failed to determine startup command: Exec`:       0,
-	}
-	for _, e := range desc {
-		if len(e) == 0 {
-			continue
-		}
-		for k := range expected {
-			if strings.HasPrefix(e, k) {
-				expected[k] += 1
-			}
-		}
-	}
-	for k, v := range expected {
-		c.Check(v, Equals, 1, Commentf("expected 1 match of error %q", k))
-	}
+	c.Check(err, ErrorMatches, `- "foo-stable.desktop": cannot determine startup command: Exec not found or invalid
+- "no-match.desktop": cannot match desktop file with snap "b-foo" applications
+- "no-snap.desktop": cannot obtain snap information for snap "c-foo": cannot find current revision.*no such file or directory
+`)
 }
