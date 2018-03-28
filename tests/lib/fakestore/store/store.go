@@ -187,19 +187,19 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 
 	info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), 400)
+		http.Error(w, fmt.Sprintf("cannot get info for: %v: %v", fn, err), 400)
 		return nil, errInfo
 	}
 
 	snapDigest, size, err := asserts.SnapFileSHA3_384(fn)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can get digest for: %v: %v", fn, err), 400)
+		http.Error(w, fmt.Sprintf("cannot get digest for: %v: %v", fn, err), 400)
 		return nil, errInfo
 	}
 
 	snapRev, devAcct, err := findSnapRevision(snapDigest, bs)
 	if err != nil && !asserts.IsNotFound(err) {
-		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), 400)
+		http.Error(w, fmt.Sprintf("cannot get info for: %v: %v", fn, err), 400)
 		return nil, errInfo
 	}
 
@@ -409,7 +409,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 
 		name := snapIDtoName[pkg.SnapID]
 		if name == "" {
-			http.Error(w, fmt.Sprintf("unknown snapid: %q", pkg.SnapID), 400)
+			http.Error(w, fmt.Sprintf("unknown snap-id: %q", pkg.SnapID), 400)
 			return
 		}
 
@@ -441,7 +441,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 	// should look nice
 	out, err := json.MarshalIndent(replyData, "", "    ")
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can marshal: %v: %v", replyData, err), 400)
+		http.Error(w, fmt.Sprintf("cannot marshal: %v: %v", replyData, err), 400)
 		return
 	}
 	w.Write(out)
@@ -586,7 +586,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 		}
 
 		if name == "" {
-			http.Error(w, fmt.Sprintf("unknown snapid: %q", snapID), 400)
+			http.Error(w, fmt.Sprintf("unknown snap-id: %q", snapID), 400)
 			return
 		}
 
@@ -625,7 +625,7 @@ func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
 	// should look nice
 	out, err := json.MarshalIndent(replyData, "", "    ")
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can marshal: %v: %v", replyData, err), 400)
+		http.Error(w, fmt.Sprintf("cannot marshal: %v: %v", replyData, err), 400)
 		return
 	}
 	w.Write(out)
