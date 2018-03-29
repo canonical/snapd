@@ -8,6 +8,7 @@ import (
 	"gopkg.in/check.v1"
 
 	snaprun "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/logger"
 )
 
 const packSnapYaml = `name: hello
@@ -32,6 +33,9 @@ func makeSnapDirForPack(c *check.C, snapYaml string) string {
 }
 
 func (s *SnapSuite) TestPackCheckSkeletonNoAppFiles(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	snapDir := makeSnapDirForPack(c, packSnapYaml)
 
 	// check-skeleton does not fail due to missing files
@@ -52,6 +56,9 @@ apps:
 }
 
 func (s *SnapSuite) TestPackPacksFailsForMissingPaths(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
 	snapDir := makeSnapDirForPack(c, packSnapYaml)
 
 	_, err := snaprun.Parser().ParseArgs([]string{"pack", snapDir, snapDir})

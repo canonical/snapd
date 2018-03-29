@@ -147,3 +147,10 @@ func (wmx waitMixin) wait(cli *client.Client, id string) (*client.Change, error)
 		time.Sleep(pollTime)
 	}
 }
+
+func lastLogStr(logs []string) string {
+	if len(logs) == 0 {
+		return ""
+	}
+	return logs[len(logs)-1]
+}

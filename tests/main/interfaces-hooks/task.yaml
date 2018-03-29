@@ -5,16 +5,14 @@ environment:
     PRODUCER_DATA: /var/snap/basic-iface-hooks-producer/common
 
 prepare: |
+    . "$TESTSLIB/snaps.sh"
     snap install --devmode jq
-    echo "Build test hooks package"
-    snap pack $TESTSLIB/snaps/basic-iface-hooks-consumer
-    snap pack $TESTSLIB/snaps/basic-iface-hooks-producer
-    snap install --dangerous basic-iface-hooks-consumer_1.0_all.snap
-    snap install --dangerous basic-iface-hooks-producer_1.0_all.snap
+
+    echo "Install test hooks snaps"
+    install_local basic-iface-hooks-consumer
+    install_local basic-iface-hooks-producer
 
 restore: |
-    rm -f basic-iface-hooks-consumer_1.0_all.snap
-    rm -f basic-iface-hooks-producer_1.0_all.snap
     rm -f "$CONSUMER_DATA/prepare-plug-consumer-done"
     rm -f "$PRODUCER_DATA/prepare-slot-producer-done"
     rm -f "$CONSUMER_DATA/connect-plug-consumer-done"
@@ -23,6 +21,7 @@ restore: |
     snap remove basic-iface-hooks-producer
 
 execute: |
+    . "$TESTSLIB/snaps.sh"
     check_attributes(){
         # static values should have the values defined in snap's yaml
         jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-static"]["consumer-attr-1"]' /var/lib/snapd/state.json | MATCH "consumer-value-1"
@@ -59,7 +58,7 @@ execute: |
 
     systemctl start snapd.service snapd.socket
     echo "Verify that hooks are re-run on update and attributes in the state get updated"
-    snap install --dangerous basic-iface-hooks-consumer_1.0_all.snap
+    install_local basic-iface-hooks-consumer
 
     echo "Ensure the hooks were executed again"
     check_hooks_were_run
