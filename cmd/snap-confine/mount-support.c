@@ -314,6 +314,13 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// It should behave exactly the same as the original.
 		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
 				 mnt->altpath);
+		struct stat stat_buf;
+		if (lstat(dst, &stat_buf) < 0) {
+			die("cannot lstat %s", dst);
+		}
+		if ((stat_buf.st_mode & S_IFMT) == S_IFLNK) {
+			die("cannot bind mount over a symlink: %s", dst);
+		}
 		sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL);
 		if (!mnt->is_bidirectional) {
 			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
