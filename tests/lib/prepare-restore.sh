@@ -297,6 +297,11 @@ prepare_project() {
     RateLimitBurst=0
 EOF
     systemctl restart systemd-journald.service
+
+    # Make systemd able to run avoiding to recompile SELinux policy sources.
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+        semanage permissive -a init_t || true
+    fi
 }
 
 prepare_project_each() {
@@ -406,7 +411,7 @@ restore_project() {
     rmdir /etc/systemd/journald.conf.d || true
 
     # Revert SELinux permissive when service is destroyed
-    if [[ "$SPREAD_SYSTEM" = fedora-* ]] && [ "$SPREAD_BACKEND" = google ]; then
+    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
         semanage permissive -d init_t || true
     fi
 }
