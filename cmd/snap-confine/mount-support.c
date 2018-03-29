@@ -319,7 +319,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			die("cannot lstat %s", dst);
 		}
 		if ((stat_buf.st_mode & S_IFMT) == S_IFLNK) {
-			die("cannot bind mount over a symlink: %s", dst);
+			die("cannot bind mount alternate path over a symlink: %s", dst);
 		}
 		sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL);
 		if (!mnt->is_bidirectional) {
