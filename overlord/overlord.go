@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/hardwarestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
@@ -72,15 +73,15 @@ type Overlord struct {
 	// restarts
 	restartHandler func(t state.RestartType)
 	// managers
-	inited     bool
-	snapMgr    *snapstate.SnapManager
-	assertMgr  *assertstate.AssertManager
-	ifaceMgr   *ifacestate.InterfaceManager
-	hookMgr    *hookstate.HookManager
-	deviceMgr  *devicestate.DeviceManager
-	cmdMgr     *cmdstate.CommandManager
-	unknownMgr *UnknownTaskManager
-	udevMon    udevMonitor
+	inited      bool
+	snapMgr     *snapstate.SnapManager
+	assertMgr   *assertstate.AssertManager
+	ifaceMgr    *ifacestate.InterfaceManager
+	hookMgr     *hookstate.HookManager
+	deviceMgr   *devicestate.DeviceManager
+	cmdMgr      *cmdstate.CommandManager
+	unknownMgr  *UnknownTaskManager
+	hardwareMgr *hardwarestate.HardwareManager
 }
 
 var storeNew = store.New
@@ -138,10 +139,11 @@ func New() (*Overlord, error) {
 
 	o.addManager(cmdstate.Manager(s))
 
-	o.udevMon, err = NewUDevMonitor()
+	hardwareMgr, err := hardwarestate.Manager(s)
 	if err != nil {
 		return nil, err
 	}
+	o.addManager(hardwareMgr)
 
 	configstateInit(hookMgr)
 
@@ -175,6 +177,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.deviceMgr = x
 	case *cmdstate.CommandManager:
 		o.cmdMgr = x
+	case *hardwarestate.HardwareManager:
+		o.hardwareMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 	o.unknownMgr.Ignore(mgr.KnownTaskKinds())
@@ -260,11 +264,6 @@ func (o *Overlord) SetRestartHandler(handleRestart func(t state.RestartType)) {
 func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
-		if o.udevMon != nil {
-			if err := o.udevMon.Run(); err != nil {
-				return err
-			}
-		}
 		for {
 			// TODO: pass a proper context into Ensure
 			o.ensureTimerReset()
@@ -273,9 +272,6 @@ func (o *Overlord) Loop() {
 			o.stateEng.Ensure()
 			select {
 			case <-o.loopTomb.Dying():
-				if o.udevMon != nil {
-					o.udevMon.Stop()
-				}
 				return nil
 			case <-o.ensureTimer.C:
 			case <-o.pruneTicker.C:
@@ -418,7 +414,6 @@ func Mock() *Overlord {
 	o.stateEng = NewStateEngine(state.New(mockBackend{o: o}))
 	o.unknownMgr = NewUnknownTaskManager(o.stateEng.State())
 	o.stateEng.AddManager(o.unknownMgr)
-	o.udevMon = &UDevMonitorMock{}
 
 	return o
 }
@@ -454,8 +449,3 @@ func (mb mockBackend) EnsureBefore(d time.Duration) {
 func (mb mockBackend) RequestRestart(t state.RestartType) {
 	mb.o.requestRestart(t)
 }
-
-type UDevMonitorMock struct{}
-
-func (u *UDevMonitorMock) Run() error { return nil }
-func (u *UDevMonitorMock) Stop()      {}
