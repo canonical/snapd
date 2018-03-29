@@ -487,6 +487,7 @@ pkg_dependencies_opensuse(){
         uuidd
         xdg-utils
         xdg-user-dirs
+        dbus-1-devel
         "
 }
 
