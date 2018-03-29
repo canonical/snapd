@@ -21,31 +21,23 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"syscall"
 )
 
 // SecureBindMount performs a bind mount between two absolute paths
 // containing no symlinks, using a private stash directory as an
 // intermediate step
-//
-// Since this function uses chdir() internally, it should not be
-// called in parallel with code that depends on the current working
-// directory.
-func SecureBindMount(sourceDir, targetDir string, flags uint, stashDir string) error {
+func SecureBindMount(sourceDir, targetDir string, flags uint) error {
+	// This function only attempts to handle bind mounts
+	if flags&syscall.MS_BIND == 0 {
+		return fmt.Errorf("only bind mounts are supported")
+	}
 	// The kernel doesn't support recursively switching a tree of
 	// bind mounts to read only, and we haven't written a work
 	// around.
 	if flags&syscall.MS_RDONLY != 0 && flags&syscall.MS_REC != 0 {
 		return fmt.Errorf("cannot use MS_RDONLY and MS_REC together")
 	}
-
-	// Save current directory, since we use chdir internally
-	cwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	defer os.Chdir(cwd)
 
 	// Step 1: acquire file descriptors representing the source
 	// and destination directories, ensuring no symlinks are
@@ -61,36 +53,33 @@ func SecureBindMount(sourceDir, targetDir string, flags uint, stashDir string) e
 	}
 	defer sysClose(targetFd)
 
-	// Step 2: chdir to the source, and bind mount "." to the stash dir
+	// Step 2: perform a bind mount between the paths identified
+	// by the two file descriptors.
+	sourceFdPath := fmt.Sprintf("/proc/self/fd/%d", sourceFd)
+	targetFdPath := fmt.Sprintf("/proc/self/fd/%d", targetFd)
 	bindFlags := syscall.MS_BIND | (flags & syscall.MS_REC)
-	if err := sysFchdir(sourceFd); err != nil {
+	if err := sysMount(sourceFdPath, targetFdPath, "", uintptr(bindFlags), ""); err != nil {
 		return err
 	}
-	if err := sysMount(".", stashDir, "", uintptr(bindFlags), ""); err != nil {
-		return err
-	}
-	defer sysUnmount(stashDir, syscall.MNT_DETACH|umountNoFollow)
 
 	// Step 3: optionally change to readonly
 	if flags&syscall.MS_RDONLY != 0 {
-		remountFlags := syscall.MS_REMOUNT | syscall.MS_BIND | syscall.MS_RDONLY
-		if flags&syscall.MS_REC != 0 {
-			remountFlags |= syscall.MS_REC
+		// We need to look up the target directory a second
+		// time, because targetFd refers to the path shadowed
+		// by the mount point.
+		mountFd, err := secureOpenPath(targetDir)
+		if err != nil {
+			// FIXME: the mount occurred, but the user
+			// moved the target somewhere
+			return err
 		}
-		if err := sysMount("none", stashDir, "", uintptr(remountFlags), ""); err != nil {
+		defer sysClose(mountFd)
+		mountFdPath := fmt.Sprintf("/proc/self/fd/%d", mountFd)
+		remountFlags := syscall.MS_REMOUNT | syscall.MS_BIND | syscall.MS_RDONLY
+		if err := sysMount("none", mountFdPath, "", uintptr(remountFlags), ""); err != nil {
+			sysUnmount(mountFdPath, syscall.MNT_DETACH|umountNoFollow)
 			return err
 		}
 	}
-
-	// Step 4: chdir to the destination, and move mount the stash to "."
-	if err := sysFchdir(targetFd); err != nil {
-		return err
-	}
-	// Ideally this would be a move rather than a second bind, but
-	// that fails for shared mount namespaces
-	if err := sysMount(stashDir, ".", "", uintptr(bindFlags), ""); err != nil {
-		return err
-	}
-
 	return nil
 }
