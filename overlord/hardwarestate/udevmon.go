@@ -17,68 +17,56 @@
  *
  */
 
-package overlord
+package hardwarestate
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/snapcore/snapd/logger"
 
 	"github.com/pilebones/go-udev/crawler"
 	"github.com/pilebones/go-udev/netlink"
-)
-
-var (
-	udevMon *UDevMonitor
-	once    sync.Once
+	"gopkg.in/tomb.v2"
 )
 
 type udevMonitor interface {
 	Run() error
-	Stop()
+	Stop() error
 }
 
 type UDevMonitor struct {
+	tmb         *tomb.Tomb
 	netlinkConn *netlink.UEventConn
-	stop        chan struct{}
 	monitorStop chan struct{}
 	crawlerStop chan struct{}
 }
 
-func NewUDevMonitor() (*UDevMonitor, error) {
-	var err error
-	// There can only ever be one instance of netlink monitor per process,
-	// use singleton pattern to force this as otherwise it's very painful
-	// for the unit tests that do not delete overlord instances, or
-	// instantiate more than one overlord.
-	once.Do(func() {
-		udevMon = &UDevMonitor{
-			stop:        make(chan struct{}),
-			netlinkConn: &netlink.UEventConn{},
-		}
-		err = udevMon.netlinkConn.Connect()
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to start uevent monitor: %s", err)
+func NewUDevMonitor() *UDevMonitor {
+	udevMon := &UDevMonitor{
+		tmb: new(tomb.Tomb),
 	}
-	return udevMon, nil
+	return udevMon
 }
 
 func (m *UDevMonitor) Run() error {
 	cerrors := make(chan error)
 	devs := make(chan crawler.Device)
 
+	m.netlinkConn = &netlink.UEventConn{}
+	if err := m.netlinkConn.Connect(); err != nil {
+		return fmt.Errorf("failed to start uevent monitor: %s", err)
+	}
+
+	events := make(chan netlink.UEvent)
+	errors := make(chan error)
+
+	// TODO: pass filters set by interfaces once filter type is defined
+	m.monitorStop = m.netlinkConn.Monitor(events, errors, nil)
+
 	// TODO: pass filters set by interfaces once filter type is defined
 	m.crawlerStop = crawler.ExistingDevices(devs, cerrors, nil)
 
-	go func() {
-		events := make(chan netlink.UEvent)
-		errors := make(chan error)
-
-		// TODO: pass filters set by interfaces once filter type is defined
-		m.monitorStop = m.netlinkConn.Monitor(events, errors, nil)
-
+	m.tmb.Go(func() error {
 		for {
 			select {
 			case dv := <-devs:
@@ -89,19 +77,23 @@ func (m *UDevMonitor) Run() error {
 				logger.Noticef("netlink error: %q\n", err)
 			case ev := <-events:
 				m.udevEvent(&ev)
-			case <-m.stop:
+			case <-m.tmb.Dying():
 				m.monitorStop <- struct{}{}
 				m.crawlerStop <- struct{}{}
-				return
+				m.netlinkConn.Close()
+				return nil
 			}
 		}
-	}()
+	})
 
 	return nil
 }
 
-func (m *UDevMonitor) Stop() {
-	m.stop <- struct{}{}
+func (m *UDevMonitor) Stop() error {
+	m.tmb.Kill(nil)
+	err := m.tmb.Wait()
+	m.netlinkConn = nil
+	return err
 }
 
 func (m *UDevMonitor) udevEvent(ev *netlink.UEvent) {
@@ -122,3 +114,8 @@ func (m *UDevMonitor) addDevice(kobj string, env map[string]string) {
 func (m *UDevMonitor) removeDevice(kobj string, env map[string]string) {
 	// TODO: handle device removal by creating "hotplug-remove" task
 }
+
+type UDevMonitorMock struct{}
+
+func (u *UDevMonitorMock) Run() error { return nil }
+func (u *UDevMonitorMock) Stop()      {}

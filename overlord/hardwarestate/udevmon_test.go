@@ -17,13 +17,16 @@
  *
  */
 
-package overlord_test
+package hardwarestate_test
 
 import (
-	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/hardwarestate"
+	"testing"
 
 	. "gopkg.in/check.v1"
 )
+
+func TestUDevMonitor(t *testing.T) { TestingT(t) }
 
 type udevMonitorSuite struct{}
 
@@ -31,18 +34,9 @@ var _ = Suite(&udevMonitorSuite{})
 
 func (s *udevMonitorSuite) TestSmoke(c *C) {
 	for i := 0; i < 3; i++ {
-		mon, err := overlord.NewUDevMonitor()
-		c.Assert(err, IsNil)
+		mon := hardwarestate.NewUDevMonitor()
 		c.Assert(mon, NotNil)
-		err = mon.Run()
-		c.Assert(err, IsNil)
-		mon.Stop()
+		c.Assert(mon.Run(), IsNil)
+		c.Assert(mon.Stop(), IsNil)
 	}
-}
-
-func (s *udevMonitorSuite) TestSingleton(c *C) {
-	mon1, _ := overlord.NewUDevMonitor()
-	c.Assert(mon1, NotNil)
-	mon2, _ := overlord.NewUDevMonitor()
-	c.Assert(mon1, Equals, mon2)
 }
