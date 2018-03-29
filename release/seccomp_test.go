@@ -32,11 +32,11 @@ var _ = Suite(&seccompSuite{})
 func (s *seccompSuite) TestInterfaceSystemKey(c *C) {
 	reset := release.MockSecCompActions([]string{})
 	defer reset()
-	c.Check(release.SecCompActions, DeepEquals, []string{})
+	c.Check(release.SecCompActions(), DeepEquals, []string{})
 
 	reset = release.MockSecCompActions([]string{"allow", "errno", "kill", "log", "trace", "trap"})
 	defer reset()
-	c.Check(release.SecCompActions, DeepEquals, []string{"allow", "errno", "kill", "log", "trace", "trap"})
+	c.Check(release.SecCompActions(), DeepEquals, []string{"allow", "errno", "kill", "log", "trace", "trap"})
 }
 
 func (s *seccompSuite) TestSecCompSupportsAction(c *C) {
