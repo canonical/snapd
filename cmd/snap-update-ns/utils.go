@@ -106,14 +106,14 @@ func secureMkPrefix(segments []string, perm os.FileMode, uid sys.UserID, gid sys
 	return fd, nil
 }
 
-// secureMkDir creates a directory at i-th entry of absolute path represented
+// secureMkDir creates a directory at segNum-th entry of absolute path represented
 // by segments. This function can be used to construct subsequent elements of
 // the constructed path. The return value contains the newly created file
 // descriptor or -1 on error.
-func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
-	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> ...", fd, segments, i, perm, uid, gid)
+func secureMkDir(fd int, segments []string, segNum int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
+	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> ...", fd, segments, segNum, perm, uid, gid)
 
-	segment := segments[i]
+	segment := segments[segNum]
 	made := true
 	var err error
 	var newFd int
@@ -128,7 +128,7 @@ func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid sys.Use
 			// Treat EROFS specially: this is a hint that we have to poke a
 			// hole using tmpfs. The path below is the location where we
 			// need to poke the hole.
-			p := "/" + strings.Join(segments[:i], "/")
+			p := "/" + strings.Join(segments[:segNum], "/")
 			return -1, &ReadOnlyFsError{Path: p}
 		default:
 			return -1, fmt.Errorf("cannot mkdir path segment %q: %v", segment, err)
@@ -137,7 +137,7 @@ func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid sys.Use
 	newFd, err = sysOpenat(fd, segment, openFlags, 0)
 	if err != nil {
 		return -1, fmt.Errorf("cannot open path segment %q (got up to %q): %v", segment,
-			"/"+strings.Join(segments[:i], "/"), err)
+			"/"+strings.Join(segments[:segNum], "/"), err)
 	}
 	if made {
 		// Chown each segment that we made.
@@ -146,20 +146,20 @@ func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid sys.Use
 			// an error and won't assume responsibility for the FD.
 			sysClose(newFd)
 			return -1, fmt.Errorf("cannot chown path segment %q to %d.%d (got up to %q): %v", segment, uid, gid,
-				"/"+strings.Join(segments[:i], "/"), err)
+				"/"+strings.Join(segments[:segNum], "/"), err)
 		}
 	}
-	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> %d", fd, segments, i, perm, uid, gid, newFd)
+	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> %d", fd, segments, segNum, perm, uid, gid, newFd)
 	return newFd, err
 }
 
-// secureMkFile creates a file at i-th entry of absolute path represented by
+// secureMkFile creates a file at segNum-th entry of absolute path represented by
 // segments. This function is meant to be used to create the leaf file as a
 // preparation for a mount point. Existing files are reused without errors.
 // Newly created files have the specified mode and ownership.
-func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
-	logger.Debugf("secure-mk-file %d %q %d %v %d %d", fd, segments, i, perm, uid, gid)
-	segment := segments[i]
+func secureMkFile(fd int, segments []string, segNum int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+	logger.Debugf("secure-mk-file %d %q %d %v %d %d", fd, segments, segNum, perm, uid, gid)
+	segment := segments[segNum]
 	made := true
 	var newFd int
 	var err error
@@ -186,7 +186,7 @@ func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid sys.Us
 			// Treat EROFS specially: this is a hint that we have to poke a
 			// hole using tmpfs. The path below is the location where we
 			// need to poke the hole.
-			p := "/" + strings.Join(segments[:i], "/")
+			p := "/" + strings.Join(segments[:segNum], "/")
 			return &ReadOnlyFsError{Path: p}
 		default:
 			return fmt.Errorf("cannot open file %q: %v", segment, err)
@@ -204,12 +204,12 @@ func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid sys.Us
 	return nil
 }
 
-// secureMkSymlink creates a symlink at i-th entry of absolute path represented by
+// secureMkSymlink creates a symlink at segNum-th entry of absolute path represented by
 // segments. This function is meant to be used to create the leaf symlink.
 // Existing and identical symlinks are reused without errors.
-func secureMkSymlink(fd int, segments []string, i int, oldname string) error {
-	logger.Debugf("secure-mk-symlink %d %q %d %q", fd, segments, i, oldname)
-	segment := segments[i]
+func secureMkSymlink(fd int, segments []string, segNum int, oldname string) error {
+	logger.Debugf("secure-mk-symlink %d %q %d %q", fd, segments, segNum, oldname)
+	segment := segments[segNum]
 	var err error
 
 	// Open the final path segment as a file. Try to create the file (so that
@@ -250,7 +250,7 @@ func secureMkSymlink(fd int, segments []string, i int, oldname string) error {
 			// Treat EROFS specially: this is a hint that we have to poke a
 			// hole using tmpfs. The path below is the location where we
 			// need to poke the hole.
-			p := "/" + strings.Join(segments[:i], "/")
+			p := "/" + strings.Join(segments[:segNum], "/")
 			return &ReadOnlyFsError{Path: p}
 		default:
 			return fmt.Errorf("cannot create symlink %q: %v", segment, err)
