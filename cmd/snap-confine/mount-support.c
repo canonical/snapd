@@ -199,9 +199,9 @@ static void sc_setup_mount_profiles(struct sc_apparmor *apparmor,
 struct sc_mount {
 	const char *path;
 	bool is_bidirectional;
-	// Alias defines the rbind mount "alias" of path. It exists mainly for
-	// /media <=> /run/media equivalence.
-	const char *alias;
+	// Alternate path defines the rbind mount "alternative" of path.
+	// It exists so that we can make /media on systems that use /run/media.
+	const char *altpath;
 };
 
 struct sc_mount_config {
@@ -307,13 +307,13 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			// from that of its own snap.
 			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 		}
-		if (mnt->alias == NULL) {
+		if (mnt->altpath == NULL) {
 			continue;
 		}
-		// An alias of mnt->path is provided at another location.
+		// An alternate path of mnt->path is provided at another location.
 		// It should behave exactly the same as the original.
 		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
-				 mnt->alias);
+				 mnt->altpath);
 		sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL);
 		if (!mnt->is_bidirectional) {
 			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
