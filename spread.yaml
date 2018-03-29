@@ -68,6 +68,7 @@ backends:
                 workers: 6
 
             - fedora-27-64:
+                image: fedora-27-64-selinux-disabled
                 workers: 4
 
             - opensuse-42.2-64:
