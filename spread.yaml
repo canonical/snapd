@@ -56,7 +56,7 @@ backends:
             - ubuntu-16.04-64:
                 workers: 8
             - ubuntu-18.04-64:
-                image: ubuntu-os-cloud-devel/daily-ubuntu-1804-bionic-v20180315
+                image: ubuntu-os-cloud-devel/daily-ubuntu-1804-bionic-v20180327
                 workers: 6
 
             - ubuntu-core-16-64:
@@ -64,8 +64,10 @@ backends:
                 workers: 6
 
             - debian-9-64:
-                image: debian-9-stretch
                 workers: 6
+            - debian-sid-64:
+                workers: 6
+                manual: true
 
             - opensuse-42.2-64:
                 image: opensuse-leap-42-2
@@ -88,11 +90,6 @@ backends:
             HTTP_PROXY: null
             HTTPS_PROXY: null
         systems:
-            - debian-sid-64:
-                kernel: GRUB 2
-                workers: 6
-                manual: true
-
             - fedora-27-64:
                 workers: 4
             - fedora-26-64:
