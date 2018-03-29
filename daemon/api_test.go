@@ -6537,6 +6537,7 @@ func (s *appSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
 	si := &snapInstruction{Action: "frobble"}
 	errors := []error{
 		store.ErrSnapNotFound,
+		store.ErrRevisionNotAvailable,
 		store.ErrNoUpdateAvailable,
 		store.ErrLocalSnap,
 		&snap.AlreadyInstalledError{Snap: "foo"},

@@ -205,11 +205,6 @@ func singleActionResult(name, action string, results []*snap.Info, e error) (inf
 			snapErr = saErr.Refresh[name]
 		case "install":
 			snapErr = saErr.Install[name]
-			if snapErr == store.ErrRevisionNotAvailable {
-				// TODO: this preserves old behavior
-				// but do we want to keep it?
-				snapErr = store.ErrSnapNotFound
-			}
 		}
 		if snapErr != nil {
 			return nil, snapErr

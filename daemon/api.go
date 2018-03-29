@@ -1165,7 +1165,13 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 	var snapName string
 
 	switch err {
-	case store.ErrSnapNotFound:
+	case store.ErrSnapNotFound, store.ErrRevisionNotAvailable:
+		// TODO: treating ErrRevisionNotAvailable the same as
+		// ErrSnapNotFound preserves the old error handling
+		// behavior of the REST API and the snap command.  We
+		// should revisit this once the store returns more
+		// precise errors and makes it possible to distinguish
+		// the why a revision wasn't available.
 		switch len(inst.Snaps) {
 		case 1:
 			return SnapNotFound(inst.Snaps[0], err)
