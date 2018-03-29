@@ -70,7 +70,7 @@ backends:
                 manual: true
 
             - fedora-27-64:
-                image: fedora-27-64-selinux-disabled
+                image: fedora-27-64-selinux-permissive
                 workers: 4
 
             - opensuse-42.2-64:
