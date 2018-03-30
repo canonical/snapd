@@ -43,14 +43,16 @@ var (
 	osReadlink = os.Readlink
 	osRemove   = os.Remove
 
-	sysClose   = syscall.Close
-	sysMkdirat = syscall.Mkdirat
-	sysMount   = syscall.Mount
-	sysOpen    = syscall.Open
-	sysOpenat  = syscall.Openat
-	sysUnmount = syscall.Unmount
-	sysFchown  = sys.Fchown
-	sysSymlink = syscall.Symlink
+	sysClose      = syscall.Close
+	sysMkdirat    = syscall.Mkdirat
+	sysMount      = syscall.Mount
+	sysOpen       = syscall.Open
+	sysOpenat     = syscall.Openat
+	sysUnmount    = syscall.Unmount
+	sysFchown     = sys.Fchown
+	sysFstat      = syscall.Fstat
+	sysSymlinkat  = osutil.Symlinkat
+	sysReadlinkat = osutil.Readlinkat
 
 	ioutilReadDir = ioutil.ReadDir
 )
@@ -104,14 +106,14 @@ func secureMkPrefix(segments []string, perm os.FileMode, uid sys.UserID, gid sys
 	return fd, nil
 }
 
-// secureMkDir creates a directory at i-th entry of absolute path represented
+// secureMkDir creates a directory at segNum-th entry of absolute path represented
 // by segments. This function can be used to construct subsequent elements of
 // the constructed path. The return value contains the newly created file
 // descriptor or -1 on error.
-func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
-	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> ...", fd, segments, i, perm, uid, gid)
+func secureMkDir(fd int, segments []string, segNum int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
+	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> ...", fd, segments, segNum, perm, uid, gid)
 
-	segment := segments[i]
+	segment := segments[segNum]
 	made := true
 	var err error
 	var newFd int
@@ -126,7 +128,7 @@ func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid sys.Use
 			// Treat EROFS specially: this is a hint that we have to poke a
 			// hole using tmpfs. The path below is the location where we
 			// need to poke the hole.
-			p := "/" + strings.Join(segments[:i], "/")
+			p := "/" + strings.Join(segments[:segNum], "/")
 			return -1, &ReadOnlyFsError{Path: p}
 		default:
 			return -1, fmt.Errorf("cannot mkdir path segment %q: %v", segment, err)
@@ -135,7 +137,7 @@ func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid sys.Use
 	newFd, err = sysOpenat(fd, segment, openFlags, 0)
 	if err != nil {
 		return -1, fmt.Errorf("cannot open path segment %q (got up to %q): %v", segment,
-			"/"+strings.Join(segments[:i], "/"), err)
+			"/"+strings.Join(segments[:segNum], "/"), err)
 	}
 	if made {
 		// Chown each segment that we made.
@@ -144,20 +146,20 @@ func secureMkDir(fd int, segments []string, i int, perm os.FileMode, uid sys.Use
 			// an error and won't assume responsibility for the FD.
 			sysClose(newFd)
 			return -1, fmt.Errorf("cannot chown path segment %q to %d.%d (got up to %q): %v", segment, uid, gid,
-				"/"+strings.Join(segments[:i], "/"), err)
+				"/"+strings.Join(segments[:segNum], "/"), err)
 		}
 	}
-	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> %d", fd, segments, i, perm, uid, gid, newFd)
+	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> %d", fd, segments, segNum, perm, uid, gid, newFd)
 	return newFd, err
 }
 
-// secureMkFile creates a file at i-th entry of absolute path represented by
+// secureMkFile creates a file at segNum-th entry of absolute path represented by
 // segments. This function is meant to be used to create the leaf file as a
 // preparation for a mount point. Existing files are reused without errors.
 // Newly created files have the specified mode and ownership.
-func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
-	logger.Debugf("secure-mk-file %d %q %d %v %d %d", fd, segments, i, perm, uid, gid)
-	segment := segments[i]
+func secureMkFile(fd int, segments []string, segNum int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+	logger.Debugf("secure-mk-file %d %q %d %v %d %d", fd, segments, segNum, perm, uid, gid)
+	segment := segments[segNum]
 	made := true
 	var newFd int
 	var err error
@@ -184,7 +186,7 @@ func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid sys.Us
 			// Treat EROFS specially: this is a hint that we have to poke a
 			// hole using tmpfs. The path below is the location where we
 			// need to poke the hole.
-			p := "/" + strings.Join(segments[:i], "/")
+			p := "/" + strings.Join(segments[:segNum], "/")
 			return &ReadOnlyFsError{Path: p}
 		default:
 			return fmt.Errorf("cannot open file %q: %v", segment, err)
@@ -196,6 +198,62 @@ func secureMkFile(fd int, segments []string, i int, perm os.FileMode, uid sys.Us
 		// Chown the file if we made it.
 		if err := sysFchown(newFd, uid, gid); err != nil {
 			return fmt.Errorf("cannot chown file %q to %d.%d: %v", segment, uid, gid, err)
+		}
+	}
+
+	return nil
+}
+
+// secureMkSymlink creates a symlink at segNum-th entry of absolute path represented by
+// segments. This function is meant to be used to create the leaf symlink.
+// Existing and identical symlinks are reused without errors.
+func secureMkSymlink(fd int, segments []string, segNum int, oldname string) error {
+	logger.Debugf("secure-mk-symlink %d %q %d %q", fd, segments, segNum, oldname)
+	segment := segments[segNum]
+	var err error
+
+	// Open the final path segment as a file. Try to create the file (so that
+	// we know if we need to chown it) but fall back to just opening an
+	// existing one.
+
+	// TODO: don't write links outside of tmpfs or $SNAP_{,USER_}{DATA,COMMON}
+	err = sysSymlinkat(oldname, fd, segment)
+	if err != nil {
+		switch err {
+		case syscall.EEXIST:
+			var objFd int
+			// If the file exists then just open it for examination.
+			// Maybe it's the symlink we were hoping to create.
+			objFd, err = sysOpenat(fd, segment, syscall.O_CLOEXEC|sys.O_PATH|syscall.O_NOFOLLOW, 0)
+			if err != nil {
+				return fmt.Errorf("cannot open existing file %q: %v", segment, err)
+			}
+			var statBuf syscall.Stat_t
+			err = sysFstat(objFd, &statBuf)
+			if err != nil {
+				return fmt.Errorf("cannot inspect existing file %q: %v", segment, err)
+			}
+			if statBuf.Mode&syscall.S_IFLNK != syscall.S_IFLNK {
+				return fmt.Errorf("cannot create symbolic link %q: existing file in the way", segment)
+			}
+			var n int
+			buf := make([]byte, len(oldname)+2)
+			n, err = sysReadlinkat(objFd, "", buf)
+			if err != nil {
+				return fmt.Errorf("cannot read symbolic link %q: %v", segment, err)
+			}
+			if string(buf[:n]) != oldname {
+				return fmt.Errorf("cannot create symbolic link %q: existing symbolic link in the way", segment)
+			}
+			return nil
+		case syscall.EROFS:
+			// Treat EROFS specially: this is a hint that we have to poke a
+			// hole using tmpfs. The path below is the location where we
+			// need to poke the hole.
+			p := "/" + strings.Join(segments[:segNum], "/")
+			return &ReadOnlyFsError{Path: p}
+		default:
+			return fmt.Errorf("cannot create symlink %q: %v", segment, err)
 		}
 	}
 
@@ -294,16 +352,35 @@ func secureMkfileAll(name string, perm os.FileMode, uid sys.UserID, gid sys.Grou
 	return err
 }
 
-func secureMklinkAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
-	parent := filepath.Dir(name)
-	err := secureMkdirAll(parent, perm, uid, gid)
+func secureMksymlinkAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
+	logger.Debugf("secure-mksymlink-all %q %q %d %d %q", name, perm, uid, gid, oldname)
+
+	// Only support absolute paths to avoid bugs in snap-confine when
+	// called from anywhere.
+	if !filepath.IsAbs(name) {
+		return fmt.Errorf("cannot create symlink with relative path: %q", name)
+	}
+	// Only support file names, not directory names.
+	if strings.HasSuffix(name, "/") {
+		return fmt.Errorf("cannot create non-file path: %q", name)
+	}
+
+	// Split the path into segments.
+	segments, err := splitIntoSegments(name)
 	if err != nil {
 		return err
 	}
-	// TODO: roll this uber securely like the code above does using linkat(2).
-	err = sysSymlink(oldname, name)
-	if err == syscall.EROFS {
-		return &ReadOnlyFsError{Path: parent}
+
+	// Create the prefix.
+	fd, err := secureMkPrefix(segments, perm, uid, gid)
+	if err != nil {
+		return err
+	}
+	defer sysClose(fd)
+
+	if len(segments) > 0 {
+		// Create the final segment as a symlink.
+		err = secureMkSymlink(fd, segments, len(segments)-1, oldname)
 	}
 	return err
 }
@@ -319,7 +396,7 @@ func secureMklinkAll(name string, perm os.FileMode, uid sys.UserID, gid sys.Grou
 // be used with. Since the original directory is hidden the algorithm relies on
 // a temporary directory where the original is bind-mounted during the
 // progression of the algorithm.
-func planWritableMimic(dir string) ([]*Change, error) {
+func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 	// We need a place for "safe keeping" of what is present in the original
 	// directory as we are about to attach a tmpfs there, which will hide
 	// everything inside.
@@ -349,7 +426,10 @@ func planWritableMimic(dir string) ([]*Change, error) {
 	})
 	// Mount tmpfs over the original directory, hiding its contents.
 	changes = append(changes, &Change{
-		Action: Mount, Entry: osutil.MountEntry{Name: "tmpfs", Dir: dir, Type: "tmpfs"},
+		Action: Mount, Entry: osutil.MountEntry{
+			Name: "tmpfs", Dir: dir, Type: "tmpfs",
+			Options: []string{"x-snapd.synthetic", fmt.Sprintf("x-snapd.needed-by=%s", neededBy)},
+		},
 	})
 	// Iterate over the items in the original directory (nothing is mounted _yet_).
 	entries, err := ioutilReadDir(dir)
@@ -368,18 +448,21 @@ func planWritableMimic(dir string) ([]*Change, error) {
 		switch {
 		case m.IsDir():
 			ch.Entry.Options = []string{"rbind"}
-			changes = append(changes, ch)
 		case m.IsRegular():
 			ch.Entry.Options = []string{"bind", "x-snapd.kind=file"}
-			changes = append(changes, ch)
 		case m&os.ModeSymlink != 0:
 			if target, err := osReadlink(filepath.Join(dir, fi.Name())); err == nil {
 				ch.Entry.Options = []string{"x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", target)}
-				changes = append(changes, ch)
+			} else {
+				continue
 			}
 		default:
 			logger.Noticef("skipping unsupported file %s", fi)
+			continue
 		}
+		ch.Entry.Options = append(ch.Entry.Options, "x-snapd.synthetic")
+		ch.Entry.Options = append(ch.Entry.Options, fmt.Sprintf("x-snapd.needed-by=%s", neededBy))
+		changes = append(changes, ch)
 	}
 	// Finally unbind the safe-keeping directory as we don't need it anymore.
 	changes = append(changes, &Change{
@@ -490,8 +573,8 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 	return undoChanges, nil
 }
 
-func createWritableMimic(dir string) ([]*Change, error) {
-	plan, err := planWritableMimic(dir)
+func createWritableMimic(dir, neededBy string) ([]*Change, error) {
+	plan, err := planWritableMimic(dir, neededBy)
 	if err != nil {
 		return nil, err
 	}

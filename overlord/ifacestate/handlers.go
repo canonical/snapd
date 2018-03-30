@@ -328,11 +328,17 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 func getDynamicHookAttributes(task *state.Task) (map[string]interface{}, map[string]interface{}, error) {
 	var plugAttrs, slotAttrs map[string]interface{}
 
-	if err := task.Get("plug-dynamic", &plugAttrs); err != nil {
+	if err := task.Get("plug-dynamic", &plugAttrs); err != nil && err != state.ErrNoState {
 		return nil, nil, err
 	}
-	if err := task.Get("slot-dynamic", &slotAttrs); err != nil {
+	if err := task.Get("slot-dynamic", &slotAttrs); err != nil && err != state.ErrNoState {
 		return nil, nil, err
+	}
+	if plugAttrs == nil {
+		plugAttrs = make(map[string]interface{})
+	}
+	if slotAttrs == nil {
+		slotAttrs = make(map[string]interface{})
 	}
 
 	return plugAttrs, slotAttrs, nil
@@ -344,7 +350,7 @@ func setDynamicHookAttributes(task *state.Task, dynamicPlugAttrs map[string]inte
 }
 
 func markConnectHooksDone(connectTask *state.Task) error {
-	for _, t := range []string{"connect-plug-task", "connect-slot-task"} {
+	for _, t := range []string{"connect-plug-hook-task", "connect-slot-hook-task"} {
 		var tid string
 		err := connectTask.Get(t, &tid)
 		if err == nil {
@@ -557,8 +563,6 @@ func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 		connectts.AddAll(ts)
 	}
 
-	task.SetStatus(state.DoneStatus)
-
 	lanes := task.Lanes()
 	if len(lanes) == 1 && lanes[0] == 0 {
 		lanes = nil
@@ -574,6 +578,8 @@ func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 	for _, t := range ht {
 		t.WaitAll(connectts)
 	}
+
+	task.SetStatus(state.DoneStatus)
 
 	st.EnsureBefore(0)
 	return nil

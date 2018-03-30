@@ -46,11 +46,14 @@ type policySuite struct {
 
 	randomSnap *snap.Info
 	randomDecl *asserts.SnapDeclaration
+
+	restoreSanitize func()
 }
 
 var _ = Suite(&policySuite{})
 
 func (s *policySuite) SetUpSuite(c *C) {
+	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	a, err := asserts.Decode([]byte(`type: base-declaration
 authority-id: canonical
 series: 16
@@ -367,6 +370,9 @@ plugs:
      interface: slot-plug-attr
      c: "Z"
 
+   slot-plug-attr-dynamic:
+     interface: slot-plug-attr
+
    slot-plug-attr-match:
      interface: slot-plug-attr
      c: "C"
@@ -529,6 +535,9 @@ slots:
    plug-plug-attr-match:
      interface: plug-plug-attr
      c: "C"
+
+   plug-plug-attr-dynamic:
+     interface: plug-plug-attr
 
    plug-slot-attr-mismatch:
      interface: plug-slot-attr
@@ -703,6 +712,10 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 AXNpZw==`))
 	c.Assert(err, IsNil)
 	s.randomDecl = a.(*asserts.SnapDeclaration)
+}
+
+func (s *policySuite) TearDownSuite(c *C) {
+	s.restoreSanitize()
 }
 
 func (s *policySuite) TestBaselineDefaultIsAllow(c *C) {
@@ -1627,6 +1640,46 @@ func (s *policySuite) TestDollarMissingConnection(c *C) {
 	cand = policy.ConnectCandidate{
 		Plug:            interfaces.NewConnectedPlug(s.plugSnap.Plugs["slot-plug-missing-match"], nil),
 		Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots["slot-plug-missing"], nil),
+		BaseDeclaration: s.baseDecl,
+	}
+	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestSlotDollarPlugDynamicAttrConnection(c *C) {
+	// "c" attribute of the plug missing
+	cand := policy.ConnectCandidate{
+		Plug:            interfaces.NewConnectedPlug(s.plugSnap.Plugs["slot-plug-attr-dynamic"], map[string]interface{}{}),
+		Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots["slot-plug-attr"], nil),
+		BaseDeclaration: s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// plug attr == slot attr, "c" attribute of the plug provided by dynamic attribute
+	cand = policy.ConnectCandidate{
+		Plug: interfaces.NewConnectedPlug(s.plugSnap.Plugs["slot-plug-attr-dynamic"], map[string]interface{}{
+			"c": "C",
+		}),
+		Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots["slot-plug-attr"], nil),
+		BaseDeclaration: s.baseDecl,
+	}
+	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestPlugDollarSlotDynamicAttrConnection(c *C) {
+	// "c" attribute of the slot missing
+	cand := policy.ConnectCandidate{
+		Plug:            interfaces.NewConnectedPlug(s.plugSnap.Plugs["plug-plug-attr"], nil),
+		Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots["plug-plug-attr-dynamic"], map[string]interface{}{}),
+		BaseDeclaration: s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// plug attr == slot attr, "c" attribute of the slot provided by dynamic attribute
+	cand = policy.ConnectCandidate{
+		Plug: interfaces.NewConnectedPlug(s.plugSnap.Plugs["plug-plug-attr"], nil),
+		Slot: interfaces.NewConnectedSlot(s.slotSnap.Slots["plug-plug-attr-dynamic"], map[string]interface{}{
+			"c": "C",
+		}),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), IsNil)

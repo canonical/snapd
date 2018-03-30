@@ -2316,8 +2316,8 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 	ht2 := hookstate.HookTask(st, "connect-plug hook", &hs2, nil)
 	ht2.WaitFor(ht1)
 
-	t.Set("connect-slot-task", ht1.ID())
-	t.Set("connect-plug-task", ht2.ID())
+	t.Set("connect-slot-hook-task", ht1.ID())
+	t.Set("connect-plug-hook-task", ht2.ID())
 
 	chg.AddTask(t)
 	chg.AddTask(ht1)
@@ -2562,7 +2562,7 @@ func (s *interfaceManagerSuite) TestConnectHandlesAutoconnect(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKeyFile(c *C) {
-	restore := interfaces.MockSystemKey("build-id: something")
+	restore := interfaces.MockSystemKey(`{"core": "123"}`)
 	defer restore()
 
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
@@ -2570,13 +2570,14 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
 
 	_ = s.manager(c)
-	c.Check(dirs.SnapSystemKeyFile, testutil.FileMatches, "(?sm).*build-id:.*")
+	c.Check(dirs.SnapSystemKeyFile, testutil.FileMatches, `{.*"build-id":.*`)
 
 	stat, err := os.Stat(dirs.SnapSystemKeyFile)
 	c.Assert(err, IsNil)
 
 	// run manager again, but this time the snapsystemkey file should
 	// not be rewriten as the systemKey inputs have not changed
+	time.Sleep(20 * time.Millisecond)
 	s.privateMgr = nil
 	_ = s.manager(c)
 	stat2, err := os.Stat(dirs.SnapSystemKeyFile)

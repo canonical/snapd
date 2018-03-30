@@ -117,17 +117,17 @@ func (ic *InstallCandidate) Check() error {
 
 // ConnectCandidate represents a candidate connection.
 type ConnectCandidate struct {
-	Plug *interfaces.ConnectedPlug
-	// Static + dynamic attributes, merged lazily by plugAttrs below (FIXME: remove it)
-	PlugAttrs           map[string]interface{}
+	Plug                *interfaces.ConnectedPlug
 	PlugSnapDeclaration *asserts.SnapDeclaration
 
-	Slot *interfaces.ConnectedSlot
-	// Static + dynamic attributes, merged lazily by slotAttrs below (FIXME: remove it)
-	SlotAttrs           map[string]interface{}
+	Slot                *interfaces.ConnectedSlot
 	SlotSnapDeclaration *asserts.SnapDeclaration
 
 	BaseDeclaration *asserts.BaseDeclaration
+
+	// Static + dynamic attributes, merged lazily by plugAttrs/slotAttrs below (FIXME: remove it)
+	mergedPlugAttrs map[string]interface{}
+	mergedSlotAttrs map[string]interface{}
 }
 
 func mergedAttributes(staticAttrs, dynamicAttrs map[string]interface{}) map[string]interface{} {
@@ -148,18 +148,18 @@ func mergedAttributes(staticAttrs, dynamicAttrs map[string]interface{}) map[stri
 
 func (connc *ConnectCandidate) plugAttrs() map[string]interface{} {
 	// FIXME: change policy code to use Attrer interface, remove merging.
-	if connc.PlugAttrs == nil {
-		connc.PlugAttrs = mergedAttributes(connc.Plug.StaticAttrs(), connc.Plug.DynamicAttrs())
+	if connc.mergedPlugAttrs == nil {
+		connc.mergedPlugAttrs = mergedAttributes(connc.Plug.StaticAttrs(), connc.Plug.DynamicAttrs())
 	}
-	return connc.PlugAttrs
+	return connc.mergedPlugAttrs
 }
 
 func (connc *ConnectCandidate) slotAttrs() map[string]interface{} {
 	// FIXME: change policy code to use Attrer interface, remove merging.
-	if connc.SlotAttrs == nil {
-		connc.SlotAttrs = mergedAttributes(connc.Slot.StaticAttrs(), connc.Slot.DynamicAttrs())
+	if connc.mergedSlotAttrs == nil {
+		connc.mergedSlotAttrs = mergedAttributes(connc.Slot.StaticAttrs(), connc.Slot.DynamicAttrs())
 	}
-	return connc.SlotAttrs
+	return connc.mergedSlotAttrs
 }
 
 func nestedGet(which string, attrs map[string]interface{}, path string) (interface{}, error) {
