@@ -51,6 +51,11 @@ func ContextTransaction(context *hookstate.Context) *config.Transaction {
 
 	context.OnDone(func() error {
 		tr.Commit()
+		if context.SnapName() == "core" {
+			// make sure the Ensure logic can process
+			// system configuration changes as soon as possible
+			context.State().EnsureBefore(0)
+		}
 		return nil
 	})
 
