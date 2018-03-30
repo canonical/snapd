@@ -186,14 +186,20 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 		"baz":     []string{"a", "b"},
 		"mapattr": map[string]interface{}{"mapattr1": "mapval1", "mapattr2": "mapval2"},
 	}
-	dynamicAttrs := make(map[string]interface{})
+	dynamicPlugAttrs := map[string]interface{}{
+		"dyn-plug-attr": "c",
+	}
+	dynamicSlotAttrs := map[string]interface{}{
+		"dyn-slot-attr": "d",
+	}
+
 	staticSlotAttrs := map[string]interface{}{
 		"battr": "bar",
 	}
 	attrsTask.Set("plug-static", staticPlugAttrs)
-	attrsTask.Set("plug-dynamic", dynamicAttrs)
+	attrsTask.Set("plug-dynamic", dynamicPlugAttrs)
 	attrsTask.Set("slot-static", staticSlotAttrs)
-	attrsTask.Set("slot-dynamic", dynamicAttrs)
+	attrsTask.Set("slot-dynamic", dynamicSlotAttrs)
 	ch.AddTask(attrsTask)
 	state.Unlock()
 
@@ -252,6 +258,11 @@ func (s *getAttrSuite) TestGetPlugAttributesInPlugHook(c *C) {
 	c.Check(string(stdout), Equals, "{\n\t\"mapattr.mapattr1\": \"mapval1\"\n}\n")
 	c.Check(string(stderr), Equals, "")
 
+	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, []string{"get", ":aplug", "dyn-plug-attr"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "c\n")
+	c.Check(string(stderr), Equals, "")
+
 	// The --plug parameter doesn't do anything if used on plug side
 	stdout, stderr, err = ctlcmd.Run(s.mockPlugHookContext, []string{"get", "--plug", ":aplug", "aattr"})
 	c.Check(err, IsNil)
@@ -263,6 +274,11 @@ func (s *getAttrSuite) TestGetSlotAttributesInSlotHook(c *C) {
 	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, []string{"get", ":bslot", "battr"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "bar\n")
+	c.Check(string(stderr), Equals, "")
+
+	stdout, stderr, err = ctlcmd.Run(s.mockSlotHookContext, []string{"get", ":bslot", "dyn-slot-attr"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "d\n")
 	c.Check(string(stderr), Equals, "")
 
 	// The --slot parameter doesn't do anything if used on slot side
