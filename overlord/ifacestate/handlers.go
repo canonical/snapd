@@ -554,7 +554,6 @@ func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	connectts := state.NewTaskSet()
-	chg := task.Change()
 	for _, conn := range connections {
 		ts, err := Connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
 		if err != nil {
@@ -563,24 +562,9 @@ func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 		connectts.AddAll(ts)
 	}
 
-	lanes := task.Lanes()
-	if len(lanes) == 1 && lanes[0] == 0 {
-		lanes = nil
-	}
-	ht := task.HaltTasks()
-
-	// add all connect tasks to the change of main "reconnect" task and to the same lane.
-	for _, l := range lanes {
-		connectts.JoinLane(l)
-	}
-	chg.AddAll(connectts)
-	// make all halt tasks of the main 'reconnect' task wait on connect tasks
-	for _, t := range ht {
-		t.WaitAll(connectts)
-	}
+	injectTasks(task, connectts)
 
 	task.SetStatus(state.DoneStatus)
-
 	st.EnsureBefore(0)
 	return nil
 }
@@ -770,24 +754,9 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	injectTasks(task, autots)
+
 	task.SetStatus(state.DoneStatus)
-
-	lanes := task.Lanes()
-	if len(lanes) == 1 && lanes[0] == 0 {
-		lanes = nil
-	}
-	ht := task.HaltTasks()
-
-	// add all connect tasks to the change of main "auto-connect" task and to the same lane.
-	for _, l := range lanes {
-		autots.JoinLane(l)
-	}
-	chg.AddAll(autots)
-	// make all halt tasks of the main 'auto-connect' task wait on connect tasks
-	for _, t := range ht {
-		t.WaitAll(autots)
-	}
-
 	st.EnsureBefore(0)
 	return nil
 }
@@ -810,7 +779,6 @@ func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb
 	}
 
 	connectts := state.NewTaskSet()
-	chg := task.Change()
 	for _, connRef := range connections {
 		conn, err := m.repo.Connection(connRef)
 		if err != nil {
@@ -820,24 +788,9 @@ func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb
 		connectts.AddAll(ts)
 	}
 
+	injectTasks(task, connectts)
+
 	task.SetStatus(state.DoneStatus)
-
-	lanes := task.Lanes()
-	if len(lanes) == 1 && lanes[0] == 0 {
-		lanes = nil
-	}
-	ht := task.HaltTasks()
-
-	// add all disconnect tasks to the change of main "reconnect" task and to the same lane.
-	for _, l := range lanes {
-		connectts.JoinLane(l)
-	}
-	chg.AddAll(connectts)
-	// make all halt tasks of the main 'disconnect-interface' task wait on connect tasks
-	for _, t := range ht {
-		t.WaitAll(connectts)
-	}
-
 	st.EnsureBefore(0)
 	return nil
 }
@@ -918,4 +871,28 @@ func (m *InterfaceManager) undoTransitionUbuntuCore(t *state.Task, _ *tomb.Tomb)
 	}
 
 	return m.transitionConnectionsCoreMigration(st, newName, oldName)
+}
+
+// injectTasks makes all the halt tasks of the mainTask wait for extraTasks;
+// extraTasks join the same lane and change as the mainTask.
+func injectTasks(mainTask *state.Task, extraTasks *state.TaskSet) {
+	lanes := mainTask.Lanes()
+	if len(lanes) == 1 && lanes[0] == 0 {
+		lanes = nil
+	}
+	ht := mainTask.HaltTasks()
+
+	for _, l := range lanes {
+		extraTasks.JoinLane(l)
+	}
+
+	chg := mainTask.Change()
+	if chg != nil {
+		chg.AddAll(extraTasks)
+	}
+
+	// make all halt tasks of the mainTask wait on extraTasks
+	for _, t := range ht {
+		t.WaitAll(extraTasks)
+	}
 }
