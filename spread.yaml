@@ -82,6 +82,8 @@ backends:
 
             - fedora-27-64:
                 workers: 4
+                # Fedora CI disabled because of unexplained golang bug breaking every build.
+                manual: true
             - fedora-26-64:
                 workers: 4
                 manual: true
