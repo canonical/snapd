@@ -392,6 +392,15 @@ version: gadget
 	c.Check(device.Model, Equals, "pc")
 	c.Check(device.Serial, Equals, "9999")
 
+	ok := false
+	select {
+	case <-s.mgr.Registered():
+		ok = true
+	case <-time.After(5 * time.Second):
+		c.Fatal("should have been marked registered")
+	}
+	c.Check(ok, Equals, true)
+
 	a, err := s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
 		"model":    "pc",
@@ -689,6 +698,14 @@ version: gadget
 	})
 	c.Assert(err, IsNil)
 
+	ok := false
+	select {
+	case <-s.mgr.Registered():
+	default:
+		ok = true
+	}
+	c.Check(ok, Equals, true)
+
 	s.state.Unlock()
 	s.mgr.Ensure()
 	s.mgr.Wait()
@@ -699,6 +716,15 @@ version: gadget
 	device, err = auth.Device(s.state)
 	c.Check(err, IsNil)
 	c.Check(device.Serial, Equals, "9999")
+
+	ok = false
+	select {
+	case <-s.mgr.Registered():
+		ok = true
+	case <-time.After(5 * time.Second):
+		c.Fatal("should have been marked registered")
+	}
+	c.Check(ok, Equals, true)
 }
 
 func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
@@ -2149,4 +2175,43 @@ func (s *deviceMgrSuite) TestCanManageRefreshesNoRefreshScheduleManaged(c *C) {
 	s.makeSnapDeclaration(c, st, info11)
 
 	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
+}
+
+func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
+	st := state.New(nil)
+
+	hookMgr1, err := hookstate.Manager(st)
+	c.Assert(err, IsNil)
+	mgr1, err := devicestate.Manager(st, hookMgr1)
+	c.Assert(err, IsNil)
+
+	ok := false
+	select {
+	case <-mgr1.Registered():
+	default:
+		ok = true
+	}
+	c.Check(ok, Equals, true)
+
+	st.Lock()
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "serial",
+	})
+	st.Unlock()
+
+	hookMgr2, err := hookstate.Manager(st)
+	c.Assert(err, IsNil)
+	mgr2, err := devicestate.Manager(st, hookMgr2)
+	c.Assert(err, IsNil)
+
+	ok = false
+	select {
+	case <-mgr2.Registered():
+		ok = true
+	case <-time.After(5 * time.Second):
+		c.Fatal("should have been marked registered")
+	}
+	c.Check(ok, Equals, true)
 }

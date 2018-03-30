@@ -37,13 +37,19 @@ import (
 )
 
 type baseDeclSuite struct {
-	baseDecl *asserts.BaseDeclaration
+	baseDecl        *asserts.BaseDeclaration
+	restoreSanitize func()
 }
 
 var _ = Suite(&baseDeclSuite{})
 
 func (s *baseDeclSuite) SetUpSuite(c *C) {
+	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	s.baseDecl = asserts.BuiltinBaseDeclaration()
+}
+
+func (s *baseDeclSuite) TearDownSuite(c *C) {
+	s.restoreSanitize()
 }
 
 func (s *baseDeclSuite) connectCand(c *C, iface, slotYaml, plugYaml string) *policy.ConnectCandidate {

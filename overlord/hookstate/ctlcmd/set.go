@@ -135,6 +135,10 @@ func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]in
 	if err == nil {
 		return fmt.Errorf(i18n.G("attribute %q cannot be overwritten"), key)
 	}
+	// we expect NoOptionError here, any other error is unexpected (a real error)
+	if !config.IsNoOption(err) {
+		return err
+	}
 
 	_, err = config.PatchConfig(context.SnapName(), subkeys, 0, dynamicAttrs, &raw)
 	return err
