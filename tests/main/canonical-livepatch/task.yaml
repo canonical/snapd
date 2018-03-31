@@ -16,4 +16,13 @@ execute: |
     done
 
     echo "And ensure we get the expected status"
-    canonical-livepatch status | MATCH "Machine is not enabled"
+    case "$(uname -r)" in
+        *-gcp)
+            # Google compute platform kernels are not supported by Canonical Live Patch system.
+            # The error message goes to stderr, hence the extra redirect magic.
+            ( canonical-livepatch status 2>&1 ) | MATCH -- '-gcp" is not eligible for livepatch updates'
+            ;;
+        *)
+            ( canonical-livepatch status 2>&1 ) | MATCH "Machine is not enabled"
+            ;;
+    esac
