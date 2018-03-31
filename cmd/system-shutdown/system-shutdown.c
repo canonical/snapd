@@ -65,10 +65,10 @@ int main(int argc, char *argv[])
 	   before doing whatever we were told to do, in which case there's
 	   nothing left to sync.
 
-           1) ... apart from the third way that we never talk about: we somehow
-	      are unable to umount everything cleanly, but go ahead with the
-	      reboot anyway because no error was returned. That's the only path
-	      we need to sync on explicitly.
+	   1) ... apart from the third way that we never talk about: we somehow
+	   are unable to umount everything cleanly, but go ahead with the
+	   reboot anyway because no error was returned. That's the only path
+	   we need to sync on explicitly.
 	 */
 
 	if (mkdir("/writable", 0755) < 0) {
@@ -87,12 +87,12 @@ int main(int argc, char *argv[])
 			die("cannot move writable out of the way");
 		}
 
-                if (umount_all()) {
-                        kmsg("- was able to unmount writable cleanly");
-                } else {
-                        kmsg("* was *NOT* able to unmount writable cleanly");
-                        sync(); // we don't know what happened but we're going ahead
-                }
+		if (umount_all()) {
+			kmsg("- was able to unmount writable cleanly");
+		} else {
+			kmsg("* was *NOT* able to unmount writable cleanly");
+			sync();	// we don't know what happened but we're going ahead
+		}
 	}
 
 	// argv[1] can be one of at least: halt, reboot, poweroff.

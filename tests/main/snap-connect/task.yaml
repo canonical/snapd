@@ -11,7 +11,7 @@ prepare: |
     fi
 
 execute: |
-    CONNECTED_PATTERN=':home +home-consumer'
+    CONNECTED_PATTERN=':home .*home-consumer'
 
     echo "The plug can be connected to a matching slot of OS snap without snap:slot argument"
     snap connect home-consumer:home
