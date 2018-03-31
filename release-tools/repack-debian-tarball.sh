@@ -26,6 +26,11 @@ if [ "$debian_tarball" = "" ]; then
 	exit 1
 fi
 
+if [ ! -f "$debian_tarball" ]; then
+	echo "cannot operate on $debian_tarball, no such file"
+	exit 1
+fi
+
 # Extract the upstream version from the filename.
 # For example: snapd_2.31.2-1.tar.xz => 2.32.2
 upstream_version="$(echo "$debian_tarball" | cut -d _ -f 2 | sed -e 's/\.tar\..*//')"
