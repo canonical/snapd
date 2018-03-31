@@ -121,10 +121,12 @@ func run() error {
 		thawSnapProcesses(opts.Positionals.SnapName)
 	}()
 
-	return computeAndSaveChanges(snapName)
+	// TODO: use a real path guardian that checks for trespassing.
+	guardian := &DummyPathGuardian{}
+	return computeAndSaveChanges(snapName, guardian)
 }
 
-func computeAndSaveChanges(snapName string) error {
+func computeAndSaveChanges(snapName string, guardian PathGuardian) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
@@ -151,7 +153,7 @@ func computeAndSaveChanges(snapName string) error {
 	var changesMade []*Change
 	for _, change := range changesNeeded {
 		logger.Debugf("\t * %s", change)
-		synthesised, err := changePerform(change)
+		synthesised, err := changePerform(change, guardian)
 		changesMade = append(changesMade, synthesised...)
 		if len(synthesised) > 0 {
 			logger.Debugf("\tsynthesised additional mount changes:")

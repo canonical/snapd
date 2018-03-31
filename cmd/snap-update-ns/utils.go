@@ -66,10 +66,32 @@ func (e *ReadOnlyFsError) Error() string {
 	return fmt.Sprintf("cannot operate on read-only filesystem at %s", e.Path)
 }
 
+// PathGuardian interface abstracts the notion of checking for trespassing on
+// host filesystem while creating files, directories or symlinks.
+type PathGuardian interface {
+	// CheckTrespassing inspects if a filesystem operation on the given path
+	// segment would trespass on the host.
+	//
+	// The idea of trespassing is so that we do not attempt to create a
+	// directory, a file or a symlink in a directory that is usually beyond
+	// control of snap applications. We are perfectly comfortable with creating
+	// things in $SNAP_DATA or in /tmp but we don't want to do so in /etc or in
+	// other sensitive places.
+	CheckTrespassing(fd int, segments []string, segNum int) error
+}
+
+// DummyPathGuardian is a no-op, dummy guardian.
+type DummyPathGuardian struct{}
+
+// CheckTrespassing does nothing at all.
+func (o *DummyPathGuardian) CheckTrespassing(fd int, segments []string, segNum int) error {
+	return nil
+}
+
 // Create directories for all but the last segments and return the file
 // descriptor to the leaf directory. This function is a base for secure
 // variants of mkdir, touch and symlink.
-func secureMkPrefix(segments []string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
+func secureMkPrefix(segments []string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, guardian PathGuardian) (int, error) {
 	logger.Debugf("secure-mk-prefix %q %v %d %d -> ...", segments, perm, uid, gid)
 
 	// Declare var and don't assign-declare below to ensure we don't swallow
@@ -91,7 +113,7 @@ func secureMkPrefix(segments []string, perm os.FileMode, uid sys.UserID, gid sys
 	if len(segments) > 0 {
 		// Process all but the last segment.
 		for i := range segments[:len(segments)-1] {
-			fd, err = secureMkDir(fd, segments, i, perm, uid, gid)
+			fd, err = secureMkDir(fd, segments, i, perm, uid, gid, guardian)
 			if err != nil {
 				return -1, err
 			}
@@ -110,7 +132,7 @@ func secureMkPrefix(segments []string, perm os.FileMode, uid sys.UserID, gid sys
 // by segments. This function can be used to construct subsequent elements of
 // the constructed path. The return value contains the newly created file
 // descriptor or -1 on error.
-func secureMkDir(fd int, segments []string, segNum int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
+func secureMkDir(fd int, segments []string, segNum int, perm os.FileMode, uid sys.UserID, gid sys.GroupID, guardian PathGuardian) (int, error) {
 	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> ...", fd, segments, segNum, perm, uid, gid)
 
 	segment := segments[segNum]
@@ -157,8 +179,9 @@ func secureMkDir(fd int, segments []string, segNum int, perm os.FileMode, uid sy
 // segments. This function is meant to be used to create the leaf file as a
 // preparation for a mount point. Existing files are reused without errors.
 // Newly created files have the specified mode and ownership.
-func secureMkFile(fd int, segments []string, segNum int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+func secureMkFile(fd int, segments []string, segNum int, perm os.FileMode, uid sys.UserID, gid sys.GroupID, guardian PathGuardian) error {
 	logger.Debugf("secure-mk-file %d %q %d %v %d %d", fd, segments, segNum, perm, uid, gid)
+
 	segment := segments[segNum]
 	made := true
 	var newFd int
@@ -207,15 +230,13 @@ func secureMkFile(fd int, segments []string, segNum int, perm os.FileMode, uid s
 // secureMkSymlink creates a symlink at segNum-th entry of absolute path represented by
 // segments. This function is meant to be used to create the leaf symlink.
 // Existing and identical symlinks are reused without errors.
-func secureMkSymlink(fd int, segments []string, segNum int, oldname string) error {
+func secureMkSymlink(fd int, segments []string, segNum int, oldname string, guardian PathGuardian) error {
 	logger.Debugf("secure-mk-symlink %d %q %d %q", fd, segments, segNum, oldname)
+
 	segment := segments[segNum]
 	var err error
 
-	// Open the final path segment as a file. Try to create the file (so that
-	// we know if we need to chown it) but fall back to just opening an
-	// existing one.
-
+	// Create the final path segment as a symlink.
 	// TODO: don't write links outside of tmpfs or $SNAP_{,USER_}{DATA,COMMON}
 	err = sysSymlinkat(oldname, fd, segment)
 	if err != nil {
@@ -280,7 +301,7 @@ func splitIntoSegments(name string) ([]string, error) {
 // The uid and gid are used for the fchown(2) system call which is performed
 // after each segment is created and opened. The special value -1 may be used
 // to request that ownership is not changed.
-func secureMkdirAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+func secureMkdirAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, guardian PathGuardian) error {
 	logger.Debugf("secure-mkdir-all %q %v %d %d", name, perm, uid, gid)
 
 	// Only support absolute paths to avoid bugs in snap-confine when
@@ -296,7 +317,7 @@ func secureMkdirAll(name string, perm os.FileMode, uid sys.UserID, gid sys.Group
 	}
 
 	// Create the prefix.
-	fd, err := secureMkPrefix(segments, perm, uid, gid)
+	fd, err := secureMkPrefix(segments, perm, uid, gid, guardian)
 	if err != nil {
 		return err
 	}
@@ -304,7 +325,7 @@ func secureMkdirAll(name string, perm os.FileMode, uid sys.UserID, gid sys.Group
 
 	if len(segments) > 0 {
 		// Create the final segment as a directory.
-		fd, err = secureMkDir(fd, segments, len(segments)-1, perm, uid, gid)
+		fd, err = secureMkDir(fd, segments, len(segments)-1, perm, uid, gid, guardian)
 		if err != nil {
 			return err
 		}
@@ -319,7 +340,7 @@ func secureMkdirAll(name string, perm os.FileMode, uid sys.UserID, gid sys.Group
 // This function is like secureMkdirAll but it creates an empty file instead of
 // a directory for the final path component. Each created directory component
 // is chowned to the desired user and group.
-func secureMkfileAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+func secureMkfileAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, guardian PathGuardian) error {
 	logger.Debugf("secure-mkfile-all %q %q %d %d", name, perm, uid, gid)
 
 	// Only support absolute paths to avoid bugs in snap-confine when
@@ -339,7 +360,7 @@ func secureMkfileAll(name string, perm os.FileMode, uid sys.UserID, gid sys.Grou
 	}
 
 	// Create the prefix.
-	fd, err := secureMkPrefix(segments, perm, uid, gid)
+	fd, err := secureMkPrefix(segments, perm, uid, gid, guardian)
 	if err != nil {
 		return err
 	}
@@ -347,12 +368,12 @@ func secureMkfileAll(name string, perm os.FileMode, uid sys.UserID, gid sys.Grou
 
 	if len(segments) > 0 {
 		// Create the final segment as a file.
-		err = secureMkFile(fd, segments, len(segments)-1, perm, uid, gid)
+		err = secureMkFile(fd, segments, len(segments)-1, perm, uid, gid, guardian)
 	}
 	return err
 }
 
-func secureMksymlinkAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
+func secureMksymlinkAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string, guardian PathGuardian) error {
 	logger.Debugf("secure-mksymlink-all %q %q %d %d %q", name, perm, uid, gid, oldname)
 
 	// Only support absolute paths to avoid bugs in snap-confine when
@@ -372,7 +393,7 @@ func secureMksymlinkAll(name string, perm os.FileMode, uid sys.UserID, gid sys.G
 	}
 
 	// Create the prefix.
-	fd, err := secureMkPrefix(segments, perm, uid, gid)
+	fd, err := secureMkPrefix(segments, perm, uid, gid, guardian)
 	if err != nil {
 		return err
 	}
@@ -380,7 +401,7 @@ func secureMksymlinkAll(name string, perm os.FileMode, uid sys.UserID, gid sys.G
 
 	if len(segments) > 0 {
 		// Create the final segment as a symlink.
-		err = secureMkSymlink(fd, segments, len(segments)-1, oldname)
+		err = secureMkSymlink(fd, segments, len(segments)-1, oldname, guardian)
 	}
 	return err
 }
@@ -499,10 +520,10 @@ type FatalError struct {
 // In the event of a failure the undo plan is executed and an error is
 // returned. If the undo plan fails the function returns a FatalError as it
 // cannot fix the system from an inconsistent state.
-func execWritableMimic(plan []*Change) ([]*Change, error) {
+func execWritableMimic(plan []*Change, guardian PathGuardian) ([]*Change, error) {
 	undoChanges := make([]*Change, 0, len(plan)-2)
 	for i, change := range plan {
-		if _, err := changePerform(change); err != nil {
+		if _, err := changePerform(change, guardian); err != nil {
 			// Drat, we failed! Let's undo everything according to our own undo
 			// plan, by following it in reverse order.
 
@@ -525,7 +546,7 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 				if recoveryUndoChange.Entry.OptBool("rbind") {
 					recoveryUndoChange.Entry.Options = append(recoveryUndoChange.Entry.Options, "x-snapd.detach")
 				}
-				if _, err2 := changePerform(recoveryUndoChange); err2 != nil {
+				if _, err2 := changePerform(recoveryUndoChange, guardian); err2 != nil {
 					// Drat, we failed when trying to recover from an error.
 					// We cannot do anything at this stage.
 					return nil, &FatalError{error: fmt.Errorf("cannot undo change %q while recovering from earlier error %v: %v", recoveryUndoChange, err, err2)}
@@ -573,12 +594,12 @@ func execWritableMimic(plan []*Change) ([]*Change, error) {
 	return undoChanges, nil
 }
 
-func createWritableMimic(dir, neededBy string) ([]*Change, error) {
+func createWritableMimic(dir, neededBy string, guardian PathGuardian) ([]*Change, error) {
 	plan, err := planWritableMimic(dir, neededBy)
 	if err != nil {
 		return nil, err
 	}
-	changes, err := execWritableMimic(plan)
+	changes, err := execWritableMimic(plan, guardian)
 	if err != nil {
 		return nil, err
 	}

@@ -130,7 +130,7 @@ func FreezerCgroupDir() string {
 	return freezerCgroupDir
 }
 
-func MockChangePerform(f func(chg *Change) ([]*Change, error)) func() {
+func MockChangePerform(f func(chg *Change, guardian PathGuardian) ([]*Change, error)) func() {
 	origChangePerform := changePerform
 	changePerform = f
 	return func() {
