@@ -265,6 +265,27 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	return nil
 }
 
+func (iface *contentInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	contentSnippet := bytes.NewBuffer(nil)
+	writePaths := iface.path(slot, "write")
+	if len(writePaths) > 0 {
+		fmt.Fprintf(contentSnippet, `
+# When the content interface is writable, allow this slot
+# implementation to access the slot's exported files at the plugging
+# snap's mountpoint to accommodate software where the plugging app
+# tells the slotting app about files to share.
+`)
+		for _, w := range writePaths {
+			_, target := sourceTarget(plug, slot, w)
+			fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
+				target)
+		}
+	}
+
+	spec.AddSnippet(contentSnippet.String())
+	return nil
+}
+
 func (iface *contentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
