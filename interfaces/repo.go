@@ -565,12 +565,12 @@ func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map
 	// Ensure that such plug exists
 	plug := r.plugs[plugSnapName][plugName]
 	if plug == nil {
-		return nil, fmt.Errorf("cannot connect plug %q from snap %q: no such plug", plugName, plugSnapName)
+		return nil, &UnknownPlugSlotError{Msg: fmt.Sprintf("cannot connect plug %q from snap %q: no such plug", plugName, plugSnapName)}
 	}
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return nil, fmt.Errorf("cannot connect slot %q from snap %q: no such slot", slotName, slotSnapName)
+		return nil, &UnknownPlugSlotError{fmt.Sprintf("cannot connect slot %q from snap %q: no such slot", slotName, slotSnapName)}
 	}
 	// Ensure that plug and slot are compatible
 	if slot.Interface != plug.Interface {
