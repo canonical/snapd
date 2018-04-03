@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -60,7 +61,14 @@ var (
 	snapConfineProfile  = "/etc/apparmor.d/usr.lib.snapd.snap-confine"
 	whoopsiePreferences = "/etc/whoopsie"
 
-	timeNow = time.Now
+	procCpuinfo     = "/proc/cpuinfo"
+	procSelfExe     = "/proc/self/exe"
+	procSelfCwd     = "/proc/self/cwd"
+	procSelfCmdline = "/proc/self/cmdline"
+
+	osEnviron   = os.Environ
+	osLookupEnv = os.LookupEnv
+	timeNow     = time.Now
 )
 
 func whoopsieEnabled() bool {
@@ -118,7 +126,7 @@ func snapConfineProfileDigest(suffix string) string {
 
 var didSnapdReExec = func() string {
 	// TODO: move this into osutil.Reexeced() ?
-	exe, err := os.Readlink("/proc/self/exe")
+	exe, err := os.Readlink(procSelfExe)
 	if err != nil {
 		return "unknown"
 	}
@@ -160,6 +168,104 @@ func detectVirt() string {
 	return strings.TrimSpace(string(output))
 }
 
+func journalError() string {
+	// TODO: look into using systemd package (needs refactor)
+	output, err := exec.Command("journalctl", "--utc", "--boot", "--priority=warning..err", "--lines=1000").CombinedOutput()
+	if err != nil {
+		if len(output) == 0 {
+			return fmt.Sprintf("error: %v", err)
+		}
+		output = append(output, fmt.Sprintf("\nerror: %v", err)...)
+	}
+	return string(output)
+}
+
+func procCpuinfoMinimal() string {
+	buf, err := ioutil.ReadFile(procCpuinfo)
+	if err != nil {
+		// if we can't read cpuinfo, we want to know _why_
+		return fmt.Sprintf("error: %v", err)
+	}
+	idx := bytes.LastIndex(buf, []byte("\nprocessor\t:"))
+	// if not found, return whole buffer; otherwise, return from just after the \n
+	return string(buf[idx+1:])
+}
+
+func procExe() string {
+	out, err := os.Readlink(procSelfExe)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	return out
+}
+
+func procCwd() string {
+	out, err := os.Readlink(procSelfCwd)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	return out
+}
+
+func procCmdline() string {
+	out, err := ioutil.ReadFile(procSelfCmdline)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	return string(out)
+}
+
+func environ() string {
+	safeVars := []string{
+		"SHELL", "TERM", "LANGUAGE", "LANG", "LC_CTYPE",
+		"LC_COLLATE", "LC_TIME", "LC_NUMERIC",
+		"LC_MONETARY", "LC_MESSAGES", "LC_PAPER",
+		"LC_NAME", "LC_ADDRESS", "LC_TELEPHONE",
+		"LC_MEASUREMENT", "LC_IDENTIFICATION", "LOCPATH",
+	}
+	out := make([]string, 0, len(safeVars)+4)
+	for _, env := range osEnviron() {
+		idx := strings.IndexByte(env, '=')
+		if idx < 4 {
+			continue
+		}
+		if len(env) == idx+1 {
+			continue
+		}
+
+		switch k := env[:idx]; k {
+		case "PATH":
+			p := env[idx+1:]
+			if p == "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games" {
+				// this is probably wrong, but is preserved for consistency with apport
+				// (it's different from the default path on a default install)
+				continue
+			}
+			attrs := make([]string, 3)
+			attrs[0] = "custom"
+			if strings.Contains(p, "/home") || strings.Contains(p, "/tmp") {
+				attrs[1] = "user"
+			} else {
+				attrs[1] = "no user"
+			}
+			if strings.Contains(p, "/snap/bin") {
+				attrs[2] = "snap"
+			} else {
+				attrs[2] = "no snap"
+			}
+			out = append(out, fmt.Sprintf("PATH=(%s)", strings.Join(attrs, ", ")))
+		case "XDG_RUNTIME_DIR", "LD_PRELOAD", "LD_LIBRARY_PATH":
+			out = append(out, k+"=<set>")
+		default:
+			if strutil.ListContains(safeVars, k) {
+				out = append(out, env)
+			}
+		}
+	}
+
+	return strings.Join(out, "\n")
+}
+
 func report(errMsg, dupSig string, extra map[string]string) (string, error) {
 	if CrashDbURLBase == "" {
 		return "", nil
@@ -197,7 +303,6 @@ func report(errMsg, dupSig string, extra map[string]string) (string, error) {
 	if coreBuildID == "" {
 		coreBuildID = "unknown"
 	}
-	detectedVirt := detectVirt()
 
 	report := map[string]string{
 		"Architecture":       arch.UbuntuArchitecture(),
@@ -210,15 +315,28 @@ func report(errMsg, dupSig string, extra map[string]string) (string, error) {
 		"ErrorMessage":       errMsg,
 		"DuplicateSignature": dupSig,
 
+		"JournalError":       journalError(),
+		"ExecutablePath":     procExe(),
+		"ProcCmdline":        procCmdline(),
+		"ProcCpuinfoMinimal": procCpuinfoMinimal(),
+		"ProcCwd":            procCwd(),
+		"ProcEnviron":        environ(),
+		"DetectedVirt":       detectVirt(),
+		"SourcePackage":      "snapd",
+
 		"DidSnapdReExec": didSnapdReExec(),
 	}
+
+	if desktop, ok := osLookupEnv("XDG_CURRENT_DESKTOP"); ok {
+		report["CurrentDesktop"] = desktop
+	}
+
 	for k, v := range extra {
 		// only set if empty
 		if _, ok := report[k]; !ok {
 			report[k] = v
 		}
 	}
-	report["DetectedVirt"] = detectedVirt
 
 	// include md5 hashes of the apparmor conffile for easier debbuging
 	// of not-updated snap-confine apparmor profiles

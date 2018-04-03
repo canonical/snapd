@@ -61,6 +61,8 @@ var _ = Suite(&ErrtrackerTestSuite{})
 var truePath = osutil.LookPathDefault("true", "/bin/true")
 var falsePath = osutil.LookPathDefault("false", "/bin/false")
 
+const someJournalEntry = "Mar 29 22:08:00 localhost kernel: [81B blob data]"
+
 func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -88,6 +90,36 @@ func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	} else {
 		s.distroRelease = fmt.Sprintf("%s %s", release.ReleaseInfo.ID, release.ReleaseInfo.VersionID)
 	}
+
+	mockCpuinfo := filepath.Join(s.tmpdir, "cpuinfo")
+	mockSelfCmdline := filepath.Join(s.tmpdir, "self.cmdline")
+	mockSelfExe := filepath.Join(s.tmpdir, "self.exe")
+	mockSelfCwd := filepath.Join(s.tmpdir, "self.cwd")
+
+	c.Assert(ioutil.WriteFile(mockCpuinfo, []byte(`
+processor	: 0
+bugs		: very yes
+etc		: ...
+
+processor	: 42
+bugs		: very yes
+`[1:]), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(mockSelfCmdline, []byte("foo\x00bar\x00baz"), 0644), IsNil)
+	c.Assert(os.Symlink("target of /proc/self/exe", mockSelfExe), IsNil)
+	c.Assert(os.Symlink("target of /proc/self/cwd", mockSelfCwd), IsNil)
+
+	s.AddCleanup(errtracker.MockOsEnviron(func() []string { return []string{"SHELL=/bin/sh"} }))
+	s.AddCleanup(errtracker.MockOsLookupEnv(func(s string) (string, bool) {
+		if s == "XDG_CURRENT_DESKTOP" {
+			return "Unity", true
+		}
+		return "", false
+	}))
+	s.AddCleanup(errtracker.MockProcCpuinfo(mockCpuinfo))
+	s.AddCleanup(errtracker.MockProcSelfCmdline(mockSelfCmdline))
+	s.AddCleanup(errtracker.MockProcSelfExe(mockSelfExe))
+	s.AddCleanup(errtracker.MockProcSelfCwd(mockSelfCwd))
+	s.AddCleanup(testutil.MockCommand(c, "journalctl", "echo "+someJournalEntry).Restore)
 }
 
 func (s *ErrtrackerTestSuite) TestReport(c *C) {
@@ -135,10 +167,19 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 				"Architecture":       arch.UbuntuArchitecture(),
 				"DidSnapdReExec":     "yes",
 
-				"ProblemType":  "Snap",
-				"Snap":         "some-snap",
-				"Channel":      "beta",
-				"DetectedVirt": "none",
+				"ProblemType": "Snap",
+				"Snap":        "some-snap",
+				"Channel":     "beta",
+
+				"ProcCpuinfoMinimal": "processor\t: 42\nbugs\t\t: very yes\n",
+				"ExecutablePath":     "target of /proc/self/exe",
+				"ProcCwd":            "target of /proc/self/cwd",
+				"ProcCmdline":        "foo\x00bar\x00baz",
+				"ProcEnviron":        "SHELL=/bin/sh",
+				"JournalError":       someJournalEntry + "\n",
+				"SourcePackage":      "snapd",
+				"CurrentDesktop":     "Unity",
+				"DetectedVirt":       "none",
 
 				"MD5SumSnapConfineAppArmorProfile":            "7a7aa5f21063170c1991b84eb8d86de1",
 				"MD5SumSnapConfineAppArmorProfileDpkgNew":     "93b885adfe0da089cdf634904fd59f71",
@@ -267,6 +308,15 @@ func (s *ErrtrackerTestSuite) TestReportRepair(c *C) {
 				"ErrorMessage":       "failure in script",
 				"DuplicateSignature": "[dupSig]",
 				"BrandID":            "canonical",
+
+				"ProcCpuinfoMinimal": "processor\t: 42\nbugs\t\t: very yes\n",
+				"ExecutablePath":     "target of /proc/self/exe",
+				"ProcCwd":            "target of /proc/self/cwd",
+				"ProcCmdline":        "foo\x00bar\x00baz",
+				"ProcEnviron":        "SHELL=/bin/sh",
+				"JournalError":       someJournalEntry + "\n",
+				"SourcePackage":      "snapd",
+				"CurrentDesktop":     "Unity",
 				"DetectedVirt":       "none",
 			})
 			fmt.Fprintf(w, "c14388aa-f78d-11e6-8df0-fa163eaf9b83 OOPSID")
@@ -313,4 +363,103 @@ report_metrics=false
 	id, err := errtracker.Report("some-snap", "failed to do stuff", "[failed to do stuff]", nil)
 	c.Check(err, IsNil)
 	c.Check(id, Equals, "")
+}
+
+func (s *ErrtrackerTestSuite) TestProcCpuinfo(c *C) {
+	fn := filepath.Join(s.tmpdir, "cpuinfo")
+	// sanity check
+	buf, err := ioutil.ReadFile(fn)
+	c.Assert(err, IsNil)
+	c.Check(string(buf), Equals, `
+processor	: 0
+bugs		: very yes
+etc		: ...
+
+processor	: 42
+bugs		: very yes
+`[1:])
+
+	// just the last processor entry
+	c.Check(errtracker.ProcCpuinfoMinimal(), Equals, `
+processor	: 42
+bugs		: very yes
+`[1:])
+
+	// if no processor line, just return the whole thing
+	c.Assert(ioutil.WriteFile(fn, []byte("yadda yadda\n"), 0644), IsNil)
+	c.Check(errtracker.ProcCpuinfoMinimal(), Equals, "yadda yadda\n")
+
+	c.Assert(os.Remove(fn), IsNil)
+	c.Check(errtracker.ProcCpuinfoMinimal(), Matches, "error: .* no such file or directory")
+}
+
+func (s *ErrtrackerTestSuite) TestProcExe(c *C) {
+	c.Check(errtracker.ProcExe(), Equals, "target of /proc/self/exe")
+	c.Assert(os.Remove(filepath.Join(s.tmpdir, "self.exe")), IsNil)
+	c.Check(errtracker.ProcExe(), Matches, "error: .* no such file or directory")
+}
+
+func (s *ErrtrackerTestSuite) TestProcCwd(c *C) {
+	c.Check(errtracker.ProcCwd(), Equals, "target of /proc/self/cwd")
+	c.Assert(os.Remove(filepath.Join(s.tmpdir, "self.cwd")), IsNil)
+	c.Check(errtracker.ProcCwd(), Matches, "error: .* no such file or directory")
+}
+
+func (s *ErrtrackerTestSuite) TestProcCmdline(c *C) {
+	c.Check(errtracker.ProcCmdline(), Equals, "foo\x00bar\x00baz")
+	c.Assert(os.Remove(filepath.Join(s.tmpdir, "self.cmdline")), IsNil)
+	c.Check(errtracker.ProcCmdline(), Matches, "error: .* no such file or directory")
+}
+
+func (s *ErrtrackerTestSuite) TestJournalError(c *C) {
+	jctl := testutil.MockCommand(c, "journalctl", "echo "+someJournalEntry)
+	defer jctl.Restore()
+	c.Check(errtracker.JournalError(), Equals, someJournalEntry+"\n")
+	c.Check(jctl.Calls(), DeepEquals, [][]string{
+		{"journalctl", "--utc", "--boot", "--priority=warning..err", "--lines=1000"},
+	})
+}
+
+func (s *ErrtrackerTestSuite) TestJournalErrorSilentError(c *C) {
+	jctl := testutil.MockCommand(c, "journalctl", "kill $$")
+	defer jctl.Restore()
+	c.Check(errtracker.JournalError(), Equals, "error: signal: terminated")
+	c.Check(jctl.Calls(), DeepEquals, [][]string{
+		{"journalctl", "--utc", "--boot", "--priority=warning..err", "--lines=1000"},
+	})
+}
+
+func (s *ErrtrackerTestSuite) TestJournalErrorError(c *C) {
+	jctl := testutil.MockCommand(c, "journalctl", "echo OOPS; exit 1")
+	defer jctl.Restore()
+	c.Check(errtracker.JournalError(), Equals, "OOPS\n\nerror: exit status 1")
+	c.Check(jctl.Calls(), DeepEquals, [][]string{
+		{"journalctl", "--utc", "--boot", "--priority=warning..err", "--lines=1000"},
+	})
+}
+
+func (s *ErrtrackerTestSuite) TestEnviron(c *C) {
+	defer errtracker.MockOsEnviron(func() []string {
+		return []string{
+			"SHELL=/bin/sh",                 // marked as safe
+			"GPG_AGENT_INFO=.gpg-agent:0:1", // not marked as safe
+			"PS1=\\w\\$ ",                   // also not safe
+			"TERM=",                         // not really set
+			"PATH=/some/random/stuff",       // special handling from here down
+			"PATH=/home/ubuntu/bin:/bin:/usr/bin:/snap/bin",
+			"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games", // silly default non-reported path
+			"XDG_RUNTIME_DIR=/some/thing",
+			"LD_PRELOAD=foo",
+			"LD_LIBRARY_PATH=bar",
+		}
+	})()
+
+	c.Check(errtracker.Environ(), Equals, `
+SHELL=/bin/sh
+PATH=(custom, no user, no snap)
+PATH=(custom, user, snap)
+XDG_RUNTIME_DIR=<set>
+LD_PRELOAD=<set>
+LD_LIBRARY_PATH=<set>`[1:]) // note how only two of the paths are reported
+	// also note in general there aren't repeat entries in the output of Environ :)
 }
