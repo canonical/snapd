@@ -116,6 +116,7 @@ func generateSystemKey() (*systemKey, error) {
 	if err != nil {
 		// just log the error here
 		logger.Noticef("cannot determine nfs usage in generateSystemKey: %v", err)
+		return nil, err
 	}
 
 	// Add if '/' is on overlayfs so we can add AppArmor rules for
@@ -124,6 +125,7 @@ func generateSystemKey() (*systemKey, error) {
 	if err != nil {
 		// just log the error here
 		logger.Noticef("cannot determine root filesystem on overlay in generateSystemKey: %v", err)
+		return nil, err
 	}
 
 	// Add seccomp-features
