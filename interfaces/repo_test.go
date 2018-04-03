@@ -1981,15 +1981,15 @@ plugs:
 	checkConn(conns[1], "s1", "i2", "s3", "i2", "i2")
 	checkConn(conns[2], "s4", "i2", "s3", "i2", "i2")
 
-	// Check that we get disconnected intefaces too
+	// Check that we get disconnected interfaces too
 	conns = r.ConnectionsInfo(nil, true)
 	c.Assert(conns, HasLen, 5)
 
-	checkConn(conns[0], "s1", "i1", "s2", "i1", "i1")
-	checkConn(conns[1], "s1", "i2", "s3", "i2", "i2")
-	checkConn(conns[2], "s4", "i2", "s3", "i2", "i2")
-	checkConn(conns[3], "s5", "s5plug", "", "", "i1")
-	checkConn(conns[4], "", "", "s2", "i3", "i3")
+	checkConn(conns[0], "", "", "s2", "i3", "i3")
+	checkConn(conns[1], "s1", "i1", "s2", "i1", "i1")
+	checkConn(conns[2], "s1", "i2", "s3", "i2", "i2")
+	checkConn(conns[3], "s4", "i2", "s3", "i2", "i2")
+	checkConn(conns[4], "s5", "s5plug", "", "", "i1")
 
 	// Check that the we can filter by snap name
 	conns = r.ConnectionsInfo([]string{"s1"}, false)
@@ -1998,7 +1998,6 @@ plugs:
 	checkConn(conns[1], "s1", "i2", "s3", "i2", "i2")
 
 	// Check that we can get non-connected plugs of specific snap
-	i
 	conns = r.ConnectionsInfo([]string{"s5"}, true)
 	c.Assert(conns, HasLen, 1)
 

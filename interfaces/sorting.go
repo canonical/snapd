@@ -189,24 +189,17 @@ func (c connectionOrder) Less(i, j int) bool {
 		slotSnapB = c[j].Slot.Snap.Name()
 		slotNameB = c[j].Slot.Name
 	}
+	interfaceA := c[i].Interface
+	interfaceB := c[j].Interface
 
-	if plugNameA == "" {
-		return plugNameB == ""
-	}
-	if plugNameB == "" {
-		return true
-	}
-	if slotNameA == "" {
-		return slotNameB == ""
-	}
-	if slotNameB == "" {
-		return true
-	}
 	if plugSnapA != plugSnapB {
 		return plugSnapA < plugSnapB
 	}
 	if slotSnapA != slotSnapB {
 		return slotSnapA < slotSnapB
+	}
+	if interfaceA != interfaceB {
+		return interfaceA < interfaceB
 	}
 	if plugNameA != plugNameB {
 		return plugNameA < plugNameB
