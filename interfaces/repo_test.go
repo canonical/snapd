@@ -1997,7 +1997,8 @@ plugs:
 	checkConn(conns[0], "s1", "i1", "s2", "i1", "i1")
 	checkConn(conns[1], "s1", "i2", "s3", "i2", "i2")
 
-	// Check that we can get non-connected plugs of specfic snap
+	// Check that we can get non-connected plugs of specific snap
+	i
 	conns = r.ConnectionsInfo([]string{"s5"}, true)
 	c.Assert(conns, HasLen, 1)
 
