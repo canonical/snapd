@@ -233,6 +233,18 @@ func (s *ValidateSuite) TestValidateAppSocketsEmptyPermsOk(c *C) {
 	c.Check(ValidateApp(app), IsNil)
 }
 
+func (s *ValidateSuite) TestValidateAppSocketsUser(c *C) {
+	app := createSampleApp()
+	app.Sockets["sock"].SocketUser = "user"
+	c.Check(ValidateApp(app), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsGroup(c *C) {
+	app := createSampleApp()
+	app.Sockets["sock"].SocketGroup = "group"
+	c.Check(ValidateApp(app), IsNil)
+}
+
 func (s *ValidateSuite) TestValidateAppSocketsWrongPerms(c *C) {
 	app := createSampleApp()
 	app.Sockets["sock"].SocketMode = 1234

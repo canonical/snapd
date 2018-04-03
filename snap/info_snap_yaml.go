@@ -105,6 +105,8 @@ type layoutYaml struct {
 type socketsYaml struct {
 	ListenStream string      `yaml:"listen-stream,omitempty"`
 	SocketMode   os.FileMode `yaml:"socket-mode,omitempty"`
+	SocketUser   string      `yaml:"socket-user,omitempty"`
+	SocketGroup  string      `yaml:"socket-group,omitempty"`
 }
 
 // InfoFromSnapYaml creates a new info based on the given snap.yaml data
@@ -357,6 +359,8 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 				Name:         name,
 				ListenStream: data.ListenStream,
 				SocketMode:   data.SocketMode,
+				SocketUser:   data.SocketUser,
+				SocketGroup:  data.SocketGroup,
 			}
 		}
 		if yApp.Timer != "" {

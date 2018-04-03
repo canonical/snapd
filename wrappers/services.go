@@ -497,6 +497,8 @@ Service={{.ServiceFileName}}
 FileDescriptorName={{.SocketInfo.Name}}
 ListenStream={{.ListenStream}}
 {{if .SocketInfo.SocketMode}}SocketMode={{.SocketInfo.SocketMode | printf "%04o"}}{{end}}
+{{if .SocketInfo.SocketUser}}SocketUser={{.SocketInfo.SocketUser}}{{end}}
+{{if .SocketInfo.SocketGroup}}SocketGroup={{.SocketInfo.SocketGroup}}{{end}}
 
 [Install]
 WantedBy={{.SocketsTarget}}
