@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -39,7 +40,7 @@ const serviceWatchdogBaseDeclarationSlots = `
 
 const serviceWatchdogConnectedPlugAppArmorTemplate = `
 # Allow sending notification messages to systemd through the notify socket
-{{notify-socket}} w,
+"{{notify-socket}}" w,
 `
 
 type serviceWatchdogInterface struct {
@@ -52,6 +53,12 @@ func (iface *serviceWatchdogInterface) AppArmorConnectedPlug(spec *apparmor.Spec
 	notifySocket := osGetenv("NOTIFY_SOCKET")
 	if notifySocket == "" {
 		notifySocket = "/run/systemd/notify"
+	} else {
+		// must be an absolute path without any AppArmor regular
+		// expression (AARE) characters or double quotes
+		if !strings.HasPrefix(notifySocket, "/") || strings.ContainsAny(notifySocket, `?*[]{}^"`) {
+			return fmt.Errorf("cannot use %q as notify socket path", notifySocket)
+		}
 	}
 	snippet := strings.Replace(serviceWatchdogConnectedPlugAppArmorTemplate,
 		"{{notify-socket}}", notifySocket, 1)
@@ -66,8 +73,6 @@ func init() {
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
 		baseDeclarationSlots: serviceWatchdogBaseDeclarationSlots,
-		// implemented by AppArmorConnectedPlug()
-		connectedPlugAppArmor: "",
-		reservedForOS:         true,
+		reservedForOS:        true,
 	}})
 }
