@@ -94,7 +94,7 @@ func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketDefault(c *C
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.service-watchdog-client.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.service-watchdog-client.app2"), testutil.Contains, "\n/run/systemd/notify w,")
+	c.Assert(apparmorSpec.SnippetForTag("snap.service-watchdog-client.app2"), testutil.Contains, "\n\"/run/systemd/notify\" w,")
 }
 
 func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnv(c *C) {
@@ -109,7 +109,28 @@ func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnv(c *C) {
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.service-watchdog-client.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.service-watchdog-client.app2"), testutil.Contains, "\n/foo/bar w,")
+	c.Assert(apparmorSpec.SnippetForTag("snap.service-watchdog-client.app2"), testutil.Contains, "\n\"/foo/bar\" w,")
+}
+
+func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvBadFormat(c *C) {
+	restore := builtin.MockOsGetenv(func(what string) string {
+		c.Assert(what, Equals, "NOTIFY_SOCKET")
+		return `/foo/bar"[]`
+	})
+	defer restore()
+
+	// connected plugs have a non-nil security snippet for apparmor
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, ErrorMatches, `cannot use "/foo/bar\\"\[\]" as notify socket path`)
+
+	restore = builtin.MockOsGetenv(func(what string) string {
+		c.Assert(what, Equals, "NOTIFY_SOCKET")
+		return `foo/bar`
+	})
+	defer restore()
+	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, ErrorMatches, `cannot use "foo/bar" as notify socket path`)
 }
 
 func (s *serviceWatchdogSuite) TestInterfaces(c *C) {
