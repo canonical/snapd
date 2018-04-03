@@ -159,7 +159,10 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 		}
 	}
 
-	return interfaces.WriteSystemKey()
+	if err := interfaces.WriteSystemKey(); err != nil {
+		logger.Noticef("cannot write system key: %v", err)
+	}
+	return nil
 }
 
 // renameCorePlugConnection renames one connection from "core-support" plug to
