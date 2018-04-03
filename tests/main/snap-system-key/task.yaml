@@ -1,10 +1,11 @@
 summary: Ensure security profile re-generation works with system-key
 prepare: |
     echo "Make backup of fstab"
-    cp /etc/fstab /etc/fstab.save
+    cp /etc/fstab /tmp/fstab.save
 restore: |
     echo "Restore fstab copy"
-    mv /etc/fstab.save /etc/fstab
+    cp /tmp/fstab.save /etc/fstab
+    rm -f /tmp/fstab.save
 execute: |
     stop_snapd() {
         systemctl stop snapd.service snapd.socket
