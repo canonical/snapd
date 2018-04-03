@@ -1,15 +1,12 @@
 summary: Check that `snap connect` runs interface hook
 
 prepare: |
-    echo "Build test hooks package"
-    snap pack $TESTSLIB/snaps/basic-iface-hooks-consumer
-    snap pack $TESTSLIB/snaps/basic-iface-hooks-producer
-    snap install --dangerous basic-iface-hooks-consumer_1.0_all.snap
-    snap install --dangerous basic-iface-hooks-producer_1.0_all.snap
+    . "$TESTSLIB/snaps.sh"
 
-restore: |
-    rm -f basic-iface-hooks-consumer_1.0_all.snap
-    rm -f basic-iface-hooks-producer_1.0_all.snap
+    echo "Install test hooks snaps"
+
+    install_local basic-iface-hooks-consumer
+    install_local basic-iface-hooks-producer
 
 execute: |
     echo "Test that snap connect with plug and slot hooks succeeds"

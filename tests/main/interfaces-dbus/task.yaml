@@ -32,9 +32,6 @@ restore: |
     stop_dbus_unit || true
 
 execute: |
-    CONNECTED_PATTERN="test-snapd-dbus-provider:dbus-test +test-snapd-dbus-consumer"
-    DISCONNECTED_PATTERN="^\- +test-snapd-dbus-consumer:dbus-test"
-
     export $(cat dbus.env)
 
     echo "Then the dbus name is properly reserved by the provider and the method is accessible"
@@ -43,7 +40,7 @@ execute: |
     done
 
     echo "And plug is disconnected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "^\- +test-snapd-dbus-consumer:dbus-test"
 
     if [ "$(snap debug confinement)" = partial ]; then
         exit 0
@@ -58,7 +55,6 @@ execute: |
 
     echo "When the plug is connected"
     snap connect test-snapd-dbus-consumer:dbus-test test-snapd-dbus-provider:dbus-test
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the consumer is able to call the provided method"
     test-snapd-dbus-consumer.dbus-consumer | MATCH "hello world"
