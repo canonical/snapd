@@ -34,10 +34,10 @@ import (
 
 // not available through syscall
 const (
-	umountNoFollow   = 8
-	TMPFS_MAGIC      = 0x01021994
-	SQUASHFS_MAGIC   = 0x73717368
-	EXT4_SUPER_MAGIC = 0xef53
+	umountNoFollow = 8
+	TmpfsMagic     = 0x01021994
+	SquashfsMagic  = 0x73717368
+	Ext4Magic      = 0xef53
 )
 
 // For mocking everything during testing.
@@ -141,7 +141,7 @@ func (sec *Secure) CheckTrespassing(fd int, segments []string, segNum int) error
 	if err := sysFstatfs(fd, &fsData); err != nil {
 		return fmt.Errorf("cannot fstatfs path segment %q: %s", segments[segNum], err)
 	}
-	if fsData.Type == TMPFS_MAGIC || fsData.Type == SQUASHFS_MAGIC {
+	if fsData.Type == TmpfsMagic || fsData.Type == SquashfsMagic {
 		return nil
 	}
 	if segNum == 0 {

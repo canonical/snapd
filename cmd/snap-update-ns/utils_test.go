@@ -675,7 +675,7 @@ func (s *utilsSuite) TestSecureMksymlinkAllInSnapData(c *C) {
 
 // We want to create a symlink in /etc but the host filesystem would be affected.
 func (s *utilsSuite) TestSecureMksymlinkAllInEtc(c *C) {
-	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.EXT4_SUPER_MAGIC})
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	err := s.sec.MksymlinkAll("/etc/symlink", 0755, 0, 0, "/oldname")
 	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
@@ -688,7 +688,7 @@ func (s *utilsSuite) TestSecureMksymlinkAllInEtc(c *C) {
 // We want to create a symlink deep in /etc but the host filesystem would be affected.
 // This just shows that we pick the right place to construct the mimic
 func (s *utilsSuite) TestSecureMksymlinkAllDeepInEtc(c *C) {
-	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.EXT4_SUPER_MAGIC})
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	err := s.sec.MksymlinkAll("/etc/some/other/stuff/symlink", 0755, 0, 0, "/oldname")
 	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc")
 	c.Assert(err.(*update.TrespassingError).MimicPath(), Equals, "/etc")
@@ -701,7 +701,7 @@ func (s *utilsSuite) TestSecureMksymlinkAllDeepInEtc(c *C) {
 
 // We want to create a file in /etc but the host filesystem would be affected.
 func (s *utilsSuite) TestSecureMkfileAllInEtc(c *C) {
-	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.EXT4_SUPER_MAGIC})
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	err := s.sec.MkfileAll("/etc/file", 0755, 0, 0)
 	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
@@ -713,7 +713,7 @@ func (s *utilsSuite) TestSecureMkfileAllInEtc(c *C) {
 
 // We want to create a directory in /etc but the host filesystem would be affected.
 func (s *utilsSuite) TestSecureMkdirAllInEtc(c *C) {
-	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.EXT4_SUPER_MAGIC})
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	err := s.sec.MkdirAll("/etc/dir", 0755, 0, 0)
 	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
@@ -756,9 +756,9 @@ func (s *utilsSuite) TestSecureMkdirAllInSNAP(c *C) {
 
 // We want to create a symlink in /etc which is a tmpfs so that is ok.
 func (s *utilsSuite) TestSecureMksymlinkAllInEtcAfterMimic(c *C) {
-	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SQUASHFS_MAGIC})
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
-	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TMPFS_MAGIC})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
 	err := s.sec.MksymlinkAll("/etc/symlink", 0755, 0, 0, "/oldname")
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
@@ -775,9 +775,9 @@ func (s *utilsSuite) TestSecureMksymlinkAllInEtcAfterMimic(c *C) {
 
 // We want to create a file in /etc which is a tmpfs so that is ok.
 func (s *utilsSuite) TestSecureMkfileAllInEtcAfterMimic(c *C) {
-	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SQUASHFS_MAGIC})
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
-	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TMPFS_MAGIC})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
 	err := s.sec.MkfileAll("/etc/file", 0755, 0, 0)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
@@ -796,9 +796,9 @@ func (s *utilsSuite) TestSecureMkfileAllInEtcAfterMimic(c *C) {
 
 // We want to create a directory in /etc which is a tmpfs so that is ok.
 func (s *utilsSuite) TestSecureMkdirAllInEtcAfterMimic(c *C) {
-	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SQUASHFS_MAGIC})
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
 	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
-	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TMPFS_MAGIC})
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
 	err := s.sec.MkdirAll("/etc/dir", 0755, 0, 0)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
