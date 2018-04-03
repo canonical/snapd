@@ -223,6 +223,19 @@ func environ() string {
 		"LC_NAME", "LC_ADDRESS", "LC_TELEPHONE",
 		"LC_MEASUREMENT", "LC_IDENTIFICATION", "LOCPATH",
 	}
+	knownPaths := map[string]bool{
+		"/snap/bin":               true,
+		"/var/lib/snapd/snap/bin": true,
+		"/sbin":                   true,
+		"/bin":                    true,
+		"/usr/sbin":               true,
+		"/usr/bin":                true,
+		"/usr/local/sbin":         true,
+		"/usr/local/bin":          true,
+		"/usr/local/games":        true,
+		"/usr/games":              true,
+	}
+
 	out := make([]string, 0, len(safeVars)+4)
 	for _, env := range osEnviron() {
 		idx := strings.IndexByte(env, '=')
@@ -235,25 +248,19 @@ func environ() string {
 
 		switch k := env[:idx]; k {
 		case "PATH":
-			p := env[idx+1:]
-			if p == "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games" {
-				// this is probably wrong, but is preserved for consistency with apport
-				// (it's different from the default path on a default install)
-				continue
+			paths := strings.Split(env[idx+1:], ":")
+			for i, p := range paths {
+				p = filepath.Clean(p)
+				if !knownPaths[p] {
+					if strings.Contains(p, "/home") || strings.Contains(p, "/tmp") {
+						p = "(user)"
+					} else {
+						p = "(custom)"
+					}
+				}
+				paths[i] = p
 			}
-			attrs := make([]string, 3)
-			attrs[0] = "custom"
-			if strings.Contains(p, "/home") || strings.Contains(p, "/tmp") {
-				attrs[1] = "user"
-			} else {
-				attrs[1] = "no user"
-			}
-			if strings.Contains(p, "/snap/bin") {
-				attrs[2] = "snap"
-			} else {
-				attrs[2] = "no snap"
-			}
-			out = append(out, fmt.Sprintf("PATH=(%s)", strings.Join(attrs, ", ")))
+			out = append(out, fmt.Sprintf("PATH=%s", strings.Join(paths, ":")))
 		case "XDG_RUNTIME_DIR", "LD_PRELOAD", "LD_LIBRARY_PATH":
 			out = append(out, k+"=<set>")
 		default:

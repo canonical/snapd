@@ -445,9 +445,8 @@ func (s *ErrtrackerTestSuite) TestEnviron(c *C) {
 			"GPG_AGENT_INFO=.gpg-agent:0:1", // not marked as safe
 			"PS1=\\w\\$ ",                   // also not safe
 			"TERM=",                         // not really set
-			"PATH=/some/random/stuff",       // special handling from here down
-			"PATH=/home/ubuntu/bin:/bin:/usr/bin:/snap/bin",
-			"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games", // silly default non-reported path
+			"PATH=/something/random:/sbin/", // special handling from here down
+			"PATH=/home/ubuntu/bin:/bin:/snap/bin",
 			"XDG_RUNTIME_DIR=/some/thing",
 			"LD_PRELOAD=foo",
 			"LD_LIBRARY_PATH=bar",
@@ -456,10 +455,9 @@ func (s *ErrtrackerTestSuite) TestEnviron(c *C) {
 
 	c.Check(errtracker.Environ(), Equals, `
 SHELL=/bin/sh
-PATH=(custom, no user, no snap)
-PATH=(custom, user, snap)
+PATH=(custom):/sbin
+PATH=(user):/bin:/snap/bin
 XDG_RUNTIME_DIR=<set>
 LD_PRELOAD=<set>
-LD_LIBRARY_PATH=<set>`[1:]) // note how only two of the paths are reported
-	// also note in general there aren't repeat entries in the output of Environ :)
+LD_LIBRARY_PATH=<set>`[1:])
 }
