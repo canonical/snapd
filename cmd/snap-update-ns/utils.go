@@ -102,10 +102,14 @@ type Secure struct {
 	allowedPaths []string
 }
 
-// AllowWritingTo adds a list of paths where writing is allowed.
-// Each path must end with a forward slash.
+// AllowWritingTo adds a list of directories where writing is allowed even if
+// it would hit the real host filesystem. Normally writing is only allowed on
+// tmpfs and squashfs, though obviously squashfs will cause EROFS.
 func (sec *Secure) AllowWritingTo(paths ...string) {
-	sec.allowedPaths = append(sec.allowedPaths, paths...)
+	for _, path := range paths {
+		path = filepath.Clean(path) + "/"
+		sec.allowedPaths = append(sec.allowedPaths, path)
+	}
 }
 
 // CheckTrespassing inspects if a filesystem operation on the given path
@@ -122,6 +126,7 @@ func (sec *Secure) CheckTrespassing(fd int, segments []string, segNum int) error
 	// fstatfs calls and it doesn't change anything.
 	p := "/" + strings.Join(segments, "/") + "/"
 	for _, prefix := range sec.allowedPaths {
+		logger.Debugf("checking string prefix %q %q", p, prefix)
 		if strings.HasPrefix(p, prefix) {
 			return nil
 		}
