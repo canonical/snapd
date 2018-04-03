@@ -21,6 +21,7 @@ package ifacestate
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
@@ -202,7 +203,7 @@ func (m *InterfaceManager) removeStaleConnections() error {
 	if err != nil {
 		return err
 	}
-	var staleConns int
+	var staleConns []string
 	for id := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
@@ -213,22 +214,23 @@ func (m *InterfaceManager) removeStaleConnections() error {
 			if err != state.ErrNoState {
 				return err
 			}
-			delete(conns, id)
-			staleConns++
+			staleConns = append(staleConns, id)
 			continue
 		}
 		if err := snapstate.Get(m.state, connRef.SlotRef.Snap, &snapst); err != nil {
 			if err != state.ErrNoState {
 				return err
 			}
-			delete(conns, id)
-			staleConns++
+			staleConns = append(staleConns, id)
 			continue
 		}
 	}
-	if staleConns > 0 {
+	if len(staleConns) > 0 {
+		for _, id := range staleConns {
+			delete(conns, id)
+		}
 		setConns(m.state, conns)
-		logger.Noticef("remove %d stale connections", staleConns)
+		logger.Noticef("removed stale connections: %s", strings.Join(staleConns, ", "))
 	}
 	return nil
 }
