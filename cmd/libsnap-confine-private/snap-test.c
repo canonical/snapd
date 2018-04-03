@@ -189,8 +189,8 @@ static void test_sc_snap_name_validate(void)
 
 	// In case we switch to a regex, here's a test that could break things.
 	const char *good_bad_name = "u-94903713687486543234157734673284536758";
-	char varname[41] = {0};
-	for (int i = 3; i <= 40; i++ ) {
+	char varname[41] = { 0 };
+	for (int i = 3; i <= 40; i++) {
 		g_assert_nonnull(strncpy(varname, good_bad_name, i));
 		varname[i] = 0;
 		g_test_message("checking valid snap name: >%s<", varname);

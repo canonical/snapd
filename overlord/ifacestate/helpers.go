@@ -210,12 +210,21 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
 			continue
 		}
+
 		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
 		if _, err := m.repo.Connect(connRef, cn.DynamicPlugAttrs, cn.DynamicSlotAttrs, nil); err != nil {
+			if _, ok := err.(*interfaces.UnknownPlugSlotError); ok {
+				// Some versions of snapd may have left stray connections that
+				// don't have the corresponding plug or slot anymore. Before we
+				// choose how to deal with this data we want to silently ignore
+				// that error not to worry the users.
+				continue
+			}
 			logger.Noticef("%s", err)
+		} else {
+			affected[connRef.PlugRef.Snap] = true
+			affected[connRef.SlotRef.Snap] = true
 		}
-		affected[connRef.PlugRef.Snap] = true
-		affected[connRef.SlotRef.Snap] = true
 	}
 	result := make([]string, 0, len(affected))
 	for name := range affected {
