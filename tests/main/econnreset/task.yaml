@@ -16,14 +16,14 @@ execute: |
     echo "Wait until the download started and downloaded more than 1 MB"
     for i in $(seq 40); do
         if partial=$(ls test-snapd-huge_*.snap.partial | head -1); then
-            if [ $(stat -c%s "$partial") -gt $(( 1024 * 1024 )) ]; then
+            if [ "$(stat -c%s "$partial")" -gt "$(( 1024 * 1024 ))" ]; then
                 break
             fi
         fi
         sleep .5
     done
 
-    if [ ! -f "$partial" ] || [ $(stat -c%s "$partial") -eq 0 ]; then
+    if [ ! -f "$partial" ] || [ "$(stat -c%s "$partial")" -eq 0 ]; then
         echo "Partial file $partial did not start downloading, test broken"
         kill -9 $(pidof snap)
         exit 1
