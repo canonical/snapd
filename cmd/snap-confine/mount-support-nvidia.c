@@ -56,7 +56,7 @@ static const char *vulkan_globs[] = {
 static const size_t vulkan_globs_len =
     sizeof vulkan_globs / sizeof *vulkan_globs;
 
-#ifdef NVIDIA_BIARCH
+#if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
 // List of globs that describe nvidia userspace libraries.
 // This list was compiled from the following packages.
@@ -108,7 +108,9 @@ static const char *nvidia_globs[] = {
 static const size_t nvidia_globs_len =
     sizeof nvidia_globs / sizeof *nvidia_globs;
 
-#endif				// ifdef NVIDIA_BIARCH
+#define LIBNVIDIA_GLCORE_SO_PATTERN "libnvidia-glcore.so.%d.%d"
+
+#endif				// defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
 // Populate libgl_dir with a symlink farm to files matching glob_list.
 //
@@ -171,7 +173,6 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 			sc_must_snprintf(prefix_dir, sizeof prefix_dir,
 					 "%s%s", libgl_dir,
 					 &directory_name[source_dir_len]);
-			debug("prefix dir path: %s", prefix_dir);
 			if (sc_nonfatal_mkpath(prefix_dir, 0755) != 0) {
 				die("failed to create prefix path: %s",
 				    prefix_dir);
@@ -407,13 +408,78 @@ static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir,
 	}
 }
 
+static int sc_mount_nvidia_is_driver_in_dir(const char *dir)
+{
+	char driver_path[512] = { 0 };
+
+	struct sc_nvidia_driver driver;
+
+	// Probe sysfs to get the version of the driver that is currently inserted.
+	sc_probe_nvidia_driver(&driver);
+
+	// If there's no driver then we should not bother ourselves with finding the
+	// matching library
+	if (driver.major_version == 0) {
+		return 0;
+	}
+	// Probe if a well known library is found in directory dir
+	sc_must_snprintf(driver_path, sizeof driver_path,
+			 "%s/" LIBNVIDIA_GLCORE_SO_PATTERN, dir,
+			 driver.major_version, driver.minor_version);
+
+	if (access(driver_path, F_OK) == 0) {
+		debug("nvidia library detected at path %s", driver_path);
+		return 1;
+	}
+	return 0;
+}
+
 static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir)
 {
-	// Attempt mount of both the native and 32-bit variants of the driver if they exist
-	sc_mkdir_and_mount_and_bind(rootfs_dir, "/usr/lib/nvidia",
-				    SC_LIBGL_DIR);
-	sc_mkdir_and_mount_and_bind(rootfs_dir, "/usr/lib32/nvidia",
-				    SC_LIBGL32_DIR);
+	const char *native_libdir = NATIVE_LIBDIR "/" HOST_ARCH_TRIPLET;
+	const char *lib32_libdir = NATIVE_LIBDIR "/" HOST_ARCH32_TRIPLET;
+
+	if ((strlen(HOST_ARCH_TRIPLET) > 0) &&
+	    (sc_mount_nvidia_is_driver_in_dir(native_libdir) == 1)) {
+
+		// sc_mkdir_and_mount_and_glob_files() takes an array of strings, so
+		// initialize native_sources accordingly, but calculate the array length
+		// dynamically to make adjustments to native_sources easier.
+		const char *native_sources[] = { native_libdir };
+		const size_t native_sources_len =
+		    sizeof native_sources / sizeof *native_sources;
+		// Primary arch
+		sc_mkdir_and_mount_and_glob_files(rootfs_dir,
+						  native_sources,
+						  native_sources_len,
+						  SC_LIBGL_DIR, nvidia_globs,
+						  nvidia_globs_len);
+
+		// Alternative 32-bit support
+		if ((strlen(HOST_ARCH32_TRIPLET) > 0) &&
+		    (sc_mount_nvidia_is_driver_in_dir(lib32_libdir) == 1)) {
+
+			// sc_mkdir_and_mount_and_glob_files() takes an array of strings, so
+			// initialize lib32_sources accordingly, but calculate the array length
+			// dynamically to make adjustments to lib32_sources easier.
+			const char *lib32_sources[] = { lib32_libdir };
+			const size_t lib32_sources_len =
+			    sizeof lib32_sources / sizeof *lib32_sources;
+			sc_mkdir_and_mount_and_glob_files(rootfs_dir,
+							  lib32_sources,
+							  lib32_sources_len,
+							  SC_LIBGL32_DIR,
+							  nvidia_globs,
+							  nvidia_globs_len);
+		}
+	} else {
+		// Attempt mount of both the native and 32-bit variants of the driver if they exist
+		sc_mkdir_and_mount_and_bind(rootfs_dir, "/usr/lib/nvidia",
+					    SC_LIBGL_DIR);
+		// Alternative 32-bit support
+		sc_mkdir_and_mount_and_bind(rootfs_dir, "/usr/lib32/nvidia",
+					    SC_LIBGL32_DIR);
+	}
 }
 
 #endif				// ifdef NVIDIA_MULTIARCH

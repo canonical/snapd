@@ -94,6 +94,8 @@ backends:
             HTTP_PROXY: null
             HTTPS_PROXY: null
         systems:
+                # Fedora CI disabled because of unexplained golang bug breaking every build.
+                manual: true
             - fedora-26-64:
                 workers: 4
                 manual: true
