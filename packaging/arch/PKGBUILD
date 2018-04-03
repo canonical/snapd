@@ -69,25 +69,17 @@ build() {
   $gobuild -o $GOPATH/bin/snap-update-ns -ldflags '-extldflags "-static"' "${_gourl}/cmd/snap-update-ns"
   CGO_ENABLED=0 $gobuild -o $GOPATH/bin/snap-exec "${_gourl}/cmd/snap-exec"
 
-  # Generate data files such as real systemd units, dbus service, environment
-  # setup helpers out of the available templates
-  make -C data \
-       BINDIR=/bin \
-       LIBEXECDIR=/usr/lib \
-       SYSTEMDSYSTEMUNITDIR=/usr/lib/systemd/system \
+  make configure \
+       prefix=/usr \
+       bindir=/bin \
+       libexecdir=/usr/lib \
        SNAP_MOUNT_DIR=/var/lib/snapd/snap \
-       SNAPD_ENVIRONMENT_FILE=/etc/default/snapd
+       SNAPD_ENVIRONMENT_FILE=/etc/default/snapd \
+       APPARMOR=0 \
+       NVIDIA_BIARCH=1 \
+       MERGED_USR=1
 
-  cd cmd
-  autoreconf -i -f
-  ./configure \
-    --prefix=/usr \
-    --libexecdir=/usr/lib/snapd \
-    --with-snap-mount-dir=/var/lib/snapd/snap \
-    --disable-apparmor \
-    --enable-nvidia-biarch \
-    --enable-merged-usr
-  make $MAKEFLAGS
+  make $MAKEFLAGS all
 }
 
 check() {

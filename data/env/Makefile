@@ -13,7 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-SNAP_MOUNT_DIR := /snap
+include ../../build-config
+
 ENVD := /etc/profile.d
 
 %.sh: %.sh.in
