@@ -25,10 +25,13 @@ import (
 )
 
 // SecureBindMount performs a bind mount between two absolute paths
-// containing no symlinks, using a private stash directory as an
-// intermediate step
+// containing no symlinks.
 func SecureBindMount(sourceDir, targetDir string, flags uint) error {
-	// This function only attempts to handle bind mounts
+	// This function only attempts to handle bind
+	// mounts. Expanding to other mounts will require examining
+	// do_mount() from fs/namespace.c of the kernel that called
+	// functions (eventually) verify `DCACHE_CANT_MOUNT` is not
+	// set (eg, by calling lock_mount()).
 	if flags&syscall.MS_BIND == 0 {
 		return fmt.Errorf("only bind mounts are supported")
 	}
