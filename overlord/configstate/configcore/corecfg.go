@@ -53,7 +53,9 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 
 // supportedConfigurations will be filled in by the files (like proxy.go)
 // that handle this configuration.
-var supportedConfigurations = make(map[string]bool)
+var supportedConfigurations = map[string]bool{
+	"core.experimental.layouts": true,
+}
 
 func Run(tr Conf) error {
 	// check if the changes
