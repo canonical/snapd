@@ -121,14 +121,19 @@ func run() error {
 		thawSnapProcesses(opts.Positionals.SnapName)
 	}()
 
-	return computeAndSaveChanges(snapName)
-}
-
-func computeAndSaveChanges(snapName string) error {
 	// Allow creating directories related to this snap name.
 	// This allows /snap/foo without allowing /snap/bin, for example.
-	allowedPaths = append(allowedPaths, fmt.Sprintf("/snap/%s/", snapName))
+	//
+	// TODO: Handle /home/*/snap/* when we do per-user mount namespaces and
+	// allow defining layout items that refer to SNAP_USER_DATA and
+	// SNAP_USER_COMMON.
+	sec := &Secure{}
+	sec.AllowWritingTo(fmt.Sprintf("/var/snap/%s/", snapName),
+		fmt.Sprintf("/snap/%s/", snapName), "/tmp")
+	return computeAndSaveChanges(snapName, sec)
+}
 
+func computeAndSaveChanges(snapName string, sec *Secure) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
@@ -155,7 +160,7 @@ func computeAndSaveChanges(snapName string) error {
 	var changesMade []*Change
 	for _, change := range changesNeeded {
 		logger.Debugf("\t * %s", change)
-		synthesised, err := changePerform(change)
+		synthesised, err := changePerform(change, sec)
 		changesMade = append(changesMade, synthesised...)
 		if len(synthesised) > 0 {
 			logger.Debugf("\tsynthesised additional mount changes:")

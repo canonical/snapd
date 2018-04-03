@@ -36,12 +36,9 @@ var (
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
 	// utils
-	PlanWritableMimic  = planWritableMimic
-	ExecWritableMimic  = execWritableMimic
-	SecureMkdirAll     = secureMkdirAll
-	SecureMkfileAll    = secureMkfileAll
-	SecureMksymlinkAll = secureMksymlinkAll
-	SplitIntoSegments  = splitIntoSegments
+	PlanWritableMimic = planWritableMimic
+	ExecWritableMimic = execWritableMimic
+	SplitIntoSegments = splitIntoSegments
 
 	// main
 	ComputeAndSaveChanges = computeAndSaveChanges
@@ -134,7 +131,7 @@ func FreezerCgroupDir() string {
 	return freezerCgroupDir
 }
 
-func MockChangePerform(f func(chg *Change) ([]*Change, error)) func() {
+func MockChangePerform(f func(chg *Change, sec *Secure) ([]*Change, error)) func() {
 	origChangePerform := changePerform
 	changePerform = f
 	return func() {
@@ -155,13 +152,5 @@ func MockReadlink(fn func(string) (string, error)) (restore func()) {
 	osReadlink = fn
 	return func() {
 		osReadlink = old
-	}
-}
-
-func MockTrespassing(mockAllowedPaths []string) (restore func()) {
-	old := allowedPaths
-	allowedPaths = mockAllowedPaths
-	return func() {
-		allowedPaths = old
 	}
 }

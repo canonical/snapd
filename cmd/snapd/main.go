@@ -56,6 +56,9 @@ func run() error {
 	t0 := time.Now().Truncate(time.Millisecond)
 	httputil.SetUserAgentFromVersion(cmd.Version)
 
+	ch := make(chan os.Signal, 2)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+
 	d, err := daemon.New()
 	if err != nil {
 		return err
@@ -71,8 +74,6 @@ func run() error {
 	systemd.SdNotify("READY=1")
 	logger.Debugf("activation done in %v", time.Now().Truncate(time.Millisecond).Sub(t0))
 
-	ch := make(chan os.Signal)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	select {
 	case sig := <-ch:
 		logger.Noticef("Exiting on %s signal.\n", sig)

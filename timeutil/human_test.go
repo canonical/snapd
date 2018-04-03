@@ -61,25 +61,32 @@ func (s *humanSuite) SetUpSuite(c *check.C) {
 func (s *humanSuite) TestHumanTimeDST(c *check.C) {
 	c.Check(timeutil.HumanTimeSince(s.beforeDSTbegins, s.afterDSTbegins, 300), check.Equals, "today at 00:59 GMT")
 	c.Check(timeutil.HumanTimeSince(s.beforeDSTends, s.afterDSTends, 300), check.Equals, "today at 01:59 BST")
-	c.Check(timeutil.HumanTimeSince(s.beforeDSTbegins, s.afterDSTends, 300), check.Equals, "218 days ago, at 00:59 GMT")
+	c.Check(timeutil.HumanTimeSince(s.beforeDSTbegins, s.afterDSTends, 300), check.Equals, "217 days ago, at 00:59 GMT")
+}
+
+func (s *humanSuite) TestHumanTimeDSTMore(c *check.C) {
+	loc, err := time.LoadLocation("Europe/London")
+	c.Assert(err, check.IsNil)
+	d0 := time.Date(2018, 3, 23, 13, 14, 15, 0, loc)
+	df := time.Date(2018, 3, 25, 13, 14, 15, 0, loc)
+	c.Check(timeutil.HumanTimeSince(d0, df, 300), check.Equals, "2 days ago, at 13:14 GMT")
+	c.Check(timeutil.HumanTimeSince(df, d0, 300), check.Equals, "in 2 days, at 13:14 BST")
 }
 
 func (*humanSuite) TestHuman(c *check.C) {
 	now := time.Now()
-	timePart := now.Format("15:04 MST")
-	y, m, d := now.Date()
-	H, M, S := now.Clock()
-	loc := now.Location()
 
-	c.Check(timeutil.Human(time.Date(y, m, d-2, H, M, S, 0, loc)), check.Equals, "2 days ago, at "+timePart)
-	c.Check(timeutil.Human(time.Date(y, m, d-1, H, M, S, 0, loc)), check.Equals, "yesterday at "+timePart)
-	c.Check(timeutil.Human(now), check.Equals, "today at "+timePart)
-	c.Check(timeutil.Human(time.Date(y, m, d+1, H, M, S, 0, loc)), check.Equals, "tomorrow at "+timePart)
-	c.Check(timeutil.Human(time.Date(y, m, d+2, H, M, S, 0, loc)), check.Equals, "in 2 days, at "+timePart)
+	for i, expected := range []string{
+		"2 days ago, at ", "yesterday at ", "today at ", "tomorrow at ", "in 2 days, at ",
+	} {
+		t := now.AddDate(0, 0, i-2)
+		timePart := t.Format("15:04 MST")
+		c.Check(timeutil.Human(t), check.Equals, expected+timePart)
+	}
 
 	// two outside of the 60-day cutoff:
-	d1 := time.Date(y, m, d-90, H, M, S, 0, loc)
-	d2 := time.Date(y, m, d+90, H, M, S, 0, loc)
+	d1 := now.AddDate(0, -3, 0)
+	d2 := now.AddDate(0, 3, 0)
 	c.Check(timeutil.Human(d1), check.Equals, d1.Format("2006-01-02"))
 	c.Check(timeutil.Human(d2), check.Equals, d2.Format("2006-01-02"))
 
