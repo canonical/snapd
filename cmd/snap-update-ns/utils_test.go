@@ -54,7 +54,7 @@ func (s *utilsSuite) SetUpTest(c *C) {
 	s.sec = &update.Secure{}
 	s.sec.AllowWritingTo(
 		// Special paths used for testing.
-		// It's easier to allow than than to change all the tests now.
+		// It's easier to allow than to change all the tests now.
 		"/abs/",
 		"/path/",
 		"/rofs/",

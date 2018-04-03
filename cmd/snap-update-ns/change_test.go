@@ -51,7 +51,7 @@ func (s *changeSuite) SetUpTest(c *C) {
 	// Allow writing anywhere
 	s.sec.AllowWritingTo(
 		// Special paths used for testing.
-		// It's easier to allow than than to change all the tests now.
+		// It's easier to allow than to change all the tests now.
 		"/abs/",
 		"/base/",
 		"/name",
