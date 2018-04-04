@@ -2614,6 +2614,14 @@ func (s *interfaceManagerSuite) TestSetupProfilesInjectsAutoConnectIfMissing(c *
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.Tasks(), HasLen, 2)
+
+	// sanity check
 	c.Assert(chg.Tasks()[0].Kind(), Equals, "setup-profiles")
-	c.Assert(chg.Tasks()[1].Kind(), Equals, "auto-connect")
+
+	// check that auto-connect task was added and has snap-setup
+	var autoconnectSup snapstate.SnapSetup
+	ac := chg.Tasks()[1]
+	c.Assert(ac.Kind(), Equals, "auto-connect")
+	c.Assert(ac.Get("snap-setup", &autoconnectSup), IsNil)
+	c.Assert(autoconnectSup.Name(), Equals, "snap")
 }

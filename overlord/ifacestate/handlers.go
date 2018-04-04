@@ -135,6 +135,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		if !hasAutoConnect {
 			st := task.State()
 			autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.Name()))
+			autoConnect.Set("snap-setup", snapsup)
 			injectTasks(task, state.NewTaskSet(autoConnect))
 			task.Logf("added auto-connect task")
 		}
