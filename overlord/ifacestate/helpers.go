@@ -102,6 +102,7 @@ func (m *InterfaceManager) addSnaps() error {
 	}
 	for _, snapInfo := range snaps {
 		addImplicitSlots(snapInfo)
+		logger.Noticef("adding snap %q to interface repository (plugs: %d, slots: %d)", snapInfo.Name(), len(snapInfo.Plugs), len(snapInfo.Slots))
 		if err := m.repo.AddSnap(snapInfo); err != nil {
 			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.Name(), err)
 		}

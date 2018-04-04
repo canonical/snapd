@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -197,7 +198,19 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		affectedSnaps = append(affectedSnaps, name)
 	}
 	sort.Strings(affectedSnaps)
-	return m.setupAffectedSnaps(task, snapName, affectedSnaps)
+	err = m.setupAffectedSnaps(task, snapName, affectedSnaps)
+
+	// Store the snap revision in the state, so that we know which revision has profiles.
+	st := task.State()
+	var snapifst SnapInterfaceState
+	if err := Get(st, snapName, &snapifst); err != nil && err != state.ErrNoState {
+		logger.Noticef("cannot get interface state of snap %q: %s", err)
+	} else {
+		snapifst.Revision = snapInfo.Revision
+		Set(st, snapName, &snapifst)
+	}
+
+	return err
 }
 
 func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) error {
@@ -237,6 +250,16 @@ func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb,
 	// Remove security artefacts of the snap.
 	if err := m.removeSnapSecurity(task, snapName); err != nil {
 		return err
+	}
+
+	// Remove the revision stored in the state, since the profiles are gone now.
+	st := task.State()
+	var snapifst SnapInterfaceState
+	if err := Get(st, snapName, &snapifst); err != nil && err != state.ErrNoState {
+		logger.Noticef("cannot get interface state of snap %q: %s", err)
+	} else {
+		snapifst.Revision = snap.R(0)
+		Set(st, snapName, &snapifst)
 	}
 
 	return nil
@@ -322,6 +345,9 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 	}
 	task.Set("removed", removed)
 	setConns(st, conns)
+
+	// Remove interface repository state of this snap.
+	Set(st, snapName, nil)
 	return nil
 }
 

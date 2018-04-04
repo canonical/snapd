@@ -2704,3 +2704,71 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfiles(c *C) {
 		"snap3": snap.R(3),
 	})
 }
+
+func (s *interfaceManagerSuite) TestGet(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Get the state of the snap "hello", it should not be there yet.
+	var snapifst ifacestate.SnapInterfaceState
+	err := ifacestate.Get(s.state, "hello", &snapifst)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	// Manually make state that describes the "bye" snap.
+	repoSt := map[string]ifacestate.SnapInterfaceState{
+		"bye": {Revision: snap.R(13)},
+	}
+	s.state.Set("repo", &repoSt)
+
+	// Get the state of the snap "hello" again, it should not be there, still.
+	err = ifacestate.Get(s.state, "hello", &snapifst)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	// Manually make state that describes the "hello" snap.
+	repoSt = map[string]ifacestate.SnapInterfaceState{
+		"hello": {Revision: snap.R(42)},
+	}
+	s.state.Set("repo", &repoSt)
+
+	// Get the state of the snap "hello" again, it should work now.
+	err = ifacestate.Get(s.state, "hello", &snapifst)
+	c.Assert(err, IsNil)
+	c.Assert(snapifst.Revision, Equals, snap.R(42))
+}
+
+func (s *interfaceManagerSuite) TestSet(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Set the state of the snap "hello", it should just work.
+	ifacestate.Set(s.state, "hello", &ifacestate.SnapInterfaceState{Revision: snap.R(42)})
+
+	// It should be saved into the repository state
+	var repoSt map[string]interface{}
+	err := s.state.Get("repo", &repoSt)
+	c.Assert(err, IsNil)
+	c.Assert(repoSt, DeepEquals, map[string]interface{}{
+		"hello": map[string]interface{}{"revision": "42"},
+	})
+
+	// Set the state of the snap "bye", it should not clobber that of "hello".
+	ifacestate.Set(s.state, "bye", &ifacestate.SnapInterfaceState{Revision: snap.R(13)})
+
+	repoSt = nil
+	err = s.state.Get("repo", &repoSt)
+	c.Assert(err, IsNil)
+	c.Assert(repoSt, DeepEquals, map[string]interface{}{
+		"hello": map[string]interface{}{"revision": "42"},
+		"bye":   map[string]interface{}{"revision": "13"},
+	})
+
+	// Set the state of the snap "hello" to nil, this should remove it.
+	ifacestate.Set(s.state, "hello", nil)
+
+	repoSt = nil
+	err = s.state.Get("repo", &repoSt)
+	c.Assert(err, IsNil)
+	c.Assert(repoSt, DeepEquals, map[string]interface{}{
+		"bye": map[string]interface{}{"revision": "13"},
+	})
+}
