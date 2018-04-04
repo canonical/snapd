@@ -251,11 +251,7 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	if cur == nil {
 		return nil, ErrNoCurrent
 	}
-	info, err := readInfo(cur.RealName, cur)
-	if err != nil {
-		logger.Noticef("%v", err)
-	}
-	return info, err
+	return readInfo(cur.RealName, cur)
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
