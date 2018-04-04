@@ -75,6 +75,9 @@ func findExec(desktopFileContent []byte) (string, error) {
 		execCmd = expandDesktopFields(full)
 		break
 	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
 
 	execCmd = strings.TrimSpace(execCmd)
 	if execCmd == "" {
