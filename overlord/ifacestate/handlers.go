@@ -771,18 +771,19 @@ func injectTasks(mainTask *state.Task, extraTasks *state.TaskSet) {
 	if len(lanes) == 1 && lanes[0] == 0 {
 		lanes = nil
 	}
-	ht := mainTask.HaltTasks()
-
 	for _, l := range lanes {
 		extraTasks.JoinLane(l)
 	}
 
 	chg := mainTask.Change()
+	// Change shouldn't normally be nil, except for cases where
+	// this helper is used before tasks are added to a change.
 	if chg != nil {
 		chg.AddAll(extraTasks)
 	}
 
 	// make all halt tasks of the mainTask wait on extraTasks
+	ht := mainTask.HaltTasks()
 	for _, t := range ht {
 		t.WaitAll(extraTasks)
 	}
