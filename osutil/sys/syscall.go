@@ -20,7 +20,9 @@
 package sys
 
 import (
+	"fmt"
 	"os"
+	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -106,4 +108,37 @@ func FcntlGetFl(fd int) (int, error) {
 		return 0, errno
 	}
 	return int(flags), nil
+}
+
+// RunAsUidGid starts a goroutine, pins it to the OS thread, calls setuid and
+// setgid, and runs the function.
+func RunAsUidGid(uid UserID, gid GroupID, f func() error) error {
+	ch := make(chan error)
+	go func() {
+		// from the docs:
+		//   until the goroutine exits or calls UnlockOSThread, it will
+		//   always execute in this thread, and no other goroutine can.
+		// that last bit means it's safe to setuid/setgid in here, as no
+		// other code will run.
+		runtime.LockOSThread()
+
+		// do the setgid first =)
+		if _, _, err := syscall.RawSyscall(_SYS_SETGID, uintptr(gid), 0, 0); err != 0 {
+			ch <- fmt.Errorf("setgid: %v", err)
+			return
+		}
+
+		if _, _, err := syscall.RawSyscall(_SYS_SETUID, uintptr(uid), 0, 0); err != 0 {
+			ch <- fmt.Errorf("setuid: %v", err)
+			return
+		}
+
+		ch <- f()
+
+		// From Go 1.10, if we exit without unlocking, the thread is killed \o/
+		// but we run on 1.6... /o\
+		// Kudos to @bradfitz for knowing this one (via golang#20395):
+		syscall.Syscall(syscall.SYS_EXIT, 0, 0, 0)
+	}()
+	return <-ch
 }
