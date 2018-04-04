@@ -780,6 +780,22 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	return info, nil
 }
 
+// ReadCurrentInfo reads the snap information from the installed snap in 'current' revision
+func ReadCurrentInfo(snapName string) (*Info, error) {
+	curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
+	realFn, err := os.Readlink(curFn)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find current revision for snap %s: %s", snapName, err)
+	}
+	rev := filepath.Base(realFn)
+	revision, err := ParseRevision(rev)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
+	}
+
+	return ReadInfo(snapName, &SideInfo{Revision: revision})
+}
+
 // ReadInfoFromSnapFile reads the snap information from the given File
 // and completes it with the given side-info if this is not nil.
 func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
