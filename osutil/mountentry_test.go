@@ -102,6 +102,18 @@ func (s *entrySuite) TestParseMountEntry1(c *C) {
 	c.Assert(e.CheckPassNumber, Equals, 0)
 }
 
+// Test that hash inside a field value is supported.
+func (s *entrySuite) TestHashInFieldValue(c *C) {
+	e, err := osutil.ParseMountEntry("mhddfs#/mnt/dir1,/mnt/dir2 /mnt/dir fuse defaults,allow_other 0 0")
+	c.Assert(err, IsNil)
+	c.Assert(e.Name, Equals, "mhddfs#/mnt/dir1,/mnt/dir2")
+	c.Assert(e.Dir, Equals, "/mnt/dir")
+	c.Assert(e.Type, Equals, "fuse")
+	c.Assert(e.Options, DeepEquals, []string{"defaults", "allow_other"})
+	c.Assert(e.DumpFrequency, Equals, 0)
+	c.Assert(e.CheckPassNumber, Equals, 0)
+}
+
 // Test that options are parsed correctly
 func (s *entrySuite) TestParseMountEntry2(c *C) {
 	e, err := osutil.ParseMountEntry("name dir type options,comma,separated 0 0")
