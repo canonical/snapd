@@ -83,25 +83,10 @@ func findExec(desktopFileContent []byte) (string, error) {
 	return execCmd, nil
 }
 
-func getCurrentSnapInfo(snapName string) (*snap.Info, error) {
-	curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
-	realFn, err := os.Readlink(curFn)
-	if err != nil {
-		return nil, fmt.Errorf("cannot find current revision for snap %s: %s", snapName, err)
-	}
-	rev := filepath.Base(realFn)
-	revision, err := snap.ParseRevision(rev)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
-	}
-
-	return snap.ReadInfo(snapName, &snap.SideInfo{Revision: revision})
-}
-
 func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
 	desktopFile := filepath.Base(desktopFilePath)
 
-	info, err := getCurrentSnapInfo(snapName)
+	info, err := snap.ReadCurrentInfo(snapName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot obtain snap information for snap %q: %v", snapName, err)
 	}
