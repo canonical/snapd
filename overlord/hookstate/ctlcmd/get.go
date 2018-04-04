@@ -196,6 +196,8 @@ const (
 	prepareSlotHook
 	connectPlugHook
 	connectSlotHook
+	disconnectPlugHook
+	disconnectSlotHook
 	unknownHook
 )
 
@@ -208,6 +210,10 @@ func interfaceHookType(hookName string) (ifaceHookType, error) {
 		return prepareSlotHook, nil
 	} else if strings.HasPrefix(hookName, "connect-slot-") {
 		return connectSlotHook, nil
+	} else if strings.HasPrefix(hookName, "disconnect-plug-") {
+		return disconnectPlugHook, nil
+	} else if strings.HasPrefix(hookName, "disconnect-slot-") {
+		return disconnectSlotHook, nil
 	}
 	return unknownHook, fmt.Errorf("unknown hook type")
 }
@@ -245,12 +251,22 @@ func attributesTask(context *hookstate.Context) (*state.Task, error) {
 	defer context.Unlock()
 
 	if err := context.Get("attrs-task", &attrsTaskID); err != nil {
-		return nil, err
+		if err == state.ErrNoState {
+			// if attrs-task is not present, look for attributes in hook's own task
+			if hookTask, ok := context.Task(); ok {
+				attrsTaskID = hookTask.ID()
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	st := context.State()
 
-	attrsTask := st.Task(attrsTaskID)
+	var attrsTask *state.Task
+	if attrsTaskID != "" {
+		attrsTask = st.Task(attrsTaskID)
+	}
 	if attrsTask == nil {
 		return nil, fmt.Errorf(i18n.G("internal error: cannot find attrs task"))
 	}
@@ -275,31 +291,48 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		return fmt.Errorf("cannot use --plug and --slot together")
 	}
 
-	isPlugSide := (hookType == preparePlugHook || hookType == connectPlugHook)
+	isPlugSide := (hookType == preparePlugHook || hookType == connectPlugHook || hookType == disconnectPlugHook)
 	if err = validatePlugOrSlot(attrsTask, isPlugSide, plugOrSlot); err != nil {
 		return err
 	}
 
 	var which string
 	if c.ForcePlugSide || (isPlugSide && !c.ForceSlotSide) {
-		which = "plug-attrs"
+		which = "plug"
 	} else {
-		which = "slot-attrs"
+		which = "slot"
 	}
 
 	st := context.State()
 	st.Lock()
 	defer st.Unlock()
 
-	attributes := make(map[string]interface{})
-	if err = attrsTask.Get(which, &attributes); err != nil {
+	var staticAttrs, dynamicAttrs map[string]interface{}
+	if err = attrsTask.Get(fmt.Sprintf("%s-static", which), &staticAttrs); err != nil {
+		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
+	}
+	if err = attrsTask.Get(fmt.Sprintf("%s-dynamic", which), &dynamicAttrs); err != nil {
 		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
 	}
 
 	return c.printValues(func(key string) (interface{}, bool, error) {
-		if value, ok := attributes[key]; ok {
+		subkeys, err := config.ParseKey(key)
+		if err != nil {
+			return nil, false, err
+		}
+
+		var value interface{}
+		err = config.GetFromChange(context.SnapName(), subkeys, 0, staticAttrs, &value)
+		if err == nil {
 			return value, true, nil
 		}
-		return nil, false, fmt.Errorf(i18n.G("unknown attribute %q"), key)
+		if config.IsNoOption(err) {
+			err = config.GetFromChange(context.SnapName(), subkeys, 0, dynamicAttrs, &value)
+			if err == nil {
+				return value, true, nil
+			}
+			return nil, false, fmt.Errorf(i18n.G("unknown attribute %q"), key)
+		}
+		return nil, false, err
 	})
 }

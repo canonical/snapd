@@ -202,6 +202,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupAliases)
 	prev = setupAliases
 
+	// on refresh re-connect existing connections and run their interface hooks (if applicable)
+	if snapst.IsInstalled() {
+		reconnectTask := st.NewTask("reconnect", fmt.Sprintf(i18n.G("Re-connect the interfaces and re-run interface hooks for snap %q"), snapsup.Name()))
+		addTask(reconnectTask)
+		prev = reconnectTask
+	}
+
 	if runRefreshHooks {
 		postRefreshHook := SetupPostRefreshHook(st, snapsup.Name())
 		addTask(postRefreshHook)
@@ -1337,6 +1344,13 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		}
 		full.AddAll(ts)
 		chain = ts
+	}
+
+	if removeAll {
+		// disconnect interfaces and run disconnect hooks
+		disconnect := st.NewTask("disconnect-interfaces", fmt.Sprintf(i18n.G("Disconnect interfaces of snap %q"), snapsup.Name()))
+		disconnect.Set("snap-setup", snapsup)
+		addNext(state.NewTaskSet(disconnect))
 	}
 
 	var removeHook *state.Task

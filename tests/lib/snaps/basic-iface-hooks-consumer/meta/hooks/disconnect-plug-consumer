@@ -1,0 +1,61 @@
+#!/bin/sh
+set -x
+
+echo "Getting attributes from disconnect-plug-consumer hook"
+
+if ! output=$(snapctl get --slot :consumer producer-attr-1); then
+    echo "Expected disconnect-plug-consumer to be able to read the value of 'producer-attr-1' attribute of the slot"
+    exit 1
+fi
+expected_output="producer-value-1"
+if [ "$output" != "$expected_output" ]; then
+    echo "Expected output to be '$expected_output', but it was '$output'"
+    exit 1
+fi
+
+# Read 'before-connect' attribute of the slot
+if ! output=$(snapctl get --slot :consumer before-connect); then
+    echo "Expected disconnect-plug-consumer be able to read the value of the 'before-connect' attribute of the slot"
+    exit 1
+fi
+expected_output="slot-changed(producer-value)"
+if [ "$output" != "$expected_output" ]; then
+    echo "Expected output to be '$expected_output', but it was '$output'"
+    exit 1
+fi
+
+# Read own 'consumer-attr-1' attribute
+if ! output=$(snapctl get :consumer consumer-attr-1); then
+    echo "Expected connect-plug-foo be able to read the value of own 'consumer-attr-1' attribute"
+    exit 1
+fi
+expected_output="consumer-value-1"
+if [ "$output" != "$expected_output" ]; then
+    echo "Expected output to be '$expected_output', but it was '$output'"
+    exit 1
+fi
+
+# Read own 'before-connect' attribute
+if ! output=$(snapctl get :consumer before-connect); then
+    echo "Expected disconnect-plug-consumer be able to read the value of own 'before-connect' attribute"
+    exit 1
+fi
+expected_output="plug-changed(consumer-value)"
+if [ "$output" != "$expected_output" ]; then
+    echo "Expected output to be '$expected_output', but it was '$output'"
+    exit 1
+fi
+
+# Failure on unknown plug
+if snapctl get :unknown target; then
+    echo "Expected snapctl get to fail on unknown plug"
+    exit 1
+fi
+
+# Attributes cannot be set in connect- or disconnect- hooks
+if snapctl set :consumer consumer-attr-4=foo; then
+    echo "Expected snapctl set to fail when run from connect-plug or disconnect-plug hook"
+    exit 1
+fi
+
+touch "$SNAP_COMMON/disconnect-plug-consumer-done"

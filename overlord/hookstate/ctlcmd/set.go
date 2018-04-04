@@ -20,12 +20,14 @@
 package ctlcmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
@@ -113,6 +115,35 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	return nil
 }
 
+func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, key string, value interface{}) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("cannot marshal snap %q option %q: %s", context.SnapName(), key, err)
+	}
+	raw := json.RawMessage(data)
+
+	subkeys, err := config.ParseKey(key)
+	if err != nil {
+		return err
+	}
+
+	var existing interface{}
+	// We're called from setInterfaceSetting, subkeys is derived from key
+	// part of key=value argument and is guaranteed to be non-empty at this
+	// point.
+	err = config.GetFromChange(context.SnapName(), subkeys[:1], 0, staticAttrs, &existing)
+	if err == nil {
+		return fmt.Errorf(i18n.G("attribute %q cannot be overwritten"), key)
+	}
+	// we expect NoOptionError here, any other error is unexpected (a real error)
+	if !config.IsNoOption(err) {
+		return err
+	}
+
+	_, err = config.PatchConfig(context.SnapName(), subkeys, 0, dynamicAttrs, &raw)
+	return err
+}
+
 func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot string) error {
 	// Make sure set :<plug|slot> is only supported during the execution of prepare-[plug|slot] hooks
 	hookType, _ := interfaceHookType(context.HookName())
@@ -132,18 +163,22 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 
 	var which string
 	if hookType == preparePlugHook {
-		which = "plug-attrs"
+		which = "plug"
 	} else {
-		which = "slot-attrs"
+		which = "slot"
 	}
 
-	st := context.State()
-	st.Lock()
-	defer st.Unlock()
+	context.Lock()
+	defer context.Unlock()
 
-	attributes := make(map[string]interface{})
-	if err := attrsTask.Get(which, &attributes); err != nil {
-		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
+	var staticAttrs, dynamicAttrs map[string]interface{}
+	if err = attrsTask.Get(fmt.Sprintf("%s-static", which), &staticAttrs); err != nil {
+		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task, %s"), which, err)
+	}
+
+	dynKey := fmt.Sprintf("%s-dynamic", which)
+	if err = attrsTask.Get(dynKey, &dynamicAttrs); err != nil {
+		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task, %s"), which, err)
 	}
 
 	for _, attrValue := range s.Positional.ConfValues {
@@ -157,9 +192,12 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 			// Not valid JSON, save the string as-is
 			value = parts[1]
 		}
-		attributes[parts[0]] = value
+		err = setInterfaceAttribute(context, staticAttrs, dynamicAttrs, parts[0], value)
+		if err != nil {
+			return fmt.Errorf(i18n.G("cannot set attribute: %v"), err)
+		}
 	}
 
-	attrsTask.Set(which, attributes)
+	attrsTask.Set(dynKey, dynamicAttrs)
 	return nil
 }

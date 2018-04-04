@@ -162,6 +162,8 @@ func connect(st *state.State, change *state.Change, plugSnap, plugName, slotSnap
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
 	connectInterface.Set("auto", autoConnectTask != nil)
 
+	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
+	// to modify them but all attributes will be checked against assertions after the hooks are run.
 	if err := setInitialConnectAttributes(connectInterface, plugSnap, plugName, slotSnap, slotName); err != nil {
 		return nil, err
 	}
@@ -187,6 +189,11 @@ func connect(st *state.State, change *state.Change, plugSnap, plugName, slotSnap
 	connectPlugConnection := hookstate.HookTask(st, summary, connectPlugHookSetup, initialContext)
 	connectPlugConnection.WaitFor(connectSlotConnection)
 
+	// store IDs of the connect-plug/slot- hook tasks in the main 'connect' task,
+	// so that doConnect can conditionally mark them done on autoconnect.
+	connectInterface.Set("connect-slot-hook-task", connectSlotConnection.ID())
+	connectInterface.Set("connect-plug-hook-task", connectPlugConnection.ID())
+
 	return state.NewTaskSet(preparePlugConnection, prepareSlotConnection, connectInterface, connectSlotConnection, connectPlugConnection), nil
 }
 
@@ -203,8 +210,11 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 	if err != nil {
 		return err
 	}
+
+	emptyDynamicAttrs := make(map[string]interface{})
 	if plug, ok := snapInfo.Plugs[plugName]; ok {
-		ts.Set("plug-attrs", plug.Attrs)
+		ts.Set("plug-static", plug.Attrs)
+		ts.Set("plug-dynamic", emptyDynamicAttrs)
 	} else {
 		return fmt.Errorf("snap %q has no plug named %q", plugSnap, plugName)
 	}
@@ -218,7 +228,8 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 	}
 	addImplicitSlots(snapInfo)
 	if slot, ok := snapInfo.Slots[slotName]; ok {
-		ts.Set("slot-attrs", slot.Attrs)
+		ts.Set("slot-static", slot.Attrs)
+		ts.Set("slot-dynamic", emptyDynamicAttrs)
 	} else {
 		return fmt.Errorf("snap %q has no slot named %q", slotSnap, slotName)
 	}
@@ -227,7 +238,12 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 }
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
-func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, error) {
+	plugSnap := conn.Plug.Snap().Name()
+	slotSnap := conn.Slot.Snap().Name()
+	plugName := conn.Plug.Name()
+	slotName := conn.Slot.Name()
+
 	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
@@ -237,10 +253,54 @@ func Disconnect(st *state.State, plugSnap, plugName, slotSnap, slotName string) 
 
 	summary := fmt.Sprintf(i18n.G("Disconnect %s:%s from %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
-	task := st.NewTask("disconnect", summary)
-	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
-	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	return state.NewTaskSet(task), nil
+	disconnectTask := st.NewTask("disconnect", summary)
+	disconnectTask.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
+	disconnectTask.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+
+	hooks := DisconnectHooks(st, conn)
+	disconnectTask.WaitAll(hooks)
+
+	ts := state.NewTaskSet(hooks.Tasks()...)
+	ts.AddTask(disconnectTask)
+	return ts, nil
+}
+
+// DisconnectHooks returns a set of tasks for running disconnect- hooks for an interface.
+func DisconnectHooks(st *state.State, conn *interfaces.Connection) *state.TaskSet {
+	plugSnap := conn.Plug.Snap().Name()
+	slotSnap := conn.Slot.Snap().Name()
+	plugName := conn.Plug.Name()
+	slotName := conn.Slot.Name()
+
+	disconnectSlotHookSetup := &hookstate.HookSetup{
+		Snap:     slotSnap,
+		Hook:     "disconnect-slot-" + slotName,
+		Optional: true,
+	}
+	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectSlotHookSetup.Hook, disconnectSlotHookSetup.Snap)
+	disconnectSlot := hookstate.HookTask(st, summary, disconnectSlotHookSetup, nil)
+
+	disconnectPlugHookSetup := &hookstate.HookSetup{
+		Snap:     plugSnap,
+		Hook:     "disconnect-plug-" + plugName,
+		Optional: true,
+	}
+	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectPlugHookSetup.Hook, disconnectPlugHookSetup.Snap)
+	disconnectPlug := hookstate.HookTask(st, summary, disconnectPlugHookSetup, nil)
+	disconnectPlug.WaitFor(disconnectSlot)
+
+	// expose plug/slot attributes to the hooks
+	for _, task := range []*state.Task{disconnectPlug, disconnectSlot} {
+		task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
+		task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+
+		task.Set("slot-static", conn.Slot.StaticAttrs())
+		task.Set("slot-dynamic", conn.Slot.DynamicAttrs())
+		task.Set("plug-static", conn.Plug.StaticAttrs())
+		task.Set("plug-dynamic", conn.Plug.DynamicAttrs())
+	}
+
+	return state.NewTaskSet(disconnectSlot, disconnectPlug)
 }
 
 // CheckInterfaces checks whether plugs and slots of snap are allowed for installation.
