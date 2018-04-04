@@ -2585,3 +2585,35 @@ func (s *interfaceManagerSuite) TestInjectTasksWithNullChange(c *C) {
 	c.Assert(t1.HaltTasks(), HasLen, 1)
 	c.Assert(t1.HaltTasks()[0].Kind(), Equals, "task1-1")
 }
+
+func (s *interfaceManagerSuite) TestSetupProfilesInjectsAutoConnectIfMissing(c *C) {
+	mgr := s.manager(c)
+
+	si := &snap.SideInfo{
+		RealName: "snap",
+		Revision: snap.R(1),
+	}
+	sup := &snapstate.SnapSetup{SideInfo: si}
+	_ = snaptest.MockSnap(c, sampleSnapYaml, si)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := s.state.NewTask("setup-profiles", "")
+	task.Set("snap-setup", sup)
+
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task)
+
+	s.state.Unlock()
+
+	defer mgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Tasks(), HasLen, 2)
+	c.Assert(chg.Tasks()[0].Kind(), Equals, "setup-profiles")
+	c.Assert(chg.Tasks()[1].Kind(), Equals, "auto-connect")
+}
