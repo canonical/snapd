@@ -79,19 +79,11 @@ func MockWhoopsiePreferences(path string) (restorer func()) {
 	}
 }
 
-func MockOsEnviron(f func() []string) (restorer func()) {
-	old := osEnviron
-	osEnviron = f
+func MockOsGetenv(f func(string) string) (restorer func()) {
+	old := osGetenv
+	osGetenv = f
 	return func() {
-		osEnviron = old
-	}
-}
-
-func MockOsLookupEnv(f func(string) (string, bool)) (restorer func()) {
-	old := osLookupEnv
-	osLookupEnv = f
-	return func() {
-		osLookupEnv = old
+		osGetenv = old
 	}
 }
 

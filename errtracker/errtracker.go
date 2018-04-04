@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -66,9 +65,8 @@ var (
 	procSelfCwd     = "/proc/self/cwd"
 	procSelfCmdline = "/proc/self/cmdline"
 
-	osEnviron   = os.Environ
-	osLookupEnv = os.LookupEnv
-	timeNow     = time.Now
+	osGetenv = os.Getenv
+	timeNow  = time.Now
 )
 
 func whoopsieEnabled() bool {
@@ -170,7 +168,13 @@ func detectVirt() string {
 
 func journalError() string {
 	// TODO: look into using systemd package (needs refactor)
-	output, err := exec.Command("journalctl", "--utc", "--boot", "--priority=warning..err", "--lines=1000").CombinedOutput()
+
+	// Before changing this line to be more consistent or nicer or anything
+	// else, remember it needs to run a lot of different systemd's: today,
+	// anything from 238 (on arch) to 204 (on ubuntu 14.04); this is why
+	// doing the refactor to the systemd package to only worry about this in
+	// there might be worth it.
+	output, err := exec.Command("journalctl", "-b", "--priority=warning..err", "--lines=1000").CombinedOutput()
 	if err != nil {
 		if len(output) == 0 {
 			return fmt.Sprintf("error: %v", err)
@@ -187,7 +191,10 @@ func procCpuinfoMinimal() string {
 		return fmt.Sprintf("error: %v", err)
 	}
 	idx := bytes.LastIndex(buf, []byte("\nprocessor\t:"))
-	// if not found, return whole buffer; otherwise, return from just after the \n
+
+	// if not found (which will happen on non-x86 architectures, which is ok
+	// because they'd typically not have the same info over and over again),
+	// return whole buffer; otherwise, return from just after the \n
 	return string(buf[idx+1:])
 }
 
@@ -223,6 +230,7 @@ func environ() string {
 		"LC_NAME", "LC_ADDRESS", "LC_TELEPHONE",
 		"LC_MEASUREMENT", "LC_IDENTIFICATION", "LOCPATH",
 	}
+	unsafeVars := []string{"XDG_RUNTIME_DIR", "LD_PRELOAD", "LD_LIBRARY_PATH"}
 	knownPaths := map[string]bool{
 		"/snap/bin":               true,
 		"/var/lib/snapd/snap/bin": true,
@@ -236,38 +244,38 @@ func environ() string {
 		"/usr/games":              true,
 	}
 
-	out := make([]string, 0, len(safeVars)+4)
-	for _, env := range osEnviron() {
-		idx := strings.IndexByte(env, '=')
-		if idx < 4 {
-			continue
-		}
-		if len(env) == idx+1 {
-			continue
-		}
+	// + 1 for PATH
+	out := make([]string, 0, len(safeVars)+len(unsafeVars)+1)
 
-		switch k := env[:idx]; k {
-		case "PATH":
-			paths := strings.Split(env[idx+1:], ":")
-			for i, p := range paths {
-				p = filepath.Clean(p)
-				if !knownPaths[p] {
-					if strings.Contains(p, "/home") || strings.Contains(p, "/tmp") {
-						p = "(user)"
-					} else {
-						p = "(custom)"
-					}
-				}
-				paths[i] = p
-			}
-			out = append(out, fmt.Sprintf("PATH=%s", strings.Join(paths, ":")))
-		case "XDG_RUNTIME_DIR", "LD_PRELOAD", "LD_LIBRARY_PATH":
-			out = append(out, k+"=<set>")
-		default:
-			if strutil.ListContains(safeVars, k) {
-				out = append(out, env)
-			}
+	for _, k := range safeVars {
+		v := osGetenv(k)
+		if v == "" {
+			continue
 		}
+		out = append(out, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	for _, k := range unsafeVars {
+		v := osGetenv(k)
+		if v == "" {
+			continue
+		}
+		out = append(out, k+"=<set>")
+	}
+
+	if paths := filepath.SplitList(osGetenv("PATH")); len(paths) > 0 {
+		for i, p := range paths {
+			p = filepath.Clean(p)
+			if !knownPaths[p] {
+				if strings.Contains(p, "/home") || strings.Contains(p, "/tmp") {
+					p = "(user)"
+				} else {
+					p = "(custom)"
+				}
+			}
+			paths[i] = p
+		}
+		out = append(out, fmt.Sprintf("PATH=%s", strings.Join(paths, ":")))
 	}
 
 	return strings.Join(out, "\n")
@@ -334,7 +342,7 @@ func report(errMsg, dupSig string, extra map[string]string) (string, error) {
 		"DidSnapdReExec": didSnapdReExec(),
 	}
 
-	if desktop, ok := osLookupEnv("XDG_CURRENT_DESKTOP"); ok {
+	if desktop := osGetenv("XDG_CURRENT_DESKTOP"); desktop != "" {
 		report["CurrentDesktop"] = desktop
 	}
 

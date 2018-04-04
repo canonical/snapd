@@ -27,6 +27,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -108,12 +109,14 @@ bugs		: very yes
 	c.Assert(os.Symlink("target of /proc/self/exe", mockSelfExe), IsNil)
 	c.Assert(os.Symlink("target of /proc/self/cwd", mockSelfCwd), IsNil)
 
-	s.AddCleanup(errtracker.MockOsEnviron(func() []string { return []string{"SHELL=/bin/sh"} }))
-	s.AddCleanup(errtracker.MockOsLookupEnv(func(s string) (string, bool) {
-		if s == "XDG_CURRENT_DESKTOP" {
-			return "Unity", true
+	s.AddCleanup(errtracker.MockOsGetenv(func(s string) string {
+		switch s {
+		case "SHELL":
+			return "/bin/sh"
+		case "XDG_CURRENT_DESKTOP":
+			return "Unity"
 		}
-		return "", false
+		return ""
 	}))
 	s.AddCleanup(errtracker.MockProcCpuinfo(mockCpuinfo))
 	s.AddCleanup(errtracker.MockProcSelfCmdline(mockSelfCmdline))
@@ -416,7 +419,7 @@ func (s *ErrtrackerTestSuite) TestJournalError(c *C) {
 	defer jctl.Restore()
 	c.Check(errtracker.JournalError(), Equals, someJournalEntry+"\n")
 	c.Check(jctl.Calls(), DeepEquals, [][]string{
-		{"journalctl", "--utc", "--boot", "--priority=warning..err", "--lines=1000"},
+		{"journalctl", "-b", "--priority=warning..err", "--lines=1000"},
 	})
 }
 
@@ -425,7 +428,7 @@ func (s *ErrtrackerTestSuite) TestJournalErrorSilentError(c *C) {
 	defer jctl.Restore()
 	c.Check(errtracker.JournalError(), Equals, "error: signal: terminated")
 	c.Check(jctl.Calls(), DeepEquals, [][]string{
-		{"journalctl", "--utc", "--boot", "--priority=warning..err", "--lines=1000"},
+		{"journalctl", "-b", "--priority=warning..err", "--lines=1000"},
 	})
 }
 
@@ -434,30 +437,44 @@ func (s *ErrtrackerTestSuite) TestJournalErrorError(c *C) {
 	defer jctl.Restore()
 	c.Check(errtracker.JournalError(), Equals, "OOPS\n\nerror: exit status 1")
 	c.Check(jctl.Calls(), DeepEquals, [][]string{
-		{"journalctl", "--utc", "--boot", "--priority=warning..err", "--lines=1000"},
+		{"journalctl", "-b", "--priority=warning..err", "--lines=1000"},
 	})
 }
 
 func (s *ErrtrackerTestSuite) TestEnviron(c *C) {
-	defer errtracker.MockOsEnviron(func() []string {
-		return []string{
-			"SHELL=/bin/sh",                 // marked as safe
-			"GPG_AGENT_INFO=.gpg-agent:0:1", // not marked as safe
-			"PS1=\\w\\$ ",                   // also not safe
-			"TERM=",                         // not really set
-			"PATH=/something/random:/sbin/", // special handling from here down
-			"PATH=/home/ubuntu/bin:/bin:/snap/bin",
-			"XDG_RUNTIME_DIR=/some/thing",
-			"LD_PRELOAD=foo",
-			"LD_LIBRARY_PATH=bar",
+	defer errtracker.MockOsGetenv(func(s string) string {
+		switch s {
+		case "SHELL":
+			// marked as safe
+			return "/bin/sh"
+		case "GPG_AGENT_INFO":
+			// not marked as safe
+			return ".gpg-agent:0:1"
+		case "TERM":
+			// not really set
+			return ""
+		case "PATH":
+			// special handling from here down
+			return "/something/random:/sbin/:/home/ubuntu/bin:/bin:/snap/bin"
+		case "XDG_RUNTIME_DIR":
+			return "/some/thing"
+		case "LD_PRELOAD":
+			return "foo"
+		case "LD_LIBRARY_PATH":
+			return "bar"
 		}
+		return ""
 	})()
 
-	c.Check(errtracker.Environ(), Equals, `
-SHELL=/bin/sh
-PATH=(custom):/sbin
-PATH=(user):/bin:/snap/bin
-XDG_RUNTIME_DIR=<set>
-LD_PRELOAD=<set>
-LD_LIBRARY_PATH=<set>`[1:])
+	env := strings.Split(errtracker.Environ(), "\n")
+	sort.Strings(env)
+
+	c.Check(env, DeepEquals, []string{
+		"LD_LIBRARY_PATH=<set>",
+		"LD_PRELOAD=<set>",
+		// note also /sbin/ -> /sbin
+		"PATH=(custom):/sbin:(user):/bin:/snap/bin",
+		"SHELL=/bin/sh",
+		"XDG_RUNTIME_DIR=<set>",
+	})
 }
