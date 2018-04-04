@@ -2563,25 +2563,3 @@ func (s *interfaceManagerSuite) TestInjectTasks(c *C) {
 	sort.Strings(ids)
 	c.Assert(ids, DeepEquals, []string{"task1-1", "task1-2"})
 }
-
-func (s *interfaceManagerSuite) TestInjectTasksWithNullChange(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// setup main task
-	t0 := s.state.NewTask("task1", "")
-	t01 := s.state.NewTask("task1-1", "")
-	t01.WaitFor(t0)
-
-	// setup extra task
-	t1 := s.state.NewTask("task2", "")
-	ts := state.NewTaskSet(t1)
-
-	ifacestate.InjectTasks(t0, ts)
-
-	c.Assert(t1.Lanes(), DeepEquals, []int{0})
-
-	// verify that halt tasks of the main task now wait for extra tasks
-	c.Assert(t1.HaltTasks(), HasLen, 1)
-	c.Assert(t1.HaltTasks()[0].Kind(), Equals, "task1-1")
-}
