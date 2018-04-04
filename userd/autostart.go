@@ -102,7 +102,7 @@ func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
 		}
 	}
 	if app == nil {
-		return nil, fmt.Errorf("cannot match desktop file with snap %q applications", snapName)
+		return nil, fmt.Errorf("cannot match desktop file with snap %s applications", snapName)
 	}
 
 	content, err := ioutil.ReadFile(desktopFilePath)
@@ -116,7 +116,7 @@ func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
 
 	command, err := findExec(content)
 	if err != nil {
-		return nil, fmt.Errorf("cannot determine startup command: %v", err)
+		return nil, fmt.Errorf("cannot determine startup command for application %s in snap %s: %v", app.Name, snapName, err)
 	}
 	logger.Debugf("exec line: %v", command)
 

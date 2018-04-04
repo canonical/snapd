@@ -173,7 +173,7 @@ Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 
 	cmd, err := userd.AutostartCmd("snapname", fooDesktopFile)
 	c.Assert(cmd, IsNil)
-	c.Assert(err, ErrorMatches, `cannot match desktop file with snap "snapname" applications`)
+	c.Assert(err, ErrorMatches, `cannot match desktop file with snap snapname applications`)
 }
 
 func (s *autostartSuite) TestTryAutostartAppNoSnap(c *C) {
@@ -199,7 +199,7 @@ Foo=bar
 
 	cmd, err := userd.AutostartCmd("snapname", fooDesktopFile)
 	c.Assert(cmd, IsNil)
-	c.Assert(err, ErrorMatches, `cannot determine startup command: Exec not found or invalid`)
+	c.Assert(err, ErrorMatches, `cannot determine startup command for application foo in snap snapname: Exec not found or invalid`)
 }
 
 func writeFile(c *C, path string, content []byte) {
@@ -237,8 +237,8 @@ Exec=no-snap
 
 	err := userd.AutostartSessionApps()
 	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `- "foo-stable.desktop": cannot determine startup command: Exec not found or invalid
-- "no-match.desktop": cannot match desktop file with snap "b-foo" applications
+	c.Check(err, ErrorMatches, `- "foo-stable.desktop": cannot determine startup command for application foo in snap a-foo: Exec not found or invalid
+- "no-match.desktop": cannot match desktop file with snap b-foo applications
 - "no-snap.desktop": cannot find current revision for snap c-foo: readlink.*no such file or directory
 `)
 }
