@@ -91,7 +91,7 @@ func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
 
 	info, err := snap.ReadCurrentInfo(snapName)
 	if err != nil {
-		return nil, fmt.Errorf("cannot obtain snap information for snap %q: %v", snapName, err)
+		return nil, err
 	}
 
 	var app *snap.AppInfo

@@ -185,7 +185,7 @@ Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 
 	cmd, err := userd.AutostartCmd("snapname", fooDesktopFile)
 	c.Assert(cmd, IsNil)
-	c.Assert(err, ErrorMatches, `cannot obtain snap information for snap "snapname".*`)
+	c.Assert(err, ErrorMatches, `cannot find current revision for snap snapname.*`)
 }
 
 func (s *autostartSuite) TestTryAutostartAppBadExec(c *C) {
@@ -239,6 +239,6 @@ Exec=no-snap
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, `- "foo-stable.desktop": cannot determine startup command: Exec not found or invalid
 - "no-match.desktop": cannot match desktop file with snap "b-foo" applications
-- "no-snap.desktop": cannot obtain snap information for snap "c-foo": cannot find current revision.*no such file or directory
+- "no-snap.desktop": cannot find current revision for snap c-foo: readlink.*no such file or directory
 `)
 }
