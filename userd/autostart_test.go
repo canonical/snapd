@@ -126,7 +126,7 @@ apps:
 `
 
 func (s *autostartSuite) TestTryAutostartAppValid(c *C) {
-	si := mockSnapCurrent(c, mockYaml)
+	si := snaptest.MockSnapCurrent(c, mockYaml, &snap.SideInfo{Revision: snap.R("x2")})
 
 	appWrapperPath := si.Apps["foo"].WrapperPath()
 	err := os.MkdirAll(filepath.Dir(appWrapperPath), 0755)
@@ -163,7 +163,7 @@ Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 }
 
 func (s *autostartSuite) TestTryAutostartAppNoMatchingApp(c *C) {
-	mockSnapCurrent(c, mockYaml)
+	snaptest.MockSnapCurrent(c, mockYaml, &snap.SideInfo{Revision: snap.R("x2")})
 
 	fooDesktopFile := filepath.Join(s.autostartDir, "foo-no-match.desktop")
 	writeFile(c, fooDesktopFile,
@@ -189,7 +189,7 @@ Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 }
 
 func (s *autostartSuite) TestTryAutostartAppBadExec(c *C) {
-	mockSnapCurrent(c, mockYaml)
+	snaptest.MockSnapCurrent(c, mockYaml, &snap.SideInfo{Revision: snap.R("x2")})
 
 	fooDesktopFile := filepath.Join(s.autostartDir, "foo-stable.desktop")
 	writeFile(c, fooDesktopFile,
@@ -200,15 +200,6 @@ Foo=bar
 	cmd, err := userd.AutostartCmd("snapname", fooDesktopFile)
 	c.Assert(cmd, IsNil)
 	c.Assert(err, ErrorMatches, `cannot determine startup command: Exec not found or invalid`)
-}
-
-func mockSnapCurrent(c *C, mockYaml string) *snap.Info {
-	si := snaptest.MockSnap(c, mockYaml, &snap.SideInfo{
-		Revision: snap.R("x2"),
-	})
-	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
-	c.Assert(err, IsNil)
-	return si
 }
 
 func writeFile(c *C, path string, content []byte) {
@@ -227,8 +218,10 @@ apps:
   autostart: foo-stable.desktop
 `
 
-	mockSnapCurrent(c, strings.Replace(mockYamlTemplate, "{snap}", "a-foo", -1))
-	mockSnapCurrent(c, strings.Replace(mockYamlTemplate, "{snap}", "b-foo", -1))
+	snaptest.MockSnapCurrent(c, strings.Replace(mockYamlTemplate, "{snap}", "a-foo", -1),
+		&snap.SideInfo{Revision: snap.R("x2")})
+	snaptest.MockSnapCurrent(c, strings.Replace(mockYamlTemplate, "{snap}", "b-foo", -1),
+		&snap.SideInfo{Revision: snap.R("x2")})
 	writeFile(c, filepath.Join(s.userDir, "snap/a-foo/current/.config/autostart/foo-stable.desktop"),
 		[]byte(`[Desktop Entry]
 Foo=bar
