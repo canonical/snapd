@@ -339,6 +339,10 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 	installErrors := make(map[string]error)
 	var res []*snap.Info
 	for _, a := range sorted {
+		if a.Action != "install" && a.Action != "refresh" {
+			panic("not supported")
+		}
+
 		if a.Action == "install" {
 			spec := store.SnapSpec{
 				Name:     a.Name,
@@ -362,9 +366,8 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			res = append(res, info)
 			continue
 		}
-		if a.Action != "refresh" {
-			panic("not supported")
-		}
+
+		// refresh
 
 		cur := curByID[a.SnapID]
 		channel := a.Channel

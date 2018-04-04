@@ -550,8 +550,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 					Name   string `json:"name"`
 				} `json:"actions"`
 			}
-			err := dec.Decode(&input)
-			if err != nil {
+			if err := dec.Decode(&input); err != nil {
 				panic(err)
 			}
 			type resultJSON struct {

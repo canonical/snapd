@@ -61,6 +61,14 @@ func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store
 	if ctx == nil || !auth.IsEnsureContext(ctx) {
 		panic("Ensure marked context required")
 	}
+	if len(currentSnaps) != len(actions) || len(currentSnaps) == 0 {
+		panic("expected in test one action for each current snaps, and at least one snap")
+	}
+	for _, a := range actions {
+		if a.Action != "refresh" {
+			panic("expected refresh actions")
+		}
+	}
 	r.ops = append(r.ops, "list-refresh")
 	return nil, r.listRefreshErr
 }
