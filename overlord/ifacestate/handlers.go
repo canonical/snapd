@@ -763,3 +763,28 @@ func (m *InterfaceManager) undoTransitionUbuntuCore(t *state.Task, _ *tomb.Tomb)
 
 	return m.transitionConnectionsCoreMigration(st, newName, oldName)
 }
+
+// injectTasks makes all the halt tasks of the mainTask wait for extraTasks;
+// extraTasks join the same lane and change as the mainTask.
+func injectTasks(mainTask *state.Task, extraTasks *state.TaskSet) {
+	lanes := mainTask.Lanes()
+	if len(lanes) == 1 && lanes[0] == 0 {
+		lanes = nil
+	}
+	for _, l := range lanes {
+		extraTasks.JoinLane(l)
+	}
+
+	chg := mainTask.Change()
+	// Change shouldn't normally be nil, except for cases where
+	// this helper is used before tasks are added to a change.
+	if chg != nil {
+		chg.AddAll(extraTasks)
+	}
+
+	// make all halt tasks of the mainTask wait on extraTasks
+	ht := mainTask.HaltTasks()
+	for _, t := range ht {
+		t.WaitAll(extraTasks)
+	}
+}
