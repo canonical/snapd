@@ -20,9 +20,9 @@
 package advisor
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/snapcore/bolt"
@@ -35,6 +35,15 @@ var (
 	cmdBucketKey = []byte("Commands")
 	pkgBucketKey = []byte("Snaps")
 )
+
+type snapInfo struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+func (si *snapInfo) String() string {
+	return fmt.Sprintf("%s/%s", si.Name, si.Version)
+}
 
 type writer struct {
 	db        *bolt.DB
@@ -100,15 +109,20 @@ func Create() (CommandDB, error) {
 }
 
 func (t *writer) AddSnap(snapName, version, summary string, commands []string) error {
-	bname := []byte(fmt.Sprintf("%s/%s", snapName, version))
-
 	for _, cmd := range commands {
+		var sil []snapInfo
+
 		bcmd := []byte(cmd)
 		row := t.cmdBucket.Get(bcmd)
-		if row == nil {
-			row = bname
-		} else {
-			row = append(append(row, ','), bname...)
+		if row != nil {
+			if err := json.Unmarshal(row, &sil); err != nil {
+				return err
+			}
+		}
+		sil = append(sil, snapInfo{Name: snapName, Version: version})
+		row, err := json.Marshal(sil)
+		if err != nil {
+			return err
 		}
 		if err := t.cmdBucket.Put(bcmd, row); err != nil {
 			return err
@@ -155,7 +169,7 @@ func (t *writer) done(commit bool) error {
 
 // DumpCommands returns the whole database as a map. For use in
 // testing and debugging.
-func DumpCommands() (map[string][]string, error) {
+func DumpCommands() (map[string]string, error) {
 	db, err := bolt.Open(dirs.SnapCommandsDB, 0644, &bolt.Options{
 		ReadOnly: true,
 		Timeout:  1 * time.Second,
@@ -176,10 +190,10 @@ func DumpCommands() (map[string][]string, error) {
 		return nil, nil
 	}
 
-	m := map[string][]string{}
+	m := map[string]string{}
 	c := b.Cursor()
 	for k, v := c.First(); k != nil; k, v = c.Next() {
-		m[string(k)] = strings.Split(string(v), ",")
+		m[string(k)] = string(v)
 	}
 
 	return m, nil
@@ -225,14 +239,15 @@ func (f *boltFinder) FindCommand(command string) ([]Command, error) {
 	if buf == nil {
 		return nil, nil
 	}
-
-	snaps := strings.Split(string(buf), ",")
-	cmds := make([]Command, len(snaps))
-	for i, snap := range snaps {
-		l := strings.SplitN(snap, "/", 2)
+	var sil []snapInfo
+	if err := json.Unmarshal(buf, &sil); err != nil {
+		return nil, err
+	}
+	cmds := make([]Command, len(sil))
+	for i, si := range sil {
 		cmds[i] = Command{
-			Snap:    l[0],
-			Version: l[1],
+			Snap:    si.Name,
+			Version: si.Version,
 			Command: command,
 		}
 	}
