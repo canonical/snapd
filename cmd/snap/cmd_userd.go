@@ -81,8 +81,7 @@ func (x *cmdUserd) Execute(args []string) error {
 }
 
 func (x *cmdUserd) runAutostart() error {
-	err := userd.AutostartSessionApps()
-	if err != nil {
+	if err := userd.AutostartSessionApps(); err != nil {
 		return fmt.Errorf("autostart failed for the following apps:\n%v", err)
 	}
 	return nil
