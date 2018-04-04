@@ -20,7 +20,7 @@
 set -ue
 
 # Get the filename from argv[1]
-debian_tarball="$1"
+debian_tarball="${1:-}"
 if [ "$debian_tarball" = "" ]; then
 	echo "Usage: repack-debian-tarball.sh <snapd-debian-tarball>"
 	exit 1
