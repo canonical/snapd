@@ -28,6 +28,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -118,6 +119,32 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 			if snapsup.Name() != name || snapInfo.Revision != rev {
 				return fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
 			}
+		}
+	}
+
+	// Compatibility with old snapd: check if we have auto-connect task and if not, inject it after self (setup-profiles).
+	// In the older snapd versions interfaces were auto-connected as part of setupProfilesForSnap.
+	if snapInfo.Type != snap.TypeOS || corePhase2 {
+		var hasAutoConnect bool
+		for _, t := range task.Change().Tasks() {
+			if t.Kind() == "auto-connect" {
+				otherSnapsup, err := snapstate.TaskSnapSetup(t)
+				if err != nil {
+					return err
+				}
+				// Check if this is auto-connect task for same snap
+				if snapsup.Name() == otherSnapsup.Name() {
+					hasAutoConnect = true
+					break
+				}
+			}
+		}
+		if !hasAutoConnect {
+			st := task.State()
+			autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.Name()))
+			autoConnect.Set("snap-setup", snapsup)
+			injectTasks(task, state.NewTaskSet(autoConnect))
+			task.Logf("added auto-connect task")
 		}
 	}
 
@@ -787,4 +814,7 @@ func injectTasks(mainTask *state.Task, extraTasks *state.TaskSet) {
 	for _, t := range ht {
 		t.WaitAll(extraTasks)
 	}
+
+	// make the extra tasks wait for main task
+	extraTasks.WaitFor(mainTask)
 }
