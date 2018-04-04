@@ -40,6 +40,7 @@ import (
 )
 
 type setupSuite struct {
+	testutil.BaseTest
 	be                backend.Backend
 	umount            *testutil.MockCmd
 	systemctlRestorer func()
@@ -48,6 +49,9 @@ type setupSuite struct {
 var _ = Suite(&setupSuite{})
 
 func (s *setupSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
 	dirs.SetRootDir(c.MkDir())
 
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
@@ -61,6 +65,7 @@ func (s *setupSuite) SetUpTest(c *C) {
 }
 
 func (s *setupSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
 	s.umount.Restore()

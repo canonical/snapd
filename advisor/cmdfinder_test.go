@@ -134,3 +134,20 @@ func (s *cmdfinderSuite) TestDumpCommands(c *C) {
 		"meh": {"foo/1.0", "bar/2.0"},
 	})
 }
+
+func (s *cmdfinderSuite) TestFindMissingCommandsDB(c *C) {
+	err := os.Remove(dirs.SnapCommandsDB)
+	c.Assert(err, IsNil)
+
+	cmds, err := advisor.FindMisspelledCommand("hello")
+	c.Assert(err, IsNil)
+	c.Check(cmds, HasLen, 0)
+
+	cmds, err = advisor.FindCommand("hello")
+	c.Assert(err, IsNil)
+	c.Check(cmds, HasLen, 0)
+
+	pkg, err := advisor.FindPackage("hello")
+	c.Assert(err, IsNil)
+	c.Check(pkg, IsNil)
+}

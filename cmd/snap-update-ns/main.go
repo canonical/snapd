@@ -121,10 +121,13 @@ func run() error {
 		thawSnapProcesses(opts.Positionals.SnapName)
 	}()
 
-	return computeAndSaveChanges(snapName)
+	// TODO: configure the secure helper and inform it about directories that
+	// can be created without trespassing.
+	sec := &Secure{}
+	return computeAndSaveChanges(snapName, sec)
 }
 
-func computeAndSaveChanges(snapName string) error {
+func computeAndSaveChanges(snapName string, sec *Secure) error {
 	// Read the desired and current mount profiles. Note that missing files
 	// count as empty profiles so that we can gracefully handle a mount
 	// interface connection/disconnection.
@@ -151,7 +154,7 @@ func computeAndSaveChanges(snapName string) error {
 	var changesMade []*Change
 	for _, change := range changesNeeded {
 		logger.Debugf("\t * %s", change)
-		synthesised, err := changePerform(change)
+		synthesised, err := changePerform(change, sec)
 		changesMade = append(changesMade, synthesised...)
 		if len(synthesised) > 0 {
 			logger.Debugf("\tsynthesised additional mount changes:")

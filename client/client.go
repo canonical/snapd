@@ -375,7 +375,8 @@ const (
 
 	ErrorKindNotSnap = "snap-not-a-snap"
 
-	ErrorKindNetworkTimeout = "network-timeout"
+	ErrorKindNetworkTimeout      = "network-timeout"
+	ErrorKindInterfacesUnchanged = "interfaces-unchanged"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
@@ -387,6 +388,16 @@ func IsTwoFactorError(err error) bool {
 	}
 
 	return e.Kind == ErrorKindTwoFactorFailed || e.Kind == ErrorKindTwoFactorRequired
+}
+
+// IsInterfacesUnchangedError returns whether the given error means the requested
+// change to interfaces was not made, because there was nothing to do.
+func IsInterfacesUnchangedError(err error) bool {
+	e, ok := err.(*Error)
+	if !ok || e == nil {
+		return false
+	}
+	return e.Kind == ErrorKindInterfacesUnchanged
 }
 
 // OSRelease contains information about the system extracted from /etc/os-release.
@@ -410,6 +421,7 @@ type RefreshInfo struct {
 type SysInfo struct {
 	Series    string    `json:"series,omitempty"`
 	Version   string    `json:"version,omitempty"`
+	BuildID   string    `json:"build-id"`
 	OSRelease OSRelease `json:"os-release"`
 	OnClassic bool      `json:"on-classic"`
 	Managed   bool      `json:"managed"`

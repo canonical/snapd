@@ -19,15 +19,11 @@ restore: |
     rm -f call.error
 
 execute: |
-    CONNECTED_PATTERN=":timezone-control +test-snapd-timedate-control-consumer"
-    DISCONNECTED_PATTERN="\- +test-snapd-timedate-control-consumer:timezone-control"
+    echo "The interface is disconnected by default"
+    snap interfaces | MATCH "\- +test-snapd-timedate-control-consumer:timezone-control"
 
-    # Check the interface is disconnected by detault
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
-
-    # Connect the interfaces for both snaps
+    echo "When the interface is connected"
     snap connect test-snapd-timedate-control-consumer:timezone-control
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     # Read timezones information should be allowed
     timezone1=$(test-snapd-timedate-control-consumer.timedatectl-timezone list-timezones | sed -n 1p)
