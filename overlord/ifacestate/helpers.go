@@ -103,7 +103,7 @@ func (m *InterfaceManager) addSnaps() error {
 	for _, snapInfo := range snaps {
 		addImplicitSlots(snapInfo)
 		if err := m.repo.AddSnap(snapInfo); err != nil {
-			logger.Noticef("%s", err)
+			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.Name(), err)
 		}
 	}
 	return nil
@@ -159,7 +159,10 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 		}
 	}
 
-	return interfaces.WriteSystemKey()
+	if err := interfaces.WriteSystemKey(); err != nil {
+		logger.Noticef("cannot write system key: %v", err)
+	}
+	return nil
 }
 
 // renameCorePlugConnection renames one connection from "core-support" plug to

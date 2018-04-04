@@ -216,6 +216,9 @@ var readInfo = readInfoAnyway
 
 func readInfoAnyway(name string, si *snap.SideInfo) (*snap.Info, error) {
 	info, err := snap.ReadInfo(name, si)
+	if err != nil {
+		logger.Noticef("cannot read snap info of snap %q at revision %s: %s", name, si.Revision, err)
+	}
 	if _, ok := err.(*snap.NotFoundError); ok {
 		reason := fmt.Sprintf("cannot read snap %q: %s", name, err)
 		info := &snap.Info{

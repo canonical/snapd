@@ -741,6 +741,9 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	restore = release.MockForcedDevmode(true)
 	defer restore()
 
+	buildID, err := osutil.MyBuildID()
+	c.Assert(err, check.IsNil)
+
 	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
@@ -752,6 +755,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"id":         "distro-id",
 			"version-id": "1.2",
 		},
+		"build-id":   buildID,
 		"on-classic": true,
 		"managed":    false,
 		"locations": map[string]interface{}{
@@ -797,6 +801,9 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	tr.Commit()
 	st.Unlock()
 
+	buildID, err := osutil.MyBuildID()
+	c.Assert(err, check.IsNil)
+
 	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
@@ -808,6 +815,7 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 			"id":         "distro-id",
 			"version-id": "1.2",
 		},
+		"build-id":   buildID,
 		"on-classic": true,
 		"managed":    false,
 		"locations": map[string]interface{}{

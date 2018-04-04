@@ -248,7 +248,17 @@ var (
 		GET:    getAliases,
 		POST:   changeAliases,
 	}
+
+	buildID = "unknown"
 )
+
+func init() {
+	// cache the build-id on startup to ensure that changes in
+	// the underlying binary do not affect us
+	if bid, err := osutil.MyBuildID(); err == nil {
+		buildID = bid
+	}
+}
 
 func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse([]string{"TBD"}, nil)
@@ -292,6 +302,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	m := map[string]interface{}{
 		"series":         release.Series,
 		"version":        c.d.Version,
+		"build-id":       buildID,
 		"os-release":     release.ReleaseInfo,
 		"on-classic":     release.OnClassic,
 		"managed":        len(users) > 0,
