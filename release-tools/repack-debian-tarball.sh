@@ -17,7 +17,7 @@
 # - snapd_2.31.2.no-vendor.tar.xz
 # - snapd_2.31.2.vendor.tar.xz
 # - snapd_2.31.2.only-vendor.xz
-set -xue
+set -ue
 
 # Get the filename from argv[1]
 debian_tarball="$1"
