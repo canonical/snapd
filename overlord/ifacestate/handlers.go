@@ -124,12 +124,19 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 
 	// Compatibility with old snapd: check if we have auto-connect task and if not, inject it after self (setup-profiles).
 	// In the older snapd versions interfaces were auto-connected as part of setupProfilesForSnap.
-	if task.Change() != nil {
+	if snapInfo.Type != snap.TypeOS || corePhase2 {
 		var hasAutoConnect bool
 		for _, t := range task.Change().Tasks() {
 			if t.Kind() == "auto-connect" {
-				hasAutoConnect = true
-				break
+				otherSnapsup, err := snapstate.TaskSnapSetup(t)
+				if err != nil {
+					return err
+				}
+				// Check if this is auto-connect task for same snap
+				if snapsup.Name() == otherSnapsup.Name() {
+					hasAutoConnect = true
+					break
+				}
 			}
 		}
 		if !hasAutoConnect {
@@ -807,4 +814,7 @@ func injectTasks(mainTask *state.Task, extraTasks *state.TaskSet) {
 	for _, t := range ht {
 		t.WaitAll(extraTasks)
 	}
+
+	// make the extra tasks wait for main task
+	extraTasks.WaitFor(mainTask)
 }
