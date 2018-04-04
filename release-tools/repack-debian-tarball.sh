@@ -32,7 +32,8 @@ if [ ! -f "$debian_tarball" ]; then
 fi
 
 # Extract the upstream version from the filename.
-# For example: snapd_2.31.2-1.tar.xz => 2.32.2
+# For example: snapd_2.31.2.tar.xz => 2.32.2
+# NOTE: There is no dash (-) in the version because snapd is a native Debian package.
 upstream_version="$(echo "$debian_tarball" | cut -d _ -f 2 | sed -e 's/\.tar\..*//')"
 
 # Scratch directory is where the original tarball is unpacked.
