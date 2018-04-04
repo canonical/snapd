@@ -387,6 +387,17 @@ restore_project_each() {
         echo "Invalid udev file detected, test most likely broke it"
         exit 1
     fi
+
+    # Sometimes (unclear when) the sysfs representation of apparmor profiles is
+    # broken and has dangling symbolic links. To collect more data about this,
+    # look for broken symlinks after each test.
+    find /sys/kernel/security/apparmor/policy/profiles -type l -exec sh -c "file -b {} | grep -q ^broken" \; -print >/tmp/bug-1755563.txt
+    if [ -s /tmp/bug-1755563.txt ]; then
+        echo "Kernel bug detected: https://pad.lv/1755563"
+        echo
+        cat /tmp/bug-1755563.txt
+        exit 1
+    fi
 }
 
 restore_project() {
