@@ -21,17 +21,13 @@ package ifacestate
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -114,22 +110,12 @@ func (m *InterfaceManager) addSnaps() error {
 }
 
 func (m *InterfaceManager) profilesNeedRegeneration() bool {
-	currentSystemKey := interfaces.SystemKey()
-	if currentSystemKey == "" {
-		logger.Noticef("no system key, forcing re-generation of security profiles")
-		return true
-	}
-
-	onDiskSystemKey, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
-	if os.IsNotExist(err) {
-		return true
-	}
+	mismatch, err := interfaces.SystemKeyMismatch()
 	if err != nil {
-		logger.Noticef("cannot read system-key file: %s", err)
+		logger.Noticef("error trying to compare the snap system key: %v", err)
 		return true
 	}
-
-	return string(onDiskSystemKey) != currentSystemKey
+	return mismatch
 }
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.
@@ -173,8 +159,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 		}
 	}
 
-	sk := interfaces.SystemKey()
-	return osutil.AtomicWriteFile(dirs.SnapSystemKeyFile, []byte(sk), 0644, 0)
+	return interfaces.WriteSystemKey()
 }
 
 // renameCorePlugConnection renames one connection from "core-support" plug to
@@ -226,10 +211,18 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 			continue
 		}
 		if err := m.repo.Connect(connRef); err != nil {
+			if _, ok := err.(*interfaces.UnknownPlugSlotError); ok {
+				// Some versions of snapd may have left stray connections that
+				// don't have the corresponding plug or slot anymore. Before we
+				// choose how to deal with this data we want to silently ignore
+				// that error not to worry the users.
+				continue
+			}
 			logger.Noticef("%s", err)
+		} else {
+			affected[connRef.PlugRef.Snap] = true
+			affected[connRef.SlotRef.Snap] = true
 		}
-		affected[connRef.PlugRef.Snap] = true
-		affected[connRef.SlotRef.Snap] = true
 	}
 	result := make([]string, 0, len(affected))
 	for name := range affected {

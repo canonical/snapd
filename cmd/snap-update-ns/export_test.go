@@ -21,6 +21,7 @@ package main
 
 import (
 	"os"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -37,8 +38,6 @@ var (
 	// utils
 	PlanWritableMimic = planWritableMimic
 	ExecWritableMimic = execWritableMimic
-	SecureMkdirAll    = secureMkdirAll
-	SecureMkfileAll   = secureMkfileAll
 	SplitIntoSegments = splitIntoSegments
 
 	// main
@@ -49,7 +48,8 @@ var (
 type SystemCalls interface {
 	Lstat(name string) (os.FileInfo, error)
 	ReadDir(dirname string) ([]os.FileInfo, error)
-	Symlink(oldname, newname string) error
+	Symlinkat(oldname string, dirfd int, newname string) error
+	Readlinkat(dirfd int, path string, buf []byte) (int, error)
 	Remove(name string) error
 
 	Close(fd int) error
@@ -59,6 +59,7 @@ type SystemCalls interface {
 	Open(path string, flags int, mode uint32) (fd int, err error)
 	Openat(dirfd int, path string, flags int, mode uint32) (fd int, err error)
 	Unmount(target string, flags int) error
+	Fstat(fd int, buf *syscall.Stat_t) error
 }
 
 // MockSystemCalls replaces real system calls with those of the argument.
@@ -75,7 +76,9 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	oldSysOpen := sysOpen
 	oldSysOpenat := sysOpenat
 	oldSysUnmount := sysUnmount
-	oldSysSymlink := sysSymlink
+	oldSysSymlinkat := sysSymlinkat
+	oldReadlinkat := sysReadlinkat
+	oldFstat := sysFstat
 
 	// override
 	osLstat = sc.Lstat
@@ -89,7 +92,9 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	sysOpen = sc.Open
 	sysOpenat = sc.Openat
 	sysUnmount = sc.Unmount
-	sysSymlink = sc.Symlink
+	sysSymlinkat = sc.Symlinkat
+	sysReadlinkat = sc.Readlinkat
+	sysFstat = sc.Fstat
 
 	return func() {
 		// restore
@@ -104,7 +109,9 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		sysOpen = oldSysOpen
 		sysOpenat = oldSysOpenat
 		sysUnmount = oldSysUnmount
-		sysSymlink = oldSysSymlink
+		sysSymlinkat = oldSysSymlinkat
+		sysReadlinkat = oldReadlinkat
+		sysFstat = oldFstat
 	}
 }
 
@@ -120,7 +127,7 @@ func FreezerCgroupDir() string {
 	return freezerCgroupDir
 }
 
-func MockChangePerform(f func(chg *Change) ([]*Change, error)) func() {
+func MockChangePerform(f func(chg *Change, sec *Secure) ([]*Change, error)) func() {
 	origChangePerform := changePerform
 	changePerform = f
 	return func() {

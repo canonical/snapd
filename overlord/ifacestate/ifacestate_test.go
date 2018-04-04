@@ -20,6 +20,7 @@
 package ifacestate_test
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"sort"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -61,6 +63,7 @@ type interfaceManagerSuite struct {
 	secBackend     *ifacetest.TestSecurityBackend
 	mockSnapCmd    *testutil.MockCmd
 	storeSigning   *assertstest.StoreStack
+	log            *bytes.Buffer
 }
 
 var _ = Suite(&interfaceManagerSuite{})
@@ -100,6 +103,10 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	// just load the test backend here and this is nicely integrated with
 	// extraBackends above.
 	s.BaseTest.AddCleanup(ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend}))
+
+	buf, restore := logger.MockLogger()
+	s.BaseTest.AddCleanup(restore)
+	s.log = buf
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
@@ -117,7 +124,7 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 	if s.privateMgr == nil {
 		mgr, err := ifacestate.Manager(s.state, s.hookManager(c), s.extraIfaces, s.extraBackends)
 		c.Assert(err, IsNil)
-		mgr.AddForeignTaskHandlers()
+		ifacestate.AddForeignTaskHandlers(mgr)
 		s.privateMgr = mgr
 		s.o.AddManager(mgr)
 
@@ -642,6 +649,41 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 
 	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
+}
+
+func (s *interfaceManagerSuite) TestStrayConnectionsIgnored(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	// Put a stray connection in the state so that it automatically gets set up
+	// when we create the manager.
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+	s.state.Unlock()
+
+	// Initialize the manager. This registers both snaps and reloads the connection.
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that nothing got connected.
+	repo := mgr.Repository()
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 0)
+
+	// Ensure that nothing to setup.
+	c.Assert(s.secBackend.SetupCalls, HasLen, 0)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
+
+	// Ensure that nothing, crucially, got logged about that connection.
+	// We still have an error logged about the system key but this is just
+	// a bit of test mocking missing.
+	logLines := strings.Split(s.log.String(), "\n")
+	c.Assert(logLines, HasLen, 2)
+	c.Assert(logLines[0], testutil.Contains, "error trying to compare the snap system key:")
+	c.Assert(logLines[1], Equals, "")
 }
 
 func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
@@ -1207,6 +1249,42 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 			"interface": "network",
 		},
 	})
+}
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyIgnoresStrayConnection(c *C) {
+	// Add an OS snap
+	snapInfo := s.mockSnap(c, ubuntuCoreSnapYaml)
+
+	_ = s.manager(c)
+
+	// Put fake information about connections for another snap into the state.
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"removed-snap:network ubuntu-core:network": map[string]interface{}{
+			"interface": "network",
+		},
+	})
+	s.state.Unlock()
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that the tasks don't report errors caused by bad connections
+	for _, t := range change.Tasks() {
+		c.Assert(t.Log(), HasLen, 0)
+	}
 }
 
 // The setup-profiles task will add implicit slots necessary for the OS snap.
@@ -2342,7 +2420,7 @@ func (s *interfaceManagerSuite) TestConnectHandlesAutoconnect(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKeyFile(c *C) {
-	restore := interfaces.MockSystemKey("build-id: something")
+	restore := interfaces.MockSystemKey(`{"core": "123"}`)
 	defer restore()
 
 	s.mockIface(c, &ifacetest.TestInterface{InterfaceName: "test"})
@@ -2350,13 +2428,14 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
 
 	_ = s.manager(c)
-	c.Check(dirs.SnapSystemKeyFile, testutil.FileMatches, "(?sm).*build-id:.*")
+	c.Check(dirs.SnapSystemKeyFile, testutil.FileMatches, `{.*"build-id":.*`)
 
 	stat, err := os.Stat(dirs.SnapSystemKeyFile)
 	c.Assert(err, IsNil)
 
 	// run manager again, but this time the snapsystemkey file should
 	// not be rewriten as the systemKey inputs have not changed
+	time.Sleep(20 * time.Millisecond)
 	s.privateMgr = nil
 	_ = s.manager(c)
 	stat2, err := os.Stat(dirs.SnapSystemKeyFile)
@@ -2441,4 +2520,68 @@ slots:
 	s.state.Lock()
 	defer s.state.Unlock()
 	c.Check(tConnectPlug.Status(), Equals, state.DoneStatus)
+}
+
+func (s *interfaceManagerSuite) TestInjectTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lane := s.state.NewLane()
+
+	// setup main task and two tasks waiting for it; all part of same change
+	chg := s.state.NewChange("change", "")
+	t0 := s.state.NewTask("task1", "")
+	chg.AddTask(t0)
+	t0.JoinLane(lane)
+	t01 := s.state.NewTask("task1-1", "")
+	t01.WaitFor(t0)
+	chg.AddTask(t01)
+	t02 := s.state.NewTask("task1-2", "")
+	t02.WaitFor(t0)
+	chg.AddTask(t02)
+
+	// setup extra tasks
+	t1 := s.state.NewTask("task2", "")
+	t2 := s.state.NewTask("task3", "")
+	ts := state.NewTaskSet(t1, t2)
+
+	ifacestate.InjectTasks(t0, ts)
+
+	// verify that extra tasks are now part of same change
+	c.Assert(t1.Change().ID(), Equals, t0.Change().ID())
+	c.Assert(t2.Change().ID(), Equals, t0.Change().ID())
+	c.Assert(t1.Change().ID(), Equals, chg.ID())
+
+	c.Assert(t1.Lanes(), DeepEquals, []int{lane})
+
+	// verify that halt tasks of the main task now wait for extra tasks
+	c.Assert(t1.HaltTasks(), HasLen, 2)
+	c.Assert(t2.HaltTasks(), HasLen, 2)
+	c.Assert(t1.HaltTasks(), DeepEquals, t2.HaltTasks())
+
+	ids := []string{t1.HaltTasks()[0].Kind(), t2.HaltTasks()[1].Kind()}
+	sort.Strings(ids)
+	c.Assert(ids, DeepEquals, []string{"task1-1", "task1-2"})
+}
+
+func (s *interfaceManagerSuite) TestInjectTasksWithNullChange(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// setup main task
+	t0 := s.state.NewTask("task1", "")
+	t01 := s.state.NewTask("task1-1", "")
+	t01.WaitFor(t0)
+
+	// setup extra task
+	t1 := s.state.NewTask("task2", "")
+	ts := state.NewTaskSet(t1)
+
+	ifacestate.InjectTasks(t0, ts)
+
+	c.Assert(t1.Lanes(), DeepEquals, []int{0})
+
+	// verify that halt tasks of the main task now wait for extra tasks
+	c.Assert(t1.HaltTasks(), HasLen, 1)
+	c.Assert(t1.HaltTasks()[0].Kind(), Equals, "task1-1")
 }

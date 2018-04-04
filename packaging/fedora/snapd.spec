@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.31.2
+Version:        2.32.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -722,6 +722,263 @@ fi
 
 
 %changelog
+* Sat Mar 31 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.2
+ - interfaces/content: add rule so slot can access writable files at
+   plug's mountpoint
+ - tests: adjust canonical-livepatch test on GCE
+ - interfaces/serial: change pattern not to exclude /dev/ttymxc
+ - spread.yaml: switch Fedora 27 tests to manual
+ - store: Sections and WriteCatalogs need to strictly send device
+   auth only if the device has a custom store
+ - configstate: give a chance to immediately recompute the next
+   refresh time when schedules are set
+ - cmd/snap-confine: attempt to detect if multiarch host uses arch
+   triplets
+ - vendor: update gopkg.in/yaml.v2 to the latest version (#4945)
+
+* Mon Mar 26 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.1
+ - cmd/snapd: make sure signal handlers are established during early
+   daemon startup
+ - osutil: use tilde suffix for temporary files used for atomic
+   replacement
+ - cmd/snap-confine: apparmor: allow creating prefix path for
+   gl/vulkan
+ - tests: disentangle etc vs extrausers in core tests
+ - packaging: fix changelogs' typo
+
+* Sat Mar 24 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32
+ - snap: make `snap run` look at the system-key for security profiles
+ - overlord/configstate: change how ssh is stopped/started
+ - cmd/snap-confine: nvidia: preserve globbed file prefix
+ - advisor: deal with missing commands.db file
+ - interfaces,release: probe seccomp features lazily
+ - interfaces: harden snap-update-ns profile
+ - polkit: Pass caller uid to PolicyKit authority
+ - tests: change debug for layout test
+ - cmd/snap-confine: don't use per-snap s-u-n profile
+ - many: backported fixes for layouts and symlinks
+ - cmd/snap-confine: nvidia: add tls/libnvidia-tls.so* glob
+ - cmd/snap-update-ns: use x-snapd.{synthetic,needed-by} in practice
+ - snap: Call SanitizePlugsSlots from InfoFromSnapYaml
+ - cmd/snap-confine: fix ptrace rule with snap-confine peer
+ - tests: update tests to deal with s390x quirks
+ - snapstate: add compat mode for default-provider"snapname:ifname"
+ - snap-confine: fallback to /lib/udev/snappy-app-dev if the core is
+   older
+ - tests: a bunch of test fixes for s390x from looking at the
+   autopkgtest logs
+ - packaging: recommend "gnupg" instead of "gnupg1 | gnupg"
+ - interfaces/builtin: let MM change qmi device attributes
+ - debian: undo snap.mount system unit removal
+ - snap: don't create empty Change with "Hold" state on disconnect
+ - tests: add workaround for s390x failure
+ - tests: make autopkgtest tests more targeted
+ - many: propagate contexts enough to be able to mark store
+   operations done from the Ensure loop
+ - store: cleanup test naming, dropping remoteRepo and
+   UbuntuStore(Repository)? references
+ - store: reorg auth refresh
+ - tests: autopkgtest may have non edge core too
+ - data: translate polkit strings
+ - snapstate: put layout feature behind feature flag
+ - errtracker: respect the /etc/whoopsie configuration
+ - overlord/snapstate: hold refreshes for 2h after seeding on classic
+ - many: cherry-pick relevant `go vet` 1.10 fixes to 2.32
+ - snap/squashfs: when installing from seed, try symlink before cp
+ - wrappers: services which are socket or timer activated should not
+   be started during boot
+ - many: generate and use per-snap snap-update-ns profile
+ - many: support holding refreshes by setting refresh.hold
+ - snap-confine, snap-seccomp: utilize new seccomp logging features
+ - many: remove snapd.refresh.{timer,service}
+ - many: add the snapd-generator
+ - polkit: do not shadow dbus errors, avoid panic in case of errors
+ - polkit: ensure error is properly set if dialog is dismissed
+ - xdgopenproxy: integrate xdg-open implementation into snapctl
+ - userd: add an OpenFile method for launching local files with xdg-
+   open
+ - asserts:  use a timestamp for the assertion after the signing key
+   has been created
+ - ifacestate: be consistent passing Retry.After as named field
+ - interfaces/apparmor,system-key: add upperdir snippets for strict
+   snaps on livecd
+   interfaces/apparmor,system-key: add upperdir snippets for strict
+   snaps
+ - configstate: when disable "ssh" we must disable the "sshd"
+   service
+ - store: don't ask for snap_yaml_raw except on the details endpoint
+ - osutil: handle file being matched by multiple patterns
+ - cmd/snap-update-ns: use recursive bind mounts for writable mimic
+ - cmd/snap-update-ns: use syscall.Symlink instead of os.Symlink
+ - interfaces/screen-inhibit-control,network-status: fix dbus path
+   and interface typos
+ - interfaces/network-status: fix use of '/' in interface in DBus
+   rule
+ - interfaces/screen-inhibit-control: fix use of '.' in path in DBus
+   rule
+ - overlord/snapstate: fix task iteration order in
+   TestDoPrereqRetryWhenBaseInFlight
+ - interfaces: add an interface for gnome-online-accounts D-Bus
+   service
+ - snap: pass full timer spec in `snap run --timer`
+ - cmd/snap: introduce `snap run --timer`
+ - snapstate: auto install default-providers for content snaps
+ - hooks/strutil: limit the number of data read from the hooks to
+   avoid oom
+ - osutil: aggregate mockable symbols
+ - tests: make sure snapd is running before attempting to remove
+   leftover snaps
+ - timeutil: account for 24h wrap when flattening clock spans
+ - many: send  new Snap-CDN header with none or with cloud instance
+   placement info as needed
+ - cmd/snap-update-ns,testutil: move syscall testing helpers
+ - tests: disable interfaces-location-control on s390x
+ - tests: new spread test for gpio-memory-control interface
+ - tests: spread test for broadcom-asic-control interface
+ - tests: make restore of interfaces-password-manager-service more
+   robust
+ - tests/lib/prepare-restore: sync journal before rotating and
+   vacuuming
+ - overlord/snapstate: use spread in the default refresh schedule
+ - tests: fixes for autopkgtest in bionic
+ - timeutil: introduce helpers for checking it time falls inside the
+   schedule
+ - cmd/snap-repair,httputil: set snap-repair User-Agent on requests
+ - vendor: resync formatting of vendor.json
+ - snapstate/ifacestate: auto-connect tasks
+ - cmd/snap: also include tracking channel in list output.
+ - interfaces/apparmor: use snap revision with surrounding '.' when
+   replacing in glob
+ - debian,vendor: import github.com/snapcore/squashfs and use
+ - many: implement "refresh-mode: {restart,endure,...}" for services
+ - daemon: make the ast-inspecting test smarter; drop 'exceptions'
+ - tests: new spread test for kvm interface
+ - cmd/snap: tweaks to 'snap info' output
+ - snap: remove underscore from version validator regexp
+ - testutil: add File{Matches,Equals,Contains} checkers.
+ - snap: improve the version validator's error messages.
+ - osutil: refactor EnsureFileState to separate out the comparator
+ - timeutil: fix scheduling on nth weekday of the month
+ - cmd/snap-update-ns: small refactor for upcoming per-user mounts
+ - many: rename snappy-app-dev to snap-device-helper
+ - systemd: add default target for timers
+ - interfaces: miscellaneous policy updates for home, opengl, time-
+   control, network, et al
+ - cmd/snap: linter cleanups
+ - interfaces/mount: generate per-user mount profiles
+ - cmd/snap: use proper help strings for `snap userd --help`
+ - packaging: provide a compat symlink for snappy-app-dev
+ - interfaces/time-control,netlink-audit: adjust for util-linux
+   compiled with libaudit
+ - tests: adding new test to validate the raw-usb interface
+ - snap: add support for `snap run --gdb`
+ - interfaces/builtin: allow MM to access login1
+ - packaging: fix build on sbuild
+ - store: revert PR#4532 and do not display displayname
+ - interfaces/mount: add support for per-user mount entries
+ - cmd/system-shutdown: move sync to be even more pessimistic
+ - osutil: reimplement IsMounted with LoadMountInfo
+ - tests/main/ubuntu-core-services: enable snapd.refresh.timer for
+   the test
+ - many: don't allow layout construction to silently fail
+ - interfaces/apparmor: ensure snap-confine profile for reexec is
+   current
+ - interfaces/apparmor: generalize apparmor load and unload helpers
+ - tests: removing packages which are not needed anymore to generate
+   random data
+ - snap: improve `snap run` comments/naming
+ - snap: allow options for --strace, e.g. `snap run --strace="-tt"`
+ - tests: fix spread test failures on 18.04
+ - systemd: update comment on SocketsTarget
+ - osutil: add and update docstrings
+ - osutil: parse mount entries without options field
+ - interfaces: mock away real mountinfo/fstab
+ - many: move /lib/udev/snappy-app-dev to /usr/lib/snapd/snappy-app-
+   dev
+ - overlord/snapstate/backend: perform cleanup if snap setup fails
+ - tests/lib/prepare: disable snapd.refresh.timer
+ - daemon: remove redundant UserOK markings from api commands
+ - snap: introduce  timer service data types and validation
+ - cmd/snap: fix UX of snap services
+ - daemon: allow `snapctl get` from any uid
+ - debian, snap: only static link libseccomp in snap-seccomp on
+   ubuntu
+ - all: snap versions are now validated
+ - many: add nfs-home flag to system-key
+ - snap: disallow layouts in various special directories
+ - cmd/snap: add help for service commands.
+ - devicestate: fix autopkgtest failure in
+   TestDoRequestSerialErrorsOnNoHost
+ - snap,interfaces: allow using bind-file layouts
+ - many: move mount code to osutil
+ - snap: understand directories in layout blacklist
+ - snap: use custom unsquashfsStderrWriter for unsquashfs error
+   detection
+ - tests/main/user-data-handling: get rid of ordering bug
+ - snap: exclude `gettimeofday` from `snap run --strace`
+ - tests: check if snapd.socket is active before stoping it
+ - snap: sort layout elements before validating
+ - strutil: introducing MatchCounter
+ - snap: detect unsquashfs write failures
+ - spread: add missing ubuntu-18.04-arm64 to available autopkgtest
+   machines
+ - cmd/snap-confine: allow mounting anywhere, effectively
+ - daemon: improve ucrednet code for the snap.socket
+ - release, interfaces: add new release.AppArmorFeatures helper
+ - snap: apply some golint suggestions
+ - many: add interfaces.SystemKey() helper
+ - tests: new snaps to test installs nightly
+ - tests: skip alsa interface test when the system does not have any
+   audio devices
+ - debian/rules: workaround for
+   https://github.com/golang/go/issues/23721
+ - interfaces/apparmor: early support for snap-update-ns snippets
+ - wrappers: cleanup enabled service sockets
+ - cmd/snap-update-ns: large refactor / update of unit tests
+ - interfaces/apparmor: remove leaked future layout code
+ - many: allow constructing layouts (phase 1)
+ - data/systemd: for debugging/testing use /etc/environment also for
+   snap-repair runs
+ - cmd/snap-confine: create lib/{gl,gl32,vulkan} under /var/lib/snapd
+   and chown as root:root
+ - overlord/configstate/config: make [GS]etSnapConfig use *RawMessage
+ - daemon: refactor snapFooMany helpers a little
+ - cmd/snap-confine: allow snap-update-ns to chown things
+ - interfaces/apparmor: use a helper to set the scope
+ - overlord/configstate/config: make SetSnapConfig delete on empty
+ - osutil: make MkdirAllChown clean the path passed in
+ - many: at seeding try to capture cloud information into core config
+   under "cloud"
+ - cmd/snap: add completion conversion helper to increase DRY
+ - many: remove "content" argument from snaptest.MockSnap()
+ - osutil: allow using many globs in EnsureDirState
+ - cmd/snap-confine: fix read-only filesystem when mounting nvidia
+   files in biarch
+ - tests: use root path to /home/test/tmp to avoid lack of space
+   issue
+ - packaging: create /var/lib/snapd/lib/{gl,gl32,vulkan} as part of
+   packaging
+ - tests: update kill-timeout focused on making tests pass on boards
+ - advisor: ensure commands.db has mode 0644 and add test
+ - snap: improve validation of snap layouts
+ - tests: ensure disabled services are masked
+ - interfaces/desktop-legacy,unity7: support gtk2/gvfs gtk_show_uri()
+ - systemd, wrappers: start all snap services in one systemctl call
+ - mir: software clients need access to shared memory /dev/shm/#*
+ - snap: add support for `snap advise-snap pkgName`
+ - snap: fix command-not-found on core devices
+ - tests: new spead test for openvswitch-support interface
+ - tests: add integration for local snap licenses
+ - config: add (Get|Set)SnapConfig to do bulk config e.g. from
+   snapshots
+ - cmd/snap: display snap license information
+ - tests: enable content sharing test for $SNAP
+ - osutil: add ContextWriter and RunWithContext helpers.
+ - osutil: add DirExists and IsDirNotExist
+
 * Fri Mar 09 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.31.2
  - many: add the snapd-generator
