@@ -65,6 +65,15 @@ if [ "$1" = "purge" ]; then
                     rmdir --ignore-fail-on-non-empty "$d" || true
                 fi
             done
+            # udev rules
+            find /etc/udev/rules.d -name "*-snap.${snap}.rules" -execdir rm -f "{}" \;
+            # dbus policy files
+            find /etc/dbus-1/system.d -name "snap.${snap}.*.conf" -execdir rm -f "{}" \;
+            # timer files
+            find /etc/systemd/system -name "snap.${snap}.*.timer" | while read -r f; do
+                systemctl_stop "$(basename $f)"
+                rm -f "$f"
+            done
         fi
 
         echo "Removing $unit"

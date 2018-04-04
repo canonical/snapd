@@ -10,8 +10,13 @@ prepare: |
     snap install test-snapd-tools
     snap list | MATCH test-snapd-tools
 
+    # a snap with services
     install_local test-snapd-service
     snap list | MATCH test-snapd-service
+
+    # a snap with DBus policy files
+    snap install test-snapd-network-status-provider
+    snap list | MATCH test-snapd-network-status-provider
 
     before=$(find ${SNAP_MOUNT_DIR} -type d | wc -l)
     if [ "$before" -lt 2 ]; then
@@ -21,6 +26,10 @@ prepare: |
 
     echo "test service is known to systemd and enabled"
     systemctl list-unit-files --type service --no-legend | MATCH 'snap.test-snapd-service\..*\.service\s+enabled'
+
+    # expecting to find various files that snap installation produced
+    test $(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l) -gt 0
+    test $(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l) -gt 0
 
 execute: |
     echo "Stop snapd before purging"
@@ -62,3 +71,6 @@ execute: |
 
     echo "No dangling service symlinks are left behind"
     test -z "$(find /etc/systemd/system/multi-user.target.wants/ -name 'snap.test-snapd-service.*')"
+
+    test $(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l) -eq 0
+    test $(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l) -eq 0
