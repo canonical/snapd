@@ -248,19 +248,15 @@ func environ() string {
 	out := make([]string, 0, len(safeVars)+len(unsafeVars)+1)
 
 	for _, k := range safeVars {
-		v := osGetenv(k)
-		if v == "" {
-			continue
+		if v := osGetenv(k); v != "" {
+			out = append(out, fmt.Sprintf("%s=%s", k, v))
 		}
-		out = append(out, fmt.Sprintf("%s=%s", k, v))
 	}
 
 	for _, k := range unsafeVars {
-		v := osGetenv(k)
-		if v == "" {
-			continue
+		if v := osGetenv(k); v != "" {
+			out = append(out, k+"=<set>")
 		}
-		out = append(out, k+"=<set>")
 	}
 
 	if paths := filepath.SplitList(osGetenv("PATH")); len(paths) > 0 {
@@ -275,7 +271,7 @@ func environ() string {
 			}
 			paths[i] = p
 		}
-		out = append(out, fmt.Sprintf("PATH=%s", strings.Join(paths, ":")))
+		out = append(out, fmt.Sprintf("PATH=%s", strings.Join(paths, string(filepath.ListSeparator))))
 	}
 
 	return strings.Join(out, "\n")
