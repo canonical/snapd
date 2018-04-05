@@ -14,6 +14,10 @@ prepare: |
     install_local test-snapd-service
     snap list | MATCH test-snapd-service
 
+    # a snap with timers
+    install_local test-snapd-timer-service
+    snap list | MATCH test-snapd-timer-service
+
     # a snap with DBus policy files
     snap install test-snapd-network-status-provider
     snap list | MATCH test-snapd-network-status-provider
@@ -30,6 +34,7 @@ prepare: |
     # expecting to find various files that snap installation produced
     test $(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l) -gt 0
     test $(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l) -gt 0
+    test $(find /etc/systemd/system -name 'snap.*.timer' | wc -l) -gt 0
 
 execute: |
     echo "Stop snapd before purging"
@@ -74,3 +79,4 @@ execute: |
 
     test $(find /etc/udev/rules.d -name '*-snap.*.rules' | wc -l) -eq 0
     test $(find /etc/dbus-1/system.d -name 'snap.*.conf' | wc -l) -eq 0
+    test $(find /etc/systemd/system -name 'snap.*.timer' | wc -l) -eq 0

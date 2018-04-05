@@ -41,7 +41,7 @@ func (s *SnapSuite) TestHelpPrintsHelp(c *check.C) {
 		err := snap.RunMain()
 		c.Assert(err, check.IsNil)
 		c.Check(s.Stdout(), check.Matches, `(?smU)Usage:
- +snap \[OPTIONS\] <command>
+ +snap <command>
 
 Install, configure, refresh and remove snap packages. Snaps are
 'universal' packages that work across many different Linux systems,
@@ -50,13 +50,6 @@ cloud, servers, desktops and the internet of things.
 
 This is the CLI for snapd, a background service that takes care of
 snaps on the system. Start with 'snap list' to see installed snaps.
-
-
-Application Options:
- +--version +Print the version and exit
-
-Help Options:
- +-h, --help +Show this help message
 
 Available commands:
  +abort.*
@@ -74,7 +67,7 @@ func (s *SnapSuite) TestSubCommandHelpPrintsHelp(c *check.C) {
 	err := snap.RunMain()
 	c.Assert(err, check.IsNil)
 	c.Check(s.Stdout(), check.Matches, `(?smU)Usage:
- +snap \[OPTIONS\] install \[install-OPTIONS\] <snap>...
+ +snap install \[install-OPTIONS\] <snap>...
 .*
 `)
 	c.Check(s.Stderr(), check.Equals, "")
