@@ -2522,76 +2522,7 @@ slots:
 	c.Check(tConnectPlug.Status(), Equals, state.DoneStatus)
 }
 
-func (s *interfaceManagerSuite) TestInjectTasks(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	lane := s.state.NewLane()
-
-	// setup main task and two tasks waiting for it; all part of same change
-	chg := s.state.NewChange("change", "")
-	t0 := s.state.NewTask("task1", "")
-	chg.AddTask(t0)
-	t0.JoinLane(lane)
-	t01 := s.state.NewTask("task1-1", "")
-	t01.WaitFor(t0)
-	chg.AddTask(t01)
-	t02 := s.state.NewTask("task1-2", "")
-	t02.WaitFor(t0)
-	chg.AddTask(t02)
-
-	// setup extra tasks
-	t1 := s.state.NewTask("task2", "")
-	t2 := s.state.NewTask("task3", "")
-	ts := state.NewTaskSet(t1, t2)
-
-	ifacestate.InjectTasks(t0, ts)
-
-	// verify that extra tasks are now part of same change
-	c.Assert(t1.Change().ID(), Equals, t0.Change().ID())
-	c.Assert(t2.Change().ID(), Equals, t0.Change().ID())
-	c.Assert(t1.Change().ID(), Equals, chg.ID())
-
-	c.Assert(t1.Lanes(), DeepEquals, []int{lane})
-
-	// verify that halt tasks of the main task now wait for extra tasks
-	c.Assert(t1.HaltTasks(), HasLen, 2)
-	c.Assert(t2.HaltTasks(), HasLen, 2)
-	c.Assert(t1.HaltTasks(), DeepEquals, t2.HaltTasks())
-
-	ids := []string{t1.HaltTasks()[0].Kind(), t2.HaltTasks()[1].Kind()}
-	sort.Strings(ids)
-	c.Assert(ids, DeepEquals, []string{"task1-1", "task1-2"})
-
-	// verify that extra tasks wait for the main task
-	c.Assert(t1.WaitTasks(), HasLen, 1)
-	c.Assert(t1.WaitTasks()[0].Kind(), Equals, "task1")
-	c.Assert(t2.WaitTasks(), HasLen, 1)
-	c.Assert(t2.WaitTasks()[0].Kind(), Equals, "task1")
-}
-
-func (s *interfaceManagerSuite) TestInjectTasksWithNullChange(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// setup main task
-	t0 := s.state.NewTask("task1", "")
-	t01 := s.state.NewTask("task1-1", "")
-	t01.WaitFor(t0)
-
-	// setup extra task
-	t1 := s.state.NewTask("task2", "")
-	ts := state.NewTaskSet(t1)
-
-	ifacestate.InjectTasks(t0, ts)
-
-	c.Assert(t1.Lanes(), DeepEquals, []int{0})
-
-	// verify that halt tasks of the main task now wait for extra tasks
-	c.Assert(t1.HaltTasks(), HasLen, 1)
-	c.Assert(t1.HaltTasks()[0].Kind(), Equals, "task1-1")
-}
-
+/*
 func (s *interfaceManagerSuite) TestSetupProfilesInjectsAutoConnectIfMissing(c *C) {
 	mgr := s.manager(c)
 
@@ -2651,6 +2582,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesInjectsAutoConnectIfMissing(c *
 	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
 	c.Assert(autoconnectSup.Name(), Equals, "snap2")
 }
+*/
 
 func (s *interfaceManagerSuite) TestSetupProfilesInjectsAutoConnectIfCore(c *C) {
 	mgr := s.manager(c)
