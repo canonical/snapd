@@ -257,12 +257,12 @@
     /usr/** r,
     mount options=(rw bind) /usr/lib{,32}/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl{,32}/,
     mount options=(rw bind) /usr/lib{,32}/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl{,32}/,
-    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/* w,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/{,*} w,
     mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
     mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
 
     # Vulkan support
-    /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/* w,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/{,*} w,
     mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
     mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
 
