@@ -382,22 +382,28 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 		if err != nil {
 			return nil, err
 		}
-		if seen[snapsup.Name()] {
+		snapName := snapsup.Name()
+		if seen[snapName] {
 			continue
 		}
 
 		doneProfiles := false
 		for _, t1 := range t.WaitTasks() {
 			if t1.Kind() == "setup-profiles" && t1.Status() == state.DoneStatus {
-				doneProfiles = true
-				break
+				snapsup1, err := snapstate.TaskSnapSetup(t)
+				if err != nil {
+					return nil, err
+				}
+				if snapsup1.Name() == snapName {
+					doneProfiles = true
+					break
+				}
 			}
 		}
 		if !doneProfiles {
 			continue
 		}
 
-		snapName := snapsup.Name()
 		seen[snapName] = true
 		snapInfo, err := snap.ReadInfo(snapName, snapsup.SideInfo)
 		if err != nil {

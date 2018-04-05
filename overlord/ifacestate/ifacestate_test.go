@@ -2745,6 +2745,9 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfiles(c *C) {
 
 		chg := s.state.NewChange("linking", "linking 1")
 		t1 := s.state.NewTask("setup-profiles", "setup profiles 1")
+		t1.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: si,
+		})
 		t1.SetStatus(snp.setupStatus)
 		t2 := s.state.NewTask("link-snap", "link snap 1")
 		t2.Set("snap-setup", &snapstate.SnapSetup{
