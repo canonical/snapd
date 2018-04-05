@@ -345,6 +345,12 @@ prepare: |
                 zypper -q --gpg-auto-import-keys refresh
                 zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
+            arch-*)
+                # NOTE: we ought to do pacman -Syu, but this may update the
+                # kernel which we will not detect at this stage and fail to
+                # reboot; actual distro upgrade is done later in prepare
+                pacman -Sy --noconfirm xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
+                ;;
         esac
         rm -f "$tf"
         curl -sS -o - "https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF" | gunzip > delta-ref.tar
