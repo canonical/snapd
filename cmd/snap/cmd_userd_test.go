@@ -40,6 +40,11 @@ type userdSuite struct {
 
 var _ = Suite(&userdSuite{})
 
+func (s *userdSuite) SetUpSuite(c *C) {
+	s.BaseSnapSuite.SetUpSuite(c)
+	s.DBusTest.SetUpSuite(c)
+}
+
 func (s *userdSuite) SetUpTest(c *C) {
 	s.BaseSnapSuite.SetUpTest(c)
 	s.DBusTest.SetUpTest(c)

@@ -147,6 +147,7 @@ go install -s -v -p 4 -x -tags withtestkeys github.com/snapcore/snapd/cmd/snapd
 
 %gobuild cmd/snap
 %gobuild cmd/snapctl
+%gobuild cmd/privhelper
 # build snap-exec and snap-update-ns completely static for base snaps
 CGO_ENABLED=0 %gobuild cmd/snap-exec
 # gobuild --ldflags '-extldflags "-static"' bin/snap-update-ns
@@ -302,6 +303,7 @@ fi
 %{_libexecdir}/snapd/snap-update-ns
 %{_libexecdir}/snapd/snap-exec
 %{_libexecdir}/snapd/snap-seccomp
+%{_libexecdir}/snapd/privhelper
 %{_libexecdir}/snapd/snapd
 %{_libexecdir}/snapd/snap-mgmt
 %{_libexecdir}/snapd/snap-gdb-shim

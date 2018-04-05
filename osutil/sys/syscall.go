@@ -107,3 +107,19 @@ func FcntlGetFl(fd int) (int, error) {
 	}
 	return int(flags), nil
 }
+
+func Setuid(uid UserID) error {
+	_, _, errno := syscall.RawSyscall(_SYS_SETUID, uintptr(uid), 0, 0)
+	if errno == 0 {
+		return nil
+	}
+	return errno
+}
+
+func Setgid(gid GroupID) error {
+	_, _, errno := syscall.RawSyscall(_SYS_SETGID, uintptr(gid), 0, 0)
+	if errno == 0 {
+		return nil
+	}
+	return errno
+}

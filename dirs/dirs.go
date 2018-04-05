@@ -103,6 +103,8 @@ var (
 	SystemFontconfigCacheDir string
 
 	FreezerCgroupDir string
+
+	PrivHelper string
 )
 
 const (
@@ -256,4 +258,9 @@ func SetRootDir(rootdir string) {
 	SystemFontconfigCacheDir = filepath.Join(rootdir, "/var/cache/fontconfig")
 
 	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
+
+	PrivHelper = filepath.Join(SnapMountDir, "core/current", CoreLibExecDir, "privhelper")
+	if _, err := os.Stat(PrivHelper); err != nil {
+		PrivHelper = filepath.Join(DistroLibExecDir, "privhelper")
+	}
 }

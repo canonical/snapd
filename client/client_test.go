@@ -36,6 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"os/exec"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -51,9 +52,20 @@ type clientSuite struct {
 	doCalls int
 	header  http.Header
 	status  int
+
+	privHelper string
 }
 
 var _ = Suite(&clientSuite{})
+
+func (cs *clientSuite) SetUpSuite(c *C) {
+	d := c.MkDir()
+	cs.privHelper = filepath.Join(d, "privhelper")
+	cmd := exec.Command("go", "build", "-o", cs.privHelper, "github.com/snapcore/snapd/cmd/privhelper")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	c.Assert(cmd.Run(), IsNil)
+}
 
 func (cs *clientSuite) SetUpTest(c *C) {
 	os.Setenv(client.TestAuthFileEnvKey, filepath.Join(c.MkDir(), "auth.json"))
@@ -70,6 +82,8 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	cs.doCalls = 0
 
 	dirs.SetRootDir(c.MkDir())
+
+	dirs.PrivHelper = cs.privHelper
 }
 
 func (cs *clientSuite) TearDownTest(c *C) {

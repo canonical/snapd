@@ -415,6 +415,7 @@ sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go
 %gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
 %gobuild -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
+%gobuild -o bin/privhelper $GOFLAGS %{import_path}/cmd/privhelper
 
 # To ensure things work correctly with base snaps,
 # snap-exec and snap-update-ns need to be built statically
@@ -494,6 +495,7 @@ install -p -m 0755 bin/snapctl %{buildroot}%{_bindir}/snapctl
 install -p -m 0755 bin/snapd %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-update-ns %{buildroot}%{_libexecdir}/snapd
 install -p -m 0755 bin/snap-seccomp %{buildroot}%{_libexecdir}/snapd
+install -p -m 0755 bin/privhelper %{buildroot}%{_libexecdir}/privhelper
 
 # Install SELinux module
 install -p -m 0644 data/selinux/snappy.if %{buildroot}%{_datadir}/selinux/devel/include/contrib
@@ -609,6 +611,7 @@ popd
 %{_libexecdir}/snapd/snap-exec
 %{_libexecdir}/snapd/info
 %{_libexecdir}/snapd/snap-mgmt
+%{_libexecdir}/snapd/privhelper
 %{_mandir}/man1/snap.1*
 %{_datadir}/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
