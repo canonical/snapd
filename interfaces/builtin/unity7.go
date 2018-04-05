@@ -112,7 +112,7 @@ dbus (send)
     bus=session
     path=/io/snapcraft/Launcher
     interface=io.snapcraft.Launcher
-    member=OpenURL
+    member={OpenURL,OpenFile}
     peer=(label=unconfined),
 
 # Allow use of snapd's internal 'xdg-settings'
@@ -598,6 +598,18 @@ dbus (receive)
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect
     peer=(label=unconfined),
+
+# gtk2/gvfs gtk_show_uri()
+dbus (send)
+    bus=session
+    path=/org/gtk/vfs/mounttracker
+    interface=org.gtk.vfs.MountTracker
+    member=ListMountableInfo,
+dbus (send)
+    bus=session
+    path=/org/gtk/vfs/mounttracker
+    interface=org.gtk.vfs.MountTracker
+    member=LookupMount,
 `
 
 const unity7ConnectedPlugSeccomp = `

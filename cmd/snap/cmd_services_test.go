@@ -77,9 +77,7 @@ func (s *appOpSuite) args(op string, names []string, extra []string, noWait bool
 	for _, x := range extra {
 		args = append(args, "--"+x)
 	}
-	for _, name := range names {
-		args = append(args, name)
-	}
+	args = append(args, names...)
 	return args
 }
 

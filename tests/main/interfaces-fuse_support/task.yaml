@@ -37,11 +37,8 @@ restore: |
     rm -rf $MOUNT_POINT fuse.error
 
 execute: |
-    CONNECTED_PATTERN=":fuse-support +test-snapd-fuse-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-fuse-consumer:fuse-support"
-
-    echo "Then the fuse plug is not connected by default"
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    echo "The interface is disconnected by default"
+    snap interfaces | MATCH "\- +test-snapd-fuse-consumer:fuse-support"
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "Then the snap is not able to create a fuse file system"
@@ -50,13 +47,10 @@ execute: |
             exit 1
         fi
         MATCH "Permission denied" < fuse.error
-
-        echo "==================================="
     fi
 
     echo "When the plug is connected"
     snap connect test-snapd-fuse-consumer:fuse-support
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to create a fuse filesystem"
     # start fuse consumer in foreground and make it a background job

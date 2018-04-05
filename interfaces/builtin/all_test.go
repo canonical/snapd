@@ -444,6 +444,7 @@ func (s *AllSuite) TestRegisterIface(c *C) {
 
 const testConsumerInvalidSlotNameYaml = `
 name: consumer
+version: 0
 slots:
  ttyS5:
   interface: iface
@@ -454,6 +455,7 @@ apps:
 
 const testConsumerInvalidPlugNameYaml = `
 name: consumer
+version: 0
 plugs:
  ttyS3:
   interface: iface
@@ -464,6 +466,7 @@ apps:
 
 const testInvalidSlotInterfaceYaml = `
 name: testsnap
+version: 0
 slots:
  iface:
   interface: iface
@@ -477,6 +480,7 @@ hooks:
 
 const testInvalidPlugInterfaceYaml = `
 name: testsnap
+version: 0
 plugs:
  iface:
   interface: iface
@@ -513,11 +517,8 @@ func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugNames(c *C) {
 }
 
 func (s *AllSuite) TestSanitizeErrorsOnInvalidSlotInterface(c *C) {
-	snapInfo := snaptest.MockInfo(c, testInvalidSlotInterfaceYaml, nil)
-	c.Check(snapInfo.Apps["app"].Slots, HasLen, 1)
-	c.Check(snapInfo.Hooks["install"].Slots, HasLen, 1)
-	c.Check(snapInfo.Slots, HasLen, 1)
-	snap.SanitizePlugsSlots(snapInfo)
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(testInvalidSlotInterfaceYaml))
+	c.Assert(err, IsNil)
 	c.Check(snapInfo.Apps["app"].Slots, HasLen, 0)
 	c.Check(snapInfo.Hooks["install"].Slots, HasLen, 0)
 	c.Assert(snapInfo.BadInterfaces, HasLen, 1)

@@ -30,9 +30,9 @@
 %global with_test_keys 0
 %endif
 
-%define systemd_services_list snapd.refresh.timer snapd.refresh.service snapd.socket snapd.service
+%define systemd_services_list snapd.socket snapd.service
 Name:           snapd
-Version:        2.30
+Version:        2.32.2
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -203,6 +203,8 @@ rm -f %{?buildroot}/usr/bin/ubuntu-core-launcher
 rm -f %{?buildroot}%{_libexecdir}/snapd/system-shutdown
 # Install the directories that snapd creates by itself so that they can be a part of the package
 install -d %buildroot/var/lib/snapd/{assertions,desktop/applications,device,hostfs,mount,apparmor/profiles,seccomp/bpf,snaps}
+
+install -d %buildroot/var/lib/snapd/{lib/gl,lib/gl32,lib/vulkan}
 install -d %buildroot/var/cache/snapd
 install -d %buildroot/snap/bin
 # Install local permissions policy for snap-confine. This should be removed
@@ -229,6 +231,9 @@ install -m 644 -D data/info %{buildroot}%{_libexecdir}/snapd/info
 install -m 644 -D data/completion/snap %{buildroot}/usr/share/bash-completion/completions/snap
 install -m 644 -D data/completion/complete.sh %{buildroot}%{_libexecdir}/snapd
 install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
+# move snapd-generator
+install -m 755 -d %{buildroot}/lib/systemd/system-generators/
+mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}/lib/systemd/system-generators/
 
 %verifyscript
 %verify_permissions -e %{_libexecdir}/snapd/snap-confine
@@ -278,12 +283,14 @@ fi
 %dir /var/lib/snapd/seccomp
 %dir /var/lib/snapd/seccomp/bpf
 %dir /var/lib/snapd/snaps
+%dir /var/lib/snapd/lib
+%dir /var/lib/snapd/lib/gl
+%dir /var/lib/snapd/lib/gl32
+%dir /var/lib/snapd/lib/vulkan
 %dir /var/cache/snapd
 %verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_mandir}/man1/snap-confine.1.gz
 %{_mandir}/man5/snap-discard-ns.5.gz
-%{_unitdir}/snapd.refresh.service
-%{_unitdir}/snapd.refresh.timer
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
 /usr/bin/snap
@@ -297,10 +304,12 @@ fi
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snapd
 %{_libexecdir}/snapd/snap-mgmt
-%{_libexecdir}/udev/snappy-app-dev
+%{_libexecdir}/snapd/snap-gdb-shim
+%{_libexecdir}/snapd/snap-device-helper
 /usr/share/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
+/lib/systemd/system-generators/snapd-generator
 %{_mandir}/man1/snap.1.gz
 /usr/share/dbus-1/services/io.snapcraft.Launcher.service
 /usr/share/dbus-1/services/io.snapcraft.Settings.service
