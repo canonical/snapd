@@ -420,7 +420,7 @@ func (s *ErrtrackerTestSuite) TestJournalError(c *C) {
 func (s *ErrtrackerTestSuite) TestJournalErrorSilentError(c *C) {
 	jctl := testutil.MockCommand(c, "journalctl", "kill $$")
 	defer jctl.Restore()
-	c.Check(errtracker.JournalError(), Equals, "error: signal: terminated")
+	c.Check(errtracker.JournalError(), Matches, "error: signal: [Tt]erminated")
 	c.Check(jctl.Calls(), DeepEquals, [][]string{
 		{"journalctl", "-b", "--priority=warning..err", "--lines=1000"},
 	})
