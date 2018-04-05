@@ -35,13 +35,6 @@ var (
 	pkgBucketKey = []byte("Snaps")
 )
 
-// snapInfo contains information about what snap provides a command
-type snapInfo struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Summary string `json:"summary,omitempty"`
-}
-
 type writer struct {
 	db        *bolt.DB
 	tx        *bolt.Tx
@@ -107,7 +100,7 @@ func Create() (CommandDB, error) {
 
 func (t *writer) AddSnap(snapName, version, summary string, commands []string) error {
 	for _, cmd := range commands {
-		var sil []snapInfo
+		var sil []Package
 
 		bcmd := []byte(cmd)
 		row := t.cmdBucket.Get(bcmd)
@@ -116,7 +109,7 @@ func (t *writer) AddSnap(snapName, version, summary string, commands []string) e
 				return err
 			}
 		}
-		sil = append(sil, snapInfo{Name: snapName, Version: version})
+		sil = append(sil, Package{Snap: snapName, Version: version})
 		row, err := json.Marshal(sil)
 		if err != nil {
 			return err
@@ -127,8 +120,8 @@ func (t *writer) AddSnap(snapName, version, summary string, commands []string) e
 	}
 
 	// TODO: use json here as well and put the version information here
-	bj, err := json.Marshal(snapInfo{
-		Name:    snapName,
+	bj, err := json.Marshal(Package{
+		Snap:    snapName,
 		Version: version,
 		Summary: summary,
 	})
@@ -245,14 +238,14 @@ func (f *boltFinder) FindCommand(command string) ([]Command, error) {
 	if buf == nil {
 		return nil, nil
 	}
-	var sil []snapInfo
+	var sil []Package
 	if err := json.Unmarshal(buf, &sil); err != nil {
 		return nil, err
 	}
 	cmds := make([]Command, len(sil))
 	for i, si := range sil {
 		cmds[i] = Command{
-			Snap:    si.Name,
+			Snap:    si.Snap,
 			Version: si.Version,
 			Command: command,
 		}
@@ -277,7 +270,7 @@ func (f *boltFinder) FindPackage(pkgName string) (*Package, error) {
 	if bj == nil {
 		return nil, nil
 	}
-	var si snapInfo
+	var si Package
 	err = json.Unmarshal(bj, &si)
 	if err != nil {
 		return nil, err
