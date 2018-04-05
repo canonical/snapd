@@ -725,12 +725,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if newInfo.Type != snap.TypeOS {
 		var hasAutoConnect, hasSetupProfiles bool
 		for _, other := range t.Change().Tasks() {
+			// Check if this is auto-connect task for same snap and we it's part of the change with setup-profiles task
 			if other.Kind() == "auto-connect" || other.Kind() == "setup-profiles" {
 				otherSnapsup, err := TaskSnapSetup(other)
 				if err != nil {
 					return err
 				}
-				// Check if this is auto-connect task for same snap
 				if snapsup.Name() == otherSnapsup.Name() {
 					if other.Kind() == "auto-connect" {
 						hasAutoConnect = true
