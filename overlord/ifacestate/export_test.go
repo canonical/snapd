@@ -28,7 +28,6 @@ import (
 
 var (
 	AddImplicitSlots          = addImplicitSlots
-	InjectTasks               = injectTasks
 	SnapsWithSecurityProfiles = snapsWithSecurityProfiles
 )
 
