@@ -383,9 +383,7 @@ EOF
             # the passwd from core without root
             grep -v "^root:" "$UNPACKD/etc/$f" > /mnt/system-data/root/test-etc/$f
             # append this systems root user so that linode can connect
-            grep "^root:" /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
-            # append ubuntu, test user for the testing
-            grep "^test:"  /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
+            grep "^root:" /etc/$f >> /mnt/system-data/root/test-etc/$f
 
             # make sure the group is as expected
             chgrp --reference "$UNPACKD/etc/$f" /mnt/system-data/root/test-etc/$f
