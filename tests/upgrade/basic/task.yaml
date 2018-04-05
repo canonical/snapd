@@ -1,6 +1,7 @@
 summary: Check that upgrade works
 
-systems: [-debian-sid-*]
+# arch: there is no snapd in arch repos
+systems: [-debian-sid-*, -arch-*]
 
 restore: |
     if [ "$REMOTE_STORE" = staging ]; then
