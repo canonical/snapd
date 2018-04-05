@@ -39,6 +39,7 @@ var (
 type snapInfo struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
+	Summary string `json:"summary,omitempty"`
 }
 
 type writer struct {
@@ -126,7 +127,15 @@ func (t *writer) AddSnap(snapName, version, summary string, commands []string) e
 	}
 
 	// TODO: use json here as well and put the version information here
-	if err := t.pkgBucket.Put([]byte(snapName), []byte(summary)); err != nil {
+	bj, err := json.Marshal(snapInfo{
+		Name:    snapName,
+		Version: version,
+		Summary: summary,
+	})
+	if err != nil {
+		return err
+	}
+	if err := t.pkgBucket.Put([]byte(snapName), bj); err != nil {
 		return err
 	}
 
@@ -264,10 +273,15 @@ func (f *boltFinder) FindPackage(pkgName string) (*Package, error) {
 		return nil, nil
 	}
 
-	bsummary := b.Get([]byte(pkgName))
-	if bsummary == nil {
+	bj := b.Get([]byte(pkgName))
+	if bj == nil {
 		return nil, nil
 	}
+	var si snapInfo
+	err = json.Unmarshal(bj, &si)
+	if err != nil {
+		return nil, err
+	}
 
-	return &Package{Snap: pkgName, Version: "", Summary: string(bsummary)}, nil
+	return &Package{Snap: pkgName, Version: si.Version, Summary: si.Summary}, nil
 }
