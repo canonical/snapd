@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -105,10 +105,10 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, true)
 	dump, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
-	c.Check(dump, DeepEquals, map[string][]string{
-		"foo": {"foo/1.0"},
-		"bar": {"bar/2.0"},
-		"meh": {"foo/1.0", "bar/2.0"},
+	c.Check(dump, DeepEquals, map[string]string{
+		"foo": `[{"name":"foo","version":"1.0"}]`,
+		"bar": `[{"name":"bar","version":"2.0"}]`,
+		"meh": `[{"name":"foo","version":"1.0"},{"name":"bar","version":"2.0"}]`,
 	})
 }
 

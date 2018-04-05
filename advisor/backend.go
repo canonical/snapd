@@ -21,7 +21,6 @@ package advisor
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"time"
 
@@ -36,13 +35,10 @@ var (
 	pkgBucketKey = []byte("Snaps")
 )
 
+// snapInfo contains information about what snap provides a command
 type snapInfo struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
-}
-
-func (si *snapInfo) String() string {
-	return fmt.Sprintf("%s/%s", si.Name, si.Version)
 }
 
 type writer struct {
@@ -129,6 +125,7 @@ func (t *writer) AddSnap(snapName, version, summary string, commands []string) e
 		}
 	}
 
+	// TODO: use json here as well and put the version information here
 	if err := t.pkgBucket.Put([]byte(snapName), []byte(summary)); err != nil {
 		return err
 	}
