@@ -121,6 +121,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		}
 
 		// Compatibility with old snapd: check if we have auto-connect task and if not, inject it after self (setup-profiles).
+		// Inject it for core after the 2nd setup-profiles - same placement as done in doInstall.
 		// In the older snapd versions interfaces were auto-connected as part of setupProfilesForSnap.
 		var hasAutoConnect bool
 		for _, t := range task.Change().Tasks() {

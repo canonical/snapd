@@ -721,7 +721,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, snapsup.Name(), snapst)
 
-	// Compatibility with old snapd: check if we have auto-connect task and if not, inject it after self (link-snap).
+	// Compatibility with old snapd: check if we have auto-connect task and
+	// if not, inject it after self (link-snap) for snaps that are not core
 	if newInfo.Type != snap.TypeOS {
 		var hasAutoConnect, hasSetupProfiles bool
 		for _, other := range t.Change().Tasks() {
