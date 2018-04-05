@@ -28,7 +28,6 @@ import (
 
 var (
 	AddImplicitSlots = addImplicitSlots
-	InjectTasks      = injectTasks
 )
 
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the
