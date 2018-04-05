@@ -28,7 +28,6 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -120,11 +119,10 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 				return fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
 			}
 		}
-	}
 
-	// Compatibility with old snapd: check if we have auto-connect task and if not, inject it after self (setup-profiles).
-	// In the older snapd versions interfaces were auto-connected as part of setupProfilesForSnap.
-	if snapInfo.Type != snap.TypeOS || corePhase2 {
+		// Compatibility with old snapd: check if we have auto-connect task and if not, inject it after self (setup-profiles).
+		// Inject it for core after the 2nd setup-profiles - same placement as done in doInstall.
+		// In the older snapd versions interfaces were auto-connected as part of setupProfilesForSnap.
 		var hasAutoConnect bool
 		for _, t := range task.Change().Tasks() {
 			if t.Kind() == "auto-connect" {
@@ -140,11 +138,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 			}
 		}
 		if !hasAutoConnect {
-			st := task.State()
-			autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.Name()))
-			autoConnect.Set("snap-setup", snapsup)
-			injectTasks(task, state.NewTaskSet(autoConnect))
-			task.Logf("added auto-connect task")
+			snapstate.InjectAutoConnect(task, snapsup)
 		}
 	}
 
@@ -789,32 +783,4 @@ func (m *InterfaceManager) undoTransitionUbuntuCore(t *state.Task, _ *tomb.Tomb)
 	}
 
 	return m.transitionConnectionsCoreMigration(st, newName, oldName)
-}
-
-// injectTasks makes all the halt tasks of the mainTask wait for extraTasks;
-// extraTasks join the same lane and change as the mainTask.
-func injectTasks(mainTask *state.Task, extraTasks *state.TaskSet) {
-	lanes := mainTask.Lanes()
-	if len(lanes) == 1 && lanes[0] == 0 {
-		lanes = nil
-	}
-	for _, l := range lanes {
-		extraTasks.JoinLane(l)
-	}
-
-	chg := mainTask.Change()
-	// Change shouldn't normally be nil, except for cases where
-	// this helper is used before tasks are added to a change.
-	if chg != nil {
-		chg.AddAll(extraTasks)
-	}
-
-	// make all halt tasks of the mainTask wait on extraTasks
-	ht := mainTask.HaltTasks()
-	for _, t := range ht {
-		t.WaitAll(extraTasks)
-	}
-
-	// make the extra tasks wait for main task
-	extraTasks.WaitFor(mainTask)
 }
