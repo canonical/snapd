@@ -26,12 +26,15 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/context"
+
 	. "gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -549,6 +552,31 @@ func (as *authSuite) TestAuthContextDeviceSessionRequestParamsNilDeviceAssertion
 	c.Check(err, Equals, auth.ErrNoSerial)
 }
 
+func (as *authSuite) TestAuthContextCloudInfo(c *C) {
+	authContext := auth.NewAuthContext(as.state, nil)
+
+	cloud, err := authContext.CloudInfo()
+	c.Assert(err, IsNil)
+	c.Check(cloud, IsNil)
+
+	cloudInfo := &auth.CloudInfo{
+		Name:             "aws",
+		Region:           "us-east-1",
+		AvailabilityZone: "us-east-1a",
+	}
+	as.state.Lock()
+	defer as.state.Unlock()
+	tr := config.NewTransaction(as.state)
+	tr.Set("core", "cloud", cloudInfo)
+	tr.Commit()
+
+	as.state.Unlock()
+	cloud, err = authContext.CloudInfo()
+	as.state.Lock()
+	c.Assert(err, IsNil)
+	c.Check(cloud, DeepEquals, cloudInfo)
+}
+
 const (
 	exModel = `type: model
 authority-id: my-brand
@@ -772,4 +800,16 @@ func (as *authSuite) TestUsers(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(users, DeepEquals, []*auth.UserState{user1, user2})
+}
+
+func (as *authSuite) TestEnsureContexts(c *C) {
+	ctx1 := auth.EnsureContextTODO()
+	ctx2 := auth.EnsureContextTODO()
+
+	c.Check(ctx1, Not(Equals), ctx2)
+
+	c.Check(auth.IsEnsureContext(ctx1), Equals, true)
+	c.Check(auth.IsEnsureContext(ctx2), Equals, true)
+
+	c.Check(auth.IsEnsureContext(context.TODO()), Equals, false)
 }

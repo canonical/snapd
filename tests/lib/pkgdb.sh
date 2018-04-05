@@ -122,7 +122,7 @@ distro_install_local_package() {
             quiet dnf -y install "$@"
             ;;
         opensuse-*)
-            quiet zypper install -y "$@"
+            quiet rpm -i "$@"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -205,6 +205,7 @@ distro_install_package() {
 }
 
 distro_purge_package() {
+    # shellcheck disable=SC2046
     set -- $(
         for pkg in "$@" ; do
             package_name=$(distro_name_package "$pkg")
@@ -245,7 +246,7 @@ distro_update_package_db() {
             quiet dnf makecache
             ;;
         opensuse-*)
-            quiet zypper refresh
+            quiet zypper --gpg-auto-import-keys refresh
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -368,6 +369,7 @@ pkg_dependencies_ubuntu_generic(){
         curl
         devscripts
         expect
+        gdb
         gdebi-core
         git
         indent
@@ -377,11 +379,12 @@ pkg_dependencies_ubuntu_generic(){
         libglib2.0-dev
         libseccomp-dev
         libudev-dev
+        man
         netcat-openbsd
         pkg-config
         python3-docutils
-        rng-tools
         udev
+        uuid-runtime
         "
 }
 
@@ -404,13 +407,11 @@ pkg_dependencies_ubuntu_classic(){
         ubuntu-14.04-*)
             echo "
                 linux-image-extra-$(uname -r)
-                pollinate
                 "
             ;;
         ubuntu-16.04-32)
             echo "
                 linux-image-extra-$(uname -r)
-                pollinate
                 "
             ;;
         ubuntu-16.04-64)
@@ -419,16 +420,25 @@ pkg_dependencies_ubuntu_classic(){
                 kpartx
                 libvirt-bin
                 linux-image-extra-$(uname -r)
-                pollinate
                 qemu
                 x11-utils
                 xvfb
                 "
             ;;
+        ubuntu-17.10-64)
+            echo "
+                linux-image-extra-4.13.0-16-generic
+                "
+            ;;
+        ubuntu-18.04-64)
+            echo "
+                linux-image-extra-$(uname -r)
+                squashfs-tools
+                "
+            ;;
         ubuntu-*)
             echo "
                 linux-image-extra-$(uname -r)
-                pollinate
                 "
             ;;
         debian-*)
@@ -454,6 +464,7 @@ pkg_dependencies_fedora(){
         git
         golang
         jq
+        man
         mock
         redhat-lsb-core
         rpm-build
@@ -463,15 +474,17 @@ pkg_dependencies_fedora(){
 
 pkg_dependencies_opensuse(){
     echo "
+        apparmor-profiles
         curl
         expect
         git
         golang-packaging
         jq
         lsb-release
+        man
         netcat-openbsd
         osc
-        rng-tools
+        uuidd
         xdg-utils
         xdg-user-dirs
         "

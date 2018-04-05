@@ -24,6 +24,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
+
+	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -31,6 +34,8 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -59,6 +64,9 @@ func needsMaybeCore(typ snap.Type) int {
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
+	if snapsup.Name() == "system" {
+		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
+	}
 	if snapst.IsInstalled() && !snapst.Active {
 		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.Name())
 	}
@@ -142,6 +150,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if snapst.IsInstalled() {
 		// unlink-current-snap (will stop services for copy-data)
 		stop := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), snapsup.Name()))
+		stop.Set("stop-reason", snap.StopReasonRefresh)
 		addTask(stop)
 		prev = stop
 
@@ -178,6 +187,11 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		addTask(setupSecurityPhase2)
 		prev = setupSecurityPhase2
 	}
+
+	// auto-connections
+	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.Name()))
+	addTask(autoConnect)
+	prev = autoConnect
 
 	// setup aliases
 	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(i18n.G("Set automatic aliases for snap %q"), snapsup.Name()))
@@ -337,6 +351,13 @@ func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.Slot
 	return &plugRef, &slotRef, nil
 }
 
+func ChangeConflictError(snapName, kind string) *changeConflictError {
+	return &changeConflictError{
+		snapName:   snapName,
+		changeKind: kind,
+	}
+}
+
 type changeConflictError struct {
 	snapName   string
 	changeKind string
@@ -442,6 +463,73 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 	return nil
 }
 
+func contentAttr(attrer interfaces.Attrer) string {
+	var s string
+	err := attrer.Attr("content", &s)
+	if err != nil {
+		return ""
+	}
+	return s
+}
+
+func contentIfaceAvailable(st *state.State, contentTag string) bool {
+	repo := ifacerepo.Get(st)
+	for _, slot := range repo.AllSlots("content") {
+		if contentAttr(slot) == "" {
+			continue
+		}
+		if contentAttr(slot) == contentTag {
+			return true
+		}
+	}
+	return false
+}
+
+// defaultContentPlugProviders takes a snap.Info and returns what
+// default providers there are.
+func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
+	out := []string{}
+	for _, plug := range info.Plugs {
+		if plug.Interface == "content" {
+			if contentAttr(plug) == "" {
+				continue
+			}
+			if !contentIfaceAvailable(st, contentAttr(plug)) {
+				var dprovider string
+				err := plug.Attr("default-provider", &dprovider)
+				if err != nil || dprovider == "" {
+					continue
+				}
+				// The default-provider is a name. However old
+				// documentation said it is "snapname:ifname",
+				// we deal with this gracefully by just
+				// stripping of the part after the ":"
+				out = append(out, strings.Split(dprovider, ":")[0])
+			}
+		}
+	}
+	return out
+}
+
+// validateFeatureFlags validates the given snap only uses experimental
+// features that are enabled by the user.
+func validateFeatureFlags(st *state.State, info *snap.Info) error {
+	if len(info.Layout) == 0 {
+		return nil
+	}
+
+	tr := config.NewTransaction(st)
+	var featureFlagLayouts bool
+	if err := tr.GetMaybe("core", "experimental.layouts", &featureFlagLayouts); err != nil {
+		return err
+	}
+	if featureFlagLayouts {
+		return nil
+	}
+
+	return fmt.Errorf("cannot use experimental 'layouts' feature, set option 'experimental.layouts' to true and try again")
+}
+
 // InstallPath returns a set of tasks for installing snap from a file path.
 // Note that the state must be locked by the caller.
 // The provided SideInfo can contain just a name which results in a
@@ -482,9 +570,13 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 	if err := validateContainer(container, info, logger.Noticef); err != nil {
 		return nil, err
 	}
+	if err := validateFeatureFlags(st, info); err != nil {
+		return nil, err
+	}
 
 	snapsup := &SnapSetup{
 		Base:     info.Base,
+		Prereq:   defaultContentPlugProviders(st, info),
 		SideInfo: si,
 		SnapPath: path,
 		Channel:  channel,
@@ -526,10 +618,14 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 	if err := validateInfoAndFlags(info, &snapst, flags); err != nil {
 		return nil, err
 	}
+	if err := validateFeatureFlags(st, info); err != nil {
+		return nil, err
+	}
 
 	snapsup := &SnapSetup{
 		Channel:      channel,
 		Base:         info.Base,
+		Prereq:       defaultContentPlugProviders(st, info),
 		UserID:       userID,
 		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
@@ -564,7 +660,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 // RefreshCandidates gets a list of candidates for update
 // Note that the state must be locked by the caller.
 func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, error) {
-	updates, _, _, err := refreshCandidates(st, nil, user, nil)
+	updates, _, _, err := refreshCandidates(context.TODO(), st, nil, user, nil)
 	return updates, err
 }
 
@@ -574,13 +670,13 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
-func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+func UpdateMany(ctx context.Context, st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	updates, stateByID, ignoreValidation, err := refreshCandidates(st, names, user, nil)
+	updates, stateByID, ignoreValidation, err := refreshCandidates(ctx, st, names, user, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -651,6 +747,13 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		channel, flags, snapst := params(update)
 
 		if err := validateInfoAndFlags(update, snapst, flags); err != nil {
+			if refreshAll {
+				logger.Noticef("cannot update %q: %v", update.Name(), err)
+				continue
+			}
+			return nil, nil, err
+		}
+		if err := validateFeatureFlags(st, update); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.Name(), err)
 				continue
@@ -991,7 +1094,7 @@ var AutoRefreshAssertions func(st *state.State, userID int) error
 // AutoRefresh is the wrapper that will do a refresh of all the installed
 // snaps on the system. In addition to that it will also refresh important
 // assertions.
-func AutoRefresh(st *state.State) ([]string, []*state.TaskSet, error) {
+func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskSet, error) {
 	userID := 0
 
 	if AutoRefreshAssertions != nil {
@@ -1000,7 +1103,7 @@ func AutoRefresh(st *state.State) ([]string, []*state.TaskSet, error) {
 		}
 	}
 
-	return UpdateMany(st, nil, userID)
+	return UpdateMany(ctx, st, nil, userID)
 }
 
 // Enable sets a snap to the active state
@@ -1085,6 +1188,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 
 	stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q (%s) services"), snapsup.Name(), snapst.Current))
 	stopSnapServices.Set("snap-setup", &snapsup)
+	stopSnapServices.Set("stop-reason", snap.StopReasonDisable)
 
 	removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), snapsup.Name()))
 	removeAliases.Set("snap-setup-task", stopSnapServices.ID())
@@ -1246,6 +1350,7 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 
 		stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), name))
 		stopSnapServices.Set("snap-setup", snapsup)
+		stopSnapServices.Set("stop-reason", snap.StopReasonRemove)
 		prev = stopSnapServices
 
 		tasks := []*state.Task{stopSnapServices}

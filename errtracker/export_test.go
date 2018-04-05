@@ -70,3 +70,60 @@ func MockReExec(f func() string) (restorer func()) {
 		didSnapdReExec = oldDidSnapdReExec
 	}
 }
+
+func MockWhoopsiePreferences(path string) (restorer func()) {
+	old := whoopsiePreferences
+	whoopsiePreferences = path
+	return func() {
+		whoopsiePreferences = old
+	}
+}
+
+func MockOsGetenv(f func(string) string) (restorer func()) {
+	old := osGetenv
+	osGetenv = f
+	return func() {
+		osGetenv = old
+	}
+}
+
+func MockProcCpuinfo(filename string) (restorer func()) {
+	old := procCpuinfo
+	procCpuinfo = filename
+	return func() {
+		procCpuinfo = old
+	}
+}
+
+func MockProcSelfExe(filename string) (restorer func()) {
+	old := procSelfExe
+	procSelfExe = filename
+	return func() {
+		procSelfExe = old
+	}
+}
+
+func MockProcSelfCwd(filename string) (restorer func()) {
+	old := procSelfCwd
+	procSelfCwd = filename
+	return func() {
+		procSelfCwd = old
+	}
+}
+
+func MockProcSelfCmdline(filename string) (restorer func()) {
+	old := procSelfCmdline
+	procSelfCmdline = filename
+	return func() {
+		procSelfCmdline = old
+	}
+}
+
+var (
+	ProcExe            = procExe
+	ProcCwd            = procCwd
+	ProcCmdline        = procCmdline
+	JournalError       = journalError
+	ProcCpuinfoMinimal = procCpuinfoMinimal
+	Environ            = environ
+)

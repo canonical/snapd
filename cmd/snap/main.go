@@ -165,7 +165,7 @@ func Parser() *flags.Parser {
 		printVersions()
 		panic(&exitStatus{0})
 	}
-	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
+	parser := flags.NewParser(&optionsData, flags.PassDoubleDash|flags.PassAfterNonOption)
 	parser.ShortDescription = i18n.G("Tool to interact with snaps")
 	parser.LongDescription = i18n.G(`
 Install, configure, refresh and remove snap packages. Snaps are
@@ -174,9 +174,15 @@ enabling secure distribution of the latest apps and utilities for
 cloud, servers, desktops and the internet of things.
 
 This is the CLI for snapd, a background service that takes care of
-snaps on the system. Start with 'snap list' to see installed snaps.
-`)
-	parser.FindOptionByLongName("version").Description = i18n.G("Print the version and exit")
+snaps on the system. Start with 'snap list' to see installed snaps.`)
+	// hide the unhelpful "[OPTIONS]" from help output
+	parser.Usage = ""
+	if version := parser.FindOptionByLongName("version"); version != nil {
+		version.Description = i18n.G("Print the version and exit")
+		version.Hidden = true
+	}
+	// add --help like what go-flags would do for us, but hidden
+	addHelp(parser)
 
 	// Add all regular commands
 	for _, c := range commands {
@@ -286,7 +292,15 @@ func main() {
 			Command: true,
 			Format:  "pretty",
 		}
-		cmd.Positionals.CommandOrPkg = os.Args[1]
+		// the bash.bashrc handler runs:
+		//    /usr/lib/command-not-found -- "$1"
+		// so skip over any "--"
+		for _, arg := range os.Args[1:] {
+			if arg != "--" {
+				cmd.Positionals.CommandOrPkg = arg
+				break
+			}
+		}
 		if err := cmd.Execute(nil); err != nil {
 			fmt.Fprintf(Stderr, "%s\n", err)
 		}
@@ -350,7 +364,7 @@ func run() error {
 				return nil
 			}
 			if e.Type == flags.ErrUnknownCommand {
-				return fmt.Errorf(i18n.G(`unknown command %q, see "snap --help"`), os.Args[1])
+				return fmt.Errorf(i18n.G(`unknown command %q, see 'snap help'`), os.Args[1])
 			}
 		}
 

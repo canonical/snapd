@@ -8,8 +8,8 @@
   <vendor_url>http://snapcraft.io</vendor_url>
 
   <action id="io.snapcraft.snapd.login">
-    <description>Authenticate on snap daemon</description>
-    <message>Authorization is required to authenticate on the snap daemon</message>
+    <description gettext-domain="snappy">Authenticate on snap daemon</description>
+    <message gettext-domain="snappy">Authorization is required to authenticate on the snap daemon</message>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -18,8 +18,8 @@
   </action>
 
   <action id="io.snapcraft.snapd.manage">
-    <description>Install, update, or remove packages</description>
-    <message>Authentication is required to install, update, or remove packages</message>
+    <description gettext-domain="snappy">Install, update, or remove packages</description>
+    <message gettext-domain="snappy">Authentication is required to install, update, or remove packages</message>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -28,8 +28,8 @@
   </action>
 
   <action id="io.snapcraft.snapd.manage-interfaces">
-    <description>Connect, disconnect interfaces</description>
-    <message>Authentication is required to connect or disconnect interfaces</message>
+    <description gettext-domain="snappy">Connect, disconnect interfaces</description>
+    <message gettext-domain="snappy">Authentication is required to connect or disconnect interfaces</message>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>

@@ -42,12 +42,14 @@ var _ = Suite(&SshKeysInterfaceSuite{
 })
 
 const sshKeysConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
    plugs: [ssh-keys]
    `
 
 const sshKeysCoreYaml = `name: core
+version: 0
 type: os
 slots:
   ssh-keys:

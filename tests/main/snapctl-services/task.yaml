@@ -1,6 +1,7 @@
 summary: Check that own services can be controlled by snapctl
 
-kill-timeout: 3m
+kill-timeout: 5m
+
 environment:
     SERVICEOPTIONFILE: /var/snap/test-snapd-service/current/service-option
 

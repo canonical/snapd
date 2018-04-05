@@ -34,14 +34,16 @@ type cmdAdviseSnap struct {
 		CommandOrPkg string `required:"yes"`
 	} `positional-args:"true"`
 
-	Format  string `long:"format" default:"pretty"`
+	Format  string `long:"format" default:"pretty" choice:"pretty" choice:"json"`
 	Command bool   `long:"command"`
 }
 
-var shortAdviseSnapHelp = i18n.G("Advise on available snaps.")
+var shortAdviseSnapHelp = i18n.G("Advise on available snaps")
 var longAdviseSnapHelp = i18n.G(`
-The advise-command command shows what snaps with the given command are 
-available.
+The advise-snap command searches for and suggests the installation of snaps.
+
+If --command is given, it suggests snaps that provide the given command.
+Otherwise it suggests snaps with the given name.
 `)
 
 func init() {
@@ -49,7 +51,7 @@ func init() {
 		return &cmdAdviseSnap{}
 	}, map[string]string{
 		"command": i18n.G("Advise on snaps that provide the given command"),
-		"format":  i18n.G("Use the given output format (pretty or json)"),
+		"format":  i18n.G("Use the given output format"),
 	}, []argDesc{
 		{name: "<command or pkg>"},
 	})
@@ -88,14 +90,30 @@ func (x *cmdAdviseSnap) Execute(args []string) error {
 		return adviseCommand(x.Positionals.CommandOrPkg, x.Format)
 	}
 
-	return fmt.Errorf("snap advise-snap is only implemented with --command")
+	return advisePkg(x.Positionals.CommandOrPkg)
+}
+
+func advisePkg(pkgName string) error {
+	match, err := advisor.FindPackage(pkgName)
+	if err != nil {
+		return fmt.Errorf("advise for pkgname failed: %s", err)
+	}
+	if match != nil {
+		fmt.Fprintf(Stdout, i18n.G("Packages matching %q:\n"), pkgName)
+		fmt.Fprintf(Stdout, " * %s - %s\n", match.Snap, match.Summary)
+		fmt.Fprintf(Stdout, i18n.G("Try: snap install <selected snap>\n"))
+	}
+
+	// FIXME: find mispells
+
+	return nil
 }
 
 func adviseCommand(cmd string, format string) error {
 	// find exact matches
 	matches, err := advisor.FindCommand(cmd)
 	if err != nil {
-		return fmt.Errorf("advise-command error: %s", err)
+		return fmt.Errorf("advise for command failed: %s", err)
 	}
 	if len(matches) > 0 {
 		switch format {
@@ -124,5 +142,5 @@ func adviseCommand(cmd string, format string) error {
 		}
 	}
 
-	return fmt.Errorf("%s command not found", cmd)
+	return fmt.Errorf("%s: command not found", cmd)
 }

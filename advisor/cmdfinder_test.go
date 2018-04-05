@@ -44,8 +44,8 @@ func (s *cmdfinderSuite) SetUpTest(c *C) {
 
 	db, err := advisor.Create()
 	c.Assert(err, IsNil)
-	c.Assert(db.AddSnap("foo", []string{"foo", "meh"}), IsNil)
-	c.Assert(db.AddSnap("bar", []string{"bar", "meh"}), IsNil)
+	c.Assert(db.AddSnap("foo", "foo summary", []string{"foo", "meh"}), IsNil)
+	c.Assert(db.AddSnap("bar", "bar summary", []string{"bar", "meh"}), IsNil)
 	c.Assert(db.Commit(), IsNil)
 }
 
@@ -125,12 +125,29 @@ func (s *cmdfinderSuite) TestFindMisspelledCommandMiss(c *C) {
 	c.Check(cmds, HasLen, 0)
 }
 
-func (s *cmdfinderSuite) TestDump(c *C) {
-	cmds, err := advisor.Dump()
+func (s *cmdfinderSuite) TestDumpCommands(c *C) {
+	cmds, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
 	c.Check(cmds, DeepEquals, map[string][]string{
 		"foo": {"foo"},
 		"bar": {"bar"},
 		"meh": {"foo", "bar"},
 	})
+}
+
+func (s *cmdfinderSuite) TestFindMissingCommandsDB(c *C) {
+	err := os.Remove(dirs.SnapCommandsDB)
+	c.Assert(err, IsNil)
+
+	cmds, err := advisor.FindMisspelledCommand("hello")
+	c.Assert(err, IsNil)
+	c.Check(cmds, HasLen, 0)
+
+	cmds, err = advisor.FindCommand("hello")
+	c.Assert(err, IsNil)
+	c.Check(cmds, HasLen, 0)
+
+	pkg, err := advisor.FindPackage("hello")
+	c.Assert(err, IsNil)
+	c.Check(pkg, IsNil)
 }
