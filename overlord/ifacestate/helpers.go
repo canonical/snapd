@@ -51,7 +51,7 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 	if err := m.renameCorePlugConnection(); err != nil {
 		return err
 	}
-	if err := m.removeStaleConnections(); err != nil {
+	if err := removeStaleConnections(m.state); err != nil {
 		return err
 	}
 	if _, err := m.reloadConnections(""); err != nil {
@@ -201,8 +201,8 @@ func (m *InterfaceManager) renameCorePlugConnection() error {
 // removeStaleConnections removes stale connections left by some older versions of snapd.
 // Connection is considered stale if the snap on either end of the connection doesn't exist anymore.
 // XXX: this code should eventually go away.
-func (m *InterfaceManager) removeStaleConnections() error {
-	conns, err := getConns(m.state)
+var removeStaleConnections = func(st *state.State) error {
+	conns, err := getConns(st)
 	if err != nil {
 		return err
 	}
@@ -213,14 +213,14 @@ func (m *InterfaceManager) removeStaleConnections() error {
 			return err
 		}
 		var snapst snapstate.SnapState
-		if err := snapstate.Get(m.state, connRef.PlugRef.Snap, &snapst); err != nil {
+		if err := snapstate.Get(st, connRef.PlugRef.Snap, &snapst); err != nil {
 			if err != state.ErrNoState {
 				return err
 			}
 			staleConns = append(staleConns, id)
 			continue
 		}
-		if err := snapstate.Get(m.state, connRef.SlotRef.Snap, &snapst); err != nil {
+		if err := snapstate.Get(st, connRef.SlotRef.Snap, &snapst); err != nil {
 			if err != state.ErrNoState {
 				return err
 			}
@@ -232,7 +232,7 @@ func (m *InterfaceManager) removeStaleConnections() error {
 		for _, id := range staleConns {
 			delete(conns, id)
 		}
-		setConns(m.state, conns)
+		setConns(st, conns)
 		logger.Noticef("removed stale connections: %s", strings.Join(staleConns, ", "))
 	}
 	return nil
