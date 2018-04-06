@@ -1930,7 +1930,7 @@ func (s *authContextSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	defer st.Unlock()
 
 	st.Unlock()
-	_, err := s.ac.DeviceSessionRequestParams(context.TODO(), "NONCE")
+	_, err := s.ac.DeviceSessionRequestParams("NONCE")
 	st.Lock()
 	c.Check(err, Equals, auth.ErrNoSerial)
 
@@ -1951,13 +1951,18 @@ func (s *authContextSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	})
 
 	st.Unlock()
-	params, err := s.ac.DeviceSessionRequestParams(context.TODO(), "NONCE")
+	params, err := s.ac.DeviceSessionRequestParams("NONCE")
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(strings.HasPrefix(params.EncodedRequest(), "type: device-session-request\n"), Equals, true)
 	c.Check(params.EncodedSerial(), DeepEquals, string(asserts.Encode(s.serial)))
 	c.Check(params.EncodedModel(), DeepEquals, string(asserts.Encode(s.model)))
 
+	st.Unlock()
+	serial, err := s.ac.EnsureSerial(context.TODO(), 10*time.Second)
+	st.Lock()
+	c.Check(err, IsNil)
+	c.Check(serial.Serial(), Equals, "7878")
 }
 
 func (s *authContextSetupSuite) TestProxyStoreParams(c *C) {

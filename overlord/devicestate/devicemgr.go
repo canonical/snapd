@@ -60,6 +60,8 @@ type DeviceManager struct {
 	regFirstAttempt              chan struct{}
 }
 
+type deviceMgrKey struct{}
+
 // Manager returns a new device manager.
 func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager, error) {
 	delayedCrossMgrInit()
@@ -90,7 +92,19 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 
+	s.Lock()
+	s.Cache(deviceMgrKey{}, m)
+	s.Unlock()
+
 	return m, nil
+}
+
+func deviceMgr(st *state.State) *DeviceManager {
+	mgr := st.Cached(deviceMgrKey{})
+	if mgr == nil {
+		panic("internal error: cannot retrieve DeviceManager, not yet initialized")
+	}
+	return mgr.(*DeviceManager)
 }
 
 func (m *DeviceManager) confirmRegistered() error {
@@ -170,11 +184,6 @@ func incEnsureOperationalAttempts(st *state.State) {
 func ensureOperationalAttempts(st *state.State) int {
 	cur, _ := st.Cached(ensureOperationalAttemptsKey{}).(int)
 	return cur
-}
-
-func (m *DeviceManager) ensureOperationalResetAttempts() {
-	m.state.Cache(ensureOperationalAttemptsKey{}, 0)
-	m.becomeOperationalBackoff = 0
 }
 
 // ensureOperationalShouldBackoff returns whether we should abstain from
@@ -288,7 +297,9 @@ func (m *DeviceManager) ensureOperational() error {
 		// on classic the first time around we just do
 		// prepare-device + key gen and then pause the process
 		// until the first store interaction
-		full = err != state.ErrNoState
+		if err == state.ErrNoState {
+			full = false
+		}
 	}
 
 	if full {
@@ -343,12 +354,23 @@ func (m *DeviceManager) ensureOperational() error {
 	return nil
 }
 
-// waitForRegistrationTimeout is the timeout after which waitForRegistration will give up, about the same as network retries max timeout
-var waitForRegistrationTimeout = 30 * time.Second
+// Registered returns a channel that is closed when the device is known to have been registered.
+func (m *DeviceManager) Registered() <-chan struct{} {
+	return m.reg
+}
 
-// waitForRegistration does a best-effort of waiting for registration to occur.
-// Assumes it hasn't happened yet and that state is locked.
-func (m *DeviceManager) waitForRegistration(ctx context.Context) (*asserts.Serial, error) {
+// ensureSerial does a best-effort of triggering and waiting for
+// registration to occur and returns the serial if now available, or
+// ErrNoState otherwise. Assumes state is locked.
+func (m *DeviceManager) ensureSerial(ctx context.Context, timeout time.Duration) (*asserts.Serial, error) {
+	serial, err := Serial(m.state)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if err == nil {
+		return serial, nil
+	}
+
 	m.state.Set("registration-paused", false)
 	m.state.EnsureBefore(0)
 	if auth.IsEnsureContext(ctx) {
@@ -358,13 +380,14 @@ func (m *DeviceManager) waitForRegistration(ctx context.Context) (*asserts.Seria
 		// we are in the subsequent retries phase, do not wait
 		return nil, state.ErrNoState
 	}
+
 	m.state.Unlock()
 	select {
 	case <-m.Registered():
 		// registered
 	case <-m.regFirstAttempt:
 		// first registration attempt finished (successfully or not)
-	case <-time.After(waitForRegistrationTimeout):
+	case <-time.After(timeout):
 		// neither, timed out
 	}
 	m.state.Lock()
@@ -534,13 +557,8 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return Serial(m.state)
 }
 
-// Registered returns a channel that is closed when the device is known to have been registered.
-func (m *DeviceManager) Registered() <-chan struct{} {
-	return m.reg
-}
-
 // DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
-func (m *DeviceManager) DeviceSessionRequestParams(ctx context.Context, nonce string) (*auth.DeviceSessionRequestParams, error) {
+func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -551,11 +569,7 @@ func (m *DeviceManager) DeviceSessionRequestParams(ctx context.Context, nonce st
 
 	serial, err := Serial(m.state)
 	if err != nil {
-		// do a best effort to wait for registration
-		serial, err = m.waitForRegistration(ctx)
-		if err != nil {
-			return nil, err
-		}
+		return nil, err
 	}
 
 	privKey, err := m.keyPair()
@@ -588,4 +602,14 @@ func (m *DeviceManager) ProxyStore() (*asserts.Store, error) {
 	defer m.state.Unlock()
 
 	return ProxyStore(m.state)
+}
+
+// EnsureSerial does a best-effort of triggering and waiting up to timeout for
+// registration to occur and returns the serial if now available, or
+// ErrNoState otherwise.
+func (m *DeviceManager) EnsureSerial(ctx context.Context, timeout time.Duration) (*asserts.Serial, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	return m.ensureSerial(ctx, timeout)
 }

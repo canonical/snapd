@@ -24,6 +24,9 @@ package devicestate
 import (
 	"fmt"
 	"sync"
+	"time"
+
+	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
@@ -90,6 +93,9 @@ func Serial(st *state.State) (*asserts.Serial, error) {
 }
 
 // auto-refresh
+
+const defaultMaxRegistrationAttempts = 3
+
 func canAutoRefresh(st *state.State) (bool, error) {
 	// we need to be seeded first
 	var seeded bool
@@ -121,7 +127,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	// Either we have a serial or we try anyway if we attempted
 	// for a while to get a serial, this would allow us to at
 	// least upgrade core if that can help.
-	if ensureOperationalAttempts(st) >= 3 {
+	if ensureOperationalAttempts(st) >= defaultMaxRegistrationAttempts {
 		return true, nil
 	}
 
@@ -209,6 +215,7 @@ func delayedCrossMgrInit() {
 	})
 	snapstate.CanAutoRefresh = canAutoRefresh
 	snapstate.CanManageRefreshes = CanManageRefreshes
+	snapstate.EnsureRegistration = EnsureRegistration
 }
 
 // ProxyStore returns the store assertion for the proxy store if one is set.
@@ -276,4 +283,50 @@ func CanManageRefreshes(st *state.State) bool {
 	}
 
 	return false
+}
+
+// ensureRegistrationDefaultTimeout is the default timeout after which waitForRegistration will give up, about the same as network retries max timeout
+var ensureRegistrationDefaultTimeout = 30 * time.Second
+
+// EnsureRegistration does a best-effort of triggering and waiting for registration to occur controlled by optional opts.
+func EnsureRegistration(ctx context.Context, st *state.State, opts *snapstate.EnsureRegistrationOptions) (proceed bool, err error) {
+	m := deviceMgr(st)
+
+	if opts == nil {
+		opts = &snapstate.EnsureRegistrationOptions{}
+	}
+
+	proceedAttempts := opts.AfterAttemptsProceedAnyway
+	if proceedAttempts == 0 {
+		proceedAttempts = defaultMaxRegistrationAttempts
+	}
+	if proceedAttempts > 0 && ensureOperationalAttempts(st) >= proceedAttempts {
+		// too many attempts already, proceed anyway
+		return true, nil
+	}
+
+	model, err := Model(st)
+	if err != nil && err != state.ErrNoState {
+		return false, err
+	}
+	// no model, too early in any case
+	if err == state.ErrNoState {
+		return false, nil
+	}
+	if opts.CustomStoreOnly && model.Store() == "" {
+		// asked to ensure registration only if custom store
+		// but not the case, proceed
+		return true, nil
+	}
+
+	timeout := ensureRegistrationDefaultTimeout
+	if opts.Timeout != 0 {
+		timeout = opts.Timeout
+	}
+
+	serial, err := m.ensureSerial(ctx, timeout)
+	if err != nil && err != state.ErrNoState {
+		return false, err
+	}
+	return serial != nil, nil
 }

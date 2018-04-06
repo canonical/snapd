@@ -22,8 +22,6 @@ package devicestate
 import (
 	"time"
 
-	"golang.org/x/net/context"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -88,16 +86,12 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 	m.lastBecomeOperationalAttempt = t
 }
 
-func MockWaitForRegistraionTimeout(timeout time.Duration) (restore func()) {
-	old := waitForRegistrationTimeout
-	waitForRegistrationTimeout = timeout
+func MockEnsureRegistrationDefaultTimeout(timeout time.Duration) (restore func()) {
+	old := ensureRegistrationDefaultTimeout
+	ensureRegistrationDefaultTimeout = timeout
 	return func() {
-		waitForRegistrationTimeout = old
+		ensureRegistrationDefaultTimeout = old
 	}
-}
-
-func WaitForRegistration(ctx context.Context, m *DeviceManager) (*asserts.Serial, error) {
-	return m.waitForRegistration(ctx)
 }
 
 func MockRepeatRequestSerial(label string) (restore func()) {

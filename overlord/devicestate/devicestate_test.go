@@ -502,9 +502,9 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassic(c *C) {
 	s.state.Unlock()
 	go func() {
 		// retriggers registration
-		p, err := s.mgr.DeviceSessionRequestParams(context.TODO(), "NONCE")
+		serial, err := s.mgr.EnsureSerial(context.TODO(), 5*time.Second)
 		c.Check(err, IsNil)
-		ch <- p.Serial
+		ch <- serial
 	}()
 
 	// wait for registration to be unpaused
@@ -525,7 +525,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassic(c *C) {
 	select {
 	case serial0 = <-ch:
 	case <-time.After(5 * time.Second):
-		c.Fatal("waitForSerial should have returned by now")
+		c.Fatal("EnsureSerial should have returned by now")
 	}
 
 	s.state.Lock()
@@ -562,49 +562,197 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyClassic(c *C) {
 	c.Check(device.KeyID, Equals, keyID)
 	c.Check(serial.DeviceKey().ID(), Equals, keyID)
 
-	// now waitForRegistration just returns
-	serial1, err := devicestate.WaitForRegistration(context.TODO(), s.mgr)
+	// now EnsureSerial just returns
+	s.state.Unlock()
+	serial1, err := s.mgr.EnsureSerial(context.TODO(), 0)
+	s.state.Lock()
 	c.Assert(err, IsNil)
 	c.Check(serial1.Serial(), Equals, "9999")
+	// and EnsureRegistration returns proceed
+	p, err := devicestate.EnsureRegistration(context.TODO(), s.state, nil)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, true)
+	// even in an Ensure context
+	p, err = devicestate.EnsureRegistration(auth.EnsureContextTODO(), s.state, nil)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, true)
 }
 
-func (s *deviceMgrSuite) TestWaitForRegistrationGiveUpNotFirstAttempts(c *C) {
+func (s *deviceMgrSuite) TestEnsureRegistrationGiveUpNoModel(c *C) {
+	// no model
 	logbuf, r := logger.MockLogger()
 	defer r()
 	s.state.Lock()
 	defer s.state.Unlock()
-	devicestate.IncEnsureOperationalAttempts(s.state)
-	devicestate.IncEnsureOperationalAttempts(s.state)
-	// number of attempts is at 2, give up
-	_, err := devicestate.WaitForRegistration(context.TODO(), s.mgr)
-	c.Check(err, Equals, state.ErrNoState)
+	p, err := devicestate.EnsureRegistration(context.TODO(), s.state, nil)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, false)
 	c.Check(logbuf.String(), Equals, "")
 }
 
-func (s *deviceMgrSuite) TestWaitForRegistrationGiveUpInsideEnsureLoop(c *C) {
+func (s *deviceMgrSuite) haveModel(c *C, storeID string) {
+	bits := map[string]string{
+		"architecture": "amd64",
+		"kernel":       "other-kernel",
+		"gadget":       "other",
+	}
+
+	if storeID != "" {
+		bits["store"] = storeID
+	}
+
+	s.makeModelAssertionInState(c, "canonical", "other", bits)
+
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "other",
+	})
+}
+
+func (s *deviceMgrSuite) TestEnsureRegistrationGiveUpNotFirstAttempts(c *C) {
 	logbuf, r := logger.MockLogger()
 	defer r()
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	s.haveModel(c, "")
+
 	devicestate.IncEnsureOperationalAttempts(s.state)
 	devicestate.IncEnsureOperationalAttempts(s.state)
 	// number of attempts is at 2, give up
-	_, err := devicestate.WaitForRegistration(auth.EnsureContextTODO(), s.mgr)
-	c.Check(err, Equals, state.ErrNoState)
+	p, err := devicestate.EnsureRegistration(context.TODO(), s.state, nil)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, false)
 	c.Check(logbuf.String(), Equals, "")
 }
 
-func (s *deviceMgrSuite) TestWaitForRegistrationGiveUpTimeout(c *C) {
+func (s *deviceMgrSuite) TestEnsureRegistrationGiveUpInsideEnsureLoop(c *C) {
+	logbuf, r := logger.MockLogger()
+	defer r()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.haveModel(c, "")
+
+	// inside Ensure loop, give up
+	p, err := devicestate.EnsureRegistration(auth.EnsureContextTODO(), s.state, nil)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, false)
+	c.Check(logbuf.String(), Equals, "")
+}
+
+func (s *deviceMgrSuite) TestEnsureRegistrationGiveUpDefaultTimeout(c *C) {
 	logbuf, r1 := logger.MockLogger()
 	defer r1()
-	r2 := devicestate.MockWaitForRegistraionTimeout(100 * time.Millisecond)
+	r2 := devicestate.MockEnsureRegistrationDefaultTimeout(100 * time.Millisecond)
 	defer r2()
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	s.haveModel(c, "")
+
 	// will wait full timeout
-	_, err := devicestate.WaitForRegistration(context.TODO(), s.mgr)
-	c.Check(err, Equals, state.ErrNoState)
+	p, err := devicestate.EnsureRegistration(context.TODO(), s.state, nil)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, false)
 	c.Check(logbuf.String(), Matches, "(?s).*first device registration attempt did not succeed, registration will be retried but some operations might fail until the device is registered\n")
+}
+
+func (s *deviceMgrSuite) TestEnsureRegistrationGiveUpTimeout(c *C) {
+	logbuf, r1 := logger.MockLogger()
+	defer r1()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.haveModel(c, "")
+
+	// will wait given timeout
+	opts := &snapstate.EnsureRegistrationOptions{
+		Timeout: 50 * time.Millisecond,
+	}
+	p, err := devicestate.EnsureRegistration(context.TODO(), s.state, opts)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, false)
+	c.Check(logbuf.String(), Matches, "(?s).*first device registration attempt did not succeed, registration will be retried but some operations might fail until the device is registered\n")
+}
+
+func (s *deviceMgrSuite) TestEnsureRegistrationProceedAnywayAfterNAttempts(c *C) {
+	logbuf, r1 := logger.MockLogger()
+	defer r1()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.haveModel(c, "")
+
+	opts := &snapstate.EnsureRegistrationOptions{
+		AfterAttemptsProceedAnyway: 3,
+	}
+	devicestate.IncEnsureOperationalAttempts(s.state)
+	devicestate.IncEnsureOperationalAttempts(s.state)
+	// number of attempts is at 2, give up but do not proceed either
+	p, err := devicestate.EnsureRegistration(context.TODO(), s.state, opts)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, false)
+
+	devicestate.IncEnsureOperationalAttempts(s.state)
+	// number of attempts 3, proceed anyway
+	p, err = devicestate.EnsureRegistration(context.TODO(), s.state, opts)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, true)
+
+	// 3 is also the default
+	p, err = devicestate.EnsureRegistration(context.TODO(), s.state, nil)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, true)
+
+	// negative means no way
+	opts = &snapstate.EnsureRegistrationOptions{
+		AfterAttemptsProceedAnyway: -1,
+	}
+	p, err = devicestate.EnsureRegistration(context.TODO(), s.state, opts)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, false)
+
+	c.Check(logbuf.String(), Equals, "")
+}
+
+func (s *deviceMgrSuite) TestEnsureRegistrationProceedAnywayNotCustomStore(c *C) {
+	logbuf, r1 := logger.MockLogger()
+	defer r1()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.haveModel(c, "")
+
+	// would wait only if we have a custom store
+	opts := &snapstate.EnsureRegistrationOptions{
+		CustomStoreOnly: true,
+		Timeout:         5 * time.Second,
+	}
+	p, err := devicestate.EnsureRegistration(context.TODO(), s.state, opts)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, true)
+
+	c.Check(logbuf.String(), Equals, "")
+}
+
+func (s *deviceMgrSuite) TestEnsureRegistrationGiveUpCustomStore(c *C) {
+	logbuf, r1 := logger.MockLogger()
+	defer r1()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.haveModel(c, "custom")
+
+	// would wait only if we have a custom store
+	opts := &snapstate.EnsureRegistrationOptions{
+		CustomStoreOnly: true,
+		Timeout:         100 * time.Millisecond,
+	}
+	p, err := devicestate.EnsureRegistration(context.TODO(), s.state, opts)
+	c.Check(err, IsNil)
+	c.Check(p, Equals, false)
+	c.Check(logbuf.String(), Not(Equals), "")
 }
 
 func (s *deviceMgrSuite) TestDeviceRegistrationClassicFallback(c *C) {
@@ -1264,7 +1412,7 @@ version: gadget
 
 	// fails fast
 	s.state.Unlock()
-	_, err = s.mgr.DeviceSessionRequestParams(context.TODO(), "NONCE")
+	_, err = s.mgr.EnsureSerial(context.TODO(), 5*time.Second)
 	s.state.Lock()
 	c.Check(err, Equals, state.ErrNoState)
 
@@ -1454,7 +1602,7 @@ func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 
 func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequestParams(c *C) {
 	// nothing there
-	_, err := s.mgr.DeviceSessionRequestParams(context.TODO(), "NONCE-1")
+	_, err := s.mgr.DeviceSessionRequestParams("NONCE-1")
 	c.Check(err, Equals, state.ErrNoState)
 
 	// have a model assertion
@@ -1499,7 +1647,7 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequestParams(c *C) {
 	devicestate.KeypairManager(s.mgr).Put(devKey)
 	s.state.Unlock()
 
-	params, err := s.mgr.DeviceSessionRequestParams(context.TODO(), "NONCE-1")
+	params, err := s.mgr.DeviceSessionRequestParams("NONCE-1")
 	c.Assert(err, IsNil)
 
 	c.Check(params.Model.Model(), Equals, "pc")

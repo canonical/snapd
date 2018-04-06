@@ -85,6 +85,8 @@ var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
 	},
 ))
 
+var ensureSerialTimeout = 30 * time.Second
+
 // Config represents the configuration to access the snap store
 type Config struct {
 	// Store API base URLs. The assertions url is only separate because it can
@@ -557,12 +559,20 @@ func (s *Store) refreshDeviceSession(ctx context.Context, device *auth.DeviceSta
 		return fmt.Errorf("internal error: no authContext")
 	}
 
+	if device.Serial == "" {
+		// best-effort to be registered and have a serial
+		_, err := s.authContext.EnsureSerial(ctx, ensureSerialTimeout)
+		if err != nil {
+			return err
+		}
+	}
+
 	nonce, err := requestStoreDeviceNonce(s.endpointURL(deviceNonceEndpPath, nil).String())
 	if err != nil {
 		return err
 	}
 
-	devSessReqParams, err := s.authContext.DeviceSessionRequestParams(ctx, nonce)
+	devSessReqParams, err := s.authContext.DeviceSessionRequestParams(nonce)
 	if err != nil {
 		return err
 	}

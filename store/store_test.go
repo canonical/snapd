@@ -225,6 +225,8 @@ type testAuthContext struct {
 	storeID string
 
 	cloudInfo *auth.CloudInfo
+
+	ensuredSerial bool
 }
 
 func (ac *testAuthContext) Device() (*auth.DeviceState, error) {
@@ -257,10 +259,15 @@ func (ac *testAuthContext) StoreID(fallback string) (string, error) {
 	return fallback, nil
 }
 
-func (ac *testAuthContext) DeviceSessionRequestParams(ctx context.Context, nonce string) (*auth.DeviceSessionRequestParams, error) {
+func (ac *testAuthContext) EnsureSerial(ctx context.Context, timeout time.Duration) (*asserts.Serial, error) {
 	if ctx == nil {
 		panic("context required")
 	}
+	ac.ensuredSerial = true
+	return nil, nil
+}
+
+func (ac *testAuthContext) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
 	model, err := asserts.Decode([]byte(exModel))
 	if err != nil {
 		return nil, err
@@ -1697,6 +1704,7 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	c.Check(string(responseData), Equals, "response-data")
 	c.Check(deviceSessionRequested, Equals, true)
 	c.Check(refreshSessionRequested, Equals, true)
+	c.Check(authContext.ensuredSerial, Equals, true)
 }
 
 func (s *storeTestSuite) TestDoRequestSetsAndRefreshesBothAuths(c *C) {
