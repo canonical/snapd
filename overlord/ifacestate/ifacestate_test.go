@@ -1527,26 +1527,36 @@ func (s *interfaceManagerSuite) TestUndoDiscardConnsSlot(c *C) {
 }
 
 func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
-	// Initialize manager first so that it doesn't treat our connections as stale
-	mgr := s.manager(c)
-
 	s.state.Lock()
 	// Store information about a connection in the state.
 	s.state.Set("conns", map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
 	})
 	// Store empty snap state. This snap has an empty sequence now.
-	snapstate.Set(s.state, snapName, &snapstate.SnapState{})
+	s.state.Unlock()
+
+	// mock the snaps or otherwise the manager will remove stale connections
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	// remove the snaps so that discard-conns doesn't complain about snaps still installed
+	snapstate.Set(s.state, "producer", nil)
+	snapstate.Set(s.state, "consumer", nil)
 	s.state.Unlock()
 
 	// Run the discard-conns task and let it finish
 	change := s.addDiscardConnsChange(c, snapName)
+
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	// Information about the connection was removed
@@ -2157,6 +2167,8 @@ func (s *interfaceManagerSuite) TestCoreConnectionsRenamed(c *C) {
 		},
 	})
 	s.state.Unlock()
+
+	// mock both snaps, otherwise the manager will remove stale connections
 	s.mockSnap(c, coreSnapYaml)
 	s.mockSnap(c, sampleSnapYaml)
 
