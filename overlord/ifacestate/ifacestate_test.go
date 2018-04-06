@@ -654,6 +654,9 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 func (s *interfaceManagerSuite) TestStrayConnectionsIgnored(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 
+	// Initialize the manager first so that it doesn't immediately removes our stale connection.
+	mgr := s.manager(c)
+
 	// Put a stray connection in the state so that it automatically gets set up
 	// when we create the manager.
 	s.state.Lock()
@@ -661,9 +664,6 @@ func (s *interfaceManagerSuite) TestStrayConnectionsIgnored(c *C) {
 		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
 	})
 	s.state.Unlock()
-
-	// Initialize the manager. This registers both snaps and reloads the connection.
-	mgr := s.manager(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1527,6 +1527,9 @@ func (s *interfaceManagerSuite) TestUndoDiscardConnsSlot(c *C) {
 }
 
 func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
+	// Initialize manager first so that it doesn't treat our connections as stale
+	mgr := s.manager(c)
+
 	s.state.Lock()
 	// Store information about a connection in the state.
 	s.state.Set("conns", map[string]interface{}{
@@ -1535,8 +1538,6 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 	// Store empty snap state. This snap has an empty sequence now.
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{})
 	s.state.Unlock()
-
-	mgr := s.manager(c)
 
 	// Run the discard-conns task and let it finish
 	change := s.addDiscardConnsChange(c, snapName)
@@ -1564,6 +1565,8 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 }
 
 func (s *interfaceManagerSuite) testUndoDicardConns(c *C, snapName string) {
+	mgr := s.manager(c)
+
 	s.state.Lock()
 	// Store information about a connection in the state.
 	s.state.Set("conns", map[string]interface{}{
@@ -1572,8 +1575,6 @@ func (s *interfaceManagerSuite) testUndoDicardConns(c *C, snapName string) {
 	// Store empty snap state. This snap has an empty sequence now.
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{})
 	s.state.Unlock()
-
-	mgr := s.manager(c)
 
 	// Run the discard-conns task and let it finish
 	change := s.addDiscardConnsChange(c, snapName)
@@ -2156,6 +2157,8 @@ func (s *interfaceManagerSuite) TestCoreConnectionsRenamed(c *C) {
 		},
 	})
 	s.state.Unlock()
+	s.mockSnap(c, coreSnapYaml)
+	s.mockSnap(c, sampleSnapYaml)
 
 	// Start the manager, this is where renames happen.
 	s.manager(c)
