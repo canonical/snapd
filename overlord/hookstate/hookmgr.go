@@ -231,21 +231,12 @@ func (m *HookManager) NumRunningHooks() int {
 // Note that this method is synchronous, as the task is already running in a
 // goroutine.
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
-	if task.State().Restarting() {
-		// don't start running a hook if we are restarting
-		return &state.Retry{}
-	}
-
 	task.State().Lock()
 	hooksup, snapst, err := hookSetup(task)
 	task.State().Unlock()
 	if err != nil {
 		return err
 	}
-
-	// keep count of running hooks
-	atomic.AddInt32(&m.runningHooks, 1)
-	defer atomic.AddInt32(&m.runningHooks, -1)
 
 	mustHijack := m.hijacked(hooksup.Hook, hooksup.Snap) != nil
 	hookExists := false
@@ -264,6 +255,18 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		if !hookExists && !hooksup.Optional {
 			return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
 		}
+	}
+
+	if hookExists || mustHijack {
+		// we will run something, not a noop
+		if task.State().Restarting() {
+			// don't start running a hook if we are restarting
+			return &state.Retry{}
+		}
+
+		// keep count of running hooks
+		atomic.AddInt32(&m.runningHooks, 1)
+		defer atomic.AddInt32(&m.runningHooks, -1)
 	}
 
 	context, err := NewContext(task, task.State(), hooksup, nil, "")
