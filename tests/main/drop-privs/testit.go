@@ -17,21 +17,21 @@ func check(uids []sys.UserID, n int) {
 	}
 
 	mu.Lock()
-	uids[n] = sys.Getuid()
+	uids[n] = sys.Geteuid()
 	mu.Unlock()
 
 	wg.Done()
 }
 
 func main() {
-	orig := sys.Getuid()
-	before := fmt.Sprintf("%d/%d", sys.Getuid(), sys.Getgid())
+	orig := sys.Geteuid()
+	before := fmt.Sprintf("%d/%d", sys.Geteuid(), sys.Getegid())
 	var during string
 	err := sys.RunAsUidGid(12345, 12345, func() error {
-		during = fmt.Sprintf("%d/%d", sys.Getuid(), sys.Getgid())
+		during = fmt.Sprintf("%d/%d", sys.Geteuid(), sys.Getegid())
 		return nil
 	})
-	after := fmt.Sprintf("%d/%d", sys.Getuid(), sys.Getgid())
+	after := fmt.Sprintf("%d/%d", sys.Geteuid(), sys.Getegid())
 
 	N := 2 * runtime.NumCPU()
 	uids := make([]sys.UserID, N)

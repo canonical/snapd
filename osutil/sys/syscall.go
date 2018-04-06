@@ -110,10 +110,36 @@ func FcntlGetFl(fd int) (int, error) {
 	return int(flags), nil
 }
 
-// RunAsUidGid starts a goroutine, pins it to the OS thread, calls setuid and
-// setgid, and runs the function.
+func retryRawSyscall(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
+	ms := &syscall.Timespec{Nsec: 1000}
+	for i := 0; i < 30; i++ {
+		r1, r2, err = syscall.RawSyscall(trap, a1, a2, a3)
+		if err != syscall.EAGAIN {
+			break
+		}
+		// this could fail, making the loop a little too aggressive
+		syscall.Nanosleep(ms, nil)
+	}
+	return r1, r2, err
+}
+
+type UnrecoverableError struct {
+	Call string
+	Err  error
+}
+
+func (e UnrecoverableError) Error() string {
+	return fmt.Sprintf("%s: %v", e.Call, e.Err)
+}
+
+// RunAsUidGid starts a goroutine, pins it to the OS thread, sets euid and egid,
+// and runs the function; after the function returns, it restores euid and egid.
+//
+// If restoring the original euid and egid fails this function will panic with
+// an UnrecoverableError, and you should _not_ try to recover from it: the
+// runtime itself is going to be in trouble.
 func RunAsUidGid(uid UserID, gid GroupID, f func() error) error {
-	ch := make(chan error)
+	ch := make(chan error, 1)
 	go func() {
 		// from the docs:
 		//   until the goroutine exits or calls UnlockOSThread, it will
@@ -122,23 +148,40 @@ func RunAsUidGid(uid UserID, gid GroupID, f func() error) error {
 		// other code will run.
 		runtime.LockOSThread()
 
-		// do the setgid first =)
-		if _, _, err := syscall.RawSyscall(_SYS_SETGID, uintptr(gid), 0, 0); err != 0 {
-			ch <- fmt.Errorf("setgid: %v", err)
-			return
-		}
+		// from Go 1.10 on we could just not unlock, which would make
+		// the thread get reaped at goroutine exit. Instead we need to
+		// carefully restore thread state.
+		defer runtime.UnlockOSThread()
 
-		if _, _, err := syscall.RawSyscall(_SYS_SETUID, uintptr(uid), 0, 0); err != 0 {
-			ch <- fmt.Errorf("setuid: %v", err)
+		ruid := Getuid()
+		rgid := Getgid()
+
+		// do the setregid first =)
+		if _, _, err := retryRawSyscall(_SYS_SETREGID, FlagID, uintptr(gid), 0); err != 0 {
+			ch <- fmt.Errorf("setregid: %v", err)
 			return
 		}
+		defer func() {
+			// try to restore egid
+			if _, _, err := retryRawSyscall(_SYS_SETREGID, FlagID, uintptr(rgid), 0); err != 0 {
+				// ¯\_(ツ)_/¯
+				panic(UnrecoverableError{Call: "setregid", Err: err})
+			}
+		}()
+
+		if _, _, err := retryRawSyscall(_SYS_SETREUID, FlagID, uintptr(uid), 0); err != 0 {
+			ch <- fmt.Errorf("setreuid: %v", err)
+			return
+		}
+		defer func() {
+			// try to restore euid
+			if _, _, err := retryRawSyscall(_SYS_SETREUID, FlagID, uintptr(ruid), 0); err != 0 {
+				// ¯\_(ツ)_/¯
+				panic(UnrecoverableError{Call: "setreuid", Err: err})
+			}
+		}()
 
 		ch <- f()
-
-		// From Go 1.10, if we exit without unlocking, the thread is killed \o/
-		// but we run on 1.6... /o\
-		// Kudos to @bradfitz for knowing this one (via golang#20395):
-		syscall.Syscall(syscall.SYS_EXIT, 0, 0, 0)
 	}()
 	return <-ch
 }
