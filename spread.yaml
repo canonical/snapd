@@ -64,8 +64,10 @@ backends:
                 workers: 6
 
             - debian-9-64:
-                image: debian-9-stretch
                 workers: 6
+            - debian-sid-64:
+                workers: 6
+                manual: true
 
             - opensuse-42.2-64:
                 image: opensuse-leap-42-2
@@ -88,13 +90,10 @@ backends:
             HTTP_PROXY: null
             HTTPS_PROXY: null
         systems:
-            - debian-sid-64:
-                kernel: GRUB 2
-                workers: 6
-                manual: true
-
             - fedora-27-64:
                 workers: 4
+                # Fedora CI disabled because of unexplained golang bug breaking every build.
+                manual: true
             - fedora-26-64:
                 workers: 4
                 manual: true

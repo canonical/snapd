@@ -25,14 +25,12 @@ import (
 	"syscall"
 )
 
-// SecureBindMount performs a bind mount between two absolute paths
-// containing no symlinks, using a private stash directory as an
-// intermediate step
+// BindMount performs a bind mount between two absolute paths containing no
+// symlinks, using a private stash directory as an intermediate step.
 //
-// Since this function uses chdir() internally, it should not be
-// called in parallel with code that depends on the current working
-// directory.
-func SecureBindMount(sourceDir, targetDir string, flags uint, stashDir string) error {
+// Since this function uses chdir() internally, it should not be called in
+// parallel with code that depends on the current working directory.
+func (sec *Secure) BindMount(sourceDir, targetDir string, flags uint, stashDir string) error {
 	// The kernel doesn't support recursively switching a tree of
 	// bind mounts to read only, and we haven't written a work
 	// around.
@@ -50,12 +48,12 @@ func SecureBindMount(sourceDir, targetDir string, flags uint, stashDir string) e
 	// Step 1: acquire file descriptors representing the source
 	// and destination directories, ensuring no symlinks are
 	// followed.
-	sourceFd, err := secureOpenPath(sourceDir)
+	sourceFd, err := sec.OpenPath(sourceDir)
 	if err != nil {
 		return err
 	}
 	defer sysClose(sourceFd)
-	targetFd, err := secureOpenPath(targetDir)
+	targetFd, err := sec.OpenPath(targetDir)
 	if err != nil {
 		return err
 	}

@@ -31,6 +31,7 @@ import (
 type secureBindMountSuite struct {
 	testutil.BaseTest
 	sys *testutil.SyscallRecorder
+	sec *update.Secure
 }
 
 var _ = Suite(&secureBindMountSuite{})
@@ -38,6 +39,7 @@ var _ = Suite(&secureBindMountSuite{})
 func (s *secureBindMountSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.sys = &testutil.SyscallRecorder{}
+	s.sec = &update.Secure{}
 	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
 }
 
@@ -47,7 +49,7 @@ func (s *secureBindMountSuite) TearDownTest(c *C) {
 }
 
 func (s *secureBindMountSuite) TestMount(c *C) {
-	err := update.SecureBindMount("/source/dir", "/target/dir", 0, "/stash")
+	err := s.sec.BindMount("/source/dir", "/target/dir", 0, "/stash")
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
@@ -71,7 +73,7 @@ func (s *secureBindMountSuite) TestMount(c *C) {
 }
 
 func (s *secureBindMountSuite) TestMountRecursive(c *C) {
-	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_REC, "/stash")
+	err := s.sec.BindMount("/source/dir", "/target/dir", syscall.MS_REC, "/stash")
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
@@ -95,7 +97,7 @@ func (s *secureBindMountSuite) TestMountRecursive(c *C) {
 }
 
 func (s *secureBindMountSuite) TestMountReadOnly(c *C) {
-	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
+	err := s.sec.BindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
@@ -120,14 +122,14 @@ func (s *secureBindMountSuite) TestMountReadOnly(c *C) {
 }
 
 func (s *secureBindMountSuite) TestMountReadOnlyRecursive(c *C) {
-	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY|syscall.MS_REC, "/stash")
+	err := s.sec.BindMount("/source/dir", "/target/dir", syscall.MS_RDONLY|syscall.MS_REC, "/stash")
 	c.Assert(err, ErrorMatches, "cannot use MS_RDONLY and MS_REC together")
 	c.Check(s.sys.Calls(), DeepEquals, []string(nil))
 }
 
 func (s *secureBindMountSuite) TestChdirSourceFails(c *C) {
 	s.sys.InsertFault(`fchdir 5`, errTesting)
-	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
+	err := s.sec.BindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
@@ -148,7 +150,7 @@ func (s *secureBindMountSuite) TestChdirSourceFails(c *C) {
 
 func (s *secureBindMountSuite) TestBindMountSourceFails(c *C) {
 	s.sys.InsertFault(`mount "." "/stash" "" MS_BIND ""`, errTesting)
-	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
+	err := s.sec.BindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
@@ -170,7 +172,7 @@ func (s *secureBindMountSuite) TestBindMountSourceFails(c *C) {
 
 func (s *secureBindMountSuite) TestRemountStashFails(c *C) {
 	s.sys.InsertFault(`mount "none" "/stash" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`, errTesting)
-	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
+	err := s.sec.BindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
@@ -194,7 +196,7 @@ func (s *secureBindMountSuite) TestRemountStashFails(c *C) {
 
 func (s *secureBindMountSuite) TestChdirTargetFails(c *C) {
 	s.sys.InsertFault(`fchdir 6`, errTesting)
-	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
+	err := s.sec.BindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
@@ -219,7 +221,7 @@ func (s *secureBindMountSuite) TestChdirTargetFails(c *C) {
 
 func (s *secureBindMountSuite) TestBindMountTargetFails(c *C) {
 	s.sys.InsertFault(`mount "/stash" "." "" MS_BIND ""`, errTesting)
-	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
+	err := s.sec.BindMount("/source/dir", "/target/dir", syscall.MS_RDONLY, "/stash")
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
