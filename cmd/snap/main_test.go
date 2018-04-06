@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -54,16 +55,27 @@ type BaseSnapSuite struct {
 	stderr   *bytes.Buffer
 	password string
 
-	AuthFile string
+	AuthFile   string
+	privHelper string
 }
 
 func (s *BaseSnapSuite) readPassword(fd int) ([]byte, error) {
 	return []byte(s.password), nil
 }
 
+func (s *BaseSnapSuite) SetUpSuite(c *C) {
+	d := c.MkDir()
+	s.privHelper = filepath.Join(d, "privhelper")
+	cmd := exec.Command("go", "build", "-o", s.privHelper, "github.com/snapcore/snapd/cmd/privhelper")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	c.Assert(cmd.Run(), IsNil)
+}
+
 func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
+	dirs.PrivHelper = s.privHelper
 
 	s.stdin = bytes.NewBuffer(nil)
 	s.stdout = bytes.NewBuffer(nil)

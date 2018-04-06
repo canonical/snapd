@@ -111,37 +111,28 @@ func writeAuthData(user User) error {
 		return err
 	}
 
-	uid, gid, err := osutil.UidGid(real)
+	buf, err := json.Marshal(user)
 	if err != nil {
 		return err
 	}
 
-	targetFile := storeAuthDataFilename(real.HomeDir)
-
-	if err := osutil.MkdirAllChown(filepath.Dir(targetFile), 0700, uid, gid); err != nil {
-		return err
-	}
-
-	outStr, err := json.Marshal(user)
-	if err != nil {
-		return nil
-	}
-
-	return osutil.AtomicWriteFileChown(targetFile, []byte(outStr), 0600, 0, uid, gid)
+	return osutil.PrivWrite(real, storeAuthDataFilename(real.HomeDir), buf)
 }
 
 // readAuthData reads previously written authentication details
 func readAuthData() (*User, error) {
-	sourceFile := storeAuthDataFilename("")
-	f, err := os.Open(sourceFile)
+	real, err := osutil.RealUser()
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+
+	buf, err := osutil.PrivRead(real, storeAuthDataFilename(real.HomeDir))
+	if err != nil {
+		return nil, err
+	}
 
 	var user User
-	dec := json.NewDecoder(f)
-	if err := dec.Decode(&user); err != nil {
+	if err := json.Unmarshal(buf, &user); err != nil {
 		return nil, err
 	}
 
@@ -150,6 +141,10 @@ func readAuthData() (*User, error) {
 
 // removeAuthData removes any previously written authentication details.
 func removeAuthData() error {
-	filename := storeAuthDataFilename("")
-	return os.Remove(filename)
+	real, err := osutil.RealUser()
+	if err != nil {
+		return err
+	}
+
+	return osutil.PrivRemove(real, storeAuthDataFilename(real.HomeDir))
 }

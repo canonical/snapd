@@ -30,4 +30,7 @@ const (
 	_SYS_GETGID  = syscall.SYS_GETGID32
 	_SYS_GETEUID = syscall.SYS_GETEUID32
 	_SYS_GETEGID = syscall.SYS_GETEGID32
+
+	_SYS_SETUID = syscall.SYS_SETUID32
+	_SYS_SETGID = syscall.SYS_SETGID32
 )
