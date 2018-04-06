@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -54,6 +55,8 @@ type HookManager struct {
 	contexts      map[string]*Context
 
 	hijackMap map[hijackKey]hijackFunc
+
+	runningHooks int32
 }
 
 // Handler is the interface a client must satify to handle hooks.
@@ -218,17 +221,31 @@ func hookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
 	return &hooksup, &snapst, nil
 }
 
+// NumRunningHooks returns the number of hooks running at the moment.
+func (m *HookManager) NumRunningHooks() int {
+	return int(atomic.LoadInt32(&m.runningHooks))
+}
+
 // doRunHook actually runs the hook that was requested.
 //
 // Note that this method is synchronous, as the task is already running in a
 // goroutine.
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
+	if task.State().Restarting() {
+		// don't start running a hook if we are restarting
+		return &state.Retry{}
+	}
+
 	task.State().Lock()
 	hooksup, snapst, err := hookSetup(task)
 	task.State().Unlock()
 	if err != nil {
 		return err
 	}
+
+	// keep count of running hooks
+	atomic.AddInt32(&m.runningHooks, 1)
+	defer atomic.AddInt32(&m.runningHooks, -1)
 
 	mustHijack := m.hijacked(hooksup.Hook, hooksup.Snap) != nil
 	hookExists := false

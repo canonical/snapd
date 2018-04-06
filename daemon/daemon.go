@@ -468,7 +468,19 @@ func (d *Daemon) Start() {
 func (d *Daemon) Stop() error {
 	d.tomb.Kill(nil)
 	d.snapdListener.Close()
+
 	if d.snapListener != nil {
+		// stop running hooks first
+		// and do it more gracefully if we are restarting
+		hookMgr := d.overlord.HookManager()
+		if d.overlord.State().Restarting() {
+			// wait max 10 minutes, same as hooks timeout
+			const maxWaitIter = 10 * 60
+			for i := 0; hookMgr.NumRunningHooks() > 0 && i < maxWaitIter; i++ {
+				time.Sleep(1 * time.Second)
+			}
+		}
+		hookMgr.Stop()
 		d.snapListener.Close()
 	}
 
