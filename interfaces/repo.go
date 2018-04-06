@@ -808,6 +808,9 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 // Unknown interfaces and plugs/slots that don't validate are not added.
 // Information about those failures are returned to the caller.
 func (r *Repository) AddSnap(snapInfo *snap.Info) error {
+	if snapInfo.Broken != "" {
+		return fmt.Errorf("snap is broken: %s", snapInfo.Broken)
+	}
 	err := snap.Validate(snapInfo)
 	if err != nil {
 		return err
