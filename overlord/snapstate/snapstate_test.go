@@ -5526,6 +5526,11 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
+			op:    "auto-connect:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
 			op: "update-aliases",
 		},
 	}
@@ -9369,6 +9374,76 @@ func (s *snapmgrTestSuite) TestUpdateManyLayoutsChecksFeatureFlag(c *C) {
 	refreshes, _, err = snapstate.UpdateMany(context.TODO(), s.state, nil, s.user.ID)
 	c.Assert(err, IsNil)
 	c.Assert(refreshes, DeepEquals, []string{"some-snap"})
+}
+
+func (s *snapmgrTestSuite) TestInjectTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	lane := s.state.NewLane()
+
+	// setup main task and two tasks waiting for it; all part of same change
+	chg := s.state.NewChange("change", "")
+	t0 := s.state.NewTask("task1", "")
+	chg.AddTask(t0)
+	t0.JoinLane(lane)
+	t01 := s.state.NewTask("task1-1", "")
+	t01.WaitFor(t0)
+	chg.AddTask(t01)
+	t02 := s.state.NewTask("task1-2", "")
+	t02.WaitFor(t0)
+	chg.AddTask(t02)
+
+	// setup extra tasks
+	t1 := s.state.NewTask("task2", "")
+	t2 := s.state.NewTask("task3", "")
+	ts := state.NewTaskSet(t1, t2)
+
+	snapstate.InjectTasks(t0, ts)
+
+	// verify that extra tasks are now part of same change
+	c.Assert(t1.Change().ID(), Equals, t0.Change().ID())
+	c.Assert(t2.Change().ID(), Equals, t0.Change().ID())
+	c.Assert(t1.Change().ID(), Equals, chg.ID())
+
+	c.Assert(t1.Lanes(), DeepEquals, []int{lane})
+
+	// verify that halt tasks of the main task now wait for extra tasks
+	c.Assert(t1.HaltTasks(), HasLen, 2)
+	c.Assert(t2.HaltTasks(), HasLen, 2)
+	c.Assert(t1.HaltTasks(), DeepEquals, t2.HaltTasks())
+
+	ids := []string{t1.HaltTasks()[0].Kind(), t2.HaltTasks()[1].Kind()}
+	sort.Strings(ids)
+	c.Assert(ids, DeepEquals, []string{"task1-1", "task1-2"})
+
+	// verify that extra tasks wait for the main task
+	c.Assert(t1.WaitTasks(), HasLen, 1)
+	c.Assert(t1.WaitTasks()[0].Kind(), Equals, "task1")
+	c.Assert(t2.WaitTasks(), HasLen, 1)
+	c.Assert(t2.WaitTasks()[0].Kind(), Equals, "task1")
+}
+
+func (s *snapmgrTestSuite) TestInjectTasksWithNullChange(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// setup main task
+	t0 := s.state.NewTask("task1", "")
+	t01 := s.state.NewTask("task1-1", "")
+	t01.WaitFor(t0)
+
+	// setup extra task
+	t1 := s.state.NewTask("task2", "")
+	ts := state.NewTaskSet(t1)
+
+	snapstate.InjectTasks(t0, ts)
+
+	c.Assert(t1.Lanes(), DeepEquals, []int{0})
+
+	// verify that halt tasks of the main task now wait for extra tasks
+	c.Assert(t1.HaltTasks(), HasLen, 1)
+	c.Assert(t1.HaltTasks()[0].Kind(), Equals, "task1-1")
 }
 
 type canDisableSuite struct{}

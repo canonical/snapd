@@ -119,6 +119,27 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 				return fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
 			}
 		}
+
+		// Compatibility with old snapd: check if we have auto-connect task and if not, inject it after self (setup-profiles).
+		// Inject it for core after the 2nd setup-profiles - same placement as done in doInstall.
+		// In the older snapd versions interfaces were auto-connected as part of setupProfilesForSnap.
+		var hasAutoConnect bool
+		for _, t := range task.Change().Tasks() {
+			if t.Kind() == "auto-connect" {
+				otherSnapsup, err := snapstate.TaskSnapSetup(t)
+				if err != nil {
+					return err
+				}
+				// Check if this is auto-connect task for same snap
+				if snapsup.Name() == otherSnapsup.Name() {
+					hasAutoConnect = true
+					break
+				}
+			}
+		}
+		if !hasAutoConnect {
+			snapstate.InjectAutoConnect(task, snapsup)
+		}
 	}
 
 	opts := confinementOptions(snapsup.Flags)
@@ -762,29 +783,4 @@ func (m *InterfaceManager) undoTransitionUbuntuCore(t *state.Task, _ *tomb.Tomb)
 	}
 
 	return m.transitionConnectionsCoreMigration(st, newName, oldName)
-}
-
-// injectTasks makes all the halt tasks of the mainTask wait for extraTasks;
-// extraTasks join the same lane and change as the mainTask.
-func injectTasks(mainTask *state.Task, extraTasks *state.TaskSet) {
-	lanes := mainTask.Lanes()
-	if len(lanes) == 1 && lanes[0] == 0 {
-		lanes = nil
-	}
-	for _, l := range lanes {
-		extraTasks.JoinLane(l)
-	}
-
-	chg := mainTask.Change()
-	// Change shouldn't normally be nil, except for cases where
-	// this helper is used before tasks are added to a change.
-	if chg != nil {
-		chg.AddAll(extraTasks)
-	}
-
-	// make all halt tasks of the mainTask wait on extraTasks
-	ht := mainTask.HaltTasks()
-	for _, t := range ht {
-		t.WaitAll(extraTasks)
-	}
 }
