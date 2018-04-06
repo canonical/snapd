@@ -69,6 +69,9 @@ type refreshHintsTestSuite struct {
 	state *state.State
 
 	store *recordingStore
+
+	proceed bool
+	opts    *snapstate.EnsureRegistrationOptions
 }
 
 var _ = Suite(&refreshHintsTestSuite{})
@@ -77,6 +80,11 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 
 	s.store = &recordingStore{}
+
+	s.proceed = true
+	// so we can detect also opts being passed as nil
+	s.opts = &snapstate.EnsureRegistrationOptions{AfterAttemptsProceedAnyway: 99}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.store)
@@ -92,6 +100,13 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 	})
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	snapstate.EnsureRegistration = func(ctx context.Context, st *state.State, opts *snapstate.EnsureRegistrationOptions) (bool, error) {
+		if ctx == nil || !auth.IsEnsureContext(ctx) {
+			panic("Ensure marked context required")
+		}
+		s.opts = opts
+		return s.proceed, nil
+	}
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
@@ -99,14 +114,30 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 
 func (s *refreshHintsTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
+	snapstate.EnsureRegistration = nil
 	snapstate.AutoAliases = nil
 }
 
 func (s *refreshHintsTestSuite) TestLastRefresh(c *C) {
+	// we are registered
+	s.proceed = true
+
 	rh := snapstate.NewRefreshHints(s.state)
 	err := rh.Ensure()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+
+	c.Check(s.opts, IsNil)
+}
+
+func (s *refreshHintsTestSuite) TestLastRefreshNotRegistered(c *C) {
+	// we are not registered yet
+	s.proceed = false
+
+	rh := snapstate.NewRefreshHints(s.state)
+	err := rh.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, HasLen, 0)
 }
 
 func (s *refreshHintsTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {

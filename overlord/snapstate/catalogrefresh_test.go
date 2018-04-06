@@ -68,6 +68,9 @@ type catalogRefreshTestSuite struct {
 
 	store  *catalogStore
 	tmpdir string
+
+	proceed bool
+	opts    *snapstate.EnsureRegistrationOptions
 }
 
 var _ = Suite(&catalogRefreshTestSuite{})
@@ -78,21 +81,41 @@ func (s *catalogRefreshTestSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 
 	s.store = &catalogStore{}
+
+	s.proceed = true
+	s.opts = nil
+
 	s.state.Lock()
 	snapstate.ReplaceStore(s.state, s.store)
 	s.state.Unlock()
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	snapstate.EnsureRegistration = func(ctx context.Context, st *state.State, opts *snapstate.EnsureRegistrationOptions) (bool, error) {
+		if ctx == nil || !auth.IsEnsureContext(ctx) {
+			panic("Ensure marked context required")
+		}
+		s.opts = opts
+		return s.proceed, nil
+	}
 }
 
 func (s *catalogRefreshTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
+	snapstate.EnsureRegistration = nil
 }
 
 func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
+	// EnsureRegistration tells us to proceed
+	s.proceed = true
+
 	cr7 := snapstate.NewCatalogRefresh(s.state)
 	err := cr7.Ensure()
 	c.Check(err, IsNil)
+
+	c.Check(s.opts, DeepEquals, &snapstate.EnsureRegistrationOptions{
+		CustomStoreOnly:            true,
+		AfterAttemptsProceedAnyway: 2,
+	})
 
 	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})
 
@@ -110,6 +133,17 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 		"bar": {"bar"},
 		"meh": {"foo", "bar"},
 	})
+}
+
+func (s *catalogRefreshTestSuite) TestCatalogRefreshNotRegistered(c *C) {
+	// Not registered yet
+	s.proceed = false
+
+	cr7 := snapstate.NewCatalogRefresh(s.state)
+	err := cr7.Ensure()
+	c.Check(err, IsNil)
+
+	c.Check(s.store.ops, HasLen, 0)
 }
 
 func (s *catalogRefreshTestSuite) TestCatalogRefreshNotNeeded(c *C) {

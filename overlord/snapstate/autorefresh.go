@@ -338,7 +338,19 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
 func (m *autoRefresh) launchAutoRefresh() error {
 	m.lastRefreshAttempt = time.Now()
-	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
+
+	ctx := auth.EnsureContextTODO()
+	// preferably we should be registered at this point
+	proceed, err := EnsureRegistration(ctx, m.state, nil)
+	if err != nil {
+		return err
+	}
+	if !proceed {
+		// try again later
+		return nil
+	}
+
+	updated, tasksets, err := AutoRefresh(ctx, m.state)
 	if err != nil {
 		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
 		return err
