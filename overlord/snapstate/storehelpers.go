@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"fmt"
 	"sort"
 
 	"golang.org/x/net/context"
@@ -189,6 +190,9 @@ func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (
 }
 
 func singleActionResult(name, action string, results []*snap.Info, e error) (info *snap.Info, err error) {
+	if len(results) > 1 {
+		return nil, fmt.Errorf("internal error: multiple store results for a single snap op")
+	}
 	if len(results) > 0 {
 		// TODO: if we also have an error log/warn about it
 		return results[0], nil
