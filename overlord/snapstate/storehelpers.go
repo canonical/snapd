@@ -90,18 +90,12 @@ func userFromUserIDOrFallback(st *state.State, userID int, fallbackUser *auth.Us
 	return fallbackUser, nil
 }
 
-func snapNameToID(st *state.State, name, channel string, user *auth.UserState) (string, error) {
+func snapNameToID(st *state.State, name string, user *auth.UserState) (string, error) {
 	theStore := Store(st)
 	st.Unlock()
-	info, err := theStore.SnapInfo(store.SnapSpec{Name: name, Channel: channel}, user)
+	info, err := theStore.SnapInfo(store.SnapSpec{Name: name}, user)
 	st.Lock()
-	if err != nil {
-		return "", err
-	}
-	if info == nil {
-		return "", fmt.Errorf("cannot get SnapInfo from store but also no error")
-	}
-	return info.SnapID, nil
+	return info.SnapID, err
 }
 
 func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
@@ -126,7 +120,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 		opts = &updateInfoOpts{}
 	}
 
-	curInfo, user, err := preUpdateInfo(st, snapst, opts.channel, opts.amend, userID)
+	curInfo, user, err := preUpdateInfo(st, snapst, opts.amend, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +142,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *updateInfoOpts, userID
 	return res, err
 }
 
-func preUpdateInfo(st *state.State, snapst *SnapState, channel string, amend bool, userID int) (*snap.Info, *auth.UserState, error) {
+func preUpdateInfo(st *state.State, snapst *SnapState, amend bool, userID int) (*snap.Info, *auth.UserState, error) {
 	user, err := userFromUserID(st, snapst.UserID, userID)
 	if err != nil {
 		return nil, nil, err
@@ -165,7 +159,7 @@ func preUpdateInfo(st *state.State, snapst *SnapState, channel string, amend boo
 		}
 
 		// in amend mode we need to move to the store rev
-		id, err := snapNameToID(st, curInfo.Name(), channel, user)
+		id, err := snapNameToID(st, curInfo.Name(), user)
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot get snap ID for %q: %v", curInfo.Name(), err)
 		}
@@ -178,7 +172,7 @@ func preUpdateInfo(st *state.State, snapst *SnapState, channel string, amend boo
 }
 
 func updateToRevisionInfo(st *state.State, snapst *SnapState, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
-	curInfo, user, err := preUpdateInfo(st, snapst, channel, false, userID)
+	curInfo, user, err := preUpdateInfo(st, snapst, false, userID)
 	if err != nil {
 		return nil, err
 	}
