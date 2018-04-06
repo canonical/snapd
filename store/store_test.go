@@ -6547,7 +6547,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &SnapActionError{
 		Refresh: map[string]error{
-			"hello-world": ErrNoUpdateAvailable,
+			"hello-world": ErrRevisionNotAvailable,
 		},
 		Install: map[string]error{
 			"foo": ErrRevisionNotAvailable,
