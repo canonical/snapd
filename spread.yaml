@@ -76,8 +76,7 @@ backends:
             - opensuse-42.3-64:
                 image: opensuse-cloud/opensuse-leap-42-3-v20180116
                 workers: 4
-            - arch-64:
-                image: arch-linux-64-v20180110
+            - arch-linux-64:
                 workers: 4
 
     linode:
