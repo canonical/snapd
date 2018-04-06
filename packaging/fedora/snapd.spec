@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.32.2
+Version:        2.32.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -722,6 +722,21 @@ fi
 
 
 %changelog
+* Thu Apr 05 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.3
+ - ifacestate: add to the repo also snaps that are pending being
+   activated but have a done setup-profiles
+ - snapstate: inject autoconnect tasks in doLinkSnap for regular
+   snaps
+ - cmd/snap-confine: allow creating missing gl32, gl, vulkan dirs
+ - errtracker: add more fields to aid debugging
+ - interfaces: make system-key more robust against invalid fstab
+   entries
+ - cmd/snap-mgmt: remove timers, udev rules, dbus policy files
+ - overlord,interfaces: be more vocal about broken snaps and read
+   errors
+ - osutil: fix fstab parser to allow for # in field values
+
 * Sat Mar 31 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.2
  - interfaces/content: add rule so slot can access writable files at

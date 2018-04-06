@@ -1,8 +1,20 @@
 snapd (2.32.3) xenial; urgency=medium
 
-  * placeholder for the real 2.32.3 changelog
+  *  New upstream release, LP: #1756173
+    - ifacestate: add to the repo also snaps that are pending being
+      activated but have a done setup-profiles
+    - snapstate: inject autoconnect tasks in doLinkSnap for regular
+      snaps
+    - cmd/snap-confine: allow creating missing gl32, gl, vulkan dirs
+    - errtracker: add more fields to aid debugging
+    - interfaces: make system-key more robust against invalid fstab
+      entries
+    - cmd/snap-mgmt: remove timers, udev rules, dbus policy files
+    - overlord,interfaces: be more vocal about broken snaps and read
+      errors
+    - osutil: fix fstab parser to allow for # in field values
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 05 Apr 2018 22:49:03 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 05 Apr 2018 22:35:35 +0200
 
 snapd (2.32.2) xenial; urgency=medium
 
