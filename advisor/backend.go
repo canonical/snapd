@@ -109,6 +109,7 @@ func (t *writer) AddSnap(snapName, version, summary string, commands []string) e
 				return err
 			}
 		}
+		// For the mapping of command->snap we do not need the summary, nothing is using that.
 		sil = append(sil, Package{Snap: snapName, Version: version})
 		row, err := json.Marshal(sil)
 		if err != nil {

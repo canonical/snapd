@@ -2923,11 +2923,11 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 
 	dump, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
-	c.Check(dump, DeepEquals, map[string][]string{
-		"foo":     {"foo/1.0"},
-		"bar.baz": {"bar/2.0"},
-		"potato":  {"bar/2.0"},
-		"meh":     {"bar/2.0", "foo/1.0"},
+	c.Check(dump, DeepEquals, map[string]string{
+		"foo":     `[{"snap":"foo","version":"1.0"}]`,
+		"bar.baz": `[{"snap":"bar","version":"2.0"}]`,
+		"potato":  `[{"snap":"bar","version":"2.0"}]`,
+		"meh":     `[{"snap":"bar","version":"2.0"},{"snap":"foo","version":"1.0"}]`,
 	})
 }
 
