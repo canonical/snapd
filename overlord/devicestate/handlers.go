@@ -107,6 +107,8 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	t.SetStatus(state.DoneStatus)
+	// make sure we consider the next (split) initialization phase timely
+	st.EnsureBefore(0)
 	return nil
 }
 
