@@ -207,6 +207,9 @@ func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 	c.Assert(err, IsNil)
 
 	markSeeded(o)
+	// make sure we don't try to talk to the store
+	snapstate.CanAutoRefresh = nil
+
 	o.Loop()
 
 	err = o.Stop()
