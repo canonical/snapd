@@ -24,7 +24,6 @@ import (
 	"crypto"
 	"encoding/json"
 	"fmt"
-	"hash"
 	"io"
 	"os"
 	"os/exec"
@@ -174,11 +173,9 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	// 1. doesn't close the file descriptor (that's done by Cancel, above)
 	// 2. writes out the central directory of the zip
 	// (yes they're weird in this way: why is that called Close, even)
-	hasher := crypto.SHA3_384.New()
-	if err := addToZip(ctx, sh, w, archiveName, si.DataDir(), hasher); err != nil {
+	if err := addToZip(ctx, sh, w, archiveName, si.DataDir()); err != nil {
 		return nil, err
 	}
-	hasher.Reset()
 
 	users, err := usersForUsernames(usernames)
 	if err != nil {
@@ -186,10 +183,9 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	}
 
 	for _, usr := range users {
-		if err := addToZip(ctx, sh, w, userArchiveName(usr), si.UserDataDir(usr.HomeDir), hasher); err != nil {
+		if err := addToZip(ctx, sh, w, userArchiveName(usr), si.UserDataDir(usr.HomeDir)); err != nil {
 			return nil, err
 		}
-		hasher.Reset()
 	}
 
 	metaWriter, err := w.Create(metadataName)
@@ -197,6 +193,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		return nil, err
 	}
 
+	hasher := crypto.SHA3_384.New()
 	enc := json.NewEncoder(io.MultiWriter(metaWriter, hasher))
 	if err := enc.Encode(sh); err != nil {
 		return nil, err
@@ -222,7 +219,8 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	return sh, nil
 }
 
-func addToZip(ctx context.Context, sh *client.Snapshot, w *zip.Writer, entry, dir string, hasher hash.Hash) error {
+func addToZip(ctx context.Context, sh *client.Snapshot, w *zip.Writer, entry, dir string) error {
+	hasher := crypto.SHA3_384.New()
 	if exists, isDir, err := osutil.DirExists(dir); !exists || !isDir || err != nil {
 		return err
 	}

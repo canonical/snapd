@@ -22,7 +22,6 @@ package backend_test
 import (
 	"archive/zip"
 	"bytes"
-	"crypto"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -390,8 +389,8 @@ func (s *snapshotSuite) TestList(c *check.C) {
 
 func (s *snapshotSuite) TestAddToZipBails(c *check.C) {
 	// note as everything is nil this would panic if it didn't bail
-	c.Check(backend.AddToZip(nil, nil, nil, "an/entry", filepath.Join(s.root, "nonexistent"), nil), check.IsNil)
-	c.Check(backend.AddToZip(nil, nil, nil, "an/entry", "/etc/passwd", nil), check.IsNil)
+	c.Check(backend.AddToZip(nil, nil, nil, "an/entry", filepath.Join(s.root, "nonexistent")), check.IsNil)
+	c.Check(backend.AddToZip(nil, nil, nil, "an/entry", "/etc/passwd"), check.IsNil)
 }
 
 func (s *snapshotSuite) TestAddToZipTarFails(c *check.C) {
@@ -403,7 +402,7 @@ func (s *snapshotSuite) TestAddToZipTarFails(c *check.C) {
 
 	var buf bytes.Buffer
 	z := zip.NewWriter(&buf)
-	c.Assert(backend.AddToZip(ctx, nil, z, "an/entry", d, nil), check.ErrorMatches, ".* context canceled")
+	c.Assert(backend.AddToZip(ctx, nil, z, "an/entry", d), check.ErrorMatches, ".* context canceled")
 }
 
 func (s *snapshotSuite) TestAddToZip(c *check.C) {
@@ -417,11 +416,11 @@ func (s *snapshotSuite) TestAddToZip(c *check.C) {
 	sh := &client.Snapshot{
 		SHA3_384: map[string]string{},
 	}
-	h := crypto.SHA3_384.New()
-	c.Assert(backend.AddToZip(context.Background(), sh, z, "an/entry", d, h), check.IsNil)
+	c.Assert(backend.AddToZip(context.Background(), sh, z, "an/entry", d), check.IsNil)
 	z.Close() // write out the central directory
 
-	c.Check(sh.SHA3_384, check.DeepEquals, map[string]string{"an/entry": fmt.Sprintf("%x", h.Sum(nil))})
+	c.Check(sh.SHA3_384, check.HasLen, 1)
+	c.Check(sh.SHA3_384["an/entry"], check.HasLen, 96)
 	c.Check(sh.Size > 0, check.Equals, true) // actual size most likely system-dependent
 	br := bytes.NewReader(buf.Bytes())
 	r, err := zip.NewReader(br, int64(br.Len()))
