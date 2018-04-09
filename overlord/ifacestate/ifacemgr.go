@@ -129,7 +129,7 @@ func MockSecurityBackends(be []interfaces.SecurityBackend) func() {
 
 // SnapInterfaceState describes state of interfaces of a single snap.
 type SnapInterfaceState struct {
-	// Revision is the revision of the that snap was loaded into the
+	// Revision is the revision of the snap that was loaded into the
 	// interface repository. When snapd restarts it may have added a snap to
 	// the interface repository even when that snap was not yet active. To
 	// ensure that we can reload the interface repository correctly, for
