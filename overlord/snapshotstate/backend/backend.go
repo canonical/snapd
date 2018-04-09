@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
+	"regexp"
 )
 
 const (
@@ -206,7 +207,9 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		return nil, err
 	}
 	fmt.Fprintf(hashWriter, "%x\n", hasher.Sum(nil))
-	w.Close()
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
 
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -238,8 +241,15 @@ func addToZip(ctx context.Context, sh *client.Snapshot, w *zip.Writer, entry, di
 		"--directory", parent, dir, "common")
 	cmd.Env = []string{"GZIP=-9 -n"}
 	cmd.Stdout = io.MultiWriter(archiveWriter, hasher, &sz)
-	cmd.Stderr = os.Stderr
-	osutil.RunWithContext(ctx, cmd)
+	matchCounter := &strutil.MatchCounter{Regexp: regexp.MustCompile(".*"), N: 1}
+	cmd.Stderr = matchCounter
+	if err := osutil.RunWithContext(ctx, cmd); err != nil {
+		matches, count := matchCounter.Matches()
+		if count > 0 {
+			return fmt.Errorf("cannot create archive: %s (and %d more)", matches[0], count-1)
+		}
+		return fmt.Errorf("tar failed: %v", err)
+	}
 
 	sh.SHA3_384[entry] = fmt.Sprintf("%x", hasher.Sum(nil))
 	sh.Size += sz.size

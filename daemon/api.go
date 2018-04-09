@@ -2959,10 +2959,7 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 		return InternalError("%v", err)
 	}
 
-	chg := st.NewChange(action.Action+"-snapshot", action.String())
-	chg.AddAll(ts)
-	// TODO: look at dropping this duplication
-	chg.Set("snap-names", affected)
+	chg := newChange(st, action.Action+"-snapshot", action.String(), []*state.TaskSet{ts}, affected)
 	chg.Set("api-data", map[string]interface{}{"snap-names": affected})
 	ensureStateSoon(st)
 

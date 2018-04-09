@@ -24,6 +24,10 @@ import (
 	"os/user"
 )
 
+var (
+	AddToZip = addToZip
+)
+
 func MockUserLookup(newLookup func(string) (*user.User, error)) func() {
 	oldLookup := userLookup
 	userLookup = newLookup

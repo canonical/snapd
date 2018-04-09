@@ -20,6 +20,10 @@
 package backend_test
 
 import (
+	"archive/zip"
+	"bytes"
+	"crypto"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -37,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/snap"
+	//	"github.com/snapcore/snapd/testutil"
 )
 
 type snapshotSuite struct {
@@ -190,7 +195,7 @@ func (s *snapshotSuite) TestIterWarnsOnOpenErrorIfSnapshotNil(c *check.C) {
 	triedToOpenDir := false
 	defer backend.MockDirOpen(func(string) (*os.File, error) {
 		triedToOpenDir = true
-		return os.Open(os.DevNull)
+		return new(os.File), nil
 	})()
 	readNames := 0
 	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
@@ -228,7 +233,7 @@ func (s *snapshotSuite) TestIterCallsFuncIfSnapshotNotNil(c *check.C) {
 	triedToOpenDir := false
 	defer backend.MockDirOpen(func(string) (*os.File, error) {
 		triedToOpenDir = true
-		return os.Open(os.DevNull)
+		return new(os.File), nil
 	})()
 	readNames := 0
 	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
@@ -264,7 +269,168 @@ func (s *snapshotSuite) TestIterCallsFuncIfSnapshotNotNil(c *check.C) {
 	c.Check(calledF, check.Equals, true)
 }
 
-func (s *snapshotSuite) xTestHappyRoundtrip(c *check.C) {
+func (s *snapshotSuite) TestIterReportsCloseError(c *check.C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+	triedToOpenDir := false
+	defer backend.MockDirOpen(func(string) (*os.File, error) {
+		triedToOpenDir = true
+		return new(os.File), nil
+	})()
+	readNames := 0
+	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
+		readNames++
+		if readNames > 1 {
+			return nil, io.EOF
+		}
+		return []string{"hello"}, nil
+	})()
+	triedToOpenSnapshot := false
+	defer backend.MockOpen(func(string) (*backend.Reader, error) {
+		triedToOpenSnapshot = true
+		r := backend.Reader{}
+		r.SetID = 42
+		return &r, nil
+	})()
+
+	calledF := false
+	f := func(sh *backend.Reader) error {
+		c.Check(sh.SetID, check.Equals, uint64(42))
+		calledF = true
+		return nil
+	}
+
+	err := backend.Iter(context.Background(), f)
+	// snapshot close errors _are_ failures (because they're completely unexpected):
+	c.Check(err, check.Equals, os.ErrInvalid)
+	c.Check(triedToOpenDir, check.Equals, true)
+	c.Check(readNames, check.Equals, 1) // never gets to read another one
+	c.Check(triedToOpenSnapshot, check.Equals, true)
+	c.Check(logbuf.String(), check.Equals, "")
+	c.Check(calledF, check.Equals, true)
+}
+
+func (s *snapshotSuite) TestList(c *check.C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+	defer backend.MockDirOpen(func(string) (*os.File, error) { return new(os.File), nil })()
+	readNames := 0
+	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
+		readNames++
+		if readNames > 4 {
+			return nil, io.EOF
+		}
+		return []string{
+			fmt.Sprintf("%d_foo", readNames),
+			fmt.Sprintf("%d_bar", readNames),
+			fmt.Sprintf("%d_baz", readNames),
+		}, nil
+	})()
+	defer backend.MockOpen(func(fn string) (*backend.Reader, error) {
+		var id uint64
+		var snapname string
+		fn = filepath.Base(fn)
+		_, err := fmt.Sscanf(fn, "%d_%s", &id, &snapname)
+		c.Assert(err, check.IsNil, check.Commentf(fn))
+		f, err := os.Open(os.DevNull)
+		c.Assert(err, check.IsNil, check.Commentf(fn))
+		return &backend.Reader{
+			File: f,
+			Snapshot: client.Snapshot{
+				SetID:    id,
+				Snap:     snapname,
+				Version:  "v1.0-" + snapname,
+				Revision: snap.R(int(id)),
+			},
+		}, nil
+	})()
+
+	type tableT struct {
+		setID     uint64
+		snapnames []string
+		numSets   int
+		numShots  int
+		predicate func(*client.Snapshot) bool
+	}
+	table := []tableT{
+		{0, nil, 4, 12, nil},
+		{0, []string{"foo"}, 4, 4, func(sh *client.Snapshot) bool { return sh.Snap == "foo" }},
+		{1, nil, 1, 3, func(sh *client.Snapshot) bool { return sh.SetID == 1 }},
+		{2, []string{"bar"}, 1, 1, func(sh *client.Snapshot) bool { return sh.Snap == "bar" && sh.SetID == 2 }},
+		{0, []string{"foo", "bar"}, 4, 8, func(sh *client.Snapshot) bool { return sh.Snap == "foo" || sh.Snap == "bar" }},
+	}
+
+	for i, t := range table {
+		comm := check.Commentf("%d: %d/%v", i, t.setID, t.snapnames)
+		// reset
+		readNames = 0
+		logbuf.Reset()
+
+		sets, err := backend.List(context.Background(), t.setID, t.snapnames)
+		c.Check(err, check.IsNil, comm)
+		c.Check(readNames, check.Equals, 5, comm)
+		c.Check(logbuf.String(), check.Equals, "", comm)
+		c.Check(sets, check.HasLen, t.numSets, comm)
+		nShots := 0
+		fnTpl := filepath.Join(dirs.SnapshotDir, "%d_%s_%s.zip")
+		for j, ss := range sets {
+			for k, sh := range ss.Snapshots {
+				comm := check.Commentf("%d: %d/%v #%d/%d", i, t.setID, t.snapnames, j, k)
+				if t.predicate != nil {
+					c.Check(t.predicate(sh), check.Equals, true, comm)
+				}
+				nShots++
+				fn := fmt.Sprintf(fnTpl, sh.SetID, sh.Snap, sh.Version)
+				c.Check(backend.Filename(sh), check.Equals, fn, comm)
+			}
+		}
+		c.Check(nShots, check.Equals, t.numShots)
+	}
+}
+
+func (s *snapshotSuite) TestAddToZipBails(c *check.C) {
+	// note as everything is nil this would panic if it didn't bail
+	c.Check(backend.AddToZip(nil, nil, nil, "an/entry", filepath.Join(s.root, "nonexistent"), nil), check.IsNil)
+	c.Check(backend.AddToZip(nil, nil, nil, "an/entry", "/etc/passwd", nil), check.IsNil)
+}
+
+func (s *snapshotSuite) TestAddToZipTarFails(c *check.C) {
+	d := filepath.Join(s.root, "foo")
+	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0755), check.IsNil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var buf bytes.Buffer
+	z := zip.NewWriter(&buf)
+	c.Assert(backend.AddToZip(ctx, nil, z, "an/entry", d, nil), check.ErrorMatches, ".* context canceled")
+}
+
+func (s *snapshotSuite) TestAddToZip(c *check.C) {
+	d := filepath.Join(s.root, "foo")
+	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(s.root, "common"), 0755), check.IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "bar", "baz"), []byte("hello\n"), 0644), check.IsNil)
+
+	var buf bytes.Buffer
+	z := zip.NewWriter(&buf)
+	sh := &client.Snapshot{
+		SHA3_384: map[string]string{},
+	}
+	h := crypto.SHA3_384.New()
+	c.Assert(backend.AddToZip(context.Background(), sh, z, "an/entry", d, h), check.IsNil)
+	z.Close() // write out the central directory
+
+	c.Check(sh.SHA3_384, check.DeepEquals, map[string]string{"an/entry": fmt.Sprintf("%x", h.Sum(nil))})
+	c.Check(sh.Size > 0, check.Equals, true) // actual size most likely system-dependent
+	br := bytes.NewReader(buf.Bytes())
+	r, err := zip.NewReader(br, int64(br.Len()))
+	c.Assert(err, check.IsNil)
+	c.Check(r.File, check.HasLen, 1)
+	c.Check(r.File[0].Name, check.Equals, "an/entry")
+}
+
+func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	logger.SimpleSetup()
 
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42)}, Version: "v1.33"}
