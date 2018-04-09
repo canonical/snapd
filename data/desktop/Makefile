@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 BINDIR = /usr/bin
-DATADIR = /usr/share
+SYSCONFXDGAUTOSTARTDIR = /etc/xdg/autostart
 
 SOURCES = snap-userd-autostart.desktop.in
 DESKTOP_FILES = $(SOURCES:.in=)
@@ -25,8 +25,8 @@ all: $(DESKTOP_FILES)
 .PHONY: install
 install: $(DESKTOP_FILES)
 	# NOTE: old (e.g. 14.04) GNU coreutils doesn't -D with -t
-	install -d -m 0755 $(DESTDIR)/$(DATADIR)/applications
-	install -m 0644 -t $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR) $^
+	install -d -m 0755 $(DESTDIR)/$(SYSCONFXDGAUTOSTARTDIR)
+	install -m 0644 -t $(DESTDIR)/$(SYSCONFXDGAUTOSTARTDIR) $^
 
 .PHONY: clean
 clean:
