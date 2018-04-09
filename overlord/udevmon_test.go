@@ -30,10 +30,8 @@ type udevMonitorSuite struct{}
 var _ = Suite(&udevMonitorSuite{})
 
 func (s *udevMonitorSuite) TestSmoke(c *C) {
-	for i := 0; i < 3; i++ {
-		mon := overlord.NewUDevMonitor()
-		c.Assert(mon, NotNil)
-		c.Assert(mon.Run(), IsNil)
-		c.Assert(mon.Stop(), IsNil)
-	}
+	mon := overlord.NewUDevMonitor()
+	c.Assert(mon, NotNil)
+	c.Assert(mon.Run(), IsNil)
+	c.Assert(mon.Stop(), IsNil)
 }

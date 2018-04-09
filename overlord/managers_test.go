@@ -107,12 +107,17 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
+	restoreUdevMon := overlord.MockCreateUDevMonitor(func() overlord.UDevMon {
+		return &overlord.UDevMonitorMock{}
+	})
+
 	oldSetupInstallHook := snapstate.SetupInstallHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 
 	ms.restore = func() {
+		restoreUdevMon()
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 		snapstate.SetupInstallHook = oldSetupInstallHook
 	}
@@ -1814,6 +1819,7 @@ type authContextSetupSuite struct {
 
 	storeSigning   *assertstest.StoreStack
 	restoreTrusted func()
+	restoreUDevMon func()
 
 	brandSigning *assertstest.SigningDB
 	deviceKey    asserts.PrivateKey
@@ -1827,6 +1833,10 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(tempdir)
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
+
+	s.restoreUDevMon = overlord.MockCreateUDevMonitor(func() overlord.UDevMon {
+		return &overlord.UDevMonitorMock{}
+	})
 
 	captureAuthContext := func(_ *store.Config, ac auth.AuthContext) *store.Store {
 		s.ac = ac
@@ -1894,6 +1904,7 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 
 func (s *authContextSetupSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	s.restoreUDevMon()
 	s.restoreTrusted()
 }
 
