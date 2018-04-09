@@ -29,9 +29,10 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
-type udevMonitor interface {
+type UDevMon interface {
 	Run() error
 	Stop() error
+	// TODO: add method(s) to register device filters
 }
 
 type UDevMonitor struct {
@@ -41,18 +42,22 @@ type UDevMonitor struct {
 	crawlerStop chan struct{}
 }
 
-func NewUDevMonitor() *UDevMonitor {
-	udevMon := &UDevMonitor{
-		tmb: new(tomb.Tomb),
+func NewUDevMonitor() UDevMon {
+	m := &UDevMonitor{
+		netlinkConn: &netlink.UEventConn{},
+		tmb:         new(tomb.Tomb),
 	}
-	return udevMon
+	return m
 }
 
 func (m *UDevMonitor) Run() error {
+	if m.netlinkConn == nil || m.netlinkConn.Fd != 0 {
+		// this cannot happen in real code but may happen in test
+		panic("cannot run UDevMonitor more than once")
+	}
 	cerrors := make(chan error)
 	devs := make(chan crawler.Device)
 
-	m.netlinkConn = &netlink.UEventConn{}
 	if err := m.netlinkConn.Connect(); err != nil {
 		return fmt.Errorf("failed to start uevent monitor: %s", err)
 	}
@@ -117,5 +122,12 @@ func (m *UDevMonitor) removeDevice(kobj string, env map[string]string) {
 
 type UDevMonitorMock struct{}
 
-func (u *UDevMonitorMock) Run() error { return nil }
-func (u *UDevMonitorMock) Stop()      {}
+func (u *UDevMonitorMock) Run() error  { return nil }
+func (u *UDevMonitorMock) Stop() error { return nil }
+
+func MockCreateUDevMonitor(new func() UDevMon) (restore func()) {
+	CreateUDevMonitor = new
+	return func() {
+		CreateUDevMonitor = NewUDevMonitor
+	}
+}

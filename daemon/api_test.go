@@ -107,6 +107,7 @@ type apiBaseSuite struct {
 	jctlErrs           []error
 
 	restoreSanitize func()
+	restoreUDevMon  func()
 }
 
 func (s *apiBaseSuite) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
@@ -220,6 +221,10 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), check.IsNil)
 
+	s.restoreUDevMon = overlord.MockCreateUDevMonitor(func() overlord.UDevMon {
+		return &overlord.UDevMonitorMock{}
+	})
+
 	s.rsnaps = nil
 	s.suggestedCurrency = ""
 	s.storeSearch = store.Search{}
@@ -258,6 +263,8 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 	ensureStateSoon = ensureStateSoonImpl
 	dirs.SetRootDir("")
+
+	s.restoreUDevMon()
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 	snapstateInstall = snapstate.Install
