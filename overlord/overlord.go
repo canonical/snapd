@@ -285,12 +285,7 @@ func (o *Overlord) Stop() error {
 	return err1
 }
 
-// Settle runs first a state engine Ensure and then wait for activities to settle.
-// That's done by waiting for all managers activities to settle while
-// making sure no immediate further Ensure is scheduled. Chiefly for
-// tests.  Cannot be used in conjunction with Loop. If timeout is
-// non-zero and settling takes longer than timeout, returns an error.
-func (o *Overlord) Settle(timeout time.Duration) error {
+func (o *Overlord) settle(timeout time.Duration, beforeCleanups func()) error {
 	func() {
 		o.ensureLock.Lock()
 		defer o.ensureLock.Unlock()
@@ -332,6 +327,10 @@ func (o *Overlord) Settle(timeout time.Duration) error {
 		done = o.ensureNext.Equal(next)
 		o.ensureLock.Unlock()
 		if done {
+			if beforeCleanups != nil {
+				beforeCleanups()
+				beforeCleanups = nil
+			}
 			// we should wait also for cleanup handlers
 			st := o.State()
 			st.Lock()
@@ -348,6 +347,29 @@ func (o *Overlord) Settle(timeout time.Duration) error {
 		return &ensureError{errs}
 	}
 	return nil
+}
+
+// Settle runs first a state engine Ensure and then wait for
+// activities to settle. That's done by waiting for all managers'
+// activities to settle while making sure no immediate further Ensure
+// is scheduled. It then waits similarly for all ready changes to
+// reach the clean state. Chiefly for tests. Cannot be used in
+// conjunction with Loop. If timeout is non-zero and settling takes
+// longer than timeout, returns an error.
+func (o *Overlord) Settle(timeout time.Duration) error {
+	return o.settle(timeout, nil)
+}
+
+// SettleObserveBeforeCleanups runs first a state engine Ensure and
+// then wait for activities to settle. That's done by waiting for all
+// managers' activities to settle while making sure no immediate
+// further Ensure is scheduled. It then waits similarly for all ready
+// changes to reach the clean state, but calls once the provided
+// callback before doing that. Chiefly for tests. Cannot be used in
+// conjunction with Loop. If timeout is non-zero and settling takes
+// longer than timeout, returns an error.
+func (o *Overlord) SettleObserveBeforeCleanups(timeout time.Duration, beforeCleanups func()) error {
+	return o.settle(timeout, beforeCleanups)
 }
 
 // State returns the system state managed by the overlord.

@@ -343,8 +343,8 @@ slots:
   /tmp/.snap/snap/ rw,
   /tmp/.snap/ rw,
 `
-	c.Assert(updateNS["consumer"][0], Equals, profile0)
-	c.Assert(updateNS, DeepEquals, map[string][]string{"consumer": {profile0}})
+	c.Assert(updateNS[0], Equals, profile0)
+	c.Assert(updateNS, DeepEquals, []string{profile0})
 }
 
 // Check that sharing of writable data is possible
@@ -406,8 +406,8 @@ slots:
   /var/snap/consumer/7/ rw,
   /var/snap/consumer/ rw,
 `
-	c.Assert(updateNS["consumer"][0], Equals, profile0)
-	c.Assert(updateNS, DeepEquals, map[string][]string{"consumer": {profile0}})
+	c.Assert(updateNS[0], Equals, profile0)
+	c.Assert(updateNS, DeepEquals, []string{profile0})
 }
 
 // Check that sharing of writable common data is possible
@@ -469,8 +469,8 @@ slots:
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
 `
-	c.Assert(updateNS["consumer"][0], Equals, profile0)
-	c.Assert(updateNS, DeepEquals, map[string][]string{"consumer": {profile0}})
+	c.Assert(updateNS[0], Equals, profile0)
+	c.Assert(updateNS, DeepEquals, []string{profile0})
 }
 
 func (s *ContentSuite) TestInterfaces(c *C) {
@@ -631,12 +631,12 @@ slots:
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
 `
-	c.Assert(updateNS["consumer"][0], Equals, profile0)
-	c.Assert(updateNS["consumer"][1], Equals, profile1)
-	c.Assert(updateNS["consumer"][2], Equals, profile2)
-	c.Assert(updateNS["consumer"][3], Equals, profile3)
-	c.Assert(updateNS["consumer"][4], Equals, profile4)
-	c.Assert(updateNS, DeepEquals, map[string][]string{"consumer": {profile0, profile1, profile2, profile3, profile4}})
+	c.Assert(updateNS[0], Equals, profile0)
+	c.Assert(updateNS[1], Equals, profile1)
+	c.Assert(updateNS[2], Equals, profile2)
+	c.Assert(updateNS[3], Equals, profile3)
+	c.Assert(updateNS[4], Equals, profile4)
+	c.Assert(updateNS, DeepEquals, []string{profile0, profile1, profile2, profile3, profile4})
 }
 
 func (s *ContentSuite) TestModernContentInterfacePlugins(c *C) {
@@ -779,4 +779,41 @@ slots:
 /var/snap/producer/2/directory/** mrkix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
+}
+
+// Check that slot can access shared directory in plug's namespace
+func (s *ContentSuite) TestSlotCanAccessConnectedPlugSharedDirectory(c *C) {
+	const consumerYaml = `name: consumer
+version: 0
+plugs:
+ content:
+  target: $SNAP_COMMON/import
+`
+	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
+	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
+	const producerYaml = `name: producer
+version: 0
+slots:
+ content:
+  write:
+   - $SNAP_COMMON/export
+apps:
+  app:
+    command: bar
+`
+	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
+	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
+	expected := `
+# When the content interface is writable, allow this slot
+# implementation to access the slot's exported files at the plugging
+# snap's mountpoint to accommodate software where the plugging app
+# tells the slotting app about files to share.
+/var/snap/consumer/common/import/** mrwklix,
+`
+	c.Assert(apparmorSpec.SnippetForTag("snap.producer.app"), Equals, expected)
 }

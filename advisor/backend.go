@@ -20,12 +20,14 @@
 package advisor
 
 import (
-	"strings"
+	"encoding/json"
+	"os"
 	"time"
 
 	"github.com/snapcore/bolt"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 var (
@@ -43,7 +45,7 @@ type writer struct {
 type CommandDB interface {
 	// AddSnap adds the entries for commands pointing to the given
 	// snap name to the commands database.
-	AddSnap(snapName, summary string, commands []string) error
+	AddSnap(snapName, version, summary string, commands []string) error
 	// Commit persist the changes, and closes the database. If the
 	// database has already been committed/rollbacked, does nothing.
 	Commit() error
@@ -96,23 +98,38 @@ func Create() (CommandDB, error) {
 	return t, nil
 }
 
-func (t *writer) AddSnap(snapName, summary string, commands []string) error {
-	bname := []byte(snapName)
-
+func (t *writer) AddSnap(snapName, version, summary string, commands []string) error {
 	for _, cmd := range commands {
+		var sil []Package
+
 		bcmd := []byte(cmd)
 		row := t.cmdBucket.Get(bcmd)
-		if row == nil {
-			row = bname
-		} else {
-			row = append(append(row, ','), bname...)
+		if row != nil {
+			if err := json.Unmarshal(row, &sil); err != nil {
+				return err
+			}
+		}
+		// For the mapping of command->snap we do not need the summary, nothing is using that.
+		sil = append(sil, Package{Snap: snapName, Version: version})
+		row, err := json.Marshal(sil)
+		if err != nil {
+			return err
 		}
 		if err := t.cmdBucket.Put(bcmd, row); err != nil {
 			return err
 		}
 	}
 
-	if err := t.pkgBucket.Put([]byte(snapName), []byte(summary)); err != nil {
+	// TODO: use json here as well and put the version information here
+	bj, err := json.Marshal(Package{
+		Snap:    snapName,
+		Version: version,
+		Summary: summary,
+	})
+	if err != nil {
+		return err
+	}
+	if err := t.pkgBucket.Put([]byte(snapName), bj); err != nil {
 		return err
 	}
 
@@ -152,7 +169,7 @@ func (t *writer) done(commit bool) error {
 
 // DumpCommands returns the whole database as a map. For use in
 // testing and debugging.
-func DumpCommands() (map[string][]string, error) {
+func DumpCommands() (map[string]string, error) {
 	db, err := bolt.Open(dirs.SnapCommandsDB, 0644, &bolt.Options{
 		ReadOnly: true,
 		Timeout:  1 * time.Second,
@@ -173,10 +190,10 @@ func DumpCommands() (map[string][]string, error) {
 		return nil, nil
 	}
 
-	m := map[string][]string{}
+	m := map[string]string{}
 	c := b.Cursor()
 	for k, v := c.First(); k != nil; k, v = c.Next() {
-		m[string(k)] = strings.Split(string(v), ",")
+		m[string(k)] = string(v)
 	}
 
 	return m, nil
@@ -188,6 +205,13 @@ type boltFinder struct {
 
 // Open the database for reading.
 func Open() (Finder, error) {
+	// Check for missing file manually to workaround bug in bolt.
+	// bolt.Open() is using os.OpenFile(.., os.O_RDONLY |
+	// os.O_CREATE) even if ReadOnly mode is used. So we would get
+	// a misleading "permission denied" error without this check.
+	if !osutil.FileExists(dirs.SnapCommandsDB) {
+		return nil, os.ErrNotExist
+	}
 	db, err := bolt.Open(dirs.SnapCommandsDB, 0644, &bolt.Options{
 		ReadOnly: true,
 		Timeout:  1 * time.Second,
@@ -215,12 +239,15 @@ func (f *boltFinder) FindCommand(command string) ([]Command, error) {
 	if buf == nil {
 		return nil, nil
 	}
-
-	snaps := strings.Split(string(buf), ",")
-	cmds := make([]Command, len(snaps))
-	for i, snap := range snaps {
+	var sil []Package
+	if err := json.Unmarshal(buf, &sil); err != nil {
+		return nil, err
+	}
+	cmds := make([]Command, len(sil))
+	for i, si := range sil {
 		cmds[i] = Command{
-			Snap:    snap,
+			Snap:    si.Snap,
+			Version: si.Version,
 			Command: command,
 		}
 	}
@@ -240,10 +267,15 @@ func (f *boltFinder) FindPackage(pkgName string) (*Package, error) {
 		return nil, nil
 	}
 
-	bsummary := b.Get([]byte(pkgName))
-	if bsummary == nil {
+	bj := b.Get([]byte(pkgName))
+	if bj == nil {
 		return nil, nil
 	}
+	var si Package
+	err = json.Unmarshal(bj, &si)
+	if err != nil {
+		return nil, err
+	}
 
-	return &Package{Snap: pkgName, Summary: string(bsummary)}, nil
+	return &Package{Snap: pkgName, Version: si.Version, Summary: si.Summary}, nil
 }

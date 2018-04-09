@@ -35,13 +35,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func lastLogStr(logs []string) string {
-	if len(logs) == 0 {
-		return ""
-	}
-	return logs[len(logs)-1]
-}
-
 var (
 	shortInstallHelp = i18n.G("Install a snap to the system")
 	shortRemoveHelp  = i18n.G("Remove a snap from the system")
@@ -291,7 +284,7 @@ func showDone(names []string, op string) error {
 		default:
 			fmt.Fprintf(Stdout, "internal error: unknown op %q", op)
 		}
-		if snap.TrackingChannel != snap.Channel {
+		if snap.TrackingChannel != snap.Channel && snap.Channel != "" {
 			// TRANSLATORS: first %s is a snap name, following %s is a channel name
 			fmt.Fprintf(Stdout, i18n.G("Snap %s is no longer tracking %s.\n"), snap.Name, snap.TrackingChannel)
 		}
@@ -540,11 +533,11 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 		return nil
 	}
 
-	if _, err := x.wait(cli, changeID); err == noWait {
-		if err != noWait {
-			return err
+	if _, err := x.wait(cli, changeID); err != nil {
+		if err == noWait {
+			return nil
 		}
-		return nil
+		return err
 	}
 
 	return showDone([]string{name}, "refresh")
