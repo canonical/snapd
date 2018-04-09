@@ -43,6 +43,12 @@
 			"revisionTime": "2017-07-20T12:40:56Z"
 		},
 		{
+			"checksumSHA1": "oONaja1SA8xsG5eqRKz8UZ9IHVI=",
+			"path": "github.com/kr/pretty",
+			"revision": "cfb55aafdaf3ec08f0db22699ab822c50091b1c4",
+			"revisionTime": "2016-08-23T17:07:15Z"
+		},
+		{
 			"checksumSHA1": "bzUdFxQ29mPK0lwgFVcF0GFN74Q=",
 			"path": "github.com/mvo5/goconfigparser",
 			"revision": "26426272dda20cc76aa1fa44286dc743d2972fe8",
@@ -71,8 +77,8 @@
 			"path": "github.com/pilebones/go-udev",
 			"revision": "02dfd8edaaf3a7a46ad1509ae44c8f08dfaf8ece",
 			"revisionTime": "2018-03-15T12:37:24Z",
-      "tree": true
-    },
+			"tree": true
+		},
 		{
 			"checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
 			"comment": "fork of boltdb/bolt to fix build failure on ppc. upstream: https://github.com/boltdb/bolt/pull/740 and https://github.com/coreos/bbolt/pull/73",
