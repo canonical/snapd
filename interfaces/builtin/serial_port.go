@@ -69,7 +69,8 @@ func (iface *serialPortInterface) String() string {
 //  - ttyXRUSBx  (Exar Corp. USB UART devices)
 //  - ttySX (UART serial ports)
 //  - ttyOX (UART serial ports on ARM)
-var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty(USB|ACM|AMA|XRUSB|S|O)[0-9]+$")
+//  - ttymxcX (serial ports on i.mx6UL)
+var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty(mxc|USB|ACM|AMA|XRUSB|S|O)[0-9]+$")
 
 // Pattern that is considered valid for the udev symlink to the serial device,
 // path attributes will be compared to this for validity when usb vid and pid
