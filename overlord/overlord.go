@@ -38,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/overlord/hardwarestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
@@ -73,15 +72,14 @@ type Overlord struct {
 	// restarts
 	restartHandler func(t state.RestartType)
 	// managers
-	inited      bool
-	snapMgr     *snapstate.SnapManager
-	assertMgr   *assertstate.AssertManager
-	ifaceMgr    *ifacestate.InterfaceManager
-	hookMgr     *hookstate.HookManager
-	deviceMgr   *devicestate.DeviceManager
-	cmdMgr      *cmdstate.CommandManager
-	unknownMgr  *UnknownTaskManager
-	hardwareMgr *hardwarestate.HardwareManager
+	inited     bool
+	snapMgr    *snapstate.SnapManager
+	assertMgr  *assertstate.AssertManager
+	ifaceMgr   *ifacestate.InterfaceManager
+	hookMgr    *hookstate.HookManager
+	deviceMgr  *devicestate.DeviceManager
+	cmdMgr     *cmdstate.CommandManager
+	unknownMgr *UnknownTaskManager
 }
 
 var storeNew = store.New
@@ -139,12 +137,6 @@ func New() (*Overlord, error) {
 
 	o.addManager(cmdstate.Manager(s))
 
-	hardwareMgr, err := hardwarestate.Manager(s)
-	if err != nil {
-		return nil, err
-	}
-	o.addManager(hardwareMgr)
-
 	configstateInit(hookMgr)
 
 	s.Lock()
@@ -177,8 +169,6 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.deviceMgr = x
 	case *cmdstate.CommandManager:
 		o.cmdMgr = x
-	case *hardwarestate.HardwareManager:
-		o.hardwareMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 	o.unknownMgr.Ignore(mgr.KnownTaskKinds())

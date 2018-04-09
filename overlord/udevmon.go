@@ -17,7 +17,7 @@
  *
  */
 
-package hardwarestate
+package overlord
 
 import (
 	"fmt"
