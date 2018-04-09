@@ -61,6 +61,7 @@ func expandDesktopFields(in string) string {
 	return string(out)
 }
 
+// Note: consider wrappers/desktop.go if we start parsing more than Exec line
 func findExec(desktopFileContent []byte) (string, error) {
 	scanner := bufio.NewScanner(bytes.NewBuffer(desktopFileContent))
 	execCmd := ""
