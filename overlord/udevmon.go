@@ -35,6 +35,8 @@ type UDevMon interface {
 	// TODO: add method(s) to register device filters
 }
 
+// UDevMonitor monitors kernel uevents making it possible to find USB devices.
+// TODO: document new tasks.
 type UDevMonitor struct {
 	tmb         *tomb.Tomb
 	netlinkConn *netlink.UEventConn
@@ -50,9 +52,12 @@ func NewUDevMonitor() UDevMon {
 	return m
 }
 
+// Run enumerates existing USB devices and starts a new goroutine that
+// handles hotplug events (devices added or removed). It returns immediately.
+// The goroutine must be stopped by calling Stop() method.
 func (m *UDevMonitor) Run() error {
 	if m.netlinkConn == nil || m.netlinkConn.Fd != 0 {
-		// this cannot happen in real code but may happen in test
+		// this cannot happen in real code but may happen in tests
 		panic("cannot run UDevMonitor more than once")
 	}
 	cerrors := make(chan error)
