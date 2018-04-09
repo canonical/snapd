@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.32.1
+Version:        2.32.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -722,6 +722,36 @@ fi
 
 
 %changelog
+* Thu Apr 05 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.3
+ - ifacestate: add to the repo also snaps that are pending being
+   activated but have a done setup-profiles
+ - snapstate: inject autoconnect tasks in doLinkSnap for regular
+   snaps
+ - cmd/snap-confine: allow creating missing gl32, gl, vulkan dirs
+ - errtracker: add more fields to aid debugging
+ - interfaces: make system-key more robust against invalid fstab
+   entries
+ - cmd/snap-mgmt: remove timers, udev rules, dbus policy files
+ - overlord,interfaces: be more vocal about broken snaps and read
+   errors
+ - osutil: fix fstab parser to allow for # in field values
+
+* Sat Mar 31 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.2
+ - interfaces/content: add rule so slot can access writable files at
+   plug's mountpoint
+ - tests: adjust canonical-livepatch test on GCE
+ - interfaces/serial: change pattern not to exclude /dev/ttymxc
+ - spread.yaml: switch Fedora 27 tests to manual
+ - store: Sections and WriteCatalogs need to strictly send device
+   auth only if the device has a custom store
+ - configstate: give a chance to immediately recompute the next
+   refresh time when schedules are set
+ - cmd/snap-confine: attempt to detect if multiarch host uses arch
+   triplets
+ - vendor: update gopkg.in/yaml.v2 to the latest version (#4945)
+
 * Mon Mar 26 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.1
  - cmd/snapd: make sure signal handlers are established during early
