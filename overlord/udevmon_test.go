@@ -21,12 +21,9 @@ package overlord_test
 
 import (
 	"github.com/snapcore/snapd/overlord"
-	"testing"
 
 	. "gopkg.in/check.v1"
 )
-
-func TestUDevMonitor(t *testing.T) { TestingT(t) }
 
 type udevMonitorSuite struct{}
 
