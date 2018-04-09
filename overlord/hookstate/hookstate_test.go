@@ -199,10 +199,20 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 }
 
 func (s *hookManagerSuite) TestHookTaskEnsure(c *C) {
+	didRun := make(chan bool)
 	s.mockHandler.BeforeCallback = func() {
 		c.Check(s.manager.NumRunningHooks(), Equals, 1)
+		go func() {
+			didRun <- s.manager.GracefullyWaitRunningHooks()
+		}()
 	}
 	s.manager.Ensure()
+	select {
+	case ok := <-didRun:
+		c.Check(ok, Equals, true)
+	case <-time.After(5 * time.Second):
+		c.Fatal("hook run should have been done by now")
+	}
 	s.manager.Wait()
 
 	s.state.Lock()
@@ -984,4 +994,39 @@ func (s *hookManagerSuite) TestCompatForConfigureSnapd(c *C) {
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(task.Status(), Equals, state.DoneStatus)
+}
+
+func (s *hookManagerSuite) TestGracefullyWaitRunningHooksTimeout(c *C) {
+	restore := hookstate.MockDefaultHookTimeout(100 * time.Millisecond)
+	defer restore()
+
+	// this works even if test-snap is not present
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", nil)
+	s.state.Unlock()
+
+	quit := make(chan struct{})
+	defer func() {
+		quit <- struct{}{}
+	}()
+	didRun := make(chan bool)
+	s.mockHandler.BeforeCallback = func() {
+		c.Check(s.manager.NumRunningHooks(), Equals, 1)
+		go func() {
+			didRun <- s.manager.GracefullyWaitRunningHooks()
+		}()
+	}
+
+	s.manager.RegisterHijack("configure", "test-snap", func(ctx *hookstate.Context) error {
+		<-quit
+		return nil
+	})
+
+	s.manager.Ensure()
+	select {
+	case noPending := <-didRun:
+		c.Check(noPending, Equals, false)
+	case <-time.After(2 * time.Second):
+		c.Fatal("timeout should have expired")
+	}
 }
