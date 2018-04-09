@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"golang.org/x/net/context"
@@ -744,6 +745,16 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		reportUpdated[snapName] = true
 	}
 
+	// first core, bases, then rest
+	sort.Sort(byKind(updates))
+	prereqs := make(map[string]*state.TaskSet)
+	waitPrereq := func(ts *state.TaskSet, prereqName string) {
+		preTs := prereqs[prereqName]
+		if preTs != nil {
+			ts.WaitAll(preTs)
+		}
+	}
+
 	for _, update := range updates {
 		channel, flags, snapst := params(update)
 
@@ -786,6 +797,20 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		}
 		ts.JoinLane(st.NewLane())
 
+		if update.Type == snap.TypeOS || update.Type == snap.TypeBase {
+			// prereq types come first in the updates, we
+			// also assume bases don't have hooks, otherwise
+			// they would need to wait on core
+			prereqs[update.Name()] = ts
+		} else {
+			// prereqs were processed, wait for them as necessary
+			// for the other kind of snaps
+			waitPrereq(ts, defaultCoreSnapName)
+			if update.Base != "" {
+				waitPrereq(ts, update.Base)
+			}
+		}
+
 		scheduleUpdate(update.Name(), ts)
 		tasksets = append(tasksets, ts)
 	}
@@ -804,6 +829,22 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	}
 
 	return updated, tasksets, nil
+}
+
+type byKind []*snap.Info
+
+func (bk byKind) Len() int      { return len(bk) }
+func (bk byKind) Swap(i, j int) { bk[i], bk[j] = bk[j], bk[i] }
+
+var kindRevOrder = map[snap.Type]int{
+	snap.TypeOS:   2,
+	snap.TypeBase: 1,
+}
+
+func (bk byKind) Less(i, j int) bool {
+	iRevOrd := kindRevOrder[bk[i].Type]
+	jRevOrd := kindRevOrder[bk[j].Type]
+	return iRevOrd >= jRevOrd
 }
 
 func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(snapName string, ts *state.TaskSet)) (*state.TaskSet, error) {
