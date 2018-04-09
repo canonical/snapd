@@ -20,7 +20,6 @@
 package backend_test
 
 import (
-	"encoding/json"
 	"io"
 	"io/ioutil"
 	"os"
@@ -269,16 +268,16 @@ func (s *snapshotSuite) xTestHappyRoundtrip(c *check.C) {
 	logger.SimpleSetup()
 
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42)}, Version: "v1.33"}
-	cfg := json.RawMessage(`{"some-setting":false}`)
+	cfg := map[string]interface{}{"some-setting": false}
 	shID := uint64(12)
 
-	shw, err := backend.Save(context.TODO(), shID, info, &cfg, []string{"snapuser"})
+	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"})
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
 	c.Check(shw.Snap, check.Equals, info.Name())
 	c.Check(shw.Version, check.Equals, info.Version)
 	c.Check(shw.Revision, check.Equals, info.Revision)
-	c.Check(string(*shw.Config), check.DeepEquals, string(cfg))
+	c.Check(shw.Conf, check.DeepEquals, cfg)
 	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotDir, "12_hello-snap_v1.33.zip"))
 	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
 
@@ -294,8 +293,8 @@ func (s *snapshotSuite) xTestHappyRoundtrip(c *check.C) {
 	c.Check(shr.Snap, check.Equals, info.Name())
 	c.Check(shr.Version, check.Equals, info.Version)
 	c.Check(shr.Revision, check.Equals, info.Revision)
-	c.Check(string(*shr.Config), check.DeepEquals, string(cfg))
-	c.Check(shr.Filename(), check.Equals, backend.Filename(shw))
+	c.Check(shr.Conf, check.DeepEquals, cfg)
+	c.Check(shr.Name(), check.Equals, filepath.Join(dirs.SnapshotDir, "12_hello-snap_v1.33.zip"))
 	c.Check(shr.SHA3_384, check.DeepEquals, shw.SHA3_384)
 
 	c.Check(shr.Check(context.TODO(), nil), check.IsNil)

@@ -86,6 +86,10 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 
 			filename := filepath.Join(dirs.SnapshotDir, name)
 			rsh, openError := open(filename)
+			// rsh can be non-nil even when openError is not nil (in
+			// which case rsh.Broken will have a reason). f can
+			// check and either ignore or return an error when
+			// finding a broken snapshot.
 			if rsh != nil {
 				err = f(rsh)
 			} else {
@@ -93,6 +97,7 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 				logger.Noticef("cannot open snapshot %q: %v", name, openError)
 			}
 			if openError == nil {
+				// if openError was nil the snapshot was opened and needs closing
 				if closeError := rsh.Close(); err == nil {
 					err = closeError
 				}
@@ -110,22 +115,20 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 	return err
 }
 
-// List valid snapshots
-//
-// The snapshots are closed before returning.
-func List(ctx context.Context, snapshotID uint64, snapNames []string) ([]client.SnapshotSet, error) {
-	shotsmap := map[uint64][]*client.Snapshot{}
+// List valid snapshots sets.
+func List(ctx context.Context, setID uint64, snapNames []string) ([]client.SnapshotSet, error) {
+	setshots := map[uint64][]*client.Snapshot{}
 	err := Iter(ctx, func(sh *Reader) error {
-		if snapshotID == 0 || sh.SetID == snapshotID {
+		if setID == 0 || sh.SetID == setID {
 			if len(snapNames) == 0 || strutil.ListContains(snapNames, sh.Snap) {
-				shotsmap[sh.SetID] = append(shotsmap[sh.SetID], &sh.Snapshot)
+				setshots[sh.SetID] = append(setshots[sh.SetID], &sh.Snapshot)
 			}
 		}
 		return nil
 	})
 
-	sets := make([]client.SnapshotSet, 0, len(shotsmap))
-	for id, shots := range shotsmap {
+	sets := make([]client.SnapshotSet, 0, len(setshots))
+	for id, shots := range setshots {
 		sort.Sort(bySnap(shots))
 		sets = append(sets, client.SnapshotSet{ID: id, Snapshots: shots})
 	}
@@ -142,7 +145,7 @@ func Filename(sh *client.Snapshot) string {
 }
 
 // Save a snapshot
-func Save(ctx context.Context, id uint64, si *snap.Info, cfg *json.RawMessage, usernames []string) (sh *client.Snapshot, e error) {
+func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (sh *client.Snapshot, e error) {
 	if err := os.MkdirAll(dirs.SnapshotDir, 0700); err != nil {
 		return nil, err
 	}
@@ -155,7 +158,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg *json.RawMessage, u
 		Time:     time.Now(),
 		SHA3_384: make(map[string]string),
 		Size:     0,
-		Config:   cfg,
+		Conf:     cfg,
 	}
 
 	aw, err := osutil.NewAtomicFile(Filename(sh), 0600, 0, osutil.NoChown, osutil.NoChown)

@@ -26,12 +26,12 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-// Backup stores information that can be used to cleanly revert (or
+// Trash stores information that can be used to cleanly revert (or
 // finish cleaning up) a snapshot Restore.
 //
 // This is useful when a Restore is part of a chain of operations, and
 // a later one failing necessitates undoing the Restore.
-type Backup struct {
+type Trash struct {
 	Done    bool     `json:"done,omitempty"`
 	Created []string `json:"created,omitempty"`
 	Moved   []string `json:"moved,omitempty"`
@@ -39,16 +39,16 @@ type Backup struct {
 	Config *json.RawMessage `json:"config,omitempty"`
 }
 
-// check that you're not trying to use backup info twice; data loss imminent.
-func (b *Backup) check() {
+// check that you're not trying to use trash info twice; data loss imminent.
+func (b *Trash) check() {
 	if b.Done {
-		panic("attempting to use a snapshot.Backup twice")
+		panic("attempting to use a snapshot.Trash twice")
 	}
 	b.Done = true
 }
 
 // Cleanup the backed up data from disk.
-func (b *Backup) Cleanup() {
+func (b *Trash) Cleanup() {
 	b.check()
 	for _, dir := range b.Moved {
 		if err := os.RemoveAll(dir); err != nil {
@@ -58,7 +58,7 @@ func (b *Backup) Cleanup() {
 }
 
 // Revert the backed up data: remove what was added, move back what was moved aside.
-func (b *Backup) Revert() {
+func (b *Trash) Revert() {
 	b.check()
 	for _, dir := range b.Created {
 		logger.Debugf("removing %q", dir)
@@ -67,10 +67,10 @@ func (b *Backup) Revert() {
 		}
 	}
 	for _, dir := range b.Moved {
-		orig := backup2orig(dir)
+		orig := trash2orig(dir)
 		if orig == "" {
-			// dir is not a backup?!?
-			logger.Debugf("skipping restore of %q which seems to not be a backup", dir)
+			// dir is not a trash?!?
+			logger.Debugf("skipping restore of %q which seems to not be a trash", dir)
 			continue
 		}
 		logger.Debugf("restoring %q to %q", dir, orig)

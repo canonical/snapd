@@ -49,7 +49,7 @@ the 'save' command.
 `)
 
 func (x *savedCmd) Execute([]string) error {
-	list, err := Client().Snapshots(uint64(x.ID), installedSnapNames(x.Positional.Snaps))
+	list, err := Client().SnapshotSets(uint64(x.ID), installedSnapNames(x.Positional.Snaps))
 	if err != nil {
 		return err
 	}
@@ -113,12 +113,11 @@ func (x *saveCmd) Execute([]string) error {
 	}
 
 	var shID snapshotID
-	chg.Get("snapshot-id", &shID)
+	chg.Get("set-id", &shID)
 	y := &savedCmd{
 		timeMixin: x.timeMixin,
 		ID:        shID,
 	}
-	y.Positional.Snaps = x.Positional.Snaps
 	return y.Execute(nil)
 }
 
@@ -138,7 +137,7 @@ The forget command deletes a snapshot.
 func (x *forgetCmd) Execute([]string) error {
 	cli := Client()
 	snaps := installedSnapNames(x.Positional.Snaps)
-	changeID, err := cli.ForgetSnapshot(uint64(x.Positional.ID), snaps)
+	changeID, err := cli.ForgetSnapshots(uint64(x.Positional.ID), snaps)
 	if err != nil {
 		return err
 	}
@@ -177,7 +176,7 @@ func (x *checkSnapshotCmd) Execute([]string) error {
 	cli := Client()
 	snaps := installedSnapNames(x.Positional.Snaps)
 	users := strings.Split(x.Users, ",")
-	changeID, err := cli.CheckSnapshot(uint64(x.Positional.ID), snaps, users)
+	changeID, err := cli.CheckSnapshots(uint64(x.Positional.ID), snaps, users)
 	if err != nil {
 		return err
 	}
@@ -218,7 +217,7 @@ func (x *restoreCmd) Execute([]string) error {
 	cli := Client()
 	snaps := installedSnapNames(x.Positional.Snaps)
 	users := strings.Split(x.Users, ",")
-	changeID, err := cli.RestoreSnapshot(uint64(x.Positional.ID), snaps, users)
+	changeID, err := cli.RestoreSnapshots(uint64(x.Positional.ID), snaps, users)
 	if err != nil {
 		return err
 	}

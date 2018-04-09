@@ -70,16 +70,16 @@ func (m *SnapshotManager) Stop() {
 	m.runner.Stop()
 }
 
-type shotState struct {
-	ID       uint64   `json:"id"`
+type snapshotState struct {
+	SetID    uint64   `json:"set-id"`
 	Snap     string   `json:"snap"`
 	Users    []string `json:"users"`
 	Filename string   `json:"filename"`
 }
 
-func filename(id uint64, si *snap.Info) string {
+func filename(setID uint64, si *snap.Info) string {
 	skel := &client.Snapshot{
-		SetID:    id,
+		SetID:    setID,
 		Snap:     si.Name(),
 		Revision: si.Revision,
 		Version:  si.Version,
@@ -87,70 +87,79 @@ func filename(id uint64, si *snap.Info) string {
 	return backend.Filename(skel)
 }
 
-func prepareSave(task *state.Task) (*shotState, *snap.Info, *json.RawMessage, error) {
+func prepareSave(task *state.Task) (*snapshotState, *snap.Info, map[string]interface{}, error) {
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
 
-	var shot shotState
-	if err := task.Get("shot", &shot); err != nil {
+	var snapshot snapshotState
+	if err := task.Get("snapshot", &snapshot); err != nil {
 		return nil, nil, nil, err
 	}
-	cur, err := snapstate.CurrentInfo(st, shot.Snap)
+	cur, err := snapstate.CurrentInfo(st, snapshot.Snap)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	shot.Filename = filename(shot.ID, cur)
-	task.Set("shot", &shot)
+	snapshot.Filename = filename(snapshot.SetID, cur)
+	task.Set("snapshot", &snapshot)
 
-	cfg, err := config.GetSnapConfig(st, shot.Snap)
+	rawCfg, err := config.GetSnapConfig(st, snapshot.Snap)
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	var cfg map[string]interface{}
+	if err := json.Unmarshal(*rawCfg, &cfg); err != nil {
+		cfg = nil
+	}
 
-	return &shot, cur, cfg, nil
+	return &snapshot, cur, cfg, nil
 }
 
 func doSave(task *state.Task, tomb *tomb.Tomb) error {
-	shot, cur, cfg, err := prepareSave(task)
+	snapshot, cur, cfg, err := prepareSave(task)
 	if err != nil {
 		return err
 	}
-	_, err = backend.Save(tomb.Context(nil), shot.ID, cur, cfg, shot.Users)
+	_, err = backend.Save(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users)
 	return err
 }
 
-func prepareRestore(task *state.Task) (*shotState, *json.RawMessage, *backend.Reader, error) {
+func prepareRestore(task *state.Task) (*snapshotState, *json.RawMessage, *backend.Reader, error) {
 	st := task.State()
 
 	st.Lock()
 	defer st.Unlock()
 
-	var shot shotState
-	if err := task.Get("shot", &shot); err != nil {
+	var snapshot snapshotState
+	if err := task.Get("snapshot", &snapshot); err != nil {
 		return nil, nil, nil, err
 	}
 
-	oldCfg, err := config.GetSnapConfig(st, shot.Snap)
+	oldCfg, err := config.GetSnapConfig(st, snapshot.Snap)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	reader, err := backend.Open(shot.Filename)
+	reader, err := backend.Open(snapshot.Filename)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	return &shot, oldCfg, reader, nil
+	return &snapshot, oldCfg, reader, nil
 }
 
 func doRestore(task *state.Task, tomb *tomb.Tomb) error {
-	shot, oldCfg, reader, err := prepareRestore(task)
+	snapshot, oldCfg, reader, err := prepareRestore(task)
 	if err != nil {
 		return err
 	}
 
-	backup, err := reader.RestoreLeavingBackup(tomb.Context(nil), shot.Users, task.Logf)
+	trash, err := reader.RestoreLeavingTrash(tomb.Context(nil), snapshot.Users, task.Logf)
+	if err != nil {
+		return err
+	}
+
+	buf, err := json.Marshal(reader.Conf)
 	if err != nil {
 		return err
 	}
@@ -159,72 +168,73 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	if err := config.SetSnapConfig(st, shot.Snap, reader.Config); err != nil {
-		backup.Revert()
+	if err := config.SetSnapConfig(st, snapshot.Snap, (*json.RawMessage)(&buf)); err != nil {
+		trash.Revert()
 		return err
 	}
 
-	backup.Config = oldCfg
-	task.Set("backup", backup)
+	trash.Config = oldCfg
+	task.Set("trash", trash)
 
 	return nil
 }
 
 func undoRestore(t *state.Task, _ *tomb.Tomb) error {
-	var backup backend.Backup
-	err := func() error {
-		var shot shotState
-		st := t.State()
+	var trash backend.Trash
+	var snapshot snapshotState
 
-		st.Lock()
-		defer st.Unlock()
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
 
-		t.Get("backup", &backup)
-		t.Get("shot", &shot)
+	t.Get("trash", &trash)
+	defer trash.Revert()
+	t.Get("snapshot", &snapshot)
 
-		return config.SetSnapConfig(st, shot.Snap, backup.Config)
-	}()
+	buf, err := json.Marshal(trash.Config)
+	if err != nil {
+		// augh
+		return err
+	}
 
-	backup.Revert()
-
-	return err
+	return config.SetSnapConfig(st, snapshot.Snap, (*json.RawMessage)(&buf))
 }
 
 func cleanupRestore(task *state.Task, _ *tomb.Tomb) error {
-	var backup backend.Backup
+	var trash backend.Trash
 
 	st := task.State()
 	st.Lock()
 	status := task.Status()
-	task.Get("backup", &backup)
+	task.Get("trash", &trash)
 	st.Unlock()
 
 	if status != state.DoneStatus {
 		return nil
 	}
 
-	backup.Cleanup()
+	trash.Cleanup()
 
 	return nil
 }
 
 func doCheck(task *state.Task, tomb *tomb.Tomb) error {
-	var shot shotState
+	var snapshot snapshotState
 
 	st := task.State()
 	st.Lock()
-	err := task.Get("shot", &shot)
+	err := task.Get("snapshot", &snapshot)
 	st.Unlock()
 	if err != nil {
 		return err
 	}
 
-	sh, err := backend.Open(shot.Filename)
+	sh, err := backend.Open(snapshot.Filename)
 	if err != nil {
 		return err
 	}
 
-	return sh.Check(tomb.Context(nil), shot.Users)
+	return sh.Check(tomb.Context(nil), snapshot.Users)
 }
 
 func doForget(task *state.Task, _ *tomb.Tomb) error {
@@ -232,12 +242,12 @@ func doForget(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 
-	var shot shotState
-	err := task.Get("shot", &shot)
+	var snapshot snapshotState
+	err := task.Get("snapshot", &snapshot)
 	st.Unlock()
 	if err != nil {
 		return err
 	}
 
-	return os.Remove(shot.Filename)
+	return os.Remove(snapshot.Filename)
 }

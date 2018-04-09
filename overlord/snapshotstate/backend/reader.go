@@ -116,20 +116,13 @@ func Open(fn string) (rsh *Reader, e error) {
 		rsh.Broken = fmt.Sprintf("declared hash size (%d) does not match actual (%d)", metaHashSize, sz.size)
 		return rsh, errors.New(rsh.Broken)
 	}
-	if actualMetaHash != string(bytes.TrimSpace(metaHashBuf)) {
-		rsh.Broken = "main hash mismatch"
+	if expectedMetaHash := string(bytes.TrimSpace(metaHashBuf)); actualMetaHash != expectedMetaHash {
+		logger.Noticef("Declared metadata hash (%s) does not match actual (%s).", expectedMetaHash, actualMetaHash)
+		rsh.Broken = "metadata hash mismatch"
 		return rsh, errors.New(rsh.Broken)
 	}
 
 	return rsh, nil
-}
-
-// Filename that the Reader reads from.
-func (r *Reader) Filename() string {
-	if r.File != nil {
-		return r.File.Name()
-	}
-	return Filename(&r.Snapshot)
 }
 
 func (r *Reader) checkOne(ctx context.Context, entry string, hasher hash.Hash) error {
@@ -139,7 +132,7 @@ func (r *Reader) checkOne(ctx context.Context, entry string, hasher hash.Hash) e
 	}
 	defer body.Close()
 
-	hashsum := r.SHA3_384[entry]
+	expectedHash := r.SHA3_384[entry]
 	readSize, err := io.Copy(io.MultiWriter(osutil.ContextWriter(ctx), hasher), body)
 	if err != nil {
 		return err
@@ -149,9 +142,9 @@ func (r *Reader) checkOne(ctx context.Context, entry string, hasher hash.Hash) e
 		return fmt.Errorf("snapshot entry %q size (%d) different from actual (%d)", entry, reportedSize, readSize)
 	}
 
-	sha3 := fmt.Sprintf("%x", hasher.Sum(nil))
-	if sha3 != hashsum {
-		return fmt.Errorf("snapshot entry %q hash mismatch", entry)
+	if actualHash := fmt.Sprintf("%x", hasher.Sum(nil)); actualHash != expectedHash {
+		logger.Noticef("Snapshot entry %q expected hash (%s) does not match actual (%s).", entry, expectedHash, actualHash)
+		return fmt.Errorf("snapshot entry %q expected hash different from actual", entry)
 	}
 	return nil
 }
@@ -165,7 +158,7 @@ func (r *Reader) Check(ctx context.Context, usernames []string) error {
 		if len(usernames) > 0 && isUserArchive(entry) {
 			username := entryUsername(entry)
 			if !strutil.SortedListContains(usernames, username) {
-				logger.Debugf("skipping check of %q", username)
+				logger.Debugf("In checking snapshot %q, skipping entry %q by user request.", r.Name(), username)
 				continue
 			}
 		}
@@ -194,21 +187,21 @@ func (r *Reader) Restore(ctx context.Context, usernames []string, logf Logf) err
 	return err
 }
 
-// RestoreLeavingBackup is like Restore, but it leaves the old data in
-// a backup directory.
-func (r *Reader) RestoreLeavingBackup(ctx context.Context, usernames []string, logf Logf) (*Backup, error) {
+// RestoreLeavingTrash is like Restore, but it leaves the old data in
+// a trash directory.
+func (r *Reader) RestoreLeavingTrash(ctx context.Context, usernames []string, logf Logf) (*Trash, error) {
 	return r.restore(ctx, true, usernames, logf)
 }
 
-func (r *Reader) restore(ctx context.Context, leaveBackup bool, usernames []string, logf Logf) (b *Backup, e error) {
-	b = &Backup{}
+func (r *Reader) restore(ctx context.Context, leaveTrash bool, usernames []string, logf Logf) (b *Trash, e error) {
+	b = &Trash{}
 	defer func() {
 		if e != nil {
-			logger.Debugf("restore failed; undoing")
+			logger.Noticef("Restore of snapshot %q failed (%v); undoing.", r.Name(), e)
 			b.Revert()
 			b = nil
-		} else if !leaveBackup {
-			logger.Debugf("restore succeeded; cleaning up")
+		} else if !leaveTrash {
+			logger.Debugf("Restore of snapshot succeeded and no trash requested; cleaning up.")
 			b.Cleanup()
 			b = nil
 		}
@@ -230,15 +223,22 @@ func (r *Reader) restore(ctx context.Context, leaveBackup bool, usernames []stri
 		uid := sys.UserID(osutil.NoChown)
 		gid := sys.GroupID(osutil.NoChown)
 
-		if isUser {
+		if !isUser {
+			if entry != archiveName {
+				// hmmm
+				logf("Skipping restore of unknown entry %q.", entry)
+				continue
+			}
+			dest = si.DataDir()
+		} else {
 			username := entryUsername(entry)
 			if len(usernames) > 0 && !strutil.SortedListContains(usernames, username) {
-				logger.Debugf("skipping restore of user %q", username)
+				logger.Debugf("In restoring snapshot %q, skipping entry %q by user request.", r.Name(), username)
 				continue
 			}
 			usr, err := userLookup(username)
 			if err != nil {
-				logf("skipping restore of user %q: %v", username, err)
+				logf("Skipping restore of user %q: %v.", username, err)
 				continue
 			}
 
@@ -246,15 +246,15 @@ func (r *Reader) restore(ctx context.Context, leaveBackup bool, usernames []stri
 			fi, err := os.Stat(usr.HomeDir)
 			if err != nil {
 				if osutil.IsDirNotExist(err) {
-					logf("skipping restore of %q as %q doesn't exist", dest, usr.HomeDir)
+					logf("Skipping restore of %q as %q doesn't exist.", dest, usr.HomeDir)
 				} else {
-					logf("skipping restore of %q: %v", dest, err)
+					logf("Skipping restore of %q: %v.", dest, err)
 				}
 				continue
 			}
 
 			if !fi.IsDir() {
-				logf("skipping restore of %q as %q is not a directory", dest, usr.HomeDir)
+				logf("Skipping restore of %q as %q is not a directory.", dest, usr.HomeDir)
 				continue
 			}
 
@@ -267,13 +267,6 @@ func (r *Reader) restore(ctx context.Context, leaveBackup bool, usernames []stri
 					gid = sys.GroupID(st.Gid)
 				}
 			}
-		} else {
-			if entry != archiveName {
-				// hmmm
-				logf("skipping restore of unknown entry %q", entry)
-				continue
-			}
-			dest = si.DataDir()
 		}
 		parent, revdir := filepath.Split(dest)
 
@@ -291,7 +284,7 @@ func (r *Reader) restore(ctx context.Context, leaveBackup bool, usernames []stri
 			}
 			b.Created = append(b.Created, parent)
 		} else if !isDir {
-			return b, fmt.Errorf("cannot restore snapshot into %q: not a directory", parent)
+			return b, fmt.Errorf("Cannot restore snapshot into %q: not a directory.", parent)
 		}
 
 		tempdir, err := ioutil.TempDir(parent, ".snapshot")
@@ -301,18 +294,18 @@ func (r *Reader) restore(ctx context.Context, leaveBackup bool, usernames []stri
 		// one way or another we want tempdir gone
 		defer func() {
 			if err := os.RemoveAll(tempdir); err != nil {
-				logf("cannot clean up temporary directory %q: %v", tempdir, err)
+				logf("Cannot clean up temporary directory %q: %v.", tempdir, err)
 			}
 		}()
 
-		logger.Debugf("restoring %q into %q", entry, tempdir)
+		logger.Debugf("Restoring %q from %q into %q.", entry, r.Name(), tempdir)
 
-		body, reportedSize, err := member(r.File, entry)
+		body, expectedSize, err := member(r.File, entry)
 		if err != nil {
 			return b, err
 		}
 
-		hashsum := r.SHA3_384[entry]
+		expectedHash := r.SHA3_384[entry]
 
 		tr := io.TeeReader(body, io.MultiWriter(hasher, &sz))
 
@@ -332,13 +325,14 @@ func (r *Reader) restore(ctx context.Context, leaveBackup bool, usernames []stri
 			return b, err
 		}
 
-		sha3 := fmt.Sprintf("%x", hasher.Sum(nil))
-		if sha3 != hashsum {
-			return b, fmt.Errorf("snapshot checksum mismatch")
+		if sz.size != expectedSize {
+			return b, fmt.Errorf("snapshot %q entry %q expected size (%d) does not match actual (%d)", r.Name(), entry, expectedSize, sz.size)
 		}
 
-		if sz.size != reportedSize {
-			return b, fmt.Errorf("snapshot size mismatch")
+		if actualHash := fmt.Sprintf("%x", hasher.Sum(nil)); actualHash != expectedHash {
+			logger.Noticef("Snapshot %q entry %q expected hash (%s) does not match actual (%s).",
+				r.Name(), entry, expectedHash, actualHash)
+			return b, fmt.Errorf("snapshot %q entry %q expected hash does not match actual", r.Name(), entry)
 		}
 
 		// TODO: something with Config
@@ -356,14 +350,14 @@ func (r *Reader) restore(ctx context.Context, leaveBackup bool, usernames []stri
 				return b, err
 			}
 			if exists {
-				backup, err := nextBackup(target)
+				trash, err := nextTrash(target)
 				if err != nil {
 					return b, err
 				}
-				if err := os.Rename(target, backup); err != nil {
+				if err := os.Rename(target, trash); err != nil {
 					return b, err
 				}
-				b.Moved = append(b.Moved, backup)
+				b.Moved = append(b.Moved, trash)
 			}
 
 			if err := os.Rename(source, target); err != nil {

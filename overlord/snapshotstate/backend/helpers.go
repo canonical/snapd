@@ -36,22 +36,20 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func nextBackup(fn string) (string, error) {
-	// this is a TOCTOU problem
-	// (but the directory and its parent should be root:root and 0700, so it's probably ok)
+func nextTrash(fn string) (string, error) {
 	for n := 1; n < 100; n++ {
 		cand := fmt.Sprintf("%s.~%d~", fn, n)
 		if exists, _, _ := osutil.DirExists(cand); !exists {
 			return cand, nil
 		}
 	}
-	return "", fmt.Errorf("cannot find a backup name for %q", fn)
+	return "", fmt.Errorf("cannot find a trash name for %q", fn)
 }
 
-var backupRx = regexp.MustCompile(`\.~\d+~$`)
+var trashRx = regexp.MustCompile(`\.~\d+~$`)
 
-func backup2orig(fn string) string {
-	if idx := backupRx.FindStringIndex(fn); len(idx) > 0 {
+func trash2orig(fn string) string {
+	if idx := trashRx.FindStringIndex(fn); len(idx) > 0 {
 		return fn[:idx[0]]
 	}
 	return ""

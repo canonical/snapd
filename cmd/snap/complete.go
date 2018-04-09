@@ -478,7 +478,7 @@ func (s aliasOrSnap) Complete(match string) []flags.Completion {
 type snapshotID uint64
 
 func (snapshotID) Complete(match string) []flags.Completion {
-	shots, err := Client().Snapshots(0, nil)
+	shots, err := Client().SnapshotSets(0, nil)
 	if err != nil {
 		return nil
 	}

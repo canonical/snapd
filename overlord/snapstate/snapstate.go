@@ -337,7 +337,7 @@ var snapTopicalTasks = map[string]bool{
 	"prefer-aliases":      true,
 	"connect":             true,
 	"disconnect":          true,
-	"snapshot-snap":       true,
+	"save-snapshot":       true,
 	"restore-snapshot":    true,
 }
 

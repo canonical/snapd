@@ -1171,7 +1171,7 @@ func snapSwitch(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
-	shID, snapshotted, ts, err := snapshotSave(st, inst.Snaps, inst.Users)
+	setID, snapshotted, ts, err := snapshotSave(st, inst.Snaps, inst.Users)
 	if err != nil {
 		return nil, err
 	}
@@ -1188,7 +1188,7 @@ func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResul
 		summary:  msg,
 		affected: snapshotted,
 		tasksets: []*state.TaskSet{ts},
-		apiData:  map[string]interface{}{"snapshot-id": shID},
+		apiData:  map[string]interface{}{"set-id": setID},
 	}, nil
 }
 
@@ -2872,25 +2872,46 @@ func systemCoreSnapUnalias(name string) string {
 
 func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
-	var id uint64
-	sid := query.Get("id")
-	if sid != "" {
+	var setID uint64
+	if sid := query.Get("set"); sid != "" {
 		var err error
-		id, err = strconv.ParseUint(sid, 10, 64)
+		setID, err = strconv.ParseUint(sid, 10, 64)
 		if err != nil {
-			return BadRequest("'id', if given, must be a positive base 10 number; got %q", sid)
+			return BadRequest("'set', if given, must be a positive base 10 number; got %q", sid)
 		}
 	}
 
-	shots, err := snapshotList(context.TODO(), id, splitQS(r.URL.Query().Get("snaps")))
+	sets, err := snapshotList(context.TODO(), setID, splitQS(r.URL.Query().Get("snaps")))
 	if err != nil {
-		return InternalError(err.Error())
+		return InternalError("%v", err)
 	}
-	return SyncResponse(shots, nil)
+	return SyncResponse(sets, nil)
+}
+
+// A snapshotAction is used to request an operation on a snapshot
+// keep this in sync with client/snapshotAction...
+type snapshotAction struct {
+	SetID  uint64   `json:"set"`
+	Action string   `json:"action"`
+	Snaps  []string `json:"snaps,omitempty"`
+	Users  []string `json:"users,omitempty"`
+}
+
+func (action *snapshotAction) String() string {
+	// verb of snapshot #N [for snaps %q] [for users %q]
+	var snaps string
+	var users string
+	if len(action.Snaps) > 0 {
+		snaps = " for snaps " + strutil.Quoted(action.Snaps)
+	}
+	if len(action.Users) > 0 {
+		users = " for users " + strutil.Quoted(action.Users)
+	}
+	return fmt.Sprintf("%s of snapshot set #%d%s%s", strings.Title(action.Action), action.SetID, snaps, users)
 }
 
 func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
-	var action client.SnapshotAction
+	var action snapshotAction
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&action); err != nil {
 		return BadRequest("cannot decode request body into snapshot operation: %v", err)
@@ -2899,8 +2920,8 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 		return BadRequest("extra content found after snapshot operation")
 	}
 
-	if action.ID == 0 {
-		return BadRequest("snapshot operation requires snapshot ID")
+	if action.SetID == 0 {
+		return BadRequest("snapshot operation requires snapshot set ID")
 	}
 
 	if action.Action == "" {
@@ -2917,14 +2938,14 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 
 	switch action.Action {
 	case "check":
-		affected, ts, err = snapshotCheck(st, action.ID, action.Snaps, action.Users)
+		affected, ts, err = snapshotCheck(st, action.SetID, action.Snaps, action.Users)
 	case "restore":
-		affected, ts, err = snapshotRestore(st, action.ID, action.Snaps, action.Users)
+		affected, ts, err = snapshotRestore(st, action.SetID, action.Snaps, action.Users)
 	case "forget":
 		if len(action.Users) != 0 {
 			return BadRequest(`snapshot "forget" operation cannot specify users`)
 		}
-		affected, ts, err = snapshotForget(st, action.ID, action.Snaps)
+		affected, ts, err = snapshotForget(st, action.SetID, action.Snaps)
 	default:
 		return BadRequest("unknown snapshot operation %q", action.Action)
 	}
@@ -2932,8 +2953,8 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 	switch err {
 	case nil:
 		// woo
-	case client.ErrSnapshotNotFound, client.ErrSnapshotSnapsNotFound:
-		return NotFound(err.Error())
+	case client.ErrSnapshotSetNotFound, client.ErrSnapshotSnapsNotFound:
+		return NotFound("%v", err)
 	default:
 		return InternalError("%v", err)
 	}
