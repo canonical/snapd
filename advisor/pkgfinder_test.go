@@ -17,27 +17,24 @@
  *
  */
 
-package advisor
+package advisor_test
 
 import (
-	"os"
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/advisor"
 )
 
-type Package struct {
-	Snap    string `json:"snap"`
-	Version string `json:"version"`
-	Summary string `json:"summary,omitempty"`
+func (s *cmdfinderSuite) TestFindPackageHit(c *C) {
+	pkg, err := advisor.FindPackage("foo")
+	c.Assert(err, IsNil)
+	c.Check(pkg, DeepEquals, &advisor.Package{
+		Snap: "foo", Version: "1.0", Summary: "foo summary",
+	})
 }
 
-func FindPackage(pkgName string) (*Package, error) {
-	finder, err := newFinder()
-	if err != nil && os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer finder.Close()
-
-	return finder.FindPackage(pkgName)
+func (s *cmdfinderSuite) TestFindPackageMiss(c *C) {
+	pkg, err := advisor.FindPackage("moh")
+	c.Assert(err, IsNil)
+	c.Check(pkg, IsNil)
 }
