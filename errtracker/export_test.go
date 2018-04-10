@@ -71,14 +71,6 @@ func MockReExec(f func() string) (restorer func()) {
 	}
 }
 
-func MockWhoopsiePreferences(path string) (restorer func()) {
-	old := whoopsiePreferences
-	whoopsiePreferences = path
-	return func() {
-		whoopsiePreferences = old
-	}
-}
-
 func MockOsGetenv(f func(string) string) (restorer func()) {
 	old := osGetenv
 	osGetenv = f
