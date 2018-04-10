@@ -182,9 +182,6 @@ var (
 func translateSnapActionError(action, code, message string) error {
 	switch code {
 	case "revision-not-found":
-		if action == "refresh" {
-			return ErrNoUpdateAvailable
-		}
 		return ErrRevisionNotAvailable
 	case "id-not-found", "name-not-found":
 		return ErrSnapNotFound
