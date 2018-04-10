@@ -38,12 +38,9 @@ var (
 	// safe_bindmount
 	SecureOpenPath = secureOpenPath
 	// utils
-	PlanWritableMimic  = planWritableMimic
-	ExecWritableMimic  = execWritableMimic
-	SecureMkdirAll     = secureMkdirAll
-	SecureMkfileAll    = secureMkfileAll
-	SecureMksymlinkAll = secureMksymlinkAll
-	SplitIntoSegments  = splitIntoSegments
+	PlanWritableMimic = planWritableMimic
+	ExecWritableMimic = execWritableMimic
+	SplitIntoSegments = splitIntoSegments
 
 	// main
 	ComputeAndSaveChanges = computeAndSaveChanges
@@ -136,7 +133,7 @@ func FreezerCgroupDir() string {
 	return freezerCgroupDir
 }
 
-func MockChangePerform(f func(chg *Change) ([]*Change, error)) func() {
+func MockChangePerform(f func(chg *Change, sec *Secure) ([]*Change, error)) func() {
 	origChangePerform := changePerform
 	changePerform = f
 	return func() {
