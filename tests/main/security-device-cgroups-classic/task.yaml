@@ -5,7 +5,7 @@ details: |
     sure that other devices are still accessible (ie, the cgroup is not in
     effect).
 
-# Disabled on Fedora and Ubuntu Core because they don't support classic
+# Disabled on Fedora, Ubuntu Core and Arch because they don't support classic
 # confinement.
 systems: [-fedora-*, -ubuntu-core-*, -arch-*]
 
