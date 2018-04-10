@@ -292,25 +292,39 @@ func (s *ErrtrackerTestSuite) TestReportRepair(c *C) {
 	c.Check(n, Equals, 1)
 }
 
-func (s *ErrtrackerTestSuite) TestReportWithWhoopsiePreferencesDisabled(c *C) {
-	mockWhoopsiePrefs := filepath.Join(c.MkDir(), "whoopsie")
-	err := ioutil.WriteFile(mockWhoopsiePrefs, []byte(`
-[General]
-report_metrics=false
-`), 0644)
-	c.Assert(err, IsNil)
-	restorer := errtracker.MockWhoopsiePreferences(mockWhoopsiePrefs)
-	defer restorer()
+func (s *ErrtrackerTestSuite) TestReportWithWhoopsieDisabled(c *C) {
+	mockCmd := testutil.MockCommand(c, "systemctl", "echo disabled; exit 1")
+	defer mockCmd.Restore()
 
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		c.Fatalf("The server should not be hit from here")
 	}
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	defer server.Close()
-	restorer = errtracker.MockCrashDbURL(server.URL)
+	restorer := errtracker.MockCrashDbURL(server.URL)
 	defer restorer()
 
 	id, err := errtracker.Report("some-snap", "failed to do stuff", "[failed to do stuff]", nil)
 	c.Check(err, IsNil)
 	c.Check(id, Equals, "")
+}
+
+func (s *ErrtrackerTestSuite) TestReportWithNoWhoopsieInstalled(c *C) {
+	mockCmd := testutil.MockCommand(c, "systemctl", "echo Failed to get unit file state for whoopsie.service; exit 1")
+	defer mockCmd.Restore()
+
+	n := 0
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "1234-oopsid")
+		n++
+	}
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+	restorer := errtracker.MockCrashDbURL(server.URL)
+	defer restorer()
+
+	id, err := errtracker.Report("some-snap", "failed to do stuff", "[failed to do stuff]", nil)
+	c.Check(err, IsNil)
+	c.Check(id, Equals, "1234-oopsid")
+	c.Check(n, Equals, 1)
 }
