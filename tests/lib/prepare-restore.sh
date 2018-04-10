@@ -346,6 +346,19 @@ restore_project_each() {
         echo "Invalid udev file detected, test most likely broke it"
         exit 1
     fi
+
+    # Check if the OOM killer got invoked - if that is the case our tests
+    # will most likely not function correctly anymore. It looks like this
+    # happens with: https://forum.snapcraft.io/t/4101 and is a source of
+    # failure in the autopkgtest environment.
+    if dmesg|grep "oom-killer"; then
+        echo "oom-killer got invoked during the tests, this should not happen."
+        echo "Dmesg debug output:"
+        dmesg
+        echo "Meminfo debug output:"
+        cat /proc/meminfo
+        exit 1
+    fi
 }
 
 restore_project() {
