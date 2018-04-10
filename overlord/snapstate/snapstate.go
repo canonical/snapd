@@ -755,6 +755,8 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		}
 	}
 
+	// updates is sorted by kind so this will process first core
+	// and bases and then other snaps
 	for _, update := range updates {
 		channel, flags, snapst := params(update)
 
@@ -797,14 +799,18 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		}
 		ts.JoinLane(st.NewLane())
 
+		// because of the sorting of updates we fill prereqs
+		// first (if branch) and only then use it to setup
+		// waits (else branch)
 		if update.Type == snap.TypeOS || update.Type == snap.TypeBase {
-			// prereq types come first in the updates, we
+			// prereq types come first in updates, we
 			// also assume bases don't have hooks, otherwise
 			// they would need to wait on core
 			prereqs[update.Name()] = ts
 		} else {
-			// prereqs were processed, wait for them as necessary
-			// for the other kind of snaps
+			// prereqs were processed already, wait for
+			// them as necessary for the other kind of
+			// snaps
 			waitPrereq(ts, defaultCoreSnapName)
 			if update.Base != "" {
 				waitPrereq(ts, update.Base)
