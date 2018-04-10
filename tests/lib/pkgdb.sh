@@ -611,7 +611,23 @@ install_pkg_dependencies(){
 distro_upgrade() {
     case "$SPREAD_SYSTEM" in
         arch-*)
-            if pacman -Syu --noconfirm 2>&1 | grep -q "there is nothing to do" ; then
+            # Arch does not support partial upgrades. On top of this, the image
+            # we are running in may have been built some time ago and we need to
+            # upgrade so that the tests are run with the same package versions
+            # as the users will have. We basically need to run pacman -Syu.
+            # Since there is no way to tell if we can continue after upgrading
+            # (eg. the kernel package or systemd got updated ) issue a reboot
+            # instead.
+            #
+            # pacman -Syu --noconfirm on an updated system:
+            # :: Synchronizing package databases...
+            #  core is up to date
+            #  extra is up to date
+            #  community is up to date
+            #  multilib is up to date
+            # :: Starting full system upgrade...
+            #  there is nothing to do  <--- needle
+            if ! pacman -Syu --noconfirm 2>&1 | grep -q "there is nothing to do" ; then
                 echo "reboot"
             fi
             ;;
