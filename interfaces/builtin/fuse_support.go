@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -54,7 +54,7 @@ capability sys_admin,
 # Allow mounts to our snap-specific writable directories
 # Note 1: fstype is 'fuse.<command>', eg 'fuse.sshfs'
 # Note 2: due to LP: #1612393 - @{HOME} can't be used in mountpoint
-# Note 3: local fuse mounts of filesystem directories are mediated by 
+# Note 3: local fuse mounts of filesystem directories are mediated by
 #         AppArmor. The actual underlying file in the source directory is
 #         mediated, not the presentation layer of the target directory, so
 #         we can safely allow all local mounts to our snap-specific writable
@@ -67,6 +67,10 @@ mount fstype=fuse.* options=(ro,nosuid,nodev) ** -> /home/*/snap/@{SNAP_NAME}/@{
 mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /home/*/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**/},
 mount fstype=fuse.* options=(ro,nosuid,nodev) ** -> /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**/},
 mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /var/snap/@{SNAP_NAME}/@{SNAP_REVISION}/{,**/},
+mount fstype=fuse.* options=(ro,nosuid,nodev) ** -> /home/*/snap/@{SNAP_NAME}/common/{,**/},
+mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /home/*/snap/@{SNAP_NAME}/common/{,**/},
+mount fstype=fuse.* options=(ro,nosuid,nodev) ** -> /var/snap/@{SNAP_NAME}/common/{,**/},
+mount fstype=fuse.* options=(rw,nosuid,nodev) ** -> /var/snap/@{SNAP_NAME}/common/{,**/},
 
 # Explicitly deny reads to /etc/fuse.conf. We do this to ensure that
 # the safe defaults of fuse are used (which are enforced by our mount
