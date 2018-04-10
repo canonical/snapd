@@ -57,7 +57,23 @@ func SecureBindMount(sourceDir, targetDir string, flags uint) error {
 	defer sysClose(targetFd)
 
 	// Step 2: perform a bind mount between the paths identified
-	// by the two file descriptors.
+	// by the two file descriptors. We primarily care about
+	// privilege escalation here and trying to race the sysMount()
+	// by removing any part of the dir (sourceDir or targetDir)
+	// after we have an open file descriptor to it (sourceFd or
+	// targetFd) to then replace an element of the dir's path with
+	// a symlink will cause the fd path (ie, sourceFdPath or
+	// targetFdPath) to be marked as unmountable within the kernel
+	// (this path is also changed to show as
+	// '(deleted)'). Alternatively, simply renaming the dir
+	// (sourceDir or targetDir) after we have an open file
+	// descriptor to it (sourceFd or targetFd) causes the mount to
+	// happen with the newly renamed path, but this rename is
+	// controlled by DAC so while the user could race the mount
+	// source or target, this rename can't be used to gain
+	// privileged access to files. For systems with AppArmor
+	// enabled, this raced rename would be denied by the per-snap
+	// snap-update-ns AppArmor profle.
 	sourceFdPath := fmt.Sprintf("/proc/self/fd/%d", sourceFd)
 	targetFdPath := fmt.Sprintf("/proc/self/fd/%d", targetFd)
 	bindFlags := syscall.MS_BIND | (flags & syscall.MS_REC)
