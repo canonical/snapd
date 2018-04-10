@@ -218,6 +218,7 @@ type refreshCand struct {
 func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	var name string
 
+	typ := snap.TypeApp
 	switch cand.snapID {
 	case "":
 		panic("store refresh APIs expect snap-ids")
@@ -231,12 +232,16 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "some-snap"
 	case "core-snap-id":
 		name = "core"
+		typ = snap.TypeOS
 	case "snap-with-snapd-control-id":
 		name = "snap-with-snapd-control"
 	case "producer-id":
 		name = "producer"
 	case "consumer-id":
 		name = "consumer"
+	case "some-base-id":
+		name = "some-base"
+		typ = snap.TypeBase
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
@@ -256,6 +261,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	}
 
 	info := &snap.Info{
+		Type: typ,
 		SideInfo: snap.SideInfo{
 			RealName: name,
 			Channel:  cand.channel,
@@ -278,6 +284,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 				Symlink: "$SNAP/usr",
 			},
 		}
+	case "channel-for-base":
+		info.Base = "some-base"
 	}
 
 	var hit snap.Revision
