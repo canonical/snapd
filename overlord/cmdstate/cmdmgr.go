@@ -41,6 +41,7 @@ func Manager(st *state.State) *CommandManager {
 	return &CommandManager{runner: runner}
 }
 
+// KnownTaskKinds is part of the overlord.StateManager interface.
 func (m *CommandManager) KnownTaskKinds() []string {
 	return m.runner.KnownTaskKinds()
 }

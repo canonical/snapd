@@ -103,6 +103,7 @@ var (
 	SystemFontconfigCacheDir string
 
 	FreezerCgroupDir string
+	SnapshotDir      string
 )
 
 const (
@@ -256,4 +257,5 @@ func SetRootDir(rootdir string) {
 	SystemFontconfigCacheDir = filepath.Join(rootdir, "/var/cache/fontconfig")
 
 	FreezerCgroupDir = filepath.Join(rootdir, "/sys/fs/cgroup/freezer/")
+	SnapshotDir = filepath.Join(rootdir, "/var/spool/snapd/snapshots")
 }
