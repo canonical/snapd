@@ -113,7 +113,22 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 */
 
 const defaultCoreSnapName = "core"
-const defaultBaseSnapsChannel = "stable"
+
+func defaultBaseSnapsChannel() string {
+	channel := os.Getenv("SNAPD_BASES_CHANNEL")
+	if channel == "" {
+		return "stable"
+	}
+	return channel
+}
+
+func defaultPrereqSnapsChannel() string {
+	channel := os.Getenv("SNAPD_PREREQS_CHANNEL")
+	if channel == "" {
+		return "stable"
+	}
+	return channel
+}
 
 func linkSnapInFlight(st *state.State, snapName string) (bool, error) {
 	for _, chg := range st.Changes() {
@@ -182,7 +197,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string, onInFlight error, userID int) (*state.TaskSet, error) {
+func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName, channel string, onInFlight error, userID int) (*state.TaskSet, error) {
 	// installed already?
 	isInstalled, err := isInstalled(st, snapName)
 	if err != nil {
@@ -201,7 +216,7 @@ func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string,
 	}
 
 	// not installed, nor queued for install -> install it
-	ts, err := Install(st, snapName, defaultBaseSnapsChannel, snap.R(0), userID, Flags{})
+	ts, err := Install(st, snapName, channel, snap.R(0), userID, Flags{})
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
 	// retrying the operation.
@@ -223,7 +238,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	var tss []*state.TaskSet
 	for _, prereqName := range prereq {
 		var onInFlightErr error = nil
-		ts, err := m.installOneBaseOrRequired(st, prereqName, onInFlightErr, userID)
+		ts, err := m.installOneBaseOrRequired(st, prereqName, defaultPrereqSnapsChannel(), onInFlightErr, userID)
 		if err != nil {
 			return err
 		}
@@ -236,7 +251,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	// for base snaps we need to wait until the change is done
 	// (either finished or failed)
 	onInFlightErr := &state.Retry{After: prerequisitesRetryTimeout}
-	tsBase, err := m.installOneBaseOrRequired(st, base, onInFlightErr, userID)
+	tsBase, err := m.installOneBaseOrRequired(st, base, defaultBaseSnapsChannel(), onInFlightErr, userID)
 	if err != nil {
 		return err
 	}
