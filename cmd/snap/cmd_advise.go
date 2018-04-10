@@ -59,19 +59,28 @@ func init() {
 }
 
 func outputAdviseExactText(command string, result []advisor.Command) error {
-	fmt.Fprintf(Stdout, i18n.G("The program %q can be found in the following snaps:\n"), command)
+	fmt.Fprintf(Stdout, "\n")
+	fmt.Fprintf(Stdout, i18n.G("Command %q not found, but can be installed with:\n"), command)
+	fmt.Fprintf(Stdout, "\n")
 	for _, snap := range result {
-		fmt.Fprintf(Stdout, " * %s\n", snap.Snap)
+		fmt.Fprintf(Stdout, "sudo snap install %s\n", snap.Snap)
 	}
-	fmt.Fprintf(Stdout, i18n.G("Try: snap install <selected snap>\n"))
+	fmt.Fprintf(Stdout, "\n")
+	fmt.Fprintf(Stdout, "See 'snap info <snap name>' for additional versions.\n")
+	fmt.Fprintf(Stdout, "\n")
 	return nil
 }
 
 func outputAdviseMisspellText(command string, result []advisor.Command) error {
-	fmt.Fprintf(Stdout, i18n.G("No command %q found, did you mean:\n"), command)
+	fmt.Fprintf(Stdout, "\n")
+	fmt.Fprintf(Stdout, i18n.G("Command %q not found, did you mean:\n"), command)
+	fmt.Fprintf(Stdout, "\n")
 	for _, snap := range result {
-		fmt.Fprintf(Stdout, " Command %q from snap %q\n", snap.Command, snap.Snap)
+		fmt.Fprintf(Stdout, " command %q from snap %q\n", snap.Command, snap.Snap)
 	}
+	fmt.Fprintf(Stdout, "\n")
+	fmt.Fprintf(Stdout, "See 'snap info <snap name>' for additional versions.\n")
+	fmt.Fprintf(Stdout, "\n")
 	return nil
 }
 
