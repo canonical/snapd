@@ -70,11 +70,3 @@ func MockReExec(f func() string) (restorer func()) {
 		didSnapdReExec = oldDidSnapdReExec
 	}
 }
-
-func MockWhoopsiePreferences(path string) (restorer func()) {
-	old := whoopsiePreferences
-	whoopsiePreferences = path
-	return func() {
-		whoopsiePreferences = old
-	}
-}
