@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"errors"
+	"sort"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -171,4 +172,9 @@ func MockRefreshRetryDelay(d time.Duration) func() {
 	return func() {
 		refreshRetryDelay = origRefreshRetryDelay
 	}
+}
+
+func ByKindOrder(snaps ...*snap.Info) []*snap.Info {
+	sort.Sort(byKind(snaps))
+	return snaps
 }
