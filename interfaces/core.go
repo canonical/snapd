@@ -113,6 +113,8 @@ type Info struct {
 	Slots   []*snap.SlotInfo
 }
 
+// ConnectionInfo describes a connection between a plug and a slot for the user.
+// Either the plug or the slot may be nil to represent a slot/plug that's not connected.
 type ConnectionInfo struct {
 	Interface string
 	Notes     []string
