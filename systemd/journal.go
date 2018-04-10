@@ -68,9 +68,5 @@ func NewJournalStreamFile(identifier string, priority syslog.Priority, levelPref
 		return nil, fmt.Errorf("failed to write header: %v", err)
 	}
 
-	f, err := conn.File()
-	if err != nil {
-		return nil, err
-	}
-	return f, nil
+	return conn.File()
 }
