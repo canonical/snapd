@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -99,6 +99,8 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux.HandleFunc("/api/v1/snaps/metadata", store.bulkEndpoint)
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(topDir))))
 	mux.HandleFunc("/api/v1/snaps/assertions/", store.assertionsEndpoint)
+	// v2
+	mux.HandleFunc("/v2/snaps/refresh", store.snapActionEndpoint)
 
 	return store
 }
@@ -185,19 +187,19 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 
 	info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), 400)
+		http.Error(w, fmt.Sprintf("cannot get info for: %v: %v", fn, err), 400)
 		return nil, errInfo
 	}
 
 	snapDigest, size, err := asserts.SnapFileSHA3_384(fn)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can get digest for: %v: %v", fn, err), 400)
+		http.Error(w, fmt.Sprintf("cannot get digest for: %v: %v", fn, err), 400)
 		return nil, errInfo
 	}
 
 	snapRev, devAcct, err := findSnapRevision(snapDigest, bs)
 	if err != nil && !asserts.IsNotFound(err) {
-		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), 400)
+		http.Error(w, fmt.Sprintf("cannot get info for: %v: %v", fn, err), 400)
 		return nil, errInfo
 	}
 
@@ -407,7 +409,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 
 		name := snapIDtoName[pkg.SnapID]
 		if name == "" {
-			http.Error(w, fmt.Sprintf("unknown snapid: %q", pkg.SnapID), 400)
+			http.Error(w, fmt.Sprintf("unknown snap-id: %q", pkg.SnapID), 400)
 			return
 		}
 
@@ -439,7 +441,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 	// should look nice
 	out, err := json.MarshalIndent(replyData, "", "    ")
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can marshal: %v: %v", replyData, err), 400)
+		http.Error(w, fmt.Sprintf("cannot marshal: %v: %v", replyData, err), 400)
 		return
 	}
 	w.Write(out)
@@ -480,6 +482,153 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 	}
 
 	return bs, nil
+}
+
+type currentSnap struct {
+	SnapID      string `json:"snap-id"`
+	InstanceKey string `json:"instance-key"`
+}
+
+type snapAction struct {
+	Action      string `json:"action"`
+	InstanceKey string `json:"instance-key"`
+	SnapID      string `json:"snap-id"`
+	Name        string `json:"name"`
+}
+
+type snapActionRequest struct {
+	Context []currentSnap `json:"context"`
+	Fields  []string      `json:"fields"`
+	Actions []snapAction  `json:"actions"`
+}
+
+type snapActionResult struct {
+	Result      string          `json:"result"`
+	InstanceKey string          `json:"instance-key"`
+	SnapID      string          `json:"snap-id"`
+	Name        string          `json:"name"`
+	Snap        detailsResultV2 `json:"snap"`
+}
+
+type snapActionResultList struct {
+	Results []*snapActionResult `json:"results"`
+}
+
+type detailsResultV2 struct {
+	Architectures []string `json:"architectures"`
+	SnapID        string   `json:"snap-id"`
+	Name          string   `json:"name"`
+	Publisher     struct {
+		ID       string `json:"id"`
+		Username string `json:"username"`
+	} `json:"publisher"`
+	Download struct {
+		URL      string `json:"url"`
+		Sha3_384 string `json:"sha3-384"`
+		Size     uint64 `json:"size"`
+	} `json:"download"`
+	Version  string `json:"version"`
+	Revision int    `json:"revision"`
+}
+
+func (s *Store) snapActionEndpoint(w http.ResponseWriter, req *http.Request) {
+	var reqData snapActionRequest
+	var replyData snapActionResultList
+
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&reqData); err != nil {
+		http.Error(w, fmt.Sprintf("cannot decode request body: %v", err), 400)
+		return
+	}
+
+	bs, err := s.collectAssertions()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
+		return
+	}
+
+	var remoteStore string
+	if osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
+		remoteStore = "staging"
+	} else {
+		remoteStore = "production"
+	}
+	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName[remoteStore])
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting snapIDs: %v", err), 500)
+		return
+	}
+
+	snaps, err := s.collectSnaps()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), 500)
+		return
+	}
+
+	actions := reqData.Actions
+	if len(actions) == 1 && actions[0].Action == "refresh-all" {
+		actions = make([]snapAction, len(reqData.Context))
+		for i, s := range reqData.Context {
+			actions[i] = snapAction{
+				Action:      "refresh",
+				SnapID:      s.SnapID,
+				InstanceKey: s.InstanceKey,
+			}
+		}
+	}
+
+	// check if we have downloadable snap of the given SnapID or name
+	for _, a := range actions {
+		name := a.Name
+		snapID := a.SnapID
+		if a.Action == "refresh" {
+			name = snapIDtoName[snapID]
+		}
+
+		if name == "" {
+			http.Error(w, fmt.Sprintf("unknown snap-id: %q", snapID), 400)
+			return
+		}
+
+		if fn, ok := snaps[name]; ok {
+			essInfo, err := snapEssentialInfo(w, fn, snapID, bs)
+			if essInfo == nil {
+				if err != errInfo {
+					panic(err)
+				}
+				return
+			}
+
+			res := &snapActionResult{
+				Result:      a.Action,
+				InstanceKey: a.InstanceKey,
+				SnapID:      essInfo.SnapID,
+				Name:        essInfo.Name,
+				Snap: detailsResultV2{
+					Architectures: []string{"all"},
+					SnapID:        essInfo.SnapID,
+					Name:          essInfo.Name,
+					Version:       essInfo.Version,
+					Revision:      essInfo.Revision,
+				},
+			}
+			res.Snap.Publisher.ID = essInfo.DeveloperID
+			res.Snap.Publisher.Username = essInfo.DevelName
+			res.Snap.Download.URL = fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn))
+			res.Snap.Download.Sha3_384 = hexify(essInfo.Digest)
+			res.Snap.Download.Size = essInfo.Size
+			replyData.Results = append(replyData.Results, res)
+		}
+	}
+
+	// use indent because this is a development tool, output
+	// should look nice
+	out, err := json.MarshalIndent(replyData, "", "    ")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("cannot marshal: %v: %v", replyData, err), 400)
+		return
+	}
+	w.Write(out)
 }
 
 func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, primaryKey []string) (asserts.Assertion, error) {
