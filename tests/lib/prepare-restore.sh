@@ -148,11 +148,11 @@ build_arch_pkg() {
     archive_name=snapd-$version.tar
 
     rm -rf /tmp/pkg
-    mkdir -p "/tmp/pkg/sources/snapd"
-    cp -ra -- * "/tmp/pkg/sources/snapd/"
+    mkdir -p /tmp/pkg/sources/snapd
+    cp -ra -- * /tmp/pkg/sources/snapd/
 
     # shellcheck disable=SC2086
-    (tar -C /tmp/pkg/sources -cf "/tmp/pkg/$archive_name" "snapd")
+    tar -C /tmp/pkg/sources -cf "/tmp/pkg/$archive_name" "snapd"
     cp "$packaging_path"/* "/tmp/pkg"
 
     # fixup PKGBUILD which builds a package named snapd-git with dynamic version
