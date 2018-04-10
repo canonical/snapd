@@ -1,6 +1,6 @@
 summary: Test that snapd reexecs itself into core
 
-# Disable for Fedora, openSUSE as re-exec is not support there yet
+# Disable for Fedora, openSUSE and Arch as re-exec is not support there yet
 systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*]
 
 restore: |

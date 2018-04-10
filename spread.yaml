@@ -453,7 +453,7 @@ suites:
 
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)
-        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
         systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*]

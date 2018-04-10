@@ -167,6 +167,8 @@ build_arch_pkg() {
         -e "s/pkgver=.*/pkgver=$version/" \
         -e "s/package_snapd-git()/package_snapd()/" \
         /tmp/pkg/PKGBUILD
+    # comment out automatic package version update block `pkgver() { ... }` as
+    # it's only useful when building the package manually
     awk '
     /BEGIN/ { strip = 0; last = 0 }
     /pkgver\(\)/ { strip = 1 }
@@ -434,7 +436,7 @@ restore_suite() {
         . $TESTSLIB/pkgdb.sh
         distro_purge_package snapd
         if [[ "$SPREAD_SYSTEM" != opensuse-* && "$SPREAD_SYSTEM" != arch-* ]]; then
-            # A snap-confine package never existed on openSUSE
+            # A snap-confine package never existed on openSUSE or Arch
             distro_purge_package snap-confine
         fi
     fi
