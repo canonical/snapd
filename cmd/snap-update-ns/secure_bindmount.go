@@ -26,7 +26,7 @@ import (
 
 // SecureBindMount performs a bind mount between two absolute paths
 // containing no symlinks.
-func SecureBindMount(sourceDir, targetDir string, flags uint) error {
+func SecureBindMount(sourceDir, targetDir string, flags uint, sec *Secure) error {
 	// This function only attempts to handle bind
 	// mounts. Expanding to other mounts will require examining
 	// do_mount() from fs/namespace.c of the kernel that called
@@ -45,12 +45,12 @@ func SecureBindMount(sourceDir, targetDir string, flags uint) error {
 	// Step 1: acquire file descriptors representing the source
 	// and destination directories, ensuring no symlinks are
 	// followed.
-	sourceFd, err := secureOpenPath(sourceDir)
+	sourceFd, err := sec.OpenPath(sourceDir)
 	if err != nil {
 		return err
 	}
 	defer sysClose(sourceFd)
-	targetFd, err := secureOpenPath(targetDir)
+	targetFd, err := sec.OpenPath(targetDir)
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func SecureBindMount(sourceDir, targetDir string, flags uint) error {
 		// We need to look up the target directory a second
 		// time, because targetFd refers to the path shadowed
 		// by the mount point.
-		mountFd, err := secureOpenPath(targetDir)
+		mountFd, err := sec.OpenPath(targetDir)
 		if err != nil {
 			// FIXME: the mount occurred, but the user
 			// moved the target somewhere

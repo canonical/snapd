@@ -725,7 +725,7 @@ func (s *realSystemSuite) TestSecureOpenPathDirectory(c *C) {
 	path := filepath.Join(c.MkDir(), "test")
 	c.Assert(os.Mkdir(path, 0755), IsNil)
 
-	fd, err := update.SecureOpenPath(path)
+	fd, err := s.sec.OpenPath(path)
 	c.Assert(err, IsNil)
 	defer syscall.Close(fd)
 
@@ -741,7 +741,7 @@ func (s *realSystemSuite) TestSecureOpenPathDirectory(c *C) {
 }
 
 func (s *realSystemSuite) TestSecureOpenPathRelativePath(c *C) {
-	fd, err := update.SecureOpenPath("relative/path")
+	fd, err := s.sec.OpenPath("relative/path")
 	c.Check(fd, Equals, -1)
 	c.Check(err, ErrorMatches, "path .* is not absolute")
 }
@@ -751,15 +751,15 @@ func (s *realSystemSuite) TestSecureOpenPathUncleanPath(c *C) {
 	path := filepath.Join(base, "test")
 	c.Assert(os.Mkdir(path, 0755), IsNil)
 
-	fd, err := update.SecureOpenPath(base + "//test")
+	fd, err := s.sec.OpenPath(base + "//test")
 	c.Check(fd, Equals, -1)
 	c.Check(err, ErrorMatches, "cannot split unclean path .*")
 
-	fd, err = update.SecureOpenPath(base + "/./test")
+	fd, err = s.sec.OpenPath(base + "/./test")
 	c.Check(fd, Equals, -1)
 	c.Check(err, ErrorMatches, "cannot split unclean path .*")
 
-	fd, err = update.SecureOpenPath(base + "/test/../test")
+	fd, err = s.sec.OpenPath(base + "/test/../test")
 	c.Check(fd, Equals, -1)
 	c.Check(err, ErrorMatches, "cannot split unclean path .*")
 }
@@ -768,7 +768,7 @@ func (s *realSystemSuite) TestSecureOpenPathFile(c *C) {
 	path := filepath.Join(c.MkDir(), "file.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("hello"), 0644), IsNil)
 
-	fd, err := update.SecureOpenPath(path)
+	fd, err := s.sec.OpenPath(path)
 	c.Check(fd, Equals, -1)
 	c.Check(err, ErrorMatches, "not a directory")
 }
@@ -776,7 +776,7 @@ func (s *realSystemSuite) TestSecureOpenPathFile(c *C) {
 func (s *realSystemSuite) TestSecureOpenPathNotFound(c *C) {
 	path := filepath.Join(c.MkDir(), "test")
 
-	fd, err := update.SecureOpenPath(path)
+	fd, err := s.sec.OpenPath(path)
 	c.Check(fd, Equals, -1)
 	c.Check(err, ErrorMatches, "no such file or directory")
 }
@@ -789,7 +789,7 @@ func (s *realSystemSuite) TestSecureOpenPathSymlink(c *C) {
 	symlink := filepath.Join(base, "symlink")
 	c.Assert(os.Symlink(dir, symlink), IsNil)
 
-	fd, err := update.SecureOpenPath(symlink)
+	fd, err := s.sec.OpenPath(symlink)
 	c.Check(fd, Equals, -1)
 	c.Check(err, ErrorMatches, "not a directory")
 }
@@ -806,7 +806,7 @@ func (s *realSystemSuite) TestSecureOpenPathSymlinkedParent(c *C) {
 	c.Assert(os.Symlink(dir, symlink), IsNil)
 	c.Assert(os.Mkdir(path, 0755), IsNil)
 
-	fd, err := update.SecureOpenPath(symlinkedPath)
+	fd, err := s.sec.OpenPath(symlinkedPath)
 	c.Check(fd, Equals, -1)
 	c.Check(err, ErrorMatches, "not a directory")
 }

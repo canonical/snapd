@@ -31,6 +31,7 @@ import (
 type secureBindMountSuite struct {
 	testutil.BaseTest
 	sys *testutil.SyscallRecorder
+	sec *update.Secure
 }
 
 var _ = Suite(&secureBindMountSuite{})
@@ -38,6 +39,7 @@ var _ = Suite(&secureBindMountSuite{})
 func (s *secureBindMountSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.sys = &testutil.SyscallRecorder{}
+	s.sec = &update.Secure{}
 	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
 }
 
@@ -47,7 +49,7 @@ func (s *secureBindMountSuite) TearDownTest(c *C) {
 }
 
 func (s *secureBindMountSuite) TestMount(c *C) {
-	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_BIND)
+	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_BIND, s.sec)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
@@ -67,7 +69,7 @@ func (s *secureBindMountSuite) TestMount(c *C) {
 }
 
 func (s *secureBindMountSuite) TestMountRecursive(c *C) {
-	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_REC)
+	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_REC, s.sec)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
@@ -87,7 +89,7 @@ func (s *secureBindMountSuite) TestMountRecursive(c *C) {
 }
 
 func (s *secureBindMountSuite) TestMountReadOnly(c *C) {
-	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY)
+	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY, s.sec)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
@@ -114,20 +116,20 @@ func (s *secureBindMountSuite) TestMountReadOnly(c *C) {
 }
 
 func (s *secureBindMountSuite) TestBindFlagRequired(c *C) {
-	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_REC)
+	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_REC, s.sec)
 	c.Assert(err, ErrorMatches, "only bind mounts are supported")
 	c.Check(s.sys.Calls(), DeepEquals, []string(nil))
 }
 
 func (s *secureBindMountSuite) TestMountReadOnlyRecursive(c *C) {
-	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY|syscall.MS_REC)
+	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY|syscall.MS_REC, s.sec)
 	c.Assert(err, ErrorMatches, "cannot use MS_RDONLY and MS_REC together")
 	c.Check(s.sys.Calls(), DeepEquals, []string(nil))
 }
 
 func (s *secureBindMountSuite) TestBindMountFails(c *C) {
 	s.sys.InsertFault(`mount "/proc/self/fd/5" "/proc/self/fd/6" "" MS_BIND ""`, errTesting)
-	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY)
+	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY, s.sec)
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
@@ -148,7 +150,7 @@ func (s *secureBindMountSuite) TestBindMountFails(c *C) {
 
 func (s *secureBindMountSuite) TestRemountReadOnlyFails(c *C) {
 	s.sys.InsertFault(`mount "none" "/proc/self/fd/7" "" MS_REMOUNT|MS_BIND|MS_RDONLY ""`, errTesting)
-	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY)
+	err := update.SecureBindMount("/source/dir", "/target/dir", syscall.MS_BIND|syscall.MS_RDONLY, s.sec)
 	c.Assert(err, ErrorMatches, "testing")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,          // -> 3
