@@ -72,6 +72,8 @@ func (cs *clientSuite) TestClientMultiOpSnapServerError(c *check.C) {
 		_, err := s.op(cs.cli, nil, nil)
 		c.Check(err, check.ErrorMatches, `.*fail`, check.Commentf(s.action))
 	}
+	_, _, err := cs.cli.SnapshotMany(nil, nil)
+	c.Check(err, check.ErrorMatches, `.*fail`)
 }
 
 func (cs *clientSuite) TestClientOpSnapResponseError(c *check.C) {
@@ -88,6 +90,8 @@ func (cs *clientSuite) TestClientMultiOpSnapResponseError(c *check.C) {
 		_, err := s.op(cs.cli, nil, nil)
 		c.Check(err, check.ErrorMatches, `.*server error: "potatoes"`, check.Commentf(s.action))
 	}
+	_, _, err := cs.cli.SnapshotMany(nil, nil)
+	c.Check(err, check.ErrorMatches, `.*server error: "potatoes"`)
 }
 
 func (cs *clientSuite) TestClientOpSnapBadType(c *check.C) {
@@ -153,6 +157,7 @@ func (cs *clientSuite) TestClientMultiOpSnap(c *check.C) {
 		"type": "async"
 	}`
 	for _, s := range multiOps {
+		// Note body is essentially the same as TestClientMultiSnapshot; keep in sync
 		id, err := s.op(cs.cli, []string{pkgName}, nil)
 		c.Assert(err, check.IsNil)
 
@@ -170,6 +175,31 @@ func (cs *clientSuite) TestClientMultiOpSnap(c *check.C) {
 		c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps", check.Commentf(s.action))
 		c.Check(id, check.Equals, "d728", check.Commentf(s.action))
 	}
+}
+
+func (cs *clientSuite) TestClientMultiSnapshot(c *check.C) {
+	// Note body is essentially the same as TestClientMultiOpSnap; keep in sync
+	cs.rsp = `{
+                "result": {"set-id": 42},
+		"change": "d728",
+		"status-code": 202,
+		"type": "async"
+	}`
+	setID, changeID, err := cs.cli.SnapshotMany([]string{pkgName}, nil)
+	c.Assert(err, check.IsNil)
+	c.Check(cs.req.Header.Get("Content-Type"), check.Equals, "application/json")
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	jsonBody := make(map[string]interface{})
+	err = json.Unmarshal(body, &jsonBody)
+	c.Assert(err, check.IsNil)
+	c.Check(jsonBody["action"], check.Equals, "snapshot")
+	c.Check(jsonBody["snaps"], check.DeepEquals, []interface{}{pkgName})
+	c.Check(jsonBody, check.HasLen, 2)
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps")
+	c.Check(setID, check.Equals, uint64(42))
+	c.Check(changeID, check.Equals, "d728")
 }
 
 func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
