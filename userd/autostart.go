@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"log/syslog"
 	"os"
 	"os/exec"
 	"os/user"
@@ -35,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil/shlex"
+	"github.com/snapcore/snapd/systemd"
 )
 
 // expandDesktopFields processes the input string and expands any %<char>
@@ -151,6 +153,22 @@ func (f failedAutostartError) Error() string {
 	return out.String()
 }
 
+func makeStdStreams(identifier string) (stdout *os.File, stderr *os.File) {
+	var err error
+
+	stdout, err = systemd.NewJournalStreamFile(identifier, syslog.LOG_INFO, false)
+	if err != nil {
+		stdout = os.Stdout
+	}
+
+	stderr, err = systemd.NewJournalStreamFile(identifier, syslog.LOG_WARNING, false)
+	if err != nil {
+		stderr = os.Stderr
+	}
+
+	return stdout, stderr
+}
+
 var userCurrent = user.Current
 
 // AutostartSessionApps starts applications which have placed their desktop
@@ -189,8 +207,11 @@ func AutostartSessionApps() error {
 			failedApps[desktopFile] = err
 			continue
 		}
-		cmd.Stderr = os.Stderr
-		cmd.Stdout = os.Stdout
+
+		// similarly to gnome-session, use the desktop file name as
+		// identifier, see:
+		// https://github.com/GNOME/gnome-session/blob/099c19099de8e351f6cc0f2110ad27648780a0fe/gnome-session/gsm-autostart-app.c#L948
+		cmd.Stdout, cmd.Stderr = makeStdStreams(desktopFile)
 		if err := cmd.Start(); err != nil {
 			failedApps[desktopFile] = fmt.Errorf("cannot autostart %q: %v", desktopFile, err)
 		}
