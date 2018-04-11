@@ -82,11 +82,11 @@ func (sec *Secure) CheckTrespassing(fd int, segments []string, segNum int) error
 	return nil
 }
 
-// OpenPath returns a path file descriptor for the given directory,
-// making sure no components are symbolic links.
+// OpenPath creates a path file descriptor for the given
+// directory, making sure no components are symbolic links.
 //
-// The file descriptor is opened using the O_PATH, O_NOFOLLOW, O_DIRECTORY, and
-// O_CLOEXEC flags.
+// The file descriptor is opened using the O_PATH, O_NOFOLLOW,
+// O_DIRECTORY, and O_CLOEXEC flags.
 func (sec *Secure) OpenPath(path string) (int, error) {
 	if !filepath.IsAbs(path) {
 		return -1, fmt.Errorf("path %v is not absolute", path)
