@@ -211,6 +211,34 @@ type Layout struct {
 	Symlink  string      `json:"symlink,omitempty"`
 }
 
+// String returns a simple textual representation of a layout.
+func (l *Layout) String() string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "%s: ", l.Path)
+	switch {
+	case l.Bind != "":
+		fmt.Fprintf(&buf, "bind %s", l.Bind)
+	case l.BindFile != "":
+		fmt.Fprintf(&buf, "bind-file %s", l.BindFile)
+	case l.Symlink != "":
+		fmt.Fprintf(&buf, "symlink %s", l.Symlink)
+	case l.Type != "":
+		fmt.Fprintf(&buf, "type %s", l.Type)
+	default:
+		fmt.Fprintf(&buf, "???")
+	}
+	if l.User != "root" && l.User != "" {
+		fmt.Fprintf(&buf, ", user: %s", l.User)
+	}
+	if l.Group != "root" && l.Group != "" {
+		fmt.Fprintf(&buf, ", group: %s", l.Group)
+	}
+	if l.Mode != 0755 {
+		fmt.Fprintf(&buf, ", mode: %#o", l.Mode)
+	}
+	return buf.String()
+}
+
 // ChannelSnapInfo is the minimum information that can be used to clearly
 // distinguish different revisions of the same snap.
 type ChannelSnapInfo struct {
@@ -276,12 +304,12 @@ func (s *Info) DataDir() string {
 
 // UserDataDir returns the user-specific data directory of the snap.
 func (s *Info) UserDataDir(home string) string {
-	return filepath.Join(home, "snap", s.Name(), s.Revision.String())
+	return filepath.Join(home, dirs.UserHomeSnapDir, s.Name(), s.Revision.String())
 }
 
 // UserCommonDataDir returns the user-specific data directory common across revision of the snap.
 func (s *Info) UserCommonDataDir(home string) string {
-	return filepath.Join(home, "snap", s.Name(), "common")
+	return filepath.Join(home, dirs.UserHomeSnapDir, s.Name(), "common")
 }
 
 // CommonDataDir returns the data directory common across revisions of the snap.
@@ -749,9 +777,23 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	SanitizePlugsSlots(info)
-
 	return info, nil
+}
+
+// ReadCurrentInfo reads the snap information from the installed snap in 'current' revision
+func ReadCurrentInfo(snapName string) (*Info, error) {
+	curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
+	realFn, err := os.Readlink(curFn)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find current revision for snap %s: %s", snapName, err)
+	}
+	rev := filepath.Base(realFn)
+	revision, err := ParseRevision(rev)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
+	}
+
+	return ReadInfo(snapName, &SideInfo{Revision: revision})
 }
 
 // ReadInfoFromSnapFile reads the snap information from the given File

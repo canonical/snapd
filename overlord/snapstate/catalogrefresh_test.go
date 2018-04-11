@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,6 +23,8 @@ import (
 	"io"
 	"time"
 
+	"golang.org/x/net/context"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/advisor"
@@ -42,15 +44,21 @@ type catalogStore struct {
 	ops []string
 }
 
-func (r *catalogStore) WriteCatalogs(w io.Writer, a store.SnapAdder) error {
+func (r *catalogStore) WriteCatalogs(ctx context.Context, w io.Writer, a store.SnapAdder) error {
+	if ctx == nil || !auth.IsEnsureContext(ctx) {
+		panic("Ensure marked context required")
+	}
 	r.ops = append(r.ops, "write-catalog")
 	w.Write([]byte("pkg1\npkg2"))
-	a.AddSnap("foo", "foo summary", []string{"foo", "meh"})
-	a.AddSnap("bar", "bar summray", []string{"bar", "meh"})
+	a.AddSnap("foo", "1.0", "foo summary", []string{"foo", "meh"})
+	a.AddSnap("bar", "2.0", "bar summray", []string{"bar", "meh"})
 	return nil
 }
 
-func (r *catalogStore) Sections(*auth.UserState) ([]string, error) {
+func (r *catalogStore) Sections(ctx context.Context, _ *auth.UserState) ([]string, error) {
+	if ctx == nil || !auth.IsEnsureContext(ctx) {
+		panic("Ensure marked context required")
+	}
 	r.ops = append(r.ops, "sections")
 	return []string{"section1", "section2"}, nil
 }
@@ -97,10 +105,10 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, true)
 	dump, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
-	c.Check(dump, DeepEquals, map[string][]string{
-		"foo": {"foo"},
-		"bar": {"bar"},
-		"meh": {"foo", "bar"},
+	c.Check(dump, DeepEquals, map[string]string{
+		"foo": `[{"snap":"foo","version":"1.0"}]`,
+		"bar": `[{"snap":"bar","version":"2.0"}]`,
+		"meh": `[{"snap":"foo","version":"1.0"},{"snap":"bar","version":"2.0"}]`,
 	})
 }
 

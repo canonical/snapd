@@ -47,6 +47,7 @@ func Test(t *testing.T) { TestingT(t) }
 type snapSeccompSuite struct {
 	seccompBpfLoader     string
 	seccompSyscallRunner string
+	canCheckCompatArch   bool
 }
 
 var _ = Suite(&snapSeccompSuite{})
@@ -177,10 +178,13 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	err = cmd.Run()
 	c.Assert(err, IsNil)
 
+	// Amazon Linux 2 is 64bit only and there is no multilib support
+	s.canCheckCompatArch = !release.DistroLike("amzn")
+
 	// Build 32bit runner on amd64 to test non-native syscall handling.
 	// Ideally we would build for ppc64el->powerpc and arm64->armhf but
 	// it seems tricky to find the right gcc-multilib for this.
-	if arch.UbuntuArchitecture() == "amd64" {
+	if arch.UbuntuArchitecture() == "amd64" && s.canCheckCompatArch {
 		cmd = exec.Command(cmd.Args[0], cmd.Args[1:]...)
 		cmd.Args = append(cmd.Args, "-m32")
 		for i, k := range cmd.Args {
@@ -744,7 +748,10 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
 	// while 'root' user usually has uid 0, 'daemon' user uid may vary
 	// across distributions, best lookup the uid directly
 	daemonUid, err := osutil.FindUid("daemon")
-	c.Assert(err, IsNil)
+
+	if err != nil {
+		c.Skip("daemon user not available, perhaps we are in a buildroot jail")
+	}
 
 	for _, t := range []struct {
 		seccompWhitelist string
@@ -768,6 +775,9 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
 }
 
 func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
+	if !s.canCheckCompatArch {
+		c.Skip("multi-lib syscall runner not supported by this host")
+	}
 	for _, t := range []struct {
 		arch             string
 		seccompWhitelist string

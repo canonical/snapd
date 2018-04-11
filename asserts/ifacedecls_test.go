@@ -28,6 +28,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -35,7 +37,9 @@ var (
 	_ = Suite(&plugSlotRulesSuite{})
 )
 
-type attrConstraintsSuite struct{}
+type attrConstraintsSuite struct {
+	testutil.BaseTest
+}
 
 func attrs(yml string) map[string]interface{} {
 	var attrs map[string]interface{}
@@ -57,6 +61,15 @@ func attrs(yml string) map[string]interface{} {
 		panic(err)
 	}
 	return info.Plugs["plug"].Attrs
+}
+
+func (s *attrConstraintsSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+}
+
+func (s *attrConstraintsSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *attrConstraintsSuite) TestSimple(c *C) {

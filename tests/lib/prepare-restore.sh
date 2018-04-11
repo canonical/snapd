@@ -338,6 +338,44 @@ prepare_project_each() {
     fixup_dev_random
 }
 
+prepare_suite() {
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        prepare_all_snap
+    else
+        prepare_classic
+    fi
+}
+
+prepare_suite_each() {
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --reuse-core
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+        prepare_each_classic
+    fi
+}
+
+restore_suite_each() {
+    true
+}
+
+restore_suite() {
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --store
+    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+        # shellcheck source=tests/lib/pkgdb.sh
+        . $TESTSLIB/pkgdb.sh
+        distro_purge_package snapd
+        if [[ "$SPREAD_SYSTEM" != opensuse-* ]]; then
+            # A snap-confine package never existed on openSUSE
+            distro_purge_package snap-confine
+        fi
+    fi
+}
+
 restore_project_each() {
     restore_dev_random
 
@@ -347,6 +385,19 @@ restore_project_each() {
     # pick up such errors.
     if grep "invalid .*snap.*.rules" /var/log/syslog; then
         echo "Invalid udev file detected, test most likely broke it"
+        exit 1
+    fi
+
+    # Check if the OOM killer got invoked - if that is the case our tests
+    # will most likely not function correctly anymore. It looks like this
+    # happens with: https://forum.snapcraft.io/t/4101 and is a source of
+    # failure in the autopkgtest environment.
+    if dmesg|grep "oom-killer"; then
+        echo "oom-killer got invoked during the tests, this should not happen."
+        echo "Dmesg debug output:"
+        dmesg
+        echo "Meminfo debug output:"
+        cat /proc/meminfo
         exit 1
     fi
 }
@@ -375,6 +426,18 @@ case "$1" in
     --prepare-project-each)
         prepare_project_each
         ;;
+    --prepare-suite)
+        prepare_suite
+        ;;
+    --prepare-suite-each)
+        prepare_suite_each
+        ;;
+    --restore-suite-each)
+        restore_suite_each
+        ;;
+    --restore-suite)
+        restore_suite
+        ;;
     --restore-project-each)
         restore_project_each
         ;;
@@ -383,7 +446,7 @@ case "$1" in
         ;;
     *)
         echo "unsupported argument: $1"
-        echo "try one of --{prepare,restore}-project{,-each}"
+        echo "try one of --{prepare,restore}-{project,suite}{,-each}"
         exit 1
         ;;
 esac

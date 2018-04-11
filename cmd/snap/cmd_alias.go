@@ -41,11 +41,12 @@ type cmdAlias struct {
 
 // TODO: implement a completer for snapApp
 
-var shortAliasHelp = i18n.G("Sets up a manual alias")
+var shortAliasHelp = i18n.G("Set up a manual alias")
 var longAliasHelp = i18n.G(`
 The alias command aliases the given snap application to the given alias.
 
-Once this manual alias is setup the respective application command can be invoked just using the alias.
+Once this manual alias is setup the respective application command can be
+invoked just using the alias.
 `)
 
 func init() {
