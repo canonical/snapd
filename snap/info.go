@@ -304,12 +304,12 @@ func (s *Info) DataDir() string {
 
 // UserDataDir returns the user-specific data directory of the snap.
 func (s *Info) UserDataDir(home string) string {
-	return filepath.Join(home, "snap", s.Name(), s.Revision.String())
+	return filepath.Join(home, dirs.UserHomeSnapDir, s.Name(), s.Revision.String())
 }
 
 // UserCommonDataDir returns the user-specific data directory common across revision of the snap.
 func (s *Info) UserCommonDataDir(home string) string {
-	return filepath.Join(home, "snap", s.Name(), "common")
+	return filepath.Join(home, dirs.UserHomeSnapDir, s.Name(), "common")
 }
 
 // CommonDataDir returns the data directory common across revisions of the snap.
@@ -760,6 +760,22 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	}
 
 	return info, nil
+}
+
+// ReadCurrentInfo reads the snap information from the installed snap in 'current' revision
+func ReadCurrentInfo(snapName string) (*Info, error) {
+	curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
+	realFn, err := os.Readlink(curFn)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find current revision for snap %s: %s", snapName, err)
+	}
+	rev := filepath.Base(realFn)
+	revision, err := ParseRevision(rev)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
+	}
+
+	return ReadInfo(snapName, &SideInfo{Revision: revision})
 }
 
 // ReadInfoFromSnapFile reads the snap information from the given File
