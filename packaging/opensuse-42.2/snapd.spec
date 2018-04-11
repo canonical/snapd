@@ -32,7 +32,7 @@
 
 %define systemd_services_list snapd.socket snapd.service
 Name:           snapd
-Version:        2.32.1
+Version:        2.32.3
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -313,6 +313,7 @@ fi
 %{_mandir}/man1/snap.1.gz
 /usr/share/dbus-1/services/io.snapcraft.Launcher.service
 /usr/share/dbus-1/services/io.snapcraft.Settings.service
+%{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 
 %changelog
 
