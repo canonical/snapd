@@ -1889,7 +1889,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 		Interface: "test",
 	})
 	c.Assert(err, IsNil)
-	connRef := interfaces.ConnRef{
+	connRef := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: siP.Name(), Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: siC.Name(), Name: "slot"},
 	}

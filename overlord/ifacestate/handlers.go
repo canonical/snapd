@@ -407,7 +407,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	connRef := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+	connRef := &interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
 
 	var plugSnapst snapstate.SnapState
 	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {

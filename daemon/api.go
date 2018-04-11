@@ -1802,7 +1802,7 @@ type interfaceAction struct {
 	Slots  []slotJSON `json:"slots,omitempty"`
 }
 
-func snapNamesFromConns(conns []interfaces.ConnRef) []string {
+func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
 	m := make(map[string]bool)
 	for _, conn := range conns {
 		m[conn.PlugRef.Snap] = true
@@ -1854,7 +1854,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	switch a.Action {
 	case "connect":
-		var connRef interfaces.ConnRef
+		var connRef *interfaces.ConnRef
 		repo := c.d.overlord.InterfaceManager().Repository()
 		connRef, err = repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
@@ -1862,10 +1862,10 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 			tasksets = append(tasksets, ts)
-			affected = snapNamesFromConns([]interfaces.ConnRef{connRef})
+			affected = snapNamesFromConns([]*interfaces.ConnRef{connRef})
 		}
 	case "disconnect":
-		var conns []interfaces.ConnRef
+		var conns []*interfaces.ConnRef
 		repo := c.d.overlord.InterfaceManager().Repository()
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		conns, err = repo.ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
