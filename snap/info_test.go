@@ -195,6 +195,23 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
 
+func (s *infoSuite) TestReadCurrentInfo(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(42)}
+
+	snapInfo1 := snaptest.MockSnapCurrent(c, sampleYaml, si)
+
+	snapInfo2, err := snap.ReadCurrentInfo("sample")
+	c.Assert(err, IsNil)
+
+	c.Check(snapInfo2.Name(), Equals, "sample")
+	c.Check(snapInfo2.Revision, Equals, snap.R(42))
+	c.Check(snapInfo2, DeepEquals, snapInfo1)
+
+	snapInfo3, err := snap.ReadCurrentInfo("not-sample")
+	c.Check(snapInfo3, IsNil)
+	c.Assert(err, ErrorMatches, `cannot find current revision for snap not-sample:.*`)
+}
+
 func (s *infoSuite) TestInstallDate(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(1)}
 	info := snaptest.MockSnap(c, sampleYaml, si)
@@ -493,7 +510,7 @@ func ExampleSplitSnapApp() {
 	// Output: hello-world env
 }
 
-func ExampleSplitSnapAppShort() {
+func ExampleSplitSnapApp_short() {
 	fmt.Println(snap.SplitSnapApp("hello-world"))
 	// Output: hello-world hello-world
 }

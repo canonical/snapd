@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -215,6 +216,9 @@ var readInfo = readInfoAnyway
 
 func readInfoAnyway(name string, si *snap.SideInfo) (*snap.Info, error) {
 	info, err := snap.ReadInfo(name, si)
+	if err != nil {
+		logger.Noticef("cannot read snap info of snap %q at revision %s: %s", name, si.Revision, err)
+	}
 	if _, ok := err.(*snap.NotFoundError); ok {
 		reason := fmt.Sprintf("cannot read snap %q: %s", name, err)
 		info := &snap.Info{
@@ -228,6 +232,17 @@ func readInfoAnyway(name string, si *snap.SideInfo) (*snap.Info, error) {
 		return info, nil
 	}
 	return info, err
+}
+
+var revisionDate = revisionDateImpl
+
+// revisionDate returns a good approximation of when a revision reached the system.
+func revisionDateImpl(info *snap.Info) time.Time {
+	fi, err := os.Lstat(info.MountFile())
+	if err != nil {
+		return time.Time{}
+	}
+	return fi.ModTime()
 }
 
 // CurrentInfo returns the information about the current active revision or the last active revision (if the snap is inactive). It returns the ErrNoCurrent error if snapst.Current is unset.
@@ -486,10 +501,30 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	return nil
 }
 
+// atSeed implements at seeding policy for refreshes.
+func (m *SnapManager) atSeed() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != state.ErrNoState {
+		// already seeded or other error
+		return err
+	}
+	if err := m.autoRefresh.AtSeed(); err != nil {
+		return err
+	}
+	if err := m.refreshHints.AtSeed(); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	// do not exit right away on error
 	errs := []error{
+		m.atSeed(),
 		m.ensureAliasesV2(),
 		m.ensureForceDevmodeDropsDevmodeFromState(),
 		m.ensureUbuntuCoreTransition(),

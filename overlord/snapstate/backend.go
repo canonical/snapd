@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,9 +37,13 @@ type StoreService interface {
 	SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
 	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
 	LookupRefresh(*store.RefreshCandidate, *auth.UserState) (*snap.Info, error)
-	ListRefresh([]*store.RefreshCandidate, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error)
-	Sections(user *auth.UserState) ([]string, error)
-	WriteCatalogs(names io.Writer, adder store.SnapAdder) error
+
+	ListRefresh(context.Context, []*store.RefreshCandidate, *auth.UserState, *store.RefreshOptions) ([]*snap.Info, error)
+	SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error)
+
+	Sections(ctx context.Context, user *auth.UserState) ([]string, error)
+	WriteCatalogs(ctx context.Context, names io.Writer, adder store.SnapAdder) error
+
 	Download(context.Context, string, string, *snap.DownloadInfo, progress.Meter, *auth.UserState) error
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)

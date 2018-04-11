@@ -33,9 +33,12 @@ import (
 var shortChangesHelp = i18n.G("List system changes")
 var shortTasksHelp = i18n.G("List a change's tasks")
 var longChangesHelp = i18n.G(`
-The changes command displays a summary of the recent system changes performed.`)
+The changes command displays a summary of system changes performed recently.
+`)
 var longTasksHelp = i18n.G(`
-The tasks command displays a summary of tasks associated to an individual change.`)
+The tasks command displays a summary of tasks associated with an individual
+change.
+`)
 
 type cmdChanges struct {
 	timeMixin
@@ -72,8 +75,8 @@ func (c *cmdChanges) Execute(args []string) error {
 	}
 
 	if allDigits(c.Positional.Snap) {
-		// TRANSLATORS: the %s is the argument given by the user to "snap changes"
-		return fmt.Errorf(i18n.G(`"snap changes" command expects a snap name, try: "snap tasks %s"`), c.Positional.Snap)
+		// TRANSLATORS: the %s is the argument given by the user to 'snap changes'
+		return fmt.Errorf(i18n.G(`'snap changes' command expects a snap name, try 'snap tasks %s'`), c.Positional.Snap)
 	}
 
 	if c.Positional.Snap == "everything" {
