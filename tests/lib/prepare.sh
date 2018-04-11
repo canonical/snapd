@@ -10,6 +10,8 @@ set -eux
 . "$TESTSLIB/pkgdb.sh"
 # shellcheck source=tests/lib/boot.sh
 . "$TESTSLIB/boot.sh"
+# shellcheck source=tests/lib/spread-funcs.sh
+. "$TESTSLIB/spread-funcs.sh"
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -34,7 +36,7 @@ disable_refreshes() {
 
     echo "Minimize risk of hitting refresh schedule"
     snap set core refresh.schedule=00:00-23:59
-    snap refresh --time|MATCH "last: 2[0-9]{3}"
+    snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
 
     echo "Ensure jq is gone"
     snap remove jq
@@ -42,9 +44,9 @@ disable_refreshes() {
 
 setup_systemd_snapd_overrides() {
     START_LIMIT_INTERVAL="StartLimitInterval=0"
-    if [[ "$SPREAD_SYSTEM" = opensuse-42.2-* ]]; then
+    if [[ "$SPREAD_SYSTEM" =~ opensuse-42.[23]-* ]]; then
         # StartLimitInterval is not supported by the systemd version
-        # openSUSE 42.2 ships.
+        # openSUSE 42.2/3 ship.
         START_LIMIT_INTERVAL=""
     fi
 
@@ -208,7 +210,7 @@ prepare_classic() {
             done
             # Copy all of the snaps back to the spool directory. From there we
             # will reuse them during subsequent `snap install` operations.
-            cp *.snap /var/lib/snapd/snaps/
+            cp -- *.snap /var/lib/snapd/snaps/
             set +x
         )
 
@@ -379,9 +381,9 @@ EOF
         mkdir -p /mnt/system-data/etc/systemd/system/multi-user.target.wants
         for f in group gshadow passwd shadow; do
             # the passwd from core without root
-            tail -n +2 "$UNPACKD/etc/$f" > /mnt/system-data/root/test-etc/$f
+            grep -v "^root:" "$UNPACKD/etc/$f" > /mnt/system-data/root/test-etc/$f
             # append this systems root user so that linode can connect
-            head -n1 /etc/$f >> /mnt/system-data/root/test-etc/$f
+            grep "^root:" /etc/$f >> /mnt/system-data/root/test-etc/$f
 
             # make sure the group is as expected
             chgrp --reference "$UNPACKD/etc/$f" /mnt/system-data/root/test-etc/$f
@@ -406,6 +408,8 @@ EOF
             # append ubuntu, test user for the testing
             cp -a "$UNPACKD/var/lib/extrausers/$f" /mnt/system-data/var/lib/extrausers/$f
             tail -n2 /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
+            # check test was copied
+            cat /mnt/system-data/var/lib/extrausers/$f| MATCH "^test:"
 
         done
 

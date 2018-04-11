@@ -216,6 +216,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(1)}
 	info := snaptest.MockSnap(c, sampleYaml, si)
 	// not current -> Zero
+	c.Check(info.InstallDate().IsZero(), Equals, true)
 	c.Check(snap.InstallDate(info.Name()).IsZero(), Equals, true)
 
 	mountdir := info.MountDir()
@@ -229,6 +230,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	// sanity
 	c.Check(instTime.IsZero(), Equals, false)
 
+	c.Check(info.InstallDate().Equal(instTime), Equals, true)
 	c.Check(snap.InstallDate(info.Name()).Equal(instTime), Equals, true)
 }
 

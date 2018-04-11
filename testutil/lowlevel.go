@@ -109,6 +109,10 @@ func formatOpenFlags(flags int) string {
 // Please expand the set of recognized flags as tests require.
 func formatMountFlags(flags int) string {
 	var fl []string
+	if flags&syscall.MS_REMOUNT == syscall.MS_REMOUNT {
+		flags ^= syscall.MS_REMOUNT
+		fl = append(fl, "MS_REMOUNT")
+	}
 	if flags&syscall.MS_BIND == syscall.MS_BIND {
 		flags ^= syscall.MS_BIND
 		fl = append(fl, "MS_BIND")
@@ -412,5 +416,14 @@ func (sys *SyscallRecorder) Readlinkat(dirfd int, path string, buf []byte) (int,
 
 func (sys *SyscallRecorder) Remove(name string) error {
 	call := fmt.Sprintf("remove %q", name)
+	return sys.call(call)
+}
+
+func (sys *SyscallRecorder) Fchdir(fd int) error {
+	call := fmt.Sprintf("fchdir %d", fd)
+	if _, ok := sys.fds[fd]; !ok {
+		sys.calls = append(sys.calls, call)
+		return fmt.Errorf("attempting to fchdir with an invalid file descriptor %d", fd)
+	}
 	return sys.call(call)
 }

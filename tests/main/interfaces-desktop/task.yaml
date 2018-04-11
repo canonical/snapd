@@ -13,14 +13,11 @@ prepare: |
     snap try $TESTSLIB/snaps/test-snapd-desktop
 
 execute: |
-    CONNECTED_PATTERN=":desktop +test-snapd-desktop"
-    DISCONNECTED_PATTERN="\- +test-snapd-desktop:desktop"
-
     dirs="/var/cache/fontconfig /usr/share/icons /usr/share/pixmaps"
     files="/etc/xdg/user-dirs.conf /etc/xdg/user-dirs.defaults"
 
     echo "The plug is connected by default"
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
+    snap interfaces | MATCH ":desktop .*test-snapd-desktop"
 
     echo "Then the snap is able to desktop files and directories"
     test-snapd-desktop.check-files $files
@@ -40,7 +37,6 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-desktop:desktop
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to access the desktop files"
     for file in $files; do
