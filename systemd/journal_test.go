@@ -80,7 +80,8 @@ func (j *journalTestSuite) TestStreamFileHeader(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(jout, NotNil)
 
-	jout.WriteString("hello from unit tests")
+	_, err = jout.WriteString("hello from unit tests")
+	c.Assert(err, IsNil)
 	defer jout.Close()
 
 	<-doneCh
