@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"os"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -29,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 type prereqSuite struct {
@@ -123,18 +125,39 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 	defer s.state.Unlock()
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op:    "storesvc-snap",
-			name:  "prereq1",
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:  "install",
+				Name:    "prereq1",
+				Channel: "stable",
+			},
 			revno: snap.R(11),
 		},
 		{
-			op:    "storesvc-snap",
-			name:  "prereq2",
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:  "install",
+				Name:    "prereq2",
+				Channel: "stable",
+			},
 			revno: snap.R(11),
 		},
 		{
-			op:    "storesvc-snap",
-			name:  "some-base",
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:  "install",
+				Name:    "some-base",
+				Channel: "stable",
+			},
 			revno: snap.R(11),
 		},
 	})
@@ -234,5 +257,71 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
+	os.Setenv("SNAPD_BASES_CHANNEL", "edge")
+	defer os.Unsetenv("SNAPD_BASES_CHANNEL")
+	os.Setenv("SNAPD_PREREQS_CHANNEL", "candidate")
+	defer os.Unsetenv("SNAPD_PREREQS_CHANNEL")
+	s.state.Lock()
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel: "beta",
+		Base:    "some-base",
+		Prereq:  []string{"prereq1", "prereq2"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:  "install",
+				Name:    "prereq1",
+				Channel: "candidate",
+			},
+			revno: snap.R(11),
+		},
+		{
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:  "install",
+				Name:    "prereq2",
+				Channel: "candidate",
+			},
+			revno: snap.R(11),
+		},
+		{
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:  "install",
+				Name:    "some-base",
+				Channel: "edge",
+			},
+			revno: snap.R(11),
+		},
+	})
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }

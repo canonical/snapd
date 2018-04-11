@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -54,6 +55,8 @@ type HookManager struct {
 	contexts      map[string]*Context
 
 	hijackMap map[hijackKey]hijackFunc
+
+	runningHooks int32
 }
 
 // Handler is the interface a client must satify to handle hooks.
@@ -218,6 +221,25 @@ func hookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
 	return &hooksup, &snapst, nil
 }
 
+// NumRunningHooks returns the number of hooks running at the moment.
+func (m *HookManager) NumRunningHooks() int {
+	return int(atomic.LoadInt32(&m.runningHooks))
+}
+
+// GracefullyWaitRunningHooks waits for currently running hooks to finish up to the default hook timeout. Returns true if there are no more running hooks on exit.
+func (m *HookManager) GracefullyWaitRunningHooks() bool {
+	toutC := time.After(defaultHookTimeout)
+	doWait := true
+	for m.NumRunningHooks() > 0 && doWait {
+		select {
+		case <-time.After(1 * time.Second):
+		case <-toutC:
+			doWait = false
+		}
+	}
+	return m.NumRunningHooks() == 0
+}
+
 // doRunHook actually runs the hook that was requested.
 //
 // Note that this method is synchronous, as the task is already running in a
@@ -247,6 +269,18 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		if !hookExists && !hooksup.Optional {
 			return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
 		}
+	}
+
+	if hookExists || mustHijack {
+		// we will run something, not a noop
+		if task.State().Restarting() {
+			// don't start running a hook if we are restarting
+			return &state.Retry{}
+		}
+
+		// keep count of running hooks
+		atomic.AddInt32(&m.runningHooks, 1)
+		defer atomic.AddInt32(&m.runningHooks, -1)
 	}
 
 	context, err := NewContext(task, task.State(), hooksup, nil, "")

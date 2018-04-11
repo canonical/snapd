@@ -29,6 +29,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -36,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/store"
 )
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
@@ -113,7 +113,22 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 */
 
 const defaultCoreSnapName = "core"
-const defaultBaseSnapsChannel = "stable"
+
+func defaultBaseSnapsChannel() string {
+	channel := os.Getenv("SNAPD_BASES_CHANNEL")
+	if channel == "" {
+		return "stable"
+	}
+	return channel
+}
+
+func defaultPrereqSnapsChannel() string {
+	channel := os.Getenv("SNAPD_PREREQS_CHANNEL")
+	if channel == "" {
+		return "stable"
+	}
+	return channel
+}
 
 func linkSnapInFlight(st *state.State, snapName string) (bool, error) {
 	for _, chg := range st.Changes() {
@@ -182,7 +197,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string, onInFlight error, userID int) (*state.TaskSet, error) {
+func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName, channel string, onInFlight error, userID int) (*state.TaskSet, error) {
 	// installed already?
 	isInstalled, err := isInstalled(st, snapName)
 	if err != nil {
@@ -201,7 +216,7 @@ func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string,
 	}
 
 	// not installed, nor queued for install -> install it
-	ts, err := Install(st, snapName, defaultBaseSnapsChannel, snap.R(0), userID, Flags{})
+	ts, err := Install(st, snapName, channel, snap.R(0), userID, Flags{})
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
 	// retrying the operation.
@@ -223,7 +238,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	var tss []*state.TaskSet
 	for _, prereqName := range prereq {
 		var onInFlightErr error = nil
-		ts, err := m.installOneBaseOrRequired(st, prereqName, onInFlightErr, userID)
+		ts, err := m.installOneBaseOrRequired(st, prereqName, defaultPrereqSnapsChannel(), onInFlightErr, userID)
 		if err != nil {
 			return err
 		}
@@ -236,7 +251,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	// for base snaps we need to wait until the change is done
 	// (either finished or failed)
 	onInFlightErr := &state.Retry{After: prerequisitesRetryTimeout}
-	tsBase, err := m.installOneBaseOrRequired(st, base, onInFlightErr, userID)
+	tsBase, err := m.installOneBaseOrRequired(st, base, defaultBaseSnapsChannel(), onInFlightErr, userID)
 	if err != nil {
 		return err
 	}
@@ -362,6 +377,12 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func installInfoUnlocked(st *state.State, snapsup *SnapSetup) (*snap.Info, error) {
+	st.Lock()
+	defer st.Unlock()
+	return installInfo(st, snapsup.Name(), snapsup.Channel, snapsup.Revision(), snapsup.UserID)
+}
+
 func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -386,12 +407,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet.
-		spec := store.SnapSpec{
-			Name:     snapsup.Name(),
-			Channel:  snapsup.Channel,
-			Revision: snapsup.Revision(),
-		}
-		storeInfo, err = theStore.SnapInfo(spec, user)
+		storeInfo, err = installInfoUnlocked(st, snapsup)
 		if err != nil {
 			return err
 		}
@@ -719,6 +735,32 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-candidate-index", oldCandidateIndex)
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, snapsup.Name(), snapst)
+
+	// Compatibility with old snapd: check if we have auto-connect task and
+	// if not, inject it after self (link-snap) for snaps that are not core
+	if newInfo.Type != snap.TypeOS {
+		var hasAutoConnect, hasSetupProfiles bool
+		for _, other := range t.Change().Tasks() {
+			// Check if this is auto-connect task for same snap and we it's part of the change with setup-profiles task
+			if other.Kind() == "auto-connect" || other.Kind() == "setup-profiles" {
+				otherSnapsup, err := TaskSnapSetup(other)
+				if err != nil {
+					return err
+				}
+				if snapsup.Name() == otherSnapsup.Name() {
+					if other.Kind() == "auto-connect" {
+						hasAutoConnect = true
+					} else {
+						hasSetupProfiles = true
+					}
+				}
+			}
+		}
+		if !hasAutoConnect && hasSetupProfiles {
+			InjectAutoConnect(t, snapsup)
+		}
+	}
+
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.DoneStatus)
 
@@ -1639,4 +1681,40 @@ func (m *SnapManager) doPreferAliases(t *state.Task, _ *tomb.Tomb) error {
 	snapst.AutoAliasesDisabled = false
 	Set(st, snapName, snapst)
 	return nil
+}
+
+// InjectTasks makes all the halt tasks of the mainTask wait for extraTasks;
+// extraTasks join the same lane and change as the mainTask.
+func InjectTasks(mainTask *state.Task, extraTasks *state.TaskSet) {
+	lanes := mainTask.Lanes()
+	if len(lanes) == 1 && lanes[0] == 0 {
+		lanes = nil
+	}
+	for _, l := range lanes {
+		extraTasks.JoinLane(l)
+	}
+
+	chg := mainTask.Change()
+	// Change shouldn't normally be nil, except for cases where
+	// this helper is used before tasks are added to a change.
+	if chg != nil {
+		chg.AddAll(extraTasks)
+	}
+
+	// make all halt tasks of the mainTask wait on extraTasks
+	ht := mainTask.HaltTasks()
+	for _, t := range ht {
+		t.WaitAll(extraTasks)
+	}
+
+	// make the extra tasks wait for main task
+	extraTasks.WaitFor(mainTask)
+}
+
+func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {
+	st := mainTask.State()
+	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.Name()))
+	autoConnect.Set("snap-setup", snapsup)
+	InjectTasks(mainTask, state.NewTaskSet(autoConnect))
+	mainTask.Logf("added auto-connect task")
 }
