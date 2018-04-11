@@ -126,14 +126,14 @@ func (client *Client) Switch(name string, options *SnapOptions) (changeID string
 	return client.doSnapAction("switch", name, options)
 }
 
-// SnapshotMany snapshots many snaps (all, if empty)
+// SnapshotMany snapshots many snaps (all, if names empty) for many users (all, if users is empty).
 func (client *Client) SnapshotMany(names []string, users []string) (setID uint64, changeID string, err error) {
 	result, changeID, err := client.doMultiSnapActionFull("snapshot", names, &SnapOptions{Users: users})
 	if err != nil {
 		return 0, "", err
 	}
 	if len(result) == 0 {
-		return 0, "", fmt.Errorf("no snapshot set id in result")
+		return 0, "", fmt.Errorf("server result does not contain snapshot set identifier")
 	}
 	var x struct {
 		SetID uint64 `json:"set-id"`
