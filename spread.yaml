@@ -69,6 +69,13 @@ backends:
                 workers: 6
                 manual: true
 
+            - fedora-26-64:
+                workers: 4
+                manual: true
+            - fedora-27-64:
+                image: fedora-27-64-selinux-permissive
+                workers: 4
+
             - opensuse-42.2-64:
                 image: opensuse-leap-42-2
                 workers: 4
@@ -90,11 +97,6 @@ backends:
             HTTP_PROXY: null
             HTTPS_PROXY: null
         systems:
-            - fedora-27-64:
-                workers: 4
-            - fedora-26-64:
-                workers: 4
-                manual: true
             - fedora-25-64:
                 workers: 4
                 manual: true
