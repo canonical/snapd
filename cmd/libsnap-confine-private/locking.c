@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -84,7 +84,7 @@ void sc_disable_sanity_timeout(void)
 
 static const char *sc_lock_dir = SC_LOCK_DIR;
 
-int sc_lock(const char *scope)
+static int sc_lock_generic(const char *scope, int uid)
 {
 	// Create (if required) and open the lock directory.
 	debug("creating lock directory %s (if missing)", sc_lock_dir);
@@ -100,8 +100,13 @@ int sc_lock(const char *scope)
 	}
 	// Construct the name of the lock file.
 	char lock_fname[PATH_MAX] = { 0 };
-	sc_must_snprintf(lock_fname, sizeof lock_fname, "%s/%s.lock",
-			 sc_lock_dir, scope ? : "");
+	if (uid == 0) {
+		sc_must_snprintf(lock_fname, sizeof lock_fname, "%s/%s.lock",
+				 sc_lock_dir, scope ? : "");
+	} else {
+		sc_must_snprintf(lock_fname, sizeof lock_fname, "%s/%s.%d.lock",
+				 sc_lock_dir, scope ? : "", uid);
+	}
 
 	// Open the lock file and acquire an exclusive lock.
 	debug("opening lock file: %s", lock_fname);
@@ -112,34 +117,40 @@ int sc_lock(const char *scope)
 	}
 
 	sc_enable_sanity_timeout();
-	debug("acquiring exclusive lock (scope %s)", scope ? : "(global)");
+	debug("acquiring exclusive lock (scope %s, uid %d)",
+	      scope ? : "(global)", uid);
 	if (flock(lock_fd, LOCK_EX) < 0) {
 		sc_disable_sanity_timeout();
 		close(lock_fd);
-		die("cannot acquire exclusive lock (scope %s)",
-		    scope ? : "(global)");
+		die("cannot acquire exclusive lock (scope %s, uid %d)",
+		    scope ? : "(global)", uid);
 	} else {
 		sc_disable_sanity_timeout();
 	}
 	return lock_fd;
 }
 
-void sc_unlock(const char *scope, int lock_fd)
-{
-	// Release the lock and finish.
-	debug("releasing lock (scope: %s)", scope ? : "(global)");
-	if (flock(lock_fd, LOCK_UN) < 0) {
-		die("cannot release lock (scope: %s)", scope ? : "(global)");
-	}
-	close(lock_fd);
-}
-
 int sc_lock_global(void)
 {
-	return sc_lock(NULL);
+	return sc_lock_generic(NULL, 0);
 }
 
-void sc_unlock_global(int lock_fd)
+int sc_lock_snap(const char *snap_name)
 {
-	return sc_unlock(NULL, lock_fd);
+	return sc_lock_generic(snap_name, 0);
+}
+
+int sc_lock_snap_user(const char *snap_name, int uid)
+{
+	return sc_lock_generic(snap_name, uid);
+}
+
+void sc_unlock(int lock_fd)
+{
+	// Release the lock and finish.
+	debug("releasing lock %d", lock_fd);
+	if (flock(lock_fd, LOCK_UN) < 0) {
+		die("cannot release lock %d", lock_fd);
+	}
+	close(lock_fd);
 }
