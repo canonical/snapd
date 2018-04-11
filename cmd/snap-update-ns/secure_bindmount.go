@@ -21,33 +21,28 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"syscall"
 )
 
 // BindMount performs a bind mount between two absolute paths containing no
-// symlinks, using a private stash directory as an intermediate step.
-//
-// Since this function uses chdir() internally, it should not be called in
-// parallel with code that depends on the current working directory.
-func (sec *Secure) BindMount(sourceDir, targetDir string, flags uint, stashDir string) error {
-	// The kernel doesn't support recursively switching a tree of
-	// bind mounts to read only, and we haven't written a work
-	// around.
+// symlinks.
+func (sec *Secure) BindMount(sourceDir, targetDir string, flags uint) error {
+	// This function only attempts to handle bind mounts. Expanding to other
+	// mounts will require examining do_mount() from fs/namespace.c of the
+	// kernel that called functions (eventually) verify `DCACHE_CANT_MOUNT` is
+	// not set (eg, by calling lock_mount()).
+	if flags&syscall.MS_BIND == 0 {
+		return fmt.Errorf("cannot perform non-bind mount operation")
+	}
+
+	// The kernel doesn't support recursively switching a tree of bind mounts
+	// to read only, and we haven't written a work around.
 	if flags&syscall.MS_RDONLY != 0 && flags&syscall.MS_REC != 0 {
 		return fmt.Errorf("cannot use MS_RDONLY and MS_REC together")
 	}
 
-	// Save current directory, since we use chdir internally
-	cwd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	defer os.Chdir(cwd)
-
-	// Step 1: acquire file descriptors representing the source
-	// and destination directories, ensuring no symlinks are
-	// followed.
+	// Step 1: acquire file descriptors representing the source and destination
+	// directories, ensuring no symlinks are followed.
 	sourceFd, err := sec.OpenPath(sourceDir)
 	if err != nil {
 		return err
@@ -59,36 +54,44 @@ func (sec *Secure) BindMount(sourceDir, targetDir string, flags uint, stashDir s
 	}
 	defer sysClose(targetFd)
 
-	// Step 2: chdir to the source, and bind mount "." to the stash dir
+	// Step 2: perform a bind mount between the paths identified by the two
+	// file descriptors. We primarily care about privilege escalation here and
+	// trying to race the sysMount() by removing any part of the dir (sourceDir
+	// or targetDir) after we have an open file descriptor to it (sourceFd or
+	// targetFd) to then replace an element of the dir's path with a symlink
+	// will cause the fd path (ie, sourceFdPath or targetFdPath) to be marked
+	// as unmountable within the kernel (this path is also changed to show as
+	// '(deleted)'). Alternatively, simply renaming the dir (sourceDir or
+	// targetDir) after we have an open file descriptor to it (sourceFd or
+	// targetFd) causes the mount to happen with the newly renamed path, but
+	// this rename is controlled by DAC so while the user could race the mount
+	// source or target, this rename can't be used to gain privileged access to
+	// files. For systems with AppArmor enabled, this raced rename would be
+	// denied by the per-snap snap-update-ns AppArmor profle.
+	sourceFdPath := fmt.Sprintf("/proc/self/fd/%d", sourceFd)
+	targetFdPath := fmt.Sprintf("/proc/self/fd/%d", targetFd)
 	bindFlags := syscall.MS_BIND | (flags & syscall.MS_REC)
-	if err := sysFchdir(sourceFd); err != nil {
+	if err := sysMount(sourceFdPath, targetFdPath, "", uintptr(bindFlags), ""); err != nil {
 		return err
 	}
-	if err := sysMount(".", stashDir, "", uintptr(bindFlags), ""); err != nil {
-		return err
-	}
-	defer sysUnmount(stashDir, syscall.MNT_DETACH|umountNoFollow)
 
 	// Step 3: optionally change to readonly
 	if flags&syscall.MS_RDONLY != 0 {
-		remountFlags := syscall.MS_REMOUNT | syscall.MS_BIND | syscall.MS_RDONLY
-		if flags&syscall.MS_REC != 0 {
-			remountFlags |= syscall.MS_REC
+		// We need to look up the target directory a second time, because
+		// targetFd refers to the path shadowed by the mount point.
+		mountFd, err := sec.OpenPath(targetDir)
+		if err != nil {
+			// FIXME: the mount occurred, but the user moved the target
+			// somewhere
+			return err
 		}
-		if err := sysMount("none", stashDir, "", uintptr(remountFlags), ""); err != nil {
+		defer sysClose(mountFd)
+		mountFdPath := fmt.Sprintf("/proc/self/fd/%d", mountFd)
+		remountFlags := syscall.MS_REMOUNT | syscall.MS_BIND | syscall.MS_RDONLY
+		if err := sysMount("none", mountFdPath, "", uintptr(remountFlags), ""); err != nil {
+			sysUnmount(mountFdPath, syscall.MNT_DETACH|umountNoFollow)
 			return err
 		}
 	}
-
-	// Step 4: chdir to the destination, and move mount the stash to "."
-	if err := sysFchdir(targetFd); err != nil {
-		return err
-	}
-	// Ideally this would be a move rather than a second bind, but
-	// that fails for shared mount namespaces
-	if err := sysMount(stashDir, ".", "", uintptr(bindFlags), ""); err != nil {
-		return err
-	}
-
 	return nil
 }
