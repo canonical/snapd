@@ -43,18 +43,6 @@
 			"revisionTime": "2017-07-20T12:40:56Z"
 		},
 		{
-			"checksumSHA1": "oONaja1SA8xsG5eqRKz8UZ9IHVI=",
-			"path": "github.com/kr/pretty",
-			"revision": "cfb55aafdaf3ec08f0db22699ab822c50091b1c4",
-			"revisionTime": "2016-08-23T17:07:15Z"
-		},
-		{
-			"checksumSHA1": "uulQHQ7IsRKqDudBC8Go9J0gtAc=",
-			"path": "github.com/kr/text",
-			"revision": "7cafcd837844e784b526369c9bce262804aebc60",
-			"revisionTime": "2016-05-04T02:26:26Z"
-		},
-		{
 			"checksumSHA1": "bzUdFxQ29mPK0lwgFVcF0GFN74Q=",
 			"path": "github.com/mvo5/goconfigparser",
 			"revision": "26426272dda20cc76aa1fa44286dc743d2972fe8",
@@ -77,12 +65,6 @@
 			"path": "github.com/ojii/gettext.go/pluralforms",
 			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
 			"revisionTime": "2016-07-14T06:47:45Z"
-		},
-		{
-			"checksumSHA1": "1vEOSFGMV6arGVXihOnqhpkO5o4=",
-			"path": "github.com/pilebones/go-udev",
-			"revision": "02dfd8edaaf3a7a46ad1509ae44c8f08dfaf8ece",
-			"revisionTime": "2018-03-15T12:37:24Z"
 		},
 		{
 			"checksumSHA1": "NlLiv7ig8RkjQlgujLWX7ZpiDt0=",
