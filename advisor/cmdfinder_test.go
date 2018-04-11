@@ -129,9 +129,9 @@ func (s *cmdfinderSuite) TestDumpCommands(c *C) {
 	cmds, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
 	c.Check(cmds, DeepEquals, map[string]string{
-		"foo": `[{"name":"foo","version":"1.0"}]`,
-		"bar": `[{"name":"bar","version":"2.0"}]`,
-		"meh": `[{"name":"foo","version":"1.0"},{"name":"bar","version":"2.0"}]`,
+		"foo": `[{"snap":"foo","version":"1.0"}]`,
+		"bar": `[{"snap":"bar","version":"2.0"}]`,
+		"meh": `[{"snap":"foo","version":"1.0"},{"snap":"bar","version":"2.0"}]`,
 	})
 }
 

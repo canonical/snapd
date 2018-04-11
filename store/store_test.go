@@ -2924,10 +2924,10 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 	dump, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
 	c.Check(dump, DeepEquals, map[string]string{
-		"foo":     `[{"name":"foo","version":"1.0"}]`,
-		"bar.baz": `[{"name":"bar","version":"2.0"}]`,
-		"potato":  `[{"name":"bar","version":"2.0"}]`,
-		"meh":     `[{"name":"bar","version":"2.0"},{"name":"foo","version":"1.0"}]`,
+		"foo":     `[{"snap":"foo","version":"1.0"}]`,
+		"bar.baz": `[{"snap":"bar","version":"2.0"}]`,
+		"potato":  `[{"snap":"bar","version":"2.0"}]`,
+		"meh":     `[{"snap":"bar","version":"2.0"},{"snap":"foo","version":"1.0"}]`,
 	})
 }
 
@@ -6549,7 +6549,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &SnapActionError{
 		Refresh: map[string]error{
-			"hello-world": ErrNoUpdateAvailable,
+			"hello-world": ErrRevisionNotAvailable,
 		},
 		Install: map[string]error{
 			"foo": ErrRevisionNotAvailable,

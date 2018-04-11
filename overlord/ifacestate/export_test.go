@@ -27,8 +27,8 @@ import (
 )
 
 var (
-	AddImplicitSlots = addImplicitSlots
-	InjectTasks      = injectTasks
+	AddImplicitSlots          = addImplicitSlots
+	SnapsWithSecurityProfiles = snapsWithSecurityProfiles
 )
 
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the

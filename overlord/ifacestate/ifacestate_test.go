@@ -2522,66 +2522,185 @@ slots:
 	c.Check(tConnectPlug.Status(), Equals, state.DoneStatus)
 }
 
-func (s *interfaceManagerSuite) TestInjectTasks(c *C) {
+/*
+func (s *interfaceManagerSuite) TestSetupProfilesInjectsAutoConnectIfMissing(c *C) {
+	mgr := s.manager(c)
+
+	si1 := &snap.SideInfo{
+		RealName: "snap1",
+		Revision: snap.R(1),
+	}
+	sup1 := &snapstate.SnapSetup{SideInfo: si1}
+	_ = snaptest.MockSnap(c, sampleSnapYaml, si1)
+
+	si2 := &snap.SideInfo{
+		RealName: "snap2",
+		Revision: snap.R(1),
+	}
+	sup2 := &snapstate.SnapSetup{SideInfo: si2}
+	_ = snaptest.MockSnap(c, consumerYaml, si2)
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	lane := s.state.NewLane()
+	task1 := s.state.NewTask("setup-profiles", "")
+	task1.Set("snap-setup", sup1)
 
-	// setup main task and two tasks waiting for it; all part of same change
-	chg := s.state.NewChange("change", "")
-	t0 := s.state.NewTask("task1", "")
-	chg.AddTask(t0)
-	t0.JoinLane(lane)
-	t01 := s.state.NewTask("task1-1", "")
-	t01.WaitFor(t0)
-	chg.AddTask(t01)
-	t02 := s.state.NewTask("task1-2", "")
-	t02.WaitFor(t0)
-	chg.AddTask(t02)
+	task2 := s.state.NewTask("setup-profiles", "")
+	task2.Set("snap-setup", sup2)
 
-	// setup extra tasks
-	t1 := s.state.NewTask("task2", "")
-	t2 := s.state.NewTask("task3", "")
-	ts := state.NewTaskSet(t1, t2)
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task1)
+	task2.WaitFor(task1)
+	chg.AddTask(task2)
 
-	ifacestate.InjectTasks(t0, ts)
+	s.state.Unlock()
 
-	// verify that extra tasks are now part of same change
-	c.Assert(t1.Change().ID(), Equals, t0.Change().ID())
-	c.Assert(t2.Change().ID(), Equals, t0.Change().ID())
-	c.Assert(t1.Change().ID(), Equals, chg.ID())
+	defer mgr.Stop()
+	s.settle(c)
+	s.state.Lock()
 
-	c.Assert(t1.Lanes(), DeepEquals, []int{lane})
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Tasks(), HasLen, 4)
 
-	// verify that halt tasks of the main task now wait for extra tasks
-	c.Assert(t1.HaltTasks(), HasLen, 2)
-	c.Assert(t2.HaltTasks(), HasLen, 2)
-	c.Assert(t1.HaltTasks(), DeepEquals, t2.HaltTasks())
+	// sanity checks
+	t := chg.Tasks()[0]
+	c.Assert(t.Kind(), Equals, "setup-profiles")
+	t = chg.Tasks()[1]
+	c.Assert(t.Kind(), Equals, "setup-profiles")
 
-	ids := []string{t1.HaltTasks()[0].Kind(), t2.HaltTasks()[1].Kind()}
-	sort.Strings(ids)
-	c.Assert(ids, DeepEquals, []string{"task1-1", "task1-2"})
+	// check that auto-connect tasks were added and have snap-setup
+	var autoconnectSup snapstate.SnapSetup
+	t = chg.Tasks()[2]
+	c.Assert(t.Kind(), Equals, "auto-connect")
+	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
+	c.Assert(autoconnectSup.Name(), Equals, "snap1")
+
+	t = chg.Tasks()[3]
+	c.Assert(t.Kind(), Equals, "auto-connect")
+	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
+	c.Assert(autoconnectSup.Name(), Equals, "snap2")
+}
+*/
+
+func (s *interfaceManagerSuite) TestSetupProfilesInjectsAutoConnectIfCore(c *C) {
+	mgr := s.manager(c)
+
+	si1 := &snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(1),
+	}
+	sup1 := &snapstate.SnapSetup{SideInfo: si1}
+	_ = snaptest.MockSnap(c, ubuntuCoreSnapYaml, si1)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task1 := s.state.NewTask("setup-profiles", "")
+	task1.Set("snap-setup", sup1)
+
+	task2 := s.state.NewTask("setup-profiles", "")
+	task2.Set("snap-setup", sup1)
+	task2.Set("core-phase-2", true)
+	task2.WaitFor(task1)
+
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task1)
+	chg.AddTask(task2)
+
+	s.state.Unlock()
+
+	defer mgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Tasks(), HasLen, 3)
+
+	// sanity checks
+	t := chg.Tasks()[0]
+	c.Assert(t.Kind(), Equals, "setup-profiles")
+	t = chg.Tasks()[1]
+	c.Assert(t.Kind(), Equals, "setup-profiles")
+	var phase2 bool
+	c.Assert(t.Get("core-phase-2", &phase2), IsNil)
+	c.Assert(t.HaltTasks(), HasLen, 1)
+
+	// check that auto-connect task was added after phase2
+	var autoconnectSup snapstate.SnapSetup
+	t = chg.Tasks()[2]
+	c.Assert(t.Kind(), Equals, "auto-connect")
+	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
+	c.Assert(autoconnectSup.Name(), Equals, "core")
 }
 
-func (s *interfaceManagerSuite) TestInjectTasksWithNullChange(c *C) {
+func (s *interfaceManagerSuite) TestSnapsWithSecurityProfiles(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// setup main task
-	t0 := s.state.NewTask("task1", "")
-	t01 := s.state.NewTask("task1-1", "")
-	t01.WaitFor(t0)
+	si0 := &snap.SideInfo{
+		RealName: "snap0",
+		Revision: snap.R(10),
+	}
+	snaptest.MockSnap(c, `name: snap0`, si0)
+	snapstate.Set(s.state, "snap0", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si0},
+		Current:  si0.Revision,
+	})
 
-	// setup extra task
-	t1 := s.state.NewTask("task2", "")
-	ts := state.NewTaskSet(t1)
+	snaps := []struct {
+		name        string
+		setupStatus state.Status
+		linkStatus  state.Status
+	}{
+		{"snap0", state.DoneStatus, state.DoneStatus},
+		{"snap1", state.DoneStatus, state.DoStatus},
+		{"snap2", state.DoneStatus, state.ErrorStatus},
+		{"snap3", state.DoneStatus, state.UndoingStatus},
+		{"snap4", state.DoingStatus, state.DoStatus},
+		{"snap6", state.DoStatus, state.DoStatus},
+	}
 
-	ifacestate.InjectTasks(t0, ts)
+	for i, snp := range snaps {
+		var si *snap.SideInfo
 
-	c.Assert(t1.Lanes(), DeepEquals, []int{0})
+		if snp.name != "snap0" {
+			si = &snap.SideInfo{
+				RealName: snp.name,
+				Revision: snap.R(i),
+			}
+			snaptest.MockSnap(c, "name: "+snp.name, si)
+		}
 
-	// verify that halt tasks of the main task now wait for extra tasks
-	c.Assert(t1.HaltTasks(), HasLen, 1)
-	c.Assert(t1.HaltTasks()[0].Kind(), Equals, "task1-1")
+		chg := s.state.NewChange("linking", "linking 1")
+		t1 := s.state.NewTask("setup-profiles", "setup profiles 1")
+		t1.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: si,
+		})
+		t1.SetStatus(snp.setupStatus)
+		t2 := s.state.NewTask("link-snap", "link snap 1")
+		t2.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: si,
+		})
+		t2.WaitFor(t1)
+		t2.SetStatus(snp.linkStatus)
+		chg.AddTask(t1)
+		chg.AddTask(t2)
+	}
+
+	infos, err := ifacestate.SnapsWithSecurityProfiles(s.state)
+	c.Assert(err, IsNil)
+	c.Check(infos, HasLen, 3)
+	got := make(map[string]snap.Revision)
+	for _, info := range infos {
+		got[info.Name()] = info.Revision
+	}
+	c.Check(got, DeepEquals, map[string]snap.Revision{
+		"snap0": snap.R(10),
+		"snap1": snap.R(1),
+		"snap3": snap.R(3),
+	})
 }

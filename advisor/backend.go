@@ -35,12 +35,6 @@ var (
 	pkgBucketKey = []byte("Snaps")
 )
 
-// snapInfo contains information about what snap provides a command
-type snapInfo struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-}
-
 type writer struct {
 	db        *bolt.DB
 	tx        *bolt.Tx
@@ -106,7 +100,7 @@ func Create() (CommandDB, error) {
 
 func (t *writer) AddSnap(snapName, version, summary string, commands []string) error {
 	for _, cmd := range commands {
-		var sil []snapInfo
+		var sil []Package
 
 		bcmd := []byte(cmd)
 		row := t.cmdBucket.Get(bcmd)
@@ -115,7 +109,8 @@ func (t *writer) AddSnap(snapName, version, summary string, commands []string) e
 				return err
 			}
 		}
-		sil = append(sil, snapInfo{Name: snapName, Version: version})
+		// For the mapping of command->snap we do not need the summary, nothing is using that.
+		sil = append(sil, Package{Snap: snapName, Version: version})
 		row, err := json.Marshal(sil)
 		if err != nil {
 			return err
@@ -126,7 +121,15 @@ func (t *writer) AddSnap(snapName, version, summary string, commands []string) e
 	}
 
 	// TODO: use json here as well and put the version information here
-	if err := t.pkgBucket.Put([]byte(snapName), []byte(summary)); err != nil {
+	bj, err := json.Marshal(Package{
+		Snap:    snapName,
+		Version: version,
+		Summary: summary,
+	})
+	if err != nil {
+		return err
+	}
+	if err := t.pkgBucket.Put([]byte(snapName), bj); err != nil {
 		return err
 	}
 
@@ -236,14 +239,14 @@ func (f *boltFinder) FindCommand(command string) ([]Command, error) {
 	if buf == nil {
 		return nil, nil
 	}
-	var sil []snapInfo
+	var sil []Package
 	if err := json.Unmarshal(buf, &sil); err != nil {
 		return nil, err
 	}
 	cmds := make([]Command, len(sil))
 	for i, si := range sil {
 		cmds[i] = Command{
-			Snap:    si.Name,
+			Snap:    si.Snap,
 			Version: si.Version,
 			Command: command,
 		}
@@ -264,10 +267,15 @@ func (f *boltFinder) FindPackage(pkgName string) (*Package, error) {
 		return nil, nil
 	}
 
-	bsummary := b.Get([]byte(pkgName))
-	if bsummary == nil {
+	bj := b.Get([]byte(pkgName))
+	if bj == nil {
 		return nil, nil
 	}
+	var si Package
+	err = json.Unmarshal(bj, &si)
+	if err != nil {
+		return nil, err
+	}
 
-	return &Package{Snap: pkgName, Version: "", Summary: string(bsummary)}, nil
+	return &Package{Snap: pkgName, Version: si.Version, Summary: si.Summary}, nil
 }
