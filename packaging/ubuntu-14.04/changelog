@@ -1,3 +1,21 @@
+snapd (2.32.3.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1756173
+    - debian: add gbp.conf script to build snapd via `gbp
+      buildpackage`
+    - tests: add check for OOM error after each test
+    - cmd/snap-seccomp: graceful handling of non-multilib host
+    - interfaces/shutdown: allow calling SetWallMessage
+    - data/selinux: Give snapd access to more aspects of the system
+    - daemon,overlord/hookstate: stop/wait for running hooks before
+      closing the snapctl socket
+    - cmd/snap-confine: ignore missing cgroups in snap-device-helper
+    - interfaces: misc updates for default, firewall-control, fuse-
+      support and process-control
+    - overlord: test fix, address corner case
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 11 Apr 2018 10:34:00 +0200
+
 snapd (2.32.3~14.04) trusty; urgency=medium
 
   *  New upstream release, LP: #1756173
