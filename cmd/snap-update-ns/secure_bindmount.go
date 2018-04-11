@@ -25,7 +25,7 @@ import (
 )
 
 // BindMount performs a bind mount between two absolute paths containing no
-// symlinks, using a private stash directory as an intermediate step.
+// symlinks.
 func (sec *Secure) BindMount(sourceDir, targetDir string, flags uint) error {
 	// This function only attempts to handle bind mounts. Expanding to other
 	// mounts will require examining do_mount() from fs/namespace.c of the
