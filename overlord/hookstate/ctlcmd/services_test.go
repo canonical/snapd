@@ -47,18 +47,18 @@ type fakeStore struct {
 	storetest.Store
 }
 
-func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	return &snap.Info{
-		SideInfo: snap.SideInfo{
-			RealName: spec.Name,
-			Revision: snap.R(2),
-		},
-		Publisher:     "foo",
-		Architectures: []string{"all"},
-	}, nil
-}
+func (f *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+	if len(actions) == 1 && actions[0].Action == "install" {
+		return []*snap.Info{{
+			SideInfo: snap.SideInfo{
+				RealName: actions[0].Name,
+				Revision: snap.R(2),
+			},
+			Publisher:     "foo",
+			Architectures: []string{"all"},
+		}}, nil
+	}
 
-func (f *fakeStore) ListRefresh(_ context.Context, cand []*store.RefreshCandidate, user *auth.UserState, opt *store.RefreshOptions) ([]*snap.Info, error) {
 	return []*snap.Info{{
 		SideInfo: snap.SideInfo{
 			RealName: "test-snap",
