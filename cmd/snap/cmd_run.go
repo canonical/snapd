@@ -233,28 +233,16 @@ func antialias(snapApp string, args []string) (string, []string) {
 	return actualApp, argsOut
 }
 
-func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
+func getSnapInfo(snapName string, revision snap.Revision) (info *snap.Info, err error) {
 	if revision.Unset() {
-		curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
-		realFn, err := os.Readlink(curFn)
-		if err != nil {
-			return nil, fmt.Errorf("cannot find current revision for snap %s: %s", snapName, err)
-		}
-		rev := filepath.Base(realFn)
-		revision, err = snap.ParseRevision(rev)
-		if err != nil {
-			return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
-		}
+		info, err = snap.ReadCurrentInfo(snapName)
+	} else {
+		info, err = snap.ReadInfo(snapName, &snap.SideInfo{
+			Revision: revision,
+		})
 	}
 
-	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
-		Revision: revision,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return info, nil
+	return info, err
 }
 
 func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
