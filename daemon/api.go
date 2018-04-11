@@ -248,7 +248,17 @@ var (
 		GET:    getAliases,
 		POST:   changeAliases,
 	}
+
+	buildID = "unknown"
 )
+
+func init() {
+	// cache the build-id on startup to ensure that changes in
+	// the underlying binary do not affect us
+	if bid, err := osutil.MyBuildID(); err == nil {
+		buildID = bid
+	}
+}
 
 func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse([]string{"TBD"}, nil)
@@ -292,6 +302,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	m := map[string]interface{}{
 		"series":         release.Series,
 		"version":        c.d.Version,
+		"build-id":       buildID,
 		"os-release":     release.ReleaseInfo,
 		"on-classic":     release.OnClassic,
 		"managed":        len(users) > 0,
@@ -1599,7 +1610,7 @@ func splitQS(qs string) []string {
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := vars["name"]
+	snapName := systemCoreSnapUnalias(vars["name"])
 
 	keys := splitQS(r.URL.Query().Get("keys"))
 
@@ -1642,7 +1653,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := vars["name"]
+	snapName := systemCoreSnapUnalias(vars["name"])
 
 	var patchValues map[string]interface{}
 	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
@@ -2792,7 +2803,7 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
-	ts, err := servicestate.Control(st, appInfos, &inst, nil)
+	tss, err := servicestate.Control(st, appInfos, &inst, nil)
 	if err != nil {
 		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
 			return Conflict(err.Error())
@@ -2801,7 +2812,14 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	st.Lock()
 	defer st.Unlock()
-	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), []*state.TaskSet{ts}, inst.Names)
+	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, inst.Names)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
+func systemCoreSnapUnalias(name string) string {
+	if name == "system" {
+		return "core"
+	}
+	return name
 }

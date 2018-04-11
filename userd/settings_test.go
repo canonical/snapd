@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/userd"
+	"github.com/snapcore/snapd/userd/ui"
 )
 
 type settingsSuite struct {
@@ -67,6 +68,15 @@ fi
 func (s *settingsSuite) TearDownTest(c *C) {
 	s.mockXdgSettings.Restore()
 	s.restoreSnapFromSender()
+}
+
+func mockUIcommands(c *C, script string) func() {
+	mockZenity := testutil.MockCommand(c, "zenity", script)
+	mockKDialog := testutil.MockCommand(c, "kdialog", script)
+	return func() {
+		mockZenity.Restore()
+		mockKDialog.Restore()
+	}
 }
 
 func (s *settingsSuite) TestGetUnhappy(c *C) {
@@ -123,10 +133,7 @@ func (s *settingsSuite) TestSetInvalidSetting(c *C) {
 	c.Assert(s.mockXdgSettings.Calls(), IsNil)
 }
 
-func (s *settingsSuite) TestSetUserDeclined(c *C) {
-	mockZenity := testutil.MockCommand(c, "zenity", "false")
-	defer mockZenity.Restore()
-
+func (s *settingsSuite) testSetUserDeclined(c *C) {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_bar.desktop")
 	err := os.MkdirAll(filepath.Dir(df), 0755)
 	c.Assert(err, IsNil)
@@ -144,10 +151,31 @@ func (s *settingsSuite) TestSetUserDeclined(c *C) {
 	*/
 }
 
-func (s *settingsSuite) TestSetUserAccepts(c *C) {
-	mockZenity := testutil.MockCommand(c, "zenity", "true")
-	defer mockZenity.Restore()
+func (s *settingsSuite) TestSetUserDeclinedKDialog(c *C) {
+	// force zenity exec missing
+	restoreZenity := ui.MockHasZenityExecutable(func() bool { return false })
+	restoreCmds := mockUIcommands(c, "false")
+	defer func() {
+		restoreZenity()
+		restoreCmds()
+	}()
 
+	s.testSetUserDeclined(c)
+}
+
+func (s *settingsSuite) TestSetUserDeclinedZenity(c *C) {
+	// force kdialog exec missing
+	restoreKDialog := ui.MockHasKDialogExecutable(func() bool { return false })
+	restoreCmds := mockUIcommands(c, "false")
+	defer func() {
+		restoreKDialog()
+		restoreCmds()
+	}()
+
+	s.testSetUserDeclined(c)
+}
+
+func (s *settingsSuite) testSetUserAccepts(c *C) {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_foo.desktop")
 	err := os.MkdirAll(filepath.Dir(df), 0755)
 	c.Assert(err, IsNil)
@@ -165,5 +193,28 @@ func (s *settingsSuite) TestSetUserAccepts(c *C) {
 				{"zenity", "--question", "--text=Allow changing setting \"default-web-browser\" to \"foo.desktop\" ?"},
 		})
 	*/
+}
 
+func (s *settingsSuite) TestSetUserAcceptsZenity(c *C) {
+	// force kdialog exec missing
+	restoreKDialog := ui.MockHasKDialogExecutable(func() bool { return false })
+	restoreCmds := mockUIcommands(c, "true")
+	defer func() {
+		restoreKDialog()
+		restoreCmds()
+	}()
+
+	s.testSetUserAccepts(c)
+}
+
+func (s *settingsSuite) TestSetUserAcceptsKDialog(c *C) {
+	// force zenity exec missing
+	restoreZenity := ui.MockHasZenityExecutable(func() bool { return false })
+	restoreCmds := mockUIcommands(c, "true")
+	defer func() {
+		restoreZenity()
+		restoreCmds()
+	}()
+
+	s.testSetUserAccepts(c)
 }

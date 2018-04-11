@@ -27,8 +27,8 @@ type cmdEnsureStateSoon struct{}
 
 func init() {
 	cmd := addDebugCommand("ensure-state-soon",
-		"(internal) trigger an ensure runn in the state engine",
-		"(internal) trigger an ensure runn in the state engine",
+		"(internal) trigger an ensure run in the state engine",
+		"(internal) trigger an ensure run in the state engine",
 		func() flags.Commander {
 			return &cmdEnsureStateSoon{}
 		})

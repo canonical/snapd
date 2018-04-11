@@ -423,6 +423,17 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 	return &cfg, nil
 }
 
+func (m *DeviceManager) finishRegistration(t *state.Task, device *auth.DeviceState, serial *asserts.Serial) error {
+	device.Serial = serial.Serial()
+	err := auth.SetDevice(t.State(), device)
+	if err != nil {
+		return err
+	}
+	m.markRegistered()
+	t.SetStatus(state.DoneStatus)
+	return nil
+}
+
 func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -459,13 +470,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 
 	if len(serials) == 1 {
 		// means we saved the assertion but didn't get to the end of the task
-		device.Serial = serials[0].(*asserts.Serial).Serial()
-		err := auth.SetDevice(st, device)
-		if err != nil {
-			return err
-		}
-		t.SetStatus(state.DoneStatus)
-		return nil
+		return m.finishRegistration(t, device, serials[0].(*asserts.Serial))
 	}
 	if len(serials) > 1 {
 		return fmt.Errorf("internal error: multiple serial assertions for the same device key")
@@ -502,13 +507,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return &state.Retry{}
 	}
 
-	device.Serial = serial.Serial()
-	err = auth.SetDevice(st, device)
-	if err != nil {
-		return err
-	}
-	t.SetStatus(state.DoneStatus)
-	return nil
+	return m.finishRegistration(t, device, serial)
 }
 
 var repeatRequestSerial string // for tests
