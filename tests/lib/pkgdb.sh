@@ -464,8 +464,10 @@ pkg_dependencies_fedora(){
         git
         golang
         jq
+        iptables-services
         man
         mock
+        net-tools
         redhat-lsb-core
         rpm-build
         xdg-user-dirs
