@@ -68,6 +68,18 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	return snapInfo
 }
 
+// MockSnapCurrent does the same as MockSnap but additionally creates the
+// 'current' symlink.
+//
+// The caller is responsible for mocking root directory with dirs.SetRootDir()
+// and for altering the overlord state if required.
+func MockSnapCurrent(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
+	si := MockSnap(c, yamlText, sideInfo)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
+	return si
+}
+
 // MockInfo parses the given snap.yaml text and returns a validated snap.Info object including the optional SideInfo.
 //
 // The result is just kept in memory, there is nothing kept on disk. If that is
