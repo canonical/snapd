@@ -1,3 +1,15 @@
+snapd (2.32.4~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1756173
+    - cmd/snap: user session application autostart
+    - overlord/snapstate: introduce envvars to control the channels for
+      bases and prereqs
+    - overlord/snapstate: on multi-snap refresh make sure bases and core
+      are finished before dependent snaps
+    - many: use the new install/refresh /v2/snaps/refresh store API
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 11 Apr 2018 16:30:45 +0200
+
 snapd (2.32.3.2~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1756173

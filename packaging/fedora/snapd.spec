@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.32.3.2
+Version:        2.32.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -711,6 +711,15 @@ fi
 
 
 %changelog
+* Wed Apr 11 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.4
+ - cmd/snap: user session application autostart
+ - overlord/snapstate: introduce envvars to control the channels for
+   bases and prereqs
+ - overlord/snapstate: on multi-snap refresh make sure bases and core
+   are finished before dependent snaps
+ - many: use the new install/refresh /v2/snaps/refresh store API
+
 * Wed Apr 11 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.3.2
  - errtracker: make TestJournalErrorSilentError work on
