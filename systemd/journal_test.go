@@ -51,7 +51,11 @@ func (j *journalTestSuite) TestStreamFileHeader(c *C) {
 	c.Assert(err, IsNil)
 	defer listener.Close()
 
+	doneCh := make(chan struct{}, 1)
+
 	go func() {
+		defer func() { close(doneCh) }()
+
 		// see https://github.com/systemd/systemd/blob/97a33b126c845327a3a19d6e66f05684823868fb/src/journal/journal-send.c#L424
 		conn, err := listener.AcceptUnix()
 		c.Assert(err, IsNil)
@@ -62,12 +66,14 @@ func (j *journalTestSuite) TestStreamFileHeader(c *C) {
 		hdrLen, err := conn.Read(hdrBuf)
 		c.Assert(err, IsNil)
 		c.Assert(hdrLen, Equals, expectedHdrLen)
-		c.Check(hdrBuf, Equals, []byte("foobar\n\n6\n0\n0\n0\n0\n"))
+		c.Check(hdrBuf, DeepEquals, []byte("foobar\n\n6\n0\n0\n0\n0\n"))
 
 		data := make([]byte, 4096)
-		_, err = conn.Read(hdrBuf)
+		sz, err := conn.Read(data)
 		c.Assert(err, IsNil)
-		c.Check(data, Equals, []byte("hello from unit tests"))
+		c.Assert(sz > 0, Equals, true)
+		c.Check(data[0:sz], DeepEquals, []byte("hello from unit tests"))
+
 	}()
 
 	jout, err := NewJournalStreamFile("foobar", syslog.LOG_INFO, false)
@@ -76,4 +82,6 @@ func (j *journalTestSuite) TestStreamFileHeader(c *C) {
 
 	jout.WriteString("hello from unit tests")
 	defer jout.Close()
+
+	<-doneCh
 }
