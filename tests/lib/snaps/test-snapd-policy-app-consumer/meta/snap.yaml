@@ -113,6 +113,9 @@ apps:
   home:
     command: bin/run
     plugs: [ home ]
+  hostname-control:
+    command: bin/run
+    plugs: [ hostname-control ]
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
