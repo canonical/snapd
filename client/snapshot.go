@@ -48,7 +48,7 @@ type snapshotAction struct {
 // A Snapshot is a collection of archives with a simple metadata json file
 // (and hashsums of everything).
 type Snapshot struct {
-	// SetID is the ID of the snapshot set (a snapshot set is a "snap save" invocation)
+	// SetID is the ID of the snapshot set (a snapshot set is the result of a "snap save" invocation)
 	SetID uint64 `json:"set"`
 	// the time this snapshot's data collection was started
 	Time time.Time `json:"time"`
