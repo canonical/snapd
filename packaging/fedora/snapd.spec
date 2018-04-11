@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.32.3.1
+Version:        2.32.3.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -710,6 +710,13 @@ fi
 
 
 %changelog
+* Wed Apr 11 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.3.2
+ - errtracker: make TestJournalErrorSilentError work on
+   gccgo
+ - errtracker: check for whoopsie.service instead of reading
+   /etc/whoopsie
+
 * Wed Apr 11 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.3.1
  - debian: add gbp.conf script to build snapd via `gbp

@@ -1,3 +1,13 @@
+snapd (2.32.3.2) xenial; urgency=medium
+
+  * New upstream release, LP: #1756173
+    - errtracker: make TestJournalErrorSilentError work on
+      gccgo
+    - errtracker: check for whoopsie.service instead of reading
+      /etc/whoopsie
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 11 Apr 2018 12:40:09 +0200
+
 snapd (2.32.3.1) xenial; urgency=medium
 
   * New upstream release, LP: #1756173
