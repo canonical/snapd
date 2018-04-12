@@ -418,7 +418,7 @@ func (s *ValidateSuite) TestAppDaemonValue(c *C) {
 func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 	// check services
 	for _, t := range []struct {
-		refresh string
+		refresh RefreshModeType
 		ok      bool
 	}{
 		// good

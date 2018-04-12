@@ -537,6 +537,26 @@ type TimerInfo struct {
 	Timer string
 }
 
+// RefreshModeType is the type for the "refresh-mode:" of a snap app
+type RefreshModeType string
+
+func (rm RefreshModeType) KillMode() string {
+	switch rm {
+	case "sigterm", "sighup", "sigusr1", "sigusr2":
+		return "process"
+	}
+	return ""
+}
+
+func (rm RefreshModeType) Valid() error {
+	switch rm {
+	case "", "endure", "restart", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
+		// valid
+		return nil
+	}
+	return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, rm)
+}
+
 // AppInfo provides information about a app.
 type AppInfo struct {
 	Snap *Info
@@ -552,7 +572,7 @@ type AppInfo struct {
 	PostStopCommand string
 	RestartCond     RestartCondition
 	Completer       string
-	RefreshMode     string
+	RefreshMode     RefreshModeType
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
