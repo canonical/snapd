@@ -98,6 +98,7 @@ var api = []*Command{
 	appsCmd,
 	logsCmd,
 	warningsCmd,
+	debugPprofCmd,
 	debugCmd,
 	snapshotCmd,
 	connectionsCmd,
