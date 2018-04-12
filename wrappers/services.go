@@ -269,6 +269,12 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 		if err := stopService(sysd, app, inter); err != nil {
 			return err
 		}
+		// ensure the service is really stopped on remove
+		if reason == snap.StopReasonRemove && app.RefreshMode.KillMode() == "process" {
+			sysd.Kill(app.ServiceName(), "TERM", "all")
+			time.Sleep(killWait)
+			sysd.Kill(app.ServiceName(), "KILL", "")
+		}
 	}
 
 	return nil
@@ -368,6 +374,9 @@ RemainAfterExit={{.Remain}}
 BusName={{.App.BusName}}
 {{- end}}
 {{- if not .App.Sockets}}
+{{- if .KillMode}}
+KillMode={{.KillMode}}
+{{- end}}
 
 [Install]
 WantedBy={{.ServicesTarget}}
@@ -401,6 +410,7 @@ WantedBy={{.ServicesTarget}}
 		PrerequisiteTarget string
 		MountUnit          string
 		Remain             string
+		KillMode           string
 		Before             []string
 		After              []string
 
@@ -415,8 +425,10 @@ WantedBy={{.ServicesTarget}}
 		PrerequisiteTarget: systemd.PrerequisiteTarget,
 		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
 		Remain:             remain,
-		Before:             genServiceNames(appInfo.Snap, appInfo.Before),
-		After:              genServiceNames(appInfo.Snap, appInfo.After),
+		KillMode:           appInfo.RefreshMode.KillMode(),
+
+		Before: genServiceNames(appInfo.Snap, appInfo.Before),
+		After:  genServiceNames(appInfo.Snap, appInfo.After),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",

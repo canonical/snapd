@@ -535,11 +535,8 @@ func ValidateApp(app *AppInfo) error {
 	}
 
 	// validate refresh-mode
-	switch app.RefreshMode {
-	case "", "endure", "restart", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
-		// valid
-	default:
-		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.RefreshMode)
+	if err := app.RefreshMode.Valid(); err != nil {
+		return err
 	}
 	if app.RefreshMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"refresh-mode" cannot be used for %q, only for services`, app.Name)
