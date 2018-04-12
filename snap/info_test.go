@@ -939,3 +939,24 @@ func (s *infoSuite) TestExpandSnapVariables(c *C) {
 	c.Assert(info.ExpandSnapVariables("$SNAP_COMMON/stuff"), Equals, "/var/snap/foo/common/stuff")
 	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
 }
+
+func (s *infoSuite) TestRefreshModeTypeKillMode(c *C) {
+	for _, t := range []struct {
+		refreshMode string
+		killMode    string
+	}{
+		{"", ""},
+		{"endure", ""},
+		{"restart", ""},
+		{"sigterm", "process"},
+		{"sigterm-all", ""},
+		{"sighup", "process"},
+		{"sighup-all", ""},
+		{"sigusr1", "process"},
+		{"sigusr1-all", ""},
+		{"sigusr2", "process"},
+		{"sigusr2-all", ""},
+	} {
+		c.Check(snap.RefreshModeType(t.refreshMode).KillMode(), Equals, t.killMode)
+	}
+}
