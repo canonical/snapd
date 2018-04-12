@@ -454,18 +454,24 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
-	if err := m.backend.SetupSnap(snapsup.SnapPath, snapsup.SideInfo, pb); err != nil {
-		return err
-	}
-
-	// set snapst type for undoMountSnap
-	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo)
+	snapType, err := m.backend.SetupSnap(snapsup.SnapPath, snapsup.SideInfo, pb)
 	if err != nil {
 		return err
 	}
 
+	// double check that the snap is mounted
+	if _, err := readInfo(snapsup.Name(), snapsup.SideInfo, errorOnBroken); err != nil {
+		if err := m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, pb); err != nil {
+			t.State().Lock()
+			t.Errorf("cannot undo partial setup snap %q: %v", snapsup.Name(), err)
+			t.State().Unlock()
+		}
+		return err
+	}
+
+	// set snapst type for undoMountSnap
 	t.State().Lock()
-	t.Set("snap-type", newInfo.Type)
+	t.Set("snap-type", snapType)
 	t.State().Unlock()
 
 	if snapsup.Flags.RemoveSnapPath {
@@ -572,7 +578,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo)
+	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo, 0)
 	if err != nil {
 		return err
 	}
@@ -594,7 +600,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo)
+	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo, 0)
 	if err != nil {
 		return err
 	}
@@ -694,7 +700,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	newInfo, err := readInfo(snapsup.Name(), cand)
+	newInfo, err := readInfo(snapsup.Name(), cand, 0)
 	if err != nil {
 		return err
 	}
@@ -868,7 +874,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.JailMode = oldJailMode
 	snapst.Classic = oldClassic
 
-	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo)
+	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo, 0)
 	if err != nil {
 		return err
 	}
