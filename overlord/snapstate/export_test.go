@@ -90,6 +90,12 @@ func MockSnapReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, err
 	return func() { snapReadInfo = old }
 }
 
+func MockMountPollInterval(intv time.Duration) (restore func()) {
+	old := mountPollInterval
+	mountPollInterval = intv
+	return func() { mountPollInterval = old }
+}
+
 func MockRevisionDate(mock func(info *snap.Info) time.Time) (restore func()) {
 	old := revisionDate
 	if mock == nil {
