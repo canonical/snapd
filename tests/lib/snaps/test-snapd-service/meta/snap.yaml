@@ -54,3 +54,11 @@ apps:
         stop-command: bin/stop-refresh-mode sigusr2-all
         daemon: simple
         refresh-mode: sigusr2-all
+    test-snapd-sigterm-service:
+        command: bin/start-refresh-mode-sigterm
+        daemon: simple
+        refresh-mode: sigterm
+    test-snapd-sigterm-all-service:
+        command: bin/start-refresh-mode-sigterm
+        daemon: simple
+        refresh-mode: sigterm-all
