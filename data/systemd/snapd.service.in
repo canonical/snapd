@@ -11,6 +11,3 @@ ExecStart=@libexecdir@/snapd/snapd
 EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
 Restart=always
 Type=notify
-
-[Install]
-WantedBy=multi-user.target
