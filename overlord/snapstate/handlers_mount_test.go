@@ -171,7 +171,7 @@ func (s *mountSnapSuite) TestDoMountSnapError(c *C) {
 	snapstate.Set(s.state, "borken", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{si1},
 		Current:  si1.Revision,
-		SnapType: "os",
+		SnapType: "app",
 	})
 
 	t := s.state.NewTask("mount-snap", "test")
@@ -192,6 +192,23 @@ func (s *mountSnapSuite) TestDoMountSnapError(c *C) {
 	s.state.Lock()
 
 	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot read info for "borken" snap.*`)
+
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:  "current",
+			old: filepath.Join(dirs.SnapMountDir, "borken/1"),
+		},
+		{
+			op:    "setup-snap",
+			name:  testSnap,
+			revno: snap.R(2),
+		},
+		{
+			op:    "undo-setup-snap",
+			name:  filepath.Join(dirs.SnapMountDir, "borken/2"),
+			stype: "app",
+		},
+	})
 }
 
 func (s *mountSnapSuite) TestDoMountSnapErrorNotFound(c *C) {
@@ -211,7 +228,7 @@ func (s *mountSnapSuite) TestDoMountSnapErrorNotFound(c *C) {
 	snapstate.Set(s.state, "not-there", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{si1},
 		Current:  si1.Revision,
-		SnapType: "os",
+		SnapType: "app",
 	})
 
 	t := s.state.NewTask("mount-snap", "test")
@@ -232,4 +249,21 @@ func (s *mountSnapSuite) TestDoMountSnapErrorNotFound(c *C) {
 	s.state.Lock()
 
 	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot find installed snap "not-there" at revision 2.*`)
+
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:  "current",
+			old: filepath.Join(dirs.SnapMountDir, "not-there/1"),
+		},
+		{
+			op:    "setup-snap",
+			name:  testSnap,
+			revno: snap.R(2),
+		},
+		{
+			op:    "undo-setup-snap",
+			name:  filepath.Join(dirs.SnapMountDir, "not-there/2"),
+			stype: "app",
+		},
+	})
 }
