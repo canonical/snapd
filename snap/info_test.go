@@ -802,6 +802,16 @@ apps:
 	c.Check(info.Apps["app1"].IsService(), Equals, false)
 }
 
+func (s *infoSuite) TestAppInfoStringer(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: asnap
+apps:
+  one:
+   daemon: simple
+`))
+	c.Assert(err, IsNil)
+	c.Check(fmt.Sprintf("%q", info.Apps["one"]), Equals, `"asnap.one"`)
+}
+
 func (s *infoSuite) TestSocketFile(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`name: pans
 apps:

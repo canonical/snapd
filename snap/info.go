@@ -617,6 +617,10 @@ func (timer *TimerInfo) File() string {
 	return filepath.Join(dirs.SnapServicesDir, timer.App.SecurityTag()+".timer")
 }
 
+func (app *AppInfo) String() string {
+	return JoinSnapApp(app.Snap.Name(), app.Name)
+}
+
 // SecurityTag returns application-specific security tag.
 //
 // Security tags are used by various security subsystems as "profile names" and
