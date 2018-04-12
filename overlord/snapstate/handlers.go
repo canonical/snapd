@@ -430,6 +430,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
+var (
+	mountPollInterval = 1 * time.Second
+)
+
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
 	snapsup, snapst, err := snapSetupAndState(t)
@@ -457,13 +461,30 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// double check that the snap is mounted
-	if _, err := readInfo(snapsup.Name(), snapsup.SideInfo, errorOnBroken); err != nil {
+	var readInfoErr error
+	for i := 0; i < 10; i++ {
+		_, readInfoErr = readInfo(snapsup.Name(), snapsup.SideInfo, errorOnBroken)
+		if readInfoErr == nil {
+			break
+		}
+		if _, ok := readInfoErr.(*snap.NotFoundError); !ok {
+			break
+		}
+		// snap not found, seems is not mounted yet
+		msg := fmt.Sprintf("expected snap %q revision %v to be mounted but is not", snapsup.Name(), snapsup.Revision())
+		readInfoErr = fmt.Errorf("cannot proceed, %s", msg)
+		if i == 0 {
+			logger.Noticef(msg)
+		}
+		time.Sleep(mountPollInterval)
+	}
+	if readInfoErr != nil {
 		if err := m.backend.UndoSetupSnap(snapsup.placeInfo(), snapType, pb); err != nil {
 			t.State().Lock()
 			t.Errorf("cannot undo partial setup snap %q: %v", snapsup.Name(), err)
 			t.State().Unlock()
 		}
-		return err
+		return readInfoErr
 	}
 
 	// set snapst type for undoMountSnap
