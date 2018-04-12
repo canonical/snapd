@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.32.3
+Version:        2.32.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -723,6 +723,37 @@ fi
 
 
 %changelog
+* Wed Apr 11 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.4
+ - cmd/snap: user session application autostart
+ - overlord/snapstate: introduce envvars to control the channels for
+   bases and prereqs
+ - overlord/snapstate: on multi-snap refresh make sure bases and core
+   are finished before dependent snaps
+ - many: use the new install/refresh /v2/snaps/refresh store API
+
+* Wed Apr 11 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.3.2
+ - errtracker: make TestJournalErrorSilentError work on
+   gccgo
+ - errtracker: check for whoopsie.service instead of reading
+   /etc/whoopsie
+
+* Wed Apr 11 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.3.1
+ - debian: add gbp.conf script to build snapd via `gbp
+   buildpackage`
+ - tests: add check for OOM error after each test
+ - cmd/snap-seccomp: graceful handling of non-multilib host
+ - interfaces/shutdown: allow calling SetWallMessage
+ - data/selinux: Give snapd access to more aspects of the system
+ - daemon,overlord/hookstate: stop/wait for running hooks before
+   closing the snapctl socket
+ - cmd/snap-confine: ignore missing cgroups in snap-device-helper
+ - interfaces: misc updates for default, firewall-control, fuse-
+   support and process-control
+ - overlord: test fix, address corner case
+
 * Thu Apr 05 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.3
  - ifacestate: add to the repo also snaps that are pending being
