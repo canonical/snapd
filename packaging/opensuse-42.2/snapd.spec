@@ -30,7 +30,7 @@
 %global with_test_keys 0
 %endif
 
-%define systemd_services_list snapd.socket snapd.service
+%define systemd_services_list snapd.socket snapd.service snapd.wakeup.service
 Name:           snapd
 Version:        2.32.3.2
 Release:        0
@@ -293,6 +293,7 @@ fi
 %{_mandir}/man5/snap-discard-ns.5.gz
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
+%{_unitdir}/snapd.wakeup.service
 /usr/bin/snap
 /usr/bin/snapctl
 /usr/sbin/rcsnapd
