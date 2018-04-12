@@ -3,6 +3,7 @@ Description=snapd helper for waking up the main service only when needed
 ConditionPathExists=|/var/lib/snapd/seed/seed.yaml
 ConditionPathExistsGlob=|@SNAP_MOUNT_DIR@/*/current
 Requires=snapd.socket
+After=snapd.socket
 
 [Service]
 ExecStart=@bindir@/snap version
