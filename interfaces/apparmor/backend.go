@@ -310,16 +310,12 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
 	}
-	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, []string{glob1, glob2}, content)
-	// NOTE: load all profiles instead of just the changed profiles.  We're
-	// relying on apparmor cache to make this efficient. This gives us
-	// certainty that each call to Setup ends up with working profiles.
-	all := make([]string, 0, len(content))
-	for name := range content {
-		all = append(all, name)
-	}
-	sort.Strings(all)
-	errReload := reloadProfiles(all, dir, cache)
+	changed, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, []string{glob1, glob2}, content)
+	// NOTE: we are now reloading only the changed profiles. In the past we
+	// used to reload all the profiles but this increased memory pressure due
+	// to a kernel bug.  https://bugs.launchpad.net/apparmor/+bug/1750594
+	sort.Strings(changed)
+	errReload := reloadProfiles(changed, dir, cache)
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
