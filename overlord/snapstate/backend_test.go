@@ -515,7 +515,7 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 	return &snap.Info{SuggestedName: name, Architectures: []string{"all"}}, f.emptyContainer, nil
 }
 
-func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, p progress.Meter) error {
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, p progress.Meter) (snap.Type, error) {
 	p.Notify("setup-snap")
 	revno := snap.R(0)
 	if si != nil {
@@ -526,14 +526,21 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, p 
 		name:  snapFilePath,
 		revno: revno,
 	})
-	return nil
+	snapType := snap.TypeApp
+	switch si.RealName {
+	case "core":
+		snapType = snap.TypeOS
+	case "gadget":
+		snapType = snap.TypeGadget
+	}
+	return snapType, nil
 }
 
 func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
-	if name == "borken" {
+	if name == "borken" && si.Revision == snap.R(2) {
 		return nil, errors.New(`cannot read info for "borken" snap`)
 	}
-	if name == "not-there" {
+	if name == "not-there" && si.Revision == snap.R(2) {
 		return nil, &snap.NotFoundError{Snap: name, Revision: si.Revision}
 	}
 	// naive emulation for now, always works
