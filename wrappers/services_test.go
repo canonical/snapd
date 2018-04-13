@@ -693,7 +693,8 @@ apps:
 		err = wrappers.StopServices(info.Services(), snap.StopReasonRefresh, progress.Null)
 		c.Assert(err, IsNil)
 		c.Check(sysdLog, DeepEquals, [][]string{
-			{"kill", filepath.Base(survivorFile), "-s", t.expectedSig, "--kill-who=" + t.expectedWho},
+			{"stop", filepath.Base(survivorFile)},
+			{"show", "--property=ActiveState", "snap.survive-snap.srv.service"},
 		}, Commentf("failure in %s", t.mode))
 
 		sysdLog = nil

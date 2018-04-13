@@ -279,41 +279,17 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 				// skip this service
 				continue
 			}
-
-			switch app.StopMode {
-			case "sigterm":
-				sysd.Kill(app.ServiceName(), "TERM", "main")
-				continue
-			case "sigterm-all":
-				sysd.Kill(app.ServiceName(), "TERM", "all")
-				continue
-			case "sighup":
-				sysd.Kill(app.ServiceName(), "HUP", "main")
-				continue
-			case "sighup-all":
-				sysd.Kill(app.ServiceName(), "HUP", "all")
-				continue
-			case "sigusr1":
-				sysd.Kill(app.ServiceName(), "USR1", "main")
-				continue
-			case "sigusr1-all":
-				sysd.Kill(app.ServiceName(), "USR1", "all")
-				continue
-			case "sigusr2":
-				sysd.Kill(app.ServiceName(), "USR2", "main")
-				continue
-			case "sigusr2-all":
-				sysd.Kill(app.ServiceName(), "USR2", "all")
-				continue
-			case "", "restart":
-				// do nothing here, the default below to stop
-			}
 		}
 		if err := stopService(sysd, app, inter); err != nil {
 			return err
 		}
-		// ensure the service is really stopped on remove
+
+		// ensure the service is really stopped on remove regardless
+		// of stop-mode
 		if reason == snap.StopReasonRemove && !app.StopMode.KillAll() {
+			// FIXME: make this smarter and avoid the killWait
+			//        delay if not needed (i.e. if all processes
+			//        have died)
 			sysd.Kill(app.ServiceName(), "TERM", "all")
 			time.Sleep(killWait)
 			sysd.Kill(app.ServiceName(), "KILL", "")
