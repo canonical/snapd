@@ -9,16 +9,6 @@ apps:
     test-snapd-other-service:
         command: bin/start-other
         daemon: simple
-    test-snapd-sigterm-service:
-        command: bin/start-stop-mode sigterm
-        stop-command: bin/stop-stop-mode sigterm
-        daemon: simple
-        stop-mode: sigterm
-    test-snapd-sigterm-all-service:
-        command: bin/start-stop-mode sigterm-all
-        stop-command: bin/stop-stop-mode sigterm-all
-        daemon: simple
-        stop-mode: sigterm
     test-snapd-sighup-service:
         command: bin/start-stop-mode sighup
         stop-command: bin/stop-stop-mode sighup
