@@ -943,19 +943,19 @@ func (s *infoSuite) TestExpandSnapVariables(c *C) {
 func (s *infoSuite) TestStopModeTypeKillMode(c *C) {
 	for _, t := range []struct {
 		stopMode string
-		killMode string
+		killall  bool
 	}{
-		{"", ""},
-		{"sigterm", "process"},
-		{"sigterm-all", ""},
-		{"sighup", "process"},
-		{"sighup-all", ""},
-		{"sigusr1", "process"},
-		{"sigusr1-all", ""},
-		{"sigusr2", "process"},
-		{"sigusr2-all", ""},
+		{"", true},
+		{"sigterm", false},
+		{"sigterm-all", true},
+		{"sighup", false},
+		{"sighup-all", true},
+		{"sigusr1", false},
+		{"sigusr1-all", true},
+		{"sigusr2", false},
+		{"sigusr2-all", true},
 	} {
-		c.Check(snap.StopModeType(t.stopMode).KillMode(), Equals, t.killMode)
+		c.Check(snap.StopModeType(t.stopMode).KillAll(), Equals, t.killall, Commentf("wrong KillAll for %v", t.stopMode))
 	}
 }
 
