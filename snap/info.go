@@ -540,12 +540,8 @@ type TimerInfo struct {
 // StopModeType is the type for the "stop-mode:" of a snap app
 type StopModeType string
 
-func (rm StopModeType) KillMode() string {
-	switch rm {
-	case "sigterm", "sighup", "sigusr1", "sigusr2":
-		return "process"
-	}
-	return ""
+func (st StopModeType) KillAll() bool {
+	return string(st) == "" || strings.HasSuffix(string(st), "-all")
 }
 
 func (st StopModeType) KillSignal() string {
