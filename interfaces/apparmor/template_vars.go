@@ -29,12 +29,35 @@ import (
 
 // templateVariables returns text defining apparmor variables that can be used in the
 // apparmor template and by apparmor snippets.
-func templateVariables(info *snap.Info, securityTag string) string {
+func templateVariables(info *snap.Info, securityTag string, onClassic bool) string {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", info.Name())
 	fmt.Fprintf(&buf, "@{SNAP_REVISION}=\"%s\"\n", info.Revision)
 	fmt.Fprintf(&buf, "@{PROFILE_DBUS}=\"%s\"\n",
 		dbus.SafePath(securityTag))
-	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"/{,var/lib/snapd/}snap\"")
+	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"/{,var/lib/snapd/}snap\"\n")
+	if onClassic {
+		fmt.Fprintf(&buf, "@{RANDOM}=\"%d\"", randInt())
+	} else {
+		// Core devices are not affected by the kernel bug that
+		// this is a workaround for. It's not the best place to add
+		// this check but it's certainly the easiest one.
+		fmt.Fprintf(&buf, "@{RANDOM}=\"%d\"", 0)
+	}
+	return buf.String()
+}
+
+func updateNSTemplateVariables(info *snap.Info, onClassic bool) string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", info.Name())
+	fmt.Fprintf(&buf, "@{SNAP_REVISION}=\"%s\"\n", info.Revision)
+	if onClassic {
+		fmt.Fprintf(&buf, "@{RANDOM}=\"%d\"", randInt())
+	} else {
+		// Core devices are not affected by the kernel bug that
+		// this is a workaround for. It's not the best place to add
+		// this check but it's certainly the easiest one.
+		fmt.Fprintf(&buf, "@{RANDOM}=\"%d\"", 0)
+	}
 	return buf.String()
 }

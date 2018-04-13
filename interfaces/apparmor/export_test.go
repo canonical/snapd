@@ -29,6 +29,12 @@ var (
 	SnapConfineFromCoreProfile = snapConfineFromCoreProfile
 )
 
+func MockRandInt() (restore func()) {
+	orig := randInt
+	randInt = func() int { return 42 }
+	return func() { randInt = orig }
+}
+
 // MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS
 func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
 	old := isHomeUsingNFS

@@ -41,6 +41,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -60,6 +61,7 @@ var (
 	procSelfExe           = "/proc/self/exe"
 	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
+	randInt               = rand.Int
 )
 
 // Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
@@ -384,6 +386,8 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	// Compute the template by injecting special updateNS snippets.
 	policy := templatePattern.ReplaceAllStringFunc(updateNSTemplate, func(placeholder string) string {
 		switch placeholder {
+		case "###VAR###":
+			return updateNSTemplateVariables(snapInfo, release.OnClassic)
 		case "###SNAP_NAME###":
 			return snapInfo.Name()
 		case "###SNIPPETS###":
@@ -417,7 +421,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
 		switch placeholder {
 		case "###VAR###":
-			return templateVariables(snapInfo, securityTag)
+			return templateVariables(snapInfo, securityTag, release.OnClassic)
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
 		case "###SNIPPETS###":
