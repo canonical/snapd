@@ -236,21 +236,6 @@ backends:
                 username: test
                 password: ubuntu
 
-    linode-sru:
-        type: linode
-        key: "$(HOST: echo $SPREAD_LINODE_KEY)"
-        halt-timeout: 2h
-        systems:
-            - ubuntu-14.04-64:
-                kernel: GRUB 2
-                workers: 2
-            - ubuntu-16.04-64:
-                kernel: GRUB 2
-                workers: 2
-            - ubuntu-17.10-64:
-                kernel: GRUB 2
-                workers: 2
-
 path: /home/gopath/src/github.com/snapcore/snapd
 
 exclude:
