@@ -456,6 +456,31 @@ func (s *ValidateSuite) TestAppStopMode(c *C) {
 	c.Check(err, ErrorMatches, `"stop-mode" cannot be used for "foo", only for services`)
 }
 
+func (s *ValidateSuite) TestAppRefreshMode(c *C) {
+	// check services
+	for _, t := range []struct {
+		refreshMode string
+		ok          bool
+	}{
+		// good
+		{"", true},
+		{"endure", true},
+		{"restart", true},
+		// bad
+		{"invalid-thing", false},
+	} {
+		if t.ok {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refreshMode}), IsNil)
+		} else {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refreshMode}), ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refreshMode))
+		}
+	}
+
+	// non-services cannot have a refresh-mode
+	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", RefreshMode: "endure"})
+	c.Check(err, ErrorMatches, `"refresh-mode" cannot be used for "foo", only for services`)
+}
+
 func (s *ValidateSuite) TestAppWhitelistError(c *C) {
 	err := ValidateApp(&AppInfo{Name: "foo", Command: "x\n"})
 	c.Assert(err, NotNil)

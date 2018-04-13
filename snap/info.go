@@ -553,7 +553,7 @@ type TimerInfo struct {
 	Timer string
 }
 
-// RefreshModeType is the type for the "refresh-mode:" of a snap app
+// StopModeType is the type for the "stop-mode:" of a snap app
 type StopModeType string
 
 func (st StopModeType) KillMode() string {
@@ -571,13 +571,13 @@ func (st StopModeType) KillSignal() string {
 	return strings.TrimSuffix(string(st), "-all")
 }
 
-func (rm StopModeType) Valid() error {
-	switch rm {
+func (st StopModeType) Valid() error {
+	switch st {
 	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
 		// valid
 		return nil
 	}
-	return fmt.Errorf(`"stop-mode" field contains invalid value %q`, rm)
+	return fmt.Errorf(`"stop-mode" field contains invalid value %q`, st)
 }
 
 // AppInfo provides information about a app.

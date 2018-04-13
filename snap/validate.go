@@ -563,10 +563,13 @@ func ValidateApp(app *AppInfo) error {
 	case "", "endure", "restart":
 		// valid
 	default:
-		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.StopMode)
+		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.RefreshMode)
 	}
 	if app.StopMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"stop-mode" cannot be used for %q, only for services`, app.Name)
+	}
+	if app.RefreshMode != "" && app.Daemon == "" {
+		return fmt.Errorf(`"refresh-mode" cannot be used for %q, only for services`, app.Name)
 	}
 
 	return validateAppTimer(app)
