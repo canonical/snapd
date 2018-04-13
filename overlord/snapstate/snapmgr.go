@@ -212,10 +212,18 @@ func (snapst *SnapState) Block() []snap.Revision {
 var ErrNoCurrent = errors.New("snap has no current revision")
 
 // Retrieval functions
-var readInfo = readInfoAnyway
 
-func readInfoAnyway(name string, si *snap.SideInfo) (*snap.Info, error) {
-	info, err := snap.ReadInfo(name, si)
+const (
+	errorOnBroken = 1 << iota
+)
+
+var snapReadInfo = snap.ReadInfo
+
+func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
+	info, err := snapReadInfo(name, si)
+	if err != nil && flags&errorOnBroken != 0 {
+		return nil, err
+	}
 	if err != nil {
 		logger.Noticef("cannot read snap info of snap %q at revision %s: %s", name, si.Revision, err)
 	}
@@ -251,7 +259,7 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	if cur == nil {
 		return nil, ErrNoCurrent
 	}
-	return readInfo(cur.RealName, cur)
+	return readInfo(cur.RealName, cur, 0)
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {

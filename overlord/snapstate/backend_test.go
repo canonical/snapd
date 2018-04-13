@@ -533,6 +533,9 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	if name == "borken" {
 		return nil, errors.New(`cannot read info for "borken" snap`)
 	}
+	if name == "not-there" {
+		return nil, &snap.NotFoundError{Snap: name, Revision: si.Revision}
+	}
 	// naive emulation for now, always works
 	info := &snap.Info{
 		SuggestedName: name,
