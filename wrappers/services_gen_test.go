@@ -342,10 +342,10 @@ func (s *servicesWrapperGenSuite) TestKillModeSig(c *C) {
 				Version:       "0.3.4",
 				SideInfo:      snap.SideInfo{Revision: snap.R(44)},
 			},
-			Name:        "app",
-			Command:     "bin/foo start",
-			Daemon:      "simple",
-			RefreshMode: snap.RefreshModeType(rm),
+			Name:     "app",
+			Command:  "bin/foo start",
+			Daemon:   "simple",
+			StopMode: snap.StopModeType(rm),
 		}
 
 		generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)

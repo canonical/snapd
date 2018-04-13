@@ -22,7 +22,6 @@ execute: |
     for s in $refresh_modes; do
         echo "We can still see it running"
         systemctl status snap.test-snapd-service.test-snapd-${s}-service|MATCH "running"
-dure -> skip-refresh:tests/main/snap-service-stop-mode/task.yaml
 
         echo "And it is not re-started"
         if journalctl -u snap.test-snapd-service.test-snapd-${s}-service | grep "stop ${s}"; then

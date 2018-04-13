@@ -234,10 +234,13 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 		// other than "restart" (or "" which is the same)
 		if reason == snap.StopReasonRefresh {
 			logger.Debugf(" %s stop-mode: %v", app.Name, app.StopMode)
-			switch app.StopMode {
-			case "skip-refresh":
+			switch app.RefreshMode {
+			case "endure":
 				// skip this service
 				continue
+			}
+
+			switch app.StopMode {
 			case "sigterm":
 				sysd.Kill(app.ServiceName(), "TERM", "main")
 				continue
@@ -270,7 +273,7 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 			return err
 		}
 		// ensure the service is really stopped on remove
-		if reason == snap.StopReasonRemove && app.RefreshMode.KillMode() == "process" {
+		if reason == snap.StopReasonRemove && app.StopMode.KillMode() == "process" {
 			sysd.Kill(app.ServiceName(), "TERM", "all")
 			time.Sleep(killWait)
 			sysd.Kill(app.ServiceName(), "KILL", "")
@@ -425,7 +428,7 @@ WantedBy={{.ServicesTarget}}
 		PrerequisiteTarget: systemd.PrerequisiteTarget,
 		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
 		Remain:             remain,
-		KillMode:           appInfo.RefreshMode.KillMode(),
+		KillMode:           appInfo.StopMode.KillMode(),
 
 		Before: genServiceNames(appInfo.Snap, appInfo.Before),
 		After:  genServiceNames(appInfo.Snap, appInfo.After),
