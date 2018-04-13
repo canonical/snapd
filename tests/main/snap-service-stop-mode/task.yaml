@@ -3,7 +3,6 @@ summary: "Check that stop-modes works"
 kill-timeout: 3m
 
 debug: |
-    grep -n '' *.pid || true
     stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
     for s in $stop_modes; do
         systemctl status snap.test-snapd-service.test-snapd-${s}-service || true
@@ -15,7 +14,7 @@ execute: |
     install_local test-snapd-service
 
     echo "We can see it running"
-    systemctl status snap.test-snapd-service.test-snapd-endure-service|MATCH "running"
+    systemctl status snap.test-snapd-service.test-snapd-service|MATCH "running"
 
     stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
     for s in $stop_modes; do
@@ -25,30 +24,21 @@ execute: |
     echo "When it is re-installed"
     install_local test-snapd-service
 
-    # note that we do not spread test sigterm{,-all} because catching this
-    # signal in the service means the stop will timeout with a 90s delay
-    refresh_modes="endure sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
-    for s in $refresh_modes; do
-        echo "We can still see it running"
-        systemctl status snap.test-snapd-service.test-snapd-${s}-service|MATCH "running"
+    # note that sigterm{,-all} is tested separately
+    for s in $stop_modes; do
+        echo "We can see it is running"
+        systemctl show -p ActiveState snap.test-snapd-service.test-snapd-${s}-service | MATCH "ActiveState=active"
 
-        echo "And it is not re-started"
-        if journalctl -u snap.test-snapd-service.test-snapd-${s}-service | grep "stop ${s}"; then
-            echo "reinstall did stop a service that shouldn't"
-            exit 1
-        fi
-
-        if [[ "$s" == sig* ]]; then
-            echo "checking that the right signal was sent"
-            sleep 1
-            journalctl -u snap.test-snapd-service.test-snapd-${s}-service | MATCH "got ${s%%-all}"
-        fi
+        echo "and it got the right signal"
+        echo "checking that the right signal was sent"
+        sleep 1
+        journalctl -u snap.test-snapd-service.test-snapd-${s}-service | MATCH "got ${s%%-all}"
     done
 
-    echo "But regular services are restarted"
+    echo "Regular services are restarted normally"
     journalctl -u snap.test-snapd-service.test-snapd-service | MATCH "stop service"
 
-    echo "Once the snap is removed, the service is stopped"
+    echo "Once the snap is removed, all services are stopped"
     snap remove test-snapd-service
     for s in $stop_modes; do
         journalctl | MATCH "stop ${s}"

@@ -548,7 +548,7 @@ func (st StopModeType) KillSignal() string {
 	if st == "" {
 		return ""
 	}
-	return strings.TrimSuffix(string(st), "-all")
+	return strings.ToUpper(strings.TrimSuffix(string(st), "-all"))
 }
 
 func (st StopModeType) Valid() error {
