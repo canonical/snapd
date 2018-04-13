@@ -546,7 +546,7 @@ func (st StopModeType) KillAll() bool {
 	return string(st) == "" || strings.HasSuffix(string(st), "-all")
 }
 
-// KillSignal retuns the signal that should be used to kill the process
+// KillSignal returns the signal that should be used to kill the process
 // (or an empty string if no signal is needed)
 func (st StopModeType) KillSignal() string {
 	if st == "" {
