@@ -2,6 +2,11 @@ summary: "Check that refresh-modes sigkill works"
 
 kill-timeout: 3m
 
+restore: |
+    # remove to ensure all services are stopped
+    snap remove test-snapd-service || true
+    killall sleep || true
+
 execute: |
     echo "When the service snap is installed"
     . $TESTSLIB/snaps.sh
