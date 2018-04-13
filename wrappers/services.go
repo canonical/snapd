@@ -313,7 +313,7 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 			return err
 		}
 		// ensure the service is really stopped on remove
-		if reason == snap.StopReasonRemove && app.StopMode.KillMode() == "process" {
+		if reason == snap.StopReasonRemove && !app.StopMode.KillAll() {
 			sysd.Kill(app.ServiceName(), "TERM", "all")
 			time.Sleep(killWait)
 			sysd.Kill(app.ServiceName(), "KILL", "")
@@ -459,6 +459,10 @@ WantedBy={{.ServicesTarget}}
 			remain = "yes"
 		}
 	}
+	var killMode string
+	if !appInfo.StopMode.KillAll() {
+		killMode = "process"
+	}
 
 	wrapperData := struct {
 		App *snap.AppInfo
@@ -485,7 +489,7 @@ WantedBy={{.ServicesTarget}}
 		PrerequisiteTarget: systemd.PrerequisiteTarget,
 		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
 		Remain:             remain,
-		KillMode:           appInfo.StopMode.KillMode(),
+		KillMode:           killMode,
 		KillSignal:         appInfo.StopMode.KillSignal(),
 
 		Before: genServiceNames(appInfo.Snap, appInfo.Before),
