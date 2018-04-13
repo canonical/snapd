@@ -3,7 +3,11 @@ summary: "Check that stop-modes works"
 kill-timeout: 3m
 
 debug: |
-    journalctl -u snap.test-snapd-service.test-snapd-endure-service
+    grep -n '' *.pid || true
+    stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
+    for s in $stop_modes; do
+        systemctl status snap.test-snapd-service.test-snapd-${s}-service || true
+    done
 
 execute: |
     echo "When the service snap is installed"
@@ -12,6 +16,11 @@ execute: |
 
     echo "We can see it running"
     systemctl status snap.test-snapd-service.test-snapd-endure-service|MATCH "running"
+
+    stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
+    for s in $stop_modes; do
+        systemctl show -p ActiveState snap.test-snapd-service.test-snapd-${s}-service | MATCH "ActiveState=active"
+    done
 
     echo "When it is re-installed"
     install_local test-snapd-service

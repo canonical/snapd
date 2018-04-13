@@ -376,10 +376,13 @@ RemainAfterExit={{.Remain}}
 {{- if .App.BusName}}
 BusName={{.App.BusName}}
 {{- end}}
-{{- if not .App.Sockets}}
 {{- if .KillMode}}
 KillMode={{.KillMode}}
 {{- end}}
+{{- if .KillSignal}}
+KillSignal={{.KillSignal}}
+{{- end}}
+{{- if not .App.Sockets}}
 
 [Install]
 WantedBy={{.ServicesTarget}}
@@ -418,6 +421,7 @@ WantedBy={{.ServicesTarget}}
 		MountUnit          string
 		Remain             string
 		KillMode           string
+		KillSignal         string
 		Before             []string
 		After              []string
 
