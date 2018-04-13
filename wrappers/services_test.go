@@ -676,7 +676,7 @@ version: 1.0
 apps:
  srv:
   command: bin/survivor
-  refresh-mode: %s
+  stop-mode: %s
   daemon: simple
 `, t.mode)
 		info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})

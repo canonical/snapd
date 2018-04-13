@@ -554,23 +554,30 @@ type TimerInfo struct {
 }
 
 // RefreshModeType is the type for the "refresh-mode:" of a snap app
-type RefreshModeType string
+type StopModeType string
 
-func (rm RefreshModeType) KillMode() string {
-	switch rm {
+func (st StopModeType) KillMode() string {
+	switch st {
 	case "sigterm", "sighup", "sigusr1", "sigusr2":
 		return "process"
 	}
 	return ""
 }
 
-func (rm RefreshModeType) Valid() error {
+func (st StopModeType) KillSignal() string {
+	if st == "" {
+		return ""
+	}
+	return strings.TrimSuffix(string(st), "-all")
+}
+
+func (rm StopModeType) Valid() error {
 	switch rm {
-	case "", "endure", "restart", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
+	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
 		// valid
 		return nil
 	}
-	return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, rm)
+	return fmt.Errorf(`"stop-mode" field contains invalid value %q`, rm)
 }
 
 // AppInfo provides information about a app.
@@ -588,7 +595,8 @@ type AppInfo struct {
 	PostStopCommand string
 	RestartCond     RestartCondition
 	Completer       string
-	RefreshMode     RefreshModeType
+	RefreshMode     string
+	StopMode        StopModeType
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
@@ -635,6 +643,10 @@ func (socket *SocketInfo) File() string {
 // File returns the path to the *.timer file
 func (timer *TimerInfo) File() string {
 	return filepath.Join(dirs.SnapServicesDir, timer.App.SecurityTag()+".timer")
+}
+
+func (app *AppInfo) String() string {
+	return JoinSnapApp(app.Snap.Name(), app.Name)
 }
 
 // SecurityTag returns application-specific security tag.

@@ -554,12 +554,19 @@ func ValidateApp(app *AppInfo) error {
 		return err
 	}
 
-	// validate refresh-mode
-	if err := app.RefreshMode.Valid(); err != nil {
+	// validate stop-mode
+	if err := app.StopMode.Valid(); err != nil {
 		return err
 	}
-	if app.RefreshMode != "" && app.Daemon == "" {
-		return fmt.Errorf(`"refresh-mode" cannot be used for %q, only for services`, app.Name)
+	// validate refresh-mode
+	switch app.RefreshMode {
+	case "", "endure", "restart":
+		// valid
+	default:
+		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.StopMode)
+	}
+	if app.StopMode != "" && app.Daemon == "" {
+		return fmt.Errorf(`"stop-mode" cannot be used for %q, only for services`, app.Name)
 	}
 
 	return validateAppTimer(app)
