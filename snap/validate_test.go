@@ -425,15 +425,15 @@ func (s *ValidateSuite) TestAppDaemonValue(c *C) {
 	}
 }
 
-func (s *ValidateSuite) TestAppRefreshMode(c *C) {
+func (s *ValidateSuite) TestAppStopMode(c *C) {
 	// check services
 	for _, t := range []struct {
-		refresh string
-		ok      bool
+		stopMode string
+		ok       bool
 	}{
 		// good
 		{"", true},
-		{"endure", true},
+		{"skip-refresh", true},
 		{"restart", true},
 		{"sigterm", true},
 		{"sigterm-all", true},
@@ -447,15 +447,15 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 		{"invalid-thing", false},
 	} {
 		if t.ok {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refresh}), IsNil)
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", StopMode: t.stopMode}), IsNil)
 		} else {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refresh}), ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refresh))
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", StopMode: t.stopMode}), ErrorMatches, fmt.Sprintf(`"stop-mode" field contains invalid value %q`, t.stopMode))
 		}
 	}
 
-	// non-services cannot have a refresh-mode
-	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", RefreshMode: "endure"})
-	c.Check(err, ErrorMatches, `"refresh-mode" cannot be used for "foo", only for services`)
+	// non-services cannot have a stop-mode
+	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", StopMode: "skip-refresh"})
+	c.Check(err, ErrorMatches, `"stop-mode" cannot be used for "foo", only for services`)
 }
 
 func (s *ValidateSuite) TestAppWhitelistError(c *C) {
