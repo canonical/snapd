@@ -456,7 +456,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// set snapst type for undoMountSnap
-	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo)
+	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo, errorOnBroken)
 	if err != nil {
 		return err
 	}
@@ -569,7 +569,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo)
+	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo, 0)
 	if err != nil {
 		return err
 	}
@@ -591,7 +591,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo)
+	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo, 0)
 	if err != nil {
 		return err
 	}
@@ -691,7 +691,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	newInfo, err := readInfo(snapsup.Name(), cand)
+	newInfo, err := readInfo(snapsup.Name(), cand, 0)
 	if err != nil {
 		return err
 	}
@@ -865,7 +865,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.JailMode = oldJailMode
 	snapst.Classic = oldClassic
 
-	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo)
+	newInfo, err := readInfo(snapsup.Name(), snapsup.SideInfo, 0)
 	if err != nil {
 		return err
 	}

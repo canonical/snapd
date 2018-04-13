@@ -53,7 +53,7 @@ func (s *discardSnapSuite) SetUpTest(c *C) {
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
-	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	s.reset = snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
 }
 
 func (s *discardSnapSuite) TearDownTest(c *C) {

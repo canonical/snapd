@@ -116,7 +116,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.o.AddManager(s.snapmgr)
 
-	s.BaseTest.AddCleanup(snapstate.MockReadInfo(s.fakeBackend.ReadInfo))
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo))
 	s.BaseTest.AddCleanup(snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile))
 	revDate := func(info *snap.Info) time.Time {
 		if info.Revision.Local() {
@@ -7552,7 +7552,7 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	defer r()
 
 	// using MockSnap, we want to read the bits on disk
-	snapstate.MockReadInfo(snap.ReadInfo)
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7644,7 +7644,7 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 	makeInstalledMockCoreSnap(c)
 
 	// using MockSnap, we want to read the bits on disk
-	snapstate.MockReadInfo(snap.ReadInfo)
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7674,7 +7674,7 @@ func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 	makeInstalledMockCoreSnap(c)
 
 	// using MockSnap, we want to read the bits on disk
-	snapstate.MockReadInfo(snap.ReadInfo)
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7697,7 +7697,7 @@ func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 	makeInstalledMockCoreSnap(c)
 
 	// using MockSnap, we want to read the bits on disk
-	snapstate.MockReadInfo(snap.ReadInfo)
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
