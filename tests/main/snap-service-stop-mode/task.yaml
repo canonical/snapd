@@ -3,9 +3,8 @@ summary: "Check that stop-modes works"
 kill-timeout: 3m
 
 debug: |
-    journalctl -u snap.test-snapd-service.test-snapd-skip-refresh-service
     grep -n '' *.pid || true
-    stop_modes="skip-refresh sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
+    stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
     for s in $stop_modes; do
         systemctl status snap.test-snapd-service.test-snapd-${s}-service || true
     done
@@ -19,7 +18,7 @@ execute: |
     systemctl status snap.test-snapd-service.test-snapd-service|MATCH "running"
     systemctl show -p MainPID snap.test-snapd-service.test-snapd-service > old-main.pid
 
-    stop_modes="skip-refresh sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
+    stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
     for s in $stop_modes; do
         systemctl show -p MainPID snap.test-snapd-service.test-snapd-${s}-service > old-${s}.pid
         systemctl show -p ActiveState snap.test-snapd-service.test-snapd-${s}-service | MATCH "ActiveState=active"
