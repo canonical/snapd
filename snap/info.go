@@ -573,6 +573,7 @@ type AppInfo struct {
 	RestartCond     RestartCondition
 	Completer       string
 	RefreshMode     RefreshModeType
+	StopMode        string
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor

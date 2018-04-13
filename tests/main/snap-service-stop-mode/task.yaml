@@ -1,4 +1,4 @@
-summary: "Check that refresh-modes works"
+summary: "Check that stop-modes works"
 
 kill-timeout: 3m
 
@@ -22,6 +22,7 @@ execute: |
     for s in $refresh_modes; do
         echo "We can still see it running"
         systemctl status snap.test-snapd-service.test-snapd-${s}-service|MATCH "running"
+dure -> skip-refresh:tests/main/snap-service-stop-mode/task.yaml
 
         echo "And it is not re-started"
         if journalctl -u snap.test-snapd-service.test-snapd-${s}-service | grep "stop ${s}"; then
@@ -41,6 +42,6 @@ execute: |
 
     echo "Once the snap is removed, the service is stopped"
     snap remove test-snapd-service
-    for s in $refresh_modes; do
+    for s in $stop_modes; do
         journalctl | MATCH "stop ${s}"
     done
