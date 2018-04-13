@@ -270,14 +270,17 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
-		// Skip stop on refresh when refresh mode is set to something
+		// Skip stop on refresh when stop mode is set to something
 		// other than "restart" (or "" which is the same)
 		if reason == snap.StopReasonRefresh {
-			logger.Debugf(" %s refresh-mode: %v", app.Name, app.RefreshMode)
+			logger.Debugf(" %s stop-mode: %v", app.Name, app.StopMode)
 			switch app.RefreshMode {
 			case "endure":
 				// skip this service
 				continue
+			}
+
+			switch app.StopMode {
 			case "sigterm":
 				sysd.Kill(app.ServiceName(), "TERM", "main")
 				continue
@@ -310,7 +313,7 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 			return err
 		}
 		// ensure the service is really stopped on remove
-		if reason == snap.StopReasonRemove && app.RefreshMode.KillMode() == "process" {
+		if reason == snap.StopReasonRemove && app.StopMode.KillMode() == "process" {
 			sysd.Kill(app.ServiceName(), "TERM", "all")
 			time.Sleep(killWait)
 			sysd.Kill(app.ServiceName(), "KILL", "")
@@ -426,10 +429,13 @@ RemainAfterExit={{.Remain}}
 {{- if .App.BusName}}
 BusName={{.App.BusName}}
 {{- end}}
-{{- if not .App.Sockets}}
 {{- if .KillMode}}
 KillMode={{.KillMode}}
 {{- end}}
+{{- if .KillSignal}}
+KillSignal={{.KillSignal}}
+{{- end}}
+{{- if not .App.Sockets}}
 
 [Install]
 WantedBy={{.ServicesTarget}}
@@ -464,6 +470,7 @@ WantedBy={{.ServicesTarget}}
 		MountUnit          string
 		Remain             string
 		KillMode           string
+		KillSignal         string
 		Before             []string
 		After              []string
 
@@ -478,7 +485,8 @@ WantedBy={{.ServicesTarget}}
 		PrerequisiteTarget: systemd.PrerequisiteTarget,
 		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
 		Remain:             remain,
-		KillMode:           appInfo.RefreshMode.KillMode(),
+		KillMode:           appInfo.StopMode.KillMode(),
+		KillSignal:         appInfo.StopMode.KillSignal(),
 
 		Before: genServiceNames(appInfo.Snap, appInfo.Before),
 		After:  genServiceNames(appInfo.Snap, appInfo.After),

@@ -802,6 +802,16 @@ apps:
 	c.Check(info.Apps["app1"].IsService(), Equals, false)
 }
 
+func (s *infoSuite) TestAppInfoStringer(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: asnap
+apps:
+  one:
+   daemon: simple
+`))
+	c.Assert(err, IsNil)
+	c.Check(fmt.Sprintf("%q", info.Apps["one"]), Equals, `"asnap.one"`)
+}
+
 func (s *infoSuite) TestSocketFile(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`name: pans
 apps:
@@ -947,6 +957,6 @@ func (s *infoSuite) TestRefreshModeTypeKillMode(c *C) {
 		{"sigusr2", "process"},
 		{"sigusr2-all", ""},
 	} {
-		c.Check(snap.RefreshModeType(t.refreshMode).KillMode(), Equals, t.killMode)
+		c.Check(snap.StopModeType(t.refreshMode).KillMode(), Equals, t.killMode)
 	}
 }
