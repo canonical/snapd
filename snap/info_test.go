@@ -965,14 +965,14 @@ func (s *infoSuite) TestStopModeTypeKillSignal(c *C) {
 		killSig  string
 	}{
 		{"", ""},
-		{"sigterm", "sigterm"},
-		{"sigterm-all", "sigterm"},
-		{"sighup", "sighup"},
-		{"sighup-all", "sighup"},
-		{"sigusr1", "sigusr1"},
-		{"sigusr1-all", "sigusr1"},
-		{"sigusr2", "sigusr2"},
-		{"sigusr2-all", "sigusr2"},
+		{"sigterm", "SIGTERM"},
+		{"sigterm-all", "SIGTERM"},
+		{"sighup", "SIGHUP"},
+		{"sighup-all", "SIGHUP"},
+		{"sigusr1", "SIGUSR1"},
+		{"sigusr1-all", "SIGUSR1"},
+		{"sigusr2", "SIGUSR2"},
+		{"sigusr2-all", "SIGUSR2"},
 	} {
 		c.Check(snap.StopModeType(t.stopMode).KillSignal(), Equals, t.killSig)
 	}
