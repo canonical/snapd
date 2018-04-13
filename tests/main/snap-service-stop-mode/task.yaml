@@ -2,6 +2,9 @@ summary: "Check that stop-modes works"
 
 kill-timeout: 3m
 
+# journald in ubuntu-14.04 not reliable
+systems: [-ubuntu-14.04-*]
+
 debug: |
     stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
     for s in $stop_modes; do
