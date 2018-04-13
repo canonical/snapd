@@ -57,7 +57,7 @@ func (s *mountSnapSuite) SetUpTest(c *C) {
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
-	reset1 := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	reset1 := snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
 	s.reset = func() {
 		reset1()
 		dirs.SetRootDir(oldDir)
@@ -152,4 +152,84 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 		},
 	})
 
+}
+
+func (s *mountSnapSuite) TestDoMountSnapError(c *C) {
+	v1 := "name: borken\nversion: 1.0\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	si1 := &snap.SideInfo{
+		RealName: "borken",
+		Revision: snap.R(1),
+	}
+	si2 := &snap.SideInfo{
+		RealName: "borken",
+		Revision: snap.R(2),
+	}
+	snapstate.Set(s.state, "borken", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		SnapType: "os",
+	})
+
+	t := s.state.NewTask("mount-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si2,
+		SnapPath: testSnap,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot read info for "borken" snap.*`)
+}
+
+func (s *mountSnapSuite) TestDoMountSnapErrorNotFound(c *C) {
+	v1 := "name: not-there\nversion: 1.0\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	si1 := &snap.SideInfo{
+		RealName: "not-there",
+		Revision: snap.R(1),
+	}
+	si2 := &snap.SideInfo{
+		RealName: "not-there",
+		Revision: snap.R(2),
+	}
+	snapstate.Set(s.state, "not-there", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+		SnapType: "os",
+	})
+
+	t := s.state.NewTask("mount-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si2,
+		SnapPath: testSnap,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, `(?s).*cannot find installed snap "not-there" at revision 2.*`)
 }

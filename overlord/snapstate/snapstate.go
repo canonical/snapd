@@ -1128,8 +1128,8 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 		return updateToRevisionInfo(st, snapst, revision, userID)
 	}
 
-	// refresh-to-local
-	return readInfo(name, sideInfo)
+	// refresh-to-local, this assumes the snap revision is mounted
+	return readInfo(name, sideInfo, errorOnBroken)
 }
 
 // AutoRefreshAssertions allows to hook fetching of important assertions
@@ -1643,7 +1643,7 @@ func Info(st *state.State, name string, revision snap.Revision) (*snap.Info, err
 
 	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
 		if si := snapst.Sequence[i]; si.Revision == revision {
-			return readInfo(name, si)
+			return readInfo(name, si, 0)
 		}
 	}
 
