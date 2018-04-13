@@ -940,14 +940,12 @@ func (s *infoSuite) TestExpandSnapVariables(c *C) {
 	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
 }
 
-func (s *infoSuite) TestRefreshModeTypeKillMode(c *C) {
+func (s *infoSuite) TestStopModeTypeKillMode(c *C) {
 	for _, t := range []struct {
-		refreshMode string
-		killMode    string
+		stopMode string
+		killMode string
 	}{
 		{"", ""},
-		{"endure", ""},
-		{"restart", ""},
 		{"sigterm", "process"},
 		{"sigterm-all", ""},
 		{"sighup", "process"},
@@ -957,6 +955,25 @@ func (s *infoSuite) TestRefreshModeTypeKillMode(c *C) {
 		{"sigusr2", "process"},
 		{"sigusr2-all", ""},
 	} {
-		c.Check(snap.StopModeType(t.refreshMode).KillMode(), Equals, t.killMode)
+		c.Check(snap.StopModeType(t.stopMode).KillMode(), Equals, t.killMode)
+	}
+}
+
+func (s *infoSuite) TestStopModeTypeKillSignal(c *C) {
+	for _, t := range []struct {
+		stopMode string
+		killSig  string
+	}{
+		{"", ""},
+		{"sigterm", "sigterm"},
+		{"sigterm-all", "sigterm"},
+		{"sighup", "sighup"},
+		{"sighup-all", "sighup"},
+		{"sigusr1", "sigusr1"},
+		{"sigusr1-all", "sigusr1"},
+		{"sigusr2", "sigusr2"},
+		{"sigusr2-all", "sigusr2"},
+	} {
+		c.Check(snap.StopModeType(t.stopMode).KillSignal(), Equals, t.killSig)
 	}
 }
