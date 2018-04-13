@@ -540,10 +540,14 @@ type TimerInfo struct {
 // StopModeType is the type for the "stop-mode:" of a snap app
 type StopModeType string
 
+// KillAll returns if the stop-mode means all processes should be killed
+// when the service is stopped or just the main process.
 func (st StopModeType) KillAll() bool {
 	return string(st) == "" || strings.HasSuffix(string(st), "-all")
 }
 
+// KillSignal retuns the signal that should be used to kill the process
+// (or an empty string if no signal is needed)
 func (st StopModeType) KillSignal() string {
 	if st == "" {
 		return ""
