@@ -423,8 +423,6 @@ func (s *ValidateSuite) TestAppStopMode(c *C) {
 	}{
 		// good
 		{"", true},
-		{"skip-refresh", true},
-		{"restart", true},
 		{"sigterm", true},
 		{"sigterm-all", true},
 		{"sighup", true},
@@ -437,15 +435,40 @@ func (s *ValidateSuite) TestAppStopMode(c *C) {
 		{"invalid-thing", false},
 	} {
 		if t.ok {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", StopMode: t.stopMode}), IsNil)
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", StopMode: StopModeType(t.stopMode)}), IsNil)
 		} else {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", StopMode: t.stopMode}), ErrorMatches, fmt.Sprintf(`"stop-mode" field contains invalid value %q`, t.stopMode))
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", StopMode: StopModeType(t.stopMode)}), ErrorMatches, fmt.Sprintf(`"stop-mode" field contains invalid value %q`, t.stopMode))
 		}
 	}
 
 	// non-services cannot have a stop-mode
-	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", StopMode: "skip-refresh"})
+	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", StopMode: "sigterm"})
 	c.Check(err, ErrorMatches, `"stop-mode" cannot be used for "foo", only for services`)
+}
+
+func (s *ValidateSuite) TestAppRefreshMode(c *C) {
+	// check services
+	for _, t := range []struct {
+		refreshMode string
+		ok          bool
+	}{
+		// good
+		{"", true},
+		{"endure", true},
+		{"restart", true},
+		// bad
+		{"invalid-thing", false},
+	} {
+		if t.ok {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refreshMode}), IsNil)
+		} else {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refreshMode}), ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refreshMode))
+		}
+	}
+
+	// non-services cannot have a refresh-mode
+	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", RefreshMode: "endure"})
+	c.Check(err, ErrorMatches, `"refresh-mode" cannot be used for "foo", only for services`)
 }
 
 func (s *ValidateSuite) TestAppWhitelistError(c *C) {

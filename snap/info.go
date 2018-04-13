@@ -537,10 +537,10 @@ type TimerInfo struct {
 	Timer string
 }
 
-// RefreshModeType is the type for the "refresh-mode:" of a snap app
-type RefreshModeType string
+// StopModeType is the type for the "stop-mode:" of a snap app
+type StopModeType string
 
-func (rm RefreshModeType) KillMode() string {
+func (rm StopModeType) KillMode() string {
 	switch rm {
 	case "sigterm", "sighup", "sigusr1", "sigusr2":
 		return "process"
@@ -548,13 +548,20 @@ func (rm RefreshModeType) KillMode() string {
 	return ""
 }
 
-func (rm RefreshModeType) Valid() error {
-	switch rm {
-	case "", "endure", "restart", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
+func (st StopModeType) KillSignal() string {
+	if st == "" {
+		return ""
+	}
+	return strings.TrimSuffix(string(st), "-all")
+}
+
+func (st StopModeType) Valid() error {
+	switch st {
+	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
 		// valid
 		return nil
 	}
-	return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, rm)
+	return fmt.Errorf(`"stop-mode" field contains invalid value %q`, st)
 }
 
 // AppInfo provides information about a app.
@@ -572,8 +579,8 @@ type AppInfo struct {
 	PostStopCommand string
 	RestartCond     RestartCondition
 	Completer       string
-	RefreshMode     RefreshModeType
-	StopMode        string
+	RefreshMode     string
+	StopMode        StopModeType
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
