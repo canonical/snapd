@@ -5,4 +5,4 @@ if [ -z "$MAINPID" ]; then
     exit 1
 fi
 echo "reloading main PID: $MAINPID"
-kill -HUP $MAINPID
+kill -HUP "$MAINPID"
