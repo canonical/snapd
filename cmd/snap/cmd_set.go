@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/jsonutil"
 )
 
-var shortSetHelp = i18n.G("Changes configuration options")
+var shortSetHelp = i18n.G("Change configuration options")
 var longSetHelp = i18n.G(`
 The set command changes the provided configuration options as requested.
 
@@ -44,6 +44,7 @@ Nested values may be modified via a dotted path:
 `)
 
 type cmdSet struct {
+	waitMixin
 	Positional struct {
 		Snap       installedSnapName
 		ConfValues []string `required:"1"`
@@ -51,7 +52,7 @@ type cmdSet struct {
 }
 
 func init() {
-	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} }, nil, []argDesc{
+	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} }, waitDescs, []argDesc{
 		{
 			name: "<snap>",
 			// TRANSLATORS: This should probably not start with a lowercase letter.
@@ -81,16 +82,19 @@ func (x *cmdSet) Execute(args []string) error {
 		}
 	}
 
-	return configure(string(x.Positional.Snap), patchValues)
-}
-
-func configure(snapName string, patchValues map[string]interface{}) error {
+	snapName := string(x.Positional.Snap)
 	cli := Client()
 	id, err := cli.SetConf(snapName, patchValues)
 	if err != nil {
 		return err
 	}
 
-	_, err = wait(cli, id)
-	return err
+	if _, err := x.wait(cli, id); err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	return nil
 }

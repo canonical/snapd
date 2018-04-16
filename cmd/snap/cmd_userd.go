@@ -38,7 +38,9 @@ type cmdUserd struct {
 }
 
 var shortUserdHelp = i18n.G("Start the userd service")
-var longUserdHelp = i18n.G("The userd command starts the snap user session service.")
+var longUserdHelp = i18n.G(`
+The userd command starts the snap user session service.
+`)
 
 func init() {
 	cmd := addCommand("userd",
