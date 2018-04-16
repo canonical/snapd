@@ -53,6 +53,7 @@ type SystemCalls interface {
 	Remove(name string) error
 
 	Close(fd int) error
+	Fchdir(fd int) error
 	Fchown(fd int, uid sys.UserID, gid sys.GroupID) error
 	Mkdirat(dirfd int, path string, mode uint32) error
 	Mount(source string, target string, fstype string, flags uintptr, data string) (err error)
@@ -81,6 +82,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	oldReadlinkat := sysReadlinkat
 	oldFstat := sysFstat
 	oldFstatfs := sysFstatfs
+	oldSysFchdir := sysFchdir
 
 	// override
 	osLstat = sc.Lstat
@@ -98,6 +100,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	sysReadlinkat = sc.Readlinkat
 	sysFstat = sc.Fstat
 	sysFstatfs = sc.Fstatfs
+	sysFchdir = sc.Fchdir
 
 	return func() {
 		// restore
@@ -116,6 +119,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		sysReadlinkat = oldReadlinkat
 		sysFstat = oldFstat
 		sysFstatfs = oldFstatfs
+		sysFchdir = oldSysFchdir
 	}
 }
 

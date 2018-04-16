@@ -248,7 +248,17 @@ var (
 		GET:    getAliases,
 		POST:   changeAliases,
 	}
+
+	buildID = "unknown"
 )
+
+func init() {
+	// cache the build-id on startup to ensure that changes in
+	// the underlying binary do not affect us
+	if bid, err := osutil.MyBuildID(); err == nil {
+		buildID = bid
+	}
+}
 
 func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse([]string{"TBD"}, nil)
@@ -292,6 +302,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	m := map[string]interface{}{
 		"series":         release.Series,
 		"version":        c.d.Version,
+		"build-id":       buildID,
 		"os-release":     release.ReleaseInfo,
 		"on-classic":     release.OnClassic,
 		"managed":        len(users) > 0,
@@ -1165,7 +1176,13 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 	var snapName string
 
 	switch err {
-	case store.ErrSnapNotFound:
+	case store.ErrSnapNotFound, store.ErrRevisionNotAvailable:
+		// TODO: treating ErrRevisionNotAvailable the same as
+		// ErrSnapNotFound preserves the old error handling
+		// behavior of the REST API and the snap command.  We
+		// should revisit this once the store returns more
+		// precise errors and makes it possible to distinguish
+		// the why a revision wasn't available.
 		switch len(inst.Snaps) {
 		case 1:
 			return SnapNotFound(inst.Snaps[0], err)

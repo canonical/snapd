@@ -68,6 +68,7 @@ type appYaml struct {
 	StopTimeout     timeout.Timeout `yaml:"stop-timeout,omitempty"`
 	Completer       string          `yaml:"completer,omitempty"`
 	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
+	StopMode        StopModeType    `yaml:"stop-mode,omitempty"`
 
 	RestartCond RestartCondition `yaml:"restart-condition,omitempty"`
 	SlotNames   []string         `yaml:"slots,omitempty"`
@@ -299,6 +300,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			BusName:         yApp.BusName,
 			Environment:     yApp.Environment,
 			Completer:       yApp.Completer,
+			StopMode:        yApp.StopMode,
 			RefreshMode:     yApp.RefreshMode,
 			Before:          yApp.Before,
 			After:           yApp.After,

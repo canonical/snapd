@@ -216,6 +216,7 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
                       "version": "2",
                       "os-release": {"id": "ubuntu", "version-id": "16.04"},
                       "on-classic": true,
+                      "build-id": "1234",
                       "confinement": "strict"}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, IsNil)
@@ -228,6 +229,7 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
 		},
 		OnClassic:   true,
 		Confinement: "strict",
+		BuildID:     "1234",
 	})
 }
 
