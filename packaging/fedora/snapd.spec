@@ -717,8 +717,7 @@ fi
    conflating that with refresh-mode
  - overlord/snapstate:  poll for up to 10s if a snap is unexpectedly
    not mounted in doMountSnap
- - daemon: support 'system' as nickname of the core snapchange it is
-   possible to do:
+ - daemon: support 'system' as nickname of the core snap
 
 * Wed Apr 11 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.4
