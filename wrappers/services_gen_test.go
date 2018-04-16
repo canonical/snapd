@@ -333,3 +333,24 @@ WantedBy=multi-user.target
 	c.Logf("service: \n%v\n", string(generatedWrapper))
 	c.Assert(string(generatedWrapper), Equals, expectedService)
 }
+
+func (s *servicesWrapperGenSuite) TestKillModeSig(c *C) {
+	for _, rm := range []string{"sigterm", "sighup", "sigusr1", "sigusr2"} {
+		service := &snap.AppInfo{
+			Snap: &snap.Info{
+				SuggestedName: "snap",
+				Version:       "0.3.4",
+				SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+			},
+			Name:     "app",
+			Command:  "bin/foo start",
+			Daemon:   "simple",
+			StopMode: snap.StopModeType(rm),
+		}
+
+		generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+		c.Assert(err, IsNil)
+
+		c.Assert(string(generatedWrapper), testutil.Contains, "\nKillMode=process\n")
+	}
+}
