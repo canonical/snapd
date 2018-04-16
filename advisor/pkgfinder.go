@@ -24,8 +24,9 @@ import (
 )
 
 type Package struct {
-	Snap    string
-	Summary string
+	Snap    string `json:"snap"`
+	Version string `json:"version"`
+	Summary string `json:"summary,omitempty"`
 }
 
 func FindPackage(pkgName string) (*Package, error) {

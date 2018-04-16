@@ -40,6 +40,8 @@ execute: |
 
     echo "Regular services are restarted normally"
     journalctl -u snap.test-snapd-service.test-snapd-service | MATCH "stop service"
+    systemctl show -p MainPID snap.test-snapd-service.test-snapd-service > new-main.pid
+    test "$(cat new-main.pid)" != "$(cat old-main.pid)"
 
     echo "Once the snap is removed, all services are stopped"
     snap remove test-snapd-service

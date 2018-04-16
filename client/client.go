@@ -421,6 +421,7 @@ type RefreshInfo struct {
 type SysInfo struct {
 	Series    string    `json:"series,omitempty"`
 	Version   string    `json:"version,omitempty"`
+	BuildID   string    `json:"build-id"`
 	OSRelease OSRelease `json:"os-release"`
 	OnClassic bool      `json:"on-classic"`
 	Managed   bool      `json:"managed"`
