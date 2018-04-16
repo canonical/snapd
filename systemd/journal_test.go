@@ -74,6 +74,7 @@ func (j *journalTestSuite) TestStreamFileHeader(c *C) {
 		c.Assert(sz > 0, Equals, true)
 		c.Check(data[0:sz], DeepEquals, []byte("hello from unit tests"))
 
+		doneCh <- struct{}{}
 	}()
 
 	jout, err := NewJournalStreamFile("foobar", syslog.LOG_INFO, false)
