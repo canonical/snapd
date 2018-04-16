@@ -5,8 +5,7 @@ snapd (2.32.5) xenial; urgency=medium
       conflating that with refresh-mode
     - overlord/snapstate:  poll for up to 10s if a snap is unexpectedly
       not mounted in doMountSnap
-    - daemon: support 'system' as nickname of the core snapchange it is
-      possible to do:
+    - daemon: support 'system' as nickname of the core snap
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 16 Apr 2018 11:41:48 +0200
 
