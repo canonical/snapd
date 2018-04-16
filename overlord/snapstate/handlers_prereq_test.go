@@ -64,7 +64,7 @@ func (s *prereqSuite) SetUpTest(c *C) {
 	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
-	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	s.reset = snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
 }
 
 func (s *prereqSuite) TearDownTest(c *C) {
