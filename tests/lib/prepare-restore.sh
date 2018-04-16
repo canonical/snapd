@@ -400,6 +400,14 @@ restore_project_each() {
         cat /proc/meminfo
         exit 1
     fi
+
+    # check if there is a shutdown pending, no test should trigger this
+    # and it leads to very confusing test failures
+    if [ -e /run/systemd/shutdown/scheduled ]; then
+        echo "Test triggered a shutdown, this should not happen"
+        snap changes
+        exit 1
+    fi
 }
 
 restore_project() {
