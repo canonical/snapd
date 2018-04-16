@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.32.4
+Version:        2.32.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -723,6 +723,15 @@ fi
 
 
 %changelog
+* Mon Apr 16 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.5
+ - many: add "stop-mode: sig{term,hup,usr[12]}{,-all}" instead of
+   conflating that with refresh-mode
+ - overlord/snapstate:  poll for up to 10s if a snap is unexpectedly
+   not mounted in doMountSnap
+ - daemon: support 'system' as nickname of the core snapchange it is
+   possible to do:
+
 * Wed Apr 11 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.4
  - cmd/snap: user session application autostart
