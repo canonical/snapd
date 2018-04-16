@@ -565,13 +565,13 @@ func (st StopModeType) KillAll() bool {
 // KillSignal returns the signal that should be used to kill the process
 // (or an empty string if no signal is needed)
 func (st StopModeType) KillSignal() string {
-	if st == "" {
+	if st.Validate() != nil || st == "" {
 		return ""
 	}
 	return strings.ToUpper(strings.TrimSuffix(string(st), "-all"))
 }
 
-func (st StopModeType) Valid() error {
+func (st StopModeType) Validate() error {
 	switch st {
 	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
 		// valid
