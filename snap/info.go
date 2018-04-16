@@ -537,6 +537,33 @@ type TimerInfo struct {
 	Timer string
 }
 
+// StopModeType is the type for the "stop-mode:" of a snap app
+type StopModeType string
+
+// KillAll returns if the stop-mode means all processes should be killed
+// when the service is stopped or just the main process.
+func (st StopModeType) KillAll() bool {
+	return string(st) == "" || strings.HasSuffix(string(st), "-all")
+}
+
+// KillSignal returns the signal that should be used to kill the process
+// (or an empty string if no signal is needed)
+func (st StopModeType) KillSignal() string {
+	if st == "" {
+		return ""
+	}
+	return strings.ToUpper(strings.TrimSuffix(string(st), "-all"))
+}
+
+func (st StopModeType) Valid() error {
+	switch st {
+	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
+		// valid
+		return nil
+	}
+	return fmt.Errorf(`"stop-mode" field contains invalid value %q`, st)
+}
+
 // AppInfo provides information about a app.
 type AppInfo struct {
 	Snap *Info
@@ -553,6 +580,7 @@ type AppInfo struct {
 	RestartCond     RestartCondition
 	Completer       string
 	RefreshMode     string
+	StopMode        StopModeType
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
