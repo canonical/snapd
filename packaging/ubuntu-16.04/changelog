@@ -1,3 +1,9 @@
+snapd (2.32.5) xenial; urgency=medium
+
+  * placeholder for the real 2.32.5 changelog
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 16 Apr 2018 11:55:31 +0200
+
 snapd (2.32.4) xenial; urgency=medium
 
   * New upstream release, LP: #1756173
