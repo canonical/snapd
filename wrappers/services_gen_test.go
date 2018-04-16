@@ -560,6 +560,26 @@ func (s *servicesWrapperGenSuite) TestKillModeSig(c *C) {
 		generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
 		c.Assert(err, IsNil)
 
-		c.Assert(string(generatedWrapper), testutil.Contains, "\nKillMode=process\n")
+		c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+Requires=%s-snap-44.mount
+Wants=network-online.target
+After=%s-snap-44.mount network-online.target
+X-Snappy=yes
+
+[Service]
+ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
+Restart=on-failure
+WorkingDirectory=/var/snap/snap/44
+TimeoutStopSec=30
+Type=simple
+KillMode=process
+KillSignal=%s
+
+[Install]
+WantedBy=multi-user.target
+`, mountUnitPrefix, mountUnitPrefix, strings.ToUpper(rm)))
 	}
 }

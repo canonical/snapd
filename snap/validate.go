@@ -555,7 +555,7 @@ func ValidateApp(app *AppInfo) error {
 	}
 
 	// validate stop-mode
-	if err := app.StopMode.Valid(); err != nil {
+	if err := app.StopMode.Validate(); err != nil {
 		return err
 	}
 	// validate refresh-mode
