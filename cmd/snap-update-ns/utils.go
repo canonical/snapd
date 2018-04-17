@@ -106,7 +106,7 @@ func (sec *Secure) OpenPath(path string) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-	if len(segments) > 1 {
+	if len(segments) > 0 {
 		defer sysClose(fd)
 	}
 	for i, segment := range segments {
