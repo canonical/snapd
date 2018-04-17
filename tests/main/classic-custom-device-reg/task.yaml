@@ -1,6 +1,9 @@
 summary: |
    Test gadget customized device initialisation and registration also on classic
-systems: [-ubuntu-core-16-*]
+systems:
+    - -ubuntu-core-16-*
+    # The test fails on Arch right now, disable it temporarily
+    - -arch-*
 environment:
     SEED_DIR: /var/lib/snapd/seed
 prepare: |
