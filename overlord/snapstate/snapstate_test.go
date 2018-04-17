@@ -7169,6 +7169,40 @@ defaults:
 	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
 }
 
+func (s *snapmgrTestSuite) TestConfigDefaultsSystemConflictsCoreSnapId(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.prepareGadget(c, `
+defaults:
+    system:
+        foo: bar
+    the-core-snap:
+        foo: other-bar
+`)
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", SnapID: "the-core-snap", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	makeInstalledMockCoreSnap(c)
+
+	defls, err := snapstate.ConfigDefaults(s.state, "core")
+	c.Assert(defls, IsNil)
+	c.Assert(err, ErrorMatches, "cannot have both system and core-snap-id defaults")
+}
+
 func (s *snapmgrTestSuite) TestGadgetDefaultsAreNormalizedForConfigHook(c *C) {
 	var mockGadgetSnapYaml = `
 name: canonical-pc

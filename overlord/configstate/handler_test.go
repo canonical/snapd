@@ -66,7 +66,7 @@ type: os
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "core", Revision: snap.R(1)},
+			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
 		},
 		Current:  snap.R(1),
 		SnapType: "os",
