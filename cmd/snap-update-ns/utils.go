@@ -79,17 +79,33 @@ func (e *ReadOnlyFsError) MimicPath() string {
 
 // TrespassingError is an error when filesystem operation would affect the host.
 type TrespassingError struct {
-	Path string
+	PathViolated string
+	PathDesired  string
 }
 
 // MimicPath returns the path of the directory where a mimic ought to be constructed.
 func (e *TrespassingError) Error() string {
-	return fmt.Sprintf("cannot trespass on host filesystem at %s", e.Path)
+	return fmt.Sprintf("cannot trespass on host filesystem at %s (writes to %s affect the host)", e.PathDesired, e.PathViolated)
 }
 
 // MimicPath returns the path of the directory where a mimic ought to be constructed.
 func (e *TrespassingError) MimicPath() string {
-	return e.Path
+	if e.PathViolated == "/" {
+		// We cannot create a writable mimic on the whole / filesystem
+		// because doing so reuqires a place where we can stash the
+		// original / while we overlay something new over / and make
+		// things writable. We can only ever do that when constructing
+		// the initial mount namespace, before we pivot_root. Still,
+		// the bottom line is that we cannot do it.
+		//
+		// The next best thing we can do, is to create a writable mimic
+		// at the first top-level directory, such as /var or /etc. This
+		// is good as long as we are after a subdirectory of that
+		// directory (so for example, /etc/foo).
+		p := strings.Split(e.PathDesired, "/")
+		return strings.Join(p[0:2], "/")
+	}
+	return e.PathViolated
 }
 
 // MimicRequiredError describes errors that require construction of a writable mimic.
@@ -125,10 +141,10 @@ func (sec *Secure) CheckTrespassing(fd int, segments []string, segNum int) error
 	// If the full path is allowed there's no problem. We don't go and check
 	// the filesystem type because it is just going to spam tests with extra
 	// fstatfs calls and it doesn't change anything.
-	p := "/" + strings.Join(segments, "/") + "/"
+	pd := "/" + strings.Join(segments, "/") + "/"
 	for _, prefix := range sec.allowedPaths {
-		logger.Debugf("checking string prefix %q %q", p, prefix)
-		if strings.HasPrefix(p, prefix) {
+		logger.Debugf("checking string prefix %q %q", pd, prefix)
+		if strings.HasPrefix(pd, prefix) {
 			return nil
 		}
 	}
@@ -150,14 +166,9 @@ func (sec *Secure) CheckTrespassing(fd int, segments []string, segNum int) error
 	if fsData.Type == TmpfsMagic || fsData.Type == SquashfsMagic {
 		return nil
 	}
-	if segNum == 0 {
-		// We want to create a mimic at the next viable location.
-		// But not at the root directory because that's meaningless.
-		segNum = 1
-	}
-	p = "/" + strings.Join(segments[:segNum], "/")
-	logger.Debugf("trespassing error segments:%q, i:%d => path: %q", segments, segNum, p)
-	return &TrespassingError{Path: p}
+	pv := "/" + strings.Join(segments[:segNum], "/")
+	logger.Debugf("trespassing error segments:%q, i:%d => path: %q", segments, segNum, pv)
+	return &TrespassingError{PathViolated: pv, PathDesired: pd}
 }
 
 // OpenPath creates a path file descriptor for the given

@@ -678,7 +678,7 @@ func (s *utilsSuite) TestSecureMksymlinkAllInSnapData(c *C) {
 func (s *utilsSuite) TestSecureMksymlinkAllInEtc(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	err := s.sec.MksymlinkAll("/etc/symlink", 0755, 0, 0, "/oldname")
-	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc")
+	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc/symlink/ \\(writes to / affect the host\\)")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`fstatfs 3 <ptr>`,
@@ -691,7 +691,7 @@ func (s *utilsSuite) TestSecureMksymlinkAllInEtc(c *C) {
 func (s *utilsSuite) TestSecureMksymlinkAllDeepInEtc(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	err := s.sec.MksymlinkAll("/etc/some/other/stuff/symlink", 0755, 0, 0, "/oldname")
-	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc")
+	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc/some/other/stuff/symlink/ \\(writes to / affect the host\\)")
 	c.Assert(err.(*update.TrespassingError).MimicPath(), Equals, "/etc")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
@@ -704,7 +704,7 @@ func (s *utilsSuite) TestSecureMksymlinkAllDeepInEtc(c *C) {
 func (s *utilsSuite) TestSecureMkfileAllInEtc(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	err := s.sec.MkfileAll("/etc/file", 0755, 0, 0)
-	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc")
+	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc/file/ \\(writes to / affect the host\\)")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
 		`fstatfs 3 <ptr>`,
@@ -716,10 +716,10 @@ func (s *utilsSuite) TestSecureMkfileAllInEtc(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllInEtc(c *C) {
 	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
 	err := s.sec.MkdirAll("/etc/dir", 0755, 0, 0)
-	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc")
+	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc/dir/ \\(writes to / affect the host\\)")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
-		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
-		`fstatfs 3 <ptr>`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`fstatfs 3 <ptr>`,                             // -> it's an ext4
 		`close 3`,
 	})
 }
@@ -993,4 +993,16 @@ func (s *realSystemSuite) TestSecureOpenPathSymlinkedParent(c *C) {
 	fd, err := s.sec.OpenPath(symlinkedPath)
 	c.Check(fd, Equals, -1)
 	c.Check(err, ErrorMatches, "not a directory")
+}
+
+func (s *realSystemSuite) TestTrespassingError(c *C) {
+	err := &update.TrespassingError{PathViolated: "/", PathDesired: "/var/cache"}
+	c.Assert(err.MimicPath(), Equals, "/var")
+	err = &update.TrespassingError{PathViolated: "/var", PathDesired: "/var/cache"}
+	c.Assert(err.MimicPath(), Equals, "/var")
+	err = &update.TrespassingError{PathViolated: "/var/cache", PathDesired: "/var/cache"}
+	c.Assert(err.MimicPath(), Equals, "/var/cache")
+	// This is a bit meaningless but for completeness.
+	err = &update.TrespassingError{PathViolated: "/", PathDesired: "/"}
+	c.Assert(err.MimicPath(), Equals, "/")
 }
