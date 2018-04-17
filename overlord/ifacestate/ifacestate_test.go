@@ -2421,7 +2421,7 @@ func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugSnapOnAutoConnect(c
 	defer s.state.Unlock()
 
 	task := chg.Tasks()[0]
-	c.Check(task.Status(), Equals, state.DoneStatus)
+	c.Assert(task.Status(), Equals, state.DoneStatus)
 	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "consumer" is no longer available for auto-connecting.*`)
 	c.Assert(chg.Tasks(), HasLen, 3)
 	// hook tasks explicitly marked done
