@@ -384,7 +384,8 @@ const commonPrefix = `
 @{SNAP_NAME}="samba"
 @{SNAP_REVISION}="1"
 @{PROFILE_DBUS}="snap_2esamba_2esmbd"
-@{INSTALL_DIR}="/{,var/lib/snapd/}snap"`
+@{INSTALL_DIR}="/{,var/lib/snapd/}snap"
+@{RANDOM}="42"`
 
 var combineSnippetsScenarios = []combineSnippetsScenario{{
 	// By default apparmor is enforcing mode.
@@ -437,6 +438,8 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
 	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	restore = apparmor.MockRandInt()
 	defer restore()
 
 	// NOTE: replace the real template with a shorter variant

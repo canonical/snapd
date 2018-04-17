@@ -35,6 +35,11 @@ var defaultTemplate = `
 ###VAR###
 
 ###PROFILEATTACH### (attach_disconnected) {
+  # Workaround for bug lp: #1750594. This rule is random and changes every time
+  # the profile is created. This avoids leaking kernel memory when an identical
+  # profile is loaded into the kernel.
+  /.bug/lp1750594/workaround.@{RANDOM} r,
+
   #include <abstractions/base>
   #include <abstractions/consoles>
   #include <abstractions/openssl>
@@ -462,6 +467,11 @@ var classicTemplate = `
 ###VAR###
 
 ###PROFILEATTACH### (attach_disconnected) {
+  # Workaround for bug lp: #1750594. This rule is random and changes every time
+  # the profile is created. This avoids leaking kernel memory when an identical
+  # profile is loaded into the kernel.
+  /.bug/lp1750594/workaround.@{RANDOM} r,
+
   # set file rules so that exec() inherits our profile unless there is
   # already a profile for it (eg, snap-confine)
   / rwkl,
@@ -538,9 +548,16 @@ var updateNSTemplate = `
 
 # vim:syntax=apparmor
 
+###VAR###
+
 #include <tunables/global>
 
 profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
+  # Workaround for bug lp: #1750594. This rule is random and changes every time
+  # the profile is created. This avoids leaking kernel memory when an identical
+  # profile is loaded into the kernel.
+  /.bug/lp1750594/workaround.@{RANDOM} r,
+
   # The next four rules mirror those above. We want to be able to read
   # and map snap-update-ns into memory but it may come from a variety of places.
   /usr/lib{,exec,64}/snapd/snap-update-ns mr,
