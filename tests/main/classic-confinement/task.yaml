@@ -11,7 +11,7 @@ prepare: |
     . $TESTSLIB/dirs.sh
     snap pack "$TESTSLIB/snaps/$CLASSIC_SNAP/"
 
-    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+    if [[ "$SPREAD_SYSTEM" == fedora-* || "$SPREAD_SYSTEM" == arch-* ]]; then
         # although classic snaps do not work out of the box on fedora,
         # we still want to verify if the basics do work if the user
         # symlinks /snap to $SNAP_MOUNT_DIR themselves
@@ -49,6 +49,6 @@ execute: |
     "$CLASSIC_SNAP" | MATCH lala
 
 restore: |
-    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+    if [[ "$SPREAD_SYSTEM" == fedora-* || "$SPREAD_SYSTEM" == arch-* ]]; then
         rm -f /snap
     fi
