@@ -427,7 +427,21 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 		`close 3`,
 		`close 5`,
 		`lstat "/rofs"`,
-		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND|MS_REC ""`,
+
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 5 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 6 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 6`,
+		`close 5`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`,
+		`close 7`,
+		`close 4`,
+
 		`lstat "/rofs"`,
 		`mount "tmpfs" "/rofs" "tmpfs" 0 ""`,
 		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`,
@@ -639,7 +653,15 @@ func (s *changeSuite) TestPerformDirectoryBindMount(c *C) {
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
 		`lstat "/source"`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -647,7 +669,7 @@ func (s *changeSuite) TestPerformDirectoryBindMount(c *C) {
 func (s *changeSuite) TestPerformDirectoryBindMountWithError(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoDir)
-	s.sys.InsertFault(`mount "/source" "/target" "" MS_BIND ""`, errTesting)
+	s.sys.InsertFault(`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
 	synth, err := chg.Perform(s.sec)
 	c.Assert(err, Equals, errTesting)
@@ -655,7 +677,15 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithError(c *C) {
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
 		`lstat "/source"`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -676,7 +706,15 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPoint(c *C) {
 		`close 4`,
 		`close 3`,
 		`lstat "/source"`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -697,7 +735,15 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSource(c *C) {
 		`fchown 4 0 0`,
 		`close 4`,
 		`close 3`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -786,7 +832,21 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 		`close 3`,
 		`close 5`,
 		`lstat "/rofs"`,
-		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND|MS_REC ""`,
+
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 5 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 6 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 6`,
+		`close 5`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`,
+		`close 7`,
+		`close 4`,
+
 		`lstat "/rofs"`,
 		`mount "tmpfs" "/rofs" "tmpfs" 0 ""`,
 		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`,
@@ -806,7 +866,17 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 		`lstat "/source"`,
 
 		// mount the filesystem
-		`mount "/source" "/rofs/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 5 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 5`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/6" "" MS_BIND ""`,
+		`close 6`,
+		`close 4`,
 	})
 }
 
@@ -1064,7 +1134,21 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 		`close 3`,
 		`close 5`,
 		`lstat "/rofs"`,
-		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND|MS_REC ""`,
+
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 5 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 6 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 6`,
+		`close 5`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`,
+		`close 7`,
+		`close 4`,
+
 		`lstat "/rofs"`,
 		`mount "tmpfs" "/rofs" "tmpfs" 0 ""`,
 		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`,
@@ -1300,7 +1384,21 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 		`close 3`,
 		`close 5`,
 		`lstat "/rofs"`,
-		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND|MS_REC ""`,
+
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 5 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 6 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`close 6`,
+		`close 5`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`,
+		`close 7`,
+		`close 4`,
+
 		`lstat "/rofs"`,
 		`mount "tmpfs" "/rofs" "tmpfs" 0 ""`,
 		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`,
