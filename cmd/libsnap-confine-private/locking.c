@@ -84,7 +84,7 @@ void sc_disable_sanity_timeout(void)
 
 static const char *sc_lock_dir = SC_LOCK_DIR;
 
-static int sc_lock_generic(const char *scope, int uid)
+static int sc_lock_generic(const char *scope, uid_t uid)
 {
 	// Create (if required) and open the lock directory.
 	debug("creating lock directory %s (if missing)", sc_lock_dir);
@@ -143,7 +143,7 @@ int sc_lock_snap(const char *snap_name)
 	return sc_lock_generic(snap_name, 0);
 }
 
-int sc_lock_snap_user(const char *snap_name, int uid)
+int sc_lock_snap_user(const char *snap_name, uid_t uid)
 {
 	return sc_lock_generic(snap_name, uid);
 }
