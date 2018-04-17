@@ -102,7 +102,7 @@ static int sc_lock_generic(const char *scope, uid_t uid)
 	char lock_fname[PATH_MAX] = { 0 };
 	if (uid == 0) {
 		// The root user doesn't have a per-user mount namespace.
-		// Doing so would be confusing for services wich use $SNAP_DATA
+		// Doing so would be confusing for services which use $SNAP_DATA
 		// as home, and not in $SNAP_USER_DATA.
 		sc_must_snprintf(lock_fname, sizeof lock_fname, "%s/%s.lock",
 				 sc_lock_dir, scope ? : "");
