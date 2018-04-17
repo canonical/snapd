@@ -17,6 +17,15 @@
 #ifndef SNAP_CONFINE_LOCKING_H
 #define SNAP_CONFINE_LOCKING_H
 
+// Include config.h which pulls in _GNU_SOURCE which in turn allows sys/types.h
+// to define O_PATH. Since locking.h is included from locking.c this is
+// required to see O_PATH there.
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include <sys/types.h>
+
 /**
  * Obtain a flock-based, exclusive, globally scoped, lock.
  *
@@ -55,7 +64,7 @@ int sc_lock_snap(const char *snap_name);
  * The return value needs to be passed to sc_unlock(), there is no need to
  * check for errors as the function will die() on any problem.
  **/
-int sc_lock_snap_user(const char *snap_name, int uid);
+int sc_lock_snap_user(const char *snap_name, uid_t uid);
 
 /**
  * Release a flock-based lock.
