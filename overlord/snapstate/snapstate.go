@@ -1771,7 +1771,8 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 
 	si := snapst.CurrentSideInfo()
 	// core snaps can be addressed even without a snap-id via the special
-	// "system" value in the config
+	// "system" value in the config; first-boot always configures the core
+	// snap with UseConfigDefaults
 	if si.SnapID == "" && !isCoreDefaults {
 		return nil, state.ErrNoState
 	}
