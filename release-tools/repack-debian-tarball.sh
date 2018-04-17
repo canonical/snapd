@@ -56,6 +56,8 @@ if [ -d "$scratch_dir/snapd.upstream" ]; then
 	top_dir=snapd.upstream
 elif [ -d "$scratch_dir/snappy.upstream" ]; then
 	top_dir=snappy.upstream
+elif [ -d "$scratch_dir/snapd-${upstream_version}" ]; then
+	top_dir=snapd-${upstream_version}
 else
 	echo "Unexpected contents of given tarball, expected snap{py,d}.upstream/"
 	exit 1
