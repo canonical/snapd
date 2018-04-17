@@ -84,10 +84,16 @@ func (m *SnapManager) AddAdhocTaskHandler(adhoc string, do, undo func(*state.Tas
 	m.runner.AddHandler(adhoc, do, undo)
 }
 
-func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
-	old := readInfo
-	readInfo = mock
-	return func() { readInfo = old }
+func MockSnapReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
+	old := snapReadInfo
+	snapReadInfo = mock
+	return func() { snapReadInfo = old }
+}
+
+func MockMountPollInterval(intv time.Duration) (restore func()) {
+	old := mountPollInterval
+	mountPollInterval = intv
+	return func() { mountPollInterval = old }
 }
 
 func MockRevisionDate(mock func(info *snap.Info) time.Time) (restore func()) {

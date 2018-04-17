@@ -802,6 +802,16 @@ apps:
 	c.Check(info.Apps["app1"].IsService(), Equals, false)
 }
 
+func (s *infoSuite) TestAppInfoStringer(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: asnap
+apps:
+  one:
+   daemon: simple
+`))
+	c.Assert(err, IsNil)
+	c.Check(fmt.Sprintf("%q", info.Apps["one"]), Equals, `"asnap.one"`)
+}
+
 func (s *infoSuite) TestSocketFile(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`name: pans
 apps:
@@ -928,4 +938,42 @@ func (s *infoSuite) TestExpandSnapVariables(c *C) {
 	c.Assert(info.ExpandSnapVariables("$SNAP_DATA/stuff"), Equals, "/var/snap/foo/42/stuff")
 	c.Assert(info.ExpandSnapVariables("$SNAP_COMMON/stuff"), Equals, "/var/snap/foo/common/stuff")
 	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
+}
+
+func (s *infoSuite) TestStopModeTypeKillMode(c *C) {
+	for _, t := range []struct {
+		stopMode string
+		killall  bool
+	}{
+		{"", true},
+		{"sigterm", false},
+		{"sigterm-all", true},
+		{"sighup", false},
+		{"sighup-all", true},
+		{"sigusr1", false},
+		{"sigusr1-all", true},
+		{"sigusr2", false},
+		{"sigusr2-all", true},
+	} {
+		c.Check(snap.StopModeType(t.stopMode).KillAll(), Equals, t.killall, Commentf("wrong KillAll for %v", t.stopMode))
+	}
+}
+
+func (s *infoSuite) TestStopModeTypeKillSignal(c *C) {
+	for _, t := range []struct {
+		stopMode string
+		killSig  string
+	}{
+		{"", ""},
+		{"sigterm", "SIGTERM"},
+		{"sigterm-all", "SIGTERM"},
+		{"sighup", "SIGHUP"},
+		{"sighup-all", "SIGHUP"},
+		{"sigusr1", "SIGUSR1"},
+		{"sigusr1-all", "SIGUSR1"},
+		{"sigusr2", "SIGUSR2"},
+		{"sigusr2-all", "SIGUSR2"},
+	} {
+		c.Check(snap.StopModeType(t.stopMode).KillSignal(), Equals, t.killSig)
+	}
 }
