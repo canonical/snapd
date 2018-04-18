@@ -36,7 +36,7 @@
 %define gotest() go test -compiler gc -ldflags "${LDFLAGS:-}" %{?**};
 
 Name:           snapd
-Version:        2.32.3
+Version:        2.32.5
 Release:        0%{?dist}
 Summary:        Tools enabling systems to work with .snap files
 License:        GPLv3
@@ -221,6 +221,9 @@ install -m 644 -D data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/
 # empty env file for snapd
 touch  %{buildroot}%{_sysconfdir}/sysconfig/snapd
 
+# remove xdg user session autostart support
+rm -rfv %{buildroot}%{_sysconfdir}/xdg
+
 %post
 %systemd_post %{systemd_services_list}
 
@@ -295,5 +298,5 @@ fi
 %ghost %{_sharedstatedir}/snapd/snap/README
 
 %changelog
-* Mon Apr  9 2018 Maciej Zenon Borzecki <maciej.zenon.borzecki@canonical.com> - 2.32.3-0.amzn2
-- Initial packaging of 2.32.3
+* Wed Apr 18 2018 Maciej Zenon Borzecki <maciej.zenon.borzecki@canonical.com> - 2.32.5-0.amzn2
+- Initial packaging of 2.32.5
