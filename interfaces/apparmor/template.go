@@ -611,6 +611,13 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   mount options=(ro bind) /var/lib/snapd/hostfs/var/cache/fontconfig/ -> /var/cache/fontconfig/,
   umount /var/cache/fontconfig/,
 
+  # set up user mount namespace
+  # FIXME: this should be moved to the desktop interface when
+  # xdg-desktop-portal support is integrated
+  mount options=(rslave) -> /,
+  mount options=(ro bind) /run/user/*/** -> /run/user/*/**,
+  mount options=(rw bind) /run/user/*/** -> /run/user/*/**,
+
   # Allow traversing from the root directory and several well-known places.
   # Specific directory permissions are added by snippets below.
   / r,
