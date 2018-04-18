@@ -756,7 +756,8 @@ static void sc_make_slave_mount_ns(void)
 	sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
 }
 
-void sc_setup_user_mounts(int snap_update_ns_fd, const char *snap_name)
+void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
+                          const char *snap_name)
 {
 	debug("%s: %s", __FUNCTION__, snap_name);
 
@@ -778,7 +779,13 @@ void sc_setup_user_mounts(int snap_update_ns_fd, const char *snap_name)
 		die("cannot fork to run snap-update-ns");
 	}
 	if (child == 0) {
-		// We are the child, execute snap-update-ns
+		// We are the child, execute snap-update-ns under a dedicated profile.
+		char profile[PATH_MAX] = { 0 };
+		sc_must_snprintf(profile, sizeof profile, "snap-update-ns.%s",
+				 snap_name);
+		debug("launching snap-update-ns under per-snap profile %s",
+		      profile);
+		sc_maybe_aa_change_onexec(apparmor, profile);
 		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
 		snap_name_copy = strdup(snap_name);
 		if (snap_name_copy == NULL) {
