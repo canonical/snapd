@@ -44,8 +44,8 @@ func (s *cmdfinderSuite) SetUpTest(c *C) {
 
 	db, err := advisor.Create()
 	c.Assert(err, IsNil)
-	c.Assert(db.AddSnap("foo", []string{"foo", "meh"}), IsNil)
-	c.Assert(db.AddSnap("bar", []string{"bar", "meh"}), IsNil)
+	c.Assert(db.AddSnap("foo", "1.0", "foo summary", []string{"foo", "meh"}), IsNil)
+	c.Assert(db.AddSnap("bar", "2.0", "bar summary", []string{"bar", "meh"}), IsNil)
 	c.Assert(db.Commit(), IsNil)
 }
 
@@ -99,8 +99,8 @@ func (s *cmdfinderSuite) TestFindCommandHit(c *C) {
 	cmds, err := advisor.FindCommand("meh")
 	c.Assert(err, IsNil)
 	c.Check(cmds, DeepEquals, []advisor.Command{
-		{Snap: "foo", Command: "meh"},
-		{Snap: "bar", Command: "meh"},
+		{Snap: "foo", Version: "1.0", Command: "meh"},
+		{Snap: "bar", Version: "2.0", Command: "meh"},
 	})
 }
 
@@ -114,8 +114,8 @@ func (s *cmdfinderSuite) TestFindMisspelledCommandHit(c *C) {
 	cmds, err := advisor.FindMisspelledCommand("moh")
 	c.Assert(err, IsNil)
 	c.Check(cmds, DeepEquals, []advisor.Command{
-		{Snap: "foo", Command: "meh"},
-		{Snap: "bar", Command: "meh"},
+		{Snap: "foo", Version: "1.0", Command: "meh"},
+		{Snap: "bar", Version: "2.0", Command: "meh"},
 	})
 }
 
@@ -125,12 +125,29 @@ func (s *cmdfinderSuite) TestFindMisspelledCommandMiss(c *C) {
 	c.Check(cmds, HasLen, 0)
 }
 
-func (s *cmdfinderSuite) TestDump(c *C) {
-	cmds, err := advisor.Dump()
+func (s *cmdfinderSuite) TestDumpCommands(c *C) {
+	cmds, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
-	c.Check(cmds, DeepEquals, map[string][]string{
-		"foo": {"foo"},
-		"bar": {"bar"},
-		"meh": {"foo", "bar"},
+	c.Check(cmds, DeepEquals, map[string]string{
+		"foo": `[{"snap":"foo","version":"1.0"}]`,
+		"bar": `[{"snap":"bar","version":"2.0"}]`,
+		"meh": `[{"snap":"foo","version":"1.0"},{"snap":"bar","version":"2.0"}]`,
 	})
+}
+
+func (s *cmdfinderSuite) TestFindMissingCommandsDB(c *C) {
+	err := os.Remove(dirs.SnapCommandsDB)
+	c.Assert(err, IsNil)
+
+	cmds, err := advisor.FindMisspelledCommand("hello")
+	c.Assert(err, IsNil)
+	c.Check(cmds, HasLen, 0)
+
+	cmds, err = advisor.FindCommand("hello")
+	c.Assert(err, IsNil)
+	c.Check(cmds, HasLen, 0)
+
+	pkg, err := advisor.FindPackage("hello")
+	c.Assert(err, IsNil)
+	c.Check(pkg, IsNil)
 }

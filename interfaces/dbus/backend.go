@@ -58,11 +58,20 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 // `snap userd` instance on re-exec
 func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 	coreRoot := snapInfo.MountDir()
-	dst := "/usr/share/dbus-1/services/io.snapcraft.Launcher.service"
-	if osutil.FileExists(dst) {
-		return nil
+
+	for _, srv := range []string{
+		"io.snapcraft.Launcher.service",
+		"io.snapcraft.Settings.service",
+	} {
+		dst := filepath.Join("/usr/share/dbus-1/services/", srv)
+		src := filepath.Join(coreRoot, dst)
+		if !osutil.FilesAreEqual(src, dst) {
+			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll); err != nil {
+				return err
+			}
+		}
 	}
-	return osutil.CopyFile(filepath.Join(coreRoot, dst), dst, osutil.CopyFlagPreserveAll)
+	return nil
 }
 
 // Setup creates dbus configuration files specific to a given snap.

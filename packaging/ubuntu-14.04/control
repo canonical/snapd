@@ -62,7 +62,6 @@ Depends: adduser,
          ca-certificates,
          cgroup-lite,
          gnupg1 | gnupg,
-         linux-generic-lts-xenial,
          openssh-client,
          squashfs-tools,
 # only needed on trusty to pull in the right version.
@@ -73,6 +72,8 @@ Depends: adduser,
          util-linux (>=2.20.1-5.1ubuntu20.9),
          ${misc:Depends},
          ${shlibs:Depends}
+# recommends because of LP: #1675900
+Recommends: linux-generic-lts-xenial,
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<< 0.0.0)
 Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<< 0.0.0)
 Conflicts: snap (<< 2013-11-29-1ubuntu1)

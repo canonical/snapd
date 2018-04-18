@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -172,7 +173,7 @@ type Info struct {
 	// The information in all the remaining fields is not sourced from the snap blob itself.
 	SideInfo
 
-	// Broken marks if set whether the snap is broken and the reason.
+	// Broken marks whether the snap is broken and the reason.
 	Broken string
 
 	// The information in these fields is ephemeral, available only from the store.
@@ -200,13 +201,42 @@ type Info struct {
 type Layout struct {
 	Snap *Info
 
-	Path    string      `json:"path"`
-	Bind    string      `json:"bind,omitempty"`
-	Type    string      `json:"type,omitempty"`
-	User    string      `json:"user,omitempty"`
-	Group   string      `json:"group,omitempty"`
-	Mode    os.FileMode `json:"mode,omitempty"`
-	Symlink string      `json:"symlink,omitempty"`
+	Path     string      `json:"path"`
+	Bind     string      `json:"bind,omitempty"`
+	BindFile string      `json:"bind-file,omitempty"`
+	Type     string      `json:"type,omitempty"`
+	User     string      `json:"user,omitempty"`
+	Group    string      `json:"group,omitempty"`
+	Mode     os.FileMode `json:"mode,omitempty"`
+	Symlink  string      `json:"symlink,omitempty"`
+}
+
+// String returns a simple textual representation of a layout.
+func (l *Layout) String() string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "%s: ", l.Path)
+	switch {
+	case l.Bind != "":
+		fmt.Fprintf(&buf, "bind %s", l.Bind)
+	case l.BindFile != "":
+		fmt.Fprintf(&buf, "bind-file %s", l.BindFile)
+	case l.Symlink != "":
+		fmt.Fprintf(&buf, "symlink %s", l.Symlink)
+	case l.Type != "":
+		fmt.Fprintf(&buf, "type %s", l.Type)
+	default:
+		fmt.Fprintf(&buf, "???")
+	}
+	if l.User != "root" && l.User != "" {
+		fmt.Fprintf(&buf, ", user: %s", l.User)
+	}
+	if l.Group != "root" && l.Group != "" {
+		fmt.Fprintf(&buf, ", group: %s", l.Group)
+	}
+	if l.Mode != 0755 {
+		fmt.Fprintf(&buf, ", mode: %#o", l.Mode)
+	}
+	return buf.String()
 }
 
 // ChannelSnapInfo is the minimum information that can be used to clearly
@@ -274,12 +304,12 @@ func (s *Info) DataDir() string {
 
 // UserDataDir returns the user-specific data directory of the snap.
 func (s *Info) UserDataDir(home string) string {
-	return filepath.Join(home, "snap", s.Name(), s.Revision.String())
+	return filepath.Join(home, dirs.UserHomeSnapDir, s.Name(), s.Revision.String())
 }
 
 // UserCommonDataDir returns the user-specific data directory common across revision of the snap.
 func (s *Info) UserCommonDataDir(home string) string {
-	return filepath.Join(home, "snap", s.Name(), "common")
+	return filepath.Join(home, dirs.UserHomeSnapDir, s.Name(), "common")
 }
 
 // CommonDataDir returns the data directory common across revisions of the snap.
@@ -328,6 +358,41 @@ func (s *Info) Services() []*AppInfo {
 	}
 
 	return svcs
+}
+
+// ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON.
+func (s *Info) ExpandSnapVariables(path string) string {
+	return os.Expand(path, func(v string) string {
+		switch v {
+		case "SNAP":
+			// NOTE: We use dirs.CoreSnapMountDir here as the path used will be always
+			// inside the mount namespace snap-confine creates and there we will
+			// always have a /snap directory available regardless if the system
+			// we're running on supports this or not.
+			return filepath.Join(dirs.CoreSnapMountDir, s.Name(), s.Revision.String())
+		case "SNAP_DATA":
+			return s.DataDir()
+		case "SNAP_COMMON":
+			return s.CommonDataDir()
+		}
+		return ""
+	})
+}
+
+// InstallDate returns the "install date" of the snap.
+//
+// If the snap is not active, it'll return a zero time; otherwise
+// it'll return the modtime of the "current" symlink. Sneaky.
+func (s *Info) InstallDate() time.Time {
+	dir, rev := filepath.Split(s.MountDir())
+	cur := filepath.Join(dir, "current")
+	tag, err := os.Readlink(cur)
+	if err == nil && tag == rev {
+		if st, err := os.Lstat(cur); err == nil {
+			return st.ModTime()
+		}
+	}
+	return time.Time{}
 }
 
 func BadInterfacesSummary(snapInfo *Info) string {
@@ -481,6 +546,40 @@ type SocketInfo struct {
 	SocketMode   os.FileMode
 }
 
+// TimerInfo provides information on application timer.
+type TimerInfo struct {
+	App *AppInfo
+
+	Timer string
+}
+
+// StopModeType is the type for the "stop-mode:" of a snap app
+type StopModeType string
+
+// KillAll returns if the stop-mode means all processes should be killed
+// when the service is stopped or just the main process.
+func (st StopModeType) KillAll() bool {
+	return string(st) == "" || strings.HasSuffix(string(st), "-all")
+}
+
+// KillSignal returns the signal that should be used to kill the process
+// (or an empty string if no signal is needed)
+func (st StopModeType) KillSignal() string {
+	if st.Validate() != nil || st == "" {
+		return ""
+	}
+	return strings.ToUpper(strings.TrimSuffix(string(st), "-all"))
+}
+
+func (st StopModeType) Validate() error {
+	switch st {
+	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
+		// valid
+		return nil
+	}
+	return fmt.Errorf(`"stop-mode" field contains invalid value %q`, st)
+}
+
 // AppInfo provides information about a app.
 type AppInfo struct {
 	Snap *Info
@@ -496,6 +595,8 @@ type AppInfo struct {
 	PostStopCommand string
 	RestartCond     RestartCondition
 	Completer       string
+	RefreshMode     string
+	StopMode        StopModeType
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
@@ -512,6 +613,10 @@ type AppInfo struct {
 	// before
 	After  []string
 	Before []string
+
+	Timer *TimerInfo
+
+	Autostart string
 }
 
 // ScreenshotInfo provides information about a screenshot.
@@ -530,9 +635,18 @@ type HookInfo struct {
 	Slots map[string]*SlotInfo
 }
 
-// File returns the path to the file
+// File returns the path to the *.socket file
 func (socket *SocketInfo) File() string {
 	return filepath.Join(dirs.SnapServicesDir, socket.App.SecurityTag()+"."+socket.Name+".socket")
+}
+
+// File returns the path to the *.timer file
+func (timer *TimerInfo) File() string {
+	return filepath.Join(dirs.SnapServicesDir, timer.App.SecurityTag()+".timer")
+}
+
+func (app *AppInfo) String() string {
+	return JoinSnapApp(app.Snap.Name(), app.Name)
 }
 
 // SecurityTag returns application-specific security tag.
@@ -569,6 +683,9 @@ func (app *AppInfo) launcherCommand(command string) string {
 
 // LauncherCommand returns the launcher command line to use when invoking the app binary.
 func (app *AppInfo) LauncherCommand() string {
+	if app.Timer != nil {
+		return app.launcherCommand(fmt.Sprintf("--timer=%q", app.Timer.Timer))
+	}
 	return app.launcherCommand("")
 }
 
@@ -692,9 +809,23 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	SanitizePlugsSlots(info)
-
 	return info, nil
+}
+
+// ReadCurrentInfo reads the snap information from the installed snap in 'current' revision
+func ReadCurrentInfo(snapName string) (*Info, error) {
+	curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
+	realFn, err := os.Readlink(curFn)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find current revision for snap %s: %s", snapName, err)
+	}
+	rev := filepath.Base(realFn)
+	revision, err := ParseRevision(rev)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
+	}
+
+	return ReadInfo(snapName, &SideInfo{Revision: revision})
 }
 
 // ReadInfoFromSnapFile reads the snap information from the given File
@@ -726,6 +857,18 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	}
 
 	return info, nil
+}
+
+// InstallDate returns the "install date" of the snap.
+//
+// If the snap is not active, it'll return a zero time; otherwise
+// it'll return the modtime of the "current" symlink.
+func InstallDate(name string) time.Time {
+	cur := filepath.Join(dirs.SnapMountDir, name, "current")
+	if st, err := os.Lstat(cur); err == nil {
+		return st.ModTime()
+	}
+	return time.Time{}
 }
 
 // SplitSnapApp will split a string of the form `snap.app` into

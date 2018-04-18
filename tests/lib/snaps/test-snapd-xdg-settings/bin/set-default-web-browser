@@ -1,0 +1,5 @@
+#!/bin/sh
+
+set -e
+
+xdg-settings set default-web-browser "$1"

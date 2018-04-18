@@ -12,11 +12,8 @@ prepare: |
     install_local test-snapd-netlink-connector
 
 execute: |
-    CONNECTED_PATTERN=":netlink-audit +test-snapd-netlink-connector"
-    DISCONNECTED_PATTERN="\- +test-snapd-netlink-connector:netlink-connector"
-
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "\- +test-snapd-netlink-connector:netlink-connector"
 
     echo "When the interface is connected"
     snap connect test-snapd-netlink-connector:netlink-connector
@@ -30,7 +27,6 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-netlink-connector:netlink-connector
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to bind the netlink socket"
     if test-snapd-netlink-connector.bind; then

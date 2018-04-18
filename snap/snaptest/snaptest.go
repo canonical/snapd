@@ -21,6 +21,7 @@
 package snaptest
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -36,8 +37,11 @@ import (
 //
 // The caller is responsible for mocking root directory with dirs.SetRootDir()
 // and for altering the overlord state if required.
-func MockSnap(c *check.C, yamlText string, snapContents string, sideInfo *snap.SideInfo) *snap.Info {
+func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	c.Assert(sideInfo, check.Not(check.IsNil))
+
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	defer restoreSanitize()
 
 	// Parse the yaml (we need the Name).
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
@@ -56,11 +60,24 @@ func MockSnap(c *check.C, yamlText string, snapContents string, sideInfo *snap.S
 	// Write the .snap to disk
 	err = os.MkdirAll(filepath.Dir(snapInfo.MountFile()), 0755)
 	c.Assert(err, check.IsNil)
+	snapContents := fmt.Sprintf("%s-%s-%s", sideInfo.RealName, sideInfo.SnapID, sideInfo.Revision)
 	err = ioutil.WriteFile(snapInfo.MountFile(), []byte(snapContents), 0644)
 	c.Assert(err, check.IsNil)
 	snapInfo.Size = int64(len(snapContents))
 
 	return snapInfo
+}
+
+// MockSnapCurrent does the same as MockSnap but additionally creates the
+// 'current' symlink.
+//
+// The caller is responsible for mocking root directory with dirs.SetRootDir()
+// and for altering the overlord state if required.
+func MockSnapCurrent(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
+	si := MockSnap(c, yamlText, sideInfo)
+	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	c.Assert(err, check.IsNil)
+	return si
 }
 
 // MockInfo parses the given snap.yaml text and returns a validated snap.Info object including the optional SideInfo.
@@ -72,6 +89,8 @@ func MockInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 		sideInfo = &snap.SideInfo{}
 	}
 
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	defer restoreSanitize()
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
 	c.Assert(err, check.IsNil)
 	snapInfo.SideInfo = *sideInfo
@@ -88,6 +107,9 @@ func MockInvalidInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap
 	if sideInfo == nil {
 		sideInfo = &snap.SideInfo{}
 	}
+
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	defer restoreSanitize()
 
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
 	c.Assert(err, check.IsNil)
@@ -132,6 +154,9 @@ func MakeTestSnapWithFiles(c *check.C, snapYamlContent string, files [][]string)
 	}
 
 	PopulateDir(snapSource, files)
+
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	defer restoreSanitize()
 
 	err = osutil.ChDir(snapSource, func() error {
 		var err error

@@ -1,3 +1,8 @@
 #!/bin/sh
 
-echo "reloading reloading reloading"
+if [ -z "$MAINPID" ]; then
+    echo "error: MAINPID is not set"
+    exit 1
+fi
+echo "reloading main PID: $MAINPID"
+kill -HUP "$MAINPID"

@@ -35,6 +35,7 @@ var proxyConfigKeys = map[string]bool{
 	"http_proxy":  true,
 	"https_proxy": true,
 	"ftp_proxy":   true,
+	"no_proxy":    true,
 }
 
 func etcEnvironment() string {
@@ -61,6 +62,7 @@ func updateEtcEnvironmentConfig(path string, config map[string]string) error {
 
 func handleProxyConfiguration(tr Conf) error {
 	config := map[string]string{}
+	// normal proxy settings
 	for _, key := range []string{"http", "https", "ftp"} {
 		output, err := coreCfg(tr, "proxy."+key)
 		if err != nil {
@@ -68,6 +70,13 @@ func handleProxyConfiguration(tr Conf) error {
 		}
 		config[key+"_proxy"] = output
 	}
+	// handle no_proxy
+	output, err := coreCfg(tr, "proxy.no-proxy")
+	if err != nil {
+		return err
+	}
+	config["no_proxy"] = output
+
 	if err := updateEtcEnvironmentConfig(etcEnvironment(), config); err != nil {
 		return err
 	}

@@ -79,7 +79,7 @@ check("test-snapd-tools", res[2],
    ("commands", exists),
    ("tracking", equals, "stable"),
    ("installed", matches, verRevNotesRx("-")),
-   ("refreshed", exists),
+   ("refresh-date", exists),
    ("channels", check,
     ("stable", matches, verRevNotesRx("-")),
     ("candidate", equals, "↑"),
@@ -87,6 +87,7 @@ check("test-snapd-tools", res[2],
     ("edge", matches, verRevNotesRx("-")),
    ),
    ("snap-id", equals, snap_ids["test-snapd-tools"]),
+   ("license", equals, "unknown"), # TODO: update once snap.yaml contains the right license
 )
 
 check("test-snapd-devmode", res[3],
@@ -97,7 +98,7 @@ check("test-snapd-devmode", res[3],
    ("description", equals, "A basic buildable snap that asks for devmode confinement\n"),
    ("tracking", equals, "beta"),
    ("installed", matches, verRevNotesRx("devmode")),
-   ("refreshed", exists),
+   ("refresh-date", exists),
    ("channels", check,
     ("stable", equals, "–"),
     ("candidate", equals, "–"),
@@ -105,6 +106,7 @@ check("test-snapd-devmode", res[3],
     ("edge", matches, verRevNotesRx("devmode")),
    ),
    ("snap-id", equals, snap_ids["test-snapd-devmode"]),
+   ("license", equals, "unknown"), # TODO: update once snap.yaml contains the right license
 )
 
 check("core", res[4],
@@ -113,14 +115,16 @@ check("core", res[4],
       ("publisher", exists),
       ("summary", exists),
       ("description", exists),
-      ("tracking", exists),
+      # tracking not there for local snaps
+      ("tracking", maybe),
       ("installed", exists),
-      ("refreshed", exists),
+      ("refresh-date", exists),
       ("channels", exists),
       # contacts is set on classic but not on Ubuntu Core where we
       # sideload "core"
       ("contact", maybe),
       ("snap-id", maybe),
+      ("license", equals, "unknown"), # TODO: update once snap.yaml contains the right license
 )
 
 check("error", res[5],
@@ -136,5 +140,5 @@ check("test-snapd-python-webserver", res[6],
    ("description", exists),
    ("channels", exists),
    ("snap-id", equals, snap_ids["test-snapd-python-webserver"]),
-
+   ("license", equals, "Other Open Source"),
 )

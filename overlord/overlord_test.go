@@ -169,7 +169,7 @@ type witnessManager struct {
 }
 
 func (m *witnessManager) KnownTaskKinds() []string {
-	return []string{}
+	return []string{"foo"}
 }
 
 func (wm *witnessManager) Ensure() error {
@@ -207,6 +207,9 @@ func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 	c.Assert(err, IsNil)
 
 	markSeeded(o)
+	// make sure we don't try to talk to the store
+	snapstate.CanAutoRefresh = nil
+
 	o.Loop()
 
 	err = o.Stop()
@@ -424,6 +427,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneRunsMultipleTimes(c *C) {
 	restoreIntv := overlord.MockPruneInterval(100*time.Millisecond, 1000*time.Millisecond, 1*time.Hour)
 	defer restoreIntv()
 	o := overlord.Mock()
+	o.UnknownTaskManager().Ignore([]string{"foo"})
 
 	// create two changes, one that can be pruned now, one in progress
 	st := o.State()
@@ -478,9 +482,7 @@ func (ovs *overlordSuite) TestCheckpoint(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(st.Mode(), Equals, os.FileMode(0600))
 
-	content, err := ioutil.ReadFile(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
-	c.Check(string(content), testutil.Contains, `"mark":1`)
+	c.Check(dirs.SnapStateFile, testutil.FileContains, `"mark":1`)
 }
 
 type runnerManager struct {

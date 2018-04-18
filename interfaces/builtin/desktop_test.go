@@ -48,12 +48,14 @@ var _ = Suite(&DesktopInterfaceSuite{
 })
 
 const desktopConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [desktop]
 `
 
 const desktopCoreYaml = `name: core
+version: 0
 type: os
 slots:
   desktop:
@@ -97,6 +99,7 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access basic graphical desktop resources")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/fonts>")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/gtk-3.0/settings.ini r,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow access to xdg-desktop-portal and xdg-document-portal")
 
 	// connected plug to core slot
 	spec = &apparmor.Specification{}

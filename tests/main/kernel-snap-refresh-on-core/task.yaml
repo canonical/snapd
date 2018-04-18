@@ -1,0 +1,116 @@
+summary: Check that the kernel snap can be refreshed on a core device
+
+systems: [ubuntu-core-16-64]
+
+details: |
+    This test checks that the kernel snap can be refreshed from an installed
+    revision to a new one. It expects to find a new snap revision in the
+    channel pointed by the NEW_CORE_CHANNEL env var.
+
+manual: true
+
+environment:
+    KERNEL_CHANNEL: stable
+    NEW_KERNEL_CHANNEL: edge
+
+restore: |
+    rm -f prevBoot nextBoot prevKernelSignature nextKernelSiganture
+        
+prepare: |
+    snap install test-snapd-tools
+
+debug: |
+    grub-editenv list
+
+execute: |
+    wait_core_post_boot() {
+        # booted
+        while [ "$(bootenv snap_mode)" != "" ]; do
+            sleep 1
+        done
+    }
+
+    same=$(snap info pc-kernel | awk "
+        /^  ${KERNEL_CHANNEL}:/ {ch1=\$2}
+        /^  ${NEW_KERNEL_CHANNEL}:/ {ch2=\$2}
+        END { if (ch1 == ch2) print(\"same\") }")
+    if [ "$same" = "same" ]; then
+        echo "SKIPPING: kernel in edge / stable are the same"
+        exit 0
+    fi
+
+    . $TESTSLIB/boot.sh
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        # ensure we have a good starting place
+    
+        # sanity
+        test-snapd-tools.echo hello | MATCH hello
+
+        # go to known good starting place
+        snap refresh pc-kernel --${KERNEL_CHANNEL}
+        REBOOT
+    elif [ "$SPREAD_REBOOT" = 1 ]; then
+        # from our good starting place we refresh
+        wait_core_post_boot
+        
+        # save current core revision
+        snap list | awk "/^pc-kernel / {print(\$3)}" > prevBoot
+        cat /proc/version_signature > prevKernelSignature
+
+        # refresh
+        snap refresh pc-kernel --${NEW_KERNEL_CHANNEL}
+
+        # check boot env vars
+        snap list | awk "/^pc-kernel / {print(\$3)}" > nextBoot
+
+        test "$(bootenv snap_kernel)" = "pc-kernel_$(cat prevBoot).snap"
+
+        if [ "$(cat prevBoot)" = "$(cat nextBoot)" ]; then
+            echo "WARNING: kernel in edge / stable are the same"
+        else
+            test "$(bootenv snap_try_kernel)" = "pc-kernel_$(cat nextBoot).snap"
+        fi
+
+        # test-snapd-tools works
+        test-snapd-tools.echo hello | MATCH hello
+
+        REBOOT
+    elif [  "$SPREAD_REBOOT" = 2 ]; then
+        # after refresh to NEW_CHANNEL
+        wait_core_post_boot
+
+        # check boot env vars
+        test "$(bootenv snap_kernel)" = "pc-kernel_$(cat nextBoot).snap"
+        test "$(bootenv snap_try_kernel)" = ""
+
+        cat /proc/version_signature > nextKernelSignature
+
+        if diff -u prevKernelSignature nextKernelSignature; then
+            echo "SKIPPING: kernel in edge / stable are the same"
+            exit 0
+        fi
+        
+        # test-snapd-tools works
+        test-snapd-tools.echo hello | MATCH hello
+
+        # revert kernel
+        snap revert pc-kernel
+
+        test "$(bootenv snap_kernel)" = "pc-kernel_$(cat nextBoot).snap"
+        test "$(bootenv snap_try_kernel)" = "pc-kernel_$(cat prevBoot).snap"
+
+        REBOOT
+    elif [  "$SPREAD_REBOOT" = 3 ]; then
+        # after revert
+        wait_core_post_boot
+
+        # check that we reverted
+        test "$(bootenv snap_kernel)" = "pc-kernel_$(cat prevBoot).snap"
+        test "$(bootenv snap_try_kernel)" = ""
+
+        echo we are back to the original kernel
+        diff -u /proc/version_signature prevKernelSignature
+        
+        # test-snapd-tools works
+        test-snapd-tools.echo hello | MATCH hello
+    fi

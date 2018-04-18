@@ -52,3 +52,13 @@ func (s *mockCommandSuite) TestMockCommandAlso(c *C) {
 	c.Check(mock.Calls(), DeepEquals, [][]string{{"fst"}, {"snd"}})
 	c.Check(mock.Calls(), DeepEquals, also.Calls())
 }
+
+func (s *mockCommandSuite) TestMockCommandConflictEcho(c *C) {
+	mock := MockCommand(c, "do-not-swallow-echo-args", "")
+	defer mock.Restore()
+
+	c.Assert(exec.Command("do-not-swallow-echo-args", "-E", "-n", "-e").Run(), IsNil)
+	c.Assert(mock.Calls(), DeepEquals, [][]string{
+		{"do-not-swallow-echo-args", "-E", "-n", "-e"},
+	})
+}

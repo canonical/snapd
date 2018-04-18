@@ -7,12 +7,6 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "lbE4q2dpUgue10EEx8eutP36vzo=",
-			"path": "github.com/boltdb/bolt",
-			"revision": "9da31745363232bc1e27dbab3569e77383a51585",
-			"revisionTime": "2017-11-20T01:03:07Z"
-		},
-		{
 			"checksumSHA1": "RBwpnMpfQt7Jo7YWrRph0Vwe+f0=",
 			"path": "github.com/coreos/go-systemd/activation",
 			"revision": "48702e0da86bd25e76cfef347e2adeb434a0d0a6",
@@ -55,10 +49,10 @@
 			"revisionTime": "2015-02-12T09:37:50Z"
 		},
 		{
-			"checksumSHA1": "EoJqr2ZG7jODFsCnKwrn4JWRS+Y=",
+			"checksumSHA1": "uSjL89zodhV0X/LvyZ67FlKYKvg=",
 			"path": "github.com/mvo5/libseccomp-golang",
-			"revision": "84e1d1c75beaa58be6a76d2fc94d95eb8c1583b6",
-			"revisionTime": "2017-06-14T13:46:31Z"
+			"revision": "f4de83b52afb3c19190eb65cc92429feaaf0e8b6",
+			"revisionTime": "2018-03-08T15:25:21Z"
 		},
 		{
 			"checksumSHA1": "lG6diF/yE9cGgQIKRAlsaeYAjO4=",
@@ -71,6 +65,20 @@
 			"path": "github.com/ojii/gettext.go/pluralforms",
 			"revision": "95289a7e0ac17c76737a5ceca3c9471c0adf70c7",
 			"revisionTime": "2016-07-14T06:47:45Z"
+		},
+		{
+			"checksumSHA1": "XEtWdIrRbRSFBR9q+SOATOuy7vM=",
+			"comment": "fork of boltdb/bolt to fix build failure on ppc. upstream: https://github.com/boltdb/bolt/pull/740 and https://github.com/coreos/bbolt/pull/73",
+			"path": "github.com/snapcore/bolt",
+			"revision": "9eca199504ee1299394669820724322b5bfc070a",
+			"revisionTime": "2018-01-18T17:01:45Z"
+		},
+		{
+			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
+			"path": "github.com/snapcore/squashfuse",
+			"revision": "319f6d41a0419465a55d9dcb848d2408b97764f9",
+			"revisionTime": "2017-12-20T16:53:23Z",
+			"tree": true
 		},
 		{
 			"checksumSHA1": "TT1rac6kpQp2vz24m5yDGUNQ/QQ=",
@@ -193,10 +201,10 @@
 			"revisionTime": "2016-08-29T01:00:30Z"
 		},
 		{
-			"checksumSHA1": "fALlQNY1fM99NesfLJ50KguWsio=",
+			"checksumSHA1": "HmUAWd1Jm25cGH4Pyf3Zgp2RhkI=",
 			"path": "gopkg.in/yaml.v2",
-			"revision": "cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b",
-			"revisionTime": "2017-04-07T17:21:22Z"
+			"revision": "86f5ed62f8a0ee96bd888d2efdfd6d4fb100a4eb",
+			"revisionTime": "2018-03-26T05:07:29Z"
 		}
 	],
 	"rootPath": "github.com/snapcore/snapd"

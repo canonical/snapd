@@ -27,6 +27,7 @@ import (
 
 	repair "github.com/snapcore/snapd/cmd/snap-repair"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -42,6 +43,17 @@ type repairSuite struct {
 
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
+
+	restore func()
+}
+
+func (r *repairSuite) SetUpSuite(c *C) {
+	r.baseRunnerSuite.SetUpSuite(c)
+	r.restore = httputil.SetUserAgentFromVersion("", "")
+}
+
+func (r *repairSuite) TearDownSuite(c *C) {
+	r.restore()
 }
 
 func (r *repairSuite) SetUpTest(c *C) {

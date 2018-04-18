@@ -285,6 +285,7 @@ func (s *snapmgrTestSuite) TestRefreshAliases(c *C) {
 
 	info := snaptest.MockInfo(c, `
 name: alias-snap
+version: 0
 apps:
     cmd1:
     cmd2:
@@ -712,7 +713,7 @@ func (s *snapmgrTestSuite) TestAliasUpdateChangeConflict(c *C) {
 	s.state.NewChange("alias", "...").AddAll(ts)
 
 	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "alias" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateAliasChangeConflict(c *C) {
@@ -732,7 +733,7 @@ func (s *snapmgrTestSuite) TestUpdateAliasChangeConflict(c *C) {
 	s.state.NewChange("update", "...").AddAll(ts)
 
 	_, err = snapstate.Alias(s.state, "some-snap", "cmd1", "alias1")
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "update" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestAliasAliasConflict(c *C) {
@@ -1010,7 +1011,7 @@ func (s *snapmgrTestSuite) TestUpdateDisableAllAliasesChangeConflict(c *C) {
 	s.state.NewChange("update", "...").AddAll(ts)
 
 	_, err = snapstate.DisableAllAliases(s.state, "some-snap")
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "update" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestUpdateRemoveManualAliasChangeConflict(c *C) {
@@ -1033,7 +1034,7 @@ func (s *snapmgrTestSuite) TestUpdateRemoveManualAliasChangeConflict(c *C) {
 	s.state.NewChange("update", "...").AddAll(ts)
 
 	_, _, err = snapstate.RemoveManualAlias(s.state, "alias1")
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "update" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestDisableAllAliasesUpdateChangeConflict(c *C) {
@@ -1053,7 +1054,7 @@ func (s *snapmgrTestSuite) TestDisableAllAliasesUpdateChangeConflict(c *C) {
 	s.state.NewChange("alias", "...").AddAll(ts)
 
 	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "alias" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveManualAliasUpdateChangeConflict(c *C) {
@@ -1076,7 +1077,7 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasUpdateChangeConflict(c *C) {
 	s.state.NewChange("unalias", "...").AddAll(ts)
 
 	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "unalias" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestPreferTasks(c *C) {
@@ -1174,7 +1175,7 @@ func (s *snapmgrTestSuite) TestUpdatePreferChangeConflict(c *C) {
 	s.state.NewChange("update", "...").AddAll(ts)
 
 	_, err = snapstate.Prefer(s.state, "some-snap")
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "update" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestPreferUpdateChangeConflict(c *C) {
@@ -1198,5 +1199,5 @@ func (s *snapmgrTestSuite) TestPreferUpdateChangeConflict(c *C) {
 	s.state.NewChange("prefer", "...").AddAll(ts)
 
 	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "prefer" change in progress`)
 }

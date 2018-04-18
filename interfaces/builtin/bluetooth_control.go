@@ -42,6 +42,8 @@ const bluetoothControlConnectedPlugAppArmor = `
   # File accesses
   /sys/bus/usb/drivers/btusb/     r,
   /sys/bus/usb/drivers/btusb/**   r,
+  /sys/module/btusb/              r,
+  /sys/module/btusb/**            r,
   /sys/class/bluetooth/           r,
   /sys/devices/**/bluetooth/      rw,
   /sys/devices/**/bluetooth/**    rw,

@@ -45,12 +45,14 @@ var _ = Suite(&UDisks2InterfaceSuite{
 })
 
 const udisks2ConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [udisks2]
 `
 
 const udisks2ConsumerTwoAppsYaml = `name: consumer
+version: 0
 apps:
  app1:
   plugs: [udisks2]
@@ -59,6 +61,7 @@ apps:
 `
 
 const udisks2ConsumerThreeAppsYaml = `name: consumer
+version: 0
 apps:
  app1:
   plugs: [udisks2]
@@ -68,12 +71,14 @@ apps:
 `
 
 const udisks2ProducerYaml = `name: producer
+version: 0
 apps:
  app:
   slots: [udisks2]
 `
 
 const udisks2ProducerTwoAppsYaml = `name: producer
+version: 0
 apps:
  app1:
   slots: [udisks2]
@@ -82,6 +87,7 @@ apps:
 `
 
 const udisks2ProducerThreeAppsYaml = `name: producer
+version: 0
 apps:
  app1:
   slots: [udisks2]
@@ -163,6 +169,7 @@ func (s *UDisks2InterfaceSuite) TestDBusSpec(c *C) {
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `<policy user="root">`)
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `send_interface="org.freedesktop.DBus.Introspectable"`)
 }
 
 func (s *UDisks2InterfaceSuite) TestUDevSpec(c *C) {
@@ -174,7 +181,7 @@ func (s *UDisks2InterfaceSuite) TestUDevSpec(c *C) {
 SUBSYSTEM=="block", TAG+="snap_producer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# udisks2
 SUBSYSTEM=="usb", TAG+="snap_producer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_producer_app", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_producer_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_producer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_producer_app $devpath $major:$minor"`)
 }
 
 func (s *UDisks2InterfaceSuite) TestSecCompSpec(c *C) {

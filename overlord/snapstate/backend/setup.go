@@ -30,35 +30,45 @@ import (
 )
 
 // SetupSnap does prepare and mount the snap for further processing.
-func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter progress.Meter) error {
+func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter progress.Meter) (snapType snap.Type, err error) {
 	// This assumes that the snap was already verified or --dangerous was used.
 
-	s, snapf, err := OpenSnapFile(snapFilePath, sideInfo)
-	if err != nil {
-		return err
+	s, snapf, oErr := OpenSnapFile(snapFilePath, sideInfo)
+	if oErr != nil {
+		return snapType, oErr
 	}
 	instdir := s.MountDir()
 
+	defer func() {
+		if err == nil {
+			return
+		}
+		// XXX: this will also remove the snap from /var/lib/snapd/snaps
+		if e := b.RemoveSnapFiles(s, s.Type, meter); e != nil {
+			meter.Notify(fmt.Sprintf("while trying to clean up due to previous failure: %v", e))
+		}
+	}()
+
 	if err := os.MkdirAll(instdir, 0755); err != nil {
-		return err
+		return snapType, err
 	}
 
 	if err := snapf.Install(s.MountFile(), instdir); err != nil {
-		return err
+		return snapType, err
 	}
 
 	// generate the mount unit for the squashfs
 	if err := addMountUnit(s, meter); err != nil {
-		return err
+		return snapType, err
 	}
 
 	if s.Type == snap.TypeKernel {
 		if err := boot.ExtractKernelAssets(s, snapf); err != nil {
-			return fmt.Errorf("cannot install kernel: %s", err)
+			return snapType, fmt.Errorf("cannot install kernel: %s", err)
 		}
 	}
 
-	return err
+	return s.Type, err
 }
 
 // RemoveSnapFiles removes the snap files from the disk after unmounting the snap.

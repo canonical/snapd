@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -66,7 +67,7 @@ func fromRaw(raw []byte) (*stat, error) {
 		// next'll come the size or the node type
 		st.parseSize,
 		// and then the time
-		st.parseTime,
+		st.parseTimeUTC,
 		// and finally the path
 		st.parsePath,
 	}
@@ -81,6 +82,18 @@ func fromRaw(raw []byte) (*stat, error) {
 			return nil, errBadLine(raw)
 		}
 		p++
+	}
+
+	if st.mode&os.ModeSymlink != 0 {
+		// the symlink *could* be from a file called "foo -> bar" to
+		// another called "baz -> quux" in which case the following
+		// would be wrong, but so be it.
+
+		idx := strings.Index(st.path, " -> ")
+		if idx < 0 {
+			return nil, errBadPath(raw)
+		}
+		st.path = st.path[:idx]
 	}
 
 	return st, nil
@@ -144,9 +157,9 @@ func errBadPath(raw []byte) statError {
 	}
 }
 
-func (st *stat) parseTime(raw []byte) (int, error) {
+func (st *stat) parseTimeUTC(raw []byte) (int, error) {
 	const timelen = 16
-	t, err := time.ParseInLocation("2006-01-02 15:04", string(raw[:timelen]), time.Local)
+	t, err := time.Parse("2006-01-02 15:04", string(raw[:timelen]))
 	if err != nil {
 		return 0, errBadTime(raw)
 	}
