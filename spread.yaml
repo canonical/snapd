@@ -56,7 +56,7 @@ backends:
             - ubuntu-16.04-64:
                 workers: 8
             - ubuntu-18.04-64:
-                image: ubuntu-os-cloud-devel/daily-ubuntu-1804-bionic-v20180411
+                image: ubuntu-os-cloud-devel/daily-ubuntu-1804-bionic-v20180417
                 workers: 6
 
             - ubuntu-core-16-64:
@@ -82,6 +82,8 @@ backends:
                 manual: true
             - opensuse-42.3-64:
                 image: opensuse-cloud/opensuse-leap-42-3-v20180116
+                workers: 4
+            - arch-linux-64:
                 workers: 4
 
     linode:
@@ -330,6 +332,12 @@ prepare: |
                 zypper -q --gpg-auto-import-keys refresh
                 zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
+            arch-*)
+                # NOTE: we ought to do pacman -Syu, but this may update the
+                # kernel which we will not detect at this stage and fail to
+                # reboot; actual distro upgrade is done later in prepare
+                pacman -Sy --noconfirm xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
+                ;;
         esac
         rm -f "$tf"
         curl -sS -o - "https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF" | gunzip > delta-ref.tar
@@ -430,10 +438,10 @@ suites:
 
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)
-        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+        systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*]
         # unittests are run as part of the autopkgtest build already
         backends: [-autopkgtest]
         environment:
@@ -457,15 +465,25 @@ suites:
         restore: |
             $TESTSLIB/reset.sh --store
             . $TESTSLIB/pkgdb.sh
-            distro_purge_package snapd snap-confine ubuntu-core-launcher
+
+            distro_purge_package snapd
+            case "$SPREAD_SYSTEM" in
+                arch-*)
+                    # there is no snap-confine and ubuntu-core-launcher
+                    # in Arch
+                    ;;
+                *)
+                    distro_purge_package snap-confine ubuntu-core-launcher
+                    ;;
+            esac
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
         manual: true
-        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*]
+        systems: [-fedora-*, -opensuse-*, -arch-*]
         prepare: |
             . $TESTSLIB/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
