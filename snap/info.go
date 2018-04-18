@@ -799,6 +799,13 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	}
 
 	st, err := os.Stat(MountFile(name, si.Revision))
+	if os.IsNotExist(err) {
+		// This can happen when "snap try" mode snap is moved around. The mount
+		// is still in place (it's a bind mount, it doesn't care about the
+		// source moving) but the symlink in /var/lib/snapd/snaps is now
+		// dangling.
+		return nil, &NotFoundError{Snap: name, Revision: si.Revision}
+	}
 	if err != nil {
 		return nil, err
 	}

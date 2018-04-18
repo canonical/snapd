@@ -270,9 +270,8 @@ func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 	c.Assert(ioutil.WriteFile(p, []byte(``), 0644), IsNil)
 
 	info, err := snap.ReadInfo("sample", si)
+	c.Assert(err, ErrorMatches, `cannot find installed snap "sample" at revision 42`)
 	c.Check(info, IsNil)
-	// TODO: maybe improve this error message
-	c.Check(err, ErrorMatches, ".* no such file or directory")
 }
 
 // makeTestSnap here can also be used to produce broken snaps (differently from snaptest.MakeTestSnapWithFiles)!
