@@ -604,11 +604,14 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   umount /snap/###SNAP_NAME###/*/**,
 
   # Allow the desktop interface to bind fonts from the host filesystem
-  mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /usr/share/fonts/,
+  mount options=(bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /usr/share/fonts/,
+  remount options=(bind, ro) /usr/share/fonts/,
   umount /usr/share/fonts/,
-  mount options=(ro bind) /var/lib/snapd/hostfs/usr/local/share/fonts/ -> /usr/local/share/fonts/,
+  mount options=(bind) /var/lib/snapd/hostfs/usr/local/share/fonts/ -> /usr/local/share/fonts/,
+  remount options=(bind, ro) /usr/local/share/fonts/,
   umount /usr/local/share/fonts/,
-  mount options=(ro bind) /var/lib/snapd/hostfs/var/cache/fontconfig/ -> /var/cache/fontconfig/,
+  mount options=(bind) /var/lib/snapd/hostfs/var/cache/fontconfig/ -> /var/cache/fontconfig/,
+  remount options=(bind, ro) /var/cache/fontconfig/,
   umount /var/cache/fontconfig/,
 
   # set up user mount namespace
