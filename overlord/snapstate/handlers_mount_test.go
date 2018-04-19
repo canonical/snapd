@@ -279,7 +279,7 @@ func (s *mountSnapSuite) TestDoMountNotMountedRetryRetry(c *C) {
 	slowMountedReadInfo := func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		n++
 		if n < 3 {
-			return nil, &brokenSnap{Msg: "absent for testing"}
+			return nil, &snap.NotFoundError{Snap: "not-there", Revision: si.Revision}
 		}
 		return &snap.Info{
 			SideInfo: *si,
