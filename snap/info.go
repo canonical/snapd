@@ -769,7 +769,7 @@ type BrokenSnapError interface {
 	Broken() string
 }
 
-type notFoundError struct {
+type NotFoundError struct {
 	Snap     string
 	Revision Revision
 	// Path encodes the path that triggered the not-found error.
@@ -777,14 +777,14 @@ type notFoundError struct {
 	Path string
 }
 
-func (e notFoundError) Error() string {
+func (e NotFoundError) Error() string {
 	if e.Path != "" {
 		return fmt.Sprintf("cannot find installed snap %q at revision %s: missing file %s", e.Snap, e.Revision, e.Path)
 	}
 	return fmt.Sprintf("cannot find installed snap %q at revision %s", e.Snap, e.Revision)
 }
 
-func (e notFoundError) Broken() string {
+func (e NotFoundError) Broken() string {
 	return e.Error()
 }
 
@@ -817,7 +817,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
-		return nil, &notFoundError{Snap: name, Revision: si.Revision, Path: snapYamlFn}
+		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: snapYamlFn}
 	}
 	if err != nil {
 		return nil, err
@@ -835,7 +835,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		// is still in place (it's a bind mount, it doesn't care about the
 		// source moving) but the symlink in /var/lib/snapd/snaps is now
 		// dangling.
-		return nil, &notFoundError{Snap: name, Revision: si.Revision, Path: mountFile}
+		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: mountFile}
 	}
 	if err != nil {
 		return nil, err
