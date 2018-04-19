@@ -536,18 +536,6 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, p 
 	return snapType, nil
 }
 
-type brokenSnap struct {
-	Msg string
-}
-
-func (b brokenSnap) Error() string {
-	return b.Msg
-}
-
-func (b brokenSnap) Broken() string {
-	return b.Error()
-}
-
 func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	if name == "borken" && si.Revision == snap.R(2) {
 		return nil, errors.New(`cannot read info for "borken" snap`)
