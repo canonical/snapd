@@ -20,7 +20,6 @@
 package snapstate_test
 
 import (
-	"fmt"
 	"path/filepath"
 	"time"
 
@@ -280,7 +279,7 @@ func (s *mountSnapSuite) TestDoMountNotMountedRetryRetry(c *C) {
 	slowMountedReadInfo := func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		n++
 		if n < 3 {
-			return nil, &snap.BrokenSnapError{Snap: "not-there", Revision: si.Revision, Err: fmt.Errorf("absent for testing")}
+			return nil, &brokenSnap{Msg: "absent for testing"}
 		}
 		return &snap.Info{
 			SideInfo: *si,

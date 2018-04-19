@@ -536,12 +536,24 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, p 
 	return snapType, nil
 }
 
+type brokenSnap struct {
+	Msg string
+}
+
+func (b brokenSnap) Error() string {
+	return b.Msg
+}
+
+func (b brokenSnap) Broken() string {
+	return b.Error()
+}
+
 func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	if name == "borken" && si.Revision == snap.R(2) {
 		return nil, errors.New(`cannot read info for "borken" snap`)
 	}
 	if name == "not-there" && si.Revision == snap.R(2) {
-		return nil, &snap.BrokenSnapError{Snap: name, Revision: si.Revision, Err: fmt.Errorf("absent for testing")}
+		return nil, &brokenSnap{Msg: "absent for testing"}
 	}
 	// naive emulation for now, always works
 	info := &snap.Info{

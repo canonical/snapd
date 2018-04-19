@@ -470,7 +470,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		if readInfoErr == nil {
 			break
 		}
-		if _, ok := readInfoErr.(*snap.BrokenSnapError); !ok {
+		if _, ok := readInfoErr.(snap.BrokenSnapError); !ok {
 			break
 		}
 		// snap not found, seems is not mounted yet
