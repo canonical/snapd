@@ -18,7 +18,7 @@ fi
 systemctl daemon-reload
 
 # ensure we are not get killed too easily
-echo -950 > /proc/$$/oom_score_adj
+printf "%s\n" "-950" > /proc/$$/oom_score_adj
 
 # see what mem we have (for debugging)
 cat /proc/meminfo
@@ -45,4 +45,4 @@ go get -u github.com/snapcore/spread/cmd/spread
 
 # store journal info for inspectsion
 journalctl --sync
-journalctl -ab > $ADT_ARTIFACTS/journal.txt
+journalctl -ab > "$ADT_ARTIFACTS"/journal.txt

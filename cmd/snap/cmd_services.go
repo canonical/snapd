@@ -46,11 +46,13 @@ type svcLogs struct {
 var (
 	shortServicesHelp = i18n.G("Query the status of services")
 	longServicesHelp  = i18n.G(`
-The services command lists information about the services specified, or about the services in all currently installed snaps.
+The services command lists information about the services specified, or about
+the services in all currently installed snaps.
 `)
 	shortLogsHelp = i18n.G("Retrieve logs of services")
 	longLogsHelp  = i18n.G(`
-The logs command fetches logs of the given services and displays them in chronological order.
+The logs command fetches logs of the given services and displays them in
+chronological order.
 `)
 	shortStartHelp = i18n.G("Start services")
 	longStartHelp  = i18n.G(`
@@ -64,7 +66,8 @@ The stop command stops, and optionally disables, the given services.
 	longRestartHelp  = i18n.G(`
 The restart command restarts the given services.
 
-If the --reload option is given, for each service whose app has a reload command, a reload is performed instead of a restart.
+If the --reload option is given, for each service whose app has a reload
+command, a reload is performed instead of a restart.
 `)
 )
 

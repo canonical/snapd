@@ -35,36 +35,53 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func lastLogStr(logs []string) string {
-	if len(logs) == 0 {
-		return ""
-	}
-	return logs[len(logs)-1]
-}
-
 var (
-	shortInstallHelp = i18n.G("Installs a snap to the system")
-	shortRemoveHelp  = i18n.G("Removes a snap from the system")
-	shortRefreshHelp = i18n.G("Refreshes a snap in the system")
-	shortTryHelp     = i18n.G("Tests a snap in the system")
-	shortEnableHelp  = i18n.G("Enables a snap in the system")
-	shortDisableHelp = i18n.G("Disables a snap in the system")
+	shortInstallHelp = i18n.G("Install a snap to the system")
+	shortRemoveHelp  = i18n.G("Remove a snap from the system")
+	shortRefreshHelp = i18n.G("Refresh a snap in the system")
+	shortTryHelp     = i18n.G("Test a snap in the system")
+	shortEnableHelp  = i18n.G("Enable a snap in the system")
+	shortDisableHelp = i18n.G("Disable a snap in the system")
 )
 
 var longInstallHelp = i18n.G(`
-The install command installs the named snap in the system.
+The install command installs the named snaps in the system.
+
+With no further options, the snaps are installed tracking the stable channel,
+with strict security confinement.
+
+Revision choice via the --revision override is limited to those that are the
+current revision of a channel.
+If the snap is one the user has developer access to, either directly or through
+the store's collaboration feature, then logging in (see 'snap help login')
+lifts this restriction.
+
+Note a later refresh will typically undo a revision override, taking the snap
+back to the current revision of the channel it's tracking.
 `)
 
 var longRemoveHelp = i18n.G(`
 The remove command removes the named snap from the system.
 
-By default all the snap revisions are removed, including their data and the common
-data directory. When a --revision option is passed only the specified revision is
-removed.
+By default all the snap revisions are removed, including their data and the
+common data directory. When a --revision option is passed only the specified
+revision is removed.
 `)
 
 var longRefreshHelp = i18n.G(`
-The refresh command refreshes (updates) the named snap.
+The refresh command updates the specified snaps, or all snaps in the system if
+none are specified.
+
+With no further options, the snaps are refreshed to the current revision of the
+channel they're tracking, preserving their confinement options.
+
+Revision choice via the --revision override is limited to those that are the
+current revision of a channel.
+If the snap is one the user has developer access to, either directly or through
+the store's collaboration feature, then logging in (see 'snap help login')
+lifts this restriction.
+
+Note a later refresh will typically undo a revision override.
 `)
 
 var longTryHelp = i18n.G(`
@@ -84,7 +101,7 @@ The enable command enables a snap that was previously disabled.
 
 var longDisableHelp = i18n.G(`
 The disable command disables a snap. The binaries and services of the
-snap will no longer be available. But all the data is still available
+snap will no longer be available, but all the data is still available
 and the snap can easily be enabled again.
 `)
 
@@ -267,7 +284,7 @@ func showDone(names []string, op string) error {
 		default:
 			fmt.Fprintf(Stdout, "internal error: unknown op %q", op)
 		}
-		if snap.TrackingChannel != snap.Channel {
+		if snap.TrackingChannel != snap.Channel && snap.Channel != "" {
 			// TRANSLATORS: first %s is a snap name, following %s is a channel name
 			fmt.Fprintf(Stdout, i18n.G("Snap %s is no longer tracking %s.\n"), snap.Name, snap.TrackingChannel)
 		}
@@ -516,11 +533,11 @@ func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 		return nil
 	}
 
-	if _, err := x.wait(cli, changeID); err == noWait {
-		if err != noWait {
-			return err
+	if _, err := x.wait(cli, changeID); err != nil {
+		if err == noWait {
+			return nil
 		}
-		return nil
+		return err
 	}
 
 	return showDone([]string{name}, "refresh")
@@ -689,7 +706,7 @@ func (x *cmdTry) Execute([]string) error {
 	if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindNotSnap {
 		return fmt.Errorf(i18n.G(`%q does not contain an unpacked snap.
 
-Try "snapcraft prime" in your project directory, then "snap try" again.`), path)
+Try 'snapcraft prime' in your project directory, then 'snap try' again.`), path)
 	}
 	if err != nil {
 		return err

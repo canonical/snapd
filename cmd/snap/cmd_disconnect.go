@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
@@ -35,7 +36,7 @@ type cmdDisconnect struct {
 	} `positional-args:"true"`
 }
 
-var shortDisconnectHelp = i18n.G("Disconnects a plug from a slot")
+var shortDisconnectHelp = i18n.G("Disconnect a plug from a slot")
 var longDisconnectHelp = i18n.G(`
 The disconnect command disconnects a plug from a slot.
 It may be called in the following ways:
@@ -82,6 +83,11 @@ func (x *cmdDisconnect) Execute(args []string) error {
 	cli := Client()
 	id, err := cli.Disconnect(offer.Snap, offer.Name, use.Snap, use.Name)
 	if err != nil {
+		if client.IsInterfacesUnchangedError(err) {
+			fmt.Fprintf(Stdout, i18n.G("No connections to disconnect"))
+			fmt.Fprintf(Stdout, "\n")
+			return nil
+		}
 		return err
 	}
 

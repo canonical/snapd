@@ -199,6 +199,9 @@ static void sc_setup_mount_profiles(struct sc_apparmor *apparmor,
 struct sc_mount {
 	const char *path;
 	bool is_bidirectional;
+	// Alternate path defines the rbind mount "alternative" of path.
+	// It exists so that we can make /media on systems that use /run/media.
+	const char *altpath;
 };
 
 struct sc_mount_config {
@@ -302,6 +305,24 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			// Mount events will only propagate inwards to the namespace. This
 			// way the running application cannot alter any global state apart
 			// from that of its own snap.
+			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
+		}
+		if (mnt->altpath == NULL) {
+			continue;
+		}
+		// An alternate path of mnt->path is provided at another location.
+		// It should behave exactly the same as the original.
+		sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir,
+				 mnt->altpath);
+		struct stat stat_buf;
+		if (lstat(dst, &stat_buf) < 0) {
+			die("cannot lstat %s", dst);
+		}
+		if ((stat_buf.st_mode & S_IFMT) == S_IFLNK) {
+			die("cannot bind mount alternate path over a symlink: %s", dst);
+		}
+		sc_do_mount(mnt->path, dst, NULL, MS_REC | MS_BIND, NULL);
+		if (!mnt->is_bidirectional) {
 			sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 		}
 	}
@@ -603,7 +624,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			{"/usr/src"},	// FIXME: move to SecurityMounts in system-trace interface
 			{"/var/log"},	// FIXME: move to SecurityMounts in log-observe interface
 #ifdef MERGED_USR
-			{"/run/media", true},	// access to the users removable devices
+			{"/run/media", true, "/media"},	// access to the users removable devices
 #else
 			{"/media", true},	// access to the users removable devices
 #endif				// MERGED_USR

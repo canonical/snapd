@@ -553,12 +553,12 @@ func (r *Repository) Connect(ref ConnRef) error {
 	// Ensure that such plug exists
 	plug := r.plugs[plugSnapName][plugName]
 	if plug == nil {
-		return fmt.Errorf("cannot connect plug %q from snap %q, no such plug", plugName, plugSnapName)
+		return &UnknownPlugSlotError{Msg: fmt.Sprintf("cannot connect plug %q from snap %q, no such plug", plugName, plugSnapName)}
 	}
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return fmt.Errorf("cannot connect plug to slot %q from snap %q, no such slot", slotName, slotSnapName)
+		return &UnknownPlugSlotError{fmt.Sprintf("cannot connect plug to slot %q from snap %q, no such slot", slotName, slotSnapName)}
 	}
 	// Ensure that plug and slot are compatible
 	if slot.Interface != plug.Interface {
@@ -808,6 +808,9 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 // Unknown interfaces and plugs/slots that don't validate are not added.
 // Information about those failures are returned to the caller.
 func (r *Repository) AddSnap(snapInfo *snap.Info) error {
+	if snapInfo.Broken != "" {
+		return fmt.Errorf("snap is broken: %s", snapInfo.Broken)
+	}
 	err := snap.Validate(snapInfo)
 	if err != nil {
 		return err
