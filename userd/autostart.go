@@ -158,11 +158,13 @@ func makeStdStreams(identifier string) (stdout *os.File, stderr *os.File) {
 
 	stdout, err = systemd.NewJournalStreamFile(identifier, syslog.LOG_INFO, false)
 	if err != nil {
+		logger.Noticef("failed to set up stdout journal stream for %q: %v", identifier, err)
 		stdout = os.Stdout
 	}
 
 	stderr, err = systemd.NewJournalStreamFile(identifier, syslog.LOG_WARNING, false)
 	if err != nil {
+		logger.Noticef("failed to set up stderr journal stream for %q: %v", identifier, err)
 		stderr = os.Stderr
 	}
 
