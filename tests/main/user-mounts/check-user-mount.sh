@@ -2,6 +2,8 @@
 
 set -eux
 
+export XDG_RUNTIME_DIR="$1"
+
 # Add some content to the runtime dir
 rm -rf $XDG_RUNTIME_DIR/snap.test-snapd-sh
 mkdir $XDG_RUNTIME_DIR/snap.test-snapd-sh
