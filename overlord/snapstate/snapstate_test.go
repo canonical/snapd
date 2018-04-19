@@ -7626,8 +7626,8 @@ func (s *snapmgrTestSuite) TestConfigDefaultsSystem(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
 
-	// using MockSnap, we want to read the bits on disk
-	snapstate.MockReadInfo(snap.ReadInfo)
+	// using MockSnapReadInfo, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7649,8 +7649,8 @@ func (s *snapmgrTestSuite) TestConfigDefaultsSystemConflictsCoreSnapId(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
 
-	// using MockSnap, we want to read the bits on disk
-	snapstate.MockReadInfo(snap.ReadInfo)
+	// using MockSnapReadInfo, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
