@@ -19,7 +19,7 @@ execute: |
     chown test:test $USER_RUNTIME_DIR
 
     echo "Without user-fstab we see target"
-    XDG_RUNTIME_DIR=$USER_RUNTIME_DIR su -p -l -c $(pwd)/check-user-mount.sh test | MATCH in-target
+    su -l -c "$(pwd)/check-user-mount.sh $USER_RUNTIME_DIR" test | MATCH in-target
 
     echo "Configuring user-fstab"
     cat << \EOF > /var/lib/snapd/mount/snap.test-snapd-sh.user-fstab
@@ -29,4 +29,4 @@ execute: |
     $LIBEXECDIR/snapd/snap-discard-ns test-snapd-sh
 
     echo "With user-fstab we see source"
-    XDG_RUNTIME_DIR=$USER_RUNTIME_DIR su -p -l -c $(pwd)/check-user-mount.sh test | MATCH in-source
+    su -l -c "$(pwd)/check-user-mount.sh $USER_RUNTIME_DIR" test | MATCH in-source
