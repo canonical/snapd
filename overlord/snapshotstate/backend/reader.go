@@ -64,7 +64,7 @@ func Open(fn string) (rsh *Reader, e error) {
 		return nil, err
 	}
 	defer func() {
-		if e != nil {
+		if e != nil && f != nil {
 			f.Close()
 		}
 	}()

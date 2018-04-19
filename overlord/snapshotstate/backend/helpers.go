@@ -68,16 +68,19 @@ func member(f *os.File, member string) (r io.ReadCloser, sz int64, err error) {
 	}
 
 	fi, err := f.Stat()
+	if err != nil {
+		return nil, -1, err
+	}
 
 	arch, err := zip.NewReader(f, fi.Size())
 	if err != nil {
 		return nil, -1, err
 	}
 
-	for _, f := range arch.File {
-		if f.Name == member {
-			rc, err := f.Open()
-			return rc, int64(f.UncompressedSize64), err
+	for _, fh := range arch.File {
+		if fh.Name == member {
+			r, err = fh.Open()
+			return r, int64(fh.UncompressedSize64), err
 		}
 	}
 

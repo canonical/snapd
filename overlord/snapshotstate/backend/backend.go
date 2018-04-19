@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"time"
 
@@ -39,7 +40,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
-	"regexp"
 )
 
 const (
@@ -66,7 +66,7 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 		return err
 	}
 
-	dir, err := dirOpen(dirs.SnapshotDir)
+	dir, err := dirOpen(dirs.SnapshotsDir)
 	if err != nil {
 		if osutil.IsDirNotExist(err) {
 			// no dir -> no snapshots
@@ -84,7 +84,7 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 				break
 			}
 
-			filename := filepath.Join(dirs.SnapshotDir, name)
+			filename := filepath.Join(dirs.SnapshotsDir, name)
 			rsh, openError := open(filename)
 			// rsh can be non-nil even when openError is not nil (in
 			// which case rsh.Broken will have a reason). f can
@@ -141,12 +141,12 @@ func List(ctx context.Context, setID uint64, snapNames []string) ([]client.Snaps
 // Filename of the given client.Snapshot in this backend.
 func Filename(sh *client.Snapshot) string {
 	// this _needs_ the snap name and version to be valid
-	return filepath.Join(dirs.SnapshotDir, fmt.Sprintf("%d_%s_%s.zip", sh.SetID, sh.Snap, sh.Version))
+	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s_%s.zip", sh.SetID, sh.Snap, sh.Version))
 }
 
 // Save a snapshot
 func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (sh *client.Snapshot, e error) {
-	if err := os.MkdirAll(dirs.SnapshotDir, 0700); err != nil {
+	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
 		return nil, err
 	}
 

@@ -163,7 +163,7 @@ func (s *snapshotSuite) TestIterBailsIfContextDoneMidway(c *check.C) {
 	c.Check(triedToOpenSnapshot, check.Equals, false)
 }
 
-func (s *snapshotSuite) TestIterReturnsOkIfSnapshotDirNonexistent(c *check.C) {
+func (s *snapshotSuite) TestIterReturnsOkIfSnapshotsDirNonexistent(c *check.C) {
 	triedToOpenDir := false
 	defer backend.MockDirOpen(func(string) (*os.File, error) {
 		triedToOpenDir = true
@@ -175,7 +175,7 @@ func (s *snapshotSuite) TestIterReturnsOkIfSnapshotDirNonexistent(c *check.C) {
 	c.Check(triedToOpenDir, check.Equals, true)
 }
 
-func (s *snapshotSuite) TestIterBailsIfSnapshotDirFails(c *check.C) {
+func (s *snapshotSuite) TestIterBailsIfSnapshotsDirFails(c *check.C) {
 	triedToOpenDir := false
 	defer backend.MockDirOpen(func(string) (*os.File, error) {
 		triedToOpenDir = true
@@ -370,7 +370,7 @@ func (s *snapshotSuite) TestList(c *check.C) {
 		c.Check(logbuf.String(), check.Equals, "", comm)
 		c.Check(sets, check.HasLen, t.numSets, comm)
 		nShots := 0
-		fnTpl := filepath.Join(dirs.SnapshotDir, "%d_%s_%s.zip")
+		fnTpl := filepath.Join(dirs.SnapshotsDir, "%d_%s_%s.zip")
 		for j, ss := range sets {
 			for k, sh := range ss.Snapshots {
 				comm := check.Commentf("%d: %d/%v #%d/%d", i, t.setID, t.snapnames, j, k)
@@ -442,7 +442,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	c.Check(shw.Version, check.Equals, info.Version)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 	c.Check(shw.Conf, check.DeepEquals, cfg)
-	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotDir, "12_hello-snap_v1.33.zip"))
+	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33.zip"))
 	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
 
 	shs, err := backend.List(context.TODO(), 0, nil)
@@ -458,7 +458,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	c.Check(shr.Version, check.Equals, info.Version)
 	c.Check(shr.Revision, check.Equals, info.Revision)
 	c.Check(shr.Conf, check.DeepEquals, cfg)
-	c.Check(shr.Name(), check.Equals, filepath.Join(dirs.SnapshotDir, "12_hello-snap_v1.33.zip"))
+	c.Check(shr.Name(), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33.zip"))
 	c.Check(shr.SHA3_384, check.DeepEquals, shw.SHA3_384)
 
 	c.Check(shr.Check(context.TODO(), nil), check.IsNil)
