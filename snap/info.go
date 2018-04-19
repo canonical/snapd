@@ -211,6 +211,34 @@ type Layout struct {
 	Symlink  string      `json:"symlink,omitempty"`
 }
 
+// String returns a simple textual representation of a layout.
+func (l *Layout) String() string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "%s: ", l.Path)
+	switch {
+	case l.Bind != "":
+		fmt.Fprintf(&buf, "bind %s", l.Bind)
+	case l.BindFile != "":
+		fmt.Fprintf(&buf, "bind-file %s", l.BindFile)
+	case l.Symlink != "":
+		fmt.Fprintf(&buf, "symlink %s", l.Symlink)
+	case l.Type != "":
+		fmt.Fprintf(&buf, "type %s", l.Type)
+	default:
+		fmt.Fprintf(&buf, "???")
+	}
+	if l.User != "root" && l.User != "" {
+		fmt.Fprintf(&buf, ", user: %s", l.User)
+	}
+	if l.Group != "root" && l.Group != "" {
+		fmt.Fprintf(&buf, ", group: %s", l.Group)
+	}
+	if l.Mode != 0755 {
+		fmt.Fprintf(&buf, ", mode: %#o", l.Mode)
+	}
+	return buf.String()
+}
+
 // ChannelSnapInfo is the minimum information that can be used to clearly
 // distinguish different revisions of the same snap.
 type ChannelSnapInfo struct {
@@ -276,12 +304,12 @@ func (s *Info) DataDir() string {
 
 // UserDataDir returns the user-specific data directory of the snap.
 func (s *Info) UserDataDir(home string) string {
-	return filepath.Join(home, "snap", s.Name(), s.Revision.String())
+	return filepath.Join(home, dirs.UserHomeSnapDir, s.Name(), s.Revision.String())
 }
 
 // UserCommonDataDir returns the user-specific data directory common across revision of the snap.
 func (s *Info) UserCommonDataDir(home string) string {
-	return filepath.Join(home, "snap", s.Name(), "common")
+	return filepath.Join(home, dirs.UserHomeSnapDir, s.Name(), "common")
 }
 
 // CommonDataDir returns the data directory common across revisions of the snap.
@@ -525,6 +553,33 @@ type TimerInfo struct {
 	Timer string
 }
 
+// StopModeType is the type for the "stop-mode:" of a snap app
+type StopModeType string
+
+// KillAll returns if the stop-mode means all processes should be killed
+// when the service is stopped or just the main process.
+func (st StopModeType) KillAll() bool {
+	return string(st) == "" || strings.HasSuffix(string(st), "-all")
+}
+
+// KillSignal returns the signal that should be used to kill the process
+// (or an empty string if no signal is needed)
+func (st StopModeType) KillSignal() string {
+	if st.Validate() != nil || st == "" {
+		return ""
+	}
+	return strings.ToUpper(strings.TrimSuffix(string(st), "-all"))
+}
+
+func (st StopModeType) Validate() error {
+	switch st {
+	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
+		// valid
+		return nil
+	}
+	return fmt.Errorf(`"stop-mode" field contains invalid value %q`, st)
+}
+
 // AppInfo provides information about a app.
 type AppInfo struct {
 	Snap *Info
@@ -541,6 +596,7 @@ type AppInfo struct {
 	RestartCond     RestartCondition
 	Completer       string
 	RefreshMode     string
+	StopMode        StopModeType
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
@@ -587,6 +643,10 @@ func (socket *SocketInfo) File() string {
 // File returns the path to the *.timer file
 func (timer *TimerInfo) File() string {
 	return filepath.Join(dirs.SnapServicesDir, timer.App.SecurityTag()+".timer")
+}
+
+func (app *AppInfo) String() string {
+	return JoinSnapApp(app.Snap.Name(), app.Name)
 }
 
 // SecurityTag returns application-specific security tag.
@@ -749,9 +809,23 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	SanitizePlugsSlots(info)
-
 	return info, nil
+}
+
+// ReadCurrentInfo reads the snap information from the installed snap in 'current' revision
+func ReadCurrentInfo(snapName string) (*Info, error) {
+	curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
+	realFn, err := os.Readlink(curFn)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find current revision for snap %s: %s", snapName, err)
+	}
+	rev := filepath.Base(realFn)
+	revision, err := ParseRevision(rev)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
+	}
+
+	return ReadInfo(snapName, &SideInfo{Revision: revision})
 }
 
 // ReadInfoFromSnapFile reads the snap information from the given File

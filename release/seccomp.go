@@ -29,36 +29,34 @@ var (
 	secCompAvailableActionsPath = "/proc/sys/kernel/seccomp/actions_avail"
 )
 
-var SecCompActions []string
-
-func init() {
-	SecCompActions = getSecCompActions()
-}
+var secCompActions []string
 
 func MockSecCompActions(actions []string) (restore func()) {
-	old := SecCompActions
-	SecCompActions = actions
-	return func() { SecCompActions = old }
+	old := secCompActions
+	secCompActions = actions
+	return func() { secCompActions = old }
 }
 
 // SecCompActions returns a sorted list of seccomp actions like
 // []string{"allow", "errno", "kill", "log", "trace", "trap"}.
-func getSecCompActions() []string {
-	var actions []string
-	contents, err := ioutil.ReadFile(secCompAvailableActionsPath)
-	if err != nil {
-		return actions
+func SecCompActions() []string {
+	if secCompActions == nil {
+		var actions []string
+		contents, err := ioutil.ReadFile(secCompAvailableActionsPath)
+		if err != nil {
+			return actions
+		}
+		actions = strings.Split(strings.TrimRight(string(contents), "\n"), " ")
+		sort.Strings(actions)
+		secCompActions = actions
 	}
-
-	seccompActions := strings.Split(strings.TrimRight(string(contents), "\n"), " ")
-	sort.Strings(seccompActions)
-
-	return seccompActions
+	return secCompActions
 }
 
 func SecCompSupportsAction(action string) bool {
-	i := sort.SearchStrings(SecCompActions, action)
-	if i < len(SecCompActions) && SecCompActions[i] == action {
+	actions := SecCompActions()
+	i := sort.SearchStrings(actions, action)
+	if i < len(actions) && actions[i] == action {
 		return true
 	}
 	return false

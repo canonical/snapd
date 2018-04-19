@@ -216,5 +216,17 @@ AC_ARG_WITH([32bit-libdir],
 AC_SUBST(LIB32_DIR)
 AC_DEFINE_UNQUOTED([LIB32_DIR], "${LIB32_DIR}", [Location of the lib32 directory])
 
+AC_ARG_WITH([host-arch-triplet],
+    AS_HELP_STRING([--with-host-arch-triplet=triplet], [Arch triplet for host libraries]),
+    [HOST_ARCH_TRIPLET="$withval"])
+AC_SUBST(HOST_ARCH_TRIPLET)
+AC_DEFINE_UNQUOTED([HOST_ARCH_TRIPLET], "${HOST_ARCH_TRIPLET}", [Arch triplet for host libraries])
+
+AC_ARG_WITH([host-arch-32bit-triplet],
+    AS_HELP_STRING([--with-host-arch-32bit-triplet=triplet], [Arch triplet for 32bit libraries]),
+    [HOST_ARCH32_TRIPLET="$withval"])
+AC_SUBST(HOST_ARCH32_TRIPLET)
+AC_DEFINE_UNQUOTED([HOST_ARCH32_TRIPLET], "${HOST_ARCH32_TRIPLET}", [Arch triplet for 32bit libraries])
+
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

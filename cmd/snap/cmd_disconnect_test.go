@@ -32,7 +32,7 @@ import (
 
 func (s *SnapSuite) TestDisconnectHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] disconnect [disconnect-OPTIONS] [<snap>:<plug>] [<snap>:<slot>]
+  snap.test disconnect [disconnect-OPTIONS] [<snap>:<plug>] [<snap>:<slot>]
 
 The disconnect command disconnects a plug from a slot.
 It may be called in the following ways:
@@ -45,12 +45,6 @@ $ snap disconnect <snap>:<slot or plug>
 
 Disconnects everything from the provided plug or slot.
 The snap name may be omitted for the core snap.
-
-Application Options:
-      --version            Print the version and exit
-
-Help Options:
-  -h, --help               Show this help message
 
 [disconnect command options]
           --no-wait        Do not wait for the operation to finish but just
