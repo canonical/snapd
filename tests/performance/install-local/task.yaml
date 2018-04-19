@@ -15,6 +15,6 @@ execute: |
         et=$(execution_time_ms "snap install --dangerous \"$SNAP_FILE\"")
         echo "$SPREAD_SYSTEM,install_local,test-snapd-tools,$et,milliseconds" >> $RES_FILE
         et=$(execution_time_ms "snap remove test-snapd-tools")
-        echo "$SPREAD_SYSTEM,remove_local,test-snapd-tools,$et,milliseconds" >> $RES_FILE
+        echo "$SPREAD_SYSTEM,remove_pack,test-snapd-tools,$et,milliseconds" >> $RES_FILE
         rm -f $SNAP_FILE
     done

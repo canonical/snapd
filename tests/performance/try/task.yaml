@@ -8,5 +8,5 @@ execute: |
         et=$(execution_time_ms "snap try $TESTSLIB/snaps/test-snapd-tools")
         echo "$SPREAD_SYSTEM,try,test-snapd-tools,$et,milliseconds" >> $RES_FILE
         et=$(execution_time_ms "snap remove test-snapd-tools")
-        echo "$SPREAD_SYSTEM,remove,test-snapd-tools,$et,milliseconds" >> $RES_FILE
+        echo "$SPREAD_SYSTEM,remove_try,test-snapd-tools,$et,milliseconds" >> $RES_FILE
     done
