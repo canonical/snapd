@@ -788,17 +788,17 @@ func (e NotFoundError) Broken() string {
 	return e.Error()
 }
 
-type corruptMetaError struct {
+type invalidMetaError struct {
 	Snap     string
 	Revision Revision
 	Msg      string
 }
 
-func (e corruptMetaError) Error() string {
+func (e invalidMetaError) Error() string {
 	return fmt.Sprintf("cannot use installed snap %q at revision %s: %s", e.Snap, e.Revision, e.Msg)
 }
 
-func (e corruptMetaError) Broken() string {
+func (e invalidMetaError) Broken() string {
 	return e.Error()
 }
 
@@ -825,7 +825,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 
 	info, err := infoFromSnapYamlWithSideInfo(meta, si)
 	if err != nil {
-		return nil, &corruptMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
+		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
 	mountFile := MountFile(name, si.Revision)
@@ -844,7 +844,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 
 	err = addImplicitHooks(info)
 	if err != nil {
-		return nil, &corruptMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
+		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
 	return info, nil

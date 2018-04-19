@@ -239,6 +239,9 @@ func (s *infoSuite) TestReadInfoNotFound(c *C) {
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(info, IsNil)
 	c.Check(err, ErrorMatches, `cannot find installed snap "sample" at revision 42: missing file .*sample/42/meta/snap.yaml`)
+	bse, ok := err.(snap.BrokenSnapError)
+	c.Assert(ok, Equals, true)
+	c.Check(bse.Broken(), Equals, bse.Error())
 }
 
 func (s *infoSuite) TestReadInfoUnreadable(c *C) {
@@ -261,6 +264,9 @@ func (s *infoSuite) TestReadInfoUnparsable(c *C) {
 	c.Check(info, IsNil)
 	// TODO: maybe improve this error message
 	c.Check(err, ErrorMatches, `cannot use installed snap "sample" at revision 42: cannot parse snap.yaml: yaml: .*`)
+	bse, ok := err.(snap.BrokenSnapError)
+	c.Assert(ok, Equals, true)
+	c.Check(bse.Broken(), Equals, bse.Error())
 }
 
 func (s *infoSuite) TestReadInfoUnfindable(c *C) {
