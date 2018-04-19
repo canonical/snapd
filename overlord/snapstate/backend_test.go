@@ -541,7 +541,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		return nil, errors.New(`cannot read info for "borken" snap`)
 	}
 	if name == "not-there" && si.Revision == snap.R(2) {
-		return nil, &snap.NotFoundError{Snap: name, Revision: si.Revision}
+		return nil, &snap.BrokenSnapError{Snap: name, Revision: si.Revision, Err: fmt.Errorf("absent for testing")}
 	}
 	// naive emulation for now, always works
 	info := &snap.Info{

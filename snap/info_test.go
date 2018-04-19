@@ -238,7 +238,7 @@ func (s *infoSuite) TestReadInfoNotFound(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(info, IsNil)
-	c.Check(err, ErrorMatches, `cannot find installed snap "sample" at revision 42 \(missing file: ".*/sample/42/meta/snap.yaml"\)`)
+	c.Check(err, ErrorMatches, `cannot use broken snap "sample" at revision 42: .*sample/42/meta/snap.yaml: no such file or directory`)
 }
 
 func (s *infoSuite) TestReadInfoUnreadable(c *C) {
@@ -270,7 +270,7 @@ func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 	c.Assert(ioutil.WriteFile(p, []byte(``), 0644), IsNil)
 
 	info, err := snap.ReadInfo("sample", si)
-	c.Assert(err, ErrorMatches, `cannot find installed snap "sample" at revision 42 \(missing file: ".*/var/lib/snapd/snaps/sample_42.snap"\)`)
+	c.Check(err, ErrorMatches, `cannot use broken snap "sample" at revision 42: .*var/lib/snapd/snaps/sample_42.snap: no such file or directory`)
 	c.Check(info, IsNil)
 }
 

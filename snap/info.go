@@ -763,19 +763,14 @@ func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
 	return info, nil
 }
 
-type NotFoundError struct {
+type BrokenSnapError struct {
 	Snap     string
 	Revision Revision
-	// Path encodes the path that triggered the not-found error.
-	// It may refer to a file inside the snap or to the snap file itself.
-	Path string
+	Err      error
 }
 
-func (e NotFoundError) Error() string {
-	if e.Path != "" {
-		return fmt.Sprintf("cannot find installed snap %q at revision %s (missing file: %q)", e.Snap, e.Revision, e.Path)
-	}
-	return fmt.Sprintf("cannot find installed snap %q at revision %s", e.Snap, e.Revision)
+func (e BrokenSnapError) Error() string {
+	return fmt.Sprintf("cannot use broken snap %q at revision %s: %s", e.Snap, e.Revision, e.Err.Error())
 }
 
 func MockSanitizePlugsSlots(f func(snapInfo *Info)) (restore func()) {
@@ -793,7 +788,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
-		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: snapYamlFn}
+		return nil, &BrokenSnapError{Snap: name, Revision: si.Revision, Err: err}
 	}
 	if err != nil {
 		return nil, err
@@ -801,7 +796,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 
 	info, err := infoFromSnapYamlWithSideInfo(meta, si)
 	if err != nil {
-		return nil, err
+		return nil, &BrokenSnapError{Snap: name, Revision: si.Revision, Err: err}
 	}
 
 	mountFile := MountFile(name, si.Revision)
@@ -811,7 +806,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		// is still in place (it's a bind mount, it doesn't care about the
 		// source moving) but the symlink in /var/lib/snapd/snaps is now
 		// dangling.
-		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: mountFile}
+		return nil, &BrokenSnapError{Snap: name, Revision: si.Revision, Err: err}
 	}
 	if err != nil {
 		return nil, err
@@ -820,7 +815,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 
 	err = addImplicitHooks(info)
 	if err != nil {
-		return nil, err
+		return nil, &BrokenSnapError{Snap: name, Revision: si.Revision, Err: err}
 	}
 
 	return info, nil
