@@ -772,7 +772,10 @@ type NotFoundError struct {
 }
 
 func (e NotFoundError) Error() string {
-	return fmt.Sprintf("cannot find installed snap %q at revision %s (missing file: %q)", e.Snap, e.Revision, e.Path)
+	if e.Path != "" {
+		return fmt.Sprintf("cannot find installed snap %q at revision %s (missing file: %q)", e.Snap, e.Revision, e.Path)
+	}
+	return fmt.Sprintf("cannot find installed snap %q at revision %s", e.Snap, e.Revision)
 }
 
 func MockSanitizePlugsSlots(f func(snapInfo *Info)) (restore func()) {
