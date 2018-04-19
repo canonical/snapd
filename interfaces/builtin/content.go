@@ -233,8 +233,8 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 			fmt.Fprintf(&buf, "  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
 			fmt.Fprintf(&buf, "  mount options=(bind, rw) %s/ -> %s/,\n", source, target)
 			fmt.Fprintf(&buf, "  umount %s/,\n", target)
-			apparmor.WritableProfile(&buf, source)
-			apparmor.WritableProfile(&buf, target)
+			apparmor.WritableProfile(&buf, source, 1)
+			apparmor.WritableProfile(&buf, target, 1)
 			spec.AddUpdateNS(buf.String())
 		}
 	}
@@ -255,8 +255,8 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 			fmt.Fprintf(&buf, "  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
 			fmt.Fprintf(&buf, "  mount options=(bind, ro) %s/ -> %s/,\n", source, target)
 			fmt.Fprintf(&buf, "  umount %s/,\n", target)
-			apparmor.WritableProfile(&buf, source)
-			apparmor.WritableProfile(&buf, target)
+			apparmor.WritableProfile(&buf, source, 1)
+			apparmor.WritableProfile(&buf, target, 1)
 			spec.AddUpdateNS(buf.String())
 		}
 	}
