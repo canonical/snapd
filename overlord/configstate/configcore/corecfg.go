@@ -55,7 +55,10 @@ func validateExperimentalSettings(tr Conf) error {
 	if err != nil {
 		return err
 	}
-	if layoutsEnabled != "" && layoutsEnabled != "true" && layoutsEnabled != "false" {
+	switch layoutsEnabled {
+	case "", "true", "false":
+		return nil
+	default:
 		return fmt.Errorf("experimental.layouts can only be set to 'true' or 'false'")
 	}
 
