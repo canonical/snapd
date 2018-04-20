@@ -68,6 +68,7 @@ type UserState struct {
 	StoreDischarges []string `json:"store-discharges,omitempty"`
 }
 
+// HasStoreAuth returns true if the user has store authorization.
 func (u *UserState) HasStoreAuth() bool {
 	if u == nil {
 		return false
