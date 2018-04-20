@@ -1,6 +1,6 @@
 snapd (2.32.5~14.04) trusty; urgency=medium
 
-  * New upstream release, LP: #1756173
+  * New upstream release, LP: #1765090
     - many: add "stop-mode: sig{term,hup,usr[12]}{,-all}" instead of
       conflating that with refresh-mode
     - overlord/snapstate:  poll for up to 10s if a snap is unexpectedly

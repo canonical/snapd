@@ -766,9 +766,15 @@ func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
 type NotFoundError struct {
 	Snap     string
 	Revision Revision
+	// Path encodes the path that triggered the not-found error.
+	// It may refer to a file inside the snap or to the snap file itself.
+	Path string
 }
 
 func (e NotFoundError) Error() string {
+	if e.Path != "" {
+		return fmt.Sprintf("cannot find installed snap %q at revision %s (missing file: %q)", e.Snap, e.Revision, e.Path)
+	}
 	return fmt.Sprintf("cannot find installed snap %q at revision %s", e.Snap, e.Revision)
 }
 
@@ -787,7 +793,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
-		return nil, &NotFoundError{Snap: name, Revision: si.Revision}
+		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: snapYamlFn}
 	}
 	if err != nil {
 		return nil, err
@@ -798,7 +804,15 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	st, err := os.Stat(MountFile(name, si.Revision))
+	mountFile := MountFile(name, si.Revision)
+	st, err := os.Stat(mountFile)
+	if os.IsNotExist(err) {
+		// This can happen when "snap try" mode snap is moved around. The mount
+		// is still in place (it's a bind mount, it doesn't care about the
+		// source moving) but the symlink in /var/lib/snapd/snaps is now
+		// dangling.
+		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: mountFile}
+	}
 	if err != nil {
 		return nil, err
 	}
