@@ -1,0 +1,18 @@
+summary: Measure the time needed to manage services
+
+execute: |
+    . "$TESTSLIB/snaps.sh"
+    . "$TESTSLIB/perf.sh"
+
+    install_local test-snapd-service
+
+    for i in $(seq 30); do
+        et=$(execution_time_ms "snap services")
+        echo "$SPREAD_SYSTEM,services,all,$et,milliseconds" >> $RES_FILE
+        et=$(execution_time_ms "snap start test-snapd-service.service")
+        echo "$SPREAD_SYSTEM,start,test-snapd-service.service,$et,milliseconds" >> $RES_FILE
+        et=$(execution_time_ms "snap stop test-snapd-service.service")
+        echo "$SPREAD_SYSTEM,stop,test-snapd-service.service,$et,milliseconds" >> $RES_FILE
+        et=$(execution_time_ms "snap logs test-snapd-service.service")
+        echo "$SPREAD_SYSTEM,logs,test-snapd-service.service,$et,milliseconds" >> $RES_FILE
+    done
