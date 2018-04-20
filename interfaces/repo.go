@@ -581,7 +581,6 @@ func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map
 
 	iface, ok := r.ifaces[plug.Interface]
 	if !ok {
-		// This should never happen
 		return nil, fmt.Errorf("internal error: unknown interface %q", plug.Interface)
 	}
 
@@ -592,12 +591,12 @@ func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map
 	if policyCheck != nil {
 		if i, ok := iface.(plugValidator); ok {
 			if err := i.BeforeConnectPlug(cplug); err != nil {
-				return nil, fmt.Errorf("cannot connect plug %q from snap %q: %s", plug.Name, plug.Snap.Name(), err)
+				return nil, fmt.Errorf("cannot connect plug %q of snap %q: %s", plug.Name, plug.Snap.Name(), err)
 			}
 		}
 		if i, ok := iface.(slotValidator); ok {
 			if err := i.BeforeConnectSlot(cslot); err != nil {
-				return nil, fmt.Errorf("cannot connect slot %q from snap %q: %s", slot.Name, slot.Snap.Name(), err)
+				return nil, fmt.Errorf("cannot connect slot %q of snap %q: %s", slot.Name, slot.Snap.Name(), err)
 			}
 		}
 
