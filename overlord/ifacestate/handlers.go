@@ -500,7 +500,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 	setConns(st, conns)
 
-	// the dynamic attributes might have been updated by interface's BeforeConnectPlug/Slot code,
+	// the dynamic attributes might have been updated by the interface's BeforeConnectPlug/Slot code,
 	// so we need to update the task for connect-plug- and connect-slot- hooks to see new values.
 	setDynamicHookAttributes(task, conn.Plug.DynamicAttrs(), conn.Slot.DynamicAttrs())
 	return nil
@@ -575,7 +575,6 @@ func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	connectts := state.NewTaskSet()
-	chg := task.Change()
 	for _, conn := range connections {
 		ts, err := Connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
 		if err != nil {
@@ -594,6 +593,8 @@ func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 	for _, l := range lanes {
 		connectts.JoinLane(l)
 	}
+
+	chg := task.Change()
 	chg.AddAll(connectts)
 	// make all halt tasks of the main 'reconnect' task wait on connect tasks
 	for _, t := range ht {
