@@ -39,13 +39,6 @@ type updateInfoOpts struct {
 	amend            bool
 }
 
-func idForUser(user *auth.UserState) int {
-	if user == nil {
-		return 0
-	}
-	return user.ID
-}
-
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID
 	_, err := auth.User(st, userID)
@@ -74,21 +67,6 @@ func userFromUserID(st *state.State, userIDs ...int) (*auth.UserState, error) {
 		}
 	}
 	return user, err
-}
-
-// userFromUserIDOrFallback returns the user corresponding to userID
-// if valid or otherwise the fallbackUser.
-func userFromUserIDOrFallback(st *state.State, userID int, fallbackUser *auth.UserState) (*auth.UserState, error) {
-	if userID != 0 {
-		u, err := auth.User(st, userID)
-		if err != nil && err != auth.ErrInvalidUser {
-			return nil, err
-		}
-		if err == nil {
-			return u, nil
-		}
-	}
-	return fallbackUser, nil
 }
 
 func installInfo(st *state.State, name, channel string, revision snap.Revision, userID int) (*snap.Info, error) {
@@ -322,10 +300,17 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 
 	sort.Strings(names)
 
+	var fallbackID int
+	// normalize fallback user
+	if !user.HasStoreAuth() {
+		user = nil
+	} else {
+		fallbackID = user.ID
+	}
+
 	actionsByUserID := make(map[int][]*store.SnapAction)
 	stateByID := make(map[string]*SnapState, len(snapStates))
 	ignoreValidation := make(map[string]bool)
-	fallbackID := idForUser(user)
 	nCands := 0
 
 	addCand := func(installed *store.CurrentSnap, snapst *SnapState) {
@@ -366,15 +351,39 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	// determine current snaps and collect candidates for refresh
 	curSnaps := collectCurrentSnaps(snapStates, addCand)
 
-	theStore := Store(st)
-
-	updatesInfo := make(map[string]*snap.Info, nCands)
+	actionsForUser := make(map[*auth.UserState][]*store.SnapAction, len(actionsByUserID))
+	noUserActions := actionsByUserID[0]
 	for userID, actions := range actionsByUserID {
-		u, err := userFromUserIDOrFallback(st, userID, user)
+		if userID == 0 {
+			continue
+		}
+		u, err := userFromUserID(st, userID, 0)
 		if err != nil {
 			return nil, nil, nil, err
 		}
+		if u.HasStoreAuth() {
+			actionsForUser[u] = actions
+		} else {
+			noUserActions = append(noUserActions, actions...)
+		}
+	}
+	// coalesce if possible
+	if len(noUserActions) != 0 {
+		if len(actionsForUser) == 0 {
+			actionsForUser[nil] = noUserActions
+		} else {
+			// coalesce no user actions with one other user's
+			for u1, actions := range actionsForUser {
+				actionsForUser[u1] = append(actions, noUserActions...)
+				break
+			}
+		}
+	}
 
+	theStore := Store(st)
+
+	updates := make([]*snap.Info, 0, nCands)
+	for u, actions := range actionsForUser {
 		st.Unlock()
 		updatesForUser, err := theStore.SnapAction(ctx, curSnaps, actions, u, opts)
 		st.Lock()
@@ -387,14 +396,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 			logger.Noticef("%v", saErr)
 		}
 
-		for _, snapInfo := range updatesForUser {
-			updatesInfo[snapInfo.SnapID] = snapInfo
-		}
-	}
-
-	updates := make([]*snap.Info, 0, len(updatesInfo))
-	for _, snapInfo := range updatesInfo {
-		updates = append(updates, snapInfo)
+		updates = append(updates, updatesForUser...)
 	}
 
 	return updates, stateByID, ignoreValidation, nil
