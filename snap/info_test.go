@@ -982,3 +982,9 @@ func (s *infoSuite) TestStopModeTypeKillSignal(c *C) {
 		c.Check(snap.StopModeType(t.stopMode).KillSignal(), Equals, t.killSig)
 	}
 }
+
+func (s *infoSuite) TestNickname(c *C) {
+	c.Check(snap.Nickname("core"), Equals, "system")
+	c.Check(snap.Nickname("system"), Equals, "system")
+	c.Check(snap.Nickname("foo"), Equals, "foo")
+}

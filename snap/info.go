@@ -929,3 +929,12 @@ func JoinSnapApp(snap, app string) string {
 	}
 	return fmt.Sprintf("%s.%s", snap, app)
 }
+
+// Nickname returns the nickname for given snap name. If there is none, returns
+// the original name.
+func Nickname(snapName string) string {
+	if snapName == "core" {
+		return "system"
+	}
+	return snapName
+}
