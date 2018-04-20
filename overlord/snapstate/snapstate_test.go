@@ -145,6 +145,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	// 3 has no store auth
 	s.user3, err = auth.NewUser(s.state, "username3", "email2@test.com", "", nil)
+	c.Assert(err, IsNil)
 
 	s.state.Set("seed-time", time.Now())
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
