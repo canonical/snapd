@@ -1010,6 +1010,8 @@ func (s *changeSuite) TestPerformFileBindMountSourceLstatError(c *C) {
 func (s *changeSuite) TestPerformFileBindMount(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoFile)
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform(s.sec)
 	c.Assert(err, IsNil)
@@ -1017,7 +1019,17 @@ func (s *changeSuite) TestPerformFileBindMount(c *C) {
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
 		`lstat "/source"`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 5 <ptr>`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -1025,7 +1037,9 @@ func (s *changeSuite) TestPerformFileBindMount(c *C) {
 func (s *changeSuite) TestPerformFileBindMountWithError(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoFile)
-	s.sys.InsertFault(`mount "/source" "/target" "" MS_BIND ""`, errTesting)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFault(`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform(s.sec)
 	c.Assert(err, Equals, errTesting)
@@ -1033,7 +1047,17 @@ func (s *changeSuite) TestPerformFileBindMountWithError(c *C) {
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
 		`lstat "/source"`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 5 <ptr>`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -1041,6 +1065,8 @@ func (s *changeSuite) TestPerformFileBindMountWithError(c *C) {
 func (s *changeSuite) TestPerformFileBindMountWithoutMountPoint(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoFile)
 	s.sys.InsertFault(`lstat "/target"`, syscall.ENOENT)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform(s.sec)
 	c.Assert(err, IsNil)
@@ -1053,7 +1079,17 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPoint(c *C) {
 		`close 4`,
 		`close 3`,
 		`lstat "/source"`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 5 <ptr>`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -1078,6 +1114,8 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointWithErrors(c *C) 
 func (s *changeSuite) TestPerformFileBindMountWithoutMountSource(c *C) {
 	s.sys.InsertFault(`lstat "/source"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform(s.sec)
 	c.Assert(err, IsNil)
@@ -1090,7 +1128,17 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountSource(c *C) {
 		`fchown 4 0 0`,
 		`close 4`,
 		`close 3`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 5 <ptr>`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -1122,6 +1170,7 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 	s.sys.InsertOsLstatResult(`lstat "/rofs"`, testutil.FileInfoDir)
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoFile)
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/rofs/target", Options: []string{"bind", "x-snapd.kind=file"}}}
@@ -1198,7 +1247,19 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 		`lstat "/source"`,
 
 		// mount the filesystem
-		`mount "/source" "/rofs/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 5 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 6 <ptr>`,
+		`close 5`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/6" "" MS_BIND ""`,
+		`close 6`,
+		`close 4`,
 	})
 }
 
