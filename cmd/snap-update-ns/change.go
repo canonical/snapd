@@ -181,7 +181,16 @@ func (c *Change) ensureSource(sec *Secure) error {
 			}
 		}
 	} else if os.IsNotExist(err) {
-		_, err = c.createPath(path, false, sec)
+		// NOTE: This createPath is _not_ using pokeHoles so it will _not_
+		// make read-only places writable. This is done because the changes
+		// made this way would be visible only in this current mount namespace
+		// and would not be generally visible from other snaps. In other words
+		// it is useless for content sharing.
+		//
+		// The only exception is if this is a layout change, layout changes
+		// are designed to be "consumed" internally by the snap.
+		pokeHoles := c.Entry.XSnapdOrigin() == "layout"
+		_, err = c.createPath(path, pokeHoles, sec)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)

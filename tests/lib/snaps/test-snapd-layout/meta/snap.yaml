@@ -26,3 +26,6 @@ layout:
   # Layout can refer to deep, non-existing target path.
   /var/very/weird/place:
     bind: $SNAP_DATA/var/very/weird/place
+  # Layout can refer to deep, non-existing source path.
+  /bin/very/weird/place:
+    bind: $SNAP/bin/very/weird/place
