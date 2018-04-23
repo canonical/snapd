@@ -90,6 +90,10 @@ func formatOpenFlags(flags int) string {
 		flags ^= syscall.O_EXCL
 		fl = append(fl, "O_EXCL")
 	}
+	if flags&sys.O_PATH != 0 {
+		flags ^= sys.O_PATH
+		fl = append(fl, "O_PATH")
+	}
 	if flags != 0 {
 		panic(fmt.Errorf("unrecognized open flags %d", flags))
 	}
@@ -105,6 +109,10 @@ func formatOpenFlags(flags int) string {
 // Please expand the set of recognized flags as tests require.
 func formatMountFlags(flags int) string {
 	var fl []string
+	if flags&syscall.MS_REMOUNT == syscall.MS_REMOUNT {
+		flags ^= syscall.MS_REMOUNT
+		fl = append(fl, "MS_REMOUNT")
+	}
 	if flags&syscall.MS_BIND == syscall.MS_BIND {
 		flags ^= syscall.MS_BIND
 		fl = append(fl, "MS_BIND")
@@ -160,9 +168,10 @@ type SyscallRecorder struct {
 	// Error function for a given system call.
 	errors map[string]func() error
 	// pre-arranged result of lstat, fstat and readdir calls.
-	lstats   map[string]os.FileInfo
-	fstats   map[string]syscall.Stat_t
-	readdirs map[string][]os.FileInfo
+	lstats      map[string]os.FileInfo
+	fstats      map[string]syscall.Stat_t
+	readdirs    map[string][]os.FileInfo
+	readlinkats map[string]string
 	// allocated file descriptors
 	fds map[int]string
 }
@@ -372,7 +381,49 @@ func (sys *SyscallRecorder) Symlink(oldname, newname string) error {
 	return sys.call(call)
 }
 
+func (sys *SyscallRecorder) Symlinkat(oldname string, dirfd int, newname string) error {
+	call := fmt.Sprintf("symlinkat %q %d %q", oldname, dirfd, newname)
+	if _, ok := sys.fds[dirfd]; !ok {
+		sys.calls = append(sys.calls, call)
+		return fmt.Errorf("attempting to symlinkat with an invalid file descriptor %d", dirfd)
+	}
+	return sys.call(call)
+}
+
+// InsertReadlinkatResult makes given subsequent call to readlinkat return the specified oldname.
+func (sys *SyscallRecorder) InsertReadlinkatResult(call, oldname string) {
+	if sys.readlinkats == nil {
+		sys.readlinkats = make(map[string]string)
+	}
+	sys.readlinkats[call] = oldname
+}
+
+func (sys *SyscallRecorder) Readlinkat(dirfd int, path string, buf []byte) (int, error) {
+	call := fmt.Sprintf("readlinkat %d %q <ptr>", dirfd, path)
+	if _, ok := sys.fds[dirfd]; !ok {
+		sys.calls = append(sys.calls, call)
+		return 0, fmt.Errorf("attempting to readlinkat with an invalid file descriptor %d", dirfd)
+	}
+	if err := sys.call(call); err != nil {
+		return 0, err
+	}
+	if oldname, ok := sys.readlinkats[call]; ok {
+		n := copy(buf, oldname)
+		return n, nil
+	}
+	panic(fmt.Sprintf("one of InsertReadlinkatResult() or InsertFault() for %s must be used", call))
+}
+
 func (sys *SyscallRecorder) Remove(name string) error {
 	call := fmt.Sprintf("remove %q", name)
+	return sys.call(call)
+}
+
+func (sys *SyscallRecorder) Fchdir(fd int) error {
+	call := fmt.Sprintf("fchdir %d", fd)
+	if _, ok := sys.fds[fd]; !ok {
+		sys.calls = append(sys.calls, call)
+		return fmt.Errorf("attempting to fchdir with an invalid file descriptor %d", fd)
+	}
 	return sys.call(call)
 }

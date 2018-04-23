@@ -35,6 +35,6 @@ func templateVariables(info *snap.Info, securityTag string) string {
 	fmt.Fprintf(&buf, "@{SNAP_REVISION}=\"%s\"\n", info.Revision)
 	fmt.Fprintf(&buf, "@{PROFILE_DBUS}=\"%s\"\n",
 		dbus.SafePath(securityTag))
-	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"/snap\"")
+	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"/{,var/lib/snapd/}snap\"")
 	return buf.String()
 }

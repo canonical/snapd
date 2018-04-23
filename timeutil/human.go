@@ -21,27 +21,46 @@ package timeutil
 
 import (
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/snapcore/snapd/i18n"
 )
 
-func noon(t time.Time) time.Time {
+// start-of-day
+func sod(t time.Time) time.Time {
 	y, m, d := t.Date()
-	return time.Date(y, m, d, 12, 0, 0, 0, t.Location())
+	return time.Date(y, m, d, 0, 0, 0, 0, t.Location())
 }
 
 // Human turns the time into a relative expression of time meant for human
 // consumption.
 // Human(t)  --> "today at 07:47"
 func Human(then time.Time) string {
-	return humanTimeSince(then.Local(), time.Now().Local())
+	return humanTimeSince(then.Local(), time.Now().Local(), 60)
 }
 
-func humanTimeSince(then, now time.Time) string {
-	d := int(math.Floor(noon(then).Sub(noon(now)).Hours() / 24))
+func delta(then, now time.Time) int {
+	if then.After(now) {
+		return -delta(now, then)
+	}
+
+	then = sod(then)
+	now = sod(now)
+
+	n := int(then.Sub(now).Hours() / 24)
+	now = now.AddDate(0, 0, n)
+	for then.Before(now) {
+		then = then.AddDate(0, 0, 1)
+		n--
+	}
+	return n
+}
+
+func humanTimeSince(then, now time.Time, cutoffDays int) string {
+	d := delta(then, now)
 	switch {
+	case d < -cutoffDays || d > cutoffDays:
+		return then.Format("2006-01-02")
 	case d < -1:
 		// TRANSLATORS: %d will be at least 2; the singular is only included to help gettext
 		return fmt.Sprintf(then.Format(i18n.NG("%d day ago, at 15:04 MST", "%d days ago, at 15:04 MST", -d)), -d)

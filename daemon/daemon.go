@@ -94,7 +94,7 @@ const (
 	accessForbidden
 )
 
-var polkitCheckAuthorizationForPid = polkit.CheckAuthorizationForPid
+var polkitCheckAuthorization = polkit.CheckAuthorization
 
 // canAccess checks the following properties:
 //
@@ -162,7 +162,8 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 				flags |= polkit.CheckAllowInteraction
 			}
 		}
-		if authorized, err := polkitCheckAuthorizationForPid(pid, c.PolkitOK, nil, flags); err == nil {
+		// Pass both pid and uid from the peer ucred to avoid pid race
+		if authorized, err := polkitCheckAuthorization(pid, uid, c.PolkitOK, nil, flags); err == nil {
 			if authorized {
 				// polkit says user is authorised
 				return accessOK
@@ -467,7 +468,17 @@ func (d *Daemon) Start() {
 func (d *Daemon) Stop() error {
 	d.tomb.Kill(nil)
 	d.snapdListener.Close()
+
 	if d.snapListener != nil {
+		// stop running hooks first
+		// and do it more gracefully if we are restarting
+		hookMgr := d.overlord.HookManager()
+		if d.overlord.State().Restarting() {
+			logger.Noticef("gracefully waiting for running hooks")
+			hookMgr.GracefullyWaitRunningHooks()
+			logger.Noticef("done waiting for running hooks")
+		}
+		hookMgr.Stop()
 		d.snapListener.Close()
 	}
 

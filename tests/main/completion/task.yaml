@@ -9,7 +9,9 @@ environment:
     NAMES: /var/cache/snapd/names
 
 prepare: |
-    systemctl stop snapd.service snapd.socket
+    . "$TESTSLIB/systemd.sh"
+
+    systemd_stop_units snapd.service snapd.socket
     [ -e "$NAMES" ] && mv "$NAMES" "$NAMES.orig"
     cat >"$NAMES" <<EOF
     test-assumes

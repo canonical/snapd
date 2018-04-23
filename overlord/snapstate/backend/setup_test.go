@@ -40,6 +40,7 @@ import (
 )
 
 type setupSuite struct {
+	testutil.BaseTest
 	be                backend.Backend
 	umount            *testutil.MockCmd
 	systemctlRestorer func()
@@ -48,6 +49,9 @@ type setupSuite struct {
 var _ = Suite(&setupSuite{})
 
 func (s *setupSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+
 	dirs.SetRootDir(c.MkDir())
 
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
@@ -61,6 +65,7 @@ func (s *setupSuite) SetUpTest(c *C) {
 }
 
 func (s *setupSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
 	s.umount.Restore()
@@ -75,8 +80,9 @@ func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
 		Revision: snap.R(14),
 	}
 
-	err := s.be.SetupSnap(snapPath, &si, progress.Null)
+	snapType, err := s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, IsNil)
+	c.Check(snapType, Equals, snap.TypeApp)
 
 	// after setup the snap file is in the right dir
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello_14.snap")), Equals, true)
@@ -126,8 +132,9 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	err := s.be.SetupSnap(snapPath, &si, progress.Null)
+	snapType, err := s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, IsNil)
+	c.Check(snapType, Equals, snap.TypeKernel)
 	l, _ := filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
 	c.Assert(l, HasLen, 1)
 
@@ -170,11 +177,11 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	err := s.be.SetupSnap(snapPath, &si, progress.Null)
+	_, err := s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, IsNil)
 
 	// retry run
-	err = s.be.SetupSnap(snapPath, &si, progress.Null)
+	_, err = s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, IsNil)
 
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
@@ -219,7 +226,7 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	err := s.be.SetupSnap(snapPath, &si, progress.Null)
+	_, err := s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, IsNil)
 
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
@@ -259,7 +266,7 @@ func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {
 	})
 	defer r()
 
-	err := s.be.SetupSnap(snapPath, &si, progress.Null)
+	_, err := s.be.SetupSnap(snapPath, &si, progress.Null)
 	c.Assert(err, ErrorMatches, "failed")
 
 	// everything is gone

@@ -27,9 +27,13 @@ import (
 	. "gopkg.in/check.v1"
 
 	. "github.com/snapcore/snapd/snap"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
-type ValidateSuite struct{}
+type ValidateSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&ValidateSuite{})
 
@@ -55,12 +59,23 @@ func createSampleApp() *AppInfo {
 	return app
 }
 
+func (s *ValidateSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(MockSanitizePlugsSlots(func(snapInfo *Info) {}))
+}
+
+func (s *ValidateSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
+
 func (s *ValidateSuite) TestValidateName(c *C) {
 	validNames := []string{
 		"a", "aa", "aaa", "aaaa",
 		"a-a", "aa-a", "a-aa", "a-b-c",
 		"a0", "a-0", "a-0a",
 		"01game", "1-or-2",
+		// a regexp stresser
+		"u-94903713687486543234157734673284536758",
 	}
 	for _, name := range validNames {
 		err := ValidateName(name)
@@ -69,6 +84,14 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 	invalidNames := []string{
 		// name cannot be empty
 		"",
+		// names cannot be too long
+		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
+		"1111111111111111111111111111111111111111x",
+		"x1111111111111111111111111111111111111111",
+		"x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x",
+		// a regexp stresser
+		"u-9490371368748654323415773467328453675-",
 		// dashes alone are not a name
 		"-", "--",
 		// double dashes in a name are not allowed
@@ -402,16 +425,14 @@ func (s *ValidateSuite) TestAppDaemonValue(c *C) {
 	}
 }
 
-func (s *ValidateSuite) TestAppRefreshMode(c *C) {
+func (s *ValidateSuite) TestAppStopMode(c *C) {
 	// check services
 	for _, t := range []struct {
-		refresh string
-		ok      bool
+		stopMode StopModeType
+		ok       bool
 	}{
 		// good
 		{"", true},
-		{"endure", true},
-		{"restart", true},
 		{"sigterm", true},
 		{"sigterm-all", true},
 		{"sighup", true},
@@ -424,9 +445,34 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 		{"invalid-thing", false},
 	} {
 		if t.ok {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refresh}), IsNil)
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", StopMode: t.stopMode}), IsNil)
 		} else {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refresh}), ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refresh))
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", StopMode: t.stopMode}), ErrorMatches, fmt.Sprintf(`"stop-mode" field contains invalid value %q`, t.stopMode))
+		}
+	}
+
+	// non-services cannot have a stop-mode
+	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", StopMode: "sigterm"})
+	c.Check(err, ErrorMatches, `"stop-mode" cannot be used for "foo", only for services`)
+}
+
+func (s *ValidateSuite) TestAppRefreshMode(c *C) {
+	// check services
+	for _, t := range []struct {
+		refreshMode string
+		ok          bool
+	}{
+		// good
+		{"", true},
+		{"endure", true},
+		{"restart", true},
+		// bad
+		{"invalid-thing", false},
+	} {
+		if t.ok {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refreshMode}), IsNil)
+		} else {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refreshMode}), ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refreshMode))
 		}
 	}
 

@@ -4,6 +4,10 @@ summary: Ensure that the ubuntu-core -> core transition works with two cores
 # we disable on ppc64el because the downloads are very slow there
 systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
+
 warn-timeout: 1m
 kill-timeout: 5m
 debug: |
