@@ -31,6 +31,7 @@ execute: |
     echo "Services not poking the watchdog fail due to watchdog"
     for service in direct-watchdog-bad; do
         systemctl show -p SubState snap.test-snapd-service-watchdog.$service | MATCH 'SubState=failed'
-        systemctl show -p Result snap.test-snapd-service-watchdog.$service | MATCH 'Result=(watchdog|signal)'
+        # reported differently by different systemd versions
+        systemctl show -p Result snap.test-snapd-service-watchdog.$service | MATCH 'Result=(watchdog|signal|core-dump)'
         journalctl -u snap.test-snapd-service-watchdog.$service | MATCH 'Watchdog timeout'
     done
