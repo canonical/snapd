@@ -6,18 +6,22 @@ apps:
     daemon: simple
     watchdog-timeout: 1s
     restart-condition: never
+    plugs: [service-watchdog]
   helper-watchdog-bad:
     command: bin/with-helper --bad
     daemon: simple
     watchdog-timeout: 1s
     restart-condition: never
+    plugs: [service-watchdog]
   direct-watchdog-ok:
     command: bin/direct
     daemon: simple
     watchdog-timeout: 1s
     restart-condition: never
+    plugs: [service-watchdog]
   direct-watchdog-bad:
     command: bin/direct --bad
     daemon: simple
     watchdog-timeout: 1s
     restart-condition: never
+    plugs: [service-watchdog]
