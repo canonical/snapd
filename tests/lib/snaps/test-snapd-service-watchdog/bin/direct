@@ -30,6 +30,11 @@ def main(opts):
     logging.info('watchdog timeout: %us', watchdog_timeout)
     logging.info('notification socket address: %s', notify_addr)
 
+    if notify_addr.startswith('@'):
+        # abstract socket address is represented by a bytes-like object, with
+        # an initial null byte
+        notify_addr = notify_addr.encode().replace(b'@', b'\x00')
+
     if opts.bad:
         sleep_time = 2 * watchdog_timeout
         logging.warning('running in "bad" mode')
