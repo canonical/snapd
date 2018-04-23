@@ -810,6 +810,103 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 	})
 }
 
+// Change.Perform wants to bind mount a directory but the mount source isn't there and the parent is read-only.
+func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceAndReadOnlyBase(c *C) {
+	s.sys.InsertLstatResult(`lstat "/rofs"`, testutil.FileInfoDir)
+	s.sys.InsertFault(`lstat "/rofs/source"`, syscall.ENOENT)
+	s.sys.InsertLstatResult(`lstat "/target"`, testutil.FileInfoDir)
+	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 4 "source" 0755`, syscall.EROFS)
+
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/rofs/source", Dir: "/target", Options: []string{"bind"}}}
+	synth, err := chg.Perform(s.sec)
+	c.Assert(err, ErrorMatches, `cannot create path "/rofs/source": cannot operate on read-only filesystem at /rofs`)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,                                    // -> directory
+		`lstat "/rofs/source"`,                               // -> ENOENT
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,        // -> 3
+		`mkdirat 3 "rofs" 0755`,                              // EEXIST
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
+		`close 3`,
+		`mkdirat 4 "source" 0755`, // -> EROFS
+		`close 4`,
+	})
+}
+
+// Change.Perform wants to bind mount a directory but the mount source isn't there and the parent is read-only but this is for a layout.
+func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceAndReadOnlyBaseForLayout(c *C) {
+	s.sys.InsertLstatResult(`lstat "/target"`, testutil.FileInfoDir)
+	s.sys.InsertFault(`lstat "/rofs/source"`, syscall.ENOENT)
+	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, syscall.ENOENT, nil) // works on 2nd try
+	s.sys.InsertFault(`mkdirat 4 "source" 0755`, syscall.EROFS, nil)                               // works on 2nd try
+	s.sys.InsertReadDirResult(`readdir "/rofs"`, nil)                                              // pretend /rofs is empty.
+	s.sys.InsertFault(`lstat "/tmp/.snap/rofs"`, syscall.ENOENT)
+	s.sys.InsertLstatResult(`lstat "/rofs"`, testutil.FileInfoDir)
+
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/rofs/source", Dir: "/target", Options: []string{"bind", "x-snapd.origin=layout"}}}
+	synth, err := chg.Perform(s.sec)
+	c.Assert(err, IsNil)
+	c.Check(synth, DeepEquals, []*update.Change{
+		{Action: update.Mount, Entry: osutil.MountEntry{
+			Name: "tmpfs", Dir: "/rofs", Type: "tmpfs",
+			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/source"}},
+		},
+	})
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		// sniff mount target
+		`lstat "/target"`, // -> directory
+		// sniff mount source
+		`lstat "/rofs/source"`, // -> ENOENT
+
+		// /rofs/source is missing, create it
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 3 "rofs" 0755`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`close 3`,
+		`mkdirat 4 "source" 0755`,
+		`close 4`,
+
+		// error, read only filesystem, create a mimic
+		`readdir "/rofs"`,
+		`lstat "/tmp/.snap/rofs"`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 3 "tmp" 0755`,
+		`openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`fchown 4 0 0`,
+		`mkdirat 4 ".snap" 0755`,
+		`openat 4 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`fchown 5 0 0`,
+		`close 4`,
+		`close 3`,
+		`mkdirat 5 "rofs" 0755`,
+		`openat 5 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`fchown 3 0 0`,
+		`close 3`,
+		`close 5`,
+		`lstat "/rofs"`,
+		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND|MS_REC ""`,
+		`lstat "/rofs"`,
+		`mount "tmpfs" "/rofs" "tmpfs" 0 ""`,
+		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`,
+
+		// mimic ready, re-try initial mkdir
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 3 "rofs" 0755`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`close 3`,
+		`mkdirat 4 "source" 0755`,
+		`openat 4 "source" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`fchown 3 0 0`,
+		`close 3`,
+		`close 4`,
+
+		// mount the filesystem
+		`mount "/rofs/source" "/target" "" MS_BIND ""`,
+	})
+}
+
 // Change.Perform wants to bind mount a directory but there's a symlink in mount point.
 func (s *changeSuite) TestPerformDirectoryBindMountWithSymlinkInMountPoint(c *C) {
 	s.sys.InsertLstatResult(`lstat "/target"`, testutil.FileInfoSymlink)

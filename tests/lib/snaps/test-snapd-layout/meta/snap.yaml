@@ -23,3 +23,6 @@ layout:
   # Layouts can help with applications designed for /opt
   /opt/demo:
     bind: $SNAP/opt/demo
+  # Layout can refer to non-existing source path.
+  /bin/very-weird-place:
+    bind: $SNAP/bin-very-weird-place
