@@ -235,8 +235,11 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 				return err
 			}
 			written = append(written, path)
-			// service is activated via timers only and not during
-			// the boot
+		}
+
+		if app.Timer != nil || len(app.Sockets) != 0 {
+			// service is socket or timer activated, not during the
+			// boot
 			continue
 		}
 
@@ -270,41 +273,26 @@ func StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, inter int
 		// Skip stop on refresh when refresh mode is set to something
 		// other than "restart" (or "" which is the same)
 		if reason == snap.StopReasonRefresh {
-			logger.Debugf(" %s refresh-mode: %v", app.Name, app.RefreshMode)
+			logger.Debugf(" %s refresh-mode: %v", app.Name, app.StopMode)
 			switch app.RefreshMode {
 			case "endure":
 				// skip this service
 				continue
-			case "sigterm":
-				sysd.Kill(app.ServiceName(), "TERM", "main")
-				continue
-			case "sigterm-all":
-				sysd.Kill(app.ServiceName(), "TERM", "all")
-				continue
-			case "sighup":
-				sysd.Kill(app.ServiceName(), "HUP", "main")
-				continue
-			case "sighup-all":
-				sysd.Kill(app.ServiceName(), "HUP", "all")
-				continue
-			case "sigusr1":
-				sysd.Kill(app.ServiceName(), "USR1", "main")
-				continue
-			case "sigusr1-all":
-				sysd.Kill(app.ServiceName(), "USR1", "all")
-				continue
-			case "sigusr2":
-				sysd.Kill(app.ServiceName(), "USR2", "main")
-				continue
-			case "sigusr2-all":
-				sysd.Kill(app.ServiceName(), "USR2", "all")
-				continue
-			case "", "restart":
-				// do nothing here, the default below to stop
 			}
 		}
 		if err := stopService(sysd, app, inter); err != nil {
 			return err
+		}
+
+		// ensure the service is really stopped on remove regardless
+		// of stop-mode
+		if reason == snap.StopReasonRemove && !app.StopMode.KillAll() {
+			// FIXME: make this smarter and avoid the killWait
+			//        delay if not needed (i.e. if all processes
+			//        have died)
+			sysd.Kill(app.ServiceName(), "TERM", "all")
+			time.Sleep(killWait)
+			sysd.Kill(app.ServiceName(), "KILL", "")
 		}
 	}
 
@@ -420,6 +408,12 @@ BusName={{.App.BusName}}
 {{- if .App.WatchdogTimeout}}
 WatchdogSec={{.App.WatchdogTimeout.Seconds}}
 {{- end}}
+{{- if .KillMode}}
+KillMode={{.KillMode}}
+{{- end}}
+{{- if .KillSignal}}
+KillSignal={{.KillSignal}}
+{{- end}}
 {{- if not .App.Sockets}}
 
 [Install]
@@ -444,6 +438,10 @@ WantedBy={{.ServicesTarget}}
 			remain = "yes"
 		}
 	}
+	var killMode string
+	if !appInfo.StopMode.KillAll() {
+		killMode = "process"
+	}
 
 	wrapperData := struct {
 		App *snap.AppInfo
@@ -454,6 +452,8 @@ WantedBy={{.ServicesTarget}}
 		PrerequisiteTarget string
 		MountUnit          string
 		Remain             string
+		KillMode           string
+		KillSignal         string
 		Before             []string
 		After              []string
 
@@ -468,8 +468,11 @@ WantedBy={{.ServicesTarget}}
 		PrerequisiteTarget: systemd.PrerequisiteTarget,
 		MountUnit:          filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir())),
 		Remain:             remain,
-		Before:             genServiceNames(appInfo.Snap, appInfo.Before),
-		After:              genServiceNames(appInfo.Snap, appInfo.After),
+		KillMode:           killMode,
+		KillSignal:         appInfo.StopMode.KillSignal(),
+
+		Before: genServiceNames(appInfo.Snap, appInfo.Before),
+		After:  genServiceNames(appInfo.Snap, appInfo.After),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",

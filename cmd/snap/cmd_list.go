@@ -35,7 +35,8 @@ import (
 
 var shortListHelp = i18n.G("List installed snaps")
 var longListHelp = i18n.G(`
-The list command displays a summary of snaps installed in the current system.`)
+The list command displays a summary of snaps installed in the current system.
+`)
 
 type cmdList struct {
 	Positional struct {
@@ -108,7 +109,7 @@ func listSnaps(names []string, all bool) error {
 	if err != nil {
 		if err == client.ErrNoSnapsInstalled {
 			if len(names) == 0 {
-				fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try \"snap install hello-world\"."))
+				fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try 'snap install hello-world'."))
 				return nil
 			} else {
 				return ErrNoMatchingSnaps

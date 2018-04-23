@@ -30,12 +30,12 @@ import (
 )
 
 // SetupSnap does prepare and mount the snap for further processing.
-func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter progress.Meter) (err error) {
+func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter progress.Meter) (snapType snap.Type, err error) {
 	// This assumes that the snap was already verified or --dangerous was used.
 
 	s, snapf, oErr := OpenSnapFile(snapFilePath, sideInfo)
 	if oErr != nil {
-		return oErr
+		return snapType, oErr
 	}
 	instdir := s.MountDir()
 
@@ -50,25 +50,25 @@ func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter p
 	}()
 
 	if err := os.MkdirAll(instdir, 0755); err != nil {
-		return err
+		return snapType, err
 	}
 
 	if err := snapf.Install(s.MountFile(), instdir); err != nil {
-		return err
+		return snapType, err
 	}
 
 	// generate the mount unit for the squashfs
 	if err := addMountUnit(s, meter); err != nil {
-		return err
+		return snapType, err
 	}
 
 	if s.Type == snap.TypeKernel {
 		if err := boot.ExtractKernelAssets(s, snapf); err != nil {
-			return fmt.Errorf("cannot install kernel: %s", err)
+			return snapType, fmt.Errorf("cannot install kernel: %s", err)
 		}
 	}
 
-	return err
+	return s.Type, err
 }
 
 // RemoveSnapFiles removes the snap files from the disk after unmounting the snap.

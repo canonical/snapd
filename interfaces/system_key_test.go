@@ -20,9 +20,11 @@
 package interfaces_test
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"path/filepath"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -30,9 +32,12 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type systemKeySuite struct {
+	testutil.BaseTest
+
 	tmp              string
 	apparmorFeatures string
 	buildID          string
@@ -41,53 +46,104 @@ type systemKeySuite struct {
 var _ = Suite(&systemKeySuite{})
 
 func (s *systemKeySuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	s.tmp = c.MkDir()
 	dirs.SetRootDir(s.tmp)
-	s.apparmorFeatures = filepath.Join(s.tmp, "/sys/kernel/security/apparmor/features")
+	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.DistroLibExecDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.Symlink("/proc/self/exe", filepath.Join(dirs.DistroLibExecDir, "snapd"))
+	c.Assert(err, IsNil)
 
+	s.apparmorFeatures = filepath.Join(s.tmp, "/sys/kernel/security/apparmor/features")
 	id, err := osutil.MyBuildID()
 	c.Assert(err, IsNil)
 	s.buildID = id
+
+	s.AddCleanup(interfaces.MockIsHomeUsingNFS(func() (bool, error) { return false, nil }))
+	s.AddCleanup(release.MockSecCompActions([]string{"allow", "errno", "kill", "log", "trace", "trap"}))
 }
 
 func (s *systemKeySuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+
 	dirs.SetRootDir("/")
 }
 
-func (s *systemKeySuite) TestInterfaceSystemKey(c *C) {
-	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
-	defer restore()
+func (s *systemKeySuite) TestInterfaceWriteSystemKey(c *C) {
+	err := interfaces.WriteSystemKey()
+	c.Assert(err, IsNil)
 
-	systemKey := interfaces.SystemKey()
+	systemKey, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	c.Assert(err, IsNil)
 
-	apparmorFeatures := release.AppArmorFeatures()
-	var apparmorFeaturesStr string
-	if len(apparmorFeatures) == 0 {
-		apparmorFeaturesStr = " []\n"
-	} else {
-		apparmorFeaturesStr = "\n- " + strings.Join(apparmorFeatures, "\n- ") + "\n"
-	}
+	apparmorFeaturesStr, err := json.Marshal(release.AppArmorFeatures())
+	c.Assert(err, IsNil)
+
+	seccompActionsStr, err := json.Marshal(release.SecCompActions())
+	c.Assert(err, IsNil)
+
 	nfsHome, err := osutil.IsHomeUsingNFS()
 	c.Assert(err, IsNil)
+
+	buildID, err := osutil.ReadBuildID("/proc/self/exe")
+	c.Assert(err, IsNil)
+
 	overlayRoot, err := osutil.IsRootWritableOverlay()
 	c.Assert(err, IsNil)
-	c.Check(systemKey, Equals, fmt.Sprintf(`build-id: %s
-apparmor-features:%snfs-home: %v
-overlay-root: "%v"
-`, s.buildID, apparmorFeaturesStr, nfsHome, overlayRoot))
+	c.Check(string(systemKey), Equals, fmt.Sprintf(`{"version":1,"build-id":"%s","apparmor-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s}`, buildID, apparmorFeaturesStr, nfsHome, overlayRoot, seccompActionsStr))
 }
 
-func (ts *systemKeySuite) TestInterfaceDigest(c *C) {
-	restore := interfaces.MockSystemKey(`build-id: 7a94e9736c091b3984bd63f5aebfc883c4d859e0
-apparmor-features:
-- caps
-- dbus
-`)
-	defer restore()
-	restore = interfaces.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
-	defer restore()
+func (s *systemKeySuite) TestInterfaceSystemKeyMismatchHappy(c *C) {
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}
+`))
 
-	systemKey := interfaces.SystemKey()
-	c.Check(systemKey, Matches, "(?sm)^build-id: [a-z0-9]+$")
-	c.Check(systemKey, Matches, "(?sm).*apparmor-features:")
+	// no system-key yet -> Error
+	c.Assert(osutil.FileExists(dirs.SnapSystemKeyFile), Equals, false)
+	_, err := interfaces.SystemKeyMismatch()
+	c.Assert(err, Equals, interfaces.ErrSystemKeyMissing)
+
+	// create a system-key -> no mismatch anymore
+	err = interfaces.WriteSystemKey()
+	c.Assert(err, IsNil)
+	mismatch, err := interfaces.SystemKeyMismatch()
+	c.Assert(err, IsNil)
+	c.Check(mismatch, Equals, false)
+
+	// change our system-key to have more apparmor features
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor_features": ["caps", "dbus", "more", "and", "more"]
+}
+`))
+	mismatch, err = interfaces.SystemKeyMismatch()
+	c.Assert(err, IsNil)
+	c.Check(mismatch, Equals, true)
+}
+
+func (s *systemKeySuite) TestInterfaceSystemKeyMismatchVersions(c *C) {
+	// we calculcate v1
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"version":1,
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"
+}`))
+	// and the on-disk version is v2
+	err := ioutil.WriteFile(dirs.SnapSystemKeyFile, []byte(`
+{
+"version":2,
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0"
+}`), 0644)
+	c.Assert(err, IsNil)
+
+	// when we encounter different versions we get the right error
+	_, err = interfaces.SystemKeyMismatch()
+	c.Assert(err, Equals, interfaces.ErrSystemKeyVersion)
 }

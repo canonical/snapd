@@ -61,10 +61,22 @@ _run_snappy_app_dev_add_majmin(struct snappy_udev *udev_s,
 			sc_must_snprintf(buf, sizeof(buf), "%u:%u", major,
 					 minor);
 		}
-		debug("running snap-device-helper add %s %s %s", udev_s->tagname,
-		      path, buf);
-		execle("/usr/lib/snapd/snap-device-helper", "/usr/lib/snapd/snap-device-helper",
-		       "add", udev_s->tagname, path, buf, NULL, env);
+		debug("running snap-device-helper add %s %s %s",
+		      udev_s->tagname, path, buf);
+		// This code runs inside the core snap. We have two paths
+		// for the udev helper.
+		//
+		// First try new "snap-device-helper" path first but
+		// when running against an older core snap fallback to
+		// the old name.
+		if (access("/usr/lib/snapd/snap-device-helper", X_OK) == 0)
+			execle("/usr/lib/snapd/snap-device-helper",
+			       "/usr/lib/snapd/snap-device-helper", "add",
+			       udev_s->tagname, path, buf, NULL, env);
+		else
+			execle("/lib/udev/snappy-app-dev",
+			       "/lib/udev/snappy-app-dev", "add",
+			       udev_s->tagname, path, buf, NULL, env);
 		die("execl failed");
 	}
 	if (waitpid(pid, &status, 0) < 0)

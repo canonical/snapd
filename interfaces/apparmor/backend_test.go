@@ -384,7 +384,7 @@ const commonPrefix = `
 @{SNAP_NAME}="samba"
 @{SNAP_REVISION}="1"
 @{PROFILE_DBUS}="snap_2esamba_2esmbd"
-@{INSTALL_DIR}="/snap"`
+@{INSTALL_DIR}="/{,var/lib/snapd/}snap"`
 
 var combineSnippetsScenarios = []combineSnippetsScenario{{
 	// By default apparmor is enforcing mode.

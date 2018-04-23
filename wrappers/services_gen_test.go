@@ -30,12 +30,15 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/wrappers"
 )
 
-type servicesWrapperGenSuite struct{}
+type servicesWrapperGenSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&servicesWrapperGenSuite{})
 
@@ -94,6 +97,15 @@ Type=%s
 %s`
 	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, mountUnitPrefix, mountUnitPrefix, "forking", "\n[Install]\nWantedBy=multi-user.target\n")
 )
+
+func (s *servicesWrapperGenSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+}
+
+func (s *servicesWrapperGenSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFile(c *C) {
 	yamlText := `
@@ -528,5 +540,46 @@ func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 			out, err := cmd.CombinedOutput()
 			c.Check(err, IsNil, Commentf("systemd-analyze failed with output:\n%s", string(out)))
 		}
+	}
+}
+
+func (s *servicesWrapperGenSuite) TestKillModeSig(c *C) {
+	for _, rm := range []string{"sigterm", "sighup", "sigusr1", "sigusr2"} {
+		service := &snap.AppInfo{
+			Snap: &snap.Info{
+				SuggestedName: "snap",
+				Version:       "0.3.4",
+				SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+			},
+			Name:     "app",
+			Command:  "bin/foo start",
+			Daemon:   "simple",
+			StopMode: snap.StopModeType(rm),
+		}
+
+		generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+		c.Assert(err, IsNil)
+
+		c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+Requires=%s-snap-44.mount
+Wants=network-online.target
+After=%s-snap-44.mount network-online.target
+X-Snappy=yes
+
+[Service]
+ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
+Restart=on-failure
+WorkingDirectory=/var/snap/snap/44
+TimeoutStopSec=30
+Type=simple
+KillMode=process
+KillSignal=%s
+
+[Install]
+WantedBy=multi-user.target
+`, mountUnitPrefix, mountUnitPrefix, strings.ToUpper(rm)))
 	}
 }

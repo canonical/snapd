@@ -49,10 +49,10 @@
 			"revisionTime": "2015-02-12T09:37:50Z"
 		},
 		{
-			"checksumSHA1": "EoJqr2ZG7jODFsCnKwrn4JWRS+Y=",
+			"checksumSHA1": "uSjL89zodhV0X/LvyZ67FlKYKvg=",
 			"path": "github.com/mvo5/libseccomp-golang",
-			"revision": "84e1d1c75beaa58be6a76d2fc94d95eb8c1583b6",
-			"revisionTime": "2017-06-14T13:46:31Z"
+			"revision": "f4de83b52afb3c19190eb65cc92429feaaf0e8b6",
+			"revisionTime": "2018-03-08T15:25:21Z"
 		},
 		{
 			"checksumSHA1": "lG6diF/yE9cGgQIKRAlsaeYAjO4=",
@@ -201,10 +201,10 @@
 			"revisionTime": "2016-08-29T01:00:30Z"
 		},
 		{
-			"checksumSHA1": "fALlQNY1fM99NesfLJ50KguWsio=",
+			"checksumSHA1": "HmUAWd1Jm25cGH4Pyf3Zgp2RhkI=",
 			"path": "gopkg.in/yaml.v2",
-			"revision": "cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b",
-			"revisionTime": "2017-04-07T17:21:22Z"
+			"revision": "86f5ed62f8a0ee96bd888d2efdfd6d4fb100a4eb",
+			"revisionTime": "2018-03-26T05:07:29Z"
 		}
 	],
 	"rootPath": "github.com/snapcore/snapd"
