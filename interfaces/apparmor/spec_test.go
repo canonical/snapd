@@ -280,3 +280,40 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 	c.Assert(updateNS[3], Equals, profile3)
 	c.Assert(updateNS, DeepEquals, []string{profile0, profile1, profile2, profile3})
 }
+
+func (s *specSuite) TestChopTree(c *C) {
+	for _, tc := range []struct {
+		p    string
+		d    int
+		l, r string
+	}{
+		// for directories
+		{p: "/foo/bar/froz/", d: 0, l: "/", r: "/{*,*/,foo/{*,*/,bar/{*,*/,froz/}}}"},
+		{p: "/foo/bar/froz/", d: 1, l: "/{,foo/}", r: "/foo/{*,*/,bar/{*,*/,froz/}}"},
+		{p: "/foo/bar/froz/", d: 2, l: "/{,foo/{,bar/}}", r: "/foo/bar/{*,*/,froz/}"},
+		{p: "/foo/bar/froz/", d: 3, l: "/{,foo/{,bar/{,froz/}}}", r: "/foo/bar/froz/"},
+		{p: "/foo/bar/froz/", d: 4, l: "/{,foo/{,bar/{,froz/}}}", r: "/foo/bar/froz/"},
+
+		// for files
+		{p: "/foo/bar/froz", d: 0, l: "/", r: "/{*,*/,foo/{*,*/,bar/{*,*/,froz}}}"},
+		{p: "/foo/bar/froz", d: 1, l: "/{,foo/}", r: "/foo/{*,*/,bar/{*,*/,froz}}"},
+		{p: "/foo/bar/froz", d: 2, l: "/{,foo/{,bar/}}", r: "/foo/bar/{*,*/,froz}"},
+		{p: "/foo/bar/froz", d: 3, l: "/{,foo/{,bar/{,froz}}}", r: "/foo/bar/froz"},
+		{p: "/foo/bar/froz", d: 4, l: "/{,foo/{,bar/{,froz}}}", r: "/foo/bar/froz"},
+
+		// for relative things
+		{p: "foo/bar/froz", d: 3, l: "{,foo/{,bar/{,froz}}}", r: "foo/bar/froz"},
+
+		// for unclean paths
+		{p: "/some/other/../place", d: 1, l: "/{,some/}", r: "/some/{*,*/,place}"},
+		{p: "/some//place", d: 1, l: "/{,some/}", r: "/some/{*,*/,place}"},
+
+		// https://twitter.com/thebox193/status/654457902208557056
+		{p: "/foo/bar/froz", d: -1, l: "/", r: "/{*,*/,foo/{*,*/,bar/{*,*/,froz}}}"},
+	} {
+		l, r := apparmor.ChopTree(tc.p, tc.d)
+		comment := Commentf("test case: %#v", tc)
+		c.Assert(l, Equals, tc.l, comment)
+		c.Assert(r, Equals, tc.r, comment)
+	}
+}
