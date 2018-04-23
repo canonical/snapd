@@ -97,7 +97,37 @@ func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketDefault(c *C
 	c.Assert(apparmorSpec.SnippetForTag("snap.service-watchdog-client.app2"), testutil.Contains, "\n\"/run/systemd/notify\" w,")
 }
 
-func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnv(c *C) {
+func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractSpecial(c *C) {
+	restore := builtin.MockOsGetenv(func(what string) string {
+		c.Assert(what, Equals, "NOTIFY_SOCKET")
+		return "@/org/freedesktop/systemd1/notify/13334051644891137417"
+	})
+	defer restore()
+
+	// connected plugs have a non-nil security snippet for apparmor
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.service-watchdog-client.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.service-watchdog-client.app2"), testutil.Contains, "\nunix (connect, send) type=dgram peer=(label=unconfined,addr=\"@/org/freedesktop/systemd1/notify/*\"),")
+}
+
+func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractAny(c *C) {
+	restore := builtin.MockOsGetenv(func(what string) string {
+		c.Assert(what, Equals, "NOTIFY_SOCKET")
+		return "@foo/bar"
+	})
+	defer restore()
+
+	// connected plugs have a non-nil security snippet for apparmor
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.service-watchdog-client.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.service-watchdog-client.app2"), testutil.Contains, "\nunix (connect, send) type=dgram peer=(label=unconfined,addr=\"@foo/bar\"),")
+}
+
+func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvFsPath(c *C) {
 	restore := builtin.MockOsGetenv(func(what string) string {
 		c.Assert(what, Equals, "NOTIFY_SOCKET")
 		return "/foo/bar"
