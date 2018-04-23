@@ -304,3 +304,62 @@ func (s *specSuite) TestChopTree(c *C) {
 		c.Assert(r, Equals, tc.r, comment)
 	}
 }
+
+const snapWithTrickyLayout = `
+name: tricky
+version: 0
+apps:
+  tricky:
+    command: tricky
+layout:
+  /usr/lib/tcltk/x86_64-linux-gnu/tk8.5:
+    bind: $SNAP/usr/lib/tcltk/x86_64-linux-gnu/tk8.5
+`
+
+func (s *specSuite) TestApparmorSnippetsFromTrickyLayout(c *C) {
+	snapInfo := snaptest.MockInfo(c, snapWithTrickyLayout, &snap.SideInfo{Revision: snap.R(42)})
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.tricky.ticky"})
+	defer restore()
+
+	s.spec.AddSnapLayout(snapInfo)
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
+		"snap.tricky.tricky": {
+			"# Layout path: /usr/lib/tcltk/x86_64-linux-gnu/tk8.5\n/usr/lib/tcltk/x86_64-linux-gnu/tk8.5{,/**} mrwklix,",
+		},
+	})
+
+	// NOTE: This apparmor profile is wrong in the sense that in practice
+	// /usr/lib/tcltk doesn't exist and the snap really needs rights to create
+	// a mimic for /usr/lib
+	profile0 := `  # Layout /usr/lib/tcltk/x86_64-linux-gnu/tk8.5: bind $SNAP/usr/lib/tcltk/x86_64-linux-gnu/tk8.5
+  mount options=(rbind, rw) /snap/tricky/42/usr/lib/tcltk/x86_64-linux-gnu/tk8.5/ -> /usr/lib/tcltk/x86_64-linux-gnu/tk8.5/,
+  umount /usr/lib/tcltk/x86_64-linux-gnu/tk8.5/,
+
+  # Writable mimic /usr/lib/tcltk/x86_64-linux-gnu
+  mount options=(rbind, rw) /usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}} -> /tmp/.snap/usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}},
+  mount fstype=tmpfs options=(rw) tmpfs -> /usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}},
+  mount options=(rbind, rw) /tmp/.snap/usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}} -> /usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}},
+  mount options=(bind,  rw) /tmp/.snap/usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,*}}}}  -> /usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,*}}}},
+  umount /tmp/.snap/usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}},
+  umount /usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}},
+  /{,usr/} r,
+  /usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}} rw,
+  /{,tmp/} r,
+  /tmp/{*,*/,.snap/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}}}} rw,
+
+  # Writable mimic /snap/tricky/42/usr/lib/tcltk/x86_64-linux-gnu
+  mount options=(rbind, rw) /snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}}} -> /tmp/.snap/snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}}},
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}}},
+  mount options=(rbind, rw) /tmp/.snap/snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}}} -> /snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}}},
+  mount options=(bind,  rw) /tmp/.snap/snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,*}}}}}  -> /snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,*}}}}},
+  umount /tmp/.snap/snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}}},
+  umount /snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}}},
+  /{,snap/{,tricky/{,42/}}} r,
+  /snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}}} rw,
+  /{,tmp/{,.snap/{,snap/}}} r,
+  /tmp/.snap/snap/{*,*/,tricky/{*,*/,42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}}}}} rw,
+`
+	updateNS := s.spec.UpdateNS()
+	c.Assert(updateNS[0], Equals, profile0)
+	c.Assert(updateNS, DeepEquals, []string{profile0})
+}
