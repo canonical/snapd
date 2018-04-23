@@ -1,18 +1,6 @@
 name: test-snapd-service-watchdog
 version: 1.0
 apps:
-  helper-watchdog-ok:
-    command: bin/with-helper
-    daemon: simple
-    watchdog-timeout: 1s
-    restart-condition: never
-    plugs: [service-watchdog]
-  helper-watchdog-bad:
-    command: bin/with-helper --bad
-    daemon: simple
-    watchdog-timeout: 1s
-    restart-condition: never
-    plugs: [service-watchdog]
   direct-watchdog-ok:
     command: bin/direct
     daemon: simple
