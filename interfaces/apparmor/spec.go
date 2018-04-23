@@ -173,6 +173,84 @@ func isProbablyPresent(path string) bool {
 	return path == "/" || path == "/snap" || path == "/var" || path == "/var/snap" || path == "/tmp" || path == "/usr" || path == "/etc"
 }
 
+// chopTree takes a path and depth and returns two apparmor path expressions.
+//
+// The returned expressions are referred to as left and right.
+//
+// The left expression describes directories at depth up to assumedPrefixDepth
+// and can be used to grant read permission to them (by appending the string
+// "r, "). This corresponds to an assumption about those directories are
+// present in the system and are just traversed.
+//
+// The right expression describes the remaining directories and the leaf entry
+// (either file or directory) and is somewhat subtle. At each depth level the
+// expression describes all the files and directories at that level. Coupled
+// with the string "rw ," it can be used to create a rule that allows write
+// access to any file therein, but not deeper.
+//
+// For example, with path: "/foo/bar/froz" and depth 2 the result is:
+// "/{,foo/{,bar/}}" and "/foo/bar/{*,*/,froz}". Coupled with the
+// aforementioned constants this translates to the following apparmor rules:
+//
+//   /{,foo/{,bar/}} r,
+//   /foo/bar/{*,*/,froz} rw,
+//
+// Those rules allow the code to open (to traverse securely) /, then foo, then
+// bar and then create _either_ 1) any file in /foo/bar/ or 2) any directory in
+// /foo/bar/ or 3) the file froz in /foo/bar/.
+//
+// Those rules are useful for constructing the apparmor profile for a writable
+// mimic that needs to be present in a specific directory (e.g. in
+// /foo/bar/froz) assuming that part of that directory already exists (e.g.
+// /foo/) but may need to be created earlier (e.g. in /foo/bar/) because
+// /foo/bar/ is a read-only file system.
+func chopTree(path string, assumedPrefixDepth int) (string, string) {
+	var left, right bytes.Buffer
+	parts := strings.Split(path, "/")
+	isAbs := strings.HasPrefix(path, "/")
+	isDir := strings.HasSuffix(path, "/")
+
+	if isAbs {
+		fmt.Fprintf(&left, "/")
+		fmt.Fprintf(&right, "/")
+	}
+	cnt := 0
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+
+		if cnt < assumedPrefixDepth {
+			fmt.Fprintf(&left, "{,%s", part)
+			fmt.Fprintf(&right, "%s", part)
+			if isDir || i != len(parts)-1 {
+				fmt.Fprintf(&left, "/")
+				fmt.Fprintf(&right, "/")
+			}
+		} else {
+			fmt.Fprintf(&right, "{*,*/,%s", part)
+			if isDir || i != len(parts)-1 {
+				fmt.Fprintf(&right, "/")
+			}
+		}
+
+		cnt++
+	}
+	cnt = 0
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		if cnt < assumedPrefixDepth {
+			fmt.Fprintf(&left, "}")
+		} else {
+			fmt.Fprintf(&right, "}")
+		}
+		cnt++
+	}
+	return left.String(), right.String()
+}
+
 // WritableFileProfile writes a profile for snap-update-ns for making given file writable.
 func WritableFileProfile(buf *bytes.Buffer, path string) {
 	if path == "/" {
