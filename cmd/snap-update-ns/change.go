@@ -59,6 +59,7 @@ func (c Change) String() string {
 var changePerform func(*Change, *Secure) ([]*Change, error)
 
 func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change, error) {
+	logger.Debugf("create path %q, poke holes %v", path, pokeHoles)
 	var err error
 	var changes []*Change
 
@@ -94,6 +95,7 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
 		// If the writing failed because the underlying file-system is read-only
 		// we can construct a writable mimic to fix that.
+		logger.Debugf("creating writable mimic over %q", err2.Path)
 		changes, err = createWritableMimic(err2.Path, path, sec)
 		if err != nil {
 			err = fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
@@ -103,6 +105,7 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 			_, err = c.createPath(path, false, sec)
 		}
 	} else if err != nil {
+		logger.Debugf("failed to create path, poke holes is %v", pokeHoles)
 		err = fmt.Errorf("cannot create path %q: %s", path, err)
 	}
 	return changes, err

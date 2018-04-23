@@ -150,6 +150,7 @@ func (sec *Secure) MkPrefix(segments []string, perm os.FileMode, uid sys.UserID,
 		for i := range segments[:len(segments)-1] {
 			fd, err = sec.MkDir(fd, segments, i, perm, uid, gid)
 			if err != nil {
+				logger.Debugf("secure-mk-prefix %q %v %d %d -> error %s", segments, perm, uid, gid, err)
 				return -1, err
 			}
 			// Keep the final FD open (caller needs to close it).
