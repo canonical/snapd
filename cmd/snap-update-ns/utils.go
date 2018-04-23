@@ -83,10 +83,10 @@ func (sec *Secure) CheckTrespassing(fd int, segments []string, segNum int) error
 }
 
 // OpenPath creates a path file descriptor for the given
-// directory, making sure no components are symbolic links.
+// path, making sure no components are symbolic links.
 //
 // The file descriptor is opened using the O_PATH, O_NOFOLLOW,
-// O_DIRECTORY, and O_CLOEXEC flags.
+// and O_CLOEXEC flags.
 func (sec *Secure) OpenPath(path string) (int, error) {
 	if !filepath.IsAbs(path) {
 		return -1, fmt.Errorf("path %v is not absolute", path)
@@ -100,19 +100,33 @@ func (sec *Secure) OpenPath(path string) (int, error) {
 	//  O_NOFOLLOW: don't follow symlinks
 	//  O_DIRECTORY: we expect to find directories
 	//  O_CLOEXEC: don't leak file descriptors over exec() boundaries
-	const openFlags = sys.O_PATH | syscall.O_NOFOLLOW | syscall.O_DIRECTORY | syscall.O_CLOEXEC
+	openFlags := sys.O_PATH | syscall.O_NOFOLLOW | syscall.O_DIRECTORY | syscall.O_CLOEXEC
 	var fd int
 	fd, err = sysOpen("/", openFlags, 0)
 	if err != nil {
 		return -1, err
 	}
-	for _, segment := range segments {
+	for i, segment := range segments {
 		// Ensure the parent file descriptor is closed
 		defer sysClose(fd)
+		if i == len(segments)-1 {
+			openFlags &^= syscall.O_DIRECTORY
+		}
 		fd, err = sysOpenat(fd, segment, openFlags, 0)
 		if err != nil {
 			return -1, err
 		}
+	}
+
+	var statBuf syscall.Stat_t
+	err = sysFstat(fd, &statBuf)
+	if err != nil {
+		sysClose(fd)
+		return -1, err
+	}
+	if statBuf.Mode&syscall.S_IFMT == syscall.S_IFLNK {
+		sysClose(fd)
+		return -1, fmt.Errorf("%q is a symbolic link", path)
 	}
 	return fd, nil
 }
