@@ -23,3 +23,6 @@ layout:
   # Layouts can help with applications designed for /opt
   /opt/demo:
     bind: $SNAP/opt/demo
+  # Layout can refer to deep, non-existing target path.
+  /var/very/weird/place:
+    bind: $SNAP_DATA/var/very/weird/place
