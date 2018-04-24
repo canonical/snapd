@@ -6,7 +6,7 @@ details: |
     snap properly.
 
 # s390x virtualization does not support hwclock
-systems: [-opensuse-*,-fedora-*,-ubuntu-core-*,-ubuntu-14.04-*,-*-s390x]
+systems: [-opensuse-*,-fedora-*,-ubuntu-core-*,-ubuntu-14.04-*,-*-s390x,-arch-*]
 
 prepare: |
     . $TESTSLIB/snaps.sh

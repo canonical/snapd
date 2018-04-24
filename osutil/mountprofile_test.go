@@ -58,6 +58,26 @@ func (s *profileSuite) TestLoadMountProfile2(c *C) {
 	})
 }
 
+// Test that loading profile with various comments works as expected.
+func (s *profileSuite) TestLoadMountProfile3(c *C) {
+	dir := c.MkDir()
+	fname := filepath.Join(dir, "existing")
+	err := ioutil.WriteFile(fname, []byte(`
+   # comment with leading spaces
+name#-1 dir#-1 type#-1 options#-1 1 1 # inline comment
+# comment without leading spaces
+
+
+`), 0644)
+	c.Assert(err, IsNil)
+	p, err := osutil.LoadMountProfile(fname)
+	c.Assert(err, IsNil)
+	c.Assert(p.Entries, HasLen, 1)
+	c.Assert(p.Entries, DeepEquals, []osutil.MountEntry{
+		{Name: "name#-1", Dir: "dir#-1", Type: "type#-1", Options: []string{"options#-1"}, DumpFrequency: 1, CheckPassNumber: 1},
+	})
+}
+
 // Test that saving a profile to a file works correctly.
 func (s *profileSuite) TestSaveMountProfile1(c *C) {
 	dir := c.MkDir()

@@ -127,7 +127,14 @@ func ParseMountEntry(s string) (MountEntry, error) {
 	var err error
 	var df, cpn int
 	fields := strings.FieldsFunc(s, func(r rune) bool { return r == ' ' || r == '\t' })
-	// do all error checks before any assignments to `e'
+	// Look for any inline comments. The first field that starts with '#' is a comment.
+	for i, field := range fields {
+		if strings.HasPrefix(field, "#") {
+			fields = fields[:i]
+			break
+		}
+	}
+	// Do all error checks before any assignments to `e'
 	if len(fields) < 3 || len(fields) > 6 {
 		return e, fmt.Errorf("expected between 3 and 6 fields, found %d", len(fields))
 	}
@@ -365,12 +372,12 @@ func XSnapdOriginLayout() string {
 }
 
 // XSnapdUser returns the string "x-snapd.user=%d".
-func XSnapdUser(uid int) string {
+func XSnapdUser(uid uint32) string {
 	return fmt.Sprintf("x-snapd.user=%d", uid)
 }
 
 // XSnapdGroup returns the string "x-snapd.group=%d".
-func XSnapdGroup(gid int) string {
+func XSnapdGroup(gid uint32) string {
 	return fmt.Sprintf("x-snapd.group=%d", gid)
 }
 

@@ -653,6 +653,9 @@ func (s *servicesTestSuite) TestStopServiceSigs(c *C) {
 	})
 	defer r()
 
+	r = wrappers.MockKillWait(1 * time.Millisecond)
+	defer r()
+
 	survivorFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.survive-snap.srv.service")
 	for _, t := range []struct {
 		mode        string
@@ -673,7 +676,7 @@ version: 1.0
 apps:
  srv:
   command: bin/survivor
-  refresh-mode: %s
+  stop-mode: %s
   daemon: simple
 `, t.mode)
 		info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})
@@ -690,16 +693,29 @@ apps:
 		err = wrappers.StopServices(info.Services(), snap.StopReasonRefresh, progress.Null)
 		c.Assert(err, IsNil)
 		c.Check(sysdLog, DeepEquals, [][]string{
-			{"kill", filepath.Base(survivorFile), "-s", t.expectedSig, "--kill-who=" + t.expectedWho},
+			{"stop", filepath.Base(survivorFile)},
+			{"show", "--property=ActiveState", "snap.survive-snap.srv.service"},
 		}, Commentf("failure in %s", t.mode))
 
 		sysdLog = nil
 		err = wrappers.StopServices(info.Services(), snap.StopReasonRemove, progress.Null)
 		c.Assert(err, IsNil)
-		c.Check(sysdLog, DeepEquals, [][]string{
-			{"stop", filepath.Base(survivorFile)},
-			{"show", "--property=ActiveState", "snap.survive-snap.srv.service"},
-		})
+		switch t.expectedWho {
+		case "all":
+			c.Check(sysdLog, DeepEquals, [][]string{
+				{"stop", filepath.Base(survivorFile)},
+				{"show", "--property=ActiveState", "snap.survive-snap.srv.service"},
+			})
+		case "main":
+			c.Check(sysdLog, DeepEquals, [][]string{
+				{"stop", filepath.Base(survivorFile)},
+				{"show", "--property=ActiveState", "snap.survive-snap.srv.service"},
+				{"kill", filepath.Base(survivorFile), "-s", "TERM", "--kill-who=all"},
+				{"kill", filepath.Base(survivorFile), "-s", "KILL", "--kill-who=all"},
+			})
+		default:
+			panic("not reached")
+		}
 	}
 
 }
