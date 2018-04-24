@@ -51,6 +51,7 @@ var (
 	sysUnmount    = syscall.Unmount
 	sysFchown     = sys.Fchown
 	sysFstat      = syscall.Fstat
+	sysLstat      = syscall.Lstat
 	sysSymlinkat  = osutil.Symlinkat
 	sysReadlinkat = osutil.Readlinkat
 	sysFchdir     = syscall.Fchdir
@@ -482,6 +483,12 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 			// umount2(2) system call.
 			Name: dir, Dir: safeKeepingDir, Options: []string{"rbind"}},
 	})
+
+	var st syscall.Stat_t
+	if err := sysLstat(dir, &st); err != nil {
+		return nil, err
+	}
+
 	// Mount tmpfs over the original directory, hiding its contents.
 	changes = append(changes, &Change{
 		Action: Mount, Entry: osutil.MountEntry{
@@ -489,6 +496,10 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 			Options: []string{
 				osutil.XSnapdSynthetic(),
 				osutil.XSnapdNeededBy(neededBy),
+				// Mimic the mode, owner and group of the original directory.
+				osutil.XSnapdMode(st.Mode & 0777),
+				osutil.XSnapdUser(st.Uid),
+				osutil.XSnapdGroup(st.Gid),
 			},
 		},
 	})
