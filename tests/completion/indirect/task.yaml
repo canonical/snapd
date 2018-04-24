@@ -1,21 +1,20 @@
 summary: indirect completion
 
+environment:
+    SNAP_DIR: "${TESTSLIB}/snaps/test-snapd-complexion"
+
 prepare: |
-  (
-      cd ../../lib/snaps/test-snapd-complexion
-      snap try
-      mv test-snapd-complexion.bash-completer test-snapd-complexion.bash-completer.orig
-      cp "${SPREAD_PATH}/${SPREAD_SUITE}/${SPREAD_VARIANT}.complete" test-snapd-complexion.bash-completer
-      snap alias test-snapd-complexion cplx
-      snap alias test-snapd-complexion.two cplx2
-  )
+    . "${TESTSLIB}/snaps.sh"
+    install_local test-snapd-complexion
+
+    mv "${SNAP_DIR}/test-snapd-complexion.bash-completer" "${SNAP_DIR}/test-snapd-complexion.bash-completer.orig"
+    cp "${SPREAD_PATH}/${SPREAD_SUITE}/${SPREAD_VARIANT}.complete" "${SNAP_DIR}/test-snapd-complexion.bash-completer"
+    snap alias test-snapd-complexion cplx
+    snap alias test-snapd-complexion.two cplx2
 
 restore: |
-  (
-      cd ../../lib/snaps/test-snapd-complexion
-      mv test-snapd-complexion.bash-completer.orig test-snapd-complexion.bash-completer
-      snap remove test-snapd-complexion
-  )
+    mv "${SNAP_DIR}/test-snapd-complexion.bash-completer.orig" "${SNAP_DIR}/test-snapd-complexion.bash-completer"
+    snap remove test-snapd-complexion
 
 execute: |
   d="$PWD"

@@ -10,10 +10,12 @@ details: |
 systems: [-ubuntu-core-*]
 
 prepare: |
+    . "${TESTSLIB}/snaps.sh"
+
     echo "Given the test-snapd-check-fs-access snap is installed"
     cp $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig
     sed 's/\[\]/\[network-setup-control\]/g' -i $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml
-    snap try $TESTSLIB/snaps/test-snapd-check-fs-access
+    install_local test-snapd-check-fs-access
 
 restore: |
     cp $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml.orig $TESTSLIB/snaps/test-snapd-check-fs-access/meta/snap.yaml

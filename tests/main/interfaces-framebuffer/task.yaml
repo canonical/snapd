@@ -8,7 +8,8 @@ details: |
     The test also checks the interface connection and disconnection works properly.
 
 prepare: |
-    snap try $TESTSLIB/snaps/test-snapd-framebuffer
+    . "${TESTSLIB}/snaps.sh"
+    install_local test-snapd-framebuffer
 
 execute: |
     echo "The plug is not connected by default"
