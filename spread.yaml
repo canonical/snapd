@@ -87,6 +87,7 @@ backends:
                 workers: 4
 
     google-sru:
+        type: google
         key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
         location: computeengine/us-east1-b
         systems:
