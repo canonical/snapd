@@ -66,7 +66,7 @@ func mountEntryFromLayout(layout *snap.Layout) osutil.MountEntry {
 	}
 	if layout.BindFile != "" {
 		mountSource := layout.Snap.ExpandSnapVariables(layout.BindFile)
-		entry.Options = []string{"bind", "rw", "x-snapd.kind=file"}
+		entry.Options = []string{"bind", "rw", osutil.XSnapdKindFile()}
 		entry.Name = mountSource
 	}
 
