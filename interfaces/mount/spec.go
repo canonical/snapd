@@ -80,7 +80,7 @@ func mountEntryFromLayout(layout *snap.Layout) osutil.MountEntry {
 		entry.Options = []string{osutil.XSnapdKindSymlink(), osutil.XSnapdSymlink(oldname)}
 	}
 
-	var uid int
+	var uid uint32
 	// Only root is allowed here until we support custom users. Root is default.
 	switch layout.User {
 	case "root", "":
@@ -90,7 +90,7 @@ func mountEntryFromLayout(layout *snap.Layout) osutil.MountEntry {
 		entry.Options = append(entry.Options, osutil.XSnapdUser(uid))
 	}
 
-	var gid int
+	var gid uint32
 	// Only root is allowed here until we support custom groups. Root is default.
 	// This is validated in spec.go.
 	switch layout.Group {
