@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -114,6 +114,14 @@ func EnsureBootOk(m *DeviceManager) error {
 
 func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
+}
+
+func MockNetIsOnMetered(mock func() (bool, error)) func() {
+	old := netIsOnMeteredConnection
+	netIsOnMeteredConnection = mock
+	return func() {
+		netIsOnMeteredConnection = old
+	}
 }
 
 var (
