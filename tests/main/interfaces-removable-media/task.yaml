@@ -37,7 +37,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "\- +test-snapd-removable-media:removable-media"
+    snap interfaces -i removable-media | MATCH "\- +test-snapd-removable-media:removable-media"
 
     echo "When the interface is connected"
     snap connect test-snapd-removable-media:removable-media
