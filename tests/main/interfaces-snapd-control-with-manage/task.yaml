@@ -60,7 +60,9 @@ execute: |
     fi
 
     snap install test-snapd-control-consumer
-    snap interfaces
+
+    echo "The interface is disconnected by default"
+    snap interfaces -i snapd-control | MATCH "\- +test-snapd-control-consumer:snapd-control-with-manage"
 
     echo "When the snapd-control-with-manage plug is connected"
     snap connect test-snapd-control-consumer:snapd-control-with-manage

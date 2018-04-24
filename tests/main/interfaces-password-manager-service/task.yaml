@@ -23,7 +23,7 @@ execute: |
     echo "$DBUS_SESSION_BUS_PID" > dbus-launch.pid
 
     echo "The interface is disconnected by default"
-    snap interfaces | MATCH "\- +test-snapd-password-manager-consumer:password-manager-service"
+    snap interfaces -i password-manager-service | MATCH "\- +test-snapd-password-manager-consumer:password-manager-service"
 
     echo "When the plug is connected"
     snap connect test-snapd-password-manager-consumer:password-manager-service

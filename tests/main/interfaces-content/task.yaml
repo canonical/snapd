@@ -31,7 +31,7 @@ execute: |
     snap list | MATCH  test-snapd-content-slot
 
     echo "Then the snap is listed as connected"
-    snap interfaces | grep -Pzq "test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug"
+    snap interfaces -i content | grep -Pzq "test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug"
 
     echo "And fstab files are created"
     [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
