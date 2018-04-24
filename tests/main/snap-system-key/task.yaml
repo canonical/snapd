@@ -1,5 +1,11 @@
 summary: Ensure security profile re-generation works with system-key
-
+prepare: |
+    echo "Make backup of fstab"
+    cp /etc/fstab /tmp/fstab.save
+restore: |
+    echo "Restore fstab copy"
+    cp /tmp/fstab.save /etc/fstab
+    rm -f /tmp/fstab.save
 execute: |
     stop_snapd() {
         systemctl stop snapd.service snapd.socket
@@ -64,3 +70,9 @@ execute: |
         echo "system-key *not* rewriten test broken"
         exit 1
     fi
+
+    echo "Ensure snapd works even with invalid /etc/fstab (LP: #1760841)"
+    echo "invalid so very invalid so invalid" >> /etc/fstab
+    restart_snapd
+    echo "Ensure snap commands still work"
+    snap list

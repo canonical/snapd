@@ -542,3 +542,44 @@ func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 		}
 	}
 }
+
+func (s *servicesWrapperGenSuite) TestKillModeSig(c *C) {
+	for _, rm := range []string{"sigterm", "sighup", "sigusr1", "sigusr2"} {
+		service := &snap.AppInfo{
+			Snap: &snap.Info{
+				SuggestedName: "snap",
+				Version:       "0.3.4",
+				SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+			},
+			Name:     "app",
+			Command:  "bin/foo start",
+			Daemon:   "simple",
+			StopMode: snap.StopModeType(rm),
+		}
+
+		generatedWrapper, err := wrappers.GenerateSnapServiceFile(service)
+		c.Assert(err, IsNil)
+
+		c.Check(string(generatedWrapper), Equals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application snap.app
+Requires=%s-snap-44.mount
+Wants=network-online.target
+After=%s-snap-44.mount network-online.target
+X-Snappy=yes
+
+[Service]
+ExecStart=/usr/bin/snap run snap.app
+SyslogIdentifier=snap.app
+Restart=on-failure
+WorkingDirectory=/var/snap/snap/44
+TimeoutStopSec=30
+Type=simple
+KillMode=process
+KillSignal=%s
+
+[Install]
+WantedBy=multi-user.target
+`, mountUnitPrefix, mountUnitPrefix, strings.ToUpper(rm)))
+	}
+}

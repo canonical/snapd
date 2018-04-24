@@ -68,10 +68,14 @@ func (s *SnapSuite) TestAdviseCommandHappyText(c *C) {
 	rest, err := snap.Parser().ParseArgs([]string{"advise-snap", "--command", "hello"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Assert(s.Stdout(), Equals, `The program "hello" can be found in the following snaps:
- * hello
- * hello-wcm
-Try: snap install <selected snap>
+	c.Assert(s.Stdout(), Equals, `
+Command "hello" not found, but can be installed with:
+
+sudo snap install hello
+sudo snap install hello-wcm
+
+See 'snap info <snap name>' for additional versions.
+
 `)
 	c.Assert(s.Stderr(), Equals, "")
 }
@@ -94,9 +98,14 @@ func (s *SnapSuite) TestAdviseCommandMisspellText(c *C) {
 	for _, misspelling := range []string{"helo", "0hello", "hell0", "hello0"} {
 		err := snap.AdviseCommand(misspelling, "pretty")
 		c.Assert(err, IsNil)
-		c.Assert(s.Stdout(), Equals, fmt.Sprintf(`No command "%s" found, did you mean:
- Command "hello" from snap "hello"
- Command "hello" from snap "hello-wcm"
+		c.Assert(s.Stdout(), Equals, fmt.Sprintf(`
+Command "%s" not found, did you mean:
+
+ command "hello" from snap "hello"
+ command "hello" from snap "hello-wcm"
+
+See 'snap info <snap name>' for additional versions.
+
 `, misspelling))
 		c.Assert(s.Stderr(), Equals, "")
 

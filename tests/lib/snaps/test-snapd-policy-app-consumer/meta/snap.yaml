@@ -113,6 +113,9 @@ apps:
   home:
     command: bin/run
     plugs: [ home ]
+  hostname-control:
+    command: bin/run
+    plugs: [ hostname-control ]
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
@@ -248,6 +251,9 @@ apps:
   snapd-control:
     command: bin/run
     plugs: [ snapd-control ]
+  service-watchdog:
+    command: bin/run
+    plugs: [ service-watchdog ]
   ssh-keys:
     command: bin/run
     plugs: [ ssh-keys ]
