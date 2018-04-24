@@ -298,7 +298,7 @@ func (sec *Secure) MkSymlink(fd int, segments []string, segNum int, oldname stri
 			if err != nil {
 				return fmt.Errorf("cannot inspect existing file %q: %v", segment, err)
 			}
-			if statBuf.Mode&syscall.S_IFLNK != syscall.S_IFLNK {
+			if statBuf.Mode&syscall.S_IFMT != syscall.S_IFLNK {
 				return fmt.Errorf("cannot create symbolic link %q: existing file in the way", segment)
 			}
 			var n int
