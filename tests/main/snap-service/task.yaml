@@ -17,3 +17,7 @@ execute: |
     while ! systemctl status snap.test-snapd-service.test-snapd-service|grep "reloading reloading reloading"; do
         sleep 1
     done
+
+    echo "A snap that refuses to stop is killed eventually"
+    snap stop test-snapd-service.test-snapd-service-refuses-to-stop
+    systemctl status snap.test-snapd-service.test-snapd-service-refuses-to-stop|MATCH "Result: timeout"
