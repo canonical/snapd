@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/netutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -35,6 +36,10 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+)
+
+var (
+	netIsOnMeteredConnection func() (bool, error) = netutil.IsOnMeteredConnection
 )
 
 // Model returns the device model assertion.
@@ -121,6 +126,15 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	}
 	if err != nil {
 		return false, err
+	}
+
+	if !canRefreshOnMetered(st) {
+		// ignore error when checking if connection is metered
+		metered, _ := netIsOnMeteredConnection()
+		if metered {
+			logger.Noticef("auto refresh disabled while on metered connection")
+		}
+		return !metered, nil
 	}
 
 	return true, nil
@@ -266,4 +280,14 @@ func CanManageRefreshes(st *state.State) bool {
 	}
 
 	return false
+}
+
+func canRefreshOnMetered(st *state.State) bool {
+	tr := config.NewTransaction(st)
+	var holdOnMetered bool
+	if err := tr.GetMaybe("core", "refresh.hold-on-metered", &holdOnMetered); err != nil {
+		return true
+	}
+
+	return !holdOnMetered
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -2263,4 +2263,43 @@ func (s *deviceMgrSuite) TestMarkSeededInConfig(c *C) {
 	// only the fake seeding change is in the state, no further
 	// changes
 	c.Check(s.state.Changes(), HasLen, 1)
+}
+
+func (s *deviceMgrSuite) TestRefreshOnMetered(c *C) {
+	revert := devicestate.MockNetIsOnMetered(func() (bool, error) {
+		return true, nil
+	})
+	defer revert()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// seeded, model, serial
+	s.state.Set("seeded", true)
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]string{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "8989",
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
+
+	can, err := devicestate.CanAutoRefresh(s.state)
+	c.Assert(can, Equals, true)
+	c.Assert(err, Equals, nil)
+
+	// enable holding refreshes when on metered connection
+	tr := config.NewTransaction(s.state)
+	err = tr.Set("core", "refresh.hold-on-metered", true)
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	can, err = devicestate.CanAutoRefresh(s.state)
+	c.Assert(can, Equals, false)
+	c.Assert(err, Equals, nil)
 }
