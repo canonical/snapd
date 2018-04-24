@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -72,7 +73,7 @@ func newToolingStore(arch, storeID string) (*ToolingStore, error) {
 			return nil, err
 		}
 	}
-	sto := store.New(cfg, nil)
+	sto := store.New(cfg, toolingAuthContext{})
 	return &ToolingStore{
 		sto:  sto,
 		user: user,
@@ -152,6 +153,37 @@ func parseSnapcraftLoginFile(authFn string, data []byte) (*authData, error) {
 		Macaroon:   macaroon,
 		Discharges: []string{unboundDischarge},
 	}, nil
+}
+
+type toolingAuthContext struct{}
+
+func (tac toolingAuthContext) CloudInfo() (*auth.CloudInfo, error) {
+	return nil, nil
+}
+
+func (tac toolingAuthContext) Device() (*auth.DeviceState, error) {
+	return &auth.DeviceState{}, nil
+}
+
+func (tac toolingAuthContext) DeviceSessionRequestParams(_ string) (*auth.DeviceSessionRequestParams, error) {
+	return nil, auth.ErrNoSerial
+}
+
+func (tac toolingAuthContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error) {
+	return "", defaultURL, nil
+}
+
+func (tac toolingAuthContext) StoreID(fallback string) (string, error) {
+	return fallback, nil
+}
+
+func (tac toolingAuthContext) UpdateDeviceAuth(_ *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
+	return nil, fmt.Errorf("internal error: no device state in tools")
+}
+
+func (tac toolingAuthContext) UpdateUserAuth(user *auth.UserState, discharges []string) (*auth.UserState, error) {
+	user.StoreDischarges = discharges
+	return user, nil
 }
 
 func NewToolingStoreFromModel(model *asserts.Model) (*ToolingStore, error) {
