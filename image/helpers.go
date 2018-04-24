@@ -155,6 +155,7 @@ func parseSnapcraftLoginFile(authFn string, data []byte) (*authData, error) {
 	}, nil
 }
 
+// toolingAuthContext implements trivially auth.AuthContext except implementing UpdateUserAuth properly to be used to refresh a soft-expired user macaroon.
 type toolingAuthContext struct{}
 
 func (tac toolingAuthContext) CloudInfo() (*auth.CloudInfo, error) {
