@@ -1,0 +1,93 @@
+#!/bin/bash
+
+SHELLCHECK_SHELL=${SHELLCHECK_SHELL:-bash}
+NO_FAIL=${NO_FAIL:-}
+D=${D:-}
+V=${V:-}
+# file with list of test file that must successfully validate, one file per line
+MUST_PASS=${MUST_PASS:-}
+
+test -n "$D" && set -x
+
+log() {
+    if [[ -n "$V" ]]; then
+        echo "$@"
+    fi
+}
+
+check_file() {
+    local k
+    local file
+    local failed
+    file=$1
+
+    log "-- checking file $file"
+    for k in $keys; do
+        log "--- checking section $k"
+        if ! yq -r < "$file" ".[\"$k\"]" | shellcheck -s "$SHELLCHECK_SHELL" -x - ; then
+            echo "ERROR: $file: shellcheck failed in section '$k'"
+            failed=1
+        fi
+    done
+
+    if [[ "$(basename "$file")" == spread.yaml ]]; then
+        # check suites
+        for suite in $(yq -cr < "$file" ".suites | keys | @sh"); do
+            # @sh filter will produce:
+            # 'tests/completion/' 'tests/main/' 'tests/nested/' 'tests/nightly/' ...
+            # we need to drop the extra single quotes
+            suite="${suite//\'/}"
+            for k in $keys; do
+                log "--- checking $suite section $k"
+                if ! yq -r < "$file" ".suites[\"$suite\"][\"$k\"]" | shellcheck -s "$SHELLCHECK_SHELL" -x - ; then
+                    echo "ERROR: $file: shellcheck failed in suite $suite section '$k'"
+                    failed=1
+                fi
+            done
+        done
+    fi
+
+    if [[ "$failed" != 0 && -n "$MUST_PASS" ]] && ! grep -Eqx "$file" "$MUST_PASS" >/dev/null 2>&1 ; then
+        failed=0
+        echo "WARNING: ignoring errors in file $file"
+    fi
+    return $failed
+}
+
+check_location() {
+    local location
+    local failed
+    location=$1
+    failed=0
+    if [[ -d "$1" ]]; then
+        while read -r f ; do
+            check_file "$f" || failed=1
+        done < <(find "$location" -name 'task.yaml' -o -name 'spread.yaml')
+    else
+        check_file "$1" || failed=1
+    fi
+    return $failed
+}
+
+if ! which yq >/dev/null 2>&1; then
+    echo "please install 'yq'"
+    echo "eg: pip install --user yq"
+fi
+
+keys="prepare prepare-each restore restore-each debug execute"
+errored=0
+
+locations=( "$@" )
+if [[ ${#locations[@]} == 0 ]]; then
+    locations=( . )
+fi
+
+for loc in "${locations[@]}"; do
+    check_location "$loc" || errored=1
+done
+
+if [[ "$errored" == 1 && "$NO_FAIL" != "" ]]; then
+    exit 0
+fi
+
+exit $errored
