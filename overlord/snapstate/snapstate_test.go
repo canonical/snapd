@@ -2244,7 +2244,7 @@ func (s *snapmgrTestSuite) TestUpdateWithAlreadyInstalledBase(c *C) {
 	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
 		Active:  true,
 		Channel: "stable",
-		Sequence: []*snap.SideInfo{&snap.SideInfo{
+		Sequence: []*snap.SideInfo{{
 			RealName: "some-base",
 			SnapID:   "some-base-id",
 			Revision: snap.R(1),
@@ -2330,7 +2330,7 @@ func (s *snapmgrTestSuite) TestUpdateWithInstalledDefaultProvider(c *C) {
 	snapstate.Set(s.state, "snap-content-slot", &snapstate.SnapState{
 		Active:  true,
 		Channel: "stable",
-		Sequence: []*snap.SideInfo{&snap.SideInfo{
+		Sequence: []*snap.SideInfo{{
 			RealName: "snap-content-slot",
 			SnapID:   "snap-content-slot-id",
 			Revision: snap.R(1),
