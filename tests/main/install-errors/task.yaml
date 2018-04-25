@@ -61,3 +61,21 @@ execute: |
         exit 1
     fi
     MATCH 'cannot install "ubuntu-core", please use "core" instead' < stderr.out
+
+    echo "============================================"
+
+    echo "Install a snap that is only available in the edge channel"
+    if snap install test-snapd-only-in-edge 2>stderr.out; then
+        echo "Installing test-snapd-only-in-edge should fail but did not"
+        exit 1
+    fi
+    MATCH 'error: snap not found in the given context.' < stderr.out
+
+    echo "Install a snap not available for the given architecture"
+    if [ "$(uname -m)" = "x86_64" ]; then
+        if snap install pi3-kernel 2>stderr.out; then
+            echo "Installing pi3-kernel should fail on amd64 systems but did not"
+            exit 1
+        fi
+        MATCH 'error: snap "pi3-kernel" not found' < stderr.out
+    fi
