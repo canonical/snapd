@@ -3,15 +3,18 @@ summary: create ubuntu-core image and execute the suite in a nested qemu instanc
 systems: [ubuntu-16.04-64]
 
 prepare: |
+    #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     create_nested_core_vm
 
 restore: |
+    #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     destroy_nested_core_vm
 
 execute: |
-    cd "$SPREAD_PATH"
+    #shellcheck disable=SC2164
+    cd "$SPREAD_PATH" || exit 1
 
     tmp=$(mktemp -d)
     trap 'rm -rf $tmp' EXIT
