@@ -64,7 +64,8 @@ var (
 	SnapTrustedAccountKey string
 	SnapAssertsSpoolDir   string
 
-	SnapStateFile string
+	SnapStateFile     string
+	SnapSystemKeyFile string
 
 	SnapRepairDir        string
 	SnapRepairStateFile  string
@@ -112,6 +113,9 @@ const (
 	// are in the snap confinement environment.
 	CoreLibExecDir   = "/usr/lib/snapd"
 	CoreSnapMountDir = "/snap"
+
+	// Directory with snap data inside user's home
+	UserHomeSnapDir = "snap"
 )
 
 var (
@@ -178,7 +182,7 @@ func SetRootDir(rootdir string) {
 	}
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
-	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/snap/")
+	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", UserHomeSnapDir)
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	SnapConfineAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine")
 	AppArmorCacheDir = filepath.Join(rootdir, "/var/cache/apparmor")
@@ -202,6 +206,7 @@ func SetRootDir(rootdir string) {
 	SnapAssertsSpoolDir = filepath.Join(rootdir, "run/snapd/auto-import")
 
 	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")
+	SnapSystemKeyFile = filepath.Join(rootdir, snappyDir, "system-key")
 
 	SnapCacheDir = filepath.Join(rootdir, "/var/cache/snapd")
 	SnapNamesFile = filepath.Join(SnapCacheDir, "names")

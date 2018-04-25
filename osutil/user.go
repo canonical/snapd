@@ -32,10 +32,6 @@ import (
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
-var userLookup = user.Lookup
-
-var sudoersDotD = "/etc/sudoers.d"
-
 var sudoersTemplate = `
 # Created by snap create-user
 
@@ -123,8 +119,6 @@ func AddUser(name string, opts *AddUserOptions) error {
 
 	return nil
 }
-
-var userCurrent = user.Current
 
 // RealUser finds the user behind a sudo invocation when root, if applicable
 // and possible.

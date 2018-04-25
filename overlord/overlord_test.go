@@ -207,6 +207,9 @@ func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 	c.Assert(err, IsNil)
 
 	markSeeded(o)
+	// make sure we don't try to talk to the store
+	snapstate.CanAutoRefresh = nil
+
 	o.Loop()
 
 	err = o.Stop()
@@ -479,9 +482,7 @@ func (ovs *overlordSuite) TestCheckpoint(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(st.Mode(), Equals, os.FileMode(0600))
 
-	content, err := ioutil.ReadFile(dirs.SnapStateFile)
-	c.Assert(err, IsNil)
-	c.Check(string(content), testutil.Contains, `"mark":1`)
+	c.Check(dirs.SnapStateFile, testutil.FileContains, `"mark":1`)
 }
 
 type runnerManager struct {

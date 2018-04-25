@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
@@ -81,12 +82,20 @@ func (s *NetlinkAuditInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *NetlinkAuditInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+func (s *NetlinkAuditInterfaceSuite) TestAppArmorSpec(c *C) {
+	spec := &apparmor.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
-	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "socket AF_NETLINK - NETLINK_AUDIT\n")
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "capability audit_write,\n")
+}
+
+func (s *NetlinkAuditInterfaceSuite) TestSecCompSpec(c *C) {
+	spec := &seccomp.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "socket AF_NETLINK - NETLINK_AUDIT\n")
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestInterfaces(c *C) {

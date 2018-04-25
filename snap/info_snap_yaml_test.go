@@ -29,12 +29,16 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type InfoSnapYamlTestSuite struct{}
+type InfoSnapYamlTestSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&InfoSnapYamlTestSuite{})
 
@@ -42,6 +46,15 @@ var mockYaml = []byte(`name: foo
 version: 1.0
 type: app
 `)
+
+func (s *InfoSnapYamlTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+}
+
+func (s *InfoSnapYamlTestSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
 
 func (s *InfoSnapYamlTestSuite) TestSimple(c *C) {
 	info, err := snap.InfoFromSnapYaml(mockYaml)
@@ -58,16 +71,20 @@ func (s *InfoSnapYamlTestSuite) TestFail(c *C) {
 
 type YamlSuite struct {
 	restore func()
+	testutil.BaseTest
 }
 
 var _ = Suite(&YamlSuite{})
 
 func (s *YamlSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	hookType := snap.NewHookType(regexp.MustCompile(".*"))
 	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
 }
 
 func (s *YamlSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	s.restore()
 }
 
@@ -1608,6 +1625,8 @@ layout:
     bind: $SNAP/usr/share/foo
   /usr/share/bar:
     symlink: $SNAP/usr/share/bar
+  /etc/froz:
+    bind-file: $SNAP/etc/froz
 `)
 	info, err := snap.InfoFromSnapYaml(y)
 	c.Assert(err, IsNil)
@@ -1627,4 +1646,54 @@ layout:
 		Group:   "root",
 		Mode:    0755,
 	})
+	c.Assert(info.Layout["/etc/froz"], DeepEquals, &snap.Layout{
+		Snap:     info,
+		Path:     "/etc/froz",
+		BindFile: "$SNAP/etc/froz",
+		User:     "root",
+		Group:    "root",
+		Mode:     0755,
+	})
+}
+
+func (s *YamlSuite) TestSnapYamlAppTimer(c *C) {
+	y := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   daemon: oneshot
+   timer: mon,10:00-12:00
+
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+	app := info.Apps["foo"]
+	c.Check(app.Timer, DeepEquals, &snap.TimerInfo{App: app, Timer: "mon,10:00-12:00"})
+}
+
+func (s *YamlSuite) TestSnapYamlAppAutostart(c *C) {
+	yAutostart := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   command: bin/foo
+   autostart: foo.desktop
+
+`)
+	info, err := snap.InfoFromSnapYaml(yAutostart)
+	c.Assert(err, IsNil)
+	app := info.Apps["foo"]
+	c.Check(app.Autostart, Equals, "foo.desktop")
+
+	yNoAutostart := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   command: bin/foo
+
+`)
+	info, err = snap.InfoFromSnapYaml(yNoAutostart)
+	c.Assert(err, IsNil)
+	app = info.Apps["foo"]
+	c.Check(app.Autostart, Equals, "")
 }

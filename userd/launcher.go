@@ -22,10 +22,16 @@ package userd
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
+	"syscall"
+	"time"
 
 	"github.com/godbus/dbus"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/userd/ui"
 )
 
 const launcherIntrospectionXML = `
@@ -39,6 +45,10 @@ const launcherIntrospectionXML = `
 <interface name='io.snapcraft.Launcher'>
 	<method name='OpenURL'>
 		<arg type='s' name='url' direction='in'/>
+	</method>
+	<method name="OpenFile">
+		<arg type="s" name="parent_window" direction="in"/>
+		<arg type="h" name="fd" direction="in"/>
 	</method>
 </interface>`
 
@@ -88,6 +98,88 @@ func (s *Launcher) OpenURL(addr string) *dbus.Error {
 	}
 
 	if err = exec.Command("xdg-open", addr).Run(); err != nil {
+		return dbus.MakeFailedError(fmt.Errorf("cannot open supplied URL"))
+	}
+
+	return nil
+}
+
+// fdToFilename determines the path associated with an open file descriptor.
+//
+// The file descriptor cannot be opened using O_PATH and must refer to
+// a regular file or to a directory. The symlink at /proc/self/fd/<fd>
+// is read to determine the filename. The descriptor is also fstat'ed
+// and the resulting device number and inode number are compared to
+// stat on the path determined earlier. The numbers must match.
+func fdToFilename(fd int) (string, error) {
+	flags, err := sys.FcntlGetFl(fd)
+	if err != nil {
+		return "", err
+	}
+	// File descriptors opened with O_PATH do not imply access to
+	// the file in question.
+	if flags&sys.O_PATH != 0 {
+		return "", fmt.Errorf("cannot use file descriptors opened using O_PATH")
+	}
+
+	// Determine the file name associated with the passed file descriptor.
+	filename, err := os.Readlink(fmt.Sprintf("/proc/self/fd/%d", fd))
+	if err != nil {
+		return "", err
+	}
+
+	var fileStat, fdStat syscall.Stat_t
+	if err := syscall.Stat(filename, &fileStat); err != nil {
+		return "", err
+	}
+	if err := syscall.Fstat(fd, &fdStat); err != nil {
+		return "", err
+	}
+
+	// Sanity check to ensure we've got the right file
+	if fdStat.Dev != fileStat.Dev || fdStat.Ino != fileStat.Ino {
+		return "", fmt.Errorf("cannot determine file name")
+	}
+
+	fileType := fileStat.Mode & syscall.S_IFMT
+	if fileType != syscall.S_IFREG && fileType != syscall.S_IFDIR {
+		return "", fmt.Errorf("cannot open anything other than regular files or directories")
+	}
+
+	return filename, nil
+}
+
+func (s *Launcher) OpenFile(parentWindow string, clientFd dbus.UnixFD, sender dbus.Sender) *dbus.Error {
+	// godbus transfers ownership of this file descriptor to us
+	fd := int(clientFd)
+	defer syscall.Close(fd)
+
+	filename, err := fdToFilename(fd)
+	if err != nil {
+		return dbus.MakeFailedError(err)
+	}
+
+	snap, err := snapFromSender(s.conn, sender)
+	if err != nil {
+		return dbus.MakeFailedError(err)
+	}
+	dialog, err := ui.New()
+	if err != nil {
+		return dbus.MakeFailedError(err)
+	}
+	answeredYes := dialog.YesNo(
+		i18n.G("Allow opening file?"),
+		fmt.Sprintf(i18n.G("Allow snap %q to open file %q?"), snap, filename),
+		&ui.DialogOptions{
+			Timeout: 5 * 60 * time.Second,
+			Footer:  i18n.G("This dialog will close automatically after 5 minutes of inactivity."),
+		},
+	)
+	if !answeredYes {
+		return dbus.MakeFailedError(fmt.Errorf("permission denied"))
+	}
+
+	if err = exec.Command("xdg-open", filename).Run(); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot open supplied URL"))
 	}
 

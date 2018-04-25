@@ -90,23 +90,30 @@ func (b *Backend) Remove(snapName string) error {
 	return nil
 }
 
-// deriveContent computes .fstab tables based on requests made to the specification.
-func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.FileState {
-	// No entries? Nothing to do!
-	entries := spec.MountEntries()
+// addMountProfile adds a mount profile with the given name, based on the given entries.
+//
+// If there are no entries no profile is generated.
+func addMountProfile(content map[string]*osutil.FileState, fname string, entries []osutil.MountEntry) {
 	if len(entries) == 0 {
-		return nil
+		return
 	}
-	// Compute the contents of the fstab file. It should contain all the mount
-	// rules collected by the backend controller.
 	var buffer bytes.Buffer
 	for _, entry := range entries {
 		fmt.Fprintf(&buffer, "%s\n", entry)
 	}
-	fstate := &osutil.FileState{Content: buffer.Bytes(), Mode: 0644}
-	content := make(map[string]*osutil.FileState)
-	// Add the per-snap fstab file. This file is read by snap-update-ns.
-	content[fmt.Sprintf("snap.%s.fstab", snapInfo.Name())] = fstate
+	content[fname] = &osutil.FileState{Content: buffer.Bytes(), Mode: 0644}
+}
+
+// deriveContent computes .fstab tables based on requests made to the specification.
+func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.FileState {
+	content := make(map[string]*osutil.FileState, 2)
+	snapName := snapInfo.Name()
+	// Add the per-snap fstab file.
+	// This file is read by snap-update-ns in the global pass.
+	addMountProfile(content, fmt.Sprintf("snap.%s.fstab", snapName), spec.MountEntries())
+	// Add the per-snap user-fstab file.
+	// This file will be read by snap-update-ns in the per-user pass.
+	addMountProfile(content, fmt.Sprintf("snap.%s.user-fstab", snapName), spec.UserMountEntries())
 	return content
 }
 

@@ -50,3 +50,11 @@ func MockOsutilStreamCommand(f func(string, ...string) (io.ReadCloser, error)) f
 	osutilStreamCommand = f
 	return func() { osutilStreamCommand = old }
 }
+
+func MockJournalStdoutPath(path string) func() {
+	oldPath := journalStdoutPath
+	journalStdoutPath = path
+	return func() {
+		journalStdoutPath = oldPath
+	}
+}

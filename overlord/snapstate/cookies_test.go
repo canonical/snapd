@@ -67,9 +67,7 @@ func checkCookie(c *C, st *state.State, snapName string) {
 	}
 	c.Assert(found, Equals, 1)
 
-	data, err := ioutil.ReadFile(fmt.Sprintf("%s/snap.%s", dirs.SnapCookieDir, snapName))
-	c.Assert(err, IsNil)
-	c.Assert(string(data), DeepEquals, cookieID)
+	c.Assert(fmt.Sprintf("%s/snap.%s", dirs.SnapCookieDir, snapName), testutil.FileEquals, cookieID)
 	c.Assert(cookieID, HasLen, 44)
 }
 

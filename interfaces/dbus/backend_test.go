@@ -20,7 +20,6 @@
 package dbus_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -31,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type backendSuite struct {
@@ -229,9 +229,7 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
-		data, err := ioutil.ReadFile(profile)
-		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, "<?xml>\n<policy>...</policy>\n</xml>")
+		c.Check(profile, testutil.FileEquals, "<?xml>\n<policy>...</policy>\n</xml>")
 		stat, err := os.Stat(profile)
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
