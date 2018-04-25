@@ -77,7 +77,7 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
-	resetReadInfo := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	resetReadInfo := snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
 	s.reset = func() {
 		resetReadInfo()
 		dirs.SetRootDir("/")

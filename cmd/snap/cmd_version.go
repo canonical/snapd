@@ -67,6 +67,9 @@ func printVersions() error {
 	fmt.Fprintf(w, "snapd\t%s\n", sv.Version)
 	fmt.Fprintf(w, "series\t%s\n", sv.Series)
 	if sv.OnClassic {
+		if sv.OSVersionID == "" {
+			sv.OSVersionID = "-"
+		}
 		fmt.Fprintf(w, "%s\t%s\n", sv.OSID, sv.OSVersionID)
 	}
 	if sv.KernelVersion != "" {
