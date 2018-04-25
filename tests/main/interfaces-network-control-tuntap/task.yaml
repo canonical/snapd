@@ -17,18 +17,17 @@ environment:
     DEV/tun: tun255
     DEV/tap: tap255
 
-execute: |
-    echo "Given a snap declaring a plug on the network-control interface is installed"
+prepare: |
     . $TESTSLIB/snaps.sh
+
+    echo "Given a snap declaring a plug on the network-control interface is installed"
     install_local test-snapd-tuntap
 
+execute: |
     . "$TESTSLIB/network.sh"
 
-    CONNECTED_PATTERN=":network-control +test-snapd-tuntap"
-    DISCONNECTED_PATTERN="^- +test-snapd-tuntap:network-control$"
-
-    echo "Then the plug disconnected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    echo "The interface is disconnected by default"
+    snap interfaces | MATCH "^- +test-snapd-tuntap:network-control$"
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "And cannot allocate the $DEV device"
@@ -37,7 +36,6 @@ execute: |
 
     echo "When the plug is connected"
     snap connect test-snapd-tuntap:network-control
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     echo "Then the snap command can allocate the $DEV device"
     test-snapd-tuntap.tuntap $DEV | MATCH "PASS"

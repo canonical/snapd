@@ -38,6 +38,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/context"
+
 	"github.com/gorilla/mux"
 	"github.com/jessevdk/go-flags"
 
@@ -96,6 +98,7 @@ var api = []*Command{
 }
 
 var (
+	// see daemon.go:canAccess for details how the access is controlled
 	rootCmd = &Command{
 		Path:    "/",
 		GuestOK: true,
@@ -115,9 +118,8 @@ var (
 	}
 
 	logoutCmd = &Command{
-		Path:   "/v2/logout",
-		POST:   logoutUser,
-		UserOK: true,
+		Path: "/v2/logout",
+		POST: logoutUser,
 	}
 
 	appIconCmd = &Command{
@@ -209,21 +211,18 @@ var (
 	}
 
 	createUserCmd = &Command{
-		Path:   "/v2/create-user",
-		UserOK: false,
-		POST:   postCreateUser,
+		Path: "/v2/create-user",
+		POST: postCreateUser,
 	}
 
 	buyCmd = &Command{
-		Path:   "/v2/buy",
-		UserOK: false,
-		POST:   postBuy,
+		Path: "/v2/buy",
+		POST: postBuy,
 	}
 
 	readyToBuyCmd = &Command{
-		Path:   "/v2/buy/ready",
-		UserOK: false,
-		GET:    readyToBuy,
+		Path: "/v2/buy/ready",
+		GET:  readyToBuy,
 	}
 
 	snapctlCmd = &Command{
@@ -233,9 +232,8 @@ var (
 	}
 
 	usersCmd = &Command{
-		Path:   "/v2/users",
-		UserOK: false,
-		GET:    getUsers,
+		Path: "/v2/users",
+		GET:  getUsers,
 	}
 
 	sectionsCmd = &Command{
@@ -250,7 +248,17 @@ var (
 		GET:    getAliases,
 		POST:   changeAliases,
 	}
+
+	buildID = "unknown"
 )
+
+func init() {
+	// cache the build-id on startup to ensure that changes in
+	// the underlying binary do not affect us
+	if bid, err := osutil.MyBuildID(); err == nil {
+		buildID = bid
+	}
+}
 
 func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse([]string{"TBD"}, nil)
@@ -270,6 +278,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	defer st.Unlock()
 	nextRefresh := snapMgr.NextRefresh()
 	lastRefresh, _ := snapMgr.LastRefresh()
+	refreshHold, _ := snapMgr.EffectiveRefreshHold()
 	refreshScheduleStr, legacySchedule, err := snapMgr.RefreshSchedule()
 	if err != nil {
 		return InternalError("cannot get refresh schedule: %s", err)
@@ -281,6 +290,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	refreshInfo := client.RefreshInfo{
 		Last: formatRefreshTime(lastRefresh),
+		Hold: formatRefreshTime(refreshHold),
 		Next: formatRefreshTime(nextRefresh),
 	}
 	if !legacySchedule {
@@ -292,6 +302,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	m := map[string]interface{}{
 		"series":         release.Series,
 		"version":        c.d.Version,
+		"build-id":       buildID,
 		"os-release":     release.ReleaseInfo,
 		"on-classic":     release.OnClassic,
 		"managed":        len(users) > 0,
@@ -552,7 +563,8 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	theStore := getStore(c)
 
-	sections, err := theStore.Sections(user)
+	// TODO: use a per-request context
+	sections, err := theStore.Sections(context.TODO(), user)
 	switch err {
 	case nil:
 		// pass
@@ -924,7 +936,8 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 		return nil, err
 	}
 
-	updated, tasksets, err := snapstateUpdateMany(st, inst.Snaps, inst.userID)
+	// TODO: use a per-request context
+	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1163,7 +1176,13 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 	var snapName string
 
 	switch err {
-	case store.ErrSnapNotFound:
+	case store.ErrSnapNotFound, store.ErrRevisionNotAvailable:
+		// TODO: treating ErrRevisionNotAvailable the same as
+		// ErrSnapNotFound preserves the old error handling
+		// behavior of the REST API and the snap command.  We
+		// should revisit this once the store returns more
+		// precise errors and makes it possible to distinguish
+		// the why a revision wasn't available.
 		switch len(inst.Snaps) {
 		case 1:
 			return SnapNotFound(inst.Snaps[0], err)
@@ -1591,7 +1610,7 @@ func splitQS(qs string) []string {
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := vars["name"]
+	snapName := systemCoreSnapUnalias(vars["name"])
 
 	keys := splitQS(r.URL.Query().Get("keys"))
 
@@ -1634,7 +1653,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := vars["name"]
+	snapName := systemCoreSnapUnalias(vars["name"])
 
 	var patchValues map[string]interface{}
 	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
@@ -1851,6 +1870,9 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		conns, err = repo.ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
+			if len(conns) == 0 {
+				return InterfacesUnchanged("nothing to do")
+			}
 			for _, connRef := range conns {
 				var ts *state.TaskSet
 				ts, err = ifacestate.Disconnect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
@@ -1868,7 +1890,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	change := newChange(st, a.Action+"-snap", summary, tasksets, affected)
-
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
@@ -2119,6 +2140,8 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 
 var (
 	postCreateUserUcrednetGet = ucrednetGet
+	runSnapctlUcrednetGet     = ucrednetGet
+	ctlcmdRun                 = ctlcmd.Run
 	storeUserInfo             = store.UserInfo
 	osutilAddUser             = osutil.AddUser
 )
@@ -2299,7 +2322,7 @@ func setupLocalUser(st *state.State, username, email string) error {
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, err := postCreateUserUcrednetGet(r.RemoteAddr)
+	_, uid, _, err := postCreateUserUcrednetGet(r.RemoteAddr)
 	if err != nil {
 		return BadRequest("cannot get ucrednet uid: %v", err)
 	}
@@ -2491,10 +2514,19 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("snapctl cannot run without args")
 	}
 
+	_, uid, _, err := runSnapctlUcrednetGet(r.RemoteAddr)
+	if err != nil {
+		return Forbidden("cannot get remote user: %s", err)
+	}
+	// we only allow "get" from regular users in snapctl
+	if uid != 0 && snapctlOptions.Args[0] != "get" {
+		return Forbidden("cannot use %q with uid %d, try with sudo", snapctlOptions.Args[0], uid)
+	}
+
 	// Ignore missing context error to allow 'snapctl -h' without a context;
 	// Actual context is validated later by get/set.
 	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
-	stdout, stderr, err := ctlcmd.Run(context, snapctlOptions.Args)
+	stdout, stderr, err := ctlcmdRun(context, snapctlOptions.Args)
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			stdout = []byte(e.Error())
@@ -2520,7 +2552,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
-	_, uid, err := postCreateUserUcrednetGet(r.RemoteAddr)
+	_, uid, _, err := postCreateUserUcrednetGet(r.RemoteAddr)
 	if err != nil {
 		return BadRequest("cannot get ucrednet uid: %v", err)
 	}
@@ -2771,7 +2803,7 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
-	ts, err := servicestate.Control(st, appInfos, &inst, nil)
+	tss, err := servicestate.Control(st, appInfos, &inst, nil)
 	if err != nil {
 		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
 			return Conflict(err.Error())
@@ -2780,7 +2812,14 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	st.Lock()
 	defer st.Unlock()
-	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), []*state.TaskSet{ts}, inst.Names)
+	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, inst.Names)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
+func systemCoreSnapUnalias(name string) string {
+	if name == "system" {
+		return "core"
+	}
+	return name
 }

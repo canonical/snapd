@@ -265,3 +265,13 @@ func ValidateDBusBusName(busName string) error {
 	}
 	return nil
 }
+
+// UnknownPlugSlotError is an error reported when plug or slot cannot be found.
+type UnknownPlugSlotError struct {
+	Msg string
+}
+
+// Error returns the message associated with unknown plug or slot error.
+func (e *UnknownPlugSlotError) Error() string {
+	return e.Msg
+}

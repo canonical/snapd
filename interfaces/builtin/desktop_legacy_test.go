@@ -42,12 +42,14 @@ var _ = Suite(&DesktopLegacyInterfaceSuite{
 })
 
 const desktopLegacyConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [desktop-legacy]
 `
 
 const desktopLegacyCoreYaml = `name: core
+version: 0
 type: os
 slots:
   desktop-legacy:

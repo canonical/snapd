@@ -258,7 +258,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudIns
 
 	// check captured cloud information
 	tr := config.NewTransaction(st)
-	var cloud configcore.CloudInfo
+	var cloud auth.CloudInfo
 	err = tr.Get("core", "cloud", &cloud)
 	c.Assert(err, IsNil)
 	c.Check(cloud.Name, Equals, "aws")
@@ -527,6 +527,12 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 	err = state.Get("seeded", &seeded)
 	c.Assert(err, IsNil)
 	c.Check(seeded, Equals, true)
+
+	// check we set seed-time
+	var seedTime time.Time
+	err = state.Get("seed-time", &seedTime)
+	c.Assert(err, IsNil)
+	c.Check(seedTime.IsZero(), Equals, false)
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedMissingBootloader(c *C) {

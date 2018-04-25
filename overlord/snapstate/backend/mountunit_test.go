@@ -21,7 +21,6 @@ package backend_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -76,9 +75,8 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 
 	// ensure correct mount unit
 	un := fmt.Sprintf("%s.mount", systemd.EscapeUnitNamePath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo", "13")))
-	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, un))
-	c.Assert(err, IsNil)
-	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
+	c.Assert(filepath.Join(dirs.SnapServicesDir, un), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
 Description=Mount unit for foo
 Before=snapd.service
 
@@ -90,8 +88,7 @@ Options=nodev,ro,x-gdu.hide
 
 [Install]
 WantedBy=multi-user.target
-`, dirs.StripRootDir(dirs.SnapMountDir)))
-
+`[1:], dirs.StripRootDir(dirs.SnapMountDir)))
 }
 
 func (s *mountunitSuite) TestRemoveMountUnit(c *C) {

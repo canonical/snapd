@@ -33,6 +33,7 @@ var _ = Suite(&commonIfaceSuite{})
 func (s *commonIfaceSuite) TestUDevSpec(c *C) {
 	plug, _ := MockConnectedPlug(c, `
 name: consumer
+version: 0
 apps:
   app-a:
     plugs: [common]
@@ -42,6 +43,7 @@ apps:
 `, nil, "common")
 	slot, _ := MockConnectedSlot(c, `
 name: producer
+version: 0
 slots:
   common:
 `, nil, "common")
@@ -56,11 +58,11 @@ slots:
 	c.Assert(spec.Snippets(), DeepEquals, []string{
 		`# common
 KERNEL=="foo", TAG+="snap_consumer_app-a"`,
-		`TAG=="snap_consumer_app-a", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app-a $devpath $major:$minor"`,
+		`TAG=="snap_consumer_app-a", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app-a $devpath $major:$minor"`,
 		// NOTE: app-b is unaffected as it doesn't have a plug reference.
 		`# common
 KERNEL=="foo", TAG+="snap_consumer_app-c"`,
-		`TAG=="snap_consumer_app-c", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_consumer_app-c $devpath $major:$minor"`,
+		`TAG=="snap_consumer_app-c", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app-c $devpath $major:$minor"`,
 	})
 
 	// connected plug udev rules are optional
