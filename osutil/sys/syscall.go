@@ -110,19 +110,10 @@ func FcntlGetFl(fd int) (int, error) {
 	return int(flags), nil
 }
 
-func retryRawSyscall(trap, a1, a2, a3 uintptr) (r1, r2 uintptr, err syscall.Errno) {
-	ms := &syscall.Timespec{Nsec: 1000}
-	for i := 0; i < 30; i++ {
-		r1, r2, err = syscall.RawSyscall(trap, a1, a2, a3)
-		if err != syscall.EAGAIN {
-			break
-		}
-		// this could fail, making the loop a little too aggressive
-		syscall.Nanosleep(ms, nil)
-	}
-	return r1, r2, err
-}
-
+// UnrecoverableError is an error that flags that things have Gone Wrong, the
+// runtime is in a bad state, and you should really quit. The intention is that
+// if you're trying to recover from a panic and find that the value of the panic
+// is an UnrecoverableError, you should just exit ASAP.
 type UnrecoverableError struct {
 	Call string
 	Err  error
@@ -148,40 +139,31 @@ func RunAsUidGid(uid UserID, gid GroupID, f func() error) error {
 		// other code will run.
 		runtime.LockOSThread()
 
-		// from Go 1.10 on we could just not unlock, which would make
-		// the thread get reaped at goroutine exit. Instead we need to
-		// carefully restore thread state.
-		defer runtime.UnlockOSThread()
-
 		ruid := Getuid()
 		rgid := Getgid()
 
-		// do the setregid first =)
-		if _, _, err := retryRawSyscall(_SYS_SETREGID, FlagID, uintptr(gid), 0); err != 0 {
-			ch <- fmt.Errorf("setregid: %v", err)
-			return
-		}
-		defer func() {
+		if _, _, errno := syscall.RawSyscall(_SYS_SETREGID, FlagID, uintptr(gid), 0); errno == 0 {
+			if _, _, errno := syscall.RawSyscall(_SYS_SETREUID, FlagID, uintptr(uid), 0); errno == 0 {
+				ch <- f()
+				// try to restore euid
+				if _, _, errno := syscall.RawSyscall(_SYS_SETREUID, FlagID, uintptr(ruid), 0); errno != 0 {
+					// ¯\_(ツ)_/¯
+					panic(UnrecoverableError{Call: "setreuid", Err: errno})
+				}
+			} else {
+				ch <- fmt.Errorf("setreuid: %v", errno)
+			}
+
 			// try to restore egid
-			if _, _, err := retryRawSyscall(_SYS_SETREGID, FlagID, uintptr(rgid), 0); err != 0 {
+			if _, _, errno := syscall.RawSyscall(_SYS_SETREGID, FlagID, uintptr(rgid), 0); errno != 0 {
 				// ¯\_(ツ)_/¯
-				panic(UnrecoverableError{Call: "setregid", Err: err})
+				panic(UnrecoverableError{Call: "setregid", Err: errno})
 			}
-		}()
-
-		if _, _, err := retryRawSyscall(_SYS_SETREUID, FlagID, uintptr(uid), 0); err != 0 {
-			ch <- fmt.Errorf("setreuid: %v", err)
-			return
+		} else {
+			ch <- fmt.Errorf("setregid: %v", errno)
 		}
-		defer func() {
-			// try to restore euid
-			if _, _, err := retryRawSyscall(_SYS_SETREUID, FlagID, uintptr(ruid), 0); err != 0 {
-				// ¯\_(ツ)_/¯
-				panic(UnrecoverableError{Call: "setreuid", Err: err})
-			}
-		}()
 
-		ch <- f()
+		runtime.UnlockOSThread()
 	}()
 	return <-ch
 }
