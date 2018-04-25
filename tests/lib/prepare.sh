@@ -389,14 +389,14 @@ EOF
         mkdir -p /mnt/system-data/etc/systemd/system/multi-user.target.wants
         for f in group gshadow passwd shadow; do
             # the passwd from core without root
-            grep -v "^root:" "$UNPACKD/etc/$f" > /mnt/system-data/root/test-etc/$f
+            grep -v "^root:" "$UNPACKD/etc/$f" > /mnt/system-data/root/test-etc/"$f"
             # append this systems root user so that linode can connect
-            grep "^root:" /etc/$f >> /mnt/system-data/root/test-etc/$f
+            grep "^root:" /etc/"$f" >> /mnt/system-data/root/test-etc/"$f"
 
             # make sure the group is as expected
-            chgrp --reference "$UNPACKD/etc/$f" /mnt/system-data/root/test-etc/$f
+            chgrp --reference "$UNPACKD/etc/$f" /mnt/system-data/root/test-etc/"$f"
             # now bind mount read-only those passwd files on boot
-            cat <<EOF > /mnt/system-data/etc/systemd/system/etc-$f.mount
+            cat >/mnt/system-data/etc/systemd/system/etc-"$f".mount <<EOF
 [Unit]
 Description=Mount root/test-etc/$f over system etc/$f
 Before=ssh.service
@@ -410,14 +410,14 @@ Options=bind,ro
 [Install]
 WantedBy=multi-user.target
 EOF
-            ln -s /etc/systemd/system/etc-$f.mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-$f.mount
+            ln -s /etc/systemd/system/etc-"$f".mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-"$f".mount
 
             # create /var/lib/extrausers/$f
             # append ubuntu, test user for the testing
-            cp -a "$UNPACKD/var/lib/extrausers/$f" /mnt/system-data/var/lib/extrausers/$f
-            tail -n2 /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
+            cp -a "$UNPACKD/var/lib/extrausers/$f" /mnt/system-data/var/lib/extrausers/"$f"
+            tail -n2 /etc/"$f" >> /mnt/system-data/var/lib/extrausers/"$f"
             # check test was copied
-            cat /mnt/system-data/var/lib/extrausers/$f| MATCH "^test:"
+            MATCH "^test:" </mnt/system-data/var/lib/extrausers/"$f"
 
         done
 
