@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -801,9 +802,17 @@ func (s *deviceMgrSuite) TestDoRequestSerialErrorsOnNoHost(c *C) {
 		c.Skip("cannot run test when http proxy is in use, the error pattern is different")
 	}
 
+	const nonexistent_host = "nowhere.nowhere.test"
+
+	// check internet access
+	_, err := net.LookupHost(nonexistent_host)
+	if netErr, ok := err.(net.Error); !ok || netErr.Temporary() {
+		c.Skip("cannot run test with no internet access, the error pattern is different")
+	}
+
 	privKey, _ := assertstest.GenerateKey(testKeyLength)
 
-	nowhere := "http://nowhere.nowhere.test"
+	nowhere := "http://" + nonexistent_host
 
 	mockRequestIDURL := nowhere + requestIDURLPath
 	restore := devicestate.MockRequestIDURL(mockRequestIDURL)

@@ -576,6 +576,7 @@ type PolicyFunc func(*ConnectedPlug, *ConnectedSlot) (bool, error)
 
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
+// When connections are reloaded policyCheck is null (we don't check policy again).
 func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map[string]interface{}, policyCheck PolicyFunc) (*Connection, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -603,7 +604,6 @@ func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map
 
 	iface, ok := r.ifaces[plug.Interface]
 	if !ok {
-		// This should never happen
 		return nil, fmt.Errorf("internal error: unknown interface %q", plug.Interface)
 	}
 
@@ -614,12 +614,12 @@ func (r *Repository) Connect(ref ConnRef, plugDynamicAttrs, slotDynamicAttrs map
 	if policyCheck != nil {
 		if i, ok := iface.(plugValidator); ok {
 			if err := i.BeforeConnectPlug(cplug); err != nil {
-				return nil, fmt.Errorf("cannot connect plug %q from snap %q: %s", plug.Name, plug.Snap.Name(), err)
+				return nil, fmt.Errorf("cannot connect plug %q of snap %q: %s", plug.Name, plug.Snap.Name(), err)
 			}
 		}
 		if i, ok := iface.(slotValidator); ok {
 			if err := i.BeforeConnectSlot(cslot); err != nil {
-				return nil, fmt.Errorf("cannot connect slot %q from snap %q: %s", slot.Name, slot.Snap.Name(), err)
+				return nil, fmt.Errorf("cannot connect slot %q of snap %q: %s", slot.Name, slot.Snap.Name(), err)
 			}
 		}
 
@@ -892,6 +892,9 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, snapName s
 // Unknown interfaces and plugs/slots that don't validate are not added.
 // Information about those failures are returned to the caller.
 func (r *Repository) AddSnap(snapInfo *snap.Info) error {
+	if snapInfo.Broken != "" {
+		return fmt.Errorf("snap is broken: %s", snapInfo.Broken)
+	}
 	err := snap.Validate(snapInfo)
 	if err != nil {
 		return err

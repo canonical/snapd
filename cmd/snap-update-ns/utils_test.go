@@ -22,6 +22,7 @@ package main_test
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -716,4 +717,96 @@ func (s *utilsSuite) TestSplitIntoSegments(c *C) {
 	sg, err = update.SplitIntoSegments("/foo//fii/../.")
 	c.Assert(err, ErrorMatches, `cannot split unclean path ".+"`)
 	c.Assert(sg, HasLen, 0)
+}
+
+// secure-open-path
+
+func (s *realSystemSuite) TestSecureOpenPathDirectory(c *C) {
+	path := filepath.Join(c.MkDir(), "test")
+	c.Assert(os.Mkdir(path, 0755), IsNil)
+
+	fd, err := s.sec.OpenPath(path)
+	c.Assert(err, IsNil)
+	defer syscall.Close(fd)
+
+	// check that the file descriptor is for the expected path
+	origDir, err := os.Getwd()
+	c.Assert(err, IsNil)
+	defer os.Chdir(origDir)
+
+	c.Assert(syscall.Fchdir(fd), IsNil)
+	cwd, err := os.Getwd()
+	c.Assert(err, IsNil)
+	c.Check(cwd, Equals, path)
+}
+
+func (s *realSystemSuite) TestSecureOpenPathRelativePath(c *C) {
+	fd, err := s.sec.OpenPath("relative/path")
+	c.Check(fd, Equals, -1)
+	c.Check(err, ErrorMatches, "path .* is not absolute")
+}
+
+func (s *realSystemSuite) TestSecureOpenPathUncleanPath(c *C) {
+	base := c.MkDir()
+	path := filepath.Join(base, "test")
+	c.Assert(os.Mkdir(path, 0755), IsNil)
+
+	fd, err := s.sec.OpenPath(base + "//test")
+	c.Check(fd, Equals, -1)
+	c.Check(err, ErrorMatches, "cannot split unclean path .*")
+
+	fd, err = s.sec.OpenPath(base + "/./test")
+	c.Check(fd, Equals, -1)
+	c.Check(err, ErrorMatches, "cannot split unclean path .*")
+
+	fd, err = s.sec.OpenPath(base + "/test/../test")
+	c.Check(fd, Equals, -1)
+	c.Check(err, ErrorMatches, "cannot split unclean path .*")
+}
+
+func (s *realSystemSuite) TestSecureOpenPathFile(c *C) {
+	path := filepath.Join(c.MkDir(), "file.txt")
+	c.Assert(ioutil.WriteFile(path, []byte("hello"), 0644), IsNil)
+
+	fd, err := s.sec.OpenPath(path)
+	c.Check(fd, Equals, -1)
+	c.Check(err, ErrorMatches, "not a directory")
+}
+
+func (s *realSystemSuite) TestSecureOpenPathNotFound(c *C) {
+	path := filepath.Join(c.MkDir(), "test")
+
+	fd, err := s.sec.OpenPath(path)
+	c.Check(fd, Equals, -1)
+	c.Check(err, ErrorMatches, "no such file or directory")
+}
+
+func (s *realSystemSuite) TestSecureOpenPathSymlink(c *C) {
+	base := c.MkDir()
+	dir := filepath.Join(base, "test")
+	c.Assert(os.Mkdir(dir, 0755), IsNil)
+
+	symlink := filepath.Join(base, "symlink")
+	c.Assert(os.Symlink(dir, symlink), IsNil)
+
+	fd, err := s.sec.OpenPath(symlink)
+	c.Check(fd, Equals, -1)
+	c.Check(err, ErrorMatches, "not a directory")
+}
+
+func (s *realSystemSuite) TestSecureOpenPathSymlinkedParent(c *C) {
+	base := c.MkDir()
+	dir := filepath.Join(base, "dir1")
+	symlink := filepath.Join(base, "symlink")
+
+	path := filepath.Join(dir, "dir2")
+	symlinkedPath := filepath.Join(symlink, "dir2")
+
+	c.Assert(os.Mkdir(dir, 0755), IsNil)
+	c.Assert(os.Symlink(dir, symlink), IsNil)
+	c.Assert(os.Mkdir(path, 0755), IsNil)
+
+	fd, err := s.sec.OpenPath(symlinkedPath)
+	c.Check(fd, Equals, -1)
+	c.Check(err, ErrorMatches, "not a directory")
 }

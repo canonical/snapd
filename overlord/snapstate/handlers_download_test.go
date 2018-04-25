@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 type downloadSnapSuite struct {
@@ -58,7 +59,7 @@ func (s *downloadSnapSuite) SetUpTest(c *C) {
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
-	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	s.reset = snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
 }
 
 func (s *downloadSnapSuite) TearDownTest(c *C) {
@@ -90,8 +91,15 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 	// the compat code called the store "Snap" endpoint
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op:    "storesvc-snap",
-			name:  "foo",
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:  "install",
+				Name:    "foo",
+				Channel: "some-channel",
+			},
 			revno: snap.R(11),
 		},
 		{
