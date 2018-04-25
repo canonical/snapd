@@ -251,6 +251,9 @@ apps:
   snapd-control:
     command: bin/run
     plugs: [ snapd-control ]
+  service-watchdog:
+    command: bin/run
+    plugs: [ service-watchdog ]
   ssh-keys:
     command: bin/run
     plugs: [ ssh-keys ]
