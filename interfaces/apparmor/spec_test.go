@@ -179,104 +179,187 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 			"# Layout path: /var/tmp\n/var/tmp{,/**} mrwklix,",
 		},
 	})
+	updateNS := s.spec.UpdateNS()
 
 	profile0 := `  # Layout /etc/foo.conf: bind-file $SNAP/foo.conf
   mount options=(bind, rw) /snap/vanguard/42/foo.conf -> /etc/foo.conf,
   umount /etc/foo.conf,
+
   # Writable mimic /etc
   mount options=(rbind, rw) /etc/ -> /tmp/.snap/etc/,
   mount fstype=tmpfs options=(rw) tmpfs -> /etc/,
-  mount options=(rbind, rw) /tmp/.snap/etc/** -> /etc/**,
-  mount options=(bind, rw) /tmp/.snap/etc/* -> /etc/*,
+  mount options=(rbind, rw) /tmp/.snap/etc/{*,*/,**} -> /etc/{*,*/,**},
+  mount options=(bind,  rw) /tmp/.snap/etc/{*,*/,*}  -> /etc/{*,*/,*},
   umount /tmp/.snap/etc/,
-  umount /etc{,/**},
-  /etc/** rw,
-  /tmp/.snap/etc/** rw,
-  /tmp/.snap/etc/ rw,
-  /tmp/.snap/ rw,
+  umount /etc/{*,*/,**},
+  /{,etc/} r,
+  /etc/{*,*/,**} rw,
+  /{,tmp/} r,
+  /tmp/{*,*/,.snap/{*,*/,etc/{*,*/,**}}} rw,
+
   # Writable mimic /snap/vanguard/42
   mount options=(rbind, rw) /snap/vanguard/42/ -> /tmp/.snap/snap/vanguard/42/,
   mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/,
-  mount options=(rbind, rw) /tmp/.snap/snap/vanguard/42/** -> /snap/vanguard/42/**,
-  mount options=(bind, rw) /tmp/.snap/snap/vanguard/42/* -> /snap/vanguard/42/*,
+  mount options=(rbind, rw) /tmp/.snap/snap/vanguard/42/{*,*/,**} -> /snap/vanguard/42/{*,*/,**},
+  mount options=(bind,  rw) /tmp/.snap/snap/vanguard/42/{*,*/,*}  -> /snap/vanguard/42/{*,*/,*},
   umount /tmp/.snap/snap/vanguard/42/,
-  umount /snap/vanguard/42{,/**},
-  /snap/vanguard/42/** rw,
-  /snap/vanguard/42/ rw,
-  /snap/vanguard/ rw,
-  /tmp/.snap/snap/vanguard/42/** rw,
-  /tmp/.snap/snap/vanguard/42/ rw,
-  /tmp/.snap/snap/vanguard/ rw,
-  /tmp/.snap/snap/ rw,
-  /tmp/.snap/ rw,
+  umount /snap/vanguard/42/{*,*/,**},
+  /{,snap/{,vanguard/{,42/}}} r,
+  /snap/vanguard/42/{*,*/,**} rw,
+  /{,tmp/{,.snap/{,snap/}}} r,
+  /tmp/.snap/snap/{*,*/,vanguard/{*,*/,42/{*,*/,**}}} rw,
 `
+	c.Assert(updateNS[0], Equals, profile0)
+
 	profile1 := `  # Layout /usr/foo: bind $SNAP/usr/foo
   mount options=(rbind, rw) /snap/vanguard/42/usr/foo/ -> /usr/foo/,
   umount /usr/foo/,
+
   # Writable mimic /usr
   mount options=(rbind, rw) /usr/ -> /tmp/.snap/usr/,
   mount fstype=tmpfs options=(rw) tmpfs -> /usr/,
-  mount options=(rbind, rw) /tmp/.snap/usr/** -> /usr/**,
-  mount options=(bind, rw) /tmp/.snap/usr/* -> /usr/*,
+  mount options=(rbind, rw) /tmp/.snap/usr/{*,*/,**} -> /usr/{*,*/,**},
+  mount options=(bind,  rw) /tmp/.snap/usr/{*,*/,*}  -> /usr/{*,*/,*},
   umount /tmp/.snap/usr/,
-  umount /usr{,/**},
-  /usr/** rw,
-  /tmp/.snap/usr/** rw,
-  /tmp/.snap/usr/ rw,
-  /tmp/.snap/ rw,
+  umount /usr/{*,*/,**},
+  /{,usr/} r,
+  /usr/{*,*/,**} rw,
+  /{,tmp/} r,
+  /tmp/{*,*/,.snap/{*,*/,usr/{*,*/,**}}} rw,
+
   # Writable mimic /snap/vanguard/42/usr
-  mount options=(rbind, rw) /snap/vanguard/42/usr/ -> /tmp/.snap/snap/vanguard/42/usr/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/usr/,
-  mount options=(rbind, rw) /tmp/.snap/snap/vanguard/42/usr/** -> /snap/vanguard/42/usr/**,
-  mount options=(bind, rw) /tmp/.snap/snap/vanguard/42/usr/* -> /snap/vanguard/42/usr/*,
-  umount /tmp/.snap/snap/vanguard/42/usr/,
-  umount /snap/vanguard/42/usr{,/**},
-  /snap/vanguard/42/usr/** rw,
-  /snap/vanguard/42/usr/ rw,
-  /snap/vanguard/42/ rw,
-  /snap/vanguard/ rw,
-  /tmp/.snap/snap/vanguard/42/usr/** rw,
-  /tmp/.snap/snap/vanguard/42/usr/ rw,
-  /tmp/.snap/snap/vanguard/42/ rw,
-  /tmp/.snap/snap/vanguard/ rw,
-  /tmp/.snap/snap/ rw,
-  /tmp/.snap/ rw,
+  mount options=(rbind, rw) /snap/vanguard/42/{*,*/,usr/} -> /tmp/.snap/snap/vanguard/42/{*,*/,usr/},
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/vanguard/42/{*,*/,usr/},
+  mount options=(rbind, rw) /tmp/.snap/snap/vanguard/42/{*,*/,usr/{*,*/,**}} -> /snap/vanguard/42/{*,*/,usr/{*,*/,**}},
+  mount options=(bind,  rw) /tmp/.snap/snap/vanguard/42/{*,*/,usr/{*,*/,*}}  -> /snap/vanguard/42/{*,*/,usr/{*,*/,*}},
+  umount /tmp/.snap/snap/vanguard/42/{*,*/,usr/},
+  umount /snap/vanguard/42/{*,*/,usr/{*,*/,**}},
+  /{,snap/{,vanguard/{,42/}}} r,
+  /snap/vanguard/42/{*,*/,usr/{*,*/,**}} rw,
+  /{,tmp/{,.snap/{,snap/}}} r,
+  /tmp/.snap/snap/{*,*/,vanguard/{*,*/,42/{*,*/,usr/{*,*/,**}}}} rw,
 `
+	c.Assert(updateNS[1], Equals, profile1)
+
 	profile2 := `  # Layout /var/cache/mylink: symlink $SNAP_DATA/link/target
   /var/cache/mylink rw,
+
   # Writable mimic /var/cache
-  mount options=(rbind, rw) /var/cache/ -> /tmp/.snap/var/cache/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /var/cache/,
-  mount options=(rbind, rw) /tmp/.snap/var/cache/** -> /var/cache/**,
-  mount options=(bind, rw) /tmp/.snap/var/cache/* -> /var/cache/*,
-  umount /tmp/.snap/var/cache/,
-  umount /var/cache{,/**},
-  /var/cache/** rw,
-  /var/cache/ rw,
-  /tmp/.snap/var/cache/** rw,
-  /tmp/.snap/var/cache/ rw,
-  /tmp/.snap/var/ rw,
-  /tmp/.snap/ rw,
+  mount options=(rbind, rw) /var/{*,*/,cache/} -> /tmp/.snap/var/{*,*/,cache/},
+  mount fstype=tmpfs options=(rw) tmpfs -> /var/{*,*/,cache/},
+  mount options=(rbind, rw) /tmp/.snap/var/{*,*/,cache/{*,*/,**}} -> /var/{*,*/,cache/{*,*/,**}},
+  mount options=(bind,  rw) /tmp/.snap/var/{*,*/,cache/{*,*/,*}}  -> /var/{*,*/,cache/{*,*/,*}},
+  umount /tmp/.snap/var/{*,*/,cache/},
+  umount /var/{*,*/,cache/{*,*/,**}},
+  /{,var/} r,
+  /var/{*,*/,cache/{*,*/,**}} rw,
+  /{,tmp/} r,
+  /tmp/{*,*/,.snap/{*,*/,var/{*,*/,cache/{*,*/,**}}}} rw,
 `
+	c.Assert(updateNS[2], Equals, profile2)
+
 	profile3 := `  # Layout /var/tmp: type tmpfs, mode: 01777
   mount fstype=tmpfs tmpfs -> /var/tmp/,
   umount /var/tmp/,
+
   # Writable mimic /var
   mount options=(rbind, rw) /var/ -> /tmp/.snap/var/,
   mount fstype=tmpfs options=(rw) tmpfs -> /var/,
-  mount options=(rbind, rw) /tmp/.snap/var/** -> /var/**,
-  mount options=(bind, rw) /tmp/.snap/var/* -> /var/*,
+  mount options=(rbind, rw) /tmp/.snap/var/{*,*/,**} -> /var/{*,*/,**},
+  mount options=(bind,  rw) /tmp/.snap/var/{*,*/,*}  -> /var/{*,*/,*},
   umount /tmp/.snap/var/,
-  umount /var{,/**},
-  /var/** rw,
-  /tmp/.snap/var/** rw,
-  /tmp/.snap/var/ rw,
-  /tmp/.snap/ rw,
+  umount /var/{*,*/,**},
+  /{,var/} r,
+  /var/{*,*/,**} rw,
+  /{,tmp/} r,
+  /tmp/{*,*/,.snap/{*,*/,var/{*,*/,**}}} rw,
+`
+	c.Assert(updateNS[3], Equals, profile3)
+	c.Assert(updateNS, DeepEquals, []string{profile0, profile1, profile2, profile3})
+}
+
+func (s *specSuite) TestChopTree(c *C) {
+	for _, tc := range []struct {
+		p    string
+		d    int
+		l, r string
+	}{
+		// for directories
+		{p: "/foo/bar/froz/", d: 0, l: "/", r: "/{*,*/,foo/{*,*/,bar/{*,*/,froz/}}}"},
+		{p: "/foo/bar/froz/", d: 1, l: "/{,foo/}", r: "/foo/{*,*/,bar/{*,*/,froz/}}"},
+		{p: "/foo/bar/froz/", d: 2, l: "/{,foo/{,bar/}}", r: "/foo/bar/{*,*/,froz/}"},
+		{p: "/foo/bar/froz/", d: 3, l: "/{,foo/{,bar/{,froz/}}}", r: "/foo/bar/froz/"},
+		{p: "/foo/bar/froz/", d: 4, l: "/{,foo/{,bar/{,froz/}}}", r: "/foo/bar/froz/"},
+
+		// for files
+		{p: "/foo/bar/froz", d: 0, l: "/", r: "/{*,*/,foo/{*,*/,bar/{*,*/,froz}}}"},
+		{p: "/foo/bar/froz", d: 1, l: "/{,foo/}", r: "/foo/{*,*/,bar/{*,*/,froz}}"},
+		{p: "/foo/bar/froz", d: 2, l: "/{,foo/{,bar/}}", r: "/foo/bar/{*,*/,froz}"},
+		{p: "/foo/bar/froz", d: 3, l: "/{,foo/{,bar/{,froz}}}", r: "/foo/bar/froz"},
+		{p: "/foo/bar/froz", d: 4, l: "/{,foo/{,bar/{,froz}}}", r: "/foo/bar/froz"},
+	} {
+		l, r := apparmor.ChopTree(tc.p, tc.d)
+		comment := Commentf("test case: %#v", tc)
+		c.Assert(l, Equals, tc.l, comment)
+		c.Assert(r, Equals, tc.r, comment)
+	}
+}
+
+const snapWithTrickyLayout = `
+name: tricky
+version: 0
+apps:
+  tricky:
+    command: tricky
+layout:
+  /usr/lib/tcltk/x86_64-linux-gnu/tk8.5:
+    bind: $SNAP/usr/lib/tcltk/x86_64-linux-gnu/tk8.5
+`
+
+func (s *specSuite) TestApparmorSnippetsFromTrickyLayout(c *C) {
+	snapInfo := snaptest.MockInfo(c, snapWithTrickyLayout, &snap.SideInfo{Revision: snap.R(42)})
+	restore := apparmor.SetSpecScope(s.spec, []string{"snap.tricky.ticky"})
+	defer restore()
+
+	s.spec.AddSnapLayout(snapInfo)
+	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
+		"snap.tricky.tricky": {
+			"# Layout path: /usr/lib/tcltk/x86_64-linux-gnu/tk8.5\n/usr/lib/tcltk/x86_64-linux-gnu/tk8.5{,/**} mrwklix,",
+		},
+	})
+
+	// NOTE: This apparmor profile is wrong in the sense that in practice
+	// /usr/lib/tcltk doesn't exist and the snap really needs rights to create
+	// a mimic for /usr/lib
+	profile0 := `  # Layout /usr/lib/tcltk/x86_64-linux-gnu/tk8.5: bind $SNAP/usr/lib/tcltk/x86_64-linux-gnu/tk8.5
+  mount options=(rbind, rw) /snap/tricky/42/usr/lib/tcltk/x86_64-linux-gnu/tk8.5/ -> /usr/lib/tcltk/x86_64-linux-gnu/tk8.5/,
+  umount /usr/lib/tcltk/x86_64-linux-gnu/tk8.5/,
+
+  # Writable mimic /usr/lib/tcltk/x86_64-linux-gnu
+  mount options=(rbind, rw) /usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}} -> /tmp/.snap/usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}},
+  mount fstype=tmpfs options=(rw) tmpfs -> /usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}},
+  mount options=(rbind, rw) /tmp/.snap/usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}} -> /usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}},
+  mount options=(bind,  rw) /tmp/.snap/usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,*}}}}  -> /usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,*}}}},
+  umount /tmp/.snap/usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}},
+  umount /usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}},
+  /{,usr/} r,
+  /usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}} rw,
+  /{,tmp/} r,
+  /tmp/{*,*/,.snap/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}}}} rw,
+
+  # Writable mimic /snap/tricky/42/usr/lib/tcltk/x86_64-linux-gnu
+  mount options=(rbind, rw) /snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}}} -> /tmp/.snap/snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}}},
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}}},
+  mount options=(rbind, rw) /tmp/.snap/snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}}} -> /snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}}},
+  mount options=(bind,  rw) /tmp/.snap/snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,*}}}}}  -> /snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,*}}}}},
+  umount /tmp/.snap/snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/}}}},
+  umount /snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}}},
+  /{,snap/{,tricky/{,42/}}} r,
+  /snap/tricky/42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}}} rw,
+  /{,tmp/{,.snap/{,snap/}}} r,
+  /tmp/.snap/snap/{*,*/,tricky/{*,*/,42/{*,*/,usr/{*,*/,lib/{*,*/,tcltk/{*,*/,x86_64-linux-gnu/{*,*/,**}}}}}}} rw,
 `
 	updateNS := s.spec.UpdateNS()
 	c.Assert(updateNS[0], Equals, profile0)
-	c.Assert(updateNS[1], Equals, profile1)
-	c.Assert(updateNS[2], Equals, profile2)
-	c.Assert(updateNS[3], Equals, profile3)
-	c.Assert(updateNS, DeepEquals, []string{profile0, profile1, profile2, profile3})
+	c.Assert(updateNS, DeepEquals, []string{profile0})
 }

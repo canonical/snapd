@@ -610,6 +610,7 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   /etc/ r,
   /snap/ r,
   /tmp/ r,
+  /tmp/.snap/ w,
   /usr/ r,
   /var/ r,
   /var/snap/ r,

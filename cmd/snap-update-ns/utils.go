@@ -51,6 +51,7 @@ var (
 	sysUnmount    = syscall.Unmount
 	sysFchown     = sys.Fchown
 	sysFstat      = syscall.Fstat
+	sysLstat      = syscall.Lstat
 	sysSymlinkat  = osutil.Symlinkat
 	sysReadlinkat = osutil.Readlinkat
 	sysFchdir     = syscall.Fchdir
@@ -150,6 +151,7 @@ func (sec *Secure) MkPrefix(segments []string, perm os.FileMode, uid sys.UserID,
 		for i := range segments[:len(segments)-1] {
 			fd, err = sec.MkDir(fd, segments, i, perm, uid, gid)
 			if err != nil {
+				logger.Debugf("secure-mk-prefix %q %v %d %d -> error %s", segments, perm, uid, gid, err)
 				return -1, err
 			}
 			// Keep the final FD open (caller needs to close it).
@@ -481,11 +483,24 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 			// umount2(2) system call.
 			Name: dir, Dir: safeKeepingDir, Options: []string{"rbind"}},
 	})
+
+	var st syscall.Stat_t
+	if err := sysLstat(dir, &st); err != nil {
+		return nil, err
+	}
+
 	// Mount tmpfs over the original directory, hiding its contents.
 	changes = append(changes, &Change{
 		Action: Mount, Entry: osutil.MountEntry{
 			Name: "tmpfs", Dir: dir, Type: "tmpfs",
-			Options: []string{"x-snapd.synthetic", fmt.Sprintf("x-snapd.needed-by=%s", neededBy)},
+			Options: []string{
+				osutil.XSnapdSynthetic(),
+				osutil.XSnapdNeededBy(neededBy),
+				// Mimic the mode, owner and group of the original directory.
+				osutil.XSnapdMode(st.Mode & 0777),
+				osutil.XSnapdUser(st.Uid),
+				osutil.XSnapdGroup(st.Gid),
+			},
 		},
 	})
 	// Iterate over the items in the original directory (nothing is mounted _yet_).
@@ -506,10 +521,10 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 		case m.IsDir():
 			ch.Entry.Options = []string{"rbind"}
 		case m.IsRegular():
-			ch.Entry.Options = []string{"bind", "x-snapd.kind=file"}
+			ch.Entry.Options = []string{"bind", osutil.XSnapdKindFile()}
 		case m&os.ModeSymlink != 0:
 			if target, err := osReadlink(filepath.Join(dir, fi.Name())); err == nil {
-				ch.Entry.Options = []string{"x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", target)}
+				ch.Entry.Options = []string{osutil.XSnapdKindSymlink(), osutil.XSnapdSymlink(target)}
 			} else {
 				continue
 			}
@@ -517,13 +532,13 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 			logger.Noticef("skipping unsupported file %s", fi)
 			continue
 		}
-		ch.Entry.Options = append(ch.Entry.Options, "x-snapd.synthetic")
-		ch.Entry.Options = append(ch.Entry.Options, fmt.Sprintf("x-snapd.needed-by=%s", neededBy))
+		ch.Entry.Options = append(ch.Entry.Options, osutil.XSnapdSynthetic())
+		ch.Entry.Options = append(ch.Entry.Options, osutil.XSnapdNeededBy(neededBy))
 		changes = append(changes, ch)
 	}
 	// Finally unbind the safe-keeping directory as we don't need it anymore.
 	changes = append(changes, &Change{
-		Action: Unmount, Entry: osutil.MountEntry{Name: "none", Dir: safeKeepingDir, Options: []string{"x-snapd.detach"}},
+		Action: Unmount, Entry: osutil.MountEntry{Name: "none", Dir: safeKeepingDir, Options: []string{osutil.XSnapdDetach()}},
 	})
 	return changes, nil
 }
@@ -580,7 +595,7 @@ func execWritableMimic(plan []*Change, sec *Secure) ([]*Change, error) {
 				// for how to undo" so we need to flip the actions.
 				recoveryUndoChange.Action = Unmount
 				if recoveryUndoChange.Entry.OptBool("rbind") {
-					recoveryUndoChange.Entry.Options = append(recoveryUndoChange.Entry.Options, "x-snapd.detach")
+					recoveryUndoChange.Entry.Options = append(recoveryUndoChange.Entry.Options, osutil.XSnapdDetach())
 				}
 				if _, err2 := changePerform(recoveryUndoChange, sec); err2 != nil {
 					// Drat, we failed when trying to recover from an error.
@@ -596,7 +611,7 @@ func execWritableMimic(plan []*Change, sec *Secure) ([]*Change, error) {
 			// change is the safe-keeping unmount.
 			continue
 		}
-		if kind, _ := change.Entry.OptStr("x-snapd.kind"); kind == "symlink" {
+		if change.Entry.XSnapdKind() == "symlink" {
 			// Don't represent symlinks in the undo plan. They are removed when
 			// the tmpfs is unmounted.
 			continue

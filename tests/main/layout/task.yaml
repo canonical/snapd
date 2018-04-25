@@ -35,6 +35,8 @@ execute: |
         test-snapd-layout.sh -c "test -d /var/lib/demo"
         test-snapd-layout.sh -c "test -d /var/cache/demo"
         test-snapd-layout.sh -c "test -d /opt/demo"
+        test-snapd-layout.sh -c "test -d /var/very/weird/place"
+        test-snapd-layout.sh -c "test -d /bin/very/weird/place"
 
         echo "layout locations pointing to SNAP_DATA and SNAP_COMMON are writable"
         echo "and the writes go to the right place in the backing store"
@@ -59,4 +61,12 @@ execute: |
 
         test-snapd-layout.sh -c "test -r /usr/share/demo/file"
         test-snapd-layout.sh -c "test -r /opt/demo/file"
+
+        echo "layout locations in dynamically created SNAP_DATA directories are writable"
+        test-snapd-layout.sh -c 'test -w $SNAP_DATA/var/very/weird/place'
+        test-snapd-layout.sh -c "test -w /var/very/weird/place"
+
+        echo "layout locations in dynamically created SNAP directories are writable"
+        test-snapd-layout.sh -c 'test -w $SNAP/bin/very/weird/place'
+        test-snapd-layout.sh -c 'test -w /bin/very/weird/place'
     done

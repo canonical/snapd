@@ -59,6 +59,7 @@ func (c Change) String() string {
 var changePerform func(*Change, *Secure) ([]*Change, error)
 
 func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change, error) {
+	logger.Debugf("create path %q, poke holes %v", path, pokeHoles)
 	var err error
 	var changes []*Change
 
@@ -94,6 +95,7 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
 		// If the writing failed because the underlying file-system is read-only
 		// we can construct a writable mimic to fix that.
+		logger.Debugf("creating writable mimic over %q", err2.Path)
 		changes, err = createWritableMimic(err2.Path, path, sec)
 		if err != nil {
 			err = fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
@@ -103,6 +105,7 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 			_, err = c.createPath(path, false, sec)
 		}
 	} else if err != nil {
+		logger.Debugf("failed to create path, poke holes is %v", pokeHoles)
 		err = fmt.Errorf("cannot create path %q: %s", path, err)
 	}
 	return changes, err
@@ -178,7 +181,16 @@ func (c *Change) ensureSource(sec *Secure) error {
 			}
 		}
 	} else if os.IsNotExist(err) {
-		_, err = c.createPath(path, false, sec)
+		// NOTE: This createPath is _not_ using pokeHoles so it will _not_
+		// make read-only places writable. This is done because the changes
+		// made this way would be visible only in this current mount namespace
+		// and would not be generally visible from other snaps. In other words
+		// it is useless for content sharing.
+		//
+		// The only exception is if this is a layout change, layout changes
+		// are designed to be "consumed" internally by the snap.
+		pokeHoles := c.Entry.XSnapdOrigin() == "layout"
+		_, err = c.createPath(path, pokeHoles, sec)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)

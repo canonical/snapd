@@ -312,36 +312,30 @@ slots:
 	profile0 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
   mount options=(bind, ro) /snap/producer/5/export/ -> /snap/consumer/7/import/,
   umount /snap/consumer/7/import/,
+
   # Writable mimic /snap/producer/5
-  mount options=(rbind, rw) /snap/producer/5/ -> /tmp/.snap/snap/producer/5/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/5/,
-  mount options=(rbind, rw) /tmp/.snap/snap/producer/5/** -> /snap/producer/5/**,
-  mount options=(bind, rw) /tmp/.snap/snap/producer/5/* -> /snap/producer/5/*,
-  umount /tmp/.snap/snap/producer/5/,
-  umount /snap/producer/5{,/**},
-  /snap/producer/5/** rw,
-  /snap/producer/5/ rw,
-  /snap/producer/ rw,
-  /tmp/.snap/snap/producer/5/** rw,
-  /tmp/.snap/snap/producer/5/ rw,
-  /tmp/.snap/snap/producer/ rw,
-  /tmp/.snap/snap/ rw,
-  /tmp/.snap/ rw,
+  mount options=(rbind, rw) /snap/{*,*/,producer/{*,*/,5/}} -> /tmp/.snap/snap/{*,*/,producer/{*,*/,5/}},
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/{*,*/,producer/{*,*/,5/}},
+  mount options=(rbind, rw) /tmp/.snap/snap/{*,*/,producer/{*,*/,5/{*,*/,**}}} -> /snap/{*,*/,producer/{*,*/,5/{*,*/,**}}},
+  mount options=(bind,  rw) /tmp/.snap/snap/{*,*/,producer/{*,*/,5/{*,*/,*}}}  -> /snap/{*,*/,producer/{*,*/,5/{*,*/,*}}},
+  umount /tmp/.snap/snap/{*,*/,producer/{*,*/,5/}},
+  umount /snap/{*,*/,producer/{*,*/,5/{*,*/,**}}},
+  /{,snap/} r,
+  /snap/{*,*/,producer/{*,*/,5/{*,*/,**}}} rw,
+  /{,tmp/} r,
+  /tmp/{*,*/,.snap/{*,*/,snap/{*,*/,producer/{*,*/,5/{*,*/,**}}}}} rw,
+
   # Writable mimic /snap/consumer/7
-  mount options=(rbind, rw) /snap/consumer/7/ -> /tmp/.snap/snap/consumer/7/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/consumer/7/,
-  mount options=(rbind, rw) /tmp/.snap/snap/consumer/7/** -> /snap/consumer/7/**,
-  mount options=(bind, rw) /tmp/.snap/snap/consumer/7/* -> /snap/consumer/7/*,
-  umount /tmp/.snap/snap/consumer/7/,
-  umount /snap/consumer/7{,/**},
-  /snap/consumer/7/** rw,
-  /snap/consumer/7/ rw,
-  /snap/consumer/ rw,
-  /tmp/.snap/snap/consumer/7/** rw,
-  /tmp/.snap/snap/consumer/7/ rw,
-  /tmp/.snap/snap/consumer/ rw,
-  /tmp/.snap/snap/ rw,
-  /tmp/.snap/ rw,
+  mount options=(rbind, rw) /snap/{*,*/,consumer/{*,*/,7/}} -> /tmp/.snap/snap/{*,*/,consumer/{*,*/,7/}},
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/{*,*/,consumer/{*,*/,7/}},
+  mount options=(rbind, rw) /tmp/.snap/snap/{*,*/,consumer/{*,*/,7/{*,*/,**}}} -> /snap/{*,*/,consumer/{*,*/,7/{*,*/,**}}},
+  mount options=(bind,  rw) /tmp/.snap/snap/{*,*/,consumer/{*,*/,7/{*,*/,*}}}  -> /snap/{*,*/,consumer/{*,*/,7/{*,*/,*}}},
+  umount /tmp/.snap/snap/{*,*/,consumer/{*,*/,7/}},
+  umount /snap/{*,*/,consumer/{*,*/,7/{*,*/,**}}},
+  /{,snap/} r,
+  /snap/{*,*/,consumer/{*,*/,7/{*,*/,**}}} rw,
+  /{,tmp/} r,
+  /tmp/{*,*/,.snap/{*,*/,snap/{*,*/,consumer/{*,*/,7/{*,*/,**}}}}} rw,
 `
 	c.Assert(updateNS[0], Equals, profile0)
 	c.Assert(updateNS, DeepEquals, []string{profile0})
@@ -397,10 +391,12 @@ slots:
 	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
   mount options=(bind, rw) /var/snap/producer/5/export/ -> /var/snap/consumer/7/import/,
   umount /var/snap/consumer/7/import/,
+
   # Writable directory /var/snap/producer/5/export
   /var/snap/producer/5/export/ rw,
   /var/snap/producer/5/ rw,
   /var/snap/producer/ rw,
+
   # Writable directory /var/snap/consumer/7/import
   /var/snap/consumer/7/import/ rw,
   /var/snap/consumer/7/ rw,
@@ -460,10 +456,12 @@ slots:
 	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
   mount options=(bind, rw) /var/snap/producer/common/export/ -> /var/snap/consumer/common/import/,
   umount /var/snap/consumer/common/import/,
+
   # Writable directory /var/snap/producer/common/export
   /var/snap/producer/common/export/ rw,
   /var/snap/producer/common/ rw,
   /var/snap/producer/ rw,
+
   # Writable directory /var/snap/consumer/common/import
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
@@ -558,83 +556,93 @@ slots:
 	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
   mount options=(bind, rw) /var/snap/producer/common/write-common/ -> /var/snap/consumer/common/import/write-common/,
   umount /var/snap/consumer/common/import/write-common/,
+
   # Writable directory /var/snap/producer/common/write-common
   /var/snap/producer/common/write-common/ rw,
   /var/snap/producer/common/ rw,
   /var/snap/producer/ rw,
+
   # Writable directory /var/snap/consumer/common/import/write-common
   /var/snap/consumer/common/import/write-common/ rw,
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
 `
+	c.Assert(updateNS[0], Equals, profile0)
+
 	profile1 := `  # Read-write content sharing consumer:content -> producer:content (w#1)
   mount options=(bind, rw) /var/snap/producer/2/write-data/ -> /var/snap/consumer/common/import/write-data/,
   umount /var/snap/consumer/common/import/write-data/,
+
   # Writable directory /var/snap/producer/2/write-data
   /var/snap/producer/2/write-data/ rw,
   /var/snap/producer/2/ rw,
   /var/snap/producer/ rw,
+
   # Writable directory /var/snap/consumer/common/import/write-data
   /var/snap/consumer/common/import/write-data/ rw,
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
 `
+	c.Assert(updateNS[1], Equals, profile1)
+
 	profile2 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
   mount options=(bind, ro) /var/snap/producer/common/read-common/ -> /var/snap/consumer/common/import/read-common/,
   umount /var/snap/consumer/common/import/read-common/,
+
   # Writable directory /var/snap/producer/common/read-common
   /var/snap/producer/common/read-common/ rw,
   /var/snap/producer/common/ rw,
   /var/snap/producer/ rw,
+
   # Writable directory /var/snap/consumer/common/import/read-common
   /var/snap/consumer/common/import/read-common/ rw,
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
 `
+	c.Assert(updateNS[2], Equals, profile2)
+
 	profile3 := `  # Read-only content sharing consumer:content -> producer:content (r#1)
   mount options=(bind, ro) /var/snap/producer/2/read-data/ -> /var/snap/consumer/common/import/read-data/,
   umount /var/snap/consumer/common/import/read-data/,
+
   # Writable directory /var/snap/producer/2/read-data
   /var/snap/producer/2/read-data/ rw,
   /var/snap/producer/2/ rw,
   /var/snap/producer/ rw,
+
   # Writable directory /var/snap/consumer/common/import/read-data
   /var/snap/consumer/common/import/read-data/ rw,
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
 `
+	c.Assert(updateNS[3], Equals, profile3)
+
 	profile4 := `  # Read-only content sharing consumer:content -> producer:content (r#2)
   mount options=(bind, ro) /snap/producer/2/read-snap/ -> /var/snap/consumer/common/import/read-snap/,
   umount /var/snap/consumer/common/import/read-snap/,
+
   # Writable mimic /snap/producer/2
-  mount options=(rbind, rw) /snap/producer/2/ -> /tmp/.snap/snap/producer/2/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/2/,
-  mount options=(rbind, rw) /tmp/.snap/snap/producer/2/** -> /snap/producer/2/**,
-  mount options=(bind, rw) /tmp/.snap/snap/producer/2/* -> /snap/producer/2/*,
-  umount /tmp/.snap/snap/producer/2/,
-  umount /snap/producer/2{,/**},
-  /snap/producer/2/** rw,
-  /snap/producer/2/ rw,
-  /snap/producer/ rw,
-  /tmp/.snap/snap/producer/2/** rw,
-  /tmp/.snap/snap/producer/2/ rw,
-  /tmp/.snap/snap/producer/ rw,
-  /tmp/.snap/snap/ rw,
-  /tmp/.snap/ rw,
+  mount options=(rbind, rw) /snap/{*,*/,producer/{*,*/,2/}} -> /tmp/.snap/snap/{*,*/,producer/{*,*/,2/}},
+  mount fstype=tmpfs options=(rw) tmpfs -> /snap/{*,*/,producer/{*,*/,2/}},
+  mount options=(rbind, rw) /tmp/.snap/snap/{*,*/,producer/{*,*/,2/{*,*/,**}}} -> /snap/{*,*/,producer/{*,*/,2/{*,*/,**}}},
+  mount options=(bind,  rw) /tmp/.snap/snap/{*,*/,producer/{*,*/,2/{*,*/,*}}}  -> /snap/{*,*/,producer/{*,*/,2/{*,*/,*}}},
+  umount /tmp/.snap/snap/{*,*/,producer/{*,*/,2/}},
+  umount /snap/{*,*/,producer/{*,*/,2/{*,*/,**}}},
+  /{,snap/} r,
+  /snap/{*,*/,producer/{*,*/,2/{*,*/,**}}} rw,
+  /{,tmp/} r,
+  /tmp/{*,*/,.snap/{*,*/,snap/{*,*/,producer/{*,*/,2/{*,*/,**}}}}} rw,
+
   # Writable directory /var/snap/consumer/common/import/read-snap
   /var/snap/consumer/common/import/read-snap/ rw,
   /var/snap/consumer/common/import/ rw,
   /var/snap/consumer/common/ rw,
   /var/snap/consumer/ rw,
 `
-	c.Assert(updateNS[0], Equals, profile0)
-	c.Assert(updateNS[1], Equals, profile1)
-	c.Assert(updateNS[2], Equals, profile2)
-	c.Assert(updateNS[3], Equals, profile3)
 	c.Assert(updateNS[4], Equals, profile4)
 	c.Assert(updateNS, DeepEquals, []string{profile0, profile1, profile2, profile3, profile4})
 }

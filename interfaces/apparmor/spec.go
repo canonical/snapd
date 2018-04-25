@@ -135,25 +135,25 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 			fmt.Fprintf(&buf, "  mount options=(rbind, rw) %s/ -> %s/,\n", bind, path)
 			fmt.Fprintf(&buf, "  umount %s/,\n", path)
 			// Allow constructing writable mimic in both bind-mount source and mount point.
-			WritableProfile(&buf, path)
-			WritableProfile(&buf, bind)
+			WritableProfile(&buf, path, 1) // This is at least /some-top-level-directory
+			WritableProfile(&buf, bind, 3) // This is at least /snap/$SNAP_NAME/$SNAP_REVISION
 		case l.BindFile != "":
 			bindFile := si.ExpandSnapVariables(l.BindFile)
 			// Allow bind mounting the layout element.
 			fmt.Fprintf(&buf, "  mount options=(bind, rw) %s -> %s,\n", bindFile, path)
 			fmt.Fprintf(&buf, "  umount %s,\n", path)
 			// Allow constructing writable mimic in both bind-mount source and mount point.
-			WritableFileProfile(&buf, path)
-			WritableFileProfile(&buf, bindFile)
+			WritableFileProfile(&buf, path, 1)     // This is at least /some-top-level-directory
+			WritableFileProfile(&buf, bindFile, 3) // This is at least /snap/$SNAP_NAME/$SNAP_REVISION
 		case l.Type == "tmpfs":
 			fmt.Fprintf(&buf, "  mount fstype=tmpfs tmpfs -> %s/,\n", path)
 			fmt.Fprintf(&buf, "  umount %s/,\n", path)
 			// Allow constructing writable mimic to mount point.
-			WritableProfile(&buf, path)
+			WritableProfile(&buf, path, 1) // This is at least /some-top-level-directory
 		case l.Symlink != "":
 			// Allow constructing writable mimic to symlink parent directory.
 			fmt.Fprintf(&buf, "  %s rw,\n", path)
-			WritableProfile(&buf, path)
+			WritableProfile(&buf, path, 1) // This is at least /some-top-level-directory
 		}
 		spec.AddUpdateNS(buf.String())
 	}
@@ -173,78 +173,173 @@ func isProbablyPresent(path string) bool {
 	return path == "/" || path == "/snap" || path == "/var" || path == "/var/snap" || path == "/tmp" || path == "/usr" || path == "/etc"
 }
 
+// chopTree takes a path and depth and returns two apparmor path expressions.
+//
+// The returned expressions are referred to as left and right.
+//
+// The left expression describes directories at depth up to assumedPrefixDepth
+// and can be used to grant read permission to them (by appending the string
+// "r, "). This corresponds to an assumption about those directories are
+// present in the system and are just traversed.
+//
+// The right expression describes the remaining directories and the leaf entry
+// (either file or directory) and is somewhat subtle. At each depth level the
+// expression describes all the files and directories at that level. Coupled
+// with the string "rw ," it can be used to create a rule that allows write
+// access to any file therein, but not deeper.
+//
+// For example, with path: "/foo/bar/froz" and depth 2 the result is:
+// "/{,foo/{,bar/}}" and "/foo/bar/{*,*/,froz}". Coupled with the
+// aforementioned constants this translates to the following apparmor rules:
+//
+//   /{,foo/{,bar/}} r,
+//   /foo/bar/{*,*/,froz} rw,
+//
+// Those rules allow the code to open (to traverse securely) /, then foo, then
+// bar and then create _either_ 1) any file in /foo/bar/ or 2) any directory in
+// /foo/bar/ or 3) the file froz in /foo/bar/.
+//
+// Those rules are useful for constructing the apparmor profile for a writable
+// mimic that needs to be present in a specific directory (e.g. in
+// /foo/bar/froz) assuming that part of that directory already exists (e.g.
+// /foo/) but may need to be created earlier (e.g. in /foo/bar/) because
+// /foo/bar/ is a read-only file system.
+func chopTree(path string, assumedPrefixDepth int) (string, string) {
+	var left, right bytes.Buffer
+	parts := strings.Split(path, "/")
+	isAbs := strings.HasPrefix(path, "/")
+	isDir := strings.HasSuffix(path, "/")
+
+	if isAbs {
+		fmt.Fprintf(&left, "/")
+		fmt.Fprintf(&right, "/")
+	}
+	cnt := 0
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+
+		if cnt < assumedPrefixDepth {
+			fmt.Fprintf(&left, "{,%s", part)
+			fmt.Fprintf(&right, "%s", part)
+			if isDir || i != len(parts)-1 {
+				fmt.Fprintf(&left, "/")
+				fmt.Fprintf(&right, "/")
+			}
+		} else {
+			fmt.Fprintf(&right, "{*,*/,%s", part)
+			if isDir || i != len(parts)-1 {
+				fmt.Fprintf(&right, "/")
+			}
+		}
+
+		cnt++
+	}
+	cnt = 0
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		if cnt < assumedPrefixDepth {
+			fmt.Fprintf(&left, "}")
+		} else {
+			fmt.Fprintf(&right, "}")
+		}
+		cnt++
+	}
+	return left.String(), right.String()
+}
+
+// writableMimicProfile writes an apparmor profile for a writable mimic at a given directory.
+//
+// The path is the place where we want to construct the mimic. The
+// assumedPrefixDepth is the number of directories that we assume are present
+// in the system and that we do not expect to need to create at runtime. Those
+// will get rules that allow path traversal but not path modification.
+//
+// The mimic profile for /foo/bar/froz with depth of 0 allows the mimic to be
+// created at /foo/bar/froz, /foo/bar or /foo. With depth of 1 only /foo/bar,
+// /foo/bar/froz are allowed, with depth 2 (and more) only /foo/bar/froz  is
+// allowed.
+//
+// The depth is mainly used as a hint, when we know the path is, for example
+// $SNAP/something, we can provide depth of 3 so that
+// /snap/$SNAP_NAME/$SNAP_REVISION/ can be assumed to exist.
+//
+// The actual profile grants access to construct a temporary directory
+// /tmp/.snap/$path, rbind $path there, mount a tmpfs over $path, re-create
+// (file-by-file) everything from /tmp/.snap/$path back to $path and finally
+// to unmount (detach) the /tmp/.snap/$path directory.
+//
+// The profile also contains permissions in case something goes wrong, to undo
+// the mounts we make.
+func writableMimicProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int) {
+	_, pathW := chopTree(path+"/", assumedPrefixDepth)
+	_, pathStarW := chopTree(path+"/*", assumedPrefixDepth)
+	pathStarStarR, pathStarStarW := chopTree(path+"/**", assumedPrefixDepth)
+
+	// NOTE: the base template contains permission: "/tmp/.snap/ rw,"
+	tmpSnappath := filepath.Join("/tmp/.snap/", path)
+
+	// NOTE: +2 is for /tmp/.snap/
+	_, tmp2W := chopTree(tmpSnappath+"/", assumedPrefixDepth+2)
+	_, tmp2StarW := chopTree(tmpSnappath+"/*", assumedPrefixDepth+2)
+	_, tmp2StarStarW := chopTree(tmpSnappath+"/**", assumedPrefixDepth+2)
+	tmp0StarStarR, tmp0StarStarW := chopTree(tmpSnappath+"/**", assumedPrefixDepth)
+
+	fmt.Fprintf(buf, "\n  # Writable mimic %s\n", path)
+	// Allow setting the read-only directory aside via a bind mount.
+	fmt.Fprintf(buf, "  mount options=(rbind, rw) %s -> %s,\n", pathW, tmp2W)
+	// Allow mounting tmpfs over the read-only directory.
+	fmt.Fprintf(buf, "  mount fstype=tmpfs options=(rw) tmpfs -> %s,\n", pathW)
+	// Allow bind mounting things to reconstruct the now-writable path directory.
+	fmt.Fprintf(buf, "  mount options=(rbind, rw) %s -> %s,\n", tmp2StarStarW, pathStarStarW)
+	fmt.Fprintf(buf, "  mount options=(bind,  rw) %s  -> %s,\n", tmp2StarW, pathStarW)
+	// Allow unmounting the temporary directory.
+	fmt.Fprintf(buf, "  umount %s,\n", tmp2W)
+	// Allow unmounting the destination directory as well as anything inside.
+	// This lets us perform the undo plan in case the writable mimic fails.
+	fmt.Fprintf(buf, "  umount %s,\n", pathStarStarW)
+	// Allow creating directories on demand.
+	fmt.Fprintf(buf, "  %s r,\n  %s rw,\n", pathStarStarR, pathStarStarW)
+	fmt.Fprintf(buf, "  %s r,\n  %s rw,\n", tmp0StarStarR, tmp0StarStarW)
+}
+
 // WritableFileProfile writes a profile for snap-update-ns for making given file writable.
-func WritableFileProfile(buf *bytes.Buffer, path string) {
+//
+// See documentation for writableMimicProfile for the description of assumedPrefixDepth.
+func WritableFileProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int) {
 	if path == "/" {
 		return
 	}
 	if isProbablyWritable(path) {
-		fmt.Fprintf(buf, "  # Writable file %s\n", path)
+		fmt.Fprintf(buf, "\n  # Writable file %s\n", path)
 		fmt.Fprintf(buf, "  %s rw,\n", path)
 		for p := parent(path); !isProbablyPresent(p); p = parent(p) {
 			fmt.Fprintf(buf, "  %s/ rw,\n", p)
 		}
 	} else {
 		parentPath := parent(path)
-		fmt.Fprintf(buf, "  # Writable mimic %s\n", parentPath)
-		// Allow setting the read-only directory aside via a bind mount.
-		fmt.Fprintf(buf, "  mount options=(rbind, rw) %s/ -> /tmp/.snap%s/,\n", parentPath, parentPath)
-		// Allow mounting tmpfs over the read-only directory.
-		fmt.Fprintf(buf, "  mount fstype=tmpfs options=(rw) tmpfs -> %s/,\n", parentPath)
-		// Allow bind mounting things to reconstruct the now-writable parent directory.
-		fmt.Fprintf(buf, "  mount options=(rbind, rw) /tmp/.snap%s/** -> %s/**,\n", parentPath, parentPath)
-		fmt.Fprintf(buf, "  mount options=(bind, rw) /tmp/.snap%s/* -> %s/*,\n", parentPath, parentPath)
-		// Allow unmounting the temporary directory.
-		fmt.Fprintf(buf, "  umount /tmp/.snap%s/,\n", parentPath)
-		// Allow unmounting the destination directory as well as anything inside.
-		// This lets us perform the undo plan in case the writable mimic fails.
-		fmt.Fprintf(buf, "  umount %s{,/**},\n", parentPath)
-		// Allow creating directories on demand.
-		fmt.Fprintf(buf, "  %s/** rw,\n", parentPath)
-		for p := parentPath; !isProbablyPresent(p); p = parent(p) {
-			fmt.Fprintf(buf, "  %s/ rw,\n", p)
-		}
-		fmt.Fprintf(buf, "  /tmp/.snap%s/** rw,\n", parentPath)
-		for p := filepath.Join("/tmp/.snap/", parentPath); !isProbablyPresent(p); p = parent(p) {
-			fmt.Fprintf(buf, "  %s/ rw,\n", p)
-		}
+		writableMimicProfile(buf, parentPath, assumedPrefixDepth)
 	}
 }
 
 // WritableProfile writes a profile for snap-update-ns for making given directory writable.
-func WritableProfile(buf *bytes.Buffer, path string) {
+//
+// See documentation for writableMimicProfile for the description of assumedPrefixDepth.
+func WritableProfile(buf *bytes.Buffer, path string, assumedPrefixDepth int) {
 	if path == "/" {
 		return
 	}
 	if isProbablyWritable(path) {
-		fmt.Fprintf(buf, "  # Writable directory %s\n", path)
+		fmt.Fprintf(buf, "\n  # Writable directory %s\n", path)
 		for p := path; !isProbablyPresent(p); p = parent(p) {
 			fmt.Fprintf(buf, "  %s/ rw,\n", p)
 		}
 	} else {
 		parentPath := parent(path)
-		fmt.Fprintf(buf, "  # Writable mimic %s\n", parentPath)
-		// Allow setting the read-only directory aside via a bind mount.
-		fmt.Fprintf(buf, "  mount options=(rbind, rw) %s/ -> /tmp/.snap%s/,\n", parentPath, parentPath)
-		// Allow mounting tmpfs over the read-only directory.
-		fmt.Fprintf(buf, "  mount fstype=tmpfs options=(rw) tmpfs -> %s/,\n", parentPath)
-		// Allow bind mounting things to reconstruct the now-writable parent directory.
-		fmt.Fprintf(buf, "  mount options=(rbind, rw) /tmp/.snap%s/** -> %s/**,\n", parentPath, parentPath)
-		fmt.Fprintf(buf, "  mount options=(bind, rw) /tmp/.snap%s/* -> %s/*,\n", parentPath, parentPath)
-		// Allow unmounting the temporary directory.
-		fmt.Fprintf(buf, "  umount /tmp/.snap%s/,\n", parentPath)
-		// Allow unmounting the destination directory as well as anything inside.
-		// This lets us perform the undo plan in case the writable mimic fails.
-		fmt.Fprintf(buf, "  umount %s{,/**},\n", parentPath)
-		// Allow creating directories on demand.
-		fmt.Fprintf(buf, "  %s/** rw,\n", parentPath)
-		for p := parentPath; !isProbablyPresent(p); p = parent(p) {
-			fmt.Fprintf(buf, "  %s/ rw,\n", p)
-		}
-		fmt.Fprintf(buf, "  /tmp/.snap%s/** rw,\n", parentPath)
-		for p := filepath.Join("/tmp/.snap/", parentPath); !isProbablyPresent(p); p = parent(p) {
-			fmt.Fprintf(buf, "  %s/ rw,\n", p)
-		}
+		writableMimicProfile(buf, parentPath, assumedPrefixDepth)
 	}
 }
 
