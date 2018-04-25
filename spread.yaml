@@ -56,7 +56,7 @@ backends:
             - ubuntu-16.04-64:
                 workers: 8
             - ubuntu-18.04-64:
-                image: ubuntu-os-cloud-devel/daily-ubuntu-1804-bionic-v20180421
+                image: ubuntu-os-cloud-devel/daily-ubuntu-1804-bionic-v20180424
                 workers: 6
 
             - ubuntu-core-16-64:
