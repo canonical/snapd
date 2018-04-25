@@ -372,12 +372,12 @@ func XSnapdOriginLayout() string {
 }
 
 // XSnapdUser returns the string "x-snapd.user=%d".
-func XSnapdUser(uid int) string {
+func XSnapdUser(uid uint32) string {
 	return fmt.Sprintf("x-snapd.user=%d", uid)
 }
 
 // XSnapdGroup returns the string "x-snapd.group=%d".
-func XSnapdGroup(gid int) string {
+func XSnapdGroup(gid uint32) string {
 	return fmt.Sprintf("x-snapd.group=%d", gid)
 }
 
