@@ -1,0 +1,8 @@
+#!/bin/sh
+
+set -e
+
+echo "start-refresh-mode-sigkill"
+
+echo "running a process"
+sleep 3133731337
