@@ -22,11 +22,12 @@ package overlord
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/logger"
+	"gopkg.in/tomb.v2"
 
 	"github.com/pilebones/go-udev/crawler"
 	"github.com/pilebones/go-udev/netlink"
-	"gopkg.in/tomb.v2"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 type UDevMon interface {
