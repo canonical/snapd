@@ -20,4 +20,9 @@ execute: |
 
     echo "A snap that refuses to stop is killed eventually"
     snap stop test-snapd-service.test-snapd-service-refuses-to-stop
-    systemctl status snap.test-snapd-service.test-snapd-service-refuses-to-stop|MATCH "Result: timeout"
+    # systemd in 14.04 does not provide the "Result: timeout" information
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+        systemctl status snap.test-snapd-service.test-snapd-service-refuses-to-stop|MATCH "code=killed"
+    else
+        systemctl status snap.test-snapd-service.test-snapd-service-refuses-to-stop|MATCH "Result: timeout"
+    fi
