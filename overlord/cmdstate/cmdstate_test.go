@@ -88,7 +88,7 @@ func (s *cmdSuite) TestExecTask(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	argvIn := []string{"/bin/echo", "hello"}
-	tasks := cmdstate.Exec(s.state, "this is the summary", argvIn, time.Second/10).Tasks()
+	tasks := cmdstate.ExecWithTimeout(s.state, "this is the summary", argvIn, time.Second/10).Tasks()
 	c.Assert(tasks, check.HasLen, 1)
 	task := tasks[0]
 	c.Check(task.Kind(), check.Equals, "exec-command")
@@ -103,7 +103,7 @@ func (s *cmdSuite) TestExecHappy(c *check.C) {
 	defer s.state.Unlock()
 
 	fn := filepath.Join(s.rootdir, "flag")
-	ts := cmdstate.Exec(s.state, "Doing the thing", []string{"touch", fn}, time.Second/10)
+	ts := cmdstate.ExecWithTimeout(s.state, "Doing the thing", []string{"touch", fn}, time.Second/10)
 	chg := s.state.NewChange("do-the-thing", "Doing the thing")
 	chg.AddAll(ts)
 
@@ -117,7 +117,7 @@ func (s *cmdSuite) TestExecSad(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts := cmdstate.Exec(s.state, "Doing the thing", []string{"sh", "-c", "echo hello; false"}, time.Second/10)
+	ts := cmdstate.ExecWithTimeout(s.state, "Doing the thing", []string{"sh", "-c", "echo hello; false"}, time.Second/10)
 	chg := s.state.NewChange("do-the-thing", "Doing the thing")
 	chg.AddAll(ts)
 
@@ -130,7 +130,7 @@ func (s *cmdSuite) TestExecAbort(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts := cmdstate.Exec(s.state, "Doing the thing", []string{"sleep", "1h"}, time.Second/10)
+	ts := cmdstate.ExecWithTimeout(s.state, "Doing the thing", []string{"sleep", "1h"}, time.Second/10)
 	chg := s.state.NewChange("do-the-thing", "Doing the thing")
 	chg.AddAll(ts)
 
@@ -152,7 +152,7 @@ func (s *cmdSuite) TestExecStop(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts := cmdstate.Exec(s.state, "Doing the thing", []string{"sleep", "1h"}, time.Second/10)
+	ts := cmdstate.ExecWithTimeout(s.state, "Doing the thing", []string{"sleep", "1h"}, time.Second/10)
 	chg := s.state.NewChange("do-the-thing", "Doing the thing")
 	chg.AddAll(ts)
 
@@ -170,7 +170,7 @@ func (s *cmdSuite) TestExecTimesOut(c *check.C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts := cmdstate.Exec(s.state, "Doing the thing", []string{"sleep", "1m"}, time.Second/10)
+	ts := cmdstate.ExecWithTimeout(s.state, "Doing the thing", []string{"sleep", "1m"}, time.Second/10)
 	chg := s.state.NewChange("do-the-thing", "Doing the thing")
 	chg.AddAll(ts)
 

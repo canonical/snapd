@@ -113,7 +113,7 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 		// Longer term we need to refactor this code and
 		// reuse the snapd/systemd and snapd/wrapper packages
 		// to control the timeout in a single place.
-		ts := cmdstate.Exec(st, desc, argv, 61*time.Second)
+		ts := cmdstate.ExecWithTimeout(st, desc, argv, 61*time.Second)
 		tts = append(tts, ts)
 	}
 

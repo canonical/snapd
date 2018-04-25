@@ -27,8 +27,9 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// Exec creates a task that will execute the given command.
-func Exec(st *state.State, summary string, argv []string, timeout time.Duration) *state.TaskSet {
+// ExecWithTimeout creates a task that will execute the given command
+// with the given timeout.
+func ExecWithTimeout(st *state.State, summary string, argv []string, timeout time.Duration) *state.TaskSet {
 	t := st.NewTask("exec-command", summary)
 	t.Set("argv", argv)
 	t.Set("timeout", timeout)
