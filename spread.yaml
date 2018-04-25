@@ -349,8 +349,8 @@ prepare: |
     fi
 
     # Take the MATCH and REBOOT functions from spread and allow our shell scripts to use them.
-    type MATCH | tail -n +2 > $TESTSLIB/spread-funcs.sh
-    type REBOOT | tail -n +2 >> $TESTSLIB/spread-funcs.sh
+    type MATCH | tail -n +2 > "$TESTSLIB"/spread-funcs.sh
+    type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
 
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
@@ -432,6 +432,7 @@ suites:
                 echo "skip upgrade tests while talking to the staging store"
                 exit 0
             fi
+            #shellcheck source=tests/lib/pkgdb.sh
             . $TESTSLIB/pkgdb.sh
             distro_purge_package snapd
             distro_purge_package snapd-xdg-open || true
@@ -456,14 +457,17 @@ suites:
             TRAVIS_TAG: "$(HOST: echo $TRAVIS_TAG)"
             COVERMODE: "$(HOST: echo $COVERMODE)"
         prepare: |
+            #shellcheck source=tests/lib/prepare.sh
             . $TESTSLIB/prepare.sh
             prepare_classic
         prepare-each: |
-            $TESTSLIB/reset.sh --reuse-core
+            "$TESTSLIB"/reset.sh --reuse-core
+            #shellcheck source=tests/lib/prepare.sh
             . $TESTSLIB/prepare.sh
             prepare_each_classic
         restore: |
-            $TESTSLIB/reset.sh --store
+            "$TESTSLIB"/reset.sh --store
+            #shellcheck source=tests/lib/pkgdb.sh
             . $TESTSLIB/pkgdb.sh
 
             distro_purge_package snapd
@@ -485,18 +489,22 @@ suites:
         # drop this blacklist.
         systems: [-fedora-*, -opensuse-*, -arch-*]
         prepare: |
-            . $TESTSLIB/prepare.sh
+            #shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
                 prepare_all_snap
             else
                 prepare_classic
             fi
         prepare-each: |
-            $TESTSLIB/reset.sh --reuse-core
+            #shellcheck source=tests/lib/reset.sh
+            "$TESTSLIB"/reset.sh --reuse-core
         restore: |
-            $TESTSLIB/reset.sh
+            #shellcheck source=tests/lib/reset.sh
+            "$TESTSLIB"/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                . $TESTSLIB/pkgdb.sh
+                #shellcheck source=tests/lib/pkgdb.sh
+                . "$TESTSLIB"/pkgdb.sh
                 distro_purge_package snapd
             fi
 
@@ -513,11 +521,13 @@ suites:
         kill-timeout: 2h
         manual: true
         prepare: |
+            #shellcheck source=tests/lib/pkgdb.sh
             . $TESTSLIB/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu genisoimage sshpass
             snap install --classic --beta ubuntu-image
         restore: |
+            #shellcheck source=tests/lib/pkgdb.sh
             . $TESTSLIB/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass
             snap remove ubuntu-image
