@@ -61,8 +61,6 @@ func validateExperimentalSettings(tr Conf) error {
 	default:
 		return fmt.Errorf("experimental.layouts can only be set to 'true' or 'false'")
 	}
-
-	return nil
 }
 
 func Run(tr Conf) error {
