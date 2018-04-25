@@ -23,9 +23,9 @@ debug: |
     cat "$SPREAD_PATH/cmd/autogarbage/test-suite.log" || true
 
 execute: |
-    cd "$SPREAD_PATH/cmd/"
+    cd "$SPREAD_PATH/cmd/" || exit 1
     build_dir="$SPREAD_PATH/cmd/autogarbage"
     BUILD_DIR=$build_dir CC=clang ./autogen.sh
-    cd $build_dir
+    cd "$build_dir" || exit 1
     # Build and run unit tests
     make check

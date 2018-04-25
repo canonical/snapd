@@ -11,6 +11,7 @@ systems: [-ubuntu-core-*, -fedora-*, -arch-*]
 
 prepare: |
     echo "Having installed the test snap in devmode"
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     install_local_devmode test-snapd-tools
     echo "Having created a canary file in /var/lib/lxd"
