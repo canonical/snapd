@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -130,7 +131,7 @@ type ConnectCandidate struct {
 	mergedSlotAttrs map[string]interface{}
 }
 
-func mergedAttributes(staticAttrs, dynamicAttrs map[string]interface{}) map[string]interface{} {
+func mergedAttributes(staticAttrs, dynamicAttrs map[string]interface{}, errorContext string) map[string]interface{} {
 	merged := make(map[string]interface{})
 	for k, v := range staticAttrs {
 		merged[k] = v
@@ -139,7 +140,8 @@ func mergedAttributes(staticAttrs, dynamicAttrs map[string]interface{}) map[stri
 		if _, ok := merged[k]; ok {
 			// Safeguard. This should never happen as it's prevented
 			// when attributes are populated at higher levels.
-			panic(fmt.Sprintf("internal error: attempted to overwrite static attribute %q", k))
+			logger.Noticef("internal error: attempted to overwrite static attribute %q (%s)", k, errorContext)
+			continue
 		}
 		merged[k] = v
 	}
@@ -149,7 +151,7 @@ func mergedAttributes(staticAttrs, dynamicAttrs map[string]interface{}) map[stri
 func (connc *ConnectCandidate) plugAttrs() map[string]interface{} {
 	// FIXME: change policy code to use Attrer interface, remove merging.
 	if connc.mergedPlugAttrs == nil {
-		connc.mergedPlugAttrs = mergedAttributes(connc.Plug.StaticAttrs(), connc.Plug.DynamicAttrs())
+		connc.mergedPlugAttrs = mergedAttributes(connc.Plug.StaticAttrs(), connc.Plug.DynamicAttrs(), fmt.Sprintf("plug %q of snap %q", connc.Plug.Name(), connc.Plug.Snap().Name()))
 	}
 	return connc.mergedPlugAttrs
 }
@@ -157,7 +159,7 @@ func (connc *ConnectCandidate) plugAttrs() map[string]interface{} {
 func (connc *ConnectCandidate) slotAttrs() map[string]interface{} {
 	// FIXME: change policy code to use Attrer interface, remove merging.
 	if connc.mergedSlotAttrs == nil {
-		connc.mergedSlotAttrs = mergedAttributes(connc.Slot.StaticAttrs(), connc.Slot.DynamicAttrs())
+		connc.mergedSlotAttrs = mergedAttributes(connc.Slot.StaticAttrs(), connc.Slot.DynamicAttrs(), fmt.Sprintf("slot %q of snap %q", connc.Slot.Name(), connc.Slot.Snap().Name()))
 	}
 	return connc.mergedSlotAttrs
 }

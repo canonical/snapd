@@ -96,14 +96,14 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 }
 
 func (m *InterfaceManager) addSnaps() error {
-	snaps, err := snapstate.ActiveInfos(m.state)
+	snaps, err := snapsWithSecurityProfiles(m.state)
 	if err != nil {
 		return err
 	}
 	for _, snapInfo := range snaps {
 		addImplicitSlots(snapInfo)
 		if err := m.repo.AddSnap(snapInfo); err != nil {
-			logger.Noticef("%s", err)
+			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.Name(), err)
 		}
 	}
 	return nil
@@ -124,7 +124,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 	securityBackends := m.repo.Backends()
 
 	// Get all the snap infos
-	snaps, err := snapstate.ActiveInfos(m.state)
+	snaps, err := snapsWithSecurityProfiles(m.state)
 	if err != nil {
 		return err
 	}
@@ -159,7 +159,10 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles() error {
 		}
 	}
 
-	return interfaces.WriteSystemKey()
+	if err := interfaces.WriteSystemKey(); err != nil {
+		logger.Noticef("cannot write system key: %v", err)
+	}
+	return nil
 }
 
 // renameCorePlugConnection renames one connection from "core-support" plug to
@@ -202,7 +205,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		return nil, err
 	}
 	affected := make(map[string]bool)
-	for id, cn := range conns {
+	for id, conn := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return nil, err
@@ -212,7 +215,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		}
 
 		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
-		if _, err := m.repo.Connect(connRef, cn.DynamicPlugAttrs, cn.DynamicSlotAttrs, nil); err != nil {
+		if _, err := m.repo.Connect(connRef, conn.DynamicPlugAttrs, conn.DynamicSlotAttrs, nil); err != nil {
 			if _, ok := err.(*interfaces.UnknownPlugSlotError); ok {
 				// Some versions of snapd may have left stray connections that
 				// don't have the corresponding plug or slot anymore. Before we
@@ -418,4 +421,58 @@ func getConns(st *state.State) (map[string]connState, error) {
 
 func setConns(st *state.State, conns map[string]connState) {
 	st.Set("conns", conns)
+}
+
+// snapsWithSecurityProfiles returns all snaps that have active
+// security profiles: these are either snaps that are active, or about
+// to be active (pending link-snap) with a done setup-profiles
+func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
+	infos, err := snapstate.ActiveInfos(st)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool, len(infos))
+	for _, info := range infos {
+		seen[info.Name()] = true
+	}
+	for _, t := range st.Tasks() {
+		if t.Kind() != "link-snap" || t.Status().Ready() {
+			continue
+		}
+		snapsup, err := snapstate.TaskSnapSetup(t)
+		if err != nil {
+			return nil, err
+		}
+		snapName := snapsup.Name()
+		if seen[snapName] {
+			continue
+		}
+
+		doneProfiles := false
+		for _, t1 := range t.WaitTasks() {
+			if t1.Kind() == "setup-profiles" && t1.Status() == state.DoneStatus {
+				snapsup1, err := snapstate.TaskSnapSetup(t)
+				if err != nil {
+					return nil, err
+				}
+				if snapsup1.Name() == snapName {
+					doneProfiles = true
+					break
+				}
+			}
+		}
+		if !doneProfiles {
+			continue
+		}
+
+		seen[snapName] = true
+		snapInfo, err := snap.ReadInfo(snapName, snapsup.SideInfo)
+		if err != nil {
+			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
+			continue
+		}
+		infos = append(infos, snapInfo)
+	}
+
+	return infos, nil
 }

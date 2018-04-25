@@ -1,5 +1,12 @@
 summary: Ensure that the broadcom-asic-control interface works.
 
+# We need to run the broadcom-asic-control test very early. The reason is
+# that this test will modprobe linux-*-bde which will try to allocate a
+# huge page. One the system ran for a while no chunk of memory like this
+# will be not be available and the kernel will oops with:
+#   "modprobe: page allocation failure: order:7, mode:0xxxx"
+priority: 200
+
 details: |
     The broadcom-asic-control interface allow access to broadcom asic kernel module.
 

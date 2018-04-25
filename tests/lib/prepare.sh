@@ -261,6 +261,14 @@ prepare_classic() {
     fi
 
     disable_kernel_rate_limiting
+
+    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        # Arch packages do not ship empty directories by default, hence there is
+        # no /etc/dbus-1/system.d what prevents dbus from properly establishing
+        # inotify watch on that path
+        mkdir -p /etc/dbus-1/system.d
+        systemctl reload dbus.service
+    fi
 }
 
 setup_reflash_magic() {

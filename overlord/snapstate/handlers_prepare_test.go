@@ -52,7 +52,7 @@ func (s *prepareSnapSuite) SetUpTest(c *C) {
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
-	reset1 := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	reset1 := snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
 	s.reset = func() {
 		dirs.SetRootDir("/")
 		reset1()

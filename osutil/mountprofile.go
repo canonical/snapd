@@ -66,10 +66,15 @@ func ReadMountProfile(reader io.Reader) (*MountProfile, error) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		s := scanner.Text()
-		if i := strings.IndexByte(s, '#'); i != -1 {
-			s = s[0:i]
-		}
 		s = strings.TrimSpace(s)
+		// Skip lines that only contain a comment, that is, those that start
+		// with the '#' character (ignoring leading spaces). This specifically
+		// allows us to parse '#' inside individual fields, which the fstab(5)
+		// specification allows.
+		if strings.IndexByte(s, '#') == 0 {
+			continue
+		}
+		// Skip lines that are totally empty
 		if s == "" {
 			continue
 		}
