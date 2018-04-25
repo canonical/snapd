@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -73,7 +74,11 @@ func changes(cfgStr string, cfg map[string]interface{}) []string {
 		case map[string]interface{}:
 			out = append(out, changes(cfgStr+"."+k, subCfg)...)
 		case *json.RawMessage:
-			return []string{cfgStr + "." + k}
+			// FIXME: look into RawMessage
+			//        c.f. helpers.go:PatchConfig
+			out = append(out, []string{cfgStr + "." + k}...)
+		default:
+			panic(fmt.Sprintf("unknown type %T", subCfg))
 		}
 	}
 	return out
@@ -85,6 +90,7 @@ func (t *Transaction) Changes() []string {
 	for k := range t.changes {
 		out = append(out, changes(k, t.changes[k])...)
 	}
+	sort.Strings(out)
 	return out
 }
 

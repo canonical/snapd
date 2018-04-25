@@ -55,6 +55,11 @@ func (op setGetOp) kind() string {
 	return strings.Fields(string(op))[0]
 }
 
+func (op setGetOp) list() []string {
+	args := strings.Fields(string(op))
+	return args[1:]
+}
+
 func (op setGetOp) args() map[string]interface{} {
 	m := make(map[string]interface{})
 	args := strings.Fields(string(op))
@@ -90,10 +95,12 @@ var setGetTests = [][]setGetOp{{
 	`setunder three=3 big=9876543210`,
 	`get one=1 big=1234567890 two=2 three=-`,
 	`getunder one=- two=- three=3 big=9876543210`,
+	`changes core.big core.one core.two`,
 	`commit`,
 	`getunder one=1 two=2 three=3`,
 	`get one=1 two=2 three=3`,
 	`set two=22 four=4 big=1234567890`,
+	`changes core.big core.four core.two`,
 	`get one=1 two=22 three=3 four=4 big=1234567890`,
 	`getunder one=1 two=2 three=3 four=-`,
 	`commit`,
@@ -102,9 +109,11 @@ var setGetTests = [][]setGetOp{{
 	// Trivial full doc.
 	`set doc={"one":1,"two":2}`,
 	`get doc={"one":1,"two":2}`,
+	`changes core.doc`,
 }, {
 	// Root doc
 	`set doc={"one":1,"two":2}`,
+	`changes core.doc.one core.doc.two`,
 	`getroot ={"doc":{"one":1,"two":2}}`,
 	`commit`,
 	`getroot ={"doc":{"one":1,"two":2}}`,
@@ -112,6 +121,7 @@ var setGetTests = [][]setGetOp{{
 }, {
 	// Nested mutations.
 	`set one.two.three=3`,
+	`changes core.one.two.three`,
 	`set one.five=5`,
 	`setunder one={"two":{"four":4}}`,
 	`get one={"two":{"three":3},"five":5}`,
@@ -218,6 +228,11 @@ func (s *transactionSuite) TestSetGet(c *C) {
 
 			case "commit":
 				t.Commit()
+
+			case "changes":
+				expected := op.list()
+				obtained := t.Changes()
+				c.Check(obtained, DeepEquals, expected)
 
 			case "setunder":
 				var config map[string]map[string]interface{}
