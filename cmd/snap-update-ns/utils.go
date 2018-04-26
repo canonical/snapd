@@ -485,7 +485,10 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 	changes = append(changes, &Change{
 		Action: Mount, Entry: osutil.MountEntry{
 			Name: "tmpfs", Dir: dir, Type: "tmpfs",
-			Options: []string{"x-snapd.synthetic", fmt.Sprintf("x-snapd.needed-by=%s", neededBy)},
+			Options: []string{
+				osutil.XSnapdSynthetic(),
+				osutil.XSnapdNeededBy(neededBy),
+			},
 		},
 	})
 	// Iterate over the items in the original directory (nothing is mounted _yet_).
@@ -506,10 +509,10 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 		case m.IsDir():
 			ch.Entry.Options = []string{"rbind"}
 		case m.IsRegular():
-			ch.Entry.Options = []string{"bind", "x-snapd.kind=file"}
+			ch.Entry.Options = []string{"bind", osutil.XSnapdKindFile()}
 		case m&os.ModeSymlink != 0:
 			if target, err := osReadlink(filepath.Join(dir, fi.Name())); err == nil {
-				ch.Entry.Options = []string{"x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", target)}
+				ch.Entry.Options = []string{osutil.XSnapdKindSymlink(), osutil.XSnapdSymlink(target)}
 			} else {
 				continue
 			}
@@ -517,13 +520,13 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 			logger.Noticef("skipping unsupported file %s", fi)
 			continue
 		}
-		ch.Entry.Options = append(ch.Entry.Options, "x-snapd.synthetic")
-		ch.Entry.Options = append(ch.Entry.Options, fmt.Sprintf("x-snapd.needed-by=%s", neededBy))
+		ch.Entry.Options = append(ch.Entry.Options, osutil.XSnapdSynthetic())
+		ch.Entry.Options = append(ch.Entry.Options, osutil.XSnapdNeededBy(neededBy))
 		changes = append(changes, ch)
 	}
 	// Finally unbind the safe-keeping directory as we don't need it anymore.
 	changes = append(changes, &Change{
-		Action: Unmount, Entry: osutil.MountEntry{Name: "none", Dir: safeKeepingDir, Options: []string{"x-snapd.detach"}},
+		Action: Unmount, Entry: osutil.MountEntry{Name: "none", Dir: safeKeepingDir, Options: []string{osutil.XSnapdDetach()}},
 	})
 	return changes, nil
 }
@@ -580,7 +583,7 @@ func execWritableMimic(plan []*Change, sec *Secure) ([]*Change, error) {
 				// for how to undo" so we need to flip the actions.
 				recoveryUndoChange.Action = Unmount
 				if recoveryUndoChange.Entry.OptBool("rbind") {
-					recoveryUndoChange.Entry.Options = append(recoveryUndoChange.Entry.Options, "x-snapd.detach")
+					recoveryUndoChange.Entry.Options = append(recoveryUndoChange.Entry.Options, osutil.XSnapdDetach())
 				}
 				if _, err2 := changePerform(recoveryUndoChange, sec); err2 != nil {
 					// Drat, we failed when trying to recover from an error.
@@ -596,7 +599,7 @@ func execWritableMimic(plan []*Change, sec *Secure) ([]*Change, error) {
 			// change is the safe-keeping unmount.
 			continue
 		}
-		if kind, _ := change.Entry.OptStr("x-snapd.kind"); kind == "symlink" {
+		if change.Entry.XSnapdKind() == "symlink" {
 			// Don't represent symlinks in the undo plan. They are removed when
 			// the tmpfs is unmounted.
 			continue
