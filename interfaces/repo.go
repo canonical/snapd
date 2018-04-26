@@ -676,7 +676,7 @@ func (r *Repository) connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 	if snapName == "" {
 		snapName, _ = r.guessCoreSnapName()
 		if snapName == "" {
-			return nil, fmt.Errorf("snap name is empty")
+			return nil, fmt.Errorf("internal error: cannot obtain core snap name while computing connections")
 		}
 	}
 	var conns []ConnRef
@@ -713,7 +713,7 @@ func (r *Repository) Connections(snapName string) ([]ConnRef, error) {
 	if snapName == "" {
 		snapName, _ = r.guessCoreSnapName()
 		if snapName == "" {
-			return nil, fmt.Errorf("snap name is empty")
+			return nil, fmt.Errorf("internal error: cannot obtain core snap name while computing connections")
 		}
 	}
 
@@ -999,7 +999,8 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 			plug := &Plug{PlugInfo: plugInfo}
 			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow
-			if ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil)); !ok || err != nil {
+			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil))
+			if !ok || err != nil {
 				continue
 			}
 
@@ -1034,7 +1035,8 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 			plug := &Plug{PlugInfo: plugInfo}
 			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow
-			if ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil)); !ok || err != nil {
+			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil))
+			if !ok || err != nil {
 				continue
 			}
 

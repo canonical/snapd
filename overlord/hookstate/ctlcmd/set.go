@@ -127,10 +127,13 @@ func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]in
 		return err
 	}
 
-	var existing interface{}
 	// We're called from setInterfaceSetting, subkeys is derived from key
 	// part of key=value argument and is guaranteed to be non-empty at this
 	// point.
+	if len(subkeys) == 0 {
+		return fmt.Errorf("internal error: unexpected empty subkeys for key %q", key)
+	}
+	var existing interface{}
 	err = config.GetFromChange(context.SnapName(), subkeys[:1], 0, staticAttrs, &existing)
 	if err == nil {
 		return fmt.Errorf(i18n.G("attribute %q cannot be overwritten"), key)
@@ -172,11 +175,11 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	defer context.Unlock()
 
 	var staticAttrs, dynamicAttrs map[string]interface{}
-	if err = attrsTask.Get(fmt.Sprintf("%s-static", which), &staticAttrs); err != nil {
+	if err = attrsTask.Get(which+"-static", &staticAttrs); err != nil {
 		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task, %s"), which, err)
 	}
 
-	dynKey := fmt.Sprintf("%s-dynamic", which)
+	dynKey := which + "-dynamic"
 	if err = attrsTask.Get(dynKey, &dynamicAttrs); err != nil {
 		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task, %s"), which, err)
 	}
