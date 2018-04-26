@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
-const UMOUNT_NOFOLLOW = 8
+const umountNoFollow = 8
 
 // fakeFileInfo implements os.FileInfo for testing.
 //
@@ -140,8 +140,8 @@ func formatMountFlags(flags int) string {
 // Please expand the set of recognized flags as tests require.
 func formatUnmountFlags(flags int) string {
 	var fl []string
-	if flags&UMOUNT_NOFOLLOW == UMOUNT_NOFOLLOW {
-		flags ^= UMOUNT_NOFOLLOW
+	if flags&umountNoFollow == umountNoFollow {
+		flags ^= umountNoFollow
 		fl = append(fl, "UMOUNT_NOFOLLOW")
 	}
 	if flags&syscall.MNT_DETACH == syscall.MNT_DETACH {
