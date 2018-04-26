@@ -26,7 +26,7 @@ import (
 	"syscall"
 	"time"
 
-	. "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil/sys"
 )
@@ -257,8 +257,8 @@ func (sys *SyscallRecorder) StrayDescriptorsError() error {
 	return nil
 }
 
-func (sys *SyscallRecorder) CheckForStrayDescriptors(c *C) {
-	c.Assert(sys.StrayDescriptorsError(), IsNil)
+func (sys *SyscallRecorder) CheckForStrayDescriptors(c *check.C) {
+	c.Assert(sys.StrayDescriptorsError(), check.IsNil)
 }
 
 func (sys *SyscallRecorder) Open(path string, flags int, mode uint32) (int, error) {
