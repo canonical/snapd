@@ -19,5 +19,5 @@ restore: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
 
-    pip remove yq || true
+    pip uninstall -y yq || true
     distro_purge_package python-pip shellcheck
