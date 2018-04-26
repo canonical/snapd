@@ -282,7 +282,7 @@ func (s *lowLevelSuite) TestMountFailure(c *C) {
 }
 
 func (s *lowLevelSuite) TestUnmountSuccess(c *C) {
-	err := s.sys.Unmount("target", testutil.UMOUNT_NOFOLLOW|syscall.MNT_DETACH)
+	err := s.sys.Unmount("target", testutil.UmountNoFollow|syscall.MNT_DETACH)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" UMOUNT_NOFOLLOW|MNT_DETACH`})
 }
