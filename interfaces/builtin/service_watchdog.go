@@ -50,6 +50,9 @@ type serviceWatchdogInterface struct {
 var osGetenv = os.Getenv
 
 func (iface *serviceWatchdogInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// If the system has defined it, use NOTIFY_SOCKET from the environment. Note
+	// this is safe because it is examined on snapd start and snaps cannot manipulate
+	// the environment of snapd.
 	notifySocket := osGetenv("NOTIFY_SOCKET")
 	if notifySocket == "" {
 		notifySocket = "/run/systemd/notify"
