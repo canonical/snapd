@@ -1160,6 +1160,13 @@ apps:
     watchdog-timeout: 12s
 `)
 
+	fooNegative := []byte(`
+apps:
+  foo:
+    daemon: simple
+    watchdog-timeout: -12s
+`)
+
 	tcs := []struct {
 		name string
 		desc []byte
@@ -1171,6 +1178,10 @@ apps:
 		name: "foo not a service",
 		desc: fooNotADaemon,
 		err:  `cannot define watchdog-timeout in application "foo" as it's not a service`,
+	}, {
+		name: "negative timeout",
+		desc: fooNegative,
+		err:  `cannot use a negative watchdog-timeout in application "foo"`,
 	}}
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)

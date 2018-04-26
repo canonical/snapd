@@ -477,9 +477,19 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 }
 
 func validateAppWatchdog(app *AppInfo) error {
-	if app.WatchdogTimeout != 0 && !app.IsService() {
+	if app.WatchdogTimeout == 0 {
+		// no watchdog
+		return nil
+	}
+
+	if !app.IsService() {
 		return fmt.Errorf("cannot define watchdog-timeout in application %q as it's not a service", app.Name)
 	}
+
+	if app.WatchdogTimeout < 0 {
+		return fmt.Errorf("cannot use a negative watchdog-timeout in application %q", app.Name)
+	}
+
 	return nil
 }
 
