@@ -20,6 +20,9 @@
 package builtin
 
 import (
+	"bytes"
+	"fmt"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -216,8 +219,28 @@ func (iface *desktopInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) b
 	return true
 }
 
+func (iface *desktopInterface) fontconfigDirs() []string {
+	return []string{
+		dirs.SystemFontsDir,
+		dirs.SystemLocalFontsDir,
+		dirs.SystemFontconfigCacheDir,
+	}
+}
+
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(desktopConnectedPlugAppArmor)
+
+	for _, dir := range iface.fontconfigDirs() {
+		var buf bytes.Buffer
+		source := "/var/lib/snapd/hostfs" + dir
+		target := dirs.StripRootDir(dir)
+		fmt.Fprintf(&buf, "  # Read-only access to %s\n", target)
+		fmt.Fprintf(&buf, "  mount options=(bind) %s/ -> %s/,\n", source, target)
+		fmt.Fprintf(&buf, "  remount options=(bind, ro) %s/,\n", target)
+		fmt.Fprintf(&buf, "  umount %s/,\n\n", target)
+		spec.AddUpdateNS(buf.String())
+	}
+
 	return nil
 }
 
@@ -227,13 +250,7 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		return nil
 	}
 
-	fontconfigDirs := []string{
-		dirs.SystemFontsDir,
-		dirs.SystemLocalFontsDir,
-		dirs.SystemFontconfigCacheDir,
-	}
-
-	for _, dir := range fontconfigDirs {
+	for _, dir := range iface.fontconfigDirs() {
 		if !osutil.IsDirectory(dir) {
 			continue
 		}
