@@ -272,13 +272,13 @@ repack: |
     # obtained directly from GitHub. There's nothing special about that reference,
     # other than it will often be in the local repository's history already.
     # The more recent the reference, the smaller the delta.
-    if ! echo $SPREAD_BACKENDS | grep linode; then
+    if ! echo "$SPREAD_BACKENDS" | grep linode; then
         cat <&3 >&4
-    elif ! git show-ref $DELTA_REF > /dev/null; then
+    elif ! git show-ref "$DELTA_REF" > /dev/null; then
         cat <&3 >&4
     else
         trap "rm -f delta-ref.tar current.delta" EXIT
-        git archive -o delta-ref.tar --format=tar --prefix=$DELTA_PREFIX $DELTA_REF
+        git archive -o delta-ref.tar --format=tar --prefix="$DELTA_PREFIX" "$DELTA_REF"
         xdelta3 -s delta-ref.tar <&3 > current.delta
         tar c current.delta >&4
     fi
