@@ -588,6 +588,11 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   capability sys_admin,
   # Needed for mimic construction.
   capability chown,
+  # Allow snap-update-ns to override file ownership and permission checks.
+  # This is required because writable mimics now preserve the permissions
+  # of the original and hence we may be asked to create a directory when the
+  # parent is a tmpfs without DAC write access.
+  capability dac_override,
 
   # Allow freezing and thawing the per-snap cgroup freezers
   /sys/fs/cgroup/freezer/snap.###SNAP_NAME###/freezer.state rw,
@@ -624,6 +629,7 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   # Don't allow bind mounts to /media which has special
   # sharing and propagates mount events outside of the snap namespace.
   audit deny mount -> /media,
+
 
 ###SNIPPETS###
 }
