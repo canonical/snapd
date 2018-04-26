@@ -30,7 +30,7 @@ int main(int argc, char **argv)
 		die("Usage: %s snap-name", argv[0]);
 	const char *snap_name = argv[1];
 
-	int snap_lock_fd = sc_lock(snap_name);
+	int snap_lock_fd = sc_lock_snap(snap_name);
 	debug("initializing mount namespace: %s", snap_name);
 	struct sc_ns_group *group =
 	    sc_open_ns_group(snap_name, SC_NS_FAIL_GRACEFULLY);
@@ -50,6 +50,6 @@ int main(int argc, char **argv)
 		}
 	}
 
-	sc_unlock(snap_name, snap_lock_fd);
+	sc_unlock(snap_lock_fd);
 	return 0;
 }

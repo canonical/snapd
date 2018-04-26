@@ -13,6 +13,7 @@
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
     /etc/ld.so.cache r,
+    /etc/ld.so.preload r,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}ld-*.so mrix,
     # libc, you are funny
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
@@ -47,6 +48,7 @@
 
     # cgroup: devices
     capability sys_admin,
+    capability dac_read_search,
     capability dac_override,
     /sys/fs/cgroup/devices/snap{,py}.*/ w,
     /sys/fs/cgroup/devices/snap{,py}.*/tasks w,
@@ -139,7 +141,7 @@
     # when a distro with merged /usr and / that uses apparmor shows up it
     # should be handled here.
     /{,run/}media/ w,
-    mount options=(rw rbind) /media/ -> /tmp/snap.rootfs_*/media/,
+    mount options=(rw rbind) /{,run/}media/ -> /tmp/snap.rootfs_*/{,run/}media/,
     /run/netns/ w,
     mount options=(rw rbind) /run/netns/ -> /tmp/snap.rootfs_*/run/netns/,
     # unidirectional mounts (only for classic system)
@@ -257,12 +259,12 @@
     /usr/** r,
     mount options=(rw bind) /usr/lib{,32}/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl{,32}/,
     mount options=(rw bind) /usr/lib{,32}/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl{,32}/,
-    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/* w,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/{,*} w,
     mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
     mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/,
 
     # Vulkan support
-    /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/* w,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/{,*} w,
     mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
     mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
 

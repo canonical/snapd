@@ -102,6 +102,18 @@ func (s *entrySuite) TestParseMountEntry1(c *C) {
 	c.Assert(e.CheckPassNumber, Equals, 0)
 }
 
+// Test that hash inside a field value is supported.
+func (s *entrySuite) TestHashInFieldValue(c *C) {
+	e, err := osutil.ParseMountEntry("mhddfs#/mnt/dir1,/mnt/dir2 /mnt/dir fuse defaults,allow_other 0 0")
+	c.Assert(err, IsNil)
+	c.Assert(e.Name, Equals, "mhddfs#/mnt/dir1,/mnt/dir2")
+	c.Assert(e.Dir, Equals, "/mnt/dir")
+	c.Assert(e.Type, Equals, "fuse")
+	c.Assert(e.Options, DeepEquals, []string{"defaults", "allow_other"})
+	c.Assert(e.DumpFrequency, Equals, 0)
+	c.Assert(e.CheckPassNumber, Equals, 0)
+}
+
 // Test that options are parsed correctly
 func (s *entrySuite) TestParseMountEntry2(c *C) {
 	e, err := osutil.ParseMountEntry("name dir type options,comma,separated 0 0")
@@ -221,8 +233,6 @@ func (s *entrySuite) TestOptBool(c *C) {
 }
 
 func (s *entrySuite) TestOptionHelpers(c *C) {
-	c.Assert(osutil.XSnapdKindSymlink(), Equals, "x-snapd.kind=symlink")
-	c.Assert(osutil.XSnapdKindFile(), Equals, "x-snapd.kind=file")
 	c.Assert(osutil.XSnapdUser(1000), Equals, "x-snapd.user=1000")
 	c.Assert(osutil.XSnapdGroup(1000), Equals, "x-snapd.group=1000")
 	c.Assert(osutil.XSnapdMode(0755), Equals, "x-snapd.mode=0755")
@@ -328,6 +338,9 @@ func (s *entrySuite) TestXSnapdNeededBy(c *C) {
 	// The needed-by attribute parsed from the x-snapd.needed-by= option.
 	e = &osutil.MountEntry{Options: []string{"x-snap.id=foo", "x-snapd.needed-by=bar"}}
 	c.Assert(e.XSnapdNeededBy(), Equals, "bar")
+
+	// There's a helper function that returns this option string.
+	c.Assert(osutil.XSnapdNeededBy("foo"), Equals, "x-snapd.needed-by=foo")
 }
 
 func (s *entrySuite) TestXSnapdSynthetic(c *C) {
@@ -338,10 +351,9 @@ func (s *entrySuite) TestXSnapdSynthetic(c *C) {
 	// Tagging is done with x-snapd.synthetic option.
 	e = &osutil.MountEntry{Options: []string{"x-snapd.synthetic"}}
 	c.Assert(e.XSnapdSynthetic(), Equals, true)
-}
 
-func (s *entrySuite) TextXSnapdOriginLayout(c *C) {
-	c.Assert(osutil.XSnapdOriginLayout(), Equals, "x-snapd.origin=layout")
+	// There's a helper function that returns this option string.
+	c.Assert(osutil.XSnapdSynthetic(), Equals, "x-snapd.synthetic")
 }
 
 func (s *entrySuite) TestXSnapdOrigin(c *C) {
@@ -349,11 +361,44 @@ func (s *entrySuite) TestXSnapdOrigin(c *C) {
 	e := &osutil.MountEntry{}
 	c.Assert(e.XSnapdOrigin(), Equals, "")
 
-	// Origin can be indicated with the x-snapd.origin= option
-	e = &osutil.MountEntry{Options: []string{"x-snapd.origin=layout"}}
-	c.Assert(e.XSnapdOrigin(), Equals, "layout")
-
-	// The helpful helper for this constant actually works.
+	// Origin can be indicated with the x-snapd.origin= option.
 	e = &osutil.MountEntry{Options: []string{osutil.XSnapdOriginLayout()}}
 	c.Assert(e.XSnapdOrigin(), Equals, "layout")
+
+	// There's a helper function that returns this option string.
+	c.Assert(osutil.XSnapdOriginLayout(), Equals, "x-snapd.origin=layout")
+}
+
+func (s *entrySuite) TestXSnapdDetach(c *C) {
+	// Entries are not detached by default.
+	e := &osutil.MountEntry{}
+	c.Assert(e.XSnapdDetach(), Equals, false)
+
+	// Detach can be requested with the x-snapd.detach option.
+	e = &osutil.MountEntry{Options: []string{osutil.XSnapdDetach()}}
+	c.Assert(e.XSnapdDetach(), Equals, true)
+
+	// There's a helper function that returns this option string.
+	c.Assert(osutil.XSnapdDetach(), Equals, "x-snapd.detach")
+}
+
+func (s *entrySuite) TestXSnapdKind(c *C) {
+	// Entries have a kind (directory, file or symlink). Directory is spelled
+	// as an empty string though, for backwards compatibility.
+	e := &osutil.MountEntry{}
+	c.Assert(e.XSnapdKind(), Equals, "")
+
+	// A bind mount entry can refer to a file using the x-snapd.kind=file option string.
+	e = &osutil.MountEntry{Options: []string{osutil.XSnapdKindFile()}}
+	c.Assert(e.XSnapdKind(), Equals, "file")
+
+	// There's a helper function that returns this option string.
+	c.Assert(osutil.XSnapdKindFile(), Equals, "x-snapd.kind=file")
+
+	// A mount entry can create a symlink by using the x-snapd.kind=symlink option string.
+	e = &osutil.MountEntry{Options: []string{osutil.XSnapdKindSymlink()}}
+	c.Assert(e.XSnapdKind(), Equals, "symlink")
+
+	// There's a helper function that returns this option string.
+	c.Assert(osutil.XSnapdKindSymlink(), Equals, "x-snapd.kind=symlink")
 }

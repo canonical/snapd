@@ -36,12 +36,9 @@ var (
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
 	// utils
-	PlanWritableMimic  = planWritableMimic
-	ExecWritableMimic  = execWritableMimic
-	SecureMkdirAll     = secureMkdirAll
-	SecureMkfileAll    = secureMkfileAll
-	SecureMksymlinkAll = secureMksymlinkAll
-	SplitIntoSegments  = splitIntoSegments
+	PlanWritableMimic = planWritableMimic
+	ExecWritableMimic = execWritableMimic
+	SplitIntoSegments = splitIntoSegments
 
 	// main
 	ComputeAndSaveChanges = computeAndSaveChanges
@@ -56,6 +53,7 @@ type SystemCalls interface {
 	Remove(name string) error
 
 	Close(fd int) error
+	Fchdir(fd int) error
 	Fchown(fd int, uid sys.UserID, gid sys.GroupID) error
 	Mkdirat(dirfd int, path string, mode uint32) error
 	Mount(source string, target string, fstype string, flags uintptr, data string) (err error)
@@ -82,6 +80,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	oldSysSymlinkat := sysSymlinkat
 	oldReadlinkat := sysReadlinkat
 	oldFstat := sysFstat
+	oldSysFchdir := sysFchdir
 
 	// override
 	osLstat = sc.Lstat
@@ -98,6 +97,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	sysSymlinkat = sc.Symlinkat
 	sysReadlinkat = sc.Readlinkat
 	sysFstat = sc.Fstat
+	sysFchdir = sc.Fchdir
 
 	return func() {
 		// restore
@@ -115,6 +115,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		sysSymlinkat = oldSysSymlinkat
 		sysReadlinkat = oldReadlinkat
 		sysFstat = oldFstat
+		sysFchdir = oldSysFchdir
 	}
 }
 
@@ -130,7 +131,7 @@ func FreezerCgroupDir() string {
 	return freezerCgroupDir
 }
 
-func MockChangePerform(f func(chg *Change) ([]*Change, error)) func() {
+func MockChangePerform(f func(chg *Change, sec *Secure) ([]*Change, error)) func() {
 	origChangePerform := changePerform
 	changePerform = f
 	return func() {

@@ -1,4 +1,5 @@
 summary: check that snap-update-ns can create mkdir in $SNAP_{DATA,COMMON}
+
 details: |
     When snap-update-ns is invoked by snap-confine to construct a mount
     namespace it will create missing directories for the mount target.
@@ -7,6 +8,7 @@ details: |
     too can be modified for the calling snap. The test is divided into variants
     for one of each $SNAP, $SNAP_DATA and $SNAP_COMMON. There's a slight
     variation for the $SNAP variable, see below for details.
+
 environment:
     PLUG/data: test-snapd-content-advanced-plug:data
     PLUG/common: test-snapd-content-advanced-plug:common
@@ -17,12 +19,14 @@ environment:
     VAR/data: SNAP_DATA
     VAR/common: SNAP_COMMON
     VAR/snap: SNAP
+
 prepare: |
     # Install a pair of snaps that both have two content interfaces as
     # sub-directories of $SNAP_DATA and $SNAP_COMMON.
     . $TESTSLIB/snaps.sh
     install_local test-snapd-content-advanced-plug
     install_local test-snapd-content-advanced-slot
+
 execute: |
     # Put our internal tools on PATH so that we can call snap-discard-ns easily.
     . $TESTSLIB/dirs.sh
