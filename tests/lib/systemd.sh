@@ -48,7 +48,7 @@ systemd_stop_units() {
                     echo "$unit unit not active"
                     exit 1
                 fi
-                retries=$(( $retries - 1 ))
+                retries=$(( retries - 1 ))
                 sleep 1
             done
 
