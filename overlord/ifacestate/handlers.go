@@ -346,13 +346,11 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
-func getDynamicHookAttributes(task *state.Task) (map[string]interface{}, map[string]interface{}, error) {
-	var plugAttrs, slotAttrs map[string]interface{}
-
-	if err := task.Get("plug-dynamic", &plugAttrs); err != nil && err != state.ErrNoState {
+func getDynamicHookAttributes(task *state.Task) (plugAttrs, slotAttrs map[string]interface{}, err error) {
+	if err = task.Get("plug-dynamic", &plugAttrs); err != nil && err != state.ErrNoState {
 		return nil, nil, err
 	}
-	if err := task.Get("slot-dynamic", &slotAttrs); err != nil && err != state.ErrNoState {
+	if err = task.Get("slot-dynamic", &slotAttrs); err != nil && err != state.ErrNoState {
 		return nil, nil, err
 	}
 	if plugAttrs == nil {
@@ -365,9 +363,9 @@ func getDynamicHookAttributes(task *state.Task) (map[string]interface{}, map[str
 	return plugAttrs, slotAttrs, nil
 }
 
-func setDynamicHookAttributes(task *state.Task, dynamicPlugAttrs map[string]interface{}, dynamicSlotAttrs map[string]interface{}) {
-	task.Set("plug-dynamic", dynamicPlugAttrs)
-	task.Set("slot-dynamic", dynamicSlotAttrs)
+func setDynamicHookAttributes(task *state.Task, plugAttrs, slotAttrs map[string]interface{}) {
+	task.Set("plug-dynamic", plugAttrs)
+	task.Set("slot-dynamic", slotAttrs)
 }
 
 func markConnectHooksDone(connectTask *state.Task) error {
