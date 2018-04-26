@@ -230,11 +230,19 @@ func (iface *desktopInterface) fontconfigDirs() []string {
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(desktopConnectedPlugAppArmor)
 
+	// Allow mounting document portal
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "  # Mount the document portal\n")
+	fmt.Fprintf(&buf, "  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().Name())
+	fmt.Fprintf(&buf, "  umount /run/user/[0-9]*/doc/,\n\n")
+	spec.AddUpdateNS(buf.String())
+
 	if !release.OnClassic {
 		// We only need the font mount rules on classic systems
 		return nil
 	}
 
+	// Allow mounting fonts
 	for _, dir := range iface.fontconfigDirs() {
 		var buf bytes.Buffer
 		source := "/var/lib/snapd/hostfs" + dir
@@ -266,14 +274,12 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		})
 	}
 
-	/*
-		appId := "snap.pkg." + plug.Snap.Name()
-		spec.AddUserMount(mount.Entry{
-			Name: "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
-			Dir: "$XDG_RUNTIME_DIR/doc",
-			Options: []string{"bind", "rw"},
-		})
-	*/
+	appId := "snap." + plug.Snap().Name()
+	spec.AddUserMountEntry(osutil.MountEntry{
+		Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
+		Dir:     "$XDG_RUNTIME_DIR/doc",
+		Options: []string{"bind", "rw"},
+	})
 
 	return nil
 }
