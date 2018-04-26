@@ -7,9 +7,6 @@ details: |
 environment:
     KEYSDIR: "/$HOME/.ssh"
     TESTKEY: "/$HOME/.ssh/testkey"
-    CONNECTED_PATTERN: ':ssh-public-keys +test-snapd-ssh-public-keys'
-    DISCONNECTED_PATTERN: '\- +test-snapd-ssh-public-keys:ssh-public-keys'
-
 
 prepare: |
     . "$TESTSLIB/snaps.sh"
@@ -33,11 +30,10 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
+    snap interfaces | MATCH "\- +test-snapd-ssh-public-keys:ssh-public-keys"
     
     echo "When the interface is connected"
     snap connect test-snapd-ssh-public-keys:ssh-public-keys
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
     
     echo "Then the snap is able to see ssh version"
     test-snapd-ssh-public-keys.sh -c "ssh -V"
@@ -58,7 +54,6 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-ssh-public-keys:ssh-public-keys
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
     
     echo "Then the snap is not able to access the ssh public keys"
     if test-snapd-ssh-public-keys.sh -c "cat $TESTKEY.pub" 2>${PWD}/call.error; then

@@ -28,11 +28,8 @@ restore: |
     stop_dbus_unit
 
 execute: |
-    CONNECTED_PATTERN="^test-snapd-network-status-provider:network-status-test +test-snapd-network-status-provider:network-status"
-    DISCONNECTED_PATTERN="^- +test-snapd-network-status-provider:network-status$"
-
     echo "The interface is connected by default"
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
+    snap interfaces | MATCH "test-snapd-network-status-provider:network-status-test .*test-snapd-network-status-provider:network-status"
 
     echo "Then wait until the dbus name is properly reserved"
     for i in $(seq 10); do
@@ -53,7 +50,6 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-network-status-provider:network-status test-snapd-network-status-provider:network-status-test
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "And the snap state cannot be accessed"
     if test-snapd-network-status-provider.consumer GetState 2>${PWD}/getstate.error; then
@@ -64,4 +60,3 @@ execute: |
 
     echo "When the plug is re-connected the interfaces show the connection"
     snap connect test-snapd-network-status-provider:network-status test-snapd-network-status-provider:network-status-test
-    snap interfaces | MATCH "$CONNECTED_PATTERN"

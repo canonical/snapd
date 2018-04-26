@@ -11,14 +11,14 @@ details: |
 
 environment:
     SNAP_NAME: network-bind-consumer
-    SNAP_FILE: ${SNAP_NAME}_1.0_all.snap
     PORT: 8081
     REQUEST_FILE: ./request.txt
 
 prepare: |
+    . "$TESTSLIB/snaps.sh"
+
     echo "Given a snap declaring the network-bind plug is installed"
-    snap pack $TESTSLIB/snaps/$SNAP_NAME
-    snap install --dangerous $SNAP_FILE
+    install_local $SNAP_NAME
 
     echo "Given the snap's service is listening"
     while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
@@ -29,35 +29,15 @@ prepare: |
 
     EOF
 
-restore: |
-    rm -f $SNAP_FILE $REQUEST_FILE
-
 execute: |
-    CONNECTED_PATTERN="(?s)Slot +Plug\n\
-    .*?\n\
-    :network-bind +.*$SNAP_NAME"
-    DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
-    .*?\n\
-    - +$SNAP_NAME:network-bind"
-
-    echo "Then the snap is listed as connected"
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
-
-    echo "============================================"
+    echo "The interface is connected by default"
+    snap interfaces | MATCH ":network-bind .*$SNAP_NAME"
 
     echo "When the plug is disconnected"
     snap disconnect $SNAP_NAME:network-bind
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the plug can be connected again"
     snap connect $SNAP_NAME:network-bind
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
-
-    echo "============================================"
-
-    echo "When the plug is connected"
-    snap connect $SNAP_NAME:network-bind
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the service is accessible by a client"
     nc -w 2 localhost "$PORT" < $REQUEST_FILE | grep -Pqz "ok\n"
@@ -66,11 +46,8 @@ execute: |
         exit 0
     fi
 
-    echo "============================================"
-
     echo "When the plug is disconnected"
     snap disconnect $SNAP_NAME:network-bind
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the service is not accessible by a client"
     response=$(nc -w 2 localhost "$PORT" < $REQUEST_FILE)

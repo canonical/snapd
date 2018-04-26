@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"errors"
+	"sort"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -83,10 +84,25 @@ func (m *SnapManager) AddAdhocTaskHandler(adhoc string, do, undo func(*state.Tas
 	m.runner.AddHandler(adhoc, do, undo)
 }
 
-func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
-	old := readInfo
-	readInfo = mock
-	return func() { readInfo = old }
+func MockSnapReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
+	old := snapReadInfo
+	snapReadInfo = mock
+	return func() { snapReadInfo = old }
+}
+
+func MockMountPollInterval(intv time.Duration) (restore func()) {
+	old := mountPollInterval
+	mountPollInterval = intv
+	return func() { mountPollInterval = old }
+}
+
+func MockRevisionDate(mock func(info *snap.Info) time.Time) (restore func()) {
+	old := revisionDate
+	if mock == nil {
+		mock = revisionDateImpl
+	}
+	revisionDate = mock
+	return func() { revisionDate = old }
 }
 
 func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error)) (restore func()) {
@@ -162,4 +178,9 @@ func MockRefreshRetryDelay(d time.Duration) func() {
 	return func() {
 		refreshRetryDelay = origRefreshRetryDelay
 	}
+}
+
+func ByKindOrder(snaps ...*snap.Info) []*snap.Info {
+	sort.Sort(byKind(snaps))
+	return snaps
 }

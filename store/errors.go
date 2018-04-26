@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -61,6 +61,9 @@ var (
 
 	// ErrNoUpdateAvailable is returned when an update is attempetd for a snap that has no update available.
 	ErrNoUpdateAvailable = errors.New("snap has no updates available")
+
+	// ErrRevisionNotAvailable is returned when an install is attempted for a snap but the/a revision is not available (given install constraints)
+	ErrRevisionNotAvailable = errors.New("no snap revision given constraints")
 )
 
 // DownloadError represents a download error
@@ -106,4 +109,87 @@ func (e InvalidAuthDataError) Error() string {
 	//      full sentences (with periods and capitalization)
 	//      (empirically this checks out)
 	return strings.Join(es, "  ")
+}
+
+// SnapActionError conveys errors that were reported on otherwise overall successful snap action (install/refresh) request.
+type SnapActionError struct {
+	// NoResults is set if the there were no results in the response
+	NoResults bool
+	// Refresh errors by snap name.
+	Refresh map[string]error
+	// Install errors by snap name.
+	Install map[string]error
+	// Other errors.
+	Other []error
+}
+
+func (e SnapActionError) Error() string {
+	nRefresh := len(e.Refresh)
+	nInstall := len(e.Install)
+	nOther := len(e.Other)
+
+	// single error
+	if nRefresh+nInstall+nOther == 1 {
+		if nOther == 0 {
+			op := "refresh"
+			errs := e.Refresh
+			if nInstall > 0 {
+				op = "install"
+				errs = e.Install
+			}
+			for name, e := range errs {
+				return fmt.Sprintf("cannot %s snap %q: %v", op, name, e)
+			}
+		} else {
+			return fmt.Sprintf("cannot refresh or install: %v", e.Other[0])
+		}
+	}
+
+	header := "cannot refresh:"
+	if nInstall > 0 {
+		header = "cannot install:"
+	}
+	if nOther > 0 || (nInstall > 0 && nRefresh > 0) {
+		header = "cannot refresh or install:"
+	}
+	es := []string{header}
+
+	for name, e := range e.Refresh {
+		es = append(es, fmt.Sprintf("snap %q: %v", name, e))
+	}
+
+	for name, e := range e.Install {
+		es = append(es, fmt.Sprintf("snap %q: %v", name, e))
+	}
+
+	for _, e := range e.Other {
+		es = append(es, fmt.Sprintf("* %v", e))
+	}
+
+	if e.NoResults && len(es) == 1 {
+		// this is an atypical result
+		return "no install/refresh information results from the store"
+	}
+	return strings.Join(es, "\n")
+}
+
+// Authorization soft-expiry errors that get handled automatically.
+var (
+	errUserAuthorizationNeedsRefresh   = errors.New("soft-expired user authorization needs refresh")
+	errDeviceAuthorizationNeedsRefresh = errors.New("soft-expired device authorization needs refresh")
+)
+
+func translateSnapActionError(action, code, message string) error {
+	switch code {
+	case "revision-not-found":
+		return ErrRevisionNotAvailable
+	case "id-not-found", "name-not-found":
+		return ErrSnapNotFound
+	case "user-authorization-needs-refresh":
+		return errUserAuthorizationNeedsRefresh
+	case "device-authorization-needs-refresh":
+		return errDeviceAuthorizationNeedsRefresh
+	default:
+		return fmt.Errorf("%v", message)
+	}
 }

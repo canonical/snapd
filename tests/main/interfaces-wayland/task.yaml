@@ -12,18 +12,15 @@ restore: |
     /usr/bin/killall -9 /usr/bin/weston || true
 
 execute: |
-    CONNECTED_PATTERN=":wayland +test-snapd-wayland"
-    DISCONNECTED_PATTERN="\- +test-snapd-wayland:wayland"
+    echo "The interface is connected by default"
+    snap interfaces | MATCH ":wayland .*test-snapd-wayland"
 
     echo "When the plug is connected"
     snap connect test-snapd-wayland:wayland
-    snap interfaces | MATCH "$CONNECTED_PATTERN"
 
     if [ "$(snap debug confinement)" = "partial" ] ; then
         exit 0
     fi
-
-    echo "===================================="
 
     echo "Create XDG_RUNTIME_DIR=/run/user/12345"
     mkdir -p /run/user/12345 || true
@@ -47,11 +44,8 @@ execute: |
     echo "Then the snap command under the test user is able connect to the wayland socket"
     XDG_RUNTIME_DIR=/run/user/12345 su -p -l -c test-snapd-wayland test | MATCH wl_compositor
 
-    echo "===================================="
-
     echo "When the plug is disconnected"
     snap disconnect test-snapd-wayland:wayland
-    snap interfaces | MATCH "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command is not able to connect to the wayland socket"
     if XDG_RUNTIME_DIR=/run/user/12345 su -p -l -c test-snapd-wayland test; then
