@@ -205,7 +205,10 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		return nil, err
 	}
 	affected := make(map[string]bool)
-	for id := range conns {
+	for id, conn := range conns {
+		if conn.Undesired {
+			continue
+		}
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return nil, err
@@ -267,6 +270,7 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string)
 type connState struct {
 	Auto      bool   `json:"auto,omitempty"`
 	Interface string `json:"interface,omitempty"`
+	Undesired bool   `json:"undesired,omitempty"`
 }
 
 type autoConnectChecker struct {
@@ -331,28 +335,6 @@ func (c *autoConnectChecker) check(plug *interfaces.Plug, slot *interfaces.Slot)
 	}
 
 	return ic.CheckAutoConnect() == nil
-}
-
-func getAutoconnectDisabled(st *state.State) (map[string]bool, error) {
-	var connRefs []string
-	err := st.Get("autoconnect-disabled", &connRefs)
-	if err != nil && err != state.ErrNoState {
-		return nil, err
-	}
-
-	connFlags := make(map[string]bool)
-	for _, c := range connRefs {
-		connFlags[c] = true
-	}
-	return connFlags, nil
-}
-
-func setAutoConnectDisabled(st *state.State, connFlags map[string]bool) {
-	connRefs := make([]string, 0, len(connFlags))
-	for k := range connFlags {
-		connRefs = append(connRefs, k)
-	}
-	st.Set("autoconnect-disabled", connRefs)
 }
 
 func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRef, error) {
