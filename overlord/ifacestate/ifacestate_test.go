@@ -1584,12 +1584,6 @@ func (s *interfaceManagerSuite) testUndoDicardConns(c *C, snapName string) {
 		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
 	})
 
-	// Store information about disabled auto-connections
-	s.state.Set("autoconnect-disabled", []string{
-		"consumer:plug producer:slot",
-		"othersnap:plug yetanother:slot",
-	})
-
 	// Store empty snap state. This snap has an empty sequence now.
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{})
 	s.state.Unlock()
@@ -1627,16 +1621,6 @@ func (s *interfaceManagerSuite) testUndoDicardConns(c *C, snapName string) {
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{
 		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
-	})
-
-	// Information about diabled auto-connections is intact
-	var autoconnectDisabled []string
-	err = s.state.Get("autoconnect-disabled", &autoconnectDisabled)
-	c.Assert(err, IsNil)
-	sort.Strings(autoconnectDisabled)
-	c.Check(autoconnectDisabled, DeepEquals, []string{
-		"consumer:plug producer:slot",
-		"othersnap:plug yetanother:slot",
 	})
 
 	var removed map[string]interface{}
@@ -1849,10 +1833,6 @@ func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{})
-
-	var autoconnectDisabled []string
-	err = s.state.Get("autoconnect-disabled", &autoconnectDisabled)
-	c.Assert(err, Equals, state.ErrNoState)
 }
 
 func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
@@ -1914,6 +1894,25 @@ func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 	ifaces := repo.Interfaces()
 	c.Assert(ifaces.Connections, HasLen, 1)
 	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+}
+
+func (s *interfaceManagerSuite) TestManagerDoesntReloadUndesiredAutoconnections(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+			"auto":      true,
+			"undesired": true,
+		},
+	})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+	c.Assert(mgr.Repository().Interfaces().Connections, HasLen, 0)
 }
 
 func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
