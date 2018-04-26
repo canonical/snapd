@@ -16,4 +16,8 @@ execute: |
     MUST_PASS="$testdir/must" ./spread-shellcheck spread.yaml tests
 
 restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+
     pip remove yq || true
+    distro_purge_package python-pip shellcheck
