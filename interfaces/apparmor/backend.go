@@ -259,6 +259,21 @@ func setupSnapConfineReexec(coreInfo *snap.Info) error {
 	return nil
 }
 
+// nsProfile returns name of the apparmor profile for snap-update-ns for a given snap.
+func nsProfile(snapName string) string {
+	return fmt.Sprintf("snap-update-ns.%s", snapName)
+}
+
+// profileGlobs returns a list of globs that describe the apparmor profiles of
+// a given snap.
+//
+// Currently the list is just a pair. The first glob describes profiles for all
+// apps and hooks while the second profile describes the snap-update-ns profile
+// for the whole snap.
+func profileGlobs(snapName string) []string {
+	return []string{interfaces.SecurityTagGlob(snapName), nsProfile(snapName)}
+}
+
 // Setup creates and loads apparmor profiles specific to a given snap.
 // The snap can be in developer mode to make security violations non-fatal to
 // the offending application process.
@@ -308,13 +323,12 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
 	dir := dirs.SnapAppArmorDir
-	glob1 := fmt.Sprintf("snap*.%s*", snapInfo.Name())
-	glob2 := fmt.Sprintf("snap-update-ns.%s", snapInfo.Name())
+	globs := profileGlobs(snapInfo.Name())
 	cache := dirs.AppArmorCacheDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
 	}
-	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, []string{glob1, glob2}, content)
+	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, content)
 	// NOTE: load all profiles instead of just the changed profiles.  We're
 	// relying on apparmor cache to make this efficient. This gives us
 	// certainty that each call to Setup ends up with working profiles.
@@ -337,10 +351,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 // Remove removes and unloads apparmor profiles of a given snap.
 func (b *Backend) Remove(snapName string) error {
 	dir := dirs.SnapAppArmorDir
-	glob1 := fmt.Sprintf("snap*.%s*", snapName)
-	glob2 := fmt.Sprintf("snap-update-ns.%s", snapName)
+	globs := profileGlobs(snapName)
 	cache := dirs.AppArmorCacheDir
-	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, []string{glob1, glob2}, nil)
+	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, nil)
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
@@ -397,7 +410,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	})
 
 	// Ensure that the snap-update-ns profile is on disk.
-	profileName := fmt.Sprintf("snap-update-ns.%s", snapInfo.Name())
+	profileName := nsProfile(snapInfo.Name())
 	content[profileName] = &osutil.FileState{
 		Content: []byte(policy),
 		Mode:    0644,
