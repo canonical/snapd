@@ -170,6 +170,7 @@ type SyscallRecorder struct {
 	errors map[string]func() error
 	// pre-arranged result of lstat, fstat and readdir calls.
 	osLstats    map[string]os.FileInfo
+	sysLstats   map[string]syscall.Stat_t
 	fstats      map[string]syscall.Stat_t
 	readdirs    map[string][]os.FileInfo
 	readlinkats map[string]string
@@ -335,9 +336,17 @@ func (sys *SyscallRecorder) InsertOsLstatResult(call string, fi os.FileInfo) {
 	sys.osLstats[call] = fi
 }
 
+// InsertSysLstatResult makes given subsequent call to SysLstat return the specified fake file info.
+func (sys *SyscallRecorder) InsertSysLstatResult(call string, sb syscall.Stat_t) {
+	if sys.sysLstats == nil {
+		sys.sysLstats = make(map[string]syscall.Stat_t)
+	}
+	sys.sysLstats[call] = sb
+}
+
 // OsLstat is a fake implementation of os.Lstat
 func (sys *SyscallRecorder) OsLstat(name string) (os.FileInfo, error) {
-	// NOTE the upcoming syscall.Lstat will use different signature `lstat %q <ptr>`.
+	// NOTE the syscall.Lstat uses a different signature `lstat %q <ptr>`.
 	call := fmt.Sprintf("lstat %q", name)
 	if err := sys.call(call); err != nil {
 		return nil, err
@@ -346,6 +355,20 @@ func (sys *SyscallRecorder) OsLstat(name string) (os.FileInfo, error) {
 		return fi, nil
 	}
 	panic(fmt.Sprintf("one of InsertOsLstatResult() or InsertFault() for %s must be used", call))
+}
+
+// SysLstat is a fake implementation of syscall.Lstat
+func (sys *SyscallRecorder) SysLstat(name string, sb *syscall.Stat_t) error {
+	// NOTE the os.Lstat uses a different signature `lstat %q`.
+	call := fmt.Sprintf("lstat %q <ptr>", name)
+	if err := sys.call(call); err != nil {
+		return err
+	}
+	if ssb, ok := sys.sysLstats[call]; ok {
+		*sb = ssb
+		return nil
+	}
+	panic(fmt.Sprintf("one of InsertSysLstatResult() or InsertFault() for %s must be used", call))
 }
 
 // InsertFstatResult makes given subsequent call fstat return the specified stat buffer.
