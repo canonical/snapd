@@ -6439,14 +6439,8 @@ func (s *snapmgrTestSuite) TestGuardCoreSetupProfilesPhase2Basics(c *C) {
 
 	task := st.NewTask("setup-profiles", "...")
 
-	// not phase 2
-	proceed, err := snapstate.GuardCoreSetupProfilesPhase2(task, nil, nil)
-	c.Check(err, IsNil)
-	c.Check(proceed, Equals, true)
-
-	task.Set("core-phase-2", true)
 	// not core snap
-	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, nil, &snap.Info{Type: snap.TypeApp})
+	proceed, err := snapstate.GuardCoreSetupProfilesPhase2(task, nil, &snap.Info{Type: snap.TypeApp})
 	c.Check(err, IsNil)
 	c.Check(proceed, Equals, false)
 
