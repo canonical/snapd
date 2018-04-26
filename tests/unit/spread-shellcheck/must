@@ -1,0 +1,3 @@
+# files listed here must successfuly validate
+spread.yaml
+tests/unit/spread-shellcheck/task.yaml
