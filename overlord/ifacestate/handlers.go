@@ -526,6 +526,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 
 	cref := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
 	if conn, ok := conns[cref.ID()]; ok && conn.Auto {
+		// TODO: remove any stored connection specific state like interface attributes.
 		conn.Undesired = true
 		conns[cref.ID()] = conn
 	} else {

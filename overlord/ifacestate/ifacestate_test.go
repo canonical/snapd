@@ -895,11 +895,10 @@ plugs:
 
 // The setup-profiles task will not auto-connect a plug that was previously
 // explicitly disconnected by the user.
-func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredAutoConnect(c *C) {
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredFlag(c *C) {
 	s.state.Lock()
 	s.state.Set("conns", map[string]interface{}{
 		"snap:network ubuntu-core:network": map[string]interface{}{
-			"auto":      true,
 			"undesired": true,
 		},
 	})
@@ -934,7 +933,6 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredAutoConnec
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{
 		"snap:network ubuntu-core:network": map[string]interface{}{
-			"auto":      true,
 			"undesired": true,
 		},
 	})
