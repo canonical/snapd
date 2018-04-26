@@ -50,7 +50,7 @@
 %global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
 %global import_path     %{provider_prefix}
 
-%global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service
+%global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.wakeup.service
 
 # Until we have a way to add more extldflags to gobuild macro...
 %if 0%{?fedora} >= 26
@@ -616,6 +616,7 @@ popd
 %{_sysconfdir}/profile.d/snapd.sh
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.service
+%{_unitdir}/snapd.wakeup.service
 %{_unitdir}/snapd.autoimport.service
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service

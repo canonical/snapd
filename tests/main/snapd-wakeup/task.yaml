@@ -1,0 +1,87 @@
+summary: Check that snap wakeup service works correctly
+
+# only ubuntu for now, other distros have a maze of systemd presets that leave
+# snapd.wakeup.service disabled
+systems: [ubuntu-*]
+prepare: |
+    systemctl stop snapd.service
+
+execute: |
+    systemctl is-enabled snapd.wakeup.service
+    ! systemctl is-enabled snapd.service
+
+    . $TESTSLIB/dirs.sh
+
+    case "$SPREAD_REBOOT" in
+        0)
+            # no seed, no snaps
+            echo "When the system has no seed, and has no snaps installed"
+            test "$(find $SNAP_MOUNT_DIR -name '*/current' | wc -l)" = 0
+            test ! -e /var/lib/snapd/seed/seed.yaml
+
+            # the service should be down
+            echo "The snapd service is expected to be dead"
+            systemctl show -p SubState  snapd.service | MATCH "SubState=dead"
+
+            # pretend the system has seed.yaml
+            mkdir -p /var/lib/snapd/seed
+            echo 'foo: bar' > /var/lib/snapd/seed/seed.yaml
+
+            REBOOT
+            ;;
+        1)
+            # seed, no snaps
+            echo "When the system has seed, but had no snaps installed"
+            test -e /var/lib/snapd/seed/seed.yaml
+
+            # service should have been woken up
+            echo "The snapd service is expected to be running"
+            for _ in $(seq 20); do
+                systemctl show -p SubState  snapd.service | MATCH "SubState=running" && break || true
+                sleep 1
+            done
+            systemctl show -p SubState  snapd.service | MATCH "SubState=running"
+
+            # install snaps
+            snap install test-snapd-tools
+
+            rm -rf /var/lib/snapd/seed/seed.yaml
+            REBOOT
+            ;;
+        2)
+            # no seed, snaps
+            echo "When the system has no seed, but has snaps installed"
+            test "$(find $SNAP_MOUNT_DIR -name 'current' | wc -l)" -gt 0
+            test ! -e /var/lib/snapd/seed/seed.yaml
+
+            # service should have been woken up
+            echo "The snapd service is expected to be running"
+            for _ in $(seq 20); do
+                systemctl show -p SubState  snapd.service | MATCH "SubState=running" && break || true
+                sleep 1
+            done
+            systemctl show -p SubState  snapd.service | MATCH "SubState=running"
+
+            systemctl stop snapd.socket snapd.service
+
+            $LIBEXECDIR/snapd/snap-mgmt --purge || :
+            # purge may remove $SNAP_MOUNT_DIR and /var/snap
+            mkdir -p $SNAP_MOUNT_DIR
+            mkdir -p /var/snap
+
+            REBOOT
+            ;;
+        3)
+            # no seed, no snaps
+            echo "When back to a state where the system has no seed, and has no snaps installed"
+            test "$(find $SNAP_MOUNT_DIR -name 'current' | wc -l)" = 0
+            test ! -e /var/lib/snapd/seed/seed.yaml
+
+            # the service should be down again
+            echo "The snapd service is expected to be dead too"
+            systemctl show -p SubState  snapd.service | MATCH "SubState=dead"
+            ;;
+    esac
+
+debug: |
+    systemctl status snapd.service snapd.socket snapd.wakeup.service || true
