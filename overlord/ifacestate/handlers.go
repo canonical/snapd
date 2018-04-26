@@ -310,12 +310,8 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 	if err != nil {
 		return err
 	}
-	autoConnectDisabled, err := getAutoconnectDisabled(st)
-	if err != nil {
-		return err
-	}
+
 	removed := make(map[string]connState)
-	var disabled []string
 	for id := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
@@ -324,18 +320,9 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 		if connRef.PlugRef.Snap == snapName || connRef.SlotRef.Snap == snapName {
 			removed[id] = conns[id]
 			delete(conns, id)
-			// if autoconnect was disabled by the user, remember it in the disabled list for undoing
-			if autoConnectDisabled[id] {
-				delete(autoConnectDisabled, id)
-				disabled = append(disabled, id)
-			}
 		}
 	}
 	task.Set("removed", removed)
-	if len(disabled) > 0 {
-		task.Set("disabled", disabled)
-		setAutoConnectDisabled(st, autoConnectDisabled)
-	}
 	setConns(st, conns)
 	return nil
 }
@@ -351,32 +338,13 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 		return err
 	}
 
-	var disabled []string
-	err = task.Get("disabled", &disabled)
-	if err != nil && err != state.ErrNoState {
-		return err
-	}
-
 	conns, err := getConns(st)
-	if err != nil {
-		return err
-	}
-
-	autoConnectDisabled, err := getAutoconnectDisabled(st)
 	if err != nil {
 		return err
 	}
 
 	for id, connState := range removed {
 		conns[id] = connState
-	}
-
-	// restore the list of disabled auto-connections
-	if len(disabled) > 0 {
-		for _, id := range disabled {
-			autoConnectDisabled[id] = true
-		}
-		setAutoConnectDisabled(st, autoConnectDisabled)
 	}
 
 	setConns(st, conns)
@@ -509,18 +477,6 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	conns[connRef.ID()] = connState{Interface: plug.Interface, Auto: autoConnect}
 	setConns(st, conns)
 
-	// remove the connection from the autoconnect-disabled map.
-	// TODO: when autoconnect-tasks branch lands, this needs to be conditional (only done
-	// for manually-triggered connect tasks).
-	autoConnectDisabled, err := getAutoconnectDisabled(st)
-	if err != nil {
-		return err
-	}
-	if autoConnectDisabled[connRef.ID()] {
-		delete(autoConnectDisabled, connRef.ID())
-		setAutoConnectDisabled(st, autoConnectDisabled)
-	}
-
 	return nil
 }
 
@@ -568,17 +524,13 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	conn := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
-	if cs, ok := conns[conn.ID()]; ok && cs.Auto {
-		autoConnectDisabled, err := getAutoconnectDisabled(st)
-		if err != nil {
-			return err
-		}
-		autoConnectDisabled[conn.ID()] = true
-		setAutoConnectDisabled(st, autoConnectDisabled)
+	cref := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+	if conn, ok := conns[cref.ID()]; ok && conn.Auto {
+		conn.Undesired = true
+		conns[cref.ID()] = conn
+	} else {
+		delete(conns, cref.ID())
 	}
-
-	delete(conns, conn.ID())
 	setConns(st, conns)
 
 	return nil
@@ -608,9 +560,6 @@ func (m *InterfaceManager) defaultContentProviders(snapName string) map[string]b
 
 // doAutoConnect creates task(s) to connect the given snap to viable candidates.
 func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
-	// FIXME: here we should not reconnect auto-connect plug/slot
-	// pairs that were explicitly disconnected by the user
-
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
@@ -630,11 +579,6 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapName := snapsup.Name()
-
-	autoConnectDisabled, err := getAutoconnectDisabled(task.State())
-	if err != nil {
-		return err
-	}
 
 	autots := state.NewTaskSet()
 	autochecker, err := newAutoConnectChecker(st)
@@ -696,12 +640,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		connRef := interfaces.NewConnRef(plug, slot)
 		key := connRef.ID()
 		if _, ok := conns[key]; ok {
-			// Suggested connection already exist so don't clobber it.
+			// Suggested connection already exist (or has Undesired flag set) so don't clobber it.
 			// NOTE: we don't log anything here as this is a normal and common condition.
-			continue
-		}
-		if autoConnectDisabled[connRef.ID()] {
-			// Suggested connection was disconnected by the user, so skip it.
 			continue
 		}
 
@@ -737,12 +677,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			connRef := interfaces.NewConnRef(plug, slot)
 			key := connRef.ID()
 			if _, ok := conns[key]; ok {
-				// Suggested connection already exist so don't clobber it.
+				// Suggested connection already exist (or has Undesired flag set) so don't clobber it.
 				// NOTE: we don't log anything here as this is a normal and common condition.
-				continue
-			}
-			if autoConnectDisabled[connRef.ID()] {
-				// Suggested connection was disconnected by the user, so skip it.
 				continue
 			}
 

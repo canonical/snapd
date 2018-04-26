@@ -893,12 +893,16 @@ plugs:
   interface: network
 `
 
-// The setup-profiles task will not auto-connect an plug that was previously
+// The setup-profiles task will not auto-connect a plug that was previously
 // explicitly disconnected by the user.
-func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsUndesiredAutoConnect(c *C) {
 	s.state.Lock()
-	s.state.Set("autoconnect-disabled", []string{"snap:network ubuntu-core:network"})
-	s.state.Set("conns", map[string]interface{}{})
+	s.state.Set("conns", map[string]interface{}{
+		"snap:network ubuntu-core:network": map[string]interface{}{
+			"auto":      true,
+			"undesired": true,
+		},
+	})
 	s.state.Unlock()
 
 	// Add an OS snap as well as a sample snap with a "network" plug.
@@ -925,13 +929,17 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
 	// Ensure that the task succeeded
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
-	// Ensure that "network" is not saved in the state as auto-connected.
 	var conns map[string]interface{}
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, HasLen, 0)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"snap:network ubuntu-core:network": map[string]interface{}{
+			"auto":      true,
+			"undesired": true,
+		},
+	})
 
-	// Ensure that "network" is really disconnected.
+	// Ensure that "network" is not connected
 	repo := mgr.Repository()
 	plug := repo.Plug("snap", "network")
 	c.Assert(plug, Not(IsNil))
@@ -1533,13 +1541,9 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 	s.state.Lock()
 	// Store information about a connection in the state.
 	s.state.Set("conns", map[string]interface{}{
-		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
-	})
-
-	// Store information about disabled auto-connections
-	s.state.Set("autoconnect-disabled", []string{
-		"consumer:plug producer:slot",
-		"othersnap:plug yetanother:slot",
+		"consumer:plug producer:slot": map[string]interface{}{
+			"interface": "test",
+		},
 	})
 
 	// Store empty snap state. This snap has an empty sequence now.
@@ -1563,11 +1567,6 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 	err := s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, map[string]interface{}{})
-
-	var autoconnectDisabled []string
-	err = s.state.Get("autoconnect-disabled", &autoconnectDisabled)
-	c.Assert(err, IsNil)
-	c.Check(autoconnectDisabled, DeepEquals, []string{"othersnap:plug yetanother:slot"})
 
 	// But removed connections are preserved in the task for undo.
 	var removed map[string]interface{}
@@ -1698,10 +1697,6 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	_ = s.manager(c)
 
 	s.state.Lock()
-	s.state.Set("autoconnect-disabled", []string{
-		"consumer:plug producer:slot",
-		"other:plug yetanother:slot",
-	})
 
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
@@ -1731,13 +1726,6 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "test",
 		},
-	})
-
-	var autoconnectDisabled []string
-	err = s.state.Get("autoconnect-disabled", &autoconnectDisabled)
-	c.Assert(err, IsNil)
-	c.Check(autoconnectDisabled, DeepEquals, []string{
-		"other:plug yetanother:slot",
 	})
 }
 
@@ -1904,12 +1892,9 @@ func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
 	var conns map[string]interface{}
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, IsNil)
-	c.Check(conns, DeepEquals, map[string]interface{}{})
-
-	var autoconnectDisabled []string
-	err = s.state.Get("autoconnect-disabled", &autoconnectDisabled)
-	c.Assert(err, IsNil)
-	c.Check(autoconnectDisabled, DeepEquals, []string{"consumer:plug producer:slot"})
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test", "auto": true, "undesired": true},
+	})
 }
 
 func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
