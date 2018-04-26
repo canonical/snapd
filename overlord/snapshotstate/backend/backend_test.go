@@ -126,7 +126,7 @@ func (s *snapshotSuite) TestIterBailsIfContextDone(c *check.C) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	triedToOpenDir := false
-	defer backend.MockDirOpen(func(string) (*os.File, error) {
+	defer backend.MockOsOpen(func(string) (*os.File, error) {
 		triedToOpenDir = true
 		return nil, nil // deal with it
 	})()
@@ -139,7 +139,7 @@ func (s *snapshotSuite) TestIterBailsIfContextDone(c *check.C) {
 func (s *snapshotSuite) TestIterBailsIfContextDoneMidway(c *check.C) {
 	ctx, cancel := context.WithCancel(context.Background())
 	triedToOpenDir := false
-	defer backend.MockDirOpen(func(string) (*os.File, error) {
+	defer backend.MockOsOpen(func(string) (*os.File, error) {
 		triedToOpenDir = true
 		return os.Open(os.DevNull)
 	})()
@@ -165,7 +165,7 @@ func (s *snapshotSuite) TestIterBailsIfContextDoneMidway(c *check.C) {
 
 func (s *snapshotSuite) TestIterReturnsOkIfSnapshotsDirNonexistent(c *check.C) {
 	triedToOpenDir := false
-	defer backend.MockDirOpen(func(string) (*os.File, error) {
+	defer backend.MockOsOpen(func(string) (*os.File, error) {
 		triedToOpenDir = true
 		return nil, os.ErrNotExist
 	})()
@@ -177,7 +177,7 @@ func (s *snapshotSuite) TestIterReturnsOkIfSnapshotsDirNonexistent(c *check.C) {
 
 func (s *snapshotSuite) TestIterBailsIfSnapshotsDirFails(c *check.C) {
 	triedToOpenDir := false
-	defer backend.MockDirOpen(func(string) (*os.File, error) {
+	defer backend.MockOsOpen(func(string) (*os.File, error) {
 		triedToOpenDir = true
 		return nil, os.ErrInvalid
 	})()
@@ -191,7 +191,7 @@ func (s *snapshotSuite) TestIterWarnsOnOpenErrorIfSnapshotNil(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 	triedToOpenDir := false
-	defer backend.MockDirOpen(func(string) (*os.File, error) {
+	defer backend.MockOsOpen(func(string) (*os.File, error) {
 		triedToOpenDir = true
 		return new(os.File), nil
 	})()
@@ -221,7 +221,7 @@ func (s *snapshotSuite) TestIterWarnsOnOpenErrorIfSnapshotNil(c *check.C) {
 	c.Check(triedToOpenDir, check.Equals, true)
 	c.Check(readNames, check.Equals, 2)
 	c.Check(triedToOpenSnapshot, check.Equals, true)
-	c.Check(logbuf.String(), check.Matches, `.* cannot open snapshot "hello": invalid argument\n`)
+	c.Check(logbuf.String(), check.Matches, `(?m).* Cannot open snapshot "hello": invalid argument.`)
 	c.Check(calledF, check.Equals, false)
 }
 
@@ -229,7 +229,7 @@ func (s *snapshotSuite) TestIterCallsFuncIfSnapshotNotNil(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 	triedToOpenDir := false
-	defer backend.MockDirOpen(func(string) (*os.File, error) {
+	defer backend.MockOsOpen(func(string) (*os.File, error) {
 		triedToOpenDir = true
 		return new(os.File), nil
 	})()
@@ -271,7 +271,7 @@ func (s *snapshotSuite) TestIterReportsCloseError(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 	triedToOpenDir := false
-	defer backend.MockDirOpen(func(string) (*os.File, error) {
+	defer backend.MockOsOpen(func(string) (*os.File, error) {
 		triedToOpenDir = true
 		return new(os.File), nil
 	})()
@@ -311,7 +311,7 @@ func (s *snapshotSuite) TestIterReportsCloseError(c *check.C) {
 func (s *snapshotSuite) TestList(c *check.C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
-	defer backend.MockDirOpen(func(string) (*os.File, error) { return new(os.File), nil })()
+	defer backend.MockOsOpen(func(string) (*os.File, error) { return new(os.File), nil })()
 	readNames := 0
 	defer backend.MockDirNames(func(*os.File, int) ([]string, error) {
 		readNames++
@@ -370,7 +370,7 @@ func (s *snapshotSuite) TestList(c *check.C) {
 		c.Check(logbuf.String(), check.Equals, "", comm)
 		c.Check(sets, check.HasLen, t.numSets, comm)
 		nShots := 0
-		fnTpl := filepath.Join(dirs.SnapshotsDir, "%d_%s_%s.zip")
+		fnTpl := filepath.Join(dirs.SnapshotsDir, "%d_%s_%s_%s.zip")
 		for j, ss := range sets {
 			for k, sh := range ss.Snapshots {
 				comm := check.Commentf("%d: %d/%v #%d/%d", i, t.setID, t.snapnames, j, k)
@@ -378,7 +378,7 @@ func (s *snapshotSuite) TestList(c *check.C) {
 					c.Check(t.predicate(sh), check.Equals, true, comm)
 				}
 				nShots++
-				fn := fmt.Sprintf(fnTpl, sh.SetID, sh.Snap, sh.Version)
+				fn := fmt.Sprintf(fnTpl, sh.SetID, sh.Snap, sh.Version, sh.Revision)
 				c.Check(backend.Filename(sh), check.Equals, fn, comm)
 			}
 		}
@@ -386,13 +386,20 @@ func (s *snapshotSuite) TestList(c *check.C) {
 	}
 }
 
-func (s *snapshotSuite) TestAddToZipBails(c *check.C) {
-	// note as everything is nil this would panic if it didn't bail
-	c.Check(backend.AddToZip(nil, nil, nil, "an/entry", filepath.Join(s.root, "nonexistent")), check.IsNil)
-	c.Check(backend.AddToZip(nil, nil, nil, "an/entry", "/etc/passwd"), check.IsNil)
+func (s *snapshotSuite) TestAddDirToZipBails(c *check.C) {
+	sh := &client.Snapshot{SetID: 42, Snap: "a-snap"}
+	buf, restore := logger.MockLogger()
+	defer restore()
+	// note as the zip is nil this would panic if it didn't bail
+	c.Check(backend.AddDirToZip(nil, sh, nil, "", "an/entry", filepath.Join(s.root, "nonexistent")), check.IsNil)
+	// no log for the non-existent case
+	c.Check(buf.String(), check.Equals, "")
+	buf.Reset()
+	c.Check(backend.AddDirToZip(nil, sh, nil, "", "an/entry", "/etc/passwd"), check.IsNil)
+	c.Check(buf.String(), check.Matches, "(?m).* is not a directory.")
 }
 
-func (s *snapshotSuite) TestAddToZipTarFails(c *check.C) {
+func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
 	d := filepath.Join(s.root, "foo")
 	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0755), check.IsNil)
 
@@ -401,10 +408,10 @@ func (s *snapshotSuite) TestAddToZipTarFails(c *check.C) {
 
 	var buf bytes.Buffer
 	z := zip.NewWriter(&buf)
-	c.Assert(backend.AddToZip(ctx, nil, z, "an/entry", d), check.ErrorMatches, ".* context canceled")
+	c.Assert(backend.AddDirToZip(ctx, nil, z, "", "an/entry", d), check.ErrorMatches, ".* context canceled")
 }
 
-func (s *snapshotSuite) TestAddToZip(c *check.C) {
+func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 	d := filepath.Join(s.root, "foo")
 	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0755), check.IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(s.root, "common"), 0755), check.IsNil)
@@ -415,7 +422,7 @@ func (s *snapshotSuite) TestAddToZip(c *check.C) {
 	sh := &client.Snapshot{
 		SHA3_384: map[string]string{},
 	}
-	c.Assert(backend.AddToZip(context.Background(), sh, z, "an/entry", d), check.IsNil)
+	c.Assert(backend.AddDirToZip(context.Background(), sh, z, "", "an/entry", d), check.IsNil)
 	z.Close() // write out the central directory
 
 	c.Check(sh.SHA3_384, check.HasLen, 1)
@@ -442,7 +449,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	c.Check(shw.Version, check.Equals, info.Version)
 	c.Check(shw.Revision, check.Equals, info.Revision)
 	c.Check(shw.Conf, check.DeepEquals, cfg)
-	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33.zip"))
+	c.Check(backend.Filename(shw), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(hashkeys(shw), check.DeepEquals, []string{"archive.tgz", "user/snapuser.tgz"})
 
 	shs, err := backend.List(context.TODO(), 0, nil)
@@ -458,7 +465,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	c.Check(shr.Version, check.Equals, info.Version)
 	c.Check(shr.Revision, check.Equals, info.Revision)
 	c.Check(shr.Conf, check.DeepEquals, cfg)
-	c.Check(shr.Name(), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33.zip"))
+	c.Check(shr.Name(), check.Equals, filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip"))
 	c.Check(shr.SHA3_384, check.DeepEquals, shw.SHA3_384)
 
 	c.Check(shr.Check(context.TODO(), nil), check.IsNil)
@@ -480,7 +487,9 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 		c.Check(diff().Run(), check.NotNil, comm)
 
 		// restore leaves things like they were (again and again)
-		c.Assert(shr.Restore(context.TODO(), nil, logger.Debugf), check.IsNil, comm)
+		rs, err := shr.Restore(context.TODO(), nil, logger.Debugf)
+		c.Assert(err, check.IsNil, comm)
+		rs.Cleanup()
 		c.Check(diff().Run(), check.IsNil, comm)
 
 		// dirty it -> no longer like it was

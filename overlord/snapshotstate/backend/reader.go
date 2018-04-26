@@ -28,7 +28,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"syscall"
@@ -76,7 +75,7 @@ func Open(fn string) (rsh *Reader, e error) {
 	// first try to load the metadata itself
 	var sz sizer
 	hasher := crypto.SHA3_384.New()
-	metaReader, metaSize, err := member(f, metadataName)
+	metaReader, metaSize, err := zipMember(f, metadataName)
 	if err != nil {
 		// no metadata file -> nothing to do :-(
 		return nil, err
@@ -102,7 +101,7 @@ func Open(fn string) (rsh *Reader, e error) {
 
 	// grab the metadata hash
 	sz.Reset()
-	metaHashReader, metaHashSize, err := member(f, metaHashName)
+	metaHashReader, metaHashSize, err := zipMember(f, metaHashName)
 	if err != nil {
 		rsh.Broken = err.Error()
 		return rsh, err
@@ -117,8 +116,7 @@ func Open(fn string) (rsh *Reader, e error) {
 		return rsh, errors.New(rsh.Broken)
 	}
 	if expectedMetaHash := string(bytes.TrimSpace(metaHashBuf)); actualMetaHash != expectedMetaHash {
-		logger.Noticef("Declared metadata hash (%s) does not match actual (%s).", expectedMetaHash, actualMetaHash)
-		rsh.Broken = "metadata hash mismatch"
+		rsh.Broken = fmt.Sprintf("declared hash (%.7s…) does not match actual (%.7s…)", expectedMetaHash, actualMetaHash)
 		return rsh, errors.New(rsh.Broken)
 	}
 
@@ -126,7 +124,7 @@ func Open(fn string) (rsh *Reader, e error) {
 }
 
 func (r *Reader) checkOne(ctx context.Context, entry string, hasher hash.Hash) error {
-	body, reportedSize, err := member(r.File, entry)
+	body, reportedSize, err := zipMember(r.File, entry)
 	if err != nil {
 		return err
 	}
@@ -143,8 +141,7 @@ func (r *Reader) checkOne(ctx context.Context, entry string, hasher hash.Hash) e
 	}
 
 	if actualHash := fmt.Sprintf("%x", hasher.Sum(nil)); actualHash != expectedHash {
-		logger.Noticef("Snapshot entry %q expected hash (%s) does not match actual (%s).", entry, expectedHash, actualHash)
-		return fmt.Errorf("snapshot entry %q expected hash different from actual", entry)
+		return fmt.Errorf("snapshot entry %q expected hash (%.7s…) does not match actual (%.7s…)", entry, expectedHash, actualHash)
 	}
 	return nil
 }
@@ -180,30 +177,16 @@ type Logf func(format string, args ...interface{})
 
 // Restore the data from the snapshot.
 //
-// If successful this will replace the existing data (for the revision
-// in the snapshot) with that contained in the snapshot.
-func (r *Reader) Restore(ctx context.Context, usernames []string, logf Logf) error {
-	_, err := r.restore(ctx, false, usernames, logf)
-	return err
-}
-
-// RestoreLeavingTrash is like Restore, but it leaves the old data in
-// a trash directory.
-func (r *Reader) RestoreLeavingTrash(ctx context.Context, usernames []string, logf Logf) (*Trash, error) {
-	return r.restore(ctx, true, usernames, logf)
-}
-
-func (r *Reader) restore(ctx context.Context, leaveTrash bool, usernames []string, logf Logf) (b *Trash, e error) {
-	b = &Trash{}
+// If successful this will replace the existing data (for the revision in the
+// snapshot) with that contained in the snapshot.  It keeps track of the old
+// data in the task so it can be undone (or cleaned up).
+func (r *Reader) Restore(ctx context.Context, usernames []string, logf Logf) (rs *RestoreState, e error) {
+	rs = &RestoreState{}
 	defer func() {
 		if e != nil {
 			logger.Noticef("Restore of snapshot %q failed (%v); undoing.", r.Name(), e)
-			b.Revert()
-			b = nil
-		} else if !leaveTrash {
-			logger.Debugf("Restore of snapshot succeeded and no trash requested; cleaning up.")
-			b.Cleanup()
-			b = nil
+			rs.Revert()
+			rs = nil
 		}
 	}()
 
@@ -215,11 +198,12 @@ func (r *Reader) restore(ctx context.Context, leaveTrash bool, usernames []strin
 
 	for entry := range r.SHA3_384 {
 		if err := ctx.Err(); err != nil {
-			return b, err
+			return rs, err
 		}
 
 		var dest string
 		isUser := isUserArchive(entry)
+		username := "root"
 		uid := sys.UserID(osutil.NoChown)
 		gid := sys.GroupID(osutil.NoChown)
 
@@ -231,7 +215,7 @@ func (r *Reader) restore(ctx context.Context, leaveTrash bool, usernames []strin
 			}
 			dest = si.DataDir()
 		} else {
-			username := entryUsername(entry)
+			username = entryUsername(entry)
 			if len(usernames) > 0 && !strutil.SortedListContains(usernames, username) {
 				logger.Debugf("In restoring snapshot %q, skipping entry %q by user request.", r.Name(), username)
 				continue
@@ -272,7 +256,7 @@ func (r *Reader) restore(ctx context.Context, leaveTrash bool, usernames []strin
 
 		exists, isDir, err := osutil.DirExists(parent)
 		if err != nil {
-			return b, err
+			return rs, err
 		}
 		if !exists {
 			// NOTE that the chown won't happen (it'll be NoChown)
@@ -280,16 +264,16 @@ func (r *Reader) restore(ctx context.Context, leaveTrash bool, usernames []strin
 			// user's home (as we skip restore in that case).
 			// Also no chown happens for root/root.
 			if err := osutil.MkdirAllChown(parent, 0755, uid, gid); err != nil {
-				return b, err
+				return rs, err
 			}
-			b.Created = append(b.Created, parent)
+			rs.Created = append(rs.Created, parent)
 		} else if !isDir {
-			return b, fmt.Errorf("Cannot restore snapshot into %q: not a directory.", parent)
+			return rs, fmt.Errorf("Cannot restore snapshot into %q: not a directory.", parent)
 		}
 
 		tempdir, err := ioutil.TempDir(parent, ".snapshot")
 		if err != nil {
-			return b, err
+			return rs, err
 		}
 		// one way or another we want tempdir gone
 		defer func() {
@@ -300,9 +284,9 @@ func (r *Reader) restore(ctx context.Context, leaveTrash bool, usernames []strin
 
 		logger.Debugf("Restoring %q from %q into %q.", entry, r.Name(), tempdir)
 
-		body, expectedSize, err := member(r.File, entry)
+		body, expectedSize, err := zipMember(r.File, entry)
 		if err != nil {
-			return b, err
+			return rs, err
 		}
 
 		expectedHash := r.SHA3_384[entry]
@@ -312,7 +296,8 @@ func (r *Reader) restore(ctx context.Context, leaveTrash bool, usernames []strin
 		// resist the temptation of using archive/tar unless it's proven
 		// that calling out to tar has issues -- there are a lot of
 		// special cases we'd need to consider otherwise
-		cmd := exec.Command("tar",
+		cmd := maybeRunuserCommand(username,
+			"tar",
 			"--extract",
 			"--preserve-permissions", "--preserve-order", "--gunzip",
 			"--directory", tempdir)
@@ -322,17 +307,17 @@ func (r *Reader) restore(ctx context.Context, leaveTrash bool, usernames []strin
 		cmd.Stdout = os.Stderr
 
 		if err = osutil.RunWithContext(ctx, cmd); err != nil {
-			return b, err
+			return rs, err
 		}
 
 		if sz.size != expectedSize {
-			return b, fmt.Errorf("snapshot %q entry %q expected size (%d) does not match actual (%d)", r.Name(), entry, expectedSize, sz.size)
+			return rs, fmt.Errorf("snapshot %q entry %q expected size (%d) does not match actual (%d)",
+				r.Name(), entry, expectedSize, sz.size)
 		}
 
 		if actualHash := fmt.Sprintf("%x", hasher.Sum(nil)); actualHash != expectedHash {
-			logger.Noticef("Snapshot %q entry %q expected hash (%s) does not match actual (%s).",
+			return rs, fmt.Errorf("snapshot %q entry %q expected hash (%.7s…) does not match actual (%.7s…)",
 				r.Name(), entry, expectedHash, actualHash)
-			return b, fmt.Errorf("snapshot %q entry %q expected hash does not match actual", r.Name(), entry)
 		}
 
 		// TODO: something with Config
@@ -340,35 +325,32 @@ func (r *Reader) restore(ctx context.Context, leaveTrash bool, usernames []strin
 		for _, dir := range []string{"common", revdir} {
 			source := filepath.Join(tempdir, dir)
 			if exists, _, err := osutil.DirExists(source); err != nil {
-				return b, err
+				return rs, err
 			} else if !exists {
 				continue
 			}
 			target := filepath.Join(parent, dir)
 			exists, _, err := osutil.DirExists(target)
 			if err != nil {
-				return b, err
+				return rs, err
 			}
 			if exists {
-				trash, err := nextTrash(target)
-				if err != nil {
-					return b, err
+				rsfn := restoreStateFilename(target)
+				if err := os.Rename(target, rsfn); err != nil {
+					return rs, err
 				}
-				if err := os.Rename(target, trash); err != nil {
-					return b, err
-				}
-				b.Moved = append(b.Moved, trash)
+				rs.Moved = append(rs.Moved, rsfn)
 			}
 
 			if err := os.Rename(source, target); err != nil {
-				return b, err
+				return rs, err
 			}
-			b.Created = append(b.Created, target)
+			rs.Created = append(rs.Created, target)
 		}
 
 		sz.Reset()
 		hasher.Reset()
 	}
 
-	return b, nil
+	return rs, nil
 }
