@@ -109,7 +109,7 @@ func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractS
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.service-watchdog-client.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.service-watchdog-client.app2"), testutil.Contains, "\nunix (connect, send) type=dgram peer=(label=unconfined,addr=\"@/org/freedesktop/systemd1/notify/*\"),")
+	c.Assert(apparmorSpec.SnippetForTag("snap.service-watchdog-client.app2"), testutil.Contains, "\nunix (connect, send) type=dgram peer=(label=unconfined,addr=\"@/org/freedesktop/systemd1/notify/[0-9]*\"),")
 }
 
 func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractAny(c *C) {

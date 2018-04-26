@@ -73,7 +73,7 @@ func (iface *serviceWatchdogInterface) AppArmorConnectedPlug(spec *apparmor.Spec
 		// abstract socket path such as
 		// @/org/freedesktop/systemd1/notify/13334051644891137417, the
 		// last part changing with each reboot
-		rule = `unix (connect, send) type=dgram peer=(label=unconfined,addr="@/org/freedesktop/systemd1/notify/*")`
+		rule = `unix (connect, send) type=dgram peer=(label=unconfined,addr="@/org/freedesktop/systemd1/notify/[0-9]*")`
 	case strings.HasPrefix(notifySocket, "@"):
 		rule = fmt.Sprintf(`unix (connect, send) type=dgram peer=(label=unconfined,addr="%s")`, notifySocket)
 	default:
