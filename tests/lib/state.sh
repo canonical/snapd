@@ -1,11 +1,9 @@
-#!/bin/bash
-
-set -eux
+#!/bin/sh
 
 SNAPD_STATE_PATH="$SPREAD_PATH/snapd-state"
 
 get_boot_path() {
-	BOOT=""
+    BOOT=""
     if ls /boot/uboot/*; then
         BOOT="/boot/uboot/"
     elif ls /boot/grub/*; then
@@ -18,7 +16,7 @@ get_boot_path() {
 }
 
 save_all_snap_state() {
-	get_boot_path
+    get_boot_path
     mkdir -p "$SNAPD_STATE_PATH"
     cp -rf /var/lib/snapd "$SNAPD_STATE_PATH/snapdlib"
     cp -rf "$BOOT" "$SNAPD_STATE_PATH/boot"
@@ -28,8 +26,8 @@ save_all_snap_state() {
 restore_all_snap_state() {
     # we need to ensure that we also restore the boot environment
     # fully for tests that break it
-	get_boot_path
-	rm -rf /var/lib/snapd/*
+    get_boot_path
+    rm -rf /var/lib/snapd/*
     cp -rf "$SNAPD_STATE_PATH"/snapdlib/* /var/lib/snapd
     cp -rf "$SNAPD_STATE_PATH"/boot/* "$BOOT"
     cp -f "$SNAPD_STATE_PATH"/snap-*core*.mount  /etc/systemd/system
