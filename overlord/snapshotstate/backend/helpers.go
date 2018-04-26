@@ -24,43 +24,19 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
-func nextTrash(fn string) (string, error) {
-	for n := 1; n < 100; n++ {
-		cand := fmt.Sprintf("%s.~%d~", fn, n)
-		if exists, _, _ := osutil.DirExists(cand); !exists {
-			return cand, nil
-		}
-	}
-	return "", fmt.Errorf("cannot find a trash name for %q", fn)
-}
-
-var trashRx = regexp.MustCompile(`\.~\d+~$`)
-
-func trash2orig(fn string) string {
-	if idx := trashRx.FindStringIndex(fn); len(idx) > 0 {
-		return fn[:idx[0]]
-	}
-	return ""
-}
-
-func member(f *os.File, member string) (r io.ReadCloser, sz int64, err error) {
-	if f == nil {
-		// maybe "not open"?
-		return nil, -1, io.EOF
-	}
-
+func zipMember(f *os.File, member string) (r io.ReadCloser, sz int64, err error) {
 	// rewind the file
 	// (shouldn't be needed, but doesn't hurt too much)
 	if _, err := f.Seek(0, 0); err != nil {
@@ -152,19 +128,18 @@ func allUsers() ([]*user.User, error) {
 		return nil, err
 	}
 	users[0] = root
-	seen := make(map[uint32]struct{}, len(ds)+1)
-	var yes struct{}
-	seen[0] = yes
+	seen := make(map[uint32]bool, len(ds)+1)
+	seen[0] = true
 	var st syscall.Stat_t
 	for _, d := range ds {
 		err := syscall.Stat(d, &st)
 		if err != nil {
 			continue
 		}
-		if _, ok := seen[st.Uid]; ok {
+		if seen[st.Uid] {
 			continue
 		}
-		seen[st.Uid] = yes
+		seen[st.Uid] = true
 		usr, err := user.LookupId(strconv.FormatUint(uint64(st.Uid), 10))
 		if err != nil {
 			return nil, err
@@ -173,4 +148,25 @@ func allUsers() ([]*user.User, error) {
 	}
 
 	return users, nil
+}
+
+// maybeRunuserCommand returns an exec.Cmd that will, if the current
+// effective user id is 0 and username is not "root", call runuser(1)
+// to change to the given username before running the given command.
+//
+// If username is "root", or the effective user id is 0, the given
+// command is passed directly to exec.Command.
+//
+// TODO: maybe move this to osutil
+func maybeRunuserCommand(username string, args ...string) *exec.Cmd {
+	if username == "root" || sys.Geteuid() != 0 {
+		// runuser only works for euid 0, and doesn't make sense for root
+		return exec.Command(args[0], args[1:]...)
+	}
+	sudoArgs := make([]string, len(args)+2)
+	copy(sudoArgs[2:], args)
+	sudoArgs[0] = "-u"
+	sudoArgs[1] = username
+
+	return exec.Command("runuser", sudoArgs...)
 }

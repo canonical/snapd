@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	AddToZip = addToZip
+	AddDirToZip = addDirToZip
 )
 
 func MockUserLookup(newLookup func(string) (*user.User, error)) func() {
@@ -44,11 +44,11 @@ func MockUserLookupId(newLookupId func(string) (*user.User, error)) func() {
 	}
 }
 
-func MockDirOpen(newDirOpen func(string) (*os.File, error)) func() {
-	oldDirOpen := dirOpen
-	dirOpen = newDirOpen
+func MockOsOpen(newOsOpen func(string) (*os.File, error)) func() {
+	oldOsOpen := osOpen
+	osOpen = newOsOpen
 	return func() {
-		dirOpen = oldDirOpen
+		osOpen = oldOsOpen
 	}
 }
 
@@ -61,9 +61,9 @@ func MockDirNames(newDirNames func(*os.File, int) ([]string, error)) func() {
 }
 
 func MockOpen(newOpen func(string) (*Reader, error)) func() {
-	oldOpen := open
-	open = newOpen
+	oldOpen := backendOpen
+	backendOpen = newOpen
 	return func() {
-		open = oldOpen
+		backendOpen = oldOpen
 	}
 }

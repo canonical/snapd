@@ -23,10 +23,10 @@ import (
 	"archive/zip"
 	"crypto"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -52,21 +52,24 @@ const (
 )
 
 var (
-	dirOpen  = os.Open
-	dirNames = (*os.File).Readdirnames
-	open     = Open
+	// Stop is used to ask Iter to stop iteration, without it being an error.
+	Stop = errors.New("stop iteration")
+
+	osOpen      = os.Open
+	dirNames    = (*os.File).Readdirnames
+	backendOpen = Open
 )
 
-// Iter loops over all snapshots in the snapshots directory, applying the
-// given function to each. The snapshot will be closed after the function
-// returns. If the function returns error, iteration is stopped (and if the
-// error isn't EOF, it's returned as the error of the iterator).
+// Iter loops over all snapshots in the snapshots directory, applying the given
+// function to each. The snapshot will be closed after the function returns. If
+// the function returns an error, iteration is stopped (and if the error isn't
+// Stop, it's returned as the error of the iterator).
 func Iter(ctx context.Context, f func(*Reader) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	dir, err := dirOpen(dirs.SnapshotsDir)
+	dir, err := osOpen(dirs.SnapshotsDir)
 	if err != nil {
 		if osutil.IsDirNotExist(err) {
 			// no dir -> no snapshots
@@ -77,15 +80,17 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 	defer dir.Close()
 
 	var names []string
-	for err == nil {
-		names, err = dirNames(dir, 100)
+	var readErr error
+	for readErr == nil && err == nil {
+		names, readErr = dirNames(dir, 100)
+		// note os.Readdirnames can return a non-empty names and a non-nil err
 		for _, name := range names {
 			if err = ctx.Err(); err != nil {
 				break
 			}
 
 			filename := filepath.Join(dirs.SnapshotsDir, name)
-			rsh, openError := open(filename)
+			rsh, openError := backendOpen(filename)
 			// rsh can be non-nil even when openError is not nil (in
 			// which case rsh.Broken will have a reason). f can
 			// check and either ignore or return an error when
@@ -94,7 +99,7 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 				err = f(rsh)
 			} else {
 				// TODO: use warnings instead
-				logger.Noticef("cannot open snapshot %q: %v", name, openError)
+				logger.Noticef("Cannot open snapshot %q: %v.", name, openError)
 			}
 			if openError == nil {
 				// if openError was nil the snapshot was opened and needs closing
@@ -108,7 +113,11 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 		}
 	}
 
-	if err == io.EOF {
+	if readErr != nil && readErr != io.EOF {
+		return readErr
+	}
+
+	if err == Stop {
 		err = nil
 	}
 
@@ -141,7 +150,7 @@ func List(ctx context.Context, setID uint64, snapNames []string) ([]client.Snaps
 // Filename of the given client.Snapshot in this backend.
 func Filename(sh *client.Snapshot) string {
 	// this _needs_ the snap name and version to be valid
-	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s_%s.zip", sh.SetID, sh.Snap, sh.Version))
+	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s_%s_%s.zip", sh.SetID, sh.Snap, sh.Version, sh.Revision))
 }
 
 // Save a snapshot
@@ -173,7 +182,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	// 1. doesn't close the file descriptor (that's done by Cancel, above)
 	// 2. writes out the central directory of the zip
 	// (yes they're weird in this way: why is that called Close, even)
-	if err := addToZip(ctx, sh, w, archiveName, si.DataDir()); err != nil {
+	if err := addDirToZip(ctx, sh, w, "root", archiveName, si.DataDir()); err != nil {
 		return nil, err
 	}
 
@@ -183,7 +192,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	}
 
 	for _, usr := range users {
-		if err := addToZip(ctx, sh, w, userArchiveName(usr), si.UserDataDir(usr.HomeDir)); err != nil {
+		if err := addDirToZip(ctx, sh, w, usr.Username, userArchiveName(usr), si.UserDataDir(usr.HomeDir)); err != nil {
 			return nil, err
 		}
 	}
@@ -219,9 +228,12 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	return sh, nil
 }
 
-func addToZip(ctx context.Context, sh *client.Snapshot, w *zip.Writer, entry, dir string) error {
+func addDirToZip(ctx context.Context, sh *client.Snapshot, w *zip.Writer, username string, entry, dir string) error {
 	hasher := crypto.SHA3_384.New()
 	if exists, isDir, err := osutil.DirExists(dir); !exists || !isDir || err != nil {
+		if exists && !isDir {
+			logger.Noticef("Not saving %q in snapshot #%d of %q as it is not a directory.", dir, sh.SetID, sh.Snap)
+		}
 		return err
 	}
 	parent, dir := filepath.Split(dir)
@@ -233,7 +245,8 @@ func addToZip(ctx context.Context, sh *client.Snapshot, w *zip.Writer, entry, di
 
 	var sz sizer
 
-	cmd := exec.Command("tar",
+	cmd := maybeRunuserCommand(username,
+		"tar",
 		"--create",
 		"--sparse", "--gzip",
 		"--directory", parent, dir, "common")
