@@ -47,6 +47,7 @@ var (
 // SystemCalls encapsulates various system interactions performed by this module.
 type SystemCalls interface {
 	OsLstat(name string) (os.FileInfo, error)
+	SysLstat(name string, buf *syscall.Stat_t) error
 	ReadDir(dirname string) ([]os.FileInfo, error)
 	Symlinkat(oldname string, dirfd int, newname string) error
 	Readlinkat(dirfd int, path string, buf []byte) (int, error)
@@ -81,6 +82,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	oldReadlinkat := sysReadlinkat
 	oldFstat := sysFstat
 	oldSysFchdir := sysFchdir
+	oldSysLstat := sysLstat
 
 	// override
 	osLstat = sc.OsLstat
@@ -98,6 +100,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	sysReadlinkat = sc.Readlinkat
 	sysFstat = sc.Fstat
 	sysFchdir = sc.Fchdir
+	sysLstat = sc.SysLstat
 
 	return func() {
 		// restore
@@ -116,6 +119,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		sysReadlinkat = oldReadlinkat
 		sysFstat = oldFstat
 		sysFchdir = oldSysFchdir
+		sysLstat = oldSysLstat
 	}
 }
 

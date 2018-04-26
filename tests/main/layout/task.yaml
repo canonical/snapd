@@ -36,6 +36,13 @@ execute: |
         test-snapd-layout.sh -c "test -d /var/cache/demo"
         test-snapd-layout.sh -c "test -d /opt/demo"
 
+        echo "layout constructed a mimic using tmpfs as aid"
+        [ "$(test-snapd-layout.sh -c "stat -f /opt -c '%T'")" = "tmpfs" ]
+        echo "and the tmpfs was mounted with 0755 and root/root user/group to mimic /opt in core"
+        [ "$(test-snapd-layout.sh -c "stat /opt -c '%a'")" = "755" ]
+        [ "$(test-snapd-layout.sh -c "stat /opt -c '%u'")" = "0" ]
+        [ "$(test-snapd-layout.sh -c "stat /opt -c '%g'")" = "0" ]
+
         echo "layout locations pointing to SNAP_DATA and SNAP_COMMON are writable"
         echo "and the writes go to the right place in the backing store"
 

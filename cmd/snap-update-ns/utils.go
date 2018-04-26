@@ -54,6 +54,7 @@ var (
 	sysSymlinkat  = osutil.Symlinkat
 	sysReadlinkat = osutil.Readlinkat
 	sysFchdir     = syscall.Fchdir
+	sysLstat      = syscall.Lstat
 
 	ioutilReadDir = ioutil.ReadDir
 )
@@ -462,13 +463,20 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 
 	var changes []*Change
 
+	// Stat the original directory to know which mode and ownership to
+	// replicate on top of the tmpfs we are about to create below.
+	var sb syscall.Stat_t
+	if err := sysLstat(dir, &sb); err != nil {
+		return nil, err
+	}
+
 	// Bind mount the original directory elsewhere for safe-keeping.
 	changes = append(changes, &Change{
 		Action: Mount, Entry: osutil.MountEntry{
 			// NOTE: Here we recursively bind because we realized that not
-			// doing so doesn't work work on core devices which use bind
-			// mounts extensively to construct writable spaces in /etc and
-			// /var and elsewhere.
+			// doing so doesn't work on core devices which use bind mounts
+			// extensively to construct writable spaces in /etc and /var and
+			// elsewhere.
 			//
 			// All directories present in the original are also recursively
 			// bind mounted back to their original location. To unmount this
@@ -481,13 +489,19 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 			// umount2(2) system call.
 			Name: dir, Dir: safeKeepingDir, Options: []string{"rbind"}},
 	})
+
 	// Mount tmpfs over the original directory, hiding its contents.
+	// The mounted tmpfs will mimic the mode and ownership of the original
+	// directory.
 	changes = append(changes, &Change{
 		Action: Mount, Entry: osutil.MountEntry{
 			Name: "tmpfs", Dir: dir, Type: "tmpfs",
 			Options: []string{
 				osutil.XSnapdSynthetic(),
 				osutil.XSnapdNeededBy(neededBy),
+				fmt.Sprintf("mode=%#o", sb.Mode&07777),
+				fmt.Sprintf("uid=%d", sb.Uid),
+				fmt.Sprintf("gid=%d", sb.Gid),
 			},
 		},
 	})
