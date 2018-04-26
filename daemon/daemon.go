@@ -506,7 +506,7 @@ func (d *Daemon) Stop() error {
 		// stop running hooks first
 		// and do it more gracefully if we are restarting
 		hookMgr := d.overlord.HookManager()
-		if d.overlord.State().Restarting() {
+		if ok, _ := d.overlord.State().Restarting(); ok {
 			logger.Noticef("gracefully waiting for running hooks")
 			hookMgr.GracefullyWaitRunningHooks()
 			logger.Noticef("done waiting for running hooks")

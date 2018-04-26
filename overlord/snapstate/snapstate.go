@@ -466,17 +466,9 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 }
 
 // GuardCoreSetupProfilesPhase2 decides for a setup-profiles task that
-// could be a phase 2 security setup for core whether to proceed, wait
+// is a phase 2 security setup for core whether to proceed, wait
 // (via Retry) or there is nothing to do. Helper for ifacestate.
 func GuardCoreSetupProfilesPhase2(task *state.Task, snapsup *SnapSetup, snapInfo *snap.Info) (proceed bool, err error) {
-	var corePhase2 bool
-	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
-		return false, err
-	}
-	if !corePhase2 {
-		// common setup-profiles, proceed
-		return true, nil
-	}
 	// phase 2 setup-profiles
 	if snapInfo.Type != snap.TypeOS {
 		// not the core snap, nothing to do
