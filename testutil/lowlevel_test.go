@@ -294,27 +294,53 @@ func (s *lowLevelSuite) TestUnmountFailure(c *C) {
 	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" 0`})
 }
 
-func (s *lowLevelSuite) TestLstat(c *C) {
+func (s *lowLevelSuite) TestOsLstat(c *C) {
 	// When a function returns some data it must be fed either an error or a result.
-	c.Assert(func() { s.sys.Lstat("/foo") }, PanicMatches,
-		`one of InsertLstatResult\(\) or InsertFault\(\) for lstat "/foo" must be used`)
+	c.Assert(func() { s.sys.OsLstat("/foo") }, PanicMatches,
+		`one of InsertOsLstatResult\(\) or InsertFault\(\) for lstat "/foo" must be used`)
 }
 
-func (s *lowLevelSuite) TestLstatSuccess(c *C) {
+func (s *lowLevelSuite) TestOsLstatSuccess(c *C) {
 	// The fed data is returned in absence of errors.
-	s.sys.InsertLstatResult(`lstat "/foo"`, testutil.FileInfoFile)
-	fi, err := s.sys.Lstat("/foo")
+	s.sys.InsertOsLstatResult(`lstat "/foo"`, testutil.FileInfoFile)
+	fi, err := s.sys.OsLstat("/foo")
 	c.Assert(err, IsNil)
 	c.Assert(fi, DeepEquals, testutil.FileInfoFile)
 }
 
-func (s *lowLevelSuite) TestLstatFailure(c *C) {
+func (s *lowLevelSuite) TestOsLstatFailure(c *C) {
 	// Errors take priority over data.
-	s.sys.InsertLstatResult(`lstat "/foo"`, testutil.FileInfoFile)
+	s.sys.InsertOsLstatResult(`lstat "/foo"`, testutil.FileInfoFile)
 	s.sys.InsertFault(`lstat "/foo"`, syscall.ENOENT)
-	fi, err := s.sys.Lstat("/foo")
+	fi, err := s.sys.OsLstat("/foo")
 	c.Assert(err, ErrorMatches, "no such file or directory")
 	c.Assert(fi, IsNil)
+}
+
+func (s *lowLevelSuite) TestSysLstat(c *C) {
+	// When a function returns some data it must be fed either an error or a result.
+	var buf syscall.Stat_t
+	c.Assert(func() { s.sys.SysLstat("/foo", &buf) }, PanicMatches,
+		`one of InsertSysLstatResult\(\) or InsertFault\(\) for lstat "/foo" <ptr> must be used`)
+}
+
+func (s *lowLevelSuite) TestSysLstatSuccess(c *C) {
+	// The fed data is returned in absence of errors.
+	var buf syscall.Stat_t
+	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 123})
+	err := s.sys.SysLstat("/foo", &buf)
+	c.Assert(err, IsNil)
+	c.Assert(buf, DeepEquals, syscall.Stat_t{Uid: 123})
+}
+
+func (s *lowLevelSuite) TestSysLstatFailure(c *C) {
+	// Errors take priority over data.
+	var buf syscall.Stat_t
+	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 123})
+	s.sys.InsertFault(`lstat "/foo" <ptr>`, syscall.ENOENT)
+	err := s.sys.SysLstat("/foo", &buf)
+	c.Assert(err, ErrorMatches, "no such file or directory")
+	c.Assert(buf, DeepEquals, syscall.Stat_t{})
 }
 
 func (s *lowLevelSuite) TestFstat(c *C) {
