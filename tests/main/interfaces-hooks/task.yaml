@@ -1,4 +1,4 @@
-summary: Check that `snap connect` runs interface hook
+summary: Check that `snap connect` runs interface hooks
 
 environment:
     CONSUMER_DATA: /var/snap/basic-iface-hooks-consumer/common
@@ -53,3 +53,4 @@ execute: |
 
     echo "Verify static and dynamic attributes have expected values"
     check_attributes
+    systemctl start snapd.service snapd.socket
