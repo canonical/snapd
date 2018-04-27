@@ -86,6 +86,18 @@ backends:
             - arch-linux-64:
                 workers: 4
 
+    google-sru:
+        type: google
+        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
+        location: computeengine/us-east1-b
+        systems:
+            - ubuntu-14.04-64:
+                workers: 4
+            - ubuntu-16.04-64:
+                workers: 4
+            - ubuntu-18.04-64:
+                workers: 4
+
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
         plan: 4GB
