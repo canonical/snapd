@@ -2299,9 +2299,6 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 	ht2 := hookstate.HookTask(st, "connect-plug hook", &hs2, nil)
 	ht2.WaitFor(ht1)
 
-	t.Set("connect-slot-hook-task", ht1.ID())
-	t.Set("connect-plug-hook-task", ht2.ID())
-
 	chg.AddTask(t)
 	chg.AddTask(ht1)
 	chg.AddTask(ht2)
@@ -2373,7 +2370,7 @@ func (s *interfaceManagerSuite) TestUndoConnectRestoresOldConnState(c *C) {
 		}})
 }
 
-func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotSnapOnAutoConnect(c *C) {
+func (s *interfaceManagerSuite) TestConnectErrorMissingSlotSnapOnAutoConnect(c *C) {
 	_ = s.manager(c)
 	s.mockSnap(c, producerYaml)
 	s.mockSnap(c, consumerYaml)
@@ -2391,19 +2388,14 @@ func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotSnapOnAutoConnect(c
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	task := chg.Tasks()[0]
-	c.Check(task.Status(), Equals, state.DoneStatus)
-	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "producer" is no longer available for auto-connecting.*`)
-	c.Assert(chg.Tasks(), HasLen, 3)
-	// hook tasks explicitly marked done
-	c.Assert(chg.Tasks()[1].Status(), Equals, state.DoneStatus)
-	c.Assert(chg.Tasks()[2].Status(), Equals, state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*snap "producer" is no longer available for auto-connecting.*`)
 
 	var conns map[string]interface{}
 	c.Assert(s.state.Get("conns", &conns), Equals, state.ErrNoState)
 }
 
-func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugSnapOnAutoConnect(c *C) {
+func (s *interfaceManagerSuite) TestConnectErrorMissingPlugSnapOnAutoConnect(c *C) {
 	_ = s.manager(c)
 	s.mockSnap(c, producerYaml)
 	s.mockSnap(c, consumerYaml)
@@ -2420,19 +2412,14 @@ func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugSnapOnAutoConnect(c
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	task := chg.Tasks()[0]
-	c.Assert(task.Status(), Equals, state.DoneStatus)
-	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "consumer" is no longer available for auto-connecting.*`)
-	c.Assert(chg.Tasks(), HasLen, 3)
-	// hook tasks explicitly marked done
-	c.Assert(chg.Tasks()[1].Status(), Equals, state.DoneStatus)
-	c.Assert(chg.Tasks()[2].Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*snap "consumer" is no longer available for auto-connecting.*`)
 
 	var conns map[string]interface{}
 	c.Assert(s.state.Get("conns", &conns), Equals, state.ErrNoState)
 }
 
-func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugOnAutoConnect(c *C) {
+func (s *interfaceManagerSuite) TestConnectErrorMissingPlugOnAutoConnect(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	_ = s.manager(c)
 	producer := s.mockSnap(c, producerYaml)
@@ -2457,16 +2444,15 @@ func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugOnAutoConnect(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	task := chg.Tasks()[0]
-	c.Assert(task.Status(), Equals, state.DoneStatus)
-	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "consumer" no longer has "plug" plug`)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*snap "consumer" has no "plug" plug.*`)
 
 	var conns map[string]interface{}
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
-func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotOnAutoConnect(c *C) {
+func (s *interfaceManagerSuite) TestConnectErrorMissingSlotOnAutoConnect(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	_ = s.manager(c)
 	// producer snap has no slot, doConnect should complain
@@ -2491,9 +2477,8 @@ func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotOnAutoConnect(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	task := chg.Tasks()[0]
-	c.Assert(task.Status(), Equals, state.DoneStatus)
-	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "producer" no longer has "slot" slot`)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*snap "producer" has no "slot" slot.*`)
 
 	var conns map[string]interface{}
 	err = s.state.Get("conns", &conns)

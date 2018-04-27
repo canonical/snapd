@@ -368,23 +368,6 @@ func setDynamicHookAttributes(task *state.Task, plugAttrs, slotAttrs map[string]
 	task.Set("slot-dynamic", slotAttrs)
 }
 
-func markConnectHooksDone(connectTask *state.Task) error {
-	for _, t := range []string{"connect-plug-hook-task", "connect-slot-hook-task"} {
-		var tid string
-		err := connectTask.Get(t, &tid)
-		if err == nil {
-			t := connectTask.State().Task(tid)
-			if t != nil {
-				t.SetStatus(state.DoneStatus)
-			}
-		}
-		if err != nil && err != state.ErrNoState {
-			return fmt.Errorf("internal error: failed to determine %s id: %s", t, err)
-		}
-	}
-	return nil
-}
-
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -410,9 +393,8 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	var plugSnapst snapstate.SnapState
 	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
 		if autoConnect && err == state.ErrNoState {
-			// ignore the error if auto-connecting
-			task.Logf("snap %q is no longer available for auto-connecting", plugRef.Snap)
-			return markConnectHooksDone(task)
+			// conflict logic should prevent this
+			return fmt.Errorf("internal error: snap %q is no longer available for auto-connecting", plugRef.Snap)
 		}
 		return err
 	}
@@ -420,30 +402,21 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	var slotSnapst snapstate.SnapState
 	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
 		if autoConnect && err == state.ErrNoState {
-			// ignore the error if auto-connecting
-			task.Logf("snap %q is no longer available for auto-connecting", slotRef.Snap)
-			return markConnectHooksDone(task)
+			// conflict logic should prevent this
+			return fmt.Errorf("internal error: snap %q is no longer available for auto-connecting", slotRef.Snap)
 		}
 		return err
 	}
 
 	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
 	if plug == nil {
-		if autoConnect {
-			// ignore the error if auto-connecting
-			task.Logf("snap %q no longer has %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
-			return markConnectHooksDone(task)
-		}
+		// conflict logic should prevent this
 		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
 	}
 
 	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	if slot == nil {
-		if autoConnect {
-			// ignore the error if auto-connecting
-			task.Logf("snap %q no longer has %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
-			return markConnectHooksDone(task)
-		}
+		// conflict logic should prevent this
 		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	}
 
