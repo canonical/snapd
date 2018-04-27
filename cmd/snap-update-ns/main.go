@@ -34,7 +34,7 @@ import (
 
 var opts struct {
 	FromSnapConfine bool `long:"from-snap-confine"`
-	UserFstab       bool `long:"user-fstab"`
+	UserMounts      bool `long:"user-mounts"`
 	Positionals     struct {
 		SnapName string `positional-arg-name:"SNAP_NAME" required:"yes"`
 	} `positional-args:"true"`
@@ -82,7 +82,7 @@ func run() error {
 		return err
 	}
 
-	if opts.UserFstab {
+	if opts.UserMounts {
 		return applyUserFstab(opts.Positionals.SnapName)
 	}
 	return applyFstab(opts.Positionals.SnapName, opts.FromSnapConfine)
