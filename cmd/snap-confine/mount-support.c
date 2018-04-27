@@ -789,10 +789,10 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		char *snap_name_copy SC_CLEANUP(sc_cleanup_string) = NULL;
 		snap_name_copy = strdup(snap_name);
 		if (snap_name_copy == NULL) {
-			die("cannot copy snap name");
+			die("cannot allocate memory for snap name");
 		}
 		char *argv[] = {
-			"snap-update-ns", "--user-fstab", snap_name_copy,
+			"snap-update-ns", "--user-mounts", snap_name_copy,
 			NULL
 		};
 		char *envp[3] = { NULL };

@@ -284,7 +284,7 @@ void process_arguments(int argc, char *const *argv, const char** snap_name_out, 
                 // option skip the setns call as snap-confine has
                 // already placed us in the right namespace.
                 should_setns = false;
-            } else if (!strcmp(arg, "--user-fstab")) {
+            } else if (!strcmp(arg, "--user-mounts")) {
                 user_fstab = true;
                 // Processing the user-fstab file implies we're being
                 // called from snap-confine.

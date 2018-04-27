@@ -67,8 +67,8 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		// The option --from-snap-confine disables setns.
 		{[]string{"argv0", "--from-snap-confine", "snapname"}, "snapname", false, false, ""},
 		{[]string{"argv0", "snapname", "--from-snap-confine"}, "snapname", false, false, ""},
-		// The option --user-fstab switches to the real uid
-		{[]string{"argv0", "--user-fstab", "snapname"}, "snapname", false, true, ""},
+		// The option --user-mounts switches to the real uid
+		{[]string{"argv0", "--user-mounts", "snapname"}, "snapname", false, true, ""},
 		// Unknown options are reported.
 		{[]string{"argv0", "-invalid"}, "", false, false, "unsupported option"},
 		{[]string{"argv0", "--option"}, "", false, false, "unsupported option"},
