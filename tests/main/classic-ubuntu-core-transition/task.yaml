@@ -21,10 +21,13 @@ debug: |
     snap info core || true
     snap info ubuntu-core || true
     snap changes
+    #shellcheck source=tests/lib/changes.sh
     . "$TESTSLIB/changes.sh"
     snap change "$(change_id 'Transition ubuntu-core to core')" || true
 execute: |
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
+    #shellcheck source=tests/lib/systemd.sh
     . $TESTSLIB/systemd.sh
     curl() {
         local url="$1"
@@ -37,6 +40,7 @@ execute: |
         python3 -c "import urllib.request; print(urllib.request.urlopen(\"$url\").read().decode(\"utf-8\"))"
     }
 
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     echo "Ensure core is gone and we have ubuntu-core instead"
     distro_purge_package snapd
