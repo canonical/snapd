@@ -445,7 +445,12 @@ func (d *Daemon) Start() {
 		case state.RestartDaemon:
 			d.tomb.Kill(nil)
 		case state.RestartSystem:
-			// TODO: schedule a slow reboot already here
+			// try to schedule a fallback slow reboot already here
+			// in case we get stuck shutting down
+			if err := reboot("+10"); err != nil {
+				logger.Noticef("%s", err)
+			}
+
 			d.mu.Lock()
 			defer d.mu.Unlock()
 			// remember we need to restart the system
@@ -487,9 +492,18 @@ func (d *Daemon) Start() {
 	systemdSdNotify("READY=1")
 }
 
+var execCommand = exec.Command
+
 var shutdownMsg = i18n.G("reboot scheduled to update the system")
 
-var execCommand = exec.Command
+func reboot(rebootDelay string) error {
+	cmd := execCommand("shutdown", "-r", rebootDelay, shutdownMsg)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return osutil.OutputErr(out, err)
+	}
+	return nil
+}
+
 var rebootWaitTimeout = 10 * time.Minute
 
 // Stop shuts down the Daemon
@@ -530,8 +544,6 @@ func (d *Daemon) Stop() error {
 		systemdSdNotify("STOPPING=1")
 
 	}
-	// TODO: else have a timeout for the stopping code here for
-	// the system restart case
 
 	d.overlord.Stop()
 
@@ -548,9 +560,8 @@ func (d *Daemon) Stop() error {
 		if ovr != "" {
 			rebootDelay = ovr
 		}
-		cmd := execCommand("shutdown", rebootDelay, "-r", shutdownMsg)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return osutil.OutputErr(out, err)
+		if err := reboot(rebootDelay); err != nil {
+			return err
 		}
 		// wait for reboot to happen
 		logger.Noticef("Waiting for system reboot")
