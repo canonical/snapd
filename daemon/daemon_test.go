@@ -643,6 +643,21 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	<-snapdDone
 	<-snapDone
 
+	oldRebootWaitTimeout := rebootWaitTimeout
+	defer func() {
+		execCommand = exec.Command
+		rebootWaitTimeout = oldRebootWaitTimeout
+	}()
+	rebootWaitTimeout = 100 * time.Millisecond
+
+	var cmds [][]string
+	execCommand = func(name string, arg ...string) *exec.Cmd {
+		rec := []string{name}
+		rec = append(rec, arg...)
+		cmds = append(cmds, rec)
+		return exec.Command("true")
+	}
+
 	d.overlord.State().RequestRestart(state.RestartSystem)
 
 	defer func() {
@@ -663,25 +678,14 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 
 	c.Check(rs, check.Equals, true)
 
-	oldRebootWaitTimeout := rebootWaitTimeout
-	defer func() {
-		execCommand = exec.Command
-		rebootWaitTimeout = oldRebootWaitTimeout
-	}()
-	rebootWaitTimeout = 100 * time.Millisecond
-
-	var cmdName string
-	var args []string
-	execCommand = func(name string, arg ...string) *exec.Cmd {
-		cmdName = name
-		args = arg
-		return exec.Command("true")
-	}
+	c.Check(cmds, check.HasLen, 1)
+	c.Check(cmds[0][:3], check.DeepEquals, []string{"shutdown", "-r", "+10"})
 
 	err = d.Stop()
+
 	c.Check(err, check.ErrorMatches, "expected reboot did not happen")
-	c.Check(cmdName, check.Equals, "shutdown")
-	c.Check(args[:2], check.DeepEquals, []string{"now", "-r"})
+	c.Check(cmds, check.HasLen, 2)
+	c.Check(cmds[1][:3], check.DeepEquals, []string{"shutdown", "-r", "now"})
 
 	// we are not stopping, we wait for the reboot instead
 	c.Check(s.notified, check.DeepEquals, []string{"READY=1"})
