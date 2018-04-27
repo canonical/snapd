@@ -56,7 +56,7 @@ backends:
             - ubuntu-16.04-64:
                 workers: 8
             - ubuntu-18.04-64:
-                image: ubuntu-os-cloud-devel/daily-ubuntu-1804-bionic-v20180417
+                image: ubuntu-os-cloud-devel/daily-ubuntu-1804-bionic-v20180424
                 workers: 6
 
             - ubuntu-core-16-64:
@@ -84,6 +84,18 @@ backends:
                 image: opensuse-cloud/opensuse-leap-42-3-v20180116
                 workers: 4
             - arch-linux-64:
+                workers: 4
+
+    google-sru:
+        type: google
+        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
+        location: computeengine/us-east1-b
+        systems:
+            - ubuntu-14.04-64:
+                workers: 4
+            - ubuntu-16.04-64:
+                workers: 4
+            - ubuntu-18.04-64:
                 workers: 4
 
     linode:
@@ -312,7 +324,7 @@ prepare: |
         #
         # https://forum.snapcraft.io/t/issues-with-the-fedora-mirror-network/3489/
         sed -i -s -E -e 's@^#?baseurl=http://download.fedoraproject.org/@baseurl=http://dl.fedoraproject.org/@g' -e 's@^metalink=@#metalink@g' /etc/yum.repos.d/fedora*.repo
-        dnf --refresh makecache
+        dnf --refresh -y makecache
     fi
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)

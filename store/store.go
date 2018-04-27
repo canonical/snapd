@@ -159,7 +159,7 @@ func respToError(resp *http.Response, msg string) error {
 }
 
 func getStructFields(s interface{}, exceptions ...string) []string {
-	st := reflect.TypeOf(s)
+	st := reflect.TypeOf(s).Elem()
 	num := st.NumField()
 	fields := make([]string, 0, num)
 	for i := 0; i < num; i++ {
@@ -309,7 +309,7 @@ type sectionResults struct {
 }
 
 // The fields we are interested in (not you, snap_yaml_raw)
-var detailFields = getStructFields(snapDetails{}, "snap_yaml_raw")
+var detailFields = getStructFields((*snapDetails)(nil), "snap_yaml_raw")
 
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta3"
@@ -2130,7 +2130,7 @@ type snapActionResultList struct {
 	} `json:"error-list"`
 }
 
-var snapActionFields = getStructFields(storeSnap{})
+var snapActionFields = getStructFields((*storeSnap)(nil))
 
 // SnapAction queries the store for snap information for the given
 // install/refresh actions, given the context information about
