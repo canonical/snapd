@@ -528,56 +528,6 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// doReconnect creates a set of tasks for connecting the interface and running its hooks
-func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
-	st := task.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup, err := snapstate.TaskSnapSetup(task)
-	if err != nil {
-		return err
-	}
-
-	snapName := snapsup.Name()
-	connections, err := m.repo.Connections(snapName)
-	if err != nil {
-		return err
-	}
-
-	connectts := state.NewTaskSet()
-	for _, conn := range connections {
-		ts, err := Connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
-		if err != nil {
-			return err
-		}
-		connectts.AddAll(ts)
-	}
-
-	lanes := task.Lanes()
-	if len(lanes) == 1 && lanes[0] == 0 {
-		lanes = nil
-	}
-	ht := task.HaltTasks()
-
-	// add all connect tasks to the change of main "reconnect" task and to the same lane.
-	for _, l := range lanes {
-		connectts.JoinLane(l)
-	}
-
-	chg := task.Change()
-	chg.AddAll(connectts)
-	// make all halt tasks of the main 'reconnect' task wait on connect tasks
-	for _, t := range ht {
-		t.WaitAll(connectts)
-	}
-
-	task.SetStatus(state.DoneStatus)
-
-	st.EnsureBefore(0)
-	return nil
-}
-
 func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()

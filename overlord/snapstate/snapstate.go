@@ -203,13 +203,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupAliases)
 	prev = setupAliases
 
-	// on refresh re-connect existing connections and run their interface hooks (if applicable)
-	if snapst.IsInstalled() {
-		reconnectTask := st.NewTask("reconnect", fmt.Sprintf(i18n.G("Reconnect interfaces for snap %q"), snapsup.Name()))
-		addTask(reconnectTask)
-		prev = reconnectTask
-	}
-
 	if runRefreshHooks {
 		postRefreshHook := SetupPostRefreshHook(st, snapsup.Name())
 		addTask(postRefreshHook)
