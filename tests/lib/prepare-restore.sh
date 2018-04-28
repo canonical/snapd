@@ -28,6 +28,10 @@ set -o pipefail
 # shellcheck source=tests/lib/spread-funcs.sh
 . "$TESTSLIB/spread-funcs.sh"
 
+# shellcheck source=tests/lib/spread-funcs.sh
+. "$TESTSLIB/state.sh"
+
+
 ###
 ### Utility functions reused below.
 ###
@@ -488,7 +492,7 @@ restore_project() {
     # We use a trick to accelerate prepare/restore code in certain suites. That
     # code uses a tarball to store the vanilla state. Here we just remove this
     # tarball.
-    rm -f "$SPREAD_PATH/snapd-state.tar"
+    delete_snapd_state
 
     # Remove all of the code we pushed and any build results. This removes
     # stale files and we cannot do incremental builds anyway so there's little

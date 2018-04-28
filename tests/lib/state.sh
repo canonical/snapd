@@ -1,18 +1,30 @@
 #!/bin/sh
 
-SNAPD_STATE_PATH="$SPREAD_PATH/snapd-state"
+# shellcheck source=tests/lib/dirs.sh
+. "$TESTSLIB/dirs.sh"
 
-get_boot_path() {
-    BOOT=""
-    if ls /boot/uboot/*; then
-        BOOT="/boot/uboot/"
-    elif ls /boot/grub/*; then
-        BOOT="/boot/grub/"
-    else
-        echo "Cannot determine bootdir in /boot:"
-        ls /boot
-        exit 1
-    fi
+SNAPD_STATE_PATH="$SPREAD_PATH/snapd-state"
+SNAPD_STATE_FILE="$SPREAD_PATH"/snapd-state.tar
+
+delete_snapd_state() {
+    rm -f $SNAPD_STATE_FILE
+    rm -rf $SNAPD_STATE_PATH
+}
+
+save_classic_state() {
+    escaped_snap_mount_dir=$1
+    snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
+    snap_confine_profiles="$(ls /etc/apparmor.d/snap.core.* || true)"
+    # shellcheck disable=SC2086
+    tar cf "$SNAPD_STATE_FILE" /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount $snap_confine_profiles $snapd_env
+}
+
+restore_classic_state() {
+    # Purge all the systemd service units config
+    rm -rf /etc/systemd/system/snapd.service.d
+    rm -rf /etc/systemd/system/snapd.socket.d
+
+    tar -C/ -xf "$SNAPD_STATE_FILE"
 }
 
 save_all_snap_state() {
@@ -101,4 +113,17 @@ sync_snaps() {
             cp -f "$SOURCE/$fname" "$TARGET/$fname"
         fi
     done
+}
+
+get_boot_path() {
+    BOOT=""
+    if ls /boot/uboot/*; then
+        BOOT="/boot/uboot/"
+    elif ls /boot/grub/*; then
+        BOOT="/boot/grub/"
+    else
+        echo "Cannot determine bootdir in /boot:"
+        ls /boot
+        exit 1
+    fi
 }

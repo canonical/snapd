@@ -199,7 +199,7 @@ prepare_classic() {
     fi
 
     # Snapshot the state including core.
-    if [ ! -f "$SPREAD_PATH/snapd-state.tar" ]; then
+    if [ ! -f "$SNAPD_STATE_FILE" ]; then
         # Pre-cache a few heavy snaps so that they can be installed by tests
         # quickly. This relies on a behavior of snapd where .partial files are
         # used for resuming downloads.
@@ -246,10 +246,9 @@ prepare_classic() {
         for unit in $units; do
             systemctl stop "$unit"
         done
-        snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
-        snap_confine_profiles="$(ls /etc/apparmor.d/snap.core.* || true)"
-        # shellcheck disable=SC2086
-        tar cf "$SPREAD_PATH"/snapd-state.tar /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount $snap_confine_profiles $snapd_env
+
+        save_classic_state $escaped_snap_mount_dir
+
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
