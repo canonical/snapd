@@ -20,13 +20,13 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
-	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/yaml.v2"
@@ -40,15 +40,23 @@ import (
 )
 
 type infoCmd struct {
+	timeMixin
+
 	Verbose    bool `long:"verbose"`
 	Positional struct {
 		Snaps []anySnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
-var shortInfoHelp = i18n.G("Show detailed information about a snap")
+var shortInfoHelp = i18n.G("Show detailed information about snaps")
 var longInfoHelp = i18n.G(`
-The info command shows detailed information about a snap, be it by name or by path.`)
+The info command shows detailed information about snaps.
+
+The snaps can be specified by name or by path; names are looked for both in the
+store and in the installed snaps; paths can refer to a .snap file, or to a
+directory that contains an unpacked snap suitable for 'snap try' (an example
+of this would be the 'prime' directory snapcraft produces).
+`)
 
 func init() {
 	addCommand("info",
@@ -56,9 +64,9 @@ func init() {
 		longInfoHelp,
 		func() flags.Commander {
 			return &infoCmd{}
-		}, map[string]string{
+		}, timeDescs.also(map[string]string{
 			"verbose": i18n.G("Include a verbose list of a snap's notes (otherwise, summarise notes)"),
-		}, nil)
+		}), nil)
 }
 
 func norm(path string) string {
@@ -156,27 +164,90 @@ func coalesce(snaps ...*client.Snap) *client.Snap {
 	return nil
 }
 
-// formatDescr formats a given string (typically a snap description)
+// runesTrimRightSpace returns text, with any trailing whitespace dropped.
+func runesTrimRightSpace(text []rune) []rune {
+	j := len(text)
+	for j > 0 && unicode.IsSpace(text[j-1]) {
+		j--
+	}
+	return text[:j]
+}
+
+// runesLastIndexSpace returns the index of the last whitespace rune
+// in the text. If the text has no whitespace, returns -1.
+func runesLastIndexSpace(text []rune) int {
+	for i := len(text) - 1; i >= 0; i-- {
+		if unicode.IsSpace(text[i]) {
+			return i
+		}
+	}
+	return -1
+}
+
+// wrapLine wraps a line to fit into width, preserving the line's indent, and
+// writes it out prepending padding to each line.
+func wrapLine(out io.Writer, text []rune, pad string, width int) error {
+	// Note: this is _wrong_ for much of unicode (because the width of a rune on
+	//       the terminal is anything between 0 and 2, not always 1 as this code
+	//       assumes) but fixing that is Hard. Long story short, you can get close
+	//       using a couple of big unicode tables (which is what wcwidth
+	//       does). Getting it 100% requires a terminfo-alike of unicode behaviour.
+	//       However, before this we'd count bytes instead of runes, so we'd be
+	//       even more broken. Think of it as successive approximations... at least
+	//       with this work we share tabwriter's opinion on the width of things!
+
+	// This (and possibly printDescr below) should move to strutil once
+	// we're happy with it getting wider (heh heh) use.
+
+	// discard any trailing whitespace
+	text = runesTrimRightSpace(text)
+	// establish the indent of the whole block
+	idx := 0
+	for idx < len(text) && unicode.IsSpace(text[idx]) {
+		idx++
+	}
+	indent := pad + string(text[:idx])
+	text = text[idx:]
+	width -= idx + utf8.RuneCountInString(pad)
+	var err error
+	for len(text) > width && err == nil {
+		// find a good place to chop the text
+		idx = runesLastIndexSpace(text[:width+1])
+		if idx < 0 {
+			// there's no whitespace; just chop at line width
+			idx = width
+		}
+		_, err = fmt.Fprint(out, indent, string(text[:idx]), "\n")
+		// prune any remaining whitespace before the start of the next line
+		for idx < len(text) && unicode.IsSpace(text[idx]) {
+			idx++
+		}
+		text = text[idx:]
+	}
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(out, indent, string(text), "\n")
+	return err
+}
+
+// printDescr formats a given string (typically a snap description)
 // in a user friendly way.
 //
 // The rules are (intentionally) very simple:
-// - trim whitespace
-// - word wrap at "max" chars
-// - keep \n intact and break here
-// - ignore \r
-func formatDescr(descr string, max int) string {
-	out := bytes.NewBuffer(nil)
-	for _, line := range strings.Split(strings.TrimSpace(descr), "\n") {
-		if len(line) > max {
-			for _, chunk := range strutil.WordWrap(line, max) {
-				fmt.Fprintf(out, "  %s\n", chunk)
-			}
-		} else {
-			fmt.Fprintf(out, "  %s\n", line)
+// - trim trailing whitespace
+// - word wrap at "max" chars preserving line indent
+// - keep \n intact and break there
+func printDescr(w io.Writer, descr string, max int) error {
+	var err error
+	descr = strings.TrimRightFunc(descr, unicode.IsSpace)
+	for _, line := range strings.Split(descr, "\n") {
+		err = wrapLine(w, []rune(line), "  ", max)
+		if err != nil {
+			break
 		}
 	}
-
-	return strings.TrimSuffix(out.String(), "\n")
+	return err
 }
 
 func maybePrintCommands(w io.Writer, snapName string, allApps []client.AppInfo, n int) {
@@ -240,9 +311,8 @@ func maybePrintServices(w io.Writer, snapName string, allApps []client.AppInfo, 
 var channelRisks = []string{"stable", "candidate", "beta", "edge"}
 
 // displayChannels displays channels and tracks in the right order
-func displayChannels(w io.Writer, remote *client.Snap) {
-	// \t\t\t so we get "installed" lined up with "channels"
-	fmt.Fprintf(w, "channels:\t\t\t\n")
+func displayChannels(w io.Writer, chantpl string, remote *client.Snap) {
+	fmt.Fprintf(w, "channels:"+strings.Repeat("\t", strings.Count(chantpl, "\t"))+"\n")
 
 	// order by tracks
 	for _, tr := range remote.Tracks {
@@ -267,7 +337,7 @@ func displayChannels(w io.Writer, remote *client.Snap) {
 					version = "–" // that's an en dash (so yaml is happy)
 				}
 			}
-			fmt.Fprintf(w, "  %s:\t%s\t%s\t%s\t%s\n", chName, version, revision, size, notes)
+			fmt.Fprintf(w, "  "+chantpl, chName, version, revision, size, notes)
 		}
 	}
 }
@@ -336,7 +406,8 @@ func (x *infoCmd) Execute([]string) error {
 		}
 		fmt.Fprintf(w, "license:\t%s\n", license)
 		maybePrintPrice(w, remote, resInfo)
-		fmt.Fprintf(w, "description: |\n%s\n", formatDescr(both.Description, termWidth))
+		fmt.Fprintln(w, "description: |")
+		printDescr(w, both.Description, termWidth)
 		maybePrintCommands(w, snapName, both.Apps, termWidth)
 		maybePrintServices(w, snapName, both.Apps, termWidth)
 
@@ -370,16 +441,25 @@ func (x *infoCmd) Execute([]string) error {
 		maybePrintType(w, both.Type)
 		maybePrintID(w, both)
 		if local != nil {
-			fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
-			fmt.Fprintf(w, "refreshed:\t%s\n", local.InstallDate.Format(time.RFC3339))
-		}
-		w.Flush()
-		if local != nil {
-			fmt.Fprintf(w, "installed:\t%s\t(%s)\t%s\t%s\n", local.Version, local.Revision, strutil.SizeToStr(local.InstalledSize), notes)
+			if local.TrackingChannel != "" {
+				fmt.Fprintf(w, "tracking:\t%s\n", local.TrackingChannel)
+			}
+			if !local.InstallDate.IsZero() {
+				fmt.Fprintf(w, "refresh-date:\t%s\n", x.fmtTime(local.InstallDate))
+			}
 		}
 
+		chantpl := "%s:\t%s %s %s %s\n"
 		if remote != nil && remote.Channels != nil && remote.Tracks != nil {
-			displayChannels(w, remote)
+			chantpl = "%s:\t%s\t%s\t%s\t%s\n"
+
+			w.Flush()
+			displayChannels(w, chantpl, remote)
+		}
+		if local != nil {
+			revstr := fmt.Sprintf("(%s)", local.Revision)
+			fmt.Fprintf(w, chantpl,
+				"installed", local.Version, revstr, strutil.SizeToStr(local.InstalledSize), notes)
 		}
 
 	}
