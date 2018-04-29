@@ -113,7 +113,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	var y snapYaml
 	err := yaml.Unmarshal(yamlData, &y)
 	if err != nil {
-		return nil, fmt.Errorf("info failed to parse: %s", err)
+		return nil, fmt.Errorf("cannot parse snap.yaml: %s", err)
 	}
 
 	snap := infoSkeletonFromSnapYaml(y)
@@ -300,8 +300,8 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			BusName:         yApp.BusName,
 			Environment:     yApp.Environment,
 			Completer:       yApp.Completer,
-			RefreshMode:     yApp.RefreshMode,
 			StopMode:        yApp.StopMode,
+			RefreshMode:     yApp.RefreshMode,
 			Before:          yApp.Before,
 			After:           yApp.After,
 			Autostart:       yApp.Autostart,

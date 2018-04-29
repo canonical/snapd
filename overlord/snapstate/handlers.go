@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/configstate/settings"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -365,13 +366,15 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		extra["UbuntuCoreTransitionCount"] = strconv.Itoa(ubuntuCoreTransitionCount)
 	}
 
-	st.Unlock()
-	oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, strings.Join(logMsg, "\n"), strings.Join(dupSig, "\n"), extra)
-	st.Lock()
-	if err == nil {
-		logger.Noticef("Reported install problem for %q as %s", snapsup.SideInfo.RealName, oopsid)
-	} else {
-		logger.Debugf("Cannot report problem: %s", err)
+	if !settings.ProblemReportsDisabled(st) {
+		st.Unlock()
+		oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, strings.Join(logMsg, "\n"), strings.Join(dupSig, "\n"), extra)
+		st.Lock()
+		if err == nil {
+			logger.Noticef("Reported install problem for %q as %s", snapsup.SideInfo.RealName, oopsid)
+		} else {
+			logger.Debugf("Cannot report problem: %s", err)
+		}
 	}
 
 	return nil
