@@ -27,6 +27,8 @@ import (
 
 var (
 	SnapConfineFromCoreProfile = snapConfineFromCoreProfile
+	ProfileGlobs               = profileGlobs
+	NsProfile                  = nsProfile
 )
 
 // MockIsRootWritableOverlay mocks the real implementation of osutil.IsRootWritableOverlay
