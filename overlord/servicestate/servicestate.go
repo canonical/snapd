@@ -21,6 +21,7 @@ package servicestate
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/cmdstate"
@@ -107,5 +108,10 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 		return nil, &ServiceActionConflictError{err}
 	}
 
-	return cmdstate.Exec(st, desc, argv), nil
+	// Give the systemctl a maximum time of 61 for now.
+	//
+	// Longer term we need to refactor this code and
+	// reuse the snapd/systemd and snapd/wrapper packages
+	// to control the timeout in a single place.
+	return cmdstate.ExecWithTimeout(st, desc, argv, 61*time.Second), nil
 }
