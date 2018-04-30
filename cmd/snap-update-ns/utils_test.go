@@ -723,6 +723,42 @@ func (s *utilsSuite) TestSplitIntoSegments(c *C) {
 
 // secure-open-path
 
+func (s *utilsSuite) TestSecureOpenPath(c *C) {
+	fd, err := s.sec.OpenPath("/foo/bar")
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	c.Assert(fd, Equals, 5)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,       // -> 3
+		`openat 3 "foo" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "bar" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 5
+		`close 4`,
+		`close 3`,
+	})
+}
+
+func (s *utilsSuite) TestSecureOpenPathSingleSegment(c *C) {
+	fd, err := s.sec.OpenPath("/foo")
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	c.Assert(fd, Equals, 4)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,       // -> 3
+		`openat 3 "foo" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`close 3`,
+	})
+}
+
+func (s *utilsSuite) TestSecureOpenPathRoot(c *C) {
+	fd, err := s.sec.OpenPath("/")
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	c.Assert(fd, Equals, 3)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 3
+	})
+}
+
 func (s *realSystemSuite) TestSecureOpenPathDirectory(c *C) {
 	path := filepath.Join(c.MkDir(), "test")
 	c.Assert(os.Mkdir(path, 0755), IsNil)

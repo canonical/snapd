@@ -107,17 +107,12 @@ func (sec *Secure) OpenPath(path string) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-	if len(segments) > 1 {
+	for _, segment := range segments {
+		// Ensure the parent file descriptor is closed
 		defer sysClose(fd)
-	}
-	for i, segment := range segments {
 		fd, err = sysOpenat(fd, segment, openFlags, 0)
 		if err != nil {
 			return -1, err
-		}
-		// Keep the final FD open (caller needs to close it).
-		if i < len(segments)-1 {
-			defer sysClose(fd)
 		}
 	}
 	return fd, nil
