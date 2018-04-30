@@ -98,9 +98,6 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0777), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
 
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	// connected plug to core slot
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
