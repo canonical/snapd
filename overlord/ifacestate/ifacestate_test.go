@@ -340,8 +340,14 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstalledSnap(c *
 	t.Set("snap-setup", sup)
 	chg.AddTask(t)
 
-	_, err := ifacestate.AutoConnect(s.state, chg, t, "consumer", "plug", "producer", "slot")
+	ts, err := ifacestate.AutoConnect(s.state, chg, t, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), HasLen, 5)
+	connectTask := ts.Tasks()[2]
+	c.Assert(connectTask.Kind(), Equals, "connect")
+	var auto bool
+	connectTask.Get("auto", &auto)
+	c.Assert(auto, Equals, true)
 }
 
 func (s *interfaceManagerSuite) testAutoConnectConflicts(c *C, conflictingKind string) {
