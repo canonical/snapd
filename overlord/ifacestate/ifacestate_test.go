@@ -350,7 +350,7 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstalledSnap(c *
 	c.Assert(auto, Equals, true)
 }
 
-func (s *interfaceManagerSuite) testAutoConnectConflicts(c *C, conflictingKind string) {
+func (s *interfaceManagerSuite) testConnectConflicts(c *C, installedSnapTaskKind string, connectFunc func(*state.State, *state.Change, *state.Task, string, string, string, string) (*state.TaskSet, error), conflictingKind string) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -366,7 +366,7 @@ func (s *interfaceManagerSuite) testAutoConnectConflicts(c *C, conflictingKind s
 	chg1.AddTask(t1)
 
 	chg := s.state.NewChange("other-chg", "...")
-	t2 := s.state.NewTask("auto-connect", "...")
+	t2 := s.state.NewTask(installedSnapTaskKind, "...")
 	t2.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "producer"},
@@ -374,17 +374,25 @@ func (s *interfaceManagerSuite) testAutoConnectConflicts(c *C, conflictingKind s
 
 	chg.AddTask(t2)
 
-	_, err := ifacestate.AutoConnect(s.state, chg, t2, "consumer", "plug", "producer", "slot")
+	_, err := connectFunc(s.state, chg, t2, "consumer", "plug", "producer", "slot")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `task should be retried`)
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnUnlink(c *C) {
-	s.testAutoConnectConflicts(c, "unlink-snap")
+	s.testConnectConflicts(c, "auto-connect", ifacestate.AutoConnect, "unlink-snap")
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnLink(c *C) {
-	s.testAutoConnectConflicts(c, "link-snap")
+	s.testConnectConflicts(c, "auto-connect", ifacestate.AutoConnect, "link-snap")
+}
+
+func (s *interfaceManagerSuite) TestReconnectConflictOnUnlink(c *C) {
+	s.testConnectConflicts(c, "reconnect", ifacestate.Reconnect, "unlink-snap")
+}
+
+func (s *interfaceManagerSuite) TestReconnectConflictOnLink(c *C) {
+	s.testConnectConflicts(c, "reconnect", ifacestate.Reconnect, "link-snap")
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
