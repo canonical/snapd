@@ -545,9 +545,10 @@ func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	chg := task.Change()
 	connectts := state.NewTaskSet()
 	for _, conn := range connections {
-		ts, err := Connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
+		ts, err := Reconnect(st, chg, task, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
 		if err != nil {
 			return err
 		}
@@ -565,7 +566,6 @@ func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 		connectts.JoinLane(l)
 	}
 
-	chg := task.Change()
 	chg.AddAll(connectts)
 	// make all halt tasks of the main 'reconnect' task wait on connect tasks
 	for _, t := range ht {
