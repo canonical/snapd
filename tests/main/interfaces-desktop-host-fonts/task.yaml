@@ -27,7 +27,7 @@ execute: |
     snap try $TESTSLIB/snaps/test-snapd-desktop
 
     echo "The plug is connected by default"
-    snap interfaces | MATCH ":desktop .*test-snapd-desktop"
+    snap interfaces -i desktop | MATCH ":desktop .*test-snapd-desktop"
 
     echo "Checking access to host /usr/share/fonts"
     test-snapd-desktop.check-files /usr/share/fonts/dist-font.txt | MATCH "Distribution font"
