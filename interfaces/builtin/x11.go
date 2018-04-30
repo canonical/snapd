@@ -20,14 +20,14 @@
 package builtin
 
 import (
+	"strings"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-
-	"strings"
 )
 
 const x11Summary = `allows interacting with or running as an X11 server`
