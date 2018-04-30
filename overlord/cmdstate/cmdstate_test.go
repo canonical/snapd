@@ -179,3 +179,24 @@ func (s *cmdSuite) TestExecTimesOut(c *check.C) {
 	c.Check(chg.Status(), check.Equals, state.ErrorStatus)
 	c.Check(strings.Join(chg.Tasks()[0].Log(), "\n"), check.Matches, `(?s).*ERROR exceeded maximum runtime.*`)
 }
+
+func (s *cmdSuite) TestExecTimeoutMissing(c *check.C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := cmdstate.MockDefaultExecTimeout(1 * time.Second)
+	defer restore()
+
+	ts := cmdstate.ExecWithTimeout(s.state, "Doing the thing", []string{"sleep", "0.3"}, time.Second/10)
+	c.Assert(len(ts.Tasks()), check.Equals, 1)
+	t := ts.Tasks()[0]
+	// no timeout means the default timeout will be used
+	t.Clear("timeout")
+	chg := s.state.NewChange("do-the-thing", "Doing the thing")
+	chg.AddAll(ts)
+
+	s.waitfor(chg)
+
+	// slept for
+	c.Check(chg.Status(), check.Equals, state.DoneStatus)
+}
