@@ -98,7 +98,7 @@ func (sec *Secure) OpenPath(path string) (int, error) {
 	// We use the following flags to open:
 	//  O_PATH: we don't intend to use the fd for IO
 	//  O_NOFOLLOW: don't follow symlinks
-	//  O_DIRECTORY: we expect to find directories
+	//  O_DIRECTORY: we expect to find directories (except for the leaf)
 	//  O_CLOEXEC: don't leak file descriptors over exec() boundaries
 	openFlags := sys.O_PATH | syscall.O_NOFOLLOW | syscall.O_DIRECTORY | syscall.O_CLOEXEC
 	var fd int

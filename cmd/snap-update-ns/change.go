@@ -244,8 +244,7 @@ func (c *Change) lowLevelPerform(sec *Secure) error {
 			// symlinks are handled in createInode directly, nothing to do here.
 		case "", "file":
 			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
-			// If we're performing a bind mount, use
-			// Secure.BindMount
+			// Use Secure.BindMount for bind mounts
 			if flags&syscall.MS_BIND == syscall.MS_BIND {
 				err = sec.BindMount(c.Entry.Name, c.Entry.Dir, uint(flags))
 			} else {
