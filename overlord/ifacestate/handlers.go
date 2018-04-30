@@ -555,23 +555,7 @@ func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 		connectts.AddAll(ts)
 	}
 
-	lanes := task.Lanes()
-	if len(lanes) == 1 && lanes[0] == 0 {
-		lanes = nil
-	}
-	ht := task.HaltTasks()
-
-	// add all connect tasks to the change of main "reconnect" task and to the same lane.
-	for _, l := range lanes {
-		connectts.JoinLane(l)
-	}
-
-	chg.AddAll(connectts)
-	// make all halt tasks of the main 'reconnect' task wait on connect tasks
-	for _, t := range ht {
-		t.WaitAll(connectts)
-	}
-
+	snapstate.InjectTasks(task, connectts)
 	task.SetStatus(state.DoneStatus)
 
 	st.EnsureBefore(0)
