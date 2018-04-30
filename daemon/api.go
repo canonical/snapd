@@ -1188,12 +1188,11 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 			return InternalError("store.SnapNotFound with %d snaps", len(inst.Snaps))
 		}
 	case store.ErrRevisionNotAvailable:
+		// store.ErrRevisionNotAvailable should only be returned for
+		// individual snap queries; in all other cases something's wrong
 		switch len(inst.Snaps) {
 		case 1:
 			return SnapRevisionNotAvailable(inst.Snaps[0], err)
-		// store.ErrRevisionNotAvailable should only be
-		// returned for individual snap queries; in all other
-		// cases something's wrong
 		case 0:
 			return InternalError("store.RevisionNotAvailable with no snap given")
 		default:
