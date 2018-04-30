@@ -16,7 +16,7 @@ execute: |
     . $TESTSLIB/dirs.sh
 
     echo "Create XDG_RUNTIME_DIR for test user"
-    export USER_RUNTIME_DIR=/run/user/12345
+    USER_RUNTIME_DIR=/run/user/12345
     mkdir -p $USER_RUNTIME_DIR || true
     rm -rf $USER_RUNTIME_DIR/*
     chmod u=rwX,go= $USER_RUNTIME_DIR
@@ -24,15 +24,20 @@ execute: |
 
     cat << EOF > /tmp/check-doc-portal.sh
     set -eu
-    export XDG_RUNTIME_DIR=/run/user/12345
-    mkdir -p /run/user/12345/snap.test-snapd-desktop/doc/by-app/snap.test-snapd-desktop
-    touch /run/user/12345/snap.test-snapd-desktop/doc/is-unconfined
-    touch /run/user/12345/snap.test-snapd-desktop/doc/by-app/snap.test-snapd-desktop/is-confined
-    test-snapd-desktop.check-dirs /run/user/12345/snap.test-snapd-desktop/doc
+    mkdir -p /run/user/12345/doc/by-app/snap.test-snapd-desktop
+    touch /run/user/12345/doc/is-unconfined
+    touch /run/user/12345/doc/by-app/snap.test-snapd-desktop/is-confined
+    test-snapd-desktop.check-dirs /run/user/12345/doc
     EOF
 
-    echo "Without desktop interface connected"
-    su -l -c "sh /tmp/check-doc-portal.sh" test | MATCH is-unconfined
+    if [ "$(snap debug confinement)" = strict ]; then
+      echo "Without desktop interface connected"
+      if su -l -c "sh /tmp/check-doc-portal.sh" test 2> check.error; then
+        echo "Expected permission error when checking document portal dir"
+        exit 1
+      fi
+      MATCH "Permission denied" < check.error
+    fi
 
     $LIBEXECDIR/snapd/snap-discard-ns test-snapd-desktop
 
