@@ -121,10 +121,10 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 			}
 		}
 	case client.ErrorKindRevisionNotAvailable:
-		// TRANSLATORS: %%q will become a %q for the snap name
+		// TRANSLATORS: %q and %[1]s refer to the same thing (a snap name).
 		msg = i18n.G(`
-snap not found in the given context. Please use "snap info %s" to list available releases.
-`)
+snap %q not found in the given context.
+Please use 'snap info %[1]s' to list available releases.`)
 	case client.ErrorKindSnapAlreadyInstalled:
 		isError = false
 		msg = i18n.G(`snap %q is already installed, see 'snap help refresh'`)

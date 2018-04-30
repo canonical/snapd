@@ -69,7 +69,8 @@ execute: |
         echo "Installing test-snapd-only-in-edge should fail but did not"
         exit 1
     fi
-    MATCH 'error: snap not found in the given context.' < stderr.out
+    MATCH 'error: snap "test-snapd-only-in-edge" not found in the given context.' < stderr.out
+    MATCH "use 'snap info test-snapd-only-in-edge' to list" < stderr.out
 
     echo "Install a snap not available for the given architecture"
     if [ "$(uname -m)" = "x86_64" ]; then
