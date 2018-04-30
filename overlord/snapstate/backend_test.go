@@ -218,6 +218,7 @@ type refreshCand struct {
 func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	var name string
 
+	typ := snap.TypeApp
 	switch cand.snapID {
 	case "":
 		panic("store refresh APIs expect snap-ids")
@@ -231,12 +232,16 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "some-snap"
 	case "core-snap-id":
 		name = "core"
+		typ = snap.TypeOS
 	case "snap-with-snapd-control-id":
 		name = "snap-with-snapd-control"
 	case "producer-id":
 		name = "producer"
 	case "consumer-id":
 		name = "consumer"
+	case "some-base-id":
+		name = "some-base"
+		typ = snap.TypeBase
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
@@ -256,6 +261,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	}
 
 	info := &snap.Info{
+		Type: typ,
 		SideInfo: snap.SideInfo{
 			RealName: name,
 			Channel:  cand.channel,
@@ -278,6 +284,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 				Symlink: "$SNAP/usr",
 			},
 		}
+	case "channel-for-base":
+		info.Base = "some-base"
 	}
 
 	var hit snap.Revision
@@ -507,7 +515,7 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 	return &snap.Info{SuggestedName: name, Architectures: []string{"all"}}, f.emptyContainer, nil
 }
 
-func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, p progress.Meter) error {
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, p progress.Meter) (snap.Type, error) {
 	p.Notify("setup-snap")
 	revno := snap.R(0)
 	if si != nil {
@@ -518,12 +526,22 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, p 
 		name:  snapFilePath,
 		revno: revno,
 	})
-	return nil
+	snapType := snap.TypeApp
+	switch si.RealName {
+	case "core":
+		snapType = snap.TypeOS
+	case "gadget":
+		snapType = snap.TypeGadget
+	}
+	return snapType, nil
 }
 
 func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
-	if name == "borken" {
+	if name == "borken" && si.Revision == snap.R(2) {
 		return nil, errors.New(`cannot read info for "borken" snap`)
+	}
+	if name == "not-there" && si.Revision == snap.R(2) {
+		return nil, &snap.NotFoundError{Snap: name, Revision: si.Revision}
 	}
 	// naive emulation for now, always works
 	info := &snap.Info{
