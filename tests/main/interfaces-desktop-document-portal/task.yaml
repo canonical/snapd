@@ -1,0 +1,41 @@
+summary: The document portal is mounted by snaps using the desktop interface
+details: |
+    The document portal is a component of xdg-desktop-portal that
+    provides a way to share files with a confined application in a
+    controlled fashion.  To provide proper security, a subtree of the
+    portal needs to be mounted over $XDG_RUNTIME_DIR/doc inside the
+    sandbox.
+prepare: |
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-desktop
+    snap disconnect test-snapd-desktop:desktop
+restore: |
+    rm -rf /run/user/12345/*
+    rm -f /tmp/check-doc-portal.sh
+execute: |
+    . $TESTSLIB/dirs.sh
+
+    echo "Create XDG_RUNTIME_DIR for test user"
+    export USER_RUNTIME_DIR=/run/user/12345
+    mkdir -p $USER_RUNTIME_DIR || true
+    rm -rf $USER_RUNTIME_DIR/*
+    chmod u=rwX,go= $USER_RUNTIME_DIR
+    chown test:test $USER_RUNTIME_DIR
+
+    cat << EOF > /tmp/check-doc-portal.sh
+    set -eu
+    export XDG_RUNTIME_DIR=/run/user/12345
+    mkdir -p /run/user/12345/snap.test-snapd-desktop/doc/by-app/snap.test-snapd-desktop
+    touch /run/user/12345/snap.test-snapd-desktop/doc/is-unconfined
+    touch /run/user/12345/snap.test-snapd-desktop/doc/by-app/snap.test-snapd-desktop/is-confined
+    test-snapd-desktop.check-dirs /run/user/12345/snap.test-snapd-desktop/doc
+    EOF
+
+    echo "Without desktop interface connected"
+    su -l -c "sh /tmp/check-doc-portal.sh" test | MATCH is-unconfined
+
+    $LIBEXECDIR/snapd/snap-discard-ns test-snapd-desktop
+
+    echo "With desktop connected, we see confined version"
+    snap connect test-snapd-desktop:desktop
+    su -l -c "sh /tmp/check-doc-portal.sh" test | MATCH is-confined
