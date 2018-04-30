@@ -319,7 +319,7 @@ func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstalledSnap(c *C) {
+func (s *interfaceManagerSuite) testConnectDoesntConflictOnInstalledSnap(c *C, installedSnapTaskKind string, connectFunc func(*state.State, *state.Change, *state.Task, string, string, string, string) (*state.TaskSet, error), autoFlag bool) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -336,18 +336,22 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstalledSnap(c *
 	t.Set("snap-setup", sup)
 	chg.AddTask(t)
 
-	t = s.state.NewTask("auto-connect", "...")
+	t = s.state.NewTask(installedSnapTaskKind, "...")
 	t.Set("snap-setup", sup)
 	chg.AddTask(t)
 
-	ts, err := ifacestate.AutoConnect(s.state, chg, t, "consumer", "plug", "producer", "slot")
+	ts, err := connectFunc(s.state, chg, t, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 5)
 	connectTask := ts.Tasks()[2]
 	c.Assert(connectTask.Kind(), Equals, "connect")
 	var auto bool
 	connectTask.Get("auto", &auto)
-	c.Assert(auto, Equals, true)
+	c.Assert(auto, Equals, autoFlag)
+}
+
+func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstalledSnap(c *C) {
+	s.testConnectDoesntConflictOnInstalledSnap(c, "auto-connect", ifacestate.AutoConnect, true)
 }
 
 func (s *interfaceManagerSuite) testConnectConflicts(c *C, installedSnapTaskKind string, connectFunc func(*state.State, *state.Change, *state.Task, string, string, string, string) (*state.TaskSet, error), conflictingKind string) {
@@ -393,6 +397,10 @@ func (s *interfaceManagerSuite) TestReconnectConflictOnUnlink(c *C) {
 
 func (s *interfaceManagerSuite) TestReconnectConflictOnLink(c *C) {
 	s.testConnectConflicts(c, "reconnect", ifacestate.Reconnect, "link-snap")
+}
+
+func (s *interfaceManagerSuite) TestReconnectDoesntConflictOnInstalledSnap(c *C) {
+	s.testConnectDoesntConflictOnInstalledSnap(c, "reconnect", ifacestate.Reconnect, false)
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
