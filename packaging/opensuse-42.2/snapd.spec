@@ -65,6 +65,8 @@ BuildRequires:  timezone
 BuildRequires:  udev
 BuildRequires:  xfsprogs-devel
 BuildRequires:  xz
+BuildRequires:  libapparmor-devel
+BuildRequires:  apparmor-rpm-macros
 
 # Make sure we are on Leap 42.2/SLE 12 SP2 or higher
 %if 0%{?sle_version} >= 120200
@@ -78,6 +80,8 @@ Requires:       apparmor-parser
 Requires:       gpg2
 Requires:       openssh
 Requires:       squashfs
+Requires:       apparmor-parser
+Requires:       apparmor-profiles
 
 %systemd_requires
 
@@ -243,6 +247,7 @@ mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}/lib/systemd/sys
 
 %post
 %set_permissions %{_libexecdir}/snapd/snap-confine
+%apparmor_reload /etc/apparmor.d/usr.lib.snapd.snap-confine
 %service_add_post %{systemd_services_list}
 case ":$PATH:" in
     *:/snap/bin:*)
@@ -266,6 +271,7 @@ fi
 %config %{_sysconfdir}/permissions.d/snapd
 %config %{_sysconfdir}/permissions.d/snapd.paranoid
 %config %{_sysconfdir}/profile.d/snapd.sh
+%config %{_sysconfdir}/apparmor.d/usr.lib.snapd.snap-confine
 %dir %attr(0000,root,root) /var/lib/snapd/void
 %dir /snap
 %dir /snap/bin
@@ -288,6 +294,7 @@ fi
 %dir /var/lib/snapd/lib/gl32
 %dir /var/lib/snapd/lib/vulkan
 %dir /var/cache/snapd
+%dir /etc/apparmor.d
 %verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_mandir}/man1/snap-confine.1.gz
 %{_mandir}/man5/snap-discard-ns.5.gz
