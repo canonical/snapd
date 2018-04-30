@@ -6,8 +6,7 @@ details: |
     portal needs to be mounted over $XDG_RUNTIME_DIR/doc inside the
     sandbox.
 prepare: |
-    . $TESTSLIB/snaps.sh
-    install_local test-snapd-desktop
+    snap try $TESTSLIB/snaps/test-snapd-desktop
     snap disconnect test-snapd-desktop:desktop
 restore: |
     rm -rf /run/user/12345/*
@@ -44,3 +43,13 @@ execute: |
     echo "With desktop connected, we see confined version"
     snap connect test-snapd-desktop:desktop
     su -l -c "sh /tmp/check-doc-portal.sh" test | MATCH is-confined
+
+    $LIBEXECDIR/snapd/snap-discard-ns test-snapd-desktop
+
+    echo "It is not an error if the document portal is missing"
+    rm -rf /run/user/12345/*
+    if su -l -c "test-snapd-desktop.check-dirs /run/user/12345/doc" test 2> check.error; then
+      echo "Expected not found error when checking document portal dir"
+      exit 1
+    fi
+    MATCH "No such file or directory" < check.error
