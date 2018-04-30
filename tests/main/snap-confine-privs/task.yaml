@@ -29,9 +29,9 @@ prepare: |
     chmod 2755 $P/uids-and-gids-setgid
 execute: |
     echo "The test executables files have the expected mode and ownership"
-    ls -l $P | MATCH -- '-rwxr-xr-x 1 root root [0-9]+ [A-Z][a-z]+ +[0-9]+ [0-9]+:[0-9]+ uids-and-gids'
-    ls -l $P | MATCH -- '-rwxr-sr-x 1 root root [0-9]+ [A-Z][a-z]+ +[0-9]+ [0-9]+:[0-9]+ uids-and-gids-setgid'
-    ls -l $P | MATCH -- '-rwsr-xr-x 1 root root [0-9]+ [A-Z][a-z]+ +[0-9]+ [0-9]+:[0-9]+ uids-and-gids-setuid'
+    ls -l $P | MATCH -- '-rwxr-xr-x(.|) 1 root root [0-9]+ [A-Z][a-z]+ +[0-9]+ [0-9]+:[0-9]+ uids-and-gids'
+    ls -l $P | MATCH -- '-rwxr-sr-x(.|) 1 root root [0-9]+ [A-Z][a-z]+ +[0-9]+ [0-9]+:[0-9]+ uids-and-gids-setgid'
+    ls -l $P | MATCH -- '-rwsr-xr-x(.|) 1 root root [0-9]+ [A-Z][a-z]+ +[0-9]+ [0-9]+:[0-9]+ uids-and-gids-setuid'
 
     echo "Running as regular user"
     # Spread runs all tests as root so we're using su to switch to the "test" user.

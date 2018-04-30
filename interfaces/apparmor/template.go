@@ -560,6 +560,9 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
   @{PROC}/@{pid}/cmdline r,
 
+  # Allow reading file descriptor paths
+  @{PROC}/@{pid}/fd/* r,
+
   # Allow reading the os-release file (possibly a symlink to /usr/lib).
   /{etc/,usr/lib/}os-release r,
 
@@ -574,6 +577,7 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   # Allow reading per-snap desired mount profiles. Those are written by
   # snapd and represent the desired layout and content connections.
   /var/lib/snapd/mount/snap.###SNAP_NAME###.fstab r,
+  /var/lib/snapd/mount/snap.###SNAP_NAME###.user-fstab r,
 
   # Allow reading and writing actual per-snap mount profiles. Note that
   # the wildcard in the rule to allow an atomic write + rename strategy.
@@ -588,6 +592,9 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   capability sys_admin,
   # Needed for mimic construction.
   capability chown,
+  # Needed for dropping to calling user when processing per-user mounts
+  capability setuid,
+  capability setgid,
 
   # Allow freezing and thawing the per-snap cgroup freezers
   /sys/fs/cgroup/freezer/snap.###SNAP_NAME###/freezer.state rw,
@@ -597,12 +604,22 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   umount /snap/###SNAP_NAME###/*/**,
 
   # Allow the desktop interface to bind fonts from the host filesystem
-  mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /usr/share/fonts/,
+  mount options=(bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /usr/share/fonts/,
+  remount options=(bind, ro) /usr/share/fonts/,
   umount /usr/share/fonts/,
-  mount options=(ro bind) /var/lib/snapd/hostfs/usr/local/share/fonts/ -> /usr/local/share/fonts/,
+  mount options=(bind) /var/lib/snapd/hostfs/usr/local/share/fonts/ -> /usr/local/share/fonts/,
+  remount options=(bind, ro) /usr/local/share/fonts/,
   umount /usr/local/share/fonts/,
-  mount options=(ro bind) /var/lib/snapd/hostfs/var/cache/fontconfig/ -> /var/cache/fontconfig/,
+  mount options=(bind) /var/lib/snapd/hostfs/var/cache/fontconfig/ -> /var/cache/fontconfig/,
+  remount options=(bind, ro) /var/cache/fontconfig/,
   umount /var/cache/fontconfig/,
+
+  # set up user mount namespace
+  # FIXME: this should be moved to the desktop interface when
+  # xdg-desktop-portal support is integrated
+  mount options=(rslave) -> /,
+  mount options=(ro bind) /run/user/*/** -> /run/user/*/**,
+  mount options=(rw bind) /run/user/*/** -> /run/user/*/**,
 
   # Allow traversing from the root directory and several well-known places.
   # Specific directory permissions are added by snippets below.

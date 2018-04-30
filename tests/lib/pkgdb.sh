@@ -70,6 +70,30 @@ opensuse_name_package() {
     done
 }
 
+arch_name_package() {
+    case "$1" in
+        python3-yaml)
+            echo "python-yaml"
+            ;;
+        dbus-x11)
+            # no separate dbus-x11 package in arch
+            echo "dbus"
+            ;;
+        printer-driver-cups-pdf)
+            echo "cups-pdf"
+            ;;
+        openvswitch-switch)
+            echo "openvswitch"
+            ;;
+        man)
+            echo "man-db"
+            ;;
+        *)
+            echo "$1"
+            ;;
+    esac
+}
+
 distro_name_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
@@ -83,6 +107,9 @@ distro_name_package() {
             ;;
         opensuse-*)
             opensuse_name_package "$@"
+            ;;
+        arch-*)
+            arch_name_package "$1"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -123,6 +150,9 @@ distro_install_local_package() {
             ;;
         opensuse-*)
             quiet rpm -i "$@"
+            ;;
+        arch-*)
+            pacman -U --noconfirm "$@"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -192,10 +222,14 @@ distro_install_package() {
         fedora-*)
             # shellcheck disable=SC2086
             quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"
-                ;;
+            ;;
         opensuse-*)
             # shellcheck disable=SC2086
             quiet zypper install -y $ZYPPER_FLAGS "${pkg_names[@]}"
+            ;;
+        arch-*)
+            # shellcheck disable=SC2086
+            pacman -Suq --needed --noconfirm "${pkg_names[@]}"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -229,6 +263,9 @@ distro_purge_package() {
         opensuse-*)
             quiet zypper remove -y "$@"
             ;;
+        arch-*)
+            pacman -Rnsc --noconfirm "$@"
+            ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
             exit 1
@@ -248,6 +285,9 @@ distro_update_package_db() {
         opensuse-*)
             quiet zypper --gpg-auto-import-keys refresh
             ;;
+        arch-*)
+            pacman -Syq
+            ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
             exit 1
@@ -262,6 +302,9 @@ distro_clean_package_cache() {
             ;;
         opensuse-*)
             zypper -q clean --all
+            ;;
+        arch-*)
+            pacman -Sccq --noconfirm
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -280,6 +323,8 @@ distro_auto_remove_packages() {
             ;;
         opensuse-*)
             ;;
+        arch-*)
+            ;;
         *)
             echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
             exit 1
@@ -297,6 +342,9 @@ distro_query_package_info() {
             ;;
         opensuse-*)
             zypper info "$1"
+            ;;
+        arch-*)
+            pacman -Si "$1"
             ;;
     esac
 }
@@ -330,6 +378,10 @@ distro_install_build_snapd(){
                 # shellcheck disable=SC2125
                 packages="${GOHOME}"/snapd*.rpm
                 ;;
+            arch-*)
+                # shellcheck disable=SC2125
+                packages="${GOHOME}"/snapd*.pkg.tar.xz
+                ;;
             *)
                 exit 1
                 ;;
@@ -337,6 +389,12 @@ distro_install_build_snapd(){
 
         # shellcheck disable=SC2086
         distro_install_local_package $packages
+
+        if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+            # Arch policy does not allow calling daemon-reloads in package
+            # install scripts
+            systemctl daemon-reload
+        fi
 
         # On some distributions the snapd.socket is not yet automatically
         # enabled as we don't have a systemd present configuration approved
@@ -356,6 +414,10 @@ distro_get_package_extension() {
             ;;
         fedora-*|opensuse-*)
             echo "rpm"
+            ;;
+        arch-*)
+            # default /etc/makepkg.conf setting
+            echo "pkg.tar.xz"
             ;;
     esac
 }
@@ -432,7 +494,6 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-18.04-64)
             echo "
-                linux-image-extra-$(uname -r)
                 squashfs-tools
                 "
             ;;
@@ -464,8 +525,10 @@ pkg_dependencies_fedora(){
         git
         golang
         jq
+        iptables-services
         man
         mock
+        net-tools
         redhat-lsb-core
         rpm-build
         xdg-user-dirs
@@ -490,6 +553,30 @@ pkg_dependencies_opensuse(){
         "
 }
 
+pkg_dependencies_arch(){
+    echo "
+    curl
+    base-devel
+    go
+    go-tools
+    libseccomp
+    libcap
+    python-docutils
+    xfsprogs
+    squashfs-tools
+    shellcheck
+    python
+    jq
+    git
+    openbsd-netcat
+    xdg-user-dirs
+    expect
+    libx11
+    bash-completion
+    net-tools
+    "
+}
+
 pkg_dependencies(){
     case "$SPREAD_SYSTEM" in
         ubuntu-core-16-*)
@@ -506,6 +593,9 @@ pkg_dependencies(){
         opensuse-*)
             pkg_dependencies_opensuse
             ;;
+        arch-*)
+            pkg_dependencies_arch
+            ;;
         *)
             ;;
     esac
@@ -515,4 +605,35 @@ install_pkg_dependencies(){
     pkgs=$(pkg_dependencies)
     # shellcheck disable=SC2086
     distro_install_package $pkgs
+}
+
+# upgrade distribution and indicate if reboot is needed by outputting 'reboot'
+# to stdout
+distro_upgrade() {
+    case "$SPREAD_SYSTEM" in
+        arch-*)
+            # Arch does not support partial upgrades. On top of this, the image
+            # we are running in may have been built some time ago and we need to
+            # upgrade so that the tests are run with the same package versions
+            # as the users will have. We basically need to run pacman -Syu.
+            # Since there is no way to tell if we can continue after upgrading
+            # (eg. the kernel package or systemd got updated ) issue a reboot
+            # instead.
+            #
+            # pacman -Syu --noconfirm on an updated system:
+            # :: Synchronizing package databases...
+            #  core is up to date
+            #  extra is up to date
+            #  community is up to date
+            #  multilib is up to date
+            # :: Starting full system upgrade...
+            #  there is nothing to do  <--- needle
+            if ! pacman -Syu --noconfirm 2>&1 | grep -q "there is nothing to do" ; then
+                echo "reboot"
+            fi
+            ;;
+        *)
+            echo "WARNING: distro upgrade not supported on $SPREAD_SYSTEM"
+            ;;
+    esac
 }
