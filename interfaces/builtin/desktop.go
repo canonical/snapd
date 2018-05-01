@@ -230,6 +230,11 @@ func (iface *desktopInterface) fontconfigDirs() []string {
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(desktopConnectedPlugAppArmor)
 
+	if !release.OnClassic {
+		// We only need the font mount rules on classic systems
+		return nil
+	}
+
 	for _, dir := range iface.fontconfigDirs() {
 		var buf bytes.Buffer
 		source := "/var/lib/snapd/hostfs" + dir
