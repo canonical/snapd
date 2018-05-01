@@ -158,3 +158,7 @@ func MockTimeutilHuman(h func(time.Time) string) (restore func()) {
 func Wait(cli *client.Client, id string) (*client.Change, error) {
 	return waitMixin{}.wait(cli, id)
 }
+
+func CmdAdviseSnap() *cmdAdviseSnap {
+	return &cmdAdviseSnap{}
+}
