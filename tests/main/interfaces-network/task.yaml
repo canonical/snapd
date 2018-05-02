@@ -37,7 +37,7 @@ restore: |
 
 execute: |
     echo "The interface is connected by default"
-    snap interfaces | MATCH ":network .*$SNAP_NAME"
+    snap interfaces -i network | MATCH ":network .*$SNAP_NAME"
 
     echo "When the plug is disconnected"
     snap disconnect $SNAP_NAME:network

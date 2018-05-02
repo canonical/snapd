@@ -68,4 +68,4 @@ execute: |
     fi
 
     echo "Ensure interfaces are connected"
-    snap interfaces | MATCH ":core-support.*core:core-support-plug"
+    snap interfaces -i core-support | MATCH ":core-support.*core:core-support-plug"

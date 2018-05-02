@@ -10,7 +10,7 @@ execute: |
     install_local test-snapd-devpts
 
     echo "When no plugs are not connected"
-    if snap interfaces | MATCH ":physical-memory-observe .*test-snapd-devpts" ; then
+    if snap interfaces -i physical-memory-observe | MATCH ":physical-memory-observe .*test-snapd-devpts" ; then
         snap disconnect test-snapd-devpts:physical-memory-observe
     fi
 
