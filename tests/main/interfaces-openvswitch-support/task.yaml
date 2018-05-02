@@ -16,7 +16,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "\- +test-snapd-openvswitch-support:openvswitch-support"
+    snap interfaces -i openvswitch-support | MATCH "\- +test-snapd-openvswitch-support:openvswitch-support"
 
     echo "When the interface is connected"
     snap connect test-snapd-openvswitch-support:openvswitch-support

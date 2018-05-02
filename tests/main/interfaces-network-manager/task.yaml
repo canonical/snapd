@@ -29,7 +29,7 @@ execute: |
     done
 
     echo "The interface is connected by default"
-    snap interfaces | MATCH "network-manager:service .*network-manager:nmcli"
+    snap interfaces -i network-manager | MATCH "network-manager:service .*network-manager:nmcli"
 
     echo "And allows to add a new connection"
     conn_name=nmtest
