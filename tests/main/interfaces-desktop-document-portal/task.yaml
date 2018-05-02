@@ -32,6 +32,7 @@ execute: |
     if [ "$(snap debug confinement)" = strict ]; then
       echo "Without desktop interface connected"
       if su -l -c "sh /tmp/check-doc-portal.sh" test 2> check.error; then
+        cat check.error >&2
         echo "Expected permission error when checking document portal dir"
         exit 1
       fi
@@ -49,6 +50,7 @@ execute: |
     echo "It is not an error if the document portal is missing"
     rm -rf /run/user/12345/*
     if su -l -c "test-snapd-desktop.check-dirs /run/user/12345/doc" test 2> check.error; then
+      cat check.error >&2
       echo "Expected not found error when checking document portal dir"
       exit 1
     fi
