@@ -17,7 +17,7 @@ debug: |
 execute: |
     echo "install a snap"
     snap install test-snapd-python-webserver
-    snap interfaces |MATCH ":network.*test-snapd-python-webserver"
+    snap interfaces -i network | MATCH ":network.*test-snapd-python-webserver"
 
     . "$TESTSLIB/names.sh"
     cp /var/lib/snapd/state.json /var/lib/snapd/state.json.old
@@ -70,7 +70,7 @@ execute: |
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi
-    snap interfaces |MATCH ":network.*test-snapd-python-webserver"
+    snap interfaces -i network | MATCH ":network.*test-snapd-python-webserver"
 
     echo "Ensure interfaces are connected"
-    snap interfaces | MATCH ":core-support.*core:core-support-plug"
+    snap interfaces -i core-support | MATCH ":core-support.*core:core-support-plug"

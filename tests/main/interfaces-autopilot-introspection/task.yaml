@@ -35,7 +35,7 @@ execute: |
     export $(cat dbus.env)
 
     echo "Then the plug is disconnected by default"
-    snap interfaces | MATCH "^\- +test-snapd-autopilot-consumer:autopilot-introspection"
+    snap interfaces -i autopilot-introspection | MATCH "^\- +test-snapd-autopilot-consumer:autopilot-introspection"
 
     echo "When the plug is connected"
     snap connect test-snapd-autopilot-consumer:autopilot-introspection
