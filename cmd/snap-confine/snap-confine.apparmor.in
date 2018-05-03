@@ -220,6 +220,9 @@
     umount /var/lib/snapd/hostfs/proc/,
     mount options=(rw rslave) -> /var/lib/snapd/hostfs/,
 
+    # set up user mount namespace
+    mount options=(rslave) -> /,
+
     # Allow reading the os-release file (possibly a symlink to /usr/lib).
     /{etc/,usr/lib/}os-release r,
 
