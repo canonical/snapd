@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,6 +43,13 @@ const (
 	// Unmount represents an action that results in unmounting something from somewhere.
 	Unmount Action = "unmount"
 	// Remount when needed
+)
+
+var (
+	// ErrIgnoredMissingMount is returned when a mount entry has
+	// been marked with x-snapd.ignore-missing, and the mount
+	// source or target do not exist.
+	ErrIgnoredMissingMount = errors.New("mount source or target are missing")
 )
 
 // Change describes a change to the mount table (action and the entry to act on).
@@ -143,7 +151,11 @@ func (c *Change) ensureTarget(sec *Secure) ([]*Change, error) {
 			}
 		}
 	} else if os.IsNotExist(err) {
-		changes, err = c.createPath(path, true, sec)
+		if c.Entry.XSnapdIgnoreMissing() {
+			err = ErrIgnoredMissingMount
+		} else {
+			changes, err = c.createPath(path, true, sec)
+		}
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
@@ -178,7 +190,11 @@ func (c *Change) ensureSource(sec *Secure) error {
 			}
 		}
 	} else if os.IsNotExist(err) {
-		_, err = c.createPath(path, false, sec)
+		if c.Entry.XSnapdIgnoreMissing() {
+			err = ErrIgnoredMissingMount
+		} else {
+			_, err = c.createPath(path, false, sec)
+		}
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
