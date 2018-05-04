@@ -1,10 +1,13 @@
-#!/bin/sh
+#!/bin/bash
+
+SNAPD_STATE_PATH="$SPREAD_PATH/snapd-state"
+SNAPD_STATE_FILE="$SPREAD_PATH"/snapd-state.tar
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
 
-SNAPD_STATE_PATH="$SPREAD_PATH/snapd-state"
-SNAPD_STATE_FILE="$SPREAD_PATH"/snapd-state.tar
+# shellcheck source=tests/lib/boot.sh
+. "$TESTSLIB/boot.sh"
 
 delete_snapd_state() {
     rm -f $SNAPD_STATE_FILE
@@ -28,20 +31,20 @@ restore_classic_state() {
 }
 
 save_all_snap_state() {
-    get_boot_path
+    local boot_path="$(get_boot_path)"
 
     mkdir -p "$SNAPD_STATE_PATH"
 
     # Copy the state preserving the timestamps
     cp -rfp /var/lib/snapd "$SNAPD_STATE_PATH/snapdlib"
-    cp -rf "$BOOT" "$SNAPD_STATE_PATH/boot"
+    cp -rf "$boot_path" "$SNAPD_STATE_PATH/boot"
     cp -f /etc/systemd/system/snap-*core*.mount "$SNAPD_STATE_PATH"
 }
 
 restore_all_snap_state() {
     # we need to ensure that we also restore the boot environment
     # fully for tests that break it
-    get_boot_path
+    local boot_path="$(get_boot_path)"
 
     mkdir -p /var/lib/snapd/snaps
     mkdir -p /var/lib/snapd/seed /var/lib/snapd/seed/snaps
@@ -57,7 +60,7 @@ restore_all_snap_state() {
     sync_seed_dir_state
 
     # Restore boot and mount points
-    cp -rf "$SNAPD_STATE_PATH"/boot/* "$BOOT"
+    cp -rf "$SNAPD_STATE_PATH"/boot/* "$boot_path"
     cp -f "$SNAPD_STATE_PATH"/snap-*core*.mount  /etc/systemd/system
 }
 
@@ -113,17 +116,4 @@ sync_snaps() {
             cp -f "$SOURCE/$fname" "$TARGET/$fname"
         fi
     done
-}
-
-get_boot_path() {
-    BOOT=""
-    if ls /boot/uboot/*; then
-        BOOT="/boot/uboot/"
-    elif ls /boot/grub/*; then
-        BOOT="/boot/grub/"
-    else
-        echo "Cannot determine bootdir in /boot:"
-        ls /boot
-        exit 1
-    fi
 }
