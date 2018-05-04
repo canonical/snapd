@@ -424,6 +424,7 @@ type SysInfo struct {
 	OSRelease OSRelease `json:"os-release"`
 	OnClassic bool      `json:"on-classic"`
 	Managed   bool      `json:"managed"`
+	Seeded    bool      `json:"seeded"`
 
 	KernelVersion string `json:"kernel-version,omitempty"`
 
