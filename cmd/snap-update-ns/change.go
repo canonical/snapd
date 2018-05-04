@@ -67,6 +67,12 @@ func (c Change) String() string {
 var changePerform func(*Change, *Secure) ([]*Change, error)
 
 func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change, error) {
+	// If we've been asked to create a missing path, and the mount
+	// entry uses the ignore-missing option, return an error.
+	if c.Entry.XSnapdIgnoreMissing() {
+		return nil, ErrIgnoredMissingMount
+	}
+
 	var err error
 	var changes []*Change
 
@@ -151,11 +157,7 @@ func (c *Change) ensureTarget(sec *Secure) ([]*Change, error) {
 			}
 		}
 	} else if os.IsNotExist(err) {
-		if c.Entry.XSnapdIgnoreMissing() {
-			err = ErrIgnoredMissingMount
-		} else {
-			changes, err = c.createPath(path, true, sec)
-		}
+		changes, err = c.createPath(path, true, sec)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
@@ -190,11 +192,7 @@ func (c *Change) ensureSource(sec *Secure) error {
 			}
 		}
 	} else if os.IsNotExist(err) {
-		if c.Entry.XSnapdIgnoreMissing() {
-			err = ErrIgnoredMissingMount
-		} else {
-			_, err = c.createPath(path, false, sec)
-		}
+		_, err = c.createPath(path, false, sec)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
