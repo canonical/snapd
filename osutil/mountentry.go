@@ -386,6 +386,17 @@ func (e *MountEntry) XSnapdSymlink() string {
 	return val
 }
 
+// XSnapdIgnoreMissing returns true if a mount entry should be ignored
+// if the source or target are missing.
+//
+// By default, snap-update-ns will try to create missing source and
+// target paths when processing a mount entry.  In some cases, this
+// behaviour is not desired and it would be better to ignore the mount
+// entry when the source or target are missing.
+func (e *MountEntry) XSnapdIgnoreMissing() bool {
+	return e.OptBool("x-snapd.ignore-missing")
+}
+
 // XSnapdNeededBy returns the string "x-snapd.needed-by=..." with the given path appended.
 func XSnapdNeededBy(path string) string {
 	return fmt.Sprintf("x-snapd.needed-by=%s", path)
@@ -434,4 +445,9 @@ func XSnapdMode(mode uint32) string {
 // XSnapdSymlink returns the string "x-snapd.symlink=%s".
 func XSnapdSymlink(oldname string) string {
 	return fmt.Sprintf("x-snapd.symlink=%s", oldname)
+}
+
+// XSnapdIgnoreMissing returns the string "x-snapd.ignore-missing".
+func XSnapdIgnoreMissing() string {
+	return "x-snapd.ignore-missing"
 }
