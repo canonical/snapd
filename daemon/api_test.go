@@ -758,6 +758,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		"build-id":   buildID,
 		"on-classic": true,
 		"managed":    false,
+		"seeded":     true,
 		"locations": map[string]interface{}{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
@@ -818,6 +819,7 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 		"build-id":   buildID,
 		"on-classic": true,
 		"managed":    false,
+		"seeded":     true,
 		"locations": map[string]interface{}{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,

@@ -287,6 +287,8 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil && err != state.ErrNoState {
 		return InternalError("cannot get user auth data: %s", err)
 	}
+	var seeded bool
+	st.Get("seeded", &seeded)
 
 	refreshInfo := client.RefreshInfo{
 		Last: formatRefreshTime(lastRefresh),
@@ -307,6 +309,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"on-classic":     release.OnClassic,
 		"managed":        len(users) > 0,
 		"kernel-version": release.KernelVersion(),
+		"seeded":         seeded,
 		"locations": map[string]interface{}{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
