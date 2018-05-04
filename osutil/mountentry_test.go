@@ -402,3 +402,13 @@ func (s *entrySuite) TestXSnapdKind(c *C) {
 	// There's a helper function that returns this option string.
 	c.Assert(osutil.XSnapdKindSymlink(), Equals, "x-snapd.kind=symlink")
 }
+
+func (s *entrySuite) TestXSnapdSymlink(c *C) {
+	// Entries without the x-snapd.symlink key return an empty string
+	e := &osutil.MountEntry{}
+	c.Assert(e.XSnapdSymlink(), Equals, "")
+
+	// A mount entry can list a symlink target
+	e = &osutil.MountEntry{Options: []string{osutil.XSnapdSymlink("target")}}
+	c.Assert(e.XSnapdSymlink(), Equals, "target")
+}
