@@ -378,6 +378,14 @@ func (e *MountEntry) XSnapdDetach() bool {
 	return e.OptBool("x-snapd.detach")
 }
 
+// XSnapdSymlink returns the target for a symlink mount entry.
+//
+// For non-symlinks an empty string is returned.
+func (e *MountEntry) XSnapdSymlink() string {
+	val, _ := e.OptStr("x-snapd.symlink")
+	return val
+}
+
 // XSnapdNeededBy returns the string "x-snapd.needed-by=..." with the given path appended.
 func XSnapdNeededBy(path string) string {
 	return fmt.Sprintf("x-snapd.needed-by=%s", path)
