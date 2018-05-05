@@ -973,6 +973,32 @@ func (s *ValidateSuite) TestValidateSocketName(c *C) {
 	}
 }
 
+func (s *YamlSuite) TestValidateBeforeAfterExternal(c *C) {
+	fmtMeta := `
+name: foo
+version: 1.0
+apps:
+ foo:
+  after: [external:%s]
+  daemon: simple
+`
+
+	// happy
+	for _, external := range []string{"snapd", "snapd.seeded"} {
+		info, err := InfoFromSnapYaml([]byte(fmt.Sprintf(fmtMeta, external)))
+		c.Assert(err, IsNil)
+		err = Validate(info)
+		c.Assert(err, IsNil)
+	}
+
+	// unhappy
+	info, err := InfoFromSnapYaml([]byte(fmt.Sprintf(fmtMeta, "not-allowed")))
+	c.Assert(err, IsNil)
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `cannot use external name "not-allowed", only "snapd", "snapd.seeded" is allowed`)
+
+}
+
 func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {
 	meta := []byte(`
 name: foo

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -358,12 +358,18 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	return nil
 }
 
-func genServiceNames(snap *snap.Info, appNames []string) []string {
+func genBeforeAfterServiceNames(snap *snap.Info, appNames []string) []string {
 	names := make([]string, 0, len(appNames))
 
 	for _, name := range appNames {
+		// referencing internal snap services if always fine
 		if app := snap.Apps[name]; app != nil {
 			names = append(names, app.ServiceName())
+		}
+		// snap/validate.go ensures `external:` is restricted by a
+		// whitelist
+		if strings.HasPrefix(name, "external:") {
+			names = append(names, strings.TrimPrefix(name, "external:")+".service")
 		}
 	}
 	return names
@@ -377,7 +383,7 @@ Requires={{.MountUnit}}
 Wants={{.PrerequisiteTarget}}
 After={{.MountUnit}} {{.PrerequisiteTarget}}{{range .After}} {{.}}{{end}}
 {{- if .Before}}
-Before={{ range .Before -}}{{.}} {{- end}}
+Before={{range .Before}}{{.}} {{end}}
 {{- end}}
 X-Snappy=yes
 
@@ -468,8 +474,8 @@ WantedBy={{.ServicesTarget}}
 		KillMode:           killMode,
 		KillSignal:         appInfo.StopMode.KillSignal(),
 
-		Before: genServiceNames(appInfo.Snap, appInfo.Before),
-		After:  genServiceNames(appInfo.Snap, appInfo.After),
+		Before: genBeforeAfterServiceNames(appInfo.Snap, appInfo.Before),
+		After:  genBeforeAfterServiceNames(appInfo.Snap, appInfo.After),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
