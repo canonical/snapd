@@ -394,7 +394,10 @@ func validateAppSocket(socket *SocketInfo) error {
 	return validateSocketAddr(socket, "listen-stream", socket.ListenStream)
 }
 
-func injectFakeExternalApps(apps map[string]*AppInfo) {
+// injectFakeExternalAppsForCycleChecks adds fake AppInfo structs
+// into the apps map so that the cycle detector can find cycles for
+// targets of the type "external:..."
+func injectFakeExternalAppsForCycleChecks(apps map[string]*AppInfo) {
 	for _, app := range apps {
 		var beforeAfter []string
 		beforeAfter = append(beforeAfter, app.Before...)
@@ -420,7 +423,7 @@ func validateAppOrderCycles(apps map[string]*AppInfo) error {
 
 	// inject fake apps for external targets to ensure we check for
 	// cycles there as well
-	injectFakeExternalApps(apps)
+	injectFakeExternalAppsForCycleChecks(apps)
 
 	for _, app := range apps {
 		for _, other := range app.After {
