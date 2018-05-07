@@ -7661,6 +7661,7 @@ defaults:
         foo: bar
     the-core-snap:
         foo: other-bar
+        other-key: other-key-default
 `)
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
@@ -7674,9 +7675,10 @@ defaults:
 
 	makeInstalledMockCoreSnap(c)
 
+	// 'system' key defaults take precedence over snap-id ones
 	defls, err := snapstate.ConfigDefaults(s.state, "core")
-	c.Assert(defls, IsNil)
-	c.Assert(err, ErrorMatches, "cannot have both system and core-snap-id defaults")
+	c.Assert(err, IsNil)
+	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
 }
 
 func (s *snapmgrTestSuite) TestGadgetDefaultsAreNormalizedForConfigHook(c *C) {

@@ -1874,7 +1874,7 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 	if isCoreDefaults {
 		if defaults, ok := gadgetInfo.Defaults["system"]; ok {
 			if _, ok := gadgetInfo.Defaults[si.SnapID]; ok && si.SnapID != "" {
-				return nil, fmt.Errorf("cannot have both system and core-snap-id defaults")
+				logger.Noticef("core snap configuration defaults found under both 'system' key and core-snap-id")
 			}
 
 			return defaults, nil
