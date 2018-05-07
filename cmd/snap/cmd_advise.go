@@ -111,6 +111,8 @@ type jsonRPC struct {
 	} `json:"params"`
 }
 
+// readRpc reads a apt json rpc protocol 0.1 message as described in
+// https://salsa.debian.org/apt-team/apt/blob/master/doc/json-hooks-protocol.md#wire-protocol
 func readRpc(r *bufio.Reader) (*jsonRPC, error) {
 	line, _, err := r.ReadLine()
 	if err != nil {
@@ -140,7 +142,7 @@ func adviceViaAptHook() error {
 	}
 	fd, err := strconv.Atoi(sockFd)
 	if err != nil {
-		return err
+		return fmt.Errorf("expected APT_HOOK_SOCKET to be a decimal integer, found %q", sockFd)
 	}
 
 	f := os.NewFile(uintptr(fd), "apt-hook-socket")
@@ -151,7 +153,7 @@ func adviceViaAptHook() error {
 
 	conn, err := net.FileConn(f)
 	if err != nil {
-		return fmt.Errorf("cannot connect to %q: %v", sockFd, err)
+		return fmt.Errorf("cannot connect to %v: %v", fd, err)
 	}
 	defer conn.Close()
 
