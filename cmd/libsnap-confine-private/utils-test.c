@@ -102,13 +102,17 @@ static void test_die_with_errno(void)
 // A variant of rmdir that is compatible with GDestroyNotify
 static void my_rmdir(const char *path)
 {
-  rmdir(path);
+	if (rmdir(path) != 0) {
+		die("cannot rmdir %s", path);
+	}
 }
 
 // A variant of chdir that is compatible with GDestroyNotify
 static void my_chdir(const char *path)
 {
-  chdir(path);
+	if (chdir(path) != 0) {
+		die("cannot change dir to %s", path);
+	}
 }
 
 /**
