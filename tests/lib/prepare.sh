@@ -199,7 +199,7 @@ prepare_classic() {
     fi
 
     # Snapshot the state including core.
-    if [ ! -f "$SNAPD_STATE_FILE" ]; then
+    if [ ! -d "$SNAPD_STATE_PATH" ]; then
         # Pre-cache a few heavy snaps so that they can be installed by tests
         # quickly. This relies on a behavior of snapd where .partial files are
         # used for resuming downloads.

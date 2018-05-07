@@ -65,12 +65,8 @@ reset_classic() {
     rm -f /tmp/core* /tmp/ubuntu-core*
 
     if [ "$1" = "--reuse-core" ]; then
-        # Purge all the systemd service units config
-        rm -rf /etc/systemd/system/snapd.service.d
-        rm -rf /etc/systemd/system/snapd.socket.d
-
         # Restore snapd state and start systemd service units
-        tar -C/ -xf "$SPREAD_PATH/snapd-state.tar"
+        restore_classic_state
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
         mounts="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.mount" | cut -f1 -d ' ')"
         services="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
