@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -94,4 +95,32 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 // runCfgSuite tests configcore.Run()
 type runCfgSuite struct {
 	configcoreSuite
+}
+
+var _ = Suite(&runCfgSuite{})
+
+func (r *runCfgSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
+	conf := &mockConf{
+		state: r.state,
+		conf: map[string]interface{}{
+			"experimental.layouts": "foo",
+		},
+	}
+
+	err := configcore.Run(conf)
+	c.Check(err, ErrorMatches, `experimental.layouts can only be set to 'true' or 'false'`)
+}
+
+func (r *runCfgSuite) TestConfigureExperimentalSettingsHappy(c *C) {
+	for _, t := range []string{"true", "false"} {
+		conf := &mockConf{
+			state: r.state,
+			conf: map[string]interface{}{
+				"experimental.layouts": t,
+			},
+		}
+
+		err := configcore.Run(conf)
+		c.Check(err, IsNil)
+	}
 }
