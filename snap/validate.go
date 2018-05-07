@@ -394,6 +394,23 @@ func validateAppSocket(socket *SocketInfo) error {
 	return validateSocketAddr(socket, "listen-stream", socket.ListenStream)
 }
 
+func injectFakeExternalApps(apps map[string]*AppInfo) {
+	for _, app := range apps {
+		var beforeAfter []string
+		beforeAfter = append(beforeAfter, app.Before...)
+		beforeAfter = append(beforeAfter, app.After...)
+		for _, other := range beforeAfter {
+			if !strings.HasPrefix(other, "external:") {
+				continue
+			}
+			apps[other] = &AppInfo{
+				Snap: app.Snap,
+				Name: other,
+			}
+		}
+	}
+}
+
 // validateAppOrderCycles checks for cycles in app ordering dependencies
 func validateAppOrderCycles(apps map[string]*AppInfo) error {
 	// list of successors of given app
@@ -401,18 +418,16 @@ func validateAppOrderCycles(apps map[string]*AppInfo) error {
 	// count of predecessors (i.e. incoming edges) of given app
 	predecessors := make(map[string]int, len(apps))
 
+	// inject fake apps for external targets to ensure we check for
+	// cycles there as well
+	injectFakeExternalApps(apps)
+
 	for _, app := range apps {
 		for _, other := range app.After {
-			if strings.HasPrefix(other, "external:") {
-				continue
-			}
 			predecessors[app.Name]++
 			successors[other] = append(successors[other], app.Name)
 		}
 		for _, other := range app.Before {
-			if strings.HasPrefix(other, "external:") {
-				continue
-			}
 			predecessors[other]++
 			successors[app.Name] = append(successors[app.Name], other)
 		}
@@ -466,8 +481,8 @@ func validateAppOrderCycles(apps map[string]*AppInfo) error {
 // snaps that are in the seed so they can only start working once
 // the seeded has happened.
 var allowedExternalServices = []string{
-	"snapd",
-	"snapd.seeded",
+	"snapd.service",
+	"snapd.seeded.service",
 }
 
 func validateAppOrderNames(app *AppInfo, dependencies []string) error {

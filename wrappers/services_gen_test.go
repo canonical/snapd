@@ -282,7 +282,7 @@ Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
 Wants=network-online.target
 After=%s-snap-44.mount network-online.target snap.snap.bar.service snap.snap.zed.service snapd.service
-Before=snap.snap.foo.service snap.snap.foobar.service 
+Before=snap.snap.foo.service snap.snap.foobar.service
 X-Snappy=yes
 
 [Service]
@@ -330,7 +330,7 @@ WantedBy=multi-user.target
 		Command:     "bin/foo start",
 		Daemon:      "simple",
 		Before:      []string{"foo", "foobar"},
-		After:       []string{"bar", "zed", "external:snapd"},
+		After:       []string{"bar", "zed", "external:snapd.service"},
 		StopTimeout: timeout.DefaultTimeout,
 	}
 

@@ -362,14 +362,14 @@ func genBeforeAfterServiceNames(snap *snap.Info, appNames []string) []string {
 	names := make([]string, 0, len(appNames))
 
 	for _, name := range appNames {
-		// referencing internal snap services if always fine
+		// referencing internal snap services is always fine
 		if app := snap.Apps[name]; app != nil {
 			names = append(names, app.ServiceName())
 		}
 		// snap/validate.go ensures `external:` is restricted by a
 		// whitelist
 		if strings.HasPrefix(name, "external:") {
-			names = append(names, strings.TrimPrefix(name, "external:")+".service")
+			names = append(names, strings.TrimPrefix(name, "external:"))
 		}
 	}
 	return names
@@ -383,7 +383,7 @@ Requires={{.MountUnit}}
 Wants={{.PrerequisiteTarget}}
 After={{.MountUnit}} {{.PrerequisiteTarget}}{{range .After}} {{.}}{{end}}
 {{- if .Before}}
-Before={{range .Before}}{{.}} {{end}}
+Before={{ StringsJoin .Before " " }}
 {{- end}}
 X-Snappy=yes
 
@@ -424,7 +424,9 @@ WantedBy={{.ServicesTarget}}
 {{- end}}
 `
 	var templateOut bytes.Buffer
-	t := template.Must(template.New("service-wrapper").Parse(serviceTemplate))
+	t := template.New("service-wrapper")
+	t = t.Funcs(template.FuncMap{"StringsJoin": strings.Join})
+	t = template.Must(t.Parse(serviceTemplate))
 
 	restartCond := appInfo.RestartCond.String()
 	if restartCond == "" {
