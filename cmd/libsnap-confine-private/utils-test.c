@@ -99,6 +99,18 @@ static void test_die_with_errno(void)
 	g_test_trap_assert_stderr("death message: Operation not permitted\n");
 }
 
+// A variant of rmdir that is compatible with GDestroyNotify
+static void my_rmdir(const char *path)
+{
+  rmdir(path);
+}
+
+// A variant of chdir that is compatible with GDestroyNotify
+static void my_chdir(const char *path)
+{
+  chdir(path);
+}
+
 /**
  * Perform the rest of testing in a ephemeral directory.
  *
@@ -114,9 +126,9 @@ static void g_test_in_ephemeral_dir(void)
 	g_assert_cmpint(err, ==, 0);
 
 	g_test_queue_free(temp_dir);
-	g_test_queue_destroy((GDestroyNotify) rmdir, temp_dir);
+	g_test_queue_destroy((GDestroyNotify) my_rmdir, temp_dir);
 	g_test_queue_free(orig_dir);
-	g_test_queue_destroy((GDestroyNotify) chdir, orig_dir);
+	g_test_queue_destroy((GDestroyNotify) my_chdir, orig_dir);
 }
 
 /**
@@ -130,7 +142,7 @@ static void _test_sc_nonfatal_mkpath(const gchar * dirname,
 				   G_FILE_TEST_IS_DIR));
 	// Use sc_nonfatal_mkpath to create the directory and ensure that it worked
 	// as expected.
-	g_test_queue_destroy((GDestroyNotify) rmdir, (char *)dirname);
+	g_test_queue_destroy((GDestroyNotify) my_rmdir, (char *)dirname);
 	int err = sc_nonfatal_mkpath(dirname, 0755);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_cmpint(errno, ==, 0);
@@ -143,7 +155,7 @@ static void _test_sc_nonfatal_mkpath(const gchar * dirname,
 	g_assert_cmpint(errno, ==, EEXIST);
 	// Now create a sub-directory of the original directory and observe the
 	// results. We should no longer see errno of EEXIST!
-	g_test_queue_destroy((GDestroyNotify) rmdir, (char *)subdirname);
+	g_test_queue_destroy((GDestroyNotify) my_rmdir, (char *)subdirname);
 	err = sc_nonfatal_mkpath(subdirname, 0755);
 	g_assert_cmpint(err, ==, 0);
 	g_assert_cmpint(errno, ==, 0);
