@@ -683,8 +683,8 @@ func (s *interfaceManagerSuite) TestDisconnectFull(c *C) {
 
 func (s *interfaceManagerSuite) getConnection(c *C, plugSnap, plugName, slotSnap, slotName string) *interfaces.Connection {
 	conn, err := s.manager(c).Repository().Connection(interfaces.ConnRef{
-		interfaces.PlugRef{Snap: plugSnap, Name: plugName},
-		interfaces.SlotRef{Snap: slotSnap, Name: slotName},
+		PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName},
+		SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName},
 	})
 	c.Assert(err, IsNil)
 	c.Assert(conn, NotNil)
