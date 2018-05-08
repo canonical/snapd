@@ -37,6 +37,7 @@ import (
 )
 
 var noConflictOnConnectTasks = func(task *state.Task) bool {
+	// TODO: reconsider this check with regard to interface hooks
 	return task.Kind() != "connect" && task.Kind() != "disconnect"
 }
 
@@ -162,6 +163,8 @@ func connect(st *state.State, change *state.Change, plugSnap, plugName, slotSnap
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
 	connectInterface.Set("auto", autoConnectTask != nil)
 
+	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
+	// to modify them but all attributes will be checked against assertions after the hooks are run.
 	if err := setInitialConnectAttributes(connectInterface, plugSnap, plugName, slotSnap, slotName); err != nil {
 		return nil, err
 	}
@@ -203,8 +206,11 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 	if err != nil {
 		return err
 	}
+
+	emptyDynamicAttrs := make(map[string]interface{})
 	if plug, ok := snapInfo.Plugs[plugName]; ok {
-		ts.Set("plug-attrs", plug.Attrs)
+		ts.Set("plug-static", plug.Attrs)
+		ts.Set("plug-dynamic", emptyDynamicAttrs)
 	} else {
 		return fmt.Errorf("snap %q has no plug named %q", plugSnap, plugName)
 	}
@@ -218,7 +224,8 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 	}
 	addImplicitSlots(snapInfo)
 	if slot, ok := snapInfo.Slots[slotName]; ok {
-		ts.Set("slot-attrs", slot.Attrs)
+		ts.Set("slot-static", slot.Attrs)
+		ts.Set("slot-dynamic", emptyDynamicAttrs)
 	} else {
 		return fmt.Errorf("snap %q has no slot named %q", slotSnap, slotName)
 	}
