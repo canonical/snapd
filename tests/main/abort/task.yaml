@@ -4,6 +4,7 @@ environment:
     SNAP_NAME: test-snapd-tools
 
 execute: |
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
 
     echo "Abort with invalid id"
@@ -17,11 +18,13 @@ execute: |
     echo "Abort with valid id - error"
     subdirPath="$SNAP_MOUNT_DIR/$SNAP_NAME/current/foo"
     mkdir -p "$subdirPath"
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
     if install_local "$SNAP_NAME"; then
         echo "install should fail when the target directory exists"
         exit 1
     fi
+    #shellcheck disable=SC1117
     idPattern="\d+(?= +Error.*?Install \"$SNAP_NAME\" snap)"
     id=$(snap changes | grep -Pzo "$idPattern")
     if snap abort "$id"; then
@@ -34,6 +37,7 @@ execute: |
 
     echo "Abort with valid id - done"
     install_local "$SNAP_NAME"
+    #shellcheck disable=SC1117
     idPattern="\d+(?= +Done.*?Install \"$SNAP_NAME\" snap)"
     id=$(snap changes | grep -Pzo "$idPattern")
     if snap abort "$id"; then
