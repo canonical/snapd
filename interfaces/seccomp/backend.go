@@ -200,11 +200,12 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 // SandboxTags returns the list of seccomp features supported by the kernel.
 func (b *Backend) SandboxTags() []string {
 	features := kernelFeatures()
-	tags := make([]string, 0, len(features))
+	tags := make([]string, 0, len(features)+1)
 	for _, feature := range features {
 		// Prepend "kernel:" to apparmor kernel features to namespace them and
 		// allow us to introduce our own tags later.
 		tags = append(tags, "kernel:"+feature)
 	}
+	tags = append(tags, "bpf-argument-filtering")
 	return tags
 }

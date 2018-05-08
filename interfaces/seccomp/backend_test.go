@@ -390,5 +390,5 @@ func (s *backendSuite) TestSandboxTags(c *C) {
 	restore := seccomp.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
 	defer restore()
 
-	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{"kernel:foo", "kernel:bar"})
+	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering"})
 }
