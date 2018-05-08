@@ -1,6 +1,7 @@
 #!/bin/bash
 
-SNAPD_STATE_PATH="$GOPATH/snapd-state"
+SNAPD_STATE_PATH="$SPREAD_PATH"/snapd-state
+SNAPD_STATE_FILE="$SPREAD_PATH"/snapd-state.tar
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
@@ -10,21 +11,15 @@ SNAPD_STATE_PATH="$GOPATH/snapd-state"
 
 delete_snapd_state() {
     rm -rf $SNAPD_STATE_PATH
+    rm -f $SNAPD_STATE_FILE
 }
 
 save_classic_state() {
-    local escaped_snap_mount_dir=$1
-
-    mkdir -p "$SNAPD_STATE_PATH" "$SNAPD_STATE_PATH"/snap-confine-profiles "$SNAPD_STATE_PATH"/system-units "$SNAPD_STATE_PATH"/multi-user-units
-
-    cp -rfp /var/lib/snapd "$SNAPD_STATE_PATH"/snapd-lib
-    cp -rf "$SNAP_MOUNT_DIR" "$SNAPD_STATE_PATH"/snap-mount-dir
-    cp -f /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount "$SNAPD_STATE_PATH"/system-units
-    cp -f /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount "$SNAPD_STATE_PATH"/multi-user-units
-    cp -f /etc/environment "$SNAPD_STATE_PATH"/environment
-    cp -rf /etc/systemd/system/snapd.service.d "$SNAPD_STATE_PATH"/snap.service.d
-    cp -rf /etc/systemd/system/snapd.socket.d "$SNAPD_STATE_PATH"/snap.socket.d
-    cp -rf /etc/apparmor.d/snap.core.* "$SNAPD_STATE_PATH"/snap-confine-profiles
+    escaped_snap_mount_dir=$1
+    snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
+    snap_confine_profiles="$(ls /etc/apparmor.d/snap.core.* || true)"
+    # shellcheck disable=SC2086
+    tar cf "$SNAPD_STATE_FILE" /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount $snap_confine_profiles $snapd_env
 }
 
 restore_classic_state() {
@@ -32,14 +27,7 @@ restore_classic_state() {
     rm -rf /etc/systemd/system/snapd.service.d
     rm -rf /etc/systemd/system/snapd.socket.d
 
-    restore_snapd_lib
-    cp -rf "$SNAPD_STATE_PATH"/snap-mount-dir/* "$SNAP_MOUNT_DIR"
-    cp -f "$SNAPD_STATE_PATH"/system-units/* /etc/systemd/system
-    cp -f "$SNAPD_STATE_PATH"/multi-user-units/* /etc/systemd/system/multi-user.target.wants/
-    cp -f "$SNAPD_STATE_PATH"/environment /etc/environment
-    cp -rf "$SNAPD_STATE_PATH"/snap.service.d /etc/systemd/system/snapd.service.d
-    cp -rf "$SNAPD_STATE_PATH"/snap.socket.d /etc/systemd/system/snapd.socket.d
-    cp -rf "$SNAPD_STATE_PATH"/snap-confine-profiles/* /etc/apparmor.d
+    tar -C/ -xf "$SNAPD_STATE_FILE"
 }
 
 save_all_snap_state() {
@@ -79,32 +67,22 @@ restore_snapd_lib() {
 }
 
 clean_snaps_dir_state() {
-    if [ ! -z "$(ls -A /var/lib/snapd/snaps)" ]; then
-        find /var/lib/snapd/snaps/* -maxdepth 0 ! -name '*.snap' -exec rm -rf {} +
-    fi
+    find /var/lib/snapd/snaps/* -maxdepth 0 ! -name '*.snap' -exec rm -rf {} +
 }
 
 clean_seed_dir_state() {
     find /var/lib/snapd/seed/* -maxdepth 0 ! -name 'snaps' -exec rm -rf {} +
-    if [ ! -z "$(ls -A /var/lib/snapd/seed/snaps)" ]; then
-        find /var/lib/snapd/seed/snaps/* -maxdepth 0 ! -name '*.snap' -exec rm -rf {} +
-    fi
+    find /var/lib/snapd/seed/snaps/* -maxdepth 0 ! -name '*.snap' -exec rm -rf {} +
 }
 
 sync_snaps_dir_state() {
-    if [ ! -z "$(ls -A "$SNAPD_STATE_PATH"/snapd-lib/snaps)" ]; then
-        find "$SNAPD_STATE_PATH"/snapd-lib/snaps/* -maxdepth 0 ! -name '*.snap' -exec cp -rf {} /var/lib/snapd/snaps \;
-    fi
+    find "$SNAPD_STATE_PATH"/snapd-lib/snaps/* -maxdepth 0 ! -name '*.snap' -exec cp -rf {} /var/lib/snapd/snaps \;
     sync_snaps "$SNAPD_STATE_PATH"/snapd-lib/snaps /var/lib/snapd/snaps
 }
 
 sync_seed_dir_state() {
-    if [ ! -z "$(ls -A "$SNAPD_STATE_PATH"/snapd-lib/seed)" ]; then
-        find "$SNAPD_STATE_PATH"/snapd-lib/seed/* -maxdepth 0 ! -name 'snaps' -exec cp -rf {} /var/lib/snapd/seed \;
-    fi
-    if [ ! -z "$(ls -A "$SNAPD_STATE_PATH"/snapd-lib/seed/snaps)" ]; then
-        find "$SNAPD_STATE_PATH"/snapd-lib/seed/snaps/* -maxdepth 0 ! -name '*.snap' -exec cp -rf {} /var/lib/snapd/seed/snaps \;
-    fi
+    find "$SNAPD_STATE_PATH"/snapd-lib/seed/* -maxdepth 0 ! -name 'snaps' -exec cp -rf {} /var/lib/snapd/seed \;
+    find "$SNAPD_STATE_PATH"/snapd-lib/seed/snaps/* -maxdepth 0 ! -name '*.snap' -exec cp -rf {} /var/lib/snapd/seed/snaps \;
     sync_snaps "$SNAPD_STATE_PATH"/snapd-lib/seed/snaps /var/lib/snapd/seed/snaps
 }
 
