@@ -113,7 +113,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	var y snapYaml
 	err := yaml.Unmarshal(yamlData, &y)
 	if err != nil {
-		return nil, fmt.Errorf("info failed to parse: %s", err)
+		return nil, fmt.Errorf("cannot parse snap.yaml: %s", err)
 	}
 
 	snap := infoSkeletonFromSnapYaml(y)

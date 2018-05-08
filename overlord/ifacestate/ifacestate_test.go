@@ -2394,9 +2394,6 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 	ht2 := hookstate.HookTask(st, "connect-plug hook", &hs2, nil)
 	ht2.WaitFor(ht1)
 
-	t.Set("connect-slot-hook-task", ht1.ID())
-	t.Set("connect-plug-hook-task", ht2.ID())
-
 	chg.AddTask(t)
 	chg.AddTask(ht1)
 	chg.AddTask(ht2)
@@ -2468,7 +2465,7 @@ func (s *interfaceManagerSuite) TestUndoConnectRestoresOldConnState(c *C) {
 		}})
 }
 
-func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotSnapOnAutoConnect(c *C) {
+func (s *interfaceManagerSuite) TestConnectErrorMissingSlotSnapOnAutoConnect(c *C) {
 	_ = s.manager(c)
 	s.mockSnap(c, producerYaml)
 	s.mockSnap(c, consumerYaml)
@@ -2486,19 +2483,14 @@ func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotSnapOnAutoConnect(c
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	task := chg.Tasks()[0]
-	c.Check(task.Status(), Equals, state.DoneStatus)
-	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "producer" is no longer available for auto-connecting.*`)
-	c.Assert(chg.Tasks(), HasLen, 3)
-	// hook tasks explicitly marked done
-	c.Assert(chg.Tasks()[1].Status(), Equals, state.DoneStatus)
-	c.Assert(chg.Tasks()[2].Status(), Equals, state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*snap "producer" is no longer available for auto-connecting.*`)
 
 	var conns map[string]interface{}
 	c.Assert(s.state.Get("conns", &conns), Equals, state.ErrNoState)
 }
 
-func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugSnapOnAutoConnect(c *C) {
+func (s *interfaceManagerSuite) TestConnectErrorMissingPlugSnapOnAutoConnect(c *C) {
 	_ = s.manager(c)
 	s.mockSnap(c, producerYaml)
 	s.mockSnap(c, consumerYaml)
@@ -2515,19 +2507,14 @@ func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugSnapOnAutoConnect(c
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	task := chg.Tasks()[0]
-	c.Assert(task.Status(), Equals, state.DoneStatus)
-	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "consumer" is no longer available for auto-connecting.*`)
-	c.Assert(chg.Tasks(), HasLen, 3)
-	// hook tasks explicitly marked done
-	c.Assert(chg.Tasks()[1].Status(), Equals, state.DoneStatus)
-	c.Assert(chg.Tasks()[2].Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*snap "consumer" is no longer available for auto-connecting.*`)
 
 	var conns map[string]interface{}
 	c.Assert(s.state.Get("conns", &conns), Equals, state.ErrNoState)
 }
 
-func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugOnAutoConnect(c *C) {
+func (s *interfaceManagerSuite) TestConnectErrorMissingPlugOnAutoConnect(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	_ = s.manager(c)
 	producer := s.mockSnap(c, producerYaml)
@@ -2552,16 +2539,15 @@ func (s *interfaceManagerSuite) TestConnectIgnoresMissingPlugOnAutoConnect(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	task := chg.Tasks()[0]
-	c.Assert(task.Status(), Equals, state.DoneStatus)
-	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "consumer" no longer has "plug" plug`)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*snap "consumer" has no "plug" plug.*`)
 
 	var conns map[string]interface{}
 	err = s.state.Get("conns", &conns)
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
-func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotOnAutoConnect(c *C) {
+func (s *interfaceManagerSuite) TestConnectErrorMissingSlotOnAutoConnect(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	_ = s.manager(c)
 	// producer snap has no slot, doConnect should complain
@@ -2586,9 +2572,8 @@ func (s *interfaceManagerSuite) TestConnectIgnoresMissingSlotOnAutoConnect(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	task := chg.Tasks()[0]
-	c.Assert(task.Status(), Equals, state.DoneStatus)
-	c.Assert(strings.Join(task.Log(), ""), Matches, `.*snap "producer" no longer has "slot" slot`)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*snap "producer" has no "slot" slot.*`)
 
 	var conns map[string]interface{}
 	err = s.state.Get("conns", &conns)
@@ -2741,68 +2726,6 @@ slots:
 	defer s.state.Unlock()
 	c.Check(tConnectPlug.Status(), Equals, state.DoneStatus)
 }
-
-/*
-func (s *interfaceManagerSuite) TestSetupProfilesInjectsAutoConnectIfMissing(c *C) {
-	mgr := s.manager(c)
-
-	si1 := &snap.SideInfo{
-		RealName: "snap1",
-		Revision: snap.R(1),
-	}
-	sup1 := &snapstate.SnapSetup{SideInfo: si1}
-	_ = snaptest.MockSnap(c, sampleSnapYaml, si1)
-
-	si2 := &snap.SideInfo{
-		RealName: "snap2",
-		Revision: snap.R(1),
-	}
-	sup2 := &snapstate.SnapSetup{SideInfo: si2}
-	_ = snaptest.MockSnap(c, consumerYaml, si2)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	task1 := s.state.NewTask("setup-profiles", "")
-	task1.Set("snap-setup", sup1)
-
-	task2 := s.state.NewTask("setup-profiles", "")
-	task2.Set("snap-setup", sup2)
-
-	chg := s.state.NewChange("test", "")
-	chg.AddTask(task1)
-	task2.WaitFor(task1)
-	chg.AddTask(task2)
-
-	s.state.Unlock()
-
-	defer mgr.Stop()
-	s.settle(c)
-	s.state.Lock()
-
-	// ensure all our tasks ran
-	c.Assert(chg.Err(), IsNil)
-	c.Assert(chg.Tasks(), HasLen, 4)
-
-	// sanity checks
-	t := chg.Tasks()[0]
-	c.Assert(t.Kind(), Equals, "setup-profiles")
-	t = chg.Tasks()[1]
-	c.Assert(t.Kind(), Equals, "setup-profiles")
-
-	// check that auto-connect tasks were added and have snap-setup
-	var autoconnectSup snapstate.SnapSetup
-	t = chg.Tasks()[2]
-	c.Assert(t.Kind(), Equals, "auto-connect")
-	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
-	c.Assert(autoconnectSup.Name(), Equals, "snap1")
-
-	t = chg.Tasks()[3]
-	c.Assert(t.Kind(), Equals, "auto-connect")
-	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
-	c.Assert(autoconnectSup.Name(), Equals, "snap2")
-}
-*/
 
 func (s *interfaceManagerSuite) TestSetupProfilesInjectsAutoConnectIfCore(c *C) {
 	mgr := s.manager(c)
