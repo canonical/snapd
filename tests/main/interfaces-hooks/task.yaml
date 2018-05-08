@@ -4,10 +4,6 @@ environment:
     CONSUMER_DATA: /var/snap/basic-iface-hooks-consumer/common
     PRODUCER_DATA: /var/snap/basic-iface-hooks-producer/common
 
-environment:
-    CONSUMER_DATA: /var/snap/basic-iface-hooks-consumer/common
-    PRODUCER_DATA: /var/snap/basic-iface-hooks-producer/common
-
 prepare: |
     . "$TESTSLIB/snaps.sh"
     snap install --devmode jq
