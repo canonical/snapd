@@ -61,7 +61,7 @@ func (cmd cmdSandbox) Execute(args []string) error {
 	w := tabWriter()
 	defer w.Flush()
 	for _, key := range keys {
-		fmt.Fprintf(w, "%s:\t%s\n", key, strings.Join(sandbox[key], ", "))
+		fmt.Fprintf(w, "%s:\t%s\n", key, strings.Join(sandbox[key], " "))
 	}
 
 	return nil

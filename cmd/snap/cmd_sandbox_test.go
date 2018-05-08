@@ -35,7 +35,7 @@ func (s *SnapSuite) TestSandbox(c *C) {
 	_, err := snap.Parser().ParseArgs([]string{"debug", "sandbox"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
-		"apparmor:  a, b, c\n"+
-		"selinux:   1, 2, 3\n")
+		"apparmor:  a b c\n"+
+		"selinux:   1 2 3\n")
 	c.Assert(s.Stderr(), Equals, "")
 }
