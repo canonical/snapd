@@ -187,13 +187,13 @@ owner /run/user/[0-9]*/doc/** rw,
 dbus (receive, send)
     bus=session
     interface=org.freedesktop.portal.*
-    path=/org/freedesktop/portal/{desktop,documents}
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
     peer=(label=unconfined),
 
 dbus (receive, send)
     bus=session
     interface=org.freedesktop.DBus.Properties
-    path=/org/freedesktop/portal/{desktop,documents}
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
     peer=(label=unconfined),
 `
 
