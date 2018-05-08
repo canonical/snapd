@@ -92,8 +92,8 @@ var defaultTemplate = `
 
   # for bash 'binaries' (do *not* use abstractions/bash)
   # user-specific bash files
-  /bin/bash ixr,
-  /bin/dash ixr,
+  /{,usr/}bin/bash ixr,
+  /{,usr/}bin/dash ixr,
   /etc/bash.bashrc r,
   /etc/{passwd,group,nsswitch.conf} r,  # very common
   /etc/default/nss r,

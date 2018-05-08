@@ -48,6 +48,10 @@ execute: |
     echo "Then the snap is able to access a network service"
     network-consumer http://127.0.0.1:$PORT | grep -Pqz "ok\n"
 
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
     echo "When the plug is disconnected"
     snap disconnect $SNAP_NAME:network
 
