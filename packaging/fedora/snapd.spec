@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.32.5
+Version:        2.32.6
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -723,6 +723,16 @@ fi
 
 
 %changelog
+* Sun Apr 29 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.6
+ - snap: do not use overly short timeout in `snap
+   {start,stop,restart}`
+ - interfaces/apparmor: fix incorrect apparmor profile glob
+ - tests: detect kernel oops during tests and abort tests in this
+   case
+ - tests: run interfaces-boradcom-asic-control early
+ - tests: skip interfaces-content test on core devices
+
 * Mon Apr 16 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.5
  - many: add "stop-mode: sig{term,hup,usr[12]}{,-all}" instead of
