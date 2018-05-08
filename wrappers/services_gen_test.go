@@ -281,8 +281,8 @@ func (s *servicesWrapperGenSuite) TestServiceAfterBefore(c *C) {
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
 Wants=network-online.target
-After=%s-snap-44.mount network-online.target snap.snap.bar.service snap.snap.zed.service
-Before=snap.snap.foo.service
+After=%s-snap-44.mount network-online.target snap.snap.bar.service snap.snap.zed.service snapd.service
+Before=snap.snap.foo.service snap.snap.foobar.service
 X-Snappy=yes
 
 [Service]
@@ -319,13 +319,18 @@ WantedBy=multi-user.target
 					Snap:   &snap.Info{SuggestedName: "snap"},
 					Daemon: "forking",
 				},
+				"foobar": {
+					Name:   "foobar",
+					Snap:   &snap.Info{SuggestedName: "snap"},
+					Daemon: "simple",
+				},
 			},
 		},
 		Name:        "app",
 		Command:     "bin/foo start",
 		Daemon:      "simple",
-		Before:      []string{"foo"},
-		After:       []string{"bar", "zed"},
+		Before:      []string{"foo", "foobar"},
+		After:       []string{"bar", "zed", "external:snapd.service"},
 		StopTimeout: timeout.DefaultTimeout,
 	}
 

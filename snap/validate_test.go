@@ -973,6 +973,32 @@ func (s *ValidateSuite) TestValidateSocketName(c *C) {
 	}
 }
 
+func (s *YamlSuite) TestValidateBeforeAfterExternal(c *C) {
+	fmtMeta := `
+name: foo
+version: 1.0
+apps:
+ foo:
+  after: [external:%s]
+  daemon: simple
+`
+
+	// happy
+	for _, external := range []string{"snapd.service", "snapd.seeded.service"} {
+		info, err := InfoFromSnapYaml([]byte(fmt.Sprintf(fmtMeta, external)))
+		c.Assert(err, IsNil)
+		err = Validate(info)
+		c.Assert(err, IsNil)
+	}
+
+	// unhappy
+	info, err := InfoFromSnapYaml([]byte(fmt.Sprintf(fmtMeta, "not-allowed")))
+	c.Assert(err, IsNil)
+	err = Validate(info)
+	c.Assert(err, ErrorMatches, `cannot use external name "not-allowed", only "snapd.service", "snapd.seeded.service" is allowed`)
+
+}
+
 func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {
 	meta := []byte(`
 name: foo
@@ -1085,6 +1111,17 @@ apps:
    daemon: dbus
    after: [foo, bar, baz]
 `)
+	// cycle with "external:"
+	externalCycle := []byte(`
+apps:
+ app-1:
+   before: [external:snapd.service]
+   after: [app-2]
+   daemon: forking
+ app-2:
+   after: [external:snapd.service]
+   daemon: forking
+`)
 
 	tcs := []struct {
 		name string
@@ -1127,8 +1164,13 @@ apps:
 	}, {
 		name: "self cycle",
 		desc: fooSelfCycle,
-		err:  `applications are part of a before/after cycle: foo`},
+		err:  `applications are part of a before/after cycle: foo`,
+	}, {
+		name: "external cycle",
+		desc: externalCycle,
+		err:  `applications are part of a before/after cycle: ((external:snapd.service|app-2|app-1)(, )?){3}`},
 	}
+
 	for _, tc := range tcs {
 		c.Logf("trying %q", tc.name)
 		info, err := InfoFromSnapYaml(append(meta, tc.desc...))

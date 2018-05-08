@@ -394,12 +394,36 @@ func validateAppSocket(socket *SocketInfo) error {
 	return validateSocketAddr(socket, "listen-stream", socket.ListenStream)
 }
 
+// injectFakeExternalAppsForCycleChecks adds fake AppInfo structs
+// into the apps map so that the cycle detector can find cycles for
+// targets of the type "external:..."
+func injectFakeExternalAppsForCycleChecks(apps map[string]*AppInfo) {
+	for _, app := range apps {
+		var beforeAfter []string
+		beforeAfter = append(beforeAfter, app.Before...)
+		beforeAfter = append(beforeAfter, app.After...)
+		for _, other := range beforeAfter {
+			if !strings.HasPrefix(other, "external:") {
+				continue
+			}
+			apps[other] = &AppInfo{
+				Snap: app.Snap,
+				Name: other,
+			}
+		}
+	}
+}
+
 // validateAppOrderCycles checks for cycles in app ordering dependencies
 func validateAppOrderCycles(apps map[string]*AppInfo) error {
 	// list of successors of given app
 	successors := make(map[string][]string, len(apps))
 	// count of predecessors (i.e. incoming edges) of given app
 	predecessors := make(map[string]int, len(apps))
+
+	// inject fake apps for external targets to ensure we check for
+	// cycles there as well
+	injectFakeExternalAppsForCycleChecks(apps)
 
 	for _, app := range apps {
 		for _, other := range app.After {
@@ -454,6 +478,16 @@ func validateAppOrderCycles(apps map[string]*AppInfo) error {
 	return nil
 }
 
+// Whitelist of external systemd targets that a service can use
+// for before/after ordering. This is useful for e.g. classic snaps
+// that need to run snapd itself or that need to run commands from
+// snaps that are in the seed so they can only start working once
+// the seeded has happened.
+var allowedExternalServices = []string{
+	"snapd.service",
+	"snapd.seeded.service",
+}
+
 func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 	// we must be a service to request ordering
 	if len(dependencies) > 0 && !app.IsService() {
@@ -461,6 +495,14 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 	}
 
 	for _, dep := range dependencies {
+		if strings.HasPrefix(dep, "external:") {
+			shortName := strings.TrimPrefix(dep, "external:")
+			if !strutil.ListContains(allowedExternalServices, shortName) {
+				return fmt.Errorf("cannot use external name %q, only %s is allowed", shortName, strutil.Quoted(allowedExternalServices))
+			}
+			continue
+		}
+
 		// dependency is not defined
 		other, ok := app.Snap.Apps[dep]
 		if !ok {
