@@ -739,7 +739,6 @@ func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb
 	}
 
 	connectts := state.NewTaskSet()
-	chg := task.Change()
 	for _, connRef := range connections {
 		conn, err := m.repo.Connection(connRef)
 		if err != nil {
@@ -751,21 +750,7 @@ func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb
 
 	task.SetStatus(state.DoneStatus)
 
-	lanes := task.Lanes()
-	if len(lanes) == 1 && lanes[0] == 0 {
-		lanes = nil
-	}
-	ht := task.HaltTasks()
-
-	// add all disconnect tasks to the change of main "reconnect" task and to the same lane.
-	for _, l := range lanes {
-		connectts.JoinLane(l)
-	}
-	chg.AddAll(connectts)
-	// make all halt tasks of the main 'disconnect-interface' task wait on connect tasks
-	for _, t := range ht {
-		t.WaitAll(connectts)
-	}
+	snapstate.InjectTasks(task, connectts)
 
 	st.EnsureBefore(0)
 	return nil
