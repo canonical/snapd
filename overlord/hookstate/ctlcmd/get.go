@@ -315,7 +315,9 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 			if err == nil {
 				return value, true, nil
 			}
-			return nil, false, fmt.Errorf(i18n.G("unknown attribute %q"), key)
+			if config.IsNoOption(err) {
+				return nil, false, fmt.Errorf(i18n.G("unknown attribute %q"), key)
+			}
 		}
 		return nil, false, err
 	})
