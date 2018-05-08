@@ -37,10 +37,10 @@ func MockOsReadlink(f func(string) (string, error)) (restore func()) {
 	}
 }
 
-func MockSandboxTags(f func() []string) (resture func()) {
-	old := sandboxTags
-	sandboxTags = f
+func MockKernelFeatures(f func() []string) (resture func()) {
+	old := kernelFeatures
+	kernelFeatures = f
 	return func() {
-		sandboxTags = old
+		kernelFeatures = old
 	}
 }

@@ -60,7 +60,7 @@ var (
 	procSelfExe           = "/proc/self/exe"
 	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
-	sandboxTags           = release.AppArmorFeatures
+	kernelFeatures        = release.AppArmorFeatures
 )
 
 // Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
@@ -496,5 +496,12 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 
 // SandboxTags returns the list of apparmor features supported by the kernel.
 func (b *Backend) SandboxTags() []string {
-	return sandboxTags()
+	features := kernelFeatures()
+	tags := make([]string, 0, len(features))
+	for _, feature := range features {
+		// Prepend "kernel:" to apparmor kernel features to namespace them and
+		// allow us to introduce our own tags later.
+		tags = append(tags, "kernel:"+feature)
+	}
+	return tags
 }

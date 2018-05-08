@@ -49,8 +49,8 @@ import (
 )
 
 var (
-	osReadlink  = os.Readlink
-	sandboxTags = release.SecCompActions
+	osReadlink     = os.Readlink
+	kernelFeatures = release.SecCompActions
 )
 
 func seccompToBpfPath() string {
@@ -199,5 +199,12 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 
 // SandboxTags returns the list of seccomp features supported by the kernel.
 func (b *Backend) SandboxTags() []string {
-	return sandboxTags()
+	features := kernelFeatures()
+	tags := make([]string, 0, len(features))
+	for _, feature := range features {
+		// Prepend "kernel:" to apparmor kernel features to namespace them and
+		// allow us to introduce our own tags later.
+		tags = append(tags, "kernel:"+feature)
+	}
+	return tags
 }

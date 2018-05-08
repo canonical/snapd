@@ -387,8 +387,8 @@ func (s *backendSuite) TestSystemKeyRetLogUnsupported(c *C) {
 }
 
 func (s *backendSuite) TestSandboxTags(c *C) {
-	restore := seccomp.MockSandboxTags(func() []string { return []string{"foo", "bar"} })
+	restore := seccomp.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
 	defer restore()
 
-	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{"foo", "bar"})
+	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{"kernel:foo", "kernel:bar"})
 }

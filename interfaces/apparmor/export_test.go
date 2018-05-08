@@ -89,10 +89,10 @@ func SetSpecScope(spec *Specification, securityTags []string) (restore func()) {
 	return spec.setScope(securityTags)
 }
 
-func MockSandboxTags(f func() []string) (resture func()) {
-	old := sandboxTags
-	sandboxTags = f
+func MockKernelFeatures(f func() []string) (resture func()) {
+	old := kernelFeatures
+	kernelFeatures = f
 	return func() {
-		sandboxTags = old
+		kernelFeatures = old
 	}
 }

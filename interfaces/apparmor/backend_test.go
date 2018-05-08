@@ -1202,8 +1202,8 @@ func (s *backendSuite) TestNsProfile(c *C) {
 }
 
 func (s *backendSuite) TestSandboxTags(c *C) {
-	restore := apparmor.MockSandboxTags(func() []string { return []string{"foo", "bar"} })
+	restore := apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
 	defer restore()
 
-	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{"foo", "bar"})
+	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{"kernel:foo", "kernel:bar"})
 }
