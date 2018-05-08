@@ -239,49 +239,38 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 
 var getPlugAttributesTests = []struct {
 	args, stdout, error string
-}{
-	{
-		args:   "get :aplug aattr",
-		stdout: "foo\n",
-	},
-	{
-		args:   "get -d :aplug baz",
-		stdout: "{\n\t\"baz\": [\n\t\t\"a\",\n\t\t\"b\"\n\t]\n}\n",
-	},
-	{
-		args:   "get :aplug mapattr.mapattr1",
-		stdout: "mapval1\n",
-	},
-	{
-		args:   "get -d :aplug mapattr.mapattr1",
-		stdout: "{\n\t\"mapattr.mapattr1\": \"mapval1\"\n}\n",
-	},
-	{
-		args:   "get :aplug dyn-plug-attr",
-		stdout: "c\n",
-	},
-	{
-		// The --plug parameter doesn't do anything if used on plug side
-		args:   "get --plug :aplug aattr",
-		stdout: "foo\n",
-	},
-	{
-		args:   "get --slot :aplug battr",
-		stdout: "bar\n",
-	},
-	{
-		args:  "get :aplug x",
-		error: `unknown attribute "x"`,
-	},
-	{
-		args:  "get :bslot x",
-		error: `unknown plug or slot "bslot"`,
-	},
-	{
-		args:  "get : foo",
-		error: "plug or slot name not provided",
-	},
-}
+}{{
+	args:   "get :aplug aattr",
+	stdout: "foo\n",
+}, {
+	args:   "get -d :aplug baz",
+	stdout: "{\n\t\"baz\": [\n\t\t\"a\",\n\t\t\"b\"\n\t]\n}\n",
+}, {
+	args:   "get :aplug mapattr.mapattr1",
+	stdout: "mapval1\n",
+}, {
+	args:   "get -d :aplug mapattr.mapattr1",
+	stdout: "{\n\t\"mapattr.mapattr1\": \"mapval1\"\n}\n",
+}, {
+	args:   "get :aplug dyn-plug-attr",
+	stdout: "c\n",
+}, {
+	// The --plug parameter doesn't do anything if used on plug side
+	args:   "get --plug :aplug aattr",
+	stdout: "foo\n",
+}, {
+	args:   "get --slot :aplug battr",
+	stdout: "bar\n",
+}, {
+	args:  "get :aplug x",
+	error: `unknown attribute "x"`,
+}, {
+	args:  "get :bslot x",
+	error: `unknown plug or slot "bslot"`,
+}, {
+	args:  "get : foo",
+	error: "plug or slot name not provided",
+}}
 
 func (s *getAttrSuite) TestPlugHookTests(c *C) {
 	for _, test := range getPlugAttributesTests {
@@ -300,37 +289,29 @@ func (s *getAttrSuite) TestPlugHookTests(c *C) {
 
 var getSlotAttributesTests = []struct {
 	args, stdout, error string
-}{
-	{
-		args:   "get :bslot battr",
-		stdout: "bar\n",
-	},
-	{
-		args:   "get :bslot dyn-slot-attr",
-		stdout: "d\n",
-	},
-	{
-		// The --slot parameter doesn't do anything if used on slot side
-		args:   "get --slot :bslot battr",
-		stdout: "bar\n",
-	},
-	{
-		args:   "get --plug :bslot aattr",
-		stdout: "foo\n",
-	},
-	{
-		args:  "get :bslot x",
-		error: `unknown attribute "x"`,
-	},
-	{
-		args:  "get :aplug x",
-		error: `unknown plug or slot "aplug"`,
-	},
-	{
-		args:  "get --slot --plug :aplug x",
-		error: `cannot use --plug and --slot together`,
-	},
-}
+}{{
+	args:   "get :bslot battr",
+	stdout: "bar\n",
+}, {
+	args:   "get :bslot dyn-slot-attr",
+	stdout: "d\n",
+}, {
+	// The --slot parameter doesn't do anything if used on slot side
+	args:   "get --slot :bslot battr",
+	stdout: "bar\n",
+}, {
+	args:   "get --plug :bslot aattr",
+	stdout: "foo\n",
+}, {
+	args:  "get :bslot x",
+	error: `unknown attribute "x"`,
+}, {
+	args:  "get :aplug x",
+	error: `unknown plug or slot "aplug"`,
+}, {
+	args:  "get --slot --plug :aplug x",
+	error: `cannot use --plug and --slot together`,
+}}
 
 func (s *getAttrSuite) TestSlotHookTests(c *C) {
 	for _, test := range getSlotAttributesTests {

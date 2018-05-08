@@ -37,13 +37,13 @@ restore: |
 execute: |
     if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
         echo "The interface is not connected by default"
-        snap interfaces | MATCH "^\- +home-consumer:home"
+        snap interfaces -i home | MATCH "^\- +home-consumer:home"
 
         echo "And the plug can be connected"
         snap connect home-consumer:home
     else
         echo "The interface is connected by default"
-        snap interfaces | MATCH ":home .*home-consumer"
+        snap interfaces -i home | MATCH ":home .*home-consumer"
 
         echo "When the plug is disconnected"
         snap disconnect home-consumer:home

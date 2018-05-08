@@ -763,6 +763,12 @@ func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
 	return info, nil
 }
 
+// BrokenSnapError describes an error that refers to a snap that warrants the "broken" note.
+type BrokenSnapError interface {
+	error
+	Broken() string
+}
+
 type NotFoundError struct {
 	Snap     string
 	Revision Revision
@@ -773,9 +779,27 @@ type NotFoundError struct {
 
 func (e NotFoundError) Error() string {
 	if e.Path != "" {
-		return fmt.Sprintf("cannot find installed snap %q at revision %s (missing file: %q)", e.Snap, e.Revision, e.Path)
+		return fmt.Sprintf("cannot find installed snap %q at revision %s: missing file %s", e.Snap, e.Revision, e.Path)
 	}
 	return fmt.Sprintf("cannot find installed snap %q at revision %s", e.Snap, e.Revision)
+}
+
+func (e NotFoundError) Broken() string {
+	return e.Error()
+}
+
+type invalidMetaError struct {
+	Snap     string
+	Revision Revision
+	Msg      string
+}
+
+func (e invalidMetaError) Error() string {
+	return fmt.Sprintf("cannot use installed snap %q at revision %s: %s", e.Snap, e.Revision, e.Msg)
+}
+
+func (e invalidMetaError) Broken() string {
+	return e.Error()
 }
 
 func MockSanitizePlugsSlots(f func(snapInfo *Info)) (restore func()) {
@@ -801,7 +825,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 
 	info, err := infoFromSnapYamlWithSideInfo(meta, si)
 	if err != nil {
-		return nil, err
+		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
 	mountFile := MountFile(name, si.Revision)
@@ -820,7 +844,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 
 	err = addImplicitHooks(info)
 	if err != nil {
-		return nil, err
+		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
 	return info, nil

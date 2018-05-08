@@ -56,8 +56,8 @@ execute: |
     snap install ./ubuntu-core_*.snap
 
     snap install test-snapd-python-webserver
-    snap interfaces | MATCH ":network +test-snapd-python-webserver"
-    snap interfaces | MATCH ":network-bind +.*test-snapd-python-webserver"
+    snap interfaces -i network | MATCH ":network +test-snapd-python-webserver"
+    snap interfaces -i network-bind | MATCH ":network-bind +.*test-snapd-python-webserver"
 
     echo "Ensure the webserver is working"
     wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
@@ -103,8 +103,8 @@ execute: |
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi
-    snap interfaces | MATCH ":network +test-snapd-python-webserver"
-    snap interfaces | MATCH ":network-bind +.*test-snapd-python-webserver"
+    snap interfaces -i network | MATCH ":network +test-snapd-python-webserver"
+    snap interfaces -i network-bind | MATCH ":network-bind +.*test-snapd-python-webserver"
     echo "Ensure the webserver is still working"
     wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
     curl http://localhost | MATCH "XKCD rocks"
@@ -115,7 +115,7 @@ execute: |
     curl http://localhost | MATCH "XKCD rocks"
 
     echo "Ensure interfaces are connected"
-    snap interfaces | MATCH ":core-support.*core:core-support-plug"
+    snap interfaces -i core-support | MATCH ":core-support.*core:core-support-plug"
 
     echo "Ensure snap set core works"
     snap set core system.power-key-action=ignore
