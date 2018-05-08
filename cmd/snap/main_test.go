@@ -223,7 +223,7 @@ func (s *SnapSuite) TestExtraArgs(c *C) {
 
 func (s *SnapSuite) TestVersionOnClassic(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"on-classic":true,"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89"}}`)
+		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"on-classic":true,"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89","confinement":"strict"}}`)
 	})
 	restore := mockArgs("snap", "--version")
 	defer restore()
@@ -231,13 +231,13 @@ func (s *SnapSuite) TestVersionOnClassic(c *C) {
 	defer restore()
 
 	c.Assert(func() { snap.RunMain() }, PanicMatches, `internal error: exitStatus\{0\} .*`)
-	c.Assert(s.Stdout(), Equals, "snap    4.56\nsnapd   7.89\nseries  56\nubuntu  12.34\n")
+	c.Assert(s.Stdout(), Equals, "snap         4.56\nsnapd        7.89\nseries       56\nubuntu       12.34\nconfinement  strict\n")
 	c.Assert(s.Stderr(), Equals, "")
 }
 
 func (s *SnapSuite) TestVersionOnAllSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89"}}`)
+		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89","confinement":"strict"}}`)
 	})
 	restore := mockArgs("snap", "--version")
 	defer restore()
@@ -245,7 +245,7 @@ func (s *SnapSuite) TestVersionOnAllSnap(c *C) {
 	defer restore()
 
 	c.Assert(func() { snap.RunMain() }, PanicMatches, `internal error: exitStatus\{0\} .*`)
-	c.Assert(s.Stdout(), Equals, "snap    4.56\nsnapd   7.89\nseries  56\n")
+	c.Assert(s.Stdout(), Equals, "snap         4.56\nsnapd        7.89\nseries       56\nconfinement  strict\n")
 	c.Assert(s.Stderr(), Equals, "")
 }
 

@@ -51,30 +51,31 @@ func (cmd cmdVersion) Execute(args []string) error {
 }
 
 func printVersions() error {
-	sv, err := Client().ServerVersion()
+	si, err := Client().SysInfo()
 	if err != nil {
-		sv = &client.ServerVersion{
+		si = &client.SysInfo{
 			Version:     i18n.G("unavailable"),
 			Series:      "-",
-			OSID:        "-",
-			OSVersionID: "-",
+			OSRelease:   client.OSRelease{ID: "-", VersionID: "-"},
+			Confinement: "-",
 		}
 	}
 
 	w := tabWriter()
 
 	fmt.Fprintf(w, "snap\t%s\n", cmd.Version)
-	fmt.Fprintf(w, "snapd\t%s\n", sv.Version)
-	fmt.Fprintf(w, "series\t%s\n", sv.Series)
-	if sv.OnClassic {
-		if sv.OSVersionID == "" {
-			sv.OSVersionID = "-"
+	fmt.Fprintf(w, "snapd\t%s\n", si.Version)
+	fmt.Fprintf(w, "series\t%s\n", si.Series)
+	if si.OnClassic {
+		if si.OSRelease.VersionID == "" {
+			si.OSRelease.VersionID = "-"
 		}
-		fmt.Fprintf(w, "%s\t%s\n", sv.OSID, sv.OSVersionID)
+		fmt.Fprintf(w, "%s\t%s\n", si.OSRelease.ID, si.OSRelease.VersionID)
 	}
-	if sv.KernelVersion != "" {
-		fmt.Fprintf(w, "kernel\t%s\n", sv.KernelVersion)
+	if si.KernelVersion != "" {
+		fmt.Fprintf(w, "kernel\t%s\n", si.KernelVersion)
 	}
+	fmt.Fprintf(w, "confinement\t%s\n", si.Confinement)
 	w.Flush()
 
 	return err
