@@ -359,6 +359,14 @@ restore_project_each() {
         cat /proc/meminfo
         exit 1
     fi
+
+    # Check for kernel oops during the tests
+    if dmesg|grep "Oops: "; then
+        echo "A kernel oops happened during the tests, test results will be unreliable"
+        echo "Dmesg debug output:"
+        dmesg
+        exit 1
+    fi
 }
 
 restore_project() {
