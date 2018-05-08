@@ -20,12 +20,87 @@
 package testutil
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"gopkg.in/check.v1"
 )
+
+type fileContentChecker struct {
+	*check.CheckerInfo
+	exact bool
+}
+
+// FileEquals verifies that the given file's content is equal
+// to the string (or fmt.Stringer) or []byte provided.
+var FileEquals check.Checker = &fileContentChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "FileEquals", Params: []string{"filename", "contents"}},
+	exact:       true,
+}
+
+// FileContains verifies that the given file's content contains
+// the string (or fmt.Stringer) or []byte provided.
+var FileContains check.Checker = &fileContentChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "FileContains", Params: []string{"filename", "contents"}},
+}
+
+// FileMatches verifies that the given file's content matches
+// the string provided.
+var FileMatches check.Checker = &fileContentChecker{
+	CheckerInfo: &check.CheckerInfo{Name: "FileMatches", Params: []string{"filename", "regex"}},
+}
+
+func (c *fileContentChecker) Check(params []interface{}, names []string) (result bool, error string) {
+	filename, ok := params[0].(string)
+	if !ok {
+		return false, "Filename must be a string"
+	}
+	if names[1] == "regex" {
+		regexpr, ok := params[1].(string)
+		if !ok {
+			return false, "Regex must be a string"
+		}
+		rx, err := regexp.Compile(regexpr)
+		if err != nil {
+			return false, fmt.Sprintf("Can't compile regexp %q: %v", regexpr, err)
+		}
+		params[1] = rx
+	}
+	return fileContentCheck(filename, params[1], c.exact)
+}
+
+func fileContentCheck(filename string, content interface{}, exact bool) (result bool, error string) {
+	buf, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return false, fmt.Sprintf("Can't read file %q: %v", filename, err)
+	}
+	if exact {
+		switch content := content.(type) {
+		case string:
+			return string(buf) == content, ""
+		case []byte:
+			return bytes.Equal(buf, content), ""
+		case fmt.Stringer:
+			return string(buf) == content.String(), ""
+		}
+	} else {
+		switch content := content.(type) {
+		case string:
+			return strings.Contains(string(buf), content), ""
+		case []byte:
+			return bytes.Contains(buf, content), ""
+		case *regexp.Regexp:
+			return content.Match(buf), ""
+		case fmt.Stringer:
+			return strings.Contains(string(buf), content.String()), ""
+		}
+	}
+	return false, fmt.Sprintf("Can't compare file contents with something of type %T", content)
+}
 
 type containsChecker struct {
 	*check.CheckerInfo

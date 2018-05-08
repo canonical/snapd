@@ -46,11 +46,14 @@ type policySuite struct {
 
 	randomSnap *snap.Info
 	randomDecl *asserts.SnapDeclaration
+
+	restoreSanitize func()
 }
 
 var _ = Suite(&policySuite{})
 
 func (s *policySuite) SetUpSuite(c *C) {
+	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	a, err := asserts.Decode([]byte(`type: base-declaration
 authority-id: canonical
 series: 16
@@ -284,6 +287,7 @@ AXNpZw==`))
 
 	s.plugSnap = snaptest.MockInfo(c, `
 name: plug-snap
+version: 0
 plugs:
    random:
    mismatchy:
@@ -366,6 +370,9 @@ plugs:
      interface: slot-plug-attr
      c: "Z"
 
+   slot-plug-attr-dynamic:
+     interface: slot-plug-attr
+
    slot-plug-attr-match:
      interface: slot-plug-attr
      c: "C"
@@ -444,6 +451,7 @@ plugs:
 
 	s.slotSnap = snaptest.MockInfo(c, `
 name: slot-snap
+version: 0
 slots:
    random:
    mismatchy:
@@ -527,6 +535,9 @@ slots:
    plug-plug-attr-match:
      interface: plug-plug-attr
      c: "C"
+
+   plug-plug-attr-dynamic:
+     interface: plug-plug-attr
 
    plug-slot-attr-mismatch:
      interface: plug-slot-attr
@@ -677,6 +688,7 @@ AXNpZw==`))
 
 	s.randomSnap = snaptest.MockInfo(c, `
 name: random-snap
+version: 0
 plugs:
   precise-plug-snap-id:
   checked-plug-publisher-id:
@@ -700,6 +712,10 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 AXNpZw==`))
 	c.Assert(err, IsNil)
 	s.randomDecl = a.(*asserts.SnapDeclaration)
+}
+
+func (s *policySuite) TearDownSuite(c *C) {
+	s.restoreSanitize()
 }
 
 func (s *policySuite) TestBaselineDefaultIsAllow(c *C) {
@@ -876,6 +892,7 @@ func (s *policySuite) TestSnapDeclAllowDenyAutoConnection(c *C) {
 func (s *policySuite) TestSnapTypeCheckConnection(c *C) {
 	gadgetSnap := snaptest.MockInfo(c, `
 name: gadget
+version: 0
 type: gadget
 plugs:
    gadgethelp:
@@ -885,6 +902,7 @@ slots:
 
 	coreSnap := snaptest.MockInfo(c, `
 name: core
+version: 0
 type: os
 slots:
    gadgethelp:
@@ -1079,6 +1097,7 @@ func (s *policySuite) TestDollarPlugPublisherIDCheckConnection(c *C) {
 	// slot publisher id == plug publisher id
 	samePubSlotSnap := snaptest.MockInfo(c, `
 name: same-pub-slot-snap
+version: 0
 slots:
   same-plug-publisher-id:
 `, nil)
@@ -1137,6 +1156,7 @@ func (s *policySuite) TestDollarSlotPublisherIDCheckConnection(c *C) {
 	// plug publisher id == slot publisher id
 	samePubPlugSnap := snaptest.MockInfo(c, `
 name: same-pub-plug-snap
+version: 0
 plugs:
   same-slot-publisher-id:
 `, nil)
@@ -1167,6 +1187,7 @@ AXNpZw==`))
 func (s *policySuite) TestBaselineDefaultIsAllowInstallation(c *C) {
 	installSnap := snaptest.MockInfo(c, `
 name: install-slot-snap
+version: 0
 slots:
   random1:
 plugs:
@@ -1188,62 +1209,75 @@ func (s *policySuite) TestBaseDeclAllowDenyInstallation(c *C) {
 		expected    string // "" => no error
 	}{
 		{`name: install-snap
+version: 0
 slots:
   innocuous:
   install-slot-coreonly:
 `, `installation not allowed by "install-slot-coreonly" slot rule of interface "install-slot-coreonly"`},
 		{`name: install-snap
+version: 0
 slots:
   install-slot-attr-ok:
     attr: ok
 `, ""},
 		{`name: install-snap
+version: 0
 slots:
   install-slot-attr-deny:
     trust: trusted
 `, `installation denied by "install-slot-attr-deny" slot rule of interface "install-slot-attr-deny"`},
 		{`name: install-snap
+version: 0
 plugs:
   install-plug-attr-ok:
     attr: ok
 `, ""},
 		{`name: install-snap
+version: 0
 plugs:
   install-plug-attr-ok:
     attr: not-ok
 `, `installation not allowed by "install-plug-attr-ok" plug rule of interface "install-plug-attr-ok"`},
 		{`name: install-snap
+version: 0
 plugs:
   install-plug-gadget-only:
 `, `installation not allowed by "install-plug-gadget-only" plug rule of interface "install-plug-gadget-only"`},
 		{`name: install-gadget
+version: 0
 type: gadget
 plugs:
   install-plug-gadget-only:
 `, ""},
 		{`name: install-gadget
+version: 0
 type: gadget
 plugs:
   install-plug-or:
      p: P2`, `installation denied by "install-plug-or" plug rule.*`},
 		{`name: install-snap
+version: 0
 plugs:
   install-plug-or:
      p: P1`, `installation denied by "install-plug-or" plug rule.*`},
 		{`name: install-snap
+version: 0
 plugs:
   install-plug-or:
      p: P3`, ""},
 		{`name: install-gadget
+version: 0
 type: gadget
 slots:
   install-slot-or:
      p: P2`, `installation denied by "install-slot-or" slot rule.*`},
 		{`name: install-snap
+version: 0
 slots:
   install-slot-or:
      p: P1`, `installation denied by "install-slot-or" slot rule.*`},
 		{`name: install-snap
+version: 0
 slots:
   install-slot-or:
      p: P3`, ""},
@@ -1274,6 +1308,7 @@ func (s *policySuite) TestSnapDeclAllowDenyInstallation(c *C) {
 		expected    string // "" => no error
 	}{
 		{`name: install-snap
+version: 0
 slots:
   install-slot-base-allow-snap-deny:
     have: yes # bool
@@ -1284,6 +1319,7 @@ slots:
         have: true
 `, `installation denied by "install-slot-base-allow-snap-deny" slot rule of interface "install-slot-base-allow-snap-deny" for "install-snap" snap`},
 		{`name: install-snap
+version: 0
 slots:
   install-slot-base-allow-snap-not-allow:
     have: yes # bool
@@ -1294,6 +1330,7 @@ slots:
         have: false
 `, `installation not allowed by "install-slot-base-allow-snap-not-allow" slot rule of interface "install-slot-base-allow-snap-not-allow" for "install-snap" snap`},
 		{`name: install-snap
+version: 0
 slots:
   install-slot-base-deny-snap-allow:
     have: yes
@@ -1302,6 +1339,7 @@ slots:
     allow-installation: true
 `, ""},
 		{`name: install-snap
+version: 0
 plugs:
   install-plug-base-allow-snap-deny:
     attr: give-me
@@ -1312,6 +1350,7 @@ plugs:
         attr: .*
 `, `installation denied by "install-plug-base-allow-snap-deny" plug rule of interface "install-plug-base-allow-snap-deny" for "install-snap" snap`},
 		{`name: install-snap
+version: 0
 plugs:
   install-plug-base-allow-snap-not-allow:
     attr: give-me
@@ -1322,6 +1361,7 @@ plugs:
         attr: minimal
 `, `installation not allowed by "install-plug-base-allow-snap-not-allow" plug rule of interface "install-plug-base-allow-snap-not-allow" for "install-snap" snap`},
 		{`name: install-snap
+version: 0
 plugs:
   install-plug-base-deny-snap-allow:
     attr: attrvalue
@@ -1465,15 +1505,19 @@ func (s *policySuite) TestOnClassicInstallation(c *C) {
 		err         string // "" => no error
 	}{
 		{"", `name: install-snap
+version: 0
 slots:
   install-slot-on-classic-distros:`, `installation not allowed by "install-slot-on-classic-distros" slot rule.*`},
 		{"debian", `name: install-snap
+version: 0
 slots:
   install-slot-on-classic-distros:`, ""},
 		{"", `name: install-snap
+version: 0
 plugs:
   install-plug-on-classic-distros:`, `installation not allowed by "install-plug-on-classic-distros" plug rule.*`},
 		{"debian", `name: install-snap
+version: 0
 plugs:
   install-plug-on-classic-distros:`, ""},
 	}
@@ -1596,6 +1640,46 @@ func (s *policySuite) TestDollarMissingConnection(c *C) {
 	cand = policy.ConnectCandidate{
 		Plug:            interfaces.NewConnectedPlug(s.plugSnap.Plugs["slot-plug-missing-match"], nil),
 		Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots["slot-plug-missing"], nil),
+		BaseDeclaration: s.baseDecl,
+	}
+	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestSlotDollarPlugDynamicAttrConnection(c *C) {
+	// "c" attribute of the plug missing
+	cand := policy.ConnectCandidate{
+		Plug:            interfaces.NewConnectedPlug(s.plugSnap.Plugs["slot-plug-attr-dynamic"], map[string]interface{}{}),
+		Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots["slot-plug-attr"], nil),
+		BaseDeclaration: s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// plug attr == slot attr, "c" attribute of the plug provided by dynamic attribute
+	cand = policy.ConnectCandidate{
+		Plug: interfaces.NewConnectedPlug(s.plugSnap.Plugs["slot-plug-attr-dynamic"], map[string]interface{}{
+			"c": "C",
+		}),
+		Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots["slot-plug-attr"], nil),
+		BaseDeclaration: s.baseDecl,
+	}
+	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestPlugDollarSlotDynamicAttrConnection(c *C) {
+	// "c" attribute of the slot missing
+	cand := policy.ConnectCandidate{
+		Plug:            interfaces.NewConnectedPlug(s.plugSnap.Plugs["plug-plug-attr"], nil),
+		Slot:            interfaces.NewConnectedSlot(s.slotSnap.Slots["plug-plug-attr-dynamic"], map[string]interface{}{}),
+		BaseDeclaration: s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// plug attr == slot attr, "c" attribute of the slot provided by dynamic attribute
+	cand = policy.ConnectCandidate{
+		Plug: interfaces.NewConnectedPlug(s.plugSnap.Plugs["plug-plug-attr"], nil),
+		Slot: interfaces.NewConnectedSlot(s.slotSnap.Slots["plug-plug-attr-dynamic"], map[string]interface{}{
+			"c": "C",
+		}),
 		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), IsNil)

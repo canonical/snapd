@@ -23,10 +23,10 @@ import (
 	"time"
 )
 
-func MockExecTimeout(t time.Duration) func() {
-	ot := execTimeout
-	execTimeout = t
+func MockDefaultExecTimeout(t time.Duration) func() {
+	ot := defaultExecTimeout
+	defaultExecTimeout = t
 	return func() {
-		execTimeout = ot
+		defaultExecTimeout = ot
 	}
 }

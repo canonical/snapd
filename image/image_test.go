@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -64,6 +65,7 @@ func (s *emptyStore) Assertion(assertType *asserts.AssertionType, primaryKey []s
 func Test(t *testing.T) { TestingT(t) }
 
 type imageSuite struct {
+	testutil.BaseTest
 	root       string
 	bootloader *boottest.MockBootloader
 
@@ -86,6 +88,9 @@ func (s *imageSuite) SetUpTest(c *C) {
 	s.root = c.MkDir()
 	s.bootloader = boottest.NewMockBootloader("grub", c.MkDir())
 	partition.ForceBootloader(s.bootloader)
+
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	s.stdout = &bytes.Buffer{}
 	image.Stdout = s.stdout
@@ -159,6 +164,7 @@ func (s *imageSuite) addSystemSnapAssertions(c *C, snapName string, publisher st
 }
 
 func (s *imageSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	partition.ForceBootloader(nil)
 	image.Stdout = os.Stdout
 	image.Stderr = os.Stderr
@@ -331,9 +337,7 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 		{files[0][0], files[0][1]},
 	} {
 		fn := filepath.Join(gadgetUnpackDir, t.file)
-		content, err := ioutil.ReadFile(fn)
-		c.Assert(err, IsNil)
-		c.Check(content, DeepEquals, []byte(t.content))
+		c.Check(fn, testutil.FileEquals, t.content)
 	}
 }
 
@@ -366,6 +370,9 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	defer restore()
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	seeddir := filepath.Join(rootdir, "var/lib/snapd/seed")
+	seedsnapsdir := filepath.Join(seeddir, "snaps")
+	seedassertsdir := filepath.Join(seeddir, "assertions")
 
 	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
 	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
@@ -392,7 +399,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	c.Assert(err, IsNil)
 
 	// check seed yaml
-	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
+	seed, err := snap.ReadSeedYaml(filepath.Join(seeddir, "seed.yaml"))
 	c.Assert(err, IsNil)
 
 	c.Check(seed.Snaps, HasLen, 4)
@@ -401,7 +408,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	for i, name := range []string{"core", "pc-kernel", "pc"} {
 		info := s.storeSnapInfo[name]
 		fn := filepath.Base(info.MountFile())
-		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
+		p := filepath.Join(seedsnapsdir, fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 
 		c.Check(seed.Snaps[i], DeepEquals, &snap.SeedSnap{
@@ -419,15 +426,12 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 
 	// check the assertions are in place
 	for _, fn := range []string{"model", brandPubKey.ID() + ".account-key", "my-brand.account", storeAccountKey.PublicKeyID() + ".account-key"} {
-		p := filepath.Join(rootdir, "var/lib/snapd/seed/assertions", fn)
+		p := filepath.Join(seedassertsdir, fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 	}
 
-	b, err := ioutil.ReadFile(filepath.Join(rootdir, "var/lib/snapd/seed/assertions", "model"))
-	c.Assert(err, IsNil)
-	c.Check(b, DeepEquals, asserts.Encode(s.model))
-
-	b, err = ioutil.ReadFile(filepath.Join(rootdir, "var/lib/snapd/seed/assertions", "my-brand.account"))
+	c.Check(filepath.Join(seedassertsdir, "model"), testutil.FileEquals, asserts.Encode(s.model))
+	b, err := ioutil.ReadFile(filepath.Join(seedassertsdir, "my-brand.account"))
 	c.Assert(err, IsNil)
 	a, err := asserts.Decode(b)
 	c.Assert(err, IsNil)
@@ -436,7 +440,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 
 	// check the snap assertions are also in place
 	for _, snapId := range []string{"pc-Id", "pc-kernel-Id", "core-Id"} {
-		p := filepath.Join(rootdir, "var/lib/snapd/seed/assertions", fmt.Sprintf("16,%s.snap-declaration", snapId))
+		p := filepath.Join(seedassertsdir, fmt.Sprintf("16,%s.snap-declaration", snapId))
 		c.Check(osutil.FileExists(p), Equals, true)
 	}
 
@@ -454,6 +458,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
 	defer restore()
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	seedassertsdir := filepath.Join(rootdir, "var/lib/snapd/seed/assertions")
 
 	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
 	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
@@ -537,22 +542,19 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCoreBrandKernel(c *C) {
 
 	// check the assertions are in place
 	for _, fn := range []string{"model", brandPubKey.ID() + ".account-key", "my-brand.account", storeAccountKey.PublicKeyID() + ".account-key"} {
-		p := filepath.Join(rootdir, "var/lib/snapd/seed/assertions", fn)
+		p := filepath.Join(seedassertsdir, fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 	}
 
-	b, err := ioutil.ReadFile(filepath.Join(rootdir, "var/lib/snapd/seed/assertions", "model"))
-	c.Assert(err, IsNil)
-	c.Check(b, DeepEquals, asserts.Encode(s.model))
-
-	b, err = ioutil.ReadFile(filepath.Join(rootdir, "var/lib/snapd/seed/assertions", "my-brand.account"))
+	c.Check(filepath.Join(seedassertsdir, "model"), testutil.FileEquals, asserts.Encode(s.model))
+	b, err := ioutil.ReadFile(filepath.Join(seedassertsdir, "my-brand.account"))
 	c.Assert(err, IsNil)
 	a, err := asserts.Decode(b)
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.AccountType)
 	c.Check(a.HeaderString("account-id"), Equals, "my-brand")
 
-	decls, err := filepath.Glob(filepath.Join(rootdir, "var/lib/snapd/seed/assertions", "*.snap-declaration"))
+	decls, err := filepath.Glob(filepath.Join(seedassertsdir, "*.snap-declaration"))
 	c.Assert(err, IsNil)
 	// nothing for core
 	c.Check(decls, HasLen, 2)
@@ -686,9 +688,7 @@ func (s *imageSuite) TestInstallCloudConfigWithCloudConfig(c *C) {
 	dirs.SetRootDir(targetDir)
 	err = image.InstallCloudConfig(gadgetDir)
 	c.Assert(err, IsNil)
-	content, err := ioutil.ReadFile(filepath.Join(targetDir, "etc/cloud/cloud.cfg"))
-	c.Assert(err, IsNil)
-	c.Check(content, DeepEquals, canary)
+	c.Check(filepath.Join(targetDir, "etc/cloud/cloud.cfg"), testutil.FileEquals, canary)
 }
 
 func (s *imageSuite) TestNewToolingStoreWithAuth(c *C) {
@@ -735,6 +735,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 	defer restore()
 
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
+	assertsdir := filepath.Join(rootdir, "var/lib/snapd/seed/assertions")
 
 	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
 	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
@@ -818,22 +819,19 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 
 	// check the assertions are in place
 	for _, fn := range []string{"model", brandPubKey.ID() + ".account-key", "my-brand.account", storeAccountKey.PublicKeyID() + ".account-key"} {
-		p := filepath.Join(rootdir, "var/lib/snapd/seed/assertions", fn)
+		p := filepath.Join(assertsdir, fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 	}
 
-	b, err := ioutil.ReadFile(filepath.Join(rootdir, "var/lib/snapd/seed/assertions", "model"))
-	c.Assert(err, IsNil)
-	c.Check(b, DeepEquals, asserts.Encode(s.model))
-
-	b, err = ioutil.ReadFile(filepath.Join(rootdir, "var/lib/snapd/seed/assertions", "my-brand.account"))
+	c.Check(filepath.Join(assertsdir, "model"), testutil.FileEquals, asserts.Encode(s.model))
+	b, err := ioutil.ReadFile(filepath.Join(assertsdir, "my-brand.account"))
 	c.Assert(err, IsNil)
 	a, err := asserts.Decode(b)
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.AccountType)
 	c.Check(a.HeaderString("account-id"), Equals, "my-brand")
 
-	decls, err := filepath.Glob(filepath.Join(rootdir, "var/lib/snapd/seed/assertions", "*.snap-declaration"))
+	decls, err := filepath.Glob(filepath.Join(assertsdir, "*.snap-declaration"))
 	c.Assert(err, IsNil)
 	c.Check(decls, HasLen, 4)
 
@@ -845,4 +843,58 @@ func (s *imageSuite) TestBootstrapToRootDirLocalSnapsWithStoreAsserts(c *C) {
 	c.Check(m["snap_core"], Equals, "core_3.snap")
 
 	c.Check(s.stderr.String(), Equals, "")
+}
+
+type toolingAuthContextSuite struct {
+	ac auth.AuthContext
+}
+
+var _ = Suite(&toolingAuthContextSuite{})
+
+func (s *toolingAuthContextSuite) SetUpTest(c *C) {
+	s.ac = image.ToolingAuthContext()
+}
+
+func (s *toolingAuthContextSuite) TestNopBits(c *C) {
+	info, err := s.ac.CloudInfo()
+	c.Assert(err, IsNil)
+	c.Check(info, IsNil)
+
+	device, err := s.ac.Device()
+	c.Assert(err, IsNil)
+	c.Check(device, DeepEquals, &auth.DeviceState{})
+
+	p, err := s.ac.DeviceSessionRequestParams("")
+	c.Assert(err, Equals, auth.ErrNoSerial)
+	c.Check(p, IsNil)
+
+	defURL, err := url.Parse("http://store")
+	c.Assert(err, IsNil)
+	proxyStoreID, proxyStoreURL, err := s.ac.ProxyStoreParams(defURL)
+	c.Assert(err, IsNil)
+	c.Check(proxyStoreID, Equals, "")
+	c.Check(proxyStoreURL, Equals, defURL)
+
+	storeID, err := s.ac.StoreID("")
+	c.Assert(err, IsNil)
+	c.Check(storeID, Equals, "")
+
+	storeID, err = s.ac.StoreID("my-store")
+	c.Assert(err, IsNil)
+	c.Check(storeID, Equals, "my-store")
+
+	_, err = s.ac.UpdateDeviceAuth(nil, "")
+	c.Assert(err, NotNil)
+}
+
+func (s *toolingAuthContextSuite) TestUpdateUserAuth(c *C) {
+	u := &auth.UserState{
+		StoreMacaroon:   "macaroon",
+		StoreDischarges: []string{"discharge1"},
+	}
+
+	u1, err := s.ac.UpdateUserAuth(u, []string{"discharge2"})
+	c.Assert(err, IsNil)
+	c.Check(u1, Equals, u)
+	c.Check(u1.StoreDischarges, DeepEquals, []string{"discharge2"})
 }

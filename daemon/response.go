@@ -137,6 +137,8 @@ const (
 	errorKindSnapLocal             = errorKind("snap-local")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 
+	errorKindSnapRevisionNotAvailable = errorKind("snap-revision-not-available")
+
 	errorKindNotSnap = errorKind("snap-not-a-snap")
 
 	errorKindSnapNeedsDevMode       = errorKind("snap-needs-devmode")
@@ -145,7 +147,8 @@ const (
 
 	errorKindBadQuery = errorKind("bad-query")
 
-	errorKindNetworkTimeout = errorKind("network-timeout")
+	errorKindNetworkTimeout      = errorKind("network-timeout")
+	errorKindInterfacesUnchanged = errorKind("interfaces-unchanged")
 )
 
 type errorValue interface{}
@@ -286,6 +289,20 @@ func AssertResponse(asserts []asserts.Assertion, bundle bool) Response {
 	return &assertResponse{assertions: asserts, bundle: bundle}
 }
 
+// InterfacesUnchanged is an error responder used when an operation
+// that would normally change interfaces finds it has nothing to do
+func InterfacesUnchanged(format string, v ...interface{}) Response {
+	res := &errorResult{
+		Message: fmt.Sprintf(format, v...),
+		Kind:    errorKindInterfacesUnchanged,
+	}
+	return &resp{
+		Type:   ResponseTypeError,
+		Result: res,
+		Status: 400,
+	}
+}
+
 func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	t := asserts.MediaType
 	if ar.bundle {
@@ -329,6 +346,22 @@ func SnapNotFound(snapName string, err error) Response {
 		Result: &errorResult{
 			Message: err.Error(),
 			Kind:    errorKindSnapNotFound,
+			Value:   snapName,
+		},
+		Status: 404,
+	}
+}
+
+// SnapRevisionNotAvailable is an error responder used when an
+// operation is requested for which no revivision can be found
+// in the given context (e.g. request an install from a stable
+// channel when this channel is empty).
+func SnapRevisionNotAvailable(snapName string, err error) Response {
+	return &resp{
+		Type: ResponseTypeError,
+		Result: &errorResult{
+			Message: err.Error(),
+			Kind:    errorKindSnapRevisionNotAvailable,
 			Value:   snapName,
 		},
 		Status: 404,

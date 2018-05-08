@@ -47,6 +47,7 @@ var _ = Suite(&WaylandInterfaceSuite{
 })
 
 const waylandConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [wayland]
@@ -54,6 +55,7 @@ apps:
 
 // a wayland slot on a wayland snap (as installed on a core/all-snap system)
 const waylandCoreYaml = `name: wayland
+version: 0
 apps:
  app1:
   slots: [wayland]
@@ -61,6 +63,7 @@ apps:
 
 // a wayland slot on the core snap (as automatically added on classic)
 const waylandClassicYaml = `name: core
+version: 0
 type: os
 slots:
  wayland:
@@ -178,7 +181,7 @@ KERNEL=="mouse[0-9]*", TAG+="snap_wayland_app1"`)
 KERNEL=="ts[0-9]*", TAG+="snap_wayland_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# wayland
 KERNEL=="tty[0-9]*", TAG+="snap_wayland_app1"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_wayland_app1", RUN+="/lib/udev/snappy-app-dev $env{ACTION} snap_wayland_app1 $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_wayland_app1", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_wayland_app1 $devpath $major:$minor"`)
 
 	// on a classic system with wayland slot coming from the core snap.
 	restore = release.MockOnClassic(true)

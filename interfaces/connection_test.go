@@ -24,9 +24,11 @@ import (
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type connSuite struct {
+	testutil.BaseTest
 	plug *snap.PlugInfo
 	slot *snap.SlotInfo
 }
@@ -34,8 +36,11 @@ type connSuite struct {
 var _ = Suite(&connSuite{})
 
 func (s *connSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	consumer := snaptest.MockInfo(c, `
 name: consumer
+version: 0
 apps:
     app:
 plugs:
@@ -48,6 +53,7 @@ plugs:
 	s.plug = consumer.Plugs["plug"]
 	producer := snaptest.MockInfo(c, `
 name: producer
+version: 0
 apps:
     app:
 slots:
@@ -58,6 +64,10 @@ slots:
             a: b
 `, nil)
 	s.slot = producer.Slots["slot"]
+}
+
+func (s *connSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 }
 
 // Make sure ConnectedPlug,ConnectedSlot, PlugInfo, SlotInfo implement Attrer.

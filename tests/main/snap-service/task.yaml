@@ -1,6 +1,7 @@
 summary: Check that `snap run --command=reload` works
 
-kill-timeout: 3m
+kill-timeout: 5m
+
 execute: |
     echo "When the service snap is installed"
     . $TESTSLIB/snaps.sh
@@ -16,3 +17,12 @@ execute: |
     while ! systemctl status snap.test-snapd-service.test-snapd-service|grep "reloading reloading reloading"; do
         sleep 1
     done
+
+    echo "A snap that refuses to stop is killed eventually"
+    snap stop test-snapd-service.test-snapd-service-refuses-to-stop
+    # systemd in 14.04 does not provide the "Result: timeout" information
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+        systemctl status snap.test-snapd-service.test-snapd-service-refuses-to-stop|MATCH "code=killed"
+    else
+        systemctl status snap.test-snapd-service.test-snapd-service-refuses-to-stop|MATCH "Result: timeout"
+    fi

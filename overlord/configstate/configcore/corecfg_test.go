@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -48,6 +49,17 @@ func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
 		v2.Set(reflect.ValueOf(cfg.conf[key]))
 	}
 	return cfg.err
+}
+
+func (cfg *mockConf) Set(snapName, key string, v interface{}) error {
+	if snapName != "core" {
+		return fmt.Errorf("mockConf only knows about core")
+	}
+	if cfg.conf == nil {
+		cfg.conf = make(map[string]interface{})
+	}
+	cfg.conf[key] = v
+	return nil
 }
 
 func (cfg *mockConf) State() *state.State {
@@ -83,4 +95,32 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 // runCfgSuite tests configcore.Run()
 type runCfgSuite struct {
 	configcoreSuite
+}
+
+var _ = Suite(&runCfgSuite{})
+
+func (r *runCfgSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
+	conf := &mockConf{
+		state: r.state,
+		conf: map[string]interface{}{
+			"experimental.layouts": "foo",
+		},
+	}
+
+	err := configcore.Run(conf)
+	c.Check(err, ErrorMatches, `experimental.layouts can only be set to 'true' or 'false'`)
+}
+
+func (r *runCfgSuite) TestConfigureExperimentalSettingsHappy(c *C) {
+	for _, t := range []string{"true", "false"} {
+		conf := &mockConf{
+			state: r.state,
+			conf: map[string]interface{}{
+				"experimental.layouts": t,
+			},
+		}
+
+		err := configcore.Run(conf)
+		c.Check(err, IsNil)
+	}
 }

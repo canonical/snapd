@@ -43,12 +43,14 @@ var _ = Suite(&GpioMemoryControlInterfaceSuite{
 })
 
 const gpioMemoryControlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [gpio-memory-control]
 `
 
 const gpioMemoryControlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   gpio-memory-control:

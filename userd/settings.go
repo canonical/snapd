@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/userd/ui"
 )
 
 // Timeout when the confirmation dialog for an xdg-setging
@@ -191,11 +192,6 @@ func (s *Settings) Set(setting, new string, sender dbus.Sender) *dbus.Error {
 		return dbus.MakeFailedError(fmt.Errorf("cannot find desktop file %q", df))
 	}
 
-	// FIXME: what GUI toolkit to use?
-	// FIXME2: we could support kdialog here as well
-	if !osutil.ExecutableExists("zenity") {
-		return dbus.MakeFailedError(fmt.Errorf("cannot find zenity"))
-	}
 	// FIXME: we need to know the parent PID or our dialog may pop under
 	//        the existing windows. We might get it with the help of
 	//        the xdg-settings tool inside the core snap. It would have
@@ -204,33 +200,23 @@ func (s *Settings) Set(setting, new string, sender dbus.Sender) *dbus.Error {
 	//        the X windows for _NET_WM_PID and use the windowID to
 	//        attach to zenity - not sure how this translate to the
 	//        wayland world though :/
-	txt := fmt.Sprintf(i18n.G(`
-<big><b>Allow settings change?</b></big>
-
-Allow snap %q to change %q to %q ?
-
-<span size="x-small">This dialog will close automatically after 5 minutes of inactivity.</span>
-`), snap, setting, new)
-	cmd := exec.Command("zenity", "--question", "--modal", "--text="+txt)
-	if err := cmd.Start(); err != nil {
-		return dbus.MakeFailedError(err)
-	}
-	done := make(chan error)
-	go func() { done <- cmd.Wait() }()
-	select {
-	case err = <-done:
-		// normal exit
-	case <-time.After(defaultConfirmDialogTimeout * time.Second):
-		// timeout do nothing, the other side will have timed
-		// out as well, no need to send a reply.
-		cmd.Process.Kill()
-		return nil
-	}
+	dialog, err := ui.New()
 	if err != nil {
-		return dbus.MakeFailedError(fmt.Errorf("cannot set setting: user declined"))
+		return dbus.MakeFailedError(fmt.Errorf("cannot ask for settings change: %v", err))
+	}
+	answeredYes := dialog.YesNo(
+		i18n.G("Allow settings change?"),
+		fmt.Sprintf(i18n.G("Allow snap %q to change %q to %q ?"), snap, setting, new),
+		&ui.DialogOptions{
+			Timeout: 5 * 60 * time.Second,
+			Footer:  i18n.G("This dialog will close automatically after 5 minutes of inactivity."),
+		},
+	)
+	if !answeredYes {
+		return dbus.MakeFailedError(fmt.Errorf("cannot change configuration: user declined change"))
 	}
 
-	cmd = exec.Command("xdg-settings", "set", setting, new)
+	cmd := exec.Command("xdg-settings", "set", setting, new)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot set setting %s: %s", setting, osutil.OutputErr(output, err)))

@@ -33,7 +33,7 @@ environment:
     GADGET_CHANNEL: "$(HOST: echo ${SPREAD_GADGET_CHANNEL:-edge})"
     REMOTE_STORE: "$(HOST: echo ${SPREAD_REMOTE_STORE:-production})"
     SNAPPY_USE_STAGING_STORE: "$(HOST: if [ $SPREAD_REMOTE_STORE = staging ]; then echo 1; else echo 0; fi)"
-    DELTA_REF: 2.29
+    DELTA_REF: 2.32.5
     DELTA_PREFIX: snapd-$DELTA_REF/
     SNAPD_PUBLISHED_VERSION: "$(HOST: echo $SPREAD_SNAPD_PUBLISHED_VERSION)"
     HTTP_PROXY: "$(HOST: echo $SPREAD_HTTP_PROXY)"
@@ -42,8 +42,62 @@ environment:
     NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
     SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
     PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools
+    SKIP_REMOVE_SNAPS: "$(HOST: echo ${SKIP_REMOVE_SNAPS:-})"
 
 backends:
+    google:
+        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
+        location: computeengine/us-east1-b
+        systems:
+            - ubuntu-14.04-64:
+                workers: 6
+            - ubuntu-16.04-32:
+                workers: 6
+            - ubuntu-16.04-64:
+                workers: 8
+            - ubuntu-18.04-64:
+                image: ubuntu-os-cloud-devel/daily-ubuntu-1804-bionic-v20180424
+                workers: 6
+
+            - ubuntu-core-16-64:
+                image: ubuntu-16.04-64
+                workers: 6
+
+            - debian-9-64:
+                workers: 6
+            - debian-sid-64:
+                workers: 6
+                manual: true
+
+            - fedora-26-64:
+                workers: 4
+                manual: true
+            - fedora-27-64:
+                image: fedora-27-64-selinux-permissive
+                workers: 4
+
+            - opensuse-42.2-64:
+                image: opensuse-leap-42-2
+                workers: 4
+                manual: true
+            - opensuse-42.3-64:
+                image: opensuse-cloud/opensuse-leap-42-3-v20180116
+                workers: 4
+            - arch-linux-64:
+                workers: 4
+
+    google-sru:
+        type: google
+        key: "$(HOST: echo $SPREAD_GOOGLE_KEY)"
+        location: computeengine/us-east1-b
+        systems:
+            - ubuntu-14.04-64:
+                workers: 4
+            - ubuntu-16.04-64:
+                workers: 4
+            - ubuntu-18.04-64:
+                workers: 4
+
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
         plan: 4GB
@@ -57,40 +111,10 @@ backends:
             HTTP_PROXY: null
             HTTPS_PROXY: null
         systems:
-            - ubuntu-16.04-64:
-                kernel: GRUB 2
-                workers: 8
-            - ubuntu-16.04-32:
-                kernel: GRUB 2
-                workers: 6
-            - ubuntu-14.04-64:
-                kernel: GRUB 2
-                workers: 6
-
-            - ubuntu-core-16-64:
-                kernel: Direct Disk
-                image: ubuntu-16.04-64
-                workers: 6
-
-            - debian-9-64:
-                kernel: GRUB 2
-                workers: 6
-            - debian-sid-64:
-                kernel: GRUB 2
-                workers: 6
-                manual: true
-
-            - fedora-27-64:
-                workers: 4
-            - fedora-26-64:
-                workers: 4
-                manual: true
             - fedora-25-64:
                 workers: 4
                 manual: true
 
-            - opensuse-42.2-64:
-                workers: 4
     qemu:
         systems:
             - ubuntu-14.04-32:
@@ -113,6 +137,15 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-18.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.04-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-32:
                 username: ubuntu
                 password: ubuntu
             - debian-sid-64:
@@ -198,6 +231,28 @@ backends:
             - ubuntu-18.04-s390x:
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-18.04-arm64:
+                username: ubuntu
+                password: ubuntu
+            # Cosmic
+            - ubuntu-18.10-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-arm64:
+                username: ubuntu
+                password: ubuntu
     external:
         type: adhoc
         environment:
@@ -219,21 +274,6 @@ backends:
             - ubuntu-core-16-arm-32:
                 username: test
                 password: ubuntu
-
-    linode-sru:
-        type: linode
-        key: "$(HOST: echo $SPREAD_LINODE_KEY)"
-        halt-timeout: 2h
-        systems:
-            - ubuntu-14.04-64:
-                kernel: GRUB 2
-                workers: 2
-            - ubuntu-16.04-64:
-                kernel: GRUB 2
-                workers: 2
-            - ubuntu-17.10-64:
-                kernel: GRUB 2
-                workers: 2
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
@@ -269,13 +309,13 @@ repack: |
     # obtained directly from GitHub. There's nothing special about that reference,
     # other than it will often be in the local repository's history already.
     # The more recent the reference, the smaller the delta.
-    if ! echo $SPREAD_BACKENDS | grep linode; then
+    if ! echo "$SPREAD_BACKENDS" | grep linode; then
         cat <&3 >&4
-    elif ! git show-ref $DELTA_REF > /dev/null; then
+    elif ! git show-ref "$DELTA_REF" > /dev/null; then
         cat <&3 >&4
     else
         trap "rm -f delta-ref.tar current.delta" EXIT
-        git archive -o delta-ref.tar --format=tar --prefix=$DELTA_PREFIX $DELTA_REF
+        git archive -o delta-ref.tar --format=tar --prefix="$DELTA_PREFIX" "$DELTA_REF"
         xdelta3 -s delta-ref.tar <&3 > current.delta
         tar c current.delta >&4
     fi
@@ -309,7 +349,7 @@ prepare: |
         #
         # https://forum.snapcraft.io/t/issues-with-the-fedora-mirror-network/3489/
         sed -i -s -E -e 's@^#?baseurl=http://download.fedoraproject.org/@baseurl=http://dl.fedoraproject.org/@g' -e 's@^metalink=@#metalink@g' /etc/yum.repos.d/fedora*.repo
-        dnf --refresh makecache
+        dnf --refresh -y makecache
     fi
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
@@ -326,7 +366,14 @@ prepare: |
                 dnf install --refresh -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             opensuse-*)
+                zypper -q --gpg-auto-import-keys refresh
                 zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
+                ;;
+            arch-*)
+                # NOTE: we ought to do pacman -Syu, but this may update the
+                # kernel which we will not detect at this stage and fail to
+                # reboot; actual distro upgrade is done later in prepare
+                pacman -Sy --noconfirm xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
         esac
         rm -f "$tf"
@@ -338,6 +385,10 @@ prepare: |
         rmdir "$DELTA_PREFIX"
     fi
 
+    # Take the MATCH and REBOOT functions from spread and allow our shell scripts to use them.
+    type MATCH | tail -n +2 > "$TESTSLIB"/spread-funcs.sh
+    type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
+
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
     "$TESTSLIB"/prepare-restore.sh --prepare-project
@@ -347,50 +398,32 @@ restore: |
     "$TESTSLIB"/prepare-restore.sh --restore-project
 restore-each: |
     "$TESTSLIB"/prepare-restore.sh --restore-project-each
+    # XXX: something is hosing the filesystem so look for signs of that
+    ! grep -F "//deleted /etc" /proc/self/mountinfo
 
 suites:
     tests/main/:
         summary: Full-system tests for snapd
         prepare: |
-            . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
-                prepare_all_snap
-            else
-                prepare_classic
-            fi
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
-            $TESTSLIB/reset.sh --reuse-core
-            . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                prepare_each_classic
-            fi
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
-            $TESTSLIB/reset.sh --store
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                . $TESTSLIB/pkgdb.sh
-                distro_purge_package snapd
-                if [[ "$SPREAD_SYSTEM" != opensuse-* ]]; then
-                    # A snap-confine package never existed on openSUSE
-                    distro_purge_package snap-confine
-                fi
-            fi
-
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
     tests/completion/:
         summary: completion tests
         # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
         systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
         prepare: |
-            . $TESTSLIB/prepare.sh
-            prepare_classic
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
-            $TESTSLIB/reset.sh --reuse-core
-            . $TESTSLIB/prepare.sh
-            prepare_each_classic
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
-            $TESTSLIB/reset.sh --store
-            . $TESTSLIB/pkgdb.sh
-            distro_purge_package snapd
-
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
         environment:
           _/plain: _
           _/plain_plusdirs: _
@@ -409,20 +442,13 @@ suites:
     tests/regression/:
         summary: Regression tests for snapd
         prepare: |
-            . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
-                prepare_all_snap
-            else
-                prepare_classic
-            fi
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
-            $TESTSLIB/reset.sh --reuse-core
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
-            $TESTSLIB/reset.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                . $TESTSLIB/pkgdb.sh
-                distro_purge_package snapd
-            fi
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
@@ -430,6 +456,9 @@ suites:
         # it disabled. A later PR will enable most tests and
         # drop this blacklist.
         systems: [-ubuntu-core-16-*, -opensuse-*]
+        # autopkgtest runs against localhost which causes problems with
+        # this test prepare
+        backends: [-autopkgtest]
         restore: |
             if [ "$REMOTE_STORE" = staging ]; then
                 echo "skip upgrade tests while talking to the staging store"
@@ -440,16 +469,19 @@ suites:
                 echo "skip upgrade tests while talking to the staging store"
                 exit 0
             fi
+            #shellcheck source=tests/lib/pkgdb.sh
             . $TESTSLIB/pkgdb.sh
             distro_purge_package snapd
             distro_purge_package snapd-xdg-open || true
 
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)
-        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+        systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*]
+        # unittests are run as part of the autopkgtest build already
+        backends: [-autopkgtest]
         environment:
             # env vars required for coverage reporting from a spread task
             TRAVIS_BUILD_NUMBER: "$(HOST: echo $TRAVIS_BUILD_NUMBER)"
@@ -462,37 +494,54 @@ suites:
             TRAVIS_TAG: "$(HOST: echo $TRAVIS_TAG)"
             COVERMODE: "$(HOST: echo $COVERMODE)"
         prepare: |
+            #shellcheck source=tests/lib/prepare.sh
             . $TESTSLIB/prepare.sh
             prepare_classic
         prepare-each: |
-            $TESTSLIB/reset.sh --reuse-core
+            "$TESTSLIB"/reset.sh --reuse-core
+            #shellcheck source=tests/lib/prepare.sh
             . $TESTSLIB/prepare.sh
             prepare_each_classic
         restore: |
-            $TESTSLIB/reset.sh --store
+            "$TESTSLIB"/reset.sh --store
+            #shellcheck source=tests/lib/pkgdb.sh
             . $TESTSLIB/pkgdb.sh
-            distro_purge_package snapd snap-confine ubuntu-core-launcher
+
+            distro_purge_package snapd
+            case "$SPREAD_SYSTEM" in
+                arch-*)
+                    # there is no snap-confine and ubuntu-core-launcher
+                    # in Arch
+                    ;;
+                *)
+                    distro_purge_package snap-confine ubuntu-core-launcher
+                    ;;
+            esac
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
         manual: true
-        # Test cases are not yet ported to Fedora/openSUSE that is why
+        # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-fedora-*, -opensuse-*]
+        systems: [-fedora-*, -opensuse-*, -arch-*]
         prepare: |
-            . $TESTSLIB/prepare.sh
+            #shellcheck source=tests/lib/prepare.sh
+            . "$TESTSLIB"/prepare.sh
             if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
                 prepare_all_snap
             else
                 prepare_classic
             fi
         prepare-each: |
-            $TESTSLIB/reset.sh --reuse-core
+            #shellcheck source=tests/lib/reset.sh
+            "$TESTSLIB"/reset.sh --reuse-core
         restore: |
-            $TESTSLIB/reset.sh
+            #shellcheck source=tests/lib/reset.sh
+            "$TESTSLIB"/reset.sh
             if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                . $TESTSLIB/pkgdb.sh
+                #shellcheck source=tests/lib/pkgdb.sh
+                . "$TESTSLIB"/pkgdb.sh
                 distro_purge_package snapd
             fi
 
@@ -509,11 +558,13 @@ suites:
         kill-timeout: 2h
         manual: true
         prepare: |
+            #shellcheck source=tests/lib/pkgdb.sh
             . $TESTSLIB/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu genisoimage sshpass
             snap install --classic --beta ubuntu-image
         restore: |
+            #shellcheck source=tests/lib/pkgdb.sh
             . $TESTSLIB/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass
             snap remove ubuntu-image

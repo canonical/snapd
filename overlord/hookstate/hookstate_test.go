@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -82,8 +83,6 @@ hooks:
     prepare-device:
 `
 
-var snapContents = ""
-
 func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -115,7 +114,7 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.change.AddTask(s.task)
 
 	sideInfo := &snap.SideInfo{RealName: "test-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
-	snaptest.MockSnap(c, snapYaml, snapContents, sideInfo)
+	snaptest.MockSnap(c, snapYaml, sideInfo)
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo},
@@ -201,7 +200,20 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 }
 
 func (s *hookManagerSuite) TestHookTaskEnsure(c *C) {
+	didRun := make(chan bool)
+	s.mockHandler.BeforeCallback = func() {
+		c.Check(s.manager.NumRunningHooks(), Equals, 1)
+		go func() {
+			didRun <- s.manager.GracefullyWaitRunningHooks()
+		}()
+	}
 	s.manager.Ensure()
+	select {
+	case ok := <-didRun:
+		c.Check(ok, Equals, true)
+	case <-time.After(5 * time.Second):
+		c.Fatal("hook run should have been done by now")
+	}
 	s.manager.Wait()
 
 	s.state.Lock()
@@ -223,6 +235,32 @@ func (s *hookManagerSuite) TestHookTaskEnsure(c *C) {
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.DoneStatus)
 	c.Check(s.change.Status(), Equals, state.DoneStatus)
+
+	c.Check(s.manager.NumRunningHooks(), Equals, 0)
+}
+
+func (s *hookManagerSuite) TestHookTaskEnsureRestarting(c *C) {
+	// we do no start new hooks runs if we are restarting
+	s.state.RequestRestart(state.RestartDaemon)
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(s.context, IsNil)
+
+	c.Check(s.command.Calls(), HasLen, 0)
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, false)
+	c.Check(s.mockHandler.DoneCalled, Equals, false)
+	c.Check(s.mockHandler.ErrorCalled, Equals, false)
+
+	c.Check(s.task.Status(), Equals, state.DoingStatus)
+	c.Check(s.change.Status(), Equals, state.DoingStatus)
+
+	c.Check(s.manager.NumRunningHooks(), Equals, 0)
 }
 
 func (s *hookManagerSuite) TestHookSnapMissing(c *C) {
@@ -341,6 +379,8 @@ func (s *hookManagerSuite) TestHookTaskHandlesHookError(c *C) {
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
 	checkTaskLogContains(c, s.task, ".*failed at user request.*")
+
+	c.Check(s.manager.NumRunningHooks(), Equals, 0)
 }
 
 func (s *hookManagerSuite) TestHookTaskHandleIgnoreErrorWorks(c *C) {
@@ -508,6 +548,8 @@ func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
 	checkTaskLogContains(c, s.task, `run hook "[^"]*": <aborted>`)
+
+	c.Check(s.manager.NumRunningHooks(), Equals, 0)
 }
 
 func (s *hookManagerSuite) TestHookTaskCorrectlyIncludesContext(c *C) {
@@ -784,6 +826,35 @@ func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorIfRequested(c *C) {
 	c.Check(errtrackerCalled, Equals, true)
 }
 
+func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorDisabled(c *C) {
+	s.state.Lock()
+	var hooksup hookstate.HookSetup
+	s.task.Get("hook-setup", &hooksup)
+	hooksup.TrackError = true
+	s.task.Set("hook-setup", &hooksup)
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "problem-reports.disabled", true)
+	tr.Commit()
+	s.state.Unlock()
+
+	hookstate.MockErrtrackerReport(func(snap, errmsg, dupSig string, extra map[string]string) (string, error) {
+		c.Fatalf("no error reports should be generated")
+		return "", nil
+	})
+
+	// Force the snap command to exit 1, and print something to stderr
+	cmd := testutil.MockCommand(
+		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
+	defer cmd.Restore()
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+}
+
 func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
 	var Executing int32
 	var TotalExecutions int32
@@ -874,7 +945,7 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 	s.state.Lock()
 
 	sideInfo := &snap.SideInfo{RealName: "test-snap-1", SnapID: "some-snap-id1", Revision: snap.R(1)}
-	info := snaptest.MockSnap(c, snapYaml1, snapContents, sideInfo)
+	info := snaptest.MockSnap(c, snapYaml1, sideInfo)
 	c.Assert(info.Hooks, HasLen, 1)
 	snapstate.Set(s.state, "test-snap-1", &snapstate.SnapState{
 		Active:   true,
@@ -883,7 +954,7 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 	})
 
 	sideInfo = &snap.SideInfo{RealName: "test-snap-2", SnapID: "some-snap-id2", Revision: snap.R(1)}
-	snaptest.MockSnap(c, snapYaml2, snapContents, sideInfo)
+	snaptest.MockSnap(c, snapYaml2, sideInfo)
 	snapstate.Set(s.state, "test-snap-2", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo},
@@ -953,4 +1024,39 @@ func (s *hookManagerSuite) TestCompatForConfigureSnapd(c *C) {
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(task.Status(), Equals, state.DoneStatus)
+}
+
+func (s *hookManagerSuite) TestGracefullyWaitRunningHooksTimeout(c *C) {
+	restore := hookstate.MockDefaultHookTimeout(100 * time.Millisecond)
+	defer restore()
+
+	// this works even if test-snap is not present
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", nil)
+	s.state.Unlock()
+
+	quit := make(chan struct{})
+	defer func() {
+		quit <- struct{}{}
+	}()
+	didRun := make(chan bool)
+	s.mockHandler.BeforeCallback = func() {
+		c.Check(s.manager.NumRunningHooks(), Equals, 1)
+		go func() {
+			didRun <- s.manager.GracefullyWaitRunningHooks()
+		}()
+	}
+
+	s.manager.RegisterHijack("configure", "test-snap", func(ctx *hookstate.Context) error {
+		<-quit
+		return nil
+	})
+
+	s.manager.Ensure()
+	select {
+	case noPending := <-didRun:
+		c.Check(noPending, Equals, false)
+	case <-time.After(2 * time.Second):
+		c.Fatal("timeout should have expired")
+	}
 }
