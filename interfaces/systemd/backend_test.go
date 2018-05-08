@@ -153,3 +153,7 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 		{"systemctl", "daemon-reload"},
 	})
 }
+
+func (s *backendSuite) TestSandboxTags(c *C) {
+	c.Assert(s.Backend.SandboxTags(), IsNil)
+}

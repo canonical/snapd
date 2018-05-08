@@ -60,6 +60,7 @@ var (
 	procSelfExe           = "/proc/self/exe"
 	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
+	sandboxTags           = release.AppArmorFeatures
 )
 
 // Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
@@ -491,4 +492,9 @@ func unloadProfiles(profiles []string, cacheDir string) error {
 // NewSpecification returns a new, empty apparmor specification.
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
+}
+
+// SandboxTags returns the list of apparmor features supported by the kernel.
+func (b *Backend) SandboxTags() []string {
+	return sandboxTags()
 }

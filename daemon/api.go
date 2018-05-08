@@ -324,7 +324,27 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		m["confinement"] = "strict"
 	}
 
+	// Convey richer information about features of available security backends.
+	if tags := sandboxTags(c.d.overlord.InterfaceManager().Repository().Backends()); tags != nil {
+		m["sandbox"] = tags
+	}
+
 	return SyncResponse(m, nil)
+}
+
+func sandboxTags(backends []interfaces.SecurityBackend) map[string][]string {
+	sandbox := make(map[string][]string, len(backends))
+	for _, backend := range backends {
+		tags := backend.SandboxTags()
+		if len(tags) > 0 {
+			sort.Strings(tags)
+			sandbox[string(backend.Name())] = tags
+		}
+	}
+	if len(sandbox) == 0 {
+		return nil
+	}
+	return sandbox
 }
 
 // userResponseData contains the data releated to user creation/login/query

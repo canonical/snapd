@@ -1200,3 +1200,10 @@ func (s *backendSuite) TestProfileGlobs(c *C) {
 func (s *backendSuite) TestNsProfile(c *C) {
 	c.Assert(apparmor.NsProfile("foo"), Equals, "snap-update-ns.foo")
 }
+
+func (s *backendSuite) TestSandboxTags(c *C) {
+	restore := apparmor.MockSandboxTags(func() []string { return []string{"foo", "bar"} })
+	defer restore()
+
+	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{"foo", "bar"})
+}

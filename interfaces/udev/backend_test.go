@@ -413,3 +413,10 @@ func (s *backendSuite) TestUpdatingSnapWithoutSlotsToOneWithoutSlots(c *C) {
 		s.RemoveSnap(c, snapInfo)
 	}
 }
+
+func (s *backendSuite) TestSandboxTags(c *C) {
+	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{
+		"device-cgroup-v1",
+		"tagging",
+	})
+}

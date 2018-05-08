@@ -36,3 +36,11 @@ func MockOsReadlink(f func(string) (string, error)) (restore func()) {
 		osReadlink = realOsReadlink
 	}
 }
+
+func MockSandboxTags(f func() []string) (resture func()) {
+	old := sandboxTags
+	sandboxTags = f
+	return func() {
+		sandboxTags = old
+	}
+}

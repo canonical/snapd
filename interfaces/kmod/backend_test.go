@@ -131,3 +131,7 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 		s.RemoveSnap(c, snapInfo)
 	}
 }
+
+func (s *backendSuite) TestSandboxTags(c *C) {
+	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{"mediated-modprobe"})
+}

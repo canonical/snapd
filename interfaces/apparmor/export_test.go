@@ -88,3 +88,11 @@ func MockClassicTemplate(fakeTemplate string) (restore func()) {
 func SetSpecScope(spec *Specification, securityTags []string) (restore func()) {
 	return spec.setScope(securityTags)
 }
+
+func MockSandboxTags(f func() []string) (resture func()) {
+	old := sandboxTags
+	sandboxTags = f
+	return func() {
+		sandboxTags = old
+	}
+}
