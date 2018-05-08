@@ -68,4 +68,5 @@ execute: |
 
     check_attributes
     jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["exec-count"]' /var/lib/snapd/state.json | MATCH "2"
+
     systemctl start snapd.service snapd.socket
