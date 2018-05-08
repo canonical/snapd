@@ -27,6 +27,8 @@ import (
 	"unicode"
 
 	"golang.org/x/crypto/ssh/terminal"
+
+	"github.com/snapcore/snapd/strutil/quantity"
 )
 
 var stdout io.Writer = os.Stdout
@@ -49,7 +51,7 @@ var (
 	// make cursor invisible
 	cursorInvisible = "\033[?25l"
 	// make cursor visible
-	cursorVisible = "\033[?12;25h"
+	cursorVisible = "\033[?25h"
 	// turn on reverse video
 	enterReverseMode = "\033[7m"
 	// go back to normal video
@@ -132,11 +134,11 @@ func (p *ANSIMeter) Set(current float64) {
 		since := time.Now().UTC().Sub(p.t0).Seconds()
 		per := since / p.written
 		left := (p.total - p.written) * per
-		timeleft = " " + formatDuration(left)
+		timeleft = " " + quantity.FormatDuration(left)
 		if col > 20 {
 			percent = " " + p.percent()
 			if col > 29 {
-				speed = " " + formatBPS(p.written, since, -1)
+				speed = " " + quantity.FormatBPS(p.written, since, -1)
 			}
 		}
 	}
@@ -150,7 +152,7 @@ func (p *ANSIMeter) Set(current float64) {
 	fmt.Fprint(stdout, "\r", enterReverseMode, string(msg[:i]), exitAttributeMode, string(msg[i:]))
 }
 
-var spinner = []string{".", "o", "O", "o"}
+var spinner = []string{"/", "-", "\\", "|"}
 
 func (p *ANSIMeter) Spin(msgstr string) {
 	msg := []rune(msgstr)

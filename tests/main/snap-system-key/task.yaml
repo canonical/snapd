@@ -1,0 +1,78 @@
+summary: Ensure security profile re-generation works with system-key
+prepare: |
+    echo "Make backup of fstab"
+    cp /etc/fstab /tmp/fstab.save
+restore: |
+    echo "Restore fstab copy"
+    cp /tmp/fstab.save /etc/fstab
+    rm -f /tmp/fstab.save
+execute: |
+    stop_snapd() {
+        systemctl stop snapd.service snapd.socket
+        while [ "$(systemctl show -pActiveState snapd.service)" != "ActiveState=inactive" ]; do
+            systemctl show -pActiveState snapd.service
+            sleep 1
+        done
+    }
+    start_snapd() {
+        systemctl start snapd.service snapd.socket
+        while [ "$(systemctl show -pActiveState snapd.service)" != "ActiveState=active" ]; do
+            systemctl show -pActiveState snapd.service
+            sleep 1
+        done
+    }
+    restart_snapd() {
+        stop_snapd
+        start_snapd
+    }
+
+    echo "Ensure a valid system-key file is on-disk"
+    cat /var/lib/snapd/system-key | MATCH '"build-id":"[0-9a-z]+"'
+    buf="$(stat /var/lib/snapd/system-key)"
+    system_key_content="$(cat /var/lib/snapd/system-key)"
+
+    echo "Ensure that the system-key is not rewritten if system-key is unchanged"
+    restart_snapd
+    buf2="$(stat /var/lib/snapd/system-key)"
+    if [ "$buf" != "$buf2" ]; then
+        echo "system-key got rewriten: $buf != buf2, test broken"
+        exit 1
+    fi
+
+    echo "Ensure that the system-key is rewritten if system-key changes"
+    printf '{"version":1}' > /var/lib/snapd/system-key
+    restart_snapd
+    if grep '{"version":1}' /var/lib/snapd/system-key; then
+        echo "system-key *not* rewriten test broken"
+        exit 1
+    fi
+
+    echo "Ensure snap run waits for system key updates"
+    snap install test-snapd-tools
+    echo "Change system-key, this ensure that snap run will wait"
+    printf '{"version":1}' > /var/lib/snapd/system-key
+    stop_snapd
+    if SNAPD_DEBUG_SYSTEM_KEY_RETRY=1 test-snapd-tools.echo bad; then
+        echo "snap run should have errored because of changed system-key"
+        exit 1
+    fi
+    start_snapd
+
+    echo "Ensure snap run does not wait when it can talk to snapd"
+    echo "Change system-key, with running snapd"
+    printf '{"version":1}' > /var/lib/snapd/system-key
+    test-snapd-tools.echo good
+    
+    echo "Things work again after a restart of snapd"
+    restart_snapd
+    test-snapd-tools.echo good-again
+    if grep '{"version":1}' /var/lib/snapd/system-key; then
+        echo "system-key *not* rewriten test broken"
+        exit 1
+    fi
+
+    echo "Ensure snapd works even with invalid /etc/fstab (LP: #1760841)"
+    echo "invalid so very invalid so invalid" >> /etc/fstab
+    restart_snapd
+    echo "Ensure snap commands still work"
+    snap list

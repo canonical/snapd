@@ -21,18 +21,25 @@ package snapstate
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
 
 // the default refresh pattern
-const defaultRefreshSchedule = "00:00-24:00/4"
+const defaultRefreshSchedule = "00:00~24:00/4"
+
+// cannot keep without refreshing for more than maxPostponement
+const maxPostponement = 60 * 24 * time.Hour
 
 // hooks setup by devicestate
 var (
@@ -59,11 +66,12 @@ func newAutoRefresh(st *state.State) *autoRefresh {
 	}
 }
 
-// RefreshSchedule will return a user visible string with the current
-// schedule for the automatic refreshes.
-func (m *autoRefresh) RefreshSchedule() (string, error) {
-	_, scheduleStr, err := m.refreshScheduleWithDefaultsFallback()
-	return scheduleStr, err
+// RefreshSchedule will return a user visible string with the current schedule
+// for the automatic refreshes and a flag indicating whether the schedule is a
+// legacy one.
+func (m *autoRefresh) RefreshSchedule() (schedule string, legacy bool, err error) {
+	_, schedule, legacy, err = m.refreshScheduleWithDefaultsFallback()
+	return schedule, legacy, err
 }
 
 // NextRefresh returns when the next automatic refresh will happen.
@@ -73,12 +81,72 @@ func (m *autoRefresh) NextRefresh() time.Time {
 
 // LastRefresh returns when the last refresh happened.
 func (m *autoRefresh) LastRefresh() (time.Time, error) {
-	var lastRefresh time.Time
-	err := m.state.Get("last-refresh", &lastRefresh)
-	if err != nil && err != state.ErrNoState {
+	return getTime(m.state, "last-refresh")
+}
+
+// EffectiveRefreshHold returns the time until to which refreshes are
+// held if refresh.hold configuration is set and accounting for the
+// max postponement since the last refresh.
+func (m *autoRefresh) EffectiveRefreshHold() (time.Time, error) {
+	var holdTime time.Time
+
+	tr := config.NewTransaction(m.state)
+	err := tr.Get("core", "refresh.hold", &holdTime)
+	if err != nil && !config.IsNoOption(err) {
 		return time.Time{}, err
 	}
-	return lastRefresh, nil
+
+	// cannot hold beyond last-refresh + max-postponement
+	lastRefresh, err := m.LastRefresh()
+	if err != nil {
+		return time.Time{}, err
+	}
+	if lastRefresh.IsZero() {
+		seedTime, err := getTime(m.state, "seed-time")
+		if err != nil {
+			return time.Time{}, err
+		}
+		if seedTime.IsZero() {
+			// no reference to know whether holding is reasonable
+			return time.Time{}, nil
+		}
+		lastRefresh = seedTime
+	}
+
+	limitTime := lastRefresh.Add(maxPostponement)
+	if holdTime.After(limitTime) {
+		return limitTime, nil
+	}
+
+	return holdTime, nil
+}
+
+// clearRefreshHold clears refresh.hold configuration.
+func (m *autoRefresh) clearRefreshHold() {
+	tr := config.NewTransaction(m.state)
+	tr.Set("core", "refresh.hold", nil)
+	tr.Commit()
+}
+
+// AtSeed configures refresh policies at end of seeding.
+func (m *autoRefresh) AtSeed() error {
+	// on classic hold refreshes for 2h after seeding
+	if release.OnClassic {
+		var t1 time.Time
+		tr := config.NewTransaction(m.state)
+		err := tr.Get("core", "refresh.hold", &t1)
+		if !config.IsNoOption(err) {
+			// already set or error
+			return err
+		}
+		// TODO: have a policy that if the snapd exe itself
+		// is older than X weeks/months we skip the holding?
+		now := time.Now().UTC()
+		tr.Set("core", "refresh.hold", now.Add(2*time.Hour))
+		tr.Commit()
+		m.nextRefresh = now
+	}
+	return nil
 }
 
 // Ensure ensures that we refresh all installed snaps periodically
@@ -107,7 +175,7 @@ func (m *autoRefresh) Ensure() error {
 		return err
 	}
 
-	refreshSchedule, refreshScheduleStr, err := m.refreshScheduleWithDefaultsFallback()
+	refreshSchedule, refreshScheduleStr, _, err := m.refreshScheduleWithDefaultsFallback()
 	if err != nil {
 		return err
 	}
@@ -130,21 +198,45 @@ func (m *autoRefresh) Ensure() error {
 		return nil
 	}
 
+	now := time.Now()
 	// compute next refresh attempt time (if needed)
 	if m.nextRefresh.IsZero() {
 		// store attempts in memory so that we can backoff
 		if !lastRefresh.IsZero() {
-			delta := timeutil.Next(refreshSchedule, lastRefresh)
-			m.nextRefresh = time.Now().Add(delta)
+			delta := timeutil.Next(refreshSchedule, lastRefresh, maxPostponement)
+			now = time.Now()
+			m.nextRefresh = now.Add(delta)
 		} else {
+			// make sure either seed-time or last-refresh
+			// are set for hold code below
+			m.ensureLastRefreshAnchor()
 			// immediate
-			m.nextRefresh = time.Now()
+			m.nextRefresh = now
 		}
 		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh)
 	}
 
+	// should we hold back refreshes?
+	holdTime, err := m.EffectiveRefreshHold()
+	if err != nil {
+		return err
+	}
+	if holdTime.After(now) {
+		return nil
+	}
+	if !holdTime.IsZero() {
+		// expired hold case
+		m.clearRefreshHold()
+		if m.nextRefresh.Before(holdTime) {
+			// next refresh is obsolete, compute the next one
+			delta := timeutil.Next(refreshSchedule, holdTime, maxPostponement)
+			now = time.Now()
+			m.nextRefresh = now.Add(delta)
+		}
+	}
+
 	// do refresh attempt (if needed)
-	if !m.nextRefresh.After(time.Now()) {
+	if !m.nextRefresh.After(now) {
 		err = m.launchAutoRefresh()
 		// clear nextRefresh only if the refresh worked. There is
 		// still the lastRefreshAttempt rate limit so things will
@@ -157,19 +249,40 @@ func (m *autoRefresh) Ensure() error {
 	return err
 }
 
+func (m *autoRefresh) ensureLastRefreshAnchor() {
+	seedTime, _ := getTime(m.state, "seed-time")
+	if !seedTime.IsZero() {
+		return
+	}
+
+	// last core refresh
+	coreRefreshDate := snap.InstallDate("core")
+	if !coreRefreshDate.IsZero() {
+		m.state.Set("last-refresh", coreRefreshDate)
+		return
+	}
+
+	// fallback to executable time
+	st, err := os.Stat("/proc/self/exe")
+	if err == nil {
+		m.state.Set("last-refresh", st.ModTime())
+		return
+	}
+}
+
 // refreshScheduleWithDefaultsFallback returns the current refresh schedule
 // and refresh string. When an invalid refresh schedule is set by the user
 // the refresh schedule is automatically reset to the default.
 //
 // TODO: we can remove the refreshSchedule reset because we have validation
 //       of the schedule now.
-func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, err error) {
+func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Schedule, scheduleAsStr string, legacy bool, err error) {
 	if refreshScheduleManaged(m.state) {
 		if m.lastRefreshSchedule != "managed" {
 			logger.Noticef("refresh.schedule is managed via the snapd-control interface")
 			m.lastRefreshSchedule = "managed"
 		}
-		return nil, "managed", nil
+		return nil, "managed", true, nil
 	}
 
 	tr := config.NewTransaction(m.state)
@@ -177,7 +290,7 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 	// try the new refresh.timer config option first
 	err = tr.Get("core", "refresh.timer", &scheduleAsStr)
 	if err != nil && !config.IsNoOption(err) {
-		return nil, "", err
+		return nil, "", false, err
 	}
 	if scheduleAsStr != "" {
 		ts, err = timeutil.ParseSchedule(scheduleAsStr)
@@ -185,14 +298,14 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 			logger.Noticef("cannot use refresh.timer configuration: %s", err)
 			return refreshScheduleDefault()
 		}
-		return ts, scheduleAsStr, nil
+		return ts, scheduleAsStr, false, nil
 	}
 
 	// fallback to legacy refresh.schedule setting when the new
 	// config option is not set
 	err = tr.Get("core", "refresh.schedule", &scheduleAsStr)
 	if err != nil && !config.IsNoOption(err) {
-		return nil, "", err
+		return nil, "", false, err
 	}
 	if scheduleAsStr != "" {
 		ts, err = timeutil.ParseLegacySchedule(scheduleAsStr)
@@ -200,7 +313,7 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 			logger.Noticef("cannot use refresh.schedule configuration: %s", err)
 			return refreshScheduleDefault()
 		}
-		return ts, scheduleAsStr, nil
+		return ts, scheduleAsStr, true, nil
 	}
 
 	return refreshScheduleDefault()
@@ -209,7 +322,7 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
 func (m *autoRefresh) launchAutoRefresh() error {
 	m.lastRefreshAttempt = time.Now()
-	updated, tasksets, err := AutoRefresh(m.state)
+	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
 	if err != nil {
 		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
 		return err
@@ -244,13 +357,13 @@ func (m *autoRefresh) launchAutoRefresh() error {
 	return nil
 }
 
-func refreshScheduleDefault() (ts []*timeutil.Schedule, scheduleStr string, err error) {
+func refreshScheduleDefault() (ts []*timeutil.Schedule, scheduleStr string, legacy bool, err error) {
 	refreshSchedule, err := timeutil.ParseSchedule(defaultRefreshSchedule)
 	if err != nil {
 		panic(fmt.Sprintf("defaultRefreshSchedule cannot be parsed: %s", err))
 	}
 
-	return refreshSchedule, defaultRefreshSchedule, nil
+	return refreshSchedule, defaultRefreshSchedule, false, nil
 }
 
 func autoRefreshInFlight(st *state.State) bool {
@@ -282,4 +395,14 @@ func refreshScheduleManaged(st *state.State) bool {
 	}
 
 	return CanManageRefreshes(st)
+}
+
+// getTime retrieves a time from a state value.
+func getTime(st *state.State, timeKey string) (time.Time, error) {
+	var t1 time.Time
+	err := st.Get(timeKey, &t1)
+	if err != nil && err != state.ErrNoState {
+		return time.Time{}, err
+	}
+	return t1, nil
 }

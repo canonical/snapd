@@ -23,8 +23,8 @@ execute: |
     systemctl status rsyslog.service|MATCH "Active: active"
     snap set core service.rsyslog.disable=true
     systemctl status rsyslog.service|MATCH "Active: inactive"
+    systemctl status rsyslog.service|MATCH "Loaded: masked"
     snap set core service.rsyslog.disable=false
-
     
     echo "Check that powerkey handling works"
     snap set core system.power-key-action=reboot

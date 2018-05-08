@@ -62,15 +62,19 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, extraInterfaces
 	s.Unlock()
 
 	// interface tasks might touch more than the immediate task target snap, serialize them
-	runner.SetBlocked(func(_ *state.Task, running []*state.Task) bool {
+	runner.SetBlocked(func(t *state.Task, running []*state.Task) bool {
+		if t.Kind() == "auto-connect" {
+			return false
+		}
 		return len(running) != 0
 	})
 
-	runner.AddHandler("connect", m.doConnect, nil)
+	runner.AddHandler("connect", m.doConnect, m.undoConnect)
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
 	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.undoSetupProfiles)
 	runner.AddHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
 	runner.AddHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
+	runner.AddHandler("auto-connect", m.doAutoConnect, m.undoAutoConnect)
 
 	// helper for ubuntu-core -> core
 	runner.AddHandler("transition-ubuntu-core", m.doTransitionUbuntuCore, m.undoTransitionUbuntuCore)

@@ -45,6 +45,7 @@ var _ = Suite(&RemovableMediaInterfaceSuite{
 func (s *RemovableMediaInterfaceSuite) SetUpTest(c *C) {
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
+version: 0
 apps:
   other:
     command: foo

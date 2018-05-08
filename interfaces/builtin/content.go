@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -185,11 +186,7 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
 	return filepath.Join(filepath.Join(dirs.CoreSnapMountDir, snapInfo.Name(), snapInfo.Revision.String()), path)
 }
 
-func mountEntry(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string, extraOptions ...string) mount.Entry {
-	options := make([]string, 0, len(extraOptions)+1)
-	options = append(options, "bind")
-	options = append(options, extraOptions...)
-
+func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string) (string, string) {
 	var target string
 	// The 'target' attribute has already been verified in BeforePreparePlug.
 	_ = plug.Attr("target", &target)
@@ -202,8 +199,15 @@ func mountEntry(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, 
 		_, sourceName := filepath.Split(source)
 		target = filepath.Join(target, sourceName)
 	}
+	return source, target
+}
 
-	return mount.Entry{
+func mountEntry(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string, extraOptions ...string) osutil.MountEntry {
+	options := make([]string, 0, len(extraOptions)+1)
+	options = append(options, "bind")
+	options = append(options, extraOptions...)
+	source, target := sourceTarget(plug, slot, relSrc)
+	return osutil.MountEntry{
 		Name:    source,
 		Dir:     target,
 		Options: options,
@@ -221,9 +225,17 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 # are needed for using named sockets within the exported
 # directory.
 `)
-		for _, w := range writePaths {
+		for i, w := range writePaths {
 			fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
 				resolveSpecialVariable(w, slot.Snap()))
+			source, target := sourceTarget(plug, slot, w)
+			var buf bytes.Buffer
+			fmt.Fprintf(&buf, "  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
+			fmt.Fprintf(&buf, "  mount options=(bind, rw) %s/ -> %s/,\n", source, target)
+			fmt.Fprintf(&buf, "  umount %s/,\n", target)
+			apparmor.WritableProfile(&buf, source)
+			apparmor.WritableProfile(&buf, target)
+			spec.AddUpdateNS(buf.String())
 		}
 	}
 
@@ -234,9 +246,40 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 # snaps may directly access the slot implementation's files
 # read-only.
 `)
-		for _, r := range readPaths {
+		for i, r := range readPaths {
 			fmt.Fprintf(contentSnippet, "%s/** mrkix,\n",
 				resolveSpecialVariable(r, slot.Snap()))
+
+			source, target := sourceTarget(plug, slot, r)
+			var buf bytes.Buffer
+			fmt.Fprintf(&buf, "  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
+			fmt.Fprintf(&buf, "  mount options=(bind) %s/ -> %s/,\n", source, target)
+			fmt.Fprintf(&buf, "  remount options=(bind, ro) %s/,\n", target)
+			fmt.Fprintf(&buf, "  umount %s/,\n", target)
+			apparmor.WritableProfile(&buf, source)
+			apparmor.WritableProfile(&buf, target)
+			spec.AddUpdateNS(buf.String())
+		}
+	}
+
+	spec.AddSnippet(contentSnippet.String())
+	return nil
+}
+
+func (iface *contentInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	contentSnippet := bytes.NewBuffer(nil)
+	writePaths := iface.path(slot, "write")
+	if len(writePaths) > 0 {
+		fmt.Fprintf(contentSnippet, `
+# When the content interface is writable, allow this slot
+# implementation to access the slot's exported files at the plugging
+# snap's mountpoint to accommodate software where the plugging app
+# tells the slotting app about files to share.
+`)
+		for _, w := range writePaths {
+			_, target := sourceTarget(plug, slot, w)
+			fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
+				target)
 		}
 	}
 

@@ -4,6 +4,10 @@ summary: Ensure that the ubuntu-core -> core transition works with two cores
 # we disable on ppc64el because the downloads are very slow there
 systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el]
 
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
+
 warn-timeout: 1m
 kill-timeout: 5m
 debug: |
@@ -13,7 +17,7 @@ debug: |
 execute: |
     echo "install a snap"
     snap install test-snapd-python-webserver
-    snap interfaces |MATCH ":network.*test-snapd-python-webserver"
+    snap interfaces -i network | MATCH ":network.*test-snapd-python-webserver"
 
     . "$TESTSLIB/names.sh"
     cp /var/lib/snapd/state.json /var/lib/snapd/state.json.old
@@ -66,7 +70,7 @@ execute: |
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi
-    snap interfaces |MATCH ":network.*test-snapd-python-webserver"
+    snap interfaces -i network | MATCH ":network.*test-snapd-python-webserver"
 
     echo "Ensure interfaces are connected"
-    snap interfaces | MATCH ":core-support.*core:core-support-plug"
+    snap interfaces -i core-support | MATCH ":core-support.*core:core-support-plug"

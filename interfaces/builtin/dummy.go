@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -27,73 +27,71 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type testSnapdInterface struct{}
+type dummyInterface struct{}
 
-const testSnapdInterfaceSummary = `snapd dummy test interface`
-const testSnapdInterfaceBaseDeclarationSlots = `
+const dummyInterfaceSummary = `allows testing without providing any additional permissions`
+const dummyInterfaceBaseDeclarationSlots = `
   dummy:
     allow-installation:
       slot-snap-type:
         - app
     deny-auto-connection: true
-    deny-connection:
-      on-classic: false
 `
 
-func (iface *testSnapdInterface) String() string {
+func (iface *dummyInterface) String() string {
 	return iface.Name()
 }
 
-// Name returns the name of the bool-file interface.
-func (iface *testSnapdInterface) Name() string {
+// Name returns the name of the dummy interface.
+func (iface *dummyInterface) Name() string {
 	return "dummy"
 }
 
-func (iface *testSnapdInterface) StaticInfo() interfaces.StaticInfo {
+func (iface *dummyInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
-		Summary:              testSnapdInterfaceSummary,
-		BaseDeclarationSlots: testSnapdInterfaceBaseDeclarationSlots,
+		Summary:              dummyInterfaceSummary,
+		BaseDeclarationSlots: dummyInterfaceBaseDeclarationSlots,
 	}
 }
 
-func (iface *testSnapdInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+func (iface *dummyInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	return nil
 }
 
-func (iface *testSnapdInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+func (iface *dummyInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return nil
 }
 
-func (iface *testSnapdInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
+func (iface *dummyInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
 	var value string
-	if err := plug.Attr("consumer-attr-3", &value); err != nil {
+	if err := plug.Attr("before-connect", &value); err != nil {
 		return err
 	}
-	value = fmt.Sprintf("%s-validated", value)
-	return plug.SetAttr("consumer-attr-3", value)
+	value = fmt.Sprintf("plug-changed(%s)", value)
+	return plug.SetAttr("before-connect", value)
 }
 
-func (iface *testSnapdInterface) BeforeConnectSlot(slot *interfaces.ConnectedSlot) error {
+func (iface *dummyInterface) BeforeConnectSlot(slot *interfaces.ConnectedSlot) error {
 	var value string
-	if err := slot.Attr("producer-attr-3", &value); err != nil {
+	if err := slot.Attr("before-connect", &value); err != nil {
 		return err
 	}
-	value = fmt.Sprintf("%s-validated", value)
-	return slot.SetAttr("producer-attr-3", value)
+	value = fmt.Sprintf("slot-changed(%s)", value)
+	return slot.SetAttr("before-connect", value)
 }
 
-func (iface *testSnapdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *dummyInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	return nil
 }
 
-func (iface *testSnapdInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *dummyInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	return nil
 }
 
-func (iface *testSnapdInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *dummyInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }
 
 func init() {
-	registerIface(&testSnapdInterface{})
+	registerIface(&dummyInterface{})
 }

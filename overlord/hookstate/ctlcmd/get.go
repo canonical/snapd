@@ -292,10 +292,10 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	defer st.Unlock()
 
 	var staticAttrs, dynamicAttrs map[string]interface{}
-	if err = attrsTask.Get(fmt.Sprintf("%s-static", which), &staticAttrs); err != nil {
+	if err = attrsTask.Get(which+"-static", &staticAttrs); err != nil {
 		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
 	}
-	if err = attrsTask.Get(fmt.Sprintf("%s-dynamic", which), &dynamicAttrs); err != nil {
+	if err = attrsTask.Get(which+"-dynamic", &dynamicAttrs); err != nil {
 		return fmt.Errorf(i18n.G("internal error: cannot get %s from appropriate task"), which)
 	}
 
@@ -315,7 +315,9 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 			if err == nil {
 				return value, true, nil
 			}
-			return nil, false, fmt.Errorf(i18n.G("unknown attribute %q"), key)
+			if config.IsNoOption(err) {
+				return nil, false, fmt.Errorf(i18n.G("unknown attribute %q"), key)
+			}
 		}
 		return nil, false, err
 	})
