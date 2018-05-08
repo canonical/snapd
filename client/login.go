@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 // User holds logged in user information.
@@ -118,30 +119,46 @@ func writeAuthData(user User) error {
 
 	targetFile := storeAuthDataFilename(real.HomeDir)
 
-	if err := osutil.MkdirAllChown(filepath.Dir(targetFile), 0700, uid, gid); err != nil {
+	out, err := json.Marshal(user)
+	if err != nil {
 		return err
 	}
 
-	outStr, err := json.Marshal(user)
-	if err != nil {
-		return nil
-	}
+	return sys.RunAsUidGid(uid, gid, func() error {
+		if err := os.MkdirAll(filepath.Dir(targetFile), 0700); err != nil {
+			return err
+		}
 
-	return osutil.AtomicWriteFileChown(targetFile, []byte(outStr), 0600, 0, uid, gid)
+		return osutil.AtomicWriteFile(targetFile, out, 0600, 0)
+	})
 }
 
 // readAuthData reads previously written authentication details
 func readAuthData() (*User, error) {
-	sourceFile := storeAuthDataFilename("")
-	f, err := os.Open(sourceFile)
+	real, err := osutil.RealUser()
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+
+	uid, gid, err := osutil.UidGid(real)
+	if err != nil {
+		return nil, err
+	}
 
 	var user User
-	dec := json.NewDecoder(f)
-	if err := dec.Decode(&user); err != nil {
+	sourceFile := storeAuthDataFilename("")
+
+	if err := sys.RunAsUidGid(uid, gid, func() error {
+		f, err := os.Open(sourceFile)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		dec := json.NewDecoder(f)
+
+		return dec.Decode(&user)
+	}); err != nil {
 		return nil, err
 	}
 
@@ -150,6 +167,19 @@ func readAuthData() (*User, error) {
 
 // removeAuthData removes any previously written authentication details.
 func removeAuthData() error {
+	real, err := osutil.RealUser()
+	if err != nil {
+		return err
+	}
+
+	uid, gid, err := osutil.UidGid(real)
+	if err != nil {
+		return err
+	}
+
 	filename := storeAuthDataFilename("")
-	return os.Remove(filename)
+
+	return sys.RunAsUidGid(uid, gid, func() error {
+		return os.Remove(filename)
+	})
 }

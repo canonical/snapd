@@ -1,0 +1,7 @@
+summary: test chattr
+# ubuntu-core doesn't have go :-)
+systems: [-ubuntu-core-16-*]
+execute: |
+  go build ./testit.go
+  test "$(./testit)" = "before: 0/0, during: 12345/12345 (<nil>), after: 0/0; status: OK"
+  test "$(sudo -u '#12345' -g '#12345' ./testit)" = "before: 12345/12345, during: 12345/12345 (<nil>), after: 12345/12345; status: OK"
