@@ -32,6 +32,12 @@ static void sc_set_lock_dir(const char *dir)
 	sc_lock_dir = dir;
 }
 
+// A variant of unsetenv that is compatible with GDestroyNotify
+static void my_unsetenv(const char *k)
+{
+	unsetenv(k);
+}
+
 // Use temporary directory for locking.
 //
 // The directory is automatically reset to the real value at the end of the
@@ -50,7 +56,7 @@ static const char *sc_test_use_fake_lock_dir(void)
 		g_test_queue_free(lock_dir);
 		g_assert_cmpint(setenv("SNAP_CONFINE_LOCK_DIR", lock_dir, 0),
 				==, 0);
-		g_test_queue_destroy((GDestroyNotify) unsetenv,
+		g_test_queue_destroy((GDestroyNotify) my_unsetenv,
 				     "SNAP_CONFINE_LOCK_DIR");
 		g_test_queue_destroy((GDestroyNotify) rm_rf_tmp, lock_dir);
 	}

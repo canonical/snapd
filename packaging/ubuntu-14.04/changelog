@@ -1,3 +1,16 @@
+snapd (2.32.6~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1767833
+    - snap: do not use overly short timeout in `snap
+      {start,stop,restart}`
+    - interfaces/apparmor: fix incorrect apparmor profile glob
+    - tests: detect kernel oops during tests and abort tests in this
+      case
+    - tests: run interfaces-boradcom-asic-control early
+    - tests: skip interfaces-content test on core devices
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Sun, 29 Apr 2018 19:21:53 +0200
+
 snapd (2.32.5~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1756173
@@ -5,8 +18,7 @@ snapd (2.32.5~14.04) trusty; urgency=medium
       conflating that with refresh-mode
     - overlord/snapstate:  poll for up to 10s if a snap is unexpectedly
       not mounted in doMountSnap
-    - daemon: support 'system' as nickname of the core snapchange it is
-      possible to do:
+    - daemon: support 'system' as nickname of the core snap
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 16 Apr 2018 11:41:48 +0200
 
