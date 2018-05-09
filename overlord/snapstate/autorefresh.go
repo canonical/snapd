@@ -43,8 +43,9 @@ const maxPostponement = 60 * 24 * time.Hour
 
 // hooks setup by devicestate
 var (
-	CanAutoRefresh     func(st *state.State) (bool, error)
-	CanManageRefreshes func(st *state.State) bool
+	CanAutoRefresh        func(st *state.State) (bool, error)
+	CanManageRefreshes    func(st *state.State) bool
+	IsOnMeteredConnection func() (bool, error)
 )
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
@@ -237,6 +238,24 @@ func (m *autoRefresh) Ensure() error {
 
 	// do refresh attempt (if needed)
 	if !m.nextRefresh.After(now) {
+		var can bool
+
+		can, err = canRefreshOnMeteredConnection(m.state)
+		if err != nil {
+			return err
+		}
+		if !can {
+			metered, _ := IsOnMeteredConnection()
+			if metered {
+				if now.Sub(lastRefresh) < maxPostponement {
+					logger.Noticef("Auto refresh disabled while on metered connection")
+					// clear nextRefresh so that another refresh time is calculated
+					m.nextRefresh = time.Time{}
+					return nil
+				}
+			}
+		}
+
 		err = m.launchAutoRefresh()
 		// clear nextRefresh only if the refresh worked. There is
 		// still the lastRefreshAttempt rate limit so things will
@@ -405,4 +424,15 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return t1, nil
+}
+
+func canRefreshOnMeteredConnection(st *state.State) (bool, error) {
+	tr := config.NewTransaction(st)
+	var holdOnMetered bool
+	err := tr.GetMaybe("core", "refresh.hold-on-metered", &holdOnMetered)
+	if err != nil && err != state.ErrNoState {
+		return false, err
+	}
+
+	return !holdOnMetered, nil
 }

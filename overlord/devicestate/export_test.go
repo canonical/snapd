@@ -116,14 +116,6 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
-func MockNetIsOnMetered(mock func() (bool, error)) func() {
-	old := netIsOnMeteredConnection
-	netIsOnMeteredConnection = mock
-	return func() {
-		netIsOnMeteredConnection = old
-	}
-}
-
 var (
 	ImportAssertionsFromSeed = importAssertionsFromSeed
 	CheckGadgetOrKernel      = checkGadgetOrKernel
