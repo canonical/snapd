@@ -36,11 +36,15 @@ components used by snapd on a given system.
 `)
 
 type cmdSandboxFeatures struct {
-	Required []string `long:"required"`
+	Required []string `long:"required" arg-name:"<backend feature>"`
 }
 
 func init() {
-	addDebugCommand("sandbox-features", shortSandboxFeaturesHelp, longSandboxFeaturesHelp, func() flags.Commander { return &cmdSandboxFeatures{} })
+	addDebugCommand("sandbox-features", shortSandboxFeaturesHelp, longSandboxFeaturesHelp, func() flags.Commander {
+		return &cmdSandboxFeatures{}
+	}, map[string]string{
+		"required": i18n.G("Ensure that given backend:feature is available"),
+	}, nil)
 }
 
 func (cmd cmdSandboxFeatures) Execute(args []string) error {
