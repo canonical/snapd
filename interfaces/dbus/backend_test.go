@@ -276,5 +276,5 @@ func (s *backendSuite) TestAppBoundIfaces(c *C) {
 }
 
 func (s *backendSuite) TestSandboxTags(c *C) {
-	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{"mediated-bus-names"})
+	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{"mediated-bus-access"})
 }
