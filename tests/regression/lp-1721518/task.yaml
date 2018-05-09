@@ -4,8 +4,6 @@ summary: Check that interfaces are listed after reboot the machine
 # not support our reboot logic
 backends: [-autopkgtest]
 
-systems: [-arch-linux-*]
-
 details: |
     This test checks if the interfaces are listed after the machine
     is rebooted. The test is also checking the interfaces after a 
