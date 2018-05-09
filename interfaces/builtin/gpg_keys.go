@@ -42,8 +42,10 @@ owner @{HOME}/.gnupg/{,**} r,
 # trustdb. For now, silence the denial since no other policy references this
 deny @{HOME}/.gnupg/trustdb.gpg w,
 
-# 'wk' is required for gpg encrypt and sign
-owner @{HOME}/.gnupg/random_seed wk,
+# gpg stores its internal random pool in @{HOME}/.gnupg/random_seed to make
+# random number generation faster. 'gpg --no-random-seed-file' disables this
+# optimization. Force consumers of this interface to use --no-random-seed-file.
+audit deny @{HOME}/.gnupg/random_seed wk,
 `
 
 func init() {
