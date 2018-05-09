@@ -754,7 +754,6 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		},
 		"on-classic": true,
 		"managed":    false,
-		"seeded":     true,
 		"locations": map[string]interface{}{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
@@ -811,7 +810,6 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 		},
 		"on-classic": true,
 		"managed":    false,
-		"seeded":     true,
 		"locations": map[string]interface{}{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
@@ -2598,7 +2596,14 @@ func (s *apiSuite) TestGetConfCoreSystemAlias(c *check.C) {
 
 func (s *apiSuite) TestGetConfMissingKey(c *check.C) {
 	result := s.runGetConf(c, "test-snap", []string{"test-key2"}, 400)
-	c.Check(result, check.DeepEquals, map[string]interface{}{"message": `snap "test-snap" has no "test-key2" configuration option`})
+	c.Check(result, check.DeepEquals, map[string]interface{}{
+		"value": map[string]interface{}{
+			"SnapName": "test-snap",
+			"Key":      "test-key2",
+		},
+		"message": `snap "test-snap" has no "test-key2" configuration option`,
+		"kind":    "config-no-such-option",
+	})
 }
 
 func (s *apiSuite) TestGetRootDocument(c *check.C) {
