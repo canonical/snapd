@@ -4,7 +4,7 @@ After=snapd.service snapd.socket
 
 [Service]
 Type=oneshot
-ExecStart=@bindir@/snap wait system seed.done
+ExecStart=@bindir@/snap wait system seed.loaded
 RemainAfterExit=true
 
 [Install]

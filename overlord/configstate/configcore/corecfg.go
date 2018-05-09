@@ -73,7 +73,7 @@ func Run(tr Conf) error {
 	if err := validateExperimentalSettings(tr); err != nil {
 		return err
 	}
-	// FIXME: ensure the user cannot set "core seed.done"
+	// FIXME: ensure the user cannot set "core seed.loaded"
 
 	// capture cloud information
 	if err := setCloudInfoWhenSeeding(tr); err != nil {
