@@ -20,13 +20,13 @@
 package main
 
 import (
-	"github.com/snapcore/snapd/i18n"
-
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/i18n"
 )
 
 var shortSandboxHelp = i18n.G("Print the details of the sandbox available on the system")
