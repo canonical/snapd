@@ -29,7 +29,9 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// String accepts any valid JSON string
+// String accepts any valid JSON string. Its Clean method will remove
+// characters that aren't expected in a short descriptive text.
+// I.e.: Cc, Co, Cf, Cs, noncharacters, and � are removed.
 type String struct {
 	s string
 }
@@ -39,12 +41,14 @@ func (str *String) UnmarshalJSON(in []byte) (err error) {
 	return
 }
 
-// Clean returns the string, with any control characters stripped.
+// Clean returns the string, with Cc, Co, Cf, Cs, noncharacters, and � removed.
 func (str String) Clean() string {
 	return str.s
 }
 
-// Paragraph accepts any valid JSON string
+// Paragraph accepts any valid JSON string. Its Clean method will remove
+// characters that aren't expected in a long descriptive text.
+// I.e.: Cc (except for \n), Co, Cf, Cs, noncharacters, and � are removed.
 type Paragraph struct {
 	s string
 }
@@ -54,7 +58,8 @@ func (par *Paragraph) UnmarshalJSON(in []byte) (err error) {
 	return
 }
 
-// Clean returns the string, with any control characters except \n stripped.
+// Clean returns the string, with Cc minus \n, Co, Cf, Cs, noncharacters,
+// and � removed.
 func (par Paragraph) Clean() string {
 	return par.s
 }
