@@ -44,11 +44,11 @@ func (s *SnapSuite) TestCmdWait(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/snaps/system/conf")
 
-		fmt.Fprintln(w, fmt.Sprintf(`{"type":"sync", "status-code": 200, "result": {"seed.done":%v}}`, seeded))
+		fmt.Fprintln(w, fmt.Sprintf(`{"type":"sync", "status-code": 200, "result": {"seed.loaded":%v}}`, seeded))
 		n++
 	})
 
-	_, err := snap.Parser().ParseArgs([]string{"wait", "system", "seed.done"})
+	_, err := snap.Parser().ParseArgs([]string{"wait", "system", "seed.loaded"})
 	c.Assert(err, IsNil)
 
 	// ensure we retried a bit but make the check not overly precise
