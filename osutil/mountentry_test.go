@@ -402,3 +402,28 @@ func (s *entrySuite) TestXSnapdKind(c *C) {
 	// There's a helper function that returns this option string.
 	c.Assert(osutil.XSnapdKindSymlink(), Equals, "x-snapd.kind=symlink")
 }
+
+func (s *entrySuite) TestXSnapdSymlink(c *C) {
+	// Entries without the x-snapd.symlink key return an empty string
+	e := &osutil.MountEntry{}
+	c.Assert(e.XSnapdSymlink(), Equals, "")
+
+	// A mount entry can list a symlink target
+	e = &osutil.MountEntry{Options: []string{osutil.XSnapdSymlink("target")}}
+	c.Assert(e.XSnapdSymlink(), Equals, "target")
+}
+
+func (s *entrySuite) TestXSnapdIgnoreMissing(c *C) {
+	// By default entries will not have the ignore missing flag set
+	e := &osutil.MountEntry{}
+	c.Assert(e.XSnapdIgnoreMissing(), Equals, false)
+
+	// A mount entry can specify that it should be ignored if the
+	// mount source or target are missing with the
+	// x-snapd.ignore-missing option.
+	e = &osutil.MountEntry{Options: []string{osutil.XSnapdIgnoreMissing()}}
+	c.Assert(e.XSnapdIgnoreMissing(), Equals, true)
+
+	// There's a helper function that returns this option string.
+	c.Assert(osutil.XSnapdIgnoreMissing(), Equals, "x-snapd.ignore-missing")
+}

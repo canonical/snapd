@@ -1243,6 +1243,34 @@ func (s *changeSuite) TestPerformFileBindUnmountError(c *C) {
 	c.Assert(synth, HasLen, 0)
 }
 
+// #############################################################
+// Topic: handling mounts with the x-snapd.ignore-missing option
+// #############################################################
+
+func (s *changeSuite) TestPerformMountWithIgnoredMissingMountSource(c *C) {
+	s.sys.InsertFault(`lstat "/source"`, syscall.ENOENT)
+	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.ignore-missing"}}}
+	synth, err := chg.Perform(s.sec)
+	c.Assert(err, Equals, update.ErrIgnoredMissingMount)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+		`lstat "/source"`,
+	})
+}
+
+func (s *changeSuite) TestPerformMountWithIgnoredMissingMountPoint(c *C) {
+	s.sys.InsertFault(`lstat "/target"`, syscall.ENOENT)
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.ignore-missing"}}}
+	synth, err := chg.Perform(s.sec)
+	c.Assert(err, Equals, update.ErrIgnoredMissingMount)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+	})
+}
+
 // ########################
 // Topic: creating symlinks
 // ########################
