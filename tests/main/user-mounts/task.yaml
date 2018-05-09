@@ -1,18 +1,21 @@
 summary: smoke tests for user mounts
+
 details: |
     When a confined snap has a user-fstab file, additional bind mounts will
     be performed prior to running the application.  These mounts are private
     to the invocation of the application, so can be used to manipulate how
     per-user data is presented.
+
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-sh
     rm -f /var/lib/snapd/mount/snap.test-snapd-sh.user-fstab
+
 execute: |
     . $TESTSLIB/dirs.sh
 
     echo "Create XDG_RUNTIME_DIR for test user"
-    USER_RUNTIME_DIR=/run/user/12345
+    USER_RUNTIME_DIR=/run/user/"$(id -u test)"
     mkdir -p $USER_RUNTIME_DIR || true
     rm -rf $USER_RUNTIME_DIR/*
     chmod u=rwX,go= $USER_RUNTIME_DIR
