@@ -38,10 +38,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var (
-	netIsOnMeteredConnection func() (bool, error) = netutil.IsOnMeteredConnection
-)
-
 // Model returns the device model assertion.
 func Model(st *state.State) (*asserts.Model, error) {
 	device, err := auth.Device(st)
@@ -128,15 +124,6 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, err
 	}
 
-	if !canRefreshOnMetered(st) {
-		// ignore error when checking if connection is metered
-		metered, _ := netIsOnMeteredConnection()
-		if metered {
-			logger.Noticef("auto refresh disabled while on metered connection")
-		}
-		return !metered, nil
-	}
-
 	return true, nil
 }
 
@@ -213,6 +200,7 @@ func delayedCrossMgrInit() {
 	})
 	snapstate.CanAutoRefresh = canAutoRefresh
 	snapstate.CanManageRefreshes = CanManageRefreshes
+	snapstate.IsOnMeteredConnection = netutil.IsOnMeteredConnection
 }
 
 // ProxyStore returns the store assertion for the proxy store if one is set.
@@ -280,14 +268,4 @@ func CanManageRefreshes(st *state.State) bool {
 	}
 
 	return false
-}
-
-func canRefreshOnMetered(st *state.State) bool {
-	tr := config.NewTransaction(st)
-	var holdOnMetered bool
-	if err := tr.GetMaybe("core", "refresh.hold-on-metered", &holdOnMetered); err != nil {
-		return true
-	}
-
-	return !holdOnMetered
 }
