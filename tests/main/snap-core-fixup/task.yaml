@@ -1,0 +1,31 @@
+summary: Check that the core-fixup-sh script works
+
+systems: [ubuntu-core-16-*]
+
+restore: |
+    rm -f /boot/uboot/uboot.env.unrelated
+    rm -f /boot/uboot/unrelated.uboot.env
+    # remove empty uboot.env
+    if [ $(stat -c%s /boot/uboot/uboot.env) = "0" ]; then
+        rm -f /boot/uboot/uboot.env
+        rmdir /boot/uboot
+    fi
+
+execute: |
+    # FIXME: in order to test this for real we need to find a way
+    #        to create the duplicated uboot.env files on disk during the test
+    mkdir -p /boot/uboot
+    touch /boot/uboot/uboot.env.unrelated
+    touch /boot/uboot/unrelated.uboot.env
+    touch /boot/uboot/uboot.env
+
+    systemctl restart snapd.core-fixup.service
+
+    if [ ! -f /boot/uboot/uboot.env.unrelated ] || [ ! -f /boot/uboot/unrelated.uboot.env ]; then
+        echo "snapd.core-fixup.service destroyed unrelated files"
+        exit 1
+    fi
+    if [ ! -f /boot/uboot/uboot.env ]; then
+        echo "snapd.core-fixup.service destroyed the uboot.env file"
+        exit 1
+    fi
