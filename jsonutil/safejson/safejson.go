@@ -31,7 +31,8 @@ import (
 
 // String accepts any valid JSON string. Its Clean method will remove
 // characters that aren't expected in a short descriptive text.
-// I.e.: Cc, Co, Cf, Cs, noncharacters, and � are removed.
+// I.e.: Cc, Co, Cf, Cs, noncharacters, and � (U+FFFD, the replacement
+// character) are removed.
 type String struct {
 	s string
 }
@@ -41,14 +42,16 @@ func (str *String) UnmarshalJSON(in []byte) (err error) {
 	return
 }
 
-// Clean returns the string, with Cc, Co, Cf, Cs, noncharacters, and � removed.
+// Clean returns the string, with Cc, Co, Cf, Cs, noncharacters,
+// and � (U+FFFD) removed.
 func (str String) Clean() string {
 	return str.s
 }
 
 // Paragraph accepts any valid JSON string. Its Clean method will remove
 // characters that aren't expected in a long descriptive text.
-// I.e.: Cc (except for \n), Co, Cf, Cs, noncharacters, and � are removed.
+// I.e.: Cc (except for \n), Co, Cf, Cs, noncharacters, and � (U+FFFD,
+// the replacement character) are removed.
 type Paragraph struct {
 	s string
 }
@@ -59,7 +62,7 @@ func (par *Paragraph) UnmarshalJSON(in []byte) (err error) {
 }
 
 // Clean returns the string, with Cc minus \n, Co, Cf, Cs, noncharacters,
-// and � removed.
+// and � (U+FFFD) removed.
 func (par Paragraph) Clean() string {
 	return par.s
 }
