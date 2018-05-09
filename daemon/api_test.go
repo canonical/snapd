@@ -3495,7 +3495,8 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 // Tests for GET /v2/interfaces
 
 func (s *apiSuite) TestInterfaces(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -3506,7 +3507,8 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	c.Assert(repo.Connect(connRef), check.IsNil)
+	_, err := repo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -3673,7 +3675,8 @@ func (s *apiSuite) TestInterfaceDetail404(c *check.C) {
 // Test for POST /v2/interfaces
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -3835,7 +3838,8 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slotName string) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -3846,7 +3850,8 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	c.Assert(repo.Connect(connRef), check.IsNil)
+	_, err := repo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, check.IsNil)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
@@ -3899,7 +3904,8 @@ func (s *apiSuite) TestDisconnectPlugSuccessWithEmptySlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	s.daemon(c)
 
 	// there is no consumer, no plug defined
@@ -3932,7 +3938,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugNothingToDo(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -3966,7 +3973,8 @@ func (s *apiSuite) TestDisconnectPlugNothingToDo(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -4000,7 +4008,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)

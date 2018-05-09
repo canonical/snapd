@@ -19,7 +19,7 @@ prepare: |
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces | MATCH "\- +shutdown-introspection-consumer:shutdown"
+    snap interfaces -i shutdown | MATCH "\- +shutdown-introspection-consumer:shutdown"
 
     echo "When the plug is connected"
     snap connect shutdown-introspection-consumer:shutdown

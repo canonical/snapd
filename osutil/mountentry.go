@@ -356,6 +356,43 @@ func (e *MountEntry) XSnapdSynthetic() bool {
 	return e.OptBool("x-snapd.synthetic")
 }
 
+// XSnapdKind returns the kind of a given mount entry.
+//
+// There are three kinds of mount entries today: one for directories, one for
+// files and one for symlinks. The values are "", "file" and "symlink" respectively.
+//
+// Directories use the empty string (in fact they don't need the option at
+// all) as this was the default and is retained for backwards compatibility.
+func (e *MountEntry) XSnapdKind() string {
+	val, _ := e.OptStr("x-snapd.kind")
+	return val
+}
+
+// XSnapdDetach returns true if a mount entry should be detached rather than unmounted.
+//
+// Whenever we create a recursive bind mount we don't want to just unmount it
+// as it may have replicated additional mount entries. For simplicity and
+// race-free behavior we just detach such mount entries and let the kernel do
+// the rest.
+func (e *MountEntry) XSnapdDetach() bool {
+	return e.OptBool("x-snapd.detach")
+}
+
+// XSnapdNeededBy returns the string "x-snapd.needed-by=..." with the given path appended.
+func XSnapdNeededBy(path string) string {
+	return fmt.Sprintf("x-snapd.needed-by=%s", path)
+}
+
+// XSnapdSynthetic returns the string "x-snapd.synthetic".
+func XSnapdSynthetic() string {
+	return "x-snapd.synthetic"
+}
+
+// XSnapdDetach returns the string "x-snapd.detach".
+func XSnapdDetach() string {
+	return "x-snapd.detach"
+}
+
 // XSnapdKindSymlink returns the string "x-snapd.kind=symlink".
 func XSnapdKindSymlink() string {
 	return "x-snapd.kind=symlink"
@@ -372,12 +409,12 @@ func XSnapdOriginLayout() string {
 }
 
 // XSnapdUser returns the string "x-snapd.user=%d".
-func XSnapdUser(uid int) string {
+func XSnapdUser(uid uint32) string {
 	return fmt.Sprintf("x-snapd.user=%d", uid)
 }
 
 // XSnapdGroup returns the string "x-snapd.group=%d".
-func XSnapdGroup(gid int) string {
+func XSnapdGroup(gid uint32) string {
 	return fmt.Sprintf("x-snapd.group=%d", gid)
 }
 

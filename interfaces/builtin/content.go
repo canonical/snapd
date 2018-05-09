@@ -253,7 +253,8 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 			source, target := sourceTarget(plug, slot, r)
 			var buf bytes.Buffer
 			fmt.Fprintf(&buf, "  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
-			fmt.Fprintf(&buf, "  mount options=(bind, ro) %s/ -> %s/,\n", source, target)
+			fmt.Fprintf(&buf, "  mount options=(bind) %s/ -> %s/,\n", source, target)
+			fmt.Fprintf(&buf, "  remount options=(bind, ro) %s/,\n", target)
 			fmt.Fprintf(&buf, "  umount %s/,\n", target)
 			apparmor.WritableProfile(&buf, source)
 			apparmor.WritableProfile(&buf, target)

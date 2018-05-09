@@ -49,7 +49,7 @@ execute: |
     INTERFACE=$(get_default_iface)
 
     echo "Then the plug disconnected by default"
-    snap interfaces | MATCH "^- +network-control-consumer:network-control$"
+    snap interfaces -i network-control | MATCH "^- +network-control-consumer:network-control$"
 
     echo "When the plug is connected"
     snap connect network-control-consumer:network-control
