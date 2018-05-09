@@ -383,6 +383,8 @@ const (
 
 	ErrorKindNetworkTimeout      = "network-timeout"
 	ErrorKindInterfacesUnchanged = "interfaces-unchanged"
+
+	ErrorKindConfigNoSuchOption = "config-no-such-option"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
@@ -431,7 +433,6 @@ type SysInfo struct {
 	OSRelease OSRelease `json:"os-release"`
 	OnClassic bool      `json:"on-classic"`
 	Managed   bool      `json:"managed"`
-	Seeded    bool      `json:"seeded"`
 
 	KernelVersion string `json:"kernel-version,omitempty"`
 

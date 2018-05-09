@@ -155,11 +155,11 @@ func MockTimeutilHuman(h func(time.Time) string) (restore func()) {
 	}
 }
 
-func MockWaitSeededTimeout(d time.Duration) (restore func()) {
-	oldWaitSeededTimeout := d
-	waitSeededTimeout = d
+func MockWaitConfTimeout(d time.Duration) (restore func()) {
+	oldWaitConfTimeout := d
+	waitConfTimeout = d
 	return func() {
-		waitSeededTimeout = oldWaitSeededTimeout
+		waitConfTimeout = oldWaitConfTimeout
 	}
 }
 
