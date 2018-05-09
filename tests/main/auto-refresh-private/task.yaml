@@ -28,10 +28,8 @@ execute: |
     echo "Switch both to edge"
     snap switch --edge test-snapd-private
     snap switch --edge test-snapd-public
-    #shellcheck disable=SC1117
-    snap list|MATCH "test-snapd-private +1\.0.*private"
-    #shellcheck disable=SC1117
-    snap list|MATCH "test-snapd-public +1\.0"
+    snap list|MATCH 'test-snapd-private +1\.0.*private'
+    snap list|MATCH 'test-snapd-public +1\.0'
 
     echo "Force auto-refresh to happen"
     snap set core refresh.schedule="0:00-23:59"
@@ -54,10 +52,8 @@ execute: |
     done
 
     echo "Check they were both refreshed"
-    #shellcheck disable=SC1117
-    snap list|MATCH "test-snapd-public +2\.0"
-    #shellcheck disable=SC1117
-    snap list|MATCH "test-snapd-private +2\.0.*private"
+    snap list|MATCH 'test-snapd-public +2\.0'
+    snap list|MATCH 'test-snapd-private +2\.0.*private'
 
     if [ -z "$SPREAD_STORE_EXPIRED_MACAROON" ] || [  -z "$SPREAD_STORE_EXPIRED_DISCHARGE" ]; then
         if [[ "$SPREAD_STORE_USER" =~ .*dummydev.* ]] ; then
@@ -80,10 +76,8 @@ execute: |
     echo "Switch both to edge"
     snap switch --edge test-snapd-private
     snap switch --edge test-snapd-public
-    #shellcheck disable=SC1117
-    snap list|MATCH "test-snapd-private +1\.0.*private"
-    #shellcheck disable=SC1117
-    snap list|MATCH "test-snapd-public +1\.0"
+    snap list|MATCH 'test-snapd-private +1\.0.*private'
+    snap list|MATCH 'test-snapd-public +1\.0'
 
     echo "Force auto-refresh to happen with expired creds"
 
@@ -111,10 +105,8 @@ execute: |
     done
 
     echo "Check exactly test-snapd-public was refreshed"
-    #shellcheck disable=SC1117
-    snap list|MATCH "test-snapd-public +2\.0"
-    #shellcheck disable=SC1117
-    snap list|MATCH "test-snapd-private +1\.0.*private"
+    snap list|MATCH 'test-snapd-public +2\.0'
+    snap list|MATCH 'test-snapd-private +1\.0.*private'
 
     # sanity check there is no access
     snap find --private test-snapd-private 2>&1|MATCH 'No matching snaps for "test-snapd-private"'

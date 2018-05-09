@@ -24,8 +24,7 @@ execute: |
         echo "install should fail when the target directory exists"
         exit 1
     fi
-    #shellcheck disable=SC1117
-    idPattern="\d+(?= +Error.*?Install \"$SNAP_NAME\" snap)"
+    idPattern="\\d+(?= +Error.*?Install \"$SNAP_NAME\" snap)"
     id=$(snap changes | grep -Pzo "$idPattern")
     if snap abort "$id"; then
         echo "abort with valid failed id should fail"
@@ -37,8 +36,7 @@ execute: |
 
     echo "Abort with valid id - done"
     install_local "$SNAP_NAME"
-    #shellcheck disable=SC1117
-    idPattern="\d+(?= +Done.*?Install \"$SNAP_NAME\" snap)"
+    idPattern="\\d+(?= +Done.*?Install \"$SNAP_NAME\" snap)"
     id=$(snap changes | grep -Pzo "$idPattern")
     if snap abort "$id"; then
         echo "abort with valid done id should fail"
