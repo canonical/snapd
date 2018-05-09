@@ -647,7 +647,6 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   # sharing and propagates mount events outside of the snap namespace.
   audit deny mount -> /media,
 
-
 ###SNIPPETS###
 }
 `
