@@ -35,7 +35,9 @@ The sandbox command prints tags describing features of individual sandbox
 components used by snapd on a given system.
 `)
 
-type cmdSandboxFeatures struct{}
+type cmdSandboxFeatures struct {
+	Required []string `long:"required"`
+}
 
 func init() {
 	addDebugCommand("sandbox-features", shortSandboxFeaturesHelp, longSandboxFeaturesHelp, func() flags.Commander { return &cmdSandboxFeatures{} })
@@ -51,18 +53,32 @@ func (cmd cmdSandboxFeatures) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+
 	sandboxFeatures := sysInfo.SandboxFeatures
-	backends := make([]string, 0, len(sandboxFeatures))
-	for backend := range sandboxFeatures {
-		backends = append(backends, backend)
-	}
-	sort.Strings(backends)
 
-	w := tabWriter()
-	defer w.Flush()
-	for _, backend := range backends {
-		fmt.Fprintf(w, "%s:\t%s\n", backend, strings.Join(sandboxFeatures[backend], " "))
+	if len(cmd.Required) > 0 {
+		avail := make(map[string]bool)
+		for backend := range sandboxFeatures {
+			for _, feature := range sandboxFeatures[backend] {
+				avail[fmt.Sprintf("%s:%s", backend, feature)] = true
+			}
+		}
+		for _, required := range cmd.Required {
+			if !avail[required] {
+				return fmt.Errorf("sandbox feature not available: %q", required)
+			}
+		}
+	} else {
+		backends := make([]string, 0, len(sandboxFeatures))
+		for backend := range sandboxFeatures {
+			backends = append(backends, backend)
+		}
+		sort.Strings(backends)
+		w := tabWriter()
+		defer w.Flush()
+		for _, backend := range backends {
+			fmt.Fprintf(w, "%s:\t%s\n", backend, strings.Join(sandboxFeatures[backend], " "))
+		}
 	}
-
 	return nil
 }
