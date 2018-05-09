@@ -177,7 +177,6 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	if err != nil {
 		return err
 	}
-
 	if err := m.setupSnapSecurity(task, snapInfo, opts); err != nil {
 		return err
 	}
@@ -307,7 +306,6 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 	if err != nil {
 		return err
 	}
-
 	removed := make(map[string]connState)
 	for id := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
@@ -343,7 +341,6 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 	for id, connState := range removed {
 		conns[id] = connState
 	}
-
 	setConns(st, conns)
 	task.Set("removed", nil)
 	return nil
@@ -533,7 +530,6 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		delete(conns, cref.ID())
 	}
 	setConns(st, conns)
-
 	return nil
 }
 
