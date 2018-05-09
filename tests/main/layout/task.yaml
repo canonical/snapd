@@ -35,13 +35,22 @@ execute: |
         test-snapd-layout.sh -c "test -d /var/lib/demo"
         test-snapd-layout.sh -c "test -d /var/cache/demo"
         test-snapd-layout.sh -c "test -d /opt/demo"
+        # Ideally we'd perform this test but the rsyslog directory has mode 700 and user mode 108:4
+        # test-snapd-layout.sh -c "test -d /var/spool/rsyslog/demo"
 
-        echo "layout constructed a mimic using tmpfs as aid"
+        echo "layout constructed a mimic using tmpfs as aid (/opt)"
         [ "$(test-snapd-layout.sh -c "stat -f /opt -c '%T'")" = "tmpfs" ]
         echo "and the tmpfs was mounted with 0755 and root/root user/group to mimic /opt in core"
         [ "$(test-snapd-layout.sh -c "stat /opt -c '%a'")" = "755" ]
         [ "$(test-snapd-layout.sh -c "stat /opt -c '%u'")" = "0" ]
         [ "$(test-snapd-layout.sh -c "stat /opt -c '%g'")" = "0" ]
+
+        echo "layout constructed a mimic using tmpfs as aid (/var/spool/rsyslog)"
+        [ "$(test-snapd-layout.sh -c "stat -f /var/spool/rsyslog -c '%T'")" = "tmpfs" ]
+        echo "and the tmpfs was mounted with 0700 and syslog/adm user/group to mimic /var/spool/rsyslog in core"
+        [ "$(test-snapd-layout.sh -c "stat /var/spool/rsyslog -c '%a'")" = "700" ]
+        [ "$(test-snapd-layout.sh -c "stat /var/spool/rsyslog -c '%u'")" = "108" ]
+        [ "$(test-snapd-layout.sh -c "stat /var/spool/rsyslog -c '%g'")" = "4" ]
 
         echo "layout locations pointing to SNAP_DATA and SNAP_COMMON are writable"
         echo "and the writes go to the right place in the backing store"
