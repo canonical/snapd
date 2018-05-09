@@ -23,7 +23,7 @@ restore: |
 
 execute: |
     echo "The interface is connected by default"
-    snap interfaces | MATCH ":snapd-control .*test-snapd-control-consumer"
+    snap interfaces -i snapd-control | MATCH ":snapd-control .*test-snapd-control-consumer"
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "When the plug is disconnected"

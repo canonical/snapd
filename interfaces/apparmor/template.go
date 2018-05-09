@@ -92,8 +92,8 @@ var defaultTemplate = `
 
   # for bash 'binaries' (do *not* use abstractions/bash)
   # user-specific bash files
-  /bin/bash ixr,
-  /bin/dash ixr,
+  /{,usr/}bin/bash ixr,
+  /{,usr/}bin/dash ixr,
   /etc/bash.bashrc r,
   /etc/{passwd,group,nsswitch.conf} r,  # very common
   /etc/default/nss r,
@@ -595,6 +595,11 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   # Needed for dropping to calling user when processing per-user mounts
   capability setuid,
   capability setgid,
+  # Allow snap-update-ns to override file ownership and permission checks.
+  # This is required because writable mimics now preserve the permissions
+  # of the original and hence we may be asked to create a directory when the
+  # parent is a tmpfs without DAC write access.
+  capability dac_override,
 
   # Allow freezing and thawing the per-snap cgroup freezers
   /sys/fs/cgroup/freezer/snap.###SNAP_NAME###/freezer.state rw,
