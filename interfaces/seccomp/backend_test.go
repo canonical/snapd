@@ -386,9 +386,9 @@ func (s *backendSuite) TestSystemKeyRetLogUnsupported(c *C) {
 	s.RemoveSnap(c, snapInfo)
 }
 
-func (s *backendSuite) TestSandboxTags(c *C) {
+func (s *backendSuite) TestSandboxFeatures(c *C) {
 	restore := seccomp.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
 	defer restore()
 
-	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering"})
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering"})
 }

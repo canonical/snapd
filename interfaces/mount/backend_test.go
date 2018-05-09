@@ -170,8 +170,8 @@ func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, mockSnapYaml, 0)
 }
 
-func (s *backendSuite) TestSandboxTags(c *C) {
-	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{
+func (s *backendSuite) TestSandboxFeatures(c *C) {
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
 		"freezer-cgroup-v1",
 		"layouts-beta",
 		"mount-namespace",

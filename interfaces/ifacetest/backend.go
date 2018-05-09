@@ -35,8 +35,8 @@ type TestSecurityBackend struct {
 	SetupCallback func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error
 	// RemoveCallback is a callback that is optionally called in Remove
 	RemoveCallback func(snapName string) error
-	// SandboxTagsCallback is a callback that is optionally called in SandboxTags
-	SandboxTagsCallback func() []string
+	// SandboxFeaturesCallback is a callback that is optionally called in SandboxFeatures
+	SandboxFeaturesCallback func() []string
 }
 
 // TestSetupCall stores details about calls to TestSecurityBackend.Setup
@@ -79,9 +79,9 @@ func (b *TestSecurityBackend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }
 
-func (b *TestSecurityBackend) SandboxTags() []string {
-	if b.SandboxTagsCallback == nil {
+func (b *TestSecurityBackend) SandboxFeatures() []string {
+	if b.SandboxFeaturesCallback == nil {
 		return nil
 	}
-	return b.SandboxTagsCallback()
+	return b.SandboxFeaturesCallback()
 }

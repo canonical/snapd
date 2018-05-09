@@ -28,11 +28,11 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
-func (s *SnapSuite) TestSandbox(c *C) {
+func (s *SnapSuite) TestSandboxFeatures(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{"type": "sync", "result": {"sandbox": {"apparmor": ["a", "b", "c"], "selinux": ["1", "2", "3"]}}}`)
+		fmt.Fprintln(w, `{"type": "sync", "result": {"sandbox-features": {"apparmor": ["a", "b", "c"], "selinux": ["1", "2", "3"]}}}`)
 	})
-	_, err := snap.Parser().ParseArgs([]string{"debug", "sandbox"})
+	_, err := snap.Parser().ParseArgs([]string{"debug", "sandbox-features"})
 	c.Assert(err, IsNil)
 	c.Assert(s.Stdout(), Equals, ""+
 		"apparmor:  a b c\n"+

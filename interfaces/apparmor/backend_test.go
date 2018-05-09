@@ -1201,9 +1201,9 @@ func (s *backendSuite) TestNsProfile(c *C) {
 	c.Assert(apparmor.NsProfile("foo"), Equals, "snap-update-ns.foo")
 }
 
-func (s *backendSuite) TestSandboxTags(c *C) {
+func (s *backendSuite) TestSandboxFeatures(c *C) {
 	restore := apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
 	defer restore()
 
-	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{"kernel:foo", "kernel:bar"})
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar"})
 }

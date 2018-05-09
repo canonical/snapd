@@ -197,8 +197,8 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }
 
-// SandboxTags returns the list of seccomp features supported by the kernel.
-func (b *Backend) SandboxTags() []string {
+// SandboxFeatures returns the list of seccomp features supported by the kernel.
+func (b *Backend) SandboxFeatures() []string {
 	features := kernelFeatures()
 	tags := make([]string, 0, len(features)+1)
 	for _, feature := range features {

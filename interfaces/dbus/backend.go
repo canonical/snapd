@@ -169,7 +169,7 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }
 
-// SandboxTags returns list of features supported by snapd for dbus communication.
-func (b *Backend) SandboxTags() []string {
+// SandboxFeatures returns list of features supported by snapd for dbus communication.
+func (b *Backend) SandboxFeatures() []string {
 	return []string{"mediated-bus-access"}
 }

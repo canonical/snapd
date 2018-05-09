@@ -218,7 +218,7 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
                       "on-classic": true,
                       "build-id": "1234",
                       "confinement": "strict",
-                      "sandbox": {"backend": ["tag-1", "tag-2"]}}}`
+                      "sandbox-features": {"backend": ["feature-1", "feature-2"]}}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, IsNil)
 	c.Check(sysInfo, DeepEquals, &client.SysInfo{
@@ -230,8 +230,8 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
 		},
 		OnClassic:   true,
 		Confinement: "strict",
-		Sandbox: map[string][]string{
-			"backend": {"tag-1", "tag-2"},
+		SandboxFeatures: map[string][]string{
+			"backend": {"feature-1", "feature-2"},
 		},
 		BuildID: "1234",
 	})

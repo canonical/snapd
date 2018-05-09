@@ -29,19 +29,19 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortSandboxHelp = i18n.G("Print the details of the sandbox available on the system")
-var longSandboxHelp = i18n.G(`
+var shortSandboxFeaturesHelp = i18n.G("Print sandbox features available on the system")
+var longSandboxFeaturesHelp = i18n.G(`
 The sandbox command prints tags describing features of individual sandbox
 components used by snapd on a given system.
 `)
 
-type cmdSandbox struct{}
+type cmdSandboxFeatures struct{}
 
 func init() {
-	addDebugCommand("sandbox", shortSandboxHelp, longSandboxHelp, func() flags.Commander { return &cmdSandbox{} })
+	addDebugCommand("sandbox-features", shortSandboxFeaturesHelp, longSandboxFeaturesHelp, func() flags.Commander { return &cmdSandboxFeatures{} })
 }
 
-func (cmd cmdSandbox) Execute(args []string) error {
+func (cmd cmdSandboxFeatures) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
@@ -51,17 +51,17 @@ func (cmd cmdSandbox) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	sandbox := sysInfo.Sandbox
-	keys := make([]string, 0, len(sandbox))
-	for key := range sandbox {
-		keys = append(keys, key)
+	sandboxFeatures := sysInfo.SandboxFeatures
+	backends := make([]string, 0, len(sandboxFeatures))
+	for backend := range sandboxFeatures {
+		backends = append(backends, backend)
 	}
-	sort.Strings(keys)
+	sort.Strings(backends)
 
 	w := tabWriter()
 	defer w.Flush()
-	for _, key := range keys {
-		fmt.Fprintf(w, "%s:\t%s\n", key, strings.Join(sandbox[key], " "))
+	for _, backend := range backends {
+		fmt.Fprintf(w, "%s:\t%s\n", backend, strings.Join(sandboxFeatures[backend], " "))
 	}
 
 	return nil

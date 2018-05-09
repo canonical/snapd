@@ -803,8 +803,8 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 
 	// add a test security backend
 	err := d.overlord.InterfaceManager().Repository().AddBackend(&ifacetest.TestSecurityBackend{
-		BackendName:         "apparmor",
-		SandboxTagsCallback: func() []string { return []string{"tag-1", "tag-2"} },
+		BackendName:             "apparmor",
+		SandboxFeaturesCallback: func() []string { return []string{"feature-1", "feature-2"} },
 	})
 	c.Assert(err, check.IsNil)
 
@@ -833,8 +833,8 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 			// only the "schedule" field
 			"schedule": "00:00-9:00/12:00-13:00",
 		},
-		"confinement": "partial",
-		"sandbox":     map[string]interface{}{"apparmor": []interface{}{"tag-1", "tag-2"}},
+		"confinement":      "partial",
+		"sandbox-features": map[string]interface{}{"apparmor": []interface{}{"feature-1", "feature-2"}},
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)

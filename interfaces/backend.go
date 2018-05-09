@@ -92,6 +92,6 @@ type SecurityBackend interface {
 	// NewSpecification returns a new specification associated with this backend.
 	NewSpecification() Specification
 
-	// SandboxTags returns a list of tags that identify sandbox features.
-	SandboxTags() []string
+	// SandboxFeatures returns a list of tags that identify sandbox features.
+	SandboxFeatures() []string
 }

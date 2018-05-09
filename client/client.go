@@ -434,9 +434,9 @@ type SysInfo struct {
 
 	KernelVersion string `json:"kernel-version,omitempty"`
 
-	Refresh     RefreshInfo         `json:"refresh,omitempty"`
-	Confinement string              `json:"confinement"`
-	Sandbox     map[string][]string `json:"sandbox,omitempty"`
+	Refresh         RefreshInfo         `json:"refresh,omitempty"`
+	Confinement     string              `json:"confinement"`
+	SandboxFeatures map[string][]string `json:"sandbox-features,omitempty"`
 }
 
 func (rsp *response) err() error {

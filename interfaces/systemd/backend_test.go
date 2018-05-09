@@ -154,6 +154,6 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 	})
 }
 
-func (s *backendSuite) TestSandboxTags(c *C) {
-	c.Assert(s.Backend.SandboxTags(), IsNil)
+func (s *backendSuite) TestSandboxFeatures(c *C) {
+	c.Assert(s.Backend.SandboxFeatures(), IsNil)
 }

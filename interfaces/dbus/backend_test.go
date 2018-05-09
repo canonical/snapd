@@ -275,6 +275,6 @@ func (s *backendSuite) TestAppBoundIfaces(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *backendSuite) TestSandboxTags(c *C) {
-	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{"mediated-bus-access"})
+func (s *backendSuite) TestSandboxFeatures(c *C) {
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"mediated-bus-access"})
 }

@@ -132,6 +132,6 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 	}
 }
 
-func (s *backendSuite) TestSandboxTags(c *C) {
-	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{"mediated-modprobe"})
+func (s *backendSuite) TestSandboxFeatures(c *C) {
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"mediated-modprobe"})
 }

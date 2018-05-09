@@ -122,8 +122,8 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }
 
-// SandboxTags returns the list of features supported by snapd for composing mount namespaces.
-func (b *Backend) SandboxTags() []string {
+// SandboxFeatures returns the list of features supported by snapd for composing mount namespaces.
+func (b *Backend) SandboxFeatures() []string {
 	return []string{
 		"freezer-cgroup-v1",       /* Snapd creates a freezer cgroup (v1) for each snap */
 		"layouts-beta",            /* Mount profiles take layout data into account (experimental) */

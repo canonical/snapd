@@ -126,8 +126,8 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }
 
-// SandboxTags returns nil
-func (b *Backend) SandboxTags() []string {
+// SandboxFeatures returns nil
+func (b *Backend) SandboxFeatures() []string {
 	return nil
 }
 

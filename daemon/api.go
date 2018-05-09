@@ -325,26 +325,26 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	// Convey richer information about features of available security backends.
-	if tags := sandboxTags(c.d.overlord.InterfaceManager().Repository().Backends()); tags != nil {
-		m["sandbox"] = tags
+	if features := sandboxFeatures(c.d.overlord.InterfaceManager().Repository().Backends()); features != nil {
+		m["sandbox-features"] = features
 	}
 
 	return SyncResponse(m, nil)
 }
 
-func sandboxTags(backends []interfaces.SecurityBackend) map[string][]string {
-	sandbox := make(map[string][]string, len(backends))
+func sandboxFeatures(backends []interfaces.SecurityBackend) map[string][]string {
+	result := make(map[string][]string, len(backends))
 	for _, backend := range backends {
-		tags := backend.SandboxTags()
-		if len(tags) > 0 {
-			sort.Strings(tags)
-			sandbox[string(backend.Name())] = tags
+		features := backend.SandboxFeatures()
+		if len(features) > 0 {
+			sort.Strings(features)
+			result[string(backend.Name())] = features
 		}
 	}
-	if len(sandbox) == 0 {
+	if len(result) == 0 {
 		return nil
 	}
-	return sandbox
+	return result
 }
 
 // userResponseData contains the data releated to user creation/login/query

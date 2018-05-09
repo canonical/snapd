@@ -151,8 +151,8 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }
 
-// SandboxTags returns the list of features supported by snapd for mediating access to kernel devices.
-func (b *Backend) SandboxTags() []string {
+// SandboxFeatures returns the list of features supported by snapd for mediating access to kernel devices.
+func (b *Backend) SandboxFeatures() []string {
 	return []string{
 		"device-cgroup-v1", /* Snapd creates a device group (v1) for each snap */
 		"tagging",          /* Tagging dynamically associates new devices with specific snaps */

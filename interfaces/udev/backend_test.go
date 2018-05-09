@@ -414,8 +414,8 @@ func (s *backendSuite) TestUpdatingSnapWithoutSlotsToOneWithoutSlots(c *C) {
 	}
 }
 
-func (s *backendSuite) TestSandboxTags(c *C) {
-	c.Assert(s.Backend.SandboxTags(), DeepEquals, []string{
+func (s *backendSuite) TestSandboxFeatures(c *C) {
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
 		"device-cgroup-v1",
 		"tagging",
 	})

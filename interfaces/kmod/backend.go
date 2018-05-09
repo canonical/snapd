@@ -132,7 +132,7 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }
 
-// SandboxTags returns the list of features supported by snapd for loading kernel modules.
-func (b *Backend) SandboxTags() []string {
+// SandboxFeatures returns the list of features supported by snapd for loading kernel modules.
+func (b *Backend) SandboxFeatures() []string {
 	return []string{"mediated-modprobe"}
 }
