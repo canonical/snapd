@@ -4,8 +4,9 @@ After=snapd.service snapd.socket
 
 [Service]
 Type=oneshot
-ExecStart=@bindir@/snap wait-seeded
+ExecStart=@bindir@/snap wait system seed.done
 RemainAfterExit=true
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target cloud-final.service
+

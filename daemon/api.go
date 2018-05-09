@@ -277,8 +277,6 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil && err != state.ErrNoState {
 		return InternalError("cannot get user auth data: %s", err)
 	}
-	var seeded bool
-	st.Get("seeded", &seeded)
 
 	refreshInfo := client.RefreshInfo{
 		Last: formatRefreshTime(lastRefresh),
@@ -298,7 +296,6 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"on-classic":     release.OnClassic,
 		"managed":        len(users) > 0,
 		"kernel-version": release.KernelVersion(),
-		"seeded":         seeded,
 		"locations": map[string]interface{}{
 			"snap-mount-dir": dirs.SnapMountDir,
 			"snap-bin-dir":   dirs.SnapBinariesDir,
@@ -1625,7 +1622,15 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 					currentConfValues = make(map[string]interface{})
 					break
 				}
-				return BadRequest("%v", err)
+				return SyncResponse(&resp{
+					Type: ResponseTypeError,
+					Result: &errorResult{
+						Message: err.Error(),
+						Kind:    errorKindConfigNoSuchOption,
+						Value:   err,
+					},
+					Status: 400,
+				}, nil)
 			} else {
 				return InternalError("%v", err)
 			}
