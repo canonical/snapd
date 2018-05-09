@@ -17,7 +17,7 @@ execute: |
     files="/etc/xdg/user-dirs.conf /etc/xdg/user-dirs.defaults"
 
     echo "The plug is connected by default"
-    snap interfaces | MATCH ":desktop .*test-snapd-desktop"
+    snap interfaces -i desktop | MATCH ":desktop .*test-snapd-desktop"
 
     echo "Then the snap is able to desktop files and directories"
     test-snapd-desktop.check-files $files
