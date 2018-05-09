@@ -34,6 +34,7 @@ var _ = Suite(&helpersSuite{})
 func (s *helpersSuite) TestNestedGet(c *C) {
 	consumer := snaptest.MockInfo(c, `
 name: consumer
+version: 0
 apps:
     app:
 plugs:
@@ -47,6 +48,7 @@ plugs:
 
 	producer := snaptest.MockInfo(c, `
 name: producer
+version: 0
 apps:
     app:
 slots:
