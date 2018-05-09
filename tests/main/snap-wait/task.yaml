@@ -1,4 +1,4 @@
-summary: Check that `snap wait system seed.done` works
+summary: Check that `snap wait` works
 
 kill-timeout: 2m
 
@@ -8,7 +8,7 @@ prepare: |
 
 execute: |
     echo "Ensure snap wait for seeding works"
-    snap wait system seed.done
+    snap wait system seed.loaded
 
     echo "Ensure snap wait for arbitrary stuff works"
     # set to a false value

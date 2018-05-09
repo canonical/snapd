@@ -348,11 +348,11 @@ func (m *DeviceManager) ensureBootOk() error {
 func markSeededInConfig(st *state.State) error {
 	var seedDone bool
 	tr := config.NewTransaction(st)
-	if err := tr.Get("core", "seed.done", &seedDone); err != nil && !config.IsNoOption(err) {
+	if err := tr.Get("core", "seed.loaded", &seedDone); err != nil && !config.IsNoOption(err) {
 		return err
 	}
 	if !seedDone {
-		if err := tr.Set("core", "seed.done", true); err != nil {
+		if err := tr.Set("core", "seed.loaded", true); err != nil {
 			return err
 		}
 		tr.Commit()
