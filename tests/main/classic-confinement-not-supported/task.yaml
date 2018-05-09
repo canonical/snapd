@@ -30,13 +30,11 @@ execute: |
     if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
         EXPECTED_TEXT="classic confinement requires snaps under /snap or symlink from /snap to /var/lib/snapd/snap"
     fi
-    #shellcheck disable=SC2015
-    str_to_one_line "$( snap install --dangerous --classic "${CLASSIC_SNAP}_1.0_all.snap" 2>&1 && exit 1 || true )" | MATCH "$EXPECTED_TEXT"
+    str_to_one_line "$( snap install --dangerous --classic "${CLASSIC_SNAP}_1.0_all.snap" 2>&1 )" | MATCH "$EXPECTED_TEXT"
 
     echo "Not from the store either"
     EXPECTED_TEXT="snap \"$CLASSIC_SNAP\" requires classic confinement which is only available on classic systems"
     if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
         EXPECTED_TEXT="cannot install \"$CLASSIC_SNAP\": classic confinement requires snaps under /snap or symlink from /snap to /var/lib/snapd/snap"
     fi
-    #shellcheck disable=SC2015
-    str_to_one_line "$( snap install --classic "$CLASSIC_SNAP" 2>&1 && exit 1 || true )" | MATCH "$EXPECTED_TEXT"
+    str_to_one_line "$( snap install --classic "$CLASSIC_SNAP" 2>&1 )" | MATCH "$EXPECTED_TEXT"
