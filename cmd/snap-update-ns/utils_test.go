@@ -226,6 +226,7 @@ func (s *utilsSuite) TestSecureMkdirAllOpenError(c *C) {
 }
 
 func (s *utilsSuite) TestPlanWritableMimic(c *C) {
+	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
 	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
 		c.Assert(dir, Equals, "/foo")
 		return []os.FileInfo{
@@ -262,7 +263,7 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 		// Store /foo in /tmp/.snap/foo while we set things up
 		{Entry: osutil.MountEntry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"rbind"}}, Action: update.Mount},
 		// Put a tmpfs over /foo
-		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/foo/bar"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/foo/bar", "mode=0755", "uid=0", "gid=0"}}, Action: update.Mount},
 		// Bind mount files and directories over. Note that files are identified by x-snapd.kind=file option.
 		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file", "x-snapd.synthetic", "x-snapd.needed-by=/foo/bar"}}, Action: update.Mount},
 		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"rbind", "x-snapd.synthetic", "x-snapd.needed-by=/foo/bar"}}, Action: update.Mount},
@@ -276,6 +277,7 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 }
 
 func (s *utilsSuite) TestPlanWritableMimicErrors(c *C) {
+	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
 	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
 		c.Assert(dir, Equals, "/foo")
 		return nil, errTesting
