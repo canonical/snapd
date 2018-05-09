@@ -39,7 +39,7 @@ restore: |
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces | MATCH "\- +network-observe-consumer:network-observe"
+    snap interfaces -i network-observe | MATCH "\- +network-observe-consumer:network-observe"
 
     echo "When the plug is connected"
     snap connect network-observe-consumer:network-observe

@@ -463,18 +463,18 @@ func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", mockSnapPath, "/apps/foo/1.0", "squashfs")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
-Description=Mount unit for foo
+Description=Mount unit for foo, revision 42
 Before=snapd.service
 
 [Mount]
 What=%s
-Where=/apps/foo/1.0
+Where=/snap/snapname/123
 Type=squashfs
 Options=nodev,ro,x-gdu.hide
 
@@ -486,18 +486,18 @@ WantedBy=multi-user.target
 func (s *SystemdTestSuite) TestWriteMountUnitForDirs(c *C) {
 	// a directory instead of a file produces a different output
 	snapDir := c.MkDir()
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foodir", snapDir, "/apps/foo/1.0", "squashfs")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foodir", "x1", snapDir, "/snap/snapname/x1", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
-Description=Mount unit for foodir
+Description=Mount unit for foodir, revision x1
 Before=snapd.service
 
 [Mount]
 What=%s
-Where=/apps/foo/1.0
+Where=/snap/snapname/x1
 Type=none
 Options=nodev,ro,x-gdu.hide,bind
 
@@ -528,18 +528,18 @@ exit 0
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", mockSnapPath, "/apps/foo/1.0", "squashfs")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
 	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
-Description=Mount unit for foo
+Description=Mount unit for foo, revision x1
 Before=snapd.service
 
 [Mount]
 What=%s
-Where=/apps/foo/1.0
+Where=/snap/snapname/123
 Type=fuse.squashfuse
 Options=nodev,ro,x-gdu.hide,allow_other
 
@@ -566,18 +566,18 @@ exit 0
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", mockSnapPath, "/apps/foo/1.0", "squashfs")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
-Description=Mount unit for foo
+Description=Mount unit for foo, revision x1
 Before=snapd.service
 
 [Mount]
 What=%s
-Where=/apps/foo/1.0
+Where=/snap/snapname/123
 Type=squashfs
 Options=nodev,ro,x-gdu.hide
 
