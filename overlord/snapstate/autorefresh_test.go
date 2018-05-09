@@ -106,6 +106,7 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
+	snapstate.IsOnMeteredConnection = func() (bool, error) { return false, nil }
 
 	s.state.Set("seed-time", time.Now())
 }
@@ -451,4 +452,64 @@ func (s *autoRefreshTestSuite) TestAtSeedPolicy(c *C) {
 	err = tr.Get("core", "refresh.hold", &t2)
 	c.Check(err, IsNil)
 	c.Check(t1.Equal(t2), Equals, true)
+}
+
+func (s *autoRefreshTestSuite) TestCanRefreshOnMetered(c *C) {
+	revert := snapstate.MockIsOnMeteredConnection(func() (bool, error) {
+		return true, nil
+	})
+	defer revert()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	can, err := snapstate.CanRefreshOnMeteredConnection(s.state)
+	c.Assert(can, Equals, true)
+	c.Assert(err, Equals, nil)
+
+	// enable holding refreshes when on metered connection
+	tr := config.NewTransaction(s.state)
+	err = tr.Set("core", "refresh.hold-on-metered", true)
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	can, err = snapstate.CanRefreshOnMeteredConnection(s.state)
+	c.Assert(can, Equals, false)
+	c.Assert(err, Equals, nil)
+}
+
+func (s *autoRefreshTestSuite) TestRefreshOnMetered(c *C) {
+	// pretend we're on metered connection
+	revert := snapstate.MockIsOnMeteredConnection(func() (bool, error) {
+		return true, nil
+	})
+	defer revert()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold-on-metered", true)
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+
+	s.state.Set("last-refresh", time.Now().Add(-24*time.Hour))
+	s.state.Unlock()
+	err := af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+	// no refresh
+	c.Check(s.store.ops, HasLen, 0)
+
+	c.Check(af.NextRefresh(), DeepEquals, time.Time{})
+
+	// last refresh over 60 days ago, new one is launched regardless of
+	// connection being metered
+	s.state.Set("last-refresh", time.Now().Add(-61*24*time.Hour))
+	s.state.Unlock()
+	err = af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
 }
