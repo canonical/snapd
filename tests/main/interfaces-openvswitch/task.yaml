@@ -48,7 +48,7 @@ restore: |
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces | MATCH "\- +test-snapd-openvswitch-consumer:openvswitch"
+    snap interfaces -i openvswitch | MATCH "\- +test-snapd-openvswitch-consumer:openvswitch"
 
     echo "When the plug is connected"
     snap connect test-snapd-openvswitch-consumer:openvswitch

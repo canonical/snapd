@@ -74,7 +74,7 @@ if [ "$1" = "purge" ]; then
             find /etc/dbus-1/system.d -name "snap.${snap}.*.conf" -execdir rm -f "{}" \;
             # timer files
             find /etc/systemd/system -name "snap.${snap}.*.timer" | while read -r f; do
-                systemctl_stop "$(basename $f)"
+                systemctl_stop "$(basename "$f")"
                 rm -f "$f"
             done
         fi

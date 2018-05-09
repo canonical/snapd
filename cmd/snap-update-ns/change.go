@@ -215,7 +215,7 @@ func changePerformImpl(c *Change, sec *Secure) (changes []*Change, err error) {
 	}
 
 	// Perform the underlying mount / unmount / unlink call.
-	err = c.lowLevelPerform()
+	err = c.lowLevelPerform(sec)
 	return changes, err
 }
 
@@ -234,7 +234,7 @@ func (c *Change) Perform(sec *Secure) ([]*Change, error) {
 }
 
 // lowLevelPerform is simple bridge from Change to mount / unmount syscall.
-func (c *Change) lowLevelPerform() error {
+func (c *Change) lowLevelPerform(sec *Secure) error {
 	var err error
 	switch c.Action {
 	case Mount:
@@ -244,7 +244,14 @@ func (c *Change) lowLevelPerform() error {
 			// symlinks are handled in createInode directly, nothing to do here.
 		case "", "file":
 			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
-			err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+			// If we're performing a bind mount on a
+			// regular directory, use the secureBindMount
+			// implementation
+			if flags&syscall.MS_BIND == syscall.MS_BIND && kind == "" {
+				err = sec.BindMount(c.Entry.Name, c.Entry.Dir, uint(flags))
+			} else {
+				err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+			}
 			logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
 		}
 		return err
