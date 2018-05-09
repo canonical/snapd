@@ -50,11 +50,27 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 	return fmt.Sprintf("%v", v), nil
 }
 
+func validateExperimentalSettings(tr Conf) error {
+	layoutsEnabled, err := coreCfg(tr, "experimental.layouts")
+	if err != nil {
+		return err
+	}
+	switch layoutsEnabled {
+	case "", "true", "false":
+		return nil
+	default:
+		return fmt.Errorf("experimental.layouts can only be set to 'true' or 'false'")
+	}
+}
+
 func Run(tr Conf) error {
 	if err := validateProxyStore(tr); err != nil {
 		return err
 	}
 	if err := validateRefreshSchedule(tr); err != nil {
+		return err
+	}
+	if err := validateExperimentalSettings(tr); err != nil {
 		return err
 	}
 

@@ -13,7 +13,7 @@ restore: |
 
 execute: |
     echo "The interface is connected by default"
-    snap interfaces | MATCH ":wayland .*test-snapd-wayland"
+    snap interfaces -i wayland | MATCH ":wayland .*test-snapd-wayland"
 
     echo "When the plug is connected"
     snap connect test-snapd-wayland:wayland
