@@ -19,7 +19,8 @@ prepare: |
     snap pack $TESTSLIB/snaps/$SNAP_NAME_BAD
 
 debug: |
-    journalctl -u snap.test-snapd-service.service.service
+    . "$TESTSLIB"/journalctl.sh
+    get_journalctl_log -u snap.test-snapd-service.service.service
 
 execute: |
     wait_for_service_status() {

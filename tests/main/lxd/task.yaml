@@ -23,8 +23,10 @@ restore: |
     lxd.lxc delete my-ubuntu
 
 debug: |
+    . "$TESTSLIB/journalctl.sh"
+
     # debug output from lxd
-    journalctl -u snap.lxd.daemon.service
+    get_journalctl_log -u snap.lxd.daemon.service
 
 execute: |
     if  [[ $(ls -1 "$GOHOME"/snapd_*.deb | wc -l || echo 0) -eq 0 ]]; then

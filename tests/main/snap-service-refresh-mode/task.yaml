@@ -7,8 +7,10 @@ debug: |
     systemctl status snap.test-snapd-service.test-snapd-endure-service || true
 
 execute: |
+    . "$TESTSLIB/snaps.sh"
+    . "$TESTSLIB/journalctl.sh"
+
     echo "When the service snap is installed"
-    . $TESTSLIB/snaps.sh
     install_local test-snapd-service
 
     echo "We can see it running"
@@ -25,7 +27,7 @@ execute: |
 
     echo "Once the snap is removed, the service is stopped"
     snap remove test-snapd-service
-    journalctl | MATCH "stop endure"
+    get_journalctl_log | MATCH "stop endure"
 
 restore:
     rm -f *.pid || true

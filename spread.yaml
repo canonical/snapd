@@ -288,8 +288,9 @@ exclude:
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+        . "$TESTSLIB"/journalctl.sh
         echo '# journal messages for snapd'
-        journalctl -u snapd
+        get_journalctl_log -u snapd
         echo '# apparmor denials '
         dmesg --ctime | grep DENIED || true
         echo '# seccomp denials (kills) '
