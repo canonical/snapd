@@ -3,18 +3,16 @@ summary: Check that the core-fixup-sh script works
 systems: [ubuntu-core-16-*]
 
 restore: |
-    rm -f /boot/uboot/uboot.env.unrelated
-    rm -f /boot/uboot/unrelated.uboot.env
-    # remove empty uboot.env
-    if [ $(stat -c%s /boot/uboot/uboot.env) = "0" ]; then
-        rm -f /boot/uboot/uboot.env
-        rmdir /boot/uboot
-    fi
+    umount /boot/uboot
 
 execute: |
     # FIXME: in order to test this for real we need to find a way
     #        to create the duplicated uboot.env files on disk during the test
+
+
     mkdir -p /boot/uboot
+    echo "Ensure we have a clean and writable /boot/uboot to mess around"
+    mount -t tmpfs none /boot/uboot
     touch /boot/uboot/uboot.env.unrelated
     touch /boot/uboot/unrelated.uboot.env
     touch /boot/uboot/uboot.env
