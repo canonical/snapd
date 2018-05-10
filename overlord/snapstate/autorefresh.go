@@ -257,6 +257,8 @@ func (m *autoRefresh) Ensure() error {
 					default:
 						when = fmt.Sprintf("in %d days", remaining)
 					}
+					// TODO use warnings when the infra becomes available
+					// TODO consider switching to timeutil.Human when it grows the ability to print only days
 					logger.Noticef("Auto refresh disabled while on metered connection, refreshing %s anyway", when)
 					// clear nextRefresh so that another refresh time is calculated
 					m.nextRefresh = time.Time{}
