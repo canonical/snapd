@@ -228,6 +228,8 @@ func changePerformImpl(c *Change, sec *Secure) (changes []*Change, err error) {
 		// and that's why we may return more changes as a result of performing this
 		// one.
 		changesTarget, err = c.ensureTarget(sec)
+		// NOTE: we are collecting changes even if things fail. This is so that
+		// upper layers can perform undo correctly.
 		changes = append(changes, changesTarget...)
 		if err != nil {
 			return changes, err
@@ -240,6 +242,8 @@ func changePerformImpl(c *Change, sec *Secure) (changes []*Change, err error) {
 		// are under the control of regular (non-snap) processes that are not
 		// suspended and may be racing with us.
 		changesSource, err = c.ensureSource(sec)
+		// NOTE: we are collecting changes even if things fail. This is so that
+		// upper layers can perform undo correctly.
 		changes = append(changes, changesSource...)
 		if err != nil {
 			return changes, err
