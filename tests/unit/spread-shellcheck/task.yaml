@@ -1,0 +1,23 @@
+summary: Verify spread task scripts with shellcheck
+
+# need a recent shellcheck version
+systems: [ubuntu-18.04-64]
+
+prepare: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_install_package python-pip shellcheck
+    pip install --user yq
+
+execute: |
+    testdir=$PWD
+    cd "$SPREAD_PATH" || exit 1
+    export PATH="$PATH:$HOME/.local/bin"
+    MUST_PASS="$testdir/must" ./spread-shellcheck spread.yaml tests
+
+restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+
+    pip uninstall -y yq || true
+    distro_purge_package python-pip shellcheck
