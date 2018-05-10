@@ -92,6 +92,14 @@ func (s *DesktopInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/fonts"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	// connected plug to core slot
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
@@ -100,6 +108,22 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/fonts>")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/gtk-3.0/settings.ini r,")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow access to xdg-desktop-portal and xdg-document-portal")
+
+	// No UpdateNS rules on an all-snaps system
+	updateNS := spec.UpdateNS()
+	c.Assert(updateNS, HasLen, 0)
+
+	// On a classic system, there are UpdateNS rules for the host
+	// system font mounts
+	restore = release.MockOnClassic(true)
+	defer restore()
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+	updateNS = spec.UpdateNS()
+	c.Assert(updateNS, HasLen, 3)
+	c.Check(updateNS[0], testutil.Contains, "# Read-only access to /usr/share/fonts")
+	c.Check(updateNS[1], testutil.Contains, "# Read-only access to /usr/local/share/fonts")
+	c.Check(updateNS[2], testutil.Contains, "# Read-only access to /var/cache/fontconfig")
 
 	// connected plug to core slot
 	spec = &apparmor.Specification{}
