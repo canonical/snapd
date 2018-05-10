@@ -143,24 +143,29 @@ func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvFsPath(c 
 }
 
 func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvBadFormat(c *C) {
+	var socketPath string
 	restore := builtin.MockOsGetenv(func(what string) string {
 		c.Assert(what, Equals, "NOTIFY_SOCKET")
-		return `/foo/bar"[]`
+		return socketPath
 	})
 	defer restore()
 
-	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, ErrorMatches, `cannot use "/foo/bar\\"\[\]" as notify socket path`)
-
-	restore = builtin.MockOsGetenv(func(what string) string {
-		c.Assert(what, Equals, "NOTIFY_SOCKET")
-		return `foo/bar`
-	})
-	defer restore()
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, ErrorMatches, `cannot use "foo/bar" as notify socket path`)
+	for idx, tc := range []struct {
+		format string
+		error  string
+	}{
+		{"foo/bar", `cannot use "foo/bar" as notify socket path`},
+		{"[", `cannot use "\[" as notify socket path`},
+		{"@^", `cannot use "@\^" as notify socket path`},
+		{`/foo/bar"[]`, `cannot use "/foo/bar\\"\[\]" as notify socket path`},
+	} {
+		c.Logf("trying %d: %v", idx, tc)
+		socketPath = tc.format
+		// connected plugs have a non-nil security snippet for apparmor
+		apparmorSpec := &apparmor.Specification{}
+		err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+		c.Assert(err, ErrorMatches, tc.error)
+	}
 }
 
 func (s *serviceWatchdogSuite) TestInterfaces(c *C) {
