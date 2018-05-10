@@ -46,9 +46,8 @@ func init() {
 			{
 				name: "<snap>",
 				// TRANSLATORS: This should probably not start with a lowercase letter.
-				desc: i18n.G("The snap whose conf is being requested"),
-			},
-			{
+				desc: i18n.G("The snap for which configuration will be checked"),
+			}, {
 				// TRANSLATORS: This needs to be wrapped in <>s.
 				name: i18n.G("<key>"),
 				// TRANSLATORS: This should probably not start with a lowercase letter.
@@ -73,6 +72,18 @@ func trueish(vi interface{}) bool {
 			return true
 		}
 	case int:
+		if v > 0 {
+			return true
+		}
+	case int64:
+		if v > 0 {
+			return true
+		}
+	case float32:
+		if v > 0 {
+			return true
+		}
+	case float64:
 		if v > 0 {
 			return true
 		}

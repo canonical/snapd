@@ -2610,7 +2610,7 @@ func (s *apiSuite) TestGetConfMissingKey(c *check.C) {
 			"Key":      "test-key2",
 		},
 		"message": `snap "test-snap" has no "test-key2" configuration option`,
-		"kind":    "config-no-such-option",
+		"kind":    "option-not-found",
 	})
 }
 
