@@ -33,8 +33,10 @@ execute: |
         done
     }
 
+    . "$TESTSLIB/snaps.sh"
+    . "$TESTSLIB/journalctl.sh"
+
     echo "When the service snap is installed"
-    . $TESTSLIB/snaps.sh
     install_local test-snapd-service
 
     echo "We can see it running"
@@ -73,7 +75,7 @@ execute: |
     echo "Reinstalling the snap with configure hook calling snapctl restart works"
     snap set test-snapd-service command=restart
     install_local test-snapd-service
-    if journalctl|grep -q "error running snapctl"; then
+    if get_journalctl_log | MATCH "error running snapctl"; then
         echo "snapctl should not report errors"
         exit 1
     fi

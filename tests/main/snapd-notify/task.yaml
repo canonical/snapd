@@ -5,9 +5,11 @@ summary: Ensure snapd notify feature is working
 backends: [-external]
 
 execute: |
+    . "$TESTSLIB/journalctl.sh"
+
     for _ in $(seq 5); do
       if systemctl status snapd.service | MATCH "Active: active"; then
-          journalctl -u snapd | MATCH "activation done in"
+          get_journalctl_log -u snapd | MATCH "activation done in"
           exit
       fi
       sleep 1
