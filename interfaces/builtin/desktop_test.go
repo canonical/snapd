@@ -152,6 +152,7 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Check(spec.MountEntries(), HasLen, 0)
+	c.Check(spec.UserMountEntries(), HasLen, 0)
 
 	// On classic systems, a number of font related directories
 	// are bind mounted from the host system if they exist.
@@ -175,6 +176,12 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	c.Check(entries[2].Name, Equals, hostfs+dirs.SystemFontconfigCacheDir)
 	c.Check(entries[2].Dir, Equals, "/var/cache/fontconfig")
 	c.Check(entries[2].Options, DeepEquals, []string{"bind", "ro"})
+
+	entries = spec.UserMountEntries()
+	c.Assert(entries, HasLen, 1)
+	c.Check(entries[0].Name, Equals, "$XDG_RUNTIME_DIR/doc/by-app/snap.consumer")
+	c.Check(entries[0].Dir, Equals, "$XDG_RUNTIME_DIR/doc")
+	c.Check(entries[0].Options, DeepEquals, []string{"bind", "rw", "x-snapd.ignore-missing"})
 }
 
 func (s *DesktopInterfaceSuite) TestStaticInfo(c *C) {

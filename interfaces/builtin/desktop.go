@@ -279,7 +279,7 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 	spec.AddUserMountEntry(osutil.MountEntry{
 		Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
 		Dir:     "$XDG_RUNTIME_DIR/doc",
-		Options: []string{"bind", "rw"},
+		Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
 	})
 
 	return nil
