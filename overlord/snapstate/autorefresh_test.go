@@ -494,7 +494,7 @@ func (s *autoRefreshTestSuite) TestRefreshOnMetered(c *C) {
 
 	af := snapstate.NewAutoRefresh(s.state)
 
-	s.state.Set("last-refresh", time.Now().Add(-24*time.Hour))
+	s.state.Set("last-refresh", time.Now().Add(-5*24*time.Hour))
 	s.state.Unlock()
 	err := af.Ensure()
 	s.state.Lock()
