@@ -32,6 +32,7 @@ restore_classic_state() {
 
 save_all_snap_state() {
     local boot_path="$(get_boot_path)"
+    test -n "$boot_path" || return 1
 
     mkdir -p "$SNAPD_STATE_PATH" "$SNAPD_STATE_PATH"/system-units
 
@@ -45,6 +46,7 @@ restore_all_snap_state() {
     # we need to ensure that we also restore the boot environment
     # fully for tests that break it
     local boot_path="$(get_boot_path)"
+    test -n "$boot_path" || return 1
 
     restore_snapd_lib
     cp -rf "$SNAPD_STATE_PATH"/boot/* "$boot_path"
