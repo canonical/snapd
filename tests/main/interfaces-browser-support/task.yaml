@@ -56,7 +56,7 @@ execute: |
        echo "If allow-sandbox is false then the plug is connected by default"
     else
        echo "If allow-sandbox is true then the plug is not connected by default"
-       snap interfaces | MATCH "\- +browser-support-consumer:browser-support"
+       snap interfaces -i browser-support | MATCH "\- +browser-support-consumer:browser-support"
 
        echo "Do connect it manually"
        snap connect browser-support-consumer:browser-support
