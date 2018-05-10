@@ -27,7 +27,7 @@ execute: |
     snap connect test-snapd-desktop:desktop
     [ -f /var/lib/snapd/mount/snap.test-snapd-desktop.user-fstab ]
     diff -u /var/lib/snapd/mount/snap.test-snapd-desktop.user-fstab - << \EOF
-    $XDG_RUNTIME_DIR/doc/by-app/snap.test-snapd-desktop $XDG_RUNTIME_DIR/doc none bind,rw 0 0
+    $XDG_RUNTIME_DIR/doc/by-app/snap.test-snapd-desktop $XDG_RUNTIME_DIR/doc none bind,rw,x-snapd.ignore-missing 0 0
     EOF
 
     echo "The user-fstab file is used to prepare the confinement sandbox"
