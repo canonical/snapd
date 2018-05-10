@@ -23,6 +23,10 @@ layout:
   # Layouts can help with applications designed for /opt
   /opt/demo:
     bind: $SNAP/opt/demo
+  # Layouts can poke holes and preserve DAC permissions while doing so
+  # notably /var/spool/rsyslog is owned by syslog:adm and has mode 700
+  /var/spool/rsyslog/demo:
+    bind: $SNAP_DATA/var/spool/rsyslog/demo
   # Layout can refer to non-existing source path.
   /bin/very-weird-place:
     bind: $SNAP/bin-very-weird-place

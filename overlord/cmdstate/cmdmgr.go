@@ -61,19 +61,28 @@ func (m *CommandManager) Stop() {
 	m.runner.Stop()
 }
 
-var execTimeout = 5 * time.Second
+var defaultExecTimeout = 5 * time.Second
 
 func doExec(t *state.Task, tomb *tomb.Tomb) error {
 	var argv []string
+	var tout time.Duration
+
 	st := t.State()
 	st.Lock()
-	err := t.Get("argv", &argv)
+	err1 := t.Get("argv", &argv)
+	err2 := t.Get("timeout", &tout)
 	st.Unlock()
-	if err != nil {
-		return err
+	if err1 != nil {
+		return err1
+	}
+	if err2 != nil && err2 != state.ErrNoState {
+		return err2
+	}
+	if err2 == state.ErrNoState {
+		tout = defaultExecTimeout
 	}
 
-	if buf, err := osutil.RunAndWait(argv, nil, execTimeout, tomb); err != nil {
+	if buf, err := osutil.RunAndWait(argv, nil, tout, tomb); err != nil {
 		st.Lock()
 		t.Errorf("# %s\n%s", strings.Join(argv, " "), buf)
 		st.Unlock()
