@@ -37,6 +37,7 @@ import (
 )
 
 var noConflictOnConnectTasks = func(task *state.Task) bool {
+	// TODO: reconsider this check with regard to interface hooks
 	return task.Kind() != "connect" && task.Kind() != "disconnect"
 }
 

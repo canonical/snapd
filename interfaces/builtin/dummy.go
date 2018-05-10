@@ -36,8 +36,6 @@ const dummyInterfaceBaseDeclarationSlots = `
       slot-snap-type:
         - app
     deny-auto-connection: true
-    deny-connection:
-      on-classic: false
 `
 
 func (iface *dummyInterface) String() string {

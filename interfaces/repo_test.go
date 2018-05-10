@@ -1183,7 +1183,7 @@ func (s *RepositorySuite) TestDisconnectSucceeds(c *C) {
 // Connected fails if snap name is empty and there's no core snap around
 func (s *RepositorySuite) TestConnectedFailsWithEmptySnapName(c *C) {
 	_, err := s.testRepo.Connected("", s.plug.Name)
-	c.Check(err, ErrorMatches, "snap name is empty")
+	c.Check(err, ErrorMatches, "internal error: cannot obtain core snap name while computing connections")
 }
 
 // Connected fails if plug or slot name is empty
@@ -1247,6 +1247,26 @@ func (s *RepositorySuite) TestConnections(c *C) {
 	conns, err = s.testRepo.Connections(s.slot.Snap.Name())
 	c.Assert(err, IsNil)
 	c.Check(conns, DeepEquals, []*ConnRef{NewConnRef(s.plug, s.slot)})
+
+	conns, err = s.testRepo.Connections("abc")
+	c.Assert(err, IsNil)
+	c.Assert(conns, HasLen, 0)
+}
+
+// Connected finds connections when asked from plug or from slot side
+func (s *RepositorySuite) TestConnections(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+	_, err := s.testRepo.Connect(*NewConnRef(s.plug, s.slot), nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	conns, err := s.testRepo.Connections(s.plug.Snap.Name())
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, []ConnRef{*NewConnRef(s.plug, s.slot)})
+
+	conns, err = s.testRepo.Connections(s.slot.Snap.Name())
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, []ConnRef{*NewConnRef(s.plug, s.slot)})
 
 	conns, err = s.testRepo.Connections("abc")
 	c.Assert(err, IsNil)

@@ -116,7 +116,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.o.AddManager(s.snapmgr)
 
-	s.BaseTest.AddCleanup(snapstate.MockReadInfo(s.fakeBackend.ReadInfo))
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo))
 	s.BaseTest.AddCleanup(snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile))
 	revDate := func(info *snap.Info) time.Time {
 		if info.Revision.Local() {
@@ -357,7 +357,6 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
-		"reconnect",
 		"run-hook[post-refresh]",
 		"start-snap-services")
 
@@ -549,7 +548,6 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
-		"reconnect",
 		"start-snap-services",
 		"run-hook[configure]",
 	})
@@ -1013,7 +1011,6 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
-		"reconnect",
 		"start-snap-services",
 		"run-hook[configure]",
 	})
@@ -5929,6 +5926,34 @@ run-hook: Hold`)
 
 }
 
+func (s *snapmgrTestSuite) TestErrreportDisable(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "problem-reports.disabled", true)
+	tr.Commit()
+
+	restore := snapstate.MockErrtrackerReport(func(aSnap, aErrMsg, aDupSig string, extra map[string]string) (string, error) {
+		c.Fatalf("this should not be reached")
+		return "", nil
+	})
+	defer restore()
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "some-snap/11")
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// no failure report was generated
+}
+
 func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicy(c *C) {
 	// special policy only on classic
 	r := release.MockOnClassic(true)
@@ -7564,7 +7589,7 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	defer r()
 
 	// using MockSnap, we want to read the bits on disk
-	snapstate.MockReadInfo(snap.ReadInfo)
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7656,7 +7681,7 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 	makeInstalledMockCoreSnap(c)
 
 	// using MockSnap, we want to read the bits on disk
-	snapstate.MockReadInfo(snap.ReadInfo)
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7686,7 +7711,7 @@ func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 	makeInstalledMockCoreSnap(c)
 
 	// using MockSnap, we want to read the bits on disk
-	snapstate.MockReadInfo(snap.ReadInfo)
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7709,7 +7734,7 @@ func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 	makeInstalledMockCoreSnap(c)
 
 	// using MockSnap, we want to read the bits on disk
-	snapstate.MockReadInfo(snap.ReadInfo)
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
