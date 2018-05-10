@@ -248,7 +248,16 @@ func (m *autoRefresh) Ensure() error {
 			metered, _ := IsOnMeteredConnection()
 			if metered {
 				if now.Sub(lastRefresh) < maxPostponement {
-					logger.Noticef("Auto refresh disabled while on metered connection")
+					var when string
+					switch remaining := int(lastRefresh.Add(maxPostponement).Sub(now).Hours() / 24); remaining {
+					case 0:
+						when = "today"
+					case 1:
+						when = "tomorrow"
+					default:
+						when = fmt.Sprintf("in %d days", remaining)
+					}
+					logger.Noticef("Auto refresh disabled while on metered connection, refreshing %s anyway", when)
 					// clear nextRefresh so that another refresh time is calculated
 					m.nextRefresh = time.Time{}
 					return nil
