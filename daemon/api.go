@@ -1638,7 +1638,15 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 					currentConfValues = make(map[string]interface{})
 					break
 				}
-				return BadRequest("%v", err)
+				return SyncResponse(&resp{
+					Type: ResponseTypeError,
+					Result: &errorResult{
+						Message: err.Error(),
+						Kind:    errorKindConfigNoSuchOption,
+						Value:   err,
+					},
+					Status: 400,
+				}, nil)
 			} else {
 				return InternalError("%v", err)
 			}
