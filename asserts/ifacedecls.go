@@ -26,8 +26,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/snapcore/snapd/interfaces"
 )
 
 // AttrMatchContext has contextual helpers for evaluating attribute constraints.
@@ -152,6 +150,14 @@ func (matcher mapAttrMatcher) feature(flabel string) bool {
 
 func (matcher mapAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
 	switch x := v.(type) {
+	case Attrer:
+		// we get Atter from root-level Check (apath is "")
+		for k, matcher1 := range matcher {
+			v, _ := x.Lookup(k)
+			if err := matchEntry("", k, matcher1, v, ctx); err != nil {
+				return err
+			}
+		}
 	case map[string]interface{}: // maps in attributes look like this
 		for k, matcher1 := range matcher {
 			if err := matchEntry(apath, k, matcher1, x[k], ctx); err != nil {
@@ -342,19 +348,14 @@ var (
 	NeverMatchAttributes  = &AttributeConstraints{matcher: fixedAttrMatcher{errors.New("not allowed")}}
 )
 
+// Attrer reflects part of the Attrer interface (see interfaces.Attrer).
+type Attrer interface {
+	Lookup(path string) (interface{}, bool)
+}
+
 // Check checks whether attrs don't match the constraints.
-func (c *AttributeConstraints) Check(attrer interfaces.Attrer, ctx AttrMatchContext) error {
-	if mapm, ok := c.matcher.(mapAttrMatcher); ok {
-		// starting at root path, use attrer to obtain top-level values
-		for k, m := range mapm {
-			v, _ := attrer.Lookup(k)
-			if err := m.match(k, v, ctx); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	return c.matcher.match("", nil, ctx)
+func (c *AttributeConstraints) Check(attrer Attrer, ctx AttrMatchContext) error {
+	return c.matcher.match("", attrer, ctx)
 }
 
 // OnClassicConstraint specifies a constraint based whether the system is classic and optional specific distros' sets.
