@@ -35,7 +35,7 @@ if [ $(ls /boot/uboot | grep ^uboot.env$ | wc -l) -gt 1 ]; then
 fi
 
 
-# The code below deals with incorrect permissions that happend on
+# The code below deals with incorrect permissions that happened on
 # some buggy ubuntu-image versions.
 #
 # This needs to run only once so we can exit here.
