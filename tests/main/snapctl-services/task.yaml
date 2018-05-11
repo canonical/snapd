@@ -33,7 +33,9 @@ execute: |
         done
     }
 
+    # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
+    # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
 
     echo "When the service snap is installed"

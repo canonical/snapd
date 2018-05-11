@@ -19,6 +19,7 @@ prepare: |
     snap install --edge $SNAP_NAME
 
 execute: |
+    # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
 
     echo "When the snap is refreshed"

@@ -69,6 +69,7 @@ restore: |
     rm -rf $GPIO_MOCK_DIR /etc/systemd/system/gpio-mock.service /home/test/gpio-mock.sh
 
 execute: |
+    # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
 
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

@@ -1,12 +1,16 @@
 #!/bin/sh
 
-JORNALCTL_CURSOR_FILE="${SPREAD_PATH}"/journalctl_cursor
+JOURNALCTL_CURSOR_FILE="${SPREAD_PATH}"/journalctl_cursor
 
 get_last_journalctl_cursor(){
     # It is not being used journalctl json output because jq is not installed on
     # core systems
-    cursor=$(journalctl --output=export -n1 | grep -e '__CURSOR=')
-    echo ${cursor#*=}
+    if [ -z "$(which jq)" ]; then
+        cursor=$(journalctl --output=export -n1 | grep -e '__CURSOR=')
+        echo ${cursor#__CURSOR=}
+    else
+        journalctl --output=json -n1 | jq -r '.__CURSOR'
+    fi
 }
 
 start_new_journalctl_log(){
@@ -15,12 +19,12 @@ start_new_journalctl_log(){
         echo "Empty journalctl cursor, exiting..."
         exit 1
     else
-        echo "$cursor" > "$JORNALCTL_CURSOR_FILE"
+        echo "$cursor" > "$JOURNALCTL_CURSOR_FILE"
     fi
 }
 
 get_journalctl_log(){
-    cursor=$(cat "$JORNALCTL_CURSOR_FILE")
+    cursor=$(cat "$JOURNALCTL_CURSOR_FILE")
     journalctl "$@" --cursor "$cursor"
 }
 

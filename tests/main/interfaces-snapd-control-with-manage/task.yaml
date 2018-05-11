@@ -54,6 +54,7 @@ debug: |
     jq .data.auth.device /var/lib/snapd/state.json
 
 execute: |
+    # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
 
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
