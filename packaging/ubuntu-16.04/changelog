@@ -1,6 +1,8 @@
 snapd (2.32.8) xenial; urgency=medium
 
   * New upstream release, LP: #1767833
+    - snapd.core-fixup.sh: fix workaround for corrupted uboot.env
+      and add tests
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 11 May 2018 14:36:16 +0200
 
