@@ -259,8 +259,15 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 }
 
 func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	appId := "snap." + plug.Snap().Name()
+	spec.AddUserMountEntry(osutil.MountEntry{
+		Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
+		Dir:     "$XDG_RUNTIME_DIR/doc",
+		Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
+	})
+
 	if !release.OnClassic {
-		// There is nothing to expose on an all-snaps system
+		// We only need the font mount rules on classic systems
 		return nil
 	}
 
@@ -274,13 +281,6 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 			Options: []string{"bind", "ro"},
 		})
 	}
-
-	appId := "snap." + plug.Snap().Name()
-	spec.AddUserMountEntry(osutil.MountEntry{
-		Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
-		Dir:     "$XDG_RUNTIME_DIR/doc",
-		Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
-	})
 
 	return nil
 }
