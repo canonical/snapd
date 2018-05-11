@@ -377,6 +377,8 @@ const (
 
 	ErrorKindNetworkTimeout      = "network-timeout"
 	ErrorKindInterfacesUnchanged = "interfaces-unchanged"
+
+	ErrorKindConfigNoSuchOption = "option-not-found"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
