@@ -3,7 +3,10 @@
 JORNALCTL_CURSOR_FILE="${SPREAD_PATH}"/journalctl_cursor
 
 get_last_journalctl_cursor(){
-    journalctl --output=json -n1 | jq -r '.__CURSOR'
+    # It is not being used journalctl json output because jq is not installed on
+    # core systems
+    cursor=$(journalctl --output=export -n1 | grep -e '__CURSOR=')
+    echo ${cursor#*=}
 }
 
 start_new_journalctl_log(){
