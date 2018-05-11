@@ -4,13 +4,9 @@ systems: [ubuntu-core-16-*]
 
 restore: |
     umount /boot/uboot
+    rm -f test.img
 
 execute: |
-    # FIXME: in order to test this for real we need to find a way
-    #        to create the duplicated uboot.env files on disk during the test
-
-
-    mkdir -p /boot/uboot
     echo "Ensure we have a clean and writable /boot/uboot to mess around"
     mount -t tmpfs none /boot/uboot
     touch /boot/uboot/uboot.env.unrelated
@@ -25,5 +21,26 @@ execute: |
     fi
     if [ ! -f /boot/uboot/uboot.env ]; then
         echo "snapd.core-fixup.service destroyed the uboot.env file"
+        exit 1
+    fi
+    umount /boot/uboot
+
+    echo "Now test with the real corrupted image"
+    unxz -c -d test.img.xz >test.img
+    mount -t vfat test.img /boot/uboot
+    n=$(ls /boot/uboot | grep ^uboot.env$ | wc -l)
+    if [ "$n" != "2" ]; then
+        echo "Image not broken in the right way, expected two uboot.env files"
+        ls /boot/uboot
+        exit 1
+    fi
+
+    echo "Trigger cleanup"
+    systemctl restart snapd.core-fixup.service
+
+    n=$(ls /boot/uboot | grep ^uboot.env$ | wc -l)
+    if [ "$n" != "1" ]; then
+        echo "Image not repaired"
+        ls /boot/uboot
         exit 1
     fi
