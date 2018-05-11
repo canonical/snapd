@@ -5,6 +5,7 @@ summary: Ensure snapd notify feature is working
 backends: [-external]
 
 execute: |
+    # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
 
     for _ in $(seq 5); do

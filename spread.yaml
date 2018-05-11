@@ -288,7 +288,9 @@ exclude:
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
-        . "$TESTSLIB"/journalctl.sh
+        # shellcheck source=tests/lib/journalctl.sh
+        . "$TESTSLIB/journalctl.sh"
+
         echo '# journal messages for snapd'
         get_journalctl_log -u snapd
         echo '# apparmor denials '

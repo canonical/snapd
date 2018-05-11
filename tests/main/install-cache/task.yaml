@@ -1,6 +1,7 @@
 summary: Check that download caching works
 
 execute: |
+    # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
 
     snap install test-snapd-tools

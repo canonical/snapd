@@ -1,6 +1,7 @@
 summary: Ensure catalog update works
 
 execute: |
+    # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB/journalctl.sh"
 
     echo "Ensure that catalog refresh happens on startup"

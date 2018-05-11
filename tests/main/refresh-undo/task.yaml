@@ -19,6 +19,7 @@ prepare: |
     snap pack $TESTSLIB/snaps/$SNAP_NAME_BAD
 
 debug: |
+    # shellcheck source=tests/lib/journalctl.sh
     . "$TESTSLIB"/journalctl.sh
     get_journalctl_log -u snap.test-snapd-service.service.service
 
