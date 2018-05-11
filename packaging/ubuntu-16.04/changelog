@@ -1,3 +1,16 @@
+snapd (2.32.7) xenial; urgency=medium
+
+  * New upstream release, LP: #1767833
+    - many: add wait command and seeded target (2
+    - snapd.core-fixup.sh: add workaround for corrupted uboot.env
+    - boot: clear "snap_mode" when needed
+    - cmd/libsnap: fix compile error on more restrictive gcc
+    - tests: cherry-pick commits to move spread to google backend
+    - spread.yaml: add cosmic (18.10) to autopkgtest/qemu
+    - userd: set up journal logging streams for autostarted apps
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 11 May 2018 13:09:32 +0200
+
 snapd (2.32.6) xenial; urgency=medium
 
   * New upstream release, LP: #1767833
