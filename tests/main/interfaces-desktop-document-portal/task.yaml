@@ -5,6 +5,7 @@ details: |
     controlled fashion.  To provide proper security, a subtree of the
     portal needs to be mounted over $XDG_RUNTIME_DIR/doc inside the
     sandbox.
+systems: [-ubuntu-core-*]
 prepare: |
     snap try "$TESTSLIB"/snaps/test-snapd-desktop
     snap disconnect test-snapd-desktop:desktop
