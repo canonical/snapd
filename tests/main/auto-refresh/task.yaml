@@ -4,9 +4,11 @@ prepare: |
     snap install --devmode jq
 
 restore: |
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
 
 execute: |
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
 
     echo "Auto refresh information is shown"
@@ -50,7 +52,7 @@ execute: |
     done
 
     echo "Ensure our snap got updated"
-    snap list|MATCH "test-snapd-tools +[0-9]+\.[0-9]+\+fake1"
+    snap list|MATCH 'test-snapd-tools +[0-9]+\.[0-9]+\+fake1'
 
     echo "Ensure refresh.last is set"
     jq ".data[\"last-refresh\"]" /var/lib/snapd/state.json | MATCH "$(date +%Y)"
