@@ -36,26 +36,26 @@ var (
 	FreezeSnapProcesses = freezeSnapProcesses
 	ThawSnapProcesses   = thawSnapProcesses
 	// utils
-	PlanWritableMimic  = planWritableMimic
-	ExecWritableMimic  = execWritableMimic
-	SecureMkdirAll     = secureMkdirAll
-	SecureMkfileAll    = secureMkfileAll
-	SecureMksymlinkAll = secureMksymlinkAll
-	SplitIntoSegments  = splitIntoSegments
+	PlanWritableMimic = planWritableMimic
+	ExecWritableMimic = execWritableMimic
+	SplitIntoSegments = splitIntoSegments
 
 	// main
 	ComputeAndSaveChanges = computeAndSaveChanges
+	ApplyUserFstab        = applyUserFstab
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
 type SystemCalls interface {
-	Lstat(name string) (os.FileInfo, error)
+	OsLstat(name string) (os.FileInfo, error)
+	SysLstat(name string, buf *syscall.Stat_t) error
 	ReadDir(dirname string) ([]os.FileInfo, error)
 	Symlinkat(oldname string, dirfd int, newname string) error
 	Readlinkat(dirfd int, path string, buf []byte) (int, error)
 	Remove(name string) error
 
 	Close(fd int) error
+	Fchdir(fd int) error
 	Fchown(fd int, uid sys.UserID, gid sys.GroupID) error
 	Mkdirat(dirfd int, path string, mode uint32) error
 	Mount(source string, target string, fstype string, flags uintptr, data string) (err error)
@@ -82,9 +82,11 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	oldSysSymlinkat := sysSymlinkat
 	oldReadlinkat := sysReadlinkat
 	oldFstat := sysFstat
+	oldSysFchdir := sysFchdir
+	oldSysLstat := sysLstat
 
 	// override
-	osLstat = sc.Lstat
+	osLstat = sc.OsLstat
 	osRemove = sc.Remove
 	ioutilReadDir = sc.ReadDir
 
@@ -98,6 +100,8 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	sysSymlinkat = sc.Symlinkat
 	sysReadlinkat = sc.Readlinkat
 	sysFstat = sc.Fstat
+	sysFchdir = sc.Fchdir
+	sysLstat = sc.SysLstat
 
 	return func() {
 		// restore
@@ -115,6 +119,8 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		sysSymlinkat = oldSysSymlinkat
 		sysReadlinkat = oldReadlinkat
 		sysFstat = oldFstat
+		sysFchdir = oldSysFchdir
+		sysLstat = oldSysLstat
 	}
 }
 
@@ -130,7 +136,7 @@ func FreezerCgroupDir() string {
 	return freezerCgroupDir
 }
 
-func MockChangePerform(f func(chg *Change) ([]*Change, error)) func() {
+func MockChangePerform(f func(chg *Change, sec *Secure) ([]*Change, error)) func() {
 	origChangePerform := changePerform
 	changePerform = f
 	return func() {

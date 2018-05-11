@@ -20,6 +20,9 @@
 package builtin
 
 import (
+	"bytes"
+	"fmt"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -174,6 +177,23 @@ dbus (send)
     interface=io.snapcraft.Settings
     member={Check,Get,Set}
     peer=(label=unconfined),
+
+## Allow access to xdg-document-portal file system.  Access control is
+## handled by bind mounting a snap-specific sub-tree to this location.
+#owner /run/user/[0-9]*/doc/** rw,
+
+# Allow access to xdg-desktop-portal and xdg-document-portal
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/{desktop,documents}
+    peer=(label=unconfined),
+
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/portal/{desktop,documents}
+    peer=(label=unconfined),
 `
 
 type desktopInterface struct{}
@@ -199,8 +219,33 @@ func (iface *desktopInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) b
 	return true
 }
 
+func (iface *desktopInterface) fontconfigDirs() []string {
+	return []string{
+		dirs.SystemFontsDir,
+		dirs.SystemLocalFontsDir,
+		dirs.SystemFontconfigCacheDir,
+	}
+}
+
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(desktopConnectedPlugAppArmor)
+
+	if !release.OnClassic {
+		// We only need the font mount rules on classic systems
+		return nil
+	}
+
+	for _, dir := range iface.fontconfigDirs() {
+		var buf bytes.Buffer
+		source := "/var/lib/snapd/hostfs" + dir
+		target := dirs.StripRootDir(dir)
+		fmt.Fprintf(&buf, "  # Read-only access to %s\n", target)
+		fmt.Fprintf(&buf, "  mount options=(bind) %s/ -> %s/,\n", source, target)
+		fmt.Fprintf(&buf, "  remount options=(bind, ro) %s/,\n", target)
+		fmt.Fprintf(&buf, "  umount %s/,\n\n", target)
+		spec.AddUpdateNS(buf.String())
+	}
+
 	return nil
 }
 
@@ -210,13 +255,7 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		return nil
 	}
 
-	fontconfigDirs := []string{
-		dirs.SystemFontsDir,
-		dirs.SystemLocalFontsDir,
-		dirs.SystemFontconfigCacheDir,
-	}
-
-	for _, dir := range fontconfigDirs {
+	for _, dir := range iface.fontconfigDirs() {
 		if !osutil.IsDirectory(dir) {
 			continue
 		}
@@ -226,6 +265,16 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 			Options: []string{"bind", "ro"},
 		})
 	}
+
+	/*
+		appId := "snap.pkg." + plug.Snap.Name()
+		spec.AddUserMount(mount.Entry{
+			Name: "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
+			Dir: "$XDG_RUNTIME_DIR/doc",
+			Options: []string{"bind", "rw"},
+		})
+	*/
+
 	return nil
 }
 

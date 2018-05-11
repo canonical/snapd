@@ -362,6 +362,26 @@ func (s *ErrtrackerTestSuite) TestReportWithWhoopsieDisabled(c *C) {
 	c.Check(id, Equals, "")
 }
 
+func (s *ErrtrackerTestSuite) TestReportWithNoWhoopsieInstalled(c *C) {
+	mockCmd := testutil.MockCommand(c, "systemctl", "echo Failed to get unit file state for whoopsie.service; exit 1")
+	defer mockCmd.Restore()
+
+	n := 0
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "1234-oopsid")
+		n++
+	}
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+	restorer := errtracker.MockCrashDbURL(server.URL)
+	defer restorer()
+
+	id, err := errtracker.Report("some-snap", "failed to do stuff", "[failed to do stuff]", nil)
+	c.Check(err, IsNil)
+	c.Check(id, Equals, "1234-oopsid")
+	c.Check(n, Equals, 1)
+}
+
 func (s *ErrtrackerTestSuite) TestProcCpuinfo(c *C) {
 	fn := filepath.Join(s.tmpdir, "cpuinfo")
 	// sanity check
@@ -471,24 +491,4 @@ func (s *ErrtrackerTestSuite) TestEnviron(c *C) {
 		"SHELL=/bin/sh",
 		"XDG_RUNTIME_DIR=<set>",
 	})
-}
-
-func (s *ErrtrackerTestSuite) TestReportWithNoWhoopsieInstalled(c *C) {
-	mockCmd := testutil.MockCommand(c, "systemctl", "echo Failed to get unit file state for whoopsie.service; exit 1")
-	defer mockCmd.Restore()
-
-	n := 0
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "1234-oopsid")
-		n++
-	}
-	server := httptest.NewServer(http.HandlerFunc(handler))
-	defer server.Close()
-	restorer := errtracker.MockCrashDbURL(server.URL)
-	defer restorer()
-
-	id, err := errtracker.Report("some-snap", "failed to do stuff", "[failed to do stuff]", nil)
-	c.Check(err, IsNil)
-	c.Check(id, Equals, "1234-oopsid")
-	c.Check(n, Equals, 1)
 }

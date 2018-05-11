@@ -39,7 +39,10 @@ type cmdCreateKey struct {
 func init() {
 	cmd := addCommand("create-key",
 		i18n.G("Create cryptographic key pair"),
-		i18n.G("Create a cryptographic key pair that can be used for signing assertions."),
+		i18n.G(`
+The create-key command creates a cryptographic key pair that can be
+used for signing assertions.
+`),
 		func() flags.Commander {
 			return &cmdCreateKey{}
 		}, nil, []argDesc{{

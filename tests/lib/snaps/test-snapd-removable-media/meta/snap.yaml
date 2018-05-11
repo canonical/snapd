@@ -1,0 +1,9 @@
+name: test-snapd-removable-media
+version: 1.0
+summary: Basic removable-media snap
+description: A basic snap which access to removable storage filesystems
+
+apps:
+  sh:
+    command: ../../../bin/sh
+    plugs: [removable-media]

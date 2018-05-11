@@ -248,7 +248,17 @@ var (
 		GET:    getAliases,
 		POST:   changeAliases,
 	}
+
+	buildID = "unknown"
 )
+
+func init() {
+	// cache the build-id on startup to ensure that changes in
+	// the underlying binary do not affect us
+	if bid, err := osutil.MyBuildID(); err == nil {
+		buildID = bid
+	}
+}
 
 func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse([]string{"TBD"}, nil)
@@ -292,6 +302,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	m := map[string]interface{}{
 		"series":         release.Series,
 		"version":        c.d.Version,
+		"build-id":       buildID,
 		"os-release":     release.ReleaseInfo,
 		"on-classic":     release.OnClassic,
 		"managed":        len(users) > 0,
@@ -1165,13 +1176,7 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 	var snapName string
 
 	switch err {
-	case store.ErrSnapNotFound, store.ErrRevisionNotAvailable:
-		// TODO: treating ErrRevisionNotAvailable the same as
-		// ErrSnapNotFound preserves the old error handling
-		// behavior of the REST API and the snap command.  We
-		// should revisit this once the store returns more
-		// precise errors and makes it possible to distinguish
-		// the why a revision wasn't available.
+	case store.ErrSnapNotFound:
 		switch len(inst.Snaps) {
 		case 1:
 			return SnapNotFound(inst.Snaps[0], err)
@@ -1181,6 +1186,17 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 			return InternalError("store.SnapNotFound with no snap given")
 		default:
 			return InternalError("store.SnapNotFound with %d snaps", len(inst.Snaps))
+		}
+	case store.ErrRevisionNotAvailable:
+		// store.ErrRevisionNotAvailable should only be returned for
+		// individual snap queries; in all other cases something's wrong
+		switch len(inst.Snaps) {
+		case 1:
+			return SnapRevisionNotAvailable(inst.Snaps[0], err)
+		case 0:
+			return InternalError("store.RevisionNotAvailable with no snap given")
+		default:
+			return InternalError("store.RevisionNotAvailable with %d snaps", len(inst.Snaps))
 		}
 	case store.ErrNoUpdateAvailable:
 		kind = errorKindSnapNoUpdateAvailable
@@ -2800,7 +2816,7 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
-	ts, err := servicestate.Control(st, appInfos, &inst, nil)
+	tss, err := servicestate.Control(st, appInfos, &inst, nil)
 	if err != nil {
 		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
 			return Conflict(err.Error())
@@ -2809,7 +2825,7 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	st.Lock()
 	defer st.Unlock()
-	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), []*state.TaskSet{ts}, inst.Names)
+	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, inst.Names)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }

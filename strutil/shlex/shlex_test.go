@@ -17,6 +17,7 @@ limitations under the License.
 package shlex
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -24,7 +25,7 @@ import (
 var (
 	// one two "three four" "five \"six\"" seven#eight # nine # ten
 	// eleven 'twelve\'
-	testString = "one two \"three four\" \"five \\\"six\\\"\" seven#eight # nine # ten\n eleven 'twelve\\' thirteen=13 fourteen/14"
+	testString = "\\one two \"three four\" \"five \\\"six\\\"\" seven#eight # nine # ten\n eleven 'twelve\\' thirteen=13 fourteen/14"
 )
 
 func TestClassifier(t *testing.T) {
@@ -97,5 +98,58 @@ func TestSplit(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("Split(%q)[%v] -> %v. Want: %v", testString, i, got[i], want[i])
 		}
+	}
+}
+
+func TestEOFAfterEscape(t *testing.T) {
+	_, err := Split(testString + "\\")
+	if err == nil {
+		t.Error(err)
+	}
+}
+
+func TestEOFInQuotingEscape(t *testing.T) {
+	_, err := Split(`foo"`)
+	if err == nil {
+		t.Error(err)
+	}
+
+	_, err = Split(`foo'`)
+	if err == nil {
+		t.Error(err)
+	}
+
+	_, err = Split(`"foo\`)
+	if err == nil {
+		t.Error(err)
+	}
+}
+
+func TestEOFInComment(t *testing.T) {
+	got, err := Split("#")
+	if err != nil {
+		t.Error(err)
+	}
+	if len(got) > 1 {
+		t.Errorf("Split(%q) -> %v", testString, got)
+	}
+}
+
+type nastyReader struct{}
+
+var nastyReaderErr = errors.New("foo")
+
+func (*nastyReader) Read(_ []byte) (int, error) {
+	return 0, nastyReaderErr
+}
+
+func TestNastyReader(t *testing.T) {
+	l := NewLexer(&nastyReader{})
+	_, err := l.Next()
+	if err == nil {
+		t.Errorf("expected an error, got nil instead")
+	}
+	if err != nastyReaderErr {
+		t.Errorf("unexpected error")
 	}
 }

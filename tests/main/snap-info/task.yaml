@@ -22,7 +22,7 @@ execute: |
     snap info /etc/passwd && exit 1 || true
 
     snap info basic_1.0_all.snap $TESTSLIB/snaps/basic-desktop test-snapd-tools test-snapd-devmode core /etc/passwd test-snapd-python-webserver > out
-    python3 check.py < out
+    PYTHONIOENCODING=utf8 python3 check.py < out
 
     . $TESTSLIB/snaps.sh
     snap info --verbose $TESTSLIB/snaps/basic-desktop|MATCH "path: "
