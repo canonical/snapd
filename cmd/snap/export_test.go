@@ -146,22 +146,10 @@ func MockTimeNow(newTimeNow func() time.Time) (restore func()) {
 	}
 }
 
-func MockTimeutilHuman(h func(time.Time) string) (restore func()) {
-	oldH := timeutilHuman
-	timeutilHuman = h
-	return func() {
-		timeutilHuman = oldH
-	}
-}
-
 func MockWaitConfTimeout(d time.Duration) (restore func()) {
 	oldWaitConfTimeout := d
 	waitConfTimeout = d
 	return func() {
 		waitConfTimeout = oldWaitConfTimeout
 	}
-}
-
-func Wait(cli *client.Client, id string) (*client.Change, error) {
-	return waitMixin{}.wait(cli, id)
 }
