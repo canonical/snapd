@@ -145,3 +145,11 @@ func MockTimeNow(newTimeNow func() time.Time) (restore func()) {
 		timeNow = oldTimeNow
 	}
 }
+
+func MockWaitConfTimeout(d time.Duration) (restore func()) {
+	oldWaitConfTimeout := d
+	waitConfTimeout = d
+	return func() {
+		waitConfTimeout = oldWaitConfTimeout
+	}
+}

@@ -57,6 +57,7 @@ func Run(tr Conf) error {
 	if err := validateRefreshSchedule(tr); err != nil {
 		return err
 	}
+	// FIXME: ensure the user cannot set "core seed.done"
 
 	// capture cloud information
 	if err := setCloudInfoWhenSeeding(tr); err != nil {
