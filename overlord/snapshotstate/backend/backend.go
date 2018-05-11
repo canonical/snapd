@@ -90,20 +90,20 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 			}
 
 			filename := filepath.Join(dirs.SnapshotsDir, name)
-			rsh, openError := backendOpen(filename)
-			// rsh can be non-nil even when openError is not nil (in
-			// which case rsh.Broken will have a reason). f can
+			reader, openError := backendOpen(filename)
+			// reader can be non-nil even when openError is not nil (in
+			// which case reader.Broken will have a reason). f can
 			// check and either ignore or return an error when
 			// finding a broken snapshot.
-			if rsh != nil {
-				err = f(rsh)
+			if reader != nil {
+				err = f(reader)
 			} else {
 				// TODO: use warnings instead
 				logger.Noticef("Cannot open snapshot %q: %v.", name, openError)
 			}
 			if openError == nil {
 				// if openError was nil the snapshot was opened and needs closing
-				if closeError := rsh.Close(); err == nil {
+				if closeError := reader.Close(); err == nil {
 					err = closeError
 				}
 			}
@@ -127,10 +127,10 @@ func Iter(ctx context.Context, f func(*Reader) error) error {
 // List valid snapshots sets.
 func List(ctx context.Context, setID uint64, snapNames []string) ([]client.SnapshotSet, error) {
 	setshots := map[uint64][]*client.Snapshot{}
-	err := Iter(ctx, func(sh *Reader) error {
-		if setID == 0 || sh.SetID == setID {
-			if len(snapNames) == 0 || strutil.ListContains(snapNames, sh.Snap) {
-				setshots[sh.SetID] = append(setshots[sh.SetID], &sh.Snapshot)
+	err := Iter(ctx, func(reader *Reader) error {
+		if setID == 0 || reader.SetID == setID {
+			if len(snapNames) == 0 || strutil.ListContains(snapNames, reader.Snap) {
+				setshots[reader.SetID] = append(setshots[reader.SetID], &reader.Snapshot)
 			}
 		}
 		return nil
@@ -148,18 +148,18 @@ func List(ctx context.Context, setID uint64, snapNames []string) ([]client.Snaps
 }
 
 // Filename of the given client.Snapshot in this backend.
-func Filename(sh *client.Snapshot) string {
+func Filename(snapshot *client.Snapshot) string {
 	// this _needs_ the snap name and version to be valid
-	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s_%s_%s.zip", sh.SetID, sh.Snap, sh.Version, sh.Revision))
+	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_%s_%s_%s.zip", snapshot.SetID, snapshot.Snap, snapshot.Version, snapshot.Revision))
 }
 
 // Save a snapshot
-func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (sh *client.Snapshot, e error) {
+func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
 		return nil, err
 	}
 
-	sh = &client.Snapshot{
+	snapshot := &client.Snapshot{
 		SetID:    id,
 		Snap:     si.Name(),
 		Revision: si.Revision,
@@ -170,7 +170,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		Conf:     cfg,
 	}
 
-	aw, err := osutil.NewAtomicFile(Filename(sh), 0600, 0, osutil.NoChown, osutil.NoChown)
+	aw, err := osutil.NewAtomicFile(Filename(snapshot), 0600, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return nil, err
 	}
@@ -178,11 +178,8 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	defer aw.Cancel()
 
 	w := zip.NewWriter(aw)
-	// Note we don't “defer w.Close()” because Close on zip.Writers:
-	// 1. doesn't close the file descriptor (that's done by Cancel, above)
-	// 2. writes out the central directory of the zip
-	// (yes they're weird in this way: why is that called Close, even)
-	if err := addDirToZip(ctx, sh, w, "root", archiveName, si.DataDir()); err != nil {
+	defer w.Close() // note this does not close the file descriptor (that's done by hand on the atomic writer, above)
+	if err := addDirToZip(ctx, snapshot, w, "root", archiveName, si.DataDir()); err != nil {
 		return nil, err
 	}
 
@@ -192,7 +189,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	}
 
 	for _, usr := range users {
-		if err := addDirToZip(ctx, sh, w, usr.Username, userArchiveName(usr), si.UserDataDir(usr.HomeDir)); err != nil {
+		if err := addDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), si.UserDataDir(usr.HomeDir)); err != nil {
 			return nil, err
 		}
 	}
@@ -204,7 +201,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 
 	hasher := crypto.SHA3_384.New()
 	enc := json.NewEncoder(io.MultiWriter(metaWriter, hasher))
-	if err := enc.Encode(sh); err != nil {
+	if err := enc.Encode(snapshot); err != nil {
 		return nil, err
 	}
 
@@ -225,14 +222,14 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		return nil, err
 	}
 
-	return sh, nil
+	return snapshot, nil
 }
 
-func addDirToZip(ctx context.Context, sh *client.Snapshot, w *zip.Writer, username string, entry, dir string) error {
+func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username string, entry, dir string) error {
 	hasher := crypto.SHA3_384.New()
 	if exists, isDir, err := osutil.DirExists(dir); !exists || !isDir || err != nil {
 		if exists && !isDir {
-			logger.Noticef("Not saving %q in snapshot #%d of %q as it is not a directory.", dir, sh.SetID, sh.Snap)
+			logger.Noticef("Not saving %q in snapshot #%d of %q as it is not a directory.", dir, snapshot.SetID, snapshot.Snap)
 		}
 		return err
 	}
@@ -262,8 +259,8 @@ func addDirToZip(ctx context.Context, sh *client.Snapshot, w *zip.Writer, userna
 		return fmt.Errorf("tar failed: %v", err)
 	}
 
-	sh.SHA3_384[entry] = fmt.Sprintf("%x", hasher.Sum(nil))
-	sh.Size += sz.size
+	snapshot.SHA3_384[entry] = fmt.Sprintf("%x", hasher.Sum(nil))
+	snapshot.Size += sz.size
 
 	return nil
 }

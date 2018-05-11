@@ -57,7 +57,7 @@ type Reader struct {
 // If the returned error is non-nil, the returned Reader will be nil,
 // *or* have a non-empty Broken; in the latter case its file will be
 // closed.
-func Open(fn string) (rsh *Reader, e error) {
+func Open(fn string) (reader *Reader, e error) {
 	f, err := os.Open(fn)
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func Open(fn string) (rsh *Reader, e error) {
 		}
 	}()
 
-	rsh = &Reader{
+	reader = &Reader{
 		File: f,
 	}
 
@@ -81,20 +81,20 @@ func Open(fn string) (rsh *Reader, e error) {
 		return nil, err
 	}
 
-	if err := jsonutil.DecodeWithNumber(io.TeeReader(metaReader, io.MultiWriter(hasher, &sz)), &rsh.Snapshot); err != nil {
+	if err := jsonutil.DecodeWithNumber(io.TeeReader(metaReader, io.MultiWriter(hasher, &sz)), &reader.Snapshot); err != nil {
 		return nil, err
 	}
 
 	// OK, from here on we have a Snapshot
 
-	if !rsh.IsValid() {
-		rsh.Broken = "invalid snapshot"
-		return rsh, errors.New(rsh.Broken)
+	if !reader.IsValid() {
+		reader.Broken = "invalid snapshot"
+		return reader, errors.New(reader.Broken)
 	}
 
 	if sz.size != metaSize {
-		rsh.Broken = fmt.Sprintf("declared metadata size (%d) does not match actual (%d)", metaSize, sz.size)
-		return rsh, errors.New(rsh.Broken)
+		reader.Broken = fmt.Sprintf("declared metadata size (%d) does not match actual (%d)", metaSize, sz.size)
+		return reader, errors.New(reader.Broken)
 	}
 
 	actualMetaHash := fmt.Sprintf("%x", hasher.Sum(nil))
@@ -103,24 +103,24 @@ func Open(fn string) (rsh *Reader, e error) {
 	sz.Reset()
 	metaHashReader, metaHashSize, err := zipMember(f, metaHashName)
 	if err != nil {
-		rsh.Broken = err.Error()
-		return rsh, err
+		reader.Broken = err.Error()
+		return reader, err
 	}
 	metaHashBuf, err := ioutil.ReadAll(io.TeeReader(metaHashReader, &sz))
 	if err != nil {
-		rsh.Broken = err.Error()
-		return rsh, err
+		reader.Broken = err.Error()
+		return reader, err
 	}
 	if sz.size != metaHashSize {
-		rsh.Broken = fmt.Sprintf("declared hash size (%d) does not match actual (%d)", metaHashSize, sz.size)
-		return rsh, errors.New(rsh.Broken)
+		reader.Broken = fmt.Sprintf("declared hash size (%d) does not match actual (%d)", metaHashSize, sz.size)
+		return reader, errors.New(reader.Broken)
 	}
 	if expectedMetaHash := string(bytes.TrimSpace(metaHashBuf)); actualMetaHash != expectedMetaHash {
-		rsh.Broken = fmt.Sprintf("declared hash (%.7s…) does not match actual (%.7s…)", expectedMetaHash, actualMetaHash)
-		return rsh, errors.New(rsh.Broken)
+		reader.Broken = fmt.Sprintf("declared hash (%.7s…) does not match actual (%.7s…)", expectedMetaHash, actualMetaHash)
+		return reader, errors.New(reader.Broken)
 	}
 
-	return rsh, nil
+	return reader, nil
 }
 
 func (r *Reader) checkOne(ctx context.Context, entry string, hasher hash.Hash) error {
@@ -169,10 +169,7 @@ func (r *Reader) Check(ctx context.Context, usernames []string) error {
 	return nil
 }
 
-// A Logf writes somewhere the user will see it
-//
-// (typically this is task.Logf when running via the overlord, or fmt.Printf
-// when running direct)
+// Logf is the type implemented by logging functions.
 type Logf func(format string, args ...interface{})
 
 // Restore the data from the snapshot.
