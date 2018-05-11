@@ -6,17 +6,19 @@ details: |
     portal needs to be mounted over $XDG_RUNTIME_DIR/doc inside the
     sandbox.
 prepare: |
-    snap try $TESTSLIB/snaps/test-snapd-desktop
+    snap try "$TESTSLIB"/snaps/test-snapd-desktop
     snap disconnect test-snapd-desktop:desktop
 restore: |
     rm -rf /run/user/12345/*
     rm -f /tmp/check-doc-portal.sh
 execute: |
+    #shellcheck source=tests/lib/dirs.sh
     . $TESTSLIB/dirs.sh
 
     echo "Create XDG_RUNTIME_DIR for test user"
     USER_RUNTIME_DIR=/run/user/12345
     mkdir -p $USER_RUNTIME_DIR || true
+    #shellcheck disable=SC2115
     rm -rf $USER_RUNTIME_DIR/*
     chmod u=rwX,go= $USER_RUNTIME_DIR
     chown test:test $USER_RUNTIME_DIR
@@ -39,13 +41,13 @@ execute: |
       MATCH "Permission denied" < check.error
     fi
 
-    $LIBEXECDIR/snapd/snap-discard-ns test-snapd-desktop
+    "$LIBEXECDIR"/snapd/snap-discard-ns test-snapd-desktop
 
     echo "With desktop connected, we see confined version"
     snap connect test-snapd-desktop:desktop
     su -l -c "sh /tmp/check-doc-portal.sh" test | MATCH is-confined
 
-    $LIBEXECDIR/snapd/snap-discard-ns test-snapd-desktop
+    "$LIBEXECDIR"/snapd/snap-discard-ns test-snapd-desktop
 
     echo "It is not an error if the document portal is missing"
     rm -rf /run/user/12345/*
