@@ -50,7 +50,7 @@
 %global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
 %global import_path     %{provider_prefix}
 
-%global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service
+%global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.seeded.service
 
 # Until we have a way to add more extldflags to gobuild macro...
 %if 0%{?fedora} >= 26
@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.32.5
+Version:        2.32.6
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -617,6 +617,7 @@ popd
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.autoimport.service
+%{_unitdir}/snapd.seeded.service
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
@@ -723,6 +724,16 @@ fi
 
 
 %changelog
+* Sun Apr 29 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.6
+ - snap: do not use overly short timeout in `snap
+   {start,stop,restart}`
+ - interfaces/apparmor: fix incorrect apparmor profile glob
+ - tests: detect kernel oops during tests and abort tests in this
+   case
+ - tests: run interfaces-boradcom-asic-control early
+ - tests: skip interfaces-content test on core devices
+
 * Mon Apr 16 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.5
  - many: add "stop-mode: sig{term,hup,usr[12]}{,-all}" instead of

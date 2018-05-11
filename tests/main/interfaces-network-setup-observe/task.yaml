@@ -1,4 +1,4 @@
-summary: Ensure that the desktop interface works.
+summary: Ensure that the network-setup-observe interface works.
 
 details: |
     The network setup observe interface allows to access the different netplan
@@ -20,7 +20,7 @@ execute: |
     dirs="/etc/netplan /etc/network"
 
     echo "The interface is disconnected by default"
-    snap interfaces | MATCH "\- +test-snapd-check-fs-access:network-setup-observe"
+    snap interfaces -i network-setup-observe| MATCH "\- +test-snapd-check-fs-access:network-setup-observe"
 
     echo "When the interface is connected"
     snap connect test-snapd-check-fs-access:network-setup-observe
