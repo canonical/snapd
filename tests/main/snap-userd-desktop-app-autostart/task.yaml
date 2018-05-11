@@ -28,7 +28,13 @@ execute: |
         sleep 1
     done
     test -e ~/snap/test-snapd-xdg-autostart/current/foo-autostarted
-    test "$(journalctl -t foo.desktop --cursor "$cursor" | wc -l)" -gt 1
+
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        test "$(journalctl -t foo.desktop --cursor "$cursor" | wc -l)" -gt 0
+    else
+        # 14.04 journalctl does not have cursor, neither --identifier support
+        test "$(journalctl | grep foo.desktop | wc -l)" -gt 0
+    fi
 
 restore: |
     rm -f ~/snap/test-snapd-xdg-autostart/current/foo-autostarted
