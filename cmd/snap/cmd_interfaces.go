@@ -70,7 +70,7 @@ func init() {
 
 func maybeAsNickname(name string, useNick bool) string {
 	if useNick {
-		return snap.Nickname(name)
+		return snap.UseNick(name)
 	}
 	return name
 }
@@ -97,14 +97,14 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		askedWithNick := false
 		if wantedSnap != "" {
 			ok := wantedSnap == slot.Snap
-			if !ok && wantedSnap == snap.Nickname(slot.Snap) {
+			if !ok && wantedSnap == snap.UseNick(slot.Snap) {
 				askedWithNick = true
 				ok = true
 			}
 
 			for i := 0; i < len(slot.Connections) && !ok; i++ {
 				ok = wantedSnap == slot.Connections[i].Snap
-				if !ok && wantedSnap == snap.Nickname(slot.Connections[i].Snap) {
+				if !ok && wantedSnap == snap.UseNick(slot.Connections[i].Snap) {
 					askedWithNick = true
 					ok = true
 				}
@@ -121,7 +121,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		}
 		// The OS snap is special and enable abbreviated
 		// display syntax on the slot-side of the connection.
-		if slot.Snap == "core" || slot.Snap == "ubuntu-core" || slot.Snap == snap.Nickname("core") {
+		if slot.Snap == "core" || slot.Snap == "ubuntu-core" || slot.Snap == snap.UseNick("core") {
 			fmt.Fprintf(w, ":%s\t", slot.Name)
 		} else {
 			fmt.Fprintf(w, "%s:%s\t", maybeAsNickname(slot.Snap, askedWithNick), slot.Name)
@@ -149,7 +149,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		maybeNick := plug.Snap
 		if wantedSnap != "" {
 			ok := wantedSnap == plug.Snap
-			nick := snap.Nickname(plug.Snap)
+			nick := snap.UseNick(plug.Snap)
 			if !ok && wantedSnap == nick {
 				maybeNick = nick
 				ok = true

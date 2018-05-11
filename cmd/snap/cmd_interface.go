@@ -121,9 +121,9 @@ func (x *cmdInterface) showOneInterface(iface *client.Interface) {
 				labelPart = fmt.Sprintf(" (%s)", plug.Label)
 			}
 			if plug.Name == iface.Name {
-				fmt.Fprintf(w, "  - %s%s", snap.Nickname(plug.Snap), labelPart)
+				fmt.Fprintf(w, "  - %s%s", snap.UseNick(plug.Snap), labelPart)
 			} else {
-				fmt.Fprintf(w, `  - %s:%s%s`, snap.Nickname(plug.Snap), plug.Name, labelPart)
+				fmt.Fprintf(w, `  - %s:%s%s`, snap.UseNick(plug.Snap), plug.Name, labelPart)
 			}
 			// Print a colon which will make the snap:plug element a key-value
 			// yaml object so that we can write the attributes.
@@ -143,9 +143,9 @@ func (x *cmdInterface) showOneInterface(iface *client.Interface) {
 				labelPart = fmt.Sprintf(" (%s)", slot.Label)
 			}
 			if slot.Name == iface.Name {
-				fmt.Fprintf(w, "  - %s%s", snap.Nickname(slot.Snap), labelPart)
+				fmt.Fprintf(w, "  - %s%s", snap.UseNick(slot.Snap), labelPart)
 			} else {
-				fmt.Fprintf(w, `  - %s:%s%s`, snap.Nickname(slot.Snap), slot.Name, labelPart)
+				fmt.Fprintf(w, `  - %s:%s%s`, snap.UseNick(slot.Snap), slot.Name, labelPart)
 			}
 			// Print a colon which will make the snap:slot element a key-value
 			// yaml object so that we can write the attributes.
