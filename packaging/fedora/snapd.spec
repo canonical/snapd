@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.32.7
+Version:        2.32.8
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -712,6 +712,10 @@ fi
 
 
 %changelog
+* Fri May 11 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.8
+ - snapd.core-fixup.sh: add workaround for corrupted uboot.env
+
 * Fri May 11 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.7
  - many: add wait command and seeded target (2

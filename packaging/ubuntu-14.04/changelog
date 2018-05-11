@@ -1,3 +1,10 @@
+snapd (2.32.8~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1767833
+    - snapd.core-fixup.sh: add workaround for corrupted uboot.env
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 11 May 2018 14:36:16 +0200
+
 snapd (2.32.7~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1767833
