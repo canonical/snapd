@@ -748,7 +748,10 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
 	// while 'root' user usually has uid 0, 'daemon' user uid may vary
 	// across distributions, best lookup the uid directly
 	daemonUid, err := osutil.FindUid("daemon")
-	c.Assert(err, IsNil)
+
+	if err != nil {
+		c.Skip("daemon user not available, perhaps we are in a buildroot jail")
+	}
 
 	for _, t := range []struct {
 		seccompWhitelist string

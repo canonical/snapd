@@ -22,6 +22,7 @@ package squashfs
 import (
 	"errors"
 	"io/ioutil"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -407,4 +408,20 @@ func (s *SquashfsTestSuite) TestUnsquashfsStderrWriter(c *C) {
 			c.Check(usw.Err(), IsNil)
 		}
 	}
+}
+
+func (s *SquashfsTestSuite) TestBuildDate(c *C) {
+	// make a directory
+	d := c.MkDir()
+	// set its time waaay back
+	now := time.Now()
+	then := now.Add(-10000 * time.Hour)
+	c.Assert(os.Chtimes(d, then, then), IsNil)
+	// make a snap using this directory
+	filename := filepath.Join(c.MkDir(), "foo.snap")
+	snap := New(filename)
+	c.Assert(snap.Build(d), IsNil)
+	// and see it's BuildDate is _now_, not _then_.
+	c.Check(BuildDate(filename), Equals, snap.BuildDate())
+	c.Check(math.Abs(now.Sub(snap.BuildDate()).Seconds()) <= 61, Equals, true, Commentf("Unexpected build date %s", snap.BuildDate()))
 }

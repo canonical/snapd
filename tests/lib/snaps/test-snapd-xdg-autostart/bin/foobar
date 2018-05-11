@@ -7,8 +7,8 @@ dump_autostart() {
 
     echo "generating autostart file $dfpath"
 
-    mkdir -p $SNAP_USER_DATA/.config/autostart
-    cat <<EOF > $dfpath
+    mkdir -p "$SNAP_USER_DATA"/.config/autostart
+    cat >"$dfpath" <<EOF
 [Desktop Entry]
 Name=foo autostart
 Exec=/foo/bar/baz/bin/foobar --autostart a b c
@@ -17,10 +17,10 @@ EOF
 
 case "$1" in
     --autostart)
-        echo "autostarting with args '$@'" | tee $SNAP_USER_DATA/foo-autostarted
+        echo "autostarting with args '$*'" | tee "$SNAP_USER_DATA"/foo-autostarted
         ;;
     *)
-        echo "regular run with args '$@'"
+        echo "regular run with args '$*'"
         dump_autostart
         ;;
 esac

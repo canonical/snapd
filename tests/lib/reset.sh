@@ -13,13 +13,25 @@ reset_classic() {
     # have changed on the disk.
     systemctl daemon-reload
 
+    echo "Ensure the service is active before stopping it"
+    retries=20
+    systemctl status snapd.service snapd.socket || true
+    while systemctl status snapd.service snapd.socket | grep "Active: activating"; do
+        if [ $retries -eq 0 ]; then
+            echo "snapd service or socket not active"
+            exit 1
+        fi
+        retries=$(( retries - 1 ))
+        sleep 1
+    done
+
     systemd_stop_units snapd.service snapd.socket
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             sh -x "${SPREAD_PATH}/debian/snapd.postrm" purge
             ;;
-        fedora-*|opensuse-*)
+        fedora-*|opensuse-*|arch-*)
             # We don't know if snap-mgmt was built, so call the *.in file
             # directly and pass arguments that will override the placeholders
             sh -x "${SPREAD_PATH}/cmd/snap-mgmt/snap-mgmt.sh.in" \
@@ -66,7 +78,7 @@ reset_classic() {
 
         # force all profiles to be re-generated
         rm -f /var/lib/snapd/system-key
-     fi
+    fi
 
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.socket
@@ -95,7 +107,9 @@ reset_all_snap() {
                 if ! systemctl status snapd.service snapd.socket; then
                     systemctl start snapd.service snapd.socket
                 fi
-                snap remove "$snap"
+                if ! echo "$SKIP_REMOVE_SNAPS" | grep -w "$snap"; then
+                    snap remove "$snap"
+                fi
                 ;;
         esac
     done

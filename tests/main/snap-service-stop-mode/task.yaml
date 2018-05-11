@@ -18,6 +18,7 @@ execute: |
 
     echo "We can see it running"
     systemctl status snap.test-snapd-service.test-snapd-service|MATCH "running"
+    systemctl show -p MainPID snap.test-snapd-service.test-snapd-service > old-main.pid
 
     stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
     for s in $stop_modes; do
@@ -40,6 +41,9 @@ execute: |
 
     echo "Regular services are restarted normally"
     journalctl -u snap.test-snapd-service.test-snapd-service | MATCH "stop service"
+    systemctl show -p MainPID snap.test-snapd-service.test-snapd-service > new-main.pid
+    test -e new-main.pid && test -e old-main.pid
+    test "$(cat new-main.pid)" != "$(cat old-main.pid)"
 
     echo "Once the snap is removed, all services are stopped"
     snap remove test-snapd-service
