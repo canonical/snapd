@@ -104,21 +104,21 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 // AutoConnect returns a set of tasks for connecting an interface as part of snap installation
 // and auto-connect handling.
 func AutoConnect(st *state.State, change *state.Change, autoConnectTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	return connect(st, change, plugSnap, plugName, slotSnap, slotName, autoConnectTask)
+	return connect(st, change, autoConnectTask, plugSnap, plugName, slotSnap, slotName)
 }
 
 // Reconnect returns a set of tasks for reconnecting an interface as part of snap installation.
 func Reconnect(st *state.State, change *state.Change, reconnectTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	return connect(st, change, plugSnap, plugName, slotSnap, slotName, reconnectTask)
+	return connect(st, change, reconnectTask, plugSnap, plugName, slotSnap, slotName)
 }
 
 // Connect returns a set of tasks for connecting an interface.
 //
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	return connect(st, nil, plugSnap, plugName, slotSnap, slotName, nil)
+	return connect(st, nil, nil, plugSnap, plugName, slotSnap, slotName)
 }
 
-func connect(st *state.State, change *state.Change, plugSnap, plugName, slotSnap, slotName string, installedSnapTask *state.Task) (*state.TaskSet, error) {
+func connect(st *state.State, change *state.Change, installedSnapTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
 	if err := checkConnectConflicts(st, change, plugSnap, slotSnap, installedSnapTask); err != nil {
 		return nil, err
 	}
