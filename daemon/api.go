@@ -1610,7 +1610,7 @@ func splitQS(qs string) []string {
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := systemCoreSnapUnalias(vars["name"])
+	snapName := snap.DropNick(vars["name"])
 
 	keys := splitQS(r.URL.Query().Get("keys"))
 
@@ -1653,7 +1653,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := systemCoreSnapUnalias(vars["name"])
+	snapName := snap.DropNick(vars["name"])
 
 	var patchValues map[string]interface{}
 	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
@@ -1853,10 +1853,10 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	defer st.Unlock()
 
 	for i := range a.Plugs {
-		a.Plugs[i].Snap = systemCoreSnapUnalias(a.Plugs[i].Snap)
+		a.Plugs[i].Snap = snap.DropNick(a.Plugs[i].Snap)
 	}
 	for i := range a.Slots {
-		a.Slots[i].Snap = systemCoreSnapUnalias(a.Slots[i].Snap)
+		a.Slots[i].Snap = snap.DropNick(a.Slots[i].Snap)
 	}
 
 	switch a.Action {
@@ -2822,18 +2822,4 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, inst.Names)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
-}
-
-func systemCoreSnapUnalias(name string) string {
-	if name == "system" {
-		return "core"
-	}
-	return name
-}
-
-func systemCoreSnapAlias(name string) string {
-	if name == "core" {
-		return "system"
-	}
-	return name
 }
