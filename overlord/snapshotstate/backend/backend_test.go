@@ -113,8 +113,8 @@ func (s *snapshotSuite) TearDownTest(c *check.C) {
 	}
 }
 
-func hashkeys(sh *client.Snapshot) (keys []string) {
-	for k := range sh.SHA3_384 {
+func hashkeys(snapshot *client.Snapshot) (keys []string) {
+	for k := range snapshot.SHA3_384 {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
@@ -210,7 +210,7 @@ func (s *snapshotSuite) TestIterWarnsOnOpenErrorIfSnapshotNil(c *check.C) {
 	})()
 
 	calledF := false
-	f := func(sh *backend.Reader) error {
+	f := func(snapshot *backend.Reader) error {
 		calledF = true
 		return nil
 	}
@@ -251,8 +251,8 @@ func (s *snapshotSuite) TestIterCallsFuncIfSnapshotNotNil(c *check.C) {
 	})()
 
 	calledF := false
-	f := func(sh *backend.Reader) error {
-		c.Check(sh.Broken, check.Equals, "xyzzy")
+	f := func(snapshot *backend.Reader) error {
+		c.Check(snapshot.Broken, check.Equals, "xyzzy")
 		calledF = true
 		return nil
 	}
@@ -292,8 +292,8 @@ func (s *snapshotSuite) TestIterReportsCloseError(c *check.C) {
 	})()
 
 	calledF := false
-	f := func(sh *backend.Reader) error {
-		c.Check(sh.SetID, check.Equals, uint64(42))
+	f := func(snapshot *backend.Reader) error {
+		c.Check(snapshot.SetID, check.Equals, uint64(42))
 		calledF = true
 		return nil
 	}
@@ -352,10 +352,10 @@ func (s *snapshotSuite) TestList(c *check.C) {
 	}
 	table := []tableT{
 		{0, nil, 4, 12, nil},
-		{0, []string{"foo"}, 4, 4, func(sh *client.Snapshot) bool { return sh.Snap == "foo" }},
-		{1, nil, 1, 3, func(sh *client.Snapshot) bool { return sh.SetID == 1 }},
-		{2, []string{"bar"}, 1, 1, func(sh *client.Snapshot) bool { return sh.Snap == "bar" && sh.SetID == 2 }},
-		{0, []string{"foo", "bar"}, 4, 8, func(sh *client.Snapshot) bool { return sh.Snap == "foo" || sh.Snap == "bar" }},
+		{0, []string{"foo"}, 4, 4, func(snapshot *client.Snapshot) bool { return snapshot.Snap == "foo" }},
+		{1, nil, 1, 3, func(snapshot *client.Snapshot) bool { return snapshot.SetID == 1 }},
+		{2, []string{"bar"}, 1, 1, func(snapshot *client.Snapshot) bool { return snapshot.Snap == "bar" && snapshot.SetID == 2 }},
+		{0, []string{"foo", "bar"}, 4, 8, func(snapshot *client.Snapshot) bool { return snapshot.Snap == "foo" || snapshot.Snap == "bar" }},
 	}
 
 	for i, t := range table {
@@ -372,14 +372,14 @@ func (s *snapshotSuite) TestList(c *check.C) {
 		nShots := 0
 		fnTpl := filepath.Join(dirs.SnapshotsDir, "%d_%s_%s_%s.zip")
 		for j, ss := range sets {
-			for k, sh := range ss.Snapshots {
+			for k, snapshot := range ss.Snapshots {
 				comm := check.Commentf("%d: %d/%v #%d/%d", i, t.setID, t.snapnames, j, k)
 				if t.predicate != nil {
-					c.Check(t.predicate(sh), check.Equals, true, comm)
+					c.Check(t.predicate(snapshot), check.Equals, true, comm)
 				}
 				nShots++
-				fn := fmt.Sprintf(fnTpl, sh.SetID, sh.Snap, sh.Version, sh.Revision)
-				c.Check(backend.Filename(sh), check.Equals, fn, comm)
+				fn := fmt.Sprintf(fnTpl, snapshot.SetID, snapshot.Snap, snapshot.Version, snapshot.Revision)
+				c.Check(backend.Filename(snapshot), check.Equals, fn, comm)
 			}
 		}
 		c.Check(nShots, check.Equals, t.numShots)
@@ -387,15 +387,15 @@ func (s *snapshotSuite) TestList(c *check.C) {
 }
 
 func (s *snapshotSuite) TestAddDirToZipBails(c *check.C) {
-	sh := &client.Snapshot{SetID: 42, Snap: "a-snap"}
+	snapshot := &client.Snapshot{SetID: 42, Snap: "a-snap"}
 	buf, restore := logger.MockLogger()
 	defer restore()
 	// note as the zip is nil this would panic if it didn't bail
-	c.Check(backend.AddDirToZip(nil, sh, nil, "", "an/entry", filepath.Join(s.root, "nonexistent")), check.IsNil)
+	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", filepath.Join(s.root, "nonexistent")), check.IsNil)
 	// no log for the non-existent case
 	c.Check(buf.String(), check.Equals, "")
 	buf.Reset()
-	c.Check(backend.AddDirToZip(nil, sh, nil, "", "an/entry", "/etc/passwd"), check.IsNil)
+	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", "/etc/passwd"), check.IsNil)
 	c.Check(buf.String(), check.Matches, "(?m).* is not a directory.")
 }
 
@@ -419,15 +419,15 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 
 	var buf bytes.Buffer
 	z := zip.NewWriter(&buf)
-	sh := &client.Snapshot{
+	snapshot := &client.Snapshot{
 		SHA3_384: map[string]string{},
 	}
-	c.Assert(backend.AddDirToZip(context.Background(), sh, z, "", "an/entry", d), check.IsNil)
+	c.Assert(backend.AddDirToZip(context.Background(), snapshot, z, "", "an/entry", d), check.IsNil)
 	z.Close() // write out the central directory
 
-	c.Check(sh.SHA3_384, check.HasLen, 1)
-	c.Check(sh.SHA3_384["an/entry"], check.HasLen, 96)
-	c.Check(sh.Size > 0, check.Equals, true) // actual size most likely system-dependent
+	c.Check(snapshot.SHA3_384, check.HasLen, 1)
+	c.Check(snapshot.SHA3_384["an/entry"], check.HasLen, 96)
+	c.Check(snapshot.Size > 0, check.Equals, true) // actual size most likely system-dependent
 	br := bytes.NewReader(buf.Bytes())
 	r, err := zip.NewReader(br, int64(br.Len()))
 	c.Assert(err, check.IsNil)

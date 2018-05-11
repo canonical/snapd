@@ -104,10 +104,12 @@ func usersForUsernames(usernames []string) ([]*user.User, error) {
 			if _, ok := err.(*user.UnknownUserError); !ok {
 				return nil, err
 			}
-			usr, err = userLookupId(username)
-			if err != nil {
+			u, e := userLookupId(username)
+			if e != nil {
+				// return first error, as it's usually clearer
 				return nil, err
 			}
+			usr = u
 		}
 		users = append(users, usr)
 
