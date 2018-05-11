@@ -29,6 +29,18 @@ if [ $(ls /boot/uboot | grep ^uboot.env$ | wc -l) -gt 1 ]; then
     done
     # and move the saved one into place
     mv /boot/uboot/uboot.env.save /boot/uboot/uboot.env
+
+    # ensure we sync the fs
+    sync
+fi
+
+
+# The code below deals with incorrect permissions that happend on
+# some buggy ubuntu-image versions.
+#
+# This needs to run only once so we can exit here.
+if [ -f /var/lib/snapd/device/ownership-change.after ]; then
+    exit 0
 fi
 
 # store important data in case we need it later
