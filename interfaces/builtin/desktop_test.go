@@ -148,11 +148,16 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	// On all-snaps systems, no mount entries are added
+	// On all-snaps systems, the font related mount entries are missing
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Check(spec.MountEntries(), HasLen, 0)
-	c.Check(spec.UserMountEntries(), HasLen, 0)
+
+	entries := spec.UserMountEntries()
+	c.Check(entries, HasLen, 1)
+	c.Check(entries[0].Name, Equals, "$XDG_RUNTIME_DIR/doc/by-app/snap.consumer")
+	c.Check(entries[0].Dir, Equals, "$XDG_RUNTIME_DIR/doc")
+	c.Check(entries[0].Options, DeepEquals, []string{"bind", "rw", "x-snapd.ignore-missing"})
 
 	// On classic systems, a number of font related directories
 	// are bind mounted from the host system if they exist.
@@ -161,7 +166,7 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	spec = &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 
-	entries := spec.MountEntries()
+	entries = spec.MountEntries()
 	c.Assert(entries, HasLen, 3)
 
 	const hostfs = "/var/lib/snapd/hostfs"
@@ -179,9 +184,7 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 
 	entries = spec.UserMountEntries()
 	c.Assert(entries, HasLen, 1)
-	c.Check(entries[0].Name, Equals, "$XDG_RUNTIME_DIR/doc/by-app/snap.consumer")
 	c.Check(entries[0].Dir, Equals, "$XDG_RUNTIME_DIR/doc")
-	c.Check(entries[0].Options, DeepEquals, []string{"bind", "rw", "x-snapd.ignore-missing"})
 }
 
 func (s *DesktopInterfaceSuite) TestStaticInfo(c *C) {
