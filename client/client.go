@@ -386,11 +386,14 @@ const (
 	ErrorKindSnapNeedsClassic       = "snap-needs-classic"
 	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
 	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
+	ErrorKindRevisionNotAvailable   = "snap-revision-not-available"
 
 	ErrorKindNotSnap = "snap-not-a-snap"
 
 	ErrorKindNetworkTimeout      = "network-timeout"
 	ErrorKindInterfacesUnchanged = "interfaces-unchanged"
+
+	ErrorKindConfigNoSuchOption = "option-not-found"
 
 	ErrorKindSystemRestart = "system-restart"
 	ErrorKindDaemonRestart = "daemon-restart"

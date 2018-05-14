@@ -226,6 +226,7 @@ func (s *utilsSuite) TestSecureMkdirAllOpenError(c *C) {
 }
 
 func (s *utilsSuite) TestPlanWritableMimic(c *C) {
+	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
 	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
 		c.Assert(dir, Equals, "/foo")
 		return []os.FileInfo{
@@ -262,7 +263,7 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 		// Store /foo in /tmp/.snap/foo while we set things up
 		{Entry: osutil.MountEntry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"rbind"}}, Action: update.Mount},
 		// Put a tmpfs over /foo
-		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/foo/bar"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/foo/bar", "mode=0755", "uid=0", "gid=0"}}, Action: update.Mount},
 		// Bind mount files and directories over. Note that files are identified by x-snapd.kind=file option.
 		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file", "x-snapd.synthetic", "x-snapd.needed-by=/foo/bar"}}, Action: update.Mount},
 		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"rbind", "x-snapd.synthetic", "x-snapd.needed-by=/foo/bar"}}, Action: update.Mount},
@@ -276,6 +277,7 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 }
 
 func (s *utilsSuite) TestPlanWritableMimicErrors(c *C) {
+	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
 	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
 		c.Assert(dir, Equals, "/foo")
 		return nil, errTesting
@@ -721,6 +723,51 @@ func (s *utilsSuite) TestSplitIntoSegments(c *C) {
 
 // secure-open-path
 
+func (s *utilsSuite) TestSecureOpenPath(c *C) {
+	stat := syscall.Stat_t{Mode: syscall.S_IFDIR}
+	s.sys.InsertFstatResult("fstat 5 <ptr>", stat)
+	fd, err := s.sec.OpenPath("/foo/bar")
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	c.Assert(fd, Equals, 5)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,       // -> 3
+		`openat 3 "foo" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "bar" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,             // -> 5
+		`fstat 5 <ptr>`,
+		`close 4`,
+		`close 3`,
+	})
+}
+
+func (s *utilsSuite) TestSecureOpenPathSingleSegment(c *C) {
+	stat := syscall.Stat_t{Mode: syscall.S_IFDIR}
+	s.sys.InsertFstatResult("fstat 4 <ptr>", stat)
+	fd, err := s.sec.OpenPath("/foo")
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	c.Assert(fd, Equals, 4)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 3
+		`openat 3 "foo" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,       // -> 4
+		`fstat 4 <ptr>`,
+		`close 3`,
+	})
+}
+
+func (s *utilsSuite) TestSecureOpenPathRoot(c *C) {
+	stat := syscall.Stat_t{Mode: syscall.S_IFDIR}
+	s.sys.InsertFstatResult("fstat 3 <ptr>", stat)
+	fd, err := s.sec.OpenPath("/")
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	c.Assert(fd, Equals, 3)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 3
+		`fstat 3 <ptr>`,
+	})
+}
+
 func (s *realSystemSuite) TestSecureOpenPathDirectory(c *C) {
 	path := filepath.Join(c.MkDir(), "test")
 	c.Assert(os.Mkdir(path, 0755), IsNil)
@@ -769,8 +816,14 @@ func (s *realSystemSuite) TestSecureOpenPathFile(c *C) {
 	c.Assert(ioutil.WriteFile(path, []byte("hello"), 0644), IsNil)
 
 	fd, err := s.sec.OpenPath(path)
-	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "not a directory")
+	c.Assert(err, IsNil)
+	defer syscall.Close(fd)
+
+	// Check that the file descriptor matches the file.
+	var pathStat, fdStat syscall.Stat_t
+	c.Assert(syscall.Stat(path, &pathStat), IsNil)
+	c.Assert(syscall.Fstat(fd, &fdStat), IsNil)
+	c.Check(pathStat, Equals, fdStat)
 }
 
 func (s *realSystemSuite) TestSecureOpenPathNotFound(c *C) {
@@ -791,7 +844,7 @@ func (s *realSystemSuite) TestSecureOpenPathSymlink(c *C) {
 
 	fd, err := s.sec.OpenPath(symlink)
 	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "not a directory")
+	c.Check(err, ErrorMatches, `".*" is a symbolic link`)
 }
 
 func (s *realSystemSuite) TestSecureOpenPathSymlinkedParent(c *C) {

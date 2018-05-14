@@ -50,11 +50,9 @@ The install command installs the named snaps in the system.
 With no further options, the snaps are installed tracking the stable channel,
 with strict security confinement.
 
-Revision choice via the --revision override is limited to those that are the
-current revision of a channel.
-If the snap is one the user has developer access to, either directly or through
-the store's collaboration feature, then logging in (see 'snap help login')
-lifts this restriction.
+Revision choice via the --revision override requires the the user to
+have developer access to the snap, either directly or through the
+store's collaboration feature, and to be logged in (see 'snap help login').
 
 Note a later refresh will typically undo a revision override, taking the snap
 back to the current revision of the channel it's tracking.
@@ -75,11 +73,9 @@ none are specified.
 With no further options, the snaps are refreshed to the current revision of the
 channel they're tracking, preserving their confinement options.
 
-Revision choice via the --revision override is limited to those that are the
-current revision of a channel.
-If the snap is one the user has developer access to, either directly or through
-the store's collaboration feature, then logging in (see 'snap help login')
-lifts this restriction.
+Revision choice via the --revision override requires the the user to
+have developer access to the snap, either directly or through the
+store's collaboration feature, and to be logged in (see 'snap help login').
 
 Note a later refresh will typically undo a revision override.
 `)
@@ -905,7 +901,7 @@ func init() {
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		waitDescs.also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
 			"amend":             i18n.G("Allow refresh attempt on snap unknown to the store"),
-			"revision":          i18n.G("Refresh to the given revision"),
+			"revision":          i18n.G("Refresh to the given revision, to which you must have developer access"),
 			"list":              i18n.G("Show available snaps for refresh but do not perform a refresh"),
 			"time":              i18n.G("Show auto refresh information but do not perform a refresh"),
 			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the refresh"),
