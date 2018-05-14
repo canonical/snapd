@@ -401,18 +401,16 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	var ref *ConnRef
-
 	if plugSnapName == "" {
-		return ref, fmt.Errorf("cannot resolve connection, plug snap name is empty")
+		return nil, fmt.Errorf("cannot resolve connection, plug snap name is empty")
 	}
 	if plugName == "" {
-		return ref, fmt.Errorf("cannot resolve connection, plug name is empty")
+		return nil, fmt.Errorf("cannot resolve connection, plug name is empty")
 	}
 	// Ensure that such plug exists
 	plug := r.plugs[plugSnapName][plugName]
 	if plug == nil {
-		return ref, fmt.Errorf("snap %q has no plug named %q", plugSnapName, plugName)
+		return nil, fmt.Errorf("snap %q has no plug named %q", plugSnapName, plugName)
 	}
 
 	if slotSnapName == "" {
@@ -425,7 +423,7 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 		default:
 			// XXX: perhaps this should not be an error and instead it should
 			// silently assume "core" now?
-			return ref, fmt.Errorf("cannot resolve connection, slot snap name is empty")
+			return nil, fmt.Errorf("cannot resolve connection, slot snap name is empty")
 		}
 	}
 	if slotName == "" {
@@ -439,27 +437,26 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 		}
 		switch len(candidates) {
 		case 0:
-			return ref, fmt.Errorf("snap %q has no %q interface slots", slotSnapName, plug.Interface)
+			return nil, fmt.Errorf("snap %q has no %q interface slots", slotSnapName, plug.Interface)
 		case 1:
 			slotName = candidates[0]
 		default:
 			sort.Strings(candidates)
-			return ref, fmt.Errorf("snap %q has multiple %q interface slots: %s", slotSnapName, plug.Interface, strings.Join(candidates, ", "))
+			return nil, fmt.Errorf("snap %q has multiple %q interface slots: %s", slotSnapName, plug.Interface, strings.Join(candidates, ", "))
 		}
 	}
 
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return ref, fmt.Errorf("snap %q has no slot named %q", slotSnapName, slotName)
+		return nil, fmt.Errorf("snap %q has no slot named %q", slotSnapName, slotName)
 	}
 	// Ensure that plug and slot are compatible
 	if slot.Interface != plug.Interface {
-		return ref, fmt.Errorf("cannot connect %s:%s (%q interface) to %s:%s (%q interface)",
+		return nil, fmt.Errorf("cannot connect %s:%s (%q interface) to %s:%s (%q interface)",
 			plugSnapName, plugName, plug.Interface, slotSnapName, slotName, slot.Interface)
 	}
-	ref = NewConnRef(plug, slot)
-	return ref, nil
+	return NewConnRef(plug, slot), nil
 }
 
 // ResolveDisconnect resolves potentially missing plug or slot names and
