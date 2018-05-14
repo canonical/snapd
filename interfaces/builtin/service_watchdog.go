@@ -57,12 +57,18 @@ func (iface *serviceWatchdogInterface) AppArmorConnectedPlug(spec *apparmor.Spec
 	if notifySocket == "" {
 		notifySocket = "/run/systemd/notify"
 	}
-
-	if !(strings.HasPrefix(notifySocket, "/") || strings.HasPrefix(notifySocket, "@")) || strings.ContainsAny(notifySocket, `?*[]{}^"`) {
+	if !strings.HasPrefix(notifySocket, "/") && !strings.HasPrefix(notifySocket, "@") {
 		// must be an absolute path or an abstract socket path, without
 		// any AppArmor regular expression (AARE) characters or double
 		// quotes
-		return fmt.Errorf("cannot use %q as notify socket path", notifySocket)
+		return fmt.Errorf("cannot use %q as notify socket path: not absolute", notifySocket)
+	}
+	illegalChars := `?*[]{}^"`
+	if strings.ContainsAny(notifySocket, illegalChars) {
+		// must be an absolute path or an abstract socket path, without
+		// any AppArmor regular expression (AARE) characters or double
+		// quotes
+		return fmt.Errorf("cannot use %q as notify socket path: contains one of %s", notifySocket, illegalChars)
 	}
 
 	var rule string

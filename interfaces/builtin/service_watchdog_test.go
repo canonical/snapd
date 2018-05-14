@@ -154,10 +154,10 @@ func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvBadFormat
 		format string
 		error  string
 	}{
-		{"foo/bar", `cannot use "foo/bar" as notify socket path`},
-		{"[", `cannot use "\[" as notify socket path`},
-		{"@^", `cannot use "@\^" as notify socket path`},
-		{`/foo/bar"[]`, `cannot use "/foo/bar\\"\[\]" as notify socket path`},
+		{"foo/bar", `cannot use \".*\" as notify socket path: not absolute`},
+		{"[", `cannot use ".*" as notify socket path: not absolute`},
+		{"@^", `cannot use \".*\" as notify socket path: contains one of .*`},
+		{`/foo/bar"[]`, `cannot use \".*\" as notify socket path: contains one of .*`},
 	} {
 		c.Logf("trying %d: %v", idx, tc)
 		socketPath = tc.format
