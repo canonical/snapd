@@ -195,11 +195,6 @@ func connect(st *state.State, change *state.Change, installedSnapTask *state.Tas
 	connectPlugConnection := hookstate.HookTask(st, summary, connectPlugHookSetup, initialContext)
 	connectPlugConnection.WaitFor(connectSlotConnection)
 
-	// store IDs of the connect-plug/slot- hook tasks in the main 'connect' task,
-	// so that doConnect can conditionally mark them done on autoconnect.
-	connectInterface.Set("connect-slot-hook-task", connectSlotConnection.ID())
-	connectInterface.Set("connect-plug-hook-task", connectPlugConnection.ID())
-
 	return state.NewTaskSet(preparePlugConnection, prepareSlotConnection, connectInterface, connectSlotConnection, connectPlugConnection), nil
 }
 
