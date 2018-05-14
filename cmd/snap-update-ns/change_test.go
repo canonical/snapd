@@ -384,9 +384,12 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, syscall.ENOENT, nil) // works on 2nd try
 	s.sys.InsertFault(`mkdirat 4 "target" 0755`, syscall.EROFS, nil)                               // works on 2nd try
-	s.sys.InsertReadDirResult(`readdir "/rofs"`, nil)                                              // pretend /rofs is empty.
+	s.sys.InsertSysLstatResult(`lstat "/rofs" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
+	s.sys.InsertReadDirResult(`readdir "/rofs"`, nil) // pretend /rofs is empty.
 	s.sys.InsertFault(`lstat "/tmp/.snap/rofs"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/rofs"`, testutil.FileInfoDir)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/rofs/target", Type: "type"}}
 	synth, err := chg.Perform(s.sec)
@@ -394,7 +397,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 	c.Assert(synth, DeepEquals, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{
 			Name: "tmpfs", Dir: "/rofs", Type: "tmpfs",
-			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/target"}},
+			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/target", "mode=0755", "uid=0", "gid=0"}},
 		},
 	})
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
@@ -410,6 +413,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 		`close 4`,
 
 		// error, read only filesystem, create a mimic
+		`lstat "/rofs" <ptr>`,
 		`readdir "/rofs"`,
 		`lstat "/tmp/.snap/rofs"`,
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
@@ -427,9 +431,25 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 		`close 3`,
 		`close 5`,
 		`lstat "/rofs"`,
-		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND|MS_REC ""`,
+
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 5 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 6 "rofs" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 7 <ptr>`,
+		`close 6`,
+		`close 5`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`,
+		`close 7`,
+		`close 4`,
+
 		`lstat "/rofs"`,
-		`mount "tmpfs" "/rofs" "tmpfs" 0 ""`,
+		`mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`,
 		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`,
 
 		// mimic ready, re-try initial mkdir
@@ -456,6 +476,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 	s.sys.InsertFault(`mkdirat 4 "target" 0755`, syscall.EROFS)
 	s.sys.InsertFault(`lstat "/tmp/.snap/rofs"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/rofs"`, testutil.FileInfoDir)
+	s.sys.InsertSysLstatResult(`lstat "/rofs" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
 	s.sys.InsertReadDirResult(`readdir "/rofs"`, nil)
 	s.sys.InsertFault(`readdir "/rofs"`, errTesting) // make the writable mimic fail
 
@@ -476,6 +497,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 		`close 4`,
 
 		// error, read only filesystem, create a mimic
+		`lstat "/rofs" <ptr>`,
 		`readdir "/rofs"`,
 		// cannot create mimic, that's it
 	})
@@ -489,6 +511,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 	s.sys.InsertFault(`mkdirat 4 "target" 0755`, syscall.EROFS)
 	s.sys.InsertFault(`lstat "/tmp/.snap/rofs"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/rofs"`, testutil.FileInfoDir)
+	s.sys.InsertSysLstatResult(`lstat "/rofs" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
 	s.sys.InsertReadDirResult(`readdir "/rofs"`, nil)
 	s.sys.InsertFault(`mkdirat 4 ".snap" 0755`, errTesting) // make the writable mimic fail
 
@@ -509,6 +532,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 		`close 4`,
 
 		// error, read only filesystem, create a mimic
+		`lstat "/rofs" <ptr>`,
 		`readdir "/rofs"`,
 		`lstat "/tmp/.snap/rofs"`,
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
@@ -632,6 +656,8 @@ func (s *changeSuite) TestPerformDirectoryBindMountSourceLstatError(c *C) {
 func (s *changeSuite) TestPerformDirectoryBindMount(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoDir)
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
 	synth, err := chg.Perform(s.sec)
 	c.Assert(err, IsNil)
@@ -639,7 +665,17 @@ func (s *changeSuite) TestPerformDirectoryBindMount(c *C) {
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
 		`lstat "/source"`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 5 <ptr>`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -647,7 +683,9 @@ func (s *changeSuite) TestPerformDirectoryBindMount(c *C) {
 func (s *changeSuite) TestPerformDirectoryBindMountWithError(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoDir)
-	s.sys.InsertFault(`mount "/source" "/target" "" MS_BIND ""`, errTesting)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFault(`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
 	synth, err := chg.Perform(s.sec)
 	c.Assert(err, Equals, errTesting)
@@ -655,7 +693,17 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithError(c *C) {
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
 		`lstat "/source"`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 5 <ptr>`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -663,6 +711,8 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithError(c *C) {
 func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPoint(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoDir)
 	s.sys.InsertFault(`lstat "/target"`, syscall.ENOENT)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
 	synth, err := chg.Perform(s.sec)
 	c.Assert(err, IsNil)
@@ -676,7 +726,17 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPoint(c *C) {
 		`close 4`,
 		`close 3`,
 		`lstat "/source"`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 5 <ptr>`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -684,6 +744,8 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPoint(c *C) {
 func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSource(c *C) {
 	s.sys.InsertFault(`lstat "/source"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
 	synth, err := chg.Perform(s.sec)
 	c.Assert(err, IsNil)
@@ -697,7 +759,17 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSource(c *C) {
 		`fchown 4 0 0`,
 		`close 4`,
 		`close 3`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 5 <ptr>`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -742,10 +814,14 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, syscall.ENOENT, nil) // works on 2nd try
 	s.sys.InsertFault(`mkdirat 4 "target" 0755`, syscall.EROFS, nil)                               // works on 2nd try
-	s.sys.InsertReadDirResult(`readdir "/rofs"`, nil)                                              // pretend /rofs is empty.
+	s.sys.InsertSysLstatResult(`lstat "/rofs" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
+	s.sys.InsertReadDirResult(`readdir "/rofs"`, nil) // pretend /rofs is empty.
 	s.sys.InsertFault(`lstat "/tmp/.snap/rofs"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/rofs"`, testutil.FileInfoDir)
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoDir)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/rofs/target", Options: []string{"bind"}}}
 	synth, err := chg.Perform(s.sec)
@@ -753,7 +829,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 	c.Assert(synth, DeepEquals, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{
 			Name: "tmpfs", Dir: "/rofs", Type: "tmpfs",
-			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/target"}},
+			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/target", "mode=0755", "uid=0", "gid=0"}},
 		},
 	})
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
@@ -769,6 +845,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 		`close 4`,
 
 		// error, read only filesystem, create a mimic
+		`lstat "/rofs" <ptr>`,
 		`readdir "/rofs"`,
 		`lstat "/tmp/.snap/rofs"`,
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
@@ -786,9 +863,25 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 		`close 3`,
 		`close 5`,
 		`lstat "/rofs"`,
-		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND|MS_REC ""`,
+
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 5 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 6 "rofs" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 7 <ptr>`,
+		`close 6`,
+		`close 5`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`,
+		`close 7`,
+		`close 4`,
+
 		`lstat "/rofs"`,
-		`mount "tmpfs" "/rofs" "tmpfs" 0 ""`,
+		`mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`,
 		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`,
 
 		// mimic ready, re-try initial mkdir
@@ -806,7 +899,19 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 		`lstat "/source"`,
 
 		// mount the filesystem
-		`mount "/source" "/rofs/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 5 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 6 <ptr>`,
+		`close 5`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/6" "" MS_BIND ""`,
+		`close 6`,
+		`close 4`,
 	})
 }
 
@@ -913,6 +1018,8 @@ func (s *changeSuite) TestPerformFileBindMountSourceLstatError(c *C) {
 func (s *changeSuite) TestPerformFileBindMount(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoFile)
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform(s.sec)
 	c.Assert(err, IsNil)
@@ -920,7 +1027,17 @@ func (s *changeSuite) TestPerformFileBindMount(c *C) {
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
 		`lstat "/source"`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 5 <ptr>`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -928,7 +1045,9 @@ func (s *changeSuite) TestPerformFileBindMount(c *C) {
 func (s *changeSuite) TestPerformFileBindMountWithError(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoFile)
-	s.sys.InsertFault(`mount "/source" "/target" "" MS_BIND ""`, errTesting)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFault(`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform(s.sec)
 	c.Assert(err, Equals, errTesting)
@@ -936,7 +1055,17 @@ func (s *changeSuite) TestPerformFileBindMountWithError(c *C) {
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
 		`lstat "/source"`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 5 <ptr>`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -944,6 +1073,8 @@ func (s *changeSuite) TestPerformFileBindMountWithError(c *C) {
 func (s *changeSuite) TestPerformFileBindMountWithoutMountPoint(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoFile)
 	s.sys.InsertFault(`lstat "/target"`, syscall.ENOENT)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform(s.sec)
 	c.Assert(err, IsNil)
@@ -956,7 +1087,17 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPoint(c *C) {
 		`close 4`,
 		`close 3`,
 		`lstat "/source"`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 5 <ptr>`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -981,6 +1122,8 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointWithErrors(c *C) 
 func (s *changeSuite) TestPerformFileBindMountWithoutMountSource(c *C) {
 	s.sys.InsertFault(`lstat "/source"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform(s.sec)
 	c.Assert(err, IsNil)
@@ -993,7 +1136,17 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountSource(c *C) {
 		`fchown 4 0 0`,
 		`close 4`,
 		`close 3`,
-		`mount "/source" "/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 5 <ptr>`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`,
+		`close 5`,
+		`close 4`,
 	})
 }
 
@@ -1020,10 +1173,14 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 	s.sys.InsertFault(`lstat "/rofs/target"`, syscall.ENOENT)
 	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`openat 4 "target" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, syscall.EROFS, nil) // works on 2nd try
-	s.sys.InsertReadDirResult(`readdir "/rofs"`, nil)                                                   // pretend /rofs is empty.
+	s.sys.InsertSysLstatResult(`lstat "/rofs" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
+	s.sys.InsertReadDirResult(`readdir "/rofs"`, nil) // pretend /rofs is empty.
 	s.sys.InsertFault(`lstat "/tmp/.snap/rofs"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/rofs"`, testutil.FileInfoDir)
 	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoFile)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/rofs/target", Options: []string{"bind", "x-snapd.kind=file"}}}
 	synth, err := chg.Perform(s.sec)
@@ -1031,7 +1188,7 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 	c.Assert(synth, DeepEquals, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{
 			Name: "tmpfs", Dir: "/rofs", Type: "tmpfs",
-			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/target"}},
+			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/target", "mode=0755", "uid=0", "gid=0"}},
 		},
 	})
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
@@ -1047,6 +1204,7 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 		`close 4`,
 
 		// error, read only filesystem, create a mimic
+		`lstat "/rofs" <ptr>`,
 		`readdir "/rofs"`,
 		`lstat "/tmp/.snap/rofs"`,
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
@@ -1064,9 +1222,25 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 		`close 3`,
 		`close 5`,
 		`lstat "/rofs"`,
-		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND|MS_REC ""`,
+
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 5 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 6 "rofs" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 7 <ptr>`,
+		`close 6`,
+		`close 5`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`,
+		`close 7`,
+		`close 4`,
+
 		`lstat "/rofs"`,
-		`mount "tmpfs" "/rofs" "tmpfs" 0 ""`,
+		`mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`,
 		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`,
 
 		// mimic ready, re-try initial mkdir
@@ -1083,7 +1257,19 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 		`lstat "/source"`,
 
 		// mount the filesystem
-		`mount "/source" "/rofs/target" "" MS_BIND ""`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 5 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 6 <ptr>`,
+		`close 5`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/6" "" MS_BIND ""`,
+		`close 6`,
+		`close 4`,
 	})
 }
 
@@ -1157,6 +1343,34 @@ func (s *changeSuite) TestPerformFileBindUnmountError(c *C) {
 	c.Assert(err, Equals, errTesting)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "/target" UMOUNT_NOFOLLOW`})
 	c.Assert(synth, HasLen, 0)
+}
+
+// #############################################################
+// Topic: handling mounts with the x-snapd.ignore-missing option
+// #############################################################
+
+func (s *changeSuite) TestPerformMountWithIgnoredMissingMountSource(c *C) {
+	s.sys.InsertFault(`lstat "/source"`, syscall.ENOENT)
+	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.ignore-missing"}}}
+	synth, err := chg.Perform(s.sec)
+	c.Assert(err, Equals, update.ErrIgnoredMissingMount)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+		`lstat "/source"`,
+	})
+}
+
+func (s *changeSuite) TestPerformMountWithIgnoredMissingMountPoint(c *C) {
+	s.sys.InsertFault(`lstat "/target"`, syscall.ENOENT)
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.ignore-missing"}}}
+	synth, err := chg.Perform(s.sec)
+	c.Assert(err, Equals, update.ErrIgnoredMissingMount)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`lstat "/target"`,
+	})
 }
 
 // ########################
@@ -1256,9 +1470,12 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 	s.sys.InsertFault(`lstat "/rofs/name"`, syscall.ENOENT)
 	s.sys.InsertFault(`mkdirat 3 "rofs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`symlinkat "/oldname" 4 "name"`, syscall.EROFS, nil) // works on 2nd try
-	s.sys.InsertReadDirResult(`readdir "/rofs"`, nil)                      // pretend /rofs is empty.
+	s.sys.InsertSysLstatResult(`lstat "/rofs" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
+	s.sys.InsertReadDirResult(`readdir "/rofs"`, nil) // pretend /rofs is empty.
 	s.sys.InsertFault(`lstat "/tmp/.snap/rofs"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/rofs"`, testutil.FileInfoDir)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/rofs/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
 	synth, err := chg.Perform(s.sec)
@@ -1266,7 +1483,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 	c.Assert(synth, DeepEquals, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{
 			Name: "tmpfs", Dir: "/rofs", Type: "tmpfs",
-			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/name"}},
+			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/name", "mode=0755", "uid=0", "gid=0"}},
 		},
 	})
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
@@ -1283,6 +1500,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 		`close 4`,
 
 		// error, read only filesystem, create a mimic
+		`lstat "/rofs" <ptr>`,
 		`readdir "/rofs"`,
 		`lstat "/tmp/.snap/rofs"`,
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
@@ -1300,9 +1518,25 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 		`close 3`,
 		`close 5`,
 		`lstat "/rofs"`,
-		`mount "/rofs" "/tmp/.snap/rofs" "" MS_BIND|MS_REC ""`,
+
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "rofs" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 4 <ptr>`,
+		`close 3`,
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 3 "tmp" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 5 ".snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,
+		`openat 6 "rofs" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,
+		`fstat 7 <ptr>`,
+		`close 6`,
+		`close 5`,
+		`close 3`,
+		`mount "/proc/self/fd/4" "/proc/self/fd/7" "" MS_BIND|MS_REC ""`,
+		`close 7`,
+		`close 4`,
+
 		`lstat "/rofs"`,
-		`mount "tmpfs" "/rofs" "tmpfs" 0 ""`,
+		`mount "tmpfs" "/rofs" "tmpfs" 0 "mode=0755,uid=0,gid=0"`,
 		`unmount "/tmp/.snap/rofs" UMOUNT_NOFOLLOW|MNT_DETACH`,
 
 		// mimic ready, re-try initial base mkdir

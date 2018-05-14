@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -32,8 +33,8 @@ type snapDetails struct {
 	Architectures    []string           `json:"architecture"`
 	Channel          string             `json:"channel,omitempty"`
 	DownloadSha3_384 string             `json:"download_sha3_384,omitempty"`
-	Summary          string             `json:"summary,omitempty"`
-	Description      string             `json:"description,omitempty"`
+	Summary          safejson.String    `json:"summary,omitempty"`
+	Description      safejson.Paragraph `json:"description,omitempty"`
 	Deltas           []snapDeltaDetail  `json:"deltas,omitempty"`
 	DownloadSize     int64              `json:"binary_filesize,omitempty"`
 	DownloadURL      string             `json:"download_url,omitempty"`
@@ -58,9 +59,9 @@ type snapDetails struct {
 	SupportURL string `json:"support_url"`
 	Contact    string `json:"contact"`
 
-	Title   string    `json:"title"`
-	Type    snap.Type `json:"content,omitempty"`
-	Version string    `json:"version"`
+	Title   safejson.String `json:"title"`
+	Type    snap.Type       `json:"content,omitempty"`
+	Version string          `json:"version"`
 
 	// TODO: have the store return a 'developer_username' for this
 	Developer   string `json:"origin"`
@@ -109,9 +110,9 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.RealName = d.Name
 	info.SnapID = d.SnapID
 	info.Revision = snap.R(d.Revision)
-	info.EditedTitle = d.Title
-	info.EditedSummary = d.Summary
-	info.EditedDescription = d.Description
+	info.EditedTitle = d.Title.Clean()
+	info.EditedSummary = d.Summary.Clean()
+	info.EditedDescription = d.Description.Clean()
 	// Note that the store side is using confusing terminology here.
 	// What the store calls "developer" is actually the publisher
 	// username.
