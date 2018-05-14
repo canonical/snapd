@@ -2023,7 +2023,7 @@ func (s *RepositorySuite) TestBeforeConnectValidationFailure(c *C) {
 
 	conn, err := s.emptyRepo.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "consumer"}, SlotRef: SlotRef{Snap: "s2", Name: "producer"}}, plugDynAttrs, slotDynAttrs, policyCheck)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, `cannot connect plug "consumer" from snap "s1": invalid plug`)
+	c.Assert(err, ErrorMatches, `cannot connect plug "consumer" of snap "s1": invalid plug`)
 	c.Assert(conn, IsNil)
 }
 
