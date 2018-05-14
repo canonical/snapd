@@ -713,7 +713,7 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 	if snapName == "" {
 		snapName, _ = r.guessCoreSnapName()
 		if snapName == "" {
-			return nil, fmt.Errorf("snap name is empty")
+			return nil, fmt.Errorf("internal error: cannot obtain core snap name while computing connections")
 		}
 	}
 
