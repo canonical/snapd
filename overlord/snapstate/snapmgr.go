@@ -212,18 +212,25 @@ func (snapst *SnapState) Block() []snap.Revision {
 var ErrNoCurrent = errors.New("snap has no current revision")
 
 // Retrieval functions
-var readInfo = readInfoAnyway
 
-func readInfoAnyway(name string, si *snap.SideInfo) (*snap.Info, error) {
-	info, err := snap.ReadInfo(name, si)
+const (
+	errorOnBroken = 1 << iota
+)
+
+var snapReadInfo = snap.ReadInfo
+
+func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
+	info, err := snapReadInfo(name, si)
+	if err != nil && flags&errorOnBroken != 0 {
+		return nil, err
+	}
 	if err != nil {
 		logger.Noticef("cannot read snap info of snap %q at revision %s: %s", name, si.Revision, err)
 	}
-	if _, ok := err.(*snap.NotFoundError); ok {
-		reason := fmt.Sprintf("cannot read snap %q: %s", name, err)
+	if bse, ok := err.(snap.BrokenSnapError); ok {
 		info := &snap.Info{
 			SuggestedName: name,
-			Broken:        reason,
+			Broken:        bse.Broken(),
 		}
 		info.Apps = snap.GuessAppsForBroken(info)
 		if si != nil {
@@ -234,13 +241,24 @@ func readInfoAnyway(name string, si *snap.SideInfo) (*snap.Info, error) {
 	return info, err
 }
 
+var revisionDate = revisionDateImpl
+
+// revisionDate returns a good approximation of when a revision reached the system.
+func revisionDateImpl(info *snap.Info) time.Time {
+	fi, err := os.Lstat(info.MountFile())
+	if err != nil {
+		return time.Time{}
+	}
+	return fi.ModTime()
+}
+
 // CurrentInfo returns the information about the current active revision or the last active revision (if the snap is inactive). It returns the ErrNoCurrent error if snapst.Current is unset.
 func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	cur := snapst.CurrentSideInfo()
 	if cur == nil {
 		return nil, ErrNoCurrent
 	}
-	return readInfo(cur.RealName, cur)
+	return readInfo(cur.RealName, cur, 0)
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {

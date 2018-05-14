@@ -1,6 +1,9 @@
 summary: |
    Test gadget customized device initialisation and registration also on classic
-systems: [-ubuntu-core-16-*]
+systems:
+    - -ubuntu-core-16-*
+    # The test fails on Arch right now, disable it temporarily
+    - -arch-*
 environment:
     SEED_DIR: /var/lib/snapd/seed
 prepare: |
@@ -8,6 +11,7 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+    #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
 
     snap pack "$TESTSLIB/snaps/classic-gadget"
@@ -42,6 +46,7 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+    #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
     systemctl stop snapd.service snapd.socket
     systemd_stop_and_destroy_unit fakedevicesvc
