@@ -357,6 +357,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
+		"reconnect",
 		"run-hook[post-refresh]",
 		"start-snap-services")
 
@@ -548,6 +549,7 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
+		"reconnect",
 		"start-snap-services",
 		"run-hook[configure]",
 	})
@@ -1011,6 +1013,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
+		"reconnect",
 		"start-snap-services",
 		"run-hook[configure]",
 	})
