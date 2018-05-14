@@ -814,7 +814,7 @@ apps:
    daemon: simple
 `))
 	c.Assert(err, IsNil)
-	c.Check(fmt.Sprintf("%q", info.Apps["one"]), Equals, `"asnap.one"`)
+	c.Check(fmt.Sprintf("%q", info.Apps["one"].String()), Equals, `"asnap.one"`)
 }
 
 func (s *infoSuite) TestSocketFile(c *C) {

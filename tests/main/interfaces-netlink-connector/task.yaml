@@ -13,7 +13,7 @@ prepare: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "\- +test-snapd-netlink-connector:netlink-connector"
+    snap interfaces -i netlink-connector | MATCH "\- +test-snapd-netlink-connector:netlink-connector"
 
     echo "When the interface is connected"
     snap connect test-snapd-netlink-connector:netlink-connector

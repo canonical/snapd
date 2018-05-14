@@ -198,7 +198,7 @@
     mount options=(rw slave) -> /tmp/snap.rootfs_*/usr/bin/snapctl,
 
     # /etc/alternatives (classic)
-    mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
+    mount options=(rw bind) @SNAP_MOUNT_DIR@/*/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
     mount options=(rw bind) @SNAP_MOUNT_DIR@/*/*/etc/ssl/ -> /tmp/snap.rootfs_*/etc/ssl/,
     mount options=(rw bind) @SNAP_MOUNT_DIR@/*/*/etc/nsswitch.conf -> /tmp/snap.rootfs_*/etc/nsswitch.conf,
     # /etc/alternatives (core)
@@ -219,6 +219,9 @@
     umount /var/lib/snapd/hostfs/dev/,
     umount /var/lib/snapd/hostfs/proc/,
     mount options=(rw rslave) -> /var/lib/snapd/hostfs/,
+
+    # set up user mount namespace
+    mount options=(rslave) -> /,
 
     # Allow reading the os-release file (possibly a symlink to /usr/lib).
     /{etc/,usr/lib/}os-release r,
