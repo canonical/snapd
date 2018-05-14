@@ -470,14 +470,13 @@ func (s *SnapSuite) TestConnectionsOfSystemNicknameSnap(c *C) {
 
 	s.ResetStdStreams()
 
-	// when called with system nickname, references to core will be replaced
-	// with nickname as well
+	// when called with system nickname we get the same output
 	rest, err = Parser().ParseArgs([]string{"interfaces", "system"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdoutSystem := "" +
 		"Slot           Plug\n" +
-		":core-support  system:core-support-plug\n"
+		":core-support  core:core-support-plug\n"
 	c.Assert(s.Stdout(), Equals, expectedStdoutSystem)
 	c.Assert(s.Stderr(), Equals, "")
 }

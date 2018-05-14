@@ -68,13 +68,6 @@ func init() {
 	}})
 }
 
-func maybeAsNickname(name string, useNick bool) string {
-	if useNick {
-		return snap.UseNick(name)
-	}
-	return name
-}
-
 func (x *cmdInterfaces) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -94,18 +87,14 @@ func (x *cmdInterfaces) Execute(args []string) error {
 	wantedSnap := x.Positionals.Query.Snap
 
 	for _, slot := range ifaces.Slots {
-		askedWithNick := false
 		if wantedSnap != "" {
-			ok := wantedSnap == slot.Snap
-			if !ok && wantedSnap == snap.UseNick(slot.Snap) {
-				askedWithNick = true
+			var ok bool
+			if wantedSnap == slot.Snap || wantedSnap == snap.UseNick(slot.Snap) {
 				ok = true
 			}
 
 			for i := 0; i < len(slot.Connections) && !ok; i++ {
-				ok = wantedSnap == slot.Connections[i].Snap
-				if !ok && wantedSnap == snap.UseNick(slot.Connections[i].Snap) {
-					askedWithNick = true
+				if wantedSnap == slot.Connections[i].Snap || wantedSnap == snap.UseNick(slot.Connections[i].Snap) {
 					ok = true
 				}
 			}
@@ -124,17 +113,16 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		if slot.Snap == "core" || slot.Snap == "ubuntu-core" || slot.Snap == snap.UseNick("core") {
 			fmt.Fprintf(w, ":%s\t", slot.Name)
 		} else {
-			fmt.Fprintf(w, "%s:%s\t", maybeAsNickname(slot.Snap, askedWithNick), slot.Name)
+			fmt.Fprintf(w, "%s:%s\t", slot.Snap, slot.Name)
 		}
 		for i := 0; i < len(slot.Connections); i++ {
 			if i > 0 {
 				fmt.Fprint(w, ",")
 			}
 			if slot.Connections[i].Name != slot.Name {
-				fmt.Fprintf(w, "%s:%s", maybeAsNickname(slot.Connections[i].Snap, askedWithNick),
-					slot.Connections[i].Name)
+				fmt.Fprintf(w, "%s:%s", slot.Connections[i].Snap, slot.Connections[i].Name)
 			} else {
-				fmt.Fprintf(w, "%s", maybeAsNickname(slot.Connections[i].Snap, askedWithNick))
+				fmt.Fprintf(w, "%s", slot.Connections[i].Snap)
 			}
 		}
 		// Display visual indicator for disconnected slots
@@ -146,15 +134,8 @@ func (x *cmdInterfaces) Execute(args []string) error {
 	// Plugs are treated differently. Since the loop above already printed each connected
 	// plug, the loop below focuses on printing just the disconnected plugs.
 	for _, plug := range ifaces.Plugs {
-		maybeNick := plug.Snap
 		if wantedSnap != "" {
-			ok := wantedSnap == plug.Snap
-			nick := snap.UseNick(plug.Snap)
-			if !ok && wantedSnap == nick {
-				maybeNick = nick
-				ok = true
-			}
-			if !ok {
+			if wantedSnap != plug.Snap && wantedSnap != snap.UseNick(plug.Snap) {
 				continue
 			}
 		}
@@ -166,7 +147,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		}
 		// Display visual indicator for disconnected plugs.
 		if len(plug.Connections) == 0 {
-			fmt.Fprintf(w, "-\t%s:%s\n", maybeNick, plug.Name)
+			fmt.Fprintf(w, "-\t%s:%s\n", plug.Snap, plug.Name)
 		}
 	}
 	return nil
