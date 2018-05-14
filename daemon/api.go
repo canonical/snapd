@@ -1187,6 +1187,17 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		default:
 			return InternalError("store.SnapNotFound with %d snaps", len(inst.Snaps))
 		}
+	case store.ErrRevisionNotAvailable:
+		// store.ErrRevisionNotAvailable should only be returned for
+		// individual snap queries; in all other cases something's wrong
+		switch len(inst.Snaps) {
+		case 1:
+			return SnapRevisionNotAvailable(inst.Snaps[0], err)
+		case 0:
+			return InternalError("store.RevisionNotAvailable with no snap given")
+		default:
+			return InternalError("store.RevisionNotAvailable with %d snaps", len(inst.Snaps))
+		}
 	case store.ErrNoUpdateAvailable:
 		kind = errorKindSnapNoUpdateAvailable
 	case store.ErrLocalSnap:
@@ -1627,7 +1638,15 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 					currentConfValues = make(map[string]interface{})
 					break
 				}
-				return BadRequest("%v", err)
+				return SyncResponse(&resp{
+					Type: ResponseTypeError,
+					Result: &errorResult{
+						Message: err.Error(),
+						Kind:    errorKindConfigNoSuchOption,
+						Value:   err,
+					},
+					Status: 400,
+				}, nil)
 			} else {
 				return InternalError("%v", err)
 			}

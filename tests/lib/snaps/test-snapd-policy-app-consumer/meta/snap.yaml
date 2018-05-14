@@ -113,6 +113,9 @@ apps:
   home:
     command: bin/run
     plugs: [ home ]
+  hostname-control:
+    command: bin/run
+    plugs: [ hostname-control ]
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
@@ -248,6 +251,9 @@ apps:
   snapd-control:
     command: bin/run
     plugs: [ snapd-control ]
+  service-watchdog:
+    command: bin/run
+    plugs: [ service-watchdog ]
   ssh-keys:
     command: bin/run
     plugs: [ ssh-keys ]
@@ -263,6 +269,9 @@ apps:
   system-trace:
     command: bin/run
     plugs: [ system-trace ]
+  dummy:
+    command: bin/run
+    plugs: [ dummy ]
   thumbnailer-service:
     command: bin/run
     plugs: [ thumbnailer-service ]
@@ -325,3 +334,5 @@ plugs:
     interface: dbus
     bus: system
     name: test.system
+  dummy:
+    interface: dummy

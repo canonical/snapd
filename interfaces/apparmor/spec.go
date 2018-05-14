@@ -126,7 +126,7 @@ func (spec *Specification) AddSnapLayout(si *snap.Info) {
 	for _, path := range paths {
 		var buf bytes.Buffer
 		l := si.Layout[path]
-		fmt.Fprintf(&buf, "  # Layout %s\n", l)
+		fmt.Fprintf(&buf, "  # Layout %s\n", l.String())
 		path := si.ExpandSnapVariables(l.Path)
 		switch {
 		case l.Bind != "":

@@ -45,7 +45,7 @@ execute: |
       "{'Enabled': 'true', 'EmailAddress': 'test@example.com', 'Name': 'Test User', 'ImapHost': 'imap.example.com', 'SmtpHost': 'mail.example.com'}"
 
     echo "The interface is initially disconnected"
-    snap interfaces | MATCH "\- +test-snapd-accounts-service:accounts-service"
+    snap interfaces -i accounts-service | MATCH "\- +test-snapd-accounts-service:accounts-service"
     test-snapd-accounts-service.list-accounts && exit 1 || true
 
     echo "When the plug is connected"

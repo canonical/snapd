@@ -1,3 +1,88 @@
+snapd (2.32.8) xenial; urgency=medium
+
+  * New upstream release, LP: #1767833
+    - snapd.core-fixup.sh: fix workaround for corrupted uboot.env
+      and add tests
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 11 May 2018 14:36:16 +0200
+
+snapd (2.32.7) xenial; urgency=medium
+
+  * New upstream release, LP: #1767833
+    - many: add wait command and seeded target (2
+    - snapd.core-fixup.sh: add workaround for corrupted uboot.env
+    - boot: clear "snap_mode" when needed
+    - cmd/libsnap: fix compile error on more restrictive gcc
+    - tests: cherry-pick commits to move spread to google backend
+    - spread.yaml: add cosmic (18.10) to autopkgtest/qemu
+    - userd: set up journal logging streams for autostarted apps
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 11 May 2018 13:09:32 +0200
+
+snapd (2.32.6) xenial; urgency=medium
+
+  * New upstream release, LP: #1767833
+    - snap: do not use overly short timeout in `snap
+      {start,stop,restart}`
+    - interfaces/apparmor: fix incorrect apparmor profile glob
+    - tests: detect kernel oops during tests and abort tests in this
+      case
+    - tests: run interfaces-boradcom-asic-control early
+    - tests: skip interfaces-content test on core devices
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Sun, 29 Apr 2018 19:21:53 +0200
+
+snapd (2.32.5) xenial; urgency=medium
+
+  * New upstream release, LP: #1765090
+    - many: add "stop-mode: sig{term,hup,usr[12]}{,-all}" instead of
+      conflating that with refresh-mode
+    - overlord/snapstate:  poll for up to 10s if a snap is unexpectedly
+      not mounted in doMountSnap
+    - daemon: support 'system' as nickname of the core snap
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 16 Apr 2018 11:41:48 +0200
+
+snapd (2.32.4) xenial; urgency=medium
+
+  * New upstream release, LP: #1756173
+    - cmd/snap: user session application autostart
+    - overlord/snapstate: introduce envvars to control the channels for
+      bases and prereqs
+    - overlord/snapstate: on multi-snap refresh make sure bases and core
+      are finished before dependent snaps
+    - many: use the new install/refresh /v2/snaps/refresh store API
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 11 Apr 2018 16:30:45 +0200
+
+snapd (2.32.3.2) xenial; urgency=medium
+
+  * New upstream release, LP: #1756173
+    - errtracker: make TestJournalErrorSilentError work on
+      gccgo
+    - errtracker: check for whoopsie.service instead of reading
+      /etc/whoopsie
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 11 Apr 2018 12:40:09 +0200
+
+snapd (2.32.3.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1756173
+    - debian: add gbp.conf script to build snapd via `gbp
+      buildpackage`
+    - tests: add check for OOM error after each test
+    - cmd/snap-seccomp: graceful handling of non-multilib host
+    - interfaces/shutdown: allow calling SetWallMessage
+    - data/selinux: Give snapd access to more aspects of the system
+    - daemon,overlord/hookstate: stop/wait for running hooks before
+      closing the snapctl socket
+    - cmd/snap-confine: ignore missing cgroups in snap-device-helper
+    - interfaces: misc updates for default, firewall-control, fuse-
+      support and process-control
+    - overlord: test fix, address corner case
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 11 Apr 2018 10:34:00 +0200
+
 snapd (2.32.3) xenial; urgency=medium
 
   *  New upstream release, LP: #1756173
