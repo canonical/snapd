@@ -294,7 +294,6 @@ fi
 %dir /var/lib/snapd/lib/gl32
 %dir /var/lib/snapd/lib/vulkan
 %dir /var/cache/snapd
-%dir /etc/apparmor.d
 %verify(not user group mode) %attr(06755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_mandir}/man1/snap-confine.1.gz
 %{_mandir}/man5/snap-discard-ns.5.gz
