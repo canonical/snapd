@@ -414,16 +414,36 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 }
 
 func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
-	var policy string
+	// Normally we use a specific apparmor template for all snap programs.
+	policy := defaultTemplate
+	ignoreSnippets := false
+	// Classic confinement (unless overridden by JailMode) has a dedicated
+	// permissive template that applies a strict, but very open, policy.
+	if opts.Classic && !opts.JailMode {
+		policy = classicTemplate
+		ignoreSnippets = true
+	}
 	// When partial AppArmor is detected, use the classic template for now. We could
 	// use devmode, but that could generate confusing log entries for users running
 	// snaps on systems with partial AppArmor support.
-	level := release.AppArmorLevel()
-	if level == release.PartialAppArmor || (opts.Classic && !opts.JailMode) {
-		policy = classicTemplate
-	} else {
-		policy = defaultTemplate
+	if level := release.AppArmorLevel(); level == release.PartialAppArmor {
+		// As a special exception, for openSUSE Tumbleweed which ships Linux
+		// 4.16, do not downgrade confinement template.
+		//
+		// We don't want to do this in general yet because older versions of
+		// the kernel did now provide backwards compatible interpretation of a
+		// confinement so the meaning of the template would change across
+		// kernel versions and we have not validated that the current template
+		// is operational on older kernels.
+		if !release.DistroLike("opensuse-tumbleweed") {
+			policy = classicTemplate
+			ignoreSnippets = true
+		}
 	}
+	// If a snap is in devmode (or is using classic confinement) then make the
+	// profile non-enforcing where violations are logged but not denied.
+	//
+	// XXX: jdstrand, is this desired for classic?)
 	if (opts.DevMode || opts.Classic) && !opts.JailMode {
 		policy = attachPattern.ReplaceAllString(policy, attachComplain)
 	}
@@ -440,10 +460,10 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				// and jailmode together. This snippet provides access to the core snap
 				// so that the dynamic linker and shared libraries can be used.
 				tagSnippets = classicJailmodeSnippet + "\n" + snippetForTag
-			} else if level == release.PartialAppArmor || (opts.Classic && !opts.JailMode) {
-				// When classic confinement (without jailmode) is in effect we
-				// are ignoring all apparmor snippets as they may conflict with
-				// the super-broad template we are starting with.
+			} else if ignoreSnippets {
+				// When classic confinement template is in effect we are
+				// ignoring all apparmor snippets as they may conflict with the
+				// super-broad template we are starting with.
 			} else {
 				// Check if NFS is mounted at or under $HOME. Because NFS is not
 				// transparent to apparmor we must alter the profile to counter that and
