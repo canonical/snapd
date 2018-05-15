@@ -427,14 +427,16 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	// use devmode, but that could generate confusing log entries for users running
 	// snaps on systems with partial AppArmor support.
 	if level := release.AppArmorLevel(); level == release.PartialAppArmor {
-		// As a special exception, for openSUSE Tumbleweed which ships Linux
-		// 4.16, do not downgrade confinement template.
-		//
-		// We don't want to do this in general yet because older versions of
-		// the kernel did not provide backwards compatible interpretation of a
-		// confinement so the meaning of the template would change across
-		// kernel versions and we have not validated that the current template
+		// By default, downgrade confinement to the classic template when
+		// partial AppArmor support is detected. We don't want to use strict
+		// in general yet because older versions of the kernel did not
+		// provide backwards compatible interpretation of confinement
+		// so the meaning of the template would change across kernel
+		// versions and we have not validated that the current template
 		// is operational on older kernels.
+		//
+		// As a special exception, for openSUSE Tumbleweed which ships Linux
+		// 4.16, do not downgrade the confinement template.
 		if !release.DistroLike("opensuse-tumbleweed") {
 			policy = classicTemplate
 			ignoreSnippets = true
