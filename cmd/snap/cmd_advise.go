@@ -39,10 +39,10 @@ type cmdAdviseSnap struct {
 	} `positional-args:"true"`
 
 	Format string `long:"format" default:"pretty" choice:"pretty" choice:"json"`
-	// Command makes advice try to find snaps that provide this command
+	// Command makes advise try to find snaps that provide this command
 	Command bool `long:"command"`
 
-	// FromApt tells advice that it got started from an apt hook
+	// FromApt tells advise that it got started from an apt hook
 	// and needs to communicate over a socket
 	FromApt bool `long:"from-apt"`
 }
@@ -60,7 +60,7 @@ func init() {
 		return &cmdAdviseSnap{}
 	}, map[string]string{
 		"command":  i18n.G("Advise on snaps that provide the given command"),
-		"from-apt": i18n.G("Advice will talk to apt via an apt hook"),
+		"from-apt": i18n.G("Advise will talk to apt via an apt hook"),
 		"format":   i18n.G("Use the given output format"),
 	}, []argDesc{
 		{name: "<command or pkg>"},
@@ -135,7 +135,7 @@ func readRpc(r *bufio.Reader) (*jsonRPC, error) {
 	return &rpc, nil
 }
 
-func adviceViaAptHook() error {
+func adviseViaAptHook() error {
 	sockFd := os.Getenv("APT_HOOK_SOCKET")
 	if sockFd == "" {
 		return fmt.Errorf("cannot find APT_HOOK_SOCKET env")
@@ -211,7 +211,7 @@ func (x *cmdAdviseSnap) Execute(args []string) error {
 	}
 
 	if x.FromApt {
-		return adviceViaAptHook()
+		return adviseViaAptHook()
 	}
 
 	if len(x.Positionals.CommandOrPkg) == 0 {
