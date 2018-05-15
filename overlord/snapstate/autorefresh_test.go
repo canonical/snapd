@@ -455,11 +455,6 @@ func (s *autoRefreshTestSuite) TestAtSeedPolicy(c *C) {
 }
 
 func (s *autoRefreshTestSuite) TestCanRefreshOnMetered(c *C) {
-	revert := snapstate.MockIsOnMeteredConnection(func() (bool, error) {
-		return true, nil
-	})
-	defer revert()
-
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -476,9 +471,19 @@ func (s *autoRefreshTestSuite) TestCanRefreshOnMetered(c *C) {
 	can, err = snapstate.CanRefreshOnMeteredConnection(s.state)
 	c.Assert(can, Equals, false)
 	c.Assert(err, Equals, nil)
+
+	// explicitly disable holding refreshes when on metered connection
+	tr = config.NewTransaction(s.state)
+	err = tr.Set("core", "refresh.hold-on-metered", false)
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	can, err = snapstate.CanRefreshOnMeteredConnection(s.state)
+	c.Assert(can, Equals, true)
+	c.Assert(err, Equals, nil)
 }
 
-func (s *autoRefreshTestSuite) TestRefreshOnMetered(c *C) {
+func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnIsMetered(c *C) {
 	// pretend we're on metered connection
 	revert := snapstate.MockIsOnMeteredConnection(func() (bool, error) {
 		return true, nil
@@ -509,6 +514,30 @@ func (s *autoRefreshTestSuite) TestRefreshOnMetered(c *C) {
 	s.state.Set("last-refresh", time.Now().Add(-61*24*time.Hour))
 	s.state.Unlock()
 	err = af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+}
+
+func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnNotMetered(c *C) {
+	// pretend we're on non-metered connection
+	revert := snapstate.MockIsOnMeteredConnection(func() (bool, error) {
+		return false, nil
+	})
+	defer revert()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold-on-metered", true)
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+
+	s.state.Set("last-refresh", time.Now().Add(-5*24*time.Hour))
+	s.state.Unlock()
+	err := af.Ensure()
 	s.state.Lock()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
