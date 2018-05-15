@@ -114,12 +114,14 @@ func addCommand(name, shortHelp, longHelp string, builder func() flags.Commander
 // addDebugCommand replaces parser.addCommand() in a way that is
 // compatible with re-constructing a pristine parser. It is meant for
 // adding debug commands.
-func addDebugCommand(name, shortHelp, longHelp string, builder func() flags.Commander) *cmdInfo {
+func addDebugCommand(name, shortHelp, longHelp string, builder func() flags.Commander, optDescs map[string]string, argDescs []argDesc) *cmdInfo {
 	info := &cmdInfo{
 		name:      name,
 		shortHelp: shortHelp,
 		longHelp:  longHelp,
 		builder:   builder,
+		optDescs:  optDescs,
+		argDescs:  argDescs,
 	}
 	debugCommands = append(debugCommands, info)
 	return info
@@ -247,6 +249,39 @@ snaps on the system. Start with 'snap list' to see installed snaps.`)
 			logger.Panicf("cannot add debug command %q: %v", c.name, err)
 		}
 		cmd.Hidden = c.hidden
+		opts := cmd.Options()
+		if c.optDescs != nil && len(opts) != len(c.optDescs) {
+			logger.Panicf("wrong number of option descriptions for %s: expected %d, got %d", c.name, len(opts), len(c.optDescs))
+		}
+		for _, opt := range opts {
+			name := opt.LongName
+			if name == "" {
+				name = string(opt.ShortName)
+			}
+			desc, ok := c.optDescs[name]
+			if !(c.optDescs == nil || ok) {
+				logger.Panicf("%s missing description for %s", c.name, name)
+			}
+			lintDesc(c.name, name, desc, opt.Description)
+			if desc != "" {
+				opt.Description = desc
+			}
+		}
+
+		args := cmd.Args()
+		if c.argDescs != nil && len(args) != len(c.argDescs) {
+			logger.Panicf("wrong number of argument descriptions for %s: expected %d, got %d", c.name, len(args), len(c.argDescs))
+		}
+		for i, arg := range args {
+			name, desc := arg.Name, ""
+			if c.argDescs != nil {
+				name = c.argDescs[i].name
+				desc = c.argDescs[i].desc
+			}
+			lintArg(c.name, name, desc, arg.Description)
+			arg.Name = name
+			arg.Description = desc
+		}
 	}
 	return parser
 }

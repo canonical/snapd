@@ -36,3 +36,11 @@ func MockOsReadlink(f func(string) (string, error)) (restore func()) {
 		osReadlink = realOsReadlink
 	}
 }
+
+func MockKernelFeatures(f func() []string) (resture func()) {
+	old := kernelFeatures
+	kernelFeatures = f
+	return func() {
+		kernelFeatures = old
+	}
+}

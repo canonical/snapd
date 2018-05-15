@@ -31,7 +31,7 @@ func init() {
 		"(internal) trigger an ensure run in the state engine",
 		func() flags.Commander {
 			return &cmdEnsureStateSoon{}
-		})
+		}, nil, nil)
 	cmd.hidden = true
 }
 
