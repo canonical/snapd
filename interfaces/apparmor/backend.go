@@ -442,8 +442,8 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 	}
 	// If a snap is in devmode (or is using classic confinement) then make the
 	// profile non-enforcing where violations are logged but not denied.
-	//
-	// XXX: jdstrand, is this desired for classic?)
+	// This is also done for classic so that no confinement applies. Just in
+	// case the profile we start with is not permissive enough.
 	if (opts.DevMode || opts.Classic) && !opts.JailMode {
 		policy = attachPattern.ReplaceAllString(policy, attachComplain)
 	}
