@@ -19,7 +19,7 @@ fi
 # the other has a "uboot.env" lfn name and a FSCK0000.000 FAT16
 # name. The only known workaround is to remove all dupes and put
 # one file back in place.
-if [ "$(ls /boot/uboot | grep -c ^uboot.env$)" -gt 1 ]; then
+if [ "$(find /boot/uboot -name uboot.env | wc -l)" -gt 1 ]; then
     echo "Corrupted uboot.env file detected"
     # Ensure we have one uboot.env to go back to. Note that it does
     # not matter which one we pick (we can't choose anyway, we get
