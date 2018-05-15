@@ -544,6 +544,8 @@ type SocketInfo struct {
 	Name         string
 	ListenStream string
 	SocketMode   os.FileMode
+	SocketUser   string
+	SocketGroup  string
 }
 
 // TimerInfo provides information on application timer.
