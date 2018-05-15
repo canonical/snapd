@@ -11,6 +11,38 @@ if ! grep -q "ID=ubuntu-core" /etc/os-release; then
     exit 0
 fi
 
+# Workaround https://forum.snapcraft.io/t/5253
+#
+# We see sometimes corrupted uboot.env files created by fsck.vfat.
+# On the fat filesystem they are indistinguishable because one
+# has a fat16 name UBOOT.ENV (and not lfn (long-file-name)) but
+# the other has a "uboot.env" lfn name and a FSCK0000.000 FAT16
+# name. The only known workaround is to remove all dupes and put
+# one file back in place.
+if [ $(ls /boot/uboot | grep ^uboot.env$ | wc -l) -gt 1 ]; then
+    echo "Corrupted uboot.env file detected"
+    # ensure we have one uboot.env to go back to
+    cp -a /boot/uboot/uboot.env /boot/uboot/uboot.env.save
+    # now delete all dupes
+    while ls /boot/uboot/uboot.env 2>/dev/null; do
+        rm -f /boot/uboot/uboot.env
+    done
+    # and move the saved one into place
+    mv /boot/uboot/uboot.env.save /boot/uboot/uboot.env
+
+    # ensure we sync the fs
+    sync
+fi
+
+
+# The code below deals with incorrect permissions that happened on
+# some buggy ubuntu-image versions.
+#
+# This needs to run only once so we can exit here.
+if [ -f /var/lib/snapd/device/ownership-change.after ]; then
+    exit 0
+fi
+
 # store important data in case we need it later
 if [ ! -f /var/lib/snapd/device/ownership-change.before ]; then
     mkdir -p /var/lib/snapd/device
