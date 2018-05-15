@@ -99,25 +99,6 @@ sync_snaps() {
         mkdir -p "$TARGET"
     fi
 
-    # Remove new snaps and changed ones
-    for f in "$TARGET"/*.snap; do
-        fname="$(basename $f)"
-        if ! [ -e "$TARGET/$fname" ]; then
-            break
-        elif ! [ -e "$SOURCE/$fname" ]; then
-            rm "$TARGET/$fname"
-        elif [ "$TARGET/$fname" -nt "$SOURCE/$fname" ]; then
-            cp -f "$SOURCE/$fname" "$TARGET/$fname"
-        fi
-    done
-
-    # Add deleted snaps
-    for f in "$SOURCE"/*.snap; do
-        fname="$(basename $f)"
-        if ! [ -e "$SOURCE/$fname" ]; then
-            break
-        elif ! [ -e "$TARGET/$fname" ]; then
-            cp -f "$SOURCE/$fname" "$TARGET/$fname"
-        fi
-    done
+    # Sync snaps between source and target
+    rsync -avzC --include='*.snap' --delete "$SOURCE" "$TARGET"
 }
