@@ -134,10 +134,10 @@ func SetNextBoot(s *snap.Info) error {
 		return err
 	}
 	if m[goodBoot] == blobName {
-		// If we were in "try" mode before and now switch to
-		// the good core/kernel again, make sure to clean the
-		// snap_mode here. This also mitigates
-		// https://forum.snapcraft.io/t//5253
+		// If we were in anyting but default ("") mode before
+		// and now switch to the good core/kernel again, make
+		// sure to clean the snap_mode here. This also
+		// mitigates https://forum.snapcraft.io/t//5253
 		if m["snap_mode"] != "" {
 			return bootloader.SetBootVars(map[string]string{
 				"snap_mode": "",
