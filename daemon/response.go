@@ -137,6 +137,8 @@ const (
 	errorKindSnapLocal             = errorKind("snap-local")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 
+	errorKindSnapRevisionNotAvailable = errorKind("snap-revision-not-available")
+
 	errorKindNotSnap = errorKind("snap-not-a-snap")
 
 	errorKindSnapNeedsDevMode       = errorKind("snap-needs-devmode")
@@ -147,6 +149,8 @@ const (
 
 	errorKindNetworkTimeout      = errorKind("network-timeout")
 	errorKindInterfacesUnchanged = errorKind("interfaces-unchanged")
+
+	errorKindConfigNoSuchOption = errorKind("option-not-found")
 )
 
 type errorValue interface{}
@@ -344,6 +348,22 @@ func SnapNotFound(snapName string, err error) Response {
 		Result: &errorResult{
 			Message: err.Error(),
 			Kind:    errorKindSnapNotFound,
+			Value:   snapName,
+		},
+		Status: 404,
+	}
+}
+
+// SnapRevisionNotAvailable is an error responder used when an
+// operation is requested for which no revivision can be found
+// in the given context (e.g. request an install from a stable
+// channel when this channel is empty).
+func SnapRevisionNotAvailable(snapName string, err error) Response {
+	return &resp{
+		Type: ResponseTypeError,
+		Result: &errorResult{
+			Message: err.Error(),
+			Kind:    errorKindSnapRevisionNotAvailable,
 			Value:   snapName,
 		},
 		Status: 404,

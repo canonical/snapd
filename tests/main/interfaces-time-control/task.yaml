@@ -6,7 +6,7 @@ details: |
     snap properly.
 
 # s390x virtualization does not support hwclock
-systems: [-opensuse-*,-fedora-*,-ubuntu-core-*,-ubuntu-14.04-*,-*-s390x]
+systems: [-opensuse-*,-fedora-*,-ubuntu-core-*,-ubuntu-14.04-*,-*-s390x,-arch-*]
 
 prepare: |
     . $TESTSLIB/snaps.sh
@@ -29,7 +29,7 @@ execute: |
     snap connect test-snapd-timedate-control-consumer:netlink-audit
 
     echo "The interface is disconnected by default"
-    snap interfaces | MATCH "\- +test-snapd-timedate-control-consumer:time-control"
+    snap interfaces -i time-control | MATCH "\- +test-snapd-timedate-control-consumer:time-control"
 
     # When the interface is connected
     snap connect test-snapd-timedate-control-consumer:time-control
