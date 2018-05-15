@@ -162,7 +162,7 @@ func (s *connSuite) TestDynamicSlotAttrs(c *C) {
 	c.Check(slot.Attr("number", intVal), ErrorMatches, `internal error: cannot get "number" attribute of interface "interface" with non-pointer value`)
 }
 
-func (s *connSuite) TestDottedPath(c *C) {
+func (s *connSuite) TestDottedPathSlot(c *C) {
 	attrs := map[string]interface{}{
 		"nested": map[string]interface{}{
 			"foo": "bar",
@@ -189,6 +189,18 @@ func (s *connSuite) TestDottedPath(c *C) {
 	c.Assert(ok, Equals, true)
 	c.Assert(v, Equals, "bar")
 
+	_, ok = slot.Lookup("..")
+	c.Assert(ok, Equals, false)
+}
+
+func (s *connSuite) TestDottedPathPlug(c *C) {
+	attrs := map[string]interface{}{
+		"nested": map[string]interface{}{
+			"foo": "bar",
+		},
+	}
+	var strVal string
+
 	plug := NewConnectedPlug(s.plug, attrs)
 	c.Assert(plug, NotNil)
 
@@ -196,7 +208,7 @@ func (s *connSuite) TestDottedPath(c *C) {
 	c.Assert(plug.Attr("complex.c", &strVal), IsNil)
 	c.Assert(strVal, Equals, "d")
 
-	v, ok = plug.Lookup("complex.c")
+	v, ok := plug.Lookup("complex.c")
 	c.Assert(ok, Equals, true)
 	c.Assert(v, Equals, "d")
 
@@ -214,7 +226,6 @@ func (s *connSuite) TestDottedPath(c *C) {
 	_, ok = plug.Lookup("nested.foo.y")
 	c.Assert(ok, Equals, false)
 
-	// consecutive dots
 	_, ok = plug.Lookup("..")
 	c.Assert(ok, Equals, false)
 }
