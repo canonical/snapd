@@ -28,8 +28,10 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"time"
 
 	"golang.org/x/net/context"
+
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -372,6 +374,11 @@ type DeviceAssertions interface {
 	// Serial returns the device serial assertion.
 	Serial() (*asserts.Serial, error)
 
+	// EnsureSerial does a best-effort of triggering and waiting
+	// up to timeout for registration to occur and returns the
+	// serial if now available, or ErrNoState otherwise.
+	EnsureSerial(context.Context, time.Duration) (*asserts.Serial, error)
+
 	// DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
 	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
 	// ProxyStore returns the store assertion for the proxy store if one is set.
@@ -402,6 +409,8 @@ type AuthContext interface {
 	UpdateUserAuth(user *UserState, discharges []string) (actual *UserState, err error)
 
 	StoreID(fallback string) (string, error)
+
+	EnsureSerial(ctx context.Context, timeout time.Duration) (*asserts.Serial, error)
 
 	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
 	ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error)
@@ -496,6 +505,20 @@ func (ac *authContext) StoreID(fallback string) (string, error) {
 		return storeID, nil
 	}
 	return fallback, nil
+}
+
+// EnsureSerial does a best-effort of triggering and waiting
+// up to timeout for registration to occur and returns the
+// serial if now available, or ErrNoSerial otherwise.
+func (ac *authContext) EnsureSerial(ctx context.Context, timeout time.Duration) (*asserts.Serial, error) {
+	if ac.deviceAsserts == nil {
+		return nil, ErrNoSerial
+	}
+	serial, err := ac.deviceAsserts.EnsureSerial(ctx, timeout)
+	if err == state.ErrNoState {
+		return nil, ErrNoSerial
+	}
+	return serial, err
 }
 
 // DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions. It returns ErrNoSerial if the device serial is not yet initialized.

@@ -76,6 +76,24 @@ func (r *catalogRefresh) Ensure() error {
 var newCmdDB = advisor.Create
 
 func refreshCatalogs(st *state.State, theStore StoreService) error {
+	ctx := auth.EnsureContextTODO()
+	// preferably we should be registered at this point if
+	// the device has a custom store
+	opts := &EnsureRegistrationOptions{
+		CustomStoreOnly:            true,
+		AfterAttemptsProceedAnyway: 2,
+	}
+	proceed, err := EnsureRegistration(ctx, st, opts)
+	if err != nil {
+		return err
+	}
+	if !proceed {
+		// try again later
+		return nil
+	}
+
+	// TODO: this should be done in a task
+
 	st.Unlock()
 	defer st.Lock()
 
@@ -83,7 +101,7 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 		return fmt.Errorf("cannot create directory %q: %v", dirs.SnapCacheDir, err)
 	}
 
-	sections, err := theStore.Sections(auth.EnsureContextTODO(), nil)
+	sections, err := theStore.Sections(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -107,7 +125,7 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 	// if all goes well we'll Commit() making this a NOP:
 	defer cmdDB.Rollback()
 
-	if err := theStore.WriteCatalogs(auth.EnsureContextTODO(), namesFile, cmdDB); err != nil {
+	if err := theStore.WriteCatalogs(ctx, namesFile, cmdDB); err != nil {
 		return err
 	}
 

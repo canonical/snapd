@@ -1958,6 +1958,11 @@ func (s *authContextSetupSuite) TestDeviceSessionRequestParams(c *C) {
 	c.Check(params.EncodedSerial(), DeepEquals, string(asserts.Encode(s.serial)))
 	c.Check(params.EncodedModel(), DeepEquals, string(asserts.Encode(s.model)))
 
+	st.Unlock()
+	serial, err := s.ac.EnsureSerial(context.TODO(), 10*time.Second)
+	st.Lock()
+	c.Check(err, IsNil)
+	c.Check(serial.Serial(), Equals, "7878")
 }
 
 func (s *authContextSetupSuite) TestProxyStoreParams(c *C) {

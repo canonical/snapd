@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -552,6 +552,13 @@ func (as *authSuite) TestAuthContextDeviceSessionRequestParamsNilDeviceAssertion
 	c.Check(err, Equals, auth.ErrNoSerial)
 }
 
+func (as *authSuite) TestAuthContextEnsureSerialNilDeviceAssertions(c *C) {
+	authContext := auth.NewAuthContext(as.state, nil)
+
+	_, err := authContext.EnsureSerial(context.TODO(), 5*time.Second)
+	c.Check(err, Equals, auth.ErrNoSerial)
+}
+
 func (as *authSuite) TestAuthContextCloudInfo(c *C) {
 	authContext := auth.NewAuthContext(as.state, nil)
 
@@ -661,6 +668,13 @@ func (da *testDeviceAssertions) Serial() (*asserts.Serial, error) {
 	return a.(*asserts.Serial), nil
 }
 
+func (da *testDeviceAssertions) EnsureSerial(ctx context.Context, timeout time.Duration) (*asserts.Serial, error) {
+	if ctx == nil {
+		panic("context required")
+	}
+	return da.Serial()
+}
+
 func (da *testDeviceAssertions) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
 	if da.nothing {
 		return nil, state.ErrNoState
@@ -704,7 +718,10 @@ func (as *authSuite) TestAuthContextMissingDeviceAssertions(c *C) {
 	// no assertions in state
 	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{nothing: true})
 
-	_, err := authContext.DeviceSessionRequestParams("NONCE")
+	_, err := authContext.EnsureSerial(context.TODO(), 0)
+	c.Check(err, Equals, auth.ErrNoSerial)
+
+	_, err = authContext.DeviceSessionRequestParams("NONCE")
 	c.Check(err, Equals, auth.ErrNoSerial)
 
 	storeID, err := authContext.StoreID("fallback")
@@ -720,6 +737,10 @@ func (as *authSuite) TestAuthContextMissingDeviceAssertions(c *C) {
 func (as *authSuite) TestAuthContextWithDeviceAssertions(c *C) {
 	// having assertions in state
 	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{})
+
+	serialAssert, err := authContext.EnsureSerial(context.TODO(), 0)
+	c.Check(err, IsNil)
+	c.Check(serialAssert.Serial(), Equals, "9999")
 
 	params, err := authContext.DeviceSessionRequestParams("NONCE-1")
 	c.Assert(err, IsNil)

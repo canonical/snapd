@@ -77,6 +77,9 @@ type autoRefreshTestSuite struct {
 	state *state.State
 
 	store *autoRefreshStore
+
+	opts    *snapstate.EnsureRegistrationOptions
+	proceed bool
 }
 
 var _ = Suite(&autoRefreshTestSuite{})
@@ -87,6 +90,10 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 
 	s.store = &autoRefreshStore{}
+
+	s.proceed = true
+	// so we can detect also opts being passed as nil
+	s.opts = &snapstate.EnsureRegistrationOptions{AfterAttemptsProceedAnyway: 99}
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -103,6 +110,13 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	})
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	snapstate.EnsureRegistration = func(ctx context.Context, st *state.State, opts *snapstate.EnsureRegistrationOptions) (bool, error) {
+		if ctx == nil || !auth.IsEnsureContext(ctx) {
+			panic("Ensure marked context required")
+		}
+		s.opts = opts
+		return s.proceed, nil
+	}
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
@@ -112,12 +126,15 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 
 func (s *autoRefreshTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
+	snapstate.EnsureRegistration = nil
 	snapstate.AutoAliases = nil
 	dirs.SetRootDir("")
 }
 
 func (s *autoRefreshTestSuite) TestLastRefresh(c *C) {
 	// this does an immediate refresh
+	// we are registered
+	s.proceed = true
 
 	af := snapstate.NewAutoRefresh(s.state)
 	err := af.Ensure()
@@ -129,6 +146,29 @@ func (s *autoRefreshTestSuite) TestLastRefresh(c *C) {
 	s.state.Get("last-refresh", &lastRefresh)
 	s.state.Unlock()
 	c.Check(lastRefresh.Year(), Equals, time.Now().Year())
+
+	// we considered EnsureRegistration
+	c.Check(s.opts, IsNil)
+}
+
+func (s *autoRefreshTestSuite) TestLastRefreshNotRegistered(c *C) {
+	// this does would do an immediate refresh
+	// but we are not registered yet
+	s.proceed = false
+
+	af := snapstate.NewAutoRefresh(s.state)
+	err := af.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, HasLen, 0)
+
+	var lastRefresh time.Time
+	s.state.Lock()
+	s.state.Get("last-refresh", &lastRefresh)
+	s.state.Unlock()
+	c.Check(lastRefresh.IsZero(), Equals, true)
+
+	// we considered EnsureRegistration
+	c.Check(s.opts, IsNil)
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
@@ -171,6 +211,8 @@ func (s *autoRefreshTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {
 }
 
 func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
+	s.proceed = true
+
 	s.store.listRefreshErr = fmt.Errorf("random store error")
 	af := snapstate.NewAutoRefresh(s.state)
 	err := af.Ensure()
@@ -238,6 +280,8 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHold(c *C) {
 }
 
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpired(c *C) {
+	s.proceed = true
+
 	s.state.Lock()
 	defer s.state.Unlock()
 

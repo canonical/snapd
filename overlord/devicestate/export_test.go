@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -84,6 +84,14 @@ func BecomeOperationalBackoff(m *DeviceManager) time.Duration {
 
 func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 	m.lastBecomeOperationalAttempt = t
+}
+
+func MockEnsureRegistrationDefaultTimeout(timeout time.Duration) (restore func()) {
+	old := ensureRegistrationDefaultTimeout
+	ensureRegistrationDefaultTimeout = timeout
+	return func() {
+		ensureRegistrationDefaultTimeout = old
+	}
 }
 
 func MockRepeatRequestSerial(label string) (restore func()) {

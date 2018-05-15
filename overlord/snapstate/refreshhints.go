@@ -63,10 +63,21 @@ func (r *refreshHints) needsUpdate() (bool, error) {
 }
 
 func (r *refreshHints) refresh() error {
+	ctx := auth.EnsureContextTODO()
+	// preferably we should be registered at this point
+	proceed, err := EnsureRegistration(ctx, r.state, nil)
+	if err != nil {
+		return err
+	}
+	if !proceed {
+		// try again later
+		return nil
+	}
+
 	var refreshManaged bool
 	refreshManaged = refreshScheduleManaged(r.state)
 
-	_, _, _, err := refreshCandidates(auth.EnsureContextTODO(), r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
+	_, _, _, err = refreshCandidates(ctx, r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
 	// TODO: we currently set last-refresh-hints even when there was an
 	// error. In the future we may retry with a backoff.
 	r.state.Set("last-refresh-hints", time.Now())

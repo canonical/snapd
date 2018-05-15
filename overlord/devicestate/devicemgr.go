@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,10 +25,13 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/context"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -56,7 +59,11 @@ type DeviceManager struct {
 	becomeOperationalBackoff     time.Duration
 	registered                   bool
 	reg                          chan struct{}
+	registrationFirstAttempted   bool
+	regFirstAttempt              chan struct{}
 }
+
+type deviceMgrKey struct{}
 
 // Manager returns a new device manager.
 func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager, error) {
@@ -70,7 +77,13 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 
 	}
 
-	m := &DeviceManager{state: s, keypairMgr: keypairMgr, runner: runner, reg: make(chan struct{})}
+	m := &DeviceManager{
+		state:           s,
+		keypairMgr:      keypairMgr,
+		runner:          runner,
+		reg:             make(chan struct{}),
+		regFirstAttempt: make(chan struct{}),
+	}
 
 	if err := m.confirmRegistered(); err != nil {
 		return nil, err
@@ -82,7 +95,19 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 
+	s.Lock()
+	s.Cache(deviceMgrKey{}, m)
+	s.Unlock()
+
 	return m, nil
+}
+
+func deviceMgr(st *state.State) *DeviceManager {
+	mgr := st.Cached(deviceMgrKey{})
+	if mgr == nil {
+		panic("internal error: cannot retrieve DeviceManager, not yet initialized")
+	}
+	return mgr.(*DeviceManager)
 }
 
 func (m *DeviceManager) confirmRegistered() error {
@@ -106,6 +131,19 @@ func (m *DeviceManager) markRegistered() {
 	}
 	m.registered = true
 	close(m.reg)
+}
+
+func (m *DeviceManager) markRegistrationFirstAttempt() {
+	if m.registrationFirstAttempted {
+		return
+	}
+	if !m.registered {
+		// TODO: this should be a system warning
+		logger.Noticef("first device registration attempt did not succeed, registration will be retried but some operations might fail until the device is registered")
+
+	}
+	m.registrationFirstAttempted = true
+	close(m.regFirstAttempt)
 }
 
 type prepareDeviceHandler struct{}
@@ -185,19 +223,17 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	// conditions to trigger device registration
+	// triggering device registration
 	//
-	// * have a model assertion with a gadget (core and
-	//   device-like classic) in which case we need also to wait
-	//   for the gadget to have been installed though
-	// TODO: consider a way to support lazy registration on classic
-	// even with a gadget and some preseeded snaps
-	//
-	// * classic with a model assertion with a non-default store specified
-	// * lazy classic case (might have a model with no gadget nor store
-	//   or no model): we wait to have some snaps installed or be
-	//   in the process to install some
-
+	// * have a model assertion
+	// * on classic if we are seeded but don't have a model,
+	//   we setup the fallback generic/generic-classic
+	// * with a model assertion with a gadget (core and device-like
+	//   classic) we wait for the gadget to have been installed
+	// * otherwise we proceed
+	// * then on classic we pause registration until the first
+	//   store interaction (registration-paused flag in state and
+	//   code in doRequestSerial)
 	var seeded bool
 	err = m.state.Get("seeded", &seeded)
 	if err != nil && err != state.ErrNoState {
@@ -225,29 +261,15 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	var storeID, gadget string
+	var gadget string
 	model, err := Model(m.state)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
 	if err == nil {
 		gadget = model.Gadget()
-		storeID = model.Store()
 	} else {
-		return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
-	}
-
-	if gadget == "" && storeID == "" {
-		// classic: if we have no gadget and no non-default store
-		// wait to have snaps or snap installation
-
-		n, err := snapstate.NumSnaps(m.state)
-		if err != nil {
-			return err
-		}
-		if n == 0 && !snapstate.Installing(m.state) {
-			return nil
-		}
+		return fmt.Errorf("internal error: device brand and model are set but there is no model assertion")
 	}
 
 	// if there's a gadget specified wait for it
@@ -264,16 +286,33 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 	}
 
-	// have some backoff between full retries
-	if m.ensureOperationalShouldBackoff(time.Now()) {
-		return nil
+	full := true // do all: prepare-device + key gen + request serial
+	if release.OnClassic {
+		// paused?
+		var paused bool
+		err := m.state.Get("registration-paused", &paused)
+		if err != nil && err != state.ErrNoState {
+			return err
+		}
+		if paused {
+			return nil
+		}
+		// on classic the first time around we just do
+		// prepare-device + key gen and then pause the process
+		// until the first store interaction
+		if err == state.ErrNoState {
+			full = false
+		}
 	}
-	// increment attempt count
-	incEnsureOperationalAttempts(m.state)
 
-	// XXX: some of these will need to be split and use hooks
-	// retries might need to embrace more than one "task" then,
-	// need to be careful
+	if full {
+		// have some backoff between full retries
+		if m.ensureOperationalShouldBackoff(time.Now()) {
+			return nil
+		}
+		// increment attempt count
+		incEnsureOperationalAttempts(m.state)
+	}
 
 	tasks := []*state.Task{}
 
@@ -296,14 +335,71 @@ func (m *DeviceManager) ensureOperational() error {
 		genKey.WaitFor(prepareDevice)
 	}
 	tasks = append(tasks, genKey)
-	requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
-	requestSerial.WaitFor(genKey)
-	tasks = append(tasks, requestSerial)
 
-	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
+	if full {
+		requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
+		requestSerial.WaitFor(genKey)
+		tasks = append(tasks, requestSerial)
+	}
+
+	msg := i18n.G("Initialize device")
+	if !full {
+		// just prepare-device + key gen
+		msg = i18n.G("Prepare device")
+	}
+	chg := m.state.NewChange("become-operational", msg)
 	chg.AddAll(state.NewTaskSet(tasks...))
 
+	if !full {
+		m.state.Set("registration-paused", true)
+	}
+
 	return nil
+}
+
+// Registered returns a channel that is closed when the device is known to have been registered.
+func (m *DeviceManager) Registered() <-chan struct{} {
+	return m.reg
+}
+
+// ensureSerial does a best-effort of triggering and waiting for
+// registration to occur and returns the serial if now available, or
+// ErrNoState otherwise. Assumes state is locked.
+func (m *DeviceManager) ensureSerial(ctx context.Context, timeout time.Duration) (*asserts.Serial, error) {
+	serial, err := Serial(m.state)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if err == nil {
+		return serial, nil
+	}
+
+	m.state.Set("registration-paused", false)
+	m.state.EnsureBefore(0)
+	if auth.IsEnsureContext(ctx) {
+		return nil, state.ErrNoState
+	}
+	if ensureOperationalAttempts(m.state) > 1 {
+		// we are in the subsequent retries phase, do not wait
+		return nil, state.ErrNoState
+	}
+
+	m.state.Unlock()
+	select {
+	case <-m.Registered():
+		// registered
+	case <-m.regFirstAttempt:
+		// first registration attempt finished (successfully or not)
+	case <-time.After(timeout):
+		// neither, timed out
+	}
+	m.state.Lock()
+
+	// mark first attempt here as well in case we failed earlier
+	// than normally expected, and reached the timeout
+	m.markRegistrationFirstAttempt()
+
+	return Serial(m.state)
 }
 
 var populateStateFromSeed = populateStateFromSeedImpl
@@ -510,11 +606,6 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return Serial(m.state)
 }
 
-// Registered returns a channel that is closed when the device is known to have been registered.
-func (m *DeviceManager) Registered() <-chan struct{} {
-	return m.reg
-}
-
 // DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.
 func (m *DeviceManager) DeviceSessionRequestParams(nonce string) (*auth.DeviceSessionRequestParams, error) {
 	m.state.Lock()
@@ -560,4 +651,14 @@ func (m *DeviceManager) ProxyStore() (*asserts.Store, error) {
 	defer m.state.Unlock()
 
 	return ProxyStore(m.state)
+}
+
+// EnsureSerial does a best-effort of triggering and waiting up to timeout for
+// registration to occur and returns the serial if now available, or
+// ErrNoState otherwise.
+func (m *DeviceManager) EnsureSerial(ctx context.Context, timeout time.Duration) (*asserts.Serial, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	return m.ensureSerial(ctx, timeout)
 }

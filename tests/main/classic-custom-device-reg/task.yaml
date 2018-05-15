@@ -70,6 +70,10 @@ execute: |
     echo "We have a model assertion"
     snap known model|MATCH "model: my-classic-w-gadget"
 
+    echo "Trigger registration by interacting with the store"
+    # FIXME: ignoring errors for now, later teach & use the fakestore instead
+    snap refresh || true
+
     echo "Wait for device initialisation to be done"
     while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
 

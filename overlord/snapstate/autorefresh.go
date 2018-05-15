@@ -24,6 +24,8 @@ import (
 	"os"
 	"time"
 
+	"golang.org/x/net/context"
+
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -45,7 +47,21 @@ const maxPostponement = 60 * 24 * time.Hour
 var (
 	CanAutoRefresh     func(st *state.State) (bool, error)
 	CanManageRefreshes func(st *state.State) bool
+	EnsureRegistration func(ctx context.Context, st *state.State, opts *EnsureRegistrationOptions) (proceed bool, err error)
 )
+
+type EnsureRegistrationOptions struct {
+	// AfterAttemptsProceedAnyway is the number (if > 0) of
+	// registration attempts after which is preferable to proceed
+	// anyway.  If set to 0 a default number will be
+	// used. Negative means never proceed if not registered.
+	AfterAttemptsProceedAnyway int
+	// CustomStoreOnly means registration is required only with a
+	// custom store.
+	CustomStoreOnly bool
+	// Timeout if waiting for registration.
+	Timeout time.Duration
+}
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
 var refreshRetryDelay = 10 * time.Minute
@@ -322,7 +338,19 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
 func (m *autoRefresh) launchAutoRefresh() error {
 	m.lastRefreshAttempt = time.Now()
-	updated, tasksets, err := AutoRefresh(auth.EnsureContextTODO(), m.state)
+
+	ctx := auth.EnsureContextTODO()
+	// preferably we should be registered at this point
+	proceed, err := EnsureRegistration(ctx, m.state, nil)
+	if err != nil {
+		return err
+	}
+	if !proceed {
+		// try again later
+		return nil
+	}
+
+	updated, tasksets, err := AutoRefresh(ctx, m.state)
 	if err != nil {
 		logger.Noticef("Cannot prepare auto-refresh change: %s", err)
 		return err

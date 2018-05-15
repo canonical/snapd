@@ -158,6 +158,10 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
+
+	snapstate.EnsureRegistration = func(ctx context.Context, st *state.State, opts *snapstate.EnsureRegistrationOptions) (bool, error) {
+		return true, nil
+	}
 }
 
 func (s *snapmgrTestSuite) TearDownTest(c *C) {
@@ -165,6 +169,7 @@ func (s *snapmgrTestSuite) TearDownTest(c *C) {
 	snapstate.ValidateRefreshes = nil
 	snapstate.AutoAliases = nil
 	snapstate.CanAutoRefresh = nil
+	snapstate.EnsureRegistration = nil
 }
 
 func (s *snapmgrTestSuite) TestKnownTaskKinds(c *C) {

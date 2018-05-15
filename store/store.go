@@ -85,6 +85,8 @@ var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
 	},
 ))
 
+var ensureSerialTimeout = 30 * time.Second
+
 // Config represents the configuration to access the snap store
 type Config struct {
 	// Store API base URLs. The assertions url is only separate because it can
@@ -552,9 +554,17 @@ func (s *Store) refreshUser(user *auth.UserState) error {
 }
 
 // refreshDeviceSession will set or refresh the device session in the state
-func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
+func (s *Store) refreshDeviceSession(ctx context.Context, device *auth.DeviceState) error {
 	if s.authContext == nil {
 		return fmt.Errorf("internal error: no authContext")
+	}
+
+	if device.Serial == "" {
+		// best-effort to be registered and have a serial
+		_, err := s.authContext.EnsureSerial(ctx, ensureSerialTimeout)
+		if err != nil {
+			return err
+		}
 	}
 
 	nonce, err := requestStoreDeviceNonce(s.endpointURL(deviceNonceEndpPath, nil).String())
@@ -625,6 +635,7 @@ type deviceAuthNeed int
 const (
 	deviceAuthPreferred deviceAuthNeed = iota
 	deviceAuthCustomStoreOnly
+	deviceAuthOptional
 )
 
 // requestOptions specifies parameters for store requests.
@@ -639,9 +650,11 @@ type requestOptions struct {
 
 	// DeviceAuthNeed indicates the level of need to supply device
 	// authorization for this request, can be:
-	//  - deviceAuthPreferred: should be provided if available
+	//  - deviceAuthPreferred: should be provided
 	//  - deviceAuthCustomStoreOnly: should be provided only in case
 	//    of a custom store
+	//  - deviceAuthOptional: can be left out, at the moment this
+	//    means not forcing registration
 	DeviceAuthNeed deviceAuthNeed
 }
 
@@ -760,7 +773,7 @@ func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestO
 func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
 	authRefreshes := 0
 	for {
-		req, err := s.newRequest(reqOptions, user)
+		req, err := s.newRequest(ctx, reqOptions, user)
 		if err != nil {
 			return nil, err
 		}
@@ -788,8 +801,9 @@ func (s *Store) doRequest(ctx context.Context, client *http.Client, reqOptions *
 				// refresh device session
 				refreshNeed.device = true
 			}
+
 			if refreshNeed.needed() {
-				err := s.refreshAuth(user, refreshNeed)
+				err := s.refreshAuth(ctx, user, refreshNeed)
 				if err != nil {
 					return nil, err
 				}
@@ -813,7 +827,7 @@ func (rn *authRefreshNeed) needed() bool {
 	return rn.device || rn.user
 }
 
-func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
+func (s *Store) refreshAuth(ctx context.Context, user *auth.UserState, need authRefreshNeed) error {
 	if need.user {
 		// refresh user
 		err := s.refreshUser(user)
@@ -831,7 +845,7 @@ func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
 			return err
 		}
 
-		err = s.refreshDeviceSession(device)
+		err = s.refreshDeviceSession(ctx, device)
 		if err != nil {
 			return err
 		}
@@ -840,7 +854,7 @@ func (s *Store) refreshAuth(user *auth.UserState, need authRefreshNeed) error {
 }
 
 // build a new http.Request with headers for the store
-func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*http.Request, error) {
+func (s *Store) newRequest(ctx context.Context, reqOptions *requestOptions, user *auth.UserState) (*http.Request, error) {
 	var body io.Reader
 	if reqOptions.Data != nil {
 		body = bytes.NewBuffer(reqOptions.Data)
@@ -858,10 +872,10 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		if err != nil {
 			return nil, err
 		}
-		// we don't have a session yet but have a serial, try
-		// to get a session
-		if device.SessionMacaroon == "" && device.Serial != "" {
-			err = s.refreshDeviceSession(device)
+		// we don't have a session try to get a session,
+		// this will do best effor of waiting for a serial
+		if device.SessionMacaroon == "" && (device.Serial != "" || reqOptions.DeviceAuthNeed != deviceAuthOptional) {
+			err = s.refreshDeviceSession(ctx, device)
 			if err == auth.ErrNoSerial {
 				// missing serial assertion, log and continue without device authentication
 				logger.Debugf("cannot set device session: %v", err)
@@ -1806,9 +1820,10 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	u := s.assertionsEndpointURL(path.Join(assertType.Name, path.Join(primaryKey...)), v)
 
 	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    u,
-		Accept: asserts.MediaType,
+		Method:         "GET",
+		URL:            u,
+		Accept:         asserts.MediaType,
+		DeviceAuthNeed: deviceAuthOptional,
 	}
 
 	var asrt asserts.Assertion
@@ -2163,7 +2178,7 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 				}
 			}
 			if refreshNeed.needed() {
-				err := s.refreshAuth(user, refreshNeed)
+				err := s.refreshAuth(ctx, user, refreshNeed)
 				if err != nil {
 					// best effort
 					logger.Noticef("cannot refresh soft-expired authorisation: %v", err)
