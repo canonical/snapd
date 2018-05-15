@@ -281,8 +281,8 @@ func showDone(names []string, op string) error {
 			fmt.Fprintf(Stdout, "internal error: unknown op %q", op)
 		}
 		if snap.TrackingChannel != snap.Channel && snap.Channel != "" {
-			// TRANSLATORS: first %s is a snap name, following %s is a channel name
-			fmt.Fprintf(Stdout, i18n.G("Snap %s is no longer tracking %s.\n"), snap.Name, snap.TrackingChannel)
+			// TRANSLATORS: first %s is a channel name, following %s is a snap name, last %s is a channel name again.
+			fmt.Fprintf(Stdout, i18n.G("%s for %s is closed; temporarily forwarding to %s.\n"), snap.TrackingChannel, snap.Name, snap.Channel)
 		}
 	}
 
