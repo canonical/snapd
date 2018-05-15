@@ -801,6 +801,13 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	tr.Commit()
 	st.Unlock()
 
+	// add a test security backend
+	err := d.overlord.InterfaceManager().Repository().AddBackend(&ifacetest.TestSecurityBackend{
+		BackendName:             "apparmor",
+		SandboxFeaturesCallback: func() []string { return []string{"feature-1", "feature-2"} },
+	})
+	c.Assert(err, check.IsNil)
+
 	buildID, err := osutil.MyBuildID()
 	c.Assert(err, check.IsNil)
 
@@ -826,7 +833,8 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 			// only the "schedule" field
 			"schedule": "00:00-9:00/12:00-13:00",
 		},
-		"confinement": "partial",
+		"confinement":      "partial",
+		"sandbox-features": map[string]interface{}{"apparmor": []interface{}{"feature-1", "feature-2"}},
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -2604,7 +2612,14 @@ func (s *apiSuite) TestGetConfCoreSystemAlias(c *check.C) {
 
 func (s *apiSuite) TestGetConfMissingKey(c *check.C) {
 	result := s.runGetConf(c, "test-snap", []string{"test-key2"}, 400)
-	c.Check(result, check.DeepEquals, map[string]interface{}{"message": `snap "test-snap" has no "test-key2" configuration option`})
+	c.Check(result, check.DeepEquals, map[string]interface{}{
+		"value": map[string]interface{}{
+			"SnapName": "test-snap",
+			"Key":      "test-key2",
+		},
+		"message": `snap "test-snap" has no "test-key2" configuration option`,
+		"kind":    "option-not-found",
+	})
 }
 
 func (s *apiSuite) TestGetRootDocument(c *check.C) {
@@ -3507,7 +3522,8 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	c.Assert(repo.Connect(connRef), check.IsNil)
+	_, err := repo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -3849,7 +3865,8 @@ func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slot
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	c.Assert(repo.Connect(connRef), check.IsNil)
+	_, err := repo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, check.IsNil)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
