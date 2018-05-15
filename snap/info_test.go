@@ -954,6 +954,9 @@ func (s *infoSuite) TestDottedPathSlot(c *C) {
 		"foo": "bar",
 	})
 
+	_, ok = slot.Lookup("x")
+	c.Assert(ok, Equals, false)
+
 	_, ok = slot.Lookup("..")
 	c.Assert(ok, Equals, false)
 
@@ -983,6 +986,9 @@ func (s *infoSuite) TestDottedPathPlug(c *C) {
 	v, ok = plug.Lookup("nested.foo")
 	c.Assert(ok, Equals, true)
 	c.Assert(v, Equals, "bar")
+
+	_, ok = plug.Lookup("x")
+	c.Assert(ok, Equals, false)
 
 	_, ok = plug.Lookup("..")
 	c.Assert(ok, Equals, false)
