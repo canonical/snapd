@@ -6,4 +6,4 @@ details: |
 
 execute: |
     snap install --beta test-snapd-tools | MATCH '^Channel beta for test-snapd-tools is closed; temporarily forwarding to stable\.$'
-    snap info test-snapd-tools | MATCH tracking:.*beta
+    snap info test-snapd-tools | MATCH 'tracking:.*beta'
