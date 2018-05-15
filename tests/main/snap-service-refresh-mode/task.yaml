@@ -1,6 +1,6 @@
 summary: "Check that refresh-modes works"
 
-kill-timeout: 3m
+kill-timeout: 5m
 
 debug: |
     grep -n '' *.pid || true
@@ -8,6 +8,7 @@ debug: |
 
 execute: |
     echo "When the service snap is installed"
+
     . $TESTSLIB/snaps.sh
     install_local test-snapd-service
 
