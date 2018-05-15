@@ -134,7 +134,7 @@ func SetNextBoot(s *snap.Info) error {
 		return err
 	}
 	if m[goodBoot] == blobName {
-		// If we were in anyting but default ("") mode before
+		// If we were in anything but default ("") mode before
 		// and now switch to the good core/kernel again, make
 		// sure to clean the snap_mode here. This also
 		// mitigates https://forum.snapcraft.io/t//5253
