@@ -36,11 +36,14 @@ elif apt -qq list snapd | grep -q -- -updates; then
     export SPREAD_CORE_CHANNEL=stable
 fi
 
+# Spread will only buid with recent go
+snap install go
+
 # and now run spread against localhost
 # shellcheck disable=SC1091
 . /etc/os-release
 export GOPATH=/tmp/go
-go get -u github.com/snapcore/spread/cmd/spread
+/snap/bin/go get -u github.com/snapcore/spread/cmd/spread
 /tmp/go/bin/spread -v "autopkgtest:${ID}-${VERSION_ID}-$(dpkg --print-architecture)"
 
 # store journal info for inspectsion
