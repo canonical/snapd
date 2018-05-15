@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,7 +117,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.o.AddManager(s.snapmgr)
 
-	s.BaseTest.AddCleanup(snapstate.MockReadInfo(s.fakeBackend.ReadInfo))
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo))
 	s.BaseTest.AddCleanup(snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile))
 	revDate := func(info *snap.Info) time.Time {
 		if info.Revision.Local() {
@@ -357,6 +358,7 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
+		"reconnect",
 		"run-hook[post-refresh]",
 		"start-snap-services")
 
@@ -548,6 +550,7 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
+		"reconnect",
 		"start-snap-services",
 		"run-hook[configure]",
 	})
@@ -829,6 +832,85 @@ func (s *snapmgrTestSuite) TestUpdateAllDevMode(c *C) {
 	c.Check(updates, HasLen, 0)
 }
 
+func (s *snapmgrTestSuite) TestByKindOrder(c *C) {
+	core := &snap.Info{Type: snap.TypeOS}
+	base := &snap.Info{Type: snap.TypeBase}
+	app := &snap.Info{Type: snap.TypeApp}
+
+	c.Check(snapstate.ByKindOrder(base, core), DeepEquals, []*snap.Info{core, base})
+	c.Check(snapstate.ByKindOrder(app, core), DeepEquals, []*snap.Info{core, app})
+	c.Check(snapstate.ByKindOrder(app, base), DeepEquals, []*snap.Info{base, app})
+	c.Check(snapstate.ByKindOrder(app, base, core), DeepEquals, []*snap.Info{core, base, app})
+	c.Check(snapstate.ByKindOrder(app, core, base), DeepEquals, []*snap.Info{core, base, app})
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyWaitForBases(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-base", SnapID: "some-base-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+		Channel:  "channel-for-base",
+	})
+
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), s.state, []string{"some-snap", "core", "some-base"}, 0)
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 3)
+	c.Check(updates, HasLen, 3)
+
+	// to make TaskSnapSetup work
+	chg := s.state.NewChange("refresh", "...")
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+
+	prereqTotal := len(tts[0].Tasks()) + len(tts[1].Tasks())
+	prereqs := map[string]bool{}
+	for i, task := range tts[2].Tasks() {
+		waitTasks := task.WaitTasks()
+		if i == 0 {
+			c.Check(len(waitTasks), Equals, prereqTotal)
+		} else if task.Kind() == "link-snap" {
+			c.Check(len(waitTasks), Equals, prereqTotal+1)
+			for _, pre := range waitTasks {
+				if pre.Kind() == "link-snap" {
+					snapsup, err := snapstate.TaskSnapSetup(pre)
+					c.Assert(err, IsNil)
+					prereqs[snapsup.Name()] = true
+				}
+			}
+		}
+	}
+
+	c.Check(prereqs, DeepEquals, map[string]bool{
+		"core":      true,
+		"some-base": true,
+	})
+}
+
 func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -932,6 +1014,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
+		"reconnect",
 		"start-snap-services",
 		"run-hook[configure]",
 	})
@@ -2084,7 +2167,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[14]
+	task = ts.Tasks()[15]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap" snap if present`)
 
@@ -3732,7 +3815,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 18
+			j += 19
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -5805,6 +5888,7 @@ link-snap: Error
 auto-connect: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
+reconnect: Hold
 run-hook: Hold
 start-snap-services: Hold
 cleanup: Hold
@@ -5821,6 +5905,7 @@ link-snap: Error
 auto-connect: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
+reconnect: Hold
 run-hook: Hold
 start-snap-services: Hold
 cleanup: Hold
@@ -5843,6 +5928,34 @@ run-hook: Hold`)
 		"Revision": "11",
 	})
 
+}
+
+func (s *snapmgrTestSuite) TestErrreportDisable(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "problem-reports.disabled", true)
+	tr.Commit()
+
+	restore := snapstate.MockErrtrackerReport(func(aSnap, aErrMsg, aDupSig string, extra map[string]string) (string, error) {
+		c.Fatalf("this should not be reached")
+		return "", nil
+	})
+	defer restore()
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "some-snap/11")
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// no failure report was generated
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicy(c *C) {
@@ -7456,7 +7569,7 @@ volumes:
         bootloader: grub
 `
 
-func (s *snapmgrTestSuite) prepareGadget(c *C) {
+func (s *snapmgrTestSuite) prepareGadget(c *C, extraGadgetYaml ...string) {
 	gadgetSideInfo := &snap.SideInfo{RealName: "the-gadget", SnapID: "the-gadget-id", Revision: snap.R(1)}
 	gadgetInfo := snaptest.MockSnap(c, `
 name: the-gadget
@@ -7464,7 +7577,8 @@ type: gadget
 version: 1.0
 `, gadgetSideInfo)
 
-	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0600)
+	gadgetYamlWhole := strings.Join(append([]string{gadgetYaml}, extraGadgetYaml...), "")
+	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYamlWhole), 0600)
 	c.Assert(err, IsNil)
 
 	snapstate.Set(s.state, "the-gadget", &snapstate.SnapState{
@@ -7480,7 +7594,7 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	defer r()
 
 	// using MockSnap, we want to read the bits on disk
-	snapstate.MockReadInfo(snap.ReadInfo)
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7495,6 +7609,7 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 		Current:  snap.R(11),
 		SnapType: "app",
 	})
+	makeInstalledMockCoreSnap(c)
 
 	defls, err := snapstate.ConfigDefaults(s.state, "some-snap")
 	c.Assert(err, IsNil)
@@ -7510,6 +7625,65 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	})
 	_, err = snapstate.ConfigDefaults(s.state, "local-snap")
 	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (s *snapmgrTestSuite) TestConfigDefaultsSystem(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// using MockSnapReadInfo, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.prepareGadget(c, `
+defaults:
+    system:
+        foo: bar
+`)
+
+	makeInstalledMockCoreSnap(c)
+
+	defls, err := snapstate.ConfigDefaults(s.state, "core")
+	c.Assert(err, IsNil)
+	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
+}
+
+func (s *snapmgrTestSuite) TestConfigDefaultsSystemConflictsCoreSnapId(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// using MockSnapReadInfo, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.prepareGadget(c, `
+defaults:
+    system:
+        foo: bar
+    the-core-snap:
+        foo: other-bar
+        other-key: other-key-default
+`)
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", SnapID: "the-core-snap", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	makeInstalledMockCoreSnap(c)
+
+	// 'system' key defaults take precedence over snap-id ones
+	defls, err := snapstate.ConfigDefaults(s.state, "core")
+	c.Assert(err, IsNil)
+	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
 }
 
 func (s *snapmgrTestSuite) TestGadgetDefaultsAreNormalizedForConfigHook(c *C) {
@@ -7572,7 +7746,7 @@ func (s *snapmgrTestSuite) TestGadgetDefaults(c *C) {
 	makeInstalledMockCoreSnap(c)
 
 	// using MockSnap, we want to read the bits on disk
-	snapstate.MockReadInfo(snap.ReadInfo)
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7602,7 +7776,7 @@ func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 	makeInstalledMockCoreSnap(c)
 
 	// using MockSnap, we want to read the bits on disk
-	snapstate.MockReadInfo(snap.ReadInfo)
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7625,7 +7799,7 @@ func (s *snapmgrTestSuite) TestGadgetDefaultsInstalled(c *C) {
 	makeInstalledMockCoreSnap(c)
 
 	// using MockSnap, we want to read the bits on disk
-	snapstate.MockReadInfo(snap.ReadInfo)
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
 
 	s.state.Lock()
 	defer s.state.Unlock()

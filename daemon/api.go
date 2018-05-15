@@ -324,7 +324,27 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		m["confinement"] = "strict"
 	}
 
+	// Convey richer information about features of available security backends.
+	if features := sandboxFeatures(c.d.overlord.InterfaceManager().Repository().Backends()); features != nil {
+		m["sandbox-features"] = features
+	}
+
 	return SyncResponse(m, nil)
+}
+
+func sandboxFeatures(backends []interfaces.SecurityBackend) map[string][]string {
+	result := make(map[string][]string, len(backends))
+	for _, backend := range backends {
+		features := backend.SandboxFeatures()
+		if len(features) > 0 {
+			sort.Strings(features)
+			result[string(backend.Name())] = features
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 // userResponseData contains the data releated to user creation/login/query
@@ -1176,13 +1196,7 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 	var snapName string
 
 	switch err {
-	case store.ErrSnapNotFound, store.ErrRevisionNotAvailable:
-		// TODO: treating ErrRevisionNotAvailable the same as
-		// ErrSnapNotFound preserves the old error handling
-		// behavior of the REST API and the snap command.  We
-		// should revisit this once the store returns more
-		// precise errors and makes it possible to distinguish
-		// the why a revision wasn't available.
+	case store.ErrSnapNotFound:
 		switch len(inst.Snaps) {
 		case 1:
 			return SnapNotFound(inst.Snaps[0], err)
@@ -1192,6 +1206,17 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 			return InternalError("store.SnapNotFound with no snap given")
 		default:
 			return InternalError("store.SnapNotFound with %d snaps", len(inst.Snaps))
+		}
+	case store.ErrRevisionNotAvailable:
+		// store.ErrRevisionNotAvailable should only be returned for
+		// individual snap queries; in all other cases something's wrong
+		switch len(inst.Snaps) {
+		case 1:
+			return SnapRevisionNotAvailable(inst.Snaps[0], err)
+		case 0:
+			return InternalError("store.RevisionNotAvailable with no snap given")
+		default:
+			return InternalError("store.RevisionNotAvailable with %d snaps", len(inst.Snaps))
 		}
 	case store.ErrNoUpdateAvailable:
 		kind = errorKindSnapNoUpdateAvailable
@@ -1633,7 +1658,15 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 					currentConfValues = make(map[string]interface{})
 					break
 				}
-				return BadRequest("%v", err)
+				return SyncResponse(&resp{
+					Type: ResponseTypeError,
+					Result: &errorResult{
+						Message: err.Error(),
+						Kind:    errorKindConfigNoSuchOption,
+						Value:   err,
+					},
+					Status: 400,
+				}, nil)
 			} else {
 				return InternalError("%v", err)
 			}

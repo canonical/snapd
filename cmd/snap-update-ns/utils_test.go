@@ -22,6 +22,7 @@ package main_test
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -225,6 +226,7 @@ func (s *utilsSuite) TestSecureMkdirAllOpenError(c *C) {
 }
 
 func (s *utilsSuite) TestPlanWritableMimic(c *C) {
+	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
 	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
 		c.Assert(dir, Equals, "/foo")
 		return []os.FileInfo{
@@ -261,7 +263,7 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 		// Store /foo in /tmp/.snap/foo while we set things up
 		{Entry: osutil.MountEntry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"rbind"}}, Action: update.Mount},
 		// Put a tmpfs over /foo
-		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/foo/bar"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/foo/bar", "mode=0755", "uid=0", "gid=0"}}, Action: update.Mount},
 		// Bind mount files and directories over. Note that files are identified by x-snapd.kind=file option.
 		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file", "x-snapd.synthetic", "x-snapd.needed-by=/foo/bar"}}, Action: update.Mount},
 		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"rbind", "x-snapd.synthetic", "x-snapd.needed-by=/foo/bar"}}, Action: update.Mount},
@@ -275,6 +277,7 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 }
 
 func (s *utilsSuite) TestPlanWritableMimicErrors(c *C) {
+	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
 	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
 		c.Assert(dir, Equals, "/foo")
 		return nil, errTesting
@@ -716,4 +719,147 @@ func (s *utilsSuite) TestSplitIntoSegments(c *C) {
 	sg, err = update.SplitIntoSegments("/foo//fii/../.")
 	c.Assert(err, ErrorMatches, `cannot split unclean path ".+"`)
 	c.Assert(sg, HasLen, 0)
+}
+
+// secure-open-path
+
+func (s *utilsSuite) TestSecureOpenPath(c *C) {
+	stat := syscall.Stat_t{Mode: syscall.S_IFDIR}
+	s.sys.InsertFstatResult("fstat 5 <ptr>", stat)
+	fd, err := s.sec.OpenPath("/foo/bar")
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	c.Assert(fd, Equals, 5)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,       // -> 3
+		`openat 3 "foo" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "bar" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,             // -> 5
+		`fstat 5 <ptr>`,
+		`close 4`,
+		`close 3`,
+	})
+}
+
+func (s *utilsSuite) TestSecureOpenPathSingleSegment(c *C) {
+	stat := syscall.Stat_t{Mode: syscall.S_IFDIR}
+	s.sys.InsertFstatResult("fstat 4 <ptr>", stat)
+	fd, err := s.sec.OpenPath("/foo")
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	c.Assert(fd, Equals, 4)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 3
+		`openat 3 "foo" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,       // -> 4
+		`fstat 4 <ptr>`,
+		`close 3`,
+	})
+}
+
+func (s *utilsSuite) TestSecureOpenPathRoot(c *C) {
+	stat := syscall.Stat_t{Mode: syscall.S_IFDIR}
+	s.sys.InsertFstatResult("fstat 3 <ptr>", stat)
+	fd, err := s.sec.OpenPath("/")
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	c.Assert(fd, Equals, 3)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 3
+		`fstat 3 <ptr>`,
+	})
+}
+
+func (s *realSystemSuite) TestSecureOpenPathDirectory(c *C) {
+	path := filepath.Join(c.MkDir(), "test")
+	c.Assert(os.Mkdir(path, 0755), IsNil)
+
+	fd, err := s.sec.OpenPath(path)
+	c.Assert(err, IsNil)
+	defer syscall.Close(fd)
+
+	// check that the file descriptor is for the expected path
+	origDir, err := os.Getwd()
+	c.Assert(err, IsNil)
+	defer os.Chdir(origDir)
+
+	c.Assert(syscall.Fchdir(fd), IsNil)
+	cwd, err := os.Getwd()
+	c.Assert(err, IsNil)
+	c.Check(cwd, Equals, path)
+}
+
+func (s *realSystemSuite) TestSecureOpenPathRelativePath(c *C) {
+	fd, err := s.sec.OpenPath("relative/path")
+	c.Check(fd, Equals, -1)
+	c.Check(err, ErrorMatches, "path .* is not absolute")
+}
+
+func (s *realSystemSuite) TestSecureOpenPathUncleanPath(c *C) {
+	base := c.MkDir()
+	path := filepath.Join(base, "test")
+	c.Assert(os.Mkdir(path, 0755), IsNil)
+
+	fd, err := s.sec.OpenPath(base + "//test")
+	c.Check(fd, Equals, -1)
+	c.Check(err, ErrorMatches, "cannot split unclean path .*")
+
+	fd, err = s.sec.OpenPath(base + "/./test")
+	c.Check(fd, Equals, -1)
+	c.Check(err, ErrorMatches, "cannot split unclean path .*")
+
+	fd, err = s.sec.OpenPath(base + "/test/../test")
+	c.Check(fd, Equals, -1)
+	c.Check(err, ErrorMatches, "cannot split unclean path .*")
+}
+
+func (s *realSystemSuite) TestSecureOpenPathFile(c *C) {
+	path := filepath.Join(c.MkDir(), "file.txt")
+	c.Assert(ioutil.WriteFile(path, []byte("hello"), 0644), IsNil)
+
+	fd, err := s.sec.OpenPath(path)
+	c.Assert(err, IsNil)
+	defer syscall.Close(fd)
+
+	// Check that the file descriptor matches the file.
+	var pathStat, fdStat syscall.Stat_t
+	c.Assert(syscall.Stat(path, &pathStat), IsNil)
+	c.Assert(syscall.Fstat(fd, &fdStat), IsNil)
+	c.Check(pathStat, Equals, fdStat)
+}
+
+func (s *realSystemSuite) TestSecureOpenPathNotFound(c *C) {
+	path := filepath.Join(c.MkDir(), "test")
+
+	fd, err := s.sec.OpenPath(path)
+	c.Check(fd, Equals, -1)
+	c.Check(err, ErrorMatches, "no such file or directory")
+}
+
+func (s *realSystemSuite) TestSecureOpenPathSymlink(c *C) {
+	base := c.MkDir()
+	dir := filepath.Join(base, "test")
+	c.Assert(os.Mkdir(dir, 0755), IsNil)
+
+	symlink := filepath.Join(base, "symlink")
+	c.Assert(os.Symlink(dir, symlink), IsNil)
+
+	fd, err := s.sec.OpenPath(symlink)
+	c.Check(fd, Equals, -1)
+	c.Check(err, ErrorMatches, `".*" is a symbolic link`)
+}
+
+func (s *realSystemSuite) TestSecureOpenPathSymlinkedParent(c *C) {
+	base := c.MkDir()
+	dir := filepath.Join(base, "dir1")
+	symlink := filepath.Join(base, "symlink")
+
+	path := filepath.Join(dir, "dir2")
+	symlinkedPath := filepath.Join(symlink, "dir2")
+
+	c.Assert(os.Mkdir(dir, 0755), IsNil)
+	c.Assert(os.Symlink(dir, symlink), IsNil)
+	c.Assert(os.Mkdir(path, 0755), IsNil)
+
+	fd, err := s.sec.OpenPath(symlinkedPath)
+	c.Check(fd, Equals, -1)
+	c.Check(err, ErrorMatches, "not a directory")
 }

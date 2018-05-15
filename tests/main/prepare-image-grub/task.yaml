@@ -1,6 +1,6 @@
 summary: Check that prepare-image works for grub-systems
 
-systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*]
 
 backends: [-autopkgtest]
 

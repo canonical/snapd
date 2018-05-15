@@ -50,7 +50,7 @@
 %global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
 %global import_path     %{provider_prefix}
 
-%global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service
+%global snappy_svcs     snapd.service snapd.socket snapd.autoimport.service snapd.seeded.service
 
 # Until we have a way to add more extldflags to gobuild macro...
 %if 0%{?fedora} >= 26
@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.32.3
+Version:        2.32.8
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -617,9 +617,11 @@ popd
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.autoimport.service
+%{_unitdir}/snapd.seeded.service
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
+%{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
 %dir %{_sharedstatedir}/snapd/assertions
@@ -722,6 +724,69 @@ fi
 
 
 %changelog
+* Fri May 11 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.8
+ - snapd.core-fixup.sh: add workaround for corrupted uboot.env
+
+* Fri May 11 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.7
+ - many: add wait command and seeded target (2
+ - snapd.core-fixup.sh: add workaround for corrupted uboot.env
+ - boot: clear "snap_mode" when needed
+ - cmd/libsnap: fix compile error on more restrictive gcc
+ - tests: cherry-pick commits to move spread to google backend
+ - spread.yaml: add cosmic (18.10) to autopkgtest/qemu
+ - userd: set up journal logging streams for autostarted apps
+
+* Sun Apr 29 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.6
+ - snap: do not use overly short timeout in `snap
+   {start,stop,restart}`
+ - interfaces/apparmor: fix incorrect apparmor profile glob
+ - tests: detect kernel oops during tests and abort tests in this
+   case
+ - tests: run interfaces-boradcom-asic-control early
+ - tests: skip interfaces-content test on core devices
+
+* Mon Apr 16 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.5
+ - many: add "stop-mode: sig{term,hup,usr[12]}{,-all}" instead of
+   conflating that with refresh-mode
+ - overlord/snapstate:  poll for up to 10s if a snap is unexpectedly
+   not mounted in doMountSnap
+ - daemon: support 'system' as nickname of the core snap
+
+* Wed Apr 11 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.4
+ - cmd/snap: user session application autostart
+ - overlord/snapstate: introduce envvars to control the channels for
+   bases and prereqs
+ - overlord/snapstate: on multi-snap refresh make sure bases and core
+   are finished before dependent snaps
+ - many: use the new install/refresh /v2/snaps/refresh store API
+
+* Wed Apr 11 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.3.2
+ - errtracker: make TestJournalErrorSilentError work on
+   gccgo
+ - errtracker: check for whoopsie.service instead of reading
+   /etc/whoopsie
+
+* Wed Apr 11 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.3.1
+ - debian: add gbp.conf script to build snapd via `gbp
+   buildpackage`
+ - tests: add check for OOM error after each test
+ - cmd/snap-seccomp: graceful handling of non-multilib host
+ - interfaces/shutdown: allow calling SetWallMessage
+ - data/selinux: Give snapd access to more aspects of the system
+ - daemon,overlord/hookstate: stop/wait for running hooks before
+   closing the snapctl socket
+ - cmd/snap-confine: ignore missing cgroups in snap-device-helper
+ - interfaces: misc updates for default, firewall-control, fuse-
+   support and process-control
+ - overlord: test fix, address corner case
+
 * Thu Apr 05 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.3
  - ifacestate: add to the repo also snaps that are pending being
