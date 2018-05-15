@@ -109,7 +109,7 @@ var setGetTests = [][]setGetOp{{
 	// Trivial full doc.
 	`set doc={"one":1,"two":2}`,
 	`get doc={"one":1,"two":2}`,
-	`changes core.doc`,
+	`changes core.doc.one core.doc.two`,
 }, {
 	// Root doc
 	`set doc={"one":1,"two":2}`,
@@ -123,6 +123,7 @@ var setGetTests = [][]setGetOp{{
 	`set one.two.three=3`,
 	`changes core.one.two.three`,
 	`set one.five=5`,
+	`changes core.one.five core.one.two.three`,
 	`setunder one={"two":{"four":4}}`,
 	`get one={"two":{"three":3},"five":5}`,
 	`get one.two={"three":3}`,
@@ -138,7 +139,9 @@ var setGetTests = [][]setGetOp{{
 }, {
 	// Replacement with nested mutation.
 	`set one={"two":{"three":3}}`,
+	`changes core.one.two.three`,
 	`set one.five=5`,
+	`changes core.one.five core.one.two.three`,
 	`get one={"two":{"three":3},"five":5}`,
 	`get one.two={"three":3}`,
 	`get one.two.three=3`,
@@ -149,6 +152,7 @@ var setGetTests = [][]setGetOp{{
 }, {
 	// Cannot go through known scalar implicitly.
 	`set one.two=2`,
+	`changes core.one.two`,
 	`set one.two.three=3 => snap "core" option "one\.two" is not a map`,
 	`get one.two.three=3 => snap "core" option "one\.two" is not a map`,
 	`get one={"two":2}`,
@@ -161,6 +165,7 @@ var setGetTests = [][]setGetOp{{
 	// Unknown scalars may be overwritten though.
 	`setunder one={"two":2}`,
 	`set one.two.three=3`,
+	`changes core.one.two.three`,
 	`commit`,
 	`getunder one={"two":{"three":3}}`,
 }, {

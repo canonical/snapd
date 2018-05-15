@@ -74,11 +74,15 @@ func changes(cfgStr string, cfg map[string]interface{}) []string {
 		case map[string]interface{}:
 			out = append(out, changes(cfgStr+"."+k, subCfg)...)
 		case *json.RawMessage:
-			// FIXME: look into RawMessage
-			//        c.f. helpers.go:PatchConfig
+			// check if we need to dive into a sub-config
+			var configm map[string]interface{}
+			if err := jsonutil.DecodeWithNumber(bytes.NewReader(*subCfg), &configm); err == nil {
+				out = append(out, changes(cfgStr+"."+k, configm)...)
+				continue
+			}
 			out = append(out, []string{cfgStr + "." + k}...)
 		default:
-			panic(fmt.Sprintf("unknown type %T", subCfg))
+			out = append(out, []string{cfgStr + "." + k}...)
 		}
 	}
 	return out
