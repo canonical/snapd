@@ -158,13 +158,14 @@ func formatUnmountFlags(flags int) string {
 	return strings.Join(fl, "|")
 }
 
-// CallResult describes a system call and the corresponding result as strings
+// CallResultError describes a system call and the corresponding result or error.
 //
-// The field names stand for Call and Result respectively. They are abbreviated
-// due to the nature of their use (in large quantity).
-type CallResult struct {
+// The field names stand for Call, Result and Error respectively. They are
+// abbreviated due to the nature of their use (in large quantity).
+type CallResultError struct {
 	C string
 	R interface{}
+	E error
 }
 
 // SyscallRecorder stores which system calls were invoked.
@@ -174,7 +175,7 @@ type CallResult struct {
 // verification of file descriptors.
 type SyscallRecorder struct {
 	// History of all the system calls made.
-	rcalls []CallResult
+	rcalls []CallResultError
 	// Error function for a given system call.
 	errors map[string]func() error
 	// pre-arranged result of lstat, fstat and readdir calls.
@@ -238,7 +239,7 @@ func (sys *SyscallRecorder) Calls() []string {
 }
 
 // RCalls returns the sequence of mocked calls that have been made along with their results.
-func (sys *SyscallRecorder) RCalls() []CallResult {
+func (sys *SyscallRecorder) RCalls() []CallResultError {
 	return sys.rcalls
 }
 
@@ -251,9 +252,9 @@ func (sys *SyscallRecorder) rcall(call string, resultFn func(call string) (inter
 		val, err = resultFn(call)
 	}
 	if err != nil {
-		sys.rcalls = append(sys.rcalls, CallResult{C: call, R: err})
+		sys.rcalls = append(sys.rcalls, CallResultError{C: call, E: err})
 	} else {
-		sys.rcalls = append(sys.rcalls, CallResult{C: call, R: val})
+		sys.rcalls = append(sys.rcalls, CallResultError{C: call, R: val})
 	}
 	return val, err
 }
