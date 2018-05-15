@@ -17,7 +17,6 @@ restore: |
     rm -f "$PRODUCER_DATA/prepare-slot-producer-done"
     rm -f "$CONSUMER_DATA/connect-plug-consumer-done"
     rm -f "$PRODUCER_DATA/connect-slot-producer-done"
-
     snap remove basic-iface-hooks-consumer
     snap remove basic-iface-hooks-producer
 
