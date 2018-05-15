@@ -21,6 +21,7 @@ package main
 
 import (
 	"encoding/json"
+	"reflect"
 	"time"
 
 	"github.com/jessevdk/go-flags"
@@ -75,7 +76,43 @@ func trueish(vi interface{}) bool {
 		if v > 0 {
 			return true
 		}
+	case int8:
+		if v > 0 {
+			return true
+		}
+	case int16:
+		if v > 0 {
+			return true
+		}
+	case int32:
+		if v > 0 {
+			return true
+		}
 	case int64:
+		if v > 0 {
+			return true
+		}
+	case uint:
+		if v > 0 {
+			return true
+		}
+	case uint8:
+		if v > 0 {
+			return true
+		}
+	case uint16:
+		if v > 0 {
+			return true
+		}
+	case uint32:
+		if v > 0 {
+			return true
+		}
+	case uint64:
+		if v > 0 {
+			return true
+		}
+	case uintptr:
 		if v > 0 {
 			return true
 		}
@@ -98,15 +135,23 @@ func trueish(vi interface{}) bool {
 		if v != "" {
 			return true
 		}
-	case []interface{}:
-		if len(v) > 0 {
-			return true
+	}
+	// arrays/slices/maps
+	typ := reflect.TypeOf(vi)
+	switch typ.Kind() {
+	case reflect.Array, reflect.Slice, reflect.Map:
+		s := reflect.ValueOf(vi)
+		if s.Kind() == reflect.Ptr {
+			s = reflect.Indirect(s)
 		}
-	case map[string]interface{}:
-		if len(v) > 0 {
-			return true
+		switch s.Kind() {
+		case reflect.Array, reflect.Slice, reflect.Map:
+			if s.Len() > 0 {
+				return true
+			}
 		}
 	}
+
 	return false
 }
 
