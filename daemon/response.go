@@ -149,6 +149,8 @@ const (
 
 	errorKindNetworkTimeout      = errorKind("network-timeout")
 	errorKindInterfacesUnchanged = errorKind("interfaces-unchanged")
+
+	errorKindConfigNoSuchOption = errorKind("option-not-found")
 )
 
 type errorValue interface{}

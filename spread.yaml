@@ -56,7 +56,6 @@ backends:
             - ubuntu-16.04-64:
                 workers: 8
             - ubuntu-18.04-64:
-                image: ubuntu-os-cloud-devel/daily-ubuntu-1804-bionic-v20180424
                 workers: 6
 
             - ubuntu-core-16-64:
@@ -140,6 +139,12 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-18.04-32:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-32:
                 username: ubuntu
                 password: ubuntu
             - debian-sid-64:
@@ -226,6 +231,25 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-18.04-arm64:
+                username: ubuntu
+                password: ubuntu
+            # Cosmic
+            - ubuntu-18.10-amd64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-i386:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-ppc64el:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-armhf:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-s390x:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-18.10-arm64:
                 username: ubuntu
                 password: ubuntu
     external:

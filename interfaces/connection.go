@@ -28,8 +28,8 @@ import (
 
 // Connection represents a connection between a particular plug and slot.
 type Connection struct {
-	plug *ConnectedPlug
-	slot *ConnectedSlot
+	Plug *ConnectedPlug
+	Slot *ConnectedSlot
 }
 
 // ConnectedPlug represents a plug that is connected to a slot.
@@ -133,7 +133,12 @@ func (plug *ConnectedPlug) StaticAttr(key string, val interface{}) error {
 
 // StaticAttrs returns all static attributes.
 func (plug *ConnectedPlug) StaticAttrs() map[string]interface{} {
-	return plug.staticAttrs
+	return copyAttributes(plug.staticAttrs)
+}
+
+// DynamicAttrs returns all dynamic attributes.
+func (plug *ConnectedPlug) DynamicAttrs() map[string]interface{} {
+	return copyAttributes(plug.dynamicAttrs)
 }
 
 // Attr returns a dynamic attribute with the given name. It falls back to returning static
@@ -197,7 +202,12 @@ func (slot *ConnectedSlot) StaticAttr(key string, val interface{}) error {
 
 // StaticAttrs returns all static attributes.
 func (slot *ConnectedSlot) StaticAttrs() map[string]interface{} {
-	return slot.staticAttrs
+	return copyAttributes(slot.staticAttrs)
+}
+
+// DynamicAttrs returns all dynamic attributes.
+func (slot *ConnectedSlot) DynamicAttrs() map[string]interface{} {
+	return copyAttributes(slot.dynamicAttrs)
 }
 
 // Attr returns a dynamic attribute with the given name. It falls back to returning static
@@ -226,7 +236,7 @@ func (slot *ConnectedSlot) Ref() *SlotRef {
 
 // Interface returns the name of the interface for this connection.
 func (conn *Connection) Interface() string {
-	return conn.plug.plugInfo.Interface
+	return conn.Plug.plugInfo.Interface
 }
 
 func copyAttributes(value map[string]interface{}) map[string]interface{} {
