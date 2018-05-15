@@ -23,7 +23,7 @@ restore: |
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces | MATCH "\- +process-control-consumer:process-control"
+    snap interfaces -i process-control | MATCH "\- +process-control-consumer:process-control"
 
     echo "When the plug is connected"
     snap connect process-control-consumer:process-control

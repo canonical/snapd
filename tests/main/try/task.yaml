@@ -1,6 +1,6 @@
 summary: Check that try command works
 
-systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*]
 
 environment:
     PORT: 8081

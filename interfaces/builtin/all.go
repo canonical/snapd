@@ -121,8 +121,12 @@ func SanitizePlugsSlots(snapInfo *snap.Info) {
 	}
 }
 
-func MockInterface(iface interfaces.Interface) {
-	allInterfaces[iface.Name()] = iface
+func MockInterface(iface interfaces.Interface) func() {
+	name := iface.Name()
+	allInterfaces[name] = iface
+	return func() {
+		delete(allInterfaces, name)
+	}
 }
 
 type byIfaceName []interfaces.Interface

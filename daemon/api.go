@@ -248,7 +248,17 @@ var (
 		GET:    getAliases,
 		POST:   changeAliases,
 	}
+
+	buildID = "unknown"
 )
+
+func init() {
+	// cache the build-id on startup to ensure that changes in
+	// the underlying binary do not affect us
+	if bid, err := osutil.MyBuildID(); err == nil {
+		buildID = bid
+	}
+}
 
 func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse([]string{"TBD"}, nil)
@@ -292,6 +302,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	m := map[string]interface{}{
 		"series":         release.Series,
 		"version":        c.d.Version,
+		"build-id":       buildID,
 		"os-release":     release.ReleaseInfo,
 		"on-classic":     release.OnClassic,
 		"managed":        len(users) > 0,
@@ -313,7 +324,27 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		m["confinement"] = "strict"
 	}
 
+	// Convey richer information about features of available security backends.
+	if features := sandboxFeatures(c.d.overlord.InterfaceManager().Repository().Backends()); features != nil {
+		m["sandbox-features"] = features
+	}
+
 	return SyncResponse(m, nil)
+}
+
+func sandboxFeatures(backends []interfaces.SecurityBackend) map[string][]string {
+	result := make(map[string][]string, len(backends))
+	for _, backend := range backends {
+		features := backend.SandboxFeatures()
+		if len(features) > 0 {
+			sort.Strings(features)
+			result[string(backend.Name())] = features
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 // userResponseData contains the data releated to user creation/login/query
@@ -1176,6 +1207,17 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 		default:
 			return InternalError("store.SnapNotFound with %d snaps", len(inst.Snaps))
 		}
+	case store.ErrRevisionNotAvailable:
+		// store.ErrRevisionNotAvailable should only be returned for
+		// individual snap queries; in all other cases something's wrong
+		switch len(inst.Snaps) {
+		case 1:
+			return SnapRevisionNotAvailable(inst.Snaps[0], err)
+		case 0:
+			return InternalError("store.RevisionNotAvailable with no snap given")
+		default:
+			return InternalError("store.RevisionNotAvailable with %d snaps", len(inst.Snaps))
+		}
 	case store.ErrNoUpdateAvailable:
 		kind = errorKindSnapNoUpdateAvailable
 	case store.ErrLocalSnap:
@@ -1616,7 +1658,15 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 					currentConfValues = make(map[string]interface{})
 					break
 				}
-				return BadRequest("%v", err)
+				return SyncResponse(&resp{
+					Type: ResponseTypeError,
+					Result: &errorResult{
+						Message: err.Error(),
+						Kind:    errorKindConfigNoSuchOption,
+						Value:   err,
+					},
+					Status: 400,
+				}, nil)
 			} else {
 				return InternalError("%v", err)
 			}

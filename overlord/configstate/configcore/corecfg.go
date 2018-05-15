@@ -57,6 +57,19 @@ var supportedConfigurations = map[string]bool{
 	"core.experimental.layouts": true,
 }
 
+func validateExperimentalSettings(tr Conf) error {
+	layoutsEnabled, err := coreCfg(tr, "experimental.layouts")
+	if err != nil {
+		return err
+	}
+	switch layoutsEnabled {
+	case "", "true", "false":
+		return nil
+	default:
+		return fmt.Errorf("experimental.layouts can only be set to 'true' or 'false'")
+	}
+}
+
 func Run(tr Conf) error {
 	// check if the changes
 	for _, k := range tr.Changes() {
@@ -71,6 +84,11 @@ func Run(tr Conf) error {
 	if err := validateRefreshSchedule(tr); err != nil {
 		return err
 	}
+	if err := validateExperimentalSettings(tr); err != nil {
+		return err
+	}
+	// FIXME: ensure the user cannot set "core seed.loaded"
+
 	// capture cloud information
 	if err := setCloudInfoWhenSeeding(tr); err != nil {
 		return err

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -801,9 +802,17 @@ func (s *deviceMgrSuite) TestDoRequestSerialErrorsOnNoHost(c *C) {
 		c.Skip("cannot run test when http proxy is in use, the error pattern is different")
 	}
 
+	const nonexistent_host = "nowhere.nowhere.test"
+
+	// check internet access
+	_, err := net.LookupHost(nonexistent_host)
+	if netErr, ok := err.(net.Error); !ok || netErr.Temporary() {
+		c.Skip("cannot run test with no internet access, the error pattern is different")
+	}
+
 	privKey, _ := assertstest.GenerateKey(testKeyLength)
 
-	nowhere := "http://nowhere.nowhere.test"
+	nowhere := "http://" + nonexistent_host
 
 	mockRequestIDURL := nowhere + requestIDURLPath
 	restore := devicestate.MockRequestIDURL(mockRequestIDURL)
@@ -2111,10 +2120,10 @@ func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.
 	c.Assert(err, IsNil)
 	err = repo.AddSnap(core11)
 	c.Assert(err, IsNil)
-	err = repo.Connect(interfaces.ConnRef{
+	_, err = repo.Connect(interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: info11.Name(), Name: ifname},
 		SlotRef: interfaces.SlotRef{Snap: core11.Name(), Name: ifname},
-	})
+	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	conns, err := repo.Connected("snap-with-snapd-control", "snapd-control")
 	c.Assert(err, IsNil)

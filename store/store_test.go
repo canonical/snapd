@@ -2620,22 +2620,6 @@ func (s *storeTestSuite) TestNoDetails(c *C) {
 	c.Assert(result, IsNil)
 }
 
-func (s *storeTestSuite) TestStructFields(c *C) {
-	type aStruct struct {
-		Foo int `json:"hello"`
-		Bar int `json:"potato,stuff"`
-	}
-	c.Assert(getStructFields(aStruct{}), DeepEquals, []string{"hello", "potato"})
-}
-
-func (s *storeTestSuite) TestStructFieldsExcept(c *C) {
-	type aStruct struct {
-		Foo int `json:"hello"`
-		Bar int `json:"potato,stuff"`
-	}
-	c.Assert(getStructFields(aStruct{}, "potato"), DeepEquals, []string{"hello"})
-}
-
 /* acquired via:
 curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://api.snapcraft.io/api/v1/snaps/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Clicense%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&q=hello' | python -m json.tool | xsel -b
 Screenshot URLS set manually.
@@ -2855,12 +2839,14 @@ const mockNamesJSON = `
         "apps": ["baz"],
         "title": "a title",
         "summary": "oneary plus twoary",
-        "package_name": "bar"
+        "package_name": "bar",
+        "version": "2.0"
       },
       {
         "aliases": [{"name": "meh", "target": "foo"}],
         "apps": ["foo"],
-        "package_name": "foo"
+        "package_name": "foo",
+        "version": "1.0"
       }
     ]
   }
@@ -2921,11 +2907,11 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 
 	dump, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
-	c.Check(dump, DeepEquals, map[string][]string{
-		"foo":     {"foo"},
-		"bar.baz": {"bar"},
-		"potato":  {"bar"},
-		"meh":     {"bar", "foo"},
+	c.Check(dump, DeepEquals, map[string]string{
+		"foo":     `[{"snap":"foo","version":"1.0"}]`,
+		"bar.baz": `[{"snap":"bar","version":"2.0"}]`,
+		"potato":  `[{"snap":"bar","version":"2.0"}]`,
+		"meh":     `[{"snap":"bar","version":"2.0"},{"snap":"foo","version":"1.0"}]`,
 	})
 }
 
@@ -4125,7 +4111,7 @@ func (s *storeTestSuite) TestListRefreshWithDeltas(c *C) {
 			"epoch":       "0",
 			"confinement": "",
 		})
-		c.Assert(resp.Fields, DeepEquals, getStructFields(snapDetails{}, "snap_yaml_raw"))
+		c.Assert(resp.Fields, DeepEquals, getStructFields((*snapDetails)(nil), "snap_yaml_raw"))
 
 		io.WriteString(w, MockUpdatesWithDeltasJSON)
 	}))
@@ -4277,14 +4263,6 @@ func (s *storeTestSuite) TestListRefreshOptions(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(mockServerHit, Equals, true)
 	}
-}
-
-func (s *storeTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
-	type aStruct struct {
-		Foo int `json:"hello"`
-		Bar int
-	}
-	c.Assert(getStructFields(aStruct{}), DeepEquals, []string{"hello"})
 }
 
 func (s *storeTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
@@ -6547,7 +6525,7 @@ func (s *storeTestSuite) TestSnapActionRevisionNotAvailable(c *C) {
 	c.Assert(results, HasLen, 0)
 	c.Check(err, DeepEquals, &SnapActionError{
 		Refresh: map[string]error{
-			"hello-world": ErrNoUpdateAvailable,
+			"hello-world": ErrRevisionNotAvailable,
 		},
 		Install: map[string]error{
 			"foo": ErrRevisionNotAvailable,

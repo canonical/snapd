@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"golang.org/x/net/context"
@@ -201,6 +202,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.Name()))
 	addTask(setupAliases)
 	prev = setupAliases
+
+	// on refresh re-connect existing connections and run their interface hooks (if applicable)
+	if snapst.IsInstalled() {
+		reconnectTask := st.NewTask("reconnect", fmt.Sprintf(i18n.G("Reconnect interfaces for snap %q"), snapsup.Name()))
+		addTask(reconnectTask)
+		prev = reconnectTask
+	}
 
 	if runRefreshHooks {
 		postRefreshHook := SetupPostRefreshHook(st, snapsup.Name())
@@ -610,7 +618,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		return nil, &snap.AlreadyInstalledError{Snap: name}
 	}
 
-	info, err := snapInfo(st, name, channel, revision, userID)
+	info, err := installInfo(st, name, channel, revision, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -640,6 +648,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 	installed := make([]string, 0, len(names))
 	tasksets := make([]*state.TaskSet, 0, len(names))
+	// TODO: this could be reorged to do one single store call
 	for _, name := range names {
 		ts, err := Install(st, name, "", snap.R(0), userID, Flags{})
 		// FIXME: is this expected behavior?
@@ -743,6 +752,18 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		reportUpdated[snapName] = true
 	}
 
+	// first core, bases, then rest
+	sort.Sort(byKind(updates))
+	prereqs := make(map[string]*state.TaskSet)
+	waitPrereq := func(ts *state.TaskSet, prereqName string) {
+		preTs := prereqs[prereqName]
+		if preTs != nil {
+			ts.WaitAll(preTs)
+		}
+	}
+
+	// updates is sorted by kind so this will process first core
+	// and bases and then other snaps
 	for _, update := range updates {
 		channel, flags, snapst := params(update)
 
@@ -785,6 +806,24 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		}
 		ts.JoinLane(st.NewLane())
 
+		// because of the sorting of updates we fill prereqs
+		// first (if branch) and only then use it to setup
+		// waits (else branch)
+		if update.Type == snap.TypeOS || update.Type == snap.TypeBase {
+			// prereq types come first in updates, we
+			// also assume bases don't have hooks, otherwise
+			// they would need to wait on core
+			prereqs[update.Name()] = ts
+		} else {
+			// prereqs were processed already, wait for
+			// them as necessary for the other kind of
+			// snaps
+			waitPrereq(ts, defaultCoreSnapName)
+			if update.Base != "" {
+				waitPrereq(ts, update.Base)
+			}
+		}
+
 		scheduleUpdate(update.Name(), ts)
 		tasksets = append(tasksets, ts)
 	}
@@ -803,6 +842,22 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 	}
 
 	return updated, tasksets, nil
+}
+
+type byKind []*snap.Info
+
+func (bk byKind) Len() int      { return len(bk) }
+func (bk byKind) Swap(i, j int) { bk[i], bk[j] = bk[j], bk[i] }
+
+var kindRevOrder = map[snap.Type]int{
+	snap.TypeOS:   2,
+	snap.TypeBase: 1,
+}
+
+func (bk byKind) Less(i, j int) bool {
+	iRevOrd := kindRevOrder[bk[i].Type]
+	jRevOrd := kindRevOrder[bk[j].Type]
+	return iRevOrd >= jRevOrd
 }
 
 func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, linkTs func(snapName string, ts *state.TaskSet)) (*state.TaskSet, error) {
@@ -1080,11 +1135,11 @@ func infoForUpdate(st *state.State, snapst *SnapState, name, channel string, rev
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return updateToRevisionInfo(st, snapst, channel, revision, userID)
+		return updateToRevisionInfo(st, snapst, revision, userID)
 	}
 
-	// refresh-to-local
-	return readInfo(name, sideInfo)
+	// refresh-to-local, this assumes the snap revision is mounted
+	return readInfo(name, sideInfo, errorOnBroken)
 }
 
 // AutoRefreshAssertions allows to hook fetching of important assertions
@@ -1517,12 +1572,6 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, fmt.Errorf("cannot transition snap %q: not installed", oldName)
 	}
 
-	var userID int
-	newInfo, err := snapInfo(st, newName, oldSnapst.Channel, snap.R(0), userID)
-	if err != nil {
-		return nil, err
-	}
-
 	var all []*state.TaskSet
 	// install new core (if not already installed)
 	err = Get(st, newName, &newSnapst)
@@ -1530,6 +1579,12 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		return nil, err
 	}
 	if !newSnapst.IsInstalled() {
+		var userID int
+		newInfo, err := installInfo(st, newName, oldSnapst.Channel, snap.R(0), userID)
+		if err != nil {
+			return nil, err
+		}
+
 		// start by instaling the new snap
 		tsInst, err := doInstall(st, &newSnapst, &SnapSetup{
 			Channel:      oldSnapst.Channel,
@@ -1598,7 +1653,7 @@ func Info(st *state.State, name string, revision snap.Revision) (*snap.Info, err
 
 	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
 		if si := snapst.Sequence[i]; si.Revision == revision {
-			return readInfo(name, si)
+			return readInfo(name, si, 0)
 		}
 	}
 
@@ -1789,7 +1844,9 @@ func CoreInfo(st *state.State) (*snap.Info, error) {
 	return nil, fmt.Errorf("unexpected number of cores, got %d", len(res))
 }
 
-// ConfigDefaults returns the configuration defaults for the snap specified in the gadget. If gadget is absent or the snap has no snap-id it returns ErrNoState.
+// ConfigDefaults returns the configuration defaults for the snap specified in
+// the gadget. If gadget is absent or the snap has no snap-id it returns
+// ErrNoState.
 func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, error) {
 	gadget, err := GadgetInfo(st)
 	if err != nil {
@@ -1801,14 +1858,34 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 		return nil, err
 	}
 
+	core, err := CoreInfo(st)
+	if err != nil {
+		return nil, err
+	}
+	isCoreDefaults := core.Name() == snapName
+
 	si := snapst.CurrentSideInfo()
-	if si.SnapID == "" {
+	// core snaps can be addressed even without a snap-id via the special
+	// "system" value in the config; first-boot always configures the core
+	// snap with UseConfigDefaults
+	if si.SnapID == "" && !isCoreDefaults {
 		return nil, state.ErrNoState
 	}
 
 	gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
 	if err != nil {
 		return nil, err
+	}
+
+	// we support setting core defaults via "system"
+	if isCoreDefaults {
+		if defaults, ok := gadgetInfo.Defaults["system"]; ok {
+			if _, ok := gadgetInfo.Defaults[si.SnapID]; ok && si.SnapID != "" {
+				logger.Noticef("core snap configuration defaults found under both 'system' key and core-snap-id, preferring 'system'")
+			}
+
+			return defaults, nil
+		}
 	}
 
 	defaults, ok := gadgetInfo.Defaults[si.SnapID]
