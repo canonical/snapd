@@ -23,7 +23,7 @@ if [ "$(find /boot/uboot -name uboot.env | wc -l)" -gt 1 ]; then
     echo "Corrupted uboot.env file detected"
     # Ensure we have one uboot.env to go back to. Note that it does
     # not matter which one we pick (we can't choose anyway, we get
-    # whatever the kernel gives use). The key part is that there is
+    # whatever the kernel gives us). The key part is that there is
     # only a single one after this script finishes. The bootloader
     # logic will recover in any case.
     cp -a /boot/uboot/uboot.env /boot/uboot/uboot.env.save
