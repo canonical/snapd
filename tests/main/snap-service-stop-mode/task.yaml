@@ -1,6 +1,6 @@
 summary: "Check that stop-modes works"
 
-kill-timeout: 3m
+kill-timeout: 5m
 
 # journald in ubuntu-14.04 not reliable
 systems: [-ubuntu-14.04-*]
