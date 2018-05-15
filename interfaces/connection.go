@@ -51,9 +51,9 @@ type ConnectedSlot struct {
 // to ConnectedSlot, ConnectedPlug, PlugInfo and SlotInfo types.
 type Attrer interface {
 	// Attr returns attribute value for given path, or an error. Dotted paths are supported.
-	Attr(path string, val interface{}) error
+	Attr(path string, value interface{}) error
 	// Lookup returns attribute value for given path, or false. Dotted paths are supported.
-	Lookup(path string) (interface{}, bool)
+	Lookup(path string) (value interface{}, ok bool)
 }
 
 func lookupAttr(staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, path string) (interface{}, bool) {
