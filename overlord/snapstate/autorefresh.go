@@ -150,6 +150,42 @@ func (m *autoRefresh) AtSeed() error {
 	return nil
 }
 
+func (m *autoRefresh) canRefreshRespectingMetered(now, lastRefresh time.Time) (can bool, err error) {
+	can, err = canRefreshOnMeteredConnection(m.state)
+	if err != nil {
+		return false, err
+	}
+	if can {
+		return true, nil
+	}
+
+	metered, _ := IsOnMeteredConnection()
+	if !metered {
+		return true, nil
+	}
+
+	if now.Sub(lastRefresh) >= maxPostponement {
+		// TODO use warnings when the infra becomes available
+		logger.Noticef("Last refresh more than %d days ago, refreshing anyway", int(maxPostponement.Hours()/24))
+		return true, nil
+	}
+
+	var when string
+	switch remaining := int(lastRefresh.Add(maxPostponement).Sub(now).Hours() / 24); remaining {
+	case 0:
+		when = "today"
+	case 1:
+		when = "tomorrow"
+	default:
+		when = fmt.Sprintf("in %d days", remaining)
+	}
+	// TODO use warnings when the infra becomes available
+	// TODO consider switching to timeutil.Human when it grows the ability to print only days
+	logger.Noticef("Auto refresh disabled while on metered connection, refreshing %s anyway", when)
+
+	return false, nil
+}
+
 // Ensure ensures that we refresh all installed snaps periodically
 func (m *autoRefresh) Ensure() error {
 	m.state.Lock()
@@ -238,33 +274,14 @@ func (m *autoRefresh) Ensure() error {
 
 	// do refresh attempt (if needed)
 	if !m.nextRefresh.After(now) {
-		var can bool
-
-		can, err = canRefreshOnMeteredConnection(m.state)
-		if err != nil {
-			return err
-		}
-		if !can {
-			metered, _ := IsOnMeteredConnection()
-			if metered {
-				if now.Sub(lastRefresh) < maxPostponement {
-					var when string
-					switch remaining := int(lastRefresh.Add(maxPostponement).Sub(now).Hours() / 24); remaining {
-					case 0:
-						when = "today"
-					case 1:
-						when = "tomorrow"
-					default:
-						when = fmt.Sprintf("in %d days", remaining)
-					}
-					// TODO use warnings when the infra becomes available
-					// TODO consider switching to timeutil.Human when it grows the ability to print only days
-					logger.Noticef("Auto refresh disabled while on metered connection, refreshing %s anyway", when)
-					// clear nextRefresh so that another refresh time is calculated
-					m.nextRefresh = time.Time{}
-					return nil
-				}
+		if can, err := m.canRefreshRespectingMetered(now, lastRefresh); err == nil {
+			if !can {
+				// clear nextRefresh so that another refresh time is calculated
+				m.nextRefresh = time.Time{}
+				return nil
 			}
+		} else {
+			return err
 		}
 
 		err = m.launchAutoRefresh()
