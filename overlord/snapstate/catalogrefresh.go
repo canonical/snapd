@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -82,7 +83,7 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 		return fmt.Errorf("cannot create directory %q: %v", dirs.SnapCacheDir, err)
 	}
 
-	sections, err := theStore.Sections(nil)
+	sections, err := theStore.Sections(auth.EnsureContextTODO(), nil)
 	if err != nil {
 		return err
 	}
@@ -106,7 +107,7 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 	// if all goes well we'll Commit() making this a NOP:
 	defer cmdDB.Rollback()
 
-	if err := theStore.WriteCatalogs(namesFile, cmdDB); err != nil {
+	if err := theStore.WriteCatalogs(auth.EnsureContextTODO(), namesFile, cmdDB); err != nil {
 		return err
 	}
 

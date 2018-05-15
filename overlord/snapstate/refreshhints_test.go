@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,11 +22,14 @@ package snapstate_test
 import (
 	"time"
 
+	"golang.org/x/net/context"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -38,7 +41,26 @@ type recordingStore struct {
 	ops []string
 }
 
-func (r *recordingStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
+func (r *recordingStore) ListRefresh(ctx context.Context, cands []*store.RefreshCandidate, _ *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
+	if ctx == nil || !auth.IsEnsureContext(ctx) {
+		panic("Ensure marked context required")
+	}
+	r.ops = append(r.ops, "list-refresh")
+	return nil, nil
+}
+
+func (r *recordingStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+	if ctx == nil || !auth.IsEnsureContext(ctx) {
+		panic("Ensure marked context required")
+	}
+	if len(currentSnaps) != len(actions) || len(currentSnaps) == 0 {
+		panic("expected in test one action for each current snaps, and at least one snap")
+	}
+	for _, a := range actions {
+		if a.Action != "refresh" {
+			panic("expected refresh actions")
+		}
+	}
 	r.ops = append(r.ops, "list-refresh")
 	return nil, nil
 }
@@ -111,4 +133,37 @@ func (s *refreshHintsTestSuite) TestLastRefreshNoRefreshNeededBecauseOfFullAutoR
 	err := rh.Ensure()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 0)
+}
+
+func (s *refreshHintsTestSuite) TestAtSeedPolicy(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	rh := snapstate.NewRefreshHints(s.state)
+
+	// on core, does nothing
+	err := rh.AtSeed()
+	c.Assert(err, IsNil)
+	var t1 time.Time
+	err = s.state.Get("last-refresh-hints", &t1)
+	c.Check(err, Equals, state.ErrNoState)
+
+	release.MockOnClassic(true)
+	// on classic it sets last-refresh-hints to now,
+	// postponing it of 24h
+	err = rh.AtSeed()
+	c.Assert(err, IsNil)
+	err = s.state.Get("last-refresh-hints", &t1)
+	c.Check(err, IsNil)
+
+	// nop if tried again
+	err = rh.AtSeed()
+	c.Assert(err, IsNil)
+	var t2 time.Time
+	err = s.state.Get("last-refresh-hints", &t2)
+	c.Check(err, IsNil)
+	c.Check(t1.Equal(t2), Equals, true)
 }

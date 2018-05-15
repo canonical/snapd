@@ -38,6 +38,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/context"
+
 	"github.com/gorilla/mux"
 	"github.com/jessevdk/go-flags"
 
@@ -246,7 +248,17 @@ var (
 		GET:    getAliases,
 		POST:   changeAliases,
 	}
+
+	buildID = "unknown"
 )
+
+func init() {
+	// cache the build-id on startup to ensure that changes in
+	// the underlying binary do not affect us
+	if bid, err := osutil.MyBuildID(); err == nil {
+		buildID = bid
+	}
+}
 
 func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse([]string{"TBD"}, nil)
@@ -266,6 +278,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	defer st.Unlock()
 	nextRefresh := snapMgr.NextRefresh()
 	lastRefresh, _ := snapMgr.LastRefresh()
+	refreshHold, _ := snapMgr.EffectiveRefreshHold()
 	refreshScheduleStr, legacySchedule, err := snapMgr.RefreshSchedule()
 	if err != nil {
 		return InternalError("cannot get refresh schedule: %s", err)
@@ -277,6 +290,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	refreshInfo := client.RefreshInfo{
 		Last: formatRefreshTime(lastRefresh),
+		Hold: formatRefreshTime(refreshHold),
 		Next: formatRefreshTime(nextRefresh),
 	}
 	if !legacySchedule {
@@ -288,6 +302,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	m := map[string]interface{}{
 		"series":         release.Series,
 		"version":        c.d.Version,
+		"build-id":       buildID,
 		"os-release":     release.ReleaseInfo,
 		"on-classic":     release.OnClassic,
 		"managed":        len(users) > 0,
@@ -310,7 +325,27 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		m["confinement"] = "strict"
 	}
 
+	// Convey richer information about features of available security backends.
+	if features := sandboxFeatures(c.d.overlord.InterfaceManager().Repository().Backends()); features != nil {
+		m["sandbox-features"] = features
+	}
+
 	return SyncResponse(m, nil)
+}
+
+func sandboxFeatures(backends []interfaces.SecurityBackend) map[string][]string {
+	result := make(map[string][]string, len(backends))
+	for _, backend := range backends {
+		features := backend.SandboxFeatures()
+		if len(features) > 0 {
+			sort.Strings(features)
+			result[string(backend.Name())] = features
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 // userResponseData contains the data releated to user creation/login/query
@@ -549,7 +584,8 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	theStore := getStore(c)
 
-	sections, err := theStore.Sections(user)
+	// TODO: use a per-request context
+	sections, err := theStore.Sections(context.TODO(), user)
 	switch err {
 	case nil:
 		// pass
@@ -921,7 +957,8 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 		return nil, err
 	}
 
-	updated, tasksets, err := snapstateUpdateMany(st, inst.Snaps, inst.userID)
+	// TODO: use a per-request context
+	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1170,6 +1207,17 @@ func (inst *snapInstruction) errToResponse(err error) Response {
 			return InternalError("store.SnapNotFound with no snap given")
 		default:
 			return InternalError("store.SnapNotFound with %d snaps", len(inst.Snaps))
+		}
+	case store.ErrRevisionNotAvailable:
+		// store.ErrRevisionNotAvailable should only be returned for
+		// individual snap queries; in all other cases something's wrong
+		switch len(inst.Snaps) {
+		case 1:
+			return SnapRevisionNotAvailable(inst.Snaps[0], err)
+		case 0:
+			return InternalError("store.RevisionNotAvailable with no snap given")
+		default:
+			return InternalError("store.RevisionNotAvailable with %d snaps", len(inst.Snaps))
 		}
 	case store.ErrNoUpdateAvailable:
 		kind = errorKindSnapNoUpdateAvailable
@@ -1588,7 +1636,7 @@ func splitQS(qs string) []string {
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := vars["name"]
+	snapName := systemCoreSnapUnalias(vars["name"])
 
 	keys := splitQS(r.URL.Query().Get("keys"))
 
@@ -1611,7 +1659,15 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 					currentConfValues = make(map[string]interface{})
 					break
 				}
-				return BadRequest("%v", err)
+				return SyncResponse(&resp{
+					Type: ResponseTypeError,
+					Result: &errorResult{
+						Message: err.Error(),
+						Kind:    errorKindConfigNoSuchOption,
+						Value:   err,
+					},
+					Status: 400,
+				}, nil)
 			} else {
 				return InternalError("%v", err)
 			}
@@ -1631,7 +1687,7 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
-	snapName := vars["name"]
+	snapName := systemCoreSnapUnalias(vars["name"])
 
 	var patchValues map[string]interface{}
 	if err := jsonutil.DecodeWithNumber(r.Body, &patchValues); err != nil {
@@ -1848,6 +1904,9 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		conns, err = repo.ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
+			if len(conns) == 0 {
+				return InterfacesUnchanged("nothing to do")
+			}
 			for _, connRef := range conns {
 				var ts *state.TaskSet
 				ts, err = ifacestate.Disconnect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
@@ -1865,7 +1924,6 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	change := newChange(st, a.Action+"-snap", summary, tasksets, affected)
-
 	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
@@ -2791,4 +2849,11 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, inst.Names)
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
+func systemCoreSnapUnalias(name string) string {
+	if name == "system" {
+		return "core"
+	}
+	return name
 }

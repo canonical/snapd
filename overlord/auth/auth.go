@@ -29,6 +29,7 @@ import (
 	"sort"
 	"strconv"
 
+	"golang.org/x/net/context"
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -542,4 +543,19 @@ func (ac *authContext) CloudInfo() (*CloudInfo, error) {
 		return &cloudInfo, nil
 	}
 	return nil, nil
+}
+
+type ensureContextKey struct{}
+
+// EnsureContextTODO returns a provisional context marked as
+// pertaining to an Ensure loop.
+// TODO: see Overlord.Loop to replace it with a proper context passed to all Ensures.
+func EnsureContextTODO() context.Context {
+	ctx := context.TODO()
+	return context.WithValue(ctx, ensureContextKey{}, struct{}{})
+}
+
+// IsEnsureContext returns whether context was marked as pertaining to an Ensure loop.
+func IsEnsureContext(ctx context.Context) bool {
+	return ctx.Value(ensureContextKey{}) != nil
 }

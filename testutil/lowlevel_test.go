@@ -282,7 +282,7 @@ func (s *lowLevelSuite) TestMountFailure(c *C) {
 }
 
 func (s *lowLevelSuite) TestUnmountSuccess(c *C) {
-	err := s.sys.Unmount("target", testutil.UMOUNT_NOFOLLOW|syscall.MNT_DETACH)
+	err := s.sys.Unmount("target", testutil.UmountNoFollow|syscall.MNT_DETACH)
 	c.Assert(err, IsNil)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" UMOUNT_NOFOLLOW|MNT_DETACH`})
 }
@@ -294,27 +294,53 @@ func (s *lowLevelSuite) TestUnmountFailure(c *C) {
 	c.Assert(s.sys.Calls(), DeepEquals, []string{`unmount "target" 0`})
 }
 
-func (s *lowLevelSuite) TestLstat(c *C) {
+func (s *lowLevelSuite) TestOsLstat(c *C) {
 	// When a function returns some data it must be fed either an error or a result.
-	c.Assert(func() { s.sys.Lstat("/foo") }, PanicMatches,
-		`one of InsertLstatResult\(\) or InsertFault\(\) for lstat "/foo" must be used`)
+	c.Assert(func() { s.sys.OsLstat("/foo") }, PanicMatches,
+		`one of InsertOsLstatResult\(\) or InsertFault\(\) for lstat "/foo" must be used`)
 }
 
-func (s *lowLevelSuite) TestLstatSuccess(c *C) {
+func (s *lowLevelSuite) TestOsLstatSuccess(c *C) {
 	// The fed data is returned in absence of errors.
-	s.sys.InsertLstatResult(`lstat "/foo"`, testutil.FileInfoFile)
-	fi, err := s.sys.Lstat("/foo")
+	s.sys.InsertOsLstatResult(`lstat "/foo"`, testutil.FileInfoFile)
+	fi, err := s.sys.OsLstat("/foo")
 	c.Assert(err, IsNil)
 	c.Assert(fi, DeepEquals, testutil.FileInfoFile)
 }
 
-func (s *lowLevelSuite) TestLstatFailure(c *C) {
+func (s *lowLevelSuite) TestOsLstatFailure(c *C) {
 	// Errors take priority over data.
-	s.sys.InsertLstatResult(`lstat "/foo"`, testutil.FileInfoFile)
+	s.sys.InsertOsLstatResult(`lstat "/foo"`, testutil.FileInfoFile)
 	s.sys.InsertFault(`lstat "/foo"`, syscall.ENOENT)
-	fi, err := s.sys.Lstat("/foo")
+	fi, err := s.sys.OsLstat("/foo")
 	c.Assert(err, ErrorMatches, "no such file or directory")
 	c.Assert(fi, IsNil)
+}
+
+func (s *lowLevelSuite) TestSysLstat(c *C) {
+	// When a function returns some data it must be fed either an error or a result.
+	var buf syscall.Stat_t
+	c.Assert(func() { s.sys.SysLstat("/foo", &buf) }, PanicMatches,
+		`one of InsertSysLstatResult\(\) or InsertFault\(\) for lstat "/foo" <ptr> must be used`)
+}
+
+func (s *lowLevelSuite) TestSysLstatSuccess(c *C) {
+	// The fed data is returned in absence of errors.
+	var buf syscall.Stat_t
+	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 123})
+	err := s.sys.SysLstat("/foo", &buf)
+	c.Assert(err, IsNil)
+	c.Assert(buf, DeepEquals, syscall.Stat_t{Uid: 123})
+}
+
+func (s *lowLevelSuite) TestSysLstatFailure(c *C) {
+	// Errors take priority over data.
+	var buf syscall.Stat_t
+	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 123})
+	s.sys.InsertFault(`lstat "/foo" <ptr>`, syscall.ENOENT)
+	err := s.sys.SysLstat("/foo", &buf)
+	c.Assert(err, ErrorMatches, "no such file or directory")
+	c.Assert(buf, DeepEquals, syscall.Stat_t{})
 }
 
 func (s *lowLevelSuite) TestFstat(c *C) {
@@ -398,4 +424,81 @@ func (s *lowLevelSuite) TestRemoveFailure(c *C) {
 	err := s.sys.Remove("file")
 	c.Assert(err, ErrorMatches, "operation not permitted")
 	c.Assert(s.sys.Calls(), DeepEquals, []string{`remove "file"`})
+}
+
+func (s *lowLevelSuite) TestSymlinkatBadFd(c *C) {
+	err := s.sys.Symlinkat("/old", 3, "new")
+	c.Assert(err, ErrorMatches, "attempting to symlinkat with an invalid file descriptor 3")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`symlinkat "/old" 3 "new"`})
+}
+
+func (s *lowLevelSuite) TestSymlinkatSuccess(c *C) {
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+	err = s.sys.Symlinkat("/old", fd, "new")
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/foo" 0 0`,
+		`symlinkat "/old" 3 "new"`,
+	})
+}
+
+func (s *lowLevelSuite) TestSymlinkatFailure(c *C) {
+	s.sys.InsertFault(`symlinkat "/old" 3 "new"`, syscall.EPERM)
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+	err = s.sys.Symlinkat("/old", fd, "new")
+	c.Assert(err, ErrorMatches, "operation not permitted")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/foo" 0 0`,
+		`symlinkat "/old" 3 "new"`,
+	})
+}
+
+func (s *lowLevelSuite) TestReadlinkat(c *C) {
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+	buf := make([]byte, 10)
+	c.Assert(func() { s.sys.Readlinkat(fd, "new", buf) }, PanicMatches,
+		`one of InsertReadlinkatResult\(\) or InsertFault\(\) for readlinkat 3 "new" <ptr> must be used`)
+}
+
+func (s *lowLevelSuite) TestReadlinkatBadFd(c *C) {
+	buf := make([]byte, 10)
+	n, err := s.sys.Readlinkat(3, "new", buf)
+	c.Assert(err, ErrorMatches, "attempting to readlinkat with an invalid file descriptor 3")
+	c.Assert(n, Equals, 0)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{`readlinkat 3 "new" <ptr>`})
+}
+
+func (s *lowLevelSuite) TestReadlinkatSuccess(c *C) {
+	s.sys.InsertReadlinkatResult(`readlinkat 3 "new" <ptr>`, "/old")
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+
+	// Buffer has enough room
+	buf := make([]byte, 10)
+	n, err := s.sys.Readlinkat(fd, "new", buf)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 4)
+	c.Assert(buf, DeepEquals, []byte{'/', 'o', 'l', 'd', 0, 0, 0, 0, 0, 0})
+
+	// Buffer is too short
+	buf = make([]byte, 2)
+	n, err = s.sys.Readlinkat(fd, "new", buf)
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 2)
+	c.Assert(buf, DeepEquals, []byte{'/', 'o'})
+}
+
+func (s *lowLevelSuite) TestReadlinkatFailure(c *C) {
+	s.sys.InsertFault(`readlinkat 3 "new" <ptr>`, syscall.EPERM)
+	fd, err := s.sys.Open("/foo", syscall.O_RDONLY, 0)
+	c.Assert(err, IsNil)
+
+	buf := make([]byte, 10)
+	n, err := s.sys.Readlinkat(fd, "new", buf)
+	c.Assert(err, ErrorMatches, "operation not permitted")
+	c.Assert(n, Equals, 0)
+	c.Assert(buf, DeepEquals, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
 }

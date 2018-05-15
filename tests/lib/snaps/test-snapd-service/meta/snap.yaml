@@ -9,48 +9,51 @@ apps:
     test-snapd-other-service:
         command: bin/start-other
         daemon: simple
+    test-snapd-sighup-service:
+        command: bin/start-stop-mode sighup
+        stop-command: bin/stop-stop-mode sighup
+        daemon: simple
+        stop-mode: sighup
+    test-snapd-sighup-all-service:
+        command: bin/start-stop-mode sighup-all
+        stop-command: bin/stop-stop-mode sighup-all
+        daemon: simple
+        stop-mode: sighup-all
+    test-snapd-sigusr1-service:
+        command: bin/start-stop-mode sigusr1
+        stop-command: bin/stop-stop-mode sigusr1
+        daemon: simple
+        stop-mode: sigusr1
+    test-snapd-sigusr1-all-service:
+        command: bin/start-stop-mode sigusr1-all
+        stop-command: bin/stop-stop-mode sigusr1-all
+        daemon: simple
+        stop-mode: sigusr1-all
+    test-snapd-sigusr2-service:
+        command: bin/start-stop-mode sigusr2
+        stop-command: bin/stop-stop-mode sigusr2
+        daemon: simple
+        stop-mode: sigusr2
+    test-snapd-sigusr2-all-service:
+        command: bin/start-stop-mode sigusr2-all
+        stop-command: bin/stop-stop-mode sigusr2-all
+        daemon: simple
+        stop-mode: sigusr2-all
+    test-snapd-sigterm-service:
+        command: bin/start-stop-mode-sigterm
+        daemon: simple
+        stop-mode: sigterm
+    test-snapd-sigterm-all-service:
+        command: bin/start-stop-mode-sigterm
+        daemon: simple
+        stop-mode: sigterm-all
     test-snapd-endure-service:
-        command: bin/start-refresh-mode endure
-        stop-command: bin/stop-refresh-mode endure
+        command: bin/start-stop-mode endure
+        stop-command: bin/stop-stop-mode endure
         daemon: simple
         refresh-mode: endure
-    test-snapd-sigterm-service:
-        command: bin/start-refresh-mode sigterm
-        stop-command: bin/stop-refresh-mode sigterm
+    test-snapd-service-refuses-to-stop:
+        command: bin/start
         daemon: simple
-        refresh-mode: sigterm
-    test-snapd-sigterm-all-service:
-        command: bin/start-refresh-mode sigterm-all
-        stop-command: bin/stop-refresh-mode sigterm-all
-        daemon: simple
-        refresh-mode: sigterm
-    test-snapd-sighup-service:
-        command: bin/start-refresh-mode sighup
-        stop-command: bin/stop-refresh-mode sighup
-        daemon: simple
-        refresh-mode: sighup
-    test-snapd-sighup-all-service:
-        command: bin/start-refresh-mode sighup-all
-        stop-command: bin/stop-refresh-mode sighup-all
-        daemon: simple
-        refresh-mode: sighup-all
-    test-snapd-sigusr1-service:
-        command: bin/start-refresh-mode sigusr1
-        stop-command: bin/stop-refresh-mode sigusr1
-        daemon: simple
-        refresh-mode: sigusr1
-    test-snapd-sigusr1-all-service:
-        command: bin/start-refresh-mode sigusr1-all
-        stop-command: bin/stop-refresh-mode sigusr1-all
-        daemon: simple
-        refresh-mode: sigusr1-all
-    test-snapd-sigusr2-service:
-        command: bin/start-refresh-mode sigusr2
-        stop-command: bin/stop-refresh-mode sigusr2
-        daemon: simple
-        refresh-mode: sigusr2
-    test-snapd-sigusr2-all-service:
-        command: bin/start-refresh-mode sigusr2-all
-        stop-command: bin/stop-refresh-mode sigusr2-all
-        daemon: simple
-        refresh-mode: sigusr2-all
+        stop-command: bin/stop 60
+        stop-timeout: 10s

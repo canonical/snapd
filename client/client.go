@@ -282,25 +282,30 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 }
 
 func (client *Client) doAsync(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
+	_, changeID, err = client.doAsyncFull(method, path, query, headers, body)
+	return
+}
+
+func (client *Client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader) (result json.RawMessage, changeID string, err error) {
 	var rsp response
 
 	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
-		return "", err
+		return nil, "", err
 	}
 	if err := rsp.err(); err != nil {
-		return "", err
+		return nil, "", err
 	}
 	if rsp.Type != "async" {
-		return "", fmt.Errorf("expected async response for %q on %q, got %q", method, path, rsp.Type)
+		return nil, "", fmt.Errorf("expected async response for %q on %q, got %q", method, path, rsp.Type)
 	}
 	if rsp.StatusCode != 202 {
-		return "", fmt.Errorf("operation not accepted")
+		return nil, "", fmt.Errorf("operation not accepted")
 	}
 	if rsp.Change == "" {
-		return "", fmt.Errorf("async response without change reference")
+		return nil, "", fmt.Errorf("async response without change reference")
 	}
 
-	return rsp.Change, nil
+	return rsp.Result, rsp.Change, nil
 }
 
 type ServerVersion struct {
@@ -372,10 +377,14 @@ const (
 	ErrorKindSnapNeedsClassic       = "snap-needs-classic"
 	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
 	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
+	ErrorKindRevisionNotAvailable   = "snap-revision-not-available"
 
 	ErrorKindNotSnap = "snap-not-a-snap"
 
-	ErrorKindNetworkTimeout = "network-timeout"
+	ErrorKindNetworkTimeout      = "network-timeout"
+	ErrorKindInterfacesUnchanged = "interfaces-unchanged"
+
+	ErrorKindConfigNoSuchOption = "option-not-found"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
@@ -387,6 +396,16 @@ func IsTwoFactorError(err error) bool {
 	}
 
 	return e.Kind == ErrorKindTwoFactorFailed || e.Kind == ErrorKindTwoFactorRequired
+}
+
+// IsInterfacesUnchangedError returns whether the given error means the requested
+// change to interfaces was not made, because there was nothing to do.
+func IsInterfacesUnchangedError(err error) bool {
+	e, ok := err.(*Error)
+	if !ok || e == nil {
+		return false
+	}
+	return e.Kind == ErrorKindInterfacesUnchanged
 }
 
 // OSRelease contains information about the system extracted from /etc/os-release.
@@ -402,6 +421,7 @@ type RefreshInfo struct {
 	// Schedule contains the legacy refresh.schedule setting.
 	Schedule string `json:"schedule,omitempty"`
 	Last     string `json:"last,omitempty"`
+	Hold     string `json:"hold,omitempty"`
 	Next     string `json:"next,omitempty"`
 }
 
@@ -409,14 +429,16 @@ type RefreshInfo struct {
 type SysInfo struct {
 	Series    string    `json:"series,omitempty"`
 	Version   string    `json:"version,omitempty"`
+	BuildID   string    `json:"build-id"`
 	OSRelease OSRelease `json:"os-release"`
 	OnClassic bool      `json:"on-classic"`
 	Managed   bool      `json:"managed"`
 
 	KernelVersion string `json:"kernel-version,omitempty"`
 
-	Refresh     RefreshInfo `json:"refresh,omitempty"`
-	Confinement string      `json:"confinement"`
+	Refresh         RefreshInfo         `json:"refresh,omitempty"`
+	Confinement     string              `json:"confinement"`
+	SandboxFeatures map[string][]string `json:"sandbox-features,omitempty"`
 }
 
 func (rsp *response) err() error {

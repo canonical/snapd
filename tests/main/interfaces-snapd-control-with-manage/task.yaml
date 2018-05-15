@@ -49,7 +49,10 @@ restore: |
     fi
     . $TESTSLIB/store.sh
     teardown_fake_store $BLOB_DIR
-    
+
+debug: |
+    jq .data.auth.device /var/lib/snapd/state.json
+
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -57,7 +60,9 @@ execute: |
     fi
 
     snap install test-snapd-control-consumer
-    snap interfaces
+
+    echo "The interface is connected by default"
+    snap interfaces -i snapd-control | MATCH ":snapd-control .*test-snapd-control-consumer:snapd-control-with-manage"
 
     echo "When the snapd-control-with-manage plug is connected"
     snap connect test-snapd-control-consumer:snapd-control-with-manage

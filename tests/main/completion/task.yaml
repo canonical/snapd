@@ -9,7 +9,10 @@ environment:
     NAMES: /var/cache/snapd/names
 
 prepare: |
-    systemctl stop snapd.service snapd.socket
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB/systemd.sh"
+
+    systemd_stop_units snapd.service snapd.socket
     [ -e "$NAMES" ] && mv "$NAMES" "$NAMES.orig"
     cat >"$NAMES" <<EOF
     test-assumes
@@ -23,7 +26,9 @@ prepare: |
     touch bar.snap
     snap install core
     snap install test-snapd-tools
+    #shellcheck source=tests/lib/mkpinentry.sh
     . "$TESTSLIB"/mkpinentry.sh
+    #shellcheck source=tests/lib/random.sh
     . "$TESTSLIB"/random.sh
     kill_gpg_agent
     expect -d -f key.exp0
@@ -38,11 +43,12 @@ restore: |
     rmdir testdir
 
 debug: |
+    #shellcheck source=tests/lib/random.sh
     . "$TESTSLIB"/random.sh
     debug_random
 
 execute: |
     for i in *.exp; do
-        echo $i
-        expect -d -f $i
+        echo "$i"
+        expect -d -f "$i"
     done

@@ -37,10 +37,12 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
+	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/x11"
 )
@@ -72,7 +74,10 @@ type cmdRun struct {
 func init() {
 	addCommand("run",
 		i18n.G("Run the given snap command"),
-		i18n.G("Run the given snap command with the right confinement and environment"),
+		i18n.G(`
+The run command executes the given snap command with the right confinement
+and environment.
+`),
 		func() flags.Commander {
 			return &cmdRun{}
 		}, map[string]string{
@@ -85,6 +90,51 @@ func init() {
 			"timer":      i18n.G("Run as a timer service with given schedule"),
 			"parser-ran": "",
 		}, nil)
+}
+
+func maybeWaitForSecurityProfileRegeneration() error {
+	// check if the security profiles key has changed, if so, we need
+	// to wait for snapd to re-generate all profiles
+	mismatch, err := interfaces.SystemKeyMismatch()
+	if err == nil && !mismatch {
+		return nil
+	}
+	// something went wrong with the system-key compare, try to
+	// reach snapd before continuing
+	if err != nil {
+		logger.Debugf("SystemKeyMismatch returned an error: %v", err)
+	}
+
+	// We have a mismatch, try to connect to snapd, once we can
+	// connect we just continue because that usually means that
+	// a new snapd is ready and has generated profiles.
+	//
+	// There is a corner case if an upgrade leaves the old snapd
+	// running and we connect to the old snapd. Handling this
+	// correctly is tricky because our "snap run" pipeline may
+	// depend on profiles written by the new snapd. So for now we
+	// just continue and hope for the best. The real fix for this
+	// is to fix the packaging so that snapd is stopped, upgraded
+	// and started.
+	//
+	// connect timeout for client is 5s on each try, so 12*5s = 60s
+	timeout := 12
+	if timeoutEnv := os.Getenv("SNAPD_DEBUG_SYSTEM_KEY_RETRY"); timeoutEnv != "" {
+		if i, err := strconv.Atoi(timeoutEnv); err == nil {
+			timeout = i
+		}
+	}
+
+	cli := Client()
+	for i := 0; i < timeout; i++ {
+		if _, err := cli.SysInfo(); err == nil {
+			return nil
+		}
+		// sleep a litte bit for good measure
+		time.Sleep(1 * time.Second)
+	}
+
+	return fmt.Errorf("timeout waiting for snap system profiles to get updated")
 }
 
 func (x *cmdRun) Execute(args []string) error {
@@ -111,6 +161,10 @@ func (x *cmdRun) Execute(args []string) error {
 	if x.HookName != "" && len(args) > 0 {
 		// TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
 		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.HookName, strings.Join(args, " "))
+	}
+
+	if err := maybeWaitForSecurityProfileRegeneration(); err != nil {
+		return err
 	}
 
 	// Now actually handle the dispatching
@@ -183,28 +237,16 @@ func antialias(snapApp string, args []string) (string, []string) {
 	return actualApp, argsOut
 }
 
-func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
+func getSnapInfo(snapName string, revision snap.Revision) (info *snap.Info, err error) {
 	if revision.Unset() {
-		curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
-		realFn, err := os.Readlink(curFn)
-		if err != nil {
-			return nil, fmt.Errorf("cannot find current revision for snap %s: %s", snapName, err)
-		}
-		rev := filepath.Base(realFn)
-		revision, err = snap.ParseRevision(rev)
-		if err != nil {
-			return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
-		}
+		info, err = snap.ReadCurrentInfo(snapName)
+	} else {
+		info, err = snap.ReadInfo(snapName, &snap.SideInfo{
+			Revision: revision,
+		})
 	}
 
-	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
-		Revision: revision,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return info, nil
+	return info, err
 }
 
 func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
@@ -274,22 +316,25 @@ func (x *cmdRun) useStrace() bool {
 	return x.ParserRan == 1 && x.Strace != "no-strace"
 }
 
-func (x *cmdRun) straceOpts() (opts []string, raw bool) {
+func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 	if x.Strace == "with-strace" {
-		return nil, false
+		return nil, false, nil
 	}
 
-	// TODO: use shlex?
-	for _, opt := range strings.Split(x.Strace, " ") {
-		if strings.TrimSpace(opt) != "" {
-			if opt == "--raw" {
-				raw = true
-				continue
-			}
-			opts = append(opts, opt)
-		}
+	split, err := shlex.Split(x.Strace)
+	if err != nil {
+		return nil, false, err
 	}
-	return opts, raw
+
+	opts = make([]string, 0, len(split))
+	for _, opt := range split {
+		if opt == "--raw" {
+			raw = true
+			continue
+		}
+		opts = append(opts, opt)
+	}
+	return opts, raw, nil
 }
 
 func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
@@ -495,9 +540,16 @@ func straceCmd() ([]string, error) {
 		return nil, fmt.Errorf("cannot use strace without sudo: %s", err)
 	}
 
-	// try strace from the snap first, we use new syscalls like
+	// Try strace from the snap first, we use new syscalls like
 	// "_newselect" that are known to not work with the strace of e.g.
-	// ubuntu 14.04
+	// ubuntu 14.04.
+	//
+	// TODO: some architectures do not have some syscalls (e.g.
+	// s390x does not have _newselect). In
+	// https://github.com/strace/strace/issues/57 options are
+	// discussed.  We could use "-e trace=?syscall" but that is
+	// only available since strace 4.17 which is not even in
+	// ubutnu 17.10.
 	var stracePath string
 	cand := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
 	if osutil.FileExists(cand) {
@@ -506,7 +558,7 @@ func straceCmd() ([]string, error) {
 	if stracePath == "" {
 		stracePath, err = exec.LookPath("strace")
 		if err != nil {
-			return nil, fmt.Errorf("cannot find an installed strace, please try: `snap install strace-static`")
+			return nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
 		}
 	}
 
@@ -541,7 +593,10 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 	if err != nil {
 		return err
 	}
-	straceOpts, raw := x.straceOpts()
+	straceOpts, raw, err := x.straceOpts()
+	if err != nil {
+		return err
+	}
 	cmd = append(cmd, straceOpts...)
 	cmd = append(cmd, origCmd...)
 

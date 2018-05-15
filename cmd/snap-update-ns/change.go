@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,6 +45,13 @@ const (
 	// Remount when needed
 )
 
+var (
+	// ErrIgnoredMissingMount is returned when a mount entry has
+	// been marked with x-snapd.ignore-missing, and the mount
+	// source or target do not exist.
+	ErrIgnoredMissingMount = errors.New("mount source or target are missing")
+)
+
 // Change describes a change to the mount table (action and the entry to act on).
 type Change struct {
 	Entry  osutil.MountEntry
@@ -56,9 +64,15 @@ func (c Change) String() string {
 }
 
 // changePerform is Change.Perform that can be mocked for testing.
-var changePerform func(*Change) ([]*Change, error)
+var changePerform func(*Change, *Secure) ([]*Change, error)
 
-func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
+func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change, error) {
+	// If we've been asked to create a missing path, and the mount
+	// entry uses the ignore-missing option, return an error.
+	if c.Entry.XSnapdIgnoreMissing() {
+		return nil, ErrIgnoredMissingMount
+	}
+
 	var err error
 	var changes []*Change
 
@@ -73,34 +87,34 @@ func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
 	// create the parent directory and then the final element relative to it.
 	// The traversed space may be writable so we just try to create things
 	// first.
-	kind, _ := c.Entry.OptStr("x-snapd.kind")
+	kind := c.Entry.XSnapdKind()
 
 	// TODO: re-factor this, if possible, with inspection and preemptive
 	// creation after the current release ships. This should be possible but
 	// will affect tests heavily (churn, not safe before release).
 	switch kind {
 	case "":
-		err = secureMkdirAll(path, mode, uid, gid)
+		err = sec.MkdirAll(path, mode, uid, gid)
 	case "file":
-		err = secureMkfileAll(path, mode, uid, gid)
+		err = sec.MkfileAll(path, mode, uid, gid)
 	case "symlink":
-		target, _ := c.Entry.OptStr("x-snapd.symlink")
+		target := c.Entry.XSnapdSymlink()
 		if target == "" {
 			err = fmt.Errorf("cannot create symlink with empty target")
 		} else {
-			err = secureMklinkAll(path, mode, uid, gid, target)
+			err = sec.MksymlinkAll(path, mode, uid, gid, target)
 		}
 	}
 	if err2, ok := err.(*ReadOnlyFsError); ok && pokeHoles {
 		// If the writing failed because the underlying file-system is read-only
 		// we can construct a writable mimic to fix that.
-		changes, err = createWritableMimic(err2.Path)
+		changes, err = createWritableMimic(err2.Path, path, sec)
 		if err != nil {
 			err = fmt.Errorf("cannot create writable mimic over %q: %s", err2.Path, err)
 		} else {
 			// Try once again. Note that we care *just* about the error. We have already
 			// performed the hole poking and thus additional changes must be nil.
-			_, err = c.createPath(path, false)
+			_, err = c.createPath(path, false, sec)
 		}
 	} else if err != nil {
 		err = fmt.Errorf("cannot create path %q: %s", path, err)
@@ -108,10 +122,10 @@ func (c *Change) createPath(path string, pokeHoles bool) ([]*Change, error) {
 	return changes, err
 }
 
-func (c *Change) ensureTarget() ([]*Change, error) {
+func (c *Change) ensureTarget(sec *Secure) ([]*Change, error) {
 	var changes []*Change
 
-	kind, _ := c.Entry.OptStr("x-snapd.kind")
+	kind := c.Entry.XSnapdKind()
 	path := c.Entry.Dir
 
 	// We use lstat to ensure that we don't follow a symlink in case one was
@@ -135,12 +149,15 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 				err = fmt.Errorf("cannot use %q as mount point: not a regular file", path)
 			}
 		case "symlink":
-			// When we want to create a symlink we just need the empty
-			// space so anything that is in the way is a problem.
-			err = fmt.Errorf("cannot create symlink in %q: existing file in the way", path)
+			if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
+				// Create path verifies the symlink or fails if it is not what we wanted.
+				_, err = c.createPath(path, false, sec)
+			} else {
+				err = fmt.Errorf("cannot create symlink in %q: existing file in the way", path)
+			}
 		}
 	} else if os.IsNotExist(err) {
-		changes, err = c.createPath(path, true)
+		changes, err = c.createPath(path, true, sec)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
@@ -148,7 +165,7 @@ func (c *Change) ensureTarget() ([]*Change, error) {
 	return changes, err
 }
 
-func (c *Change) ensureSource() error {
+func (c *Change) ensureSource(sec *Secure) error {
 	// We only have to do ensure bind mount source exists.
 	// This also rules out symlinks.
 	flags, _ := osutil.MountOptsToCommonFlags(c.Entry.Options)
@@ -156,7 +173,7 @@ func (c *Change) ensureSource() error {
 		return nil
 	}
 
-	kind, _ := c.Entry.OptStr("x-snapd.kind")
+	kind := c.Entry.XSnapdKind()
 	path := c.Entry.Name
 	fi, err := osLstat(path)
 
@@ -175,7 +192,7 @@ func (c *Change) ensureSource() error {
 			}
 		}
 	} else if os.IsNotExist(err) {
-		_, err = c.createPath(path, false)
+		_, err = c.createPath(path, false, sec)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
@@ -184,7 +201,7 @@ func (c *Change) ensureSource() error {
 }
 
 // changePerformImpl is the real implementation of Change.Perform
-func changePerformImpl(c *Change) (changes []*Change, err error) {
+func changePerformImpl(c *Change, sec *Secure) (changes []*Change, err error) {
 	if c.Action == Mount {
 		// We may be asked to bind mount a file, bind mount a directory, mount
 		// a filesystem over a directory, or create a symlink (which is abusing
@@ -194,7 +211,7 @@ func changePerformImpl(c *Change) (changes []*Change, err error) {
 		// As a result of this ensure call we may need to make the medium writable
 		// and that's why we may return more changes as a result of performing this
 		// one.
-		changes, err = c.ensureTarget()
+		changes, err = c.ensureTarget(sec)
 		if err != nil {
 			return changes, err
 		}
@@ -205,14 +222,14 @@ func changePerformImpl(c *Change) (changes []*Change, err error) {
 		// This property holds as long as we don't interact with locations that
 		// are under the control of regular (non-snap) processes that are not
 		// suspended and may be racing with us.
-		err = c.ensureSource()
+		err = c.ensureSource(sec)
 		if err != nil {
 			return changes, err
 		}
 	}
 
 	// Perform the underlying mount / unmount / unlink call.
-	err = c.lowLevelPerform()
+	err = c.lowLevelPerform(sec)
 	return changes, err
 }
 
@@ -226,34 +243,39 @@ func init() {
 //
 // Perform may synthesize *additional* changes that were necessary to perform
 // this change (such as mounted tmpfs or overlayfs).
-func (c *Change) Perform() ([]*Change, error) {
-	return changePerform(c)
+func (c *Change) Perform(sec *Secure) ([]*Change, error) {
+	return changePerform(c, sec)
 }
 
 // lowLevelPerform is simple bridge from Change to mount / unmount syscall.
-func (c *Change) lowLevelPerform() error {
+func (c *Change) lowLevelPerform(sec *Secure) error {
 	var err error
 	switch c.Action {
 	case Mount:
-		kind, _ := c.Entry.OptStr("x-snapd.kind")
+		kind := c.Entry.XSnapdKind()
 		switch kind {
 		case "symlink":
 			// symlinks are handled in createInode directly, nothing to do here.
 		case "", "file":
 			flags, unparsed := osutil.MountOptsToCommonFlags(c.Entry.Options)
-			err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+			// Use Secure.BindMount for bind mounts
+			if flags&syscall.MS_BIND == syscall.MS_BIND {
+				err = sec.BindMount(c.Entry.Name, c.Entry.Dir, uint(flags))
+			} else {
+				err = sysMount(c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","))
+			}
 			logger.Debugf("mount %q %q %q %d %q (error: %v)", c.Entry.Name, c.Entry.Dir, c.Entry.Type, uintptr(flags), strings.Join(unparsed, ","), err)
 		}
 		return err
 	case Unmount:
-		kind, _ := c.Entry.OptStr("x-snapd.kind")
+		kind := c.Entry.XSnapdKind()
 		switch kind {
 		case "symlink":
 			err = osRemove(c.Entry.Dir)
 			logger.Debugf("remove %q (error: %v)", c.Entry.Dir, err)
 		case "", "file":
 			flags := umountNoFollow
-			if c.Entry.OptBool("x-snapd.detach") {
+			if c.Entry.XSnapdDetach() {
 				flags |= syscall.MNT_DETACH
 			}
 			err = sysUnmount(c.Entry.Dir, flags)

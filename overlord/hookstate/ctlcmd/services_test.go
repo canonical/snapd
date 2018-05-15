@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"sort"
 
+	"golang.org/x/net/context"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
@@ -45,18 +47,18 @@ type fakeStore struct {
 	storetest.Store
 }
 
-func (f *fakeStore) SnapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	return &snap.Info{
-		SideInfo: snap.SideInfo{
-			RealName: spec.Name,
-			Revision: snap.R(2),
-		},
-		Publisher:     "foo",
-		Architectures: []string{"all"},
-	}, nil
-}
+func (f *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
+	if len(actions) == 1 && actions[0].Action == "install" {
+		return []*snap.Info{{
+			SideInfo: snap.SideInfo{
+				RealName: actions[0].Name,
+				Revision: snap.R(2),
+			},
+			Publisher:     "foo",
+			Architectures: []string{"all"},
+		}}, nil
+	}
 
-func (f *fakeStore) ListRefresh(cand []*store.RefreshCandidate, user *auth.UserState, opt *store.RefreshOptions) ([]*snap.Info, error) {
 	return []*snap.Info{{
 		SideInfo: snap.SideInfo{
 			RealName: "test-snap",
@@ -342,13 +344,13 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	s.st.Lock()
 
 	chg := s.st.NewChange("update many change", "update change")
-	installed, tts, err := snapstate.UpdateMany(s.st, []string{"test-snap", "other-snap"}, 0)
+	installed, tts, err := snapstate.UpdateMany(context.TODO(), s.st, []string{"test-snap", "other-snap"}, 0)
 	c.Assert(err, IsNil)
 	sort.Strings(installed)
 	c.Check(installed, DeepEquals, []string{"other-snap", "test-snap"})
 	c.Assert(tts, HasLen, 2)
-	c.Assert(tts[0].Tasks(), HasLen, 18)
-	c.Assert(tts[1].Tasks(), HasLen, 18)
+	c.Assert(tts[0].Tasks(), HasLen, 19)
+	c.Assert(tts[1].Tasks(), HasLen, 19)
 	chg.AddAll(tts[0])
 	chg.AddAll(tts[1])
 
@@ -376,11 +378,11 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 
 	for i := 1; i <= 2; i++ {
 		laneTasks := chg.LaneTasks(i)
-		c.Assert(laneTasks, HasLen, 21)
-		c.Check(laneTasks[17].Summary(), Matches, `Run configure hook of .* snap if present`)
-		c.Check(laneTasks[18].Summary(), Equals, "stop of [test-snap.test-service]")
-		c.Check(laneTasks[19].Summary(), Equals, "start of [test-snap.test-service]")
-		c.Check(laneTasks[20].Summary(), Equals, "restart of [test-snap.test-service]")
+		c.Assert(laneTasks, HasLen, 22)
+		c.Check(laneTasks[18].Summary(), Matches, `Run configure hook of .* snap if present`)
+		c.Check(laneTasks[19].Summary(), Equals, "stop of [test-snap.test-service]")
+		c.Check(laneTasks[20].Summary(), Equals, "start of [test-snap.test-service]")
+		c.Check(laneTasks[21].Summary(), Equals, "restart of [test-snap.test-service]")
 	}
 }
 

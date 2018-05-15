@@ -25,6 +25,9 @@ set -o pipefail
 # shellcheck source=tests/lib/random.sh
 . "$TESTSLIB/random.sh"
 
+# shellcheck source=tests/lib/spread-funcs.sh
+. "$TESTSLIB/spread-funcs.sh"
+
 ###
 ### Utility functions reused below.
 ###
@@ -41,7 +44,7 @@ create_test_user(){
                 # unlikely to ever clash with anything, and easy to remember.
                 quiet adduser --uid 12345 --gid 12345 --disabled-password --gecos '' test
                 ;;
-            debian-*|fedora-*|opensuse-*)
+            debian-*|fedora-*|opensuse-*|arch-*)
                 quiet useradd -m --uid 12345 --gid 12345 test
                 ;;
             *)
@@ -138,6 +141,48 @@ build_rpm() {
     fi
 }
 
+build_arch_pkg() {
+    base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
+    version="1337.$base_version"
+    packaging_path=packaging/arch
+    archive_name=snapd-$version.tar
+
+    rm -rf /tmp/pkg
+    mkdir -p /tmp/pkg/sources/snapd
+    cp -ra -- * /tmp/pkg/sources/snapd/
+
+    # shellcheck disable=SC2086
+    tar -C /tmp/pkg/sources -cf "/tmp/pkg/$archive_name" "snapd"
+    cp "$packaging_path"/* "/tmp/pkg"
+
+    # fixup PKGBUILD which builds a package named snapd-git with dynamic version
+    #  - update pkgname to use snapd
+    #  - kill dynamic version
+    #  - packaging functions are named package_<pkgname>(), update it to package_snapd()
+    #  - update source path to point to local archive instead of git
+    #  - fix package version to $version
+    sed -i \
+        -e "s/^source=.*/source=(\"$archive_name\")/" \
+        -e "s/pkgname=snapd.*/pkgname=snapd/" \
+        -e "s/pkgver=.*/pkgver=$version/" \
+        -e "s/package_snapd-git()/package_snapd()/" \
+        /tmp/pkg/PKGBUILD
+    # comment out automatic package version update block `pkgver() { ... }` as
+    # it's only useful when building the package manually
+    awk '
+    /BEGIN/ { strip = 0; last = 0 }
+    /pkgver\(\)/ { strip = 1 }
+    /^}/ { if (strip) last = 1 }
+    // { if (strip) { print "#" $0; if (last) { last = 0; strip = 0}} else { print $0}}
+    ' < /tmp/pkg/PKGBUILD > /tmp/pkg/PKGBUILD.tmp
+    mv /tmp/pkg/PKGBUILD.tmp /tmp/pkg/PKGBUILD
+
+    chown -R test:test /tmp/pkg
+    su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
+
+    cp /tmp/pkg/snapd*.pkg.tar.xz "$GOPATH"
+}
+
 download_from_published(){
     local published_version="$1"
 
@@ -214,6 +259,27 @@ prepare_project() {
 
     distro_update_package_db
 
+    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        # perform system upgrade on Arch so that we run with most recent kernel
+        # and userspace
+        if [[ "$SPREAD_REBOOT" == 0 ]]; then
+            if distro_upgrade | MATCH "reboot"; then
+                echo "system upgraded, reboot required"
+                REBOOT
+            fi
+            # arch uses a single kernel package which could have gotten updated
+            # just now, reboot in case we're still on the old kernel
+            if [ ! -d "/lib/modules/$(uname -r)" ]; then
+                echo "rebooting to new kernel"
+                REBOOT
+            fi
+        fi
+        if [[ "$SPREAD_REBOOT" != 1 ]]; then
+            echo "reboot did not work"
+            exit 1
+        fi
+    fi
+
     if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
         if [ ! -d packaging/ubuntu-14.04 ]; then
             echo "no packaging/ubuntu-14.04/ directory "
@@ -262,6 +328,9 @@ prepare_project() {
                 ;;
             fedora-*|opensuse-*)
                 build_rpm
+                ;;
+            arch-*)
+                build_arch_pkg
                 ;;
             *)
                 echo "ERROR: No build instructions available for system $SPREAD_SYSTEM"
@@ -335,6 +404,44 @@ prepare_project_each() {
     fixup_dev_random
 }
 
+prepare_suite() {
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        prepare_all_snap
+    else
+        prepare_classic
+    fi
+}
+
+prepare_suite_each() {
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --reuse-core
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+        prepare_each_classic
+    fi
+}
+
+restore_suite_each() {
+    true
+}
+
+restore_suite() {
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --store
+    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+        # shellcheck source=tests/lib/pkgdb.sh
+        . $TESTSLIB/pkgdb.sh
+        distro_purge_package snapd
+        if [[ "$SPREAD_SYSTEM" != opensuse-* && "$SPREAD_SYSTEM" != arch-* ]]; then
+            # A snap-confine package never existed on openSUSE or Arch
+            distro_purge_package snap-confine
+        fi
+    fi
+}
+
 restore_project_each() {
     restore_dev_random
 
@@ -344,6 +451,35 @@ restore_project_each() {
     # pick up such errors.
     if grep "invalid .*snap.*.rules" /var/log/syslog; then
         echo "Invalid udev file detected, test most likely broke it"
+        exit 1
+    fi
+
+    # Check if the OOM killer got invoked - if that is the case our tests
+    # will most likely not function correctly anymore. It looks like this
+    # happens with: https://forum.snapcraft.io/t/4101 and is a source of
+    # failure in the autopkgtest environment.
+    if dmesg|grep "oom-killer"; then
+        echo "oom-killer got invoked during the tests, this should not happen."
+        echo "Dmesg debug output:"
+        dmesg
+        echo "Meminfo debug output:"
+        cat /proc/meminfo
+        exit 1
+    fi
+
+    # check if there is a shutdown pending, no test should trigger this
+    # and it leads to very confusing test failures
+    if [ -e /run/systemd/shutdown/scheduled ]; then
+        echo "Test triggered a shutdown, this should not happen"
+        snap changes
+        exit 1
+    fi
+
+    # Check for kernel oops during the tests
+    if dmesg|grep "Oops: "; then
+        echo "A kernel oops happened during the tests, test results will be unreliable"
+        echo "Dmesg debug output:"
+        dmesg
         exit 1
     fi
 }
@@ -372,6 +508,18 @@ case "$1" in
     --prepare-project-each)
         prepare_project_each
         ;;
+    --prepare-suite)
+        prepare_suite
+        ;;
+    --prepare-suite-each)
+        prepare_suite_each
+        ;;
+    --restore-suite-each)
+        restore_suite_each
+        ;;
+    --restore-suite)
+        restore_suite
+        ;;
     --restore-project-each)
         restore_project_each
         ;;
@@ -380,7 +528,7 @@ case "$1" in
         ;;
     *)
         echo "unsupported argument: $1"
-        echo "try one of --{prepare,restore}-project{,-each}"
+        echo "try one of --{prepare,restore}-{project,suite}{,-each}"
         exit 1
         ;;
 esac
