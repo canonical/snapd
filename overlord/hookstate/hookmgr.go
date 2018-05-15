@@ -123,7 +123,7 @@ func Manager(s *state.State) (*HookManager, error) {
 		hijackMap:  make(map[hijackKey]hijackFunc),
 	}
 
-	runner.AddHandler("run-hook", manager.doRunHook, nil)
+	runner.AddHandler("run-hook", manager.doRunHook, manager.undoRunHook)
 	// Compatibility with snapd between 2.29 and 2.30 in edge only.
 	// We generated a configure-snapd task on core refreshes and
 	// for compatibility we need to handle those.
@@ -222,6 +222,25 @@ func hookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
 	return &hooksup, &snapst, nil
 }
 
+func undoHookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
+	var hooksup HookSetup
+	err := task.Get("undo-hook-setup", &hooksup)
+	if err != nil {
+		if err == state.ErrNoState {
+			return nil, nil, err
+		}
+		return nil, nil, fmt.Errorf("cannot extract hook setup from task: %s", err)
+	}
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(task.State(), hooksup.Snap, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, nil, fmt.Errorf("cannot handle %q snap: %v", hooksup.Snap, err)
+	}
+
+	return &hooksup, &snapst, nil
+}
+
 // NumRunningHooks returns the number of hooks running at the moment.
 func (m *HookManager) NumRunningHooks() int {
 	return int(atomic.LoadInt32(&m.runningHooks))
@@ -253,6 +272,29 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
+	return m.runHook(task, tomb, snapst, hooksup)
+}
+
+// undoRunHook runs the undo-hook that was requested.
+//
+// Note that this method is synchronous, as the task is already running in a
+// goroutine.
+func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
+	task.State().Lock()
+	hooksup, snapst, err := undoHookSetup(task)
+	task.State().Unlock()
+	if err != nil {
+		if err == state.ErrNoState {
+			// no undo hook setup
+			return nil
+		}
+		return err
+	}
+
+	return m.runHook(task, tomb, snapst, hooksup)
+}
+
+func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapstate.SnapState, hooksup *HookSetup) error {
 	mustHijack := m.hijacked(hooksup.Hook, hooksup.Snap) != nil
 	hookExists := false
 	if !mustHijack {
