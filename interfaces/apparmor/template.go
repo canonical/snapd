@@ -92,8 +92,8 @@ var defaultTemplate = `
 
   # for bash 'binaries' (do *not* use abstractions/bash)
   # user-specific bash files
-  /bin/bash ixr,
-  /bin/dash ixr,
+  /{,usr/}bin/bash ixr,
+  /{,usr/}bin/dash ixr,
   /etc/bash.bashrc r,
   /etc/{passwd,group,nsswitch.conf} r,  # very common
   /etc/default/nss r,
@@ -595,6 +595,11 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   # Needed for dropping to calling user when processing per-user mounts
   capability setuid,
   capability setgid,
+  # Allow snap-update-ns to override file ownership and permission checks.
+  # This is required because writable mimics now preserve the permissions
+  # of the original and hence we may be asked to create a directory when the
+  # parent is a tmpfs without DAC write access.
+  capability dac_override,
 
   # Allow freezing and thawing the per-snap cgroup freezers
   /sys/fs/cgroup/freezer/snap.###SNAP_NAME###/freezer.state rw,
@@ -602,17 +607,6 @@ profile snap-update-ns.###SNAP_NAME### (attach_disconnected) {
   # Allow the content interface to bind fonts from the host filesystem
   mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/###SNAP_NAME###/*/**,
   umount /snap/###SNAP_NAME###/*/**,
-
-  # Allow the desktop interface to bind fonts from the host filesystem
-  mount options=(bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /usr/share/fonts/,
-  remount options=(bind, ro) /usr/share/fonts/,
-  umount /usr/share/fonts/,
-  mount options=(bind) /var/lib/snapd/hostfs/usr/local/share/fonts/ -> /usr/local/share/fonts/,
-  remount options=(bind, ro) /usr/local/share/fonts/,
-  umount /usr/local/share/fonts/,
-  mount options=(bind) /var/lib/snapd/hostfs/var/cache/fontconfig/ -> /var/cache/fontconfig/,
-  remount options=(bind, ro) /var/cache/fontconfig/,
-  umount /var/cache/fontconfig/,
 
   # set up user mount namespace
   # FIXME: this should be moved to the desktop interface when

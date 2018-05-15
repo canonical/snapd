@@ -25,7 +25,7 @@ execute: |
     fi
 
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "\- +test-snapd-physical-memory-observe:physical-memory-observe"
+    snap interfaces -i physical-memory-observe | MATCH "\- +test-snapd-physical-memory-observe:physical-memory-observe"
 
     echo "When the interface is connected"
     snap connect test-snapd-physical-memory-observe:physical-memory-observe

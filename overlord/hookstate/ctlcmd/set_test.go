@@ -179,9 +179,17 @@ func (s *setAttrSuite) SetUpTest(c *C) {
 	attrsTask := state.NewTask("connect-task", "my connect task")
 	attrsTask.Set("plug", &interfaces.PlugRef{Snap: "a", Name: "aplug"})
 	attrsTask.Set("slot", &interfaces.SlotRef{Snap: "b", Name: "bslot"})
-	attrs := make(map[string]interface{})
-	attrsTask.Set("plug-attrs", attrs)
-	attrsTask.Set("slot-attrs", attrs)
+	staticAttrs := map[string]interface{}{
+		"lorem": "ipsum",
+		"nested": map[string]interface{}{
+			"x": "y",
+		},
+	}
+	dynamicAttrs := make(map[string]interface{})
+	attrsTask.Set("plug-static", staticAttrs)
+	attrsTask.Set("plug-dynamic", dynamicAttrs)
+	attrsTask.Set("slot-static", staticAttrs)
+	attrsTask.Set("slot-dynamic", dynamicAttrs)
 	ch.AddTask(attrsTask)
 	state.Unlock()
 
@@ -230,27 +238,27 @@ func (s *setAttrSuite) TestSetPlugAttributesInPlugHook(c *C) {
 	st := s.mockPlugHookContext.State()
 	st.Lock()
 	defer st.Unlock()
-	attrs := make(map[string]interface{})
-	err = attrsTask.Get("plug-attrs", &attrs)
+	dynattrs := make(map[string]interface{})
+	err = attrsTask.Get("plug-dynamic", &dynattrs)
 	c.Assert(err, IsNil)
-	c.Check(attrs["foo"], Equals, "bar")
+	c.Check(dynattrs["foo"], Equals, "bar")
 }
 
-func (s *setAttrSuite) TestSetSlotAttributesInSlotHook(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockSlotHookContext, []string{"set", ":bslot", "foo=bar"})
+func (s *setAttrSuite) TestSetPlugAttributesSupportsDottedSyntax(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockPlugHookContext, []string{"set", ":aplug", "my.attr1=foo", "my.attr2=bar"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 
-	attrsTask, err := ctlcmd.AttributesTask(s.mockSlotHookContext)
+	attrsTask, err := ctlcmd.AttributesTask(s.mockPlugHookContext)
 	c.Assert(err, IsNil)
-	st := s.mockSlotHookContext.State()
+	st := s.mockPlugHookContext.State()
 	st.Lock()
 	defer st.Unlock()
-	attrs := make(map[string]interface{})
-	err = attrsTask.Get("slot-attrs", &attrs)
+	dynattrs := make(map[string]interface{})
+	err = attrsTask.Get("plug-dynamic", &dynattrs)
 	c.Assert(err, IsNil)
-	c.Check(attrs["foo"], Equals, "bar")
+	c.Check(dynattrs["my"], DeepEquals, map[string]interface{}{"attr1": "foo", "attr2": "bar"})
 }
 
 func (s *setAttrSuite) TestPlugOrSlotEmpty(c *C) {

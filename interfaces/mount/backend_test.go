@@ -169,3 +169,16 @@ func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
 	os.Remove(dirs.SnapMountPolicyDir)
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, mockSnapYaml, 0)
 }
+
+func (s *backendSuite) TestSandboxFeatures(c *C) {
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
+		"freezer-cgroup-v1",
+		"layouts-beta",
+		"mount-namespace",
+		"per-snap-persistency",
+		"per-snap-profiles",
+		"per-snap-updates",
+		"per-snap-user-profiles",
+		"stale-base-invalidation",
+	})
+}

@@ -36,7 +36,9 @@ partial or none) the system operates in.
 type cmdConfinement struct{}
 
 func init() {
-	addDebugCommand("confinement", shortConfinementHelp, longConfinementHelp, func() flags.Commander { return &cmdConfinement{} })
+	addDebugCommand("confinement", shortConfinementHelp, longConfinementHelp, func() flags.Commander {
+		return &cmdConfinement{}
+	}, nil, nil)
 }
 
 func (cmd cmdConfinement) Execute(args []string) error {

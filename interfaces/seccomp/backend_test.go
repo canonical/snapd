@@ -385,3 +385,10 @@ func (s *backendSuite) TestSystemKeyRetLogUnsupported(c *C) {
 	c.Assert(profile+".src", Not(testutil.FileContains), "# complain mode logging unavailable\n")
 	s.RemoveSnap(c, snapInfo)
 }
+
+func (s *backendSuite) TestSandboxFeatures(c *C) {
+	restore := seccomp.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	defer restore()
+
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering"})
+}
