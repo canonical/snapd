@@ -5,46 +5,22 @@ execute: |
     #shellcheck source=tests/lib/snaps.sh
     . $TESTSLIB/snaps.sh
 
-    echo "Ensure a snap that requires an unavailable base snap can not be installed"
-    cp -a $TESTSLIB/snaps/test-snapd-requires-base .
-    sed -i 's/^base: test-snapd-base/base: no-such-base/' test-snapd-requires-base/meta/snap.yaml
-    snap pack test-snapd-requires-base
-    if snap install --dangerous ./test-snapd-requires-base_1.0_all.snap; then
+    echo "Ensure a snap that requires a unavailable base snap can not be installed"
+    if install_local test-snapd-requires-base; then
         echo "ERROR: test-snapd-requires-base should not be installable without test-snapd-base"
         exit 1
     fi
-    rm -rf test-snapd-requires-base test-snapd-requires-base_1.0_all.snap
 
     echo "Ensure a base snap can be installed"
     install_local test-snapd-base
     snap list | MATCH test-snapd-base
-    snap remove test-snapd-base
 
-    echo "Ensure new installs of a snap pulls the required base in"
+    echo "With test-snapd-base installed we now can install test-snapd-requires-base"
     install_local test-snapd-requires-base
-    snap list | MATCH test-snapd-base
+    snap list | MATCH test-snapd-requires-base
 
-    echo "------------------------------------------------------------------"
-
-    echo "Cleanup for the next test"
-    snap remove test-snapd-requires-base test-snapd-base
-
-    echo "First install snap without base"
-    cp -a $TESTSLIB/snaps/test-snapd-requires-base .
-    sed -i '/^base: test-snapd-base/d' test-snapd-requires-base/meta/snap.yaml
-    snap pack test-snapd-requires-base
-    snap install --dangerous ./test-snapd-requires-base_1.0_all.snap
-    if snap list|grep test-snapd-base; then
-        echo "broken test: test-snapd-base should not be pulled in here"
-        exit 1
-    fi
-    echo "Then refresh to the snap in the store which requires a base"
-    snap refresh --edge --amend test-snapd-requires-base
-    echo "And ensure the base got pulled in"
-    snap list | grep test-snapd-base
-
-    echo "------------------------------------------------------------------"
     echo "Ensure the bare base works"
+
     if [ "$(uname -m)" != "x86_64" ]; then
         echo "This test can only run on amd64 right now because snapcraft "
         echo "cannot current generate binaries without wrapper scripts."
