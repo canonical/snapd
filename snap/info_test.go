@@ -934,7 +934,7 @@ func (s *infoSuite) TestSlotInfoAttr(c *C) {
 	c.Check(slot.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
 }
 
-func (s *infoSuite) TestDottedPath(c *C) {
+func (s *infoSuite) TestDottedPathSlot(c *C) {
 	attrs := map[string]interface{}{
 		"nested": map[string]interface{}{
 			"foo": "bar",
@@ -948,18 +948,46 @@ func (s *infoSuite) TestDottedPath(c *C) {
 	c.Assert(ok, Equals, true)
 	c.Assert(v, Equals, "bar")
 
+	v, ok = slot.Lookup("nested")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, DeepEquals, map[string]interface{}{
+		"foo": "bar",
+	})
+
+	_, ok = slot.Lookup("..")
+	c.Assert(ok, Equals, false)
+
+	_, ok = slot.Lookup("nested.foo.x")
+	c.Assert(ok, Equals, false)
+
 	_, ok = slot.Lookup("nested.x")
 	c.Assert(ok, Equals, false)
+}
+
+func (s *infoSuite) TestDottedPathPlug(c *C) {
+	attrs := map[string]interface{}{
+		"nested": map[string]interface{}{
+			"foo": "bar",
+		},
+	}
 
 	plug := &snap.PlugInfo{Attrs: attrs}
 	c.Assert(plug, NotNil)
+
+	v, ok := plug.Lookup("nested")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, DeepEquals, map[string]interface{}{
+		"foo": "bar",
+	})
 
 	v, ok = plug.Lookup("nested.foo")
 	c.Assert(ok, Equals, true)
 	c.Assert(v, Equals, "bar")
 
-	// consecutive dots
 	_, ok = plug.Lookup("..")
+	c.Assert(ok, Equals, false)
+
+	_, ok = plug.Lookup("nested.foo.x")
 	c.Assert(ok, Equals, false)
 }
 
