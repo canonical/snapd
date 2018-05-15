@@ -2224,3 +2224,31 @@ func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 	}
 	c.Check(ok, Equals, true)
 }
+
+func (s *deviceMgrSuite) TestMarkSeededInConfig(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// not seeded -> no config is set
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.state.Lock()
+
+	var seedLoaded bool
+	tr := config.NewTransaction(st)
+	tr.Get("core", "seed.loaded", &seedLoaded)
+	c.Check(seedLoaded, Equals, false)
+
+	// pretend we are seeded now
+	s.state.Set("seeded", true)
+
+	// seeded -> config got updated
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.state.Lock()
+
+	tr = config.NewTransaction(st)
+	tr.Get("core", "seed.loaded", &seedLoaded)
+	c.Check(seedLoaded, Equals, true)
+}
