@@ -159,9 +159,12 @@ func formatUnmountFlags(flags int) string {
 }
 
 // CallResult describes a system call and the corresponding result as strings
+//
+// The field names stand for Call and Result respectively. They are abbreviated
+// due to the nature of their use (in large quantity).
 type CallResult struct {
-	Call   string
-	Result interface{}
+	C string
+	R interface{}
 }
 
 // SyscallRecorder stores which system calls were invoked.
@@ -229,7 +232,7 @@ func (sys *SyscallRecorder) Calls() []string {
 	}
 	calls := make([]string, 0, len(sys.rcalls))
 	for _, rc := range sys.rcalls {
-		calls = append(calls, rc.Call)
+		calls = append(calls, rc.C)
 	}
 	return calls
 }
@@ -248,9 +251,9 @@ func (sys *SyscallRecorder) rcall(call string, resultFn func(call string) (inter
 		val, err = resultFn(call)
 	}
 	if err != nil {
-		sys.rcalls = append(sys.rcalls, CallResult{Call: call, Result: err})
+		sys.rcalls = append(sys.rcalls, CallResult{C: call, R: err})
 	} else {
-		sys.rcalls = append(sys.rcalls, CallResult{Call: call, Result: val})
+		sys.rcalls = append(sys.rcalls, CallResult{C: call, R: val})
 	}
 	return val, err
 }
