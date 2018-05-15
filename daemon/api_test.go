@@ -766,8 +766,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			// only the "timer" field
 			"timer": "8:00~9:00/2",
 		},
-		"confinement":         "partial",
-		"classic-unsupported": !dirs.SupportsClassicConfinement(),
+		"confinement":      "partial",
+		"sandbox-features": map[string]interface{}{"confinement-options": []interface{}{"classic", "devmode"}},
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -834,9 +834,11 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 			// only the "schedule" field
 			"schedule": "00:00-9:00/12:00-13:00",
 		},
-		"confinement":         "partial",
-		"classic-unsupported": !dirs.SupportsClassicConfinement(),
-		"sandbox-features":    map[string]interface{}{"apparmor": []interface{}{"feature-1", "feature-2"}},
+		"confinement": "partial",
+		"sandbox-features": map[string]interface{}{
+			"apparmor":            []interface{}{"feature-1", "feature-2"},
+			"confinement-options": []interface{}{"classic", "devmode"}, // we know it's this because of the release.Mock... calls above
+		},
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
