@@ -12,6 +12,7 @@ warn-timeout: 1m
 kill-timeout: 5m
 debug: |
     snap changes
+    #shellcheck source=tests/lib/changes.sh
     . $TESTSLIB/changes.sh
     snap change "$(change_id 'Transition ubuntu-core to core')" || true
 execute: |
@@ -19,19 +20,20 @@ execute: |
     snap install test-snapd-python-webserver
     snap interfaces -i network | MATCH ":network.*test-snapd-python-webserver"
 
+    #shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
     cp /var/lib/snapd/state.json /var/lib/snapd/state.json.old
-    cat /var/lib/snapd/state.json.old |jq -r '.data.snaps["core"].type="xxx"' > /var/lib/snapd/state.json
+    jq -r '.data.snaps["core"].type="xxx"' < /var/lib/snapd/state.json.old > /var/lib/snapd/state.json
 
     systemctl stop snapd.service snapd.socket
     systemctl start snapd.service snapd.socket
 
-    snap download --${CORE_CHANNEL} ubuntu-core
+    snap download "--${CORE_CHANNEL}" ubuntu-core
     snap ack ./ubuntu-core_*.assert
     snap install ./ubuntu-core_*.snap
 
     cp /var/lib/snapd/state.json /var/lib/snapd/state.json.old
-    cat /var/lib/snapd/state.json.old |jq -r '.data.snaps["core"].type="os"' > /var/lib/snapd/state.json
+    jq -r '.data.snaps["core"].type="os"' < /var/lib/snapd/state.json.old > /var/lib/snapd/state.json
 
     snap list | MATCH "ubuntu-core "
     snap list | MATCH "core "
@@ -39,7 +41,7 @@ execute: |
     echo "Ensure transition is triggered"
     # wait for steady state or ensure-state-soon will be pointless
     ok=0
-    for i in $(seq 40); do
+    for _ in $(seq 40); do
         if ! snap changes|grep -q ".*.Doing.*" ; then
             ok=1
             break
@@ -54,7 +56,7 @@ execute: |
 
     # wait for transition
     ok=0
-    for i in $(seq 240); do
+    for _ in $(seq 240); do
         if snap changes|grep -q ".*Done.*Transition ubuntu-core to core" ; then
             ok=1
             break

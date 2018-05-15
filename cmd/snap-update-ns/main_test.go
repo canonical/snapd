@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -30,6 +31,7 @@ import (
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -37,13 +39,19 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type mainSuite struct {
+	testutil.BaseTest
 	sec *update.Secure
+	log *bytes.Buffer
 }
 
 var _ = Suite(&mainSuite{})
 
 func (s *mainSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	s.sec = &update.Secure{}
+	buf, restore := logger.MockLogger()
+	s.BaseTest.AddCleanup(restore)
+	s.log = buf
 }
 
 func (s *mainSuite) TestComputeAndSaveChanges(c *C) {
@@ -259,6 +267,49 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 	// The error was not ignored, we bailed out.
 	c.Assert(update.ComputeAndSaveChanges(snapName, s.sec), ErrorMatches, "testing")
 
+	c.Check(currentProfilePath, testutil.FileEquals, "")
+}
+
+func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+
+	const snapName = "mysnap"
+	const currentProfileContent = ""
+	const desiredProfileContent = "/source /target none bind,x-snapd.ignore-missing 0 0"
+
+	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
+	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
+
+	c.Assert(os.MkdirAll(filepath.Dir(currentProfilePath), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(desiredProfilePath), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
+
+	n := -1
+	restore := update.MockChangePerform(func(chg *update.Change, sec *update.Secure) ([]*update.Change, error) {
+		n++
+		switch n {
+		case 0:
+			c.Assert(chg, DeepEquals, &update.Change{
+				Action: update.Mount,
+				Entry: osutil.MountEntry{
+					Name:    "/source",
+					Dir:     "/target",
+					Type:    "none",
+					Options: []string{"bind", "x-snapd.ignore-missing"},
+				},
+			})
+			return nil, update.ErrIgnoredMissingMount
+		default:
+			panic(fmt.Sprintf("unexpected call n=%d, chg: %v", n, *chg))
+		}
+	})
+	defer restore()
+
+	// The error was ignored, and no mount was recorded in the profile
+	c.Assert(update.ComputeAndSaveChanges(snapName, s.sec), IsNil)
+	c.Check(s.log.String(), Equals, "")
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
 
