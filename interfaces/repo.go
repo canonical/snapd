@@ -90,7 +90,6 @@ func (r *Repository) AddInterface(i Interface) error {
 // Connected: only consider interfaces with at least one connection.
 type InfoOptions struct {
 	Names     []string
-	Snaps     []string
 	Doc       bool
 	Plugs     bool
 	Slots     bool
