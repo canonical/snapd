@@ -30,7 +30,7 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
-func (s *SnapSuite) TestCmdWait(c *C) {
+func (s *SnapSuite) TestCmdWaitHappy(c *C) {
 	var seeded bool
 
 	restore := snap.MockWaitConfTimeout(10 * time.Millisecond)
@@ -57,6 +57,18 @@ func (s *SnapSuite) TestCmdWait(c *C) {
 	// 10 millisecond sleep actually takes much longer until the kernel
 	// hands control back to the process
 	c.Check(n > 2, Equals, true)
+}
+
+func (s *SnapSuite) TestCmdWaitMissingConfKey(c *C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		n++
+	})
+
+	_, err := snap.Parser().ParseArgs([]string{"wait", "snapName"})
+	c.Assert(err, ErrorMatches, "need a <key> argument")
+
+	c.Check(n, Equals, 0)
 }
 
 func (s *SnapSuite) TestTrueish(c *C) {
