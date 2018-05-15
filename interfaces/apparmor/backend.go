@@ -431,7 +431,7 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 		// 4.16, do not downgrade confinement template.
 		//
 		// We don't want to do this in general yet because older versions of
-		// the kernel did now provide backwards compatible interpretation of a
+		// the kernel did not provide backwards compatible interpretation of a
 		// confinement so the meaning of the template would change across
 		// kernel versions and we have not validated that the current template
 		// is operational on older kernels.
