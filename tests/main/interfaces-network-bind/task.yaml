@@ -31,7 +31,7 @@ prepare: |
 
 execute: |
     echo "The interface is connected by default"
-    snap interfaces | MATCH ":network-bind .*$SNAP_NAME"
+    snap interfaces -i network-bind | MATCH ":network-bind .*$SNAP_NAME"
 
     echo "When the plug is disconnected"
     snap disconnect $SNAP_NAME:network-bind

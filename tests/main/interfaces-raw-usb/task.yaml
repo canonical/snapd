@@ -12,7 +12,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "\- +test-snapd-raw-usb:raw-usb"
+    snap interfaces -i raw-usb | MATCH "\- +test-snapd-raw-usb:raw-usb"
 
     echo "When the interface is connected"
     snap connect test-snapd-raw-usb:raw-usb

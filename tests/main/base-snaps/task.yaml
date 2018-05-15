@@ -2,6 +2,7 @@ summary: Check that base snaps work
 systems: [-opensuse-*]
 
 execute: |
+    #shellcheck source=tests/lib/snaps.sh
     . $TESTSLIB/snaps.sh
 
     echo "Ensure a snap that requires an unavailable base snap can not be installed"
