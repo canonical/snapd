@@ -173,7 +173,7 @@ type Info struct {
 	// The information in all the remaining fields is not sourced from the snap blob itself.
 	SideInfo
 
-	// Broken marks if set whether the snap is broken and the reason.
+	// Broken marks whether the snap is broken and the reason.
 	Broken string
 
 	// The information in these fields is ephemeral, available only from the store.
@@ -377,6 +377,22 @@ func (s *Info) ExpandSnapVariables(path string) string {
 		}
 		return ""
 	})
+}
+
+// InstallDate returns the "install date" of the snap.
+//
+// If the snap is not active, it'll return a zero time; otherwise
+// it'll return the modtime of the "current" symlink. Sneaky.
+func (s *Info) InstallDate() time.Time {
+	dir, rev := filepath.Split(s.MountDir())
+	cur := filepath.Join(dir, "current")
+	tag, err := os.Readlink(cur)
+	if err == nil && tag == rev {
+		if st, err := os.Lstat(cur); err == nil {
+			return st.ModTime()
+		}
+	}
+	return time.Time{}
 }
 
 func BadInterfacesSummary(snapInfo *Info) string {
@@ -629,6 +645,10 @@ func (timer *TimerInfo) File() string {
 	return filepath.Join(dirs.SnapServicesDir, timer.App.SecurityTag()+".timer")
 }
 
+func (app *AppInfo) String() string {
+	return JoinSnapApp(app.Snap.Name(), app.Name)
+}
+
 // SecurityTag returns application-specific security tag.
 //
 // Security tags are used by various security subsystems as "profile names" and
@@ -743,13 +763,43 @@ func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
 	return info, nil
 }
 
+// BrokenSnapError describes an error that refers to a snap that warrants the "broken" note.
+type BrokenSnapError interface {
+	error
+	Broken() string
+}
+
 type NotFoundError struct {
 	Snap     string
 	Revision Revision
+	// Path encodes the path that triggered the not-found error.
+	// It may refer to a file inside the snap or to the snap file itself.
+	Path string
 }
 
 func (e NotFoundError) Error() string {
+	if e.Path != "" {
+		return fmt.Sprintf("cannot find installed snap %q at revision %s: missing file %s", e.Snap, e.Revision, e.Path)
+	}
 	return fmt.Sprintf("cannot find installed snap %q at revision %s", e.Snap, e.Revision)
+}
+
+func (e NotFoundError) Broken() string {
+	return e.Error()
+}
+
+type invalidMetaError struct {
+	Snap     string
+	Revision Revision
+	Msg      string
+}
+
+func (e invalidMetaError) Error() string {
+	return fmt.Sprintf("cannot use installed snap %q at revision %s: %s", e.Snap, e.Revision, e.Msg)
+}
+
+func (e invalidMetaError) Broken() string {
+	return e.Error()
 }
 
 func MockSanitizePlugsSlots(f func(snapInfo *Info)) (restore func()) {
@@ -767,7 +817,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
-		return nil, &NotFoundError{Snap: name, Revision: si.Revision}
+		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: snapYamlFn}
 	}
 	if err != nil {
 		return nil, err
@@ -775,10 +825,18 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 
 	info, err := infoFromSnapYamlWithSideInfo(meta, si)
 	if err != nil {
-		return nil, err
+		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
-	st, err := os.Stat(MountFile(name, si.Revision))
+	mountFile := MountFile(name, si.Revision)
+	st, err := os.Stat(mountFile)
+	if os.IsNotExist(err) {
+		// This can happen when "snap try" mode snap is moved around. The mount
+		// is still in place (it's a bind mount, it doesn't care about the
+		// source moving) but the symlink in /var/lib/snapd/snaps is now
+		// dangling.
+		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: mountFile}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -786,7 +844,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 
 	err = addImplicitHooks(info)
 	if err != nil {
-		return nil, err
+		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
 	return info, nil

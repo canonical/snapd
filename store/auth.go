@@ -310,6 +310,7 @@ func requestDeviceSession(deviceSessionEndpoint string, paramsEncoder deviceSess
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
+	// TODO: retry at least once on 400
 
 	if responseData.Macaroon == "" {
 		return "", fmt.Errorf(errorPrefix + "empty session returned")

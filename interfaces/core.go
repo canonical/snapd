@@ -133,22 +133,22 @@ func (conn *ConnRef) ID() string {
 }
 
 // ParseConnRef parses an ID string
-func ParseConnRef(id string) (ConnRef, error) {
+func ParseConnRef(id string) (*ConnRef, error) {
 	var conn ConnRef
 	parts := strings.SplitN(id, " ", 2)
 	if len(parts) != 2 {
-		return conn, fmt.Errorf("malformed connection identifier: %q", id)
+		return nil, fmt.Errorf("malformed connection identifier: %q", id)
 	}
 	plugParts := strings.Split(parts[0], ":")
 	slotParts := strings.Split(parts[1], ":")
 	if len(plugParts) != 2 || len(slotParts) != 2 {
-		return conn, fmt.Errorf("malformed connection identifier: %q", id)
+		return nil, fmt.Errorf("malformed connection identifier: %q", id)
 	}
 	conn.PlugRef.Snap = plugParts[0]
 	conn.PlugRef.Name = plugParts[1]
 	conn.SlotRef.Snap = slotParts[0]
 	conn.SlotRef.Name = slotParts[1]
-	return conn, nil
+	return &conn, nil
 }
 
 // Interface describes a group of interchangeable capabilities with common features.
@@ -264,4 +264,14 @@ func ValidateDBusBusName(busName string) error {
 		return fmt.Errorf("invalid DBus bus name: %q", busName)
 	}
 	return nil
+}
+
+// UnknownPlugSlotError is an error reported when plug or slot cannot be found.
+type UnknownPlugSlotError struct {
+	Msg string
+}
+
+// Error returns the message associated with unknown plug or slot error.
+func (e *UnknownPlugSlotError) Error() string {
+	return e.Msg
 }

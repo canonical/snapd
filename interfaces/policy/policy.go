@@ -27,6 +27,8 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -116,22 +118,50 @@ func (ic *InstallCandidate) Check() error {
 
 // ConnectCandidate represents a candidate connection.
 type ConnectCandidate struct {
-	// TODO: later we need to carry dynamic attributes once we have those
-	Plug                *snap.PlugInfo
+	Plug                *interfaces.ConnectedPlug
 	PlugSnapDeclaration *asserts.SnapDeclaration
 
-	Slot                *snap.SlotInfo
+	Slot                *interfaces.ConnectedSlot
 	SlotSnapDeclaration *asserts.SnapDeclaration
 
 	BaseDeclaration *asserts.BaseDeclaration
+
+	// Static + dynamic attributes, merged lazily by plugAttrs/slotAttrs below (FIXME: remove it)
+	mergedPlugAttrs map[string]interface{}
+	mergedSlotAttrs map[string]interface{}
+}
+
+func mergedAttributes(staticAttrs, dynamicAttrs map[string]interface{}, errorContext string) map[string]interface{} {
+	merged := make(map[string]interface{})
+	for k, v := range staticAttrs {
+		merged[k] = v
+	}
+	for k, v := range dynamicAttrs {
+		if _, ok := merged[k]; ok {
+			// Safeguard. This should never happen as it's prevented
+			// when attributes are populated at higher levels.
+			logger.Noticef("internal error: attempted to overwrite static attribute %q (%s)", k, errorContext)
+			continue
+		}
+		merged[k] = v
+	}
+	return merged
 }
 
 func (connc *ConnectCandidate) plugAttrs() map[string]interface{} {
-	return connc.Plug.Attrs
+	// FIXME: change policy code to use Attrer interface, remove merging.
+	if connc.mergedPlugAttrs == nil {
+		connc.mergedPlugAttrs = mergedAttributes(connc.Plug.StaticAttrs(), connc.Plug.DynamicAttrs(), fmt.Sprintf("plug %q of snap %q", connc.Plug.Name(), connc.Plug.Snap().Name()))
+	}
+	return connc.mergedPlugAttrs
 }
 
 func (connc *ConnectCandidate) slotAttrs() map[string]interface{} {
-	return connc.Slot.Attrs
+	// FIXME: change policy code to use Attrer interface, remove merging.
+	if connc.mergedSlotAttrs == nil {
+		connc.mergedSlotAttrs = mergedAttributes(connc.Slot.StaticAttrs(), connc.Slot.DynamicAttrs(), fmt.Sprintf("slot %q of snap %q", connc.Slot.Name(), connc.Slot.Snap().Name()))
+	}
+	return connc.mergedSlotAttrs
 }
 
 func nestedGet(which string, attrs map[string]interface{}, path string) (interface{}, error) {
@@ -152,19 +182,19 @@ func nestedGet(which string, attrs map[string]interface{}, path string) (interfa
 }
 
 func (connc *ConnectCandidate) PlugAttr(arg string) (interface{}, error) {
-	return nestedGet("plug", connc.Plug.Attrs, arg)
+	return nestedGet("plug", connc.plugAttrs(), arg)
 }
 
 func (connc *ConnectCandidate) SlotAttr(arg string) (interface{}, error) {
-	return nestedGet("slot", connc.Slot.Attrs, arg)
+	return nestedGet("slot", connc.slotAttrs(), arg)
 }
 
 func (connc *ConnectCandidate) plugSnapType() snap.Type {
-	return connc.Plug.Snap.Type
+	return connc.Plug.Snap().Type
 }
 
 func (connc *ConnectCandidate) slotSnapType() snap.Type {
-	return connc.Slot.Snap.Type
+	return connc.Slot.Snap().Type
 }
 
 func (connc *ConnectCandidate) plugSnapID() string {
@@ -207,10 +237,10 @@ func (connc *ConnectCandidate) checkPlugRule(kind string, rule *asserts.PlugRule
 		allowConst = rule.AllowAutoConnection
 	}
 	if checkPlugConnectionConstraints(connc, denyConst) == nil {
-		return fmt.Errorf("%s denied by plug rule of interface %q%s", kind, connc.Plug.Interface, context)
+		return fmt.Errorf("%s denied by plug rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
 	if checkPlugConnectionConstraints(connc, allowConst) != nil {
-		return fmt.Errorf("%s not allowed by plug rule of interface %q%s", kind, connc.Plug.Interface, context)
+		return fmt.Errorf("%s not allowed by plug rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
 	return nil
 }
@@ -227,10 +257,10 @@ func (connc *ConnectCandidate) checkSlotRule(kind string, rule *asserts.SlotRule
 		allowConst = rule.AllowAutoConnection
 	}
 	if checkSlotConnectionConstraints(connc, denyConst) == nil {
-		return fmt.Errorf("%s denied by slot rule of interface %q%s", kind, connc.Plug.Interface, context)
+		return fmt.Errorf("%s denied by slot rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
 	if checkSlotConnectionConstraints(connc, allowConst) != nil {
-		return fmt.Errorf("%s not allowed by slot rule of interface %q%s", kind, connc.Plug.Interface, context)
+		return fmt.Errorf("%s not allowed by slot rule of interface %q%s", kind, connc.Plug.Interface(), context)
 	}
 	return nil
 }
@@ -241,10 +271,10 @@ func (connc *ConnectCandidate) check(kind string) error {
 		return fmt.Errorf("internal error: improperly initialized ConnectCandidate")
 	}
 
-	iface := connc.Plug.Interface
+	iface := connc.Plug.Interface()
 
-	if connc.Slot.Interface != iface {
-		return fmt.Errorf("cannot connect mismatched plug interface %q to slot interface %q", iface, connc.Slot.Interface)
+	if connc.Slot.Interface() != iface {
+		return fmt.Errorf("cannot connect mismatched plug interface %q to slot interface %q", iface, connc.Slot.Interface())
 	}
 
 	if plugDecl := connc.PlugSnapDeclaration; plugDecl != nil {

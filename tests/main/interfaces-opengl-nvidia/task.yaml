@@ -22,6 +22,14 @@ prepare: |
         echo "canary-triplet" >> /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/libnvidia-glcore.so.123.456
         echo "canary-triplet" >> /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/tls/libnvidia-tls.so.123.456
         echo "canary-triplet" >> /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/libnvidia-tls.so.123.456
+        if [[ "$(uname -m)" == x86_64 ]]; then
+            mkdir -p /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)/tls
+            echo "canary-32-triplet" >> /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)/libGLX.so.0.0.1
+            echo "canary-32-triplet" >> /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)/libGLX_nvidia.so.0.0.1
+            echo "canary-32-triplet" >> /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)/libnvidia-glcore.so.123.456
+            echo "canary-32-triplet" >> /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)/tls/libnvidia-tls.so.123.456
+            echo "canary-32-triplet" >> /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)/libnvidia-tls.so.123.456
+        fi
     fi
     mkdir -p /usr/lib/nvidia-123/tls
     echo "canary-legacy" >> /usr/lib/nvidia-123/libGLX.so.0.0.1
@@ -29,6 +37,14 @@ prepare: |
     echo "canary-legacy" >> /usr/lib/nvidia-123/libnvidia-glcore.so.123.456
     echo "canary-legacy" >> /usr/lib/nvidia-123/tls/libnvidia-tls.so.123.456
     echo "canary-legacy" >> /usr/lib/nvidia-123/libnvidia-tls.so.123.456
+    if [[ "$(uname -m)" == x86_64 ]]; then
+        mkdir -p /usr/lib32/nvidia-123/tls
+        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libGLX.so.0.0.1
+        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libGLX_nvidia.so.0.0.1
+        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libnvidia-glcore.so.123.456
+        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/tls/libnvidia-tls.so.123.456
+        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libnvidia-tls.so.123.456
+    fi
 
 execute: |
     . $TESTSLIB/dirs.sh
@@ -49,6 +65,16 @@ execute: |
        snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/gl/$f" | MATCH "$expected"
     done
 
+    if [[ "$(uname -m)" == x86_64 ]]; then
+        expected32="canary-32-legacy"
+        if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+            expected32="canary-32-triplet"
+        fi
+        for f in $files; do
+            snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/gl32/$f" | MATCH "$expected32"
+        done
+    fi
+
     echo "And vulkan ICD file"
     snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/vulkan/icd.d/nvidia_icd.json" | MATCH canary-vulkan
 
@@ -63,5 +89,14 @@ restore: |
         rm -f /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/libnvidia-glcore.so.123.456
         rm -f /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/tls/libnvidia-tls.so.123.456
         rm -f /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/libnvidia-tls.so.123.456
+        if [[ "$(uname -m)" == x86_64 ]]; then
+            rm -rf /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)/tls
+            rm -f /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)/libGLX.so.0.0.1
+            rm -f /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)/libGLX_nvidia.so.0.0.1
+            rm -f /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)/libnvidia-glcore.so.123.456
+            rm -f /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)/tls/libnvidia-tls.so.123.456
+            rm -f /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)/libnvidia-tls.so.123.456
+        fi
     fi
     rm -rf /usr/lib/nvidia-123
+    rm -rf /usr/lib32/nvidia-123

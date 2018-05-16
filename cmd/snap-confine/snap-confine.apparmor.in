@@ -13,6 +13,7 @@
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
     /etc/ld.so.cache r,
+    /etc/ld.so.preload r,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}ld-*.so mrix,
     # libc, you are funny
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libc{,-[0-9]*}.so* mr,
@@ -47,6 +48,7 @@
 
     # cgroup: devices
     capability sys_admin,
+    capability dac_read_search,
     capability dac_override,
     /sys/fs/cgroup/devices/snap{,py}.*/ w,
     /sys/fs/cgroup/devices/snap{,py}.*/tasks w,
@@ -139,7 +141,7 @@
     # when a distro with merged /usr and / that uses apparmor shows up it
     # should be handled here.
     /{,run/}media/ w,
-    mount options=(rw rbind) /media/ -> /tmp/snap.rootfs_*/media/,
+    mount options=(rw rbind) /{,run/}media/ -> /tmp/snap.rootfs_*/{,run/}media/,
     /run/netns/ w,
     mount options=(rw rbind) /run/netns/ -> /tmp/snap.rootfs_*/run/netns/,
     # unidirectional mounts (only for classic system)
@@ -196,7 +198,7 @@
     mount options=(rw slave) -> /tmp/snap.rootfs_*/usr/bin/snapctl,
 
     # /etc/alternatives (classic)
-    mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
+    mount options=(rw bind) @SNAP_MOUNT_DIR@/*/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
     mount options=(rw bind) @SNAP_MOUNT_DIR@/*/*/etc/ssl/ -> /tmp/snap.rootfs_*/etc/ssl/,
     mount options=(rw bind) @SNAP_MOUNT_DIR@/*/*/etc/nsswitch.conf -> /tmp/snap.rootfs_*/etc/nsswitch.conf,
     # /etc/alternatives (core)
@@ -217,6 +219,9 @@
     umount /var/lib/snapd/hostfs/dev/,
     umount /var/lib/snapd/hostfs/proc/,
     mount options=(rw rslave) -> /var/lib/snapd/hostfs/,
+
+    # set up user mount namespace
+    mount options=(rslave) -> /,
 
     # Allow reading the os-release file (possibly a symlink to /usr/lib).
     /{etc/,usr/lib/}os-release r,

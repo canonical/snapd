@@ -711,7 +711,8 @@ func compile(content []byte, out string) error {
 	if err != nil {
 		return err
 	}
-	defer fout.Close()
+	// Cancel once Committed is a NOP
+	defer fout.Cancel()
 
 	if err := secFilter.ExportBPF(fout.File); err != nil {
 		return err

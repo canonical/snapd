@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -392,6 +393,15 @@ version: gadget
 	c.Check(device.Model, Equals, "pc")
 	c.Check(device.Serial, Equals, "9999")
 
+	ok := false
+	select {
+	case <-s.mgr.Registered():
+		ok = true
+	case <-time.After(5 * time.Second):
+		c.Fatal("should have been marked registered")
+	}
+	c.Check(ok, Equals, true)
+
 	a, err := s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
 		"model":    "pc",
@@ -689,6 +699,14 @@ version: gadget
 	})
 	c.Assert(err, IsNil)
 
+	ok := false
+	select {
+	case <-s.mgr.Registered():
+	default:
+		ok = true
+	}
+	c.Check(ok, Equals, true)
+
 	s.state.Unlock()
 	s.mgr.Ensure()
 	s.mgr.Wait()
@@ -699,6 +717,15 @@ version: gadget
 	device, err = auth.Device(s.state)
 	c.Check(err, IsNil)
 	c.Check(device.Serial, Equals, "9999")
+
+	ok = false
+	select {
+	case <-s.mgr.Registered():
+		ok = true
+	case <-time.After(5 * time.Second):
+		c.Fatal("should have been marked registered")
+	}
+	c.Check(ok, Equals, true)
 }
 
 func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
@@ -775,9 +802,17 @@ func (s *deviceMgrSuite) TestDoRequestSerialErrorsOnNoHost(c *C) {
 		c.Skip("cannot run test when http proxy is in use, the error pattern is different")
 	}
 
+	const nonexistent_host = "nowhere.nowhere.test"
+
+	// check internet access
+	_, err := net.LookupHost(nonexistent_host)
+	if netErr, ok := err.(net.Error); !ok || netErr.Temporary() {
+		c.Skip("cannot run test with no internet access, the error pattern is different")
+	}
+
 	privKey, _ := assertstest.GenerateKey(testKeyLength)
 
-	nowhere := "http://nowhere.nowhere.test"
+	nowhere := "http://" + nonexistent_host
 
 	mockRequestIDURL := nowhere + requestIDURLPath
 	restore := devicestate.MockRequestIDURL(mockRequestIDURL)
@@ -2085,10 +2120,10 @@ func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.
 	c.Assert(err, IsNil)
 	err = repo.AddSnap(core11)
 	c.Assert(err, IsNil)
-	err = repo.Connect(interfaces.ConnRef{
+	_, err = repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: info11.Name(), Name: ifname},
 		SlotRef: interfaces.SlotRef{Snap: core11.Name(), Name: ifname},
-	})
+	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	conns, err := repo.Connected("snap-with-snapd-control", "snapd-control")
 	c.Assert(err, IsNil)
@@ -2149,4 +2184,43 @@ func (s *deviceMgrSuite) TestCanManageRefreshesNoRefreshScheduleManaged(c *C) {
 	s.makeSnapDeclaration(c, st, info11)
 
 	c.Check(devicestate.CanManageRefreshes(st), Equals, false)
+}
+
+func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
+	st := state.New(nil)
+
+	hookMgr1, err := hookstate.Manager(st)
+	c.Assert(err, IsNil)
+	mgr1, err := devicestate.Manager(st, hookMgr1)
+	c.Assert(err, IsNil)
+
+	ok := false
+	select {
+	case <-mgr1.Registered():
+	default:
+		ok = true
+	}
+	c.Check(ok, Equals, true)
+
+	st.Lock()
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "serial",
+	})
+	st.Unlock()
+
+	hookMgr2, err := hookstate.Manager(st)
+	c.Assert(err, IsNil)
+	mgr2, err := devicestate.Manager(st, hookMgr2)
+	c.Assert(err, IsNil)
+
+	ok = false
+	select {
+	case <-mgr2.Registered():
+		ok = true
+	case <-time.After(5 * time.Second):
+		c.Fatal("should have been marked registered")
+	}
+	c.Check(ok, Equals, true)
 }

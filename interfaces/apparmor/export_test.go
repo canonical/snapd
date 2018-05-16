@@ -31,6 +31,15 @@ var (
 	NsProfile                  = nsProfile
 )
 
+// MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS
+func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
+	old := isHomeUsingNFS
+	isHomeUsingNFS = new
+	return func() {
+		isHomeUsingNFS = old
+	}
+}
+
 // MockIsRootWritableOverlay mocks the real implementation of osutil.IsRootWritableOverlay
 func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
 	old := isRootWritableOverlay
@@ -76,6 +85,14 @@ func MockClassicTemplate(fakeTemplate string) (restore func()) {
 }
 
 // SetSpecScope sets the scope of a given specification
-func SetSpecScope(spec *Specification, securityTags []string, snapName string) (restore func()) {
-	return spec.setScope(securityTags, snapName)
+func SetSpecScope(spec *Specification, securityTags []string) (restore func()) {
+	return spec.setScope(securityTags)
+}
+
+func MockKernelFeatures(f func() []string) (resture func()) {
+	old := kernelFeatures
+	kernelFeatures = f
+	return func() {
+		kernelFeatures = old
+	}
 }

@@ -29,6 +29,10 @@ type mockCommandSuite struct{}
 
 var _ = Suite(&mockCommandSuite{})
 
+const (
+	UmountNoFollow = umountNoFollow
+)
+
 func (s *mockCommandSuite) TestMockCommand(c *C) {
 	mock := MockCommand(c, "cmd", "true")
 	defer mock.Restore()
