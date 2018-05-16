@@ -68,74 +68,46 @@ func isNoOption(err error) bool {
 	return false
 }
 
-func trueish(vi interface{}) bool {
+// trueish takes an interface{} and returns true if the interface value
+// looks "true". For strings thats if len(string) > 0 for numbers that
+// they are != 0 and for maps/slices/arrays that they have elements.
+//
+// Note that *only* types that the json package decode with the
+// "UseNumber()" options turned on are handled here. If this ever
+// needs to becomes a generic "trueish" helper we need to resurrect
+// the code in 306ba60edfba8d6501060c6f773235d8c994a319 (and add nil
+// to it).
+func trueishForJsonUnmarshalledValues(vi interface{}) (bool, error) {
 	switch v := vi.(type) {
+	// limited to the types that json unmarhal can produce
+	case nil:
+		return false, nil
 	case bool:
 		if v == true {
-			return true
-		}
-	case int:
-		if v > 0 {
-			return true
-		}
-	case int8:
-		if v > 0 {
-			return true
-		}
-	case int16:
-		if v > 0 {
-			return true
-		}
-	case int32:
-		if v > 0 {
-			return true
-		}
-	case int64:
-		if v > 0 {
-			return true
-		}
-	case uint:
-		if v > 0 {
-			return true
-		}
-	case uint8:
-		if v > 0 {
-			return true
-		}
-	case uint16:
-		if v > 0 {
-			return true
-		}
-	case uint32:
-		if v > 0 {
-			return true
-		}
-	case uint64:
-		if v > 0 {
-			return true
-		}
-	case uintptr:
-		if v > 0 {
-			return true
-		}
-	case float32:
-		if v > 0 {
-			return true
-		}
-	case float64:
-		if v > 0 {
-			return true
+			return true, nil
+		} else {
+			return false, nil
 		}
 	case json.Number:
-		if i, err := v.Int64(); err == nil && i > 0 {
-			return true
+		if i, err := v.Int64(); err == nil {
+			if i != 0 {
+				return true, nil
+			} else {
+				return false, nil
+			}
 		}
-		if f, err := v.Float64(); err == nil && f != 0.0 {
-			return true
+		if f, err := v.Float64(); err == nil {
+			if f != 0.0 {
+				return true, nil
+			} else {
+				return false, nil
+			}
 		}
 	case string:
 		if v != "" {
-			return true
+			return true, nil
+		} else {
+			return false, nil
 		}
 	}
 	// arrays/slices/maps
@@ -149,12 +121,14 @@ func trueish(vi interface{}) bool {
 		switch s.Kind() {
 		case reflect.Array, reflect.Slice, reflect.Map:
 			if s.Len() > 0 {
-				return true
+				return true, nil
+			} else {
+				return false, nil
 			}
 		}
 	}
 
-	return false
+	return false, fmt.Errorf("cannot test type %T for trueishness", vi)
 }
 
 func (x *cmdWait) Execute(args []string) error {
@@ -184,7 +158,11 @@ func (x *cmdWait) Execute(args []string) error {
 		if err != nil && !isNoOption(err) {
 			return err
 		}
-		if trueish(conf[confKey]) {
+		res, err := trueishForJsonUnmarshalledValues(conf[confKey])
+		if err != nil {
+			return err
+		}
+		if res {
 			break
 		}
 		time.Sleep(waitConfTimeout)

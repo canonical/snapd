@@ -73,99 +73,50 @@ func (s *SnapSuite) TestCmdWaitMissingConfKey(c *C) {
 
 func (s *SnapSuite) TestTrueish(c *C) {
 	tests := []struct {
-		v interface{}
-		b bool
+		v      interface{}
+		b      bool
+		errStr string
 	}{
+		// nil
+		{nil, false, ""},
 		// bool
-		{true, true},
-		{false, false},
-		// int
-		{int(1), true},
-		{int(2), true},
-		{int(0), false},
-		// int8
-		{int8(1), true},
-		{int8(2), true},
-		{int8(0), false},
-		// int16
-		{int16(1), true},
-		{int16(2), true},
-		{int16(0), false},
-		// int32
-		{int32(1), true},
-		{int32(2), true},
-		{int32(0), false},
-		// int64
-		{int64(1), true},
-		{int64(2), true},
-		{int64(0), false},
-		// uint
-		{uint(1), true},
-		{uint(2), true},
-		{uint(0), false},
-		// uint8
-		{uint8(1), true},
-		{uint8(2), true},
-		{uint8(0), false},
-		// uint16
-		{uint16(1), true},
-		{uint16(2), true},
-		{uint16(0), false},
-		// uint32
-		{uint32(1), true},
-		{uint32(2), true},
-		{uint32(0), false},
-		// uint64
-		{uint64(1), true},
-		{uint64(2), true},
-		{uint64(0), false},
-		// uintptr
-		{uintptr(1), true},
-		{uintptr(2), true},
-		{uintptr(0), false},
-		// byte
-		{byte(1), true},
-		{byte(2), true},
-		{byte(0), false},
-		// rune
-		{rune(1), true},
-		{rune(2), true},
-		{rune(0), false},
-		// float32
-		{float32(1.0), true},
-		{float32(2.0), true},
-		{float32(0.0), false},
-		// float64
-		{float64(1.0), true},
-		{float64(2.0), true},
-		{float64(0.0), false},
-		// no complex{64,128}
-		// ...
+		{true, true, ""},
+		{false, false, ""},
 		// string
-		{"a", true},
-		{"", false},
+		{"a", true, ""},
+		{"", false, ""},
 		// json.Number
-		{json.Number("1"), true},
-		{json.Number("0"), false},
-		{json.Number("1.0"), true},
-		{json.Number("0.0"), false},
+		{json.Number("1"), true, ""},
+		{json.Number("-1"), true, ""},
+		{json.Number("0"), false, ""},
+		{json.Number("1.0"), true, ""},
+		{json.Number("-1.0"), true, ""},
+		{json.Number("0.0"), false, ""},
 		// slices
-		{[]interface{}{"a"}, true},
-		{[]interface{}{}, false},
-		{[]string{"a"}, true},
-		{[]string{}, false},
+		{[]interface{}{"a"}, true, ""},
+		{[]interface{}{}, false, ""},
+		{[]string{"a"}, true, ""},
+		{[]string{}, false, ""},
 		// arrays
-		{[2]interface{}{"a", "b"}, true},
-		{[0]interface{}{}, false},
-		{[2]string{"a", "b"}, true},
-		{[0]string{}, false},
+		{[2]interface{}{"a", "b"}, true, ""},
+		{[0]interface{}{}, false, ""},
+		{[2]string{"a", "b"}, true, ""},
+		{[0]string{}, false, ""},
 		// maps
-		{map[string]interface{}{"a": "a"}, true},
-		{map[string]interface{}{}, false},
-		{map[interface{}]interface{}{"a": "a"}, true},
-		{map[interface{}]interface{}{}, false},
+		{map[string]interface{}{"a": "a"}, true, ""},
+		{map[string]interface{}{}, false, ""},
+		{map[interface{}]interface{}{"a": "a"}, true, ""},
+		{map[interface{}]interface{}{}, false, ""},
+		// invalid
+		{int(1), false, "cannot test type int for trueishness"},
 	}
 	for _, t := range tests {
-		c.Check(snap.Trueish(t.v), Equals, t.b, Commentf("unexpected result for %v (%T), did not get expected %v", t.v, t.v, t.b))
+		res, err := snap.TrueishForJsonUnmarshalledValues(t.v)
+		if t.errStr == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.errStr)
+		}
+		c.Check(res, Equals, t.b, Commentf("unexpected result for %v (%T), did not get expected %v", t.v, t.v, t.b))
 	}
 }
