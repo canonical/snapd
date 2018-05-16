@@ -2230,6 +2230,14 @@ func (s *deviceMgrSuite) TestMarkSeededInConfig(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	// avoid device registration
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Serial: "123",
+	})
+
+	// avoid full seeding
+	s.seeding()
+
 	// not seeded -> no config is set
 	s.state.Unlock()
 	s.mgr.Ensure()
@@ -2251,4 +2259,8 @@ func (s *deviceMgrSuite) TestMarkSeededInConfig(c *C) {
 	tr = config.NewTransaction(st)
 	tr.Get("core", "seed.loaded", &seedLoaded)
 	c.Check(seedLoaded, Equals, true)
+
+	// only the fake seeding change is in the state, no further
+	// changes
+	c.Check(s.state.Changes(), HasLen, 1)
 }
