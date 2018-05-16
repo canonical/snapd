@@ -108,7 +108,7 @@ func (s *adbSupportSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to android devices for fastboot and adb`)
+	c.Assert(si.Summary, Equals, `allows access to connected USB devices for use with fastboot or adb`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "adb-support")
 }
 

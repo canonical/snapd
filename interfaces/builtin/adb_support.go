@@ -19,7 +19,7 @@
 
 package builtin
 
-const adbSupportSummary = `allows access to android devices for fastboot and adb`
+const adbSupportSummary = `allows access to connected USB devices for use with fastboot or adb`
 
 const adbSupportBaseDeclarationSlots = `
   adb-support:
