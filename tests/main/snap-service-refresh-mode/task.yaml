@@ -1,6 +1,6 @@
 summary: "Check that refresh-modes works"
 
-kill-timeout: 3m
+kill-timeout: 5m
 
 debug: |
     grep -n '' *.pid || true
