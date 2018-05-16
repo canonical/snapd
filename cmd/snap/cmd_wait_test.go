@@ -66,7 +66,7 @@ func (s *SnapSuite) TestCmdWaitMissingConfKey(c *C) {
 	})
 
 	_, err := snap.Parser().ParseArgs([]string{"wait", "snapName"})
-	c.Assert(err, ErrorMatches, "need a <key> argument")
+	c.Assert(err, ErrorMatches, "the required argument `<key>` was not provided")
 
 	c.Check(n, Equals, 0)
 }
