@@ -74,12 +74,8 @@ func queryChanges(cli *client.Client, opts *client.ChangesOptions) ([]*client.Ch
 	if err != nil {
 		return nil, err
 	}
-	if maintErr := cli.Maintenance(); maintErr != nil {
-		msg, err := errorToCmdMessage("", maintErr, nil)
-		if err != nil {
-			return nil, err
-		}
-		fmt.Fprintf(Stderr, "WARNING: %s\n", msg)
+	if err := warnMaintenance(cli); err != nil {
+		return nil, err
 	}
 	return chgs, nil
 }
@@ -149,12 +145,8 @@ func queryChange(cli *client.Client, chid string) (*client.Change, error) {
 	if err != nil {
 		return nil, err
 	}
-	if maintErr := cli.Maintenance(); maintErr != nil {
-		msg, err := errorToCmdMessage("", maintErr, nil)
-		if err != nil {
-			return nil, err
-		}
-		fmt.Fprintf(Stderr, "WARNING: %s\n", msg)
+	if err := warnMaintenance(cli); err != nil {
+		return nil, err
 	}
 	return chg, nil
 }
@@ -202,3 +194,14 @@ func (c *cmdTasks) showChange(cli *client.Client, chid string) error {
 }
 
 const line = "......................................................................"
+
+func warnMaintenance(cli *client.Client) error {
+	if maintErr := cli.Maintenance(); maintErr != nil {
+		msg, err := errorToCmdMessage("", maintErr, nil)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(Stderr, "WARNING: %s\n", msg)
+	}
+	return nil
+}
