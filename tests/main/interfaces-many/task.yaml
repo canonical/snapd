@@ -4,8 +4,11 @@ summary: Ensure that commands run when their interfaces are connected
 priority: 100
 
 debug: |
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     # get the full journal to see any out-of-memory errors
-    journalctl
+    get_journalctl_log
 
 details: |
     Install a test snap that plugs as many interfaces as is possible and

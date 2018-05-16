@@ -200,6 +200,7 @@ func (s *getAttrSuite) SetUpTest(c *C) {
 	attrsTask.Set("plug-dynamic", dynamicPlugAttrs)
 	attrsTask.Set("slot-static", staticSlotAttrs)
 	attrsTask.Set("slot-dynamic", dynamicSlotAttrs)
+
 	ch.AddTask(attrsTask)
 	state.Unlock()
 

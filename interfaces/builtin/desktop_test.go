@@ -109,9 +109,15 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/gtk-3.0/settings.ini r,")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow access to xdg-desktop-portal and xdg-document-portal")
 
-	// No UpdateNS rules on an all-snaps system
+	// On an all-snaps system, the only UpdateNS rule is for the
+	// document portal.
 	updateNS := spec.UpdateNS()
-	c.Assert(updateNS, HasLen, 0)
+	c.Assert(updateNS, HasLen, 1)
+	c.Check(updateNS[0], Equals, `  # Mount the document portal
+  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.consumer/ -> /run/user/[0-9]*/doc/,
+  umount /run/user/[0-9]*/doc/,
+
+`)
 
 	// On a classic system, there are UpdateNS rules for the host
 	// system font mounts
@@ -120,10 +126,11 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec = &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	updateNS = spec.UpdateNS()
-	c.Assert(updateNS, HasLen, 3)
-	c.Check(updateNS[0], testutil.Contains, "# Read-only access to /usr/share/fonts")
-	c.Check(updateNS[1], testutil.Contains, "# Read-only access to /usr/local/share/fonts")
-	c.Check(updateNS[2], testutil.Contains, "# Read-only access to /var/cache/fontconfig")
+	c.Assert(updateNS, HasLen, 4)
+	c.Check(updateNS[0], testutil.Contains, "# Mount the document portal")
+	c.Check(updateNS[1], testutil.Contains, "# Read-only access to /usr/share/fonts")
+	c.Check(updateNS[2], testutil.Contains, "# Read-only access to /usr/local/share/fonts")
+	c.Check(updateNS[3], testutil.Contains, "# Read-only access to /var/cache/fontconfig")
 
 	// connected plug to core slot
 	spec = &apparmor.Specification{}
@@ -141,10 +148,16 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	// On all-snaps systems, no mount entries are added
+	// On all-snaps systems, the font related mount entries are missing
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Check(spec.MountEntries(), HasLen, 0)
+
+	entries := spec.UserMountEntries()
+	c.Check(entries, HasLen, 1)
+	c.Check(entries[0].Name, Equals, "$XDG_RUNTIME_DIR/doc/by-app/snap.consumer")
+	c.Check(entries[0].Dir, Equals, "$XDG_RUNTIME_DIR/doc")
+	c.Check(entries[0].Options, DeepEquals, []string{"bind", "rw", "x-snapd.ignore-missing"})
 
 	// On classic systems, a number of font related directories
 	// are bind mounted from the host system if they exist.
@@ -153,7 +166,7 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	spec = &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 
-	entries := spec.MountEntries()
+	entries = spec.MountEntries()
 	c.Assert(entries, HasLen, 3)
 
 	const hostfs = "/var/lib/snapd/hostfs"
@@ -168,6 +181,10 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	c.Check(entries[2].Name, Equals, hostfs+dirs.SystemFontconfigCacheDir)
 	c.Check(entries[2].Dir, Equals, "/var/cache/fontconfig")
 	c.Check(entries[2].Options, DeepEquals, []string{"bind", "ro"})
+
+	entries = spec.UserMountEntries()
+	c.Assert(entries, HasLen, 1)
+	c.Check(entries[0].Dir, Equals, "$XDG_RUNTIME_DIR/doc")
 }
 
 func (s *DesktopInterfaceSuite) TestStaticInfo(c *C) {
