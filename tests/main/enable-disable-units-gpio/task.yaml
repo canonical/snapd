@@ -69,6 +69,9 @@ restore: |
     rm -rf $GPIO_MOCK_DIR /etc/systemd/system/gpio-mock.service /home/test/gpio-mock.sh
 
 execute: |
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
@@ -76,7 +79,7 @@ execute: |
 
     echo "Then the snap service units concerning the gpio device must be run before and after a reboot"
     expected="Unit snap.core.interface.gpio-100.service has finished starting up"
-    journalctl -xe --no-pager | MATCH "$expected"
+    get_journalctl_log -xe --no-pager | MATCH "$expected"
 
     if [ "$SPREAD_REBOOT" = "1" ]; then
         cat $GPIO_MOCK_DIR/export | MATCH "^100$"
