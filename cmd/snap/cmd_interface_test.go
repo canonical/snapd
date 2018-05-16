@@ -218,7 +218,7 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 						"header":   "pin-array",
 						"location": "internal",
 						"path":     "/dev/ttyS0",
-						"number":   "1",
+						"number":   1,
 					},
 				}},
 			}},
