@@ -67,7 +67,7 @@ func isNoOption(err error) bool {
 	return false
 }
 
-// trueish takes an interface{} and returns true if the interface value
+// trueishJSON takes an interface{} and returns true if the interface value
 // looks "true". For strings thats if len(string) > 0 for numbers that
 // they are != 0 and for maps/slices/arrays that they have elements.
 //
@@ -76,7 +76,7 @@ func isNoOption(err error) bool {
 // needs to becomes a generic "trueish" helper we need to resurrect
 // the code in 306ba60edfba8d6501060c6f773235d8c994a319 (and add nil
 // to it).
-func trueishForJsonUnmarshalledValues(vi interface{}) (bool, error) {
+func trueishJSON(vi interface{}) (bool, error) {
 	switch v := vi.(type) {
 	// limited to the types that json unmarhal can produce
 	case nil:
@@ -98,16 +98,13 @@ func trueishForJsonUnmarshalledValues(vi interface{}) (bool, error) {
 	switch typ.Kind() {
 	case reflect.Array, reflect.Slice, reflect.Map:
 		s := reflect.ValueOf(vi)
-		if s.Kind() == reflect.Ptr {
-			s = reflect.Indirect(s)
-		}
 		switch s.Kind() {
 		case reflect.Array, reflect.Slice, reflect.Map:
 			return s.Len() > 0, nil
 		}
 	}
 
-	return false, fmt.Errorf("cannot test type %T for trueishness", vi)
+	return false, fmt.Errorf("cannot test type %T for truth", vi)
 }
 
 func (x *cmdWait) Execute(args []string) error {
@@ -124,7 +121,7 @@ func (x *cmdWait) Execute(args []string) error {
 		if err != nil && !isNoOption(err) {
 			return err
 		}
-		res, err := trueishForJsonUnmarshalledValues(conf[confKey])
+		res, err := trueishJSON(conf[confKey])
 		if err != nil {
 			return err
 		}

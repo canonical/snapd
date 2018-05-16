@@ -71,7 +71,7 @@ func (s *SnapSuite) TestCmdWaitMissingConfKey(c *C) {
 	c.Check(n, Equals, 0)
 }
 
-func (s *SnapSuite) TestTrueish(c *C) {
+func (s *SnapSuite) TestTrueishJSON(c *C) {
 	tests := []struct {
 		v      interface{}
 		b      bool
@@ -108,10 +108,10 @@ func (s *SnapSuite) TestTrueish(c *C) {
 		{map[interface{}]interface{}{"a": "a"}, true, ""},
 		{map[interface{}]interface{}{}, false, ""},
 		// invalid
-		{int(1), false, "cannot test type int for trueishness"},
+		{int(1), false, "cannot test type int for truth"},
 	}
 	for _, t := range tests {
-		res, err := snap.TrueishForJsonUnmarshalledValues(t.v)
+		res, err := snap.TrueishJSON(t.v)
 		if t.errStr == "" {
 			c.Check(err, IsNil)
 		} else {

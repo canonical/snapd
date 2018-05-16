@@ -33,17 +33,17 @@ import (
 var RunMain = run
 
 var (
-	CreateUserDataDirs               = createUserDataDirs
-	ResolveApp                       = resolveApp
-	IsReexeced                       = isReexeced
-	MaybePrintServices               = maybePrintServices
-	MaybePrintCommands               = maybePrintCommands
-	SortByPath                       = sortByPath
-	AdviseCommand                    = adviseCommand
-	Antialias                        = antialias
-	FormatChannel                    = fmtChannel
-	PrintDescr                       = printDescr
-	TrueishForJsonUnmarshalledValues = trueishForJsonUnmarshalledValues
+	CreateUserDataDirs = createUserDataDirs
+	ResolveApp         = resolveApp
+	IsReexeced         = isReexeced
+	MaybePrintServices = maybePrintServices
+	MaybePrintCommands = maybePrintCommands
+	SortByPath         = sortByPath
+	AdviseCommand      = adviseCommand
+	Antialias          = antialias
+	FormatChannel      = fmtChannel
+	PrintDescr         = printDescr
+	TrueishJSON        = trueishJSON
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
