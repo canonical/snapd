@@ -82,32 +82,16 @@ func trueishForJsonUnmarshalledValues(vi interface{}) (bool, error) {
 	case nil:
 		return false, nil
 	case bool:
-		if v == true {
-			return true, nil
-		} else {
-			return false, nil
-		}
+		return v, nil
 	case json.Number:
 		if i, err := v.Int64(); err == nil {
-			if i != 0 {
-				return true, nil
-			} else {
-				return false, nil
-			}
+			return i != 0, nil
 		}
 		if f, err := v.Float64(); err == nil {
-			if f != 0.0 {
-				return true, nil
-			} else {
-				return false, nil
-			}
+			return f != 0.0, nil
 		}
 	case string:
-		if v != "" {
-			return true, nil
-		} else {
-			return false, nil
-		}
+		return v != "", nil
 	}
 	// arrays/slices/maps
 	typ := reflect.TypeOf(vi)
@@ -119,11 +103,7 @@ func trueishForJsonUnmarshalledValues(vi interface{}) (bool, error) {
 		}
 		switch s.Kind() {
 		case reflect.Array, reflect.Slice, reflect.Map:
-			if s.Len() > 0 {
-				return true, nil
-			} else {
-				return false, nil
-			}
+			return s.Len() > 0, nil
 		}
 	}
 
