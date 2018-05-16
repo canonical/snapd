@@ -88,3 +88,11 @@ func MockClassicTemplate(fakeTemplate string) (restore func()) {
 func SetSpecScope(spec *Specification, securityTags []string) (restore func()) {
 	return spec.setScope(securityTags)
 }
+
+func MockKernelFeatures(f func() []string) (resture func()) {
+	old := kernelFeatures
+	kernelFeatures = f
+	return func() {
+		kernelFeatures = old
+	}
+}
