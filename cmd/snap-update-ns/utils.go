@@ -143,7 +143,6 @@ func (sec *Secure) CheckTrespassing(fd int, segments []string, segNum int) error
 	// fstatfs calls and it doesn't change anything.
 	pd := "/" + strings.Join(segments, "/") + "/"
 	for _, prefix := range sec.allowedPaths {
-		logger.Debugf("checking string prefix %q %q", pd, prefix)
 		if strings.HasPrefix(pd, prefix) {
 			return nil
 		}
@@ -167,7 +166,6 @@ func (sec *Secure) CheckTrespassing(fd int, segments []string, segNum int) error
 		return nil
 	}
 	pv := "/" + strings.Join(segments[:segNum], "/")
-	logger.Debugf("trespassing error segments:%q, i:%d => path: %q", segments, segNum, pv)
 	return &TrespassingError{PathViolated: pv, PathDesired: pd}
 }
 
@@ -558,7 +556,6 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 	// We need a place for "safe keeping" of what is present in the original
 	// directory as we are about to attach a tmpfs there, which will hide
 	// everything inside.
-	logger.Debugf("plan-writable-mimic %q", dir)
 	safeKeepingDir := filepath.Join("/tmp/.snap/", dir)
 
 	var changes []*Change
@@ -658,7 +655,6 @@ type FatalError struct {
 // returned. If the undo plan fails the function returns a FatalError as it
 // cannot fix the system from an inconsistent state.
 func execWritableMimic(plan []*Change, sec *Secure) ([]*Change, error) {
-	logger.Debugf("execute-writable-mimic")
 	undoChanges := make([]*Change, 0, len(plan)-2)
 	for i, change := range plan {
 		if _, err := changePerform(change, sec); err != nil {
