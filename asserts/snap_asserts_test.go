@@ -32,7 +32,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
-	"github.com/snapcore/snapd/snap"
 )
 
 var (
@@ -48,6 +47,12 @@ var (
 type snapDeclSuite struct {
 	ts     time.Time
 	tsLine string
+}
+
+type emptyAttrerObject struct{}
+
+func (o emptyAttrerObject) Lookup(path string) (interface{}, bool) {
+	return nil, false
 }
 
 func (sds *snapDeclSuite) SetUpSuite(c *C) {
@@ -300,8 +305,8 @@ AXNpZw==`
 	c.Check(plugRule1.DenyInstallation[0].PlugAttributes, Equals, asserts.NeverMatchAttributes)
 	c.Assert(plugRule1.AllowAutoConnection, HasLen, 1)
 
-	plug := &snap.PlugInfo{}
-	slot := &snap.SlotInfo{}
+	plug := emptyAttrerObject{}
+	slot := emptyAttrerObject{}
 
 	c.Check(plugRule1.AllowAutoConnection[0].SlotAttributes.Check(slot, nil), ErrorMatches, `attribute "a1".*`)
 	c.Check(plugRule1.AllowAutoConnection[0].PlugAttributes.Check(plug, nil), ErrorMatches, `attribute "b1".*`)
@@ -1202,8 +1207,8 @@ AXNpZw==`
 	c.Check(baseDecl.PlugRule("interfaceX"), IsNil)
 	c.Check(baseDecl.SlotRule("interfaceX"), IsNil)
 
-	plug := &snap.PlugInfo{}
-	slot := &snap.SlotInfo{}
+	plug := emptyAttrerObject{}
+	slot := emptyAttrerObject{}
 
 	plugRule1 := baseDecl.PlugRule("interface1")
 	c.Assert(plugRule1, NotNil)
