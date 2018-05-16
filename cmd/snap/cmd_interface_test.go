@@ -218,6 +218,7 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 						"header":   "pin-array",
 						"location": "internal",
 						"path":     "/dev/ttyS0",
+						"number":   "1",
 					},
 				}},
 			}},
@@ -235,6 +236,7 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 		"  - gizmo-gadget:debug-serial-port (serial port for debugging):\n" +
 		"      header:   pin-array\n" +
 		"      location: internal\n" +
+		"      number:   1\n" +
 		"      path:     /dev/ttyS0\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
