@@ -29,6 +29,15 @@ prepare: |
 
     EOF
 
+restore: |
+    # We had a runaway network-bind-consumer process that would generate
+    # so many log messages that "journalctl --sync" never finished causing
+    # tests to hang. By removing it explicitly we avoid this problem
+    # (journalctl --sync is happening in our setup/restore code before
+    #  the installed snaps are removed).
+    echo "Remove $SNAP_NAME to ensure that the service is really stopped"
+    snap remove $SNAP_NAME || true
+
 execute: |
     echo "The interface is connected by default"
     snap interfaces -i network-bind | MATCH ":network-bind .*$SNAP_NAME"
