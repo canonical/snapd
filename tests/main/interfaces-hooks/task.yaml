@@ -53,4 +53,20 @@ execute: |
 
     echo "Verify static and dynamic attributes have expected values"
     check_attributes
+
+    rm -f "$CONSUMER_DATA/prepare-plug-consumer-done" "$PRODUCER_DATA/prepare-slot-producer-done" "$CONSUMER_DATA/connect-plug-consumer-done" "$PRODUCER_DATA/connect-slot-producer-done"
+
+    systemctl start snapd.service snapd.socket
+    echo "Verify that hooks are re-run on update and attributes in the state get updated"
+    install_local basic-iface-hooks-consumer
+
+    echo "Ensure the hooks were executed again"
+    check_hooks_were_run
+
+    # stop snapd before inspecting state.json
+    systemctl stop snapd.service snapd.socket
+
+    check_attributes
+    jq -r '.data["conns"]["basic-iface-hooks-consumer:consumer basic-iface-hooks-producer:producer"]["plug-dynamic"]["exec-count"]' /var/lib/snapd/state.json | MATCH "2"
+
     systemctl start snapd.service snapd.socket

@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.32.6
+Version:        2.32.8
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -724,6 +724,20 @@ fi
 
 
 %changelog
+* Fri May 11 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.8
+ - snapd.core-fixup.sh: add workaround for corrupted uboot.env
+
+* Fri May 11 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.7
+ - many: add wait command and seeded target (2
+ - snapd.core-fixup.sh: add workaround for corrupted uboot.env
+ - boot: clear "snap_mode" when needed
+ - cmd/libsnap: fix compile error on more restrictive gcc
+ - tests: cherry-pick commits to move spread to google backend
+ - spread.yaml: add cosmic (18.10) to autopkgtest/qemu
+ - userd: set up journal logging streams for autostarted apps
+
 * Sun Apr 29 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.6
  - snap: do not use overly short timeout in `snap
