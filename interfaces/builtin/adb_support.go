@@ -29,6 +29,15 @@ const adbSupportBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+// These udev rules are specifically for making it convenient for people
+// to connect to their device without requiring root privileges. Upstream
+// adb also uses 'GROUP="plugdev"', but this group is not guaranteed
+// to exist and since MODE is 0666, it isn't required. We use 'MODE="0666"'
+// since the access to the USB devices doesn't provide a privilege
+// escalation on the host and the connected Android device has its own
+// checks for allowing access that are independent of the host USB
+// setup, therefore a more restricted setup (eg 'MODE="0660"') doesn't
+// appreciably improve security.
 var adbSupportConnectedPlugUDev = []string{
 	// ACER
 	`SUBSYSTEM=="usb", ATTR{idVendor}=="0502", MODE="0666"`,
