@@ -195,6 +195,7 @@ func (s *connSuite) TestDottedPathSlot(c *C) {
 
 func (s *connSuite) TestDottedPathPlug(c *C) {
 	attrs := map[string]interface{}{
+		"a": "b",
 		"nested": map[string]interface{}{
 			"foo": "bar",
 		},
@@ -204,11 +205,15 @@ func (s *connSuite) TestDottedPathPlug(c *C) {
 	plug := NewConnectedPlug(s.plug, attrs)
 	c.Assert(plug, NotNil)
 
+	v, ok := plug.Lookup("a")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, Equals, "b")
+
 	// static attribute complex.c
 	c.Assert(plug.Attr("complex.c", &strVal), IsNil)
 	c.Assert(strVal, Equals, "d")
 
-	v, ok := plug.Lookup("complex.c")
+	v, ok = plug.Lookup("complex.c")
 	c.Assert(ok, Equals, true)
 	c.Assert(v, Equals, "d")
 

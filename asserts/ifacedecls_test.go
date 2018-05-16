@@ -64,7 +64,7 @@ func attrs(yml string) *attrerObject {
 		panic(err)
 	}
 
-	// note: it's important to go through snap yaml here even though we're really interested in Attrs only,
+	// NOTE: it's important to go through snap yaml here even though we're really interested in Attrs only,
 	// as InfoFromSnapYaml normalizes yaml values.
 	info, err := snap.InfoFromSnapYaml(snapYaml)
 	if err != nil {
