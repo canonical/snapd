@@ -120,3 +120,61 @@ func (s *SnapSuite) TestTrueish(c *C) {
 		c.Check(res, Equals, t.b, Commentf("unexpected result for %v (%T), did not get expected %v", t.v, t.v, t.b))
 	}
 }
+
+func (s *SnapSuite) TestCmdWaitIntegration(c *C) {
+	restore := snap.MockWaitConfTimeout(2 * time.Millisecond)
+	defer restore()
+
+	var tests = []struct {
+		v        string
+		willWait bool
+	}{
+		// not-waiting
+		{"1.0", false},
+		{"-1.0", false},
+		{"0.1", false},
+		{"-0.1", false},
+		{"1", false},
+		{"-1", false},
+		{`"a"`, false},
+		{`["a"]`, false},
+		{`{"a":"b"}`, false},
+		// waiting
+		{"0", true},
+		{"0.0", true},
+		{"{}", true},
+		{"[]", true},
+		{`""`, true},
+		{"null", true},
+	}
+
+	testValueCh := make(chan string, 2)
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		testValue := <-testValueCh
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/snaps/system/conf")
+
+		fmt.Fprintln(w, fmt.Sprintf(`{"type":"sync", "status-code": 200, "result": {"test.value":%v}}`, testValue))
+		n++
+	})
+
+	for _, t := range tests {
+		n = 0
+		testValueCh <- t.v
+		if t.willWait {
+			// a "trueish" value to ensure wait does not wait forever
+			testValueCh <- "42"
+		}
+
+		_, err := snap.Parser().ParseArgs([]string{"wait", "system", "test.value"})
+		c.Assert(err, IsNil)
+		if t.willWait {
+			// we waited once, then got a non-wait value
+			c.Check(n, Equals, 2)
+		} else {
+			// no waiting happend
+			c.Check(n, Equals, 1)
+		}
+	}
+}
