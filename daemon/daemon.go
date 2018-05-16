@@ -555,7 +555,7 @@ func (d *Daemon) Stop() error {
 	if restartSystem {
 		// ask for shutdown and wait for it to happen.
 		// if we exit snapd will be restared by systemd
-		rebootDelay := "now"
+		rebootDelay := "+1"
 		ovr := os.Getenv("SNAPD_REBOOT_DELAY") // for tests
 		if ovr != "" {
 			rebootDelay = ovr

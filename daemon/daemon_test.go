@@ -685,7 +685,7 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 
 	c.Check(err, check.ErrorMatches, "expected reboot did not happen")
 	c.Check(cmds, check.HasLen, 2)
-	c.Check(cmds[1][:3], check.DeepEquals, []string{"shutdown", "-r", "now"})
+	c.Check(cmds[1][:3], check.DeepEquals, []string{"shutdown", "-r", "+1"})
 
 	// we are not stopping, we wait for the reboot instead
 	c.Check(s.notified, check.DeepEquals, []string{"READY=1"})
