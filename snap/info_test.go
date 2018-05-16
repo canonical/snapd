@@ -216,6 +216,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(1)}
 	info := snaptest.MockSnap(c, sampleYaml, si)
 	// not current -> Zero
+	c.Check(info.InstallDate().IsZero(), Equals, true)
 	c.Check(snap.InstallDate(info.Name()).IsZero(), Equals, true)
 
 	mountdir := info.MountDir()
@@ -229,6 +230,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	// sanity
 	c.Check(instTime.IsZero(), Equals, false)
 
+	c.Check(info.InstallDate().Equal(instTime), Equals, true)
 	c.Check(snap.InstallDate(info.Name()).Equal(instTime), Equals, true)
 }
 
@@ -236,7 +238,10 @@ func (s *infoSuite) TestReadInfoNotFound(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(info, IsNil)
-	c.Check(err, ErrorMatches, `cannot find installed snap "sample" at revision 42`)
+	c.Check(err, ErrorMatches, `cannot find installed snap "sample" at revision 42: missing file .*sample/42/meta/snap.yaml`)
+	bse, ok := err.(snap.BrokenSnapError)
+	c.Assert(ok, Equals, true)
+	c.Check(bse.Broken(), Equals, bse.Error())
 }
 
 func (s *infoSuite) TestReadInfoUnreadable(c *C) {
@@ -258,7 +263,10 @@ func (s *infoSuite) TestReadInfoUnparsable(c *C) {
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(info, IsNil)
 	// TODO: maybe improve this error message
-	c.Check(err, ErrorMatches, ".* failed to parse.*")
+	c.Check(err, ErrorMatches, `cannot use installed snap "sample" at revision 42: cannot parse snap.yaml: yaml: .*`)
+	bse, ok := err.(snap.BrokenSnapError)
+	c.Assert(ok, Equals, true)
+	c.Check(bse.Broken(), Equals, bse.Error())
 }
 
 func (s *infoSuite) TestReadInfoUnfindable(c *C) {
@@ -268,9 +276,8 @@ func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 	c.Assert(ioutil.WriteFile(p, []byte(``), 0644), IsNil)
 
 	info, err := snap.ReadInfo("sample", si)
+	c.Check(err, ErrorMatches, `cannot find installed snap "sample" at revision 42: missing file .*var/lib/snapd/snaps/sample_42.snap`)
 	c.Check(info, IsNil)
-	// TODO: maybe improve this error message
-	c.Check(err, ErrorMatches, ".* no such file or directory")
 }
 
 // makeTestSnap here can also be used to produce broken snaps (differently from snaptest.MakeTestSnapWithFiles)!
@@ -798,6 +805,16 @@ apps:
 	c.Check(info.Apps["svc2"].IsService(), Equals, true)
 	c.Check(info.Apps["app1"].IsService(), Equals, false)
 	c.Check(info.Apps["app1"].IsService(), Equals, false)
+}
+
+func (s *infoSuite) TestAppInfoStringer(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: asnap
+apps:
+  one:
+   daemon: simple
+`))
+	c.Assert(err, IsNil)
+	c.Check(fmt.Sprintf("%q", info.Apps["one"].String()), Equals, `"asnap.one"`)
 }
 
 func (s *infoSuite) TestSocketFile(c *C) {

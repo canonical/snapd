@@ -48,7 +48,7 @@ func (m *Type) UnmarshalJSON(data []byte) error {
 	return m.fromString(str)
 }
 
-// UnmarshalYAML so ConfinementType implements yaml's Unmarshaler interface
+// UnmarshalYAML so Type implements yaml's Unmarshaler interface
 func (m *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {

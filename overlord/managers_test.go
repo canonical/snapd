@@ -2075,7 +2075,7 @@ func (ms *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snap
 	cn, err := repo.Connected("snap1", "shared-data-plug")
 	c.Assert(err, IsNil)
 	c.Assert(cn, HasLen, 1)
-	c.Assert(cn, DeepEquals, []interfaces.ConnRef{{
+	c.Assert(cn, DeepEquals, []*interfaces.ConnRef{{
 		PlugRef: interfaces.PlugRef{Snap: "snap1", Name: "shared-data-plug"},
 		SlotRef: interfaces.SlotRef{Snap: "snap2", Name: "shared-data-slot"},
 	}})

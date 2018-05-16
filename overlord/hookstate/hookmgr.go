@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/settings"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -430,10 +431,16 @@ func trackHookError(context *Context, output []byte, err error) {
 	if context.setup.IgnoreError {
 		extra["IgnoreError"] = "1"
 	}
-	oopsid, err := errtrackerReport(context.SnapName(), errmsg, dupSig, extra)
-	if err == nil {
-		logger.Noticef("Reported hook failure from %q for snap %q as %s", context.HookName(), context.SnapName(), oopsid)
-	} else {
-		logger.Debugf("Cannot report hook failure: %s", err)
+
+	context.state.Lock()
+	problemReportsDisabled := settings.ProblemReportsDisabled(context.state)
+	context.state.Unlock()
+	if !problemReportsDisabled {
+		oopsid, err := errtrackerReport(context.SnapName(), errmsg, dupSig, extra)
+		if err == nil {
+			logger.Noticef("Reported hook failure from %q for snap %q as %s", context.HookName(), context.SnapName(), oopsid)
+		} else {
+			logger.Debugf("Cannot report hook failure: %s", err)
+		}
 	}
 }

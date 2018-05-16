@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -50,8 +50,8 @@ func (r *catalogStore) WriteCatalogs(ctx context.Context, w io.Writer, a store.S
 	}
 	r.ops = append(r.ops, "write-catalog")
 	w.Write([]byte("pkg1\npkg2"))
-	a.AddSnap("foo", "foo summary", []string{"foo", "meh"})
-	a.AddSnap("bar", "bar summray", []string{"bar", "meh"})
+	a.AddSnap("foo", "1.0", "foo summary", []string{"foo", "meh"})
+	a.AddSnap("bar", "2.0", "bar summray", []string{"bar", "meh"})
 	return nil
 }
 
@@ -105,10 +105,10 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, true)
 	dump, err := advisor.DumpCommands()
 	c.Assert(err, IsNil)
-	c.Check(dump, DeepEquals, map[string][]string{
-		"foo": {"foo"},
-		"bar": {"bar"},
-		"meh": {"foo", "bar"},
+	c.Check(dump, DeepEquals, map[string]string{
+		"foo": `[{"snap":"foo","version":"1.0"}]`,
+		"bar": `[{"snap":"bar","version":"2.0"}]`,
+		"meh": `[{"snap":"foo","version":"1.0"},{"snap":"bar","version":"2.0"}]`,
 	})
 }
 
