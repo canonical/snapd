@@ -70,7 +70,7 @@
 %endif
 
 Name:           snapd
-Version:        2.32.8
+Version:        2.32.9
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 Group:          System Environment/Base
@@ -712,6 +712,11 @@ fi
 
 
 %changelog
+* Tue May 16 2018 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.32.9
+ - tests: run all spread tests inside GCE
+ - tests: build spread in the autopkgtests with a more recent go
+
 * Fri May 11 2018 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.32.8
  - snapd.core-fixup.sh: add workaround for corrupted uboot.env
