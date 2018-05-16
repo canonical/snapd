@@ -173,7 +173,7 @@ func (s *SnapSuite) TestCmdWaitIntegration(c *C) {
 			// we waited once, then got a non-wait value
 			c.Check(n, Equals, 2)
 		} else {
-			// no waiting happend
+			// no waiting happened
 			c.Check(n, Equals, 1)
 		}
 	}
