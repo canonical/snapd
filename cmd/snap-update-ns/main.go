@@ -239,10 +239,7 @@ func applyUserFstab(snapName string) error {
 	}
 
 	// Replace XDG_RUNTIME_DIR in mount profile
-	xdgRuntimeDir, ok := os.LookupEnv("XDG_RUNTIME_DIR")
-	if !ok {
-		return fmt.Errorf("XDG_RUNTIME_DIR is not set")
-	}
+	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
 	for i := range desired.Entries {
 		if strings.HasPrefix(desired.Entries[i].Name, "$XDG_RUNTIME_DIR/") {
 			desired.Entries[i].Name = strings.Replace(desired.Entries[i].Name, "$XDG_RUNTIME_DIR", xdgRuntimeDir, 1)

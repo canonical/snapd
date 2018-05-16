@@ -28,7 +28,7 @@ execute: |
     echo "Now test with the real corrupted image"
     unxz -c -d test.img.xz >test.img
     mount -t vfat test.img /boot/uboot
-    n=$(ls /boot/uboot | grep ^uboot.env$ | wc -l)
+    n=$(ls /boot/uboot | grep -c ^uboot.env$)
     if [ "$n" != "2" ]; then
         echo "Image not broken in the right way, expected two uboot.env files"
         ls /boot/uboot
@@ -38,7 +38,7 @@ execute: |
     echo "Trigger cleanup"
     systemctl restart snapd.core-fixup.service
 
-    n=$(ls /boot/uboot | grep ^uboot.env$ | wc -l)
+    n=$(ls /boot/uboot | grep -c ^uboot.env$)
     if [ "$n" != "1" ]; then
         echo "Image not repaired"
         ls /boot/uboot
