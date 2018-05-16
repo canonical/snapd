@@ -92,7 +92,7 @@ func (e *TrespassingError) Error() string {
 func (e *TrespassingError) MimicPath() string {
 	if e.PathViolated == "/" {
 		// We cannot create a writable mimic on the whole / filesystem
-		// because doing so reuqires a place where we can stash the
+		// because doing so requires a place where we can stash the
 		// original / while we overlay something new over / and make
 		// things writable. We can only ever do that when constructing
 		// the initial mount namespace, before we pivot_root. Still,
