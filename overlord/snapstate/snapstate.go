@@ -788,6 +788,8 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		}
 
 		snapsup := &SnapSetup{
+			Base:         update.Base,
+			Prereq:       defaultContentPlugProviders(st, update),
 			Channel:      channel,
 			UserID:       snapUserID,
 			Flags:        flags.ForSnapSetup(),
