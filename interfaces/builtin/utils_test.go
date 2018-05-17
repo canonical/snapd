@@ -66,11 +66,11 @@ func (s *utilsSuite) TestSanitizeSlotReservedForOSOrApp(c *C) {
 	c.Assert(builtin.SanitizeSlotReservedForOSOrApp(s.iface, s.slotGadget), ErrorMatches, errmsg)
 }
 
-func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *interfaces.Plug {
+func MockPlug(c *C, yaml string, si *snap.SideInfo, plugName string) *snap.PlugInfo {
 	return builtin.MockPlug(c, yaml, si, plugName)
 }
 
-func MockSlot(c *C, yaml string, si *snap.SideInfo, slotName string) *interfaces.Slot {
+func MockSlot(c *C, yaml string, si *snap.SideInfo, slotName string) *snap.SlotInfo {
 	return builtin.MockSlot(c, yaml, si, slotName)
 }
 

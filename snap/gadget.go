@@ -47,7 +47,7 @@ type GadgetVolume struct {
 // type when we actually handle these.
 
 type VolumeStructure struct {
-	Label       string          `yaml:"label"`
+	Label       string          `yaml:"filesystem-label"`
 	Offset      string          `yaml:"offset"`
 	OffsetWrite string          `yaml:"offset-write"`
 	Size        string          `yaml:"size"`
@@ -110,22 +110,22 @@ func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 	}
 
 	// basic validation
-	foundBootloader := false
+	var bootloadersFound int
 	for _, v := range gi.Volumes {
-		if foundBootloader {
-			return nil, fmt.Errorf(errorFormat, "bootloader already declared")
-		}
 		switch v.Bootloader {
 		case "":
-			return nil, fmt.Errorf(errorFormat, "bootloader cannot be empty")
+			// pass
 		case "grub", "u-boot", "android-boot":
-			foundBootloader = true
+			bootloadersFound += 1
 		default:
 			return nil, fmt.Errorf(errorFormat, "bootloader must be one of grub, u-boot or android-boot")
 		}
 	}
-	if !foundBootloader {
+	switch {
+	case bootloadersFound == 0:
 		return nil, fmt.Errorf(errorFormat, "bootloader not declared in any volume")
+	case bootloadersFound > 1:
+		return nil, fmt.Errorf(errorFormat, fmt.Sprintf("too many (%d) bootloaders declared", bootloadersFound))
 	}
 
 	return &gi, nil

@@ -43,12 +43,14 @@ var _ = Suite(&AlsaInterfaceSuite{
 })
 
 const alsaConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [alsa]
 `
 
 const alsaCoreYaml = `name: core
+version: 0
 type: os
 slots:
   alsa:
@@ -64,18 +66,18 @@ func (s *AlsaInterfaceSuite) TestName(c *C) {
 }
 
 func (s *AlsaInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "alsa",
 		Interface: "alsa",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"alsa slots are reserved for the core snap")
 }
 
 func (s *AlsaInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *AlsaInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -88,9 +90,10 @@ func (s *AlsaInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *AlsaInterfaceSuite) TestUDevpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 7)
+	c.Assert(spec.Snippets(), HasLen, 8)
 	c.Assert(spec.Snippets(), testutil.Contains, `# alsa
 KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *AlsaInterfaceSuite) TestStaticInfo(c *C) {

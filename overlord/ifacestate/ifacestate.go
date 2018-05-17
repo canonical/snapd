@@ -24,6 +24,7 @@ package ifacestate
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
@@ -36,16 +37,83 @@ import (
 )
 
 var noConflictOnConnectTasks = func(task *state.Task) bool {
+	// TODO: reconsider this check with regard to interface hooks
 	return task.Kind() != "connect" && task.Kind() != "disconnect"
+}
+
+var connectRetryTimeout = time.Second * 5
+
+func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slotSnap string, installedSnapTask *state.Task) error {
+	if installedSnapTask == nil {
+		for _, chg := range st.Changes() {
+			if chg.Kind() == "transition-ubuntu-core" {
+				return fmt.Errorf("ubuntu-core to core transition in progress, no other changes allowed until this is done")
+			}
+		}
+	}
+
+	var installedSnap string
+	if installedSnapTask != nil {
+		snapsup, err := snapstate.TaskSnapSetup(installedSnapTask)
+		if err != nil {
+			return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", installedSnapTask.Summary())
+		}
+		installedSnap = snapsup.Name()
+	}
+
+	for _, task := range st.Tasks() {
+		if task.Status().Ready() || installedSnapTask == task {
+			continue
+		}
+
+		k := task.Kind()
+		if k == "connect" || k == "disconnect" {
+			continue
+		}
+
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		// e.g. hook tasks don't have task snap setup
+		if err != nil {
+			continue
+		}
+
+		snapName := snapsup.Name()
+
+		if installedSnapTask != nil && installedSnap == snapName {
+			continue
+		}
+
+		// different snaps - no conflict
+		if snapName != plugSnap && snapName != slotSnap {
+			continue
+		}
+
+		if k == "unlink-snap" || k == "link-snap" || k == "setup-profiles" {
+			if installedSnapTask != nil {
+				// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op
+				// if snap is getting installed/refreshed - temporary conflict, retry later
+				return &state.Retry{After: connectRetryTimeout}
+			}
+			// for connect it's a conflict
+			return snapstate.ChangeConflictError(snapName, task.Change().Kind())
+		}
+	}
+	return nil
+}
+
+// ConnectOnInstall returns a set of tasks for (re)connecting an interface as part of snap installation (e.g. to reconnect interfaces on refresh, or autoconnect)
+func ConnectOnInstall(st *state.State, change *state.Change, mainTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+	return connect(st, change, mainTask, plugSnap, plugName, slotSnap, slotName)
 }
 
 // Connect returns a set of tasks for connecting an interface.
 //
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	if err := snapstate.CheckChangeConflict(st, plugSnap, noConflictOnConnectTasks, nil); err != nil {
-		return nil, err
-	}
-	if err := snapstate.CheckChangeConflict(st, slotSnap, noConflictOnConnectTasks, nil); err != nil {
+	return connect(st, nil, nil, plugSnap, plugName, slotSnap, slotName)
+}
+
+func connect(st *state.State, change *state.Change, installedSnapTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+	if err := checkConnectConflicts(st, change, plugSnap, slotSnap, installedSnapTask); err != nil {
 		return nil, err
 	}
 
@@ -92,6 +160,10 @@ func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*s
 
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+	connectInterface.Set("auto", installedSnapTask != nil && installedSnapTask.Kind() == "auto-connect")
+
+	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
+	// to modify them but all attributes will be checked against assertions after the hooks are run.
 	if err := setInitialConnectAttributes(connectInterface, plugSnap, plugName, slotSnap, slotName); err != nil {
 		return nil, err
 	}
@@ -133,8 +205,11 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 	if err != nil {
 		return err
 	}
+
+	emptyDynamicAttrs := make(map[string]interface{})
 	if plug, ok := snapInfo.Plugs[plugName]; ok {
-		ts.Set("plug-attrs", plug.Attrs)
+		ts.Set("plug-static", plug.Attrs)
+		ts.Set("plug-dynamic", emptyDynamicAttrs)
 	} else {
 		return fmt.Errorf("snap %q has no plug named %q", plugSnap, plugName)
 	}
@@ -148,7 +223,8 @@ func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName strin
 	}
 	addImplicitSlots(snapInfo)
 	if slot, ok := snapInfo.Slots[slotName]; ok {
-		ts.Set("slot-attrs", slot.Attrs)
+		ts.Set("slot-static", slot.Attrs)
+		ts.Set("slot-dynamic", emptyDynamicAttrs)
 	} else {
 		return fmt.Errorf("snap %q has no slot named %q", slotSnap, slotName)
 	}

@@ -23,4 +23,13 @@
 **/
 void sc_cgroup_freezer_join(const char *snap_name, pid_t pid);
 
+/**
+ * Check if a freezer cgroup for given snap has any processes belonging to a given user.
+ *
+ * This function examines the freezer cgroup called "snap.$snap_name" and looks
+ * at each of its processes. If any process exists then the function returns true.
+**/
+// TODO: Support per user filtering for eventual per-user mount namespaces
+bool sc_cgroup_freezer_occupied(const char *snap_name);
+
 #endif

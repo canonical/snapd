@@ -23,8 +23,8 @@ execute: |
     systemctl status rsyslog.service|MATCH "Active: active"
     snap set core service.rsyslog.disable=true
     systemctl status rsyslog.service|MATCH "Active: inactive"
+    systemctl status rsyslog.service|MATCH "Loaded: masked"
     snap set core service.rsyslog.disable=false
-
     
     echo "Check that powerkey handling works"
     snap set core system.power-key-action=reboot
@@ -53,7 +53,7 @@ execute: |
         fi
     fi
 
-    echo "Check that the http config handling works"
+    echo "Check that the proxy config handling works"
     for proto in http https ftp; do
         snap set core proxy.${proto}=http://example.com:8021/
         cat /etc/environment | MATCH "^${proto}_proxy=http://example.com:8021"
@@ -64,4 +64,15 @@ execute: |
             exit 1
         fi
     done
+
+    echo "Check that the no_proxy config handling works"
+    snap set core proxy.no-proxy="example.com,bar.com"
+    cat /etc/environment | MATCH "^no_proxy=example.com,bar.com"
+    snap set core proxy.no-proxy=""
+    if cat /etc/environment | grep "^no_proxy="; then
+        echo "proxy setting was not properly cleaned up"
+        cat /etc/environment
+        exit 1
+    fi
+
 

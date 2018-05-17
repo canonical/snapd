@@ -39,14 +39,14 @@ func (plug *Plug) Ref() PlugRef {
 }
 
 // Sanitize plug with a given snapd interface.
-func SanitizePlug(iface Interface, plugInfo *snap.PlugInfo) error {
+func BeforePreparePlug(iface Interface, plugInfo *snap.PlugInfo) error {
 	if iface.Name() != plugInfo.Interface {
 		return fmt.Errorf("cannot sanitize plug %q (interface %q) using interface %q",
 			PlugRef{Snap: plugInfo.Snap.Name(), Name: plugInfo.Name}, plugInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(PlugSanitizer); ok {
-		err = iface.SanitizePlug(plugInfo)
+		err = iface.BeforePreparePlug(plugInfo)
 	}
 	return err
 }
@@ -74,14 +74,14 @@ func (slot *Slot) Ref() SlotRef {
 }
 
 // Sanitize slot with a given snapd interface.
-func SanitizeSlot(iface Interface, slotInfo *snap.SlotInfo) error {
+func BeforePrepareSlot(iface Interface, slotInfo *snap.SlotInfo) error {
 	if iface.Name() != slotInfo.Interface {
 		return fmt.Errorf("cannot sanitize slot %q (interface %q) using interface %q",
 			SlotRef{Snap: slotInfo.Snap.Name(), Name: slotInfo.Name}, slotInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(SlotSanitizer); ok {
-		err = iface.SanitizeSlot(slotInfo)
+		err = iface.BeforePrepareSlot(slotInfo)
 	}
 	return err
 }
@@ -133,22 +133,22 @@ func (conn *ConnRef) ID() string {
 }
 
 // ParseConnRef parses an ID string
-func ParseConnRef(id string) (ConnRef, error) {
+func ParseConnRef(id string) (*ConnRef, error) {
 	var conn ConnRef
 	parts := strings.SplitN(id, " ", 2)
 	if len(parts) != 2 {
-		return conn, fmt.Errorf("malformed connection identifier: %q", id)
+		return nil, fmt.Errorf("malformed connection identifier: %q", id)
 	}
 	plugParts := strings.Split(parts[0], ":")
 	slotParts := strings.Split(parts[1], ":")
 	if len(plugParts) != 2 || len(slotParts) != 2 {
-		return conn, fmt.Errorf("malformed connection identifier: %q", id)
+		return nil, fmt.Errorf("malformed connection identifier: %q", id)
 	}
 	conn.PlugRef.Snap = plugParts[0]
 	conn.PlugRef.Name = plugParts[1]
 	conn.SlotRef.Snap = slotParts[0]
 	conn.SlotRef.Name = slotParts[1]
-	return conn, nil
+	return &conn, nil
 }
 
 // Interface describes a group of interchangeable capabilities with common features.
@@ -167,12 +167,12 @@ type Interface interface {
 
 // PlugSanitizer can be implemented by Interfaces that have reasons to sanitize their plugs.
 type PlugSanitizer interface {
-	SanitizePlug(plug *snap.PlugInfo) error
+	BeforePreparePlug(plug *snap.PlugInfo) error
 }
 
 // SlotSanitizer can be implemented by Interfaces that have reasons to sanitize their slots.
 type SlotSanitizer interface {
-	SanitizeSlot(slot *snap.SlotInfo) error
+	BeforePrepareSlot(slot *snap.SlotInfo) error
 }
 
 // StaticInfo describes various static-info of a given interface.
@@ -264,4 +264,14 @@ func ValidateDBusBusName(busName string) error {
 		return fmt.Errorf("invalid DBus bus name: %q", busName)
 	}
 	return nil
+}
+
+// UnknownPlugSlotError is an error reported when plug or slot cannot be found.
+type UnknownPlugSlotError struct {
+	Msg string
+}
+
+// Error returns the message associated with unknown plug or slot error.
+func (e *UnknownPlugSlotError) Error() string {
+	return e.Msg
 }

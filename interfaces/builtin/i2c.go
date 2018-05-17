@@ -74,7 +74,7 @@ func (iface *i2cInterface) String() string {
 var i2cControlDeviceNodePattern = regexp.MustCompile("^/dev/i2c-[0-9]+$")
 
 // Check validity of the defined slot
-func (iface *i2cInterface) SanitizeSlot(slot *snap.SlotInfo) error {
+func (iface *i2cInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
@@ -95,8 +95,8 @@ func (iface *i2cInterface) SanitizeSlot(slot *snap.SlotInfo) error {
 }
 
 func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk {
+	var path string
+	if err := slot.Attr("path", &path); err != nil {
 		return nil
 	}
 
@@ -106,8 +106,8 @@ func (iface *i2cInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 }
 
 func (iface *i2cInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	path, pathOk := slot.Attrs["path"].(string)
-	if !pathOk {
+	var path string
+	if err := slot.Attr("path", &path); err != nil {
 		return nil
 	}
 	spec.TagDevice(fmt.Sprintf(`KERNEL=="%s"`, strings.TrimPrefix(path, "/dev/")))

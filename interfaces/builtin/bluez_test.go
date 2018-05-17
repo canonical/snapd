@@ -48,12 +48,14 @@ var _ = Suite(&BluezInterfaceSuite{
 })
 
 const bluezConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [bluez]
 `
 
 const bluezConsumerTwoAppsYaml = `name: consumer
+version: 0
 apps:
  app1:
   plugs: [bluez]
@@ -62,6 +64,7 @@ apps:
 `
 
 const bluezConsumerThreeAppsYaml = `name: consumer
+version: 0
 apps:
  app1:
   plugs: [bluez]
@@ -71,12 +74,14 @@ apps:
 `
 
 const bluezProducerYaml = `name: producer
+version: 0
 apps:
  app:
   slots: [bluez]
 `
 
 const bluezProducerTwoAppsYaml = `name: producer
+version: 0
 apps:
  app1:
   slots: [bluez]
@@ -85,6 +90,7 @@ apps:
 `
 
 const bluezProducerThreeAppsYaml = `name: producer
+version: 0
 apps:
  app1:
   slots: [bluez]
@@ -94,6 +100,7 @@ apps:
 `
 
 const bluezCoreYaml = `name: core
+version: 0
 slots:
   bluez:
 `
@@ -232,9 +239,10 @@ func (s *BluezInterfaceSuite) TestUDevSpec(c *C) {
 
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# bluez
 KERNEL=="rfkill", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 
 	// on a classic system with bluez slot coming from the core snap.
 	restore = release.MockOnClassic(true)
@@ -242,8 +250,9 @@ KERNEL=="rfkill", TAG+="snap_consumer_app"`)
 
 	spec = &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `KERNEL=="rfkill", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 
 }
 

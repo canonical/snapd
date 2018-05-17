@@ -1,0 +1,9 @@
+name: test-snapd-gpg-keys
+summary: Basic snap to access to gpg keys
+description: A basic snap used to access to gpg keys
+version: 1.0
+
+apps:
+  sh:
+    command: ../../../bin/sh
+    plugs: [gpg-keys]

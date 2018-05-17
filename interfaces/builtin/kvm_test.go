@@ -43,12 +43,14 @@ var _ = Suite(&kvmInterfaceSuite{
 })
 
 const kvmConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [kvm]
 `
 
 const kvmCoreYaml = `name: core
+version: 0
 type: os
 slots:
   kvm:
@@ -64,18 +66,18 @@ func (s *kvmInterfaceSuite) TestName(c *C) {
 }
 
 func (s *kvmInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "kvm",
 		Interface: "kvm",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"kvm slots are reserved for the core snap")
 }
 
 func (s *kvmInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *kvmInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -93,9 +95,10 @@ func (s *kvmInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *kvmInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], Equals, `# kvm
 KERNEL=="kvm", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *kvmInterfaceSuite) TestStaticInfo(c *C) {

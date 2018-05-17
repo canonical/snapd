@@ -1,0 +1,6 @@
+#!/bin/sh
+
+while true; do
+    echo "running"
+    sleep 10
+done

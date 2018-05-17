@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
@@ -124,6 +125,12 @@ func (s *assertMgrSuite) TestDB(c *C) {
 
 	db := assertstate.DB(s.state)
 	c.Check(db, FitsTypeOf, (*asserts.Database)(nil))
+}
+
+func (s *assertMgrSuite) TestKnownTaskKinds(c *C) {
+	kinds := s.mgr.KnownTaskKinds()
+	sort.Strings(kinds)
+	c.Assert(kinds, DeepEquals, []string{"validate-snap"})
 }
 
 func (s *assertMgrSuite) TestAdd(c *C) {
@@ -1008,6 +1015,7 @@ func (s *assertMgrSuite) TestAutoAliasesTemporaryFallback(c *C) {
 
 	info := snaptest.MockInfo(c, `
 name: foo
+version: 0
 apps:
    cmd1:
      aliases: [alias1]

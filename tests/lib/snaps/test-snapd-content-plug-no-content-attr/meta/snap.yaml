@@ -1,0 +1,11 @@
+name: test-snapd-content-plug-no-content-attr
+version: 1.0
+apps:
+    content-plug:
+        command: bin/content-plug
+        plugs: [shared-content]
+plugs:
+    shared-content:
+        interface: content
+        target: import
+        default-provider: test-snapd-content-slot-no-content-attr

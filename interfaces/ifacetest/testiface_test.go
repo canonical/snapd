@@ -73,58 +73,58 @@ func (s *TestInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 // TestInterface has provisions to customize validation
-/*func (s *TestInterfaceSuite) TestValidatePlugError(c *C) {
+func (s *TestInterfaceSuite) TestBeforeConnectPlugError(c *C) {
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "test",
-		ValidatePlugCallback: func(plug *interfaces.Plug, attrs map[string]interface{}) error {
-			return fmt.Errorf("validate plug failed")
+		BeforeConnectPlugCallback: func(plug *interfaces.ConnectedPlug) error {
+			return fmt.Errorf("plug validation failed")
 		},
 	}
-	err := iface.ValidatePlug(s.plug, nil)
-	c.Assert(err, ErrorMatches, "validate plug failed")
+	err := iface.BeforeConnectPlug(s.plug)
+	c.Assert(err, ErrorMatches, "plug validation failed")
 }
 
-func (s *TestInterfaceSuite) TestValidateSlotError(c *C) {
+func (s *TestInterfaceSuite) TestBeforeConnectSlotError(c *C) {
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "test",
-		ValidateSlotCallback: func(slot *interfaces.Slot, attrs map[string]interface{}) error {
-			return fmt.Errorf("validate slot failed")
+		BeforeConnectSlotCallback: func(slot *interfaces.ConnectedSlot) error {
+			return fmt.Errorf("slot validation failed")
 		},
 	}
-	err := iface.ValidateSlot(s.slot, nil)
-	c.Assert(err, ErrorMatches, "validate slot failed")
-}*/
+	err := iface.BeforeConnectSlot(s.slot)
+	c.Assert(err, ErrorMatches, "slot validation failed")
+}
 
 // TestInterface doesn't do any sanitization by default
 func (s *TestInterfaceSuite) TestSanitizePlugOK(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 // TestInterface has provisions to customize sanitization
 func (s *TestInterfaceSuite) TestSanitizePlugError(c *C) {
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "test",
-		SanitizePlugCallback: func(plug *snap.PlugInfo) error {
+		BeforePreparePlugCallback: func(plug *snap.PlugInfo) error {
 			return fmt.Errorf("sanitize plug failed")
 		},
 	}
-	c.Assert(interfaces.SanitizePlug(iface, s.plugInfo), ErrorMatches, "sanitize plug failed")
+	c.Assert(interfaces.BeforePreparePlug(iface, s.plugInfo), ErrorMatches, "sanitize plug failed")
 }
 
 // TestInterface doesn't do any sanitization by default
 func (s *TestInterfaceSuite) TestSanitizeSlotOK(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
 // TestInterface has provisions to customize sanitization
 func (s *TestInterfaceSuite) TestSanitizeSlotError(c *C) {
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "test",
-		SanitizeSlotCallback: func(slot *snap.SlotInfo) error {
+		BeforePrepareSlotCallback: func(slot *snap.SlotInfo) error {
 			return fmt.Errorf("sanitize slot failed")
 		},
 	}
-	c.Assert(interfaces.SanitizeSlot(iface, s.slotInfo), ErrorMatches, "sanitize slot failed")
+	c.Assert(interfaces.BeforePrepareSlot(iface, s.slotInfo), ErrorMatches, "sanitize slot failed")
 }
 
 // TestInterface hands out empty plug security snippets

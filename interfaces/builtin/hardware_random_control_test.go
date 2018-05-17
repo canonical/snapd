@@ -43,12 +43,14 @@ var _ = Suite(&HardwareRandomControlInterfaceSuite{
 })
 
 const hardwareRandomControlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [hardware-random-control]
 `
 
 const hardwareRandomControlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   hardware-random-control:
@@ -64,18 +66,18 @@ func (s *HardwareRandomControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *HardwareRandomControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "hardware-random-control",
 		Interface: "hardware-random-control",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"hardware-random-control slots are reserved for the core snap")
 }
 
 func (s *HardwareRandomControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *HardwareRandomControlInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -88,9 +90,10 @@ func (s *HardwareRandomControlInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *HardwareRandomControlInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# hardware-random-control
 KERNEL=="hwrng", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *HardwareRandomControlInterfaceSuite) TestStaticInfo(c *C) {

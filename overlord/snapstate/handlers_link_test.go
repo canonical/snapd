@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -76,7 +77,7 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
-	resetReadInfo := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	resetReadInfo := snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
 	s.reset = func() {
 		resetReadInfo()
 		dirs.SetRootDir("/")
@@ -180,6 +181,10 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserIDAlreadySet(c *C) {
 		Current: snap.R(1),
 		UserID:  1,
 	})
+	// the user
+	user, err := auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	c.Assert(err, IsNil)
+	c.Assert(user.ID, Equals, 1)
 
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -200,9 +205,44 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserIDAlreadySet(c *C) {
 
 	// check that snapst.UserID was not "transferred"
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	err = snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.UserID, Equals, 1)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSuccessUserLoggedOut(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+		UserID:  1,
+	})
+
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel: "beta",
+		UserID:  2,
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// check that snapst.UserID was transferred
+	// given that user 1 doesn't exist anymore
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.UserID, Equals, 2)
 }
 
 func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
@@ -226,7 +266,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 
 	s.state.Unlock()
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 6; i++ {
 		s.snapmgr.Ensure()
 		s.snapmgr.Wait()
 	}
@@ -348,7 +388,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceDidNotHaveCandidate(c *C) {
 
 	s.state.Unlock()
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 6; i++ {
 		s.snapmgr.Ensure()
 		s.snapmgr.Wait()
 	}
@@ -392,7 +432,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceHadCandidate(c *C) {
 
 	s.state.Unlock()
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 6; i++ {
 		s.snapmgr.Ensure()
 		s.snapmgr.Wait()
 	}
@@ -497,4 +537,70 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapCoreClassic(c *C) {
 
 	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartDaemon, state.RestartDaemon})
 
+}
+
+func (s *linkSnapSuite) TestLinkSnapInjectsAutoConnectIfMissing(c *C) {
+	si1 := &snap.SideInfo{
+		RealName: "snap1",
+		Revision: snap.R(1),
+	}
+	sup1 := &snapstate.SnapSetup{SideInfo: si1}
+	si2 := &snap.SideInfo{
+		RealName: "snap2",
+		Revision: snap.R(1),
+	}
+	sup2 := &snapstate.SnapSetup{SideInfo: si2}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task0 := s.state.NewTask("setup-profiles", "")
+	task1 := s.state.NewTask("link-snap", "")
+	task1.WaitFor(task0)
+	task0.Set("snap-setup", sup1)
+	task1.Set("snap-setup", sup1)
+
+	task2 := s.state.NewTask("setup-profiles", "")
+	task3 := s.state.NewTask("link-snap", "")
+	task2.WaitFor(task1)
+	task3.WaitFor(task2)
+	task2.Set("snap-setup", sup2)
+	task3.Set("snap-setup", sup2)
+
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task0)
+	chg.AddTask(task1)
+	chg.AddTask(task2)
+	chg.AddTask(task3)
+
+	s.state.Unlock()
+
+	for i := 0; i < 10; i++ {
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+	}
+
+	s.state.Lock()
+
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Tasks(), HasLen, 6)
+
+	// sanity checks
+	t := chg.Tasks()[1]
+	c.Assert(t.Kind(), Equals, "link-snap")
+	t = chg.Tasks()[3]
+	c.Assert(t.Kind(), Equals, "link-snap")
+
+	// check that auto-connect tasks were added and have snap-setup
+	var autoconnectSup snapstate.SnapSetup
+	t = chg.Tasks()[4]
+	c.Assert(t.Kind(), Equals, "auto-connect")
+	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
+	c.Assert(autoconnectSup.Name(), Equals, "snap1")
+
+	t = chg.Tasks()[5]
+	c.Assert(t.Kind(), Equals, "auto-connect")
+	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
+	c.Assert(autoconnectSup.Name(), Equals, "snap2")
 }

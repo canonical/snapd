@@ -67,6 +67,8 @@ type appYaml struct {
 	PostStopCommand string          `yaml:"post-stop-command,omitempty"`
 	StopTimeout     timeout.Timeout `yaml:"stop-timeout,omitempty"`
 	Completer       string          `yaml:"completer,omitempty"`
+	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
+	StopMode        StopModeType    `yaml:"stop-mode,omitempty"`
 
 	RestartCond RestartCondition `yaml:"restart-condition,omitempty"`
 	SlotNames   []string         `yaml:"slots,omitempty"`
@@ -77,6 +79,13 @@ type appYaml struct {
 	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
 
 	Sockets map[string]socketsYaml `yaml:"sockets,omitempty"`
+
+	After  []string `yaml:"after,omitempty"`
+	Before []string `yaml:"before,omitempty"`
+
+	Timer string `yaml:"timer,omitempty"`
+
+	Autostart string `yaml:"autostart,omitempty"`
 }
 
 type hookYaml struct {
@@ -85,12 +94,13 @@ type hookYaml struct {
 }
 
 type layoutYaml struct {
-	Bind    string `yaml:"bind,omitempty"`
-	Type    string `yaml:"type,omitempty"`
-	User    string `yaml:"user,omitempty"`
-	Group   string `yaml:"group,omitempty"`
-	Mode    string `yaml:"mode,omitempty"`
-	Symlink string `yaml:"symlink,omitempty"`
+	Bind     string `yaml:"bind,omitempty"`
+	BindFile string `yaml:"bind-file,omitempty"`
+	Type     string `yaml:"type,omitempty"`
+	User     string `yaml:"user,omitempty"`
+	Group    string `yaml:"group,omitempty"`
+	Mode     string `yaml:"mode,omitempty"`
+	Symlink  string `yaml:"symlink,omitempty"`
 }
 
 type socketsYaml struct {
@@ -103,7 +113,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	var y snapYaml
 	err := yaml.Unmarshal(yamlData, &y)
 	if err != nil {
-		return nil, fmt.Errorf("info failed to parse: %s", err)
+		return nil, fmt.Errorf("cannot parse snap.yaml: %s", err)
 	}
 
 	snap := infoSkeletonFromSnapYaml(y)
@@ -163,7 +173,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 			}
 			snap.Layout[path] = &Layout{
 				Snap: snap, Path: path,
-				Bind: l.Bind, Type: l.Type, Symlink: l.Symlink,
+				Bind: l.Bind, Type: l.Type, Symlink: l.Symlink, BindFile: l.BindFile,
 				User: user, Group: group, Mode: mode,
 			}
 		}
@@ -173,6 +183,7 @@ func InfoFromSnapYaml(yamlData []byte) (*Info, error) {
 	snap.renameClashingCorePlugs()
 
 	snap.BadInterfaces = make(map[string]string)
+	SanitizePlugsSlots(snap)
 
 	// FIXME: validation of the fields
 	return snap, nil
@@ -289,6 +300,11 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			BusName:         yApp.BusName,
 			Environment:     yApp.Environment,
 			Completer:       yApp.Completer,
+			StopMode:        yApp.StopMode,
+			RefreshMode:     yApp.RefreshMode,
+			Before:          yApp.Before,
+			After:           yApp.After,
+			Autostart:       yApp.Autostart,
 		}
 		if len(y.Plugs) > 0 || len(yApp.PlugNames) > 0 {
 			app.Plugs = make(map[string]*PlugInfo)
@@ -343,6 +359,12 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 				Name:         name,
 				ListenStream: data.ListenStream,
 				SocketMode:   data.SocketMode,
+			}
+		}
+		if yApp.Timer != "" {
+			app.Timer = &TimerInfo{
+				App:   app,
+				Timer: yApp.Timer,
 			}
 		}
 	}

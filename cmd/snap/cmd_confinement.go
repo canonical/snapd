@@ -27,16 +27,18 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-var shortConfinementHelp = i18n.G("Prints the confinement mode the system operates in")
+var shortConfinementHelp = i18n.G("Print the confinement mode the system operates in")
 var longConfinementHelp = i18n.G(`
-The confinement command will print the confinement mode (strict, partial or none)
-the system operates in.
+The confinement command will print the confinement mode (strict,
+partial or none) the system operates in.
 `)
 
 type cmdConfinement struct{}
 
 func init() {
-	addDebugCommand("confinement", shortConfinementHelp, longConfinementHelp, func() flags.Commander { return &cmdConfinement{} })
+	addDebugCommand("confinement", shortConfinementHelp, longConfinementHelp, func() flags.Commander {
+		return &cmdConfinement{}
+	}, nil, nil)
 }
 
 func (cmd cmdConfinement) Execute(args []string) error {

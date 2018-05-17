@@ -91,7 +91,7 @@ func (s *authTestSuite) TestRequestStoreMacaroon(c *C) {
 		io.WriteString(w, mockStoreReturnMacaroon)
 	}))
 	defer mockServer.Close()
-	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
+	MacaroonACLAPI = mockServer.URL + "/acl/"
 
 	macaroon, err := requestStoreMacaroon()
 	c.Assert(err, IsNil)
@@ -103,7 +103,7 @@ func (s *authTestSuite) TestRequestStoreMacaroonMissingData(c *C) {
 		io.WriteString(w, mockStoreReturnNoMacaroon)
 	}))
 	defer mockServer.Close()
-	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
+	MacaroonACLAPI = mockServer.URL + "/acl/"
 
 	macaroon, err := requestStoreMacaroon()
 	c.Assert(err, ErrorMatches, "cannot get snap access permission from store: empty macaroon returned")
@@ -117,7 +117,7 @@ func (s *authTestSuite) TestRequestStoreMacaroonError(c *C) {
 		n++
 	}))
 	defer mockServer.Close()
-	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
+	MacaroonACLAPI = mockServer.URL + "/acl/"
 
 	macaroon, err := requestStoreMacaroon()
 	c.Assert(err, ErrorMatches, "cannot get snap access permission from store: store server returned status 500")

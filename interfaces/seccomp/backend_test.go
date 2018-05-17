@@ -263,6 +263,8 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 func (s *backendSuite) TestCombineSnippets(c *C) {
 	restore := release.MockForcedDevmode(false)
 	defer restore()
+	restore = release.MockSecCompActions([]string{"log"})
+	defer restore()
 
 	// NOTE: replace the real template with a shorter variant
 	restore = seccomp.MockTemplate([]byte("default\n"))
@@ -277,9 +279,7 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 
 		snapInfo := s.InstallSnap(c, scenario.opts, ifacetest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
-		data, err := ioutil.ReadFile(profile + ".src")
-		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, scenario.content)
+		c.Check(profile+".src", testutil.FileEquals, scenario.content)
 		stat, err := os.Stat(profile + ".src")
 		c.Assert(err, IsNil)
 		c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -319,9 +319,7 @@ func (s *backendSuite) TestCombineSnippetsOrdering(c *C) {
 
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, snapYaml, 0)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.foo.foo")
-	data, err := ioutil.ReadFile(profile + ".src")
-	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, "default\naaa\nzzz\n")
+	c.Check(profile+".src", testutil.FileEquals, "default\naaa\nzzz\n")
 	stat, err := os.Stat(profile + ".src")
 	c.Assert(err, IsNil)
 	c.Check(stat.Mode(), Equals, os.FileMode(0644))
@@ -336,7 +334,61 @@ func (s *backendSuite) TestBindIsAddedForForcedDevModeSystems(c *C) {
 	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
-	data, err := ioutil.ReadFile(profile + ".src")
-	c.Assert(err, IsNil)
-	c.Assert(string(data), testutil.Contains, "\nbind\n")
+	c.Assert(profile+".src", testutil.FileContains, "\nbind\n")
+}
+
+const ClassicYamlV1 = `
+name: test-classic
+version: 1
+developer: acme
+confinement: classic
+apps:
+  sh:
+  `
+
+func (s *backendSuite) TestSystemKeyRetLogSupported(c *C) {
+	restore := release.MockSecCompActions([]string{"allow", "errno", "kill", "log", "trace", "trap"})
+	defer restore()
+
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: true}, ifacetest.SambaYamlV1, 0)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	c.Assert(profile+".src", Not(testutil.FileContains), "# complain mode logging unavailable\n")
+	s.RemoveSnap(c, snapInfo)
+
+	snapInfo = s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: false}, ifacetest.SambaYamlV1, 0)
+	profile = filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	c.Assert(profile+".src", Not(testutil.FileContains), "# complain mode logging unavailable\n")
+	s.RemoveSnap(c, snapInfo)
+
+	snapInfo = s.InstallSnap(c, interfaces.ConfinementOptions{Classic: true}, ClassicYamlV1, 0)
+	profile = filepath.Join(dirs.SnapSeccompDir, "snap.test-classic.sh")
+	c.Assert(profile+".src", Not(testutil.FileContains), "# complain mode logging unavailable\n")
+	s.RemoveSnap(c, snapInfo)
+}
+
+func (s *backendSuite) TestSystemKeyRetLogUnsupported(c *C) {
+	restore := release.MockSecCompActions([]string{"allow", "errno", "kill", "trace", "trap"})
+	defer restore()
+
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: true}, ifacetest.SambaYamlV1, 0)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	c.Assert(profile+".src", testutil.FileContains, "# complain mode logging unavailable\n")
+	s.RemoveSnap(c, snapInfo)
+
+	snapInfo = s.InstallSnap(c, interfaces.ConfinementOptions{DevMode: false}, ifacetest.SambaYamlV1, 0)
+	profile = filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	c.Assert(profile+".src", Not(testutil.FileContains), "# complain mode logging unavailable\n")
+	s.RemoveSnap(c, snapInfo)
+
+	snapInfo = s.InstallSnap(c, interfaces.ConfinementOptions{Classic: true}, ClassicYamlV1, 0)
+	profile = filepath.Join(dirs.SnapSeccompDir, "snap.test-classic.sh")
+	c.Assert(profile+".src", Not(testutil.FileContains), "# complain mode logging unavailable\n")
+	s.RemoveSnap(c, snapInfo)
+}
+
+func (s *backendSuite) TestSandboxFeatures(c *C) {
+	restore := seccomp.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	defer restore()
+
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar", "bpf-argument-filtering"})
 }

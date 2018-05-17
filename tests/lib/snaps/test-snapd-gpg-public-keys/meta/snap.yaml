@@ -1,0 +1,9 @@
+name: test-snapd-gpg-public-keys
+version: 1.0
+summary: Basic gpg-public-keys snap
+description: A basic snap which access to public gpg keys
+
+apps:
+  sh:
+    command: ../../../bin/sh
+    plugs: [gpg-public-keys]

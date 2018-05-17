@@ -43,10 +43,10 @@ type cmdDownload struct {
 	} `positional-args:"true" required:"true"`
 }
 
-var shortDownloadHelp = i18n.G("Downloads the given snap")
+var shortDownloadHelp = i18n.G("Download the given snap")
 var longDownloadHelp = i18n.G(`
 The download command downloads the given snap and its supporting assertions
-to the current directory under .snap and .assert file extensions, respectively.
+to the current directory with .snap and .assert file extensions, respectively.
 `)
 
 func init() {
@@ -61,19 +61,19 @@ func init() {
 	}})
 }
 
-func fetchSnapAssertions(tsto *image.ToolingStore, snapPath string, snapInfo *snap.Info) error {
+func fetchSnapAssertions(tsto *image.ToolingStore, snapPath string, snapInfo *snap.Info) (string, error) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   sysdb.Trusted(),
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	assertPath := strings.TrimSuffix(snapPath, filepath.Ext(snapPath)) + ".assert"
 	w, err := os.Create(assertPath)
 	if err != nil {
-		return fmt.Errorf(i18n.G("cannot create assertions file: %v"), err)
+		return "", fmt.Errorf(i18n.G("cannot create assertions file: %v"), err)
 	}
 	defer w.Close()
 
@@ -84,7 +84,7 @@ func fetchSnapAssertions(tsto *image.ToolingStore, snapPath string, snapInfo *sn
 	f := tsto.AssertionFetcher(db, save)
 
 	_, err = image.FetchAndCheckSnapAssertions(snapPath, snapInfo, f, db)
-	return err
+	return assertPath, err
 }
 
 func (x *cmdDownload) Execute(args []string) error {
@@ -114,7 +114,7 @@ func (x *cmdDownload) Execute(args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stderr, i18n.G("Fetching snap %q\n"), snapName)
+	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
 	dlOpts := image.DownloadOptions{
 		TargetDir: "", // cwd
 		Channel:   x.Channel,
@@ -124,11 +124,25 @@ func (x *cmdDownload) Execute(args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stderr, i18n.G("Fetching assertions for %q\n"), snapName)
-	err = fetchSnapAssertions(tsto, snapPath, snapInfo)
+	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
+	assertPath, err := fetchSnapAssertions(tsto, snapPath, snapInfo)
 	if err != nil {
 		return err
 	}
+
+	// simplify paths
+	wd, _ := os.Getwd()
+	if p, err := filepath.Rel(wd, assertPath); err == nil {
+		assertPath = p
+	}
+	if p, err := filepath.Rel(wd, snapPath); err == nil {
+		snapPath = p
+	}
+	// add a hint what to do with the downloaded snap (LP:1676707)
+	fmt.Fprintf(Stdout, i18n.G(`Install the snap with:
+   snap ack %s
+   snap install %s
+`), assertPath, snapPath)
 
 	return nil
 }

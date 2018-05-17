@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -64,6 +65,7 @@ var _ = Suite(&DbusInterfaceSuite{
 func (s *DbusInterfaceSuite) SetUpSuite(c *C) {
 	s.snapInfo = snaptest.MockInfo(c, `
 name: test-dbus
+version: 0
 slots:
   test-session-slot:
     interface: dbus
@@ -141,158 +143,149 @@ func (s *DbusInterfaceSuite) TestName(c *C) {
 }
 
 func (s *DbusInterfaceSuite) TestValidSessionBusName(c *C) {
-	var mockSnapYaml = []byte(`name: dbus-snap
+	var mockSnapYaml = `name: dbus-snap
 version: 1.0
 slots:
  dbus-slot:
   interface: dbus
   bus: session
   name: org.dbus-snap.session-a
-`)
+`
 
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 
 	slot := info.Slots["dbus-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestValidSystemBusName(c *C) {
-	var mockSnapYaml = []byte(`name: dbus-snap
+	var mockSnapYaml = `name: dbus-snap
 version: 1.0
 slots:
  dbus-slot:
   interface: dbus
   bus: system
   name: org.dbus-snap.system-a
-`)
+`
 
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 
 	slot := info.Slots["dbus-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestValidFullBusName(c *C) {
-	var mockSnapYaml = []byte(`name: dbus-snap
+	var mockSnapYaml = `name: dbus-snap
 version: 1.0
 slots:
  dbus-slot:
   interface: dbus
   bus: system
   name: org.dbus-snap.foo.bar.baz.n0rf_qux
-`)
+`
 
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 
 	slot := info.Slots["dbus-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestNonexistentBusName(c *C) {
-	var mockSnapYaml = []byte(`name: dbus-snap
+	var mockSnapYaml = `name: dbus-snap
 version: 1.0
 slots:
  dbus-slot:
   interface: dbus
   bus: nonexistent
   name: org.dbus-snap
-`)
+`
 
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 
 	slot := info.Slots["dbus-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches, "bus 'nonexistent' must be one of 'session' or 'system'")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "bus 'nonexistent' must be one of 'session' or 'system'")
 }
 
 // If this test is failing, be sure to verify the AppArmor rules for binding to
 // a well-known name to avoid overlaps.
 func (s *DbusInterfaceSuite) TestInvalidBusNameEndsWithDashInt(c *C) {
-	var mockSnapYaml = []byte(`name: dbus-snap
+	var mockSnapYaml = `name: dbus-snap
 version: 1.0
 slots:
  dbus-slot:
   interface: dbus
   bus: session
   name: org.dbus-snap.session-12345
-`)
+`
 
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 
 	slot := info.Slots["dbus-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches, "DBus bus name must not end with -NUMBER")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "DBus bus name must not end with -NUMBER")
 }
 
 func (s *DbusInterfaceSuite) TestSanitizeSlotSystem(c *C) {
-	var mockSnapYaml = []byte(`name: dbus-snap
+	var mockSnapYaml = `name: dbus-snap
 version: 1.0
 slots:
  dbus-slot:
   interface: dbus
   bus: system
   name: org.dbus-snap.system
-`)
+`
 
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 
 	slot := info.Slots["dbus-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestSanitizeSlotSession(c *C) {
-	var mockSnapYaml = []byte(`name: dbus-snap
+	var mockSnapYaml = `name: dbus-snap
 version: 1.0
 slots:
  dbus-slot:
   interface: dbus
   bus: session
   name: org.dbus-snap.session
-`)
+`
 
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 
 	slot := info.Slots["dbus-slot"]
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestSanitizePlugSystem(c *C) {
-	var mockSnapYaml = []byte(`name: dbus-snap
+	var mockSnapYaml = `name: dbus-snap
 version: 1.0
 plugs:
  dbus-plug:
   interface: dbus
   bus: system
   name: org.dbus-snap.system
-`)
+`
 
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 
 	plug := info.Plugs["dbus-plug"]
-	c.Assert(interfaces.SanitizePlug(s.iface, plug), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestSanitizePlugSession(c *C) {
-	var mockSnapYaml = []byte(`name: dbus-snap
+	var mockSnapYaml = `name: dbus-snap
 version: 1.0
 plugs:
  dbus-plug:
   interface: dbus
   bus: session
   name: org.dbus-snap.session
-`)
+`
 
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 
 	plug := info.Plugs["dbus-plug"]
-	c.Assert(interfaces.SanitizePlug(s.iface, plug), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), IsNil)
 }
 
 func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSession(c *C) {
@@ -382,6 +375,24 @@ func (s *DbusInterfaceSuite) TestPermanentSlotDBusSystem(c *C) {
 	snippet := dbusSpec.SnippetForTag("snap.test-dbus.test-system-provider")
 	c.Check(snippet, testutil.Contains, "<policy user=\"root\">\n    <allow own=\"org.test-system-slot\"/>")
 	c.Check(snippet, testutil.Contains, "<policy context=\"default\">\n    <allow send_destination=\"org.test-system-slot\"/>")
+}
+
+func (s *DbusInterfaceSuite) TestPermanentSlotSecCompSystem(c *C) {
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, s.systemSlotInfo)
+	c.Assert(err, IsNil)
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-system-provider"})
+	snippet := seccompSpec.SnippetForTag("snap.test-dbus.test-system-provider")
+	c.Check(snippet, testutil.Contains, "listen\naccept\naccept4\n")
+}
+
+func (s *DbusInterfaceSuite) TestPermanentSlotSecCompSession(c *C) {
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, s.sessionSlotInfo)
+	c.Assert(err, IsNil)
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.test-dbus.test-session-provider"})
+	snippet := seccompSpec.SnippetForTag("snap.test-dbus.test-session-provider")
+	c.Check(snippet, testutil.Contains, "listen\naccept\naccept4\n")
 }
 
 func (s *DbusInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {

@@ -35,6 +35,7 @@ type SnapKeysSuite struct {
 	BaseSnapSuite
 
 	GnupgCmd string
+	tempdir  string
 }
 
 // FIXME: Ideally we would just use gpg2 and remove the gnupg2_test.go file.
@@ -61,21 +62,21 @@ done
 func (s *SnapKeysSuite) SetUpTest(c *C) {
 	s.BaseSnapSuite.SetUpTest(c)
 
-	tempdir := c.MkDir()
+	s.tempdir = c.MkDir()
 	for _, fileName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
 		data, err := ioutil.ReadFile(filepath.Join("test-data", fileName))
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(tempdir, fileName), data, 0644)
+		err = ioutil.WriteFile(filepath.Join(s.tempdir, fileName), data, 0644)
 		c.Assert(err, IsNil)
 	}
-	fakePinentryFn := filepath.Join(tempdir, "pinentry-fake")
+	fakePinentryFn := filepath.Join(s.tempdir, "pinentry-fake")
 	err := ioutil.WriteFile(fakePinentryFn, fakePinentryData, 0755)
 	c.Assert(err, IsNil)
-	gpgAgentConfFn := filepath.Join(tempdir, "gpg-agent.conf")
+	gpgAgentConfFn := filepath.Join(s.tempdir, "gpg-agent.conf")
 	err = ioutil.WriteFile(gpgAgentConfFn, []byte(fmt.Sprintf(`pinentry-program %s`, fakePinentryFn)), 0644)
 	c.Assert(err, IsNil)
 
-	os.Setenv("SNAP_GNUPG_HOME", tempdir)
+	os.Setenv("SNAP_GNUPG_HOME", s.tempdir)
 	os.Setenv("SNAP_GNUPG_CMD", s.GnupgCmd)
 }
 
@@ -93,6 +94,18 @@ func (s *SnapKeysSuite) TestKeys(c *C) {
 default +g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ
 another +DVQf1U4mIsuzlQqAebjjTPYtYJ-GEhJy0REuj3zvpQYTZ7EJj7adBxIXLJ7Vmk3L
 `)
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapKeysSuite) TestKeysEmptyNoHeader(c *C) {
+	// simulate empty keys
+	err := os.RemoveAll(s.tempdir)
+	c.Assert(err, IsNil)
+
+	rest, err := snap.Parser().ParseArgs([]string{"keys"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, "No keys registered, see `snapcraft create-key`")
 	c.Check(s.Stderr(), Equals, "")
 }
 

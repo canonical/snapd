@@ -48,7 +48,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var osReadlink = os.Readlink
+var (
+	osReadlink     = os.Readlink
+	kernelFeatures = release.SecCompActions
+)
 
 func seccompToBpfPath() string {
 	// FIXME: use cmd.InternalToolPath here once:
@@ -167,6 +170,9 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetF
 	if opts.DevMode && !opts.JailMode {
 		// NOTE: This is understood by snap-confine
 		buffer.WriteString("@complain\n")
+		if !release.SecCompSupportsAction("log") {
+			buffer.WriteString("# complain mode logging unavailable\n")
+		}
 	}
 
 	buffer.Write(defaultTemplate)
@@ -189,4 +195,17 @@ func addContent(securityTag string, opts interfaces.ConfinementOptions, snippetF
 // NewSpecification returns an empty seccomp specification.
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
+}
+
+// SandboxFeatures returns the list of seccomp features supported by the kernel.
+func (b *Backend) SandboxFeatures() []string {
+	features := kernelFeatures()
+	tags := make([]string, 0, len(features)+1)
+	for _, feature := range features {
+		// Prepend "kernel:" to apparmor kernel features to namespace them and
+		// allow us to introduce our own tags later.
+		tags = append(tags, "kernel:"+feature)
+	}
+	tags = append(tags, "bpf-argument-filtering")
+	return tags
 }

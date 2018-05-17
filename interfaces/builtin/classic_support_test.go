@@ -68,11 +68,11 @@ func (s *ClassicSupportInterfaceSuite) TestName(c *C) {
 }
 
 func (s *ClassicSupportInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
 func (s *ClassicSupportInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *ClassicSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {

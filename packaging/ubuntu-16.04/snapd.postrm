@@ -4,13 +4,16 @@ set -e
 
 systemctl_stop() {
     unit="$1"
-    for i in $(seq 10); do
+
+    echo "Stopping unit $unit"
+    systemctl stop -q "$unit" || true
+
+    for i in $(seq 20); do
+        echo "Waiting until unit $unit is stopped [attempt $i]"
         if ! systemctl is-active -q "$unit"; then
             echo "$unit is stopped."
-            break
+            return
         fi
-        echo "Stoping $unit [attempt $i]"
-        systemctl stop -q "$unit" || true
         sleep .1
     done
 }
@@ -41,7 +44,7 @@ if [ "$1" = "purge" ]; then
         snap=$(grep 'Where=/snap/' "/etc/systemd/system/$unit"|cut -f3 -d/)
         rev=$(grep 'Where=/snap/' "/etc/systemd/system/$unit"|cut -f4 -d/)
         if [ -n "$snap" ]; then
-            echo "Removing snap $snap"
+            echo "Removing snap $snap and revision $rev"
             # aliases
             if [ -d /snap/bin ]; then
                 find /snap/bin -maxdepth 1 -lname "$snap" -delete
@@ -65,6 +68,15 @@ if [ "$1" = "purge" ]; then
                     rmdir --ignore-fail-on-non-empty "$d" || true
                 fi
             done
+            # udev rules
+            find /etc/udev/rules.d -name "*-snap.${snap}.rules" -execdir rm -f "{}" \;
+            # dbus policy files
+            find /etc/dbus-1/system.d -name "snap.${snap}.*.conf" -execdir rm -f "{}" \;
+            # timer files
+            find /etc/systemd/system -name "snap.${snap}.*.timer" | while read -r f; do
+                systemctl_stop "$(basename "$f")"
+                rm -f "$f"
+            done
         fi
 
         echo "Removing $unit"
@@ -77,21 +89,29 @@ if [ "$1" = "purge" ]; then
 
     echo "Final directory cleanup"
     for d in "/snap/bin" "/snap" "/var/snap"; do
+        # Force remove due to directories for old revisions could still exist
+        rm -rf "$d"
         if [ -d "$d" ]; then
-            rmdir --ignore-fail-on-non-empty $d
+            echo "Cannot remove directory $d"
         fi
     done
 
     echo "Discarding preserved snap namespaces"
     # opportunistic as those might not be actually mounted
-    for mnt in /run/snapd/ns/*.mnt; do
-        umount -l "$mnt" || true
-        rm -f "$mnt"
-    done
-    for fstab in /run/snapd/ns/*.fstab; do
-        rm -f "$fstab"
-    done
-    umount -l /run/snapd/ns/ || true
+    if [ -d /run/snapd/ns ]; then
+        if [ "$(find /run/snapd/ns/ -name "*.mnt" | wc -l)" -gt 0 ]; then
+            for mnt in /run/snapd/ns/*.mnt; do
+                umount -l "$mnt" || true
+                rm -f "$mnt"
+            done
+        fi
+        if [ "$(find /run/snapd/ns/ -name "*.fstab" | wc -l)" -gt 0 ]; then
+            for fstab in /run/snapd/ns/*.fstab; do
+                rm -f "$fstab"
+            done
+        fi
+        umount -l /run/snapd/ns/ || true
+    fi
 
     echo "Removing extra snap-confine apparmor rules"
     rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine

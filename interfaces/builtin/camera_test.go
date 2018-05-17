@@ -43,12 +43,14 @@ var _ = Suite(&CameraInterfaceSuite{
 })
 
 const cameraConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [camera]
 `
 
 const cameraCoreYaml = `name: core
+version: 0
 type: os
 slots:
   camera:
@@ -64,18 +66,18 @@ func (s *CameraInterfaceSuite) TestName(c *C) {
 }
 
 func (s *CameraInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "camera",
 		Interface: "camera",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"camera slots are reserved for the core snap")
 }
 
 func (s *CameraInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *CameraInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -88,9 +90,10 @@ func (s *CameraInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *CameraInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# camera
 KERNEL=="video[0-9]*", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *CameraInterfaceSuite) TestStaticInfo(c *C) {

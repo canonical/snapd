@@ -25,19 +25,31 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/pack"
 )
 
 type packCmd struct {
-	Positional struct {
+	CheckSkeleton bool `long:"check-skeleton"`
+	Positional    struct {
 		SnapDir   string `positional-arg-name:"<snap-dir>"`
 		TargetDir string `positional-arg-name:"<target-dir>"`
 	} `positional-args:"yes"`
 }
 
-var shortPackHelp = i18n.G("pack the given target dir as a snap")
+var shortPackHelp = i18n.G("Pack the given directory as a snap")
 var longPackHelp = i18n.G(`
-The pack command packs the given snap-dir as a snap.`)
+The pack command packs the given snap-dir as a snap and writes the result to
+target-dir. If target-dir is omitted, the result is written to current
+directory. If both source-dir and target-dir are omitted, the pack command packs
+the current directory.
+
+When used with --check-skeleton, pack only checks whether snap-dir contains
+valid snap metadata and raises an error otherwise. Application commands listed
+in snap metadata file, but appearing with incorrect permission bits result in an
+error. Commands that are missing from snap-dir are listed in diagnostic
+messages.
+`)
 
 func init() {
 	addCommand("pack",
@@ -45,7 +57,9 @@ func init() {
 		longPackHelp,
 		func() flags.Commander {
 			return &packCmd{}
-		}, nil, nil)
+		}, map[string]string{
+			"check-skeleton": i18n.G("Validate snap-dir metadata only"),
+		}, nil)
 }
 
 func (x *packCmd) Execute([]string) error {
@@ -54,6 +68,14 @@ func (x *packCmd) Execute([]string) error {
 	}
 	if x.Positional.TargetDir == "" {
 		x.Positional.TargetDir = "."
+	}
+
+	if x.CheckSkeleton {
+		err := pack.CheckSkeleton(x.Positional.SnapDir)
+		if err == snap.ErrMissingPaths {
+			return nil
+		}
+		return err
 	}
 
 	snapPath, err := pack.Snap(x.Positional.SnapDir, x.Positional.TargetDir)

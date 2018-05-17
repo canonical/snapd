@@ -1,7 +1,8 @@
 summary: Test that snap-confine errors in the right way
 
 # the error message can only happen on classic systems
-systems: [-ubuntu-core-16-*]
+# our debian image does not have fully working apprmor
+systems: [-ubuntu-core-16-*, -debian-*]
 
 prepare: |
     echo "Install test snap"
@@ -19,14 +20,13 @@ execute: |
 
     echo "Simulating broken current symlink for core"
     mv $SNAP_MOUNT_DIR/core/current $SNAP_MOUNT_DIR/core/current.renamed
-
     if test-snapd-tools.echo hello 2>snap-confine.stderr; then
         echo "test-snapd-tools.echo should fail to run, test broken"
     fi
     cat snap-confine.stderr | MATCH 'cannot locate the core or legacy core snap \(current symlink missing\?\):'
+    mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current
 
     echo "Test nvidia device fix"
-    mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current
     # For https://github.com/snapcore/snapd/pull/4042
     echo "Simulate nvidia device tags"
     mkdir -p /run/udev/tags/snap_test-snapd-tools_echo
@@ -39,3 +39,14 @@ execute: |
     echo "But nvidia files are gone"
     ! test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia
     ! test -f /run/udev/tags/snap_test-snapd-tools_echo/+module:nvidia_modeset
+
+    echo "Ensure apparmor profile for snap-confine is parsable"
+    for f in /etc/apparmor.d/usr.lib.snapd.snap-confine*; do
+        if which apparmor_parser 2>/dev/null; then
+            apparmor_parser -QTK $f
+        fi
+        if which aa-enforce 2>/dev/null; then
+            aa-enforce $f
+        fi
+    done
+

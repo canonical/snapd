@@ -1,6 +1,7 @@
 summary: Check that own services can be controlled by snapctl
 
-kill-timeout: 3m
+kill-timeout: 5m
+
 environment:
     SERVICEOPTIONFILE: /var/snap/test-snapd-service/current/service-option
 
@@ -32,8 +33,12 @@ execute: |
         done
     }
 
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     echo "When the service snap is installed"
-    . $TESTSLIB/snaps.sh
     install_local test-snapd-service
 
     echo "We can see it running"
@@ -72,7 +77,7 @@ execute: |
     echo "Reinstalling the snap with configure hook calling snapctl restart works"
     snap set test-snapd-service command=restart
     install_local test-snapd-service
-    if journalctl|grep -q "error running snapctl"; then
+    if get_journalctl_log | MATCH "error running snapctl"; then
         echo "snapctl should not report errors"
         exit 1
     fi

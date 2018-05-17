@@ -22,13 +22,19 @@ package image
 // TODO: put these in appropriate package(s) once they are clarified a bit more
 
 import (
+	"bytes"
 	"crypto"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+
+	"github.com/mvo5/goconfigparser"
+	"golang.org/x/net/context"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -39,8 +45,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
-
-	"golang.org/x/net/context"
 )
 
 // A Store can find metadata on snaps, download snaps and fetch assertions.
@@ -69,7 +73,7 @@ func newToolingStore(arch, storeID string) (*ToolingStore, error) {
 			return nil, err
 		}
 	}
-	sto := store.New(cfg, nil)
+	sto := store.New(cfg, toolingAuthContext{})
 	return &ToolingStore{
 		sto:  sto,
 		user: user,
@@ -82,24 +86,107 @@ type authData struct {
 }
 
 func readAuthFile(authFn string) (*auth.UserState, error) {
-	f, err := os.Open(authFn)
+	data, err := ioutil.ReadFile(authFn)
 	if err != nil {
-		return nil, fmt.Errorf("cannot open auth file %q: %v", authFn, err)
+		return nil, fmt.Errorf("cannot read auth file %q: %v", authFn, err)
 	}
-	defer f.Close()
 
+	creds, err := parseAuthFile(authFn, data)
+	if err != nil {
+		// try snapcraft login format instead
+		var err2 error
+		creds, err2 = parseSnapcraftLoginFile(authFn, data)
+		if err2 != nil {
+			trimmed := bytes.TrimSpace(data)
+			if len(trimmed) > 0 && trimmed[0] == '[' {
+				return nil, err2
+			}
+			return nil, err
+		}
+	}
+
+	return &auth.UserState{
+		StoreMacaroon:   creds.Macaroon,
+		StoreDischarges: creds.Discharges,
+	}, nil
+}
+
+func parseAuthFile(authFn string, data []byte) (*authData, error) {
 	var creds authData
-	dec := json.NewDecoder(f)
-	if err := dec.Decode(&creds); err != nil {
+	err := json.Unmarshal(data, &creds)
+	if err != nil {
 		return nil, fmt.Errorf("cannot decode auth file %q: %v", authFn, err)
 	}
 	if creds.Macaroon == "" || len(creds.Discharges) == 0 {
 		return nil, fmt.Errorf("invalid auth file %q: missing fields", authFn)
 	}
-	return &auth.UserState{
-		StoreMacaroon:   creds.Macaroon,
-		StoreDischarges: creds.Discharges,
+	return &creds, nil
+}
+
+func snapcraftLoginSection() string {
+	if osutil.GetenvBool("SNAPPY_USE_STAGING_STORE") {
+		return "login.staging.ubuntu.com"
+	}
+	return "login.ubuntu.com"
+}
+
+func parseSnapcraftLoginFile(authFn string, data []byte) (*authData, error) {
+	errPrefix := fmt.Sprintf("invalid snapcraft login file %q", authFn)
+
+	cfg := goconfigparser.New()
+	if err := cfg.ReadString(string(data)); err != nil {
+		return nil, fmt.Errorf("%s: %v", errPrefix, err)
+	}
+	sec := snapcraftLoginSection()
+	macaroon, err := cfg.Get(sec, "macaroon")
+	if err != nil {
+		return nil, fmt.Errorf("%s: %s", errPrefix, err)
+	}
+	unboundDischarge, err := cfg.Get(sec, "unbound_discharge")
+	if err != nil {
+		return nil, fmt.Errorf("%s: %v", errPrefix, err)
+	}
+	if macaroon == "" || unboundDischarge == "" {
+		return nil, fmt.Errorf("invalid snapcraft login file %q: empty fields", authFn)
+	}
+	return &authData{
+		Macaroon:   macaroon,
+		Discharges: []string{unboundDischarge},
 	}, nil
+}
+
+// toolingAuthContext implements trivially auth.AuthContext except
+// implementing UpdateUserAuth properly to be used to refresh a
+// soft-expired user macaroon.
+type toolingAuthContext struct{}
+
+func (tac toolingAuthContext) CloudInfo() (*auth.CloudInfo, error) {
+	return nil, nil
+}
+
+func (tac toolingAuthContext) Device() (*auth.DeviceState, error) {
+	return &auth.DeviceState{}, nil
+}
+
+func (tac toolingAuthContext) DeviceSessionRequestParams(_ string) (*auth.DeviceSessionRequestParams, error) {
+	return nil, auth.ErrNoSerial
+}
+
+func (tac toolingAuthContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error) {
+	return "", defaultURL, nil
+}
+
+func (tac toolingAuthContext) StoreID(fallback string) (string, error) {
+	return fallback, nil
+}
+
+func (tac toolingAuthContext) UpdateDeviceAuth(_ *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
+	return nil, fmt.Errorf("internal error: no device state in tools")
+}
+
+func (tac toolingAuthContext) UpdateUserAuth(user *auth.UserState, discharges []string) (*auth.UserState, error) {
+	user.StoreDischarges = discharges
+	return user, nil
 }
 
 func NewToolingStoreFromModel(model *asserts.Model) (*ToolingStore, error) {

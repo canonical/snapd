@@ -1,10 +1,14 @@
 # Hacking on snapd
 
-Hacking on snapd is fun and straightfoward. The code is extensively
+Hacking on snapd is fun and straightforward. The code is extensively
 unit tested and we use the [spread](https://github.com/snapcore/spread)
 integration test framework for the integration/system level tests.
 
 ## Development
+
+### Supported Go versions
+
+snapd is supported on Go 1.6 onwards.
 
 ### Setting up a GOPATH
 
@@ -57,7 +61,7 @@ dependent packages will also be available inside `$GOPATH`.
 
 ### Dependencies handling
 
-Dependencies are handled via `govendor`. Get it via:
+Go dependencies are handled via `govendor`. Get it via:
 
     go get -u github.com/kardianos/govendor
 
@@ -74,6 +78,12 @@ You can use the script `get-deps.sh` to run the two previous steps.
 If a dependency need updating
 
     govendor fetch github.com/path/of/dependency
+
+Other dependencies are handled via distribution packages and you should ensure
+that dependencies for your distribution are installed. For example, on Ubuntu,
+run:
+
+    sudo apt-get build-dep ./
 
 ### Building
 
@@ -95,7 +105,7 @@ Similarly, to build the `snapd` REST API daemon, you can run
 ### Contributing
 
 Contributions are always welcome! Please make sure that you sign the
-Canonical contributor licence agreement at
+Canonical contributor license agreement at
 http://www.ubuntu.com/legal/contributors
 
 Snapd can be found on Github, so in order to fork the source and contribute,
@@ -115,6 +125,8 @@ To run the various tests that we have to ensure a high quality source just run:
 
 This will check if the source format is consistent, that it builds, all tests
 work as expected and that "go vet" has nothing to complain.
+
+The source format follows the `gofmt -s` formating. Please run this on your sources files if `run-checks` complains about the format.
 
 You can run individual test for a sub-package by changing into that directory and:
 
