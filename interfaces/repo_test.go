@@ -2052,3 +2052,30 @@ func (s *RepositorySuite) TestBeforeConnectValidationPolicyCheckFailure(c *C) {
 	c.Assert(err, ErrorMatches, `policy check failed`)
 	c.Assert(conn, IsNil)
 }
+
+func (s *RepositorySuite) TestConnection(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+
+	connRef := NewConnRef(s.plug, s.slot)
+
+	conn, err := s.testRepo.Connection(connRef)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `no connection from consumer:plug to producer:slot`)
+
+	_, err = s.testRepo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	conn, err = s.testRepo.Connection(connRef)
+	c.Assert(err, IsNil)
+	c.Assert(conn.Plug.Name(), Equals, "plug")
+	c.Assert(conn.Slot.Name(), Equals, "slot")
+
+	conn, err = s.testRepo.Connection(&ConnRef{PlugRef: PlugRef{Snap: "a", Name: "b"}, SlotRef: SlotRef{Snap: "producer", Name: "slot"}})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `snap "a" has no plug named "b"`)
+
+	conn, err = s.testRepo.Connection(&ConnRef{PlugRef: PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: SlotRef{Snap: "a", Name: "b"}})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `snap "a" has no slot named "b"`)
+}

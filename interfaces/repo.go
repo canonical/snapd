@@ -257,7 +257,7 @@ func (r *Repository) Connection(connRef *ConnRef) (*Connection, error) {
 	// Ensure that slot and plug are connected
 	conn, ok := r.slotPlugs[slot][plug]
 	if !ok {
-		return nil, fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
+		return nil, fmt.Errorf("no connection from %s:%s to %s:%s",
 			connRef.PlugRef.Snap, connRef.PlugRef.Name,
 			connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	}
