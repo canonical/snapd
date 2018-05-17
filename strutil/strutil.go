@@ -20,7 +20,6 @@
 package strutil
 
 import (
-	"bytes"
 	"fmt"
 	"math/rand"
 	"sort"
@@ -72,41 +71,6 @@ func Quoted(names []string) string {
 	return strings.Join(quoted, ", ")
 }
 
-// WordWrap takes a input string and word wraps after `n` chars
-// into a new slice.
-//
-// Caveats:
-// - If a single word that is biger than max will not get wrapped
-// - Extra whitespace will be removed
-func WordWrap(s string, max int) []string {
-	n := 0
-
-	var out []string
-	line := bytes.NewBuffer(nil)
-	// FIXME: we want to be smarter here. to quote Gustavo: "The
-	// logic here is corrupting the spacing of the original line,
-	// which means indentation and tabling will be gone. A better
-	// approach would be finding the break point and then using
-	// the original content instead of rewriting it."
-	for _, word := range strings.Fields(s) {
-		if n+len(word) > max && n > 0 {
-			out = append(out, line.String())
-			line.Truncate(0)
-			n = 0
-		} else if n > 0 {
-			fmt.Fprintf(line, " ")
-			n += 1
-		}
-		fmt.Fprintf(line, word)
-		n += len(word)
-	}
-	if line.Len() > 0 {
-		out = append(out, line.String())
-	}
-
-	return out
-}
-
 // ListContains determines whether the given string is contained in the
 // given list of strings.
 func ListContains(list []string, str string) bool {
@@ -126,4 +90,24 @@ func SortedListContains(list []string, str string) bool {
 		return false
 	}
 	return list[i] == str
+}
+
+// TruncateOutput truncates input data by maxLines, imposing maxBytes limit (total) for them.
+// The maxLines may be 0 to avoid the constraint on number of lines.
+func TruncateOutput(data []byte, maxLines, maxBytes int) []byte {
+	if maxBytes > len(data) {
+		maxBytes = len(data)
+	}
+	lines := maxLines
+	bytes := maxBytes
+	for i := len(data) - 1; i >= 0; i-- {
+		if data[i] == '\n' {
+			lines--
+		}
+		if lines == 0 || bytes == 0 {
+			return data[i+1:]
+		}
+		bytes--
+	}
+	return data
 }

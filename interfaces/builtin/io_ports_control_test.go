@@ -44,12 +44,14 @@ var _ = Suite(&ioPortsControlInterfaceSuite{
 })
 
 const ioPortsControlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [io-ports-control]
 `
 
 const ioPortsControlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   io-ports-control:
@@ -65,18 +67,18 @@ func (s *ioPortsControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *ioPortsControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "io-ports-control",
 		Interface: "io-ports-control",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"io-ports-control slots are reserved for the core snap")
 }
 
 func (s *ioPortsControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *ioPortsControlInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -96,9 +98,10 @@ func (s *ioPortsControlInterfaceSuite) TestSecCompSpec(c *C) {
 func (s *ioPortsControlInterfaceSuite) TestUDevSpec(c *C) {
 	udevSpec := &udev.Specification{}
 	c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 1)
+	c.Assert(udevSpec.Snippets(), HasLen, 2)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# io-ports-control
 KERNEL=="port", TAG+="snap_consumer_app"`)
+	c.Assert(udevSpec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *ioPortsControlInterfaceSuite) TestStaticInfo(c *C) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,6 +19,7 @@ package ifacestate
 
 import (
 	"errors"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -26,21 +27,28 @@ import (
 )
 
 var (
-	AddImplicitSlots = addImplicitSlots
+	AddImplicitSlots          = addImplicitSlots
+	SnapsWithSecurityProfiles = snapsWithSecurityProfiles
 )
-
-func MockConflictPredicate(pred func(*state.Task) bool) (restore func()) {
-	old := noConflictOnConnectTasks
-	noConflictOnConnectTasks = pred
-	return func() { noConflictOnConnectTasks = old }
-}
 
 // AddForeignTaskHandlers registers handlers for tasks handled outside of the
 // InterfaceManager.
-func (m *InterfaceManager) AddForeignTaskHandlers() {
+func AddForeignTaskHandlers(m *InterfaceManager) {
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
 		return errors.New("error out")
 	}
 	m.runner.AddHandler("error-trigger", erroringHandler, nil)
+}
+
+func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) {
+	old := removeStaleConnections
+	removeStaleConnections = f
+	return func() { removeStaleConnections = old }
+}
+
+func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
+	old := contentLinkRetryTimeout
+	contentLinkRetryTimeout = d
+	return func() { contentLinkRetryTimeout = old }
 }

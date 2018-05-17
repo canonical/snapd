@@ -78,6 +78,7 @@ func (s *IioInterfaceSuite) SetUpTest(c *C) {
 	// Mock for OS Snap
 	osSnapInfo := snaptest.MockInfo(c, `
 name: ubuntu-core
+version: 0
 type: os
 slots:
   test-port-1:
@@ -89,6 +90,7 @@ slots:
 	// Mock for Gadget Snap
 	gadgetSnapInfo := snaptest.MockInfo(c, `
 name: some-device
+version: 0
 type: gadget
 slots:
   test-udev-1:
@@ -154,6 +156,7 @@ slots:
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
+version: 0
 plugs:
   plug-for-port-1:
     interface: iio
@@ -171,22 +174,23 @@ func (s *IioInterfaceSuite) TestName(c *C) {
 }
 
 func (s *IioInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue1Info), ErrorMatches, "iio path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue2Info), ErrorMatches, "iio path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue3Info), ErrorMatches, "iio path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue4Info), ErrorMatches, "iio path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue5Info), ErrorMatches, "iio path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue6Info), ErrorMatches, "iio path attribute must be a valid device node")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue7Info), ErrorMatches, "iio slot must have a path attribute")
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.testUDevBadValue8Info), ErrorMatches, "iio slot must have a path attribute")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue1Info), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue2Info), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue3Info), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue4Info), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue5Info), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue6Info), ErrorMatches, "iio path attribute must be a valid device node")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue7Info), ErrorMatches, "iio slot must have a path attribute")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testUDevBadValue8Info), ErrorMatches, "iio slot must have a path attribute")
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 1)
+	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# iio
 KERNEL=="iio:device1", TAG+="snap_client-snap_app-accessing-1-port"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_client-snap_app-accessing-1-port", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-port $devpath $major:$minor"`)
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {

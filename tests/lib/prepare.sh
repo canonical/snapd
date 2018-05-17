@@ -10,6 +10,8 @@ set -eux
 . "$TESTSLIB/pkgdb.sh"
 # shellcheck source=tests/lib/boot.sh
 . "$TESTSLIB/boot.sh"
+# shellcheck source=tests/lib/spread-funcs.sh
+. "$TESTSLIB/spread-funcs.sh"
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -34,10 +36,38 @@ disable_refreshes() {
 
     echo "Minimize risk of hitting refresh schedule"
     snap set core refresh.schedule=00:00-23:59
-    snap refresh --time|MATCH "last: 2[0-9]{3}"
+    snap refresh --time --abs-time | MATCH "last: 2[0-9]{3}"
 
     echo "Ensure jq is gone"
     snap remove jq
+}
+
+setup_systemd_snapd_overrides() {
+    START_LIMIT_INTERVAL="StartLimitInterval=0"
+    if [[ "$SPREAD_SYSTEM" =~ opensuse-42.[23]-* ]]; then
+        # StartLimitInterval is not supported by the systemd version
+        # openSUSE 42.2/3 ship.
+        START_LIMIT_INTERVAL=""
+    fi
+
+    mkdir -p /etc/systemd/system/snapd.service.d
+    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
+[Unit]
+$START_LIMIT_INTERVAL
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
+ExecStartPre=/bin/touch /dev/iio:device0
+EOF
+    mkdir -p /etc/systemd/system/snapd.socket.d
+    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
+[Unit]
+$START_LIMIT_INTERVAL
+EOF
+
+    # We change the service configuration so reload and restart
+    # the snapd socket unit to get them applied
+    systemctl daemon-reload
+    systemctl restart snapd.socket
 }
 
 update_core_snap_for_classic_reexec() {
@@ -153,30 +183,7 @@ prepare_classic() {
         exit 1
     fi
 
-    START_LIMIT_INTERVAL="StartLimitInterval=0"
-    if [[ "$SPREAD_SYSTEM" = opensuse-42.2-* ]]; then
-        # StartLimitInterval is not supported by the systemd version
-        # openSUSE 42.2 ships.
-        START_LIMIT_INTERVAL=""
-    fi
-
-    mkdir -p /etc/systemd/system/snapd.service.d
-    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-[Unit]
-$START_LIMIT_INTERVAL
-[Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
-EOF
-    mkdir -p /etc/systemd/system/snapd.socket.d
-    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-[Unit]
-$START_LIMIT_INTERVAL
-EOF
-
-    # We change the service configuration so reload and restart
-    # the snapd socket unit to get them applied
-    systemctl daemon-reload
-    systemctl restart snapd.socket
+    setup_systemd_snapd_overrides
 
     if [ "$REMOTE_STORE" = staging ]; then
         # shellcheck source=tests/lib/store.sh
@@ -203,7 +210,7 @@ EOF
             done
             # Copy all of the snaps back to the spool directory. From there we
             # will reuse them during subsequent `snap install` operations.
-            cp *.snap /var/lib/snapd/snaps/
+            cp -- *.snap /var/lib/snapd/snaps/
             set +x
         )
 
@@ -237,8 +244,9 @@ EOF
             systemctl stop "$unit"
         done
         snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
+        snap_confine_profiles="$(ls /etc/apparmor.d/snap.core.* || true)"
         # shellcheck disable=SC2086
-        tar czf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount $snapd_env
+        tar cf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount $snap_confine_profiles $snapd_env
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
@@ -252,31 +260,15 @@ EOF
         systemctl start snapd.socket
     fi
 
-    if [[ "$SPREAD_SYSTEM" == debian-* || "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-            pollinate
-        fi
-
-        # Improve entropy for the whole system quite a lot to get fast
-        # key generation during our test cycles
-        echo "HRNGDEVICE=/dev/urandom" > /etc/default/rng-tools
-        /etc/init.d/rng-tools restart
-
-        if systemctl list-units | MATCH "rng-tools.service"; then
-            mkdir -p /etc/systemd/system/rng-tools.service.d/
-            cat <<EOF > /etc/systemd/system/rng-tools.service.d/local.conf
-[Service]
-Restart=always
-RestartSec=2
-RemainAfterExit=no
-PIDFile=/var/run/rngd.pid
-EOF
-        systemctl daemon-reload
-        systemctl restart rng-tools.service
-        fi
-    fi
-
     disable_kernel_rate_limiting
+
+    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        # Arch packages do not ship empty directories by default, hence there is
+        # no /etc/dbus-1/system.d what prevents dbus from properly establishing
+        # inotify watch on that path
+        mkdir -p /etc/dbus-1/system.d
+        systemctl reload dbus.service
+    fi
 }
 
 setup_reflash_magic() {
@@ -375,47 +367,58 @@ EOF
         echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' >> /mnt/system-data/etc/sudoers.d/99-ubuntu-user
         # modify sshd so that we can connect as root
         mkdir -p /mnt/system-data/etc/ssh
-        cp -a "$UNPACKD/etc/ssh/sshd_config" /mnt/system-data/etc/ssh/
+        cp -a "$UNPACKD"/etc/ssh/* /mnt/system-data/etc/ssh/
         sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /mnt/system-data/etc/ssh/sshd_config
 
         # build the user database - this is complicated because:
         # - spread on linode wants to login as "root"
         # - "root" login on the stock core snap is disabled
-        # - we need to add our ubuntu and test users too
         # - uids between classic/core differ
         # - passwd,shadow on core are read-only
         # - we cannot add root to extrausers as system passwd is searched first
-        # So we do:
-        # - take core passwd without "root" as extrausers
-        # - append root,ubuntu,test to extrausers
-        # - bind mount extrausers to /etc via custom systemd job
+        # - we need to add our ubuntu and test users too
+        # So we create the user db we need in /root/test-etc/*:
+        # - take core passwd without "root"
+        # - append root
+        # - make sure the group matches
+        # - bind mount /root/test-etc/* to /etc/* via custom systemd job
+        # We also create /var/lib/extrausers/* and append ubuntu,test there
+        mkdir -p /mnt/system-data/root/test-etc
         mkdir -p /mnt/system-data/var/lib/extrausers/
         touch /mnt/system-data/var/lib/extrausers/sub{uid,gid}
         mkdir -p /mnt/system-data/etc/systemd/system/multi-user.target.wants
         for f in group gshadow passwd shadow; do
             # the passwd from core without root
-            tail -n +2 "$UNPACKD/etc/$f" > /mnt/system-data/var/lib/extrausers/$f
+            grep -v "^root:" "$UNPACKD/etc/$f" > /mnt/system-data/root/test-etc/"$f"
             # append this systems root user so that linode can connect
-            head -n1 /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
-            # append ubuntu, test user for the testing
-            tail -n2 /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
+            grep "^root:" /etc/"$f" >> /mnt/system-data/root/test-etc/"$f"
 
-            # now bind mount those passwd files on boot
-            cat <<EOF > /mnt/system-data/etc/systemd/system/etc-$f.mount
+            # make sure the group is as expected
+            chgrp --reference "$UNPACKD/etc/$f" /mnt/system-data/root/test-etc/"$f"
+            # now bind mount read-only those passwd files on boot
+            cat >/mnt/system-data/etc/systemd/system/etc-"$f".mount <<EOF
 [Unit]
-Description=Mount extrausers $f over system $f
+Description=Mount root/test-etc/$f over system etc/$f
 Before=ssh.service
 
 [Mount]
-What=/var/lib/extrausers/$f
+What=/root/test-etc/$f
 Where=/etc/$f
 Type=none
-Options=bind
+Options=bind,ro
 
 [Install]
 WantedBy=multi-user.target
 EOF
-            ln -s /etc/systemd/system/etc-$f.mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-$f.mount
+            ln -s /etc/systemd/system/etc-"$f".mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-"$f".mount
+
+            # create /var/lib/extrausers/$f
+            # append ubuntu, test user for the testing
+            cp -a "$UNPACKD/var/lib/extrausers/$f" /mnt/system-data/var/lib/extrausers/"$f"
+            tail -n2 /etc/"$f" >> /mnt/system-data/var/lib/extrausers/"$f"
+            # check test was copied
+            MATCH "^test:" </mnt/system-data/var/lib/extrausers/"$f"
+
         done
 
         # ensure spread -reuse works in the core image as well
@@ -435,20 +438,6 @@ EOF
         (cd /tmp ; unsquashfs -v "$IMAGE_HOME"/core_*.snap etc/systemd/system)
         cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
 
-        # FIXUP silly systemd
-        mkdir -p /mnt/system-data/etc/systemd/system/snapd.service.d
-        cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.service.d/local.conf
-[Unit]
-StartLimitInterval=0
-[Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
-ExecStartPre=/bin/touch /dev/iio:device0
-EOF
-        mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d
-        cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.socket.d/local.conf
-[Unit]
-StartLimitInterval=0
-EOF
 
         umount /mnt
         kpartx -d  "$IMAGE_HOME/$IMAGE"
@@ -517,6 +506,7 @@ prepare_all_snap() {
     done
 
     disable_refreshes
+    setup_systemd_snapd_overrides
 
     # Snapshot the fresh state (including boot/bootenv)
     if [ ! -f "$SPREAD_PATH/snapd-state.tar.gz" ]; then
@@ -534,7 +524,7 @@ prepare_all_snap() {
         fi
 
         systemctl stop snapd.service snapd.socket
-        tar czf "$SPREAD_PATH/snapd-state.tar.gz" /var/lib/snapd $BOOT /etc/systemd/system/snap-*core*.mount
+        tar cf "$SPREAD_PATH/snapd-state.tar.gz" /var/lib/snapd $BOOT /etc/systemd/system/snap-*core*.mount
         systemctl start snapd.socket
     fi
 

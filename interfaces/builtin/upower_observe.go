@@ -270,7 +270,7 @@ func (iface *upowerObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specif
 	return nil
 }
 
-func (iface *upowerObserveInterface) SanitizeSlot(slot *snap.SlotInfo) error {
+func (iface *upowerObserveInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return sanitizeSlotReservedForOSOrApp(iface, slot)
 }
 

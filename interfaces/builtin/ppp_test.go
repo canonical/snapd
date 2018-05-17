@@ -44,12 +44,14 @@ var _ = Suite(&PppInterfaceSuite{
 })
 
 const pppConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [ppp]
 `
 
 const pppCoreYaml = `name: core
+version: 0
 type: os
 slots:
   ppp:
@@ -65,19 +67,19 @@ func (s *PppInterfaceSuite) TestName(c *C) {
 }
 
 func (s *PppInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "ppp",
 		Interface: "ppp",
 	}
 
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"ppp slots are reserved for the core snap")
 }
 
 func (s *PppInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *PppInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -98,9 +100,10 @@ func (s *PppInterfaceSuite) TestKModSpec(c *C) {
 func (s *PppInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), HasLen, 3)
 	c.Assert(spec.Snippets(), testutil.Contains, `# ppp
 KERNEL=="ppp", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *PppInterfaceSuite) TestStaticInfo(c *C) {

@@ -4,9 +4,86 @@
 . "$TESTSLIB/quiet.sh"
 
 debian_name_package() {
+    for i in "$@"; do
+        case "$i" in
+            xdelta3|curl|python3-yaml|kpartx|busybox-static|nfs-kernel-server)
+                echo "$i"
+                ;;
+            man)
+                echo "man-db"
+                ;;
+            *)
+                echo "$i"
+                ;;
+        esac
+    done
+}
+
+ubuntu_14_04_name_package() {
+    for i in "$@"; do
+        case "$i" in
+            printer-driver-cups-pdf)
+                echo "cups-pdf"
+                ;;
+            *)
+                debian_name_package "$i"
+                ;;
+        esac
+    done
+}
+
+fedora_name_package() {
+    for i in "$@"; do
+        case "$i" in
+            xdelta3|jq|curl|python3-yaml)
+                echo "$i"
+                ;;
+            openvswitch-switch)
+                echo "openvswitch"
+                ;;
+            printer-driver-cups-pdf)
+                echo "cups-pdf"
+                ;;
+            *)
+                echo "$i"
+                ;;
+        esac
+    done
+}
+
+opensuse_name_package() {
+    for i in "$@"; do
+        case "$i" in
+            python3-yaml)
+                echo "python3-PyYAML"
+                ;;
+            dbus-x11)
+                echo "dbus-1-x11"
+                ;;
+            printer-driver-cups-pdf)
+                echo "cups-pdf"
+                ;;
+            *)
+                echo "$i"
+                ;;
+        esac
+    done
+}
+
+arch_name_package() {
     case "$1" in
-        xdelta3|curl|python3-yaml|kpartx|busybox-static|nfs-kernel-server)
-            echo "$1"
+        python3-yaml)
+            echo "python-yaml"
+            ;;
+        dbus-x11)
+            # no separate dbus-x11 package in arch
+            echo "dbus"
+            ;;
+        printer-driver-cups-pdf)
+            echo "cups-pdf"
+            ;;
+        openvswitch-switch)
+            echo "openvswitch"
             ;;
         man)
             echo "man-db"
@@ -17,64 +94,22 @@ debian_name_package() {
     esac
 }
 
-ubuntu_14_04_name_package() {
-    case "$1" in
-        printer-driver-cups-pdf)
-            echo "cups-pdf"
-            ;;
-        *)
-            debian_name_package "$1"
-            ;;
-    esac
-}
-
-fedora_name_package() {
-    case "$1" in
-        xdelta3|jq|curl|python3-yaml)
-            echo "$1"
-            ;;
-        openvswitch-switch)
-            echo "openvswitch"
-            ;;
-        printer-driver-cups-pdf)
-            echo "cups-pdf"
-            ;;
-        *)
-            echo "$1"
-            ;;
-    esac
-}
-
-opensuse_name_package() {
-    case "$1" in
-        python3-yaml)
-            echo "python3-PyYAML"
-            ;;
-        dbus-x11)
-            echo "dbus-1-x11"
-            ;;
-        printer-driver-cups-pdf)
-            echo "cups-pdf"
-            ;;
-        *)
-            echo "$1"
-            ;;
-    esac
-}
-
 distro_name_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
-            ubuntu_14_04_name_package "$1"
+            ubuntu_14_04_name_package "$@"
             ;;
         ubuntu-*|debian-*)
-            debian_name_package "$1"
+            debian_name_package "$@"
             ;;
         fedora-*)
-            fedora_name_package "$1"
+            fedora_name_package "$@"
             ;;
         opensuse-*)
-            opensuse_name_package "$1"
+            opensuse_name_package "$@"
+            ;;
+        arch-*)
+            arch_name_package "$1"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -111,10 +146,13 @@ distro_install_local_package() {
             apt install $flags "$@"
             ;;
         fedora-*)
-            dnf -q -y install "$@"
+            quiet dnf -y install "$@"
             ;;
         opensuse-*)
-            zypper -q install -y "$@"
+            quiet rpm -i "$@"
+            ;;
+        arch-*)
+            pacman -U --noconfirm "$@"
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -164,61 +202,75 @@ distro_install_package() {
         ;;
     esac
 
-    for pkg in "$@" ; do
-        package_name=$(distro_name_package "$pkg")
-        # When we could not find a different package name for the distribution
-        # we're running on we try the package name given as last attempt
-        if [ -z "$package_name" ]; then
-            package_name="$pkg"
-        fi
+    pkg_names=($(
+        for pkg in "$@" ; do
+            package_name=$(distro_name_package "$pkg")
+            # When we could not find a different package name for the distribution
+            # we're running on we try the package name given as last attempt
+            if [ -z "$package_name" ]; then
+                package_name="$pkg"
+            fi
+            echo "$package_name"
+        done
+    ))
 
-        case "$SPREAD_SYSTEM" in
-            ubuntu-*|debian-*)
-                # shellcheck disable=SC2086
-                quiet apt-get install $APT_FLAGS -y "$package_name"
-                ;;
-            fedora-*)
-                # shellcheck disable=SC2086
-                dnf -q -y --refresh install $DNF_FLAGS "$package_name"
-                ;;
-            opensuse-*)
-                # shellcheck disable=SC2086
-                zypper -q install -y $ZYPPER_FLAGS "$package_name"
-                ;;
-            *)
-                echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
-                exit 1
-                ;;
-        esac
-    done
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            # shellcheck disable=SC2086
+            quiet apt-get install $APT_FLAGS -y "${pkg_names[@]}"
+            ;;
+        fedora-*)
+            # shellcheck disable=SC2086
+            quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"
+            ;;
+        opensuse-*)
+            # shellcheck disable=SC2086
+            quiet zypper install -y $ZYPPER_FLAGS "${pkg_names[@]}"
+            ;;
+        arch-*)
+            # shellcheck disable=SC2086
+            pacman -Suq --needed --noconfirm "${pkg_names[@]}"
+            ;;
+        *)
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
+            exit 1
+            ;;
+    esac
 }
 
 distro_purge_package() {
-    for pkg in "$@" ; do
-        package_name=$(distro_name_package "$pkg")
-        # When we could not find a different package name for the distribution
-        # we're running on we try the package name given as last attempt
-        if [ -z "$package_name" ]; then
-            package_name="$pkg"
-        fi
+    # shellcheck disable=SC2046
+    set -- $(
+        for pkg in "$@" ; do
+            package_name=$(distro_name_package "$pkg")
+            # When we could not find a different package name for the distribution
+            # we're running on we try the package name given as last attempt
+            if [ -z "$package_name" ]; then
+                package_name="$pkg"
+            fi
+            echo "$package_name"
+        done
+        )
 
-        case "$SPREAD_SYSTEM" in
-            ubuntu-*|debian-*)
-                quiet apt-get remove -y --purge -y "$package_name"
-                ;;
-            fedora-*)
-                dnf -y -q remove "$package_name"
-                dnf -q clean all
-                ;;
-            opensuse-*)
-                zypper -q remove -y "$package_name"
-                ;;
-            *)
-                echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
-                exit 1
-                ;;
-        esac
-    done
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            quiet apt-get remove -y --purge -y "$@"
+            ;;
+        fedora-*)
+            quiet dnf -y remove "$@"
+            quiet dnf clean all
+            ;;
+        opensuse-*)
+            quiet zypper remove -y "$@"
+            ;;
+        arch-*)
+            pacman -Rnsc --noconfirm "$@"
+            ;;
+        *)
+            echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
+            exit 1
+            ;;
+    esac
 }
 
 distro_update_package_db() {
@@ -227,10 +279,14 @@ distro_update_package_db() {
             quiet apt-get update
             ;;
         fedora-*)
-            dnf -q makecache
+            quiet dnf clean all
+            quiet dnf makecache
             ;;
         opensuse-*)
-            zypper -q refresh
+            quiet zypper --gpg-auto-import-keys refresh
+            ;;
+        arch-*)
+            pacman -Syq
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -247,6 +303,9 @@ distro_clean_package_cache() {
         opensuse-*)
             zypper -q clean --all
             ;;
+        arch-*)
+            pacman -Sccq --noconfirm
+            ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
             exit 1
@@ -260,9 +319,11 @@ distro_auto_remove_packages() {
             quiet apt-get -y autoremove
             ;;
         fedora-*)
-            dnf -q -y autoremove
+            quiet dnf -y autoremove
             ;;
         opensuse-*)
+            ;;
+        arch-*)
             ;;
         *)
             echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
@@ -281,6 +342,9 @@ distro_query_package_info() {
             ;;
         opensuse-*)
             zypper info "$1"
+            ;;
+        arch-*)
+            pacman -Si "$1"
             ;;
     esac
 }
@@ -314,6 +378,10 @@ distro_install_build_snapd(){
                 # shellcheck disable=SC2125
                 packages="${GOHOME}"/snapd*.rpm
                 ;;
+            arch-*)
+                # shellcheck disable=SC2125
+                packages="${GOHOME}"/snapd*.pkg.tar.xz
+                ;;
             *)
                 exit 1
                 ;;
@@ -321,6 +389,12 @@ distro_install_build_snapd(){
 
         # shellcheck disable=SC2086
         distro_install_local_package $packages
+
+        if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+            # Arch policy does not allow calling daemon-reloads in package
+            # install scripts
+            systemctl daemon-reload
+        fi
 
         # On some distributions the snapd.socket is not yet automatically
         # enabled as we don't have a systemd present configuration approved
@@ -341,6 +415,10 @@ distro_get_package_extension() {
         fedora-*|opensuse-*)
             echo "rpm"
             ;;
+        arch-*)
+            # default /etc/makepkg.conf setting
+            echo "pkg.tar.xz"
+            ;;
     esac
 }
 
@@ -353,19 +431,22 @@ pkg_dependencies_ubuntu_generic(){
         curl
         devscripts
         expect
+        gdb
         gdebi-core
         git
         indent
         jq
+        apparmor-utils
         libapparmor-dev
         libglib2.0-dev
         libseccomp-dev
         libudev-dev
+        man
         netcat-openbsd
         pkg-config
         python3-docutils
-        rng-tools
         udev
+        uuid-runtime
         "
 }
 
@@ -388,13 +469,11 @@ pkg_dependencies_ubuntu_classic(){
         ubuntu-14.04-*)
             echo "
                 linux-image-extra-$(uname -r)
-                pollinate
                 "
             ;;
         ubuntu-16.04-32)
             echo "
                 linux-image-extra-$(uname -r)
-                pollinate
                 "
             ;;
         ubuntu-16.04-64)
@@ -403,16 +482,19 @@ pkg_dependencies_ubuntu_classic(){
                 kpartx
                 libvirt-bin
                 linux-image-extra-$(uname -r)
-                pollinate
                 qemu
                 x11-utils
                 xvfb
                 "
             ;;
+        ubuntu-17.10-64)
+            echo "
+                linux-image-extra-4.13.0-16-generic
+                "
+            ;;
         ubuntu-*)
             echo "
-                linux-image-extra-$(uname -r)
-                pollinate
+                squashfs-tools
                 "
             ;;
         debian-*)
@@ -438,7 +520,10 @@ pkg_dependencies_fedora(){
         git
         golang
         jq
+        iptables-services
+        man
         mock
+        net-tools
         redhat-lsb-core
         rpm-build
         xdg-user-dirs
@@ -447,18 +532,44 @@ pkg_dependencies_fedora(){
 
 pkg_dependencies_opensuse(){
     echo "
+        apparmor-profiles
         curl
         expect
         git
         golang-packaging
         jq
         lsb-release
+        man
         netcat-openbsd
         osc
-        rng-tools
+        uuidd
         xdg-utils
         xdg-user-dirs
         "
+}
+
+pkg_dependencies_arch(){
+    echo "
+    curl
+    base-devel
+    go
+    go-tools
+    libseccomp
+    libcap
+    python-docutils
+    xfsprogs
+    squashfs-tools
+    shellcheck
+    python
+    jq
+    git
+    openbsd-netcat
+    xdg-user-dirs
+    expect
+    libx11
+    bash-completion
+    net-tools
+    "
 }
 
 pkg_dependencies(){
@@ -477,6 +588,9 @@ pkg_dependencies(){
         opensuse-*)
             pkg_dependencies_opensuse
             ;;
+        arch-*)
+            pkg_dependencies_arch
+            ;;
         *)
             ;;
     esac
@@ -486,4 +600,35 @@ install_pkg_dependencies(){
     pkgs=$(pkg_dependencies)
     # shellcheck disable=SC2086
     distro_install_package $pkgs
+}
+
+# upgrade distribution and indicate if reboot is needed by outputting 'reboot'
+# to stdout
+distro_upgrade() {
+    case "$SPREAD_SYSTEM" in
+        arch-*)
+            # Arch does not support partial upgrades. On top of this, the image
+            # we are running in may have been built some time ago and we need to
+            # upgrade so that the tests are run with the same package versions
+            # as the users will have. We basically need to run pacman -Syu.
+            # Since there is no way to tell if we can continue after upgrading
+            # (eg. the kernel package or systemd got updated ) issue a reboot
+            # instead.
+            #
+            # pacman -Syu --noconfirm on an updated system:
+            # :: Synchronizing package databases...
+            #  core is up to date
+            #  extra is up to date
+            #  community is up to date
+            #  multilib is up to date
+            # :: Starting full system upgrade...
+            #  there is nothing to do  <--- needle
+            if ! pacman -Syu --noconfirm 2>&1 | grep -q "there is nothing to do" ; then
+                echo "reboot"
+            fi
+            ;;
+        *)
+            echo "WARNING: distro upgrade not supported on $SPREAD_SYSTEM"
+            ;;
+    esac
 }

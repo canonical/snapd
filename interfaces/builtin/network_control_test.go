@@ -44,12 +44,14 @@ var _ = Suite(&NetworkControlInterfaceSuite{
 })
 
 const networkControlConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [network-control]
 `
 
 const networkControlCoreYaml = `name: core
+version: 0
 type: os
 slots:
   network-control:
@@ -65,18 +67,18 @@ func (s *NetworkControlInterfaceSuite) TestName(c *C) {
 }
 
 func (s *NetworkControlInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "network-control",
 		Interface: "network-control",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"network-control slots are reserved for the core snap")
 }
 
 func (s *NetworkControlInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *NetworkControlInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -96,9 +98,10 @@ func (s *NetworkControlInterfaceSuite) TestSecCompSpec(c *C) {
 func (s *NetworkControlInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), HasLen, 3)
 	c.Assert(spec.Snippets(), testutil.Contains, `# network-control
 KERNEL=="tun", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *NetworkControlInterfaceSuite) TestStaticInfo(c *C) {

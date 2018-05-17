@@ -43,12 +43,14 @@ var _ = Suite(&OpenglInterfaceSuite{
 })
 
 const openglConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [opengl]
 `
 
 const openglCoreYaml = `name: core
+version: 0
 type: os
 slots:
   opengl:
@@ -64,19 +66,19 @@ func (s *OpenglInterfaceSuite) TestName(c *C) {
 }
 
 func (s *OpenglInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "opengl",
 		Interface: "opengl",
 	}
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
 		"opengl slots are reserved for the core snap")
 }
 
 func (s *OpenglInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -89,9 +91,10 @@ func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
 func (s *OpenglInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), HasLen, 3)
 	c.Assert(spec.Snippets(), testutil.Contains, `# opengl
 SUBSYSTEM=="drm", KERNEL=="card[0-9]*", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
 }
 
 func (s *OpenglInterfaceSuite) TestStaticInfo(c *C) {

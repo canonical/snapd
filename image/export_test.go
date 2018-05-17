@@ -38,3 +38,7 @@ var (
 func (tsto *ToolingStore) User() *auth.UserState {
 	return tsto.user
 }
+
+func ToolingAuthContext() auth.AuthContext {
+	return toolingAuthContext{}
+}

@@ -6,6 +6,9 @@ systems:
     - ubuntu-core-16-arm-64
     - ubuntu-core-16-arm-32
 
+# Start early as it takes a long time.
+priority: 100
+
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-tools

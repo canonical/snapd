@@ -33,7 +33,7 @@ systemctl_stop() {
 }
 
 purge() {
-    # debian-9, fedora-27, ubuntu-16.04...
+    # shellcheck disable=SC1091
     distribution=$(. /etc/os-release; echo "${ID}-${VERSION_ID}")
 
     if [ "$distribution" = "ubuntu-14.04" ]; then
@@ -47,9 +47,11 @@ purge() {
         fi
     fi
 
-    units=$(systemctl list-unit-files --full | grep -vF snap.mount.service || true)
+    units=$(systemctl list-unit-files --no-legend --full | grep -vF snap.mount.service || true)
+    # *.snap mount points
     mounts=$(echo "$units" | grep "^${SNAP_UNIT_PREFIX}[-.].*\.mount" | cut -f1 -d ' ')
-    services=$(echo "$units" | grep "^${SNAP_UNIT_PREFIX}[-.].*\.service" | cut -f1 -d ' ')
+    # services from snaps
+    services=$(echo "$units" | grep "^snap\..*\.service" | cut -f1 -d ' ')
     for unit in $services $mounts; do
         # ensure its really a snap mount unit or systemd unit
         if ! grep -q 'What=/var/lib/snapd/snaps/' "/etc/systemd/system/$unit" && ! grep -q 'X-Snappy=yes' "/etc/systemd/system/$unit"; then
@@ -60,34 +62,51 @@ purge() {
         echo "Stopping $unit"
         systemctl_stop "$unit"
 
-        # if it is a mount unit, we can find the snap name in the mount
-        # unit (we just ignore unit files)
-        snap=$(grep "Where=${SNAP_MOUNT_DIR}/" "/etc/systemd/system/$unit"|cut -f3 -d/)
-        rev=$(grep "Where=${SNAP_MOUNT_DIR}/" "/etc/systemd/system/$unit"|cut -f4 -d/)
-        if [ -n "$snap" ]; then
-            echo "Removing snap $snap"
-            # aliases
-            if [ -d "${SNAP_MOUNT_DIR}/bin" ]; then
-                find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap" -delete
-                find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap.*" -delete
-            fi
-            # generated binaries
-            rm -f "${SNAP_MOUNT_DIR}/bin/$snap"
-            rm -f "${SNAP_MOUNT_DIR}/bin/$snap".*
-            # snap mount dir
-            umount -l "${SNAP_MOUNT_DIR}/$snap/$rev" 2> /dev/null || true
-            rm -rf "${SNAP_MOUNT_DIR:?}/$snap/$rev"
-            rm -f "${SNAP_MOUNT_DIR}/$snap/current"
-            # snap data dir
-            rm -rf "/var/snap/$snap/$rev"
-            rm -rf "/var/snap/$snap/common"
-            rm -f "/var/snap/$snap/current"
-            # opportunistic remove (may fail if there are still revisions left)
-            for d in "${SNAP_MOUNT_DIR}/$snap" "/var/snap/$snap"; do
-                if [ -d "$d" ]; then
-                    rmdir --ignore-fail-on-non-empty "$d"
+        if echo "$unit" | grep -q ".*\.mount" ; then
+            # Transform ${SNAP_MOUNT_DIR}/core/3440 -> core/3440 removing any
+            # extra / preceding snap name, eg:
+            #  /var/lib/snapd/snap/core/3440  -> core/3440
+            #  /snap/core/3440                -> core/3440
+            #  /snap/core//3440               -> core/3440
+            # NOTE: we could have used `systemctl show $unit -p Where --value`
+            # but systemd 204 shipped with Ubuntu 14.04 does not support this
+            snap_rev=$(systemctl show "$unit" -p Where | sed -e 's#Where=##' -e "s#$SNAP_MOUNT_DIR##" -e 's#^/*##')
+            snap=$(echo "$snap_rev" |cut -f1 -d/)
+            rev=$(echo "$snap_rev" |cut -f2 -d/)
+            if [ -n "$snap" ]; then
+                echo "Removing snap $snap"
+                # aliases
+                if [ -d "${SNAP_MOUNT_DIR}/bin" ]; then
+                    find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap" -delete
+                    find "${SNAP_MOUNT_DIR}/bin" -maxdepth 1 -lname "$snap.*" -delete
                 fi
-            done
+                # generated binaries
+                rm -f "${SNAP_MOUNT_DIR}/bin/$snap"
+                rm -f "${SNAP_MOUNT_DIR}/bin/$snap".*
+                # snap mount dir
+                umount -l "${SNAP_MOUNT_DIR}/$snap/$rev" 2> /dev/null || true
+                rm -rf "${SNAP_MOUNT_DIR:?}/$snap/$rev"
+                rm -f "${SNAP_MOUNT_DIR}/$snap/current"
+                # snap data dir
+                rm -rf "/var/snap/$snap/$rev"
+                rm -rf "/var/snap/$snap/common"
+                rm -f "/var/snap/$snap/current"
+                # opportunistic remove (may fail if there are still revisions left)
+                for d in "${SNAP_MOUNT_DIR}/$snap" "/var/snap/$snap"; do
+                    if [ -d "$d" ]; then
+                        rmdir --ignore-fail-on-non-empty "$d"
+                    fi
+                done
+                # udev rules
+                find /etc/udev/rules.d -name "*-snap.${snap}.rules" -execdir rm -f "{}" \;
+                # dbus policy files
+                find /etc/dbus-1/system.d -name "snap.${snap}.*.conf" -execdir rm -f "{}" \;
+                # timer files
+                find /etc/systemd/system -name "snap.${snap}.*.timer" | while read -r f; do
+                    systemctl_stop "$(basename "$f")"
+                    rm -f "$f"
+                done
+            fi
         fi
 
         echo "Removing $unit"
@@ -97,15 +116,20 @@ purge() {
 
     echo "Discarding preserved snap namespaces"
     # opportunistic as those might not be actually mounted
-    for mnt in /run/snapd/ns/*.mnt; do
-        umount -l "$mnt" || true
-        rm -f "$mnt"
-    done
-    for fstab in /run/snapd/ns/*.fstab; do
-        rm -f "$fstab"
-    done
-    umount -l /run/snapd/ns/ || true
-
+    if [ -d /run/snapd/ns ]; then
+        if [ "$(find /run/snapd/ns/ -name "*.mnt" | wc -l)" -gt 0 ]; then
+            for mnt in /run/snapd/ns/*.mnt; do
+                umount -l "$mnt" || true
+                rm -f "$mnt"
+            done
+        fi
+        if [ "$(find /run/snapd/ns/ -name "*.fstab" | wc -l)" -gt 0 ]; then
+            for fstab in /run/snapd/ns/*.fstab; do
+                rm -f "$fstab"
+            done
+        fi
+        umount -l /run/snapd/ns/ || true
+    fi
 
     echo "Removing downloaded snaps"
     rm -rf /var/lib/snapd/snaps/*
@@ -119,6 +143,9 @@ purge() {
     rm -rf /var/lib/snapd/seccomp/bpf/*
     rm -rf /var/lib/snapd/device/*
     rm -rf /var/lib/snapd/assertions/*
+    rm -rf /var/lib/snapd/cookie/*
+    rm -rf /var/lib/snapd/cache/*
+    rm -f /var/lib/snapd/state.json
 
     echo "Removing snapd catalog cache"
     rm -f /var/cache/snapd/*

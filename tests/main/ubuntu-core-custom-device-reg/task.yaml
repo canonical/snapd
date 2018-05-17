@@ -15,7 +15,7 @@ prepare: |
     unsquashfs /var/lib/snapd/snaps/pc_*.snap
     mkdir -p squashfs-root/meta/hooks
     cp prepare-device squashfs-root/meta/hooks
-    mksquashfs squashfs-root pc_x1.snap -comp xz
+    mksquashfs squashfs-root pc_x1.snap -comp xz -no-fragments
     rm -rf squashfs-root
     cp pc_x1.snap /var/lib/snapd/seed/snaps/
     mv /var/lib/snapd/seed/assertions/model model.bak

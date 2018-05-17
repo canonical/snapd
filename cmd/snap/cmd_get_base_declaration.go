@@ -33,7 +33,7 @@ func init() {
 		"(internal) obtain the base declaration for all interfaces",
 		func() flags.Commander {
 			return &cmdGetBaseDeclaration{}
-		})
+		}, nil, nil)
 }
 
 func (x *cmdGetBaseDeclaration) Execute(args []string) error {

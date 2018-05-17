@@ -28,6 +28,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -54,7 +55,11 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	switch t.n {
 	case 0:
 		t.checker(r)
-		t.c.Check(r.Method, check.Equals, "POST")
+		method := "POST"
+		if strings.HasSuffix(r.URL.Path, "/conf") {
+			method = "PUT"
+		}
+		t.c.Check(r.Method, check.Equals, method)
 		w.WriteHeader(202)
 		fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
 	case 1:
@@ -439,7 +444,7 @@ func (s *SnapOpSuite) TestRevertRunthrough(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	// tracking channel is "" in the test server
 	c.Check(s.Stdout(), check.Equals, `foo reverted to 1.0
-This leaves foo tracking .
+Channel  for foo is closed; temporarily forwarding to potato.
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
@@ -541,30 +546,93 @@ foo +4.2update1 +17 +bar +-.*
 	c.Check(n, check.Equals, 1)
 }
 
-func (s *SnapSuite) TestRefreshTime(c *check.C) {
+func (s *SnapSuite) TestRefreshLegacyTime(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
-			fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"schedule": "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59", "last": "2017-04-25T17:35:00+0200", "next": "2017-04-26T00:58:00+0200"}}}`)
+			fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"schedule": "00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59", "last": "2017-04-25T17:35:00+02:00", "next": "2017-04-26T00:58:00+02:00"}}}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--time"})
+	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--time", "--abs-time"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `schedule: 00:00-04:59/5:00-10:59/11:00-16:59/17:00-23:59
-last: 2017-04-25T17:35:00+0200
-next: 2017-04-26T00:58:00+0200
+last: 2017-04-25T17:35:00+02:00
+next: 2017-04-26T00:58:00+02:00
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestRefreshTimer(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+			fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"timer": "0:00-24:00/4", "last": "2017-04-25T17:35:00+02:00", "next": "2017-04-26T00:58:00+02:00"}}}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--time", "--abs-time"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `timer: 0:00-24:00/4
+last: 2017-04-25T17:35:00+02:00
+next: 2017-04-26T00:58:00+02:00
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestRefreshHold(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+			fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"timer": "0:00-24:00/4", "last": "2017-04-25T17:35:00+02:00", "next": "2017-04-26T00:58:00+02:00", "hold": "2017-04-28T00:00:00+02:00"}}}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--time", "--abs-time"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `timer: 0:00-24:00/4
+last: 2017-04-25T17:35:00+02:00
+hold: 2017-04-28T00:00:00+02:00
+next: 2017-04-26T00:58:00+02:00
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestRefreshNoTimerNoSchedule(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "GET")
+		c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+		fmt.Fprintln(w, `{"type": "sync", "status-code": 200, "result": {"refresh": {"last": "2017-04-25T17:35:00+0200", "next": "2017-04-26T00:58:00+0200"}}}`)
+	})
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--time"})
+	c.Assert(err, check.ErrorMatches, `internal error: both refresh.timer and refresh.schedule are empty`)
 }
 
 func (s *SnapSuite) TestRefreshListErr(c *check.C) {
@@ -696,6 +764,20 @@ func (s *SnapOpSuite) TestRefreshAllModeFlags(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify mode or channel flags`)
 }
 
+func (s *SnapOpSuite) TestRefreshOneAmend(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action": "refresh",
+			"amend":  true,
+		})
+	}
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--amend", "one"})
+	c.Assert(err, check.IsNil)
+}
+
 func (s *SnapOpSuite) runTryTest(c *check.C, opts *client.SnapOptions) {
 	// pass relative path to cmd
 	tryDir := "some-dir"
@@ -780,16 +862,14 @@ func (s *SnapOpSuite) TestTryNoSnapDirErrors(c *check.C) {
     "kind":"snap-not-a-snap"
   },
   "status-code": 400
-}
-`)
-
+}`)
 	})
 
 	cmd := []string{"try", "/"}
 	_, err := snap.Parser().ParseArgs(cmd)
 	c.Assert(err, check.ErrorMatches, `"/" does not contain an unpacked snap.
 
-Try "snapcraft prime" in your project directory, then "snap try" again.`)
+Try 'snapcraft prime' in your project directory, then 'snap try' again.`)
 }
 
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {
@@ -994,9 +1074,21 @@ func (s *SnapOpSuite) TestNoWait(c *check.C) {
 		{"revert", "--no-wait", "foo"},
 		{"refresh", "--no-wait", "foo"},
 		{"refresh", "--no-wait", "foo", "bar"},
+		{"refresh", "--no-wait"},
 		{"enable", "--no-wait", "foo"},
 		{"disable", "--no-wait", "foo"},
 		{"try", "--no-wait", "."},
+		{"switch", "--no-wait", "--channel=foo", "bar"},
+		// commands that use waitMixin from elsewhere
+		{"start", "--no-wait", "foo"},
+		{"stop", "--no-wait", "foo"},
+		{"restart", "--no-wait", "foo"},
+		{"alias", "--no-wait", "foo", "bar"},
+		{"unalias", "--no-wait", "foo"},
+		{"prefer", "--no-wait", "foo"},
+		{"set", "--no-wait", "foo", "bar=baz"},
+		{"disconnect", "--no-wait", "foo:bar"},
+		{"connect", "--no-wait", "foo:bar"},
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
@@ -1010,6 +1102,95 @@ func (s *SnapOpSuite) TestNoWait(c *check.C) {
 		// reset
 		s.srv.n = 0
 		s.stdout.Reset()
+	}
+}
+
+func (s *SnapOpSuite) TestNoWaitImmediateError(c *check.C) {
+
+	cmds := [][]string{
+		{"remove", "--no-wait", "foo"},
+		{"remove", "--no-wait", "foo", "bar"},
+		{"install", "--no-wait", "foo"},
+		{"install", "--no-wait", "foo", "bar"},
+		{"revert", "--no-wait", "foo"},
+		{"refresh", "--no-wait", "foo"},
+		{"refresh", "--no-wait", "foo", "bar"},
+		{"refresh", "--no-wait"},
+		{"enable", "--no-wait", "foo"},
+		{"disable", "--no-wait", "foo"},
+		{"try", "--no-wait", "."},
+		{"switch", "--no-wait", "--channel=foo", "bar"},
+		// commands that use waitMixin from elsewhere
+		{"start", "--no-wait", "foo"},
+		{"stop", "--no-wait", "foo"},
+		{"restart", "--no-wait", "foo"},
+		{"alias", "--no-wait", "foo", "bar"},
+		{"unalias", "--no-wait", "foo"},
+		{"prefer", "--no-wait", "foo"},
+		{"set", "--no-wait", "foo", "bar=baz"},
+		{"disconnect", "--no-wait", "foo:bar"},
+		{"connect", "--no-wait", "foo:bar"},
+	}
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "failure"}}`)
+	})
+
+	for _, cmd := range cmds {
+		_, err := snap.Parser().ParseArgs(cmd)
+		c.Assert(err, check.ErrorMatches, "failure", check.Commentf("%v", cmd))
+	}
+}
+
+func (s *SnapOpSuite) TestWaitServerError(c *check.C) {
+	r := snap.MockMaxGoneTime(0)
+	defer r()
+
+	cmds := [][]string{
+		{"remove", "foo"},
+		{"remove", "foo", "bar"},
+		{"install", "foo"},
+		{"install", "foo", "bar"},
+		{"revert", "foo"},
+		{"refresh", "foo"},
+		{"refresh", "foo", "bar"},
+		{"refresh"},
+		{"enable", "foo"},
+		{"disable", "foo"},
+		{"try", "."},
+		{"switch", "--channel=foo", "bar"},
+		// commands that use waitMixin from elsewhere
+		{"start", "foo"},
+		{"stop", "foo"},
+		{"restart", "foo"},
+		{"alias", "foo", "bar"},
+		{"unalias", "foo"},
+		{"prefer", "foo"},
+		{"set", "foo", "bar=baz"},
+		{"disconnect", "foo:bar"},
+		{"connect", "foo:bar"},
+	}
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		if n == 1 {
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+			return
+		}
+		if n == 3 {
+			fmt.Fprintln(w, `{"type": "error", "result": {"message": "unexpected request"}}`)
+			return
+		}
+		fmt.Fprintln(w, `{"type": "error", "result": {"message": "server error"}}`)
+	})
+
+	for _, cmd := range cmds {
+		_, err := snap.Parser().ParseArgs(cmd)
+		c.Assert(err, check.ErrorMatches, "server error", check.Commentf("%v", cmd))
+		// reset
+		n = 0
 	}
 }
 
@@ -1041,4 +1222,26 @@ func (s *SnapOpSuite) TestSwitchUnhappy(c *check.C) {
 func (s *SnapOpSuite) TestSwitchAlsoUnhappy(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"switch", "foo"})
 	c.Assert(err, check.ErrorMatches, `missing --channel=<channel-name> parameter`)
+}
+
+func (s *SnapOpSuite) TestSnapOpNetworkTimeoutError(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		w.WriteHeader(202)
+		w.Write([]byte(`
+{
+  "type": "error",
+  "result": {
+    "message":"Get https://api.snapcraft.io/api/v1/snaps/details/hello?channel=stable&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cdeltas%2Cbinary_filesize%2Cdownload_url%2Cepoch%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Cscreenshot_urls%2Csnap_id%2Clicense%2Cbase%2Csupport_url%2Ccontact%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement%2Cchannel_maps_list: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)",
+    "kind":"network-timeout"
+  },
+  "status-code": 400
+}
+`))
+
+	})
+
+	cmd := []string{"install", "hello"}
+	_, err := snap.Parser().ParseArgs(cmd)
+	c.Assert(err, check.ErrorMatches, `unable to contact snap store`)
 }

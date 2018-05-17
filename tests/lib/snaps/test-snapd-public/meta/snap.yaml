@@ -1,0 +1,6 @@
+name: test-snapd-public
+version: 1.0
+architectures:
+    - all
+summary: Basic snap to be published as public
+description: A basic buildable snap that is expected to be published publicly.

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,10 +29,12 @@ import (
 	"sort"
 	"strconv"
 
+	"golang.org/x/net/context"
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -64,6 +66,14 @@ type UserState struct {
 	Discharges      []string `json:"discharges,omitempty"`
 	StoreMacaroon   string   `json:"store-macaroon,omitempty"`
 	StoreDischarges []string `json:"store-discharges,omitempty"`
+}
+
+// HasStoreAuth returns true if the user has store authorization.
+func (u *UserState) HasStoreAuth() bool {
+	if u == nil {
+		return false
+	}
+	return u.StoreMacaroon != ""
 }
 
 // MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
@@ -158,11 +168,16 @@ func NewUser(st *state.State, username, email, macaroon string, discharges []str
 	return &authenticatedUser, nil
 }
 
+var ErrInvalidUser = errors.New("invalid user")
+
 // RemoveUser removes a user from the state given its ID
 func RemoveUser(st *state.State, userID int) error {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return ErrInvalidUser
+	}
 	if err != nil {
 		return err
 	}
@@ -179,7 +194,7 @@ func RemoveUser(st *state.State, userID int) error {
 		}
 	}
 
-	return fmt.Errorf("invalid user")
+	return ErrInvalidUser
 }
 
 func Users(st *state.State) ([]*UserState, error) {
@@ -205,6 +220,9 @@ func User(st *state.State, id int) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return nil, ErrInvalidUser
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +232,7 @@ func User(st *state.State, id int) (*UserState, error) {
 			return &user, nil
 		}
 	}
-	return nil, fmt.Errorf("invalid user")
+	return nil, ErrInvalidUser
 }
 
 // UpdateUser updates user in state
@@ -222,6 +240,9 @@ func UpdateUser(st *state.State, user *UserState) error {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return ErrInvalidUser
+	}
 	if err != nil {
 		return err
 	}
@@ -234,7 +255,7 @@ func UpdateUser(st *state.State, user *UserState) error {
 		}
 	}
 
-	return fmt.Errorf("invalid user")
+	return ErrInvalidUser
 }
 
 // Device returns the device details from the state.
@@ -370,6 +391,16 @@ var (
 	ErrNoSerial = errors.New("no device serial yet")
 )
 
+// CloudInfo reflects cloud information for the system (as captured in the core configuration).
+type CloudInfo struct {
+	Name             string `json:"name"`
+	Region           string `json:"region,omitempty"`
+	AvailabilityZone string `json:"availability-zone,omitempty"`
+}
+
+// TODO: move AuthContext to something like a storecontext package, it
+// is about more than just authorization now.
+
 // An AuthContext exposes authorization data and handles its updates.
 type AuthContext interface {
 	Device() (*DeviceState, error)
@@ -382,6 +413,8 @@ type AuthContext interface {
 
 	DeviceSessionRequestParams(nonce string) (*DeviceSessionRequestParams, error)
 	ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error)
+
+	CloudInfo() (*CloudInfo, error)
 }
 
 // authContext helps keeping track of auth data in the state and exposing it.
@@ -502,4 +535,35 @@ func (ac *authContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID strin
 		return sto.Store(), sto.URL(), nil
 	}
 	return "", defaultURL, nil
+}
+
+// CloudInfo returns the cloud instance information (if available).
+func (ac *authContext) CloudInfo() (*CloudInfo, error) {
+	ac.state.Lock()
+	defer ac.state.Unlock()
+	tr := config.NewTransaction(ac.state)
+	var cloudInfo CloudInfo
+	err := tr.Get("core", "cloud", &cloudInfo)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+	if cloudInfo.Name != "" {
+		return &cloudInfo, nil
+	}
+	return nil, nil
+}
+
+type ensureContextKey struct{}
+
+// EnsureContextTODO returns a provisional context marked as
+// pertaining to an Ensure loop.
+// TODO: see Overlord.Loop to replace it with a proper context passed to all Ensures.
+func EnsureContextTODO() context.Context {
+	ctx := context.TODO()
+	return context.WithValue(ctx, ensureContextKey{}, struct{}{})
+}
+
+// IsEnsureContext returns whether context was marked as pertaining to an Ensure loop.
+func IsEnsureContext(ctx context.Context) bool {
+	return ctx.Value(ensureContextKey{}) != nil
 }

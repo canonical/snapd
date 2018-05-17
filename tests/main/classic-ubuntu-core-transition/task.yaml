@@ -2,9 +2,13 @@ summary: Ensure that the ubuntu-core -> core transition works
 
 # we never test on core because the transition can only happen on "classic"
 # we disable on ppc64el because the downloads are very slow there
-# Both Fedora and openSUSE are disabled at the moment as there is something
+# Fedora, openSUSE and Arch are disabled at the moment as there is something
 # fishy going on and the snapd service gets terminated during the process.
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -ubuntu-*-i386]
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -ubuntu-*-i386, -arch-*]
+
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
 
 warn-timeout: 1m
 kill-timeout: 5m
@@ -17,10 +21,13 @@ debug: |
     snap info core || true
     snap info ubuntu-core || true
     snap changes
+    #shellcheck source=tests/lib/changes.sh
     . "$TESTSLIB/changes.sh"
     snap change "$(change_id 'Transition ubuntu-core to core')" || true
 execute: |
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
+    #shellcheck source=tests/lib/systemd.sh
     . $TESTSLIB/systemd.sh
     curl() {
         local url="$1"
@@ -33,6 +40,7 @@ execute: |
         python3 -c "import urllib.request; print(urllib.request.urlopen(\"$url\").read().decode(\"utf-8\"))"
     }
 
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     echo "Ensure core is gone and we have ubuntu-core instead"
     distro_purge_package snapd
@@ -52,8 +60,8 @@ execute: |
     snap install ./ubuntu-core_*.snap
 
     snap install test-snapd-python-webserver
-    snap interfaces | MATCH ":network +test-snapd-python-webserver"
-    snap interfaces | MATCH ":network-bind +.*test-snapd-python-webserver"
+    snap interfaces -i network | MATCH ":network +test-snapd-python-webserver"
+    snap interfaces -i network-bind | MATCH ":network-bind +.*test-snapd-python-webserver"
 
     echo "Ensure the webserver is working"
     wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
@@ -99,8 +107,8 @@ execute: |
         echo "ubuntu-core still installed, transition failed"
         exit 1
     fi
-    snap interfaces | MATCH ":network +test-snapd-python-webserver"
-    snap interfaces | MATCH ":network-bind +.*test-snapd-python-webserver"
+    snap interfaces -i network | MATCH ":network +test-snapd-python-webserver"
+    snap interfaces -i network-bind | MATCH ":network-bind +.*test-snapd-python-webserver"
     echo "Ensure the webserver is still working"
     wait_for_service snap.test-snapd-python-webserver.test-snapd-python-webserver
     curl http://localhost | MATCH "XKCD rocks"
@@ -111,7 +119,7 @@ execute: |
     curl http://localhost | MATCH "XKCD rocks"
 
     echo "Ensure interfaces are connected"
-    snap interfaces | MATCH ":core-support.*core:core-support-plug"
+    snap interfaces -i core-support | MATCH ":core-support.*core:core-support-plug"
 
     echo "Ensure snap set core works"
     snap set core system.power-key-action=ignore

@@ -1,0 +1,9 @@
+name: test-snapd-netlink-audit
+summary: Basic snap to bind the netlink audit
+description: A basic snap used to bind the netlink audit
+version: 1.0
+
+apps:
+  bind:
+    command: bin/bind
+    plugs: [netlink-audit]

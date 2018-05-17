@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -49,8 +50,12 @@ type DeviceManager struct {
 	bootOkRan            bool
 	bootRevisionsUpdated bool
 
+	ensureSeedInConfigRan bool
+
 	lastBecomeOperationalAttempt time.Time
 	becomeOperationalBackoff     time.Duration
+	registered                   bool
+	reg                          chan struct{}
 }
 
 // Manager returns a new device manager.
@@ -65,7 +70,11 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 
 	}
 
-	m := &DeviceManager{state: s, keypairMgr: keypairMgr, runner: runner}
+	m := &DeviceManager{state: s, keypairMgr: keypairMgr, runner: runner, reg: make(chan struct{})}
+
+	if err := m.confirmRegistered(); err != nil {
+		return nil, err
+	}
 
 	hookManager.Register(regexp.MustCompile("^prepare-device$"), newPrepareDeviceHandler)
 
@@ -74,6 +83,29 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 
 	return m, nil
+}
+
+func (m *DeviceManager) confirmRegistered() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	device, err := auth.Device(m.state)
+	if err != nil {
+		return err
+	}
+
+	if device.Serial != "" {
+		m.markRegistered()
+	}
+	return nil
+}
+
+func (m *DeviceManager) markRegistered() {
+	if m.registered {
+		return
+	}
+	m.registered = true
+	close(m.reg)
 }
 
 type prepareDeviceHandler struct{}
@@ -342,6 +374,51 @@ func (m *DeviceManager) ensureBootOk() error {
 	return nil
 }
 
+func markSeededInConfig(st *state.State) error {
+	var seedDone bool
+	tr := config.NewTransaction(st)
+	if err := tr.Get("core", "seed.loaded", &seedDone); err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if !seedDone {
+		if err := tr.Set("core", "seed.loaded", true); err != nil {
+			return err
+		}
+		tr.Commit()
+	}
+	return nil
+}
+
+func (m *DeviceManager) ensureSeedInConfig() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if !m.ensureSeedInConfigRan {
+		// get global seeded option
+		var seeded bool
+		if err := m.state.Get("seeded", &seeded); err != nil && err != state.ErrNoState {
+			return err
+		}
+		if !seeded {
+			// wait for ensure again, this is fine because
+			// doMarkSeeded will run "EnsureBefore(0)"
+			return nil
+		}
+
+		// Sync seeding with the configuration state. We need to
+		// do this here to ensure that old systems which did not
+		// set the configuration on seeding get the configuration
+		// update too.
+		if err := markSeededInConfig(m.state); err != nil {
+			return err
+		}
+		m.ensureSeedInConfigRan = true
+	}
+
+	return nil
+
+}
+
 type ensureError struct {
 	errs []error
 }
@@ -357,6 +434,10 @@ func (e *ensureError) Error() string {
 	return strings.Join(parts, "\n - ")
 }
 
+func (m *DeviceManager) KnownTaskKinds() []string {
+	return m.runner.KnownTaskKinds()
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *DeviceManager) Ensure() error {
 	var errs []error
@@ -369,6 +450,10 @@ func (m *DeviceManager) Ensure() error {
 	}
 
 	if err := m.ensureBootOk(); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := m.ensureSeedInConfig(); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -426,6 +511,11 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	defer m.state.Unlock()
 
 	return Serial(m.state)
+}
+
+// Registered returns a channel that is closed when the device is known to have been registered.
+func (m *DeviceManager) Registered() <-chan struct{} {
+	return m.reg
 }
 
 // DeviceSessionRequestParams produces a device-session-request with the given nonce, together with other required parameters, the device serial and model assertions.

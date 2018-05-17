@@ -22,14 +22,12 @@ package ifacestate
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/policy"
-	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -118,6 +116,27 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 				return fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
 			}
 		}
+
+		// Compatibility with old snapd: check if we have auto-connect task and if not, inject it after self (setup-profiles).
+		// Inject it for core after the 2nd setup-profiles - same placement as done in doInstall.
+		// In the older snapd versions interfaces were auto-connected as part of setupProfilesForSnap.
+		var hasAutoConnect bool
+		for _, t := range task.Change().Tasks() {
+			if t.Kind() == "auto-connect" {
+				otherSnapsup, err := snapstate.TaskSnapSetup(t)
+				if err != nil {
+					return err
+				}
+				// Check if this is auto-connect task for same snap
+				if snapsup.Name() == otherSnapsup.Name() {
+					hasAutoConnect = true
+					break
+				}
+			}
+		}
+		if !hasAutoConnect {
+			snapstate.InjectAutoConnect(task, snapsup)
+		}
 	}
 
 	opts := confinementOptions(snapsup.Flags)
@@ -154,12 +173,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
 
-	if err := m.reloadConnections(snapName); err != nil {
-		return err
-	}
-	// FIXME: here we should not reconnect auto-connect plug/slot
-	// pairs that were explicitly disconnected by the user
-	connectedSnaps, err := m.autoConnect(task, snapName, nil)
+	reconnectedSnaps, err := m.reloadConnections(snapName)
 	if err != nil {
 		return err
 	}
@@ -170,7 +184,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	for _, name := range disconnectedSnaps {
 		affectedSet[name] = true
 	}
-	for _, name := range connectedSnaps {
+	for _, name := range reconnectedSnaps {
 		affectedSet[name] = true
 	}
 	// The principal snap was already handled above.
@@ -332,6 +346,28 @@ func (m *InterfaceManager) undoDiscardConns(task *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
+func getDynamicHookAttributes(task *state.Task) (plugAttrs, slotAttrs map[string]interface{}, err error) {
+	if err = task.Get("plug-dynamic", &plugAttrs); err != nil && err != state.ErrNoState {
+		return nil, nil, err
+	}
+	if err = task.Get("slot-dynamic", &slotAttrs); err != nil && err != state.ErrNoState {
+		return nil, nil, err
+	}
+	if plugAttrs == nil {
+		plugAttrs = make(map[string]interface{})
+	}
+	if slotAttrs == nil {
+		slotAttrs = make(map[string]interface{})
+	}
+
+	return plugAttrs, slotAttrs, nil
+}
+
+func setDynamicHookAttributes(task *state.Task, plugAttrs, slotAttrs map[string]interface{}) {
+	task.Set("plug-dynamic", plugAttrs)
+	task.Set("slot-dynamic", slotAttrs)
+}
+
 func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -342,76 +378,72 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	var autoConnect bool
+	if err := task.Get("auto", &autoConnect); err != nil && err != state.ErrNoState {
+		return err
+	}
+
 	conns, err := getConns(st)
 	if err != nil {
 		return err
 	}
 
-	connRef := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
-
-	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
-	if plug == nil {
-		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
-	}
-	var plugDecl *asserts.SnapDeclaration
-	if plug.Snap.SnapID != "" {
-		var err error
-		plugDecl, err = assertstate.SnapDeclaration(st, plug.Snap.SnapID)
-		if err != nil {
-			return fmt.Errorf("cannot find snap declaration for %q: %v", plug.Snap.Name(), err)
-		}
-	}
-
-	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
-	if slot == nil {
-		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
-	}
-	var slotDecl *asserts.SnapDeclaration
-	if slot.Snap.SnapID != "" {
-		var err error
-		slotDecl, err = assertstate.SnapDeclaration(st, slot.Snap.SnapID)
-		if err != nil {
-			return fmt.Errorf("cannot find snap declaration for %q: %v", slot.Snap.Name(), err)
-		}
-	}
-
-	baseDecl, err := assertstate.BaseDeclaration(st)
-	if err != nil {
-		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
-	}
-
-	// check the connection against the declarations' rules
-	ic := policy.ConnectCandidate{
-		Plug:                plug,
-		PlugSnapDeclaration: plugDecl,
-		Slot:                slot,
-		SlotSnapDeclaration: slotDecl,
-		BaseDeclaration:     baseDecl,
-	}
-
-	// if either of plug or slot snaps don't have a declaration it
-	// means they were installed with "dangerous", so the security
-	// check should be skipped at this point.
-	if plugDecl != nil && slotDecl != nil {
-		err = ic.Check()
-		if err != nil {
-			return err
-		}
-	}
-
-	// TODO: pass dynamic attributes from hooks
-	err = m.repo.Connect(connRef)
-	if err != nil {
-		return err
-	}
+	connRef := &interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
 
 	var plugSnapst snapstate.SnapState
-	if err := snapstate.Get(st, connRef.PlugRef.Snap, &plugSnapst); err != nil {
+	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
+		if autoConnect && err == state.ErrNoState {
+			// conflict logic should prevent this
+			return fmt.Errorf("internal error: snap %q is no longer available for auto-connecting", plugRef.Snap)
+		}
 		return err
 	}
 
 	var slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, connRef.SlotRef.Snap, &slotSnapst); err != nil {
+	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
+		if autoConnect && err == state.ErrNoState {
+			// conflict logic should prevent this
+			return fmt.Errorf("internal error: snap %q is no longer available for auto-connecting", slotRef.Snap)
+		}
+		return err
+	}
+
+	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	if plug == nil {
+		// conflict logic should prevent this
+		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	}
+
+	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	if slot == nil {
+		// conflict logic should prevent this
+		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	}
+
+	// attributes are always present, even if there are no hooks (they're initialized by Connect).
+	plugDynamicAttrs, slotDynamicAttrs, err := getDynamicHookAttributes(task)
+	if err != nil {
+		return fmt.Errorf("failed to get hook attributes: %s", err)
+	}
+
+	var policyChecker interfaces.PolicyFunc
+
+	if autoConnect {
+		autochecker, err := newAutoConnectChecker(st)
+		if err != nil {
+			return err
+		}
+		policyChecker = autochecker.check
+	} else {
+		policyCheck, err := newConnectChecker(st)
+		if err != nil {
+			return err
+		}
+		policyChecker = policyCheck.check
+	}
+
+	conn, err := m.repo.Connect(connRef, plugDynamicAttrs, slotDynamicAttrs, policyChecker)
+	if err != nil || conn == nil {
 		return err
 	}
 
@@ -424,9 +456,24 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	conns[connRef.ID()] = connState{Interface: plug.Interface}
+	// if reconnecting, store old connection info for undo
+	if oldconn, ok := conns[connRef.ID()]; ok {
+		task.Set("old-conn", oldconn)
+	}
+
+	conns[connRef.ID()] = connState{
+		Interface:        conn.Interface(),
+		StaticPlugAttrs:  conn.Plug.StaticAttrs(),
+		DynamicPlugAttrs: conn.Plug.DynamicAttrs(),
+		StaticSlotAttrs:  conn.Slot.StaticAttrs(),
+		DynamicSlotAttrs: conn.Slot.DynamicAttrs(),
+		Auto:             autoConnect,
+	}
 	setConns(st, conns)
 
+	// the dynamic attributes might have been updated by the interface's BeforeConnectPlug/Slot code,
+	// so we need to update the task for connect-plug- and connect-slot- hooks to see new values.
+	setDynamicHookAttributes(task, conn.Plug.DynamicAttrs(), conn.Slot.DynamicAttrs())
 	return nil
 }
 
@@ -481,6 +528,239 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// doReconnect creates a set of tasks for connecting the interface and running its hooks
+func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, err := snapstate.TaskSnapSetup(task)
+	if err != nil {
+		return err
+	}
+
+	snapName := snapsup.Name()
+	connections, err := m.repo.Connections(snapName)
+	if err != nil {
+		return err
+	}
+
+	chg := task.Change()
+	connectts := state.NewTaskSet()
+	for _, conn := range connections {
+		ts, err := ConnectOnInstall(st, chg, task, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
+		if err != nil {
+			return err
+		}
+		connectts.AddAll(ts)
+	}
+
+	snapstate.InjectTasks(task, connectts)
+	task.SetStatus(state.DoneStatus)
+
+	st.EnsureBefore(0)
+	return nil
+}
+
+func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var oldconn connState
+	err := task.Get("old-conn", &oldconn)
+	if err == state.ErrNoState {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	plugRef, slotRef, err := getPlugAndSlotRefs(task)
+	if err != nil {
+		return err
+	}
+	connRef := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+	conns[connRef.ID()] = oldconn
+	setConns(st, conns)
+	return nil
+}
+
+// timeout for shared content retry
+var contentLinkRetryTimeout = 30 * time.Second
+
+// defaultContentProviders returns a dict of the default-providers for the
+// content plugs for the given snapName
+func (m *InterfaceManager) defaultContentProviders(snapName string) map[string]bool {
+	plugs := m.repo.Plugs(snapName)
+	defaultProviders := make(map[string]bool, len(plugs))
+	for _, plug := range plugs {
+		if plug.Interface == "content" {
+			var s string
+			if err := plug.Attr("content", &s); err == nil && s != "" {
+				var dprovider string
+				if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
+					defaultProviders[dprovider] = true
+				}
+			}
+		}
+	}
+	return defaultProviders
+}
+
+// doAutoConnect creates task(s) to connect the given snap to viable candidates.
+func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
+	// FIXME: here we should not reconnect auto-connect plug/slot
+	// pairs that were explicitly disconnected by the user
+
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var conns map[string]connState
+	err := st.Get("conns", &conns)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if conns == nil {
+		conns = make(map[string]connState)
+	}
+
+	snapsup, err := snapstate.TaskSnapSetup(task)
+	if err != nil {
+		return err
+	}
+
+	snapName := snapsup.Name()
+
+	autots := state.NewTaskSet()
+	autochecker, err := newAutoConnectChecker(st)
+	if err != nil {
+		return err
+	}
+
+	// wait for auto-install, started by prerequisites code, for
+	// the default-providers of content ifaces so we can
+	// auto-connect to them
+	defaultProviders := m.defaultContentProviders(snapName)
+	for _, chg := range st.Changes() {
+		if chg.Status().Ready() {
+			continue
+		}
+		for _, t := range chg.Tasks() {
+			if t.Status().Ready() {
+				continue
+			}
+			if t.Kind() != "link-snap" && t.Kind() != "setup-profiles" {
+				continue
+			}
+			if snapsup, err := snapstate.TaskSnapSetup(t); err == nil {
+				if defaultProviders[snapsup.Name()] {
+					return &state.Retry{After: contentLinkRetryTimeout}
+				}
+			}
+		}
+	}
+
+	chg := task.Change()
+	// Auto-connect all the plugs
+	for _, plug := range m.repo.Plugs(snapName) {
+		candidates := m.repo.AutoConnectCandidateSlots(snapName, plug.Name, autochecker.check)
+		if len(candidates) == 0 {
+			continue
+		}
+		// If we are in a core transition we may have both the old ubuntu-core
+		// snap and the new core snap providing the same interface. In that
+		// situation we want to ignore any candidates in ubuntu-core and simply
+		// go with those from the new core snap.
+		if len(candidates) == 2 {
+			switch {
+			case candidates[0].Snap.Name() == "ubuntu-core" && candidates[1].Snap.Name() == "core":
+				candidates = candidates[1:2]
+			case candidates[1].Snap.Name() == "ubuntu-core" && candidates[0].Snap.Name() == "core":
+				candidates = candidates[0:1]
+			}
+		}
+		if len(candidates) != 1 {
+			crefs := make([]string, len(candidates))
+			for i, candidate := range candidates {
+				crefs[i] = candidate.String()
+			}
+			task.Logf("cannot auto-connect plug %s, candidates found: %s", plug, strings.Join(crefs, ", "))
+			continue
+		}
+		slot := candidates[0]
+		connRef := interfaces.NewConnRef(plug, slot)
+		key := connRef.ID()
+		if _, ok := conns[key]; ok {
+			// Suggested connection already exist so don't clobber it.
+			// NOTE: we don't log anything here as this is a normal and common condition.
+			continue
+		}
+
+		ts, err := ConnectOnInstall(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
+		if err != nil {
+			task.Logf("cannot auto-connect plug %s to %s: %s", connRef.PlugRef, connRef.SlotRef, err)
+			continue
+		}
+		autots.AddAll(ts)
+	}
+	// Auto-connect all the slots
+	for _, slot := range m.repo.Slots(snapName) {
+		candidates := m.repo.AutoConnectCandidatePlugs(snapName, slot.Name, autochecker.check)
+		if len(candidates) == 0 {
+			continue
+		}
+
+		for _, plug := range candidates {
+			// make sure slot is the only viable
+			// connection for plug, same check as if we were
+			// considering auto-connections from plug
+			candSlots := m.repo.AutoConnectCandidateSlots(plug.Snap.Name(), plug.Name, autochecker.check)
+
+			if len(candSlots) != 1 || candSlots[0].String() != slot.String() {
+				crefs := make([]string, len(candSlots))
+				for i, candidate := range candSlots {
+					crefs[i] = candidate.String()
+				}
+				task.Logf("cannot auto-connect slot %s to %s, candidates found: %s", slot, plug, strings.Join(crefs, ", "))
+				continue
+			}
+
+			connRef := interfaces.NewConnRef(plug, slot)
+			key := connRef.ID()
+			if _, ok := conns[key]; ok {
+				// Suggested connection already exist so don't clobber it.
+				// NOTE: we don't log anything here as this is a normal and common condition.
+				continue
+			}
+			ts, err := ConnectOnInstall(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
+			if err != nil {
+				task.Logf("cannot auto-connect slot %s to %s: %s", connRef.SlotRef, connRef.PlugRef, err)
+				continue
+			}
+			autots.AddAll(ts)
+		}
+	}
+
+	task.SetStatus(state.DoneStatus)
+
+	snapstate.InjectTasks(task, autots)
+
+	st.EnsureBefore(0)
+	return nil
+}
+
+func (m *InterfaceManager) undoAutoConnect(task *state.Task, _ *tomb.Tomb) error {
+	// TODO Introduce disconnection hooks, and run them here as well to give a chance
+	// for the snap to undo whatever it did when the connection was established.
+	return nil
+}
+
 // transitionConnectionsCoreMigration will transition all connections
 // from oldName to newName. Note that this is only useful when you
 // know that newName supports everything that oldName supports,
@@ -510,10 +790,10 @@ func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, o
 	// on disk are rewriten. This is ok because core/ubuntu-core have
 	// exactly the same profiles and nothing in the generated policies
 	// has the slot-name encoded.
-	if err := m.reloadConnections(oldName); err != nil {
+	if _, err := m.reloadConnections(oldName); err != nil {
 		return err
 	}
-	if err := m.reloadConnections(newName); err != nil {
+	if _, err := m.reloadConnections(newName); err != nil {
 		return err
 	}
 

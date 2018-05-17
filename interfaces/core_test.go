@@ -29,15 +29,27 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func Test(t *testing.T) {
 	TestingT(t)
 }
 
-type CoreSuite struct{}
+type CoreSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&CoreSuite{})
+
+func (s *CoreSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+}
+
+func (s *CoreSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
 
 func (s *CoreSuite) TestValidateName(c *C) {
 	validNames := []string{
@@ -169,7 +181,7 @@ func (s *CoreSuite) TestConnRefID(c *C) {
 func (s *CoreSuite) TestParseConnRef(c *C) {
 	ref, err := ParseConnRef("consumer:plug producer:slot")
 	c.Assert(err, IsNil)
-	c.Check(ref, DeepEquals, ConnRef{
+	c.Check(ref, DeepEquals, &ConnRef{
 		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: SlotRef{Snap: "producer", Name: "slot"},
 	})
@@ -184,19 +196,20 @@ func (s *CoreSuite) TestParseConnRef(c *C) {
 func (s *CoreSuite) TestSanitizePlug(c *C) {
 	info := snaptest.MockInfo(c, `
 name: snap
+version: 0
 plugs:
   plug:
     interface: iface
 `, nil)
 	plug := info.Plugs["plug"]
-	c.Assert(SanitizePlug(&ifacetest.TestInterface{
+	c.Assert(BeforePreparePlug(&ifacetest.TestInterface{
 		InterfaceName: "iface",
 	}, plug), IsNil)
-	c.Assert(SanitizePlug(&ifacetest.TestInterface{
-		InterfaceName:        "iface",
-		SanitizePlugCallback: func(plug *snap.PlugInfo) error { return fmt.Errorf("broken") },
+	c.Assert(BeforePreparePlug(&ifacetest.TestInterface{
+		InterfaceName:             "iface",
+		BeforePreparePlugCallback: func(plug *snap.PlugInfo) error { return fmt.Errorf("broken") },
 	}, plug), ErrorMatches, "broken")
-	c.Assert(SanitizePlug(&ifacetest.TestInterface{
+	c.Assert(BeforePreparePlug(&ifacetest.TestInterface{
 		InterfaceName: "other",
 	}, plug), ErrorMatches, `cannot sanitize plug "snap:plug" \(interface "iface"\) using interface "other"`)
 }
@@ -204,19 +217,20 @@ plugs:
 func (s *CoreSuite) TestSanitizeSlot(c *C) {
 	info := snaptest.MockInfo(c, `
 name: snap
+version: 0
 slots:
   slot:
     interface: iface
 `, nil)
 	slot := info.Slots["slot"]
-	c.Assert(SanitizeSlot(&ifacetest.TestInterface{
+	c.Assert(BeforePrepareSlot(&ifacetest.TestInterface{
 		InterfaceName: "iface",
 	}, slot), IsNil)
-	c.Assert(SanitizeSlot(&ifacetest.TestInterface{
-		InterfaceName:        "iface",
-		SanitizeSlotCallback: func(slot *snap.SlotInfo) error { return fmt.Errorf("broken") },
+	c.Assert(BeforePrepareSlot(&ifacetest.TestInterface{
+		InterfaceName:             "iface",
+		BeforePrepareSlotCallback: func(slot *snap.SlotInfo) error { return fmt.Errorf("broken") },
 	}, slot), ErrorMatches, "broken")
-	c.Assert(SanitizeSlot(&ifacetest.TestInterface{
+	c.Assert(BeforePrepareSlot(&ifacetest.TestInterface{
 		InterfaceName: "other",
 	}, slot), ErrorMatches, `cannot sanitize slot "snap:slot" \(interface "iface"\) using interface "other"`)
 }

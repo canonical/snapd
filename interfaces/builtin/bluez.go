@@ -171,7 +171,6 @@ accept
 accept4
 bind
 listen
-shutdown
 # libudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
@@ -183,6 +182,8 @@ const bluezPermanentSlotDBus = `
     <allow send_destination="org.bluez"/>
     <allow send_destination="org.bluez.obex"/>
     <allow send_interface="org.bluez.Agent1"/>
+    <allow send_interface="org.bluez.MediaEndpoint1"/>
+    <allow send_interface="org.bluez.MediaPlayer1"/>
     <allow send_interface="org.bluez.ThermometerWatcher1"/>
     <allow send_interface="org.bluez.AlertAgent1"/>
     <allow send_interface="org.bluez.Profile1"/>

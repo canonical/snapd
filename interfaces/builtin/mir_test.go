@@ -49,6 +49,7 @@ var _ = Suite(&MirInterfaceSuite{
 func (s *MirInterfaceSuite) SetUpTest(c *C) {
 	// a pulseaudio slot on the core snap (as automatically added on classic)
 	const mirMockClassicSlotSnapInfoYaml = `name: core
+version: 0
 type: os
 slots:
  mir:
@@ -146,7 +147,7 @@ func (s *MirInterfaceSuite) TestSecCompOnClassic(c *C) {
 func (s *MirInterfaceSuite) TestUDevSpec(c *C) {
 	udevSpec := &udev.Specification{}
 	c.Assert(udevSpec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
-	c.Assert(udevSpec.Snippets(), HasLen, 5)
+	c.Assert(udevSpec.Snippets(), HasLen, 6)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
 KERNEL=="tty[0-9]*", TAG+="snap_mir-server_mir"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
@@ -157,6 +158,7 @@ KERNEL=="mouse[0-9]*", TAG+="snap_mir-server_mir"`)
 KERNEL=="event[0-9]*", TAG+="snap_mir-server_mir"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
 KERNEL=="ts[0-9]*", TAG+="snap_mir-server_mir"`)
+	c.Assert(udevSpec.Snippets(), testutil.Contains, `TAG=="snap_mir-server_mir", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_mir-server_mir $devpath $major:$minor"`)
 }
 
 func (s *MirInterfaceSuite) TestInterfaces(c *C) {

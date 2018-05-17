@@ -195,7 +195,6 @@ accept
 accept4
 bind
 listen
-shutdown
 socket AF_NETLINK - NETLINK_ROUTE
 # libudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT

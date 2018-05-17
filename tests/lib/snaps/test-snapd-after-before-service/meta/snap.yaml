@@ -1,0 +1,16 @@
+name: test-snapd-after-before-service
+version: 1.0
+apps:
+  before-middle:
+    command: bin/start
+    daemon: simple
+    before:
+      - middle
+  middle:
+    command: bin/start
+    daemon: simple
+  after-middle:
+    command: bin/start
+    daemon: simple
+    after:
+      - middle

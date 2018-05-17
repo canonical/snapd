@@ -251,6 +251,11 @@ const char *sc_umount_cmd(char *buf, size_t buf_size, const char *target,
 	return buf;
 }
 
+#ifndef SNAP_CONFINE_DEBUG_BUILD
+static const char *use_debug_build =
+    "(disabled) use debug build to see details";
+#endif
+
 void sc_do_mount(const char *source, const char *target,
 		 const char *fs_type, unsigned long mountflags,
 		 const void *data)
@@ -263,7 +268,7 @@ void sc_do_mount(const char *source, const char *target,
 		mount_cmd = sc_mount_cmd(buf, sizeof(buf), source,
 					 target, fs_type, mountflags, data);
 #else
-		mount_cmd = "(disabled) use debug build to see details";
+		mount_cmd = use_debug_build;
 #endif
 		debug("performing operation: %s", mount_cmd);
 	}
@@ -277,11 +282,8 @@ void sc_do_mount(const char *source, const char *target,
 		sc_privs_drop();
 
 		// Compute the equivalent mount command.
-		if (mount_cmd == NULL) {
-			mount_cmd = sc_mount_cmd(buf, sizeof(buf), source,
-						 target, fs_type, mountflags,
-						 data);
-		}
+		mount_cmd = sc_mount_cmd(buf, sizeof(buf), source,
+					 target, fs_type, mountflags, data);
 		// Restore errno and die.
 		errno = saved_errno;
 		die("cannot perform operation: %s", mount_cmd);
@@ -297,7 +299,7 @@ void sc_do_umount(const char *target, int flags)
 #ifdef SNAP_CONFINE_DEBUG_BUILD
 		umount_cmd = sc_umount_cmd(buf, sizeof(buf), target, flags);
 #else
-		umount_cmd = "(disabled) use debug build to see details";
+		umount_cmd = use_debug_build;
 #endif
 		debug("performing operation: %s", umount_cmd);
 	}
@@ -310,10 +312,7 @@ void sc_do_umount(const char *target, int flags)
 		sc_privs_drop();
 
 		// Compute the equivalent umount command.
-		if (umount_cmd == NULL) {
-			umount_cmd = sc_umount_cmd(buf, sizeof(buf),
-						   target, flags);
-		}
+		umount_cmd = sc_umount_cmd(buf, sizeof(buf), target, flags);
 		// Restore errno and die.
 		errno = saved_errno;
 		die("cannot perform operation: %s", umount_cmd);

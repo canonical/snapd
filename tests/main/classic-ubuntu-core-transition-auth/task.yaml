@@ -2,23 +2,29 @@ summary: Ensure that the ubuntu-core -> core transition works with auth.json
 
 # we never test on core because the transition can only happen on "classic"
 # we disable on ppc64el because the downloads are very slow there
-# Both Fedora and openSUSE are disabled at the moment as there is something
+# Fedora, openSUSE and Arch are disabled at the moment as there is something
 # fishy going on and the snapd service gets terminated during the process.
-systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-16-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -arch-*]
+
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
 
 warn-timeout: 1m
 kill-timeout: 5m
 debug: |
     snap changes
+    #shellcheck source=tests/lib/changes.sh
     . "$TESTSLIB/changes.sh"
     snap change "$(change_id 'Transition ubuntu-core to core')" || true
 execute: |
+    #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     echo "Ensure core is gone and we have ubuntu-core instead"
     distro_purge_package snapd
     distro_install_build_snapd
 
-    snap download --${CORE_CHANNEL} ubuntu-core
+    snap download "--${CORE_CHANNEL}" ubuntu-core
     snap ack ./ubuntu-core_*.assert
     snap install ./ubuntu-core_*.snap
 
@@ -64,4 +70,4 @@ execute: |
     fi
 
     echo "Ensure interfaces are connected"
-    snap interfaces | MATCH ":core-support.*core:core-support-plug"
+    snap interfaces -i core-support | MATCH ":core-support.*core:core-support-plug"

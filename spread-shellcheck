@@ -1,0 +1,119 @@
+#!/bin/bash
+
+# Copyright (C) 2018 Canonical Ltd
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License version 3 as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# default shell for shellcheck
+SHELLCHECK_SHELL=${SHELLCHECK_SHELL:-bash}
+# set to non-empty to ignore all errors
+NO_FAIL=${NO_FAIL:-}
+# set to non empty to enable 'set -x'
+D=${D:-}
+# set to non-empty to enable verbose logging
+V=${V:-}
+# file with list of test file that must successfully validate, one file per line
+MUST_PASS=${MUST_PASS:-}
+
+set -e
+
+test -n "$D" && set -x
+
+logv() {
+    if [[ -z "$V" ]]; then return 0;  fi
+
+    echo "$@" >&2
+}
+
+log() {
+    echo "$@" >&2
+}
+
+check_file() {
+    local k
+    local file
+    local failed
+    file=$1
+
+    logv "-- checking file $file"
+    for k in $keys; do
+        logv "--- checking section $k"
+        if ! yq -r < "$file" ".[\"$k\"]" | shellcheck -s "$SHELLCHECK_SHELL" -x - ; then
+            log  "ERROR: $file: shellcheck failed in section '$k'"
+            failed=1
+        fi
+    done
+
+    if [[ "$(basename "$file")" == spread.yaml ]]; then
+        # check suites
+        for suite in $(yq -cr < "$file" ".suites | keys | @sh"); do
+            # @sh filter will produce:
+            # 'tests/completion/' 'tests/main/' 'tests/nested/' 'tests/nightly/' ...
+            # we need to drop the extra single quotes
+            suite="${suite//\'/}"
+            for k in $keys; do
+                logv "--- checking $suite section $k"
+                if ! yq -r < "$file" ".suites[\"$suite\"][\"$k\"]" | shellcheck -s "$SHELLCHECK_SHELL" -x - ; then
+                    log "ERROR: $file: shellcheck failed in suite $suite section '$k'"
+                    failed=1
+                fi
+            done
+        done
+    fi
+
+    if [[ "$failed" != 0 && -n "$MUST_PASS" ]] && ! grep -Eqx "$file" "$MUST_PASS" >/dev/null 2>&1 ; then
+        failed=0
+        log "WARNING: ignoring errors in file $file"
+    fi
+    return $failed
+}
+
+check_location() {
+    local location
+    local failed
+    location=$1
+    failed=0
+    if [[ -d "$1" ]]; then
+        while read -r f ; do
+            check_file "$f" || failed=1
+        done < <(find "$location" -name 'task.yaml' -o -name 'spread.yaml')
+    else
+        check_file "$1" || failed=1
+    fi
+    return $failed
+}
+
+if ! which yq >/dev/null 2>&1; then
+    log "please install 'yq'"
+    log "eg: pip install --user yq"
+    exit 1
+fi
+
+keys="prepare prepare-each restore restore-each debug debug-each execute repack"
+errored=0
+
+locations=( "$@" )
+if [[ ${#locations[@]} == 0 ]]; then
+    locations=( . )
+fi
+
+for loc in "${locations[@]}"; do
+    check_location "$loc" || errored=1
+done
+
+if [[ "$errored" == 1 && "$NO_FAIL" != "" ]]; then
+    log "WARNING: ignoring errors"
+    exit 0
+fi
+
+exit $errored

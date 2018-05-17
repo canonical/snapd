@@ -43,12 +43,14 @@ var _ = Suite(&LxdInterfaceSuite{
 })
 
 const lxdConsumerYaml = `name: consumer
+version: 0
 apps:
  app:
   plugs: [lxd]
 `
 
 const lxdCoreYaml = `name: core
+version: 0
 type: os
 slots:
   lxd:
@@ -64,18 +66,18 @@ func (s *LxdInterfaceSuite) TestName(c *C) {
 }
 
 func (s *LxdInterfaceSuite) TestSanitizeSlot(c *C) {
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
 		Name:      "lxd",
 		Interface: "lxd",
 	}
 
-	c.Assert(interfaces.SanitizeSlot(s.iface, slot), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 }
 
 func (s *LxdInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *LxdInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -89,7 +91,7 @@ func (s *LxdInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := &seccomp.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "shutdown\n")
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "socket AF_NETLINK - NETLINK_GENERIC\n")
 }
 
 func (s *LxdInterfaceSuite) TestStaticInfo(c *C) {

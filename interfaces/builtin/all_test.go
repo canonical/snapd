@@ -213,6 +213,19 @@ type legacyAutoConnect interface {
 	LegacyAutoConnect() bool
 }
 
+type oldSanitizePlug1 interface {
+	SanitizePlug(plug *interfaces.Plug) error
+}
+type oldSanitizePlug2 interface {
+	SanitizePlug(plug *snap.PlugInfo) error
+}
+type oldSanitizeSlot1 interface {
+	SanitizeSlot(slot *interfaces.Slot) error
+}
+type oldSanitizeSlot2 interface {
+	SanitizeSlot(slot *snap.SlotInfo) error
+}
+
 // specification definers before the introduction of connection attributes
 type oldApparmorDefiner1 interface {
 	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
@@ -356,6 +369,11 @@ var allBadDefiners = []reflect.Type{
 	reflect.TypeOf((*snippetDefiner4)(nil)).Elem(),
 	// old auto-connect function
 	reflect.TypeOf((*legacyAutoConnect)(nil)).Elem(),
+	// old sanitize methods
+	reflect.TypeOf((*oldSanitizePlug1)(nil)).Elem(),
+	reflect.TypeOf((*oldSanitizePlug2)(nil)).Elem(),
+	reflect.TypeOf((*oldSanitizeSlot1)(nil)).Elem(),
+	reflect.TypeOf((*oldSanitizeSlot2)(nil)).Elem(),
 	// pre-attribute definers
 	reflect.TypeOf((*oldApparmorDefiner1)(nil)).Elem(),
 	reflect.TypeOf((*oldApparmorDefiner2)(nil)).Elem(),
@@ -426,6 +444,7 @@ func (s *AllSuite) TestRegisterIface(c *C) {
 
 const testConsumerInvalidSlotNameYaml = `
 name: consumer
+version: 0
 slots:
  ttyS5:
   interface: iface
@@ -436,6 +455,7 @@ apps:
 
 const testConsumerInvalidPlugNameYaml = `
 name: consumer
+version: 0
 plugs:
  ttyS3:
   interface: iface
@@ -446,6 +466,7 @@ apps:
 
 const testInvalidSlotInterfaceYaml = `
 name: testsnap
+version: 0
 slots:
  iface:
   interface: iface
@@ -459,6 +480,7 @@ hooks:
 
 const testInvalidPlugInterfaceYaml = `
 name: testsnap
+version: 0
 plugs:
  iface:
   interface: iface
@@ -495,11 +517,8 @@ func (s *AllSuite) TestSanitizeErrorsOnInvalidPlugNames(c *C) {
 }
 
 func (s *AllSuite) TestSanitizeErrorsOnInvalidSlotInterface(c *C) {
-	snapInfo := snaptest.MockInfo(c, testInvalidSlotInterfaceYaml, nil)
-	c.Check(snapInfo.Apps["app"].Slots, HasLen, 1)
-	c.Check(snapInfo.Hooks["install"].Slots, HasLen, 1)
-	c.Check(snapInfo.Slots, HasLen, 1)
-	snap.SanitizePlugsSlots(snapInfo)
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(testInvalidSlotInterfaceYaml))
+	c.Assert(err, IsNil)
 	c.Check(snapInfo.Apps["app"].Slots, HasLen, 0)
 	c.Check(snapInfo.Hooks["install"].Slots, HasLen, 0)
 	c.Assert(snapInfo.BadInterfaces, HasLen, 1)

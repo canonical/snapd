@@ -81,7 +81,7 @@ const networkStatusConnectedPlugAppArmor = `
 # Allow all access to NetworkingStatus service
 dbus (send)
     bus=system
-    interface=com.ubuntu.connectivity1.NetworkingStatus{,/**}
+    interface=com.ubuntu.connectivity1.NetworkingStatus{,*}
     path=/com/ubuntu/connectivity1/NetworkingStatus
     peer=(label=###SLOT_SECURITY_TAGS###),
 

@@ -68,6 +68,7 @@ var _ = Suite(&BoolFileInterfaceSuite{
 func (s *BoolFileInterfaceSuite) SetUpTest(c *C) {
 	plugSnapinfo := snaptest.MockInfo(c, `
 name: other
+version: 0
 plugs:
  plug: bool-file
 apps:
@@ -76,6 +77,7 @@ apps:
 `, nil)
 	info := snaptest.MockInfo(c, `
 name: ubuntu-core
+version: 0
 slots:
     gpio:
         interface: bool-file
@@ -121,21 +123,21 @@ func (s *BoolFileInterfaceSuite) TestName(c *C) {
 
 func (s *BoolFileInterfaceSuite) TestSanitizeSlot(c *C) {
 	// Both LED and GPIO slots are accepted
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.ledSlotInfo), IsNil)
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.gpioSlotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.ledSlotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.gpioSlotInfo), IsNil)
 	// Slots without the "path" attribute are rejected.
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.missingPathSlotInfo), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.missingPathSlotInfo), ErrorMatches,
 		"bool-file must contain the path attribute")
 	// Slots without the "path" attribute are rejected.
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.parentDirPathSlotInfo), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.parentDirPathSlotInfo), ErrorMatches,
 		"bool-file can only point at LED brightness or GPIO value")
 	// Slots with incorrect value of the "path" attribute are rejected.
-	c.Assert(interfaces.SanitizeSlot(s.iface, s.badPathSlotInfo), ErrorMatches,
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.badPathSlotInfo), ErrorMatches,
 		"bool-file can only point at LED brightness or GPIO value")
 }
 
 func (s *BoolFileInterfaceSuite) TestSanitizePlug(c *C) {
-	c.Assert(interfaces.SanitizePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
 func (s *BoolFileInterfaceSuite) TestPlugSnippetHandlesSymlinkErrors(c *C) {

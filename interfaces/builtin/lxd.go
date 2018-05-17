@@ -39,7 +39,6 @@ const lxdConnectedPlugSecComp = `
 # Description: allow access to the LXD daemon socket. This gives privileged
 # access to the system via LXD's socket API.
 
-shutdown
 socket AF_NETLINK - NETLINK_GENERIC
 `
 

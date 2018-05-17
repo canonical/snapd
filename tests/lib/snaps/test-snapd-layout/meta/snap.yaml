@@ -1,0 +1,32 @@
+name: test-snapd-layout
+version: 1.0
+summary: Sample illustrating very basic layout support
+apps:
+    sh:
+        command: ../../../bin/sh
+layout:
+  # Layouts can be used to inject configuration files and directories.
+  /etc/demo:
+    bind: $SNAP_COMMON/etc/demo
+  /etc/demo.conf:
+    bind-file: $SNAP_COMMON/etc/demo.conf
+  /etc/demo.cfg:
+    symlink: $SNAP_COMMON/etc/demo.conf
+  # Layouts can be used to remap $SNAP paths to work around hard-coded locations.
+  /usr/share/demo:
+    bind: $SNAP/usr/share/demo
+  # Layouts can be used to remap $SNAP_DATA to work around hard-coded locations
+  /var/lib/demo:
+    bind: $SNAP_DATA/var/lib/demo
+  /var/cache/demo:
+    bind: $SNAP_DATA/var/cache/demo
+  # Layouts can help with applications designed for /opt
+  /opt/demo:
+    bind: $SNAP/opt/demo
+  # Layouts can poke holes and preserve DAC permissions while doing so
+  # notably /var/spool/rsyslog is owned by syslog:adm and has mode 700
+  /var/spool/rsyslog/demo:
+    bind: $SNAP_DATA/var/spool/rsyslog/demo
+  # Layout can refer to non-existing source path.
+  /bin/very-weird-place:
+    bind: $SNAP/bin-very-weird-place

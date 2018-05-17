@@ -68,6 +68,8 @@ func updatePiConfig(path string, config map[string]string) error {
 
 	if toWrite != nil {
 		s := strings.Join(toWrite, "\n")
+		// ensure we have a final newline in the file
+		s += "\n"
 		return osutil.AtomicWriteFile(path, []byte(s), 0644, 0)
 	}
 

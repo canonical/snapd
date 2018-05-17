@@ -69,9 +69,9 @@ var boolFileAllowedPathPatterns = []*regexp.Regexp{
 	boolFileGPIOValuePattern,
 }
 
-// SanitizeSlot checks and possibly modifies a slot.
+// BeforePrepareSlot checks and possibly modifies a slot.
 // Valid "bool-file" slots must contain the attribute "path".
-func (iface *boolFileInterface) SanitizeSlot(slot *snap.SlotInfo) error {
+func (iface *boolFileInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
 		return fmt.Errorf("bool-file must contain the path attribute")
@@ -112,8 +112,9 @@ func (iface *boolFileInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 }
 
 func (iface *boolFileInterface) dereferencedPath(slot *interfaces.ConnectedSlot) (string, error) {
-	if path, ok := slot.Attrs["path"].(string); ok {
-		path, err := evalSymlinks(path)
+	var path string
+	if err := slot.Attr("path", &path); err == nil {
+		path, err = evalSymlinks(path)
 		if err != nil {
 			return "", err
 		}
@@ -124,7 +125,8 @@ func (iface *boolFileInterface) dereferencedPath(slot *interfaces.ConnectedSlot)
 
 // isGPIO checks if a given bool-file slot refers to a GPIO pin.
 func (iface *boolFileInterface) isGPIO(slot *snap.SlotInfo) bool {
-	if path, ok := slot.Attrs["path"].(string); ok {
+	var path string
+	if err := slot.Attr("path", &path); err == nil {
 		path = filepath.Clean(path)
 		return boolFileGPIOValuePattern.MatchString(path)
 	}
