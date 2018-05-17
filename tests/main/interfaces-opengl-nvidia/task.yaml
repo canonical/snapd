@@ -14,6 +14,13 @@ prepare: |
     mkdir -p /usr/share/vulkan/icd.d
     echo "canary-vulkan" > /usr/share/vulkan/icd.d/nvidia_icd.json
 
+    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+        # mock GLVND EGL vendor file
+        echo "Test GLVND EGL vendor files access"
+        mkdir -p /usr/share/glvnd/egl_vendor.d
+        echo "canary-egl" > /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+    fi
+
     # mock nvidia libraries
     if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
         mkdir -p /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/tls
@@ -78,9 +85,17 @@ execute: |
     echo "And vulkan ICD file"
     snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/vulkan/icd.d/nvidia_icd.json" | MATCH canary-vulkan
 
+    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+        echo "And GLVND EGL vendor file"
+        snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/glvnd/egl_vendor.d/10_nvidia.json" | MATCH canary-egl
+    fi
+
 restore: |
     umount -t tmpfs /sys/module
     rm -rf /usr/share/vulkan
+    if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
+        rm -rf /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+    fi
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-18.04-* ]]; then
         rm -rf /usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/tls
