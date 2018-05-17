@@ -123,8 +123,7 @@ func ForceBootloader(booloader Bootloader) {
 //
 // The states that a boot goes through are the following:
 // - By default snap_mode is "" in which case the bootloader loads
-//   loads two squashfs'es denoted by variables snap_core and
-//   snap_kernel.
+//   two squashfs'es denoted by variables snap_core and snap_kernel.
 // - On a refresh of core/kernel snapd will set snap_mode=try and
 //   will also set snap_try_{core,kernel} to the core/kernel that
 //   will be tried next.
