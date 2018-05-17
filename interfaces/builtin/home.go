@@ -97,7 +97,7 @@ func (iface *homeInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if r, ok := plug.Attrs["read"]; ok {
 		_, ok = r.(string)
 		if !ok || (r != "all" && r != "owner") {
-			return fmt.Errorf(`home plug requires the "read" be either 'all' or 'owner'`)
+			return fmt.Errorf(`home plug requires "read" be either 'all' or 'owner'`)
 		}
 	}
 
