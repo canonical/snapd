@@ -102,7 +102,7 @@ plugs:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["home"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`home plug requires the "read" be either 'all' or 'owner'`)
+		`home plug requires "read" be either 'all' or 'owner'`)
 }
 
 func (s *HomeInterfaceSuite) TestSanitizePlugWithEmptyAttrib(c *C) {
@@ -115,7 +115,7 @@ plugs:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["home"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`home plug requires the "read" be either 'all' or 'owner'`)
+		`home plug requires "read" be either 'all' or 'owner'`)
 }
 
 func (s *HomeInterfaceSuite) TestConnectedPlugAppArmorWithoutAttrib(c *C) {
