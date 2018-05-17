@@ -137,7 +137,7 @@ func SetNextBoot(s *snap.Info) error {
 		// If we were in anything but default ("") mode before
 		// and now switch to the good core/kernel again, make
 		// sure to clean the snap_mode here. This also
-		// mitigates https://forum.snapcraft.io/t//5253
+		// mitigates https://forum.snapcraft.io/t/5253
 		if m["snap_mode"] != "" {
 			return bootloader.SetBootVars(map[string]string{
 				"snap_mode": "",
