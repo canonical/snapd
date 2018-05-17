@@ -110,31 +110,19 @@ func (s *OpticalDriveInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
-	// spec := &apparmor.Specification{}
-	// c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	// c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	// c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/sr[0-9]* r,`)
-
 	checkConnectedPlugSnippet := func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, appName string, expectedSnippet string) {
 		apparmorSpec := &apparmor.Specification{}
 		err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 		c.Assert(err, IsNil)
-
 		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{appName})
-		snippet := apparmorSpec.SnippetForTag(appName)
-		c.Assert(snippet, DeepEquals, expectedSnippet)
+		c.Assert(apparmorSpec.SnippetForTag(appName), testutil.Contains, expectedSnippet)
 	}
 
-	baseSnippet := "/run/udev/data/b11:[0-9]* r,\n" +
-		"@{PROC}/sys/dev/cdrom/info r,"
-	expectedSnippet1 := "/dev/scd[0-9]* r,\n" +
-		"/dev/sr[0-9]* r,\n" +
-		baseSnippet
-	expectedSnippet2 := "/dev/scd[0-9]* rw,\n" +
-		"/dev/sr[0-9]* rw,\n" +
-		baseSnippet
+	expectedSnippet1 := `/dev/scd[0-9]* r,`
+	expectedSnippet2 := `/dev/scd[0-9]* w,`
 	checkConnectedPlugSnippet(s.testPlugDefault, s.slot, "snap.consumer.app", expectedSnippet1)
 	checkConnectedPlugSnippet(s.testPlugReadonly, s.slot, "snap.consumer.app-readonly", expectedSnippet1)
+	checkConnectedPlugSnippet(s.testPlugWritable, s.slot, "snap.consumer.app-writable", expectedSnippet1)
 	checkConnectedPlugSnippet(s.testPlugWritable, s.slot, "snap.consumer.app-writable", expectedSnippet2)
 }
 
@@ -153,7 +141,7 @@ func (s *OpticalDriveInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows read and write access to optical drives`)
+	c.Assert(si.Summary, Equals, `allows read by default and optionally write access to optical drives`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "optical-drive")
 }
 
