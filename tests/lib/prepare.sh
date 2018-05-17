@@ -247,7 +247,7 @@ prepare_classic() {
             systemctl stop "$unit"
         done
 
-        save_classic_state $escaped_snap_mount_dir
+        save_snapd_state "$escaped_snap_mount_dir"
 
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
@@ -507,13 +507,18 @@ prepare_all_snap() {
         fi
     done
 
+    echo "Ensure rsync is available"
+    if ! which rsync; then
+        snap install --devmode rsync
+    fi
+
     disable_refreshes
     setup_systemd_snapd_overrides
 
     # Snapshot the fresh state (including boot/bootenv)
     if [ ! -d $SNAPD_STATE_PATH ]; then
         systemctl stop snapd.service snapd.socket
-        save_all_snap_state
+        save_snapd_state
         systemctl start snapd.socket
     fi
 

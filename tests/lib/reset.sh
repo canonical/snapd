@@ -66,7 +66,7 @@ reset_classic() {
 
     if [ "$1" = "--reuse-core" ]; then
         # Restore snapd state and start systemd service units
-        restore_classic_state
+        restore_snapd_state
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
         mounts="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.mount" | cut -f1 -d ' ')"
         services="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
@@ -114,7 +114,7 @@ reset_all_snap() {
 
     # ensure we have the same state as initially
     systemctl stop snapd.service snapd.socket
-    restore_all_snap_state
+    restore_snapd_state
     rm -rf /root/.snap
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.service snapd.socket

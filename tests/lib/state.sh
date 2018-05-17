@@ -10,95 +10,68 @@ SNAPD_STATE_FILE="$SPREAD_PATH"/snapd-state.tar
 . "$TESTSLIB/boot.sh"
 
 delete_snapd_state() {
-    rm -rf $SNAPD_STATE_PATH
-    rm -f $SNAPD_STATE_FILE
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        rm -rf "$SNAPD_STATE_PATH"
+    else
+        rm -f "$SNAPD_STATE_FILE"
+    fi
 }
 
-save_classic_state() {
-    escaped_snap_mount_dir=$1
-    snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
-    snap_confine_profiles="$(ls /etc/apparmor.d/snap.core.* || true)"
-    # shellcheck disable=SC2086
-    tar cf "$SNAPD_STATE_FILE" /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount $snap_confine_profiles $snapd_env
+save_snapd_state() {
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        boot_path="$(get_boot_path)"
+        test -n "$boot_path" || return 1
+
+        mkdir -p "$SNAPD_STATE_PATH" "$SNAPD_STATE_PATH"/system-units
+
+        # Copy the state preserving the timestamps
+        cp -rfp /var/lib/snapd "$SNAPD_STATE_PATH"/snapd-lib
+        cp -rf "$boot_path" "$SNAPD_STATE_PATH"/boot
+        cp -f /etc/systemd/system/snap-*core*.mount "$SNAPD_STATE_PATH"/system-units
+    else
+        escaped_snap_mount_dir=$1
+        snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
+        snap_confine_profiles="$(ls /etc/apparmor.d/snap.core.* || true)"
+        # shellcheck disable=SC2086
+        tar cf "$SNAPD_STATE_FILE" \
+            /var/lib/snapd \
+            "$SNAP_MOUNT_DIR" \
+            /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount \
+            /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount \
+            $snap_confine_profiles \
+            $snapd_env
+    fi
 }
 
-restore_classic_state() {
-    # Purge all the systemd service units config
-    rm -rf /etc/systemd/system/snapd.service.d
-    rm -rf /etc/systemd/system/snapd.socket.d
+restore_snapd_state() {
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        # we need to ensure that we also restore the boot environment
+        # fully for tests that break it
+        boot_path="$(get_boot_path)"
+        test -n "$boot_path" || return 1
 
-    tar -C/ -xf "$SNAPD_STATE_FILE"
-}
+        restore_snapd_lib
+        cp -rf "$SNAPD_STATE_PATH"/boot/* "$boot_path"
+        cp -f "$SNAPD_STATE_PATH"/system-units/*  /etc/systemd/system
+    else
+        # Purge all the systemd service units config
+        rm -rf /etc/systemd/system/snapd.service.d
+        rm -rf /etc/systemd/system/snapd.socket.d
 
-save_all_snap_state() {
-    local boot_path="$(get_boot_path)"
-    test -n "$boot_path" || return 1
-
-    mkdir -p "$SNAPD_STATE_PATH" "$SNAPD_STATE_PATH"/system-units
-
-    # Copy the state preserving the timestamps
-    cp -rfp /var/lib/snapd "$SNAPD_STATE_PATH"/snapd-lib
-    cp -rf "$boot_path" "$SNAPD_STATE_PATH"/boot
-    cp -f /etc/systemd/system/snap-*core*.mount "$SNAPD_STATE_PATH"/system-units
-}
-
-restore_all_snap_state() {
-    # we need to ensure that we also restore the boot environment
-    # fully for tests that break it
-    local boot_path="$(get_boot_path)"
-    test -n "$boot_path" || return 1
-
-    restore_snapd_lib
-    cp -rf "$SNAPD_STATE_PATH"/boot/* "$boot_path"
-    cp -f "$SNAPD_STATE_PATH"/system-units/*  /etc/systemd/system
+        tar -C/ -xf "$SNAPD_STATE_FILE"
+    fi
 }
 
 restore_snapd_lib() {
     mkdir -p /var/lib/snapd/snaps
     mkdir -p /var/lib/snapd/seed /var/lib/snapd/seed/snaps
 
-    # Clean all the state but the snaps and seed dirs
+    # Clean all the state but the snaps and seed dirs. Then make a selective clean for 
+    # snaps and seed dirs leaving the .snap files which then are going to be synchronized.
     find /var/lib/snapd/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' \) -exec rm -rf {} +
-    clean_snaps_dir_state
-    clean_seed_dir_state
 
     # Copy the whole state but the snaps and seed dirs
     find "$SNAPD_STATE_PATH"/snapd-lib/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' \) -exec cp -rf {} /var/lib/snapd \;
-    sync_snaps_dir_state
-    sync_seed_dir_state
-}
-
-clean_snaps_dir_state() {
-    find /var/lib/snapd/snaps/* -maxdepth 0 ! -name '*.snap' -exec rm -rf {} +
-}
-
-clean_seed_dir_state() {
-    find /var/lib/snapd/seed/* -maxdepth 0 ! -name 'snaps' -exec rm -rf {} +
-    find /var/lib/snapd/seed/snaps/* -maxdepth 0 ! -name '*.snap' -exec rm -rf {} +
-}
-
-sync_snaps_dir_state() {
-    find "$SNAPD_STATE_PATH"/snapd-lib/snaps/* -maxdepth 0 ! -name '*.snap' -exec cp -rf {} /var/lib/snapd/snaps \;
-    sync_snaps "$SNAPD_STATE_PATH"/snapd-lib/snaps /var/lib/snapd/snaps
-}
-
-sync_seed_dir_state() {
-    find "$SNAPD_STATE_PATH"/snapd-lib/seed/* -maxdepth 0 ! -name 'snaps' -exec cp -rf {} /var/lib/snapd/seed \;
-    find "$SNAPD_STATE_PATH"/snapd-lib/seed/snaps/* -maxdepth 0 ! -name '*.snap' -exec cp -rf {} /var/lib/snapd/seed/snaps \;
-    sync_snaps "$SNAPD_STATE_PATH"/snapd-lib/seed/snaps /var/lib/snapd/seed/snaps
-}
-
-sync_snaps() {
-    local SOURCE=$1
-    local TARGET=$2
-
-    if ! [ -d "$SOURCE" ]; then
-        rm -rf "$TARGET"
-        return
-    elif ! [ -d "$TARGET" ]; then
-        mkdir -p "$TARGET"
-    fi
-
-    # Sync snaps between source and target
-    rsync -avzC --include='*.snap' --delete "$SOURCE" "$TARGET"
+    rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/snaps /var/lib/snapd
+    rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/seed/snaps /var/lib/snapd/seed
 }

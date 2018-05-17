@@ -489,9 +489,7 @@ restore_project_each() {
 }
 
 restore_project() {
-    # We use a trick to accelerate prepare/restore code in certain suites. That
-    # code uses a tarball to store the vanilla state. Here we just remove this
-    # tarball.
+    # Delete the snapd state used to accelerate prepare/restore code in certain suites. 
     delete_snapd_state
 
     # Remove all of the code we pushed and any build results. This removes
