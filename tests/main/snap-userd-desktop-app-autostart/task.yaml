@@ -1,8 +1,12 @@
 summary: Check that snap userd can autostart user session applications
 
 execute: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     echo "When the snap is installed"
-    . $TESTSLIB/snaps.sh
     install_local test-snapd-xdg-autostart
 
     # run the app directly, it will dump a *.desktop file
@@ -14,10 +18,7 @@ execute: |
     echo "Applications can be automatically started by snap userd --autostart"
 
     test ! -e ~/snap/test-xdg-snap-autostart/current/foo-autostarted
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
-        # 14.04 journalctl does not have cursor support
-        cursor=$(journalctl --show-cursor -n 0 |grep cursor | cut -f3 -d' ')
-    fi
+    cursor=$(get_last_journalctl_cursor)
     snap userd --autostart > autostart.log 2>&1
 
     # when app is autostarted it dumps a file at $SNAP_USER_DATA/foo-autostarted,
@@ -28,14 +29,7 @@ execute: |
     done
     test -e ~/snap/test-snapd-xdg-autostart/current/foo-autostarted
 
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
-        journalctl --flush
-        test "$(journalctl -t foo.desktop --after-cursor=$cursor | wc -l)" -eq 1
-    else
-        # 14.04 journalctl does not have cursor, neither --identifier support,
-        # nor --flush
-        test "$(journalctl | grep foo.desktop | wc -l)" -eq 1
-    fi
+    test "$(get_journalctl_log_from_cursor "$cursor" | grep foo.desktop | wc -l)" -gt 0
 
 restore: |
     rm -f ~/snap/test-snapd-xdg-autostart/current/foo-autostarted
