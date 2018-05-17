@@ -383,8 +383,8 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 
 func verifyRemoveTasks(c *C, ts *state.TaskSet) {
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
-		"disconnect-interfaces",
 		"stop-snap-services",
+		"disconnect-interfaces",
 		"run-hook[remove]",
 		"remove-aliases",
 		"unlink-snap",
@@ -7703,8 +7703,8 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, 9*2)
 	for _, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
-			"disconnect-interfaces",
 			"stop-snap-services",
+			"disconnect-interfaces",
 			"run-hook[remove]",
 			"remove-aliases",
 			"unlink-snap",

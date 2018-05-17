@@ -705,7 +705,7 @@ func (s *interfaceManagerSuite) TestDisconnectFull(c *C) {
 }
 
 func (s *interfaceManagerSuite) getConnection(c *C, plugSnap, plugName, slotSnap, slotName string) *interfaces.Connection {
-	conn, err := s.manager(c).Repository().Connection(interfaces.ConnRef{
+	conn, err := s.manager(c).Repository().Connection(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName},
 		SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName},
 	})

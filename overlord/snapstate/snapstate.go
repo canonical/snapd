@@ -1396,28 +1396,35 @@ func Remove(st *state.State, name string, revision snap.Revision) (*state.TaskSe
 		chain = ts
 	}
 
-	if removeAll {
-		// disconnect interfaces and run disconnect hooks
-		disconnect := st.NewTask("disconnect-interfaces", fmt.Sprintf(i18n.G("Disconnect interfaces of snap %q"), snapsup.Name()))
-		disconnect.Set("snap-setup", snapsup)
-		addNext(state.NewTaskSet(disconnect))
-	}
-
 	var removeHook *state.Task
 	// only run remove hook if uninstalling the snap completely
 	if removeAll {
 		removeHook = SetupRemoveHook(st, snapsup.Name())
 	}
 
-	if active { // unlink
-		var prev *state.Task
-
-		stopSnapServices := st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), name))
+	var prev *state.Task
+	var stopSnapServices *state.Task
+	if active {
+		stopSnapServices = st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), name))
 		stopSnapServices.Set("snap-setup", snapsup)
 		stopSnapServices.Set("stop-reason", snap.StopReasonRemove)
+		addNext(state.NewTaskSet(stopSnapServices))
 		prev = stopSnapServices
+	}
 
-		tasks := []*state.Task{stopSnapServices}
+	if removeAll {
+		// run disconnect hooks; interfaces get disconnected at once by discard-conns task below
+		disconnect := st.NewTask("disconnect-interfaces", fmt.Sprintf(i18n.G("Disconnect interfaces of snap %q"), snapsup.Name()))
+		disconnect.Set("snap-setup", snapsup)
+		if prev != nil {
+			disconnect.WaitFor(prev)
+		}
+		addNext(state.NewTaskSet(disconnect))
+		prev = disconnect
+	}
+
+	if active { // unlink
+		var tasks []*state.Task
 		if removeHook != nil {
 			tasks = append(tasks, removeHook)
 			removeHook.WaitFor(prev)
