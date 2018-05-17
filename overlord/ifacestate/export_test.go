@@ -41,6 +41,12 @@ func AddForeignTaskHandlers(m *InterfaceManager) {
 	m.runner.AddHandler("error-trigger", erroringHandler, nil)
 }
 
+func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) {
+	old := removeStaleConnections
+	removeStaleConnections = f
+	return func() { removeStaleConnections = old }
+}
+
 func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
 	old := contentLinkRetryTimeout
 	contentLinkRetryTimeout = d

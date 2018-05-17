@@ -101,15 +101,9 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 	return nil
 }
 
-// AutoConnect returns a set of tasks for connecting an interface as part of snap installation
-// and auto-connect handling.
-func AutoConnect(st *state.State, change *state.Change, autoConnectTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	return connect(st, change, autoConnectTask, plugSnap, plugName, slotSnap, slotName)
-}
-
-// Reconnect returns a set of tasks for reconnecting an interface as part of snap installation.
-func Reconnect(st *state.State, change *state.Change, reconnectTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	return connect(st, change, reconnectTask, plugSnap, plugName, slotSnap, slotName)
+// ConnectOnInstall returns a set of tasks for (re)connecting an interface as part of snap installation (e.g. to reconnect interfaces on refresh, or autoconnect)
+func ConnectOnInstall(st *state.State, change *state.Change, mainTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+	return connect(st, change, mainTask, plugSnap, plugName, slotSnap, slotName)
 }
 
 // Connect returns a set of tasks for connecting an interface.

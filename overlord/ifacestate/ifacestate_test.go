@@ -351,7 +351,7 @@ func (s *interfaceManagerSuite) testConnectDoesntConflictOnInstalledSnap(c *C, i
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstalledSnap(c *C) {
-	s.testConnectDoesntConflictOnInstalledSnap(c, "auto-connect", ifacestate.AutoConnect, true)
+	s.testConnectDoesntConflictOnInstalledSnap(c, "auto-connect", ifacestate.ConnectOnInstall, true)
 }
 
 func (s *interfaceManagerSuite) testConnectConflicts(c *C, installedSnapTaskKind string, connectFunc func(*state.State, *state.Change, *state.Task, string, string, string, string) (*state.TaskSet, error), conflictingKind string) {
@@ -384,23 +384,23 @@ func (s *interfaceManagerSuite) testConnectConflicts(c *C, installedSnapTaskKind
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnUnlink(c *C) {
-	s.testConnectConflicts(c, "auto-connect", ifacestate.AutoConnect, "unlink-snap")
+	s.testConnectConflicts(c, "auto-connect", ifacestate.ConnectOnInstall, "unlink-snap")
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnLink(c *C) {
-	s.testConnectConflicts(c, "auto-connect", ifacestate.AutoConnect, "link-snap")
+	s.testConnectConflicts(c, "auto-connect", ifacestate.ConnectOnInstall, "link-snap")
 }
 
 func (s *interfaceManagerSuite) TestReconnectConflictOnUnlink(c *C) {
-	s.testConnectConflicts(c, "reconnect", ifacestate.Reconnect, "unlink-snap")
+	s.testConnectConflicts(c, "reconnect", ifacestate.ConnectOnInstall, "unlink-snap")
 }
 
 func (s *interfaceManagerSuite) TestReconnectConflictOnLink(c *C) {
-	s.testConnectConflicts(c, "reconnect", ifacestate.Reconnect, "link-snap")
+	s.testConnectConflicts(c, "reconnect", ifacestate.ConnectOnInstall, "link-snap")
 }
 
 func (s *interfaceManagerSuite) TestReconnectDoesntConflictOnInstalledSnap(c *C) {
-	s.testConnectDoesntConflictOnInstalledSnap(c, "reconnect", ifacestate.Reconnect, false)
+	s.testConnectDoesntConflictOnInstalledSnap(c, "reconnect", ifacestate.ConnectOnInstall, false)
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
@@ -686,7 +686,7 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	c.Check(s.secBackend.SetupCalls[1].Options, Equals, interfaces.ConfinementOptions{})
 }
 
-func (s *interfaceManagerSuite) TestStrayConnectionsIgnored(c *C) {
+func (s *interfaceManagerSuite) TestStaleConnectionsIgnoredInReloadConnections(c *C) {
 	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 
 	// Put a stray connection in the state so that it automatically gets set up
@@ -697,7 +697,8 @@ func (s *interfaceManagerSuite) TestStrayConnectionsIgnored(c *C) {
 	})
 	s.state.Unlock()
 
-	// Initialize the manager. This registers both snaps and reloads the connection.
+	restore := ifacestate.MockRemoveStaleConnections(func(s *state.State) error { return nil })
+	defer restore()
 	mgr := s.manager(c)
 
 	s.state.Lock()
@@ -719,6 +720,33 @@ func (s *interfaceManagerSuite) TestStrayConnectionsIgnored(c *C) {
 	c.Assert(logLines, HasLen, 2)
 	c.Assert(logLines[0], testutil.Contains, "error trying to compare the snap system key:")
 	c.Assert(logLines[1], Equals, "")
+}
+
+func (s *interfaceManagerSuite) TestStaleConnectionsRemoved(c *C) {
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	s.state.Lock()
+	// Add stale connection to the state
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+	s.state.Unlock()
+
+	// Create the manager, this removes stale connections
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that nothing got connected and connection was removed
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, HasLen, 0)
+
+	repo := mgr.Repository()
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 0)
 }
 
 func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
@@ -1576,19 +1604,30 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
 	})
 	// Store empty snap state. This snap has an empty sequence now.
-	snapstate.Set(s.state, snapName, &snapstate.SnapState{})
 	s.state.Unlock()
+
+	// mock the snaps or otherwise the manager will remove stale connections
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
 
 	mgr := s.manager(c)
 
+	s.state.Lock()
+	// remove the snaps so that discard-conns doesn't complain about snaps still installed
+	snapstate.Set(s.state, "producer", nil)
+	snapstate.Set(s.state, "consumer", nil)
+	s.state.Unlock()
+
 	// Run the discard-conns task and let it finish
 	change := s.addDiscardConnsChange(c, snapName)
+
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	// Information about the connection was removed
@@ -1607,6 +1646,8 @@ func (s *interfaceManagerSuite) testDoDicardConns(c *C, snapName string) {
 }
 
 func (s *interfaceManagerSuite) testUndoDicardConns(c *C, snapName string) {
+	mgr := s.manager(c)
+
 	s.state.Lock()
 	// Store information about a connection in the state.
 	s.state.Set("conns", map[string]interface{}{
@@ -1615,8 +1656,6 @@ func (s *interfaceManagerSuite) testUndoDicardConns(c *C, snapName string) {
 	// Store empty snap state. This snap has an empty sequence now.
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{})
 	s.state.Unlock()
-
-	mgr := s.manager(c)
 
 	// Run the discard-conns task and let it finish
 	change := s.addDiscardConnsChange(c, snapName)
@@ -1911,7 +1950,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 		Interface: "test",
 	})
 	c.Assert(err, IsNil)
-	connRef := interfaces.ConnRef{
+	connRef := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: siP.Name(), Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: siC.Name(), Name: "slot"},
 	}
@@ -2201,6 +2240,10 @@ func (s *interfaceManagerSuite) TestCoreConnectionsRenamed(c *C) {
 		},
 	})
 	s.state.Unlock()
+
+	// mock both snaps, otherwise the manager will remove stale connections
+	s.mockSnap(c, coreSnapYaml)
+	s.mockSnap(c, sampleSnapYaml)
 
 	// Start the manager, this is where renames happen.
 	s.manager(c)
