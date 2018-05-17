@@ -782,9 +782,9 @@ func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb
 		connectts.AddAll(ts)
 	}
 
-	task.SetStatus(state.DoneStatus)
-
 	snapstate.InjectTasks(task, connectts)
+
+	task.SetStatus(state.DoneStatus)
 
 	st.EnsureBefore(0)
 	return nil
