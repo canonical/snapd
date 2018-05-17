@@ -1,0 +1,26 @@
+name: test-snapd-eds
+version: '0.1'
+summary: utilities to test evolution-data-server interfaces of snapd
+description: |
+  This package contains utilities designed to test a confined
+  application's ability to access addressbooks and calendars managed
+  by evolution-data-server.
+
+grade: stable
+confinement: strict
+
+apps:
+  contacts:
+    command: bin/contacts
+    plugs:
+      - desktop-contacts-service
+
+parts:
+  main:
+    plugin: meson
+    source: .
+    meson-parameters:
+      - --prefix=/
+    build-packages:
+      - libebook1.2-dev
+      - pkg-config
