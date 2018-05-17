@@ -159,7 +159,7 @@ func respToError(resp *http.Response, msg string) error {
 }
 
 func getStructFields(s interface{}, exceptions ...string) []string {
-	st := reflect.TypeOf(s)
+	st := reflect.TypeOf(s).Elem()
 	num := st.NumField()
 	fields := make([]string, 0, num)
 	for i := 0; i < num; i++ {
@@ -309,7 +309,7 @@ type sectionResults struct {
 }
 
 // The fields we are interested in (not you, snap_yaml_raw)
-var detailFields = getStructFields(snapDetails{}, "snap_yaml_raw")
+var detailFields = getStructFields((*snapDetails)(nil), "snap_yaml_raw")
 
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta3"
@@ -456,14 +456,9 @@ func LoginUser(username, password, otp string) (string, string, error) {
 	return macaroon, discharge, nil
 }
 
-// hasStoreAuth returns true if given user has store macaroons setup
-func hasStoreAuth(user *auth.UserState) bool {
-	return user != nil && user.StoreMacaroon != ""
-}
-
 // authAvailable returns true if there is a user and/or device session setup
 func (s *Store) authAvailable(user *auth.UserState) (bool, error) {
-	if hasStoreAuth(user) {
+	if user.HasStoreAuth() {
 		return true, nil
 	} else {
 		var device *auth.DeviceState
@@ -675,13 +670,14 @@ type alias struct {
 
 type catalogItem struct {
 	Name    string   `json:"package_name"`
+	Version string   `json:"version"`
 	Summary string   `json:"summary"`
 	Aliases []alias  `json:"aliases"`
 	Apps    []string `json:"apps"`
 }
 
 type SnapAdder interface {
-	AddSnap(snapName, summary string, commands []string) error
+	AddSnap(snapName, version, summary string, commands []string) error
 }
 
 func decodeCatalog(resp *http.Response, names io.Writer, db SnapAdder) error {
@@ -722,7 +718,7 @@ func decodeCatalog(resp *http.Response, names io.Writer, db SnapAdder) error {
 			commands = append(commands, snap.JoinSnapApp(v.Name, app))
 		}
 
-		if err := db.AddSnap(v.Name, v.Summary, commands); err != nil {
+		if err := db.AddSnap(v.Name, v.Version, v.Summary, commands); err != nil {
 			return err
 		}
 	}
@@ -873,7 +869,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	}
 
 	// only set user authentication if user logged in to the store
-	if hasStoreAuth(user) {
+	if user.HasStoreAuth() {
 		authenticateUser(req, user)
 	}
 
@@ -2129,7 +2125,7 @@ type snapActionResultList struct {
 	} `json:"error-list"`
 }
 
-var snapActionFields = getStructFields(storeSnap{})
+var snapActionFields = getStructFields((*storeSnap)(nil))
 
 // SnapAction queries the store for snap information for the given
 // install/refresh actions, given the context information about

@@ -70,8 +70,8 @@ plugs:
 	slotSnap := snaptest.MockInfo(c, slotYaml, nil)
 	plugSnap := snaptest.MockInfo(c, plugYaml, nil)
 	return &policy.ConnectCandidate{
-		Plug:            plugSnap.Plugs[iface],
-		Slot:            slotSnap.Slots[iface],
+		Plug:            interfaces.NewConnectedPlug(plugSnap.Plugs[iface], nil),
+		Slot:            interfaces.NewConnectedSlot(slotSnap.Slots[iface], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 }
@@ -145,6 +145,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"home":          true,
 		"lxd-support":   true,
 		"snapd-control": true,
+		"dummy":         true,
 	}
 
 	// these simply auto-connect, anything else doesn't
@@ -556,6 +557,7 @@ var (
 		"serial-port": {"core", "gadget"},
 		"spi":         {"core", "gadget"},
 		"storage-framework-service": {"app"},
+		"dummy":                     {"app"},
 		"thumbnailer-service":       {"app"},
 		"ubuntu-download-manager":   {"app"},
 		"udisks2":                   {"app"},
@@ -565,6 +567,7 @@ var (
 		"unity8-contacts":           {"app"},
 		"upower-observe":            {"app", "core"},
 		"wayland":                   {"app", "core"},
+		"x11":                       {"app", "core"},
 		// snowflakes
 		"classic-support": nil,
 		"docker":          nil,

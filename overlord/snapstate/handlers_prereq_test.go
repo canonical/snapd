@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"os"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -63,7 +64,7 @@ func (s *prereqSuite) SetUpTest(c *C) {
 	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
-	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
+	s.reset = snapstate.MockSnapReadInfo(s.fakeBackend.ReadInfo)
 }
 
 func (s *prereqSuite) TearDownTest(c *C) {
@@ -246,15 +247,83 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	c.Check(t.Status(), Equals, state.DoingStatus)
 	c.Check(tCore.Status(), Equals, state.DoneStatus)
 
-	s.state.Unlock()
-	// wait the prereq-retry-timeout
-	for i := 0; i < 10; i++ {
+	// wait, we will hit prereq-retry-timeout eventually
+	// (this can take a while on very slow machines)
+	for i := 0; i < 50; i++ {
 		time.Sleep(10 * time.Millisecond)
+		s.state.Unlock()
 		s.snapmgr.Ensure()
 		s.snapmgr.Wait()
+		s.state.Lock()
+		if t.Status() == state.DoneStatus {
+			break
+		}
 	}
+	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
+	os.Setenv("SNAPD_BASES_CHANNEL", "edge")
+	defer os.Unsetenv("SNAPD_BASES_CHANNEL")
+	os.Setenv("SNAPD_PREREQS_CHANNEL", "candidate")
+	defer os.Unsetenv("SNAPD_PREREQS_CHANNEL")
+	s.state.Lock()
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Channel: "beta",
+		Base:    "some-base",
+		Prereq:  []string{"prereq1", "prereq2"},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+
 	s.state.Lock()
 	defer s.state.Unlock()
-
+	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:  "install",
+				Name:    "prereq1",
+				Channel: "candidate",
+			},
+			revno: snap.R(11),
+		},
+		{
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:  "install",
+				Name:    "prereq2",
+				Channel: "candidate",
+			},
+			revno: snap.R(11),
+		},
+		{
+			op: "storesvc-snap-action",
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:  "install",
+				Name:    "some-base",
+				Channel: "edge",
+			},
+			revno: snap.R(11),
+		},
+	})
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }

@@ -5,7 +5,8 @@ details: |
 
 # ubuntu-core, ubuntu-14 and fedora are skipped due to /run/uuidd/request file does not
 # exist. On those systems different files are being used instead.
-systems: [-ubuntu-14.04-*,-ubuntu-core-16-*,-fedora-*]
+# arch: uses /run/run/uuidd/request, filed a bug report https://bugs.archlinux.org/task/58122
+systems: [-ubuntu-14.04-*,-ubuntu-core-16-*,-fedora-*, -arch-*]
 
 prepare: |
     snap install test-snapd-openvswitch-support
@@ -15,7 +16,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "\- +test-snapd-openvswitch-support:openvswitch-support"
+    snap interfaces -i openvswitch-support | MATCH "\- +test-snapd-openvswitch-support:openvswitch-support"
 
     echo "When the interface is connected"
     snap connect test-snapd-openvswitch-support:openvswitch-support
