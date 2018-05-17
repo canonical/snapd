@@ -259,7 +259,8 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 
 // doSync performs a request to the given path using the specified HTTP method.
 // It expects a "sync" response from the API and on success decodes the JSON
-// response payload into the given value.
+// response payload into the given value using the "UseNumber" json decoding
+// which produces json.Numbers instead of float64 types for numbers.
 func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
 	var rsp response
 	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
