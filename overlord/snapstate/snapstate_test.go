@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -2189,6 +2190,172 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		Channel:  "some-channel",
 		SnapID:   "services-snap-id",
 		Revision: snap.R(11),
+	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithNewBase(c *C) {
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+	snaptest.MockSnap(c, `name: some-snap`, si)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", "channel-for-base", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
+		{macaroon: s.user.StoreMacaroon, name: "some-base"},
+		{macaroon: s.user.StoreMacaroon, name: "some-snap"},
+	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithAlreadyInstalledBase(c *C) {
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+	snaptest.MockSnap(c, `name: some-snap`, si)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Active:  true,
+		Channel: "stable",
+		Sequence: []*snap.SideInfo{{
+			RealName: "some-base",
+			SnapID:   "some-base-id",
+			Revision: snap.R(1),
+		}},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", "channel-for-base", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
+		{macaroon: s.user.StoreMacaroon, name: "some-snap"},
+	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithNewDefaultProvider(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	si := &snap.SideInfo{
+		RealName: "snap-content-plug",
+		SnapID:   "snap-content-plug-id",
+		Revision: snap.R(7),
+	}
+	snaptest.MockSnap(c, `name: snap-content-plug`, si)
+	snapstate.Set(s.state, "snap-content-plug", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	ts, err := snapstate.Update(s.state, "snap-content-plug", "stable", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
+		{macaroon: s.user.StoreMacaroon, name: "snap-content-plug"},
+		{macaroon: s.user.StoreMacaroon, name: "snap-content-slot"},
+	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithInstalledDefaultProvider(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	si := &snap.SideInfo{
+		RealName: "snap-content-plug",
+		SnapID:   "snap-content-plug-id",
+		Revision: snap.R(7),
+	}
+	snaptest.MockSnap(c, `name: snap-content-plug`, si)
+	snapstate.Set(s.state, "snap-content-plug", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "snap-content-slot", &snapstate.SnapState{
+		Active:  true,
+		Channel: "stable",
+		Sequence: []*snap.SideInfo{{
+			RealName: "snap-content-slot",
+			SnapID:   "snap-content-slot-id",
+			Revision: snap.R(1),
+		}},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	ts, err := snapstate.Update(s.state, "snap-content-plug", "stable", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
+		{macaroon: s.user.StoreMacaroon, name: "snap-content-plug"},
 	})
 }
 
@@ -7570,7 +7737,7 @@ volumes:
         bootloader: grub
 `
 
-func (s *snapmgrTestSuite) prepareGadget(c *C) {
+func (s *snapmgrTestSuite) prepareGadget(c *C, extraGadgetYaml ...string) {
 	gadgetSideInfo := &snap.SideInfo{RealName: "the-gadget", SnapID: "the-gadget-id", Revision: snap.R(1)}
 	gadgetInfo := snaptest.MockSnap(c, `
 name: the-gadget
@@ -7578,7 +7745,8 @@ type: gadget
 version: 1.0
 `, gadgetSideInfo)
 
-	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYaml), 0600)
+	gadgetYamlWhole := strings.Join(append([]string{gadgetYaml}, extraGadgetYaml...), "")
+	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYamlWhole), 0600)
 	c.Assert(err, IsNil)
 
 	snapstate.Set(s.state, "the-gadget", &snapstate.SnapState{
@@ -7609,6 +7777,7 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 		Current:  snap.R(11),
 		SnapType: "app",
 	})
+	makeInstalledMockCoreSnap(c)
 
 	defls, err := snapstate.ConfigDefaults(s.state, "some-snap")
 	c.Assert(err, IsNil)
@@ -7624,6 +7793,65 @@ func (s *snapmgrTestSuite) TestConfigDefaults(c *C) {
 	})
 	_, err = snapstate.ConfigDefaults(s.state, "local-snap")
 	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (s *snapmgrTestSuite) TestConfigDefaultsSystem(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// using MockSnapReadInfo, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.prepareGadget(c, `
+defaults:
+    system:
+        foo: bar
+`)
+
+	makeInstalledMockCoreSnap(c)
+
+	defls, err := snapstate.ConfigDefaults(s.state, "core")
+	c.Assert(err, IsNil)
+	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
+}
+
+func (s *snapmgrTestSuite) TestConfigDefaultsSystemConflictsCoreSnapId(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// using MockSnapReadInfo, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.prepareGadget(c, `
+defaults:
+    system:
+        foo: bar
+    the-core-snap:
+        foo: other-bar
+        other-key: other-key-default
+`)
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", SnapID: "the-core-snap", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	makeInstalledMockCoreSnap(c)
+
+	// 'system' key defaults take precedence over snap-id ones
+	defls, err := snapstate.ConfigDefaults(s.state, "core")
+	c.Assert(err, IsNil)
+	c.Assert(defls, DeepEquals, map[string]interface{}{"foo": "bar"})
 }
 
 func (s *snapmgrTestSuite) TestGadgetDefaultsAreNormalizedForConfigHook(c *C) {

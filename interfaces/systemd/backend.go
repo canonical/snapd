@@ -126,6 +126,11 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }
 
+// SandboxFeatures returns nil
+func (b *Backend) SandboxFeatures() []string {
+	return nil
+}
+
 // deriveContent computes .service files based on requests made to the specification.
 func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]*osutil.FileState {
 	services := spec.Services()

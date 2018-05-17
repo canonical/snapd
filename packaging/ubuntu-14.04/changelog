@@ -1,3 +1,31 @@
+snapd (2.32.9~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1767833
+    - tests: run all spread tests inside GCE
+    - tests: build spread in the autopkgtests with a more recent go
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 16 May 2018 10:20:08 +0200
+
+snapd (2.32.8~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1767833
+    - snapd.core-fixup.sh: add workaround for corrupted uboot.env
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 11 May 2018 14:36:16 +0200
+
+snapd (2.32.7~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1767833
+    - many: add wait command and seeded target (2
+    - snapd.core-fixup.sh: add workaround for corrupted uboot.env
+    - boot: clear "snap_mode" when needed
+    - cmd/libsnap: fix compile error on more restrictive gcc
+    - tests: cherry-pick commits to move spread to google backend
+    - spread.yaml: add cosmic (18.10) to autopkgtest/qemu
+    - userd: set up journal logging streams for autostarted apps
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 11 May 2018 13:09:32 +0200
+
 snapd (2.32.6~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1767833

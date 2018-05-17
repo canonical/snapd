@@ -788,6 +788,8 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		}
 
 		snapsup := &SnapSetup{
+			Base:         update.Base,
+			Prereq:       defaultContentPlugProviders(st, update),
 			Channel:      channel,
 			UserID:       snapUserID,
 			Flags:        flags.ForSnapSetup(),
@@ -1851,7 +1853,9 @@ func CoreInfo(st *state.State) (*snap.Info, error) {
 	return nil, fmt.Errorf("unexpected number of cores, got %d", len(res))
 }
 
-// ConfigDefaults returns the configuration defaults for the snap specified in the gadget. If gadget is absent or the snap has no snap-id it returns ErrNoState.
+// ConfigDefaults returns the configuration defaults for the snap specified in
+// the gadget. If gadget is absent or the snap has no snap-id it returns
+// ErrNoState.
 func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, error) {
 	gadget, err := GadgetInfo(st)
 	if err != nil {
@@ -1863,14 +1867,34 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 		return nil, err
 	}
 
+	core, err := CoreInfo(st)
+	if err != nil {
+		return nil, err
+	}
+	isCoreDefaults := core.Name() == snapName
+
 	si := snapst.CurrentSideInfo()
-	if si.SnapID == "" {
+	// core snaps can be addressed even without a snap-id via the special
+	// "system" value in the config; first-boot always configures the core
+	// snap with UseConfigDefaults
+	if si.SnapID == "" && !isCoreDefaults {
 		return nil, state.ErrNoState
 	}
 
 	gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
 	if err != nil {
 		return nil, err
+	}
+
+	// we support setting core defaults via "system"
+	if isCoreDefaults {
+		if defaults, ok := gadgetInfo.Defaults["system"]; ok {
+			if _, ok := gadgetInfo.Defaults[si.SnapID]; ok && si.SnapID != "" {
+				logger.Noticef("core snap configuration defaults found under both 'system' key and core-snap-id, preferring 'system'")
+			}
+
+			return defaults, nil
+		}
 	}
 
 	defaults, ok := gadgetInfo.Defaults[si.SnapID]
