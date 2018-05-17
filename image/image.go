@@ -373,9 +373,13 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		// kernel/os are required for booting
 		if typ == snap.TypeKernel || typ == snap.TypeOS {
 			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
-			seedSnaps := "../seed/snaps"
-			symlink := filepath.Join(seedSnaps, filepath.Base(fn))
-			if err := os.Symlink(symlink, dst); err != nil {
+			// construct a relative symlink from the blob dir
+			// to the seed file
+			relSymlink, err := filepath.Rel(dirs.SnapBlobDir, fn)
+			if err != nil {
+				return fmt.Errorf("cannot build symlink: %v", err)
+			}
+			if err := os.Symlink(relSymlink, dst); err != nil {
 				return err
 			}
 			// store the snap.Info for kernel/os so
