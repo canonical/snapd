@@ -48,6 +48,11 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/lib/vulkan/** r,
 /var/lib/snapd/hostfs/usr/share/vulkan/icd.d/*nvidia*.json r,
 
+# Support reading the GLVND EGL vendor files
+/var/lib/snapd/lib/glvnd/ r,
+/var/lib/snapd/lib/glvnd/** r,
+/var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/*nvidia*.json r,
+
 # Main bi-arch GL libraries
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{GL,EGL,GLX}.so{,.*} rm,
 
