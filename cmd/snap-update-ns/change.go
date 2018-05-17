@@ -165,12 +165,14 @@ func (c *Change) ensureTarget(sec *Secure) ([]*Change, error) {
 	return changes, err
 }
 
-func (c *Change) ensureSource(sec *Secure) error {
+func (c *Change) ensureSource(sec *Secure) ([]*Change, error) {
+	var changes []*Change
+
 	// We only have to do ensure bind mount source exists.
 	// This also rules out symlinks.
 	flags, _ := osutil.MountOptsToCommonFlags(c.Entry.Options)
 	if flags&syscall.MS_BIND == 0 {
-		return nil
+		return nil, nil
 	}
 
 	kind := c.Entry.XSnapdKind()
@@ -192,17 +194,31 @@ func (c *Change) ensureSource(sec *Secure) error {
 			}
 		}
 	} else if os.IsNotExist(err) {
-		_, err = c.createPath(path, false, sec)
+		// NOTE: This createPath is using pokeHoles, to make read-only places
+		// writable, but only for layouts and not for other (typically content
+		// sharing) mount entries.
+		//
+		// This is done because the changes made with pokeHoles=true are only
+		// visible in this current mount namespace and are not generally
+		// visible from other snaps because they inhabit different namespaces.
+		//
+		// In other words, changes made here are only observable by the single
+		// snap they apply to. As such they are useless for content sharing but
+		// very much useful to layouts.
+		pokeHoles := c.Entry.XSnapdOrigin() == "layout"
+		changes, err = c.createPath(path, pokeHoles, sec)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
 	}
-	return err
+
+	return changes, err
 }
 
 // changePerformImpl is the real implementation of Change.Perform
 func changePerformImpl(c *Change, sec *Secure) (changes []*Change, err error) {
 	if c.Action == Mount {
+		var changesSource, changesTarget []*Change
 		// We may be asked to bind mount a file, bind mount a directory, mount
 		// a filesystem over a directory, or create a symlink (which is abusing
 		// the "mount" concept slightly). That actual operation is performed in
@@ -211,7 +227,10 @@ func changePerformImpl(c *Change, sec *Secure) (changes []*Change, err error) {
 		// As a result of this ensure call we may need to make the medium writable
 		// and that's why we may return more changes as a result of performing this
 		// one.
-		changes, err = c.ensureTarget(sec)
+		changesTarget, err = c.ensureTarget(sec)
+		// NOTE: we are collecting changes even if things fail. This is so that
+		// upper layers can perform undo correctly.
+		changes = append(changes, changesTarget...)
 		if err != nil {
 			return changes, err
 		}
@@ -222,7 +241,10 @@ func changePerformImpl(c *Change, sec *Secure) (changes []*Change, err error) {
 		// This property holds as long as we don't interact with locations that
 		// are under the control of regular (non-snap) processes that are not
 		// suspended and may be racing with us.
-		err = c.ensureSource(sec)
+		changesSource, err = c.ensureSource(sec)
+		// NOTE: we are collecting changes even if things fail. This is so that
+		// upper layers can perform undo correctly.
+		changes = append(changes, changesSource...)
 		if err != nil {
 			return changes, err
 		}
