@@ -351,7 +351,7 @@ func (s *interfaceManagerSuite) testConnectDoesntConflictOnInstalledSnap(c *C, i
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstalledSnap(c *C) {
-	s.testConnectDoesntConflictOnInstalledSnap(c, "auto-connect", ifacestate.AutoConnect, true)
+	s.testConnectDoesntConflictOnInstalledSnap(c, "auto-connect", ifacestate.ConnectOnInstall, true)
 }
 
 func (s *interfaceManagerSuite) testConnectConflicts(c *C, installedSnapTaskKind string, connectFunc func(*state.State, *state.Change, *state.Task, string, string, string, string) (*state.TaskSet, error), conflictingKind string) {
@@ -384,23 +384,23 @@ func (s *interfaceManagerSuite) testConnectConflicts(c *C, installedSnapTaskKind
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnUnlink(c *C) {
-	s.testConnectConflicts(c, "auto-connect", ifacestate.AutoConnect, "unlink-snap")
+	s.testConnectConflicts(c, "auto-connect", ifacestate.ConnectOnInstall, "unlink-snap")
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnLink(c *C) {
-	s.testConnectConflicts(c, "auto-connect", ifacestate.AutoConnect, "link-snap")
+	s.testConnectConflicts(c, "auto-connect", ifacestate.ConnectOnInstall, "link-snap")
 }
 
 func (s *interfaceManagerSuite) TestReconnectConflictOnUnlink(c *C) {
-	s.testConnectConflicts(c, "reconnect", ifacestate.Reconnect, "unlink-snap")
+	s.testConnectConflicts(c, "reconnect", ifacestate.ConnectOnInstall, "unlink-snap")
 }
 
 func (s *interfaceManagerSuite) TestReconnectConflictOnLink(c *C) {
-	s.testConnectConflicts(c, "reconnect", ifacestate.Reconnect, "link-snap")
+	s.testConnectConflicts(c, "reconnect", ifacestate.ConnectOnInstall, "link-snap")
 }
 
 func (s *interfaceManagerSuite) TestReconnectDoesntConflictOnInstalledSnap(c *C) {
-	s.testConnectDoesntConflictOnInstalledSnap(c, "reconnect", ifacestate.Reconnect, false)
+	s.testConnectDoesntConflictOnInstalledSnap(c, "reconnect", ifacestate.ConnectOnInstall, false)
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
