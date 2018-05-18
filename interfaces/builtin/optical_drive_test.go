@@ -145,11 +145,6 @@ func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
 		includeSnippets: []string{expectedSnippet1, expectedSnippet2},
 		excludeSnippets: []string{},
 	})
-	checkConnectedPlugSnippet(s.testPlugWritable, s.slot, &options{
-		appName:         "snap.consumer.app-writable",
-		includeSnippets: []string{expectedSnippet1, expectedSnippet2},
-		excludeSnippets: []string{},
-	})
 }
 
 func (s *OpticalDriveInterfaceSuite) TestUDevSpec(c *C) {
