@@ -624,6 +624,20 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	sideInfo := &snap.SideInfo{Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnap(c, consumerYaml, sideInfo)
+	snapstate.Set(s.state, snapInfo.Name(), &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+	})
+	snapInfo = snaptest.MockSnap(c, producerYaml, sideInfo)
+	snapstate.Set(s.state, snapInfo.Name(), &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+	})
+
 	conn := &interfaces.Connection{
 		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{
 			Snap:  &snap.Info{SuggestedName: "consumer"},

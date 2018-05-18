@@ -778,7 +778,7 @@ func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb
 		if err != nil {
 			break
 		}
-		ts, err := DisconnectHooks(st, conn)
+		ts, err := DisconnectHooks(st, conn, task)
 		if err != nil {
 			return err
 		}
