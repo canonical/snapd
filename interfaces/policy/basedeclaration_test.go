@@ -144,6 +144,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"core-support":  true,
 		"home":          true,
 		"lxd-support":   true,
+		"anbox-support": true,
 		"snapd-control": true,
 		"dummy":         true,
 	}
@@ -196,6 +197,7 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	// these have more complex or in flux policies and have their
 	// own separate tests
 	snowflakes := map[string]bool{
+		"anbox-support":   true,
 		"classic-support": true,
 		"content":         true,
 		"home":            true,
@@ -381,6 +383,39 @@ plugs:
 	c.Assert(err, ErrorMatches, "auto-connection not allowed by plug rule of interface \"lxd-support\" for \"notlxd\" snap")
 }
 
+func (s *baseDeclSuite) TestAutoConnectionAnboxSupportOverride(c *C) {
+	// by default, don't auto-connect
+	cand := s.connectCand(c, "anbox-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+
+	plugsSlots := `
+plugs:
+  anbox-support:
+    allow-auto-connection: true
+`
+
+	anboxDecl := s.mockSnapDecl(c, "anbox", "Nr9K6UJaIOD8wHpDEQl16nabFFt9LLEQ", "morphis", plugsSlots)
+	cand.PlugSnapDeclaration = anboxDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionAnboxSupportOverrideRevoke(c *C) {
+	cand := s.connectCand(c, "anbox-support", "", "")
+	plugsSlots := `
+plugs:
+  anbox-support:
+    allow-auto-connection: false
+`
+
+	anboxDecl := s.mockSnapDecl(c, "notanbox", "Nr9K6UJaIOD8wHpDEQl16nabFFt9LLEQ", "morphis", plugsSlots)
+	cand.PlugSnapDeclaration = anboxDecl
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection not allowed by plug rule of interface \"anbox-support\" for \"notanbox\" snap")
+}
+
 func (s *baseDeclSuite) TestAutoConnectionKernelModuleControlOverride(c *C) {
 	cand := s.connectCand(c, "kernel-module-control", "", "")
 	err := cand.CheckAutoConnect()
@@ -522,6 +557,7 @@ var (
 
 	slotInstallation = map[string][]string{
 		// other
+		"anbox-support":           {"core"},
 		"autopilot-introspection": {"core"},
 		"avahi-control":           {"app", "core"},
 		"avahi-observe":           {"app", "core"},
@@ -639,6 +675,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	all := builtin.Interfaces()
 
 	restricted := map[string]bool{
+		"anbox-support":         true,
 		"classic-support":       true,
 		"docker-support":        true,
 		"greengrass-support":    true,
@@ -763,6 +800,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 	// given how the rules work this can be delicate,
 	// listed here to make sure that was a conscious decision
 	bothSides := map[string]bool{
+		"anbox-support":         true,
 		"classic-support":       true,
 		"core-support":          true,
 		"docker-support":        true,

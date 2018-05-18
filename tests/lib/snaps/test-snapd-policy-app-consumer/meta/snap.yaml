@@ -11,6 +11,9 @@ apps:
   alsa:
     command: bin/run
     plugs: [ alsa ]
+  anbox-support:
+    command: bin/run
+    plugs: [ anbox-support ]
   autopilot-introspection:
     command: bin/run
     plugs: [ autopilot-introspection ]
