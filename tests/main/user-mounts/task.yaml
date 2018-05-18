@@ -19,7 +19,7 @@ execute: |
     . $TESTSLIB/dirs.sh
 
     echo "Create XDG_RUNTIME_DIR for test user"
-    USER_RUNTIME_DIR=/run/user/12345
+    USER_RUNTIME_DIR=/run/user/"$(id -u test)"
     mkdir -p $USER_RUNTIME_DIR || true
     #shellcheck disable=SC2115
     rm -rf $USER_RUNTIME_DIR/*

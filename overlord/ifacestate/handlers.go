@@ -503,9 +503,17 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	conn := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
-	delete(conns, conn.ID())
-
+	cref := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+	if conn, ok := conns[cref.ID()]; ok && conn.Auto {
+		conn.Undesired = true
+		conn.DynamicPlugAttrs = nil
+		conn.DynamicSlotAttrs = nil
+		conn.StaticPlugAttrs = nil
+		conn.StaticSlotAttrs = nil
+		conns[cref.ID()] = conn
+	} else {
+		delete(conns, cref.ID())
+	}
 	setConns(st, conns)
 	return nil
 }
@@ -530,7 +538,7 @@ func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 	chg := task.Change()
 	connectts := state.NewTaskSet()
 	for _, conn := range connections {
-		ts, err := Reconnect(st, chg, task, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
+		ts, err := ConnectOnInstall(st, chg, task, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
 		if err != nil {
 			return err
 		}
@@ -596,9 +604,6 @@ func (m *InterfaceManager) defaultContentProviders(snapName string) map[string]b
 
 // doAutoConnect creates task(s) to connect the given snap to viable candidates.
 func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
-	// FIXME: here we should not reconnect auto-connect plug/slot
-	// pairs that were explicitly disconnected by the user
-
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
@@ -679,12 +684,12 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		connRef := interfaces.NewConnRef(plug, slot)
 		key := connRef.ID()
 		if _, ok := conns[key]; ok {
-			// Suggested connection already exist so don't clobber it.
+			// Suggested connection already exist (or has Undesired flag set) so don't clobber it.
 			// NOTE: we don't log anything here as this is a normal and common condition.
 			continue
 		}
 
-		ts, err := AutoConnect(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
+		ts, err := ConnectOnInstall(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
 		if err != nil {
 			task.Logf("cannot auto-connect plug %s to %s: %s", connRef.PlugRef, connRef.SlotRef, err)
 			continue
@@ -716,11 +721,11 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			connRef := interfaces.NewConnRef(plug, slot)
 			key := connRef.ID()
 			if _, ok := conns[key]; ok {
-				// Suggested connection already exist so don't clobber it.
+				// Suggested connection already exist (or has Undesired flag set) so don't clobber it.
 				// NOTE: we don't log anything here as this is a normal and common condition.
 				continue
 			}
-			ts, err := AutoConnect(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
+			ts, err := ConnectOnInstall(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
 			if err != nil {
 				task.Logf("cannot auto-connect slot %s to %s: %s", connRef.SlotRef, connRef.PlugRef, err)
 				continue
