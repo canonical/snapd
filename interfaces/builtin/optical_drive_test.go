@@ -75,7 +75,6 @@ slots:
 `
 
 func (s *OpticalDriveInterfaceSuite) SetUpTest(c *C) {
-	// s.plug, s.plugInfo = MockConnectedPlug(c, opticalDriveConsumerYaml, nil, "optical-drive")
 	consumingSnapInfo := snaptest.MockInfo(c, opticalDriveConsumerYaml, nil)
 
 	s.testPlugDefaultInfo = consumingSnapInfo.Plugs["optical-drive"]
@@ -110,20 +109,47 @@ func (s *OpticalDriveInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *OpticalDriveInterfaceSuite) TestAppArmorSpec(c *C) {
-	checkConnectedPlugSnippet := func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, appName string, expectedSnippet string) {
+	type options struct {
+		appName         string
+		includeSnippets []string
+		excludeSnippets []string
+	}
+	checkConnectedPlugSnippet := func(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, opts *options) {
 		apparmorSpec := &apparmor.Specification{}
 		err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 		c.Assert(err, IsNil)
-		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{appName})
-		c.Assert(apparmorSpec.SnippetForTag(appName), testutil.Contains, expectedSnippet)
+		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{opts.appName})
+		for _, expectedSnippet := range opts.includeSnippets {
+			c.Assert(apparmorSpec.SnippetForTag(opts.appName), testutil.Contains, expectedSnippet)
+		}
+		for _, unexpectedSnippet := range opts.excludeSnippets {
+			c.Assert(apparmorSpec.SnippetForTag(opts.appName), Not(testutil.Contains), unexpectedSnippet)
+		}
 	}
 
 	expectedSnippet1 := `/dev/scd[0-9]* r,`
 	expectedSnippet2 := `/dev/scd[0-9]* w,`
-	checkConnectedPlugSnippet(s.testPlugDefault, s.slot, "snap.consumer.app", expectedSnippet1)
-	checkConnectedPlugSnippet(s.testPlugReadonly, s.slot, "snap.consumer.app-readonly", expectedSnippet1)
-	checkConnectedPlugSnippet(s.testPlugWritable, s.slot, "snap.consumer.app-writable", expectedSnippet1)
-	checkConnectedPlugSnippet(s.testPlugWritable, s.slot, "snap.consumer.app-writable", expectedSnippet2)
+
+	checkConnectedPlugSnippet(s.testPlugDefault, s.slot, &options{
+		appName:         "snap.consumer.app",
+		includeSnippets: []string{expectedSnippet1},
+		excludeSnippets: []string{expectedSnippet2},
+	})
+	checkConnectedPlugSnippet(s.testPlugReadonly, s.slot, &options{
+		appName:         "snap.consumer.app-readonly",
+		includeSnippets: []string{expectedSnippet1},
+		excludeSnippets: []string{expectedSnippet2},
+	})
+	checkConnectedPlugSnippet(s.testPlugWritable, s.slot, &options{
+		appName:         "snap.consumer.app-writable",
+		includeSnippets: []string{expectedSnippet1, expectedSnippet2},
+		excludeSnippets: []string{},
+	})
+	checkConnectedPlugSnippet(s.testPlugWritable, s.slot, &options{
+		appName:         "snap.consumer.app-writable",
+		includeSnippets: []string{expectedSnippet1, expectedSnippet2},
+		excludeSnippets: []string{},
+	})
 }
 
 func (s *OpticalDriveInterfaceSuite) TestUDevSpec(c *C) {
@@ -143,13 +169,6 @@ func (s *OpticalDriveInterfaceSuite) TestStaticInfo(c *C) {
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows read by default and optionally write access to optical drives`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "optical-drive")
-}
-
-func (s *OpticalDriveInterfaceSuite) TestAutoConnect(c *C) {
-	// FIXME: fix AutoConnect methods to use ConnectedPlug/Slot
-	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.testPlugDefaultInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
-	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.testPlugReadonlyInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
-	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.testPlugWritableInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, false)
 }
 
 func (s *OpticalDriveInterfaceSuite) TestInterfaces(c *C) {
