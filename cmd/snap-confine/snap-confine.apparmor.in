@@ -271,6 +271,11 @@
     mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
     mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/,
 
+    # GLVND EGL vendor
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/{,*} w,
+    mount fstype=tmpfs options=(rw nodev noexec) none -> /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/,
+    mount options=(remount ro) -> /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/,
+
     # create gl dirs as needed
     /tmp/snap.rootfs_*/ r,
     /tmp/snap.rootfs_*/var/ r,
@@ -281,6 +286,8 @@
     /tmp/snap.rootfs_*/var/lib/snapd/lib/gl{,32}/** rw,
     /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/ r,
     /tmp/snap.rootfs_*/var/lib/snapd/lib/vulkan/** rw,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/ r,
+    /tmp/snap.rootfs_*/var/lib/snapd/lib/glvnd/** rw,
 
     # for chroot on steroids, we use pivot_root as a better chroot that makes
     # apparmor rules behave the same on classic and outside of classic.
