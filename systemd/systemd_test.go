@@ -457,6 +457,9 @@ func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
 }
 
 func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
+	restore := MockUseFuse(false)
+	defer restore()
+
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	err := os.MkdirAll(filepath.Dir(mockSnapPath), 0755)
 	c.Assert(err, IsNil)
