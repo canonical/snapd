@@ -30,7 +30,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -643,19 +642,20 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 	<-snapdDone
 	<-snapDone
 
+	oldRebootNoticeWait := rebootNoticeWait
 	oldRebootWaitTimeout := rebootWaitTimeout
 	defer func() {
-		execCommand = exec.Command
+		reboot = rebootImpl
+		rebootNoticeWait = oldRebootNoticeWait
 		rebootWaitTimeout = oldRebootWaitTimeout
 	}()
 	rebootWaitTimeout = 100 * time.Millisecond
+	rebootNoticeWait = 150 * time.Millisecond
 
-	var cmds [][]string
-	execCommand = func(name string, arg ...string) *exec.Cmd {
-		rec := []string{name}
-		rec = append(rec, arg...)
-		cmds = append(cmds, rec)
-		return exec.Command("true")
+	var delays []time.Duration
+	reboot = func(d time.Duration) error {
+		delays = append(delays, d)
+		return nil
 	}
 
 	d.overlord.State().RequestRestart(state.RestartSystem)
@@ -678,15 +678,41 @@ func (s *daemonSuite) TestRestartSystemWiring(c *check.C) {
 
 	c.Check(rs, check.Equals, true)
 
-	c.Check(cmds, check.HasLen, 1)
-	c.Check(cmds[0][:3], check.DeepEquals, []string{"shutdown", "-r", "+10"})
+	c.Check(delays, check.HasLen, 1)
+	c.Check(delays[0], check.DeepEquals, rebootWaitTimeout)
 
 	err = d.Stop()
 
 	c.Check(err, check.ErrorMatches, "expected reboot did not happen")
-	c.Check(cmds, check.HasLen, 2)
-	c.Check(cmds[1][:3], check.DeepEquals, []string{"shutdown", "-r", "+1"})
+	c.Check(delays, check.HasLen, 2)
+	c.Check(delays[1], check.DeepEquals, 1*time.Minute)
 
 	// we are not stopping, we wait for the reboot instead
 	c.Check(s.notified, check.DeepEquals, []string{"READY=1"})
+}
+
+func (s *daemonSuite) TestRebootHelper(c *check.C) {
+	cmd := testutil.MockCommand(c, "shutdown", "")
+	defer cmd.Restore()
+
+	tests := []struct {
+		delay    time.Duration
+		delayArg string
+	}{
+		{-1, "+0"},
+		{0, "+0"},
+		{time.Minute, "+1"},
+		{10 * time.Minute, "+10"},
+		{30 * time.Second, "+1"},
+	}
+
+	for _, t := range tests {
+		err := reboot(t.delay)
+		c.Assert(err, check.IsNil)
+		c.Check(cmd.Calls(), check.DeepEquals, [][]string{
+			{"shutdown", "-r", t.delayArg, "reboot scheduled to update the system"},
+		})
+
+		cmd.ForgetCalls()
+	}
 }

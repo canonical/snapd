@@ -96,7 +96,7 @@ func (cs *clientSuite) TestClientChangeRestartingState(c *check.C) {
 	c.Check(chg, check.NotNil)
 	c.Check(chg.ID, check.Equals, "uno")
 	c.Check(err, check.IsNil)
-	c.Check(cs.cli.Maintenance(), check.NotNil)
+	c.Check(cs.cli.Maintenance(), check.ErrorMatches, `system is restarting`)
 }
 
 func (cs *clientSuite) TestClientChangeError(c *check.C) {
