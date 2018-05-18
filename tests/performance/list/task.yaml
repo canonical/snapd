@@ -4,7 +4,6 @@ execute: |
     . "$TESTSLIB/snaps.sh"
     . "$TESTSLIB/perf.sh"
 
-    for i in $(seq 30); do
-        et=$(execution_time_ms "snap list")
-        echo "$SPREAD_SYSTEM,list,all,$et,milliseconds" >> $RES_FILE
+    for i in $(seq "$PERF_ITERATIONS"); do
+        measure_exec_time "snap list" list all
     done

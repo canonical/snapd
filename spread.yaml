@@ -575,40 +575,27 @@ suites:
         summary: Performance tests for snapd
         manual: true
         environment:
-            RES_FILE: "$PROJECT_PATH/test.perf"
+            PERF_RESULTS_FILE: "$PROJECT_PATH/test.perf"
+            PERF_ITERATIONS: "$(HOST: echo ${SPREAD_PERF_ITERATIONS:-30})"
         prepare: |
-            . "$TESTSLIB/prepare.sh"
-            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
-                prepare_all_snap
-            else
-                prepare_classic
-            fi
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
 
+            # Create a results file where the performance results are stored until
+            # the full execution is finished, then those results are displayed.
+            #shellcheck source=tests/lib/perf.sh
             . "$TESTSLIB/perf.sh"
-            create_results_file $RES_FILE
-
+            create_results_file
         prepare-each: |
-            "$TESTSLIB/reset.sh" --reuse-core
-            . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                prepare_each_classic
-            fi
-
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
-            "$TESTSLIB/reset.sh" --store
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
-                . $TESTSLIB/pkgdb.sh
-                distro_purge_package snapd
-                if [[ "$SPREAD_SYSTEM" != opensuse-* ]]; then
-                    # A snap-confine package never existed on openSUSE
-                    distro_purge_package snap-confine
-                fi
-            fi
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
 
+            # The results file is tagged as finished and the cleaned.
             . "$TESTSLIB/perf.sh"
-            finish_results_file $RES_FILE
-            cat $RES_FILE
-            rm -f $RES_FILE
+            finish_results_file
+            clean_results_file
             exit 1
 
 # vim:ts=4:sw=4:et

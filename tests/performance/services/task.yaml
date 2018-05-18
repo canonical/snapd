@@ -6,13 +6,9 @@ execute: |
 
     install_local test-snapd-service
 
-    for i in $(seq 30); do
-        et=$(execution_time_ms "snap services")
-        echo "$SPREAD_SYSTEM,services,all,$et,milliseconds" >> $RES_FILE
-        et=$(execution_time_ms "snap start test-snapd-service.service")
-        echo "$SPREAD_SYSTEM,start,test-snapd-service.service,$et,milliseconds" >> $RES_FILE
-        et=$(execution_time_ms "snap stop test-snapd-service.service")
-        echo "$SPREAD_SYSTEM,stop,test-snapd-service.service,$et,milliseconds" >> $RES_FILE
-        et=$(execution_time_ms "snap logs test-snapd-service.service")
-        echo "$SPREAD_SYSTEM,logs,test-snapd-service.service,$et,milliseconds" >> $RES_FILE
+    for i in $(seq "$PERF_ITERATIONS"); do
+        measure_exec_time "snap services" services all
+        measure_exec_time "snap start test-snapd-service.service" start test-snapd-service.service
+        measure_exec_time "snap stop test-snapd-service.service" stop test-snapd-service.service
+        measure_exec_time "snap logs test-snapd-service.service" logs test-snapd-service.service
     done
