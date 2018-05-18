@@ -87,7 +87,7 @@ func (client *Client) Change(id string) (*Change, error) {
 	}
 
 	chgd.Change.data = chgd.Data
-	return &chgd.Change, err
+	return &chgd.Change, nil
 }
 
 // Abort attempts to abort a change that is in not yet ready.

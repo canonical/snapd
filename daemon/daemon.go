@@ -224,13 +224,13 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rsp = rspf(c, r, user)
 	}
 
-	if maintTrasmitter, ok := rsp.(maintenanceTransmitter); ok {
+	if maintTransmitter, ok := rsp.(maintenanceTransmitter); ok {
 		_, rst := st.Restarting()
 		switch rst {
 		case state.RestartSystem:
-			maintTrasmitter.transmitMaintenance(errorKindSystemRestart, "system is restarting")
+			maintTransmitter.transmitMaintenance(errorKindSystemRestart, "system is restarting")
 		case state.RestartDaemon:
-			maintTrasmitter.transmitMaintenance(errorKindDaemonRestart, "daemon is restarting")
+			maintTransmitter.transmitMaintenance(errorKindDaemonRestart, "daemon is restarting")
 		}
 	}
 
@@ -447,7 +447,7 @@ func (d *Daemon) Start() {
 		case state.RestartSystem:
 			// try to schedule a fallback slow reboot already here
 			// in case we get stuck shutting down
-			if err := reboot("+10"); err != nil {
+			if err := reboot(rebootWaitTimeout); err != nil {
 				logger.Noticef("%s", err)
 			}
 
@@ -492,19 +492,26 @@ func (d *Daemon) Start() {
 	systemdSdNotify("READY=1")
 }
 
-var execCommand = exec.Command
-
 var shutdownMsg = i18n.G("reboot scheduled to update the system")
 
-func reboot(rebootDelay string) error {
-	cmd := execCommand("shutdown", "-r", rebootDelay, shutdownMsg)
+func rebootImpl(rebootDelay time.Duration) error {
+	if rebootDelay < 0 {
+		rebootDelay = 0
+	}
+	mins := int64((rebootDelay + time.Minute - 1) / time.Minute)
+	cmd := exec.Command("shutdown", "-r", fmt.Sprintf("+%d", mins), shutdownMsg)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(out, err)
 	}
 	return nil
 }
 
-var rebootWaitTimeout = 10 * time.Minute
+var reboot = rebootImpl
+
+var (
+	rebootNoticeWait  = 3 * time.Second
+	rebootWaitTimeout = 10 * time.Minute
+)
 
 // Stop shuts down the Daemon
 func (d *Daemon) Stop() error {
@@ -531,7 +538,7 @@ func (d *Daemon) Stop() error {
 
 	if restartSystem {
 		// give time to polling clients to notice restart
-		time.Sleep(300 * time.Millisecond)
+		time.Sleep(rebootNoticeWait)
 	}
 
 	d.tomb.Kill(d.snapdServe.finishShutdown())
@@ -555,10 +562,13 @@ func (d *Daemon) Stop() error {
 	if restartSystem {
 		// ask for shutdown and wait for it to happen.
 		// if we exit snapd will be restared by systemd
-		rebootDelay := "+1"
+		rebootDelay := 1 * time.Minute
 		ovr := os.Getenv("SNAPD_REBOOT_DELAY") // for tests
 		if ovr != "" {
-			rebootDelay = ovr
+			d, err := time.ParseDuration(ovr)
+			if err == nil {
+				rebootDelay = d
+			}
 		}
 		if err := reboot(rebootDelay); err != nil {
 			return err
