@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-const opticalDriveSummary = `allows read by default and optionally write access to optical drives`
+const opticalDriveSummary = `allows access to optical drives`
 
 const opticalDriveBaseDeclarationSlots = `
   optical-drive:
@@ -68,7 +68,7 @@ func (iface *opticalDriveInterface) BeforePreparePlug(plug *snap.PlugInfo) error
 	if w, ok := plug.Attrs["write"]; ok {
 		_, ok = w.(bool)
 		if !ok {
-			return fmt.Errorf(`optical-drive plug requires "write" be bool`)
+			return fmt.Errorf(`optical-drive "write" attribute must be a boolean`)
 		}
 	}
 
