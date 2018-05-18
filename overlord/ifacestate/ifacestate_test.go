@@ -2877,7 +2877,7 @@ func (s *interfaceManagerSuite) TestGet(c *C) {
 	repoSt := map[string]ifacestate.SnapInterfaceState{
 		"bye": {Revision: snap.R(13)},
 	}
-	s.state.Set("repo", &repoSt)
+	s.state.Set("interfaces", &repoSt)
 
 	// Get the state of the snap "hello" again, it should not be there, still.
 	err = ifacestate.Get(s.state, "hello", &snapifst)
@@ -2887,7 +2887,7 @@ func (s *interfaceManagerSuite) TestGet(c *C) {
 	repoSt = map[string]ifacestate.SnapInterfaceState{
 		"hello": {Revision: snap.R(42)},
 	}
-	s.state.Set("repo", &repoSt)
+	s.state.Set("interfaces", &repoSt)
 
 	// Get the state of the snap "hello" again, it should work now.
 	err = ifacestate.Get(s.state, "hello", &snapifst)
@@ -2904,7 +2904,7 @@ func (s *interfaceManagerSuite) TestSet(c *C) {
 
 	// It should be saved into the repository state
 	var repoSt map[string]interface{}
-	err := s.state.Get("repo", &repoSt)
+	err := s.state.Get("interfaces", &repoSt)
 	c.Assert(err, IsNil)
 	c.Assert(repoSt, DeepEquals, map[string]interface{}{
 		"hello": map[string]interface{}{"revision": "42"},
@@ -2914,7 +2914,7 @@ func (s *interfaceManagerSuite) TestSet(c *C) {
 	ifacestate.Set(s.state, "bye", &ifacestate.SnapInterfaceState{Revision: snap.R(13)})
 
 	repoSt = nil
-	err = s.state.Get("repo", &repoSt)
+	err = s.state.Get("interfaces", &repoSt)
 	c.Assert(err, IsNil)
 	c.Assert(repoSt, DeepEquals, map[string]interface{}{
 		"hello": map[string]interface{}{"revision": "42"},
@@ -2925,7 +2925,7 @@ func (s *interfaceManagerSuite) TestSet(c *C) {
 	ifacestate.Set(s.state, "hello", nil)
 
 	repoSt = nil
-	err = s.state.Get("repo", &repoSt)
+	err = s.state.Get("interfaces", &repoSt)
 	c.Assert(err, IsNil)
 	c.Assert(repoSt, DeepEquals, map[string]interface{}{
 		"bye": map[string]interface{}{"revision": "13"},

@@ -20,6 +20,7 @@
 package ifacestate
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -520,4 +521,55 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 	}
 
 	return infos, nil
+}
+
+// SnapInterfaceState describes state of interfaces of a single snap.
+type SnapInterfaceState struct {
+	// Revision is the revision of the snap that was loaded into the
+	// interface repository. When snapd restarts it may have added a snap to
+	// the interface repository even when that snap was not yet active. To
+	// ensure that we can reload the interface repository correctly, for
+	// inactive snaps, this is the revision to load on startup.
+	Revision snap.Revision `json:"revision"`
+}
+
+// ifaceRepoKey is the key used to store state of the interface repository in the snapd state.
+const ifaceRepoKey = "interfaces"
+
+// Get retrieves the SnapInterfaceState of the given snap or ErrNoState if missing.
+func Get(st *state.State, snapName string, snapifst *SnapInterfaceState) error {
+	var repoSt map[string]*json.RawMessage
+	if err := st.Get(ifaceRepoKey, &repoSt); err != nil {
+		return err
+	}
+	rawSnapifst, ok := repoSt[snapName]
+	if !ok {
+		return state.ErrNoState
+	}
+	if err := json.Unmarshal([]byte(*rawSnapifst), &snapifst); err != nil {
+		return fmt.Errorf("cannot unmarshal snap interface state: %v", err)
+	}
+	return nil
+}
+
+// Set sets the SnapInterfaceState of the given snap, overwriting any earlier state.
+func Set(st *state.State, snapName string, snapifst *SnapInterfaceState) {
+	var repoSt map[string]*json.RawMessage
+	if err := st.Get(ifaceRepoKey, &repoSt); err != nil && err != state.ErrNoState {
+		panic("internal error: cannot unmarshal interface repo state: " + err.Error())
+	}
+	if repoSt == nil {
+		repoSt = make(map[string]*json.RawMessage)
+	}
+	if snapifst == nil {
+		delete(repoSt, snapName)
+	} else {
+		data, err := json.Marshal(snapifst)
+		if err != nil {
+			panic("internal error: cannot marshal snap interface state: " + err.Error())
+		}
+		raw := json.RawMessage(data)
+		repoSt[snapName] = &raw
+	}
+	st.Set(ifaceRepoKey, repoSt)
 }
