@@ -2007,11 +2007,11 @@ plugs:
 	}
 
 	// Connect a few things for the tests below.
-	_, err := r.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i1"}, SlotRef: SlotRef{Snap: "s2", Name: "i1"}}, nil, nil, nil)
+	_, err := r.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i1"}, SlotRef: SlotRef{Snap: "s2", Name: "i1"}}, nil, nil, nil)
 	c.Assert(err, IsNil)
-	_, err = r.Connect(ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i2"}, SlotRef: SlotRef{Snap: "s3", Name: "i2"}}, nil, nil, nil)
+	_, err = r.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i2"}, SlotRef: SlotRef{Snap: "s3", Name: "i2"}}, nil, nil, nil)
 	c.Assert(err, IsNil)
-	_, err = r.Connect(ConnRef{PlugRef: PlugRef{Snap: "s4", Name: "i2"}, SlotRef: SlotRef{Snap: "s3", Name: "i2"}}, nil, nil, nil)
+	_, err = r.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s4", Name: "i2"}, SlotRef: SlotRef{Snap: "s3", Name: "i2"}}, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	// Check that we get all connected interfaces
