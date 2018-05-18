@@ -167,7 +167,7 @@ func (s *OpticalDriveInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows read by default and optionally write access to optical drives`)
+	c.Assert(si.Summary, Equals, `allows access to optical drives`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "optical-drive")
 }
 
