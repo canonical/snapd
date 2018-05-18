@@ -29,7 +29,7 @@ restore: |
 
 execute: |
     echo "The interface is connected by default"
-    snap interfaces | MATCH "test-snapd-network-status-provider:network-status-test .*test-snapd-network-status-provider:network-status"
+    snap interfaces -i network-status | MATCH "test-snapd-network-status-provider:network-status-test .*test-snapd-network-status-provider:network-status"
 
     echo "Then wait until the dbus name is properly reserved"
     for i in $(seq 10); do

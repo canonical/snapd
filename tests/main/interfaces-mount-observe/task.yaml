@@ -21,7 +21,7 @@ execute: |
     . $TESTSLIB/dirs.sh
 
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "\- +mount-observe-consumer:mount-observe"
+    snap interfaces -i mount-observe | MATCH "\- +mount-observe-consumer:mount-observe"
 
     echo "When the plug is connected"
     snap connect mount-observe-consumer:mount-observe

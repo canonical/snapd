@@ -21,6 +21,7 @@ package servicestate
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/cmdstate"
@@ -107,7 +108,12 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 	for _, cmd := range ctlcmds {
 		argv := append([]string{"systemctl", cmd}, svcs...)
 		desc := fmt.Sprintf("%s of %v", cmd, names)
-		ts := cmdstate.Exec(st, desc, argv)
+		// Give the systemctl a maximum time of 61 for now.
+		//
+		// Longer term we need to refactor this code and
+		// reuse the snapd/systemd and snapd/wrapper packages
+		// to control the timeout in a single place.
+		ts := cmdstate.ExecWithTimeout(st, desc, argv, 61*time.Second)
 		tts = append(tts, ts)
 	}
 

@@ -86,7 +86,8 @@ type apiBaseSuite struct {
 	d                 *Daemon
 	user              *auth.UserState
 	restoreBackends   func()
-	refreshCandidates []*store.RefreshCandidate
+	currentSnaps      []*store.CurrentSnap
+	actions           []*store.SnapAction
 	buyOptions        *store.BuyOptions
 	buyResult         *store.BuyResult
 	storeSigning      *assertstest.StoreStack
@@ -126,18 +127,12 @@ func (s *apiBaseSuite) Find(search *store.Search, user *auth.UserState) ([]*snap
 	return s.rsnaps, s.err
 }
 
-func (s *apiBaseSuite) LookupRefresh(snap *store.RefreshCandidate, user *auth.UserState) (*snap.Info, error) {
-	s.refreshCandidates = []*store.RefreshCandidate{snap}
-	s.user = user
-
-	return s.rsnaps[0], s.err
-}
-
-func (s *apiBaseSuite) ListRefresh(ctx context.Context, snaps []*store.RefreshCandidate, user *auth.UserState, flags *store.RefreshOptions) ([]*snap.Info, error) {
+func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, error) {
 	if ctx == nil {
 		panic("context required")
 	}
-	s.refreshCandidates = snaps
+	s.currentSnaps = currentSnaps
+	s.actions = actions
 	s.user = user
 
 	return s.rsnaps, s.err
@@ -232,7 +227,8 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.vars = nil
 	s.user = nil
 	s.d = nil
-	s.refreshCandidates = nil
+	s.currentSnaps = nil
+	s.actions = nil
 	// Disable real security backends for all API tests
 	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
 
@@ -770,7 +766,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			// only the "timer" field
 			"timer": "8:00~9:00/2",
 		},
-		"confinement": "partial",
+		"confinement":      "partial",
+		"sandbox-features": map[string]interface{}{"confinement-options": []interface{}{"classic", "devmode"}},
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -805,6 +802,13 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	tr.Commit()
 	st.Unlock()
 
+	// add a test security backend
+	err := d.overlord.InterfaceManager().Repository().AddBackend(&ifacetest.TestSecurityBackend{
+		BackendName:             "apparmor",
+		SandboxFeaturesCallback: func() []string { return []string{"feature-1", "feature-2"} },
+	})
+	c.Assert(err, check.IsNil)
+
 	buildID, err := osutil.MyBuildID()
 	c.Assert(err, check.IsNil)
 
@@ -831,6 +835,10 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 			"schedule": "00:00-9:00/12:00-13:00",
 		},
 		"confinement": "partial",
+		"sandbox-features": map[string]interface{}{
+			"apparmor":            []interface{}{"feature-1", "feature-2"},
+			"confinement-options": []interface{}{"classic", "devmode"}, // we know it's this because of the release.Mock... calls above
+		},
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -1510,7 +1518,8 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 
 	c.Check(s.storeSearch, check.DeepEquals, store.Search{Query: "hi"})
-	c.Check(s.refreshCandidates, check.HasLen, 0)
+	c.Check(s.currentSnaps, check.HasLen, 0)
+	c.Check(s.actions, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestFindRefreshes(c *check.C) {
@@ -1533,7 +1542,8 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
-	c.Check(s.refreshCandidates, check.HasLen, 1)
+	c.Check(s.currentSnaps, check.HasLen, 1)
+	c.Check(s.actions, check.HasLen, 1)
 }
 
 func (s *apiSuite) TestFindRefreshSideloaded(c *check.C) {
@@ -1569,9 +1579,9 @@ func (s *apiSuite) TestFindRefreshSideloaded(c *check.C) {
 	rsp := searchStore(findCmd, req, nil).(*resp)
 
 	snaps := snapList(rsp.Result)
-	c.Assert(snaps, check.HasLen, 1)
-	c.Assert(snaps[0]["name"], check.Equals, "store")
-	c.Check(s.refreshCandidates, check.HasLen, 0)
+	c.Assert(snaps, check.HasLen, 0)
+	c.Check(s.currentSnaps, check.HasLen, 0)
+	c.Check(s.actions, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestFindPrivate(c *check.C) {
@@ -2606,7 +2616,14 @@ func (s *apiSuite) TestGetConfCoreSystemAlias(c *check.C) {
 
 func (s *apiSuite) TestGetConfMissingKey(c *check.C) {
 	result := s.runGetConf(c, "test-snap", []string{"test-key2"}, 400)
-	c.Check(result, check.DeepEquals, map[string]interface{}{"message": `snap "test-snap" has no "test-key2" configuration option`})
+	c.Check(result, check.DeepEquals, map[string]interface{}{
+		"value": map[string]interface{}{
+			"SnapName": "test-snap",
+			"Key":      "test-key2",
+		},
+		"message": `snap "test-snap" has no "test-key2" configuration option`,
+		"kind":    "option-not-found",
+	})
 }
 
 func (s *apiSuite) TestGetRootDocument(c *check.C) {
@@ -3497,18 +3514,20 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 // Tests for GET /v2/interfaces
 
 func (s *apiSuite) TestInterfaces(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	connRef := interfaces.ConnRef{
+	connRef := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	c.Assert(repo.Connect(connRef), check.IsNil)
+	_, err := repo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -3675,7 +3694,8 @@ func (s *apiSuite) TestInterfaceDetail404(c *check.C) {
 // Test for POST /v2/interfaces
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -3837,18 +3857,20 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slotName string) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	connRef := interfaces.ConnRef{
+	connRef := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	c.Assert(repo.Connect(connRef), check.IsNil)
+	_, err := repo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, check.IsNil)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
@@ -3901,7 +3923,8 @@ func (s *apiSuite) TestDisconnectPlugSuccessWithEmptySlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	s.daemon(c)
 
 	// there is no consumer, no plug defined
@@ -3934,7 +3957,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugNothingToDo(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -3968,7 +3992,8 @@ func (s *apiSuite) TestDisconnectPlugNothingToDo(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -4002,7 +4027,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -6547,6 +6573,7 @@ func (s *appSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
 	si := &snapInstruction{Action: "frobble"}
 	errors := []error{
 		store.ErrSnapNotFound,
+		store.ErrRevisionNotAvailable,
 		store.ErrNoUpdateAvailable,
 		store.ErrLocalSnap,
 		&snap.AlreadyInstalledError{Snap: "foo"},

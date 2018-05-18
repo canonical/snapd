@@ -360,6 +360,29 @@ const (
 	"summary": "Foo",
 	"version": "@VERSION@"
 }`
+
+	snapV2 = `{
+	"architectures": [
+	    "all"
+	],
+        "download": {
+            "url": "@URL@"
+        },
+        "type": "app",
+	"name": "@NAME@",
+	"revision": @REVISION@,
+	"snap-id": "@SNAPID@",
+	"summary": "Foo",
+	"description": "this is a description",
+	"version": "@VERSION@",
+        "publisher": {
+           "id": "devdevdev",
+           "name": "bar"
+         },
+         "media": [
+            {"type": "icon", "url": "@ICON@"}
+         ]
+}`
 )
 
 var fooSnapID = fakeSnapID("foo")
@@ -416,7 +439,7 @@ func (ms *mgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (pat
 
 func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 	var baseURL *url.URL
-	fillHit := func(name string) string {
+	fillHit := func(hitTemplate, name string) string {
 		snapf, err := snap.Open(ms.serveSnapPath[name])
 		if err != nil {
 			panic(err)
@@ -425,7 +448,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 		if err != nil {
 			panic(err)
 		}
-		hit := strings.Replace(searchHit, "@URL@", baseURL.String()+"/api/v1/snaps/download/"+name, -1)
+		hit := strings.Replace(hitTemplate, "@URL@", baseURL.String()+"/api/v1/snaps/download/"+name, -1)
 		hit = strings.Replace(hit, "@NAME@", name, -1)
 		hit = strings.Replace(hit, "@SNAPID@", fakeSnapID(name), -1)
 		hit = strings.Replace(hit, "@ICON@", baseURL.String()+"/icon", -1)
@@ -435,13 +458,25 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 	}
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// all URLS are /api/v1/snaps/... so check the url is sane and discard
-		// the common prefix to simplify indexing into the comps slice.
+		// all URLS are /api/v1/snaps/... or /v2/snaps/... so
+		// check the url is sane and discard the common prefix
+		// to simplify indexing into the comps slice.
 		comps := strings.Split(r.URL.Path, "/")
-		if len(comps) <= 4 {
+		if len(comps) < 2 {
 			panic("unexpected url path: " + r.URL.Path)
 		}
-		comps = comps[4:]
+		if comps[1] == "api" { //v1
+			if len(comps) <= 4 {
+				panic("unexpected url path: " + r.URL.Path)
+			}
+			comps = comps[4:]
+		} else { // v2
+			if len(comps) <= 3 {
+				panic("unexpected url path: " + r.URL.Path)
+			}
+			comps = comps[3:]
+			comps[0] = "v2:" + comps[0]
+		}
 
 		switch comps[0] {
 		case "assertions":
@@ -465,7 +500,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 			return
 		case "details":
 			w.WriteHeader(200)
-			io.WriteString(w, fillHit(comps[1]))
+			io.WriteString(w, fillHit(searchHit, comps[1]))
 		case "metadata":
 			dec := json.NewDecoder(r.Body)
 			var input struct {
@@ -484,7 +519,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 				if snap.R(s.Revision) == snap.R(ms.serveRevision[name]) {
 					continue
 				}
-				hits = append(hits, json.RawMessage(fillHit(name)))
+				hits = append(hits, json.RawMessage(fillHit(searchHit, name)))
 			}
 			w.WriteHeader(200)
 			output, err := json.Marshal(map[string]interface{}{
@@ -506,6 +541,50 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 				panic(err)
 			}
 			io.Copy(w, snapR)
+		case "v2:refresh":
+			dec := json.NewDecoder(r.Body)
+			var input struct {
+				Actions []struct {
+					Action string `json:"action"`
+					SnapID string `json:"snap-id"`
+					Name   string `json:"name"`
+				} `json:"actions"`
+			}
+			if err := dec.Decode(&input); err != nil {
+				panic(err)
+			}
+			type resultJSON struct {
+				Result string          `json:"result"`
+				SnapID string          `json:"snap-id"`
+				Name   string          `json:"name"`
+				Snap   json.RawMessage `json:"snap"`
+			}
+			var results []resultJSON
+			for _, a := range input.Actions {
+				name := ms.serveIDtoName[a.SnapID]
+				if a.Action == "install" {
+					name = a.Name
+				}
+				if ms.serveSnapPath[name] == "" {
+					// no match
+					continue
+				}
+				results = append(results, resultJSON{
+					Result: a.Action,
+					SnapID: a.SnapID,
+					Name:   name,
+					Snap:   json.RawMessage(fillHit(snapV2, name)),
+				})
+			}
+			w.WriteHeader(200)
+			output, err := json.Marshal(map[string]interface{}{
+				"results": results,
+			})
+			if err != nil {
+				panic(err)
+			}
+			w.Write(output)
+
 		default:
 			panic("unexpected url path: " + r.URL.Path)
 		}
@@ -1996,7 +2075,7 @@ func (ms *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snap
 	cn, err := repo.Connected("snap1", "shared-data-plug")
 	c.Assert(err, IsNil)
 	c.Assert(cn, HasLen, 1)
-	c.Assert(cn, DeepEquals, []interfaces.ConnRef{{
+	c.Assert(cn, DeepEquals, []*interfaces.ConnRef{{
 		PlugRef: interfaces.PlugRef{Snap: "snap1", Name: "shared-data-plug"},
 		SlotRef: interfaces.SlotRef{Snap: "snap2", Name: "shared-data-slot"},
 	}})

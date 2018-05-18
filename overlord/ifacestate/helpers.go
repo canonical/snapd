@@ -21,6 +21,7 @@ package ifacestate
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
@@ -48,6 +49,9 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 		return err
 	}
 	if err := m.renameCorePlugConnection(); err != nil {
+		return err
+	}
+	if err := removeStaleConnections(m.state); err != nil {
 		return err
 	}
 	if _, err := m.reloadConnections(""); err != nil {
@@ -195,6 +199,46 @@ func (m *InterfaceManager) renameCorePlugConnection() error {
 	return nil
 }
 
+// removeStaleConnections removes stale connections left by some older versions of snapd.
+// Connection is considered stale if the snap on either end of the connection doesn't exist anymore.
+// XXX: this code should eventually go away.
+var removeStaleConnections = func(st *state.State) error {
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+	var staleConns []string
+	for id := range conns {
+		connRef, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			return err
+		}
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, connRef.PlugRef.Snap, &snapst); err != nil {
+			if err != state.ErrNoState {
+				return err
+			}
+			staleConns = append(staleConns, id)
+			continue
+		}
+		if err := snapstate.Get(st, connRef.SlotRef.Snap, &snapst); err != nil {
+			if err != state.ErrNoState {
+				return err
+			}
+			staleConns = append(staleConns, id)
+			continue
+		}
+	}
+	if len(staleConns) > 0 {
+		for _, id := range staleConns {
+			delete(conns, id)
+		}
+		setConns(st, conns)
+		logger.Noticef("removed stale connections: %s", strings.Join(staleConns, ", "))
+	}
+	return nil
+}
+
 // reloadConnections reloads connections stored in the state in the repository.
 // Using non-empty snapName the operation can be scoped to connections
 // affecting a given snap.
@@ -206,7 +250,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		return nil, err
 	}
 	affected := make(map[string]bool)
-	for id := range conns {
+	for id, conn := range conns {
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return nil, err
@@ -214,7 +258,9 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
 			continue
 		}
-		if err := m.repo.Connect(connRef); err != nil {
+
+		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
+		if _, err := m.repo.Connect(connRef, conn.DynamicPlugAttrs, conn.DynamicSlotAttrs, nil); err != nil {
 			if _, ok := err.(*interfaces.UnknownPlugSlotError); ok {
 				// Some versions of snapd may have left stray connections that
 				// don't have the corresponding plug or slot anymore. Before we
@@ -266,8 +312,12 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string)
 }
 
 type connState struct {
-	Auto      bool   `json:"auto,omitempty"`
-	Interface string `json:"interface,omitempty"`
+	Auto             bool                   `json:"auto,omitempty"`
+	Interface        string                 `json:"interface,omitempty"`
+	StaticPlugAttrs  map[string]interface{} `json:"plug-static,omitempty"`
+	DynamicPlugAttrs map[string]interface{} `json:"plug-dynamic,omitempty"`
+	StaticSlotAttrs  map[string]interface{} `json:"slot-static,omitempty"`
+	DynamicSlotAttrs map[string]interface{} `json:"slot-dynamic,omitempty"`
 }
 
 type autoConnectChecker struct {
@@ -301,37 +351,92 @@ func (c *autoConnectChecker) snapDeclaration(snapID string) (*asserts.SnapDeclar
 	return snapDecl, nil
 }
 
-func (c *autoConnectChecker) check(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
 	var plugDecl *asserts.SnapDeclaration
-	if plug.Snap.SnapID != "" {
+	if plug.Snap().SnapID != "" {
 		var err error
-		plugDecl, err = c.snapDeclaration(plug.Snap.SnapID)
+		plugDecl, err = c.snapDeclaration(plug.Snap().SnapID)
 		if err != nil {
-			logger.Noticef("error: cannot find snap declaration for %q: %v", plug.Snap.Name(), err)
-			return false
+			logger.Noticef("error: cannot find snap declaration for %q: %v", plug.Snap().Name(), err)
+			return false, nil
 		}
 	}
 
 	var slotDecl *asserts.SnapDeclaration
-	if slot.Snap.SnapID != "" {
+	if slot.Snap().SnapID != "" {
 		var err error
-		slotDecl, err = c.snapDeclaration(slot.Snap.SnapID)
+		slotDecl, err = c.snapDeclaration(slot.Snap().SnapID)
 		if err != nil {
-			logger.Noticef("error: cannot find snap declaration for %q: %v", slot.Snap.Name(), err)
-			return false
+			logger.Noticef("error: cannot find snap declaration for %q: %v", slot.Snap().Name(), err)
+			return false, nil
 		}
 	}
 
 	// check the connection against the declarations' rules
 	ic := policy.ConnectCandidate{
-		Plug:                plug.PlugInfo,
+		Plug:                plug,
 		PlugSnapDeclaration: plugDecl,
-		Slot:                slot.SlotInfo,
+		Slot:                slot,
 		SlotSnapDeclaration: slotDecl,
 		BaseDeclaration:     c.baseDecl,
 	}
 
-	return ic.CheckAutoConnect() == nil
+	return ic.CheckAutoConnect() == nil, nil
+}
+
+type connectChecker struct {
+	st       *state.State
+	baseDecl *asserts.BaseDeclaration
+}
+
+func newConnectChecker(s *state.State) (*connectChecker, error) {
+	baseDecl, err := assertstate.BaseDeclaration(s)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot find base declaration: %v", err)
+	}
+	return &connectChecker{
+		st:       s,
+		baseDecl: baseDecl,
+	}, nil
+}
+
+func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) (bool, error) {
+	var plugDecl *asserts.SnapDeclaration
+	if plug.Snap().SnapID != "" {
+		var err error
+		plugDecl, err = assertstate.SnapDeclaration(c.st, plug.Snap().SnapID)
+		if err != nil {
+			return false, fmt.Errorf("cannot find snap declaration for %q: %v", plug.Snap().Name(), err)
+		}
+	}
+
+	var slotDecl *asserts.SnapDeclaration
+	if slot.Snap().SnapID != "" {
+		var err error
+		slotDecl, err = assertstate.SnapDeclaration(c.st, slot.Snap().SnapID)
+		if err != nil {
+			return false, fmt.Errorf("cannot find snap declaration for %q: %v", slot.Snap().Name(), err)
+		}
+	}
+
+	// check the connection against the declarations' rules
+	ic := policy.ConnectCandidate{
+		Plug:                plug,
+		PlugSnapDeclaration: plugDecl,
+		Slot:                slot,
+		SlotSnapDeclaration: slotDecl,
+		BaseDeclaration:     c.baseDecl,
+	}
+
+	// if either of plug or slot snaps don't have a declaration it
+	// means they were installed with "dangerous", so the security
+	// check should be skipped at this point.
+	if plugDecl != nil && slotDecl != nil {
+		if err := ic.Check(); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRef, error) {

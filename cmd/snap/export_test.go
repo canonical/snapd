@@ -43,6 +43,7 @@ var (
 	Antialias          = antialias
 	FormatChannel      = fmtChannel
 	PrintDescr         = printDescr
+	TrueishJSON        = trueishJSON
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -152,6 +153,14 @@ func MockTimeutilHuman(h func(time.Time) string) (restore func()) {
 	timeutilHuman = h
 	return func() {
 		timeutilHuman = oldH
+	}
+}
+
+func MockWaitConfTimeout(d time.Duration) (restore func()) {
+	oldWaitConfTimeout := d
+	waitConfTimeout = d
+	return func() {
+		waitConfTimeout = oldWaitConfTimeout
 	}
 }
 

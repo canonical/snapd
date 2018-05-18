@@ -1,7 +1,7 @@
 summary: Ensure that the kernel-module-control interface works.
 
 # the s390x kernel has no minix module
-systems: [-fedora-*, -opensuse-*, -ubuntu-*-s390x]
+systems: [-fedora-*, -opensuse-*, -ubuntu-*-s390x, -arch-*]
 
 environment:
     MODULE: minix
@@ -44,7 +44,7 @@ execute: |
     fi
 
     echo "The plug is disconnected by default"
-    snap interfaces | MATCH "\- +test-snapd-kernel-module-consumer:kernel-module-control"
+    snap interfaces -i kernel-module-control | MATCH "\- +test-snapd-kernel-module-consumer:kernel-module-control"
 
     echo "When the plug is connected"
     snap connect test-snapd-kernel-module-consumer:kernel-module-control

@@ -274,3 +274,7 @@ func (s *backendSuite) TestAppBoundIfaces(c *C) {
 	_, err = os.Stat(filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.nmbd.conf"))
 	c.Check(err, IsNil)
 }
+
+func (s *backendSuite) TestSandboxFeatures(c *C) {
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"mediated-bus-access"})
+}
