@@ -316,12 +316,8 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string)
 type connState struct {
 	Auto      bool   `json:"auto,omitempty"`
 	Interface string `json:"interface,omitempty"`
-	// Undesired tracks connections that are explicitly not to be made.
-	// To maintain consistency of the state in absence of a working patch system
-	// we just add a new field (optional and defaulting to off/false) that
-	// indicates that a given connection should not be made. If the user
-	// reverts then we just behave as if this feature was not implemented (we
-	// re-connect) but we don't corrupt the state in any way.
+	// Undesired tracks connections that were manually disconnected after being auto-connected,
+	// so that they are not automatically reconnected again in the future.
 	Undesired        bool                   `json:"undesired,omitempty"`
 	StaticPlugAttrs  map[string]interface{} `json:"plug-static,omitempty"`
 	DynamicPlugAttrs map[string]interface{} `json:"plug-dynamic,omitempty"`
