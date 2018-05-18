@@ -624,6 +624,7 @@ type AppInfo struct {
 
 	Daemon          string
 	StopTimeout     timeout.Timeout
+	WatchdogTimeout timeout.Timeout
 	StopCommand     string
 	ReloadCommand   string
 	PostStopCommand string
