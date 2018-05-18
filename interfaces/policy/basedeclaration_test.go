@@ -837,6 +837,12 @@ func (s *baseDeclSuite) TestOpticalDriveWrite(c *C) {
 
 	opts := &options{
 		readonlyYamls: []string{
+			// Non-specified "write" attribute
+			`name: plug-snap
+version: 0
+plugs:
+  optical-drive: null
+`,
 			// Undefined "write" attribute
 			`name: plug-snap
 version: 0
