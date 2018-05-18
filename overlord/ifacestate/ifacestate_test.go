@@ -999,6 +999,52 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
 	c.Assert(ifaces.Connections, HasLen, 0)
 }
 
+// The setup-profiles/remove-profiles tasks will store/remove snap revision
+// in/from the state.
+func (s *interfaceManagerSuite) TestSnapSecurityWithRevision(c *C) {
+	s.mockSnap(c, ubuntuCoreSnapYaml)
+	snapInfo := s.mockSnap(c, sampleSnapYaml)
+
+	// Initialize the manager. This registers the two snaps.
+	s.manager(c)
+
+	// Run the setup-profiles task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+	})
+	s.settle(c)
+
+	s.state.Lock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	var snapifst ifacestate.SnapInterfaceState
+	err := ifacestate.Get(s.state, "snap", &snapifst)
+	c.Assert(err, IsNil)
+	c.Assert(snapifst.Revision, Equals, snapInfo.Revision)
+
+	s.state.Unlock()
+
+	// Run the remove-security task and let it finish.
+	change = s.addRemoveSnapSecurityChange(c, snapInfo.Name())
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	err = ifacestate.Get(s.state, "snap", &snapifst)
+	c.Assert(err, IsNil)
+	c.Assert(snapifst.Revision, Equals, snap.R(0))
+
+}
+
 // The setup-profiles task will auto-connect plugs with viable candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsPlugs(c *C) {
 	// Add an OS snap.
