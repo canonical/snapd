@@ -74,7 +74,7 @@ func Run(tr Conf) error {
 	// check if the changes
 	for _, k := range tr.Changes() {
 		if !supportedConfigurations[k] {
-			return fmt.Errorf("cannot set %q: unsupported core config option", k)
+			return fmt.Errorf("cannot set %q: unsupported system option", k)
 		}
 	}
 

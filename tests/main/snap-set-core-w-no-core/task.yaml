@@ -14,3 +14,9 @@ execute: |
 
     echo "Check that we can set core config nevertheless"
     snap set core system.power-key-action="ignore"
+
+    echo "Ensure that unknown options are rejected"
+    if snap set core unknown.option=1; then
+        echo "snap set core must error for unknown options"
+        exit 1
+    fi
