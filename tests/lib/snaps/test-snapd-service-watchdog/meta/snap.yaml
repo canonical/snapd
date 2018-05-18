@@ -6,10 +6,10 @@ apps:
     daemon: simple
     watchdog-timeout: 1s
     restart-condition: never
-    plugs: [service-watchdog]
+    plugs: [daemon-notify]
   direct-watchdog-bad:
     command: bin/direct --bad
     daemon: simple
     watchdog-timeout: 1s
     restart-condition: never
-    plugs: [service-watchdog]
+    plugs: [daemon-notify]
