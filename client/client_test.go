@@ -217,7 +217,8 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
                       "os-release": {"id": "ubuntu", "version-id": "16.04"},
                       "on-classic": true,
                       "build-id": "1234",
-                      "confinement": "strict"}}`
+                      "confinement": "strict",
+                      "sandbox-features": {"backend": ["feature-1", "feature-2"]}}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, IsNil)
 	c.Check(sysInfo, DeepEquals, &client.SysInfo{
@@ -229,7 +230,10 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
 		},
 		OnClassic:   true,
 		Confinement: "strict",
-		BuildID:     "1234",
+		SandboxFeatures: map[string][]string{
+			"backend": {"feature-1", "feature-2"},
+		},
+		BuildID: "1234",
 	})
 }
 

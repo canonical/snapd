@@ -56,7 +56,6 @@ backends:
             - ubuntu-16.04-64:
                 workers: 8
             - ubuntu-18.04-64:
-                image: ubuntu-os-cloud-devel/daily-ubuntu-1804-bionic-v20180424
                 workers: 6
 
             - ubuntu-core-16-64:
@@ -289,8 +288,11 @@ exclude:
 
 debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+        # shellcheck source=tests/lib/journalctl.sh
+        . "$TESTSLIB/journalctl.sh"
+
         echo '# journal messages for snapd'
-        journalctl -u snapd
+        get_journalctl_log -u snapd
         echo '# apparmor denials '
         dmesg --ctime | grep DENIED || true
         echo '# seccomp denials (kills) '

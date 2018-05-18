@@ -131,3 +131,8 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) (map[string]*osutil
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }
+
+// SandboxFeatures returns the list of features supported by snapd for loading kernel modules.
+func (b *Backend) SandboxFeatures() []string {
+	return []string{"mediated-modprobe"}
+}

@@ -324,7 +324,37 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		m["confinement"] = "strict"
 	}
 
+	// Convey richer information about features of available security backends.
+	if features := sandboxFeatures(c.d.overlord.InterfaceManager().Repository().Backends()); features != nil {
+		m["sandbox-features"] = features
+	}
+
 	return SyncResponse(m, nil)
+}
+
+func sandboxFeatures(backends []interfaces.SecurityBackend) map[string][]string {
+	result := make(map[string][]string, len(backends)+1)
+	for _, backend := range backends {
+		features := backend.SandboxFeatures()
+		if len(features) > 0 {
+			sort.Strings(features)
+			result[string(backend.Name())] = features
+		}
+	}
+
+	// Add information about supported confinement types as a fake backend
+	features := make([]string, 1, 3)
+	features[0] = "devmode"
+	if !release.ReleaseInfo.ForceDevMode() {
+		features = append(features, "strict")
+	}
+	if dirs.SupportsClassicConfinement() {
+		features = append(features, "classic")
+	}
+	sort.Strings(features)
+	result["confinement-options"] = features
+
+	return result
 }
 
 // userResponseData contains the data releated to user creation/login/query
@@ -1638,7 +1668,15 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 					currentConfValues = make(map[string]interface{})
 					break
 				}
-				return BadRequest("%v", err)
+				return SyncResponse(&resp{
+					Type: ResponseTypeError,
+					Result: &errorResult{
+						Message: err.Error(),
+						Kind:    errorKindConfigNoSuchOption,
+						Value:   err,
+					},
+					Status: 400,
+				}, nil)
 			} else {
 				return InternalError("%v", err)
 			}
@@ -1807,7 +1845,7 @@ type interfaceAction struct {
 	Slots  []slotJSON `json:"slots,omitempty"`
 }
 
-func snapNamesFromConns(conns []interfaces.ConnRef) []string {
+func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
 	m := make(map[string]bool)
 	for _, conn := range conns {
 		m[conn.PlugRef.Snap] = true
@@ -1859,7 +1897,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	switch a.Action {
 	case "connect":
-		var connRef interfaces.ConnRef
+		var connRef *interfaces.ConnRef
 		repo := c.d.overlord.InterfaceManager().Repository()
 		connRef, err = repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		if err == nil {
@@ -1867,10 +1905,10 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
 			tasksets = append(tasksets, ts)
-			affected = snapNamesFromConns([]interfaces.ConnRef{connRef})
+			affected = snapNamesFromConns([]*interfaces.ConnRef{connRef})
 		}
 	case "disconnect":
-		var conns []interfaces.ConnRef
+		var conns []*interfaces.ConnRef
 		repo := c.d.overlord.InterfaceManager().Repository()
 		summary = fmt.Sprintf("Disconnect %s:%s from %s:%s", a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
 		conns, err = repo.ResolveDisconnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
