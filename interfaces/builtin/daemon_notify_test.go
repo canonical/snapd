@@ -67,13 +67,13 @@ func (s *daemoNotifySuite) TestName(c *C) {
 
 func (s *daemoNotifySuite) TestBeforePrepareSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	nonOsServiceWatchdogSlotSnapInfoYaml := `name: non-os-daemon-notify
+	nonOsDaemonNotifySlotSnapInfoYaml := `name: non-os-daemon-notify
 version: 1.0
 slots:
   daemon-notify:
     interface: daemon-notify
 `
-	si := builtin.MockSlot(c, nonOsServiceWatchdogSlotSnapInfoYaml, nil, "daemon-notify")
+	si := builtin.MockSlot(c, nonOsDaemonNotifySlotSnapInfoYaml, nil, "daemon-notify")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, si), ErrorMatches,
 		"daemon-notify slots are reserved for the core snap")
 }
