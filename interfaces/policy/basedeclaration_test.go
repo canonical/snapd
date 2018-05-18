@@ -828,3 +828,18 @@ plugs:
 	err = cand.CheckAutoConnect()
 	c.Check(err, NotNil)
 }
+
+func (s *baseDeclSuite) TestOpticalDriveWrite(c *C) {
+	const plugYaml = `name: plug-snap
+version: 0
+plugs:
+  optical-drive:
+    write: true
+`
+	cand := s.connectCand(c, "optical-drive", "", plugYaml)
+	err := cand.Check()
+	c.Check(err, NotNil)
+
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+}
