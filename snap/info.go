@@ -395,6 +395,8 @@ func (s *Info) InstallDate() time.Time {
 	return time.Time{}
 }
 
+// BadInterfacesSummary returns a summary of the problems of bad plugs
+// and slots in the snap.
 func BadInterfacesSummary(snapInfo *Info) string {
 	inverted := make(map[string][]string)
 	for name, reason := range snapInfo.BadInterfaces {
@@ -612,7 +614,7 @@ func (st StopModeType) Validate() error {
 	return fmt.Errorf(`"stop-mode" field contains invalid value %q`, st)
 }
 
-// AppInfo provides information about a app.
+// AppInfo provides information about an app.
 type AppInfo struct {
 	Snap *Info
 
@@ -689,6 +691,7 @@ func (app *AppInfo) SecurityTag() string {
 	return AppSecurityTag(app.Snap.Name(), app.Name)
 }
 
+// DesktopFile returns the path to the installed optional desktop file for the application.
 func (app *AppInfo) DesktopFile() string {
 	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.Name(), app.Name))
 }
@@ -898,7 +901,7 @@ func ReadCurrentInfo(snapName string) (*Info, error) {
 	return ReadInfo(snapName, &SideInfo{Revision: revision})
 }
 
-// ReadInfoFromSnapFile reads the snap information from the given File
+// ReadInfoFromSnapFile reads the snap information from the given Container
 // and completes it with the given side-info if this is not nil.
 func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	meta, err := snapf.ReadFile("meta/snap.yaml")
