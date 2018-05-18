@@ -2502,6 +2502,17 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	case "can-manage-refreshes":
 		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
+	case "connectivity-check":
+		st.Unlock()
+		// FIXME: add to snapstate.StoreService? feels not ideal :/
+		//        other options?
+		s := getStore(c).(*store.Store)
+		connectivity, err := s.ConnectivityCheck()
+		st.Lock()
+		if err != nil {
+			return InternalError("cannot run connectivity check: %v", err)
+		}
+		return SyncResponse(connectivity, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}

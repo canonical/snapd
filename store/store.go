@@ -253,11 +253,13 @@ func assertsURL() (*url.URL, error) {
 	return nil, nil
 }
 
+var defaultAuthLocation = "login.ubuntu.com"
+
 func authLocation() string {
 	if useStaging() {
 		return "login.staging.ubuntu.com"
 	}
-	return "login.ubuntu.com"
+	return defaultAuthLocation
 }
 
 func authURL() string {
@@ -267,11 +269,13 @@ func authURL() string {
 	return "https://" + authLocation() + "/api/v2"
 }
 
+var defaultStoreDeveloperURL = "https://dashboard.snapcraft.io/"
+
 func storeDeveloperURL() string {
 	if useStaging() {
 		return "https://dashboard.staging.snapcraft.io/"
 	}
-	return "https://dashboard.snapcraft.io/"
+	return defaultStoreDeveloperURL
 }
 
 var defaultConfig = Config{}
@@ -2345,4 +2349,24 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	return snaps, nil
+}
+
+func (s *Store) ConnectivityCheck() (map[string]bool, error) {
+	connectivity := make(map[string]bool)
+
+	urls := []string{
+		// FIXME: how to keep these in sync with future store changes?
+		s.endpointURL("", nil).String(),
+		storeDeveloperURL(),
+		authURL(),
+	}
+	for _, url := range urls {
+		resp, err := s.client.Get(url)
+		if err == nil {
+			resp.Body.Close()
+		}
+		connectivity[url] = (err == nil)
+	}
+
+	return connectivity, nil
 }

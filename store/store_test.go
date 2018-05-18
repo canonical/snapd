@@ -6896,3 +6896,32 @@ func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {
 	c.Check(refreshSessionRequested, Equals, true)
 	c.Check(n, Equals, 2)
 }
+
+func (s *storeTestSuite) TestConnectivityCheck(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "all good")
+		return
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+	mockServerURL, _ := url.Parse(mockServer.URL)
+
+	oldDefaultAuthLocation := defaultAuthLocation
+	defaultAuthLocation = mockServerURL.Host
+	defer func() {
+		defaultAuthLocation = oldDefaultAuthLocation
+	}()
+	oldDefaultStoreDeveloperURL := defaultStoreDeveloperURL
+	defaultStoreDeveloperURL = mockServerURL.String() + "/store-dev"
+	defer func() {
+		defaultStoreDeveloperURL = oldDefaultStoreDeveloperURL
+	}()
+
+	sto := New(&Config{
+		StoreBaseURL: mockServerURL,
+	}, nil)
+	connectivity, err := sto.ConnectivityCheck()
+	c.Assert(err, IsNil)
+	// FIMXE: improve test with proper deep-equal
+	c.Check(connectivity, HasLen, 3)
+}
