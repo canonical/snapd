@@ -28,6 +28,10 @@ set -o pipefail
 # shellcheck source=tests/lib/spread-funcs.sh
 . "$TESTSLIB/spread-funcs.sh"
 
+# shellcheck source=tests/lib/journalctl.sh
+. "$TESTSLIB/journalctl.sh"
+
+
 ###
 ### Utility functions reused below.
 ###
@@ -369,34 +373,8 @@ prepare_project_each() {
     # We want to rotate the logs so that when inspecting or dumping them we
     # will just see logs since the test has started.
 
-    # Clear the systemd journal. Unfortunately the deputy-systemd on Ubuntu
-    # 14.04 does not know about --rotate or --vacuum-time so we need to remove
-    # the journal the hard way.
-    case "$SPREAD_SYSTEM" in
-        ubuntu-14.04-*)
-            # Force a log rotation with small size
-            sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
-            systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
-
-            # Restore the initial configuration and rotate logs
-            mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
-            systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
-
-            # Remove rotated journal logs
-            systemctl stop systemd-journald.service
-            find /run/log/journal/ -name "*@*.journal" -delete
-            systemctl start systemd-journald.service
-            ;;
-        *)
-            # per journalctl's implementation, --rotate and --sync 'override'
-            # each other if used in a single command, with the one appearing
-            # later being effective
-            journalctl --sync
-            journalctl --rotate
-            sleep .1
-            journalctl --vacuum-time=1ms
-            ;;
-    esac
+    # Reset systemd journal cursor.
+    start_new_journalctl_log
 
     # Clear the kernel ring buffer.
     dmesg -c > /dev/null
@@ -464,6 +442,22 @@ restore_project_each() {
         dmesg
         echo "Meminfo debug output:"
         cat /proc/meminfo
+        exit 1
+    fi
+
+    # check if there is a shutdown pending, no test should trigger this
+    # and it leads to very confusing test failures
+    if [ -e /run/systemd/shutdown/scheduled ]; then
+        echo "Test triggered a shutdown, this should not happen"
+        snap changes
+        exit 1
+    fi
+
+    # Check for kernel oops during the tests
+    if dmesg|grep "Oops: "; then
+        echo "A kernel oops happened during the tests, test results will be unreliable"
+        echo "Dmesg debug output:"
+        dmesg
         exit 1
     fi
 }

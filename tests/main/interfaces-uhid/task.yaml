@@ -17,7 +17,7 @@ restore: |
 
 execute: |
     echo "The plug is not connected by default"
-    snap interfaces | MATCH "\- +test-snapd-uhid:uhid"
+    snap interfaces -i uhid | MATCH "\- +test-snapd-uhid:uhid"
 
     echo "When the plug is connected"
     snap connect test-snapd-uhid:uhid

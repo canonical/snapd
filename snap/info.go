@@ -464,25 +464,53 @@ type PlugInfo struct {
 	Hooks     map[string]*HookInfo
 }
 
-func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
-	if v, ok := attrs[key]; ok {
-		rt := reflect.TypeOf(val)
-		if rt.Kind() != reflect.Ptr || val == nil {
-			return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", key, ifaceName)
-		}
-
-		if reflect.TypeOf(v) != rt.Elem() {
-			return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, key)
-		}
-		rv := reflect.ValueOf(val)
-		rv.Elem().Set(reflect.ValueOf(v))
-		return nil
+func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
+	var v interface{}
+	comps := strings.FieldsFunc(path, func(r rune) bool { return r == '.' })
+	if len(comps) == 0 {
+		return nil, false
 	}
-	return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)
+	v = attrs
+	for _, comp := range comps {
+		m, ok := v.(map[string]interface{})
+		if !ok {
+			return nil, false
+		}
+		v, ok = m[comp]
+		if !ok {
+			return nil, false
+		}
+	}
+
+	return v, true
+}
+
+func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
+	v, ok := lookupAttr(attrs, key)
+	if !ok {
+		return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)
+	}
+
+	rt := reflect.TypeOf(val)
+	if rt.Kind() != reflect.Ptr || val == nil {
+		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", key, ifaceName)
+	}
+
+	if reflect.TypeOf(v) != rt.Elem() {
+		return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, key)
+	}
+	rv := reflect.ValueOf(val)
+	rv.Elem().Set(reflect.ValueOf(v))
+
+	return nil
 }
 
 func (plug *PlugInfo) Attr(key string, val interface{}) error {
 	return getAttribute(plug.Snap.Name(), plug.Interface, plug.Attrs, key, val)
+}
+
+func (plug *PlugInfo) Lookup(key string) (interface{}, bool) {
+	return lookupAttr(plug.Attrs, key)
 }
 
 // SecurityTags returns security tags associated with a given plug.
@@ -505,6 +533,10 @@ func (plug *PlugInfo) String() string {
 
 func (slot *SlotInfo) Attr(key string, val interface{}) error {
 	return getAttribute(slot.Snap.Name(), slot.Interface, slot.Attrs, key, val)
+}
+
+func (slot *SlotInfo) Lookup(key string) (interface{}, bool) {
+	return lookupAttr(slot.Attrs, key)
 }
 
 // SecurityTags returns security tags associated with a given slot.
@@ -763,13 +795,43 @@ func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
 	return info, nil
 }
 
+// BrokenSnapError describes an error that refers to a snap that warrants the "broken" note.
+type BrokenSnapError interface {
+	error
+	Broken() string
+}
+
 type NotFoundError struct {
 	Snap     string
 	Revision Revision
+	// Path encodes the path that triggered the not-found error.
+	// It may refer to a file inside the snap or to the snap file itself.
+	Path string
 }
 
 func (e NotFoundError) Error() string {
+	if e.Path != "" {
+		return fmt.Sprintf("cannot find installed snap %q at revision %s: missing file %s", e.Snap, e.Revision, e.Path)
+	}
 	return fmt.Sprintf("cannot find installed snap %q at revision %s", e.Snap, e.Revision)
+}
+
+func (e NotFoundError) Broken() string {
+	return e.Error()
+}
+
+type invalidMetaError struct {
+	Snap     string
+	Revision Revision
+	Msg      string
+}
+
+func (e invalidMetaError) Error() string {
+	return fmt.Sprintf("cannot use installed snap %q at revision %s: %s", e.Snap, e.Revision, e.Msg)
+}
+
+func (e invalidMetaError) Broken() string {
+	return e.Error()
 }
 
 func MockSanitizePlugsSlots(f func(snapInfo *Info)) (restore func()) {
@@ -787,7 +849,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
-		return nil, &NotFoundError{Snap: name, Revision: si.Revision}
+		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: snapYamlFn}
 	}
 	if err != nil {
 		return nil, err
@@ -795,10 +857,18 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 
 	info, err := infoFromSnapYamlWithSideInfo(meta, si)
 	if err != nil {
-		return nil, err
+		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
-	st, err := os.Stat(MountFile(name, si.Revision))
+	mountFile := MountFile(name, si.Revision)
+	st, err := os.Stat(mountFile)
+	if os.IsNotExist(err) {
+		// This can happen when "snap try" mode snap is moved around. The mount
+		// is still in place (it's a bind mount, it doesn't care about the
+		// source moving) but the symlink in /var/lib/snapd/snaps is now
+		// dangling.
+		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: mountFile}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -806,7 +876,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 
 	err = addImplicitHooks(info)
 	if err != nil {
-		return nil, err
+		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
 	return info, nil

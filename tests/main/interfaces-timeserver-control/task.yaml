@@ -25,7 +25,7 @@ restore: |
 
 execute: |
     echo "The interface is disconnected by default"
-    snap interfaces | MATCH "\- +test-snapd-timedate-control-consumer:timeserver-control"
+    snap interfaces -i timeserver-control | MATCH "\- +test-snapd-timedate-control-consumer:timeserver-control"
 
     echo "When the interface is connected"
     snap connect test-snapd-timedate-control-consumer:timeserver-control

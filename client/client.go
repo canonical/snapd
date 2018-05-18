@@ -377,11 +377,14 @@ const (
 	ErrorKindSnapNeedsClassic       = "snap-needs-classic"
 	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
 	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
+	ErrorKindRevisionNotAvailable   = "snap-revision-not-available"
 
 	ErrorKindNotSnap = "snap-not-a-snap"
 
 	ErrorKindNetworkTimeout      = "network-timeout"
 	ErrorKindInterfacesUnchanged = "interfaces-unchanged"
+
+	ErrorKindConfigNoSuchOption = "option-not-found"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
@@ -433,8 +436,9 @@ type SysInfo struct {
 
 	KernelVersion string `json:"kernel-version,omitempty"`
 
-	Refresh     RefreshInfo `json:"refresh,omitempty"`
-	Confinement string      `json:"confinement"`
+	Refresh         RefreshInfo         `json:"refresh,omitempty"`
+	Confinement     string              `json:"confinement"`
+	SandboxFeatures map[string][]string `json:"sandbox-features,omitempty"`
 }
 
 func (rsp *response) err() error {

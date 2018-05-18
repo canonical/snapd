@@ -352,6 +352,63 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 	}
 }
 
+const snapcraftPrYaml = `name: snapcraft-pr
+version: 1
+apps:
+  snapcraft-pr:
+    cmd: snapcraft-pr
+`
+
+const snapcraftYaml = `name: snapcraft
+version: 1
+apps:
+  snapcraft:
+    cmd: snapcraft
+`
+
+func (s *backendSuite) TestInstallingSnapDoesntBreakSnapsWithPrefixName(c *C) {
+	snapcraftProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.snapcraft.snapcraft")
+	snapcraftPrProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.snapcraft-pr.snapcraft-pr")
+	// Install snapcraft-pr and check that its profile was created.
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, snapcraftPrYaml, 1)
+	_, err := os.Stat(snapcraftPrProfile)
+	c.Check(err, IsNil)
+
+	// Install snapcraft (sans the -pr suffix) and check that its profile was created.
+	// Check that this didn't remove the profile of snapcraft-pr installed earlier.
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, snapcraftYaml, 1)
+	_, err = os.Stat(snapcraftProfile)
+	c.Check(err, IsNil)
+	_, err = os.Stat(snapcraftPrProfile)
+	c.Check(err, IsNil)
+}
+
+func (s *backendSuite) TestRemovingSnapDoesntBreakSnapsWIthPrefixName(c *C) {
+	snapcraftProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.snapcraft.snapcraft")
+	snapcraftPrProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.snapcraft-pr.snapcraft-pr")
+
+	// Install snapcraft-pr and check that its profile was created.
+	s.InstallSnap(c, interfaces.ConfinementOptions{}, snapcraftPrYaml, 1)
+	_, err := os.Stat(snapcraftPrProfile)
+	c.Check(err, IsNil)
+
+	// Install snapcraft (sans the -pr suffix) and check that its profile was created.
+	// Check that this didn't remove the profile of snapcraft-pr installed earlier.
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, snapcraftYaml, 1)
+	_, err = os.Stat(snapcraftProfile)
+	c.Check(err, IsNil)
+	_, err = os.Stat(snapcraftPrProfile)
+	c.Check(err, IsNil)
+
+	// Remove snapcraft (sans the -pr suffix) and check that its profile was removed.
+	// Check that this didn't remove the profile of snapcraft-pr installed earlier.
+	s.RemoveSnap(c, snapInfo)
+	_, err = os.Stat(snapcraftProfile)
+	c.Check(os.IsNotExist(err), Equals, true)
+	_, err = os.Stat(snapcraftPrProfile)
+	c.Check(err, IsNil)
+}
+
 func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	restore := release.MockAppArmorLevel(release.FullAppArmor)
 	defer restore()
@@ -1133,4 +1190,20 @@ func (s *backendSuite) TestCasperOverlaySnippets(c *C) {
 		c.Check(profile, testutil.FileContains, scenario.overlaySnippet)
 		s.RemoveSnap(c, snapInfo)
 	}
+}
+
+func (s *backendSuite) TestProfileGlobs(c *C) {
+	globs := apparmor.ProfileGlobs("foo")
+	c.Assert(globs, DeepEquals, []string{"snap.foo.*", "snap-update-ns.foo"})
+}
+
+func (s *backendSuite) TestNsProfile(c *C) {
+	c.Assert(apparmor.NsProfile("foo"), Equals, "snap-update-ns.foo")
+}
+
+func (s *backendSuite) TestSandboxFeatures(c *C) {
+	restore := apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	defer restore()
+
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar"})
 }

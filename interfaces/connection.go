@@ -22,14 +22,15 @@ package interfaces
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/snapcore/snapd/snap"
 )
 
 // Connection represents a connection between a particular plug and slot.
 type Connection struct {
-	plug *ConnectedPlug
-	slot *ConnectedSlot
+	Plug *ConnectedPlug
+	Slot *ConnectedSlot
 }
 
 // ConnectedPlug represents a plug that is connected to a slot.
@@ -49,29 +50,51 @@ type ConnectedSlot struct {
 // Attrer is an interface with Attr getter method common
 // to ConnectedSlot, ConnectedPlug, PlugInfo and SlotInfo types.
 type Attrer interface {
-	Attr(key string, val interface{}) error
+	// Attr returns attribute value for given path, or an error. Dotted paths are supported.
+	Attr(path string, value interface{}) error
+	// Lookup returns attribute value for given path, or false. Dotted paths are supported.
+	Lookup(path string) (value interface{}, ok bool)
 }
 
-func getAttribute(snapName string, ifaceName string, staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, key string, val interface{}) error {
+func lookupAttr(staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, path string) (interface{}, bool) {
 	var v interface{}
-	var ok bool
-
-	v, ok = dynamicAttrs[key]
-	if !ok {
-		v, ok = staticAttrs[key]
+	comps := strings.FieldsFunc(path, func(r rune) bool { return r == '.' })
+	if len(comps) == 0 {
+		return nil, false
+	}
+	if _, ok := dynamicAttrs[comps[0]]; ok {
+		v = dynamicAttrs
+	} else {
+		v = staticAttrs
 	}
 
+	for _, comp := range comps {
+		m, ok := v.(map[string]interface{})
+		if !ok {
+			return nil, false
+		}
+		v, ok = m[comp]
+		if !ok {
+			return nil, false
+		}
+	}
+
+	return v, true
+}
+
+func getAttribute(snapName string, ifaceName string, staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, path string, val interface{}) error {
+	v, ok := lookupAttr(staticAttrs, dynamicAttrs, path)
 	if !ok {
-		return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)
+		return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName)
 	}
 
 	rt := reflect.TypeOf(val)
 	if rt.Kind() != reflect.Ptr || val == nil {
-		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", key, ifaceName)
+		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", path, ifaceName)
 	}
 
 	if reflect.TypeOf(v) != rt.Elem() {
-		return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, key)
+		return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, path)
 	}
 	rv := reflect.ValueOf(val)
 	rv.Elem().Set(reflect.ValueOf(v))
@@ -133,7 +156,12 @@ func (plug *ConnectedPlug) StaticAttr(key string, val interface{}) error {
 
 // StaticAttrs returns all static attributes.
 func (plug *ConnectedPlug) StaticAttrs() map[string]interface{} {
-	return plug.staticAttrs
+	return copyAttributes(plug.staticAttrs)
+}
+
+// DynamicAttrs returns all dynamic attributes.
+func (plug *ConnectedPlug) DynamicAttrs() map[string]interface{} {
+	return copyAttributes(plug.dynamicAttrs)
 }
 
 // Attr returns a dynamic attribute with the given name. It falls back to returning static
@@ -141,6 +169,10 @@ func (plug *ConnectedPlug) StaticAttrs() map[string]interface{} {
 // attribute exist.
 func (plug *ConnectedPlug) Attr(key string, val interface{}) error {
 	return getAttribute(plug.Snap().Name(), plug.Interface(), plug.staticAttrs, plug.dynamicAttrs, key, val)
+}
+
+func (plug *ConnectedPlug) Lookup(path string) (interface{}, bool) {
+	return lookupAttr(plug.staticAttrs, plug.dynamicAttrs, path)
 }
 
 // SetAttr sets the given dynamic attribute. Error is returned if the key is already used by a static attribute.
@@ -197,7 +229,12 @@ func (slot *ConnectedSlot) StaticAttr(key string, val interface{}) error {
 
 // StaticAttrs returns all static attributes.
 func (slot *ConnectedSlot) StaticAttrs() map[string]interface{} {
-	return slot.staticAttrs
+	return copyAttributes(slot.staticAttrs)
+}
+
+// DynamicAttrs returns all dynamic attributes.
+func (slot *ConnectedSlot) DynamicAttrs() map[string]interface{} {
+	return copyAttributes(slot.dynamicAttrs)
 }
 
 // Attr returns a dynamic attribute with the given name. It falls back to returning static
@@ -205,6 +242,10 @@ func (slot *ConnectedSlot) StaticAttrs() map[string]interface{} {
 // attribute exist.
 func (slot *ConnectedSlot) Attr(key string, val interface{}) error {
 	return getAttribute(slot.Snap().Name(), slot.Interface(), slot.staticAttrs, slot.dynamicAttrs, key, val)
+}
+
+func (slot *ConnectedSlot) Lookup(path string) (interface{}, bool) {
+	return lookupAttr(slot.staticAttrs, slot.dynamicAttrs, path)
 }
 
 // SetAttr sets the given dynamic attribute. Error is returned if the key is already used by a static attribute.
@@ -226,7 +267,7 @@ func (slot *ConnectedSlot) Ref() *SlotRef {
 
 // Interface returns the name of the interface for this connection.
 func (conn *Connection) Interface() string {
-	return conn.plug.plugInfo.Interface
+	return conn.Plug.plugInfo.Interface
 }
 
 func copyAttributes(value map[string]interface{}) map[string]interface{} {
