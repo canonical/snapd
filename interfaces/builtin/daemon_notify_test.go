@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type serviceWatchdogSuite struct {
+type daemoNotifySuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -37,52 +37,52 @@ type serviceWatchdogSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&serviceWatchdogSuite{
-	iface: builtin.MustInterface("service-watchdog"),
+var _ = Suite(&daemoNotifySuite{
+	iface: builtin.MustInterface("daemon-notify"),
 })
 
-const serviceWatchdogMockSlotSnapInfoYaml = `name: service-watchdog
+const daemoNotifyMockSlotSnapInfoYaml = `name: daemon-notify
 version: 1.0
 type: os
 slots:
-  service-watchdog:
-    interface: service-watchdog
+  daemon-notify:
+    interface: daemon-notify
 `
-const serviceWatchdogMockPlugSnapInfoYaml = `name: service-watchdog-client
+const daemoNotifyMockPlugSnapInfoYaml = `name: daemon-notify-client
 version: 1.0
 apps:
  app2:
   command: foo
-  plugs: [service-watchdog]
+  plugs: [daemon-notify]
 `
 
-func (s *serviceWatchdogSuite) SetUpTest(c *C) {
-	s.slot, s.slotInfo = builtin.MockConnectedSlot(c, serviceWatchdogMockSlotSnapInfoYaml, nil, "service-watchdog")
-	s.plug, s.plugInfo = builtin.MockConnectedPlug(c, serviceWatchdogMockPlugSnapInfoYaml, nil, "service-watchdog")
+func (s *daemoNotifySuite) SetUpTest(c *C) {
+	s.slot, s.slotInfo = builtin.MockConnectedSlot(c, daemoNotifyMockSlotSnapInfoYaml, nil, "daemon-notify")
+	s.plug, s.plugInfo = builtin.MockConnectedPlug(c, daemoNotifyMockPlugSnapInfoYaml, nil, "daemon-notify")
 }
 
-func (s *serviceWatchdogSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "service-watchdog")
+func (s *daemoNotifySuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "daemon-notify")
 }
 
-func (s *serviceWatchdogSuite) TestBeforePrepareSlot(c *C) {
+func (s *daemoNotifySuite) TestBeforePrepareSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	nonOsServiceWatchdogSlotSnapInfoYaml := `name: non-os-service-watchdog
+	nonOsServiceWatchdogSlotSnapInfoYaml := `name: non-os-daemon-notify
 version: 1.0
 slots:
-  service-watchdog:
-    interface: service-watchdog
+  daemon-notify:
+    interface: daemon-notify
 `
-	si := builtin.MockSlot(c, nonOsServiceWatchdogSlotSnapInfoYaml, nil, "service-watchdog")
+	si := builtin.MockSlot(c, nonOsServiceWatchdogSlotSnapInfoYaml, nil, "daemon-notify")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, si), ErrorMatches,
-		"service-watchdog slots are reserved for the core snap")
+		"daemon-notify slots are reserved for the core snap")
 }
 
-func (s *serviceWatchdogSuite) TestBeforePreparePlug(c *C) {
+func (s *daemoNotifySuite) TestBeforePreparePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketDefault(c *C) {
+func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketDefault(c *C) {
 	restore := builtin.MockOsGetenv(func(what string) string {
 		c.Assert(what, Equals, "NOTIFY_SOCKET")
 		return ""
@@ -93,11 +93,11 @@ func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketDefault(c *C
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.service-watchdog-client.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.service-watchdog-client.app2"), testutil.Contains, "\n\"/run/systemd/notify\" w,")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.daemon-notify-client.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.daemon-notify-client.app2"), testutil.Contains, "\n\"/run/systemd/notify\" w,")
 }
 
-func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractSpecial(c *C) {
+func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractSpecial(c *C) {
 	restore := builtin.MockOsGetenv(func(what string) string {
 		c.Assert(what, Equals, "NOTIFY_SOCKET")
 		return "@/org/freedesktop/systemd1/notify/13334051644891137417"
@@ -108,11 +108,11 @@ func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractS
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.service-watchdog-client.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.service-watchdog-client.app2"), testutil.Contains, "\nunix (connect, send) type=dgram peer=(label=unconfined,addr=\"@/org/freedesktop/systemd1/notify/[0-9]*\"),")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.daemon-notify-client.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.daemon-notify-client.app2"), testutil.Contains, "\nunix (connect, send) type=dgram peer=(label=unconfined,addr=\"@/org/freedesktop/systemd1/notify/[0-9]*\"),")
 }
 
-func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractAny(c *C) {
+func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractAny(c *C) {
 	restore := builtin.MockOsGetenv(func(what string) string {
 		c.Assert(what, Equals, "NOTIFY_SOCKET")
 		return "@foo/bar"
@@ -123,11 +123,11 @@ func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractA
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.service-watchdog-client.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.service-watchdog-client.app2"), testutil.Contains, "\nunix (connect, send) type=dgram peer=(label=unconfined,addr=\"@foo/bar\"),")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.daemon-notify-client.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.daemon-notify-client.app2"), testutil.Contains, "\nunix (connect, send) type=dgram peer=(label=unconfined,addr=\"@foo/bar\"),")
 }
 
-func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvFsPath(c *C) {
+func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvFsPath(c *C) {
 	restore := builtin.MockOsGetenv(func(what string) string {
 		c.Assert(what, Equals, "NOTIFY_SOCKET")
 		return "/foo/bar"
@@ -138,11 +138,11 @@ func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvFsPath(c 
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.service-watchdog-client.app2"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.service-watchdog-client.app2"), testutil.Contains, "\n\"/foo/bar\" w,")
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.daemon-notify-client.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.daemon-notify-client.app2"), testutil.Contains, "\n\"/foo/bar\" w,")
 }
 
-func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvBadFormat(c *C) {
+func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvBadFormat(c *C) {
 	var socketPath string
 	restore := builtin.MockOsGetenv(func(what string) string {
 		c.Assert(what, Equals, "NOTIFY_SOCKET")
@@ -168,6 +168,6 @@ func (s *serviceWatchdogSuite) TestAppArmorConnectedPlugNotifySocketEnvBadFormat
 	}
 }
 
-func (s *serviceWatchdogSuite) TestInterfaces(c *C) {
+func (s *daemoNotifySuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

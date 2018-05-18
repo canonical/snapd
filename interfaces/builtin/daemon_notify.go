@@ -28,28 +28,28 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
 
-const serviceWatchdogSummary = `allows use of systemd service watchdog`
+const daemoNotifySummary = `allows sending daemon status changes to service manager`
 
-const serviceWatchdogBaseDeclarationSlots = `
-  service-watchdog:
+const daemoNotifyBaseDeclarationSlots = `
+  daemon-notify:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const serviceWatchdogConnectedPlugAppArmorTemplate = `
+const daemoNotifyConnectedPlugAppArmorTemplate = `
 # Allow sending notification messages to systemd through the notify socket
 {{notify-socket-rule}},
 `
 
-type serviceWatchdogInterface struct {
+type daemoNotifyInterface struct {
 	commonInterface
 }
 
 var osGetenv = os.Getenv
 
-func (iface *serviceWatchdogInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *daemoNotifyInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// If the system has defined it, use NOTIFY_SOCKET from the environment. Note
 	// this is safe because it is examined on snapd start and snaps cannot manipulate
 	// the environment of snapd.
@@ -89,19 +89,19 @@ func (iface *serviceWatchdogInterface) AppArmorConnectedPlug(spec *apparmor.Spec
 		return fmt.Errorf("cannot use %q as notify socket path", notifySocket)
 	}
 
-	snippet := strings.Replace(serviceWatchdogConnectedPlugAppArmorTemplate,
+	snippet := strings.Replace(daemoNotifyConnectedPlugAppArmorTemplate,
 		"{{notify-socket-rule}}", rule, 1)
 	spec.AddSnippet(snippet)
 	return nil
 }
 
 func init() {
-	registerIface(&serviceWatchdogInterface{commonInterface: commonInterface{
-		name:                 "service-watchdog",
-		summary:              serviceWatchdogSummary,
+	registerIface(&daemoNotifyInterface{commonInterface: commonInterface{
+		name:                 "daemon-notify",
+		summary:              daemoNotifySummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
-		baseDeclarationSlots: serviceWatchdogBaseDeclarationSlots,
+		baseDeclarationSlots: daemoNotifyBaseDeclarationSlots,
 		reservedForOS:        true,
 	}})
 }
