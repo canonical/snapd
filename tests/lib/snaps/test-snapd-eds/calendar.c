@@ -2,20 +2,19 @@
 #include <string.h>
 
 #include <glib.h>
-#include <libebook/libebook.h>
+#include <libecal/libecal.h>
 
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(EBookClient, g_object_unref)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(EBookClientCursor, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(ECalClient, g_object_unref)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(ESource, g_object_unref)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(ESourceRegistry, g_object_unref)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(EContact, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(icalcomponent, icalcomponent_free)
 
 
 struct open_data {
     GMainLoop *main_loop;
     const char *source_id;
     GError **error;
-    EBookClient **address_book;
+    ECalClient **calendar;
     gboolean should_quit;
 };
 
@@ -28,8 +27,8 @@ source_added(ESourceRegistry *registry, ESource *source, gpointer user_data)
     if (g_strcmp0(e_source_get_uid(source), data->source_id) != 0)
         return;
 
-    *data->address_book = (EBookClient*)e_book_client_connect_sync(
-        source, 30, NULL, data->error);
+    *data->calendar = (ECalClient*)e_cal_client_connect_sync(
+        source, E_CAL_CLIENT_SOURCE_TYPE_EVENTS, 30, NULL, data->error);
 
     if (data->should_quit)
         g_main_loop_quit(data->main_loop);
@@ -49,31 +48,31 @@ source_added_timeout(gpointer user_data)
     return G_SOURCE_CONTINUE;
 }
 
-static EBookClient *
+static ECalClient *
 open_or_create (ESourceRegistry *registry, const char *source_id,
                 GError **error)
 {
     g_autoptr(GMainLoop) main_loop = g_main_loop_new (NULL, FALSE);
-    g_autoptr(EBookClient) address_book = NULL;
+    g_autoptr(ECalClient) calendar = NULL;
 
     // Listen to registry for added sources
     struct open_data data = {
         .main_loop = main_loop,
         .source_id = source_id,
         .error = error,
-        .address_book = &address_book,
+        .calendar = &calendar,
         .should_quit = FALSE,
     };
     guint source_added_id = g_signal_connect(registry, "source-added",
                                              G_CALLBACK(source_added), &data);
 
-    // Create a new local address book with the desired source ID
+    // Create a new local calendar with the desired source ID
     g_autoptr(ESource) scratch = e_source_new_with_uid(source_id, NULL, error);
     if (!scratch)
         goto end;
     e_source_set_display_name(scratch, source_id);
     ESourceBackend *backend = e_source_get_extension(
-        scratch, E_SOURCE_EXTENSION_ADDRESS_BOOK);
+        scratch, E_SOURCE_EXTENSION_CALENDAR);
     e_source_backend_set_backend_name(backend, "local");
 
     // Try to commit the new source to the registry, which will fail
@@ -91,10 +90,10 @@ open_or_create (ESourceRegistry *registry, const char *source_id,
         }
     }
 
-    // If we don't have the address book at this point, wait on the
+    // If we don't have the calendar at this point, wait on the
     // source-added signal for it to be created.  Set a timer so we
     // don't wait forever.
-    if (!address_book) {
+    if (!calendar) {
         guint timeout_id = g_timeout_add_seconds(
             20, source_added_timeout, &data);
         data.should_quit = TRUE;
@@ -106,75 +105,59 @@ end:
     if (source_added_id) {
         g_signal_handler_disconnect(registry, source_added_id);
     }
-    return g_steal_pointer(&address_book);
+    return g_steal_pointer(&calendar);
 }
 
 static gboolean
-load_contact_from_stdin(EBookClient *address_book, GError **error)
+load_event_from_stdin(ECalClient *calendar, GError **error)
 {
-    g_autoptr(GString) vcard_data = g_string_new(NULL);
+    g_autoptr(GString) ics_data = g_string_new(NULL);
     char buffer[4092];
     size_t n_read = fread(buffer, 1, sizeof(buffer), stdin);
     while (n_read > 0) {
-        g_string_append_len(vcard_data, buffer, n_read);
+        g_string_append_len(ics_data, buffer, n_read);
         n_read = fread(buffer, 1, sizeof(buffer), stdin);
     }
 
-    g_autoptr(EContact) contact = e_contact_new_from_vcard(vcard_data->str);
-    if (!contact) {
+    g_autoptr(icalcomponent) component = e_cal_util_parse_ics_string(ics_data->str);
+    if (!component) {
         g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
-                            "could not parse vcard");
+                            "could not parse iCalendar data");
+        return FALSE;
+    }
+    if (!icalcomponent_is_valid(component)) {
+        g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+                            "iCalendar data is not valid");
         return FALSE;
     }
 
-    return e_book_client_add_contact_sync(
-        address_book, contact, NULL, NULL, error);
+    return e_cal_client_create_object_sync(
+        calendar, component, NULL, NULL, error);
 }
 
 static gboolean
-list_contacts(EBookClient *address_book, GError **error)
+list_events(ECalClient *calendar, GError **error)
 {
-    EContactField sort_fields[] = { E_CONTACT_FAMILY_NAME, E_CONTACT_GIVEN_NAME };
-    EBookCursorSortType sort_types[] = { E_BOOK_CURSOR_SORT_ASCENDING, E_BOOK_CURSOR_SORT_ASCENDING };
-    g_autoptr(EBookClientCursor) cursor = NULL;
-
-    if (!e_book_client_get_cursor_sync(
-            address_book, NULL,
-            sort_fields, sort_types, G_N_ELEMENTS(sort_fields),
-            &cursor, NULL, error)) {
+    GSList *results = NULL;
+    if (!e_cal_client_get_object_list_sync(calendar, "#t", &results,
+                                           NULL, error)) {
         return FALSE;
     }
 
-    int n_fetched = 0;
-    const int chunk_size = 100;
-    do {
-        GSList *results = NULL;
-
-        n_fetched = e_book_client_cursor_step_sync(
-            cursor, E_BOOK_CURSOR_STEP_FETCH | E_BOOK_CURSOR_STEP_MOVE, E_BOOK_CURSOR_ORIGIN_CURRENT,
-            chunk_size, &results, NULL, error);
-        if (n_fetched < 0) {
-            return FALSE;
-        }
-
-        const GSList *l;
-        for (l = results; l != NULL; l = l->next) {
-            EContact *contact = l->data;
-            g_autofree char *vcard = e_vcard_to_string (
-                E_VCARD(contact), EVC_FORMAT_VCARD_30);
-
-            g_print("%s\n", vcard);
-        }
-        g_slist_free_full(results, (GDestroyNotify)g_object_unref);
-    } while (n_fetched >= chunk_size);
-
+    const GSList *l;
+    for (l = results; l != NULL; l = l->next) {
+        icalcomponent *component = l->data;
+        const char *ical = icalcomponent_as_ical_string(component);
+        g_print("%s\n", ical);
+    }
+    e_cal_client_free_icalcomp_slist(results);
     return TRUE;
 }
 
 static gboolean
-remove_address_book(EBookClient *address_book, GError **error)
+remove_calendar(ECalClient *calendar, GError **error)
 {
-    return e_client_remove_sync(E_CLIENT(address_book), NULL, error);
+    return e_client_remove_sync(E_CLIENT(calendar), NULL, error);
 }
 
 int main(int argc, char **argv)
@@ -182,7 +165,7 @@ int main(int argc, char **argv)
     if (argc != 3 || !(!strcmp(argv[1], "load") ||
                        !strcmp(argv[1], "list") ||
                        !strcmp(argv[1], "remove"))) {
-        g_printerr("usage: contacts {load|list|remove} ADDRESS-BOOK-ID\n");
+        g_printerr("usage: calendar {load|list|remove} CALENDAR-ID\n");
         return 1;
     }
 
@@ -194,18 +177,17 @@ int main(int argc, char **argv)
         goto end;
     }
 
-    g_autoptr(EBookClient) address_book = open_or_create(
-        registry, argv[2], &error);
-    if (!address_book) {
+    g_autoptr(ECalClient) calendar = open_or_create(registry, argv[2], &error);
+    if (!calendar) {
         goto end;
     }
 
     if (!strcmp(argv[1], "load")) {
-        load_contact_from_stdin(address_book, &error);
+        load_event_from_stdin(calendar, &error);
     } else if (!strcmp(argv[1], "list")) {
-        list_contacts(address_book, &error);
+        list_events(calendar, &error);
     } else if (!strcmp(argv[1], "remove")) {
-        remove_address_book(address_book, &error);
+        remove_calendar(calendar, &error);
     }
 
 end:
