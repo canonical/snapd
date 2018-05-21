@@ -2706,7 +2706,7 @@ version: 1
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
-	text, err := json.Marshal(map[string]interface{}{"key": "value"})
+	text, err := json.Marshal(map[string]interface{}{"proxy.ftp": "value"})
 	c.Assert(err, check.IsNil)
 
 	buffer := bytes.NewBuffer(text)
@@ -2734,12 +2734,14 @@ version: 1
 
 	st.Lock()
 	err = chg.Err()
+	c.Assert(err, check.IsNil)
+
 	tr := config.NewTransaction(st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
 	var value string
-	tr.Get("core", "key", &value)
+	tr.Get("core", "proxy.ftp", &value)
 	c.Assert(value, check.Equals, "value")
 
 }

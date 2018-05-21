@@ -31,3 +31,4 @@ tests/performance/interfaces/task.yaml
 tests/performance/list/task.yaml
 tests/performance/services/task.yaml
 tests/performance/try/task.yaml
+tests/main/interfaces-opengl-nvidia/task.yaml
