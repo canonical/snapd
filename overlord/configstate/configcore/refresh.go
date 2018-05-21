@@ -27,6 +27,12 @@ import (
 	"github.com/snapcore/snapd/timeutil"
 )
 
+func init() {
+	supportedConfigurations["core.refresh.hold"] = true
+	supportedConfigurations["core.refresh.schedule"] = true
+	supportedConfigurations["core.refresh.timer"] = true
+}
+
 func validateRefreshSchedule(tr Conf) error {
 	refreshTimerStr, err := coreCfg(tr, "refresh.timer")
 	if err != nil {
