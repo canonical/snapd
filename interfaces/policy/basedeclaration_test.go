@@ -828,3 +828,58 @@ plugs:
 	err = cand.CheckAutoConnect()
 	c.Check(err, NotNil)
 }
+
+func (s *baseDeclSuite) TestOpticalDriveWrite(c *C) {
+	type options struct {
+		readonlyYamls []string
+		writableYamls []string
+	}
+
+	opts := &options{
+		readonlyYamls: []string{
+			// Non-specified "write" attribute
+			`name: plug-snap
+version: 0
+plugs:
+  optical-drive: null
+`,
+			// Undefined "write" attribute
+			`name: plug-snap
+version: 0
+plugs:
+  optical-drive: {}
+`,
+			// False "write" attribute
+			`name: plug-snap
+version: 0
+plugs:
+  optical-drive:
+    write: false
+`,
+		},
+		writableYamls: []string{
+			// True "write" attribute
+			`name: plug-snap
+version: 0
+plugs:
+  optical-drive:
+    write: true
+`,
+		},
+	}
+
+	checkOpticalDriveAutoConnect := func(plugYaml string, checker Checker) {
+		cand := s.connectCand(c, "optical-drive", "", plugYaml)
+		err := cand.Check()
+		c.Check(err, checker)
+		err = cand.CheckAutoConnect()
+		c.Check(err, checker)
+	}
+
+	for _, plugYaml := range opts.readonlyYamls {
+		checkOpticalDriveAutoConnect(plugYaml, IsNil)
+	}
+	for _, plugYaml := range opts.writableYamls {
+		checkOpticalDriveAutoConnect(plugYaml, NotNil)
+	}
+}
