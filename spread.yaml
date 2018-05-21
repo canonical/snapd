@@ -593,6 +593,7 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --restore-suite
 
             # The results file is tagged as finished and the cleaned.
+            #shellcheck source=tests/lib/perf.sh
             . "$TESTSLIB/perf.sh"
             finish_results_file
             clean_results_file

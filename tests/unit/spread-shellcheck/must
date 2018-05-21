@@ -22,3 +22,12 @@ tests/main/classic-ubuntu-core-transition/task.yaml
 tests/main/completion/task.yaml
 tests/main/config-versions/task.yaml
 tests/main/install-closed-channel/task.yaml
+tests/performance/alias/task.yaml
+tests/performance/changes/task.yaml
+tests/performance/connect/task.yaml
+tests/performance/enable/task.yaml
+tests/performance/install-local/task.yaml
+tests/performance/interfaces/task.yaml
+tests/performance/list/task.yaml
+tests/performance/services/task.yaml
+tests/performance/try/task.yaml
