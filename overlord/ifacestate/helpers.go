@@ -534,7 +534,7 @@ type SnapInterfaceState struct {
 }
 
 // ifaceRepoKey is the key used to store state of the interface repository in the snapd state.
-const ifaceRepoKey = "interfaces"
+const ifaceRepoKey = "snap-interfaces"
 
 // Get retrieves the SnapInterfaceState of the given snap or ErrNoState if missing.
 func Get(st *state.State, snapName string, snapifst *SnapInterfaceState) error {
