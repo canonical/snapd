@@ -5,9 +5,9 @@
 #include <libecal/libecal.h>
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(ECalClient, g_object_unref)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(ECalComponent, g_object_unref)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(ESource, g_object_unref)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(ESourceRegistry, g_object_unref)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(icalcomponent, icalcomponent_free)
 
 
 struct open_data {
@@ -119,35 +119,31 @@ load_event_from_stdin(ECalClient *calendar, GError **error)
         n_read = fread(buffer, 1, sizeof(buffer), stdin);
     }
 
-    g_autoptr(icalcomponent) component = e_cal_util_parse_ics_string(ics_data->str);
+    g_autoptr(ECalComponent) component = e_cal_component_new_from_string(ics_data->str);
     if (!component) {
         g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
                             "could not parse iCalendar data");
         return FALSE;
     }
-    if (!icalcomponent_is_valid(component)) {
-        g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
-                            "iCalendar data is not valid");
-        return FALSE;
-    }
 
     return e_cal_client_create_object_sync(
-        calendar, component, NULL, NULL, error);
+        calendar, e_cal_component_get_icalcomponent(component), NULL,
+        NULL, error);
 }
 
 static gboolean
 list_events(ECalClient *calendar, GError **error)
 {
     GSList *results = NULL;
-    if (!e_cal_client_get_object_list_sync(calendar, "#t", &results,
-                                           NULL, error)) {
+    if (!e_cal_client_get_object_list_as_comps_sync(calendar, "#t", &results,
+                                                    NULL, error)) {
         return FALSE;
     }
 
     const GSList *l;
     for (l = results; l != NULL; l = l->next) {
-        icalcomponent *component = l->data;
-        const char *ical = icalcomponent_as_ical_string(component);
+        ECalComponent *component = l->data;
+        g_autofree char *ical = e_cal_component_get_as_string(component);
         g_print("%s\n", ical);
     }
     e_cal_client_free_icalcomp_slist(results);
