@@ -740,6 +740,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	defer restore()
 	restore = release.MockForcedDevmode(true)
 	defer restore()
+	// reload dirs for release info to have effect
+	dirs.SetRootDir(dirs.GlobalRootDir)
 
 	buildID, err := osutil.MyBuildID()
 	c.Assert(err, check.IsNil)
@@ -792,6 +794,8 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	defer restore()
 	restore = release.MockForcedDevmode(true)
 	defer restore()
+	// reload dirs for release info to have effect
+	dirs.SetRootDir(dirs.GlobalRootDir)
 
 	// set the legacy refresh schedule
 	st := d.overlord.State()
