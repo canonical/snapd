@@ -1034,7 +1034,6 @@ func (s *interfaceManagerSuite) TestSnapSecurityWithRevision(c *C) {
 	s.settle(c)
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	// Ensure that the task succeeded.
 	c.Assert(change.Status(), Equals, state.DoneStatus)
@@ -1043,6 +1042,23 @@ func (s *interfaceManagerSuite) TestSnapSecurityWithRevision(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snapifst.Revision, Equals, snap.R(0))
 
+	// Set up discard-conns
+	// Remove the snaps so that discard-conns doesn't complain about snaps still installed
+	snapstate.Set(s.state, "snap", nil)
+
+	s.state.Unlock()
+
+	change = s.addDiscardConnsChange(c, snapInfo.Name())
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	err = ifacestate.Get(s.state, "snap", &snapifst)
+	c.Assert(err, Equals, state.ErrNoState)
 }
 
 // The setup-profiles task will auto-connect plugs with viable candidates.
