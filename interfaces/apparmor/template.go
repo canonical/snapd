@@ -398,6 +398,10 @@ var defaultTemplate = `
   # Allow apps from the same package to signal each other via signals
   signal peer=snap.@{SNAP_NAME}.*,
 
+  # Allow receiving signals from all snaps (and focus on mediating sending of
+  # signals)
+  signal (receive) peer=snap.*,
+
   # for 'udevadm trigger --verbose --dry-run --tag-match=snappy-assign'
   /{,s}bin/udevadm ixr,
   /etc/udev/udev.conf r,
