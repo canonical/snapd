@@ -15,6 +15,11 @@ apps:
     plugs:
       - desktop-contacts-service
 
+  calendar:
+    command: bin/calendar
+    plugs:
+      - desktop-calendar-service
+
 parts:
   main:
     plugin: meson
@@ -23,4 +28,5 @@ parts:
       - --prefix=/
     build-packages:
       - libebook1.2-dev
+      - libecal1.2-dev
       - pkg-config
