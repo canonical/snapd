@@ -189,7 +189,7 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 		"  - deepin-music\n" +
 		"  - http\n" +
 		"slots:\n" +
-		"  - core\n"
+		"  - system\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }
