@@ -2441,7 +2441,11 @@ func (s *Store) snapConnCheck() ([]string, error) {
 
 	resp, err = httputil.RetryRequest(remote.AnonDownloadURL, func() (*http.Response, error) {
 		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
-	}, func(resp *http.Response) error { return nil }, connCheckStrategy)
+	}, func(resp *http.Response) error {
+		// account for redirect
+		urls[len(urls)-1] = resp.Request.URL.String()
+		return nil
+	}, connCheckStrategy)
 	if err != nil {
 		return urls, err
 	}
@@ -2464,7 +2468,6 @@ func (s *Store) ConnectivityCheck() (map[string]bool, error) {
 	for _, checker := range checkers {
 		urls, err := checker()
 		for _, u := range urls {
-			fmt.Println("***", u, err)
 			connectivity[u] = (err == nil)
 		}
 	}
