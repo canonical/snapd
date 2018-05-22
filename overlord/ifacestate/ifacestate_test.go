@@ -354,7 +354,7 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstalledSnap(c *
 	s.testConnectDoesntConflictOnInstalledSnap(c, "auto-connect", ifacestate.ConnectOnInstall, true)
 }
 
-func (s *interfaceManagerSuite) testConnectConflicts(c *C, installedSnapTaskKind string, connectFunc func(*state.State, *state.Change, *state.Task, string, string, string, string) (*state.TaskSet, error), conflictingKind string) {
+func (s *interfaceManagerSuite) testConnectConflicts(c *C, installedSnapTaskKind string, conflictingKind string) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -378,25 +378,25 @@ func (s *interfaceManagerSuite) testConnectConflicts(c *C, installedSnapTaskKind
 
 	chg.AddTask(t2)
 
-	_, err := connectFunc(s.state, chg, t2, "consumer", "plug", "producer", "slot")
+	err := ifacestate.CheckConnectConflicts(s.state, chg, "consumer", "producer", t2)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `task should be retried`)
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnUnlink(c *C) {
-	s.testConnectConflicts(c, "auto-connect", ifacestate.ConnectOnInstall, "unlink-snap")
+	s.testConnectConflicts(c, "auto-connect", "unlink-snap")
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnLink(c *C) {
-	s.testConnectConflicts(c, "auto-connect", ifacestate.ConnectOnInstall, "link-snap")
+	s.testConnectConflicts(c, "auto-connect", "link-snap")
 }
 
 func (s *interfaceManagerSuite) TestReconnectConflictOnUnlink(c *C) {
-	s.testConnectConflicts(c, "reconnect", ifacestate.ConnectOnInstall, "unlink-snap")
+	s.testConnectConflicts(c, "reconnect", "unlink-snap")
 }
 
 func (s *interfaceManagerSuite) TestReconnectConflictOnLink(c *C) {
-	s.testConnectConflicts(c, "reconnect", ifacestate.ConnectOnInstall, "link-snap")
+	s.testConnectConflicts(c, "reconnect", "link-snap")
 }
 
 func (s *interfaceManagerSuite) TestReconnectDoesntConflictOnInstalledSnap(c *C) {
