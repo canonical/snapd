@@ -306,9 +306,9 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		)
 	}
 	expected = append(expected,
+		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
-		"auto-connect",
 		"run-hook[install]",
 		"start-snap-services")
 	for i := 0; i < discards; i++ {
@@ -359,10 +359,10 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		expected = append(expected, "setup-profiles")
 	}
 	expected = append(expected,
-		"set-auto-aliases",
-		"setup-aliases",
 		"reconnect",
 		"auto-connect",
+		"set-auto-aliases",
+		"setup-aliases",
 		"run-hook[post-refresh]",
 		"start-snap-services")
 
@@ -551,10 +551,10 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
-		"set-auto-aliases",
-		"setup-aliases",
 		"reconnect",
 		"auto-connect",
+		"set-auto-aliases",
+		"setup-aliases",
 		"start-snap-services",
 		"run-hook[configure]",
 	})
@@ -1015,10 +1015,10 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
-		"set-auto-aliases",
-		"setup-aliases",
 		"reconnect",
 		"auto-connect",
+		"set-auto-aliases",
+		"setup-aliases",
 		"start-snap-services",
 		"run-hook[configure]",
 	})
@@ -1755,12 +1755,12 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
-			op: "update-aliases",
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
+		},
+		{
+			op: "update-aliases",
 		},
 		{
 			op:    "cleanup-trash",
@@ -1910,12 +1910,12 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/42"),
 		},
 		{
-			op: "update-aliases",
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(42),
+		},
+		{
+			op: "update-aliases",
 		},
 		{
 			op:    "cleanup-trash",
@@ -2113,12 +2113,12 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "services-snap/11"),
 		},
 		{
-			op: "update-aliases",
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "services-snap",
 			revno: snap.R(11),
+		},
+		{
+			op: "update-aliases",
 		},
 		{
 			op:   "start-snap-services",
@@ -3004,12 +3004,12 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
-			op: "update-aliases",
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
+		},
+		{
+			op: "update-aliases",
 		},
 		// undoing everything from here down...
 		{
@@ -4208,12 +4208,12 @@ version: 1.0`)
 			revno: snap.R("x1"),
 		},
 		{
-			op: "update-aliases",
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
+		},
+		{
+			op: "update-aliases",
 		},
 		{
 			op:    "cleanup-trash",
@@ -4421,12 +4421,12 @@ version: 1.0`)
 			revno: snap.R("x1"),
 		},
 		{
-			op: "update-aliases",
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
+		},
+		{
+			op: "update-aliases",
 		},
 		{
 			// and cleanup
@@ -5248,12 +5248,12 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
-			op: "update-aliases",
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
+		},
+		{
+			op: "update-aliases",
 		},
 		{
 			op:   "remove-snap-data",
@@ -5434,12 +5434,12 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 		},
 		{
-			op: "update-aliases",
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(2),
+		},
+		{
+			op: "update-aliases",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -5564,12 +5564,12 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
-			op: "update-aliases",
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
+		},
+		{
+			op: "update-aliases",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -5653,12 +5653,12 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
 		},
 		{
-			op: "update-aliases",
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(1),
+		},
+		{
+			op: "update-aliases",
 		},
 		// undoing everything from here down...
 		{
@@ -6136,10 +6136,10 @@ validate-snap: Done
 link-snap: Error
  INFO unlink
  ERROR fail
-set-auto-aliases: Hold
-setup-aliases: Hold
 reconnect: Hold
 auto-connect: Hold
+set-auto-aliases: Hold
+setup-aliases: Hold
 run-hook: Hold
 start-snap-services: Hold
 cleanup: Hold
@@ -6153,10 +6153,10 @@ validate-snap: Done
 link-snap: Error
  INFO unlink
  ERROR fail
-set-auto-aliases: Hold
-setup-aliases: Hold
 reconnect: Hold
 auto-connect: Hold
+set-auto-aliases: Hold
+setup-aliases: Hold
 run-hook: Hold
 start-snap-services: Hold
 cleanup: Hold
@@ -7079,9 +7079,9 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C) {
 		"setup-profiles",
 		"link-snap",
 		"setup-profiles",
+		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
-		"auto-connect",
 		"run-hook[install]",
 		"start-snap-services",
 		"run-hook[configure]",
@@ -7685,12 +7685,12 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
-			op: "update-aliases",
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
+		},
+		{
+			op: "update-aliases",
 		},
 		{
 			op:    "cleanup-trash",
@@ -8265,12 +8265,12 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			revno: snap.R(11),
 		},
 		{
-			op: "update-aliases",
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "core",
 			revno: snap.R(11),
+		},
+		{
+			op: "update-aliases",
 		},
 		{
 			op:   "transition-ubuntu-core:Doing",
@@ -8911,12 +8911,12 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "core/11"),
 		},
 		{
-			op: "update-aliases",
-		},
-		{
 			op:    "auto-connect:Doing",
 			name:  "core",
 			revno: snap.R(11),
+		},
+		{
+			op: "update-aliases",
 		},
 		// after core is in place continue with the snap
 		{
@@ -8969,13 +8969,12 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "some-snap/42"),
 		},
 		{
-			op: "update-aliases",
-		},
-
-		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(42),
+		},
+		{
+			op: "update-aliases",
 		},
 		// cleanups order is random
 		{
