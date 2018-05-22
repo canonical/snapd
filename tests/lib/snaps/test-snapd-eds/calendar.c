@@ -52,9 +52,12 @@ static ECalClient *
 open_or_create (ESourceRegistry *registry, const char *source_id,
                 GError **error)
 {
-    g_autoptr(GMainLoop) main_loop = g_main_loop_new (NULL, FALSE);
+    g_autoptr(GMainLoop) main_loop = NULL;
     g_autoptr(ECalClient) calendar = NULL;
+    g_autoptr(ESource) scratch = NULL;
+    g_autoptr(GError) commit_error = NULL;
 
+    main_loop = g_main_loop_new (NULL, FALSE);
     // Listen to registry for added sources
     struct open_data data = {
         .main_loop = main_loop,
@@ -67,7 +70,7 @@ open_or_create (ESourceRegistry *registry, const char *source_id,
                                              G_CALLBACK(source_added), &data);
 
     // Create a new local calendar with the desired source ID
-    g_autoptr(ESource) scratch = e_source_new_with_uid(source_id, NULL, error);
+    scratch = e_source_new_with_uid(source_id, NULL, error);
     if (!scratch)
         goto end;
     e_source_set_display_name(scratch, source_id);
@@ -77,7 +80,6 @@ open_or_create (ESourceRegistry *registry, const char *source_id,
 
     // Try to commit the new source to the registry, which will fail
     // if it already exists
-    g_autoptr(GError) commit_error = NULL;
     if (!e_source_registry_commit_source_sync(
             registry, scratch, NULL, &commit_error)) {
         if (g_error_matches(commit_error, G_IO_ERROR, G_IO_ERROR_EXISTS)) {
@@ -158,6 +160,10 @@ remove_calendar(ECalClient *calendar, GError **error)
 
 int main(int argc, char **argv)
 {
+    g_autoptr(GError) error = NULL;
+    g_autoptr(ESourceRegistry) registry = NULL;
+    g_autoptr(ECalClient) calendar = NULL;
+
     if (argc != 3 || !(!strcmp(argv[1], "load") ||
                        !strcmp(argv[1], "list") ||
                        !strcmp(argv[1], "remove"))) {
@@ -166,14 +172,12 @@ int main(int argc, char **argv)
     }
 
     // Connect to the EDS registry service
-    g_autoptr(GError) error = NULL;
-    g_autoptr(ESourceRegistry) registry = e_source_registry_new_sync(
-        NULL, &error);
+    registry = e_source_registry_new_sync(NULL, &error);
     if (!registry) {
         goto end;
     }
 
-    g_autoptr(ECalClient) calendar = open_or_create(registry, argv[2], &error);
+    calendar = open_or_create(registry, argv[2], &error);
     if (!calendar) {
         goto end;
     }
