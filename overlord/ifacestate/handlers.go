@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -85,36 +84,19 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
-	// TODO: this whole bit seems maybe that it should belong (largely) to a snapstate helper
 	var corePhase2 bool
 	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
 		return err
 	}
 	if corePhase2 {
-		if snapInfo.Type != snap.TypeOS {
-			// not core, nothing to do
+		// invoke guard logic for core snap security setup
+		// phase 2 implemented by snapstate
+		proceed, err := snapstate.GuardCoreSetupProfilesPhase2(task, snapsup, snapInfo)
+		if err != nil {
+			return err
+		}
+		if !proceed {
 			return nil
-		}
-		if task.State().Restarting() {
-			// don't continue until we are in the restarted snapd
-			task.Logf("Waiting for restart...")
-			return &state.Retry{}
-		}
-		// if not on classic check there was no rollback
-		if !release.OnClassic {
-			// TODO: double check that we really rebooted
-			// otherwise this could be just a spurious restart
-			// of snapd
-			name, rev, err := snapstate.CurrentBootNameAndRevision(snap.TypeOS)
-			if err == snapstate.ErrBootNameAndRevisionAgain {
-				return &state.Retry{After: 5 * time.Second}
-			}
-			if err != nil {
-				return err
-			}
-			if snapsup.Name() != name || snapInfo.Revision != rev {
-				return fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
-			}
 		}
 
 		// Compatibility with old snapd: check if we have auto-connect task and if not, inject it after self (setup-profiles).
