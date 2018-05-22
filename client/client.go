@@ -583,7 +583,7 @@ func (client *Client) Users() ([]*User, error) {
 	return result, nil
 }
 
-// ConnectivityCheck returns a map of urls and if they are reachable
+// ConnectivityCheck returns a map of hosts and if they are reachable
 // by snapd.
 func (client *Client) ConnectivityCheck() (map[string]bool, error) {
 	var result map[string]bool

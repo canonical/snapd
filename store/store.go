@@ -2367,12 +2367,11 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 var errUnexpectedConnCheckResponse = errors.New("unexpected response during connection check")
 
 func (s *Store) authConnCheck() ([]string, error) {
-	urls := []string{MacaroonACLAPI}
 	macaroonURL, err := url.ParseRequestURI(MacaroonACLAPI)
 	if err != nil {
-		return urls, err
+		return nil, err
 	}
-	urls[0] = macaroonURL.Host
+	hosts := []string{macaroonURL.Host}
 	var expectedError storeErrors
 	resp, err := httputil.RetryRequest(MacaroonACLAPI, func() (*http.Response, error) {
 		return s.doRequest(context.TODO(), s.client, &requestOptions{Method: "GET", URL: macaroonURL}, nil)
@@ -2380,40 +2379,39 @@ func (s *Store) authConnCheck() ([]string, error) {
 		return decodeJSONBody(resp, nil, &expectedError)
 	}, connCheckStrategy)
 	if err != nil {
-		return urls, err
+		return hosts, err
 	}
 	resp.Body.Close()
 
 	if resp.StatusCode != 401 || len(expectedError.Errors) != 1 || expectedError.Errors[0].Code != "macaroon-permission-required" {
-		return urls, errUnexpectedConnCheckResponse
+		return hosts, errUnexpectedConnCheckResponse
 	}
 
-	urls = append(urls, ubuntuoneAPIBase)
 	u1URL, err := url.ParseRequestURI(ubuntuoneAPIBase)
 	if err != nil {
-		return urls, err
+		return hosts, err
 	}
-	urls[1] = u1URL.Host
+	hosts = append(hosts, u1URL.Host)
 
 	resp, err = httputil.RetryRequest(ubuntuoneAPIBase, func() (*http.Response, error) {
 		return s.doRequest(context.TODO(), s.client, &requestOptions{Method: "HEAD", URL: u1URL}, nil)
 	}, func(resp *http.Response) error { return nil }, connCheckStrategy)
 	if err != nil {
-		return urls, err
+		return hosts, err
 	}
 	resp.Body.Close()
 
-	return urls, nil
+	return hosts, nil
 }
 
 func (s *Store) snapConnCheck() ([]string, error) {
-	var urls []string
+	var hosts []string
 	// TODO: move this to SnapAction:download when that's done (and maybe
 	//       avoid doRequest with its compulsory macaroon refresh dance)
 	// NOTE: "core" is possibly the only snap that's sure to be in all stores
 	//       when we drop "core" in the move to snapd/core18/etc, change this
 	deetsURL := s.endpointURL(path.Join(detailsEndpPath, "core"), url.Values{"fields": {"anon_download_url"}})
-	urls = append(urls, deetsURL.Host)
+	hosts = append(hosts, deetsURL.Host)
 
 	var remote snapDetails
 	resp, err := httputil.RetryRequest(deetsURL.String(), func() (*http.Response, error) {
@@ -2423,19 +2421,19 @@ func (s *Store) snapConnCheck() ([]string, error) {
 	}, connCheckStrategy)
 
 	if err != nil {
-		return urls, err
+		return hosts, err
 	}
 	resp.Body.Close()
 
 	dlURL, err := url.ParseRequestURI(remote.AnonDownloadURL)
 	if err != nil {
-		return urls, err
+		return hosts, err
 	}
-	urls = append(urls, dlURL.Host)
+	hosts = append(hosts, dlURL.Host)
 
 	cdnHeader, err := s.cdnHeader()
 	if err != nil {
-		return urls, err
+		return hosts, err
 	}
 
 	reqOptions := downloadOptions(dlURL, cdnHeader)
@@ -2445,19 +2443,19 @@ func (s *Store) snapConnCheck() ([]string, error) {
 		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
 	}, func(resp *http.Response) error {
 		// account for redirect
-		urls[len(urls)-1] = resp.Request.URL.Host
+		hosts[len(hosts)-1] = resp.Request.URL.Host
 		return nil
 	}, connCheckStrategy)
 	if err != nil {
-		return urls, err
+		return hosts, err
 	}
 	resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return urls, errUnexpectedConnCheckResponse
+		return hosts, errUnexpectedConnCheckResponse
 	}
 
-	return urls, nil
+	return hosts, nil
 }
 
 func (s *Store) ConnectivityCheck() (map[string]bool, error) {
@@ -2468,9 +2466,9 @@ func (s *Store) ConnectivityCheck() (map[string]bool, error) {
 		s.authConnCheck,
 	}
 	for _, checker := range checkers {
-		urls, err := checker()
-		for _, u := range urls {
-			connectivity[u] = (err == nil)
+		hosts, err := checker()
+		for _, host := range hosts {
+			connectivity[host] = (err == nil)
 		}
 	}
 
