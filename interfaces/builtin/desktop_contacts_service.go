@@ -26,7 +26,7 @@ const desktopContactsServiceBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - core
-    deny-connection: true
+    deny-auto-connection: true
 `
 
 const desktopContactsServiceConnectedPlugAppArmor = `
@@ -60,6 +60,11 @@ dbus (receive, send)
 dbus (receive, send)
 	bus=session
 	interface=org.freedesktop.DBus.Properties
+	path=/org/gnome/evolution/dataserver/AddressBookCursor{,/**}
+	peer=(label=unconfined),
+dbus (receive, send)
+	bus=session
+	interface=org.freedesktop.DBus.Properties
 	path=/org/gnome/evolution/dataserver/AddressBookView{,/**}
 	peer=(label=unconfined),
 dbus (receive, send)
@@ -80,6 +85,11 @@ dbus (receive, send)
 	peer=(label=unconfined),
 dbus (receive, send)
 	bus=session
+	interface=org.gnome.evolution.dataserver.AddressBookCursor
+	path=/org/gnome/evolution/dataserver/AddressBookCursor{,/**}
+	peer=(label=unconfined),
+dbus (receive, send)
+	bus=session
 	interface=org.gnome.evolution.dataserver.AddressBookView
 	path=/org/gnome/evolution/dataserver/AddressBookView{,/**}
 	peer=(label=unconfined),
@@ -87,6 +97,16 @@ dbus (receive, send)
 	bus=session
 	interface=org.gnome.evolution.dataserver.Source
 	path=/org/gnome/evolution/dataserver/SourceManager{,/**}
+	peer=(label=unconfined),
+dbus (receive, send)
+	bus=session
+	interface=org.gnome.evolution.dataserver.Source.Removable
+	path=/org/gnome/evolution/dataserver/SourceManager{,/**}
+	peer=(label=unconfined),
+dbus (receive, send)
+	bus=session
+	interface=org.gnome.evolution.dataserver.SourceManager
+	path=/org/gnome/evolution/dataserver/SourceManager
 	peer=(label=unconfined),
 
 # Allow clients to introspect the service
@@ -100,6 +120,12 @@ dbus (send)
 	bus=session
 	interface=org.freedesktop.DBus.Introspectable
 	path=/org/gnome/evolution/dataserver/AddressBookFactory
+	member=Introspect
+	peer=(label=unconfined),
+dbus (send)
+	bus=session
+	interface=org.freedesktop.DBus.Introspectable
+	path=/org/gnome/evolution/dataserver/AddressBookCursor{,/**}
 	member=Introspect
 	peer=(label=unconfined),
 dbus (send)
