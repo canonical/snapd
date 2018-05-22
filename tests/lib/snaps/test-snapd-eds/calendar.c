@@ -88,6 +88,7 @@ open_or_create (ESourceRegistry *registry, const char *source_id,
             source_added(registry, source, &data);
         } else {
             g_propagate_error(error, commit_error);
+            commit_error = NULL;
             goto end;
         }
     }
@@ -192,7 +193,8 @@ int main(int argc, char **argv)
 
 end:
     if (error) {
-        g_printerr("error: %s\n", error->message);
+        g_printerr("error: %s[%d] %s\n", g_quark_to_string(error->domain),
+                   error->code, error->message);
         return 1;
     }
     return 0;

@@ -12,17 +12,17 @@ confinement: strict
 apps:
   contacts:
     command: bin/contacts
-    environment:
-      XDG_DATA_DIRS: $SNAP/usr/share:$XDG_DATA_DIRS
     plugs:
       - desktop-contacts-service
-
   calendar:
     command: bin/calendar
-    environment:
-      XDG_DATA_DIRS: $SNAP/usr/share:$XDG_DATA_DIRS
     plugs:
       - desktop-calendar-service
+
+environment:
+  GSETTINGS_BACKEND: memory
+  EDS_CAMEL_PROVIDER_DIR: $SNAP/usr/lib/evolution-data-server/camel-providers
+  XDG_DATA_DIRS: $SNAP/usr/share:$XDG_DATA_DIRS
 
 parts:
   main:
@@ -34,13 +34,13 @@ parts:
       - libebook1.2-dev
       - libecal1.2-dev
       - pkg-config
-
-  schemas:
+  evolution-data-server:
     plugin: nil
     install: |
       glib-compile-schemas $SNAPCRAFT_PART_INSTALL/usr/share/glib-2.0/schemas
     stage:
       - usr/share/glib-2.0/schemas/*
+      - usr/lib/evolution-data-server/camel-providers/*
     build-packages:
       - libglib2.0-bin
     stage-packages:
