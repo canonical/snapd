@@ -4124,7 +4124,7 @@ func (s *apiSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 	s.mockSnap(c, coreProducerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	connRef := interfaces.ConnRef{
+	connRef := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"},
 	}
