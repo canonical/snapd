@@ -3,20 +3,20 @@ summary: Check that auto-refresh works
 prepare: |
     snap install --devmode jq
 
-restore: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
+
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
 
     echo "Auto refresh information is shown"
     output=$(snap refresh --time)
     for expected in ^schedule: ^last: ^next:; do
         echo "$output" | MATCH "$expected"
     done
-    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+
+    if is_ubuntu_core_system; then
         # no holding
         ! echo "$output" | MATCH "^hold:"
     else

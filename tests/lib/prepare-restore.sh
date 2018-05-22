@@ -397,7 +397,9 @@ prepare_suite_each() {
     "$TESTSLIB"/reset.sh --reuse-core
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+    if is_classic_system; then
         prepare_each_classic
     fi
 }
@@ -409,7 +411,9 @@ restore_suite_each() {
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --store
-    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+    if is_classic_system; then
         # shellcheck source=tests/lib/pkgdb.sh
         . $TESTSLIB/pkgdb.sh
         distro_purge_package snapd
