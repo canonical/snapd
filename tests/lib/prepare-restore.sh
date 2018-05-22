@@ -31,7 +31,7 @@ set -o pipefail
 # shellcheck source=tests/lib/journalctl.sh
 . "$TESTSLIB/journalctl.sh"
 
-# shellcheck source=tests/lib/spread-funcs.sh
+# shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
 
