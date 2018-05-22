@@ -2372,6 +2372,7 @@ func (s *Store) authConnCheck() ([]string, error) {
 	if err != nil {
 		return urls, err
 	}
+	urls[0] = macaroonURL.Host
 	var expectedError storeErrors
 	resp, err := httputil.RetryRequest(MacaroonACLAPI, func() (*http.Response, error) {
 		return s.doRequest(context.TODO(), s.client, &requestOptions{Method: "GET", URL: macaroonURL}, nil)
@@ -2392,6 +2393,7 @@ func (s *Store) authConnCheck() ([]string, error) {
 	if err != nil {
 		return urls, err
 	}
+	urls[1] = u1URL.Host
 
 	resp, err = httputil.RetryRequest(ubuntuoneAPIBase, func() (*http.Response, error) {
 		return s.doRequest(context.TODO(), s.client, &requestOptions{Method: "HEAD", URL: u1URL}, nil)
@@ -2411,7 +2413,7 @@ func (s *Store) snapConnCheck() ([]string, error) {
 	// NOTE: "core" is possibly the only snap that's sure to be in all stores
 	//       when we drop "core" in the move to snapd/core18/etc, change this
 	deetsURL := s.endpointURL(path.Join(detailsEndpPath, "core"), url.Values{"fields": {"anon_download_url"}})
-	urls = append(urls, deetsURL.String())
+	urls = append(urls, deetsURL.Host)
 
 	var remote snapDetails
 	resp, err := httputil.RetryRequest(deetsURL.String(), func() (*http.Response, error) {
@@ -2429,7 +2431,7 @@ func (s *Store) snapConnCheck() ([]string, error) {
 	if err != nil {
 		return urls, err
 	}
-	urls = append(urls, remote.AnonDownloadURL)
+	urls = append(urls, dlURL.Host)
 
 	cdnHeader, err := s.cdnHeader()
 	if err != nil {
@@ -2443,7 +2445,7 @@ func (s *Store) snapConnCheck() ([]string, error) {
 		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
 	}, func(resp *http.Response) error {
 		// account for redirect
-		urls[len(urls)-1] = resp.Request.URL.String()
+		urls[len(urls)-1] = resp.Request.URL.Host
 		return nil
 	}, connCheckStrategy)
 	if err != nil {

@@ -6898,7 +6898,7 @@ func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {
 }
 
 func (s *storeTestSuite) TestConnectivityCheck(c *C) {
-	expectedConn := make(map[string]bool, 4)
+	seenPaths := make(map[string]int, 4)
 	var mockServerURL *url.URL
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -6922,7 +6922,7 @@ func (s *storeTestSuite) TestConnectivityCheck(c *C) {
 			c.Fatalf("unexpected request: %s", r.URL.String())
 			return
 		}
-		expectedConn[mockServerURL.ResolveReference(r.URL).String()] = true
+		seenPaths[r.URL.Path]++
 		return
 	}))
 	c.Assert(mockServer, NotNil)
@@ -6945,5 +6945,12 @@ func (s *storeTestSuite) TestConnectivityCheck(c *C) {
 	}, nil)
 	connectivity, err := sto.ConnectivityCheck()
 	c.Assert(err, IsNil)
-	c.Check(connectivity, DeepEquals, expectedConn)
+	// everything is the test server, here
+	c.Check(connectivity, DeepEquals, map[string]bool{mockServerURL.Host: true})
+	c.Check(seenPaths, DeepEquals, map[string]int{
+		"/api/v1/snaps/details/core": 1,
+		"/download/core":             1,
+		"/u1api":                     1,
+		"/acl/":                      1,
+	})
 }
