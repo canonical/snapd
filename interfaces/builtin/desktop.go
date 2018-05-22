@@ -129,7 +129,6 @@ dbus (send)
 # Allow use of snapd's internal 'xdg-open'
 /usr/bin/xdg-open ixr,
 /usr/share/applications/{,*} r,
-/usr/bin/dbus-send ixr,
 dbus (send)
     bus=session
     path=/
@@ -170,7 +169,6 @@ dbus (receive)
 
 # Allow use of snapd's internal 'xdg-settings'
 /usr/bin/xdg-settings ixr,
-/usr/bin/dbus-send ixr,
 dbus (send)
     bus=session
     path=/io/snapcraft/Settings
