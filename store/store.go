@@ -85,6 +85,13 @@ var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
 	},
 ))
 
+var connCheckStrategy = retry.LimitCount(3, retry.LimitTime(38*time.Second,
+	retry.Exponential{
+		Initial: 900 * time.Millisecond,
+		Factor:  1.3,
+	},
+))
+
 // Config represents the configuration to access the snap store
 type Config struct {
 	// Store API base URLs. The assertions url is only separate because it can
@@ -1573,6 +1580,19 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
 
+func downloadOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
+	reqOptions := requestOptions{
+		Method:       "GET",
+		URL:          storeURL,
+		ExtraHeaders: map[string]string{},
+	}
+	if cdnHeader != "" {
+		reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader
+	}
+
+	return &reqOptions
+}
+
 // download writes an http.Request showing a progress.Meter
 var download = func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
@@ -1588,14 +1608,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 	var finalErr error
 	startTime := time.Now()
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		reqOptions := &requestOptions{
-			Method:       "GET",
-			URL:          storeURL,
-			ExtraHeaders: make(map[string]string),
-		}
-		if cdnHeader != "" {
-			reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader
-		}
+		reqOptions := downloadOptions(storeURL, cdnHeader)
 
 		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 
@@ -2351,21 +2364,109 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	return snaps, nil
 }
 
+var errUnexpectedConnCheckResponse = errors.New("unexpected response during connection check")
+
+func (s *Store) authConnCheck() ([]string, error) {
+	urls := []string{MacaroonACLAPI}
+	macaroonURL, err := url.ParseRequestURI(MacaroonACLAPI)
+	if err != nil {
+		return urls, err
+	}
+	var expectedError storeErrors
+	resp, err := httputil.RetryRequest(MacaroonACLAPI, func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, &requestOptions{Method: "GET", URL: macaroonURL}, nil)
+	}, func(resp *http.Response) error {
+		return decodeJSONBody(resp, nil, &expectedError)
+	}, connCheckStrategy)
+	if err != nil {
+		return urls, err
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != 401 || len(expectedError.Errors) != 1 || expectedError.Errors[0].Code != "macaroon-permission-required" {
+		return urls, errUnexpectedConnCheckResponse
+	}
+
+	urls = append(urls, ubuntuoneAPIBase)
+	u1URL, err := url.ParseRequestURI(ubuntuoneAPIBase)
+	if err != nil {
+		return urls, err
+	}
+
+	resp, err = httputil.RetryRequest(ubuntuoneAPIBase, func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, &requestOptions{Method: "HEAD", URL: u1URL}, nil)
+	}, func(resp *http.Response) error { return nil }, connCheckStrategy)
+	if err != nil {
+		return urls, err
+	}
+	resp.Body.Close()
+
+	return urls, nil
+}
+
+func (s *Store) snapConnCheck() ([]string, error) {
+	var urls []string
+	// TODO: move this to SnapAction:download when that's done (and maybe
+	//       avoid doRequest with its compulsory macaroon refresh dance)
+	// NOTE: "core" is possibly the only snap that's sure to be in all stores
+	//       when we drop "core" in the move to snapd/core18/etc, change this
+	deetsURL := s.endpointURL(path.Join(detailsEndpPath, "core"), url.Values{"fields": {"anon_download_url"}})
+	urls = append(urls, deetsURL.String())
+
+	var remote snapDetails
+	resp, err := httputil.RetryRequest(deetsURL.String(), func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, &requestOptions{Method: "GET", URL: deetsURL}, nil)
+	}, func(resp *http.Response) error {
+		return decodeJSONBody(resp, &remote, nil)
+	}, connCheckStrategy)
+
+	if err != nil {
+		return urls, err
+	}
+	resp.Body.Close()
+
+	dlURL, err := url.ParseRequestURI(remote.AnonDownloadURL)
+	if err != nil {
+		return urls, err
+	}
+	urls = append(urls, remote.AnonDownloadURL)
+
+	cdnHeader, err := s.cdnHeader()
+	if err != nil {
+		return urls, err
+	}
+
+	reqOptions := downloadOptions(dlURL, cdnHeader)
+	reqOptions.Method = "HEAD" // not actually a download
+
+	resp, err = httputil.RetryRequest(remote.AnonDownloadURL, func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
+	}, func(resp *http.Response) error { return nil }, connCheckStrategy)
+	if err != nil {
+		return urls, err
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return urls, errUnexpectedConnCheckResponse
+	}
+
+	return urls, nil
+}
+
 func (s *Store) ConnectivityCheck() (map[string]bool, error) {
 	connectivity := make(map[string]bool)
 
-	urls := []string{
-		// FIXME: how to keep these in sync with future store changes?
-		s.endpointURL("", nil).String(),
-		storeDeveloperURL(),
-		authURL(),
+	checkers := []func() ([]string, error){
+		s.snapConnCheck,
+		s.authConnCheck,
 	}
-	for _, url := range urls {
-		resp, err := s.client.Get(url)
-		if err == nil {
-			resp.Body.Close()
+	for _, checker := range checkers {
+		urls, err := checker()
+		for _, u := range urls {
+			fmt.Println("***", u, err)
+			connectivity[u] = (err == nil)
 		}
-		connectivity[url] = (err == nil)
 	}
 
 	return connectivity, nil

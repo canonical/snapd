@@ -6898,23 +6898,46 @@ func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {
 }
 
 func (s *storeTestSuite) TestConnectivityCheck(c *C) {
+	expectedConn := make(map[string]bool, 4)
+	var mockServerURL *url.URL
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, "all good")
+		switch r.URL.Path {
+		case "/acl/":
+			c.Check(r.Method, Equals, "GET")
+			w.WriteHeader(401)
+			io.WriteString(w, `{"error_list": [{"code": "macaroon-permission-required"}]}`)
+		case "/u1api":
+			c.Check(r.Method, Equals, "HEAD")
+			w.WriteHeader(200)
+		case "/api/v1/snaps/details/core":
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Query().Encode(), DeepEquals, "fields=anon_download_url")
+			u, err := url.Parse("/download/core")
+			c.Assert(err, IsNil)
+			io.WriteString(w, fmt.Sprintf(`{"anon_download_url": %q}`, mockServerURL.ResolveReference(u).String()))
+		case "/download/core":
+			c.Check(r.Method, Equals, "HEAD")
+			w.WriteHeader(200)
+		default:
+			c.Fatalf("unexpected request: %s", r.URL.String())
+			return
+		}
+		expectedConn[mockServerURL.ResolveReference(r.URL).String()] = true
 		return
 	}))
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
-	mockServerURL, _ := url.Parse(mockServer.URL)
+	mockServerURL, _ = url.Parse(mockServer.URL)
 
-	oldDefaultAuthLocation := defaultAuthLocation
-	defaultAuthLocation = mockServerURL.Host
+	oldMacaroonACLAPI := MacaroonACLAPI
+	MacaroonACLAPI = mockServer.URL + "/acl/"
 	defer func() {
-		defaultAuthLocation = oldDefaultAuthLocation
+		MacaroonACLAPI = oldMacaroonACLAPI
 	}()
-	oldDefaultStoreDeveloperURL := defaultStoreDeveloperURL
-	defaultStoreDeveloperURL = mockServerURL.String() + "/store-dev"
+	oldUbuntuoneAPIBase := ubuntuoneAPIBase
+	ubuntuoneAPIBase = mockServerURL.String() + "/u1api"
 	defer func() {
-		defaultStoreDeveloperURL = oldDefaultStoreDeveloperURL
+		ubuntuoneAPIBase = oldUbuntuoneAPIBase
 	}()
 
 	sto := New(&Config{
@@ -6922,6 +6945,5 @@ func (s *storeTestSuite) TestConnectivityCheck(c *C) {
 	}, nil)
 	connectivity, err := sto.ConnectivityCheck()
 	c.Assert(err, IsNil)
-	// FIMXE: improve test with proper deep-equal
-	c.Check(connectivity, HasLen, 3)
+	c.Check(connectivity, DeepEquals, expectedConn)
 }
