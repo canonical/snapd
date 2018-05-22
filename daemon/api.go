@@ -2506,7 +2506,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		st.Unlock()
 		// FIXME: add to snapstate.StoreService? feels not ideal :/
 		//        other options?
-		s := getStore(c).(*store.Store)
+		s := snapstate.Store(st).(*store.Store)
 		connectivity, err := s.ConnectivityCheck()
 		st.Lock()
 		if err != nil {
