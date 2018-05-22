@@ -8,6 +8,9 @@ set -e -x
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
 
+#shellcheck source=tests/lib/systems.sh
+. "$TESTSLIB"/systems.sh
+
 reset_classic() {
     # Reload all service units as in some situations the unit might
     # have changed on the disk.
@@ -124,7 +127,7 @@ reset_all_snap() {
     fi
 }
 
-if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+if is_ubuntu_core_system; then
     reset_all_snap "$@"
 else
     reset_classic "$@"
