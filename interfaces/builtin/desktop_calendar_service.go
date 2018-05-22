@@ -26,7 +26,7 @@ const desktopCalendarServiceBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - core
-    deny-connection: true
+    deny-auto-connection: true
 `
 
 const desktopCalendarServiceConnectedPlugAppArmor = `
@@ -87,6 +87,16 @@ dbus (receive, send)
 	bus=session
 	interface=org.gnome.evolution.dataserver.Source
 	path=/org/gnome/evolution/dataserver/SourceManager{,/**}
+	peer=(label=unconfined),
+dbus (receive, send)
+	bus=session
+	interface=org.gnome.evolution.dataserver.Source.Removable
+	path=/org/gnome/evolution/dataserver/SourceManager{,/**}
+	peer=(label=unconfined),
+dbus (receive, send)
+	bus=session
+	interface=org.gnome.evolution.dataserver.SourceManager
+	path=/org/gnome/evolution/dataserver/SourceManager
 	peer=(label=unconfined),
 
 # Allow clients to introspect the service
