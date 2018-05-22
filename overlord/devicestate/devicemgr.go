@@ -405,7 +405,10 @@ func (m *DeviceManager) ensureSeedInConfig() error {
 			return nil
 		}
 
-		// sync seeding with the configuration state
+		// Sync seeding with the configuration state. We need to
+		// do this here to ensure that old systems which did not
+		// set the configuration on seeding get the configuration
+		// update too.
 		if err := markSeededInConfig(m.state); err != nil {
 			return err
 		}

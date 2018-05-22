@@ -467,14 +467,9 @@ func LoginUser(username, password, otp string) (string, string, error) {
 	return macaroon, discharge, nil
 }
 
-// hasStoreAuth returns true if given user has store macaroons setup
-func hasStoreAuth(user *auth.UserState) bool {
-	return user != nil && user.StoreMacaroon != ""
-}
-
 // authAvailable returns true if there is a user and/or device session setup
 func (s *Store) authAvailable(user *auth.UserState) (bool, error) {
-	if hasStoreAuth(user) {
+	if user.HasStoreAuth() {
 		return true, nil
 	} else {
 		var device *auth.DeviceState
@@ -885,7 +880,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	}
 
 	// only set user authentication if user logged in to the store
-	if hasStoreAuth(user) {
+	if user.HasStoreAuth() {
 		authenticateUser(req, user)
 	}
 

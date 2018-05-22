@@ -40,7 +40,7 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvidia*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}tls/libnvidia*.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvcuvid.so{,.*} rm,
-/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,EGL}*nvidia.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,GLESv1_CM,GLESv2,EGL}*nvidia.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libGLdispatch.so{,.*} rm,
 
 # Support reading the Vulkan ICD files
@@ -48,8 +48,13 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/lib/vulkan/** r,
 /var/lib/snapd/hostfs/usr/share/vulkan/icd.d/*nvidia*.json r,
 
+# Support reading the GLVND EGL vendor files
+/var/lib/snapd/lib/glvnd/ r,
+/var/lib/snapd/lib/glvnd/** r,
+/var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/*nvidia*.json r,
+
 # Main bi-arch GL libraries
-/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{GL,EGL,GLX}.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{GL,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
 
 /dev/dri/ r,
 /dev/dri/card0 rw,
