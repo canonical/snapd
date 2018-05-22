@@ -111,6 +111,14 @@ dbus (receive)
     member={ActionInvoked,NotificationClosed}
     peer=(label=unconfined),
 
+# DesktopAppInfo Launched
+dbus (send)
+    bus=session
+    path=/org/gtk/gio/DesktopAppInfo
+    interface=org.gtk.gio.DesktopAppInfo
+    member=Launched
+    peer=(label=unconfined),
+
 # Allow requesting interest in receiving media key events. This tells Gnome
 # settings that our application should be notified when key events we are
 # interested in are pressed, and allows us to receive those events.
