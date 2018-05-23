@@ -38,6 +38,15 @@ var proxyConfigKeys = map[string]bool{
 	"no_proxy":    true,
 }
 
+func init() {
+	// add supported configuration of this module
+	supportedConfigurations["core.proxy.http"] = true
+	supportedConfigurations["core.proxy.https"] = true
+	supportedConfigurations["core.proxy.ftp"] = true
+	supportedConfigurations["core.proxy.no-proxy"] = true
+	supportedConfigurations["core.proxy.store"] = true
+}
+
 func etcEnvironment() string {
 	return filepath.Join(dirs.GlobalRootDir, "/etc/environment")
 }

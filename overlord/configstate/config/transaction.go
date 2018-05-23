@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -64,6 +65,37 @@ func NewTransaction(st *state.State) *Transaction {
 // State returns the system State
 func (t *Transaction) State() *state.State {
 	return t.state
+}
+
+func changes(cfgStr string, cfg map[string]interface{}) []string {
+	var out []string
+	for k := range cfg {
+		switch subCfg := cfg[k].(type) {
+		case map[string]interface{}:
+			out = append(out, changes(cfgStr+"."+k, subCfg)...)
+		case *json.RawMessage:
+			// check if we need to dive into a sub-config
+			var configm map[string]interface{}
+			if err := jsonutil.DecodeWithNumber(bytes.NewReader(*subCfg), &configm); err == nil {
+				out = append(out, changes(cfgStr+"."+k, configm)...)
+				continue
+			}
+			out = append(out, []string{cfgStr + "." + k}...)
+		default:
+			out = append(out, []string{cfgStr + "." + k}...)
+		}
+	}
+	return out
+}
+
+// Changes returns the changing keys associated with this transaction
+func (t *Transaction) Changes() []string {
+	var out []string
+	for k := range t.changes {
+		out = append(out, changes(k, t.changes[k])...)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // Set sets the provided snap's configuration key to the given value.

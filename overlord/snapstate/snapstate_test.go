@@ -359,10 +359,10 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		expected = append(expected, "setup-profiles")
 	}
 	expected = append(expected,
+		"reconnect",
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
-		"reconnect",
 		"run-hook[post-refresh]",
 		"start-snap-services")
 
@@ -551,10 +551,10 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
+		"reconnect",
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
-		"reconnect",
 		"start-snap-services",
 		"run-hook[configure]",
 	})
@@ -1015,10 +1015,10 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
+		"reconnect",
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
-		"reconnect",
 		"start-snap-services",
 		"run-hook[configure]",
 	})
@@ -6136,10 +6136,10 @@ validate-snap: Done
 link-snap: Error
  INFO unlink
  ERROR fail
+reconnect: Hold
 auto-connect: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
-reconnect: Hold
 run-hook: Hold
 start-snap-services: Hold
 cleanup: Hold
@@ -6153,10 +6153,10 @@ validate-snap: Done
 link-snap: Error
  INFO unlink
  ERROR fail
+reconnect: Hold
 auto-connect: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
-reconnect: Hold
 run-hook: Hold
 start-snap-services: Hold
 cleanup: Hold
@@ -6684,6 +6684,33 @@ func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
 	l, err := timeutil.ParseSchedule(snapstate.DefaultRefreshSchedule)
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
+}
+
+func (s *snapmgrTestSuite) TestGuardCoreSetupProfilesPhase2Basics(c *C) {
+	r := release.MockOnClassic(true)
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("setup-profiles", "...")
+
+	// not core snap
+	proceed, err := snapstate.GuardCoreSetupProfilesPhase2(task, nil, &snap.Info{Type: snap.TypeApp})
+	c.Check(err, IsNil)
+	c.Check(proceed, Equals, false)
+
+	// core snap, not restarting
+	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, nil, &snap.Info{Type: snap.TypeOS})
+	c.Check(err, IsNil)
+	c.Check(proceed, Equals, true)
+
+	// core snap, restarting ... wait
+	state.MockRestarting(st, state.RestartDaemon)
+	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, nil, &snap.Info{Type: snap.TypeOS})
+	c.Check(err, FitsTypeOf, &state.Retry{})
+	c.Check(proceed, Equals, false)
 }
 
 type snapmgrQuerySuite struct {
