@@ -1,0 +1,51 @@
+summary: Check that snaps can use service-watchdog provided by systemd
+
+execute: |
+    echo "When the service snap  is installed"
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-service-watchdog
+
+    # the interface is disconnected by default
+    snap connect test-snapd-service-watchdog:daemon-notify
+
+    for service in direct-watchdog-ok direct-watchdog-bad; do
+        systemctl restart snap.test-snapd-service-watchdog.$service
+    done
+
+    echo "We can see all services running"
+    for service in direct-watchdog-ok direct-watchdog-bad; do
+        ! systemctl show -p SubState snap.test-snapd-service-watchdog.$service | MATCH "SubState=dead"
+    done
+
+    echo "Services that are correctly poking the watchdog remain running"
+    cnt=0
+    while true; do
+        wdk=$(journalctl -u snap.test-snapd-service-watchdog.direct-watchdog-ok | grep -c 'watchdog kick' || true)
+        test "$wdk" -ge 4 && break || true
+        cnt=$((cnt + 1))
+        test "$cnt" -lt 20
+        sleep 1
+    done
+    systemctl show -p SubState snap.test-snapd-service-watchdog.direct-watchdog-ok | MATCH 'SubState=running'
+
+    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+        # service watchdog does not appear to work in Ubuntu 14.04 at all
+        exit 0
+    fi
+
+    echo "Services not poking the watchdog fail due to watchdog"
+    for service in direct-watchdog-bad; do
+        for _ in $(seq 1 20); do
+            systemctl show -p SubState snap.test-snapd-service-watchdog.$service | MATCH 'SubState=(failed|stop-sigabrt)' && break || true
+            sleep 1
+        done
+        systemctl show -p SubState snap.test-snapd-service-watchdog.$service | MATCH 'SubState=(failed|stop-sigabrt)' && break || true
+        # reported differently by different systemd versions
+        systemctl show -p Result snap.test-snapd-service-watchdog.$service | MATCH 'Result=(watchdog|signal|core-dump)' || true
+        journalctl -u snap.test-snapd-service-watchdog.$service | MATCH 'Watchdog timeout'
+    done
+
+debug: |
+    for service in direct-watchdog-ok direct-watchdog-bad; do
+        systemctl status snap.test-snapd-service-watchdog.$service || true
+    done
