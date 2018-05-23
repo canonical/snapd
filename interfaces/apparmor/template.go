@@ -121,6 +121,7 @@ var defaultTemplate = `
   /{,usr/}bin/cpio ixr,
   /{,usr/}bin/cut ixr,
   /{,usr/}bin/date ixr,
+  /{,usr/}bin/dbus-send ixr,
   /{,usr/}bin/dd ixr,
   /{,usr/}bin/diff{,3} ixr,
   /{,usr/}bin/dir ixr,
@@ -282,6 +283,15 @@ var defaultTemplate = `
   # Per man(5) proc, the kernel enforces that a thread may only modify its comm
   # value or those in its thread group.
   owner @{PROC}/@{pid}/task/@{tid}/comm rw,
+
+  # Allow reading and writing to our file descriptors in /proc which, for
+  # example, allow access to /dev/std{in,out,err} which are all symlinks to
+  # /proc/self/fd/{0,1,2} respectively. To support the open(..., O_TMPFILE)
+  # linkat() temporary file technique, allow all fds. Importantly, access to
+  # another's task's fd via this proc interface is mediated via 'ptrace (read)'
+  # (readonly) and 'ptrace (trace)' (read/write) which is denied by default, so
+  # this rule by itself doesn't allow opening another snap's fds via proc.
+  owner @{PROC}/@{pid}/{,task/@{tid}}fd/[0-9]* rw,
 
   # Miscellaneous accesses
   /dev/{,u}random w,
