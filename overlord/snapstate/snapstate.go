@@ -26,6 +26,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"golang.org/x/net/context"
 
@@ -202,13 +203,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.Name()))
 	addTask(setupAliases)
 	prev = setupAliases
-
-	// on refresh re-connect existing connections and run their interface hooks (if applicable)
-	if snapst.IsInstalled() {
-		reconnectTask := st.NewTask("reconnect", fmt.Sprintf(i18n.G("Reconnect interfaces for snap %q"), snapsup.Name()))
-		addTask(reconnectTask)
-		prev = reconnectTask
-	}
 
 	if runRefreshHooks {
 		postRefreshHook := SetupPostRefreshHook(st, snapsup.Name())
@@ -469,6 +463,39 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 	}
 
 	return nil
+}
+
+// GuardCoreSetupProfilesPhase2 decides for a setup-profiles task that
+// is a phase 2 security setup for core whether to proceed, wait
+// (via Retry) or there is nothing to do. Helper for ifacestate.
+func GuardCoreSetupProfilesPhase2(task *state.Task, snapsup *SnapSetup, snapInfo *snap.Info) (proceed bool, err error) {
+	// phase 2 setup-profiles
+	if snapInfo.Type != snap.TypeOS {
+		// not the core snap, nothing to do
+		return false, nil
+	}
+	if ok, _ := task.State().Restarting(); ok {
+		// don't continue until we are in the restarted snapd
+		task.Logf("Waiting for restart...")
+		return false, &state.Retry{}
+	}
+	// if not on classic check there was no rollback
+	if !release.OnClassic {
+		// TODO: double check that we really rebooted
+		// otherwise this could be just a spurious restart
+		// of snapd
+		name, rev, err := CurrentBootNameAndRevision(snap.TypeOS)
+		if err == ErrBootNameAndRevisionAgain {
+			return false, &state.Retry{After: 5 * time.Second}
+		}
+		if err != nil {
+			return false, err
+		}
+		if snapsup.Name() != name || snapInfo.Revision != rev {
+			return false, fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
+		}
+	}
+	return true, nil
 }
 
 func contentAttr(attrer interfaces.Attrer) string {
@@ -788,6 +815,8 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		}
 
 		snapsup := &SnapSetup{
+			Base:         update.Base,
+			Prereq:       defaultContentPlugProviders(st, update),
 			Channel:      channel,
 			UserID:       snapUserID,
 			Flags:        flags.ForSnapSetup(),
