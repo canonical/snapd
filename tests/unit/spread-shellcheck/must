@@ -22,3 +22,4 @@ tests/main/classic-ubuntu-core-transition/task.yaml
 tests/main/completion/task.yaml
 tests/main/config-versions/task.yaml
 tests/main/install-closed-channel/task.yaml
+tests/main/snap-core-symlinks/task.yaml
