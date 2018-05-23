@@ -253,11 +253,33 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 			source, target := sourceTarget(plug, slot, r)
 			var buf bytes.Buffer
 			fmt.Fprintf(&buf, "  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
-			fmt.Fprintf(&buf, "  mount options=(bind, ro) %s/ -> %s/,\n", source, target)
+			fmt.Fprintf(&buf, "  mount options=(bind) %s/ -> %s/,\n", source, target)
+			fmt.Fprintf(&buf, "  remount options=(bind, ro) %s/,\n", target)
 			fmt.Fprintf(&buf, "  umount %s/,\n", target)
 			apparmor.WritableProfile(&buf, source)
 			apparmor.WritableProfile(&buf, target)
 			spec.AddUpdateNS(buf.String())
+		}
+	}
+
+	spec.AddSnippet(contentSnippet.String())
+	return nil
+}
+
+func (iface *contentInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	contentSnippet := bytes.NewBuffer(nil)
+	writePaths := iface.path(slot, "write")
+	if len(writePaths) > 0 {
+		fmt.Fprintf(contentSnippet, `
+# When the content interface is writable, allow this slot
+# implementation to access the slot's exported files at the plugging
+# snap's mountpoint to accommodate software where the plugging app
+# tells the slotting app about files to share.
+`)
+		for _, w := range writePaths {
+			_, target := sourceTarget(plug, slot, w)
+			fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
+				target)
 		}
 	}
 

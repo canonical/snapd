@@ -63,6 +63,7 @@ deny ptrace (trace),
 @{PROC}/*/{,task/*/}auxv r,
 @{PROC}/*/{,task/*/}cmdline r,
 @{PROC}/*/{,task/*/}exe r,
+@{PROC}/*/{,task/*/}fdinfo/* r,
 @{PROC}/*/{,task/*/}stat r,
 @{PROC}/*/{,task/*/}statm r,
 @{PROC}/*/{,task/*/}status r,
@@ -94,6 +95,14 @@ dbus (send)
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
     member=ListNames
+    peer=(label=unconfined),
+
+# Allow clients to obtain the DBus machine ID on common buses. We do not
+# mediate the path since any peer can be used.
+dbus (send)
+    bus={session,system}
+    interface=org.freedesktop.DBus.Peer
+    member=GetMachineId
     peer=(label=unconfined),
 `
 

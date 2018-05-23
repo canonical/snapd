@@ -1,6 +1,6 @@
 summary: Ensure that the firewall-control interface works.
 
-systems: [-fedora-*, -opensuse-*]
+systems: [-fedora-*, -opensuse-*, -arch-*]
 
 details: |
     The firewall-control interface allows a snap to configure the firewall.
@@ -48,7 +48,7 @@ restore: |
 
 execute: |
     echo "Then the plug is disconnected by default"
-    snap interfaces | MATCH "^\- +firewall-control-consumer:firewall-control"
+    snap interfaces -i firewall-control | MATCH "^\- +firewall-control-consumer:firewall-control"
 
     echo "When the plug is connected"
     snap connect firewall-control-consumer:firewall-control

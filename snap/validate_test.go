@@ -425,16 +425,14 @@ func (s *ValidateSuite) TestAppDaemonValue(c *C) {
 	}
 }
 
-func (s *ValidateSuite) TestAppRefreshMode(c *C) {
+func (s *ValidateSuite) TestAppStopMode(c *C) {
 	// check services
 	for _, t := range []struct {
-		refresh string
-		ok      bool
+		stopMode StopModeType
+		ok       bool
 	}{
 		// good
 		{"", true},
-		{"endure", true},
-		{"restart", true},
 		{"sigterm", true},
 		{"sigterm-all", true},
 		{"sighup", true},
@@ -447,9 +445,34 @@ func (s *ValidateSuite) TestAppRefreshMode(c *C) {
 		{"invalid-thing", false},
 	} {
 		if t.ok {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refresh}), IsNil)
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", StopMode: t.stopMode}), IsNil)
 		} else {
-			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refresh}), ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refresh))
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", StopMode: t.stopMode}), ErrorMatches, fmt.Sprintf(`"stop-mode" field contains invalid value %q`, t.stopMode))
+		}
+	}
+
+	// non-services cannot have a stop-mode
+	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", StopMode: "sigterm"})
+	c.Check(err, ErrorMatches, `"stop-mode" cannot be used for "foo", only for services`)
+}
+
+func (s *ValidateSuite) TestAppRefreshMode(c *C) {
+	// check services
+	for _, t := range []struct {
+		refreshMode string
+		ok          bool
+	}{
+		// good
+		{"", true},
+		{"endure", true},
+		{"restart", true},
+		// bad
+		{"invalid-thing", false},
+	} {
+		if t.ok {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refreshMode}), IsNil)
+		} else {
+			c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", RefreshMode: t.refreshMode}), ErrorMatches, fmt.Sprintf(`"refresh-mode" field contains invalid value %q`, t.refreshMode))
 		}
 	}
 
@@ -1110,6 +1133,61 @@ apps:
 		c.Logf("trying %q", tc.name)
 		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
 		c.Assert(err, IsNil)
+
+		err = Validate(info)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
+
+func (s *ValidateSuite) TestValidateAppWatchdog(c *C) {
+	meta := []byte(`
+name: foo
+version: 1.0
+`)
+	fooAllGood := []byte(`
+apps:
+  foo:
+    daemon: simple
+    watchdog-timeout: 12s
+`)
+	fooNotADaemon := []byte(`
+apps:
+  foo:
+    watchdog-timeout: 12s
+`)
+
+	fooNegative := []byte(`
+apps:
+  foo:
+    daemon: simple
+    watchdog-timeout: -12s
+`)
+
+	tcs := []struct {
+		name string
+		desc []byte
+		err  string
+	}{{
+		name: "foo all good",
+		desc: fooAllGood,
+	}, {
+		name: "foo not a service",
+		desc: fooNotADaemon,
+		err:  `cannot define watchdog-timeout in application "foo" as it's not a service`,
+	}, {
+		name: "negative timeout",
+		desc: fooNegative,
+		err:  `cannot use a negative watchdog-timeout in application "foo"`,
+	}}
+	for _, tc := range tcs {
+		c.Logf("trying %q", tc.name)
+		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
+		c.Assert(err, IsNil)
+		c.Assert(info, NotNil)
 
 		err = Validate(info)
 		if tc.err != "" {

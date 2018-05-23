@@ -2,7 +2,7 @@ summary: Ensure that the cups interface works.
 
 # Default cups/cups-pdf configuration on these distributions isn't
 # working yet without further tweaks.
-systems: [-ubuntu-core-16-*, -opensuse-*, -fedora-*]
+systems: [-ubuntu-core-16-*, -opensuse-*, -fedora-*, -arch-*]
 
 details: |
     The cups-control interface allows a snap to access the locale configuration.
@@ -42,12 +42,15 @@ restore: |
     rm -rf $HOME/PDF $TEST_FILE print.error
 
 debug: |
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     systemctl status cups || true
-    journalctl -u cpus || true
+    get_journalctl_log -u cpus || true
 
 execute: |
     echo "Then the plug is disconnected by default"
-    snap interfaces | MATCH "^\- +test-snapd-cups-control-consumer:cups-control"
+    snap interfaces -i cups-control | MATCH "^\- +test-snapd-cups-control-consumer:cups-control"
 
     echo "When the plug is connected"
     snap connect test-snapd-cups-control-consumer:cups-control

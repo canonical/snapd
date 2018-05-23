@@ -1,59 +1,35 @@
 summary: "Check that refresh-modes works"
 
-kill-timeout: 3m
+kill-timeout: 5m
 
 debug: |
-    journalctl -u snap.test-snapd-service.test-snapd-endure-service
     grep -n '' *.pid || true
-    refresh_modes="endure sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
-    for s in $refresh_modes; do
-        systemctl status snap.test-snapd-service.test-snapd-${s}-service || true
-    done
+    systemctl status snap.test-snapd-service.test-snapd-endure-service || true
 
 execute: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     echo "When the service snap is installed"
-    . $TESTSLIB/snaps.sh
     install_local test-snapd-service
 
     echo "We can see it running"
-    systemctl status snap.test-snapd-service.test-snapd-service|MATCH "running"
-    systemctl show -p MainPID snap.test-snapd-service.test-snapd-service > old-main.pid
-
-    refresh_modes="endure sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
-    for s in $refresh_modes; do
-        systemctl show -p MainPID snap.test-snapd-service.test-snapd-${s}-service > old-${s}.pid
-        systemctl show -p ActiveState snap.test-snapd-service.test-snapd-${s}-service | MATCH "ActiveState=active"
-    done
+    systemctl status snap.test-snapd-service.test-snapd-endure-service|MATCH "running"
+    systemctl show -p MainPID snap.test-snapd-service.test-snapd-endure-service > old-main.pid
 
     echo "When it is re-installed"
     install_local test-snapd-service
 
-    # note that we do not spread test sigterm{,-all} because catching this
-    # signal in the service means the stop will timeout with a 90s delay
-    for s in $refresh_modes; do
-        echo "We can still see it running with the same PID"
-        systemctl show -p MainPID snap.test-snapd-service.test-snapd-${s}-service > new-${s}.pid
-        systemctl show -p ActiveState snap.test-snapd-service.test-snapd-${s}-service | MATCH "ActiveState=active"
+    echo "We can still see it running with the same PID"
+    systemctl show -p MainPID snap.test-snapd-service.test-snapd-endure-service > new-main.pid
 
-        test "$(cat new-${s}.pid)" = "$(cat old-${s}.pid)"
-
-        if [[ "$s" == sig* ]]; then
-            echo "checking that the right signal was sent"
-            sleep 1
-            journalctl -u snap.test-snapd-service.test-snapd-${s}-service | MATCH "got ${s%%-all}"
-        fi
-    done
-
-    echo "But regular services are restarted"
-    journalctl -u snap.test-snapd-service.test-snapd-service | MATCH "stop service"
-    systemctl show -p MainPID snap.test-snapd-service.test-snapd-service > new-main.pid
-    test "$(cat new-main.pid)" != "$(cat old-main.pid)"
+    test "$(cat new-endure.pid)" = "$(cat old-endure.pid)"
 
     echo "Once the snap is removed, the service is stopped"
     snap remove test-snapd-service
-    for s in $refresh_modes; do
-        journalctl | MATCH "stop ${s}"
-    done
+    get_journalctl_log | MATCH "stop endure"
 
 restore:
     rm -f *.pid || true

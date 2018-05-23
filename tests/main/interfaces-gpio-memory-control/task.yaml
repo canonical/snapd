@@ -19,7 +19,7 @@ execute: |
     fi
 
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "\- +test-snapd-gpio-memory-control:gpio-memory-control"
+    snap interfaces -i gpio-memory-control | MATCH "\- +test-snapd-gpio-memory-control:gpio-memory-control"
 
     echo "When the interface is connected"
     snap connect test-snapd-gpio-memory-control:gpio-memory-control

@@ -310,7 +310,8 @@ slots:
 
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
-  mount options=(bind, ro) /snap/producer/5/export/ -> /snap/consumer/7/import/,
+  mount options=(bind) /snap/producer/5/export/ -> /snap/consumer/7/import/,
+  remount options=(bind, ro) /snap/consumer/7/import/,
   umount /snap/consumer/7/import/,
   # Writable mimic /snap/producer/5
   mount options=(rbind, rw) /snap/producer/5/ -> /tmp/.snap/snap/producer/5/,
@@ -582,7 +583,8 @@ slots:
   /var/snap/consumer/ rw,
 `
 	profile2 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
-  mount options=(bind, ro) /var/snap/producer/common/read-common/ -> /var/snap/consumer/common/import/read-common/,
+  mount options=(bind) /var/snap/producer/common/read-common/ -> /var/snap/consumer/common/import/read-common/,
+  remount options=(bind, ro) /var/snap/consumer/common/import/read-common/,
   umount /var/snap/consumer/common/import/read-common/,
   # Writable directory /var/snap/producer/common/read-common
   /var/snap/producer/common/read-common/ rw,
@@ -595,7 +597,8 @@ slots:
   /var/snap/consumer/ rw,
 `
 	profile3 := `  # Read-only content sharing consumer:content -> producer:content (r#1)
-  mount options=(bind, ro) /var/snap/producer/2/read-data/ -> /var/snap/consumer/common/import/read-data/,
+  mount options=(bind) /var/snap/producer/2/read-data/ -> /var/snap/consumer/common/import/read-data/,
+  remount options=(bind, ro) /var/snap/consumer/common/import/read-data/,
   umount /var/snap/consumer/common/import/read-data/,
   # Writable directory /var/snap/producer/2/read-data
   /var/snap/producer/2/read-data/ rw,
@@ -608,7 +611,8 @@ slots:
   /var/snap/consumer/ rw,
 `
 	profile4 := `  # Read-only content sharing consumer:content -> producer:content (r#2)
-  mount options=(bind, ro) /snap/producer/2/read-snap/ -> /var/snap/consumer/common/import/read-snap/,
+  mount options=(bind) /snap/producer/2/read-snap/ -> /var/snap/consumer/common/import/read-snap/,
+  remount options=(bind, ro) /var/snap/consumer/common/import/read-snap/,
   umount /var/snap/consumer/common/import/read-snap/,
   # Writable mimic /snap/producer/2
   mount options=(rbind, rw) /snap/producer/2/ -> /tmp/.snap/snap/producer/2/,
@@ -779,4 +783,41 @@ slots:
 /var/snap/producer/2/directory/** mrkix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
+}
+
+// Check that slot can access shared directory in plug's namespace
+func (s *ContentSuite) TestSlotCanAccessConnectedPlugSharedDirectory(c *C) {
+	const consumerYaml = `name: consumer
+version: 0
+plugs:
+ content:
+  target: $SNAP_COMMON/import
+`
+	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
+	plug := interfaces.NewConnectedPlug(consumerInfo.Plugs["content"], nil)
+	const producerYaml = `name: producer
+version: 0
+slots:
+ content:
+  write:
+   - $SNAP_COMMON/export
+apps:
+  app:
+    command: bar
+`
+	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
+	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil)
+
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
+	expected := `
+# When the content interface is writable, allow this slot
+# implementation to access the slot's exported files at the plugging
+# snap's mountpoint to accommodate software where the plugging app
+# tells the slotting app about files to share.
+/var/snap/consumer/common/import/** mrwklix,
+`
+	c.Assert(apparmorSpec.SnippetForTag("snap.producer.app"), Equals, expected)
 }

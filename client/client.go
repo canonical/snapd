@@ -75,6 +75,8 @@ type Client struct {
 
 	disableAuth bool
 	interactive bool
+
+	maintenance error
 }
 
 // New returns a new instance of Client
@@ -108,6 +110,11 @@ func New(config *Config) *Client {
 		disableAuth: config.DisableAuth,
 		interactive: config.Interactive,
 	}
+}
+
+// Maintenance returns an error reflecting the daemon maintenance status or nil.
+func (client *Client) Maintenance() error {
+	return client.maintenance
 }
 
 func (client *Client) WhoAmI() (string, error) {
@@ -259,13 +266,14 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 
 // doSync performs a request to the given path using the specified HTTP method.
 // It expects a "sync" response from the API and on success decodes the JSON
-// response payload into the given value.
+// response payload into the given value using the "UseNumber" json decoding
+// which produces json.Numbers instead of float64 types for numbers.
 func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
 	var rsp response
 	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
 		return nil, err
 	}
-	if err := rsp.err(); err != nil {
+	if err := rsp.err(client); err != nil {
 		return nil, err
 	}
 	if rsp.Type != "sync" {
@@ -282,25 +290,30 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 }
 
 func (client *Client) doAsync(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
+	_, changeID, err = client.doAsyncFull(method, path, query, headers, body)
+	return
+}
+
+func (client *Client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader) (result json.RawMessage, changeID string, err error) {
 	var rsp response
 
 	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
-		return "", err
+		return nil, "", err
 	}
-	if err := rsp.err(); err != nil {
-		return "", err
+	if err := rsp.err(client); err != nil {
+		return nil, "", err
 	}
 	if rsp.Type != "async" {
-		return "", fmt.Errorf("expected async response for %q on %q, got %q", method, path, rsp.Type)
+		return nil, "", fmt.Errorf("expected async response for %q on %q, got %q", method, path, rsp.Type)
 	}
 	if rsp.StatusCode != 202 {
-		return "", fmt.Errorf("operation not accepted")
+		return nil, "", fmt.Errorf("operation not accepted")
 	}
 	if rsp.Change == "" {
-		return "", fmt.Errorf("async response without change reference")
+		return nil, "", fmt.Errorf("async response without change reference")
 	}
 
-	return rsp.Change, nil
+	return rsp.Result, rsp.Change, nil
 }
 
 type ServerVersion struct {
@@ -340,6 +353,8 @@ type response struct {
 	Change     string          `json:"change"`
 
 	ResultInfo
+
+	Maintenance *Error `json:"maintenance"`
 }
 
 // Error is the real value of response.Result when an error occurs.
@@ -372,11 +387,17 @@ const (
 	ErrorKindSnapNeedsClassic       = "snap-needs-classic"
 	ErrorKindSnapNeedsClassicSystem = "snap-needs-classic-system"
 	ErrorKindNoUpdateAvailable      = "snap-no-update-available"
+	ErrorKindRevisionNotAvailable   = "snap-revision-not-available"
 
 	ErrorKindNotSnap = "snap-not-a-snap"
 
 	ErrorKindNetworkTimeout      = "network-timeout"
 	ErrorKindInterfacesUnchanged = "interfaces-unchanged"
+
+	ErrorKindConfigNoSuchOption = "option-not-found"
+
+	ErrorKindSystemRestart = "system-restart"
+	ErrorKindDaemonRestart = "daemon-restart"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
@@ -421,17 +442,28 @@ type RefreshInfo struct {
 type SysInfo struct {
 	Series    string    `json:"series,omitempty"`
 	Version   string    `json:"version,omitempty"`
+	BuildID   string    `json:"build-id"`
 	OSRelease OSRelease `json:"os-release"`
 	OnClassic bool      `json:"on-classic"`
 	Managed   bool      `json:"managed"`
 
 	KernelVersion string `json:"kernel-version,omitempty"`
 
-	Refresh     RefreshInfo `json:"refresh,omitempty"`
-	Confinement string      `json:"confinement"`
+	Refresh         RefreshInfo         `json:"refresh,omitempty"`
+	Confinement     string              `json:"confinement"`
+	SandboxFeatures map[string][]string `json:"sandbox-features,omitempty"`
 }
 
-func (rsp *response) err() error {
+func (rsp *response) err(cli *Client) error {
+	if cli != nil {
+		maintErr := rsp.Maintenance
+		// avoid setting to (*client.Error)(nil)
+		if maintErr != nil {
+			cli.maintenance = maintErr
+		} else {
+			cli.maintenance = nil
+		}
+	}
 	if rsp.Type != "error" {
 		return nil
 	}
@@ -456,7 +488,7 @@ func parseError(r *http.Response) error {
 		return fmt.Errorf("cannot unmarshal error: %v", err)
 	}
 
-	err := rsp.err()
+	err := rsp.err(nil)
 	if err == nil {
 		return fmt.Errorf("server error: %q", r.Status)
 	}

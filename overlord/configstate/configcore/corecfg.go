@@ -36,6 +36,7 @@ var (
 type Conf interface {
 	Get(snapName, key string, result interface{}) error
 	Set(snapName, key string, value interface{}) error
+	Changes() []string
 	State() *state.State
 }
 
@@ -50,13 +51,43 @@ func coreCfg(tr Conf, key string) (result string, err error) {
 	return fmt.Sprintf("%v", v), nil
 }
 
+// supportedConfigurations will be filled in by the files (like proxy.go)
+// that handle this configuration.
+var supportedConfigurations = map[string]bool{
+	"core.experimental.layouts": true,
+}
+
+func validateExperimentalSettings(tr Conf) error {
+	layoutsEnabled, err := coreCfg(tr, "experimental.layouts")
+	if err != nil {
+		return err
+	}
+	switch layoutsEnabled {
+	case "", "true", "false":
+		return nil
+	default:
+		return fmt.Errorf("experimental.layouts can only be set to 'true' or 'false'")
+	}
+}
+
 func Run(tr Conf) error {
+	// check if the changes
+	for _, k := range tr.Changes() {
+		if !supportedConfigurations[k] {
+			return fmt.Errorf("cannot set %q: unsupported system option", k)
+		}
+	}
+
 	if err := validateProxyStore(tr); err != nil {
 		return err
 	}
 	if err := validateRefreshSchedule(tr); err != nil {
 		return err
 	}
+	if err := validateExperimentalSettings(tr); err != nil {
+		return err
+	}
+	// FIXME: ensure the user cannot set "core seed.loaded"
 
 	// capture cloud information
 	if err := setCloudInfoWhenSeeding(tr); err != nil {

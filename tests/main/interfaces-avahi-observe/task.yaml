@@ -1,6 +1,6 @@
 summary: check that avahi-observe interface works
 
-systems: [-ubuntu-core-*, -fedora-*, -opensuse-*]
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*]
 
 prepare: |
     echo "Given a snap with an avahi-observe interface plug is installed"
@@ -29,7 +29,7 @@ execute: |
     avahi_dbus_call="dbus-send --system --print-reply --dest=org.freedesktop.Avahi / org.freedesktop.Avahi.Server.GetHostName"
 
     echo "Then the plug is disconnected by default"
-    snap interfaces | MATCH "^\- +generic-consumer:avahi-observe"
+    snap interfaces -i avahi-observe | MATCH "^\- +generic-consumer:avahi-observe"
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "And the snap is not able to access avahi provided info"

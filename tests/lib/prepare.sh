@@ -44,9 +44,9 @@ disable_refreshes() {
 
 setup_systemd_snapd_overrides() {
     START_LIMIT_INTERVAL="StartLimitInterval=0"
-    if [[ "$SPREAD_SYSTEM" = opensuse-42.2-* ]]; then
+    if [[ "$SPREAD_SYSTEM" =~ opensuse-42.[23]-* ]]; then
         # StartLimitInterval is not supported by the systemd version
-        # openSUSE 42.2 ships.
+        # openSUSE 42.2/3 ship.
         START_LIMIT_INTERVAL=""
     fi
 
@@ -55,7 +55,7 @@ setup_systemd_snapd_overrides() {
 [Unit]
 $START_LIMIT_INTERVAL
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
 EOF
     mkdir -p /etc/systemd/system/snapd.socket.d
@@ -261,6 +261,14 @@ prepare_classic() {
     fi
 
     disable_kernel_rate_limiting
+
+    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        # Arch packages do not ship empty directories by default, hence there is
+        # no /etc/dbus-1/system.d what prevents dbus from properly establishing
+        # inotify watch on that path
+        mkdir -p /etc/dbus-1/system.d
+        systemctl reload dbus.service
+    fi
 }
 
 setup_reflash_magic() {
@@ -347,7 +355,18 @@ EOF
         # FIXME: hardcoded mapper location, parse from kpartx
         mount /dev/mapper/loop2p3 /mnt
         mkdir -p /mnt/user-data/
-        cp -ar /home/gopath /mnt/user-data/
+        # copy over everything from gopath to user-data, exclude:
+        # - VCS files
+        # - built debs
+        # - golang archive files and built packages dir
+        # - govendor .cache directory and the binary,
+        rsync -avv -C \
+              --exclude '*.a' \
+              --exclude '*.deb' \
+              --exclude /gopath/.cache/ \
+              --exclude /gopath/bin/govendor \
+              --exclude /gopath/pkg/ \
+              /home/gopath /mnt/user-data/
 
         # create test user and ubuntu user inside the writable partition
         # so that we can use a stock core in tests
@@ -381,14 +400,14 @@ EOF
         mkdir -p /mnt/system-data/etc/systemd/system/multi-user.target.wants
         for f in group gshadow passwd shadow; do
             # the passwd from core without root
-            grep -v "^root:" "$UNPACKD/etc/$f" > /mnt/system-data/root/test-etc/$f
+            grep -v "^root:" "$UNPACKD/etc/$f" > /mnt/system-data/root/test-etc/"$f"
             # append this systems root user so that linode can connect
-            grep "^root:" /etc/$f >> /mnt/system-data/root/test-etc/$f
+            grep "^root:" /etc/"$f" >> /mnt/system-data/root/test-etc/"$f"
 
             # make sure the group is as expected
-            chgrp --reference "$UNPACKD/etc/$f" /mnt/system-data/root/test-etc/$f
+            chgrp --reference "$UNPACKD/etc/$f" /mnt/system-data/root/test-etc/"$f"
             # now bind mount read-only those passwd files on boot
-            cat <<EOF > /mnt/system-data/etc/systemd/system/etc-$f.mount
+            cat >/mnt/system-data/etc/systemd/system/etc-"$f".mount <<EOF
 [Unit]
 Description=Mount root/test-etc/$f over system etc/$f
 Before=ssh.service
@@ -402,14 +421,14 @@ Options=bind,ro
 [Install]
 WantedBy=multi-user.target
 EOF
-            ln -s /etc/systemd/system/etc-$f.mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-$f.mount
+            ln -s /etc/systemd/system/etc-"$f".mount /mnt/system-data/etc/systemd/system/multi-user.target.wants/etc-"$f".mount
 
             # create /var/lib/extrausers/$f
             # append ubuntu, test user for the testing
-            cp -a "$UNPACKD/var/lib/extrausers/$f" /mnt/system-data/var/lib/extrausers/$f
-            tail -n2 /etc/$f >> /mnt/system-data/var/lib/extrausers/$f
+            cp -a "$UNPACKD/var/lib/extrausers/$f" /mnt/system-data/var/lib/extrausers/"$f"
+            tail -n2 /etc/"$f" >> /mnt/system-data/var/lib/extrausers/"$f"
             # check test was copied
-            cat /mnt/system-data/var/lib/extrausers/$f| MATCH "^test:"
+            MATCH "^test:" </mnt/system-data/var/lib/extrausers/"$f"
 
         done
 

@@ -3,10 +3,6 @@ summary: Ensure that the removable-media interface works.
 details: |
     The removable-media interface allows to access to removable storage filesystems.
 
-# This is skipped on fedora due to an error which is currently under investigation. 
-# The snap is failing to read /media/testdir giving an error "No such file or directory"
-systems: [-fedora-*]
-
 prepare: |
     . $TESTSLIB/snaps.sh
     install_local test-snapd-removable-media
@@ -41,7 +37,7 @@ restore: |
 
 execute: |
     echo "The interface is not connected by default"
-    snap interfaces | MATCH "\- +test-snapd-removable-media:removable-media"
+    snap interfaces -i removable-media | MATCH "\- +test-snapd-removable-media:removable-media"
 
     echo "When the interface is connected"
     snap connect test-snapd-removable-media:removable-media

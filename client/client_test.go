@@ -216,7 +216,9 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
                       "version": "2",
                       "os-release": {"id": "ubuntu", "version-id": "16.04"},
                       "on-classic": true,
-                      "confinement": "strict"}}`
+                      "build-id": "1234",
+                      "confinement": "strict",
+                      "sandbox-features": {"backend": ["feature-1", "feature-2"]}}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, IsNil)
 	c.Check(sysInfo, DeepEquals, &client.SysInfo{
@@ -228,6 +230,10 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
 		},
 		OnClassic:   true,
 		Confinement: "strict",
+		SandboxFeatures: map[string][]string{
+			"backend": {"feature-1", "feature-2"},
+		},
+		BuildID: "1234",
 	})
 }
 
@@ -341,6 +347,36 @@ func (cs *clientSuite) TestClientReportsInnerJSONError(c *C) {
 	cs.rsp = `{"type": "sync", "result": "this isn't really json is it"}`
 	_, err := cs.cli.SysInfo()
 	c.Check(err, ErrorMatches, `.*cannot unmarshal.*`)
+}
+
+func (cs *clientSuite) TestClientMaintenance(c *C) {
+	cs.rsp = `{"type":"sync", "result":{"series":"42"}, "maintenance": {"kind": "system-restart", "message": "system is restarting"}}`
+	_, err := cs.cli.SysInfo()
+	c.Assert(err, IsNil)
+	c.Check(cs.cli.Maintenance().(*client.Error), DeepEquals, &client.Error{
+		Kind:    client.ErrorKindSystemRestart,
+		Message: "system is restarting",
+	})
+
+	cs.rsp = `{"type":"sync", "result":{"series":"42"}}`
+	_, err = cs.cli.SysInfo()
+	c.Assert(err, IsNil)
+	c.Check(cs.cli.Maintenance(), Equals, error(nil))
+}
+
+func (cs *clientSuite) TestClientAsyncOpMaintenance(c *C) {
+	cs.rsp = `{"type":"async", "status-code": 202, "change": "42", "maintenance": {"kind": "system-restart", "message": "system is restarting"}}`
+	_, err := cs.cli.Install("foo", nil)
+	c.Assert(err, IsNil)
+	c.Check(cs.cli.Maintenance().(*client.Error), DeepEquals, &client.Error{
+		Kind:    client.ErrorKindSystemRestart,
+		Message: "system is restarting",
+	})
+
+	cs.rsp = `{"type":"async", "status-code": 202, "change": "42"}`
+	_, err = cs.cli.Install("foo", nil)
+	c.Assert(err, IsNil)
+	c.Check(cs.cli.Maintenance(), Equals, error(nil))
 }
 
 func (cs *clientSuite) TestParseError(c *C) {
