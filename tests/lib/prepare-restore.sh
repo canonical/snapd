@@ -359,11 +359,16 @@ prepare_project() {
     go get ./tests/lib/fakedevicesvc
     go get ./tests/lib/systemd-escape
 
-    # disable journald rate limiting
-    mkdir -p /etc/systemd/journald.conf.d/
+    # Disable journald rate limiting
+    # Check the RateLimitInterval key which id different depending on the systemd version
+    rate_limit_key="RateLimitIntervalSec"
+    if grep -q "RateLimitInterval=" /etc/systemd/journald.conf; then
+        rate_limit_key="RateLimitInterval"
+    fi
+
     cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
     [Journal]
-    RateLimitIntervalSec=0
+    $rate_limit_key=0
     RateLimitBurst=0
 EOF
     systemctl restart systemd-journald.service
