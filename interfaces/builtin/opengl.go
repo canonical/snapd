@@ -58,6 +58,7 @@ const openglConnectedPlugAppArmor = `
 
 /dev/dri/ r,
 /dev/dri/card0 rw,
+
 # nvidia
 /etc/vdpau_wrapper.cfg r,
 @{PROC}/driver/nvidia/params r,
@@ -67,6 +68,12 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 
 # eglfs
 /dev/vchiq rw,
+
+# cuda
+@{PROC}/sys/vm/mmap_min_addr r,
+@{PROC}/devices r,
+/sys/devices/system/memory/block_size_bytes r,
+unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 
 # Parallels guest tools 3D acceleration (video toolgate)
 @{PROC}/driver/prl_vtg rw,
