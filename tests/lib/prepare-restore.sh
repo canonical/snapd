@@ -360,15 +360,14 @@ prepare_project() {
     go get ./tests/lib/systemd-escape
 
     # Disable journald rate limiting
-    # Check the RateLimitInterval key which id different depending on the systemd version
-    rate_limit_key="RateLimitIntervalSec"
-    if grep -q "RateLimitInterval=" /etc/systemd/journald.conf; then
-        rate_limit_key="RateLimitInterval"
-    fi
-
+    mkdir -p /etc/systemd/journald.conf.d
+    # The RateLimitIntervalSec key is not supported on some systemd versions causing
+    # the journal rate limit could be considered as not valid and discarded in concecuence.
+    # RateLimitInterval key is supported in old systemd versions and in new ones as well,
+    # maintaining backward compatibility.
     cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
     [Journal]
-    $rate_limit_key=0
+    RateLimitInterval=0
     RateLimitBurst=0
 EOF
     systemctl restart systemd-journald.service
