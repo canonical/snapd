@@ -143,6 +143,7 @@ func Save(st *state.State, snapNames []string, users []string) (setID uint64, sn
 		}
 	}
 
+	// Make sure we do not snapshot if anythink like install/remove/refresh is in progress
 	if err := snapstateCheckChangeConflictMany(st, snapNames, nil); err != nil {
 		return 0, nil, nil, err
 	}
@@ -164,6 +165,7 @@ func Save(st *state.State, snapNames []string, users []string) (setID uint64, sn
 		}
 		task.Set("snapshot", &snapshot)
 		// this is to trigger conflicts with snapstate ops
+		// (the check is done via snapstate:snapTopicalTasks)
 		task.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: name}})
 		ts.AddTask(task)
 	}

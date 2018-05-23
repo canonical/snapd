@@ -62,7 +62,8 @@ func Manager(st *state.State) *SnapshotManager {
 	return &SnapshotManager{runner: runner}
 }
 
-// KnownTaskKinds is part of the overlord.StateManager interface.
+// KnownTaskKinds returns a unsorted list of known task kinds.
+// It is part of the overlord.StateManager interface.
 func (m *SnapshotManager) KnownTaskKinds() []string {
 	return m.runner.KnownTaskKinds()
 }
