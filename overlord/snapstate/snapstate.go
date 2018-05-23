@@ -190,6 +190,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = setupSecurityPhase2
 	}
 
+	// on refresh re-connect existing connections and run their interface hooks (if applicable)
+	if snapst.IsInstalled() {
+		reconnectTask := st.NewTask("reconnect", fmt.Sprintf(i18n.G("Reconnect interfaces for snap %q"), snapsup.Name()))
+		addTask(reconnectTask)
+		prev = reconnectTask
+	}
+
 	// auto-connections
 	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.Name()))
 	addTask(autoConnect)
@@ -203,13 +210,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.Name()))
 	addTask(setupAliases)
 	prev = setupAliases
-
-	// on refresh re-connect existing connections and run their interface hooks (if applicable)
-	if snapst.IsInstalled() {
-		reconnectTask := st.NewTask("reconnect", fmt.Sprintf(i18n.G("Reconnect interfaces for snap %q"), snapsup.Name()))
-		addTask(reconnectTask)
-		prev = reconnectTask
-	}
 
 	if runRefreshHooks {
 		postRefreshHook := SetupPostRefreshHook(st, snapsup.Name())
