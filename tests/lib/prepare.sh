@@ -509,7 +509,8 @@ prepare_all_snap() {
 
     echo "Ensure rsync is available"
     if ! which rsync; then
-        snap install --devmode rsync
+        snap install --devmode test-snapd-rsync
+        snap alias test-snapd-rsync.rsync rsync
     fi
 
     disable_refreshes

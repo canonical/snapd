@@ -25,11 +25,11 @@ save_snapd_state() {
         mkdir -p "$SNAPD_STATE_PATH" "$SNAPD_STATE_PATH"/system-units
 
         # Copy the state preserving the timestamps
-        cp -rfp /var/lib/snapd "$SNAPD_STATE_PATH"/snapd-lib
+        cp -a /var/lib/snapd "$SNAPD_STATE_PATH"/snapd-lib
         cp -rf "$boot_path" "$SNAPD_STATE_PATH"/boot
         cp -f /etc/systemd/system/snap-*core*.mount "$SNAPD_STATE_PATH"/system-units
     else
-        escaped_snap_mount_dir=$1
+        escaped_snap_mount_dir="$1"
         snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
         snap_confine_profiles="$(ls /etc/apparmor.d/snap.core.* || true)"
         # shellcheck disable=SC2086

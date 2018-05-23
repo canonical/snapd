@@ -33,15 +33,15 @@ bootenv_unset() {
         fw_setenv "$var"
     fi
 }
-
+/boot/uboot/uboot.env
 get_boot_path() {
-    if [ -d /boot/uboot/ ] && ! [ -z "$(ls -A /boot/uboot/)" ]; then
+    if [ -f /boot/uboot/uboot.env ]; then
         echo "/boot/uboot/"
-    elif [ -d /boot/grub/ ] && ! [ -z "$(ls -A /boot/grub/)" ]; then
+    elif [ -f /boot/grub/grubenv ]; then
         echo "/boot/grub/"
     else
         echo "Cannot determine bootdir in /boot:"
-        ls /boot
+        ls -alR /boot
         exit 1
     fi
 }
