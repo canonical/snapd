@@ -94,11 +94,8 @@ type homeInterface struct {
 func (iface *homeInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	// It's fine if 'read' isn't specified, but if it is, it needs to be
 	// 'all'
-	if r, ok := plug.Attrs["read"]; ok {
-		_, ok = r.(string)
-		if !ok || r != "all" {
-			return fmt.Errorf(`home plug requires "read" be 'all'`)
-		}
+	if r, ok := plug.Attrs["read"]; ok && r != "all" {
+		return fmt.Errorf(`home plug requires "read" be 'all'`)
 	}
 
 	return nil

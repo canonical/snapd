@@ -131,6 +131,21 @@ plugs:
 		`home plug requires "read" be 'all'`)
 }
 
+func (s *HomeInterfaceSuite) TestSanitizePlugWithBadAttribDict(c *C) {
+	const mockSnapYaml = `name: home-plug-snap
+version: 1.0
+plugs:
+ home:
+  read:
+   all: bad
+   bad: all
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["home"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
+		`home plug requires "read" be 'all'`)
+}
+
 func (s *HomeInterfaceSuite) TestConnectedPlugAppArmorWithoutAttrib(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
