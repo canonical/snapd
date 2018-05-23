@@ -245,6 +245,9 @@ apps:
   screen-inhibit-control:
     command: bin/run
     plugs: [ screen-inhibit-control ]
+  screenshot:
+    command: bin/run
+    plugs: [ screenshot ]
   shutdown:
     command: bin/run
     plugs: [ shutdown ]
