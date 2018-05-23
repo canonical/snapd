@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/snap"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -82,11 +83,20 @@ func (x *cmdInterfaces) Execute(args []string) error {
 	w := tabWriter()
 	defer w.Flush()
 	fmt.Fprintln(w, i18n.G("Slot\tPlug"))
+
+	wantedSnap := x.Positionals.Query.Snap
+
 	for _, slot := range ifaces.Slots {
-		if wanted := x.Positionals.Query.Snap; wanted != "" {
-			ok := wanted == slot.Snap
+		if wantedSnap != "" {
+			var ok bool
+			if wantedSnap == slot.Snap || wantedSnap == snap.UseNick(slot.Snap) {
+				ok = true
+			}
+
 			for i := 0; i < len(slot.Connections) && !ok; i++ {
-				ok = wanted == slot.Connections[i].Snap
+				if wantedSnap == slot.Connections[i].Snap || wantedSnap == snap.UseNick(slot.Connections[i].Snap) {
+					ok = true
+				}
 			}
 			if !ok {
 				continue
@@ -100,7 +110,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		}
 		// The OS snap is special and enable abbreviated
 		// display syntax on the slot-side of the connection.
-		if slot.Snap == "core" || slot.Snap == "ubuntu-core" {
+		if slot.Snap == "core" || slot.Snap == "ubuntu-core" || slot.Snap == snap.UseNick("core") {
 			fmt.Fprintf(w, ":%s\t", slot.Name)
 		} else {
 			fmt.Fprintf(w, "%s:%s\t", slot.Snap, slot.Name)
@@ -124,8 +134,10 @@ func (x *cmdInterfaces) Execute(args []string) error {
 	// Plugs are treated differently. Since the loop above already printed each connected
 	// plug, the loop below focuses on printing just the disconnected plugs.
 	for _, plug := range ifaces.Plugs {
-		if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != plug.Snap {
-			continue
+		if wantedSnap != "" {
+			if wantedSnap != plug.Snap && wantedSnap != snap.UseNick(plug.Snap) {
+				continue
+			}
 		}
 		if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != plug.Name {
 			continue

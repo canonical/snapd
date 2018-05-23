@@ -253,7 +253,7 @@ apps:
     plugs: [ snapd-control ]
   service-watchdog:
     command: bin/run
-    plugs: [ service-watchdog ]
+    plugs: [ daemon-notify ]
   ssh-keys:
     command: bin/run
     plugs: [ ssh-keys ]
