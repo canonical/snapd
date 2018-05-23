@@ -170,6 +170,10 @@ If you understand and want to proceed repeat the command including --classic.
 		isError = true
 		usesSnapName = false
 		msg = i18n.G("unable to contact snap store")
+	case client.ErrorKindSystemRestart:
+		isError = false
+		usesSnapName = false
+		msg = i18n.G("snapd is about to reboot the system")
 	default:
 		usesSnapName = false
 		msg = err.Message

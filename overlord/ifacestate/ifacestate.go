@@ -43,8 +43,8 @@ var noConflictOnConnectTasks = func(task *state.Task) bool {
 
 var connectRetryTimeout = time.Second * 5
 
-func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slotSnap string, installedSnapTask *state.Task) error {
-	if installedSnapTask == nil {
+func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slotSnap string, autoConnectTask *state.Task) error {
+	if autoConnectTask == nil {
 		for _, chg := range st.Changes() {
 			if chg.Kind() == "transition-ubuntu-core" {
 				return fmt.Errorf("ubuntu-core to core transition in progress, no other changes allowed until this is done")
@@ -53,16 +53,16 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 	}
 
 	var installedSnap string
-	if installedSnapTask != nil {
-		snapsup, err := snapstate.TaskSnapSetup(installedSnapTask)
+	if autoConnectTask != nil {
+		snapsup, err := snapstate.TaskSnapSetup(autoConnectTask)
 		if err != nil {
-			return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", installedSnapTask.Summary())
+			return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", autoConnectTask.Summary())
 		}
 		installedSnap = snapsup.Name()
 	}
 
 	for _, task := range st.Tasks() {
-		if task.Status().Ready() || installedSnapTask == task {
+		if task.Status().Ready() || autoConnectTask == task {
 			continue
 		}
 
@@ -79,7 +79,7 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 
 		snapName := snapsup.Name()
 
-		if installedSnapTask != nil && installedSnap == snapName {
+		if autoConnectTask != nil && installedSnap == snapName {
 			continue
 		}
 
@@ -89,7 +89,7 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 		}
 
 		if k == "unlink-snap" || k == "link-snap" || k == "setup-profiles" {
-			if installedSnapTask != nil {
+			if autoConnectTask != nil {
 				// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op
 				// if snap is getting installed/refreshed - temporary conflict, retry later
 				return &state.Retry{After: connectRetryTimeout}
@@ -112,8 +112,8 @@ func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*s
 	return connect(st, nil, nil, plugSnap, plugName, slotSnap, slotName)
 }
 
-func connect(st *state.State, change *state.Change, installedSnapTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	if err := checkConnectConflicts(st, change, plugSnap, slotSnap, installedSnapTask); err != nil {
+func connect(st *state.State, change *state.Change, mainTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+	if err := checkConnectConflicts(st, change, plugSnap, slotSnap, mainTask); err != nil {
 		return nil, err
 	}
 
@@ -160,7 +160,7 @@ func connect(st *state.State, change *state.Change, installedSnapTask *state.Tas
 
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	connectInterface.Set("auto", installedSnapTask != nil && installedSnapTask.Kind() == "auto-connect")
+	connectInterface.Set("auto", mainTask != nil && mainTask.Kind() == "auto-connect")
 
 	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
 	// to modify them but all attributes will be checked against assertions after the hooks are run.

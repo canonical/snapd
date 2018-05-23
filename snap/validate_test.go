@@ -1143,6 +1143,61 @@ apps:
 	}
 }
 
+func (s *ValidateSuite) TestValidateAppWatchdog(c *C) {
+	meta := []byte(`
+name: foo
+version: 1.0
+`)
+	fooAllGood := []byte(`
+apps:
+  foo:
+    daemon: simple
+    watchdog-timeout: 12s
+`)
+	fooNotADaemon := []byte(`
+apps:
+  foo:
+    watchdog-timeout: 12s
+`)
+
+	fooNegative := []byte(`
+apps:
+  foo:
+    daemon: simple
+    watchdog-timeout: -12s
+`)
+
+	tcs := []struct {
+		name string
+		desc []byte
+		err  string
+	}{{
+		name: "foo all good",
+		desc: fooAllGood,
+	}, {
+		name: "foo not a service",
+		desc: fooNotADaemon,
+		err:  `cannot define watchdog-timeout in application "foo" as it's not a service`,
+	}, {
+		name: "negative timeout",
+		desc: fooNegative,
+		err:  `cannot use a negative watchdog-timeout in application "foo"`,
+	}}
+	for _, tc := range tcs {
+		c.Logf("trying %q", tc.name)
+		info, err := InfoFromSnapYaml(append(meta, tc.desc...))
+		c.Assert(err, IsNil)
+		c.Assert(info, NotNil)
+
+		err = Validate(info)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
+
 func (s *YamlSuite) TestValidateAppTimer(c *C) {
 	meta := []byte(`
 name: foo
