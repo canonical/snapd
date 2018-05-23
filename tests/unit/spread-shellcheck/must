@@ -22,6 +22,7 @@ tests/main/classic-ubuntu-core-transition/task.yaml
 tests/main/completion/task.yaml
 tests/main/config-versions/task.yaml
 tests/main/install-closed-channel/task.yaml
+tests/main/snap-core-symlinks/task.yaml
 tests/main/interfaces-opengl-nvidia/task.yaml
 tests/main/confinement-classic/task.yaml
 tests/main/core-snap-not-test-test/task.yaml
