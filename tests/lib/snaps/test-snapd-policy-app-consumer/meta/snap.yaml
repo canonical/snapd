@@ -62,6 +62,12 @@ apps:
   desktop:
     command: bin/run
     plugs: [ desktop ]
+  desktop-calendar-service:
+    command: bin/run
+    plugs: [ desktop-calendar-service ]
+  desktop-contacts-service:
+    command: bin/run
+    plugs: [ desktop-contacts-service ]
   desktop-legacy:
     command: bin/run
     plugs: [ desktop-legacy ]
