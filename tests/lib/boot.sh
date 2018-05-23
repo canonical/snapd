@@ -33,7 +33,7 @@ bootenv_unset() {
         fw_setenv "$var"
     fi
 }
-/boot/uboot/uboot.env
+
 get_boot_path() {
     if [ -f /boot/uboot/uboot.env ]; then
         echo "/boot/uboot/"
