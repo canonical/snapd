@@ -66,6 +66,7 @@ type appYaml struct {
 	ReloadCommand   string          `yaml:"reload-command,omitempty"`
 	PostStopCommand string          `yaml:"post-stop-command,omitempty"`
 	StopTimeout     timeout.Timeout `yaml:"stop-timeout,omitempty"`
+	WatchdogTimeout timeout.Timeout `yaml:"watchdog-timeout,omitempty"`
 	Completer       string          `yaml:"completer,omitempty"`
 	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
 	StopMode        StopModeType    `yaml:"stop-mode,omitempty"`
@@ -305,6 +306,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			Before:          yApp.Before,
 			After:           yApp.After,
 			Autostart:       yApp.Autostart,
+			WatchdogTimeout: yApp.WatchdogTimeout,
 		}
 		if len(y.Plugs) > 0 || len(yApp.PlugNames) > 0 {
 			app.Plugs = make(map[string]*PlugInfo)

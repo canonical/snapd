@@ -34,9 +34,10 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type mockConf struct {
-	state *state.State
-	conf  map[string]interface{}
-	err   error
+	state   *state.State
+	conf    map[string]interface{}
+	changes map[string]interface{}
+	err     error
 }
 
 func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
@@ -60,6 +61,14 @@ func (cfg *mockConf) Set(snapName, key string, v interface{}) error {
 	}
 	cfg.conf[key] = v
 	return nil
+}
+
+func (cfg *mockConf) Changes() []string {
+	out := make([]string, 0, len(cfg.changes))
+	for k := range cfg.changes {
+		out = append(out, k)
+	}
+	return out
 }
 
 func (cfg *mockConf) State() *state.State {
@@ -123,4 +132,16 @@ func (r *runCfgSuite) TestConfigureExperimentalSettingsHappy(c *C) {
 		err := configcore.Run(conf)
 		c.Check(err, IsNil)
 	}
+}
+
+func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
+	conf := &mockConf{
+		state: r.state,
+		changes: map[string]interface{}{
+			"unknown.option": "1",
+		},
+	}
+
+	err := configcore.Run(conf)
+	c.Check(err, ErrorMatches, `cannot set "unknown.option": unsupported system option`)
 }

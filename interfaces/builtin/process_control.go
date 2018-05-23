@@ -42,7 +42,7 @@ const processControlConnectedPlugAppArmor = `
 capability sys_resource,
 capability sys_nice,
 
-signal,
+signal (send),
 `
 
 const processControlConnectedPlugSecComp = `

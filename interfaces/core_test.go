@@ -181,7 +181,7 @@ func (s *CoreSuite) TestConnRefID(c *C) {
 func (s *CoreSuite) TestParseConnRef(c *C) {
 	ref, err := ParseConnRef("consumer:plug producer:slot")
 	c.Assert(err, IsNil)
-	c.Check(ref, DeepEquals, ConnRef{
+	c.Check(ref, DeepEquals, &ConnRef{
 		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: SlotRef{Snap: "producer", Name: "slot"},
 	})

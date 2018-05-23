@@ -337,7 +337,7 @@ func main() {
 			}
 		}
 		if err := cmd.Execute(nil); err != nil {
-			fmt.Fprintf(Stderr, "%s\n", err)
+			fmt.Fprintln(Stderr, err)
 		}
 		return
 	}
@@ -408,7 +408,7 @@ func run() error {
 			return err
 		}
 
-		fmt.Fprintf(Stderr, msg)
+		fmt.Fprintln(Stderr, msg)
 	}
 
 	return nil

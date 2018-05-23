@@ -1,6 +1,6 @@
 summary: "Check that refresh-modes sigkill works"
 
-kill-timeout: 3m
+kill-timeout: 5m
 
 restore: |
     # remove to ensure all services are stopped

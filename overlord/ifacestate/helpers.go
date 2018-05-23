@@ -21,6 +21,7 @@ package ifacestate
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
@@ -48,6 +49,9 @@ func (m *InterfaceManager) initialize(extraInterfaces []interfaces.Interface, ex
 		return err
 	}
 	if err := m.renameCorePlugConnection(); err != nil {
+		return err
+	}
+	if err := removeStaleConnections(m.state); err != nil {
 		return err
 	}
 	if _, err := m.reloadConnections(""); err != nil {
@@ -194,6 +198,46 @@ func (m *InterfaceManager) renameCorePlugConnection() error {
 	return nil
 }
 
+// removeStaleConnections removes stale connections left by some older versions of snapd.
+// Connection is considered stale if the snap on either end of the connection doesn't exist anymore.
+// XXX: this code should eventually go away.
+var removeStaleConnections = func(st *state.State) error {
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+	var staleConns []string
+	for id := range conns {
+		connRef, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			return err
+		}
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, connRef.PlugRef.Snap, &snapst); err != nil {
+			if err != state.ErrNoState {
+				return err
+			}
+			staleConns = append(staleConns, id)
+			continue
+		}
+		if err := snapstate.Get(st, connRef.SlotRef.Snap, &snapst); err != nil {
+			if err != state.ErrNoState {
+				return err
+			}
+			staleConns = append(staleConns, id)
+			continue
+		}
+	}
+	if len(staleConns) > 0 {
+		for _, id := range staleConns {
+			delete(conns, id)
+		}
+		setConns(st, conns)
+		logger.Noticef("removed stale connections: %s", strings.Join(staleConns, ", "))
+	}
+	return nil
+}
+
 // reloadConnections reloads connections stored in the state in the repository.
 // Using non-empty snapName the operation can be scoped to connections
 // affecting a given snap.
@@ -206,6 +250,9 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	}
 	affected := make(map[string]bool)
 	for id, conn := range conns {
+		if conn.Undesired {
+			continue
+		}
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return nil, err
@@ -267,8 +314,11 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string)
 }
 
 type connState struct {
-	Auto             bool                   `json:"auto,omitempty"`
-	Interface        string                 `json:"interface,omitempty"`
+	Auto      bool   `json:"auto,omitempty"`
+	Interface string `json:"interface,omitempty"`
+	// Undesired tracks connections that were manually disconnected after being auto-connected,
+	// so that they are not automatically reconnected again in the future.
+	Undesired        bool                   `json:"undesired,omitempty"`
 	StaticPlugAttrs  map[string]interface{} `json:"plug-static,omitempty"`
 	DynamicPlugAttrs map[string]interface{} `json:"plug-dynamic,omitempty"`
 	StaticSlotAttrs  map[string]interface{} `json:"slot-static,omitempty"`

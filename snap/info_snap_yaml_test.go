@@ -1616,6 +1616,20 @@ apps:
 	})
 }
 
+func (s *YamlSuite) TestSnapYamlWatchdog(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    watchdog-timeout: 12s
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	c.Check(info.Apps["foo"].WatchdogTimeout, Equals, timeout.Timeout(12*time.Second))
+}
+
 func (s *YamlSuite) TestLayout(c *C) {
 	y := []byte(`
 name: foo
