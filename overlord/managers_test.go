@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -208,6 +209,19 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(assertstate.Add(st, a3), IsNil)
 	c.Assert(ms.storeSigning.Add(a3), IsNil)
+
+	// add "some-snap" snap declaration
+	headers = map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "some-snap",
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	headers["snap-id"] = fakeSnapID(headers["snap-name"].(string))
+	a4, err := ms.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, a4), IsNil)
+	c.Assert(ms.storeSigning.Add(a4), IsNil)
 
 	// add core itself
 	snapstate.Set(st, "core", &snapstate.SnapState{
@@ -2114,4 +2128,109 @@ func (ms *mgrsSuite) TestRemoveAndInstallWithAutoconnectHappy(c *C) {
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("remove-snap change failed with: %v", chg.Err()))
 	c.Assert(chg2.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+}
+
+func (ms *mgrsSuite) TestUpdateManyWithCoreConnections(c *C) {
+	someSnapYaml := `name: some-snap
+version: 1.0
+apps:
+   foo:
+        command: bin/bar
+        plugs: [network,home]
+`
+	snapPath, _ := ms.makeStoreTestSnap(c, someSnapYaml, "40")
+	ms.serveSnap(snapPath, "40")
+
+	coreSnapYaml := "name: core\ntype: os\nversion: 30\n"
+	corePath, _ := ms.makeStoreTestSnap(c, coreSnapYaml, "30")
+	ms.serveSnap(corePath, "30")
+
+	mockServer := ms.mockStore(c)
+	defer mockServer.Close()
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("conns", map[string]interface{}{
+		"some-snap:home core:home": map[string]interface{}{"interface": "home"},
+	})
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnap(c, someSnapYaml, si)
+	c.Assert(snapInfo.Plugs, HasLen, 2)
+
+	csi := &snap.SideInfo{RealName: "core", SnapID: fakeSnapID("core"), Revision: snap.R(1)}
+	coreInfo := snaptest.MockSnap(c, "name: core\ntype: os\nversion: 1\n", csi)
+	coreInfo.Slots["network"] = &snap.SlotInfo{
+		Name:      "network",
+		Snap:      coreInfo,
+		Interface: "network",
+	}
+	coreInfo.Slots["home"] = &snap.SlotInfo{
+		Name:      "home",
+		Snap:      coreInfo,
+		Interface: "home",
+	}
+
+	/*snapstate.Set(st, "core", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{csi},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})*/
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	repo := ms.o.InterfaceManager().Repository()
+	iface := &ifacetest.TestInterface{InterfaceName: "network"}
+	repo.AddInterface(iface)
+	c.Assert(repo.AddSnap(snapInfo), IsNil)
+	c.Assert(repo.AddSnap(coreInfo), IsNil)
+
+	emptyAttrs := make(map[string]interface{})
+	_, err := repo.Connect(&interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "home"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "home"}}, emptyAttrs, emptyAttrs, nil)
+	c.Assert(err, IsNil)
+
+	// refresh all
+	err = assertstate.RefreshSnapDeclarations(st, 0)
+	c.Assert(err, IsNil)
+
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"core", "some-snap"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(updates, HasLen, 2)
+	c.Assert(tts, HasLen, 2)
+
+	// to make TaskSnapSetup work
+	chg := st.NewChange("refresh", "...")
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	c.Assert(err, IsNil)
+	st.Lock()
+
+	var conns map[string]interface{}
+	st.Get("conns", &conns)
+	c.Assert(conns, DeepEquals, map[string]interface{}{
+		"some-snap:home core:home":       map[string]interface{}{"interface": "home"},
+		"some-snap:network core:network": map[string]interface{}{"interface": "network"},
+	})
+
+	for _, t := range st.Tasks() {
+		fmt.Printf("%s -> %s\n", t.Kind(), t.Status())
+	}
+
+	connections, err := repo.Connections("some-snap")
+	c.Assert(err, IsNil)
+	c.Assert(connections, HasLen, 2)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
 }

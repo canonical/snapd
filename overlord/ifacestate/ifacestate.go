@@ -90,10 +90,12 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 
 		if k == "unlink-snap" || k == "link-snap" || k == "setup-profiles" {
 			if installedSnapTask != nil {
+				fmt.Printf("RETRY\n")
 				// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op
 				// if snap is getting installed/refreshed - temporary conflict, retry later
 				return &state.Retry{After: connectRetryTimeout}
 			}
+			fmt.Printf("CONFLICT\n")
 			// for connect it's a conflict
 			return snapstate.ChangeConflictError(snapName, task.Change().Kind())
 		}
