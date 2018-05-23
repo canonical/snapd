@@ -102,7 +102,7 @@ plugs:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["home"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`home plug requires "read" be either 'all' or 'owner'`)
+		`home plug requires "read" be 'all'`)
 }
 
 func (s *HomeInterfaceSuite) TestSanitizePlugWithEmptyAttrib(c *C) {
@@ -115,7 +115,20 @@ plugs:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["home"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
-		`home plug requires "read" be either 'all' or 'owner'`)
+		`home plug requires "read" be 'all'`)
+}
+
+func (s *HomeInterfaceSuite) TestSanitizePlugWithBadAttribOwner(c *C) {
+	const mockSnapYaml = `name: home-plug-snap
+version: 1.0
+plugs:
+ home:
+  read: owner
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["home"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
+		`home plug requires "read" be 'all'`)
 }
 
 func (s *HomeInterfaceSuite) TestConnectedPlugAppArmorWithoutAttrib(c *C) {
@@ -125,27 +138,6 @@ func (s *HomeInterfaceSuite) TestConnectedPlugAppArmorWithoutAttrib(c *C) {
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `owner @{HOME}/ r,`)
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), Not(testutil.Contains), `# Allow non-owner read`)
-}
-
-func (s *HomeInterfaceSuite) TestConnectedPlugAppArmorWithAttribOwner(c *C) {
-	const mockSnapYaml = `name: home-plug-snap
-version: 1.0
-plugs:
- home:
-  read: owner
-apps:
- app2:
-  command: foo
-`
-	info := snaptest.MockInfo(c, mockSnapYaml, nil)
-	plug := interfaces.NewConnectedPlug(info.Plugs["home"], nil)
-
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
-	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.home-plug-snap.app2"})
-	c.Check(apparmorSpec.SnippetForTag("snap.home-plug-snap.app2"), testutil.Contains, `owner @{HOME}/ r,`)
-	c.Check(apparmorSpec.SnippetForTag("snap.home-plug-snap.app2"), Not(testutil.Contains), `# Allow non-owner read`)
 }
 
 func (s *HomeInterfaceSuite) TestConnectedPlugAppArmorWithAttribAll(c *C) {
