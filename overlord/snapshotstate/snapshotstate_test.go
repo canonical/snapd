@@ -76,9 +76,12 @@ func (snapshotSuite) TestAllActiveSnapNames(c *check.C) {
 
 	defer snapshotstate.MockSnapstateAll(fakeSnapstateAll)()
 
-	names, err := snapshotstate.AllActiveSnapNames(nil)
-	c.Assert(err, check.IsNil)
-	c.Check(names, check.DeepEquals, []string{"a-snap", "c-snap"})
+	// loop to check sortedness
+	for i := 0; i < 100; i++ {
+		names, err := snapshotstate.AllActiveSnapNames(nil)
+		c.Assert(err, check.IsNil)
+		c.Check(names, check.DeepEquals, []string{"a-snap", "c-snap"})
+	}
 }
 
 func (snapshotSuite) TestAllActiveSnapNamesError(c *check.C) {
@@ -253,7 +256,7 @@ func (snapshotSuite) TestCheckConflict(c *check.C) {
 	// wrong snapshot state
 	tsk.Set("snapshot", "hello")
 	err = snapshotstate.CheckSnapshotChangeConflict(st, 42, "some-change")
-	c.Assert(err, check.ErrorMatches, "internal error.*")
+	c.Assert(err, check.ErrorMatches, "internal error.* could not unmarshal.*")
 
 	tsk.Set("snapshot", map[string]int{"set-id": 42})
 
@@ -306,7 +309,7 @@ func (snapshotSuite) TestSaveChecksSetIDError(c *check.C) {
 	c.Check(err, check.ErrorMatches, ".* could not unmarshal .*")
 }
 
-func (snapshotSuite) TestSaveNoSnaps(c *check.C) {
+func (snapshotSuite) TestSaveNoSnapsInState(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
