@@ -246,12 +246,11 @@ plugs:
 	c.Check(err, NotNil)
 }
 
-func (s *baseDeclSuite) TestHomeReadOwner(c *C) {
+func (s *baseDeclSuite) TestHomeReadDefault(c *C) {
 	const plugYaml = `name: plug-snap
 version: 0
 plugs:
-  home:
-    read: owner
+  home: null
 `
 	restore := release.MockOnClassic(true)
 	defer restore()
