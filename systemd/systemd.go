@@ -406,7 +406,9 @@ func (l Log) PID() string {
 }
 
 // useFuse detects if we should be using squashfuse instead
-func useFuse() bool {
+var useFuse = realUseFuse
+
+func realUseFuse() bool {
 	if !osutil.FileExists("/dev/fuse") {
 		return false
 	}
@@ -426,6 +428,15 @@ func useFuse() bool {
 	}
 
 	return false
+}
+
+// MockUseFuse is exported so useFuse can be overridden by testing.
+func MockUseFuse(r bool) func() {
+	oldUseFuse := useFuse
+	useFuse = func() bool {
+		return r
+	}
+	return func() { useFuse = oldUseFuse }
 }
 
 // MountUnitPath returns the path of a {,auto}mount unit
@@ -450,7 +461,7 @@ func (s *systemd) WriteMountUnitFile(name, revision, what, where, fstype string)
 		case osutil.ExecutableExists("snapfuse"):
 			fstype = "fuse.snapfuse"
 		default:
-			panic("cannot happen because useFuse() ensures on of the two executables is there")
+			panic("cannot happen because useFuse() ensures one of the two executables is there")
 		}
 	}
 
