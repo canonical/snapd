@@ -33,7 +33,7 @@ save_snapd_state() {
         cp -f /etc/systemd/system/snap-*core*.mount "$SNAPD_STATE_PATH"/system-units
     else
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
-        units="$(systemctl list-unit-files --full | grep -e "^$escaped_snap_mount_dir[-.].*\.mount" -e "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
+        units="$(systemctl list-unit-files --full | grep -e "^${escaped_snap_mount_dir}[-.].*\\.mount" -e "^${escaped_snap_mount_dir}[-.].*\\.service" | cut -f1 -d ' ')"
         for unit in $units; do
             systemctl stop "$unit"
         done
@@ -62,7 +62,7 @@ save_snapd_state() {
 }
 
 restore_snapd_state() {
-    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+    if is_core_system; then
         # we need to ensure that we also restore the boot environment
         # fully for tests that break it
         boot_path="$(get_boot_path)"
