@@ -240,9 +240,7 @@ prepare_classic() {
         fi
 
         systemctl stop snapd.{service,socket}
-        systemctl daemon-reload
         save_snapd_state
-        systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         systemctl start snapd.socket
     fi
 

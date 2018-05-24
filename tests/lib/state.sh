@@ -32,6 +32,7 @@ save_snapd_state() {
         cp -rf "$boot_path" "$SNAPD_STATE_PATH"/boot
         cp -f /etc/systemd/system/snap-*core*.mount "$SNAPD_STATE_PATH"/system-units
     else
+        systemctl daemon-reload
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
         units="$(systemctl list-unit-files --full | grep -e "^${escaped_snap_mount_dir}[-.].*\\.mount" -e "^${escaped_snap_mount_dir}[-.].*\\.service" | cut -f1 -d ' ')"
         for unit in $units; do
@@ -49,6 +50,7 @@ save_snapd_state() {
             $snap_confine_profiles \
             $snapd_env
 
+        systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
         core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
         # to prevent errors starting the mount unit
