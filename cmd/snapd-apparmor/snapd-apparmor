@@ -11,6 +11,7 @@
 case "$1" in
 	start)
 		for profile in /var/lib/snapd/apparmor/profiles/*; do
+			# Filter out profiles with names ending with ~, those are temporary files created by snapd.
 			test "${profile%\~}" != "${profile}" && continue
 			echo "$profile"
 		done | xargs \
