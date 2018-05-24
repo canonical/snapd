@@ -526,3 +526,28 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 
 	return infos, nil
 }
+
+// FindSnapsWaitingFor finds all snap names from tasks that wait for given task.
+func FindSnapsWaitingFor(task *state.Task, kinds ...string) map[string]bool {
+	snaps := map[string]bool{}
+	tasks := task.HaltTasks()
+
+	seen := map[string]bool{}
+	for len(tasks) > 0 {
+		t := tasks[0]
+		if seen[t.ID()] {
+			tasks = append(tasks[1:])
+			continue
+		}
+		seen[t.ID()] = true
+		tasks = append(tasks[1:], t.HaltTasks()...)
+		for _, kind := range kinds {
+			if t.Kind() == kind {
+				if snapsup, err := snapstate.TaskSnapSetup(t); err == nil {
+					snaps[snapsup.Name()] = true
+				}
+			}
+		}
+	}
+	return snaps
+}
