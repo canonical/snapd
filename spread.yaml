@@ -532,7 +532,7 @@ suites:
             . "$TESTSLIB"/prepare.sh
             #shellcheck source=tests/lib/systems.sh
             . "$TESTSLIB"/systems.sh
-            if is_ubuntu_core_system; then
+            if is_core_system; then
                 prepare_all_snap
             else
                 prepare_classic

@@ -127,7 +127,7 @@ reset_all_snap() {
     fi
 }
 
-if is_ubuntu_core_system; then
+if is_core_system; then
     reset_all_snap "$@"
 else
     reset_classic "$@"
