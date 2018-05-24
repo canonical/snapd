@@ -21,7 +21,7 @@ prepare: |
     . "$TESTSLIB"/systems.sh
 
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_ubuntu_core_system; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -58,7 +58,7 @@ restore: |
 
     rm -f stderr.out
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_ubuntu_core_system; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -74,7 +74,7 @@ execute: |
     . "$TESTSLIB"/systems.sh
 
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_ubuntu_core_system; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then

@@ -16,7 +16,7 @@ execute: |
         echo "$output" | MATCH "$expected"
     done
 
-    if is_ubuntu_core_system; then
+    if is_core_system; then
         # no holding
         ! echo "$output" | MATCH "^hold:"
     else
