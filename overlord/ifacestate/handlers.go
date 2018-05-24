@@ -545,8 +545,6 @@ func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	task.SetStatus(state.DoneStatus)
-
 	// Create connect tasks and interface hooks
 	connectts := state.NewTaskSet()
 	for _, conn := range connections {
@@ -558,6 +556,8 @@ func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapstate.InjectTasks(task, connectts)
+
+	task.SetStatus(state.DoneStatus)
 
 	st.EnsureBefore(0)
 	return nil
@@ -745,8 +745,6 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	task.SetStatus(state.DoneStatus)
-
 	// Create connect tasks and interface hooks
 	for _, conn := range newconns {
 		ts, err := ConnectOnInstall(st, chg, task, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
@@ -756,6 +754,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		autots.AddAll(ts)
 	}
 	snapstate.InjectTasks(task, autots)
+
+	task.SetStatus(state.DoneStatus)
 
 	st.EnsureBefore(0)
 	return nil
