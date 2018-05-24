@@ -24,11 +24,9 @@ package policy
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -125,68 +123,22 @@ type ConnectCandidate struct {
 	SlotSnapDeclaration *asserts.SnapDeclaration
 
 	BaseDeclaration *asserts.BaseDeclaration
-
-	// Static + dynamic attributes, merged lazily by plugAttrs/slotAttrs below (FIXME: remove it)
-	mergedPlugAttrs map[string]interface{}
-	mergedSlotAttrs map[string]interface{}
 }
 
-func mergedAttributes(staticAttrs, dynamicAttrs map[string]interface{}, errorContext string) map[string]interface{} {
-	merged := make(map[string]interface{})
-	for k, v := range staticAttrs {
-		merged[k] = v
+func nestedGet(which string, attrs interfaces.Attrer, path string) (interface{}, error) {
+	val, ok := attrs.Lookup(path)
+	if !ok {
+		return nil, fmt.Errorf("%s attribute %q not found", which, path)
 	}
-	for k, v := range dynamicAttrs {
-		if _, ok := merged[k]; ok {
-			// Safeguard. This should never happen as it's prevented
-			// when attributes are populated at higher levels.
-			logger.Noticef("internal error: attempted to overwrite static attribute %q (%s)", k, errorContext)
-			continue
-		}
-		merged[k] = v
-	}
-	return merged
-}
-
-func (connc *ConnectCandidate) plugAttrs() map[string]interface{} {
-	// FIXME: change policy code to use Attrer interface, remove merging.
-	if connc.mergedPlugAttrs == nil {
-		connc.mergedPlugAttrs = mergedAttributes(connc.Plug.StaticAttrs(), connc.Plug.DynamicAttrs(), fmt.Sprintf("plug %q of snap %q", connc.Plug.Name(), connc.Plug.Snap().Name()))
-	}
-	return connc.mergedPlugAttrs
-}
-
-func (connc *ConnectCandidate) slotAttrs() map[string]interface{} {
-	// FIXME: change policy code to use Attrer interface, remove merging.
-	if connc.mergedSlotAttrs == nil {
-		connc.mergedSlotAttrs = mergedAttributes(connc.Slot.StaticAttrs(), connc.Slot.DynamicAttrs(), fmt.Sprintf("slot %q of snap %q", connc.Slot.Name(), connc.Slot.Snap().Name()))
-	}
-	return connc.mergedSlotAttrs
-}
-
-func nestedGet(which string, attrs map[string]interface{}, path string) (interface{}, error) {
-	notFound := fmt.Errorf("%s attribute %q not found", which, path)
-	comps := strings.Split(path, ".")
-	var v interface{} = attrs
-	for _, comp := range comps {
-		m, ok := v.(map[string]interface{})
-		if !ok {
-			return nil, notFound
-		}
-		v, ok = m[comp]
-		if !ok {
-			return nil, notFound
-		}
-	}
-	return v, nil
+	return val, nil
 }
 
 func (connc *ConnectCandidate) PlugAttr(arg string) (interface{}, error) {
-	return nestedGet("plug", connc.plugAttrs(), arg)
+	return nestedGet("plug", connc.Plug, arg)
 }
 
 func (connc *ConnectCandidate) SlotAttr(arg string) (interface{}, error) {
-	return nestedGet("slot", connc.slotAttrs(), arg)
+	return nestedGet("slot", connc.Slot, arg)
 }
 
 func (connc *ConnectCandidate) plugSnapType() snap.Type {
