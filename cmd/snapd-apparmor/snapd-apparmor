@@ -14,7 +14,7 @@ case "$1" in
 			test "${profile%\~}" != "${profile}" && continue
 			echo "$profile"
 		done | xargs \
-			-P$(getconf _NPROCESSORS_ONLN) \
+			-P"$(getconf _NPROCESSORS_ONLN)" \
 			apparmor_parser \
 			--replace \
 			--write-cache \
