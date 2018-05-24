@@ -545,6 +545,7 @@ func FindSnapsWaitingFor(task *state.Task, kinds ...string) map[string]bool {
 			if t.Kind() == kind {
 				if snapsup, err := snapstate.TaskSnapSetup(t); err == nil {
 					snaps[snapsup.Name()] = true
+					break
 				}
 			}
 		}
