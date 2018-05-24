@@ -319,7 +319,7 @@ func (s *interfaceManagerSuite) TestConnectDoesntConflict(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *interfaceManagerSuite) testConnectDoesntConflictOnInstalledSnap(c *C, installedSnapTaskKind string, connectFunc func(*state.State, *state.Change, *state.Task, string, string, string, string) (*state.TaskSet, error), autoFlag bool) {
+func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstalledSnap(c *C) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -336,22 +336,18 @@ func (s *interfaceManagerSuite) testConnectDoesntConflictOnInstalledSnap(c *C, i
 	t.Set("snap-setup", sup)
 	chg.AddTask(t)
 
-	t = s.state.NewTask(installedSnapTaskKind, "...")
+	t = s.state.NewTask("auto-connect", "...")
 	t.Set("snap-setup", sup)
 	chg.AddTask(t)
 
-	ts, err := connectFunc(s.state, chg, t, "consumer", "plug", "producer", "slot")
+	ts, err := ifacestate.ConnectOnInstall(s.state, chg, t, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 5)
 	connectTask := ts.Tasks()[2]
 	c.Assert(connectTask.Kind(), Equals, "connect")
 	var auto bool
 	connectTask.Get("auto", &auto)
-	c.Assert(auto, Equals, autoFlag)
-}
-
-func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstalledSnap(c *C) {
-	s.testConnectDoesntConflictOnInstalledSnap(c, "auto-connect", ifacestate.ConnectOnInstall, true)
+	c.Assert(auto, Equals, auto)
 }
 
 func (s *interfaceManagerSuite) testConnectConflicts(c *C, installedSnapTaskKind string, conflictingKind string) {
@@ -370,7 +366,7 @@ func (s *interfaceManagerSuite) testConnectConflicts(c *C, installedSnapTaskKind
 	chg1.AddTask(t1)
 
 	chg := s.state.NewChange("other-chg", "...")
-	t2 := s.state.NewTask(installedSnapTaskKind, "...")
+	t2 := s.state.NewTask("auto-connect", "...")
 	t2.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "producer"},
@@ -378,7 +374,7 @@ func (s *interfaceManagerSuite) testConnectConflicts(c *C, installedSnapTaskKind
 
 	chg.AddTask(t2)
 
-	err := ifacestate.CheckConnectConflicts(s.state, chg, "consumer", "producer", t2)
+	err := ifacestate.CheckConnectConflicts(s.state, chg, "consumer", "producer", t2, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `task should be retried`)
 }
@@ -397,10 +393,6 @@ func (s *interfaceManagerSuite) TestReconnectConflictOnUnlink(c *C) {
 
 func (s *interfaceManagerSuite) TestReconnectConflictOnLink(c *C) {
 	s.testConnectConflicts(c, "reconnect", "link-snap")
-}
-
-func (s *interfaceManagerSuite) TestReconnectDoesntConflictOnInstalledSnap(c *C) {
-	s.testConnectDoesntConflictOnInstalledSnap(c, "reconnect", ifacestate.ConnectOnInstall, false)
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
@@ -2947,4 +2939,17 @@ func (s *interfaceManagerSuite) TestFindSnapsWaitingFor(c *C) {
 
 	snaps = ifacestate.FindSnapsWaitingFor(t4, "x")
 	c.Assert(len(snaps), Equals, 0)
+
+	// create cycle
+	t1 = s.state.NewTask("a", "")
+	makeSetup(t1, "snap1")
+	t2 = s.state.NewTask("b", "")
+	makeSetup(t2, "snap2")
+	t1.WaitFor(t2)
+	t2.WaitFor(t1)
+	snaps = ifacestate.FindSnapsWaitingFor(t1, "b")
+
+	c.Assert(snaps, DeepEquals, map[string]bool{
+		"snap2": true,
+	})
 }

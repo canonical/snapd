@@ -22,47 +22,47 @@ package testutil
 import (
 	"os/exec"
 
-	. "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
 type mockCommandSuite struct{}
 
-var _ = Suite(&mockCommandSuite{})
+var _ = check.Suite(&mockCommandSuite{})
 
 const (
 	UmountNoFollow = umountNoFollow
 )
 
-func (s *mockCommandSuite) TestMockCommand(c *C) {
+func (s *mockCommandSuite) TestMockCommand(c *check.C) {
 	mock := MockCommand(c, "cmd", "true")
 	defer mock.Restore()
 	err := exec.Command("cmd", "first-run", "--arg1", "arg2", "a space").Run()
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 	err = exec.Command("cmd", "second-run", "--arg1", "arg2", "a %s").Run()
-	c.Assert(err, IsNil)
-	c.Assert(mock.Calls(), DeepEquals, [][]string{
+	c.Assert(err, check.IsNil)
+	c.Assert(mock.Calls(), check.DeepEquals, [][]string{
 		{"cmd", "first-run", "--arg1", "arg2", "a space"},
 		{"cmd", "second-run", "--arg1", "arg2", "a %s"},
 	})
 }
 
-func (s *mockCommandSuite) TestMockCommandAlso(c *C) {
+func (s *mockCommandSuite) TestMockCommandAlso(c *check.C) {
 	mock := MockCommand(c, "fst", "")
 	also := mock.Also("snd", "")
 	defer mock.Restore()
 
-	c.Assert(exec.Command("fst").Run(), IsNil)
-	c.Assert(exec.Command("snd").Run(), IsNil)
-	c.Check(mock.Calls(), DeepEquals, [][]string{{"fst"}, {"snd"}})
-	c.Check(mock.Calls(), DeepEquals, also.Calls())
+	c.Assert(exec.Command("fst").Run(), check.IsNil)
+	c.Assert(exec.Command("snd").Run(), check.IsNil)
+	c.Check(mock.Calls(), check.DeepEquals, [][]string{{"fst"}, {"snd"}})
+	c.Check(mock.Calls(), check.DeepEquals, also.Calls())
 }
 
-func (s *mockCommandSuite) TestMockCommandConflictEcho(c *C) {
+func (s *mockCommandSuite) TestMockCommandConflictEcho(c *check.C) {
 	mock := MockCommand(c, "do-not-swallow-echo-args", "")
 	defer mock.Restore()
 
-	c.Assert(exec.Command("do-not-swallow-echo-args", "-E", "-n", "-e").Run(), IsNil)
-	c.Assert(mock.Calls(), DeepEquals, [][]string{
+	c.Assert(exec.Command("do-not-swallow-echo-args", "-E", "-n", "-e").Run(), check.IsNil)
+	c.Assert(mock.Calls(), check.DeepEquals, [][]string{
 		{"do-not-swallow-echo-args", "-E", "-n", "-e"},
 	})
 }

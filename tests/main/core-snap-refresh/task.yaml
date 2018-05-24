@@ -11,13 +11,14 @@ restore: |
     rm -f prevBoot nextBoot
 
 execute: |
+    #shellcheck source=tests/lib/boot.sh
     . $TESTSLIB/boot.sh
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # save current core revision
         snap list | awk "/^core / {print(\$3)}" > prevBoot
 
         # refresh
-        snap refresh core --${NEW_CORE_CHANNEL}
+        snap refresh core "--${NEW_CORE_CHANNEL}"
 
         # check boot env vars
         snap list | awk "/^core / {print(\$3)}" > nextBoot
