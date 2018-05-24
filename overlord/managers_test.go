@@ -44,7 +44,6 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -2135,20 +2134,22 @@ func (ms *mgrsSuite) TestRemoveAndInstallWithAutoconnectHappy(c *C) {
 }
 
 func (ms *mgrsSuite) TestUpdateManyWithCoreConnections(c *C) {
-	ms.prereqSnapAssertions(c) // is this needed?
-
-	someSnapYaml := `name: some-snap
+	const someSnapYaml = `name: some-snap
 version: 1.0
 apps:
    foo:
         command: bin/bar
         plugs: [network,home]
 `
+
+	const coreSnapYaml = `name: core
+type: os
+version: @VERSION@`
+
 	snapPath, _ := ms.makeStoreTestSnap(c, someSnapYaml, "40")
 	ms.serveSnap(snapPath, "40")
 
-	coreSnapYaml := "name: core\ntype: os\nversion: 30\n"
-	corePath, _ := ms.makeStoreTestSnap(c, coreSnapYaml, "30")
+	corePath, _ := ms.makeStoreTestSnap(c, strings.Replace(coreSnapYaml, "@VERSION@", "30", -1), "30")
 	ms.serveSnap(corePath, "30")
 
 	mockServer := ms.mockStore(c)
@@ -2158,8 +2159,15 @@ apps:
 	st.Lock()
 	defer st.Unlock()
 
+	// have home interface connected;
+	// set plug-dynamic attributes as a canary, it should be removed on reconnect.
 	st.Set("conns", map[string]interface{}{
-		"some-snap:home core:home": map[string]interface{}{"interface": "home"},
+		"some-snap:home core:home": map[string]interface{}{
+			"interface": "home",
+			"plug-dynamic": map[string]interface{}{
+				"this-should-get-removed": "1234",
+			},
+		},
 	})
 
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
@@ -2167,7 +2175,9 @@ apps:
 	c.Assert(snapInfo.Plugs, HasLen, 2)
 
 	csi := &snap.SideInfo{RealName: "core", SnapID: fakeSnapID("core"), Revision: snap.R(1)}
-	coreInfo := snaptest.MockSnap(c, "name: core\ntype: os\nversion: 1\n", csi)
+	coreInfo := snaptest.MockSnap(c, strings.Replace(coreSnapYaml, "@VERSION@", "1", -1), csi)
+
+	// add implicit slots
 	coreInfo.Slots["network"] = &snap.SlotInfo{
 		Name:      "network",
 		Snap:      coreInfo,
@@ -2187,13 +2197,18 @@ apps:
 	})
 
 	repo := ms.o.InterfaceManager().Repository()
-	iface := &ifacetest.TestInterface{InterfaceName: "network"}
-	repo.AddInterface(iface)
+
+	// add snaps to the repo to have plugs/slots
 	c.Assert(repo.AddSnap(snapInfo), IsNil)
 	c.Assert(repo.AddSnap(coreInfo), IsNil)
 
 	emptyAttrs := make(map[string]interface{})
-	_, err := repo.Connect(&interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "home"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "home"}}, emptyAttrs, emptyAttrs, nil)
+
+	// connect home interface
+	_, err := repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "some-snap", Name: "home"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "home"}},
+		emptyAttrs, emptyAttrs, nil)
 	c.Assert(err, IsNil)
 
 	// refresh all
@@ -2219,13 +2234,16 @@ apps:
 	c.Assert(err, IsNil)
 
 	// simulate successful restart happened
-	state.MockRestarting(st, false)
+	state.MockRestarting(st, state.RestartUnset)
 	st.Unlock()
 
 	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// check that network got auto-connected and home was reconnected
 	var conns map[string]interface{}
 	st.Get("conns", &conns)
 	c.Assert(conns, DeepEquals, map[string]interface{}{
@@ -2236,6 +2254,4 @@ apps:
 	connections, err := repo.Connections("some-snap")
 	c.Assert(err, IsNil)
 	c.Assert(connections, HasLen, 2)
-
-	c.Assert(chg.Status(), Equals, state.DoneStatus)
 }

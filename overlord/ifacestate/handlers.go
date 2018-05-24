@@ -552,8 +552,7 @@ func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 	for _, conn := range connections {
 		ts, err := ConnectOnInstall(st, chg, task, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
 		if err != nil {
-			task.Logf("cannot reconnect %q: %s", conn, err)
-			continue
+			return fmt.Errorf("cannot reconnect %q: %s", conn, err)
 		}
 		connectts.AddAll(ts)
 	}
@@ -754,8 +753,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	for _, conn := range newconns {
 		ts, err := ConnectOnInstall(st, chg, task, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
 		if err != nil {
-			task.Logf("internal error: auto-connect of %q failed: %s", conn, err)
-			continue
+			return fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
 		}
 		autots.AddAll(ts)
 	}
