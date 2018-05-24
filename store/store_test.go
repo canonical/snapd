@@ -3134,7 +3134,7 @@ func (s *storeTestSuite) TestFindAuthFailed(c *C) {
 	c.Check(snaps[0].MustBuy, Equals, true)
 }
 
-func (s *storeTestSuite) TestFindCommonIds(c *C) {
+func (s *storeTestSuite) TestFindCommonIDs(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", searchPath)
@@ -3172,7 +3172,7 @@ func (s *storeTestSuite) TestFindCommonIds(c *C) {
 	infos, err := sto.Find(&Search{Query: "foo"}, nil)
 	c.Check(err, IsNil)
 	c.Assert(infos, HasLen, 1)
-	c.Check(infos[0].CommonIds, DeepEquals, []string{"org.hello"})
+	c.Check(infos[0].CommonIDs, DeepEquals, []string{"org.hello"})
 }
 
 func (s *storeTestSuite) TestCurrentSnap(c *C) {

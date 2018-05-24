@@ -76,7 +76,7 @@ type appYaml struct {
 	PlugNames   []string         `yaml:"plugs,omitempty"`
 
 	BusName  string `yaml:"bus-name,omitempty"`
-	CommonId string `yaml:"common-id,omitempty"`
+	CommonID string `yaml:"common-id,omitempty"`
 
 	Environment strutil.OrderedMap `yaml:"environment,omitempty"`
 
@@ -300,7 +300,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			PostStopCommand: yApp.PostStopCommand,
 			RestartCond:     yApp.RestartCond,
 			BusName:         yApp.BusName,
-			CommonId:        yApp.CommonId,
+			CommonID:        yApp.CommonID,
 			Environment:     yApp.Environment,
 			Completer:       yApp.Completer,
 			StopMode:        yApp.StopMode,
@@ -372,8 +372,8 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) error {
 			}
 		}
 		// collect all common IDs
-		if app.CommonId != "" {
-			snap.CommonIds = append(snap.CommonIds, app.CommonId)
+		if app.CommonID != "" {
+			snap.CommonIDs = append(snap.CommonIDs, app.CommonID)
 		}
 	}
 	return nil

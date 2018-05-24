@@ -145,7 +145,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		Confinement:   client.StrictConfinement,
 		Private:       true,
 		DevMode:       false,
-		CommonIds:     []string{"org.funky.snap"},
+		CommonIDs:     []string{"org.funky.snap"},
 	}})
 }
 
@@ -230,7 +230,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			{URL: "http://example.com/shot1.png", Width: 640, Height: 480},
 			{URL: "http://example.com/shot2.png"},
 		},
-		CommonIds: []string{"org.funky.snap"},
+		CommonIDs: []string{"org.funky.snap"},
 	})
 }
 

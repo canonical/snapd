@@ -609,7 +609,7 @@ UnitFileState=potatoes
 				}, {
 					// has AppStream ID
 					Snap: "foo", Name: "cmd3",
-					CommonId: "org.foo.cmd",
+					CommonID: "org.foo.cmd",
 				}, {
 					// services
 					Snap: "foo", Name: "svc1",
@@ -636,7 +636,7 @@ UnitFileState=potatoes
 			Broken:    "",
 			Contact:   "",
 			License:   "GPL-3.0",
-			CommonIds: []string{"org.foo.cmd"},
+			CommonIDs: []string{"org.foo.cmd"},
 		},
 		Meta: meta,
 	}
@@ -1640,7 +1640,7 @@ func (s *apiSuite) TestFindSection(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestFindCommonId(c *check.C) {
+func (s *apiSuite) TestFindCommonID(c *check.C) {
 	s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
@@ -1648,7 +1648,7 @@ func (s *apiSuite) TestFindCommonId(c *check.C) {
 			RealName: "store",
 		},
 		Publisher: "foo",
-		CommonIds: []string{"org.foo"},
+		CommonIDs: []string{"org.foo"},
 	}}
 	s.mockSnap(c, "name: store\nversion: 1.0")
 

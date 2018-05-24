@@ -87,11 +87,11 @@ func (cs *clientSuite) TestClientServiceGetSad(c *check.C) {
 	}
 }
 
-func (cs *clientSuite) TestClientAppCommonId(c *check.C) {
+func (cs *clientSuite) TestClientAppCommonID(c *check.C) {
 	expected := []*client.AppInfo{{
 		Snap:     "foo",
 		Name:     "foo",
-		CommonId: "org.foo",
+		CommonID: "org.foo",
 	}}
 	buf, err := json.Marshal(expected)
 	c.Assert(err, check.IsNil)
