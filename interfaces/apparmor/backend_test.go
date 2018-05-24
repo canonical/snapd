@@ -751,9 +751,10 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileF
 	c.Assert(cmd.Calls(), HasLen, 1)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{{
 		"apparmor_parser", "--replace",
-		"-O", "no-expr-simplify",
 		"--write-cache",
-		"--cache-loc", dirs.SystemApparmorCacheDir,
+		"-O", "no-expr-simplify",
+		"--cache-loc=" + dirs.SystemApparmorCacheDir,
+		"--quiet",
 		profilePath,
 	}})
 }
@@ -888,7 +889,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 
 	// Setup generated policy for snap-confine.
 	err = (&apparmor.Backend{}).Initialize()
-	c.Assert(err, ErrorMatches, "cannot reload snap-confine apparmor profile: testing")
+	c.Assert(err, ErrorMatches, "cannot reload snap-confine apparmor profile: .*\n.*\ntesting\n")
 
 	// While created the policy file initially we also removed it so that
 	// no side-effects remain.
@@ -1045,9 +1046,10 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithOverlay(c *C, prof
 	c.Assert(cmd.Calls(), HasLen, 1)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{{
 		"apparmor_parser", "--replace",
-		"-O", "no-expr-simplify",
 		"--write-cache",
-		"--cache-loc", dirs.SystemApparmorCacheDir,
+		"-O", "no-expr-simplify",
+		"--cache-loc=" + dirs.SystemApparmorCacheDir,
+		"--quiet",
 		profilePath,
 	}})
 }
