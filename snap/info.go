@@ -195,6 +195,9 @@ type Info struct {
 	Tracks []string
 
 	Layout map[string]*Layout
+
+	// The list of common-ids from all apps of the snap
+	CommonIds []string
 }
 
 // Layout describes a single element of the layout section.
@@ -636,7 +639,8 @@ type AppInfo struct {
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
 	// https://github.com/snapcore/snapd/pull/794#discussion_r58688496
-	BusName string
+	BusName  string
+	CommonId string
 
 	Plugs   map[string]*PlugInfo
 	Slots   map[string]*SlotInfo
