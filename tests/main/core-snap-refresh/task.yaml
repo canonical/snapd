@@ -12,7 +12,11 @@ restore: |
 
 execute: |
     #shellcheck source=tests/lib/boot.sh
-    . $TESTSLIB/boot.sh
+    . "$TESTSLIB"/boot.sh
+
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # save current core revision
         snap list | awk "/^core / {print(\$3)}" > prevBoot
@@ -23,7 +27,7 @@ execute: |
         # check boot env vars
         snap list | awk "/^core / {print(\$3)}" > nextBoot
 
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             test "$(bootenv snap_core)" = "core_$(cat prevBoot).snap"
             test "$(bootenv snap_try_core)" = "core_$(cat nextBoot).snap"
         fi
@@ -40,7 +44,7 @@ execute: |
         sleep 1
     done
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+    if is_core_system; then
         test "$(bootenv snap_core)" = "core_$(cat nextBoot).snap"
         test "$(bootenv snap_try_core)" = ""
     fi

@@ -17,8 +17,11 @@ environment:
     STORE_TYPE/strict_remote,classic_remote: ${REMOTE_STORE}
 
 prepare: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -50,9 +53,12 @@ prepare: |
     fi
 
 restore: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     rm -f stderr.out
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -64,8 +70,11 @@ restore: |
     fi
 
 execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     if [ "$STORE_TYPE" = "fake" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        if is_core_system; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
