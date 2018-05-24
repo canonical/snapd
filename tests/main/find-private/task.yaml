@@ -16,6 +16,9 @@ restore: |
     snap logout || true
 
 execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     echo "When a snap is private it doesn't show up in the find without login and without specifying private search"
     ! snap find test-snapd-private | MATCH 'test-snapd-private +[0-9]+\.[0-9]+'
 
@@ -24,7 +27,7 @@ execute: |
 
     echo "Given account store credentials are available"
     # we don't have expect available on ubuntu-core, so the authenticated check need to be skipped on those systems
-    if [ ! -z "$SPREAD_STORE_USER" ] && [ ! -z "$SPREAD_STORE_PASSWORD" ] && [[ ! "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+    if [ ! -z "$SPREAD_STORE_USER" ] && [ ! -z "$SPREAD_STORE_PASSWORD" ] && is_classic_system; then
         echo "And the user has logged in"
         expect -f "$TESTSLIB"/successful_login.exp
 
