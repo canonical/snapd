@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -79,9 +80,9 @@ func (s *SnapSuite) TestLoginAskEmail(c *C) {
 	// test slightly ugly, on a real system STDOUT will be:
 	//    Email address: foo@example.com\n
 	// because the input to stdin is echoed
-	c.Check(s.Stdout(), Equals, `Email address: Password of "foo@example.com": 
+	c.Check(strings.HasSuffix(s.Stdout(), `Email address: Password of "foo@example.com": 
 Login successful
-`)
+`), Equals, true)
 	c.Check(s.Stderr(), Equals, "")
 	c.Check(n, Equals, 1)
 }
