@@ -360,10 +360,10 @@ func (b *Backend) Remove(snapName string) error {
 
 var (
 	templatePattern = regexp.MustCompile("(###[A-Z_]+###)")
-	attachPattern   = regexp.MustCompile(`\(attach_disconnected\)`)
+	attachPattern   = regexp.MustCompile(`\(attach_disconnected,mediate_deleted\)`)
 )
 
-const attachComplain = "(attach_disconnected,complain)"
+const attachComplain = "(attach_disconnected,mediate_deleted,complain)"
 
 func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]*osutil.FileState, err error) {
 	content = make(map[string]*osutil.FileState, len(snapInfo.Apps)+len(snapInfo.Hooks)+1)
