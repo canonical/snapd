@@ -544,7 +544,7 @@ suites:
             #shellcheck source=tests/lib/reset.sh
             "$TESTSLIB"/reset.sh
             #shellcheck source=tests/lib/systems.sh
-            "$TESTSLIB"/systems.sh
+            . "$TESTSLIB"/systems.sh
             if is_classic_system; then
                 #shellcheck source=tests/lib/pkgdb.sh
                 . "$TESTSLIB"/pkgdb.sh
@@ -565,13 +565,13 @@ suites:
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
-            . $TESTSLIB/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu genisoimage sshpass
             snap install --classic --beta ubuntu-image
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
-            . $TESTSLIB/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass
             snap remove ubuntu-image
 
