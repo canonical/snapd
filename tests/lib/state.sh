@@ -1,7 +1,7 @@
 #!/bin/bash
 
-SNAPD_STATE_PATH="$SPREAD_PATH"/snapd-state
-SNAPD_STATE_FILE="$SPREAD_PATH"/snapd-state.tar
+SNAPD_STATE_PATH="$SPREAD_PATH/tests/snapd-state"
+SNAPD_STATE_FILE="$SPREAD_PATH/tests/snapd-state.tar"
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
