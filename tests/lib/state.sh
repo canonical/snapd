@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 SNAPD_STATE_PATH="$SPREAD_PATH/tests/snapd-state"
 SNAPD_STATE_FILE="$SPREAD_PATH/tests/snapd-state.tar"
@@ -9,8 +9,11 @@ SNAPD_STATE_FILE="$SPREAD_PATH/tests/snapd-state.tar"
 # shellcheck source=tests/lib/boot.sh
 . "$TESTSLIB/boot.sh"
 
+# shellcheck source=tests/lib/systems.sh
+. "$TESTSLIB/systems.sh"
+
 delete_snapd_state() {
-    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+    if is_core_system; then
         rm -rf "$SNAPD_STATE_PATH"
     else
         rm -f "$SNAPD_STATE_FILE"
@@ -18,7 +21,7 @@ delete_snapd_state() {
 }
 
 save_snapd_state() {
-    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+    if is_core_system; then
         boot_path="$(get_boot_path)"
         test -n "$boot_path" || return 1
 
@@ -49,7 +52,7 @@ save_snapd_state() {
         core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
         # on 14.04 it is possible that the core snap is still mounted at this point, unmount
         # to prevent errors starting the mount unit
-        if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && mount | grep -q "$core"; then
+        if is_ubuntu_14_system && mount | grep -q "$core"; then
             umount "$core" || true
         fi
         for unit in $units; do
