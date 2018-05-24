@@ -184,7 +184,11 @@ func SetRootDir(rootdir string) {
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", UserHomeSnapDir)
-	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
+	if release.DistroLike("opensuse") {
+		SnapAppArmorDir = filepath.Join(rootdir, "/etc/apparmor.d")
+	} else {
+		SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
+	}
 	SnapConfineAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine")
 	AppArmorCacheDir = filepath.Join(rootdir, "/var/cache/apparmor")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
