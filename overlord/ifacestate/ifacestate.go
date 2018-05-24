@@ -43,7 +43,7 @@ var noConflictOnConnectTasks = func(task *state.Task) bool {
 
 var connectRetryTimeout = time.Second * 5
 
-func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slotSnap string, installedSnapTask *state.Task) error {
+func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slotSnap string, installedSnapTask *state.Task, waiting map[string]bool) error {
 	if installedSnapTask == nil {
 		for _, chg := range st.Changes() {
 			if chg.Kind() == "transition-ubuntu-core" {
@@ -90,12 +90,13 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 
 		if k == "unlink-snap" || k == "link-snap" || k == "setup-profiles" {
 			if installedSnapTask != nil {
-				fmt.Printf("RETRY\n")
+				if waiting != nil && waiting[snapName] {
+					continue
+				}
 				// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op
 				// if snap is getting installed/refreshed - temporary conflict, retry later
 				return &state.Retry{After: connectRetryTimeout}
 			}
-			fmt.Printf("CONFLICT\n")
 			// for connect it's a conflict
 			return snapstate.ChangeConflictError(snapName, task.Change().Kind())
 		}
@@ -112,7 +113,7 @@ func ConnectOnInstall(st *state.State, change *state.Change, mainTask *state.Tas
 // Connect returns a set of tasks for connecting an interface.
 //
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	if err := checkConnectConflicts(st, nil, plugSnap, slotSnap, nil); err != nil {
+	if err := checkConnectConflicts(st, nil, plugSnap, slotSnap, nil, nil); err != nil {
 		return nil, err
 	}
 

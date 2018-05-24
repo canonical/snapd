@@ -536,6 +536,24 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func FindSnapsWaitingFor(task *state.Task, kinds ...string) map[string]bool {
+	snaps := map[string]bool{}
+	tasks := task.HaltTasks()
+
+	for len(tasks) > 0 {
+		t := tasks[0]
+		tasks = append(tasks[1:], t.HaltTasks()...)
+		for _, kind := range kinds {
+			if t.Kind() == kind {
+				if snapsup, err := snapstate.TaskSnapSetup(t); err == nil {
+					snaps[snapsup.Name()] = true
+				}
+			}
+		}
+	}
+	return snaps
+}
+
 // doReconnect creates a set of tasks for connecting the interface and running its hooks
 func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
@@ -553,10 +571,12 @@ func (m *InterfaceManager) doReconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	waitingOnUs := FindSnapsWaitingFor(task, "reconnect")
+
 	// Check for conflicts first and only create all tasks if we're clear of conflicts
 	chg := task.Change()
 	for _, conn := range connections {
-		if err := checkConnectConflicts(st, chg, conn.PlugRef.Snap, conn.SlotRef.Snap, task); err != nil {
+		if err := checkConnectConflicts(st, chg, conn.PlugRef.Snap, conn.SlotRef.Snap, task, waitingOnUs); err != nil {
 			return err
 		}
 	}
@@ -683,6 +703,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	var newconns []*interfaces.ConnRef
 
+	waitingOnUs := FindSnapsWaitingFor(task, "auto-connect")
+
 	chg := task.Change()
 	// Auto-connect all the plugs
 	for _, plug := range m.repo.Plugs(snapName) {
@@ -719,7 +741,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			continue
 		}
 
-		if err := checkConnectConflicts(st, chg, plug.Snap.Name(), slot.Snap.Name(), task); err != nil {
+		if err := checkConnectConflicts(st, chg, plug.Snap.Name(), slot.Snap.Name(), task, waitingOnUs); err != nil {
 			task.Logf("cannot auto-connect slot %s to %s: %s", connRef.SlotRef, connRef.PlugRef, err)
 			continue
 		}
@@ -754,7 +776,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				// NOTE: we don't log anything here as this is a normal and common condition.
 				continue
 			}
-			if err := checkConnectConflicts(st, chg, plug.Snap.Name(), slot.Snap.Name(), task); err != nil {
+			if err := checkConnectConflicts(st, chg, plug.Snap.Name(), slot.Snap.Name(), task, waitingOnUs); err != nil {
 				task.Logf("cannot auto-connect slot %s to %s: %s", connRef.SlotRef, connRef.PlugRef, err)
 				continue
 			}

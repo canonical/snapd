@@ -145,6 +145,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.serveIDtoName = make(map[string]string)
 	ms.serveSnapPath = make(map[string]string)
 	ms.serveRevision = make(map[string]string)
+	ms.hijackServeSnap = nil
 
 	snapSeccompPath := filepath.Join(dirs.DistroLibExecDir, "snap-seccomp")
 	err = os.MkdirAll(filepath.Dir(snapSeccompPath), 0755)
@@ -382,7 +383,7 @@ const (
         "download": {
             "url": "@URL@"
         },
-        "type": "app",
+        "type": "@TYPE@",
 	"name": "@NAME@",
 	"revision": @REVISION@,
 	"snap-id": "@SNAPID@",
@@ -468,6 +469,7 @@ func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 		hit = strings.Replace(hit, "@ICON@", baseURL.String()+"/icon", -1)
 		hit = strings.Replace(hit, "@VERSION@", info.Version, -1)
 		hit = strings.Replace(hit, "@REVISION@", ms.serveRevision[name], -1)
+		hit = strings.Replace(hit, `@TYPE@`, string(info.Type), -1)
 		return hit
 	}
 
@@ -2131,6 +2133,8 @@ func (ms *mgrsSuite) TestRemoveAndInstallWithAutoconnectHappy(c *C) {
 }
 
 func (ms *mgrsSuite) TestUpdateManyWithCoreConnections(c *C) {
+	ms.prereqSnapAssertions(c) // is this needed?
+
 	someSnapYaml := `name: some-snap
 version: 1.0
 apps:
@@ -2173,13 +2177,6 @@ apps:
 		Interface: "home",
 	}
 
-	/*snapstate.Set(st, "core", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{csi},
-		Current:  snap.R(1),
-		SnapType: "os",
-	})*/
-
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{si},
@@ -2213,9 +2210,19 @@ apps:
 	}
 
 	st.Unlock()
+
 	err = ms.o.Settle(settleTimeout)
-	c.Assert(err, IsNil)
+
 	st.Lock()
+	c.Assert(err, IsNil)
+
+	// simulate successful restart happened
+	state.MockRestarting(st, false)
+	st.Unlock()
+
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
 
 	var conns map[string]interface{}
 	st.Get("conns", &conns)
@@ -2223,10 +2230,6 @@ apps:
 		"some-snap:home core:home":       map[string]interface{}{"interface": "home"},
 		"some-snap:network core:network": map[string]interface{}{"interface": "network"},
 	})
-
-	for _, t := range st.Tasks() {
-		fmt.Printf("%s -> %s\n", t.Kind(), t.Status())
-	}
 
 	connections, err := repo.Connections("some-snap")
 	c.Assert(err, IsNil)
