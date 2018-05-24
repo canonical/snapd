@@ -17,8 +17,6 @@ ConditionSecurity=apparmor
 Type=oneshot
 ExecStart=/bin/sh -c 'for prof in /var/lib/snapd/apparmor/profiles/*; do test "${prof%\~}" != "${prof}" && continue; apparmor_parser --replace --write-cache --cache-loc=/var/cache/apparmor -O no-expr-simplify --quiet "$prof"; done'
 ExecReload=/bin/sh -c 'for prof in /var/lib/snapd/apparmor/profiles/*; do test "${prof%\~}" != "${prof}" && continue; apparmor_parser --replace --write-cache --cache-loc=/var/cache/apparmor -O no-expr-simplify --quiet "$prof"; done'
-# systemd maps restart to 'stop; start' and we don't want to remove profiles from running applications.
-ExecStop=/bin/true
 RemainAfterExit=yes
 
 [Install]
