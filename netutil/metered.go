@@ -57,9 +57,9 @@ func isNMOnMetered(conn *dbus.Conn) (bool, error) {
 	}
 	v, ok := dbusV.Value().(uint32)
 	if !ok {
-		return false, fmt.Errorf("unexpected Metered property signature: %v", dbusV.String())
+		return false, fmt.Errorf("network manager returned invalid value for metering verification: %s", dbusV)
 	}
-	logger.Debugf("metered state reported by NetworkManager: %s", dbusV.String())
+	logger.Debugf("metered state reported by NetworkManager: %s", dbusV)
 
 	return v == NetworkManagerMeteredGuessYes || v == NetworkManagerMeteredYes, nil
 }
