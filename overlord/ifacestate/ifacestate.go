@@ -90,7 +90,11 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 
 		if k == "unlink-snap" || k == "link-snap" || k == "setup-profiles" {
 			if installedSnapTask != nil {
-				if waiting != nil && waiting[snapName] {
+				thisChange := installedSnapTask.Change()
+				otherChange := task.Change()
+				if waiting != nil && waiting[snapName] &&
+					thisChange != nil && otherChange != nil &&
+					thisChange.ID() == otherChange.ID() {
 					continue
 				}
 				// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op
