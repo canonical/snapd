@@ -362,7 +362,6 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
-		"reconnect",
 		"run-hook[post-refresh]",
 		"start-snap-services")
 
@@ -554,7 +553,6 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
-		"reconnect",
 		"start-snap-services",
 		"run-hook[configure]",
 	})
@@ -1018,7 +1016,6 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
-		"reconnect",
 		"start-snap-services",
 		"run-hook[configure]",
 	})
@@ -2171,7 +2168,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[15]
+	task = ts.Tasks()[14]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap" snap if present`)
 
@@ -4066,7 +4063,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 19
+			j += 18
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -6139,7 +6136,6 @@ link-snap: Error
 auto-connect: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
-reconnect: Hold
 run-hook: Hold
 start-snap-services: Hold
 cleanup: Hold
@@ -6156,7 +6152,6 @@ link-snap: Error
 auto-connect: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
-reconnect: Hold
 run-hook: Hold
 start-snap-services: Hold
 cleanup: Hold
