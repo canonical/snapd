@@ -236,7 +236,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 			{URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_01.png"},
 			{URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_02.png", Width: 600, Height: 200},
 		},
-		CommonIds: []string{"org.thingy"},
+		CommonIDs: []string{"org.thingy"},
 	})
 
 	// validate the plugs/slots

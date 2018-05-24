@@ -273,7 +273,7 @@ func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []client.AppInfo {
 		out[i] = client.AppInfo{
 			Snap:     app.Snap.Name(),
 			Name:     app.Name,
-			CommonId: app.CommonId,
+			CommonID: app.CommonID,
 		}
 		if fn := app.DesktopFile(); osutil.FileExists(fn) {
 			out[i].DesktopFile = fn
@@ -339,7 +339,7 @@ func mapLocal(about aboutSnap) *client.Snap {
 		Contact:          localSnap.Contact,
 		Title:            localSnap.Title(),
 		License:          localSnap.License,
-		CommonIds:        localSnap.CommonIds,
+		CommonIDs:        localSnap.CommonIDs,
 	}
 
 	return result
@@ -387,7 +387,7 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		Prices:       remoteSnap.Prices,
 		Channels:     remoteSnap.Channels,
 		Tracks:       remoteSnap.Tracks,
-		CommonIds:    remoteSnap.CommonIds,
+		CommonIDs:    remoteSnap.CommonIDs,
 	}
 
 	return result

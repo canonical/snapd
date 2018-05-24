@@ -39,7 +39,7 @@ type AppInfo struct {
 	Daemon      string `json:"daemon,omitempty"`
 	Enabled     bool   `json:"enabled,omitempty"`
 	Active      bool   `json:"active,omitempty"`
-	CommonId    string `json:"common-id,omitempty"`
+	CommonID    string `json:"common-id,omitempty"`
 }
 
 // IsService returns true if the application is a background daemon.
