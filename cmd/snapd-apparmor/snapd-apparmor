@@ -1,0 +1,24 @@
+#!/bin/sh
+# This script is provided for integration with systemd on distributions where
+# apparmor profiles generated and managed by snapd are not loaded by the
+# system-wide apparmor systemd integration on early boot-up.
+#
+# Only the start operation is provided as all other activity is managed by
+# snapd as a part of the life-cycle of particular snaps.
+#
+# In addition the script assumes that the system-wide apparmor service has
+# already executed, initializing apparmor file-systems as necessary.
+case "$1" in
+	start)
+		for prof in /var/lib/snapd/apparmor/profiles/*; do
+			test "${prof%\~}" != "${prof}" && continue
+			apparmor_parser \
+				--replace \
+				--write-cache \
+				--cache-loc=/var/cache/apparmor \
+				-O no-expr-simplify \
+				--quiet \
+				"$prof"
+		done
+		;;
+esac
