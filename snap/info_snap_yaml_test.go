@@ -1711,3 +1711,29 @@ apps:
 	app = info.Apps["foo"]
 	c.Check(app.Autostart, Equals, "")
 }
+
+func (s *YamlSuite) TestSnapYamlAppCommonId(c *C) {
+	yAutostart := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   command: bin/foo
+   common-id: org.foo
+ bar:
+   command: bin/foo
+   common-id: org.bar
+ baz:
+   command: bin/foo
+
+`)
+	info, err := snap.InfoFromSnapYaml(yAutostart)
+	c.Assert(err, IsNil)
+	c.Check(info.Apps["foo"].CommonId, Equals, "org.foo")
+	c.Check(info.Apps["bar"].CommonId, Equals, "org.bar")
+	c.Check(info.Apps["baz"].CommonId, Equals, "")
+	c.Assert(info.CommonIds, HasLen, 2)
+	c.Assert((info.CommonIds[0] == "org.foo" && info.CommonIds[1] == "org.bar") ||
+		(info.CommonIds[1] == "org.foo" && info.CommonIds[0] == "org.bar"),
+		Equals,
+		true)
+}
