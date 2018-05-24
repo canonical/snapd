@@ -19,7 +19,7 @@
 
 package builtin
 
-const screenshotSummary = `allows privileged access to desktop screenshot, screencast and recording`
+const screenshotSummary = `allows privileged access to desktop screenshot, screencast and recording with saving result to arbitrary locations`
 
 const screenshotBaseDeclarationSlots = `
   screenshot:
@@ -36,7 +36,9 @@ const screenshotConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-session-strict>
 
-# gnome-shell screenshot and screencast
+# gnome-shell screenshot and screencast. Note these APIs permit specifying
+# absolute file names as arguments to DBus methods which tells gnome-shell to
+# save to arbitrary locations permitted by the unconfined user.
 dbus (send)
     bus=session
     path=/org/gnome/Shell/Screen{cast,shot}

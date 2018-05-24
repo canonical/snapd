@@ -98,7 +98,7 @@ func (s *ScreenshotInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows privileged access to desktop screenshot, screencast and recording`)
+	c.Assert(si.Summary, Equals, `allows privileged access to desktop screenshot, screencast and recording with saving result to arbitrary locations`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "screenshot")
 }
 
