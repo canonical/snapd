@@ -30,12 +30,32 @@ const joystickBaseDeclarationSlots = `
 `
 
 const joystickConnectedPlugAppArmor = `
-# Description: Allow reading and writing to joystick devices (/dev/input/js*).
+# Description: Allow reading and writing to joystick devices
+
+#
+# Old joystick interface
+#
 
 # Per https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
 # only js0-js31 is valid so limit the /dev and udev entries to those devices.
 /dev/input/js{[0-9],[12][0-9],3[01]} rw,
 /run/udev/data/c13:{[0-9],[12][0-9],3[01]} r,
+
+#
+# New evdev-joystick interface
+#
+
+# Per https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
+# the minor is 65 and up so limit udev to that.
+/run/udev/data/c13:{6[5-9],[7-9][0-9],[1-9][0-9][0-9]*},
+
+# /dev/input/event* is unfortunately not namespaced and includes all input
+# devices, including keyboards and mice, which allows input sniffing and
+# injection. Until we have inode tagging of devices, we use a glob rule here
+# and rely on udev tagging to only add evdev devices to the snap's device
+# cgroup that are marked with ENV{ID_INPUT_JOYSTICK}=="1". As such, even though
+# AppArmor allows all evdev, the device cgroup does not.
+/dev/input/event[0-9]* rw,
 
 # Allow reading for supported event reports for all input devices. See
 # https://www.kernel.org/doc/Documentation/input/event-codes.txt
@@ -44,7 +64,17 @@ const joystickConnectedPlugAppArmor = `
 /sys/devices/**/input[0-9]*/capabilities/* r,
 `
 
-var joystickConnectedPlugUDev = []string{`KERNEL=="js[0-9]*"`}
+// Add the old joystick device (js*) and any evdev input interfaces which are
+// marked as joysticks. Note, some input devices are known to come up as
+// joysticks when they are not and while this rule would tag them, on systems
+// where this is happening the device is non-functional for its intended
+// purpose. In other words, in practice, users with such devices will have
+// updated their udev rules to set ENV{ID_INPUT_JOYSTICK}="" to make it work,
+// which means this rule will no longer match.
+var joystickConnectedPlugUDev = []string{
+	`KERNEL=="js[0-9]*"`,
+	`KERNEL=="event[0-9]*", SUBSYSTEM=="input", ENV{ID_INPUT_JOYSTICK}=="1"`,
+}
 
 func init() {
 	registerIface(&commonInterface{
