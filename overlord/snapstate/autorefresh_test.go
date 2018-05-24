@@ -464,7 +464,7 @@ func (s *autoRefreshTestSuite) TestCanRefreshOnMetered(c *C) {
 
 	// enable holding refreshes when on metered connection
 	tr := config.NewTransaction(s.state)
-	err = tr.Set("core", "refresh.hold-on-metered", true)
+	err = tr.Set("core", "refresh.metered", "hold")
 	c.Assert(err, IsNil)
 	tr.Commit()
 
@@ -474,7 +474,7 @@ func (s *autoRefreshTestSuite) TestCanRefreshOnMetered(c *C) {
 
 	// explicitly disable holding refreshes when on metered connection
 	tr = config.NewTransaction(s.state)
-	err = tr.Set("core", "refresh.hold-on-metered", false)
+	err = tr.Set("core", "refresh.metered", "")
 	c.Assert(err, IsNil)
 	tr.Commit()
 
@@ -494,7 +494,7 @@ func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnIsMetered(c *C) {
 	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "refresh.hold-on-metered", true)
+	tr.Set("core", "refresh.metered", "hold")
 	tr.Commit()
 
 	af := snapstate.NewAutoRefresh(s.state)
@@ -530,7 +530,7 @@ func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnNotMetered(c *C) {
 	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "refresh.hold-on-metered", true)
+	tr.Set("core", "refresh.metered", "hold")
 	tr.Commit()
 
 	af := snapstate.NewAutoRefresh(s.state)

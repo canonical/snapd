@@ -159,6 +159,8 @@ func (m *autoRefresh) canRefreshRespectingMetered(now, lastRefresh time.Time) (c
 		return true, nil
 	}
 
+	// ignore any errors that occurred while checking if we are on a metered
+	// connection
 	metered, _ := IsOnMeteredConnection()
 	if !metered {
 		return true, nil
@@ -274,14 +276,15 @@ func (m *autoRefresh) Ensure() error {
 
 	// do refresh attempt (if needed)
 	if !m.nextRefresh.After(now) {
-		if can, err := m.canRefreshRespectingMetered(now, lastRefresh); err == nil {
-			if !can {
-				// clear nextRefresh so that another refresh time is calculated
-				m.nextRefresh = time.Time{}
-				return nil
-			}
-		} else {
+		var can bool
+		can, err = m.canRefreshRespectingMetered(now, lastRefresh)
+		if err != nil {
 			return err
+		}
+		if !can {
+			// clear nextRefresh so that another refresh time is calculated
+			m.nextRefresh = time.Time{}
+			return nil
 		}
 
 		err = m.launchAutoRefresh()
@@ -456,11 +459,11 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 
 func canRefreshOnMeteredConnection(st *state.State) (bool, error) {
 	tr := config.NewTransaction(st)
-	var holdOnMetered bool
-	err := tr.GetMaybe("core", "refresh.hold-on-metered", &holdOnMetered)
+	var onMetered string
+	err := tr.GetMaybe("core", "refresh.metered", &onMetered)
 	if err != nil && err != state.ErrNoState {
 		return false, err
 	}
 
-	return !holdOnMetered, nil
+	return onMetered != "hold", nil
 }
