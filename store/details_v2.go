@@ -54,6 +54,8 @@ type storeSnap struct {
 
 	// media
 	Media []storeSnapMedia `json:"media"`
+
+	CommonIds []string `json:"common-ids"`
 }
 
 type storeSnapDownload struct {
@@ -121,6 +123,7 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 		}
 		info.Deltas = deltas
 	}
+	info.CommonIds = d.CommonIds
 
 	// fill in the plug/slot data
 	if rawYamlInfo, err := snap.InfoFromSnapYaml([]byte(d.SnapYAML)); err == nil {

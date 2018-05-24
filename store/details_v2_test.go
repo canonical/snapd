@@ -82,6 +82,7 @@ const (
   "base": "base-18",
   "confinement": "strict",
   "contact": "https://thingy.com",
+  "common-ids": ["org.thingy"],
   "created-at": "2018-01-26T11:38:35.536410+00:00",
   "description": "Useful thingy for thinging",
   "download": {
@@ -235,6 +236,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 			{URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_01.png"},
 			{URL: "https://dashboard.snapcraft.io/site_media/appmedia/2018/01/Thingy_02.png", Width: 600, Height: 200},
 		},
+		CommonIds: []string{"org.thingy"},
 	})
 
 	// validate the plugs/slots
