@@ -58,7 +58,7 @@ setup_systemd_snapd_overrides() {
 [Unit]
 $START_LIMIT_INTERVAL
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
 EOF
     mkdir -p /etc/systemd/system/snapd.socket.d
@@ -341,7 +341,18 @@ EOF
         # FIXME: hardcoded mapper location, parse from kpartx
         mount /dev/mapper/loop2p3 /mnt
         mkdir -p /mnt/user-data/
-        cp -ar /home/gopath /mnt/user-data/
+        # copy over everything from gopath to user-data, exclude:
+        # - VCS files
+        # - built debs
+        # - golang archive files and built packages dir
+        # - govendor .cache directory and the binary,
+        rsync -avv -C \
+              --exclude '*.a' \
+              --exclude '*.deb' \
+              --exclude /gopath/.cache/ \
+              --exclude /gopath/bin/govendor \
+              --exclude /gopath/pkg/ \
+              /home/gopath /mnt/user-data/
 
         # create test user and ubuntu user inside the writable partition
         # so that we can use a stock core in tests

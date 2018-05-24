@@ -46,7 +46,10 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
+	"github.com/snapcore/snapd/systemd"
 )
+
+var systemdSdNotify = systemd.SdNotify
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
@@ -60,6 +63,9 @@ type Daemon struct {
 	router        *mux.Router
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
+	// set to remember we need to restart the system
+	restartSystem bool
+	mu            sync.Mutex
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
@@ -178,12 +184,16 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 	return accessUnauthorized
 }
 
+type maintenanceTransmitter interface {
+	transmitMaintenance(kind errorKind, message string)
+}
+
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	state := c.d.overlord.State()
-	state.Lock()
+	st := c.d.overlord.State()
+	st.Lock()
 	// TODO Look at the error and fail if there's an attempt to authenticate with invalid data.
-	user, _ := UserFromRequest(state, r)
-	state.Unlock()
+	user, _ := UserFromRequest(st, r)
+	st.Unlock()
 
 	switch c.canAccess(r, user) {
 	case accessOK:
@@ -212,6 +222,16 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if rspf != nil {
 		rsp = rspf(c, r, user)
+	}
+
+	if maintTransmitter, ok := rsp.(maintenanceTransmitter); ok {
+		_, rst := st.Restarting()
+		switch rst {
+		case state.RestartSystem:
+			maintTransmitter.transmitMaintenance(errorKindSystemRestart, "system is restarting")
+		case state.RestartDaemon:
+			maintTransmitter.transmitMaintenance(errorKindDaemonRestart, "daemon is restarting")
+		}
 	}
 
 	rsp.ServeHTTP(w, r)
@@ -417,8 +437,6 @@ func (srv *shutdownServer) finishShutdown() error {
 	return fmt.Errorf("cannot gracefully finish, still active connections on %v after %v", srv.l.Addr(), shutdownTimeout)
 }
 
-var shutdownMsg = i18n.G("reboot scheduled to update the system - temporarily cancel with 'sudo shutdown -c'")
-
 // Start the Daemon
 func (d *Daemon) Start() {
 	// die when asked to restart (systemd should get us back up!)
@@ -427,10 +445,17 @@ func (d *Daemon) Start() {
 		case state.RestartDaemon:
 			d.tomb.Kill(nil)
 		case state.RestartSystem:
-			cmd := exec.Command("shutdown", "+10", "-r", shutdownMsg)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				logger.Noticef("%s", osutil.OutputErr(out, err))
+			// try to schedule a fallback slow reboot already here
+			// in case we get stuck shutting down
+			if err := reboot(rebootWaitTimeout); err != nil {
+				logger.Noticef("%s", err)
 			}
+
+			d.mu.Lock()
+			defer d.mu.Unlock()
+			// remember we need to restart the system
+			d.restartSystem = true
+			d.tomb.Kill(nil)
 		default:
 			logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
 			d.tomb.Kill(nil)
@@ -462,18 +487,47 @@ func (d *Daemon) Start() {
 
 		return nil
 	})
+
+	// notify systemd that we are ready
+	systemdSdNotify("READY=1")
 }
+
+var shutdownMsg = i18n.G("reboot scheduled to update the system")
+
+func rebootImpl(rebootDelay time.Duration) error {
+	if rebootDelay < 0 {
+		rebootDelay = 0
+	}
+	mins := int64((rebootDelay + time.Minute - 1) / time.Minute)
+	cmd := exec.Command("shutdown", "-r", fmt.Sprintf("+%d", mins), shutdownMsg)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return osutil.OutputErr(out, err)
+	}
+	return nil
+}
+
+var reboot = rebootImpl
+
+var (
+	rebootNoticeWait  = 3 * time.Second
+	rebootWaitTimeout = 10 * time.Minute
+)
 
 // Stop shuts down the Daemon
 func (d *Daemon) Stop() error {
 	d.tomb.Kill(nil)
+
+	d.mu.Lock()
+	restartSystem := d.restartSystem
+	d.mu.Unlock()
+
 	d.snapdListener.Close()
 
 	if d.snapListener != nil {
 		// stop running hooks first
 		// and do it more gracefully if we are restarting
 		hookMgr := d.overlord.HookManager()
-		if d.overlord.State().Restarting() {
+		if ok, _ := d.overlord.State().Restarting(); ok {
 			logger.Noticef("gracefully waiting for running hooks")
 			hookMgr.GracefullyWaitRunningHooks()
 			logger.Noticef("done waiting for running hooks")
@@ -482,14 +536,50 @@ func (d *Daemon) Stop() error {
 		d.snapListener.Close()
 	}
 
+	if restartSystem {
+		// give time to polling clients to notice restart
+		time.Sleep(rebootNoticeWait)
+	}
+
 	d.tomb.Kill(d.snapdServe.finishShutdown())
 	if d.snapListener != nil {
 		d.tomb.Kill(d.snapServe.finishShutdown())
 	}
 
+	if !restartSystem {
+		// tell systemd that we are stopping
+		systemdSdNotify("STOPPING=1")
+
+	}
+
 	d.overlord.Stop()
 
-	return d.tomb.Wait()
+	err := d.tomb.Wait()
+	if err != nil {
+		return err
+	}
+
+	if restartSystem {
+		// ask for shutdown and wait for it to happen.
+		// if we exit snapd will be restared by systemd
+		rebootDelay := 1 * time.Minute
+		ovr := os.Getenv("SNAPD_REBOOT_DELAY") // for tests
+		if ovr != "" {
+			d, err := time.ParseDuration(ovr)
+			if err == nil {
+				rebootDelay = d
+			}
+		}
+		if err := reboot(rebootDelay); err != nil {
+			return err
+		}
+		// wait for reboot to happen
+		logger.Noticef("Waiting for system reboot")
+		time.Sleep(rebootWaitTimeout)
+		return fmt.Errorf("expected reboot did not happen")
+	}
+
+	return nil
 }
 
 // Dying is a tomb-ish thing

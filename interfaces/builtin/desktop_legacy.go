@@ -224,6 +224,11 @@ dbus (send)
     path=/org/gtk/vfs/mounttracker
     interface=org.gtk.vfs.MountTracker
     member=LookupMount,
+
+# This leaks the names of snaps with desktop files
+/var/lib/snapd/desktop/applications/ r,
+/var/lib/snapd/desktop/applications/mimeinfo.cache r,
+/var/lib/snapd/desktop/applications/@{SNAP_NAME}_*.desktop r,
 `
 
 const desktopLegacyConnectedPlugSecComp = `
