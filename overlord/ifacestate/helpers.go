@@ -536,7 +536,7 @@ func FindSnapsWaitingFor(task *state.Task, kinds ...string) map[string]bool {
 	for len(tasks) > 0 {
 		t := tasks[0]
 		if seen[t.ID()] {
-			tasks = append(tasks[1:])
+			tasks = tasks[1:]
 			continue
 		}
 		seen[t.ID()] = true
