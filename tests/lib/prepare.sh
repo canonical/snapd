@@ -241,24 +241,8 @@ prepare_classic() {
 
         systemctl stop snapd.{service,socket}
         systemctl daemon-reload
-        escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
-        units="$(systemctl list-unit-files --full | grep -e "^$escaped_snap_mount_dir[-.].*\.mount" -e "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
-        for unit in $units; do
-            systemctl stop "$unit"
-        done
-
-        save_snapd_state "$escaped_snap_mount_dir"
-
+        save_snapd_state
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
-        core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
-        # on 14.04 it is possible that the core snap is still mounted at this point, unmount
-        # to prevent errors starting the mount unit
-        if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && mount | grep -q "$core"; then
-            umount "$core" || true
-        fi
-        for unit in $units; do
-            systemctl start "$unit"
-        done
         systemctl start snapd.socket
     fi
 

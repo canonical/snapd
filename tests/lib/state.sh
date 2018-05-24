@@ -29,9 +29,14 @@ save_snapd_state() {
         cp -rf "$boot_path" "$SNAPD_STATE_PATH"/boot
         cp -f /etc/systemd/system/snap-*core*.mount "$SNAPD_STATE_PATH"/system-units
     else
-        escaped_snap_mount_dir="$1"
+        escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
+        units="$(systemctl list-unit-files --full | grep -e "^$escaped_snap_mount_dir[-.].*\.mount" -e "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
+        for unit in $units; do
+            systemctl stop "$unit"
+        done
         snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
         snap_confine_profiles="$(ls /etc/apparmor.d/snap.core.* || true)"
+
         # shellcheck disable=SC2086
         tar cf "$SNAPD_STATE_FILE" \
             /var/lib/snapd \
@@ -40,6 +45,16 @@ save_snapd_state() {
             /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount \
             $snap_confine_profiles \
             $snapd_env
+
+        core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
+        # on 14.04 it is possible that the core snap is still mounted at this point, unmount
+        # to prevent errors starting the mount unit
+        if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && mount | grep -q "$core"; then
+            umount "$core" || true
+        fi
+        for unit in $units; do
+            systemctl start "$unit"
+        done
     fi
 }
 
@@ -65,7 +80,7 @@ restore_snapd_state() {
 restore_snapd_lib() {
     # Clean all the state but the snaps and seed dirs. Then make a selective clean for 
     # snaps and seed dirs leaving the .snap files which then are going to be synchronized.
-    find /var/lib/snapd/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' \) -exec rm -rf {} +
+    find /var/lib/snapd/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' \) -exec rm -rf {} \;
 
     # Copy the whole state but the snaps and seed dirs
     find "$SNAPD_STATE_PATH"/snapd-lib/* -maxdepth 0 ! \( -name 'snaps' -o -name 'seed' \) -exec cp -rf {} /var/lib/snapd \;
