@@ -104,17 +104,17 @@ func (s *refreshSuite) TestConfigureRefreshHoldOnMeteredInvalid(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"refresh.hold-on-metered": "invalid",
+			"refresh.metered": "invalid",
 		},
 	})
-	c.Assert(err, ErrorMatches, `refresh\.hold-on-metered value "invalid" is invalid`)
+	c.Assert(err, ErrorMatches, `refresh\.metered value "invalid" is invalid`)
 }
 
 func (s *refreshSuite) TestConfigureRefreshHoldOnMeteredHappy(c *C) {
 	err := configcore.Run(&mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"refresh.hold-on-metered": "true",
+			"refresh.metered": "hold",
 		},
 	})
 	c.Assert(err, IsNil)
@@ -122,7 +122,7 @@ func (s *refreshSuite) TestConfigureRefreshHoldOnMeteredHappy(c *C) {
 	err = configcore.Run(&mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"refresh.hold-on-metered": "false",
+			"refresh.metered": "",
 		},
 	})
 	c.Assert(err, IsNil)

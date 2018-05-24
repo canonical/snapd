@@ -56,15 +56,15 @@ func validateRefreshSchedule(tr Conf) error {
 		}
 	}
 
-	refreshHoldOnMeteredStr, err := coreCfg(tr, "refresh.hold-on-metered")
+	refreshOnMeteredStr, err := coreCfg(tr, "refresh.metered")
 	if err != nil {
 		return err
 	}
-	switch refreshHoldOnMeteredStr {
-	case "", "true", "false":
+	switch refreshOnMeteredStr {
+	case "", "hold":
 		// noop
 	default:
-		return fmt.Errorf("refresh.hold-on-metered value %q is invalid", refreshHoldOnMeteredStr)
+		return fmt.Errorf("refresh.metered value %q is invalid", refreshOnMeteredStr)
 	}
 
 	refreshScheduleStr, err := coreCfg(tr, "refresh.schedule")
