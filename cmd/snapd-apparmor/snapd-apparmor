@@ -10,15 +10,16 @@
 # already executed, initializing apparmor file-systems as necessary.
 case "$1" in
 	start)
-		for prof in /var/lib/snapd/apparmor/profiles/*; do
-			test "${prof%\~}" != "${prof}" && continue
+		for profile in /var/lib/snapd/apparmor/profiles/*; do
+			test "${profile%\~}" != "${profile}" && continue
+			echo "$profile"
+		done | xargs \
+			-P$(getconf _NPROCESSORS_ONLN) \
 			apparmor_parser \
-				--replace \
-				--write-cache \
-				--cache-loc=/var/cache/apparmor \
-				-O no-expr-simplify \
-				--quiet \
-				"$prof"
-		done
+			--replace \
+			--write-cache \
+			--cache-loc=/var/cache/apparmor \
+			-O no-expr-simplify \
+			--quiet
 		;;
 esac
