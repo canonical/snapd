@@ -58,9 +58,9 @@ func (s *SnapSuite) TestLoginSimple(c *C) {
 	rest, err := snap.Parser().ParseArgs([]string{"login", "foo@example.com"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Check(s.Stdout(), Equals, `Password of "foo@example.com": 
+	c.Check(strings.HasSuffix(s.Stdout(), `Password of "foo@example.com": 
 Login successful
-`)
+`), Equals, true)
 	c.Check(s.Stderr(), Equals, "")
 	c.Check(n, Equals, 1)
 }
