@@ -316,6 +316,11 @@ func Validate(info *Info) error {
 		}
 	}
 
+	// ensure that common-id(s) are unique
+	if err := ValidateCommonIDs(info); err != nil {
+		return err
+	}
+
 	return ValidateLayoutAll(info)
 }
 
@@ -778,6 +783,19 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 
 	if layout.Mode&01777 != layout.Mode {
 		return fmt.Errorf("layout %q uses invalid mode %#o", layout.Path, layout.Mode)
+	}
+	return nil
+}
+
+func ValidateCommonIDs(info *Info) error {
+	seen := make(map[string]bool, len(info.Apps))
+	for _, app := range info.Apps {
+		if app.CommonID != "" {
+			if seen[app.CommonID] {
+				return fmt.Errorf("application %q common-id %q is not unique", app.Name, app.CommonID)
+			}
+			seen[app.CommonID] = true
+		}
 	}
 	return nil
 }
