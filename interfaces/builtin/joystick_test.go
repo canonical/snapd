@@ -85,7 +85,7 @@ func (s *JoystickInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/input/js{[0-9],[12][0-9],3[01]} rw,`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/run/udev/data/c13:{6[5-9],[7-9][0-9],[1-9][0-9][0-9]*},`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/run/udev/data/c13:{6[5-9],[7-9][0-9],[1-9][0-9][0-9]*} r,`)
 }
 
 func (s *JoystickInterfaceSuite) TestUDevSpec(c *C) {
