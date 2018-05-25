@@ -537,6 +537,10 @@ popd
 # Remove snappy core specific scripts
 rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
 
+# Remove snapd apparmor service
+rm -f %{buildroot}%{_unitdir}/snapd.apparmor.service
+rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
+
 # Install Polkit configuration
 install -m 644 -D data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
 
