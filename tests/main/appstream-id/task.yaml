@@ -1,4 +1,7 @@
 summary: Verify AppStream ID integration
+# ubuntu-*-32: the snap used in the test was published only for amd64
+# fedora: uses GNU netcat by default
+systems: [-ubuntu-16.04-32, -fedora-*]
 
 prepare: |
     snap install jq
