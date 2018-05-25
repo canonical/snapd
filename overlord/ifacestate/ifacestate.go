@@ -43,8 +43,8 @@ var noConflictOnConnectTasks = func(task *state.Task) bool {
 
 var connectRetryTimeout = time.Second * 5
 
-func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slotSnap string, autoConnectTask *state.Task) error {
-	if autoConnectTask == nil {
+func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slotSnap string, installedSnapTask *state.Task, waiting map[string]bool) error {
+	if installedSnapTask == nil {
 		for _, chg := range st.Changes() {
 			if chg.Kind() == "transition-ubuntu-core" {
 				return fmt.Errorf("ubuntu-core to core transition in progress, no other changes allowed until this is done")
@@ -53,16 +53,16 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 	}
 
 	var installedSnap string
-	if autoConnectTask != nil {
-		snapsup, err := snapstate.TaskSnapSetup(autoConnectTask)
+	if installedSnapTask != nil {
+		snapsup, err := snapstate.TaskSnapSetup(installedSnapTask)
 		if err != nil {
-			return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", autoConnectTask.Summary())
+			return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", installedSnapTask.Summary())
 		}
 		installedSnap = snapsup.Name()
 	}
 
 	for _, task := range st.Tasks() {
-		if task.Status().Ready() || autoConnectTask == task {
+		if task.Status().Ready() || installedSnapTask == task {
 			continue
 		}
 
@@ -79,7 +79,7 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 
 		snapName := snapsup.Name()
 
-		if autoConnectTask != nil && installedSnap == snapName {
+		if installedSnapTask != nil && installedSnap == snapName {
 			continue
 		}
 
@@ -89,7 +89,14 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 		}
 
 		if k == "unlink-snap" || k == "link-snap" || k == "setup-profiles" {
-			if autoConnectTask != nil {
+			if installedSnapTask != nil {
+				thisChange := installedSnapTask.Change()
+				otherChange := task.Change()
+				if waiting != nil && waiting[snapName] &&
+					thisChange != nil && otherChange != nil &&
+					thisChange.ID() == otherChange.ID() {
+					continue
+				}
 				// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op
 				// if snap is getting installed/refreshed - temporary conflict, retry later
 				return &state.Retry{After: connectRetryTimeout}
@@ -101,7 +108,8 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 	return nil
 }
 
-// ConnectOnInstall returns a set of tasks for (re)connecting an interface as part of snap installation (e.g. to reconnect interfaces on refresh, or autoconnect)
+// ConnectOnInstall returns a set of tasks for (re)connecting an interface as part of snap installation (e.g. to reconnect interfaces on refresh, or autoconnect).
+// This method doesn't check for conflicts, they need to be checked for upfront.
 func ConnectOnInstall(st *state.State, change *state.Change, mainTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
 	return connect(st, change, mainTask, plugSnap, plugName, slotSnap, slotName)
 }
@@ -109,14 +117,14 @@ func ConnectOnInstall(st *state.State, change *state.Change, mainTask *state.Tas
 // Connect returns a set of tasks for connecting an interface.
 //
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	return connect(st, nil, nil, plugSnap, plugName, slotSnap, slotName)
-}
-
-func connect(st *state.State, change *state.Change, mainTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	if err := checkConnectConflicts(st, change, plugSnap, slotSnap, mainTask); err != nil {
+	if err := checkConnectConflicts(st, nil, plugSnap, slotSnap, nil, nil); err != nil {
 		return nil, err
 	}
 
+	return connect(st, nil, nil, plugSnap, plugName, slotSnap, slotName)
+}
+
+func connect(st *state.State, change *state.Change, installedSnapTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
 	// TODO: Store the intent-to-connect in the state so that we automatically
 	// try to reconnect on reboot (reconnection can fail or can connect with
 	// different parameters so we cannot store the actual connection details).
@@ -132,6 +140,11 @@ func connect(st *state.State, change *state.Change, mainTask *state.Task, plugSn
 	// 'snapctl set' can only modify own attributes (plug's attributes in the *-plug-* hook and
 	// slot's attributes in the *-slot-* hook).
 	// 'snapctl get' can read both slot's and plug's attributes.
+	plugStatic, slotStatic, err := initialConnectAttributes(st, plugSnap, plugName, slotSnap, slotName)
+	if err != nil {
+		return nil, err
+	}
+
 	summary := fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	connectInterface := st.NewTask("connect", summary)
@@ -160,13 +173,16 @@ func connect(st *state.State, change *state.Change, mainTask *state.Task, plugSn
 
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	connectInterface.Set("auto", mainTask != nil && mainTask.Kind() == "auto-connect")
+	connectInterface.Set("auto", installedSnapTask != nil && installedSnapTask.Kind() == "auto-connect")
 
 	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
 	// to modify them but all attributes will be checked against assertions after the hooks are run.
-	if err := setInitialConnectAttributes(connectInterface, plugSnap, plugName, slotSnap, slotName); err != nil {
-		return nil, err
-	}
+	emptyDynamicAttrs := map[string]interface{}{}
+	connectInterface.Set("plug-static", plugStatic)
+	connectInterface.Set("slot-static", slotStatic)
+	connectInterface.Set("plug-dynamic", emptyDynamicAttrs)
+	connectInterface.Set("slot-dynamic", emptyDynamicAttrs)
+
 	connectInterface.WaitFor(prepareSlotConnection)
 
 	connectSlotHookSetup := &hookstate.HookSetup{
@@ -192,44 +208,37 @@ func connect(st *state.State, change *state.Change, mainTask *state.Task, plugSn
 	return state.NewTaskSet(preparePlugConnection, prepareSlotConnection, connectInterface, connectSlotConnection, connectPlugConnection), nil
 }
 
-func setInitialConnectAttributes(ts *state.Task, plugSnap string, plugName string, slotSnap string, slotName string) error {
-	// Set initial interface attributes for the plug and slot snaps in connect task.
+func initialConnectAttributes(st *state.State, plugSnap string, plugName string, slotSnap string, slotName string) (plugStatic, slotStatic map[string]interface{}, err error) {
 	var snapst snapstate.SnapState
-	var err error
 
-	st := ts.State()
 	if err = snapstate.Get(st, plugSnap, &snapst); err != nil {
-		return err
+		return nil, nil, err
 	}
 	snapInfo, err := snapst.CurrentInfo()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	emptyDynamicAttrs := make(map[string]interface{})
-	if plug, ok := snapInfo.Plugs[plugName]; ok {
-		ts.Set("plug-static", plug.Attrs)
-		ts.Set("plug-dynamic", emptyDynamicAttrs)
-	} else {
-		return fmt.Errorf("snap %q has no plug named %q", plugSnap, plugName)
+	plug, ok := snapInfo.Plugs[plugName]
+	if !ok {
+		return nil, nil, fmt.Errorf("snap %q has no plug named %q", plugSnap, plugName)
 	}
 
 	if err = snapstate.Get(st, slotSnap, &snapst); err != nil {
-		return err
+		return nil, nil, err
 	}
 	snapInfo, err = snapst.CurrentInfo()
 	if err != nil {
-		return err
-	}
-	addImplicitSlots(snapInfo)
-	if slot, ok := snapInfo.Slots[slotName]; ok {
-		ts.Set("slot-static", slot.Attrs)
-		ts.Set("slot-dynamic", emptyDynamicAttrs)
-	} else {
-		return fmt.Errorf("snap %q has no slot named %q", slotSnap, slotName)
+		return nil, nil, err
 	}
 
-	return nil
+	addImplicitSlots(snapInfo)
+	slot, ok := snapInfo.Slots[slotName]
+	if !ok {
+		return nil, nil, fmt.Errorf("snap %q has no slot named %q", slotSnap, slotName)
+	}
+
+	return plug.Attrs, slot.Attrs, nil
 }
 
 // Disconnect returns a set of tasks for  disconnecting an interface.

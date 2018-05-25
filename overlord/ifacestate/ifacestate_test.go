@@ -166,6 +166,7 @@ func (s *interfaceManagerSuite) TestKnownTaskKinds(c *C) {
 		"connect",
 		"discard-conns",
 		"disconnect",
+		"reconnect",
 		"remove-profiles",
 		"setup-profiles",
 		"transition-ubuntu-core"})
@@ -349,7 +350,7 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstalledSnap(c *
 	c.Assert(auto, Equals, auto)
 }
 
-func (s *interfaceManagerSuite) testAutoConnectConflicts(c *C, conflictingKind string) {
+func (s *interfaceManagerSuite) testConnectConflicts(c *C, installedSnapTaskKind string, conflictingKind string) {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -373,17 +374,25 @@ func (s *interfaceManagerSuite) testAutoConnectConflicts(c *C, conflictingKind s
 
 	chg.AddTask(t2)
 
-	_, err := ifacestate.ConnectOnInstall(s.state, chg, t2, "consumer", "plug", "producer", "slot")
+	err := ifacestate.CheckConnectConflicts(s.state, chg, "consumer", "producer", t2, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `task should be retried`)
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnUnlink(c *C) {
-	s.testAutoConnectConflicts(c, "unlink-snap")
+	s.testConnectConflicts(c, "auto-connect", "unlink-snap")
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnLink(c *C) {
-	s.testAutoConnectConflicts(c, "link-snap")
+	s.testConnectConflicts(c, "auto-connect", "link-snap")
+}
+
+func (s *interfaceManagerSuite) TestReconnectConflictOnUnlink(c *C) {
+	s.testConnectConflicts(c, "reconnect", "unlink-snap")
+}
+
+func (s *interfaceManagerSuite) TestReconnectConflictOnLink(c *C) {
+	s.testConnectConflicts(c, "reconnect", "link-snap")
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
@@ -2873,5 +2882,74 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfiles(c *C) {
 		"snap0": snap.R(10),
 		"snap1": snap.R(1),
 		"snap3": snap.R(3),
+	})
+}
+
+func (s *interfaceManagerSuite) TestFindSnapsWaitingFor(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	makeSetup := func(t *state.Task, snapName string) {
+		t.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{
+			RealName: snapName},
+		})
+	}
+
+	// Task t3 waits for t1 and t2; task t4 waits for t3, task5 waits for task4
+	t1 := s.state.NewTask("a", "")
+	makeSetup(t1, "snap1")
+	t2 := s.state.NewTask("b", "")
+	makeSetup(t2, "snap2")
+
+	t3 := s.state.NewTask("c", "")
+	makeSetup(t3, "snap3")
+	t3.WaitFor(t1)
+	t3.WaitFor(t2)
+
+	t4 := s.state.NewTask("d", "")
+	makeSetup(t4, "snap4")
+	t4.WaitFor(t3)
+
+	// task t5 doesn't have snap setup
+	t5 := s.state.NewTask("e", "")
+	t5.WaitFor(t4)
+
+	snaps := ifacestate.FindSnapsWaitingFor(t1, "c")
+	c.Assert(snaps, DeepEquals, map[string]bool{
+		"snap3": true,
+	})
+
+	snaps = ifacestate.FindSnapsWaitingFor(t1, "d")
+	c.Assert(snaps, DeepEquals, map[string]bool{
+		"snap4": true,
+	})
+
+	snaps = ifacestate.FindSnapsWaitingFor(t1, "c", "d")
+	c.Assert(snaps, DeepEquals, map[string]bool{
+		"snap3": true,
+		"snap4": true,
+	})
+
+	// task t5 doesn't have snap setup, so nothing reported
+	snaps = ifacestate.FindSnapsWaitingFor(t1, "e")
+	c.Assert(len(snaps), Equals, 0)
+
+	snaps = ifacestate.FindSnapsWaitingFor(t1, "x")
+	c.Assert(len(snaps), Equals, 0)
+
+	snaps = ifacestate.FindSnapsWaitingFor(t4, "x")
+	c.Assert(len(snaps), Equals, 0)
+
+	// create cycle
+	t1 = s.state.NewTask("a", "")
+	makeSetup(t1, "snap1")
+	t2 = s.state.NewTask("b", "")
+	makeSetup(t2, "snap2")
+	t1.WaitFor(t2)
+	t2.WaitFor(t1)
+	snaps = ifacestate.FindSnapsWaitingFor(t1, "b")
+
+	c.Assert(snaps, DeepEquals, map[string]bool{
+		"snap2": true,
 	})
 }

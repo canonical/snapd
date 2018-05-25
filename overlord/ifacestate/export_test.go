@@ -52,3 +52,5 @@ func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
 	contentLinkRetryTimeout = d
 	return func() { contentLinkRetryTimeout = old }
 }
+
+var CheckConnectConflicts = checkConnectConflicts
