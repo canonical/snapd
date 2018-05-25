@@ -34,7 +34,7 @@ class XBuildDeb(snapcraft.BasePlugin):
         self.run(["sudo", "apt-get", "build-dep", "-y", "./"])
         # XXX: get this from "debian/gbp.conf:postexport"
         self.run(["./get-deps.sh"])
-        env=os.environ
+        env=os.environ.copy()
         if os.getuid() == 0:
             # disable running the tests during the build when run as root
             # because quite a few of them will break
