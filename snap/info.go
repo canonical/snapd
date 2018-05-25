@@ -624,6 +624,7 @@ type AppInfo struct {
 	Name          string
 	LegacyAliases []string // FIXME: eventually drop this
 	Command       string
+	CommonID      string
 
 	Daemon          string
 	StopTimeout     timeout.Timeout
@@ -639,8 +640,7 @@ type AppInfo struct {
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
 	// https://github.com/snapcore/snapd/pull/794#discussion_r58688496
-	BusName  string
-	CommonID string
+	BusName string
 
 	Plugs   map[string]*PlugInfo
 	Slots   map[string]*SlotInfo
