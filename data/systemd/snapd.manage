@@ -1,8 +1,9 @@
 #!/bin/sh
 #
-# This script will start snapd from a base snap. This script knows
-# what units to add/start and remove/stop the current version of
-# snapd.
+# This script acts as an entry point for running snapd from snapd.snap on
+# a base snap that otherwise doesn't ship snapd itself. The entry point
+# arranges for appropriate system integration, in particular by creating
+# and starting systemd units for running snapd without any confinement.
 #
 # Arguments:
 # $1: start|stop
@@ -14,7 +15,14 @@ set -e
 CMD="$1"
 PREFIX="$2"
 
-if ! grep "ID=ubuntu-core" /etc/os-release && ! grep "ID_LIKE=ubuntu-core"; then
+UNITS="snapd.service snapd.autoimport.service snapd.core-fixup.service \
+       snapd.seed-done.service snapd.snap-repair.service \
+       snapd.system-shutdown.service snapd.snap-repair.timer 
+       snapd.socket"
+
+# TODO: discuss ID_LIKE=ubuntu-core or ID_LIKE=snap-core ?
+if ! grep -q "ID=ubuntu-core" /etc/os-release && \
+        ! grep -q "ID_LIKE=ubuntu-core" /etc/os-release; then
     echo "cannot run this helper on a non ubuntu-core system"
     exit 1
 fi
@@ -28,18 +36,22 @@ case $CMD in
         fi
         # use existing snapd.service as a template and modify so that the
         # right prefix is used
-        sed "s#ExecStart=/usr/lib/snapd/snapd#ExecStart=$PREFIX/usr/lib/snapd/snapd#" "$PREFIX"/lib/systemd/system/snapd.service > /run/systemd/system/snapd.service
-        # no need to modfiy the socket
-        cp "$PREFIX"/lib/systemd/system/snapd.socket /run/systemd/system
+        for u in $UNITS; do
+            sed "s#ExecStart=#ExecStart=$PREFIX#" "$PREFIX"/lib/systemd/system/$u > /run/systemd/system/$u
+        done
         # and now use systemd to start it
         systemctl daemon-reload
-        systemctl start snapd.service snapd.socket
+        for unit in $UNITS; do
+            systemctl start $unit
+            # FIXME: check that the unit is really fine, if not revert
+        done
         ;;
     stop)
         echo "Running stop action"
-        systemctl stop snapd.socket snapd.service
-        rm -f /run/systemd/system/snapd.service
-        rm -f /run/systemd/system/snapd.socket
+        systemctl stop $UNITS
+        for unit in $UNITS; do
+            rm -f /run/systemd/system/$unit
+        done
         ;;
     *)
         echo "unknown action: $1"
