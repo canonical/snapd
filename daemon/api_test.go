@@ -740,6 +740,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	defer restore()
 	restore = release.MockForcedDevmode(true)
 	defer restore()
+	// reload dirs for release info to have effect
+	dirs.SetRootDir(dirs.GlobalRootDir)
 
 	buildID, err := osutil.MyBuildID()
 	c.Assert(err, check.IsNil)
@@ -766,7 +768,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			// only the "timer" field
 			"timer": "8:00~9:00/2",
 		},
-		"confinement": "partial",
+		"confinement":      "partial",
+		"sandbox-features": map[string]interface{}{"confinement-options": []interface{}{"classic", "devmode"}},
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -791,6 +794,8 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	defer restore()
 	restore = release.MockForcedDevmode(true)
 	defer restore()
+	// reload dirs for release info to have effect
+	dirs.SetRootDir(dirs.GlobalRootDir)
 
 	// set the legacy refresh schedule
 	st := d.overlord.State()
@@ -800,6 +805,13 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	tr.Set("core", "refresh.timer", "")
 	tr.Commit()
 	st.Unlock()
+
+	// add a test security backend
+	err := d.overlord.InterfaceManager().Repository().AddBackend(&ifacetest.TestSecurityBackend{
+		BackendName:             "apparmor",
+		SandboxFeaturesCallback: func() []string { return []string{"feature-1", "feature-2"} },
+	})
+	c.Assert(err, check.IsNil)
 
 	buildID, err := osutil.MyBuildID()
 	c.Assert(err, check.IsNil)
@@ -827,6 +839,10 @@ func (s *apiSuite) TestSysInfoLegacyRefresh(c *check.C) {
 			"schedule": "00:00-9:00/12:00-13:00",
 		},
 		"confinement": "partial",
+		"sandbox-features": map[string]interface{}{
+			"apparmor":            []interface{}{"feature-1", "feature-2"},
+			"confinement-options": []interface{}{"classic", "devmode"}, // we know it's this because of the release.Mock... calls above
+		},
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -2604,7 +2620,14 @@ func (s *apiSuite) TestGetConfCoreSystemAlias(c *check.C) {
 
 func (s *apiSuite) TestGetConfMissingKey(c *check.C) {
 	result := s.runGetConf(c, "test-snap", []string{"test-key2"}, 400)
-	c.Check(result, check.DeepEquals, map[string]interface{}{"message": `snap "test-snap" has no "test-key2" configuration option`})
+	c.Check(result, check.DeepEquals, map[string]interface{}{
+		"value": map[string]interface{}{
+			"SnapName": "test-snap",
+			"Key":      "test-key2",
+		},
+		"message": `snap "test-snap" has no "test-key2" configuration option`,
+		"kind":    "option-not-found",
+	})
 }
 
 func (s *apiSuite) TestGetRootDocument(c *check.C) {
@@ -2687,7 +2710,7 @@ version: 1
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
-	text, err := json.Marshal(map[string]interface{}{"key": "value"})
+	text, err := json.Marshal(map[string]interface{}{"proxy.ftp": "value"})
 	c.Assert(err, check.IsNil)
 
 	buffer := bytes.NewBuffer(text)
@@ -2715,12 +2738,14 @@ version: 1
 
 	st.Lock()
 	err = chg.Err()
+	c.Assert(err, check.IsNil)
+
 	tr := config.NewTransaction(st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
 	var value string
-	tr.Get("core", "key", &value)
+	tr.Get("core", "proxy.ftp", &value)
 	c.Assert(value, check.Equals, "value")
 
 }
@@ -3495,18 +3520,20 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 // Tests for GET /v2/interfaces
 
 func (s *apiSuite) TestInterfaces(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	connRef := interfaces.ConnRef{
+	connRef := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	c.Assert(repo.Connect(connRef), check.IsNil)
+	_, err := repo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -3673,7 +3700,8 @@ func (s *apiSuite) TestInterfaceDetail404(c *check.C) {
 // Test for POST /v2/interfaces
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -3834,19 +3862,69 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Assert(ifaces.Connections, check.HasLen, 0)
 }
 
+func (s *apiSuite) TestConnectCoreSystemAlias(c *check.C) {
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
+	d := s.daemon(c)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, coreProducerYaml)
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	action := &interfaceAction{
+		Action: "connect",
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "system", Name: "slot"}},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 202)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	err = chg.Err()
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	repo := d.overlord.InterfaceManager().Repository()
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, check.HasLen, 1)
+	c.Check(ifaces.Connections, check.DeepEquals, []*interfaces.ConnRef{{interfaces.PlugRef{Snap: "consumer", Name: "plug"}, interfaces.SlotRef{Snap: "core", Name: "slot"}}})
+}
+
 func (s *apiSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSnap, slotName string) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	d := s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	connRef := interfaces.ConnRef{
+	connRef := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
-	c.Assert(repo.Connect(connRef), check.IsNil)
+	_, err := repo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, check.IsNil)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
@@ -3899,7 +3977,8 @@ func (s *apiSuite) TestDisconnectPlugSuccessWithEmptySlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	s.daemon(c)
 
 	// there is no consumer, no plug defined
@@ -3932,7 +4011,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugNothingToDo(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -3966,7 +4046,8 @@ func (s *apiSuite) TestDisconnectPlugNothingToDo(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -4000,7 +4081,8 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 }
 
 func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
-	builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
 	s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
@@ -4031,6 +4113,60 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 		"status-code": 400.0,
 		"type":        "error",
 	})
+}
+
+func (s *apiSuite) TestDisconnectCoreSystemAlias(c *check.C) {
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
+	d := s.daemon(c)
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, coreProducerYaml)
+
+	repo := d.overlord.InterfaceManager().Repository()
+	connRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"},
+	}
+	_, err := repo.Connect(connRef, nil, nil, nil)
+	c.Assert(err, check.IsNil)
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	action := &interfaceAction{
+		Action: "disconnect",
+		Plugs:  []plugJSON{{Snap: "consumer", Name: "plug"}},
+		Slots:  []slotJSON{{Snap: "system", Name: "slot"}},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	interfacesCmd.POST(interfacesCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 202)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	err = chg.Err()
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, check.HasLen, 0)
 }
 
 func (s *apiSuite) TestUnsupportedInterfaceRequest(c *check.C) {

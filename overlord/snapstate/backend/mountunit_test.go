@@ -62,6 +62,9 @@ func (s *mountunitSuite) TearDownTest(c *C) {
 }
 
 func (s *mountunitSuite) TestAddMountUnit(c *C) {
+	restore := systemd.MockUseFuse(false)
+	defer restore()
+
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			RealName: "foo",
@@ -77,7 +80,7 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 	un := fmt.Sprintf("%s.mount", systemd.EscapeUnitNamePath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo", "13")))
 	c.Assert(filepath.Join(dirs.SnapServicesDir, un), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
-Description=Mount unit for foo
+Description=Mount unit for foo, revision 13
 Before=snapd.service
 
 [Mount]

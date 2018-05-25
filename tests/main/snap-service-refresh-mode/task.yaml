@@ -1,14 +1,18 @@
 summary: "Check that refresh-modes works"
 
-kill-timeout: 3m
+kill-timeout: 5m
 
 debug: |
     grep -n '' *.pid || true
     systemctl status snap.test-snapd-service.test-snapd-endure-service || true
 
 execute: |
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB/snaps.sh"
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     echo "When the service snap is installed"
-    . $TESTSLIB/snaps.sh
     install_local test-snapd-service
 
     echo "We can see it running"
@@ -25,7 +29,7 @@ execute: |
 
     echo "Once the snap is removed, the service is stopped"
     snap remove test-snapd-service
-    journalctl | MATCH "stop endure"
+    get_journalctl_log | MATCH "stop endure"
 
 restore:
     rm -f *.pid || true

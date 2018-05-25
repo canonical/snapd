@@ -103,7 +103,7 @@ type State struct {
 
 	cache map[interface{}]interface{}
 
-	restarting bool
+	restarting RestartType
 	restartLck sync.Mutex
 }
 
@@ -245,21 +245,21 @@ func (s *State) EnsureBefore(d time.Duration) {
 // RequestRestart asks for a restart of the managing process.
 func (s *State) RequestRestart(t RestartType) {
 	if s.backend != nil {
-		s.backend.RequestRestart(t)
 		s.restartLck.Lock()
-		s.restarting = true
+		s.restarting = t
 		s.restartLck.Unlock()
+		s.backend.RequestRestart(t)
 	}
 }
 
-// Restarting returns whether a restart was requested with RequestRestart
-func (s *State) Restarting() bool {
+// Restarting returns whether a restart was requested with RequestRestart and of which type.
+func (s *State) Restarting() (bool, RestartType) {
 	s.restartLck.Lock()
 	defer s.restartLck.Unlock()
-	return s.restarting
+	return s.restarting != RestartUnset, s.restarting
 }
 
-func MockRestarting(s *State, restarting bool) bool {
+func MockRestarting(s *State, restarting RestartType) RestartType {
 	s.restartLck.Lock()
 	defer s.restartLck.Unlock()
 	old := s.restarting

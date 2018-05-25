@@ -58,6 +58,7 @@ var (
 	sysSymlinkat  = osutil.Symlinkat
 	sysReadlinkat = osutil.Readlinkat
 	sysFchdir     = syscall.Fchdir
+	sysLstat      = syscall.Lstat
 
 	ioutilReadDir = ioutil.ReadDir
 )
@@ -170,10 +171,10 @@ func (sec *Secure) CheckTrespassing(fd int, segments []string, segNum int) error
 }
 
 // OpenPath creates a path file descriptor for the given
-// directory, making sure no components are symbolic links.
+// path, making sure no components are symbolic links.
 //
 // The file descriptor is opened using the O_PATH, O_NOFOLLOW,
-// O_DIRECTORY, and O_CLOEXEC flags.
+// and O_CLOEXEC flags.
 func (sec *Secure) OpenPath(path string) (int, error) {
 	if !filepath.IsAbs(path) {
 		return -1, fmt.Errorf("path %v is not absolute", path)
@@ -185,26 +186,35 @@ func (sec *Secure) OpenPath(path string) (int, error) {
 	// We use the following flags to open:
 	//  O_PATH: we don't intend to use the fd for IO
 	//  O_NOFOLLOW: don't follow symlinks
-	//  O_DIRECTORY: we expect to find directories
+	//  O_DIRECTORY: we expect to find directories (except for the leaf)
 	//  O_CLOEXEC: don't leak file descriptors over exec() boundaries
-	const openFlags = sys.O_PATH | syscall.O_NOFOLLOW | syscall.O_DIRECTORY | syscall.O_CLOEXEC
+	openFlags := sys.O_PATH | syscall.O_NOFOLLOW | syscall.O_DIRECTORY | syscall.O_CLOEXEC
 	var fd int
 	fd, err = sysOpen("/", openFlags, 0)
 	if err != nil {
 		return -1, err
 	}
-	if len(segments) > 1 {
-		defer sysClose(fd)
-	}
 	for i, segment := range segments {
+		// Ensure the parent file descriptor is closed
+		defer sysClose(fd)
+		if i == len(segments)-1 {
+			openFlags &^= syscall.O_DIRECTORY
+		}
 		fd, err = sysOpenat(fd, segment, openFlags, 0)
 		if err != nil {
 			return -1, err
 		}
-		// Keep the final FD open (caller needs to close it).
-		if i < len(segments)-1 {
-			defer sysClose(fd)
-		}
+	}
+
+	var statBuf syscall.Stat_t
+	err = sysFstat(fd, &statBuf)
+	if err != nil {
+		sysClose(fd)
+		return -1, err
+	}
+	if statBuf.Mode&syscall.S_IFMT == syscall.S_IFLNK {
+		sysClose(fd)
+		return -1, fmt.Errorf("%q is a symbolic link", path)
 	}
 	return fd, nil
 }
@@ -388,7 +398,7 @@ func (sec *Secure) MkSymlink(fd int, segments []string, segNum int, oldname stri
 			if err != nil {
 				return fmt.Errorf("cannot inspect existing file %q: %v", segment, err)
 			}
-			if statBuf.Mode&syscall.S_IFLNK != syscall.S_IFLNK {
+			if statBuf.Mode&syscall.S_IFMT != syscall.S_IFLNK {
 				return fmt.Errorf("cannot create symbolic link %q: existing file in the way", segment)
 			}
 			var n int
@@ -560,13 +570,20 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 
 	var changes []*Change
 
+	// Stat the original directory to know which mode and ownership to
+	// replicate on top of the tmpfs we are about to create below.
+	var sb syscall.Stat_t
+	if err := sysLstat(dir, &sb); err != nil {
+		return nil, err
+	}
+
 	// Bind mount the original directory elsewhere for safe-keeping.
 	changes = append(changes, &Change{
 		Action: Mount, Entry: osutil.MountEntry{
 			// NOTE: Here we recursively bind because we realized that not
-			// doing so doesn't work work on core devices which use bind
-			// mounts extensively to construct writable spaces in /etc and
-			// /var and elsewhere.
+			// doing so doesn't work on core devices which use bind mounts
+			// extensively to construct writable spaces in /etc and /var and
+			// elsewhere.
 			//
 			// All directories present in the original are also recursively
 			// bind mounted back to their original location. To unmount this
@@ -579,11 +596,20 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 			// umount2(2) system call.
 			Name: dir, Dir: safeKeepingDir, Options: []string{"rbind"}},
 	})
+
 	// Mount tmpfs over the original directory, hiding its contents.
+	// The mounted tmpfs will mimic the mode and ownership of the original
+	// directory.
 	changes = append(changes, &Change{
 		Action: Mount, Entry: osutil.MountEntry{
 			Name: "tmpfs", Dir: dir, Type: "tmpfs",
-			Options: []string{"x-snapd.synthetic", fmt.Sprintf("x-snapd.needed-by=%s", neededBy)},
+			Options: []string{
+				osutil.XSnapdSynthetic(),
+				osutil.XSnapdNeededBy(neededBy),
+				fmt.Sprintf("mode=%#o", sb.Mode&07777),
+				fmt.Sprintf("uid=%d", sb.Uid),
+				fmt.Sprintf("gid=%d", sb.Gid),
+			},
 		},
 	})
 	// Iterate over the items in the original directory (nothing is mounted _yet_).
@@ -604,10 +630,10 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 		case m.IsDir():
 			ch.Entry.Options = []string{"rbind"}
 		case m.IsRegular():
-			ch.Entry.Options = []string{"bind", "x-snapd.kind=file"}
+			ch.Entry.Options = []string{"bind", osutil.XSnapdKindFile()}
 		case m&os.ModeSymlink != 0:
 			if target, err := osReadlink(filepath.Join(dir, fi.Name())); err == nil {
-				ch.Entry.Options = []string{"x-snapd.kind=symlink", fmt.Sprintf("x-snapd.symlink=%s", target)}
+				ch.Entry.Options = []string{osutil.XSnapdKindSymlink(), osutil.XSnapdSymlink(target)}
 			} else {
 				continue
 			}
@@ -615,13 +641,13 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 			logger.Noticef("skipping unsupported file %s", fi)
 			continue
 		}
-		ch.Entry.Options = append(ch.Entry.Options, "x-snapd.synthetic")
-		ch.Entry.Options = append(ch.Entry.Options, fmt.Sprintf("x-snapd.needed-by=%s", neededBy))
+		ch.Entry.Options = append(ch.Entry.Options, osutil.XSnapdSynthetic())
+		ch.Entry.Options = append(ch.Entry.Options, osutil.XSnapdNeededBy(neededBy))
 		changes = append(changes, ch)
 	}
 	// Finally unbind the safe-keeping directory as we don't need it anymore.
 	changes = append(changes, &Change{
-		Action: Unmount, Entry: osutil.MountEntry{Name: "none", Dir: safeKeepingDir, Options: []string{"x-snapd.detach"}},
+		Action: Unmount, Entry: osutil.MountEntry{Name: "none", Dir: safeKeepingDir, Options: []string{osutil.XSnapdDetach()}},
 	})
 	return changes, nil
 }
@@ -678,7 +704,7 @@ func execWritableMimic(plan []*Change, sec *Secure) ([]*Change, error) {
 				// for how to undo" so we need to flip the actions.
 				recoveryUndoChange.Action = Unmount
 				if recoveryUndoChange.Entry.OptBool("rbind") {
-					recoveryUndoChange.Entry.Options = append(recoveryUndoChange.Entry.Options, "x-snapd.detach")
+					recoveryUndoChange.Entry.Options = append(recoveryUndoChange.Entry.Options, osutil.XSnapdDetach())
 				}
 				if _, err2 := changePerform(recoveryUndoChange, sec); err2 != nil {
 					// Drat, we failed when trying to recover from an error.
@@ -694,7 +720,7 @@ func execWritableMimic(plan []*Change, sec *Secure) ([]*Change, error) {
 			// change is the safe-keeping unmount.
 			continue
 		}
-		if kind, _ := change.Entry.OptStr("x-snapd.kind"); kind == "symlink" {
+		if change.Entry.XSnapdKind() == "symlink" {
 			// Don't represent symlinks in the undo plan. They are removed when
 			// the tmpfs is unmounted.
 			continue

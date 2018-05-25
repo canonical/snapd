@@ -395,6 +395,8 @@ func (s *Info) InstallDate() time.Time {
 	return time.Time{}
 }
 
+// BadInterfacesSummary returns a summary of the problems of bad plugs
+// and slots in the snap.
 func BadInterfacesSummary(snapInfo *Info) string {
 	inverted := make(map[string][]string)
 	for name, reason := range snapInfo.BadInterfaces {
@@ -464,25 +466,53 @@ type PlugInfo struct {
 	Hooks     map[string]*HookInfo
 }
 
-func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
-	if v, ok := attrs[key]; ok {
-		rt := reflect.TypeOf(val)
-		if rt.Kind() != reflect.Ptr || val == nil {
-			return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", key, ifaceName)
-		}
-
-		if reflect.TypeOf(v) != rt.Elem() {
-			return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, key)
-		}
-		rv := reflect.ValueOf(val)
-		rv.Elem().Set(reflect.ValueOf(v))
-		return nil
+func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
+	var v interface{}
+	comps := strings.FieldsFunc(path, func(r rune) bool { return r == '.' })
+	if len(comps) == 0 {
+		return nil, false
 	}
-	return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)
+	v = attrs
+	for _, comp := range comps {
+		m, ok := v.(map[string]interface{})
+		if !ok {
+			return nil, false
+		}
+		v, ok = m[comp]
+		if !ok {
+			return nil, false
+		}
+	}
+
+	return v, true
+}
+
+func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
+	v, ok := lookupAttr(attrs, key)
+	if !ok {
+		return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)
+	}
+
+	rt := reflect.TypeOf(val)
+	if rt.Kind() != reflect.Ptr || val == nil {
+		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", key, ifaceName)
+	}
+
+	if reflect.TypeOf(v) != rt.Elem() {
+		return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, key)
+	}
+	rv := reflect.ValueOf(val)
+	rv.Elem().Set(reflect.ValueOf(v))
+
+	return nil
 }
 
 func (plug *PlugInfo) Attr(key string, val interface{}) error {
 	return getAttribute(plug.Snap.Name(), plug.Interface, plug.Attrs, key, val)
+}
+
+func (plug *PlugInfo) Lookup(key string) (interface{}, bool) {
+	return lookupAttr(plug.Attrs, key)
 }
 
 // SecurityTags returns security tags associated with a given plug.
@@ -505,6 +535,10 @@ func (plug *PlugInfo) String() string {
 
 func (slot *SlotInfo) Attr(key string, val interface{}) error {
 	return getAttribute(slot.Snap.Name(), slot.Interface, slot.Attrs, key, val)
+}
+
+func (slot *SlotInfo) Lookup(key string) (interface{}, bool) {
+	return lookupAttr(slot.Attrs, key)
 }
 
 // SecurityTags returns security tags associated with a given slot.
@@ -580,7 +614,7 @@ func (st StopModeType) Validate() error {
 	return fmt.Errorf(`"stop-mode" field contains invalid value %q`, st)
 }
 
-// AppInfo provides information about a app.
+// AppInfo provides information about an app.
 type AppInfo struct {
 	Snap *Info
 
@@ -590,6 +624,7 @@ type AppInfo struct {
 
 	Daemon          string
 	StopTimeout     timeout.Timeout
+	WatchdogTimeout timeout.Timeout
 	StopCommand     string
 	ReloadCommand   string
 	PostStopCommand string
@@ -657,6 +692,7 @@ func (app *AppInfo) SecurityTag() string {
 	return AppSecurityTag(app.Snap.Name(), app.Name)
 }
 
+// DesktopFile returns the path to the installed optional desktop file for the application.
 func (app *AppInfo) DesktopFile() string {
 	return filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s.desktop", app.Snap.Name(), app.Name))
 }
@@ -763,13 +799,43 @@ func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
 	return info, nil
 }
 
+// BrokenSnapError describes an error that refers to a snap that warrants the "broken" note.
+type BrokenSnapError interface {
+	error
+	Broken() string
+}
+
 type NotFoundError struct {
 	Snap     string
 	Revision Revision
+	// Path encodes the path that triggered the not-found error.
+	// It may refer to a file inside the snap or to the snap file itself.
+	Path string
 }
 
 func (e NotFoundError) Error() string {
+	if e.Path != "" {
+		return fmt.Sprintf("cannot find installed snap %q at revision %s: missing file %s", e.Snap, e.Revision, e.Path)
+	}
 	return fmt.Sprintf("cannot find installed snap %q at revision %s", e.Snap, e.Revision)
+}
+
+func (e NotFoundError) Broken() string {
+	return e.Error()
+}
+
+type invalidMetaError struct {
+	Snap     string
+	Revision Revision
+	Msg      string
+}
+
+func (e invalidMetaError) Error() string {
+	return fmt.Sprintf("cannot use installed snap %q at revision %s: %s", e.Snap, e.Revision, e.Msg)
+}
+
+func (e invalidMetaError) Broken() string {
+	return e.Error()
 }
 
 func MockSanitizePlugsSlots(f func(snapInfo *Info)) (restore func()) {
@@ -787,7 +853,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
-		return nil, &NotFoundError{Snap: name, Revision: si.Revision}
+		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: snapYamlFn}
 	}
 	if err != nil {
 		return nil, err
@@ -795,10 +861,18 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 
 	info, err := infoFromSnapYamlWithSideInfo(meta, si)
 	if err != nil {
-		return nil, err
+		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
-	st, err := os.Stat(MountFile(name, si.Revision))
+	mountFile := MountFile(name, si.Revision)
+	st, err := os.Stat(mountFile)
+	if os.IsNotExist(err) {
+		// This can happen when "snap try" mode snap is moved around. The mount
+		// is still in place (it's a bind mount, it doesn't care about the
+		// source moving) but the symlink in /var/lib/snapd/snaps is now
+		// dangling.
+		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: mountFile}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -806,7 +880,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 
 	err = addImplicitHooks(info)
 	if err != nil {
-		return nil, err
+		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
 	return info, nil
@@ -828,7 +902,7 @@ func ReadCurrentInfo(snapName string) (*Info, error) {
 	return ReadInfo(snapName, &SideInfo{Revision: revision})
 }
 
-// ReadInfoFromSnapFile reads the snap information from the given File
+// ReadInfoFromSnapFile reads the snap information from the given Container
 // and completes it with the given side-info if this is not nil.
 func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	meta, err := snapf.ReadFile("meta/snap.yaml")
@@ -890,4 +964,22 @@ func JoinSnapApp(snap, app string) string {
 		return app
 	}
 	return fmt.Sprintf("%s.%s", snap, app)
+}
+
+// UseNick returns the nickname for given snap name. If there is none, returns
+// the original name.
+func UseNick(snapName string) string {
+	if snapName == "core" {
+		return "system"
+	}
+	return snapName
+}
+
+// DropNick returns the snap name for given nickname. If there is none, returns
+// the original name.
+func DropNick(nick string) string {
+	if nick == "system" {
+		return "core"
+	}
+	return nick
 }

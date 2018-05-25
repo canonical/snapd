@@ -310,7 +310,8 @@ slots:
 
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
-  mount options=(bind, ro) /snap/producer/5/export/ -> /snap/consumer/7/import/,
+  mount options=(bind) /snap/producer/5/export/ -> /snap/consumer/7/import/,
+  remount options=(bind, ro) /snap/consumer/7/import/,
   umount /snap/consumer/7/import/,
   # Writable mimic /snap/producer/5
   mount options=(rbind, rw) /snap/producer/5/ -> /tmp/.snap/snap/producer/5/,
@@ -582,7 +583,8 @@ slots:
   /var/snap/consumer/ rw,
 `
 	profile2 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
-  mount options=(bind, ro) /var/snap/producer/common/read-common/ -> /var/snap/consumer/common/import/read-common/,
+  mount options=(bind) /var/snap/producer/common/read-common/ -> /var/snap/consumer/common/import/read-common/,
+  remount options=(bind, ro) /var/snap/consumer/common/import/read-common/,
   umount /var/snap/consumer/common/import/read-common/,
   # Writable directory /var/snap/producer/common/read-common
   /var/snap/producer/common/read-common/ rw,
@@ -595,7 +597,8 @@ slots:
   /var/snap/consumer/ rw,
 `
 	profile3 := `  # Read-only content sharing consumer:content -> producer:content (r#1)
-  mount options=(bind, ro) /var/snap/producer/2/read-data/ -> /var/snap/consumer/common/import/read-data/,
+  mount options=(bind) /var/snap/producer/2/read-data/ -> /var/snap/consumer/common/import/read-data/,
+  remount options=(bind, ro) /var/snap/consumer/common/import/read-data/,
   umount /var/snap/consumer/common/import/read-data/,
   # Writable directory /var/snap/producer/2/read-data
   /var/snap/producer/2/read-data/ rw,
@@ -608,7 +611,8 @@ slots:
   /var/snap/consumer/ rw,
 `
 	profile4 := `  # Read-only content sharing consumer:content -> producer:content (r#2)
-  mount options=(bind, ro) /snap/producer/2/read-snap/ -> /var/snap/consumer/common/import/read-snap/,
+  mount options=(bind) /snap/producer/2/read-snap/ -> /var/snap/consumer/common/import/read-snap/,
+  remount options=(bind, ro) /var/snap/consumer/common/import/read-snap/,
   umount /var/snap/consumer/common/import/read-snap/,
   # Writable mimic /snap/producer/2
   mount options=(rbind, rw) /snap/producer/2/ -> /tmp/.snap/snap/producer/2/,

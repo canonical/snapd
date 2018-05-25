@@ -42,11 +42,13 @@ var (
 
 	// main
 	ComputeAndSaveChanges = computeAndSaveChanges
+	ApplyUserFstab        = applyUserFstab
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
 type SystemCalls interface {
-	Lstat(name string) (os.FileInfo, error)
+	OsLstat(name string) (os.FileInfo, error)
+	SysLstat(name string, buf *syscall.Stat_t) error
 	ReadDir(dirname string) ([]os.FileInfo, error)
 	Symlinkat(oldname string, dirfd int, newname string) error
 	Readlinkat(dirfd int, path string, buf []byte) (int, error)
@@ -83,9 +85,10 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	oldFstat := sysFstat
 	oldFstatfs := sysFstatfs
 	oldSysFchdir := sysFchdir
+	oldSysLstat := sysLstat
 
 	// override
-	osLstat = sc.Lstat
+	osLstat = sc.OsLstat
 	osRemove = sc.Remove
 	ioutilReadDir = sc.ReadDir
 
@@ -101,6 +104,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	sysFstat = sc.Fstat
 	sysFstatfs = sc.Fstatfs
 	sysFchdir = sc.Fchdir
+	sysLstat = sc.SysLstat
 
 	return func() {
 		// restore
@@ -120,6 +124,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		sysFstat = oldFstat
 		sysFstatfs = oldFstatfs
 		sysFchdir = oldSysFchdir
+		sysLstat = oldSysLstat
 	}
 }
 

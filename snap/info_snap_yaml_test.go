@@ -66,7 +66,7 @@ func (s *InfoSnapYamlTestSuite) TestSimple(c *C) {
 
 func (s *InfoSnapYamlTestSuite) TestFail(c *C) {
 	_, err := snap.InfoFromSnapYaml([]byte("random-crap"))
-	c.Assert(err, ErrorMatches, "(?m)info failed to parse:.*")
+	c.Assert(err, ErrorMatches, "(?m)cannot parse snap.yaml:.*")
 }
 
 type YamlSuite struct {
@@ -1497,7 +1497,7 @@ apps:
        socket-mode: asdfasdf
 `)
 	_, err := snap.InfoFromSnapYaml(y)
-	c.Check(err.Error(), Equals, "info failed to parse: yaml: unmarshal errors:\n"+
+	c.Check(err.Error(), Equals, "cannot parse snap.yaml: yaml: unmarshal errors:\n"+
 		"  line 9: cannot unmarshal !!str `asdfasdf` into os.FileMode")
 }
 
@@ -1614,6 +1614,20 @@ apps:
 			Name: "zed",
 		},
 	})
+}
+
+func (s *YamlSuite) TestSnapYamlWatchdog(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    watchdog-timeout: 12s
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	c.Check(info.Apps["foo"].WatchdogTimeout, Equals, timeout.Timeout(12*time.Second))
 }
 
 func (s *YamlSuite) TestLayout(c *C) {

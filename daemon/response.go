@@ -57,6 +57,14 @@ type resp struct {
 	Type   ResponseType `json:"type"`
 	Result interface{}  `json:"result,omitempty"`
 	*Meta
+	Maintenance *errorResult `json:"maintenance,omitempty"`
+}
+
+func (r *resp) transmitMaintenance(kind errorKind, message string) {
+	r.Maintenance = &errorResult{
+		Kind:    kind,
+		Message: message,
+	}
 }
 
 // TODO This is being done in a rush to get the proper external
@@ -81,15 +89,17 @@ type respJSON struct {
 	StatusText string       `json:"status"`
 	Result     interface{}  `json:"result"`
 	*Meta
+	Maintenance *errorResult `json:"maintenance,omitempty"`
 }
 
 func (r *resp) MarshalJSON() ([]byte, error) {
 	return json.Marshal(respJSON{
-		Type:       r.Type,
-		Status:     r.Status,
-		StatusText: http.StatusText(r.Status),
-		Result:     r.Result,
-		Meta:       r.Meta,
+		Type:        r.Type,
+		Status:      r.Status,
+		StatusText:  http.StatusText(r.Status),
+		Result:      r.Result,
+		Meta:        r.Meta,
+		Maintenance: r.Maintenance,
 	})
 }
 
@@ -137,6 +147,8 @@ const (
 	errorKindSnapLocal             = errorKind("snap-local")
 	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
 
+	errorKindSnapRevisionNotAvailable = errorKind("snap-revision-not-available")
+
 	errorKindNotSnap = errorKind("snap-not-a-snap")
 
 	errorKindSnapNeedsDevMode       = errorKind("snap-needs-devmode")
@@ -147,6 +159,11 @@ const (
 
 	errorKindNetworkTimeout      = errorKind("network-timeout")
 	errorKindInterfacesUnchanged = errorKind("interfaces-unchanged")
+
+	errorKindConfigNoSuchOption = errorKind("option-not-found")
+
+	errorKindDaemonRestart = errorKind("daemon-restart")
+	errorKindSystemRestart = errorKind("system-restart")
 )
 
 type errorValue interface{}
@@ -344,6 +361,22 @@ func SnapNotFound(snapName string, err error) Response {
 		Result: &errorResult{
 			Message: err.Error(),
 			Kind:    errorKindSnapNotFound,
+			Value:   snapName,
+		},
+		Status: 404,
+	}
+}
+
+// SnapRevisionNotAvailable is an error responder used when an
+// operation is requested for which no revivision can be found
+// in the given context (e.g. request an install from a stable
+// channel when this channel is empty).
+func SnapRevisionNotAvailable(snapName string, err error) Response {
+	return &resp{
+		Type: ResponseTypeError,
+		Result: &errorResult{
+			Message: err.Error(),
+			Kind:    errorKindSnapRevisionNotAvailable,
 			Value:   snapName,
 		},
 		Status: 404,

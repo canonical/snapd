@@ -120,6 +120,11 @@ func errorToCmdMessage(snapName string, e error, opts *client.SnapOptions) (stri
 				msg = fmt.Sprintf(i18n.G("snap %%q not found (at least in channel %q)"), opts.Channel)
 			}
 		}
+	case client.ErrorKindRevisionNotAvailable:
+		// TRANSLATORS: %q and %[1]s refer to the same thing (a snap name).
+		msg = i18n.G(`
+snap %q not found in the given context.
+Please use 'snap info %[1]s' to list available releases.`)
 	case client.ErrorKindSnapAlreadyInstalled:
 		isError = false
 		msg = i18n.G(`snap %q is already installed, see 'snap help refresh'`)
@@ -165,6 +170,10 @@ If you understand and want to proceed repeat the command including --classic.
 		isError = true
 		usesSnapName = false
 		msg = i18n.G("unable to contact snap store")
+	case client.ErrorKindSystemRestart:
+		isError = false
+		usesSnapName = false
+		msg = i18n.G("snapd is about to reboot the system")
 	default:
 		usesSnapName = false
 		msg = err.Message
