@@ -535,7 +535,7 @@ func (s *backendSuite) TestCombineSnippetsOpenSUSETumbleweed(c *C) {
 	defer restore()
 	restore = release.MockReleaseInfo(&release.OS{ID: "opensuse-tumbleweed"})
 	defer restore()
-	restore = release.MockKernelVersion("4.16")
+	restore = release.MockKernelVersion("4.16.10-1-default")
 	defer restore()
 	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
