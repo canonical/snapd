@@ -1301,7 +1301,7 @@ apps:
 		err  string
 	}{
 		{good, ""},
-		{bad, `application "(bar|foo)" common-id "org.foo.foo" is not unique`},
+		{bad, `application ("bar" common-id "org.foo.foo" must be unique, already used by application "foo"|"foo" common-id "org.foo.foo" must be unique, already used by application "bar")`},
 	} {
 		c.Logf("tc #%v", i)
 		info, err := InfoFromSnapYaml([]byte(tc.meta))

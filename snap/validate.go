@@ -788,13 +788,14 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 }
 
 func ValidateCommonIDs(info *Info) error {
-	seen := make(map[string]bool, len(info.Apps))
+	seen := make(map[string]string, len(info.Apps))
 	for _, app := range info.Apps {
 		if app.CommonID != "" {
-			if seen[app.CommonID] {
-				return fmt.Errorf("application %q common-id %q is not unique", app.Name, app.CommonID)
+			if other, was := seen[app.CommonID]; was {
+				return fmt.Errorf("application %q common-id %q must be unique, already used by application %q",
+					app.Name, app.CommonID, other)
 			}
-			seen[app.CommonID] = true
+			seen[app.CommonID] = app.Name
 		}
 	}
 	return nil
