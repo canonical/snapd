@@ -298,6 +298,7 @@ fi
 %{_mandir}/man5/snap-discard-ns.5.gz
 %{_unitdir}/snapd.service
 %{_unitdir}/snapd.socket
+%{_unitdir}/snapd.seeded.service
 /usr/bin/snap
 /usr/bin/snapctl
 /usr/sbin/rcsnapd
