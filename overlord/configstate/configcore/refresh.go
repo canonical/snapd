@@ -21,6 +21,7 @@ package configcore
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -31,6 +32,7 @@ func init() {
 	supportedConfigurations["core.refresh.hold"] = true
 	supportedConfigurations["core.refresh.schedule"] = true
 	supportedConfigurations["core.refresh.timer"] = true
+	supportedConfigurations["core.refresh.keep-inactive"] = true
 }
 
 func validateRefreshSchedule(tr Conf) error {
@@ -42,6 +44,16 @@ func validateRefreshSchedule(tr Conf) error {
 		// try legacy refresh.schedule setting if new-style
 		// refresh.timer is not set
 		if _, err = timeutil.ParseSchedule(refreshTimerStr); err != nil {
+			return err
+		}
+	}
+
+	refreshKeepInactiveStr, err := coreCfg(tr, "refresh.keep-inactive")
+	if err != nil {
+		return err
+	}
+	if refreshKeepInactiveStr != "" {
+		if _, err := strconv.ParseUint(refreshKeepInactiveStr, 10, 8); err != nil {
 			return err
 		}
 	}
