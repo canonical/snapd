@@ -31,6 +31,9 @@ set -o pipefail
 # shellcheck source=tests/lib/journalctl.sh
 . "$TESTSLIB/journalctl.sh"
 
+# shellcheck source=tests/lib/state.sh
+. "$TESTSLIB/state.sh"
+
 
 ###
 ### Utility functions reused below.
@@ -471,10 +474,8 @@ restore_project_each() {
 }
 
 restore_project() {
-    # We use a trick to accelerate prepare/restore code in certain suites. That
-    # code uses a tarball to store the vanilla state. Here we just remove this
-    # tarball.
-    rm -f "$SPREAD_PATH/snapd-state.tar.gz"
+    # Delete the snapd state used to accelerate prepare/restore code in certain suites. 
+    delete_snapd_state
 
     # Remove all of the code we pushed and any build results. This removes
     # stale files and we cannot do incremental builds anyway so there's little
