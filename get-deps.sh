@@ -1,6 +1,17 @@
 #!/bin/sh
 
-set -eu
+set -e
+
+HERE=$(pwd)
+
+if [ "$GOPATH" = "" ]; then
+    export GOPATH=$(mktemp -d)
+    trap "rm -rf $GOPATH" EXIT
+
+    mkdir -p $GOPATH/src/github.com/snapcore/
+    ln -s $(pwd) $GOPATH/src/github.com/snapcore/snapd
+    cd $GOPATH/src/github.com/snapcore/snapd
+fi
 
 if ! which govendor >/dev/null;then
     export PATH="$PATH:${GOPATH%%:*}/bin"
