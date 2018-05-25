@@ -2,8 +2,6 @@
 
 set -e
 
-HERE=$(pwd)
-
 if [ "$GOPATH" = "" ]; then
     export GOPATH=$(mktemp -d)
     trap "rm -rf $GOPATH" EXIT
