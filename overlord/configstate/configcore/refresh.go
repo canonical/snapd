@@ -31,6 +31,7 @@ func init() {
 	supportedConfigurations["core.refresh.hold"] = true
 	supportedConfigurations["core.refresh.schedule"] = true
 	supportedConfigurations["core.refresh.timer"] = true
+	supportedConfigurations["core.refresh.metered"] = true
 }
 
 func validateRefreshSchedule(tr Conf) error {
