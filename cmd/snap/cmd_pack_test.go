@@ -68,7 +68,7 @@ apps:
 	snapDir := makeSnapDirForPack(c, snapYaml)
 
 	_, err := snaprun.Parser().ParseArgs([]string{"pack", "--check-skeleton", snapDir})
-	c.Assert(err, check.ErrorMatches, `application "(bar|foo)" common-id "org.foo.foo" is not unique`)
+	c.Assert(err, check.ErrorMatches, `application ("bar" common-id "org.foo.foo" must be unique, already used by application "foo"|"foo" common-id "org.foo.foo" must be unique, already used by application "bar")`)
 }
 
 func (s *SnapSuite) TestPackPacksFailsForMissingPaths(c *check.C) {
