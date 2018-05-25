@@ -620,6 +620,7 @@ popd
 %{_sysconfdir}/profile.d/snapd.sh
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.service
+%{_unitdir}/snapd.seeded.service
 %{_unitdir}/snapd.autoimport.service
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
