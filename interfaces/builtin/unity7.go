@@ -655,7 +655,7 @@ func (iface *unity7Interface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-func (iface *unity7Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *unity7Interface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }
