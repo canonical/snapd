@@ -235,6 +235,11 @@ install -m 644 -D data/completion/etelpmoc.sh %{buildroot}%{_libexecdir}/snapd
 install -m 755 -d %{buildroot}/lib/systemd/system-generators/
 mv %{buildroot}%{_libexecdir}/snapd/snapd-generator %{buildroot}/lib/systemd/system-generators/
 
+# On openSUSE Leap 42.* (and perhaps 15 as well, untested) the apparmor stack is too old
+# so don't ship apparmor helper service.
+rm -f %{?buildroot}%{_unitdir}/snapd.apparmor.service
+rm -f %{?buildroot}%{_libexecdir}/snapd/snapd-apparmor
+
 %verifyscript
 %verify_permissions -e %{_libexecdir}/snapd/snap-confine
 
