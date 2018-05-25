@@ -128,11 +128,22 @@ func SetNextBoot(s *snap.Info) error {
 
 	// check if we actually need to do anything, i.e. the exact same
 	// kernel/core revision got installed again (e.g. firstboot)
-	m, err := bootloader.GetBootVars(goodBoot)
+	// and we are not in any special boot mode
+	m, err := bootloader.GetBootVars("snap_mode", goodBoot)
 	if err != nil {
 		return err
 	}
 	if m[goodBoot] == blobName {
+		// If we were in anything but default ("") mode before
+		// and now switch to the good core/kernel again, make
+		// sure to clean the snap_mode here. This also
+		// mitigates https://forum.snapcraft.io/t/5253
+		if m["snap_mode"] != "" {
+			return bootloader.SetBootVars(map[string]string{
+				"snap_mode": "",
+				nextBoot:    "",
+			})
+		}
 		return nil
 	}
 

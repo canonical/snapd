@@ -78,7 +78,7 @@ type changeAndData struct {
 	Data map[string]*json.RawMessage `json:"data"`
 }
 
-// Change fetches information about a Change given its ID
+// Change fetches information about a Change given its ID.
 func (client *Client) Change(id string) (*Change, error) {
 	var chgd changeAndData
 	_, err := client.doSync("GET", "/v2/changes/"+id, nil, nil, nil, &chgd)

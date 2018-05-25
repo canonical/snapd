@@ -12,6 +12,9 @@ set -eux
 . "$TESTSLIB/boot.sh"
 # shellcheck source=tests/lib/spread-funcs.sh
 . "$TESTSLIB/spread-funcs.sh"
+# shellcheck source=tests/lib/state.sh
+. "$TESTSLIB/state.sh"
+
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -55,7 +58,7 @@ setup_systemd_snapd_overrides() {
 [Unit]
 $START_LIMIT_INTERVAL
 [Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
 ExecStartPre=/bin/touch /dev/iio:device0
 EOF
     mkdir -p /etc/systemd/system/snapd.socket.d
@@ -196,7 +199,7 @@ prepare_classic() {
     fi
 
     # Snapshot the state including core.
-    if [ ! -f "$SPREAD_PATH/snapd-state.tar.gz" ]; then
+    if [ ! -f "$SNAPD_STATE_FILE" ]; then
         # Pre-cache a few heavy snaps so that they can be installed by tests
         # quickly. This relies on a behavior of snapd where .partial files are
         # used for resuming downloads.
@@ -237,26 +240,7 @@ prepare_classic() {
         fi
 
         systemctl stop snapd.{service,socket}
-        systemctl daemon-reload
-        escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
-        units="$(systemctl list-unit-files --full | grep -e "^$escaped_snap_mount_dir[-.].*\.mount" -e "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
-        for unit in $units; do
-            systemctl stop "$unit"
-        done
-        snapd_env="/etc/environment /etc/systemd/system/snapd.service.d /etc/systemd/system/snapd.socket.d"
-        snap_confine_profiles="$(ls /etc/apparmor.d/snap.core.* || true)"
-        # shellcheck disable=SC2086
-        tar cf "$SPREAD_PATH"/snapd-state.tar.gz /var/lib/snapd "$SNAP_MOUNT_DIR" /etc/systemd/system/"$escaped_snap_mount_dir"-*core*.mount /etc/systemd/system/multi-user.target.wants/"$escaped_snap_mount_dir"-*core*.mount $snap_confine_profiles $snapd_env
-        systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
-        core="$(readlink -f "$SNAP_MOUNT_DIR/core/current")"
-        # on 14.04 it is possible that the core snap is still mounted at this point, unmount
-        # to prevent errors starting the mount unit
-        if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && mount | grep -q "$core"; then
-            umount "$core" || true
-        fi
-        for unit in $units; do
-            systemctl start "$unit"
-        done
+        save_snapd_state
         systemctl start snapd.socket
     fi
 
@@ -355,7 +339,18 @@ EOF
         # FIXME: hardcoded mapper location, parse from kpartx
         mount /dev/mapper/loop2p3 /mnt
         mkdir -p /mnt/user-data/
-        cp -ar /home/gopath /mnt/user-data/
+        # copy over everything from gopath to user-data, exclude:
+        # - VCS files
+        # - built debs
+        # - golang archive files and built packages dir
+        # - govendor .cache directory and the binary,
+        rsync -avv -C \
+              --exclude '*.a' \
+              --exclude '*.deb' \
+              --exclude /gopath/.cache/ \
+              --exclude /gopath/bin/govendor \
+              --exclude /gopath/pkg/ \
+              /home/gopath /mnt/user-data/
 
         # create test user and ubuntu user inside the writable partition
         # so that we can use a stock core in tests
@@ -505,26 +500,19 @@ prepare_all_snap() {
         fi
     done
 
+    echo "Ensure rsync is available"
+    if ! which rsync; then
+        snap install --devmode test-snapd-rsync
+        snap alias test-snapd-rsync.rsync rsync
+    fi
+
     disable_refreshes
     setup_systemd_snapd_overrides
 
     # Snapshot the fresh state (including boot/bootenv)
-    if [ ! -f "$SPREAD_PATH/snapd-state.tar.gz" ]; then
-        # we need to ensure that we also restore the boot environment
-        # fully for tests that break it
-        BOOT=""
-        if ls /boot/uboot/*; then
-            BOOT=/boot/uboot/
-        elif ls /boot/grub/*; then
-            BOOT=/boot/grub/
-        else
-            echo "Cannot determine bootdir in /boot:"
-            ls /boot
-            exit 1
-        fi
-
+    if [ ! -d $SNAPD_STATE_PATH ]; then
         systemctl stop snapd.service snapd.socket
-        tar cf "$SPREAD_PATH/snapd-state.tar.gz" /var/lib/snapd $BOOT /etc/systemd/system/snap-*core*.mount
+        save_snapd_state
         systemctl start snapd.socket
     fi
 

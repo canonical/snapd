@@ -101,20 +101,19 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 	return nil
 }
 
-// AutoConnect returns a set of tasks for connecting an interface as part of snap installation
-// and auto-connect handling.
-func AutoConnect(st *state.State, change *state.Change, autoConnectTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	return connect(st, change, plugSnap, plugName, slotSnap, slotName, autoConnectTask)
+// ConnectOnInstall returns a set of tasks for (re)connecting an interface as part of snap installation (e.g. to reconnect interfaces on refresh, or autoconnect)
+func ConnectOnInstall(st *state.State, change *state.Change, mainTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+	return connect(st, change, mainTask, plugSnap, plugName, slotSnap, slotName)
 }
 
 // Connect returns a set of tasks for connecting an interface.
 //
 func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
-	return connect(st, nil, plugSnap, plugName, slotSnap, slotName, nil)
+	return connect(st, nil, nil, plugSnap, plugName, slotSnap, slotName)
 }
 
-func connect(st *state.State, change *state.Change, plugSnap, plugName, slotSnap, slotName string, autoConnectTask *state.Task) (*state.TaskSet, error) {
-	if err := checkConnectConflicts(st, change, plugSnap, slotSnap, autoConnectTask); err != nil {
+func connect(st *state.State, change *state.Change, mainTask *state.Task, plugSnap, plugName, slotSnap, slotName string) (*state.TaskSet, error) {
+	if err := checkConnectConflicts(st, change, plugSnap, slotSnap, mainTask); err != nil {
 		return nil, err
 	}
 
@@ -161,7 +160,7 @@ func connect(st *state.State, change *state.Change, plugSnap, plugName, slotSnap
 
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
 	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	connectInterface.Set("auto", autoConnectTask != nil)
+	connectInterface.Set("auto", mainTask != nil && mainTask.Kind() == "auto-connect")
 
 	// Expose a copy of all plug and slot attributes coming from yaml to interface hooks. The hooks will be able
 	// to modify them but all attributes will be checked against assertions after the hooks are run.

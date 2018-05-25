@@ -90,7 +90,7 @@ func (s *GpgKeysInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows reading gpg user configuration and keys`)
+	c.Assert(si.Summary, Equals, `allows reading gpg user configuration and keys and updating gpg's random seed file`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "gpg-keys")
 }
 
