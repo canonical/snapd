@@ -446,33 +446,33 @@ const commonPrefix = `
 var combineSnippetsScenarios = []combineSnippetsScenario{{
 	// By default apparmor is enforcing mode.
 	opts:    interfaces.ConfinementOptions{},
-	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected) {\n\n}\n",
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,mediate_deleted) {\n\n}\n",
 }, {
 	// Snippets are injected in the space between "{" and "}"
 	opts:    interfaces.ConfinementOptions{},
 	snippet: "snippet",
-	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected) {\nsnippet\n}\n",
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,mediate_deleted) {\nsnippet\n}\n",
 }, {
 	// DevMode switches apparmor to non-enforcing (complain) mode.
 	opts:    interfaces.ConfinementOptions{DevMode: true},
 	snippet: "snippet",
-	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\nsnippet\n}\n",
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,mediate_deleted,complain) {\nsnippet\n}\n",
 }, {
 	// JailMode switches apparmor to enforcing mode even in the presence of DevMode.
 	opts:    interfaces.ConfinementOptions{DevMode: true},
 	snippet: "snippet",
-	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\nsnippet\n}\n",
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,mediate_deleted,complain) {\nsnippet\n}\n",
 }, {
 	// Classic confinement (without jailmode) uses apparmor in complain mode by default and ignores all snippets.
 	opts:    interfaces.ConfinementOptions{Classic: true},
 	snippet: "snippet",
-	content: "\n#classic" + commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,complain) {\n\n}\n",
+	content: "\n#classic" + commonPrefix + "\nprofile \"snap.samba.smbd\" (attach_disconnected,mediate_deleted,complain) {\n\n}\n",
 }, {
 	// Classic confinement in JailMode uses enforcing apparmor.
 	opts:    interfaces.ConfinementOptions{Classic: true, JailMode: true},
 	snippet: "snippet",
 	content: commonPrefix + `
-profile "snap.samba.smbd" (attach_disconnected) {
+profile "snap.samba.smbd" (attach_disconnected,mediate_deleted) {
 
   # Read-only access to the core snap.
   @{INSTALL_DIR}/core/** r,
@@ -499,14 +499,14 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 	// NOTE: replace the real template with a shorter variant
 	restoreTemplate := apparmor.MockTemplate("\n" +
 		"###VAR###\n" +
-		"###PROFILEATTACH### (attach_disconnected) {\n" +
+		"###PROFILEATTACH### (attach_disconnected,mediate_deleted) {\n" +
 		"###SNIPPETS###\n" +
 		"}\n")
 	defer restoreTemplate()
 	restoreClassicTemplate := apparmor.MockClassicTemplate("\n" +
 		"#classic\n" +
 		"###VAR###\n" +
-		"###PROFILEATTACH### (attach_disconnected) {\n" +
+		"###PROFILEATTACH### (attach_disconnected,mediate_deleted) {\n" +
 		"###SNIPPETS###\n" +
 		"}\n")
 	defer restoreClassicTemplate()
@@ -751,9 +751,10 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileF
 	c.Assert(cmd.Calls(), HasLen, 1)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{{
 		"apparmor_parser", "--replace",
-		"-O", "no-expr-simplify",
 		"--write-cache",
-		"--cache-loc", dirs.SystemApparmorCacheDir,
+		"-O", "no-expr-simplify",
+		"--cache-loc=" + dirs.SystemApparmorCacheDir,
+		"--quiet",
 		profilePath,
 	}})
 }
@@ -888,7 +889,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 
 	// Setup generated policy for snap-confine.
 	err = (&apparmor.Backend{}).Initialize()
-	c.Assert(err, ErrorMatches, "cannot reload snap-confine apparmor profile: testing")
+	c.Assert(err, ErrorMatches, "cannot reload snap-confine apparmor profile: .*\n.*\ntesting\n")
 
 	// While created the policy file initially we also removed it so that
 	// no side-effects remain.
@@ -1045,9 +1046,10 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithOverlay(c *C, prof
 	c.Assert(cmd.Calls(), HasLen, 1)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{{
 		"apparmor_parser", "--replace",
-		"-O", "no-expr-simplify",
 		"--write-cache",
-		"--cache-loc", dirs.SystemApparmorCacheDir,
+		"-O", "no-expr-simplify",
+		"--cache-loc=" + dirs.SystemApparmorCacheDir,
+		"--quiet",
 		profilePath,
 	}})
 }
@@ -1199,4 +1201,11 @@ func (s *backendSuite) TestProfileGlobs(c *C) {
 
 func (s *backendSuite) TestNsProfile(c *C) {
 	c.Assert(apparmor.NsProfile("foo"), Equals, "snap-update-ns.foo")
+}
+
+func (s *backendSuite) TestSandboxFeatures(c *C) {
+	restore := apparmor.MockKernelFeatures(func() []string { return []string{"foo", "bar"} })
+	defer restore()
+
+	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{"kernel:foo", "kernel:bar"})
 }

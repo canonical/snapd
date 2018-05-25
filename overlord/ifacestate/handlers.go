@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -85,36 +84,19 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
-	// TODO: this whole bit seems maybe that it should belong (largely) to a snapstate helper
 	var corePhase2 bool
 	if err := task.Get("core-phase-2", &corePhase2); err != nil && err != state.ErrNoState {
 		return err
 	}
 	if corePhase2 {
-		if snapInfo.Type != snap.TypeOS {
-			// not core, nothing to do
+		// invoke guard logic for core snap security setup
+		// phase 2 implemented by snapstate
+		proceed, err := snapstate.GuardCoreSetupProfilesPhase2(task, snapsup, snapInfo)
+		if err != nil {
+			return err
+		}
+		if !proceed {
 			return nil
-		}
-		if task.State().Restarting() {
-			// don't continue until we are in the restarted snapd
-			task.Logf("Waiting for restart...")
-			return &state.Retry{}
-		}
-		// if not on classic check there was no rollback
-		if !release.OnClassic {
-			// TODO: double check that we really rebooted
-			// otherwise this could be just a spurious restart
-			// of snapd
-			name, rev, err := snapstate.CurrentBootNameAndRevision(snap.TypeOS)
-			if err == snapstate.ErrBootNameAndRevisionAgain {
-				return &state.Retry{After: 5 * time.Second}
-			}
-			if err != nil {
-				return err
-			}
-			if snapsup.Name() != name || snapInfo.Revision != rev {
-				return fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
-			}
 		}
 
 		// Compatibility with old snapd: check if we have auto-connect task and if not, inject it after self (setup-profiles).
@@ -388,7 +370,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	connRef := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+	connRef := &interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
 
 	var plugSnapst snapstate.SnapState
 	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
@@ -521,9 +503,17 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	conn := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
-	delete(conns, conn.ID())
-
+	cref := interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
+	if conn, ok := conns[cref.ID()]; ok && conn.Auto {
+		conn.Undesired = true
+		conn.DynamicPlugAttrs = nil
+		conn.DynamicSlotAttrs = nil
+		conn.StaticPlugAttrs = nil
+		conn.StaticSlotAttrs = nil
+		conns[cref.ID()] = conn
+	} else {
+		delete(conns, cref.ID())
+	}
 	setConns(st, conns)
 	return nil
 }
@@ -580,9 +570,6 @@ func (m *InterfaceManager) defaultContentProviders(snapName string) map[string]b
 
 // doAutoConnect creates task(s) to connect the given snap to viable candidates.
 func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
-	// FIXME: here we should not reconnect auto-connect plug/slot
-	// pairs that were explicitly disconnected by the user
-
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
@@ -663,12 +650,12 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		connRef := interfaces.NewConnRef(plug, slot)
 		key := connRef.ID()
 		if _, ok := conns[key]; ok {
-			// Suggested connection already exist so don't clobber it.
+			// Suggested connection already exist (or has Undesired flag set) so don't clobber it.
 			// NOTE: we don't log anything here as this is a normal and common condition.
 			continue
 		}
 
-		ts, err := AutoConnect(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
+		ts, err := ConnectOnInstall(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
 		if err != nil {
 			task.Logf("cannot auto-connect plug %s to %s: %s", connRef.PlugRef, connRef.SlotRef, err)
 			continue
@@ -700,11 +687,11 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			connRef := interfaces.NewConnRef(plug, slot)
 			key := connRef.ID()
 			if _, ok := conns[key]; ok {
-				// Suggested connection already exist so don't clobber it.
+				// Suggested connection already exist (or has Undesired flag set) so don't clobber it.
 				// NOTE: we don't log anything here as this is a normal and common condition.
 				continue
 			}
-			ts, err := AutoConnect(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
+			ts, err := ConnectOnInstall(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
 			if err != nil {
 				task.Logf("cannot auto-connect slot %s to %s: %s", connRef.SlotRef, connRef.PlugRef, err)
 				continue

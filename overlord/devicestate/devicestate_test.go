@@ -2120,7 +2120,7 @@ func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.
 	c.Assert(err, IsNil)
 	err = repo.AddSnap(core11)
 	c.Assert(err, IsNil)
-	_, err = repo.Connect(interfaces.ConnRef{
+	_, err = repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: info11.Name(), Name: ifname},
 		SlotRef: interfaces.SlotRef{Snap: core11.Name(), Name: ifname},
 	}, nil, nil, nil)
@@ -2223,4 +2223,44 @@ func (s *deviceMgrSuite) TestReloadRegistered(c *C) {
 		c.Fatal("should have been marked registered")
 	}
 	c.Check(ok, Equals, true)
+}
+
+func (s *deviceMgrSuite) TestMarkSeededInConfig(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// avoid device registration
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Serial: "123",
+	})
+
+	// avoid full seeding
+	s.seeding()
+
+	// not seeded -> no config is set
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.state.Lock()
+
+	var seedLoaded bool
+	tr := config.NewTransaction(st)
+	tr.Get("core", "seed.loaded", &seedLoaded)
+	c.Check(seedLoaded, Equals, false)
+
+	// pretend we are seeded now
+	s.state.Set("seeded", true)
+
+	// seeded -> config got updated
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.state.Lock()
+
+	tr = config.NewTransaction(st)
+	tr.Get("core", "seed.loaded", &seedLoaded)
+	c.Check(seedLoaded, Equals, true)
+
+	// only the fake seeding change is in the state, no further
+	// changes
+	c.Check(s.state.Changes(), HasLen, 1)
 }
