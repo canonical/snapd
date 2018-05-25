@@ -252,6 +252,9 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 	}
 	affected := make(map[string]bool)
 	for id, conn := range conns {
+		if conn.Undesired {
+			continue
+		}
 		connRef, err := interfaces.ParseConnRef(id)
 		if err != nil {
 			return nil, err
@@ -313,8 +316,11 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, snapName string)
 }
 
 type connState struct {
-	Auto             bool                   `json:"auto,omitempty"`
-	Interface        string                 `json:"interface,omitempty"`
+	Auto      bool   `json:"auto,omitempty"`
+	Interface string `json:"interface,omitempty"`
+	// Undesired tracks connections that were manually disconnected after being auto-connected,
+	// so that they are not automatically reconnected again in the future.
+	Undesired        bool                   `json:"undesired,omitempty"`
 	StaticPlugAttrs  map[string]interface{} `json:"plug-static,omitempty"`
 	DynamicPlugAttrs map[string]interface{} `json:"plug-dynamic,omitempty"`
 	StaticSlotAttrs  map[string]interface{} `json:"slot-static,omitempty"`

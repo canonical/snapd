@@ -97,6 +97,16 @@ slots:
   label: label
 `
 
+var coreProducerYaml = `
+name: core
+version: 1
+slots:
+ slot:
+  interface: test
+  key: value
+  label: label
+`
+
 var differentProducerYaml = `
 name: producer
 version: 1

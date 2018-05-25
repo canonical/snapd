@@ -11,8 +11,9 @@ environment:
 
 prepare: |
     echo "Given a snap with a failing command is installed"
+    #shellcheck source=tests/lib/snaps.sh
     . $TESTSLIB/snaps.sh
-    install_local $SNAP_NAME
+    install_local "$SNAP_NAME"
 
 execute: |
     echo "Install unexisting snap prints error"
@@ -50,7 +51,7 @@ execute: |
 
     echo "Install a snap that is already installed shows a message"
     echo "but does "exit 0" (LP: #1622782)"
-    snap install $SNAP_NAME 2> stderr.out
+    snap install "$SNAP_NAME" 2> stderr.out
     MATCH "snap \"$SNAP_NAME\" is already installed" < stderr.out
 
     echo "============================================"
