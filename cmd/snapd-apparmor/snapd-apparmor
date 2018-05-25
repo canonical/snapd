@@ -9,6 +9,11 @@
 # In addition the script assumes that the system-wide apparmor service has
 # already executed, initializing apparmor file-systems as necessary.
 
+# NOTE: This script doesn't set -e as it contains code copied from apparmor
+# init script that also does not set it. In addition the intent is to simply
+# load application profiles, as many as we can, even if for whatever reason
+# some of those fail.
+
 # The following portion is copied from /lib/apparmor/functions as shipped by Ubuntu
 # <copied-code>
 
