@@ -2160,6 +2160,12 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnInstall(c *C) {
 	c.Assert(s.secBackend.SetupCalls, HasLen, 0)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 1)
 	c.Check(s.secBackend.RemoveCalls, DeepEquals, []string{snapInfo.Name()})
+
+	// Ensure the snap revision of security profiles is unset.
+	var snapifst ifacestate.SnapInterfaceState
+	err := ifacestate.Get(s.state, "snap", &snapifst)
+	c.Assert(err, IsNil)
+	c.Assert(snapifst.Revision, Equals, snap.R(0))
 }
 
 // Test that setup-snap-security gets undone correctly when a snap is refreshed
@@ -2201,6 +2207,13 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, snapInfo.Name())
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, snapInfo.Revision)
 	c.Check(s.secBackend.SetupCalls[0].Options, Equals, interfaces.ConfinementOptions{})
+
+	// Ensure the snap revision used for security profiles is the same as
+	// the snap we had in the state.
+	var snapifst ifacestate.SnapInterfaceState
+	err := ifacestate.Get(s.state, "snap", &snapifst)
+	c.Assert(err, IsNil)
+	c.Assert(snapifst.Revision, Equals, snapInfo.Revision)
 }
 
 func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
