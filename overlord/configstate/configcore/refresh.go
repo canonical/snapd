@@ -53,8 +53,8 @@ func validateRefreshSchedule(tr Conf) error {
 		return err
 	}
 	if refreshKeepInactiveStr != "" {
-		if _, err := strconv.ParseUint(refreshKeepInactiveStr, 10, 8); err != nil {
-			return err
+		if n, err := strconv.ParseUint(refreshKeepInactiveStr, 10, 8); err != nil || (n < 1 || n > 20) {
+			return fmt.Errorf("keep-inactive must be a number between 1 and 20, not %q", refreshKeepInactiveStr)
 		}
 	}
 
