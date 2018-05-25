@@ -47,7 +47,7 @@ const joystickConnectedPlugAppArmor = `
 
 # Per https://github.com/torvalds/linux/blob/master/Documentation/admin-guide/devices.txt
 # the minor is 65 and up so limit udev to that.
-/run/udev/data/c13:{6[5-9],[7-9][0-9],[1-9][0-9][0-9]*},
+/run/udev/data/c13:{6[5-9],[7-9][0-9],[1-9][0-9][0-9]*} r,
 
 # /dev/input/event* is unfortunately not namespaced and includes all input
 # devices, including keyboards and mice, which allows input sniffing and
