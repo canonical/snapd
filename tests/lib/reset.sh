@@ -4,6 +4,9 @@ set -e -x
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
+# shellcheck source=tests/lib/state.sh
+. "$TESTSLIB/state.sh"
+
 
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
@@ -65,12 +68,8 @@ reset_classic() {
     rm -f /tmp/core* /tmp/ubuntu-core*
 
     if [ "$1" = "--reuse-core" ]; then
-        # Purge all the systemd service units config
-        rm -rf /etc/systemd/system/snapd.service.d
-        rm -rf /etc/systemd/system/snapd.socket.d
-
         # Restore snapd state and start systemd service units
-        tar -C/ -xf "$SPREAD_PATH/snapd-state.tar.gz"
+        restore_snapd_state
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
         mounts="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.mount" | cut -f1 -d ' ')"
         services="$(systemctl list-unit-files --full | grep "^$escaped_snap_mount_dir[-.].*\.service" | cut -f1 -d ' ')"
@@ -99,7 +98,6 @@ reset_all_snap() {
     # remove all leftover snaps
     # shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
-
     for snap in "$SNAP_MOUNT_DIR"/*; do
         snap="${snap:6}"
         case "$snap" in
@@ -119,8 +117,7 @@ reset_all_snap() {
 
     # ensure we have the same state as initially
     systemctl stop snapd.service snapd.socket
-    rm -rf /var/lib/snapd/*
-    tar -C/ -xf "$SPREAD_PATH/snapd-state.tar.gz"
+    restore_snapd_state
     rm -rf /root/.snap
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.service snapd.socket
