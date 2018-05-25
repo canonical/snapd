@@ -1,0 +1,49 @@
+#!/bin/sh
+#
+# This script will start snapd from a base snap. This script knows
+# what units to add/start and remove/stop the current version of
+# snapd.
+#
+# Arguments:
+# $1: start|stop
+# $2: prefix of the installed snapd snap (e.g. /snap/snapd/42/)
+#     (on a fedora base this might be e.g. /var/lib/snaps...)
+
+set -e
+
+CMD="$1"
+PREFIX="$2"
+
+if ! grep "ID=ubuntu-core" /etc/os-release && ! grep "ID_LIKE=ubuntu-core"; then
+    echo "cannot run this helper on a non ubuntu-core system"
+    exit 1
+fi
+
+case $CMD in
+    start)
+        echo "Running start action"
+        if [ "$PREFIX" = "" ]; then
+            echo "cannot run without the prefix for the snapd snap"
+            exit 1
+        fi
+        # use existing snapd.service as a template and modify so that the
+        # right prefix is used
+        sed "s#ExecStart=/usr/lib/snapd/snapd#ExecStart=$PREFIX/usr/lib/snapd/snapd#" "$PREFIX"/lib/systemd/system/snapd.service > /run/systemd/system/snapd.service
+        # no need to modfiy the socket
+        cp "$PREFIX"/lib/systemd/system/snapd.socket /run/systemd/system
+        # and now use systemd to start it
+        systemctl daemon-reload
+        systemctl start snapd.service snapd.socket
+        ;;
+    stop)
+        echo "Running stop action"
+        systemctl stop snapd.socket snapd.service
+        rm -f /run/systemd/system/snapd.service
+        rm -f /run/systemd/system/snapd.socket
+        ;;
+    *)
+        echo "unknown action: $1"
+        echo "this script is for internal use only"
+        exit 1
+        ;;
+esac

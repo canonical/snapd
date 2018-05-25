@@ -32,6 +32,7 @@ install: $(SYSTEMD_UNITS)
 	install -m 0644 -t $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR) $^
 	install -d -m 0755 $(DESTDIR)/$(LIBEXECDIR)/snapd
 	install -m 0755 -t $(DESTDIR)/$(LIBEXECDIR)/snapd snapd.core-fixup.sh
+	install -m 0755 -t $(DESTDIR)/$(LIBEXECDIR)/snapd snapd.manage
 
 .PHONY: clean
 clean:
