@@ -5,9 +5,8 @@ description: |
  'universal' packages that work across many different Linux systems,
  enabling secure distribution of the latest apps and utilities for
  cloud, servers, desktops and the internet of things.
-
- This is the CLI for snapd, a background service that takes care of
- snaps on the system. Start with 'snap list' to see installed snaps.
+ 
+ Start with 'snap list' to see installed snaps.
 version: set-by-version-script-thxbye
 version-script: |
   # extract the version from the debian/changelog
