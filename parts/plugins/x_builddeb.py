@@ -33,8 +33,9 @@ class XBuildDeb(snapcraft.BasePlugin):
         self.run(["sudo", "apt-get", "build-dep", "-y", "./"])
         # XXX: get this from "debian/gbp.conf:postexport"
         self.run(["./get-deps.sh"])
-        # run the real build
-        self.run(["dpkg-buildpackage", "--no-sign"])
+        # run the real build, -ptrue means run "true" to sign the package.
+        # Newer dpkg-buildpackage has "--no-sign" but not the xenial version
+        self.run(["dpkg-buildpackage", "-ptrue"])
         # and "install" into the right place
         snapd_deb = glob.glob("../snapd_*.deb")[0]
         self.run(["dpkg-deb", "-x", os.path.abspath(snapd_deb), self.installdir])
