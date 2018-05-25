@@ -34,7 +34,7 @@ var defaultTemplate = `
 
 ###VAR###
 
-###PROFILEATTACH### (attach_disconnected) {
+###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
   #include <abstractions/consoles>
   #include <abstractions/openssl>
@@ -121,6 +121,7 @@ var defaultTemplate = `
   /{,usr/}bin/cpio ixr,
   /{,usr/}bin/cut ixr,
   /{,usr/}bin/date ixr,
+  /{,usr/}bin/dbus-send ixr,
   /{,usr/}bin/dd ixr,
   /{,usr/}bin/diff{,3} ixr,
   /{,usr/}bin/dir ixr,
@@ -283,6 +284,15 @@ var defaultTemplate = `
   # value or those in its thread group.
   owner @{PROC}/@{pid}/task/@{tid}/comm rw,
 
+  # Allow reading and writing to our file descriptors in /proc which, for
+  # example, allow access to /dev/std{in,out,err} which are all symlinks to
+  # /proc/self/fd/{0,1,2} respectively. To support the open(..., O_TMPFILE)
+  # linkat() temporary file technique, allow all fds. Importantly, access to
+  # another's task's fd via this proc interface is mediated via 'ptrace (read)'
+  # (readonly) and 'ptrace (trace)' (read/write) which is denied by default, so
+  # this rule by itself doesn't allow opening another snap's fds via proc.
+  owner @{PROC}/@{pid}/{,task/@{tid}}fd/[0-9]* rw,
+
   # Miscellaneous accesses
   /dev/{,u}random w,
   /etc/machine-id r,
@@ -398,6 +408,10 @@ var defaultTemplate = `
   # Allow apps from the same package to signal each other via signals
   signal peer=snap.@{SNAP_NAME}.*,
 
+  # Allow receiving signals from all snaps (and focus on mediating sending of
+  # signals)
+  signal (receive) peer=snap.*,
+
   # for 'udevadm trigger --verbose --dry-run --tag-match=snappy-assign'
   /{,s}bin/udevadm ixr,
   /etc/udev/udev.conf r,
@@ -461,7 +475,7 @@ var classicTemplate = `
 
 ###VAR###
 
-###PROFILEATTACH### (attach_disconnected) {
+###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
   # set file rules so that exec() inherits our profile unless there is
   # already a profile for it (eg, snap-confine)
   / rwkl,

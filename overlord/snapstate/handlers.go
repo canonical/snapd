@@ -59,6 +59,9 @@ func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	}
 
 	ts := t.State().Task(id)
+	if ts == nil {
+		return nil, fmt.Errorf("internal error: tasks are being pruned")
+	}
 	if err := ts.Get("snap-setup", &snapsup); err != nil {
 		return nil, err
 	}

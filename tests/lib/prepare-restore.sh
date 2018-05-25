@@ -31,6 +31,9 @@ set -o pipefail
 # shellcheck source=tests/lib/journalctl.sh
 . "$TESTSLIB/journalctl.sh"
 
+# shellcheck source=tests/lib/state.sh
+. "$TESTSLIB/state.sh"
+
 
 ###
 ### Utility functions reused below.
@@ -359,11 +362,15 @@ prepare_project() {
     go get ./tests/lib/fakedevicesvc
     go get ./tests/lib/systemd-escape
 
-    # disable journald rate limiting
-    mkdir -p /etc/systemd/journald.conf.d/
+    # Disable journald rate limiting
+    mkdir -p /etc/systemd/journald.conf.d
+    # The RateLimitIntervalSec key is not supported on some systemd versions causing
+    # the journal rate limit could be considered as not valid and discarded in concecuence.
+    # RateLimitInterval key is supported in old systemd versions and in new ones as well,
+    # maintaining backward compatibility.
     cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
     [Journal]
-    RateLimitIntervalSec=0
+    RateLimitInterval=0
     RateLimitBurst=0
 EOF
     systemctl restart systemd-journald.service
@@ -397,7 +404,9 @@ prepare_suite_each() {
     "$TESTSLIB"/reset.sh --reuse-core
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+    if is_classic_system; then
         prepare_each_classic
     fi
 }
@@ -409,7 +418,9 @@ restore_suite_each() {
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --store
-    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+    if is_classic_system; then
         # shellcheck source=tests/lib/pkgdb.sh
         . $TESTSLIB/pkgdb.sh
         distro_purge_package snapd
@@ -463,10 +474,8 @@ restore_project_each() {
 }
 
 restore_project() {
-    # We use a trick to accelerate prepare/restore code in certain suites. That
-    # code uses a tarball to store the vanilla state. Here we just remove this
-    # tarball.
-    rm -f "$SPREAD_PATH/snapd-state.tar.gz"
+    # Delete the snapd state used to accelerate prepare/restore code in certain suites. 
+    delete_snapd_state
 
     # Remove all of the code we pushed and any build results. This removes
     # stale files and we cannot do incremental builds anyway so there's little

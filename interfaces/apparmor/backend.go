@@ -42,7 +42,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -166,18 +165,12 @@ func (b *Backend) Initialize() error {
 	}
 
 	// We are not using apparmor.LoadProfile() because it uses other cache.
-	cmd := exec.Command("apparmor_parser", "--replace",
-		// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
-		"-O", "no-expr-simplify",
-		"--write-cache", "--cache-loc", dirs.SystemApparmorCacheDir,
-		profilePath)
-
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if err := loadProfile(profilePath, dirs.SystemApparmorCacheDir); err != nil {
 		// When we cannot reload the profile then let's remove the generated
 		// policy. Maybe we have caused the problem so it's better to let other
 		// things work.
 		osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, nil)
-		return fmt.Errorf("cannot reload snap-confine apparmor profile: %v", osutil.OutputErr(output, err))
+		return fmt.Errorf("cannot reload snap-confine apparmor profile: %v", err)
 	}
 	return nil
 }
@@ -360,10 +353,10 @@ func (b *Backend) Remove(snapName string) error {
 
 var (
 	templatePattern = regexp.MustCompile("(###[A-Z_]+###)")
-	attachPattern   = regexp.MustCompile(`\(attach_disconnected\)`)
+	attachPattern   = regexp.MustCompile(`\(attach_disconnected,mediate_deleted\)`)
 )
 
-const attachComplain = "(attach_disconnected,complain)"
+const attachComplain = "(attach_disconnected,mediate_deleted,complain)"
 
 func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]*osutil.FileState, err error) {
 	content = make(map[string]*osutil.FileState, len(snapInfo.Apps)+len(snapInfo.Hooks)+1)

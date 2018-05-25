@@ -35,7 +35,10 @@ restore: |
     rm -f $READABLE_FILE $WRITABLE_FILE $CREATABLE_FILE $HIDDEN_READABLE_FILE
 
 execute: |
-    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
+    if is_core_system; then
         echo "The interface is not connected by default"
         snap interfaces -i home | MATCH "^\- +home-consumer:home"
 
