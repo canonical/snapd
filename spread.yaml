@@ -76,10 +76,6 @@ backends:
                 image: fedora-27-64-selinux-permissive
                 workers: 4
 
-            - opensuse-42.2-64:
-                image: opensuse-leap-42-2
-                workers: 4
-                manual: true
             - opensuse-42.3-64:
                 image: opensuse-cloud/opensuse-leap-42-3-v20180116
                 workers: 4
