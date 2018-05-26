@@ -1,0 +1,10 @@
+summary: Ensure snapd builds as a snap
+
+# this is what the snapcraft builder on launchpad uses
+systems: [ubuntu-16.04-64]
+
+execute: |
+    echo "Installing snapscraft"
+    apt install -y snapcraft
+    cd $PROJECT_PATH
+    snapcraft
