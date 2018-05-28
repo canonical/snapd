@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/partition"
@@ -106,7 +107,7 @@ func SetNextBoot(s *snap.Info) error {
 	if release.OnClassic {
 		return nil
 	}
-	if s.Type != snap.TypeOS && s.Type != snap.TypeKernel {
+	if s.Type != snap.TypeOS && s.Type != snap.TypeKernel && s.Type != snap.TypeBase {
 		return nil
 	}
 
@@ -117,7 +118,7 @@ func SetNextBoot(s *snap.Info) error {
 
 	var nextBoot, goodBoot string
 	switch s.Type {
-	case snap.TypeOS:
+	case snap.TypeOS, snap.TypeBase:
 		nextBoot = "snap_try_core"
 		goodBoot = "snap_core"
 	case snap.TypeKernel:
@@ -147,6 +148,16 @@ func SetNextBoot(s *snap.Info) error {
 		return nil
 	}
 
+	// With bases we need to check if this is a base we want to
+	// boot from, i.e. if the snap has the same name as the one
+	// we used for booting.
+	snapNameGoodBoot := strings.SplitN(m[goodBoot], "_", 2)[0]
+	if m[goodBoot] != "" && snapNameGoodBoot != s.Name() {
+		// Nothing to do, this is just a base snap but not
+		// the base name we used for booting.
+		return nil
+	}
+
 	return bootloader.SetBootVars(map[string]string{
 		nextBoot:    blobName,
 		"snap_mode": "try",
@@ -155,7 +166,7 @@ func SetNextBoot(s *snap.Info) error {
 
 // KernelOrOsRebootRequired returns whether a reboot is required to swith to the given OS or kernel snap.
 func KernelOrOsRebootRequired(s *snap.Info) bool {
-	if s.Type != snap.TypeKernel && s.Type != snap.TypeOS {
+	if s.Type != snap.TypeKernel && s.Type != snap.TypeOS && s.Type != snap.TypeBase {
 		return false
 	}
 
@@ -170,7 +181,7 @@ func KernelOrOsRebootRequired(s *snap.Info) bool {
 	case snap.TypeKernel:
 		nextBoot = "snap_try_kernel"
 		goodBoot = "snap_kernel"
-	case snap.TypeOS:
+	case snap.TypeOS, snap.TypeBase:
 		nextBoot = "snap_try_core"
 		goodBoot = "snap_core"
 	}
