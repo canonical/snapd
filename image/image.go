@@ -407,6 +407,10 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	if len(locals) > 0 {
 		fmt.Fprintf(Stderr, "WARNING: %s were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n", strutil.Quoted(locals))
 	}
+	// XXX: make this a warning only?
+	if model.Base() != "" && !seen["snapd"] {
+		return fmt.Errorf(`Base %q is used but no "snapd" snap is installed`, model.Base())
+	}
 
 	for _, aRef := range f.addedRefs {
 		var afn string
@@ -453,7 +457,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info) error {
 	// Set bootvars for kernel/core snaps so the system boots and
 	// does the first-time initialization. There is also no
-	// mounted kernel/core snap, but just the blobs.
+	// mounted kernel/core/base snap, but just the blobs.
 	bootloader, err := partition.FindBootloader()
 	if err != nil {
 		return fmt.Errorf("cannot set kernel/core boot variables: %s", err)
@@ -475,9 +479,7 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info) error {
 
 		info := downloadedSnapsInfoForBootConfig[fn]
 		switch info.Type {
-		case snap.TypeBase:
-			bootvar = "snap_core"
-		case snap.TypeOS:
+		case snap.TypeOS, snap.TypeBase:
 			bootvar = "snap_core"
 		case snap.TypeKernel:
 			bootvar = "snap_kernel"
