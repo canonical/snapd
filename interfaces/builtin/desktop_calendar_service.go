@@ -19,6 +19,10 @@
 
 package builtin
 
+import (
+	"github.com/snapcore/snapd/release"
+)
+
 const desktopCalendarServiceSummary = `allows communication with Evolution Data Service Calendar`
 
 const desktopCalendarServiceBaseDeclarationSlots = `
@@ -130,7 +134,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "desktop-calendar-service",
 		summary:               desktopCalendarServiceSummary,
-		implicitOnClassic:     true,
+		implicitOnClassic:     !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
 		reservedForOS:         true,
 		baseDeclarationSlots:  desktopCalendarServiceBaseDeclarationSlots,
 		connectedPlugAppArmor: desktopCalendarServiceConnectedPlugAppArmor,

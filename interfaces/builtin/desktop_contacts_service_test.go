@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -77,7 +78,14 @@ func (s *DesktopContactsServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.gnome.evolution.dataserver.AddressBook`)
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.gnome.evolution.dataserver.AddressBookFactory`)
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.gnome.evolution.dataserver.AddressBookView`)
+}
 
+func (s *DesktopContactsServiceInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Check(si.ImplicitOnCore, Equals, false)
+	c.Check(si.ImplicitOnClassic, Equals, !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"))
+	c.Check(si.Summary, Equals, "allows communication with Evolution Data Service Address Book")
+	c.Check(si.BaseDeclarationSlots, testutil.Contains, "desktop-contacts-service")
 }
 
 func (s *DesktopContactsServiceInterfaceSuite) TestInterfaces(c *C) {
