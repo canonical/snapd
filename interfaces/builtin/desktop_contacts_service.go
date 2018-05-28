@@ -19,7 +19,11 @@
 
 package builtin
 
-const desktopContactsServiceSummary = `allows communication with Evolution Data Service Addressbook`
+import (
+	"github.com/snapcore/snapd/release"
+)
+
+const desktopContactsServiceSummary = `allows communication with Evolution Data Service Address Book`
 
 const desktopContactsServiceBaseDeclarationSlots = `
   desktop-contacts-service:
@@ -149,7 +153,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "desktop-contacts-service",
 		summary:               desktopContactsServiceSummary,
-		implicitOnClassic:     true,
+		implicitOnClassic:     !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
 		reservedForOS:         true,
 		baseDeclarationSlots:  desktopContactsServiceBaseDeclarationSlots,
 		connectedPlugAppArmor: desktopContactsServiceConnectedPlugAppArmor,

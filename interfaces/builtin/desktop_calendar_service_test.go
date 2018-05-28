@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -77,7 +78,14 @@ func (s *DesktopCalendarServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.gnome.evolution.dataserver.Calendar`)
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.gnome.evolution.dataserver.CalendarFactory`)
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.gnome.evolution.dataserver.CalendarView`)
+}
 
+func (s *DesktopCalendarServiceInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Check(si.ImplicitOnCore, Equals, false)
+	c.Check(si.ImplicitOnClassic, Equals, !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"))
+	c.Check(si.Summary, Equals, "allows communication with Evolution Data Service Calendar")
+	c.Check(si.BaseDeclarationSlots, testutil.Contains, "desktop-calendar-service")
 }
 
 func (s *DesktopCalendarServiceInterfaceSuite) TestInterfaces(c *C) {
