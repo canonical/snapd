@@ -619,6 +619,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	var newconns []*interfaces.ConnRef
+
 	chg := task.Change()
 	// Auto-connect all the plugs
 	for _, plug := range m.repo.Plugs(snapName) {
@@ -655,12 +657,15 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			continue
 		}
 
-		ts, err := ConnectOnInstall(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
-		if err != nil {
-			task.Logf("cannot auto-connect plug %s to %s: %s", connRef.PlugRef, connRef.SlotRef, err)
-			continue
+		if err := checkConnectConflicts(st, chg, plug.Snap.Name(), slot.Snap.Name(), task); err != nil {
+			if _, retry := err.(*state.Retry); retry {
+				task.Logf("cannot auto-connect plug %s to %s: %s", connRef.PlugRef, connRef.SlotRef, err)
+				continue
+			}
+			return fmt.Errorf("auto-connect conflict check failed: %s", err)
 		}
-		autots.AddAll(ts)
+
+		newconns = append(newconns, connRef)
 	}
 	// Auto-connect all the slots
 	for _, slot := range m.repo.Slots(snapName) {
@@ -691,13 +696,25 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				// NOTE: we don't log anything here as this is a normal and common condition.
 				continue
 			}
-			ts, err := ConnectOnInstall(st, chg, task, plug.Snap.Name(), plug.Name, slot.Snap.Name(), slot.Name)
-			if err != nil {
-				task.Logf("cannot auto-connect slot %s to %s: %s", connRef.SlotRef, connRef.PlugRef, err)
-				continue
+
+			if err := checkConnectConflicts(st, chg, plug.Snap.Name(), slot.Snap.Name(), task); err != nil {
+				if _, retry := err.(*state.Retry); retry {
+					task.Logf("cannot auto-connect slot %s to %s: %s", connRef.SlotRef, connRef.PlugRef, err)
+					continue
+				}
+				return fmt.Errorf("auto-connect conflict check failed: %s", err)
 			}
-			autots.AddAll(ts)
+			newconns = append(newconns, connRef)
 		}
+	}
+
+	// Create connect tasks and interface hooks
+	for _, conn := range newconns {
+		ts, err := connect(st, task, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
+		if err != nil {
+			return fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
+		}
+		autots.AddAll(ts)
 	}
 
 	task.SetStatus(state.DoneStatus)
