@@ -185,6 +185,9 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		if _, ok := assert.headers["kernel"]; ok {
 			return nil, fmt.Errorf("cannot specify a kernel with a classic model")
 		}
+		if _, ok := assert.headers["base"]; ok {
+			return nil, fmt.Errorf("cannot specify a base with a classic model")
+		}
 	}
 
 	checker := checkNotEmptyString
