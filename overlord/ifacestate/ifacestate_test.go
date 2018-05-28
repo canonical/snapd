@@ -378,6 +378,9 @@ func (s *interfaceManagerSuite) testAutoConnectConflicts(c *C, conflictingKind s
 	err := ifacestate.CheckConnectConflicts(s.state, chg, "consumer", "producer", t2)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `task should be retried`)
+	rerr, ok := err.(*state.Retry)
+	c.Assert(ok, Equals, true)
+	c.Assert(rerr, NotNil)
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnUnlink(c *C) {
