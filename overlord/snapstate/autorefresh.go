@@ -150,6 +150,17 @@ func (m *autoRefresh) AtSeed() error {
 	return nil
 }
 
+func canRefreshOnMeteredConnection(st *state.State) (bool, error) {
+	tr := config.NewTransaction(st)
+	var onMetered string
+	err := tr.GetMaybe("core", "refresh.metered", &onMetered)
+	if err != nil && err != state.ErrNoState {
+		return false, err
+	}
+
+	return onMetered != "hold", nil
+}
+
 func (m *autoRefresh) canRefreshRespectingMetered(now, lastRefresh time.Time) (can bool, err error) {
 	can, err = canRefreshOnMeteredConnection(m.state)
 	if err != nil {
@@ -168,22 +179,11 @@ func (m *autoRefresh) canRefreshRespectingMetered(now, lastRefresh time.Time) (c
 
 	if now.Sub(lastRefresh) >= maxPostponement {
 		// TODO use warnings when the infra becomes available
-		logger.Noticef("Last refresh more than %d days ago, refreshing anyway", int(maxPostponement.Hours()/24))
+		logger.Noticef("Auto refresh disabled while on metered connections, but pending for too long (%s days). Trying to refresh now.", int(maxPostponement.Hours()/24))
 		return true, nil
 	}
 
-	var when string
-	switch remaining := int(lastRefresh.Add(maxPostponement).Sub(now).Hours() / 24); remaining {
-	case 0:
-		when = "today"
-	case 1:
-		when = "tomorrow"
-	default:
-		when = fmt.Sprintf("in %d days", remaining)
-	}
-	// TODO use warnings when the infra becomes available
-	// TODO consider switching to timeutil.Human when it grows the ability to print only days
-	logger.Noticef("Auto refresh disabled while on metered connection, refreshing %s anyway", when)
+	logger.Debugf("Auto refresh disabled on metered connections")
 
 	return false, nil
 }
@@ -455,15 +455,4 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return t1, nil
-}
-
-func canRefreshOnMeteredConnection(st *state.State) (bool, error) {
-	tr := config.NewTransaction(st)
-	var onMetered string
-	err := tr.GetMaybe("core", "refresh.metered", &onMetered)
-	if err != nil && err != state.ErrNoState {
-		return false, err
-	}
-
-	return onMetered != "hold", nil
 }
