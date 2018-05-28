@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,6 +31,7 @@ func init() {
 	supportedConfigurations["core.refresh.hold"] = true
 	supportedConfigurations["core.refresh.schedule"] = true
 	supportedConfigurations["core.refresh.timer"] = true
+	supportedConfigurations["core.refresh.metered"] = true
 }
 
 func validateRefreshSchedule(tr Conf) error {
@@ -54,6 +55,17 @@ func validateRefreshSchedule(tr Conf) error {
 		if _, err := time.Parse(time.RFC3339, refreshHoldStr); err != nil {
 			return fmt.Errorf("refresh.hold cannot be parsed: %v", err)
 		}
+	}
+
+	refreshOnMeteredStr, err := coreCfg(tr, "refresh.metered")
+	if err != nil {
+		return err
+	}
+	switch refreshOnMeteredStr {
+	case "", "hold":
+		// noop
+	default:
+		return fmt.Errorf("refresh.metered value %q is invalid", refreshOnMeteredStr)
 	}
 
 	refreshScheduleStr, err := coreCfg(tr, "refresh.schedule")

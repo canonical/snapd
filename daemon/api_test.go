@@ -505,6 +505,9 @@ apps:
     command: some.cmd
   cmd2:
     command: other.cmd
+  cmd3:
+    command: other.cmd
+    common-id: org.foo.cmd
   svc1:
     command: somed1
     daemon: simple
@@ -604,6 +607,10 @@ UnitFileState=potatoes
 					// no desktop file
 					Snap: "foo", Name: "cmd2",
 				}, {
+					// has AppStream ID
+					Snap: "foo", Name: "cmd3",
+					CommonID: "org.foo.cmd",
+				}, {
 					// services
 					Snap: "foo", Name: "svc1",
 					Daemon:  "simple",
@@ -619,17 +626,17 @@ UnitFileState=potatoes
 					Daemon:  "oneshot",
 					Enabled: true,
 					Active:  true,
-				},
-				{
+				}, {
 					Snap: "foo", Name: "svc4",
 					Daemon:  "notify",
 					Enabled: false,
 					Active:  false,
 				},
 			},
-			Broken:  "",
-			Contact: "",
-			License: "GPL-3.0",
+			Broken:    "",
+			Contact:   "",
+			License:   "GPL-3.0",
+			CommonIDs: []string{"org.foo.cmd"},
 		},
 		Meta: meta,
 	}
@@ -1631,6 +1638,28 @@ func (s *apiSuite) TestFindSection(c *check.C) {
 		Query:   "foo",
 		Section: "bar",
 	})
+}
+
+func (s *apiSuite) TestFindCommonID(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			RealName: "store",
+		},
+		Publisher: "foo",
+		CommonIDs: []string{"org.foo"},
+	}}
+	s.mockSnap(c, "name: store\nversion: 1.0")
+
+	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Check(snaps[0]["common-ids"], check.DeepEquals, []interface{}{"org.foo"})
 }
 
 func (s *apiSuite) TestFindOne(c *check.C) {
