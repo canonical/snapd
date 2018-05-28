@@ -479,6 +479,11 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info) error {
 
 		info := downloadedSnapsInfoForBootConfig[fn]
 		switch info.Type {
+		// FIXME: workaround a store bug thatsends
+		// "type: base" as "application" :/
+		// Once the store is fixed the next two lines can be removed
+		case snap.TypeApp:
+			bootvar = "snap_core"
 		case snap.TypeOS, snap.TypeBase:
 			bootvar = "snap_core"
 		case snap.TypeKernel:
