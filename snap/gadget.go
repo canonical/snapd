@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
@@ -33,6 +34,8 @@ type GadgetInfo struct {
 
 	// Default configuration for snaps (snap-id => key => value).
 	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
+
+	Connects []GadgetConnect `yaml:"connect"`
 }
 
 type GadgetVolume struct {
@@ -69,6 +72,71 @@ type VolumeContent struct {
 	Unpack bool `yaml:"unpack"`
 }
 
+// GadgetConnect describes an interface connection requested by the gadget
+// between seeded snaps. The syntax looks like this:
+//
+// [<plug-snap-id1>|system]:plug [[<slot-snap-id>|system]:slot]
+//
+// "system" or omitting the snap-id indicates a system plug or slot.
+// Fully omitting the slot part indicates a system slot with the same name
+// as the plug.
+type GadgetConnect struct {
+	PlugSnapID string
+	Plug       string
+	SlotSnapID string
+	Slot       string
+}
+
+func parseSnapIDColonName(s string) (snapID, name string, err error) {
+	parts := strings.Split(s, ":")
+	if len(parts) == 2 {
+		snapID = parts[0]
+		name = parts[1]
+	}
+	if name == "" {
+		return "", "", fmt.Errorf("in gadget connect expected [snap-id]:name not %q", s)
+	}
+	if snapID == "system" {
+		snapID = ""
+	}
+	return snapID, name, nil
+}
+
+func (gconn *GadgetConnect) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+	flds := strings.Fields(s)
+	switch len(flds) {
+	case 2:
+		plugSnapID, plug, err := parseSnapIDColonName(flds[0])
+		if err != nil {
+			return err
+		}
+		slotSnapID, slot, err := parseSnapIDColonName(flds[1])
+		if err != nil {
+			return err
+		}
+		gconn.PlugSnapID = plugSnapID
+		gconn.Plug = plug
+		gconn.SlotSnapID = slotSnapID
+		gconn.Slot = slot
+	case 1:
+		plugSnapID, plug, err := parseSnapIDColonName(flds[0])
+		if err != nil {
+			return err
+		}
+		gconn.PlugSnapID = plugSnapID
+		gconn.Plug = plug
+		gconn.SlotSnapID = ""
+		gconn.Slot = plug
+	default:
+		return fmt.Errorf("gadget connect %q should have a plug and optionally slot part", s)
+	}
+	return nil
+}
+
 // ReadGadgetInfo reads the gadget specific metadata from gadget.yaml
 // in the snap. classic set to true means classic rules apply,
 // i.e. content/presence of gadget.yaml is fully optional.
@@ -101,6 +169,12 @@ func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 			return nil, fmt.Errorf("default value %q of %q: %v", v, k, err)
 		}
 		gi.Defaults[k] = dflt.(map[string]interface{})
+	}
+
+	for _, gconn := range gi.Connects {
+		if (gconn == GadgetConnect{}) {
+			return nil, fmt.Errorf("cannot have an empty gadget connect instruction")
+		}
 	}
 
 	if classic && len(gi.Volumes) == 0 {

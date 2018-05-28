@@ -22,6 +22,7 @@ package snap_test
 import (
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -44,6 +45,12 @@ var mockGadgetYaml = []byte(`
 defaults:
   core:
     something: true
+
+connect:
+  - snapid1:plg1  snapid2:slot
+  - snapid3:process-control
+  - snapid4:pctl4 :process-control
+  - snapid5:pctl5 system:process-control
 
 volumes:
   volumename:
@@ -177,6 +184,12 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 		Defaults: map[string]map[string]interface{}{
 			"core": {"something": true},
 		},
+		Connects: []snap.GadgetConnect{
+			{PlugSnapID: "snapid1", Plug: "plg1", SlotSnapID: "snapid2", Slot: "slot"},
+			{PlugSnapID: "snapid3", Plug: "process-control", SlotSnapID: "", Slot: "process-control"},
+			{PlugSnapID: "snapid4", Plug: "pctl4", SlotSnapID: "", Slot: "process-control"},
+			{PlugSnapID: "snapid5", Plug: "pctl5", SlotSnapID: "", Slot: "process-control"},
+		},
 		Volumes: map[string]snap.GadgetVolume{
 			"volumename": {
 				Schema:     "mbr",
@@ -302,4 +315,33 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {
 
 	_, err = snap.ReadGadgetInfo(info, false)
 	c.Assert(err, ErrorMatches, "cannot read gadget snap details: bootloader not declared in any volume")
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlInvalidConnect(c *C) {
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	mockGadgetYamlBroken := `
+connect:
+  - @INVALID@
+`
+	tests := []struct {
+		invalidConn string
+		expectedErr string
+	}{
+		{``, `cannot have an empty gadget connect instruction`},
+		{`1 2 3`, `.*: gadget connect "1 2 3" should have a plug and optionally slot part`},
+		{`:bar foo:`, `(?s).*unmarshal errors:.*`},
+		{`"bar: foo:"`, `.*: in gadget connect expected \[snap-id\]:name not "bar:"`},
+		{`":bar foo:"`, `.*: in gadget connect expected \[snap-id\]:name not "foo:"`},
+		{`":"`, `.*: in gadget connect expected \[snap-id\]:name not ":"`},
+	}
+
+	for _, t := range tests {
+		mockGadgetYamlBroken := strings.Replace(mockGadgetYamlBroken, "@INVALID@", t.invalidConn, 1)
+
+		err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), []byte(mockGadgetYamlBroken), 0644)
+		c.Assert(err, IsNil)
+
+		_, err = snap.ReadGadgetInfo(info, false)
+		c.Check(err, ErrorMatches, t.expectedErr)
+	}
 }
