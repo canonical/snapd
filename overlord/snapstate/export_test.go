@@ -155,9 +155,10 @@ var (
 
 // refreshes
 var (
-	NewAutoRefresh    = newAutoRefresh
-	NewRefreshHints   = newRefreshHints
-	NewCatalogRefresh = newCatalogRefresh
+	NewAutoRefresh                = newAutoRefresh
+	NewRefreshHints               = newRefreshHints
+	NewCatalogRefresh             = newCatalogRefresh
+	CanRefreshOnMeteredConnection = canRefreshOnMeteredConnection
 )
 
 func MockNextRefresh(ar *autoRefresh, when time.Time) {
@@ -177,6 +178,14 @@ func MockRefreshRetryDelay(d time.Duration) func() {
 	refreshRetryDelay = d
 	return func() {
 		refreshRetryDelay = origRefreshRetryDelay
+	}
+}
+
+func MockIsOnMeteredConnection(mock func() (bool, error)) func() {
+	old := IsOnMeteredConnection
+	IsOnMeteredConnection = mock
+	return func() {
+		IsOnMeteredConnection = old
 	}
 }
 

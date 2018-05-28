@@ -28,6 +28,13 @@ set -o pipefail
 # shellcheck source=tests/lib/spread-funcs.sh
 . "$TESTSLIB/spread-funcs.sh"
 
+# shellcheck source=tests/lib/journalctl.sh
+. "$TESTSLIB/journalctl.sh"
+
+# shellcheck source=tests/lib/state.sh
+. "$TESTSLIB/state.sh"
+
+
 ###
 ### Utility functions reused below.
 ###
@@ -355,11 +362,15 @@ prepare_project() {
     go get ./tests/lib/fakedevicesvc
     go get ./tests/lib/systemd-escape
 
-    # disable journald rate limiting
-    mkdir -p /etc/systemd/journald.conf.d/
+    # Disable journald rate limiting
+    mkdir -p /etc/systemd/journald.conf.d
+    # The RateLimitIntervalSec key is not supported on some systemd versions causing
+    # the journal rate limit could be considered as not valid and discarded in concecuence.
+    # RateLimitInterval key is supported in old systemd versions and in new ones as well,
+    # maintaining backward compatibility.
     cat <<-EOF > /etc/systemd/journald.conf.d/no-rate-limit.conf
     [Journal]
-    RateLimitIntervalSec=0
+    RateLimitInterval=0
     RateLimitBurst=0
 EOF
     systemctl restart systemd-journald.service
@@ -369,34 +380,8 @@ prepare_project_each() {
     # We want to rotate the logs so that when inspecting or dumping them we
     # will just see logs since the test has started.
 
-    # Clear the systemd journal. Unfortunately the deputy-systemd on Ubuntu
-    # 14.04 does not know about --rotate or --vacuum-time so we need to remove
-    # the journal the hard way.
-    case "$SPREAD_SYSTEM" in
-        ubuntu-14.04-*)
-            # Force a log rotation with small size
-            sed -i.bak s/#SystemMaxUse=/SystemMaxUse=1K/g /etc/systemd/journald.conf
-            systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
-
-            # Restore the initial configuration and rotate logs
-            mv /etc/systemd/journald.conf.bak /etc/systemd/journald.conf
-            systemctl kill --kill-who=main --signal=SIGUSR2 systemd-journald.service
-
-            # Remove rotated journal logs
-            systemctl stop systemd-journald.service
-            find /run/log/journal/ -name "*@*.journal" -delete
-            systemctl start systemd-journald.service
-            ;;
-        *)
-            # per journalctl's implementation, --rotate and --sync 'override'
-            # each other if used in a single command, with the one appearing
-            # later being effective
-            journalctl --sync
-            journalctl --rotate
-            sleep .1
-            journalctl --vacuum-time=1ms
-            ;;
-    esac
+    # Reset systemd journal cursor.
+    start_new_journalctl_log
 
     # Clear the kernel ring buffer.
     dmesg -c > /dev/null
@@ -419,7 +404,9 @@ prepare_suite_each() {
     "$TESTSLIB"/reset.sh --reuse-core
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+    if is_classic_system; then
         prepare_each_classic
     fi
 }
@@ -431,7 +418,9 @@ restore_suite_each() {
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --store
-    if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+    if is_classic_system; then
         # shellcheck source=tests/lib/pkgdb.sh
         . $TESTSLIB/pkgdb.sh
         distro_purge_package snapd
@@ -485,10 +474,8 @@ restore_project_each() {
 }
 
 restore_project() {
-    # We use a trick to accelerate prepare/restore code in certain suites. That
-    # code uses a tarball to store the vanilla state. Here we just remove this
-    # tarball.
-    rm -f "$SPREAD_PATH/snapd-state.tar.gz"
+    # Delete the snapd state used to accelerate prepare/restore code in certain suites. 
+    delete_snapd_state
 
     # Remove all of the code we pushed and any build results. This removes
     # stale files and we cannot do incremental builds anyway so there's little

@@ -28,6 +28,10 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+func init() {
+	supportedConfigurations["core.system.power-key-action"] = true
+}
+
 func powerBtnCfg() string {
 	return filepath.Join(dirs.GlobalRootDir, "/etc/systemd/logind.conf.d/00-snap-core.conf")
 }

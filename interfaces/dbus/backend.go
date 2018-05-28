@@ -168,3 +168,8 @@ func addContent(securityTag string, snippet string, content map[string]*osutil.F
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }
+
+// SandboxFeatures returns list of features supported by snapd for dbus communication.
+func (b *Backend) SandboxFeatures() []string {
+	return []string{"mediated-bus-access"}
+}

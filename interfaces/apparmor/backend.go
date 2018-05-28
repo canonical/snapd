@@ -42,7 +42,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -54,12 +53,14 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
 	procSelfExe           = "/proc/self/exe"
 	isHomeUsingNFS        = osutil.IsHomeUsingNFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
+	kernelFeatures        = release.AppArmorFeatures
 )
 
 // Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
@@ -165,18 +166,12 @@ func (b *Backend) Initialize() error {
 	}
 
 	// We are not using apparmor.LoadProfile() because it uses other cache.
-	cmd := exec.Command("apparmor_parser", "--replace",
-		// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
-		"-O", "no-expr-simplify",
-		"--write-cache", "--cache-loc", dirs.SystemApparmorCacheDir,
-		profilePath)
-
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if err := loadProfile(profilePath, dirs.SystemApparmorCacheDir); err != nil {
 		// When we cannot reload the profile then let's remove the generated
 		// policy. Maybe we have caused the problem so it's better to let other
 		// things work.
 		osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, nil)
-		return fmt.Errorf("cannot reload snap-confine apparmor profile: %v", osutil.OutputErr(output, err))
+		return fmt.Errorf("cannot reload snap-confine apparmor profile: %v", err)
 	}
 	return nil
 }
@@ -359,10 +354,10 @@ func (b *Backend) Remove(snapName string) error {
 
 var (
 	templatePattern = regexp.MustCompile("(###[A-Z_]+###)")
-	attachPattern   = regexp.MustCompile(`\(attach_disconnected\)`)
+	attachPattern   = regexp.MustCompile(`\(attach_disconnected,mediate_deleted\)`)
 )
 
-const attachComplain = "(attach_disconnected,complain)"
+const attachComplain = "(attach_disconnected,mediate_deleted,complain)"
 
 func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]*osutil.FileState, err error) {
 	content = make(map[string]*osutil.FileState, len(snapInfo.Apps)+len(snapInfo.Hooks)+1)
@@ -414,16 +409,38 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 }
 
 func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]*osutil.FileState) {
-	var policy string
+	// Normally we use a specific apparmor template for all snap programs.
+	policy := defaultTemplate
+	ignoreSnippets := false
+	// Classic confinement (unless overridden by JailMode) has a dedicated
+	// permissive template that applies a strict, but very open, policy.
+	if opts.Classic && !opts.JailMode {
+		policy = classicTemplate
+		ignoreSnippets = true
+	}
 	// When partial AppArmor is detected, use the classic template for now. We could
 	// use devmode, but that could generate confusing log entries for users running
 	// snaps on systems with partial AppArmor support.
-	level := release.AppArmorLevel()
-	if level == release.PartialAppArmor || (opts.Classic && !opts.JailMode) {
-		policy = classicTemplate
-	} else {
-		policy = defaultTemplate
+	if release.AppArmorLevel() == release.PartialAppArmor {
+		// By default, downgrade confinement to the classic template when
+		// partial AppArmor support is detected. We don't want to use strict
+		// in general yet because older versions of the kernel did not
+		// provide backwards compatible interpretation of confinement
+		// so the meaning of the template would change across kernel
+		// versions and we have not validated that the current template
+		// is operational on older kernels.
+		if cmp, _ := strutil.VersionCompare(release.KernelVersion(), "4.16"); cmp >= 0 && release.DistroLike("opensuse-tumbleweed") {
+			// As a special exception, for openSUSE Tumbleweed which ships Linux
+			// 4.16, do not downgrade the confinement template.
+		} else {
+			policy = classicTemplate
+			ignoreSnippets = true
+		}
 	}
+	// If a snap is in devmode (or is using classic confinement) then make the
+	// profile non-enforcing where violations are logged but not denied.
+	// This is also done for classic so that no confinement applies. Just in
+	// case the profile we start with is not permissive enough.
 	if (opts.DevMode || opts.Classic) && !opts.JailMode {
 		policy = attachPattern.ReplaceAllString(policy, attachComplain)
 	}
@@ -440,10 +457,10 @@ func addContent(securityTag string, snapInfo *snap.Info, opts interfaces.Confine
 				// and jailmode together. This snippet provides access to the core snap
 				// so that the dynamic linker and shared libraries can be used.
 				tagSnippets = classicJailmodeSnippet + "\n" + snippetForTag
-			} else if level == release.PartialAppArmor || (opts.Classic && !opts.JailMode) {
-				// When classic confinement (without jailmode) is in effect we
-				// are ignoring all apparmor snippets as they may conflict with
-				// the super-broad template we are starting with.
+			} else if ignoreSnippets {
+				// When classic confinement template is in effect we are
+				// ignoring all apparmor snippets as they may conflict with the
+				// super-broad template we are starting with.
 			} else {
 				// Check if NFS is mounted at or under $HOME. Because NFS is not
 				// transparent to apparmor we must alter the profile to counter that and
@@ -491,4 +508,16 @@ func unloadProfiles(profiles []string, cacheDir string) error {
 // NewSpecification returns a new, empty apparmor specification.
 func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
+}
+
+// SandboxFeatures returns the list of apparmor features supported by the kernel.
+func (b *Backend) SandboxFeatures() []string {
+	features := kernelFeatures()
+	tags := make([]string, 0, len(features))
+	for _, feature := range features {
+		// Prepend "kernel:" to apparmor kernel features to namespace them and
+		// allow us to introduce our own tags later.
+		tags = append(tags, "kernel:"+feature)
+	}
+	return tags
 }
