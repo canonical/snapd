@@ -57,8 +57,8 @@ slots:
 `
 
 func (s *DvbInterfaceSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, cameraConsumerYaml, nil, "dvb")
-	s.slot, s.slotInfo = MockConnectedSlot(c, cameraCoreYaml, nil, "dvb")
+	s.plug, s.plugInfo = MockConnectedPlug(c, dvbConsumerYaml, nil, "dvb")
+	s.slot, s.slotInfo = MockConnectedSlot(c, dvbCoreYaml, nil, "dvb")
 }
 
 func (s *DvbInterfaceSuite) TestName(c *C) {
