@@ -81,6 +81,11 @@ func (mod *Model) Kernel() string {
 	return mod.HeaderString("kernel")
 }
 
+// Base returns the base snap the model uses.
+func (mod *Model) Base() string {
+	return mod.HeaderString("base")
+}
+
 // Store returns the snap store the model uses.
 func (mod *Model) Store() string {
 	return mod.HeaderString("store")
