@@ -455,6 +455,10 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 }
 
 func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info) error {
+	if len(downloadedSnapsInfoForBootConfig) != 2 {
+		return fmt.Errorf("setBootvars can only be called with exactly one kernel and exactly one core/base boot info")
+	}
+
 	// Set bootvars for kernel/core snaps so the system boots and
 	// does the first-time initialization. There is also no
 	// mounted kernel/core/base snap, but just the blobs.
