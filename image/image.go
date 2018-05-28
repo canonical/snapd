@@ -331,6 +331,10 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	downloadedSnapsInfoForBootConfig := map[string]*snap.Info{}
 	var seedYaml snap.Seed
 	for _, snapName := range snaps {
+		if snapName == "" {
+			return fmt.Errorf("cannot have an empty snap name in %q", snaps)
+		}
+
 		name := local.Name(snapName)
 		if seen[name] {
 			fmt.Fprintf(Stdout, "%s already prepared, skipping\n", name)
@@ -483,11 +487,6 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info) error {
 
 		info := downloadedSnapsInfoForBootConfig[fn]
 		switch info.Type {
-		// FIXME: workaround a store bug thatsends
-		// "type: base" as "application" :/
-		// Once the store is fixed the next two lines can be removed
-		case snap.TypeApp:
-			bootvar = "snap_core"
 		case snap.TypeOS, snap.TypeBase:
 			bootvar = "snap_core"
 		case snap.TypeKernel:

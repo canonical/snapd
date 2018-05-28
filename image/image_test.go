@@ -723,6 +723,48 @@ func (s *imageSuite) TestBootstrapWithBaseUnhappy(c *C) {
 	c.Assert(err, ErrorMatches, `Base "core18" is used but no "snapd" snap is installed`)
 }
 
+func (s *imageSuite) TestBootstrapWithEmptySnapnameUnhappy(c *C) {
+	restore := image.MockTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	// replace model with a model that uses core18
+	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel",
+		// note the empty snap name here
+		"required-snaps": []interface{}{""},
+		"timestamp":      time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := rawmodel.(*asserts.Model)
+
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+
+	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
+	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
+	err = os.MkdirAll(gadgetUnpackDir, 0755)
+	c.Assert(err, IsNil)
+
+	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+	})
+	opts := &image.Options{
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+	}
+	local, err := image.LocalSnaps(s.tsto, opts)
+	c.Assert(err, IsNil)
+
+	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
+	c.Assert(err, ErrorMatches, `cannot have an empty snap name in \["core" "pc-kernel" "pc"\ ""]`)
+}
+
 func (s *imageSuite) TestBootstrapWithBase(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()

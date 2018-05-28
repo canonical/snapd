@@ -11,7 +11,6 @@ environment:
     GADGET: /tmp/root/gadget
     STORE_DIR: $(pwd)/fake-store-blobdir
     STORE_ADDR: localhost:11028
-    UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_SNAPS: 1
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -19,6 +18,7 @@ prepare: |
         exit
     fi
 
+    #shellcheck tests/lib/store.sh
     . $TESTSLIB/store.sh
     setup_fake_store $STORE_DIR
 
@@ -28,9 +28,11 @@ restore: |
         exit
     fi
 
+    
+    #shellcheck tests/lib/store.sh
     . $TESTSLIB/store.sh
-    teardown_fake_store $STORE_DIR
-    rm -rf $ROOT
+    teardown_fake_store "$STORE_DIR"
+    rm -rf "$ROOT"
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -39,21 +41,21 @@ execute: |
     fi
 
     echo Expose the needed assertions through the fakestore
-    cp $TESTSLIB/assertions/developer1.account $STORE_DIR/asserts
-    cp $TESTSLIB/assertions/developer1.account-key $STORE_DIR/asserts
+    cp $TESTSLIB/assertions/developer1.account "$STORE_DIR"/asserts
+    cp $TESTSLIB/assertions/developer1.account-key "$STORE_DIR"/asserts
     # have snap use the fakestore for assertions (but nothing else)
-    export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+    export SNAPPY_FORCE_SAS_URL="http://$STORE_ADDR"
 
     echo Running prepare-image
     su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc-w-base.model $ROOT" test
 
     echo Verifying the result
-    ls -lR $IMAGE
+    ls -lR "$IMAGE"
     for f in pc pc-kernel core18 snapd snapweb; do
-        ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
+        ls "$IMAGE"/var/lib/snapd/seed/snaps/"${f}"*.snap
     done
-    MATCH snap_core=core18 < $IMAGE/boot/grub/grubenv
-    MATCH snap_kernel=pc-kernel < $IMAGE/boot/grub/grubenv
+    MATCH snap_core=core18 < "$IMAGE"/boot/grub/grubenv
+    MATCH snap_kernel=pc-kernel < "$IMAGE"/boot/grub/grubenv
 
     # snap-id of core18
     if [ "$REMOTE_STORE" = production ]; then
@@ -61,21 +63,21 @@ execute: |
     else
         core18_snap_id="FIXME"
     fi
-    MATCH "snap-id: ${core_18snap_id}" < $IMAGE/var/lib/snapd/seed/seed.yaml
+    MATCH "snap-id: ${core_18snap_id}" < "$IMAGE"/var/lib/snapd/seed/seed.yaml
 
     for snap in pc pc-kernel core18 snapd; do
-        MATCH "name: $snap" < $IMAGE/var/lib/snapd/seed/seed.yaml
+        MATCH "name: $snap" < "$IMAGE"/var/lib/snapd/seed/seed.yaml
     done
 
     echo "Verify that we got some snap assertions"
     for name in pc pc-kernel core18 snapd; do
-        cat $IMAGE/var/lib/snapd/seed/assertions/* | MATCH "snap-name: $name"
+        cat "$IMAGE"/var/lib/snapd/seed/assertions/* | MATCH "snap-name: $name"
     done
 
     echo "Ensure the core snap is absent"
-    if ls $IMAGE/var/lib/snapd/seed/snaps/core_*.snap; then
+    if ls "$IMAGE"/var/lib/snapd/seed/snaps/core_*.snap; then
         echo "Unexpected core snap found in the seed directory. Test broken."
         echo "Seed directory content:"
-        ls $IMAGE/var/lib/snapd/seed/snaps/
+        ls "$IMAGE"/var/lib/snapd/seed/snaps/
         exit 1
     fi
