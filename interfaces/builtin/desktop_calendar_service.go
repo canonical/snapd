@@ -30,7 +30,7 @@ const desktopCalendarServiceBaseDeclarationSlots = `
 `
 
 const desktopCalendarServiceConnectedPlugAppArmor = `
-# Description: Allow access to Evolution Data Service
+# Description: Allow access to Evolution Data Service for calendars
 
 #include <abstractions/dbus-session-strict>
 

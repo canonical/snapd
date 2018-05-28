@@ -30,7 +30,7 @@ const desktopContactsServiceBaseDeclarationSlots = `
 `
 
 const desktopContactsServiceConnectedPlugAppArmor = `
-# Description: Allow access to Evolution Data Service
+# Description: Allow access to Evolution Data Service for contacts
 
 #include <abstractions/dbus-session-strict>
 
@@ -142,7 +142,7 @@ dbus (send)
 	peer=(label=unconfined),
 
 # Allow access to cached avatars
-owner @{HOME}/.cache/evolution/addressbook/** r,
+owner @{HOME}/.cache/evolution/addressbook/[0-9a-f]*/*.jpeg r,
 `
 
 func init() {
