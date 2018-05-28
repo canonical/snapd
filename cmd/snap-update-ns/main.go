@@ -149,7 +149,7 @@ func applyFstab(snapName string, fromSnapConfine bool) error {
 	// allow defining layout items that refer to SNAP_USER_DATA and
 	// SNAP_USER_COMMON.
 	sec := &Secure{}
-	sec.AllowWritingTo("/tmp", "/var/snap", "/snap/%s"+snapName)
+	sec.AllowWritingTo("/tmp", "/var/snap", "/snap/"+snapName)
 	return computeAndSaveChanges(snapName, sec)
 }
 
