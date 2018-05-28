@@ -104,7 +104,9 @@ func (e *TrespassingError) MimicPath() string {
 		// is good as long as we are after a subdirectory of that
 		// directory (so for example, /etc/foo).
 		p := strings.Split(e.PathDesired, "/")
-		return strings.Join(p[0:2], "/")
+		if len(p) >= 2 {
+			return strings.Join(p[0:2], "/")
+		}
 	}
 	return e.PathViolated
 }

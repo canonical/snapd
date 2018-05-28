@@ -1058,4 +1058,7 @@ func (s *realSystemSuite) TestTrespassingError(c *C) {
 	// This is a bit meaningless but for completeness.
 	err = &update.TrespassingError{PathViolated: "/", PathDesired: "/"}
 	c.Assert(err.MimicPath(), Equals, "/")
+	// Check if unusual PathDesired causes any issues
+	err = &update.TrespassingError{PathViolated: "/", PathDesired: ""}
+	c.Assert(err.MimicPath(), Equals, "/")
 }
