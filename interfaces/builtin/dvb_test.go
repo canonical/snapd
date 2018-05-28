@@ -101,7 +101,7 @@ func (s *DvbInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to all dvb video devices`)
+	c.Assert(si.Summary, Equals, `allows access to all DVB (Digital Video Broadcasting) devices and APIs`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "dvb")
 }
 

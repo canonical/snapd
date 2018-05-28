@@ -19,7 +19,7 @@
 
 package builtin
 
-const dvbSummary = `allows access to all DVB (Digitial Video Broadcasting) devices and APIs`
+const dvbSummary = `allows access to all DVB (Digital Video Broadcasting) devices and APIs`
 
 const dvbBaseDeclarationSlots = `
   dvb:
