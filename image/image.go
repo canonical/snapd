@@ -248,6 +248,7 @@ func installCloudConfig(gadgetDir string) error {
 	return err
 }
 
+// defaultCore is used if no base is specified by the model
 const defaultCore = "core"
 
 var trusted = sysdb.Trusted()
@@ -311,8 +312,12 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	}
 
 	snaps := []string{}
-	// core,kernel,gadget first
-	snaps = append(snaps, local.PreferLocal(defaultCore))
+	// core/base,kernel,gadget first
+	if model.Base() != "" {
+		snaps = append(snaps, local.PreferLocal(model.Base()))
+	} else {
+		snaps = append(snaps, local.PreferLocal(defaultCore))
+	}
 	snaps = append(snaps, local.PreferLocal(model.Kernel()))
 	snaps = append(snaps, local.PreferLocal(model.Gadget()))
 	// then required and the user requested stuff
@@ -323,7 +328,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 
 	seen := make(map[string]bool)
 	var locals []string
-	downloadedSnapsInfo := map[string]*snap.Info{}
+	downloadedSnapsInfoForBootConfig := map[string]*snap.Info{}
 	var seedYaml snap.Seed
 	for _, snapName := range snaps {
 		name := local.Name(snapName)
@@ -370,8 +375,8 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			locals = append(locals, name)
 		}
 
-		// kernel/os are required for booting
-		if typ == snap.TypeKernel || typ == snap.TypeOS {
+		// kernel/os/model.base are required for booting
+		if typ == snap.TypeKernel || typ == snap.TypeOS || snapName == model.Base() {
 			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
 			// construct a relative symlink from the blob dir
 			// to the seed file
@@ -384,7 +389,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			}
 			// store the snap.Info for kernel/os so
 			// that the bootload can DTRT
-			downloadedSnapsInfo[dst] = info
+			downloadedSnapsInfoForBootConfig[dst] = info
 		}
 
 		// set seed.yaml
@@ -433,7 +438,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		return err
 	}
 
-	if err := setBootvars(downloadedSnapsInfo); err != nil {
+	if err := setBootvars(downloadedSnapsInfoForBootConfig); err != nil {
 		return err
 	}
 
@@ -445,7 +450,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	return nil
 }
 
-func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
+func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info) error {
 	// Set bootvars for kernel/core snaps so the system boots and
 	// does the first-time initialization. There is also no
 	// mounted kernel/core snap, but just the blobs.
@@ -464,11 +469,14 @@ func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
 		"snap_try_core":   "",
 		"snap_try_kernel": "",
 	}
+
 	for _, fn := range snaps {
 		bootvar := ""
 
-		info := downloadedSnapsInfo[fn]
+		info := downloadedSnapsInfoForBootConfig[fn]
 		switch info.Type {
+		case snap.TypeBase:
+			bootvar = "snap_core"
 		case snap.TypeOS:
 			bootvar = "snap_core"
 		case snap.TypeKernel:
