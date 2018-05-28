@@ -68,6 +68,14 @@ type UserState struct {
 	StoreDischarges []string `json:"store-discharges,omitempty"`
 }
 
+// HasStoreAuth returns true if the user has store authorization.
+func (u *UserState) HasStoreAuth() bool {
+	if u == nil {
+		return false
+	}
+	return u.StoreMacaroon != ""
+}
+
 // MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
 func MacaroonSerialize(m *macaroon.Macaroon) (string, error) {
 	marshalled, err := m.MarshalBinary()

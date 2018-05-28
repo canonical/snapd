@@ -188,8 +188,9 @@ func applyProfile(snapName string, currentBefore, desired *osutil.MountProfile, 
 			// We need to collect synthesized changes and store them.
 			if change.Entry.XSnapdOrigin() == "layout" {
 				return nil, err
+			} else if err != ErrIgnoredMissingMount {
+				logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			}
-			logger.Noticef("cannot change mount namespace of snap %q according to change %s: %s", snapName, change, err)
 			continue
 		}
 
@@ -238,10 +239,7 @@ func applyUserFstab(snapName string) error {
 	}
 
 	// Replace XDG_RUNTIME_DIR in mount profile
-	xdgRuntimeDir, ok := os.LookupEnv("XDG_RUNTIME_DIR")
-	if !ok {
-		return fmt.Errorf("XDG_RUNTIME_DIR is not set")
-	}
+	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
 	for i := range desired.Entries {
 		if strings.HasPrefix(desired.Entries[i].Name, "$XDG_RUNTIME_DIR/") {
 			desired.Entries[i].Name = strings.Replace(desired.Entries[i].Name, "$XDG_RUNTIME_DIR", xdgRuntimeDir, 1)

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -70,8 +70,8 @@ plugs:
 	slotSnap := snaptest.MockInfo(c, slotYaml, nil)
 	plugSnap := snaptest.MockInfo(c, plugYaml, nil)
 	return &policy.ConnectCandidate{
-		Plug:            plugSnap.Plugs[iface],
-		Slot:            slotSnap.Slots[iface],
+		Plug:            interfaces.NewConnectedPlug(plugSnap.Plugs[iface], nil),
+		Slot:            interfaces.NewConnectedSlot(slotSnap.Slots[iface], nil),
 		BaseDeclaration: s.baseDecl,
 	}
 }
@@ -145,6 +145,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"home":          true,
 		"lxd-support":   true,
 		"snapd-control": true,
+		"dummy":         true,
 	}
 
 	// these simply auto-connect, anything else doesn't
@@ -219,6 +220,55 @@ func (s *baseDeclSuite) TestInterimAutoConnectionHome(c *C) {
 	release.OnClassic = false
 	err = cand.CheckAutoConnect()
 	c.Check(err, ErrorMatches, `auto-connection denied by slot rule of interface \"home\"`)
+}
+
+func (s *baseDeclSuite) TestHomeReadAll(c *C) {
+	const plugYaml = `name: plug-snap
+version: 0
+plugs:
+  home:
+    read: all
+`
+	restore := release.MockOnClassic(true)
+	defer restore()
+	cand := s.connectCand(c, "home", "", plugYaml)
+	err := cand.Check()
+	c.Check(err, NotNil)
+
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+
+	release.OnClassic = false
+	err = cand.Check()
+	c.Check(err, NotNil)
+
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+}
+
+func (s *baseDeclSuite) TestHomeReadDefault(c *C) {
+	const plugYaml = `name: plug-snap
+version: 0
+plugs:
+  home: null
+`
+	restore := release.MockOnClassic(true)
+	defer restore()
+	cand := s.connectCand(c, "home", "", plugYaml)
+	err := cand.Check()
+	c.Check(err, IsNil)
+
+	// Same as TestInterimAutoConnectionHome()
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+
+	release.OnClassic = false
+	err = cand.Check()
+	c.Check(err, IsNil)
+
+	// Same as TestInterimAutoConnectionHome()
+	err = cand.CheckAutoConnect()
+	c.Check(err, NotNil)
 }
 
 func (s *baseDeclSuite) TestAutoConnectionSnapdControl(c *C) {
@@ -506,6 +556,7 @@ var (
 		"serial-port": {"core", "gadget"},
 		"spi":         {"core", "gadget"},
 		"storage-framework-service": {"app"},
+		"dummy":                     {"app"},
 		"thumbnailer-service":       {"app"},
 		"ubuntu-download-manager":   {"app"},
 		"udisks2":                   {"app"},
@@ -825,4 +876,59 @@ plugs:
 
 	err = cand.CheckAutoConnect()
 	c.Check(err, NotNil)
+}
+
+func (s *baseDeclSuite) TestOpticalDriveWrite(c *C) {
+	type options struct {
+		readonlyYamls []string
+		writableYamls []string
+	}
+
+	opts := &options{
+		readonlyYamls: []string{
+			// Non-specified "write" attribute
+			`name: plug-snap
+version: 0
+plugs:
+  optical-drive: null
+`,
+			// Undefined "write" attribute
+			`name: plug-snap
+version: 0
+plugs:
+  optical-drive: {}
+`,
+			// False "write" attribute
+			`name: plug-snap
+version: 0
+plugs:
+  optical-drive:
+    write: false
+`,
+		},
+		writableYamls: []string{
+			// True "write" attribute
+			`name: plug-snap
+version: 0
+plugs:
+  optical-drive:
+    write: true
+`,
+		},
+	}
+
+	checkOpticalDriveAutoConnect := func(plugYaml string, checker Checker) {
+		cand := s.connectCand(c, "optical-drive", "", plugYaml)
+		err := cand.Check()
+		c.Check(err, checker)
+		err = cand.CheckAutoConnect()
+		c.Check(err, checker)
+	}
+
+	for _, plugYaml := range opts.readonlyYamls {
+		checkOpticalDriveAutoConnect(plugYaml, IsNil)
+	}
+	for _, plugYaml := range opts.writableYamls {
+		checkOpticalDriveAutoConnect(plugYaml, NotNil)
+	}
 }

@@ -23,14 +23,6 @@ execute: |
     test-snapd-desktop.check-files $files
     test-snapd-desktop.check-dirs $dirs
 
-    echo "The mount namespace contains shared font directories"
-    for d in /usr/share/fonts /usr/local/share/fonts /var/cache/fontconfig; do
-        if [ -d "$d" ]; then
-                cat /run/snapd/ns/snap.test-snapd-desktop.fstab | MATCH "$d"
-                test-snapd-desktop.check-dirs "$d"
-        fi
-    done
-
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi

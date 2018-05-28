@@ -27,6 +27,10 @@ import (
 	"github.com/snapcore/snapd/dirs"
 )
 
+// GuessAppsForBroken guesses what apps and services a broken snap has
+// on the system by searching for matches based on the snap name in
+// the snap binaries and service file directories. It returns a
+// mapping from app names to partial AppInfo.
 func GuessAppsForBroken(info *Info) map[string]*AppInfo {
 	out := make(map[string]*AppInfo)
 

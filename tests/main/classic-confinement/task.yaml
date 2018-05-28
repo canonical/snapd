@@ -7,7 +7,9 @@ environment:
 systems: [-ubuntu-core-*]
 
 prepare: |
+    #shellcheck source=tests/lib/snaps.sh
     . $TESTSLIB/snaps.sh
+    #shellcheck source=tests/lib/dirs.sh
     . $TESTSLIB/dirs.sh
     snap pack "$TESTSLIB/snaps/$CLASSIC_SNAP/"
 
