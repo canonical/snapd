@@ -339,8 +339,10 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstalledSnap(c *
 	t.Set("snap-setup", sup)
 	chg.AddTask(t)
 
-	ts, err := ifacestate.ConnectOnInstall(s.state, chg, t, "consumer", "plug", "producer", "slot")
-	c.Assert(err, IsNil)
+	err1 := ifacestate.CheckConnectConflicts(s.state, chg, "consumer", "producer", t)
+	c.Assert(err1, IsNil)
+	ts, err2 := ifacestate.ConnectPriv(s.state, t, "consumer", "plug", "producer", "slot")
+	c.Assert(err2, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 5)
 	connectTask := ts.Tasks()[2]
 	c.Assert(connectTask.Kind(), Equals, "connect")
@@ -373,7 +375,7 @@ func (s *interfaceManagerSuite) testAutoConnectConflicts(c *C, conflictingKind s
 
 	chg.AddTask(t2)
 
-	_, err := ifacestate.ConnectOnInstall(s.state, chg, t2, "consumer", "plug", "producer", "slot")
+	err := ifacestate.CheckConnectConflicts(s.state, chg, "consumer", "producer", t2)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `task should be retried`)
 }
