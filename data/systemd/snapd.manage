@@ -16,9 +16,9 @@ CMD="$1"
 PREFIX="$2"
 
 UNITS="snapd.service snapd.autoimport.service snapd.core-fixup.service \
-       snapd.seed-done.service snapd.snap-repair.service \
-       snapd.system-shutdown.service snapd.snap-repair.timer 
-       snapd.socket"
+       snapd.seeded.service snapd.snap-repair.service \
+       snapd.snap-repair.timer snapd.socket"
+ENABLE_UNITS="snapd.system-shutdown.service"
 
 # TODO: discuss ID_LIKE=ubuntu-core or ID_LIKE=snap-core ?
 if ! grep -q "ID=ubuntu-core" /etc/os-release && \
@@ -36,11 +36,18 @@ case $CMD in
         fi
         # use existing snapd.service as a template and modify so that the
         # right prefix is used
-        for u in $UNITS; do
+        for u in $UNITS $ENABLE_UNITS; do
             sed "s#ExecStart=#ExecStart=$PREFIX#" "$PREFIX"/lib/systemd/system/$u > /run/systemd/system/$u
         done
         # and now use systemd to start it
         systemctl daemon-reload
+        # some units only need to get enabled
+        for unit in $ENABLE_UNITS; do
+            if ! systemctl is-enabled $unit; then
+                systemctl enable $unit
+            fi
+        done
+        # most units are started
         for unit in $UNITS; do
             systemctl start $unit
             # FIXME: check that the unit is really fine, if not revert
@@ -52,6 +59,7 @@ case $CMD in
         for unit in $UNITS; do
             rm -f /run/systemd/system/$unit
         done
+        systemctl daemon-reload
         ;;
     *)
         echo "unknown action: $1"
