@@ -67,6 +67,17 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 		}
 
 		k := task.Kind()
+		if k == "connect" {
+			var autoConnect bool
+			if err := task.Get("auto", &autoConnect); err != nil && err != state.ErrNoState {
+				return err
+			}
+			// allow only one "connect" task with auto=true (fot autoconnects) at a time
+			if autoConnect {
+				return &state.Retry{After: connectRetryTimeout}
+			}
+		}
+
 		if k == "connect" || k == "disconnect" {
 			continue
 		}
