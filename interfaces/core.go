@@ -162,7 +162,7 @@ type Interface interface {
 	// implicitly auto-connected assuming they will be an
 	// unambiguous connection candidate and declaration-based checks
 	// allow.
-	AutoConnect(plug *Plug, slot *Slot) bool
+	AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool
 }
 
 // PlugSanitizer can be implemented by Interfaces that have reasons to sanitize their plugs.

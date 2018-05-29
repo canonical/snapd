@@ -189,7 +189,7 @@ SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct
 	return nil
 }
 
-func (iface *hidrawInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *hidrawInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }
