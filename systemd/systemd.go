@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 var (
@@ -405,40 +406,6 @@ func (l Log) PID() string {
 	return "-"
 }
 
-// useFuse detects if we should be using squashfuse instead
-var useFuse = realUseFuse
-
-func realUseFuse() bool {
-	if !osutil.FileExists("/dev/fuse") {
-		return false
-	}
-
-	if !osutil.ExecutableExists("squashfuse") && !osutil.ExecutableExists("snapfuse") {
-		return false
-	}
-
-	out, err := exec.Command("systemd-detect-virt", "--container").Output()
-	if err != nil {
-		return false
-	}
-
-	virt := strings.TrimSpace(string(out))
-	if virt != "none" {
-		return true
-	}
-
-	return false
-}
-
-// MockUseFuse is exported so useFuse can be overridden by testing.
-func MockUseFuse(r bool) func() {
-	oldUseFuse := useFuse
-	useFuse = func() bool {
-		return r
-	}
-	return func() { useFuse = oldUseFuse }
-}
-
 // MountUnitPath returns the path of a {,auto}mount unit
 func MountUnitPath(baseDir string) string {
 	escapedPath := EscapeUnitNamePath(baseDir)
@@ -448,22 +415,16 @@ func MountUnitPath(baseDir string) string {
 func (s *systemd) WriteMountUnitFile(name, revision, what, where, fstype string) (string, error) {
 	options := []string{"nodev"}
 	if fstype == "squashfs" {
-		options = append(options, "ro", "x-gdu.hide")
+		newFstype, newOptions, err := squashfs.Fstype()
+		if err != nil {
+			return "", err
+		}
+		options = append(options, newOptions...)
+		fstype = newFstype
 	}
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		fstype = "none"
-		// FIXME: keep this in sync with selftest/squashfs.go
-	} else if fstype == "squashfs" && useFuse() {
-		options = append(options, "allow_other")
-		switch {
-		case osutil.ExecutableExists("squashfuse"):
-			fstype = "fuse.squashfuse"
-		case osutil.ExecutableExists("snapfuse"):
-			fstype = "fuse.snapfuse"
-		default:
-			panic("cannot happen because useFuse() ensures one of the two executables is there")
-		}
 	}
 
 	c := fmt.Sprintf(`[Unit]
