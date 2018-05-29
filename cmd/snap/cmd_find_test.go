@@ -486,8 +486,15 @@ func (s *SnapSuite) TestFindSnapNotFoundInSection(c *check.C) {
 }
 
 func (s *SnapSuite) TestFindSnapCachedSection(c *check.C) {
+	numHits := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		c.Fatalf("not expecting any requests")
+		numHits++
+		c.Check(numHits, check.Equals, 1)
+		c.Check(r.URL.Path, check.Equals, "/v2/sections")
+		EncodeResponseBody(c, w, map[string]interface{}{
+			"type":   "sync",
+			"result": []string{"sec1", "sec2", "sec3"},
+		})
 	})
 
 	os.MkdirAll(path.Dir(dirs.SnapSectionsFile), 0755)
@@ -512,4 +519,5 @@ Please try 'snap find --section=<selected section>'
 `)
 
 	s.ResetStdStreams()
+	c.Check(numHits, check.Equals, 1)
 }
