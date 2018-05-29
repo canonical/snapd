@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -98,4 +98,32 @@ func (s *refreshSuite) TestConfigureRefreshHoldInvalid(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, `refresh\.hold cannot be parsed:.*`)
+}
+
+func (s *refreshSuite) TestConfigureRefreshHoldOnMeteredInvalid(c *C) {
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"refresh.metered": "invalid",
+		},
+	})
+	c.Assert(err, ErrorMatches, `refresh\.metered value "invalid" is invalid`)
+}
+
+func (s *refreshSuite) TestConfigureRefreshHoldOnMeteredHappy(c *C) {
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"refresh.metered": "hold",
+		},
+	})
+	c.Assert(err, IsNil)
+
+	err = configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"refresh.metered": "",
+		},
+	})
+	c.Assert(err, IsNil)
 }
