@@ -33,7 +33,7 @@ func init() {
 	supportedConfigurations["core.refresh.schedule"] = true
 	supportedConfigurations["core.refresh.timer"] = true
 	supportedConfigurations["core.refresh.metered"] = true
-	supportedConfigurations["core.refresh.keep-inactive"] = true
+	supportedConfigurations["core.refresh.retain"] = true
 }
 
 func validateRefreshSchedule(tr Conf) error {
@@ -49,13 +49,13 @@ func validateRefreshSchedule(tr Conf) error {
 		}
 	}
 
-	refreshKeepInactiveStr, err := coreCfg(tr, "refresh.keep-inactive")
+	refreshRetainStr, err := coreCfg(tr, "refresh.retain")
 	if err != nil {
 		return err
 	}
-	if refreshKeepInactiveStr != "" {
-		if n, err := strconv.ParseUint(refreshKeepInactiveStr, 10, 8); err != nil || (n < 1 || n > 20) {
-			return fmt.Errorf("keep-inactive must be a number between 1 and 20, not %q", refreshKeepInactiveStr)
+	if refreshRetainStr != "" {
+		if n, err := strconv.ParseUint(refreshRetainStr, 10, 8); err != nil || (n < 2 || n > 20) {
+			return fmt.Errorf("retain must be a number between 2 and 20, not %q", refreshRetainStr)
 		}
 	}
 
