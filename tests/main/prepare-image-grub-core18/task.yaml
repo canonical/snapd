@@ -18,9 +18,9 @@ prepare: |
         exit
     fi
 
-    #shellcheck tests/lib/store.sh
-    . $TESTSLIB/store.sh
-    setup_fake_store $STORE_DIR
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB/store.sh"
+    setup_fake_store "$STORE_DIR"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -29,8 +29,8 @@ restore: |
     fi
 
     
-    #shellcheck tests/lib/store.sh
-    . $TESTSLIB/store.sh
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB/store.sh"
     teardown_fake_store "$STORE_DIR"
     rm -rf "$ROOT"
 
@@ -41,8 +41,8 @@ execute: |
     fi
 
     echo Expose the needed assertions through the fakestore
-    cp $TESTSLIB/assertions/developer1.account "$STORE_DIR"/asserts
-    cp $TESTSLIB/assertions/developer1.account-key "$STORE_DIR"/asserts
+    cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR"/asserts
+    cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR"/asserts
     # have snap use the fakestore for assertions (but nothing else)
     export SNAPPY_FORCE_SAS_URL="http://$STORE_ADDR"
 
@@ -63,7 +63,7 @@ execute: |
     else
         core18_snap_id="FIXME"
     fi
-    MATCH "snap-id: ${core_18snap_id}" < "$IMAGE"/var/lib/snapd/seed/seed.yaml
+    MATCH "snap-id: ${core18_snap_id}" < "$IMAGE"/var/lib/snapd/seed/seed.yaml
 
     for snap in pc pc-kernel core18 snapd; do
         MATCH "name: $snap" < "$IMAGE"/var/lib/snapd/seed/seed.yaml
