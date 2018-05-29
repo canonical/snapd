@@ -195,6 +195,9 @@ type Info struct {
 	Tracks []string
 
 	Layout map[string]*Layout
+
+	// The list of common-ids from all apps of the snap
+	CommonIDs []string
 }
 
 // Layout describes a single element of the layout section.
@@ -621,6 +624,7 @@ type AppInfo struct {
 	Name          string
 	LegacyAliases []string // FIXME: eventually drop this
 	Command       string
+	CommonID      string
 
 	Daemon          string
 	StopTimeout     timeout.Timeout
