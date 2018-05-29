@@ -55,6 +55,22 @@ apps:
 	c.Assert(err, check.ErrorMatches, "snap name cannot be empty")
 }
 
+func (s *SnapSuite) TestPackCheckSkeletonConflictingCommonID(c *check.C) {
+	// conflicting common-id
+	snapYaml := `name: foo
+version: foobar
+apps:
+  foo:
+    common-id: org.foo.foo
+  bar:
+    common-id: org.foo.foo
+`
+	snapDir := makeSnapDirForPack(c, snapYaml)
+
+	_, err := snaprun.Parser().ParseArgs([]string{"pack", "--check-skeleton", snapDir})
+	c.Assert(err, check.ErrorMatches, `application ("bar" common-id "org.foo.foo" must be unique, already used by application "foo"|"foo" common-id "org.foo.foo" must be unique, already used by application "bar")`)
+}
+
 func (s *SnapSuite) TestPackPacksFailsForMissingPaths(c *check.C) {
 	_, r := logger.MockLogger()
 	defer r()

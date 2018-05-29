@@ -121,7 +121,8 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 			"type": "app",
 			"version": "1.0.18",
 			"confinement": "strict",
-			"private": true
+			"private": true,
+                        "common-ids": ["org.funky.snap"]
 		}],
 		"suggested-currency": "GBP"
 	}`
@@ -144,6 +145,7 @@ func (cs *clientSuite) TestClientSnaps(c *check.C) {
 		Confinement:   client.StrictConfinement,
 		Private:       true,
 		DevMode:       false,
+		CommonIDs:     []string{"org.funky.snap"},
 	}})
 }
 
@@ -197,7 +199,8 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
                         "screenshots": [
                             {"url":"http://example.com/shot1.png", "width":640, "height":480},
                             {"url":"http://example.com/shot2.png"}
-                        ]
+                        ],
+                        "common-ids": ["org.funky.snap"]
 		}
 	}`
 	pkg, _, err := cs.cli.Snap(pkgName)
@@ -227,6 +230,7 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			{URL: "http://example.com/shot1.png", Width: 640, Height: 480},
 			{URL: "http://example.com/shot2.png"},
 		},
+		CommonIDs: []string{"org.funky.snap"},
 	})
 }
 
