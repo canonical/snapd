@@ -519,4 +519,5 @@ Please try 'snap find --section=<selected section>'
 `)
 
 	s.ResetStdStreams()
+	c.Check(numHits, check.Equals, 1)
 }
