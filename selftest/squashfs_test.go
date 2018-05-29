@@ -23,10 +23,14 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/selftest"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
 )
 
 func (s *selftestSuite) TestTrySquasfsMountHappy(c *C) {
+	restore := squashfs.MockUseFuse(false)
+	defer restore()
+
 	mockMount := testutil.MockCommand(c, "mount", "touch $4/canary.txt")
 	defer mockMount.Restore()
 
@@ -50,6 +54,9 @@ func (s *selftestSuite) TestTrySquasfsMountHappy(c *C) {
 }
 
 func (s *selftestSuite) TestTrySquasfsMountNotHappy(c *C) {
+	restore := squashfs.MockUseFuse(false)
+	defer restore()
+
 	mockMount := testutil.MockCommand(c, "mount", "echo iz-broken;false")
 	defer mockMount.Restore()
 
@@ -57,16 +64,14 @@ func (s *selftestSuite) TestTrySquasfsMountNotHappy(c *C) {
 	defer mockUmount.Restore()
 
 	err := selftest.TrySquashfsMount()
-	c.Check(err, ErrorMatches, "cannot mount squashfs image using kernel, fuse.snapfs or fuse.squashfs")
+	c.Check(err, ErrorMatches, "cannot mount squashfs image using.*")
 
-	c.Check(mockMount.Calls(), HasLen, 3)
+	c.Check(mockMount.Calls(), HasLen, 1)
 	c.Check(mockUmount.Calls(), HasLen, 0)
 
 	squashfsFile := mockMount.Calls()[0][3]
 	mountPoint := mockMount.Calls()[0][4]
 	c.Check(mockMount.Calls(), DeepEquals, [][]string{
 		{"mount", "-t", "squashfs", squashfsFile, mountPoint},
-		{"mount", "-t", "fuse.snapfs", squashfsFile, mountPoint},
-		{"mount", "-t", "fuse.squashfs", squashfsFile, mountPoint},
 	})
 }
