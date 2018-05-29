@@ -30,8 +30,8 @@ import (
 
 	"encoding/base64"
 
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 /* This image was created using:
@@ -141,25 +141,17 @@ func trySquashfsMount() error {
 		return err
 	}
 
-	// try to mount the squashfs file directly, then fuse
-	var mounted bool
-
-	// FIXME: keep in sync with systemd.go:WriteMountUnitFile
-	for _, typ := range []string{"squashfs", "fuse.snapfuse", "fuse.squashfuse"} {
-		cmd := exec.Command("mount", "-t", typ, tmpSquashfsFile.Name(), tmpMountDir)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			logger.Debugf("cannot mount: %v", osutil.OutputErr(output, err))
-			continue
-		}
-		defer exec.Command("umount", tmpMountDir).Run()
-
-		mounted = true
-		break
+	// the fstype can be squashfs or fuse.{snap,squash}fuse
+	fstype, _, err := squashfs.Fstype()
+	if err != nil {
+		return err
 	}
-	if !mounted {
-		return fmt.Errorf("cannot mount squashfs image using kernel, fuse.snapfuse or fuse.squashfuse")
+	cmd := exec.Command("mount", "-t", fstype, tmpSquashfsFile.Name(), tmpMountDir)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("cannot mount squashfs image using %q: %v", fstype, osutil.OutputErr(output, err))
 	}
+	defer exec.Command("umount", tmpMountDir).Run()
 
 	// sanity check the
 	if !osutil.FileExists(filepath.Join(tmpMountDir, "canary.txt")) {
