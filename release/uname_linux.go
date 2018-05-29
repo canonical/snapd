@@ -66,7 +66,9 @@ func getMachineName(buf *syscall.Utsname) string {
 }
 
 // KernelVersion returns the version of the kernel or the string "unknown" if one cannot be determined.
-func KernelVersion() string {
+var KernelVersion = kernelVersion
+
+func kernelVersion() string {
 	var buf syscall.Utsname
 	err := syscall.Uname(&buf)
 	if err != nil {
@@ -74,6 +76,15 @@ func KernelVersion() string {
 	}
 	// Release is more informative than Version.
 	return getKernelRelease(&buf)
+}
+
+// MockKernelVersion replaces the function that returns the kernel version string.
+func MockKernelVersion(version string) (restore func()) {
+	old := KernelVersion
+	KernelVersion = func() string { return version }
+	return func() {
+		KernelVersion = old
+	}
 }
 
 // Machine returns the name of the machine or the string "unknown" if one cannot be determined.
