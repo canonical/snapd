@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 SNAPD_STATE_PATH="$SPREAD_PATH/tests/snapd-state"
 SNAPD_STATE_FILE="$SPREAD_PATH/tests/snapd-state.tar"
