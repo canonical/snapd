@@ -27,17 +27,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// Plug represents the potential of a given snap to connect to a slot.
-type Plug struct {
-	*snap.PlugInfo
-	Connections []SlotRef `json:"connections,omitempty"`
-}
-
-// Ref returns reference to a plug
-func (plug *Plug) Ref() PlugRef {
-	return PlugRef{Snap: plug.Snap.Name(), Name: plug.Name}
-}
-
 // Sanitize plug with a given snapd interface.
 func BeforePreparePlug(iface Interface, plugInfo *snap.PlugInfo) error {
 	if iface.Name() != plugInfo.Interface {
@@ -60,17 +49,6 @@ type PlugRef struct {
 // String returns the "snap:plug" representation of a plug reference.
 func (ref PlugRef) String() string {
 	return fmt.Sprintf("%s:%s", ref.Snap, ref.Name)
-}
-
-// Slot represents a capacity offered by a snap.
-type Slot struct {
-	*snap.SlotInfo
-	Connections []PlugRef `json:"connections,omitempty"`
-}
-
-// Ref returns reference to a slot
-func (slot *Slot) Ref() SlotRef {
-	return SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}
 }
 
 // Sanitize slot with a given snapd interface.
