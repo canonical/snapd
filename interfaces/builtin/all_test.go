@@ -213,6 +213,10 @@ type legacyAutoConnect interface {
 	LegacyAutoConnect() bool
 }
 
+type oldAutoConnect interface {
+	AutoConnect(*interfaces.Plug, *interfaces.Slot) bool
+}
+
 type oldSanitizePlug1 interface {
 	SanitizePlug(plug *interfaces.Plug) error
 }
@@ -369,6 +373,7 @@ var allBadDefiners = []reflect.Type{
 	reflect.TypeOf((*snippetDefiner4)(nil)).Elem(),
 	// old auto-connect function
 	reflect.TypeOf((*legacyAutoConnect)(nil)).Elem(),
+	reflect.TypeOf((*oldAutoConnect)(nil)).Elem(),
 	// old sanitize methods
 	reflect.TypeOf((*oldSanitizePlug1)(nil)).Elem(),
 	reflect.TypeOf((*oldSanitizePlug2)(nil)).Elem(),

@@ -287,7 +287,7 @@ func (iface *contentInterface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 	return nil
 }
 
-func (iface *contentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (iface *contentInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }
