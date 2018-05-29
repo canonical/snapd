@@ -1,0 +1,5 @@
+#!/bin/sh
+#
+# Ensure /snap/bin is in the PATH
+
+echo PATH=$PATH:@SNAP_MOUNT_DIR@/bin
