@@ -1,7 +1,10 @@
 summary: Ensure snapd builds as a snap
 
-# this is what the snapcraft builder on launchpad uses
+# This is what the snapcraft builder on launchpad uses.
 systems: [ubuntu-16.04-64]
+
+restore: |
+    apt autoremove -y snapcraft
 
 execute: |
     echo "Installing snapscraft"
