@@ -351,7 +351,7 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstalledSnap(c *
 	c.Assert(auto, Equals, auto)
 }
 
-func (s *interfaceManagerSuite) testAutoConnectConflicts(c *C, conflictingKind string) {
+func (s *interfaceManagerSuite) createAutoconnectChange(c *C, conflictingTask *state.Task) error {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -359,12 +359,11 @@ func (s *interfaceManagerSuite) testAutoConnectConflicts(c *C, conflictingKind s
 	defer s.state.Unlock()
 
 	chg1 := s.state.NewChange("a change", "...")
-	t1 := s.state.NewTask(conflictingKind, "...")
-	t1.Set("snap-setup", &snapstate.SnapSetup{
+	conflictingTask.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "consumer"},
 	})
-	chg1.AddTask(t1)
+	chg1.AddTask(conflictingTask)
 
 	chg := s.state.NewChange("other-chg", "...")
 	t2 := s.state.NewTask("auto-connect", "...")
@@ -375,7 +374,10 @@ func (s *interfaceManagerSuite) testAutoConnectConflicts(c *C, conflictingKind s
 
 	chg.AddTask(t2)
 
-	err := ifacestate.CheckConnectConflicts(s.state, chg, "consumer", "producer", t2)
+	return ifacestate.CheckConnectConflicts(s.state, chg, "consumer", "producer", t2)
+}
+
+func (s *interfaceManagerSuite) testRetryError(c *C, err error) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `task should be retried`)
 	rerr, ok := err.(*state.Retry)
@@ -384,11 +386,40 @@ func (s *interfaceManagerSuite) testAutoConnectConflicts(c *C, conflictingKind s
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnUnlink(c *C) {
-	s.testAutoConnectConflicts(c, "unlink-snap")
+	s.state.Lock()
+	task := s.state.NewTask("unlink-snap", "")
+	s.state.Unlock()
+	err := s.createAutoconnectChange(c, task)
+	s.testRetryError(c, err)
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnLink(c *C) {
-	s.testAutoConnectConflicts(c, "link-snap")
+	s.state.Lock()
+	task := s.state.NewTask("link-snap", "")
+	s.state.Unlock()
+	err := s.createAutoconnectChange(c, task)
+	s.testRetryError(c, err)
+}
+
+func (s *interfaceManagerSuite) TestAutoconnectConflictOnAutoconnect(c *C) {
+	s.state.Lock()
+	task := s.state.NewTask("connect", "")
+	task.Set("auto", true)
+	s.state.Unlock()
+
+	err := s.createAutoconnectChange(c, task)
+	s.testRetryError(c, err)
+}
+
+func (s *interfaceManagerSuite) TestAutoconnectNoConflictOnConnect(c *C) {
+	s.state.Lock()
+	task := s.state.NewTask("connect", "")
+	task.Set("auto", false)
+	s.state.Unlock()
+
+	err := s.createAutoconnectChange(c, task)
+	// FIXME: flesh this test out once individual connect conflict check is fleshed out
+	c.Assert(err, IsNil)
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
