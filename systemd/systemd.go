@@ -453,6 +453,7 @@ func (s *systemd) WriteMountUnitFile(name, revision, what, where, fstype string)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		fstype = "none"
+		// FIXME: keep this in sync with selftest/squashfs.go
 	} else if fstype == "squashfs" && useFuse() {
 		options = append(options, "allow_other")
 		switch {
