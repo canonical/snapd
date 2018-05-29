@@ -127,3 +127,43 @@ func (s *refreshSuite) TestConfigureRefreshHoldOnMeteredHappy(c *C) {
 	})
 	c.Assert(err, IsNil)
 }
+
+func (s *refreshSuite) TestConfigureRefreshRetainHappy(c *C) {
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"refresh.retain": "4",
+		},
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *refreshSuite) TestConfigureRefreshRetainUnderRange(c *C) {
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"refresh.retain": "1",
+		},
+	})
+	c.Assert(err, ErrorMatches, `retain must be a number between 2 and 20, not "1"`)
+}
+
+func (s *refreshSuite) TestConfigureRefreshRetainOverRange(c *C) {
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"refresh.retain": "100",
+		},
+	})
+	c.Assert(err, ErrorMatches, `retain must be a number between 2 and 20, not "100"`)
+}
+
+func (s *refreshSuite) TestConfigureRefreshRetainInvalid(c *C) {
+	err := configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"refresh.retain": "invalid",
+		},
+	})
+	c.Assert(err, ErrorMatches, `retain must be a number between 2 and 20, not "invalid"`)
+}

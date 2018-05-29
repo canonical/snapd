@@ -7603,6 +7603,23 @@ func (s *snapmgrTestSuite) TestSeqTotalABAFailure(c *C) {
 	// gets nuked after all tasks succeeded).
 }
 
+func (s *snapmgrTestSuite) TestSeqRetainConf(c *C) {
+	revseq := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+
+	for i := 2; i <= 10; i++ {
+		// wot, me, hacky?
+		s.TearDownTest(c)
+		s.SetUpTest(c)
+		s.state.Lock()
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", "refresh.retain", i)
+		tr.Commit()
+		s.state.Unlock()
+
+		s.testUpdateSequence(c, &opSeqOpts{before: revseq[:9], current: 9, via: 10, after: revseq[10-i:]})
+	}
+}
+
 func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
