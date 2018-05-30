@@ -433,7 +433,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		return err
 	}
 
-	if err := setBootvars(downloadedSnapsInfo); err != nil {
+	if err := setBootvars(downloadedSnapsInfo, model); err != nil {
 		return err
 	}
 
@@ -445,7 +445,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	return nil
 }
 
-func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
+func setBootvars(downloadedSnapsInfo map[string]*snap.Info, model *asserts.Model) error {
 	// Set bootvars for kernel/core snaps so the system boots and
 	// does the first-time initialization. There is also no
 	// mounted kernel/core snap, but just the blobs.
@@ -463,6 +463,9 @@ func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
 		"snap_mode":       "",
 		"snap_try_core":   "",
 		"snap_try_kernel": "",
+	}
+	if model.DisplayName() != "" {
+		m["snap_menuentry"] = model.DisplayName()
 	}
 	for _, fn := range snaps {
 		bootvar := ""
