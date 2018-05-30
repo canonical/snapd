@@ -1,0 +1,68 @@
+summary: Ensure that /dev/input/event* is denied by default.
+
+details: |
+    The default policy disallows access to /dev/input/event*.
+
+    The joystick interface disallows access to /dev/input/event* for
+    non-joysticks.
+
+    The test checks the snap is not able to access /dev/input/event* with or
+    without the joystick interface connected. We do this since the
+    /dev/input/event* devices are sensitive and because the joystick interface
+    adds a /dev/input/event* AppArmor glob rule that relies entirely on the
+    device cgroup for enforcement.
+
+prepare: |
+    echo "Given the test-snapd-event snap is installed"
+    snap install test-snapd-event
+
+restore: |
+    rm -f call.error
+    snap remove test-snapd-event
+
+execute: |
+    echo "The joystick plug is not connected by default"
+    snap interfaces -i joystick | MATCH "\- +test-snapd-event:joystick"
+
+    if [ "$(snap debug confinement)" != "strict" ]; then
+        exit 0
+    fi
+
+    # Detect a keyboard by looking in /dev/input/by-path to find the first
+    # '-event-kbd'
+    evdev_kbd=$(ls -l /dev/input/by-path/*-event-kbd | head -1 | sed 's#.* -> ../##')
+    if [ -z "$evdev_kbd" ]; then
+        # Fail hard if no keyboard so as not to mask detection problems
+        exit 1
+    fi
+
+    dev="/dev/input/$evdev_kbd"
+    if [ ! -c "$dev" ]; then
+        # Fail hard if no keyboard so as not to mask detection problems
+        exit 1
+    fi
+
+    echo "Then the snap is not able to access an evdev keyboard"
+    if test-snapd-event --query "$dev" EV_KEY KEY_A 2>${PWD}/call.error; then
+        echo "Expected permission error calling evtest with disconnected plug"
+        exit 1
+    fi
+    # AppArmor is 'Permission denied' which is expected with default policy
+    MATCH "Permission denied" < call.error
+
+    echo "When the joystick plug is connected"
+    snap connect test-snapd-event:joystick
+    udevadm settle
+
+    # Note, '-event-kbd' devices aren't joysticks (those are -event-joystick
+    # (evdev event*) and -joystick (js*)) and therefore shouldn't be added to
+    # the device cgroup when the joystick interface is plugged.
+    echo "Then the snap is still not able to access an evdev keyboard"
+    if test-snapd-event --query "$dev" EV_KEY KEY_A 2>${PWD}/call.error; then
+        echo "Expected permission error calling evtest with connected joystick plug"
+        exit 1
+    fi
+    # device cgroup is 'Operation not permitted' which is expected when the
+    # joystick interface is connected since a keyboard shouldn't be added to
+    # the device cgroup.
+    MATCH "Operation not permitted" < call.error
