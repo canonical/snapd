@@ -311,15 +311,20 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		}
 	}
 
+	baseName := defaultCore
+	if model.Base() != "" {
+		baseName = model.Base()
+	}
+
 	snaps := []string{}
 	// core/base,kernel,gadget first
-	if model.Base() != "" {
-		snaps = append(snaps, local.PreferLocal(model.Base()))
-	} else {
-		snaps = append(snaps, local.PreferLocal(defaultCore))
-	}
+	snaps = append(snaps, local.PreferLocal(baseName))
 	snaps = append(snaps, local.PreferLocal(model.Kernel()))
 	snaps = append(snaps, local.PreferLocal(model.Gadget()))
+	// always add an implicit snapd when a base is used
+	if model.Base() != "" {
+		snaps = append(snaps, "snapd")
+	}
 	// then required and the user requested stuff
 	for _, snapName := range model.RequiredSnaps() {
 		snaps = append(snaps, local.PreferLocal(snapName))
@@ -331,10 +336,6 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	downloadedSnapsInfoForBootConfig := map[string]*snap.Info{}
 	var seedYaml snap.Seed
 	for _, snapName := range snaps {
-		if snapName == "" {
-			return fmt.Errorf("cannot have an empty snap name in %q", snaps)
-		}
-
 		name := local.Name(snapName)
 		if seen[name] {
 			fmt.Fprintf(Stdout, "%s already prepared, skipping\n", name)
@@ -380,7 +381,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		}
 
 		// kernel/os/model.base are required for booting
-		if typ == snap.TypeKernel || typ == snap.TypeOS || snapName == model.Base() {
+		if typ == snap.TypeKernel || local.Name(snapName) == baseName {
 			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
 			// construct a relative symlink from the blob dir
 			// to the seed file
@@ -391,7 +392,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 			if err := os.Symlink(relSymlink, dst); err != nil {
 				return err
 			}
-			// store the snap.Info for kernel/os so
+			// store the snap.Info for kernel/os/base so
 			// that the bootload can DTRT
 			downloadedSnapsInfoForBootConfig[dst] = info
 		}
@@ -410,10 +411,6 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	}
 	if len(locals) > 0 {
 		fmt.Fprintf(Stderr, "WARNING: %s were installed from local snaps disconnected from a store and cannot be refreshed subsequently!\n", strutil.Quoted(locals))
-	}
-	// XXX: make this a warning only?
-	if model.Base() != "" && !seen["snapd"] {
-		return fmt.Errorf(`Base %q is used but no "snapd" snap is installed`, model.Base())
 	}
 
 	for _, aRef := range f.addedRefs {
@@ -460,7 +457,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 
 func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info) error {
 	if len(downloadedSnapsInfoForBootConfig) != 2 {
-		return fmt.Errorf("setBootvars can only be called with exactly one kernel and exactly one core/base boot info")
+		return fmt.Errorf("setBootvars can only be called with exactly one kernel and exactly one core/base boot info: %v", downloadedSnapsInfoForBootConfig)
 	}
 
 	// Set bootvars for kernel/core snaps so the system boots and

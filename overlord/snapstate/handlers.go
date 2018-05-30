@@ -812,7 +812,7 @@ func maybeRestart(t *state.Task, info *snap.Info) {
 		t.Logf("Requested daemon restart.")
 		st.RequestRestart(state.RestartDaemon)
 	}
-	if !release.OnClassic && boot.KernelOrOsRebootRequired(info) {
+	if !release.OnClassic && boot.KernelOsBaseRebootRequired(info) {
 		t.Logf("Requested system restart.")
 		st.RequestRestart(state.RestartSystem)
 	}
