@@ -23,10 +23,13 @@ fi
 echo Obtaining dependencies
 govendor sync
 
-unused="$(govendor list +unused)"
-if [ "$unused" != "" ]; then
-    echo "Found unused ./vendor packages:"
-    echo "$unused"
-    echo "Please fix via 'govendor remove +unused'"
-    exit 1
+
+if [ "$1" != "--skip-unused-check" ]; then
+    unused="$(govendor list +unused)"
+    if [ "$unused" != "" ]; then
+        echo "Found unused ./vendor packages:"
+        echo "$unused"
+        echo "Please fix via 'govendor remove +unused'"
+        exit 1
+    fi
 fi

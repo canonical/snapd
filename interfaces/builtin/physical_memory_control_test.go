@@ -105,8 +105,7 @@ func (s *PhysicalMemoryControlInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestAutoConnect(c *C) {
-	// FIXME: fix AutoConnect methods to use ConnectedPlug/Slot
-	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
+	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestInterfaces(c *C) {

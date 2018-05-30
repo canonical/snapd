@@ -122,6 +122,9 @@ apps:
   joystick:
     command: bin/run
     plugs: [ joystick ]
+  juju-client-observe:
+    command: bin/run
+    plugs: [ juju-client-observe ]
   kernel-module-control:
     command: bin/run
     plugs: [ kernel-module-control ]

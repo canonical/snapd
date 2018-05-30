@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type SshKeysInterfaceSuite struct {
+type JujuClientObserveInterfaceSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -37,67 +37,63 @@ type SshKeysInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&SshKeysInterfaceSuite{
-	iface: builtin.MustInterface("ssh-keys"),
+var _ = Suite(&JujuClientObserveInterfaceSuite{
+	iface: builtin.MustInterface("juju-client-observe"),
 })
 
-const sshKeysConsumerYaml = `name: consumer
+const jujuClientObserveConsumerYaml = `name: consumer
 version: 0
 apps:
  app:
-   plugs: [ssh-keys]
-   `
+  plugs: [juju-client-observe]
+`
 
-const sshKeysCoreYaml = `name: core
+const jujuClientObserveCoreYaml = `name: core
 version: 0
 type: os
 slots:
-  ssh-keys:
+  juju-client-observe:
 `
 
-func (s *SshKeysInterfaceSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, sshKeysConsumerYaml, nil, "ssh-keys")
-	s.slot, s.slotInfo = MockConnectedSlot(c, sshKeysCoreYaml, nil, "ssh-keys")
+func (s *JujuClientObserveInterfaceSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, jujuClientObserveConsumerYaml, nil, "juju-client-observe")
+	s.slot, s.slotInfo = MockConnectedSlot(c, jujuClientObserveCoreYaml, nil, "juju-client-observe")
 }
 
-func (s *SshKeysInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "ssh-keys")
+func (s *JujuClientObserveInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "juju-client-observe")
 }
 
-func (s *SshKeysInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *JujuClientObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
-	slotInfo := &snap.SlotInfo{
+	slot := &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "ssh-keys",
-		Interface: "ssh-keys",
+		Name:      "juju-client-observe",
+		Interface: "juju-client-observe",
 	}
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slotInfo), ErrorMatches,
-		"ssh-keys slots are reserved for the core snap")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		"juju-client-observe slots are reserved for the core snap")
 }
 
-func (s *SshKeysInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *JujuClientObserveInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *SshKeysInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *JujuClientObserveInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `owner @{HOME}/.ssh/{,**} r,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner @{HOME}/.local/share/juju/{,**} r,\n")
 }
 
-func (s *SshKeysInterfaceSuite) TestStaticInfo(c *C) {
+func (s *JujuClientObserveInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows reading ssh user configuration and keys`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "ssh-keys")
+	c.Assert(si.Summary, Equals, `allows read access to juju client configuration`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "juju-client-observe")
 }
 
-func (s *SshKeysInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
-}
-
-func (s *SshKeysInterfaceSuite) TestInterfaces(c *C) {
+func (s *JujuClientObserveInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
