@@ -657,16 +657,22 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			continue
 		}
 
-		ignore, err := checkConnectConflicts(st, chg, plug.Snap.Name(), slot.Snap.Name(), task)
+		ignore, err := findSymmetricAutoconnect(st, plug.Snap.Name(), slot.Snap.Name(), task)
 		if err != nil {
+			return err
+		}
+
+		if ignore {
+			continue
+		}
+
+		if err := checkConnectConflicts(st, chg, plug.Snap.Name(), slot.Snap.Name(), task); err != nil {
 			if _, retry := err.(*state.Retry); retry {
 				return err // will retry
 			}
 			return fmt.Errorf("auto-connect conflict check failed: %s", err)
 		}
-		if !ignore {
-			newconns = append(newconns, connRef)
-		}
+		newconns = append(newconns, connRef)
 	}
 	// Auto-connect all the slots
 	for _, slot := range m.repo.Slots(snapName) {
@@ -698,16 +704,22 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				continue
 			}
 
-			ignore, err := checkConnectConflicts(st, chg, plug.Snap.Name(), slot.Snap.Name(), task)
+			ignore, err := findSymmetricAutoconnect(st, plug.Snap.Name(), slot.Snap.Name(), task)
 			if err != nil {
+				return err
+			}
+
+			if ignore {
+				continue
+			}
+
+			if err := checkConnectConflicts(st, chg, plug.Snap.Name(), slot.Snap.Name(), task); err != nil {
 				if _, retry := err.(*state.Retry); retry {
 					return err // will retry
 				}
 				return fmt.Errorf("auto-connect conflict check failed: %s", err)
 			}
-			if !ignore {
-				newconns = append(newconns, connRef)
-			}
+			newconns = append(newconns, connRef)
 		}
 	}
 
