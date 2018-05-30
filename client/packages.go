@@ -59,6 +59,7 @@ type Snap struct {
 	Contact          string        `json:"contact"`
 	License          string        `json:"license,omitempty"`
 	CommonIDs        []string      `json:"common-ids,omitempty"`
+	MountedFrom      string        `json:"mounted-from,omitempty"`
 
 	Prices      map[string]float64 `json:"prices,omitempty"`
 	Screenshots []Screenshot       `json:"screenshots,omitempty"`
