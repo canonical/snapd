@@ -22,6 +22,7 @@ package daemon
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -340,6 +341,15 @@ func mapLocal(about aboutSnap) *client.Snap {
 		Title:            localSnap.Title(),
 		License:          localSnap.License,
 		CommonIDs:        localSnap.CommonIDs,
+		MountedFrom:      localSnap.MountFile(),
+	}
+
+	if result.TryMode {
+		// Readlink instead of EvalSymlinks because it's only expected
+		// to be one level, and should still resolve if the target does
+		// not exist (this might help e.g. snapcraft clean up after a
+		// prime dir)
+		result.MountedFrom, _ = os.Readlink(result.MountedFrom)
 	}
 
 	return result
