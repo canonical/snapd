@@ -203,17 +203,20 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
-func undoRestore(t *state.Task, _ *tomb.Tomb) error {
+func undoRestore(task *state.Task, _ *tomb.Tomb) error {
 	var restoreState backend.RestoreState
 	var snapshot snapshotState
 
-	st := t.State()
+	st := task.State()
 	st.Lock()
 	defer st.Unlock()
 
-	t.Get("restore-state", &restoreState)
-	defer backendRevert(&restoreState)
-	t.Get("snapshot", &snapshot)
+	if err := task.Get("restore-state", &restoreState); err != nil {
+		return err
+	}
+	if err := task.Get("snapshot", &snapshot); err != nil {
+		return err
+	}
 
 	buf, err := json.Marshal(restoreState.Config)
 	if err != nil {
@@ -221,7 +224,13 @@ func undoRestore(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return configSetSnapConfig(st, snapshot.Snap, (*json.RawMessage)(&buf))
+	if err := configSetSnapConfig(st, snapshot.Snap, (*json.RawMessage)(&buf)); err != nil {
+		return err
+	}
+
+	backendRevert(&restoreState)
+
+	return nil
 }
 
 func cleanupRestore(task *state.Task, _ *tomb.Tomb) error {
@@ -230,7 +239,10 @@ func cleanupRestore(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
 	status := task.Status()
-	task.Get("restore-state", &restoreState)
+	if err := task.Get("restore-state", &restoreState); err != nil {
+		// this is bad :-(
+		return err
+	}
 	st.Unlock()
 
 	if status != state.DoneStatus {

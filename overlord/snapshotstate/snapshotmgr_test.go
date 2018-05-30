@@ -417,7 +417,7 @@ func (rs *readerSuite) TestUndoRestore(c *check.C) {
 	st := rs.task.State()
 	st.Lock()
 	var v map[string]interface{}
-	rs.task.Get("restore-state", &v)
+	rs.task.Set("restore-state", &v)
 	st.Unlock()
 
 	err := snapshotstate.UndoRestore(rs.task, &tomb.Tomb{})
@@ -429,7 +429,7 @@ func (rs *readerSuite) TestCleanupRestore(c *check.C) {
 	st := rs.task.State()
 	st.Lock()
 	var v map[string]interface{}
-	rs.task.Get("restore-state", &v)
+	rs.task.Set("restore-state", &v)
 	st.Unlock()
 
 	err := snapshotstate.CleanupRestore(rs.task, &tomb.Tomb{})
