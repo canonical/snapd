@@ -24,7 +24,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/partition"
@@ -101,14 +100,16 @@ func ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
 	return dir.Sync()
 }
 
-// SetNextBoot will schedule the given OS or kernel snap to be used in
-// the next boot
+// SetNextBoot will schedule the given OS or base or kernel snap to be
+// used in the next boot. For base snaps it up to the caller to select
+// the right bootable base (from the model assertion).
 func SetNextBoot(s *snap.Info) error {
 	if release.OnClassic {
 		return nil
 	}
+
 	if s.Type != snap.TypeOS && s.Type != snap.TypeKernel && s.Type != snap.TypeBase {
-		return nil
+		return fmt.Errorf("cannot set next boot to snap %q with type %q", s.Name(), s.Type)
 	}
 
 	bootloader, err := partition.FindBootloader()
@@ -145,16 +146,6 @@ func SetNextBoot(s *snap.Info) error {
 				nextBoot:    "",
 			})
 		}
-		return nil
-	}
-
-	// With bases we need to check if this is a base we want to
-	// boot from, i.e. if the snap has the same name as the one
-	// we used for booting.
-	snapNameGoodBoot := strings.SplitN(m[goodBoot], "_", 2)[0]
-	if m[goodBoot] != "" && snapNameGoodBoot != s.Name() {
-		// Nothing to do, this is just a base snap but not
-		// the base name we used for booting.
 		return nil
 	}
 

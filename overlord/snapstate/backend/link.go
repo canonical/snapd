@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/progress"
@@ -57,7 +58,7 @@ func updateCurrentSymlinks(info *snap.Info) error {
 }
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
-func (b Backend) LinkSnap(info *snap.Info) error {
+func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 	if info.Revision.Unset() {
 		return fmt.Errorf("cannot link snap %q with unset revision", info.Name())
 	}
@@ -67,8 +68,17 @@ func (b Backend) LinkSnap(info *snap.Info) error {
 	}
 
 	// XXX/TODO: this needs to be a task with proper undo and tests!
-	if err := boot.SetNextBoot(info); err != nil {
-		return err
+	if model != nil {
+		bootBase := "core"
+		if model.Base() != "" {
+			bootBase = model.Base()
+		}
+		switch info.Name() {
+		case model.Kernel(), bootBase:
+			if err := boot.SetNextBoot(info); err != nil {
+				return err
+			}
+		}
 	}
 
 	return updateCurrentSymlinks(info)
