@@ -196,15 +196,9 @@ func (s *AllSuite) TestEachInterfaceImplementsSomeBackendMethods(c *C) {
 
 // pre-specification snippet functions
 type snippetDefiner1 interface {
-	ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, sec interfaces.SecuritySystem) error
-}
-type snippetDefiner2 interface {
-	ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, sec interfaces.SecuritySystem) error
-}
-type snippetDefiner3 interface {
 	PermanentPlugSnippet(plug *snap.PlugInfo, sec interfaces.SecuritySystem) error
 }
-type snippetDefiner4 interface {
+type snippetDefiner2 interface {
 	PermanentSlotSnippet(slot *snap.SlotInfo, sec interfaces.SecuritySystem) error
 }
 
@@ -214,150 +208,10 @@ type legacyAutoConnect interface {
 }
 
 type oldSanitizePlug1 interface {
-	SanitizePlug(plug *interfaces.Plug) error
-}
-type oldSanitizePlug2 interface {
 	SanitizePlug(plug *snap.PlugInfo) error
 }
 type oldSanitizeSlot1 interface {
-	SanitizeSlot(slot *interfaces.Slot) error
-}
-type oldSanitizeSlot2 interface {
 	SanitizeSlot(slot *snap.SlotInfo) error
-}
-
-// specification definers before the introduction of connection attributes
-type oldApparmorDefiner1 interface {
-	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldApparmorDefiner2 interface {
-	AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldApparmorDefiner3 interface {
-	AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-}
-type oldApparmorDefiner4 interface {
-	AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-}
-type oldApparmorDefiner5 interface {
-	AppArmorPermanentPlug(spec *apparmor.Specification, plug *interfaces.Plug) error
-}
-type oldApparmorDefiner6 interface {
-	AppArmorPermanentSlot(spec *apparmor.Specification, slot *interfaces.Slot) error
-}
-
-type oldDbusDefiner1 interface {
-	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldDbusDefiner2 interface {
-	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldDbusDefiner3 interface {
-	DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-}
-type oldDbusDefiner4 interface {
-	DBusConnectedSlot(spec *dbus.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-}
-type oldDbusDefiner5 interface {
-	DBusPermanentPlug(spec *dbus.Specification, plug *interfaces.Plug) error
-}
-type oldDbusDefiner6 interface {
-	DBusPermanentSlot(spec *dbus.Specification, slot *interfaces.Slot) error
-}
-
-type oldKmodDefiner1 interface {
-	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldKmodDefiner2 interface {
-	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldKmodDefiner3 interface {
-	KModConnectedPlug(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-}
-type oldKmodDefiner4 interface {
-	KModConnectedSlot(spec *kmod.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-}
-type oldKmodDefiner5 interface {
-	KModPermanentPlug(spec *kmod.Specification, plug *interfaces.Plug) error
-}
-type oldKmodDefiner6 interface {
-	KModPermanentSlot(spec *kmod.Specification, slot *interfaces.Slot) error
-}
-
-type oldMountDefiner1 interface {
-	MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldMountDefiner2 interface {
-	MountConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldMountDefiner3 interface {
-	MountConnectedPlug(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-}
-type oldMountDefiner4 interface {
-	MountConnectedSlot(spec *mount.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-}
-type oldMountDefiner5 interface {
-	MountPermanentPlug(spec *mount.Specification, plug *interfaces.Plug) error
-}
-type oldMountDefiner6 interface {
-	MountPermanentSlot(spec *mount.Specification, slot *interfaces.Slot) error
-}
-
-type oldSeccompDefiner1 interface {
-	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldSeccompDefiner2 interface {
-	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldSeccompDefiner3 interface {
-	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-}
-type oldSeccompDefiner4 interface {
-	SecCompConnectedSlot(spec *seccomp.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-}
-type oldSeccompDefiner5 interface {
-	SecCompPermanentPlug(spec *seccomp.Specification, plug *interfaces.Plug) error
-}
-type oldSeccompDefiner6 interface {
-	SecCompPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error
-}
-
-type oldSystemdDefiner1 interface {
-	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldSystemdDefiner2 interface {
-	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldSystemdDefiner3 interface {
-	SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-}
-type oldSystemdDefiner4 interface {
-	SystemdConnectedSlot(spec *systemd.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-}
-type oldSystemdDefiner5 interface {
-	SystemdPermanentPlug(spec *seccomp.Specification, plug *interfaces.Plug) error
-}
-type oldSystemdDefiner6 interface {
-	SystemdPermanentSlot(spec *seccomp.Specification, slot *interfaces.Slot) error
-}
-
-type oldUdevDefiner1 interface {
-	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldUdevDefiner2 interface {
-	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, slot *interfaces.Slot) error
-}
-type oldUdevDefiner3 interface {
-	UDevConnectedPlug(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-}
-type oldUdevDefiner4 interface {
-	UDevConnectedSlot(spec *udev.Specification, plug *interfaces.Plug, plugAttrs map[string]interface{}, slot *interfaces.Slot, slotAttrs map[string]interface{}) error
-}
-type oldUdevDefiner5 interface {
-	UDevPermanentPlug(spec *udev.Specification, plug *interfaces.Plug) error
-}
-type oldUdevDefiner6 interface {
-	UDevPermanentSlot(spec *udev.Specification, slot *interfaces.Slot) error
 }
 
 // allBadDefiners contains all old/unused specification definers for all known backends.
@@ -365,58 +219,11 @@ var allBadDefiners = []reflect.Type{
 	// pre-specification snippet methods
 	reflect.TypeOf((*snippetDefiner1)(nil)).Elem(),
 	reflect.TypeOf((*snippetDefiner2)(nil)).Elem(),
-	reflect.TypeOf((*snippetDefiner3)(nil)).Elem(),
-	reflect.TypeOf((*snippetDefiner4)(nil)).Elem(),
 	// old auto-connect function
 	reflect.TypeOf((*legacyAutoConnect)(nil)).Elem(),
 	// old sanitize methods
 	reflect.TypeOf((*oldSanitizePlug1)(nil)).Elem(),
-	reflect.TypeOf((*oldSanitizePlug2)(nil)).Elem(),
 	reflect.TypeOf((*oldSanitizeSlot1)(nil)).Elem(),
-	reflect.TypeOf((*oldSanitizeSlot2)(nil)).Elem(),
-	// pre-attribute definers
-	reflect.TypeOf((*oldApparmorDefiner1)(nil)).Elem(),
-	reflect.TypeOf((*oldApparmorDefiner2)(nil)).Elem(),
-	reflect.TypeOf((*oldApparmorDefiner3)(nil)).Elem(),
-	reflect.TypeOf((*oldApparmorDefiner4)(nil)).Elem(),
-	reflect.TypeOf((*oldApparmorDefiner5)(nil)).Elem(),
-	reflect.TypeOf((*oldApparmorDefiner6)(nil)).Elem(),
-	reflect.TypeOf((*oldDbusDefiner1)(nil)).Elem(),
-	reflect.TypeOf((*oldDbusDefiner2)(nil)).Elem(),
-	reflect.TypeOf((*oldDbusDefiner3)(nil)).Elem(),
-	reflect.TypeOf((*oldDbusDefiner4)(nil)).Elem(),
-	reflect.TypeOf((*oldDbusDefiner5)(nil)).Elem(),
-	reflect.TypeOf((*oldDbusDefiner6)(nil)).Elem(),
-	reflect.TypeOf((*oldKmodDefiner1)(nil)).Elem(),
-	reflect.TypeOf((*oldKmodDefiner2)(nil)).Elem(),
-	reflect.TypeOf((*oldKmodDefiner3)(nil)).Elem(),
-	reflect.TypeOf((*oldKmodDefiner4)(nil)).Elem(),
-	reflect.TypeOf((*oldKmodDefiner5)(nil)).Elem(),
-	reflect.TypeOf((*oldKmodDefiner6)(nil)).Elem(),
-	reflect.TypeOf((*oldMountDefiner1)(nil)).Elem(),
-	reflect.TypeOf((*oldMountDefiner2)(nil)).Elem(),
-	reflect.TypeOf((*oldMountDefiner3)(nil)).Elem(),
-	reflect.TypeOf((*oldMountDefiner4)(nil)).Elem(),
-	reflect.TypeOf((*oldMountDefiner5)(nil)).Elem(),
-	reflect.TypeOf((*oldMountDefiner6)(nil)).Elem(),
-	reflect.TypeOf((*oldSeccompDefiner1)(nil)).Elem(),
-	reflect.TypeOf((*oldSeccompDefiner2)(nil)).Elem(),
-	reflect.TypeOf((*oldSeccompDefiner3)(nil)).Elem(),
-	reflect.TypeOf((*oldSeccompDefiner4)(nil)).Elem(),
-	reflect.TypeOf((*oldSeccompDefiner5)(nil)).Elem(),
-	reflect.TypeOf((*oldSeccompDefiner6)(nil)).Elem(),
-	reflect.TypeOf((*oldSystemdDefiner1)(nil)).Elem(),
-	reflect.TypeOf((*oldSystemdDefiner2)(nil)).Elem(),
-	reflect.TypeOf((*oldSystemdDefiner3)(nil)).Elem(),
-	reflect.TypeOf((*oldSystemdDefiner4)(nil)).Elem(),
-	reflect.TypeOf((*oldSystemdDefiner5)(nil)).Elem(),
-	reflect.TypeOf((*oldSystemdDefiner6)(nil)).Elem(),
-	reflect.TypeOf((*oldUdevDefiner1)(nil)).Elem(),
-	reflect.TypeOf((*oldUdevDefiner2)(nil)).Elem(),
-	reflect.TypeOf((*oldUdevDefiner3)(nil)).Elem(),
-	reflect.TypeOf((*oldUdevDefiner4)(nil)).Elem(),
-	reflect.TypeOf((*oldUdevDefiner5)(nil)).Elem(),
-	reflect.TypeOf((*oldUdevDefiner6)(nil)).Elem(),
 }
 
 // Check that no interface defines older definer methods.
