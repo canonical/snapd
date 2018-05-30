@@ -22,9 +22,11 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"text/template"
 
 	"github.com/jessevdk/go-flags"
 
@@ -43,12 +45,16 @@ type cmdList struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 
-	All bool `long:"all"`
+	All    bool   `long:"all"`
+	Format string `long:"format"`
 }
 
 func init() {
 	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} },
-		map[string]string{"all": i18n.G("Show all revisions")}, nil)
+		map[string]string{
+			"all":    i18n.G("Show all revisions"),
+			"format": i18n.G("Use format string for output"),
+		}, nil)
 }
 
 type snapsByName []*client.Snap
@@ -62,7 +68,7 @@ func (x *cmdList) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return listSnaps(installedSnapNames(x.Positional.Snaps), x.All)
+	return listSnaps(installedSnapNames(x.Positional.Snaps), x.Format, x.All)
 }
 
 var ErrNoMatchingSnaps = errors.New(i18n.G("no matching snaps installed"))
@@ -103,7 +109,7 @@ func fmtChannel(ch string) string {
 	return ch
 }
 
-func listSnaps(names []string, all bool) error {
+func listSnaps(names []string, format string, all bool) error {
 	cli := Client()
 	snaps, err := cli.List(names, &client.ListOptions{All: all})
 	if err != nil {
@@ -124,6 +130,30 @@ func listSnaps(names []string, all bool) error {
 	w := tabWriter()
 	defer w.Flush()
 
+	switch format {
+	case "":
+		return outputSnapsDefault(w, snaps)
+	default:
+		return outputSnapsWithFormat(Stdout, snaps, format)
+	}
+}
+
+func outputSnapsWithFormat(w io.Writer, snaps []*client.Snap, format string) error {
+	t, err := template.New("list-output").Parse(format)
+	if err != nil {
+		return fmt.Errorf("cannot use given template: %q", err)
+	}
+
+	for _, snap := range snaps {
+		if err := t.Execute(w, snap); err != nil {
+			return err
+		}
+		fmt.Fprintf(w, "\n")
+	}
+	return nil
+}
+
+func outputSnapsDefault(w io.Writer, snaps []*client.Snap) error {
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tTracking\tDeveloper\tNotes"))
 
 	for _, snap := range snaps {
