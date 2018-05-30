@@ -221,7 +221,7 @@ func (iface *desktopInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return sanitizeSlotReservedForOS(iface, slot)
 }
 
-func (iface *desktopInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *desktopInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

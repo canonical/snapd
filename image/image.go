@@ -443,7 +443,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 		return err
 	}
 
-	if err := setBootvars(downloadedSnapsInfoForBootConfig); err != nil {
+	if err := setBootvars(downloadedSnapsInfoForBootConfig, model); err != nil {
 		return err
 	}
 
@@ -455,7 +455,7 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	return nil
 }
 
-func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info) error {
+func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info, model *asserts.Model) error {
 	if len(downloadedSnapsInfoForBootConfig) != 2 {
 		return fmt.Errorf("setBootvars can only be called with exactly one kernel and exactly one core/base boot info: %v", downloadedSnapsInfoForBootConfig)
 	}
@@ -477,6 +477,9 @@ func setBootvars(downloadedSnapsInfoForBootConfig map[string]*snap.Info) error {
 		"snap_mode":       "",
 		"snap_try_core":   "",
 		"snap_try_kernel": "",
+	}
+	if model.DisplayName() != "" {
+		m["snap_menuentry"] = model.DisplayName()
 	}
 
 	for _, fn := range snaps {

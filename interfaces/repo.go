@@ -992,16 +992,13 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 			}
 			iface := slotInfo.Interface
 
-			// FIXME: use ConnectedPlug/Slot for AutoConnect (once it's refactored to use tasks).
-			plug := &Plug{PlugInfo: plugInfo}
-			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow
 			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil))
 			if !ok || err != nil {
 				continue
 			}
 
-			if r.ifaces[iface].AutoConnect(plug, slot) {
+			if r.ifaces[iface].AutoConnect(plugInfo, slotInfo) {
 				candidates = append(candidates, slotInfo)
 			}
 		}
@@ -1028,16 +1025,13 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 			}
 			iface := slotInfo.Interface
 
-			// FIXME: use ConnectedPlug/Slot for AutoConnect (once it's refactored to use tasks).
-			plug := &Plug{PlugInfo: plugInfo}
-			slot := &Slot{SlotInfo: slotInfo}
 			// declaration based checks disallow
 			ok, err := policyCheck(NewConnectedPlug(plugInfo, nil), NewConnectedSlot(slotInfo, nil))
 			if !ok || err != nil {
 				continue
 			}
 
-			if r.ifaces[iface].AutoConnect(plug, slot) {
+			if r.ifaces[iface].AutoConnect(plugInfo, slotInfo) {
 				candidates = append(candidates, plugInfo)
 			}
 		}

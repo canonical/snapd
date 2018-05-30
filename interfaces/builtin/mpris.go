@@ -226,7 +226,7 @@ func (iface *mprisInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return err
 }
 
-func (iface *mprisInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *mprisInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }
