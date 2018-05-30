@@ -113,6 +113,11 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 
 		snapName := snapsup.Name()
 
+		// don't conflict with own installation tasks
+		if autoConnectTask != nil && installedSnap == snapName {
+			continue
+		}
+
 		// different snaps - no conflict
 		if snapName != plugSnap && snapName != slotSnap {
 			continue
