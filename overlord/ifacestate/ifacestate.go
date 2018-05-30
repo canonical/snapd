@@ -60,6 +60,8 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 		}
 		installedSnap = snapsup.Name()
 
+		// if we find any auto-connect task that's not ready and is affecting our snap, return true to indicate that
+		// it should be ignored (we shouldn't create connect tasks for it)
 		for _, task := range st.Tasks() {
 			if !task.Status().Ready() && task != autoConnectTask && task.Kind() == "auto-connect" {
 				snapsup, err := snapstate.TaskSnapSetup(task)
