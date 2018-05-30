@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -53,7 +54,7 @@ func init() {
 	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} },
 		map[string]string{
 			"all":    i18n.G("Show all revisions"),
-			"format": i18n.G("Use format string for output"),
+			"format": i18n.G("Use format string for output (try --format=help)"),
 		}, nil)
 }
 
@@ -138,7 +139,34 @@ func listSnaps(names []string, format string, all bool) error {
 	}
 }
 
+func clientSnapFields() string {
+	v := reflect.ValueOf(client.Snap{})
+	n := v.Type().NumField()
+	fields := make([]string, n)
+	for i := 0; i < n; i++ {
+		fields[i] = v.Type().Field(i).Name
+	}
+
+	return strings.Join(fields, ",")
+}
+
+func describeListFormat(w io.Writer) error {
+	fmt.Fprintf(w, `Format uses a simple template system.
+
+Use --format="{{.Name}} {{.Version}}" to get started.
+
+All elements available for snaps are:
+%s
+`, clientSnapFields())
+
+	return nil
+}
+
 func outputSnapsWithFormat(w io.Writer, snaps []*client.Snap, format string) error {
+	if format == "help" {
+		return describeListFormat(w)
+	}
+
 	t, err := template.New("list-output").Parse(format)
 	if err != nil {
 		return fmt.Errorf("cannot use given template: %q", err)
