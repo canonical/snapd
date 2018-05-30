@@ -26,7 +26,7 @@ all: $(SYSTEMD_ENV_GENERATORS)
 install: $(SYSTEMD_ENV_GENERATORS)
 	# NOTE: old (e.g. 14.04) GNU coreutils doesn't -D with -t
 	install -d -m 0755 $(DESTDIR)/$(SYSTEMD_ENV_GENERATORS_DIR)
-	install -m 0644 -t $(DESTDIR)/$(SYSTEMD_ENV_GENERATORS_DIR) $^
+	install -m 0755 -t $(DESTDIR)/$(SYSTEMD_ENV_GENERATORS_DIR) $^
 
 .PHONY: clean
 clean:

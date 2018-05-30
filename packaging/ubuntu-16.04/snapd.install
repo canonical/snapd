@@ -9,7 +9,7 @@ usr/bin/snap-seccomp /usr/lib/snapd/
 usr/lib/snapd/snapd-generator /lib/systemd/system-generators/
 
 # use "usr/lib" here because apparently systemd looks only there
-usr/lib/snapd/snapd-environment-generator
+usr/lib/systemd/systemd-environment-generator
 
 # bash completion
 data/completion/snap /usr/share/bash-completion/completions

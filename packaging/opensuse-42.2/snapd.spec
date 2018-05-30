@@ -316,6 +316,7 @@ fi
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
 /lib/systemd/system-generators/snapd-generator
+%{_libdir}/systemd/systemd-environment-generator/50-snapd.sh
 %{_mandir}/man1/snap.1.gz
 /usr/share/dbus-1/services/io.snapcraft.Launcher.service
 /usr/share/dbus-1/services/io.snapcraft.Settings.service
