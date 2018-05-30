@@ -201,30 +201,6 @@ func (s *kernelOSSuite) TestSetNextBootWithBaseForCore(c *C) {
 	c.Check(boot.KernelOsBaseRebootRequired(info), Equals, true)
 }
 
-func (s *kernelOSSuite) TestSetNextBootWithUnrelatedBaseForCore(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	s.bootloader.BootVars = map[string]string{
-		"snap_core": "core_42.snap",
-	}
-
-	info := &snap.Info{}
-	info.Type = snap.TypeBase
-	info.RealName = "other-base"
-	info.Revision = snap.R(81)
-
-	err := boot.SetNextBoot(info)
-	c.Assert(err, IsNil)
-
-	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
-		// Note that snap_try_core and snap_mode are unset
-		"snap_core": "core_42.snap",
-	})
-
-	c.Check(boot.KernelOsBaseRebootRequired(info), Equals, false)
-}
-
 func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
