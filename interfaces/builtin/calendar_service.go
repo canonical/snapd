@@ -23,18 +23,18 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-const desktopContactsServiceSummary = `allows communication with Evolution Data Service Address Book`
+const calendarServiceSummary = `allows communication with Evolution Data Service Calendar`
 
-const desktopContactsServiceBaseDeclarationSlots = `
-  desktop-contacts-service:
+const calendarServiceBaseDeclarationSlots = `
+  desktop-calendar-service:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const desktopContactsServiceConnectedPlugAppArmor = `
-# Description: Allow access to Evolution Data Service for contacts
+const calendarServiceConnectedPlugAppArmor = `
+# Description: Allow access to Evolution Data Service for calendars
 
 #include <abstractions/dbus-session-strict>
 
@@ -54,22 +54,17 @@ dbus (receive, send)
 dbus (receive, send)
 	bus=session
 	interface=org.freedesktop.DBus.Properties
-	path=/org/gnome/evolution/dataserver/AddressBook{,/**}
+	path=/org/gnome/evolution/dataserver/Calendar{,/**}
 	peer=(label=unconfined),
 dbus (receive, send)
 	bus=session
 	interface=org.freedesktop.DBus.Properties
-	path=/org/gnome/evolution/dataserver/AddressBookFactory
+	path=/org/gnome/evolution/dataserver/CalendarFactory
 	peer=(label=unconfined),
 dbus (receive, send)
 	bus=session
 	interface=org.freedesktop.DBus.Properties
-	path=/org/gnome/evolution/dataserver/AddressBookCursor{,/**}
-	peer=(label=unconfined),
-dbus (receive, send)
-	bus=session
-	interface=org.freedesktop.DBus.Properties
-	path=/org/gnome/evolution/dataserver/AddressBookView{,/**}
+	path=/org/gnome/evolution/dataserver/CalendarView{,/**}
 	peer=(label=unconfined),
 dbus (receive, send)
 	bus=session
@@ -79,23 +74,18 @@ dbus (receive, send)
 # Allow access to methods
 dbus (receive, send)
 	bus=session
-	interface=org.gnome.evolution.dataserver.AddressBook
-	path=/org/gnome/evolution/dataserver/{Subprocess,AddressBook}{,/**}
+	interface=org.gnome.evolution.dataserver.Calendar
+	path=/org/gnome/evolution/dataserver/{Subprocess,Calendar}{,/**}
 	peer=(label=unconfined),
 dbus (receive, send)
 	bus=session
-	interface=org.gnome.evolution.dataserver.AddressBookFactory
-	path=/org/gnome/evolution/dataserver/AddressBookFactory
+	interface=org.gnome.evolution.dataserver.CalendarFactory
+	path=/org/gnome/evolution/dataserver/CalendarFactory
 	peer=(label=unconfined),
 dbus (receive, send)
 	bus=session
-	interface=org.gnome.evolution.dataserver.AddressBookCursor
-	path=/org/gnome/evolution/dataserver/AddressBookCursor{,/**}
-	peer=(label=unconfined),
-dbus (receive, send)
-	bus=session
-	interface=org.gnome.evolution.dataserver.AddressBookView
-	path=/org/gnome/evolution/dataserver/AddressBookView{,/**}
+	interface=org.gnome.evolution.dataserver.CalendarView
+	path=/org/gnome/evolution/dataserver/CalendarView{,/**}
 	peer=(label=unconfined),
 dbus (receive, send)
 	bus=session
@@ -117,25 +107,19 @@ dbus (receive, send)
 dbus (send)
 	bus=session
 	interface=org.freedesktop.DBus.Introspectable
-	path=/org/gnome/evolution/dataserver/AddressBook{,/**}
+	path=/org/gnome/evolution/dataserver/Calendar{,/**}
 	member=Introspect
 	peer=(label=unconfined),
 dbus (send)
 	bus=session
 	interface=org.freedesktop.DBus.Introspectable
-	path=/org/gnome/evolution/dataserver/AddressBookFactory
+	path=/org/gnome/evolution/dataserver/CalendarFactory
 	member=Introspect
 	peer=(label=unconfined),
 dbus (send)
 	bus=session
 	interface=org.freedesktop.DBus.Introspectable
-	path=/org/gnome/evolution/dataserver/AddressBookCursor{,/**}
-	member=Introspect
-	peer=(label=unconfined),
-dbus (send)
-	bus=session
-	interface=org.freedesktop.DBus.Introspectable
-	path=/org/gnome/evolution/dataserver/AddressBookView{,/**}
+	path=/org/gnome/evolution/dataserver/CalendarView{,/**}
 	member=Introspect
 	peer=(label=unconfined),
 dbus (send)
@@ -144,18 +128,15 @@ dbus (send)
 	path=/org/gnome/evolution/dataserver/SourceManager{,/**}
 	member=Introspect
 	peer=(label=unconfined),
-
-# Allow access to cached avatars
-owner @{HOME}/.cache/evolution/addressbook/[0-9a-f]*/*.jpeg r,
 `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "desktop-contacts-service",
-		summary:               desktopContactsServiceSummary,
+		name:                  "calendar-service",
+		summary:               calendarServiceSummary,
 		implicitOnClassic:     !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
 		reservedForOS:         true,
-		baseDeclarationSlots:  desktopContactsServiceBaseDeclarationSlots,
-		connectedPlugAppArmor: desktopContactsServiceConnectedPlugAppArmor,
+		baseDeclarationSlots:  calendarServiceBaseDeclarationSlots,
+		connectedPlugAppArmor: calendarServiceConnectedPlugAppArmor,
 	})
 }

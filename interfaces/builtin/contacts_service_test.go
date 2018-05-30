@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type DesktopContactsServiceInterfaceSuite struct {
+type ContactsServiceInterfaceSuite struct {
 	iface    interfaces.Interface
 	slot     *interfaces.ConnectedSlot
 	slotInfo *snap.SlotInfo
@@ -38,39 +38,39 @@ type DesktopContactsServiceInterfaceSuite struct {
 	plugInfo *snap.PlugInfo
 }
 
-var _ = Suite(&DesktopContactsServiceInterfaceSuite{
-	iface: builtin.MustInterface("desktop-contacts-service"),
+var _ = Suite(&ContactsServiceInterfaceSuite{
+	iface: builtin.MustInterface("contacts-service"),
 })
 
-func (s *DesktopContactsServiceInterfaceSuite) SetUpTest(c *C) {
+func (s *ContactsServiceInterfaceSuite) SetUpTest(c *C) {
 	const coreYaml = `name: core
 version: 0
 type: os
 slots:
- desktop-contacts-service:
-  interface: desktop-contacts-service
+ contacts-service:
+  interface: contacts-service
 `
-	s.slot, s.slotInfo = MockConnectedSlot(c, coreYaml, nil, "desktop-contacts-service")
+	s.slot, s.slotInfo = MockConnectedSlot(c, coreYaml, nil, "contacts-service")
 
 	var consumerYaml = `name: consumer
 version: 0
 apps:
  app:
-  plugs: [desktop-contacts-service]
+  plugs: [contacts-service]
 `
-	s.plug, s.plugInfo = MockConnectedPlug(c, consumerYaml, nil, "desktop-contacts-service")
+	s.plug, s.plugInfo = MockConnectedPlug(c, consumerYaml, nil, "contacts-service")
 }
 
-func (s *DesktopContactsServiceInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "desktop-contacts-service")
+func (s *ContactsServiceInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "contacts-service")
 }
 
-func (s *DesktopContactsServiceInterfaceSuite) TestSanitize(c *C) {
+func (s *ContactsServiceInterfaceSuite) TestSanitize(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
-func (s *DesktopContactsServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
+func (s *ContactsServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 1)
@@ -80,7 +80,7 @@ func (s *DesktopContactsServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.gnome.evolution.dataserver.AddressBookView`)
 }
 
-func (s *DesktopContactsServiceInterfaceSuite) TestStaticInfo(c *C) {
+func (s *ContactsServiceInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Check(si.ImplicitOnCore, Equals, false)
 	c.Check(si.ImplicitOnClassic, Equals, !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"))
@@ -88,6 +88,6 @@ func (s *DesktopContactsServiceInterfaceSuite) TestStaticInfo(c *C) {
 	c.Check(si.BaseDeclarationSlots, testutil.Contains, "desktop-contacts-service")
 }
 
-func (s *DesktopContactsServiceInterfaceSuite) TestInterfaces(c *C) {
+func (s *ContactsServiceInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
