@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type DesktopCalendarServiceInterfaceSuite struct {
+type CalendarServiceInterfaceSuite struct {
 	iface    interfaces.Interface
 	slot     *interfaces.ConnectedSlot
 	slotInfo *snap.SlotInfo
@@ -38,39 +38,39 @@ type DesktopCalendarServiceInterfaceSuite struct {
 	plugInfo *snap.PlugInfo
 }
 
-var _ = Suite(&DesktopCalendarServiceInterfaceSuite{
-	iface: builtin.MustInterface("desktop-calendar-service"),
+var _ = Suite(&CalendarServiceInterfaceSuite{
+	iface: builtin.MustInterface("calendar-service"),
 })
 
-func (s *DesktopCalendarServiceInterfaceSuite) SetUpTest(c *C) {
+func (s *CalendarServiceInterfaceSuite) SetUpTest(c *C) {
 	const coreYaml = `name: core
 version: 0
 type: os
 slots:
- desktop-calendar-service:
-  interface: desktop-calendar-service
+ calendar-service:
+  interface: calendar-service
 `
-	s.slot, s.slotInfo = MockConnectedSlot(c, coreYaml, nil, "desktop-calendar-service")
+	s.slot, s.slotInfo = MockConnectedSlot(c, coreYaml, nil, "calendar-service")
 
 	var consumerYaml = `name: consumer
 version: 0
 apps:
  app:
-  plugs: [desktop-calendar-service]
+  plugs: [calendar-service]
 `
-	s.plug, s.plugInfo = MockConnectedPlug(c, consumerYaml, nil, "desktop-calendar-service")
+	s.plug, s.plugInfo = MockConnectedPlug(c, consumerYaml, nil, "calendar-service")
 }
 
-func (s *DesktopCalendarServiceInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "desktop-calendar-service")
+func (s *CalendarServiceInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "calendar-service")
 }
 
-func (s *DesktopCalendarServiceInterfaceSuite) TestSanitize(c *C) {
+func (s *CalendarServiceInterfaceSuite) TestSanitize(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
-func (s *DesktopCalendarServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
+func (s *CalendarServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 1)
@@ -80,7 +80,7 @@ func (s *DesktopCalendarServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.gnome.evolution.dataserver.CalendarView`)
 }
 
-func (s *DesktopCalendarServiceInterfaceSuite) TestStaticInfo(c *C) {
+func (s *CalendarServiceInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Check(si.ImplicitOnCore, Equals, false)
 	c.Check(si.ImplicitOnClassic, Equals, !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"))
@@ -88,6 +88,6 @@ func (s *DesktopCalendarServiceInterfaceSuite) TestStaticInfo(c *C) {
 	c.Check(si.BaseDeclarationSlots, testutil.Contains, "desktop-calendar-service")
 }
 
-func (s *DesktopCalendarServiceInterfaceSuite) TestInterfaces(c *C) {
+func (s *CalendarServiceInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
