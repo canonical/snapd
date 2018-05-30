@@ -22,8 +22,11 @@ ENABLE_UNITS="snapd.system-shutdown.service"
 
 # TODO: discuss ID_LIKE=ubuntu-core or ID_LIKE=snap-core ?
 if ! grep -q "ID=ubuntu-core" /etc/os-release && \
-        ! grep -q "ID_LIKE=ubuntu-core" /etc/os-release; then
-    echo "cannot run this helper on a non ubuntu-core system"
+        ! grep -q "ID_LIKE=ubuntu-core" /etc/os-release && \
+        ! grep -q "ID=ubuntu-core" /usr/lib/os-release && \
+        ! grep -q "ID_LIKE=ubuntu-core" /usr/lib/os-release; \
+    then
+        echo "cannot run this helper on a non ubuntu-core system"
     exit 1
 fi
 
@@ -37,27 +40,27 @@ case $CMD in
         # use existing snapd.service as a template and modify so that the
         # right prefix is used
         for u in $UNITS $ENABLE_UNITS; do
-            sed "s#ExecStart=#ExecStart=$PREFIX#" "$PREFIX"/lib/systemd/system/$u > /run/systemd/system/$u
+            sed "s#ExecStart=#ExecStart=$PREFIX#" "$PREFIX/lib/systemd/system/$u > /run/systemd/system/$u"
         done
         # and now use systemd to start it
         systemctl daemon-reload
         # some units only need to get enabled
         for unit in $ENABLE_UNITS; do
             if ! systemctl is-enabled $unit; then
-                systemctl enable $unit
+                systemctl enable "$unit"
             fi
         done
         # most units are started
         for unit in $UNITS; do
-            systemctl start $unit
+            systemctl start "$unit"
             # FIXME: check that the unit is really fine, if not revert
         done
         ;;
     stop)
         echo "Running stop action"
-        systemctl stop $UNITS
-        for unit in $UNITS; do
-            rm -f /run/systemd/system/$unit
+        for unit in  $UNITS; do
+            systemctl stop "$unit"
+            rm -f /run/systemd/system/"$unit"
         done
         systemctl daemon-reload
         ;;

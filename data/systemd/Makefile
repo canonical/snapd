@@ -23,7 +23,11 @@ SYSTEMD_UNITS_GENERATED := $(wildcard *.in)
 SYSTEMD_UNITS = $(SYSTEMD_UNITS_GENERATED:.in=) $(wildcard *.timer) $(wildcard *.socket)
 
 .PHONY: all
-all: $(SYSTEMD_UNITS)
+all: $(SYSTEMD_UNITS) check
+
+.PHONY: check
+check: snapd.manage snapd.core-fixup.sh
+	shellcheck $?
 
 .PHONY: install
 install: $(SYSTEMD_UNITS)
