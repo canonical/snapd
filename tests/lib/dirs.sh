@@ -14,6 +14,10 @@ case "$SPREAD_SYSTEM" in
         export SNAP_MOUNT_DIR=/var/lib/snapd/snap
         export MEDIA_DIR=/run/media
         ;;
+    opensuse-*)
+        export SNAP_MOUNT_DIR=/snap
+        export MEDIA_DIR=/run/media
+        ;;
     *)
         ;;
 esac
