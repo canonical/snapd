@@ -164,8 +164,8 @@ func SetNextBoot(s *snap.Info) error {
 	})
 }
 
-// KernelOrOsRebootRequired returns whether a reboot is required to swith to the given OS or kernel snap.
-func KernelOrOsRebootRequired(s *snap.Info) bool {
+// KernelOsBaseRebootRequired returns whether a reboot is required to swith to the given OS or kernel snap.
+func KernelOsBaseRebootRequired(s *snap.Info) bool {
 	if s.Type != snap.TypeKernel && s.Type != snap.TypeOS && s.Type != snap.TypeBase {
 		return false
 	}

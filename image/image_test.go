@@ -669,102 +669,6 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 	})
 }
 
-func (s *imageSuite) TestBootstrapWithBaseUnhappy(c *C) {
-	restore := image.MockTrusted(s.storeSigning.Trusted)
-	defer restore()
-
-	// replace model with a model that uses core18
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":         "16",
-		"authority-id":   "my-brand",
-		"brand-id":       "my-brand",
-		"model":          "my-model",
-		"architecture":   "amd64",
-		"gadget":         "pc",
-		"kernel":         "pc-kernel",
-		"base":           "core18",
-		"required-snaps": []interface{}{"other-base"},
-		"timestamp":      time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
-
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-
-	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
-	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
-
-	err = os.MkdirAll(gadgetUnpackDir, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(gadgetUnpackDir, "grub.conf"), nil, 0644)
-	c.Assert(err, IsNil)
-
-	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
-		"core18":     "canonical",
-		"pc":         "canonical",
-		"pc-kernel":  "canonical",
-		"other-base": "other",
-	})
-
-	// mock the mount cmds (for the extract kernel assets stuff)
-	c1 := testutil.MockCommand(c, "mount", "")
-	defer c1.Restore()
-	c2 := testutil.MockCommand(c, "umount", "")
-	defer c2.Restore()
-
-	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
-	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
-	c.Assert(err, ErrorMatches, `Base "core18" is used but no "snapd" snap is installed`)
-}
-
-func (s *imageSuite) TestBootstrapWithEmptySnapnameUnhappy(c *C) {
-	restore := image.MockTrusted(s.storeSigning.Trusted)
-	defer restore()
-
-	// replace model with a model that uses core18
-	rawmodel, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"architecture": "amd64",
-		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		// note the empty snap name here
-		"required-snaps": []interface{}{""},
-		"timestamp":      time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	model := rawmodel.(*asserts.Model)
-
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-
-	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
-	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
-	err = os.MkdirAll(gadgetUnpackDir, 0755)
-	c.Assert(err, IsNil)
-
-	s.setupSnaps(c, gadgetUnpackDir, map[string]string{
-		"pc":        "canonical",
-		"pc-kernel": "canonical",
-	})
-	opts := &image.Options{
-		RootDir:         rootdir,
-		GadgetUnpackDir: gadgetUnpackDir,
-	}
-	local, err := image.LocalSnaps(s.tsto, opts)
-	c.Assert(err, IsNil)
-
-	err = image.BootstrapToRootDir(s.tsto, model, opts, local)
-	c.Assert(err, ErrorMatches, `cannot have an empty snap name in \["core" "pc-kernel" "pc"\ ""]`)
-}
-
 func (s *imageSuite) TestBootstrapWithBase(c *C) {
 	restore := image.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
@@ -779,7 +683,7 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
 		"base":           "core18",
-		"required-snaps": []interface{}{"other-base", "snapd"},
+		"required-snaps": []interface{}{"other-base"},
 		"timestamp":      time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -826,7 +730,7 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 	c.Check(seed.Snaps, HasLen, 5)
 
 	// check the files are in place
-	for i, name := range []string{"core18_18.snap", "pc-kernel", "pc", "other-base", "snapd"} {
+	for i, name := range []string{"core18_18.snap", "pc-kernel", "pc", "snapd", "other-base"} {
 		unasserted := false
 		info := s.storeSnapInfo[name]
 		if info == nil {
