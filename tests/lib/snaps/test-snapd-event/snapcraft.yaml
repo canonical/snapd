@@ -1,0 +1,17 @@
+name: test-snapd-event
+version: 1.0
+summary: Test /dev/input/event* devices with evtest
+confinement: strict
+description: |
+  Trivial snap for testing /dev/input/event* devices with evtest
+apps:
+  test-snapd-event:
+    command: usr/bin/evtest
+    plugs:
+    - joystick
+
+parts:
+  test-snapd-event:
+    plugin: nil
+    stage-packages:
+    - evtest
