@@ -96,7 +96,7 @@ build_rpm() {
 
     case "$SPREAD_SYSTEM" in
         fedora-*)
-            extra_tar_args="$extra_tar_args --exclude=vendor/"
+            extra_tar_args="$extra_tar_args --exclude='vendor/*'"
             ;;
         opensuse-*)
             archive_name=snapd_$version.vendor.tar.xz
@@ -114,7 +114,7 @@ build_rpm() {
     cp -ra -- * "/tmp/pkg/snapd-$version/"
     mkdir -p "$rpm_dir/SOURCES"
     # shellcheck disable=SC2086
-    (cd /tmp/pkg && tar "c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" "snapd-$version" $extra_tar_args)
+    (cd /tmp/pkg && tar "-c${archive_compression}f" "$rpm_dir/SOURCES/$archive_name" $extra_tar_args "snapd-$version")
     cp "$packaging_path"/* "$rpm_dir/SOURCES/"
 
     # Cleanup all artifacts from previous builds
