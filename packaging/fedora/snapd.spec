@@ -9,6 +9,14 @@
 # Compat macros
 %{?!_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
 
+# With Amazon Linux 2+, we're going to provide the /snap symlink by default,
+# since classic snaps currently require it... :(
+%if 0%{?amzn} >= 2
+%bcond_without snap_symlink
+%else
+%bcond_with snap_symlink
+%endif
+
 # A switch to allow building the package with support for testkeys which
 # are used for the spread test suite of snapd.
 %bcond_with testkeys
@@ -554,6 +562,11 @@ echo 'SNAP_REEXEC=0' > %{buildroot}%{_sysconfdir}/sysconfig/snapd
 touch %{buildroot}%{_sharedstatedir}/snapd/state.json
 touch %{buildroot}%{_sharedstatedir}/snapd/snap/README
 
+# When enabled, create a symlink for /snap to point to /var/lib/snapd/snap
+%if %{with snap_symlink}
+ln -sr %{buildroot}%{_sharestatedir}/snapd/snap %{buildroot}/snap
+%endif
+
 # source codes for building projects
 %if 0%{?with_devel}
 install -d -p %{buildroot}/%{gopath}/src/%{import_path}/
@@ -653,6 +666,9 @@ popd
 %ghost %{_sharedstatedir}/snapd/state.json
 %ghost %{_sharedstatedir}/snapd/snap/README
 %{_environmentdir}/990-snapd.conf
+%if %{with snap_symlink}
+/snap
+%endif
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
