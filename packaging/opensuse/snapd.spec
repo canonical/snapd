@@ -353,7 +353,7 @@ fi
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 /lib/systemd/system-generators/snapd-generator
-%{_libdir}/systemd/systemd-environment-generator/50-snapd.sh
+%{_libdir}/systemd/systemd-environment-generators/50-snapd.sh
 
 %changelog
 
