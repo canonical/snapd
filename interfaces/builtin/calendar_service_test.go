@@ -85,7 +85,7 @@ func (s *CalendarServiceInterfaceSuite) TestStaticInfo(c *C) {
 	c.Check(si.ImplicitOnCore, Equals, false)
 	c.Check(si.ImplicitOnClassic, Equals, !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"))
 	c.Check(si.Summary, Equals, "allows communication with Evolution Data Service Calendar")
-	c.Check(si.BaseDeclarationSlots, testutil.Contains, "desktop-calendar-service")
+	c.Check(si.BaseDeclarationSlots, testutil.Contains, "calendar-service")
 }
 
 func (s *CalendarServiceInterfaceSuite) TestInterfaces(c *C) {

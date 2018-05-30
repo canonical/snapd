@@ -26,7 +26,7 @@ import (
 const calendarServiceSummary = `allows communication with Evolution Data Service Calendar`
 
 const calendarServiceBaseDeclarationSlots = `
-  desktop-calendar-service:
+  calendar-service:
     allow-installation:
       slot-snap-type:
         - core

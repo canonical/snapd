@@ -26,7 +26,7 @@ import (
 const contactsServiceSummary = `allows communication with Evolution Data Service Address Book`
 
 const contactsServiceBaseDeclarationSlots = `
-  desktop-contacts-service:
+  contacts-service:
     allow-installation:
       slot-snap-type:
         - core

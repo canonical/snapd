@@ -85,7 +85,7 @@ func (s *ContactsServiceInterfaceSuite) TestStaticInfo(c *C) {
 	c.Check(si.ImplicitOnCore, Equals, false)
 	c.Check(si.ImplicitOnClassic, Equals, !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"))
 	c.Check(si.Summary, Equals, "allows communication with Evolution Data Service Address Book")
-	c.Check(si.BaseDeclarationSlots, testutil.Contains, "desktop-contacts-service")
+	c.Check(si.BaseDeclarationSlots, testutil.Contains, "contacts-service")
 }
 
 func (s *ContactsServiceInterfaceSuite) TestInterfaces(c *C) {
