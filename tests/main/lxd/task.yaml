@@ -62,7 +62,7 @@ execute: |
     echo "Ensure we can get network"
     lxd.lxc network create testbr0
     lxd.lxc network attach testbr0 my-ubuntu eth0
-    lxd.lxc exec my-ubuntu dhclient eth0
+    lxd.lxc exec my-ubuntu dhclient
 
     echo "Cleanup container"
     lxd.lxc exec my-ubuntu -- apt autoremove --purge -y snapd ubuntu-core-launcher
