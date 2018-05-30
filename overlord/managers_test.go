@@ -2221,6 +2221,7 @@ version: @VERSION@`
 
 	err = ms.o.Settle(settleTimeout)
 	st.Lock()
+
 	c.Assert(err, IsNil)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
