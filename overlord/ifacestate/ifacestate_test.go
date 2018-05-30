@@ -343,12 +343,13 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstallingDiffere
 	t.Set("snap-setup", sup1)
 	chg.AddTask(t)
 
-	ignore, err1 := ifacestate.CheckConnectConflicts(s.state, chg, "consumer", "producer", t)
-	c.Assert(err1, IsNil)
+	ignore, err := ifacestate.FindSymmetricAutoconnect(s.state, "consumer", "producer", t)
+	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
+	c.Assert(ifacestate.CheckConnectConflicts(s.state, chg, "consumer", "producer", t), IsNil)
 
-	ts, err2 := ifacestate.ConnectPriv(s.state, t, "consumer", "plug", "producer", "slot")
-	c.Assert(err2, IsNil)
+	ts, err := ifacestate.ConnectPriv(s.state, t, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), HasLen, 5)
 	connectTask := ts.Tasks()[2]
 	c.Assert(connectTask.Kind(), Equals, "connect")
@@ -357,7 +358,7 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstallingDiffere
 	c.Assert(auto, Equals, auto)
 }
 
-func (s *interfaceManagerSuite) createAutoconnectChange(c *C, conflictingTask *state.Task) (bool, error) {
+func (s *interfaceManagerSuite) createAutoconnectChange(c *C, conflictingTask *state.Task) error {
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
@@ -380,6 +381,10 @@ func (s *interfaceManagerSuite) createAutoconnectChange(c *C, conflictingTask *s
 
 	chg.AddTask(t2)
 
+	ignore, err := ifacestate.FindSymmetricAutoconnect(s.state, "consumer", "producer", t2)
+	c.Assert(err, IsNil)
+	c.Assert(ignore, Equals, false)
+
 	return ifacestate.CheckConnectConflicts(s.state, chg, "consumer", "producer", t2)
 }
 
@@ -395,18 +400,51 @@ func (s *interfaceManagerSuite) TestAutoconnectConflictOnUnlink(c *C) {
 	s.state.Lock()
 	task := s.state.NewTask("unlink-snap", "")
 	s.state.Unlock()
-	ignore, err := s.createAutoconnectChange(c, task)
+	err := s.createAutoconnectChange(c, task)
 	s.testRetryError(c, err)
-	c.Assert(ignore, Equals, false)
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnLink(c *C) {
 	s.state.Lock()
 	task := s.state.NewTask("link-snap", "")
 	s.state.Unlock()
-	ignore, err := s.createAutoconnectChange(c, task)
-	c.Assert(ignore, Equals, false)
+	err := s.createAutoconnectChange(c, task)
 	s.testRetryError(c, err)
+}
+
+func (s *interfaceManagerSuite) TestSymmetricAutoconnectIgnore(c *C) {
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	sup1 := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer"},
+	}
+	sup2 := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "producer"},
+	}
+
+	chg1 := s.state.NewChange("install", "...")
+	t1 := s.state.NewTask("auto-connect", "...")
+	t1.Set("snap-setup", sup1)
+	chg1.AddTask(t1)
+
+	chg2 := s.state.NewChange("install", "...")
+	t2 := s.state.NewTask("auto-connect", "...")
+	t2.Set("snap-setup", sup2)
+	chg2.AddTask(t2)
+
+	ignore, err := ifacestate.FindSymmetricAutoconnect(s.state, "consumer", "producer", t1)
+	c.Assert(err, IsNil)
+	c.Assert(ignore, Equals, true)
+
+	ignore, err = ifacestate.FindSymmetricAutoconnect(s.state, "consumer", "producer", t2)
+	c.Assert(err, IsNil)
+	c.Assert(ignore, Equals, true)
 }
 
 func (s *interfaceManagerSuite) TestAutoconnectConflictOnConnectWithAutoFlag(c *C) {
@@ -417,7 +455,7 @@ func (s *interfaceManagerSuite) TestAutoconnectConflictOnConnectWithAutoFlag(c *
 	task.Set("auto", true)
 	s.state.Unlock()
 
-	_, err := s.createAutoconnectChange(c, task)
+	err := s.createAutoconnectChange(c, task)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `task should be retried`)
 }
@@ -431,9 +469,8 @@ func (s *interfaceManagerSuite) TestAutoconnectNoConflictOnConnect(c *C) {
 	task.Set("auto", false)
 	s.state.Unlock()
 
-	ignore, err := s.createAutoconnectChange(c, task)
+	err := s.createAutoconnectChange(c, task)
 	c.Assert(err, IsNil)
-	c.Assert(ignore, Equals, false)
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
