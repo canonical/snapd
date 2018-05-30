@@ -13,11 +13,11 @@ apps:
   contacts:
     command: bin/contacts
     plugs:
-      - desktop-contacts-service
+      - contacts-service
   calendar:
     command: bin/calendar
     plugs:
-      - desktop-calendar-service
+      - calendar-service
 
 environment:
   GSETTINGS_BACKEND: memory
