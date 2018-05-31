@@ -500,6 +500,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 description: description
 summary: summary
 license: GPL-3.0
+base: base18
 apps:
   cmd:
     command: some.cmd
@@ -594,6 +595,7 @@ UnitFileState=potatoes
 			Status:           "active",
 			Icon:             "/v2/icons/foo/icon",
 			Type:             string(snap.TypeApp),
+			Base:             "base18",
 			Private:          false,
 			DevMode:          false,
 			JailMode:         false,
@@ -1692,6 +1694,7 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 		SideInfo: snap.SideInfo{
 			RealName: "store",
 		},
+		Base:      "base0",
 		Publisher: "foo",
 		Channels: map[string]*snap.ChannelSnapInfo{
 			"stable": {
@@ -1711,6 +1714,7 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
 	c.Check(snaps[0]["name"], check.Equals, "store")
+	c.Check(snaps[0]["base"], check.Equals, "base0")
 	m := snaps[0]["channels"].(map[string]interface{})["stable"].(map[string]interface{})
 
 	c.Check(m["revision"], check.Equals, "42")
