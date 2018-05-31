@@ -53,6 +53,18 @@ func (s *utilsSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(restore)
 	s.log = buf
 	s.sec = &update.Secure{}
+	s.sec.AllowWritingTo(
+		// Special paths used for testing.
+		// It's easier to allow than to change all the tests now.
+		"/abs/",
+		"/path/",
+		"/rofs/",
+		"/source/",
+		"/target/",
+		// The regularly allowed places
+		"/var/snap/",
+		"/tmp/",
+	)
 }
 
 func (s *utilsSuite) TearDownTest(c *C) {
@@ -430,6 +442,7 @@ var _ = Suite(&realSystemSuite{})
 
 func (s *realSystemSuite) SetUpTest(c *C) {
 	s.sec = &update.Secure{}
+	s.sec.AllowWritingTo("/tmp/")
 }
 
 // Check that we can actually create directories.
@@ -632,6 +645,177 @@ func (s *utilsSuite) TestSecureMkfileAllOpenError(c *C) {
 		`mkdirat 3 "abs" 0755`,
 		`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> err
 		`close 3`,
+	})
+}
+
+// We want to create a symlink in $SNAP_DATA and that's fine.
+func (s *utilsSuite) TestSecureMksymlinkAllInSnapData(c *C) {
+	s.sys.InsertFault(`mkdirat 3 "var" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 4 "snap" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 5 "foo" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 6 "42" 0755`, syscall.EEXIST)
+
+	err := s.sec.MksymlinkAll("/var/snap/foo/42/symlink", 0755, 0, 0, "/oldname")
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,        // -> 3
+		`mkdirat 3 "var" 0755`,                               // EEXIST
+		`openat 3 "var" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,  // -> 4
+		`mkdirat 4 "snap" 0755`,                              // EEXIST
+		`openat 4 "snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 5
+		`mkdirat 5 "foo" 0755`,                               // EEXIST
+		`openat 5 "foo" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,  // -> 6
+		`mkdirat 6 "42" 0755`,                                // EEXIST
+		`openat 6 "42" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,   // -> 7
+		`close 6`,
+		`close 5`,
+		`close 4`,
+		`close 3`,
+		`symlinkat "/oldname" 7 "symlink"`,
+		`close 7`,
+	})
+}
+
+// We want to create a symlink in /etc but the host filesystem would be affected.
+func (s *utilsSuite) TestSecureMksymlinkAllInEtc(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	err := s.sec.MksymlinkAll("/etc/symlink", 0755, 0, 0, "/oldname")
+	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc/symlink/ \\(writes to / affect the host\\)")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`fstatfs 3 <ptr>`,
+		`close 3`,
+	})
+}
+
+// We want to create a symlink deep in /etc but the host filesystem would be affected.
+// This just shows that we pick the right place to construct the mimic
+func (s *utilsSuite) TestSecureMksymlinkAllDeepInEtc(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	err := s.sec.MksymlinkAll("/etc/some/other/stuff/symlink", 0755, 0, 0, "/oldname")
+	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc/some/other/stuff/symlink/ \\(writes to / affect the host\\)")
+	c.Assert(err.(*update.TrespassingError).MimicPath(), Equals, "/etc")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`fstatfs 3 <ptr>`,
+		`close 3`,
+	})
+}
+
+// We want to create a file in /etc but the host filesystem would be affected.
+func (s *utilsSuite) TestSecureMkfileAllInEtc(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	err := s.sec.MkfileAll("/etc/file", 0755, 0, 0)
+	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc/file/ \\(writes to / affect the host\\)")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`fstatfs 3 <ptr>`,
+		`close 3`,
+	})
+}
+
+// We want to create a directory in /etc but the host filesystem would be affected.
+func (s *utilsSuite) TestSecureMkdirAllInEtc(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	err := s.sec.MkdirAll("/etc/dir", 0755, 0, 0)
+	c.Assert(err, ErrorMatches, "cannot trespass on host filesystem at /etc/dir/ \\(writes to / affect the host\\)")
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`fstatfs 3 <ptr>`,                             // -> it's an ext4
+		`close 3`,
+	})
+}
+
+// We want to create a directory in /snap/foo/42/dir and want to know what happens.
+func (s *utilsSuite) TestSecureMkdirAllInSNAP(c *C) {
+	// Allow creating directories under /snap/ related to this snap ("foo").
+	// This matches what is done inside main().
+	s.sec.AllowWritingTo("/snap/foo/")
+
+	s.sys.InsertFault(`mkdirat 3 "snap" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 4 "foo" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 5 "42" 0755`, syscall.EEXIST)
+
+	err := s.sec.MkdirAll("/snap/foo/42/dir", 0755, 0, 0)
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 3 "snap" 0755`,
+		`openat 3 "snap" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 4 "foo" 0755`,
+		`openat 4 "foo" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`mkdirat 5 "42" 0755`,
+		`openat 5 "42" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`close 5`,
+		`close 4`,
+		`close 3`,
+		`mkdirat 6 "dir" 0755`,
+		`openat 6 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,
+		`fchown 3 0 0`,
+		`close 3`,
+		`close 6`,
+	})
+}
+
+// We want to create a symlink in /etc which is a tmpfs so that is ok.
+func (s *utilsSuite) TestSecureMksymlinkAllInEtcAfterMimic(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	err := s.sec.MksymlinkAll("/etc/symlink", 0755, 0, 0, "/oldname")
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,       // -> 3
+		`fstatfs 3 <ptr>`,                                   // -> squashfs, ok
+		`mkdirat 3 "etc" 0755`,                              // EEXIST
+		`openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
+		`close 3`,
+		`fstatfs 4 <ptr>`, // -> tmpfs, ok
+		`symlinkat "/oldname" 4 "symlink"`,
+		`close 4`,
+	})
+}
+
+// We want to create a file in /etc which is a tmpfs so that is ok.
+func (s *utilsSuite) TestSecureMkfileAllInEtcAfterMimic(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	err := s.sec.MkfileAll("/etc/file", 0755, 0, 0)
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,       // -> 3
+		`fstatfs 3 <ptr>`,                                   // -> squashfs, ok
+		`mkdirat 3 "etc" 0755`,                              // EEXIST
+		`openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
+		`close 3`,
+		`fstatfs 4 <ptr>`,                                          // -> tmpfs, ok
+		`openat 4 "file" O_NOFOLLOW|O_CLOEXEC|O_CREAT|O_EXCL 0755`, // -> 3
+		`fchown 3 0 0`,
+		`close 3`,
+		`close 4`,
+	})
+}
+
+// We want to create a directory in /etc which is a tmpfs so that is ok.
+func (s *utilsSuite) TestSecureMkdirAllInEtcAfterMimic(c *C) {
+	s.sys.InsertFstatfsResult(`fstatfs 3 <ptr>`, syscall.Statfs_t{Type: update.SquashfsMagic})
+	s.sys.InsertFault(`mkdirat 3 "etc" 0755`, syscall.EEXIST)
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.TmpfsMagic})
+	err := s.sec.MkdirAll("/etc/dir", 0755, 0, 0)
+	c.Assert(err, IsNil)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`,       // -> 3
+		`fstatfs 3 <ptr>`,                                   // -> squashfs, ok
+		`mkdirat 3 "etc" 0755`,                              // EEXIST
+		`openat 3 "etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 4
+		`close 3`,
+		`fstatfs 4 <ptr>`,                                   // -> tmpfs, ok
+		`mkdirat 4 "dir" 0755`,                              //
+		`openat 4 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
+		`fchown 3 0 0`,
+		`close 3`,
+		`close 4`,
 	})
 }
 
@@ -862,4 +1046,19 @@ func (s *realSystemSuite) TestSecureOpenPathSymlinkedParent(c *C) {
 	fd, err := s.sec.OpenPath(symlinkedPath)
 	c.Check(fd, Equals, -1)
 	c.Check(err, ErrorMatches, "not a directory")
+}
+
+func (s *realSystemSuite) TestTrespassingError(c *C) {
+	err := &update.TrespassingError{PathViolated: "/", PathDesired: "/var/cache"}
+	c.Assert(err.MimicPath(), Equals, "/var")
+	err = &update.TrespassingError{PathViolated: "/var", PathDesired: "/var/cache"}
+	c.Assert(err.MimicPath(), Equals, "/var")
+	err = &update.TrespassingError{PathViolated: "/var/cache", PathDesired: "/var/cache"}
+	c.Assert(err.MimicPath(), Equals, "/var/cache")
+	// This is a bit meaningless but for completeness.
+	err = &update.TrespassingError{PathViolated: "/", PathDesired: "/"}
+	c.Assert(err.MimicPath(), Equals, "/")
+	// Check if unusual PathDesired causes any issues
+	err = &update.TrespassingError{PathViolated: "/", PathDesired: ""}
+	c.Assert(err.MimicPath(), Equals, "/")
 }

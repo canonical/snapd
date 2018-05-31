@@ -48,6 +48,21 @@ func (s *changeSuite) SetUpTest(c *C) {
 	s.sys = &testutil.SyscallRecorder{}
 	s.BaseTest.AddCleanup(update.MockSystemCalls(s.sys))
 	s.sec = &update.Secure{}
+	// Allow writing anywhere
+	s.sec.AllowWritingTo(
+		// Special paths used for testing.
+		// It's easier to allow than to change all the tests now.
+		"/abs/",
+		"/base/",
+		"/name",
+		"/path/",
+		"/rofs/",
+		"/source/",
+		"/target/",
+		// The regularly allowed places
+		"/var/snap/",
+		"/tmp/",
+	)
 }
 
 func (s *changeSuite) TestFakeFileInfo(c *C) {

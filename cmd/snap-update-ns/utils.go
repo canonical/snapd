@@ -35,6 +35,9 @@ import (
 // not available through syscall
 const (
 	umountNoFollow = 8
+	TmpfsMagic     = 0x01021994
+	SquashfsMagic  = 0x73717368
+	Ext4Magic      = 0xef53
 )
 
 // For mocking everything during testing.
@@ -51,6 +54,7 @@ var (
 	sysUnmount    = syscall.Unmount
 	sysFchown     = sys.Fchown
 	sysFstat      = syscall.Fstat
+	sysFstatfs    = syscall.Fstatfs
 	sysSymlinkat  = osutil.Symlinkat
 	sysReadlinkat = osutil.Readlinkat
 	sysFchdir     = syscall.Fchdir
@@ -64,12 +68,69 @@ type ReadOnlyFsError struct {
 	Path string
 }
 
+// Error returns a formatted error message.
 func (e *ReadOnlyFsError) Error() string {
 	return fmt.Sprintf("cannot operate on read-only filesystem at %s", e.Path)
 }
 
+// MimicPath returns the path of the directory where a mimic ought to be constructed.
+func (e *ReadOnlyFsError) MimicPath() string {
+	return e.Path
+}
+
+// TrespassingError is an error when filesystem operation would affect the host.
+type TrespassingError struct {
+	PathViolated string
+	PathDesired  string
+}
+
+// MimicPath returns the path of the directory where a mimic ought to be constructed.
+func (e *TrespassingError) Error() string {
+	return fmt.Sprintf("cannot trespass on host filesystem at %s (writes to %s affect the host)", e.PathDesired, e.PathViolated)
+}
+
+// MimicPath returns the path of the directory where a mimic ought to be constructed.
+func (e *TrespassingError) MimicPath() string {
+	if e.PathViolated == "/" {
+		// We cannot create a writable mimic on the whole / filesystem
+		// because doing so requires a place where we can stash the
+		// original / while we overlay something new over / and make
+		// things writable. We can only ever do that when constructing
+		// the initial mount namespace, before we pivot_root. Still,
+		// the bottom line is that we cannot do it.
+		//
+		// The next best thing we can do, is to create a writable mimic
+		// at the first top-level directory, such as /var or /etc. This
+		// is good as long as we are after a subdirectory of that
+		// directory (so for example, /etc/foo).
+		p := strings.Split(e.PathDesired, "/")
+		if len(p) >= 2 {
+			return strings.Join(p[0:2], "/")
+		}
+	}
+	return e.PathViolated
+}
+
+// MimicRequiredError describes errors that require construction of a writable mimic.
+type MimicRequiredError interface {
+	Error() string
+	MimicPath() string
+}
+
 // Secure is a helper for making filesystem operations free from certain kinds of attacks.
-type Secure struct{}
+type Secure struct {
+	allowedPaths []string
+}
+
+// AllowWritingTo adds a list of directories where writing is allowed even if
+// it would hit the real host filesystem. Normally writing is only allowed on
+// tmpfs and squashfs, though obviously squashfs will cause EROFS.
+func (sec *Secure) AllowWritingTo(paths ...string) {
+	for _, path := range paths {
+		path = filepath.Clean(path) + "/"
+		sec.allowedPaths = append(sec.allowedPaths, path)
+	}
+}
 
 // CheckTrespassing inspects if a filesystem operation on the given path
 // segment would trespass on the host.
@@ -80,7 +141,35 @@ type Secure struct{}
 // things in $SNAP_DATA or in /tmp but we don't want to do so in /etc or in
 // other sensitive places.
 func (sec *Secure) CheckTrespassing(fd int, segments []string, segNum int) error {
-	return nil
+	// If the full path is allowed there's no problem. We don't go and check
+	// the filesystem type because it is just going to spam tests with extra
+	// fstatfs calls and it doesn't change anything.
+	pd := "/" + strings.Join(segments, "/") + "/"
+	for _, prefix := range sec.allowedPaths {
+		if strings.HasPrefix(pd, prefix) {
+			return nil
+		}
+	}
+
+	// Otherwise it depends on where we are. The filesystem can be either
+	// tmpfs or squashfs. Those are "safe" because tmpfs is usually made by
+	// us for a writable mimic (this is not a perfect check) and squashfs is
+	// always read only so we will fail on the write operation anyway.
+	// All other filesystems are not allowed and will return an error that
+	// triggers mimic construction.
+	//
+	// Note that some paths are always disallowed but this happens earlier
+	// at snap validation stage. This most notably includes /run, which is
+	// a tmpfs filesystem.
+	var fsData syscall.Statfs_t
+	if err := sysFstatfs(fd, &fsData); err != nil {
+		return fmt.Errorf("cannot fstatfs path segment %q: %s", segments[segNum], err)
+	}
+	if fsData.Type == TmpfsMagic || fsData.Type == SquashfsMagic {
+		return nil
+	}
+	pv := "/" + strings.Join(segments[:segNum], "/")
+	return &TrespassingError{PathViolated: pv, PathDesired: pd}
 }
 
 // OpenPath creates a path file descriptor for the given
@@ -180,6 +269,10 @@ func (sec *Secure) MkPrefix(segments []string, perm os.FileMode, uid sys.UserID,
 func (sec *Secure) MkDir(fd int, segments []string, segNum int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
 	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> ...", fd, segments, segNum, perm, uid, gid)
 
+	if err := sec.CheckTrespassing(fd, segments, segNum); err != nil {
+		return -1, err
+	}
+
 	segment := segments[segNum]
 	made := true
 	var err error
@@ -226,6 +319,10 @@ func (sec *Secure) MkDir(fd int, segments []string, segNum int, perm os.FileMode
 // Newly created files have the specified mode and ownership.
 func (sec *Secure) MkFile(fd int, segments []string, segNum int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	logger.Debugf("secure-mk-file %d %q %d %v %d %d", fd, segments, segNum, perm, uid, gid)
+
+	if err := sec.CheckTrespassing(fd, segments, segNum); err != nil {
+		return err
+	}
 
 	segment := segments[segNum]
 	made := true
@@ -277,6 +374,10 @@ func (sec *Secure) MkFile(fd int, segments []string, segNum int, perm os.FileMod
 // Existing and identical symlinks are reused without errors.
 func (sec *Secure) MkSymlink(fd int, segments []string, segNum int, oldname string) error {
 	logger.Debugf("secure-mk-symlink %d %q %d %q", fd, segments, segNum, oldname)
+
+	if err := sec.CheckTrespassing(fd, segments, segNum); err != nil {
+		return err
+	}
 
 	segment := segments[segNum]
 	var err error
@@ -467,7 +568,6 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 	// We need a place for "safe keeping" of what is present in the original
 	// directory as we are about to attach a tmpfs there, which will hide
 	// everything inside.
-	logger.Debugf("create-writable-mimic %q", dir)
 	safeKeepingDir := filepath.Join("/tmp/.snap/", dir)
 
 	var changes []*Change
