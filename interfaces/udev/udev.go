@@ -24,10 +24,11 @@ import (
 	"os/exec"
 )
 
-// ReloadRules runs two commands that reload udev rule database.
+// ReloadRules runs three commands that reload udev rule database.
 //
 // The commands are: udevadm control --reload-rules
 //                   udevadm trigger
+//                   udevadm settle --timeout=3
 func ReloadRules() error {
 	output, err := exec.Command("udevadm", "control", "--reload-rules").CombinedOutput()
 	if err != nil {
@@ -37,5 +38,10 @@ func ReloadRules() error {
 	if err != nil {
 		return fmt.Errorf("cannot run udev triggers: %s\nudev output:\n%s", err, string(output))
 	}
+
+	// give our triggered events a chance to be handled before exiting.
+	// Ignore errors since we don't want to error on still pending events.
+	_ = exec.Command("udevadm", "settle", "--timeout=10").Run()
+
 	return nil
 }
