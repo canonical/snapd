@@ -88,6 +88,9 @@ class ShellcheckFailures(Exception):
     def contains(self, other):
         return self.failures.intersection(other)
 
+    def __iter__(self):
+        return iter(self.failures)
+
 
 def checksection(data):
     proc = subprocess.Popen("shellcheck -s {} -x -".format(SHELLCHECK_SHELL),
@@ -195,6 +198,9 @@ def main(opts):
                                'required files:\n%s'),
                               '\n'.join([' - ' + f for f in sorted(failed)]))
                 raise SystemExit(1)
+
+        logging.error('validation failed for the following files:\n%s',
+                      '\n'.join([' - ' + f for f in sorted(failures)]))
 
         if NO_FAIL or opts.no_errors:
             logging.warning("ignoring errors")
