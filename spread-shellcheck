@@ -86,7 +86,7 @@ class ShellcheckFailures(Exception):
         return len(self.failures)
 
     def contains(self, other):
-        return len(self.failures.intersection(other)) > 0
+        return self.failures.intersection(other)
 
 
 def checksection(data):
@@ -189,8 +189,11 @@ def main(opts):
         if opts.must_pass:
             musts = loadmusts(opts.must_pass)
 
-            if failures.contains(musts):
-                logging.error('validation failed for required files')
+            failed = failures.contains(musts)
+            if failed:
+                logging.error(('validation failed for the following '
+                               'required files:\n%s'),
+                              '\n'.join([' - ' + f for f in sorted(failed)]))
                 raise SystemExit(1)
 
         if NO_FAIL or opts.no_errors:
