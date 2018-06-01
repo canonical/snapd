@@ -206,11 +206,11 @@ func (m *HookManager) Context(cookieID string) (*Context, error) {
 	return context, nil
 }
 
-func hookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
+func hookSetupFromTask(task *state.Task, key string) (*HookSetup, *snapstate.SnapState, error) {
 	var hooksup HookSetup
-	err := task.Get("hook-setup", &hooksup)
+	err := task.Get(key, &hooksup)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot extract hook setup from task: %s", err)
+		return nil, nil, err
 	}
 
 	var snapst snapstate.SnapState
@@ -222,23 +222,20 @@ func hookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
 	return &hooksup, &snapst, nil
 }
 
-func undoHookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
-	var hooksup HookSetup
-	err := task.Get("undo-hook-setup", &hooksup)
+func hookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
+	hooksup, snapst, err := hookSetupFromTask(task, "hook-setup")
 	if err != nil {
-		if err == state.ErrNoState {
-			return nil, nil, err
-		}
 		return nil, nil, fmt.Errorf("cannot extract hook setup from task: %s", err)
 	}
+	return hooksup, snapst, err
+}
 
-	var snapst snapstate.SnapState
-	err = snapstate.Get(task.State(), hooksup.Snap, &snapst)
+func undoHookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
+	hooksup, snapst, err := hookSetupFromTask(task, "undo-hook-setup")
 	if err != nil && err != state.ErrNoState {
-		return nil, nil, fmt.Errorf("cannot handle %q snap: %v", hooksup.Snap, err)
+		return nil, nil, fmt.Errorf("cannot extract undo hook setup from task: %s", err)
 	}
-
-	return &hooksup, &snapst, nil
+	return hooksup, snapst, err
 }
 
 // NumRunningHooks returns the number of hooks running at the moment.
