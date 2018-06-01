@@ -71,9 +71,15 @@ const joystickConnectedPlugAppArmor = `
 // purpose. In other words, in practice, users with such devices will have
 // updated their udev rules to set ENV{ID_INPUT_JOYSTICK}="" to make it work,
 // which means this rule will no longer match.
+//
+// Because of the unconditional /dev/input/event[0-9]* AppArmor rule, we need
+// to ensure that the device cgroup is in effect even when there are no
+// joysticks present so that we don't give away all input to the snap. Use
+// /dev/full for this purpose.
 var joystickConnectedPlugUDev = []string{
 	`KERNEL=="js[0-9]*"`,
 	`KERNEL=="event[0-9]*", SUBSYSTEM=="input", ENV{ID_INPUT_JOYSTICK}=="1"`,
+	`KERNEL=="full", SUBSYSTEM=="mem"`,
 }
 
 func init() {

@@ -30,13 +30,18 @@ patch_snapcraft()
 class XBuildDeb(snapcraft.BasePlugin):
 
     def build(self):
+        super().build()
         self.run(["sudo", "apt-get", "build-dep", "-y", "./"])
         # XXX: get this from "debian/gbp.conf:postexport"
-        self.run(["./get-deps.sh"])
-        # run the real build, -ptrue means run "true" to sign the package.
-        # Newer dpkg-buildpackage has "--no-sign" but not the xenial version
-        self.run(["dpkg-buildpackage", "-ptrue"])
+        self.run(["./get-deps.sh", "--skip-unused-check"])
+        env=os.environ.copy()
+        if os.getuid() == 0:
+            # disable running the tests during the build when run as root
+            # because quite a few of them will break
+            env["DEB_BUILD_OPTIONS"] = "nocheck"
+        # run the real build
+        self.run(["dpkg-buildpackage"], env=env)
         # and "install" into the right place
-        snapd_deb = glob.glob("../snapd_*.deb")[0]
+        snapd_deb = glob.glob("parts/snapd/snapd_*.deb")[0]
         self.run(["dpkg-deb", "-x", os.path.abspath(snapd_deb), self.installdir])
 
