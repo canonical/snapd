@@ -206,7 +206,7 @@ func (m *HookManager) Context(cookieID string) (*Context, error) {
 	return context, nil
 }
 
-func hookSetupFromTask(task *state.Task, key string) (*HookSetup, *snapstate.SnapState, error) {
+func hookSetup(task *state.Task, key string) (*HookSetup, *snapstate.SnapState, error) {
 	var hooksup HookSetup
 	err := task.Get(key, &hooksup)
 	if err != nil {
@@ -220,22 +220,6 @@ func hookSetupFromTask(task *state.Task, key string) (*HookSetup, *snapstate.Sna
 	}
 
 	return &hooksup, &snapst, nil
-}
-
-func hookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
-	hooksup, snapst, err := hookSetupFromTask(task, "hook-setup")
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot extract hook setup from task: %s", err)
-	}
-	return hooksup, snapst, err
-}
-
-func undoHookSetup(task *state.Task) (*HookSetup, *snapstate.SnapState, error) {
-	hooksup, snapst, err := hookSetupFromTask(task, "undo-hook-setup")
-	if err != nil && err != state.ErrNoState {
-		return nil, nil, fmt.Errorf("cannot extract undo hook setup from task: %s", err)
-	}
-	return hooksup, snapst, err
 }
 
 // NumRunningHooks returns the number of hooks running at the moment.
@@ -263,10 +247,10 @@ func (m *HookManager) GracefullyWaitRunningHooks() bool {
 // goroutine.
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
-	hooksup, snapst, err := hookSetup(task)
+	hooksup, snapst, err := hookSetup(task, "hook-setup")
 	task.State().Unlock()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot extract hook setup from task: %s", err)
 	}
 
 	return m.runHook(task, tomb, snapst, hooksup)
@@ -278,14 +262,14 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 // goroutine.
 func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
-	hooksup, snapst, err := undoHookSetup(task)
+	hooksup, snapst, err := hookSetup(task, "undo-hook-setup")
 	task.State().Unlock()
 	if err != nil {
 		if err == state.ErrNoState {
 			// no undo hook setup
 			return nil
 		}
-		return err
+		return fmt.Errorf("cannot extract undo hook setup from task: %s", err)
 	}
 
 	return m.runHook(task, tomb, snapst, hooksup)
