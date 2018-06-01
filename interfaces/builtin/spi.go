@@ -96,7 +96,7 @@ func (iface *spiInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 	return nil
 }
 
-func (iface *spiInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *spiInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// Allow what is allowed in the declarations
 	return true
 }

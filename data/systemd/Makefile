@@ -20,7 +20,8 @@ LIBEXECDIR := /usr/lib
 SYSTEMDSYSTEMUNITDIR := /lib/systemd/system
 
 SYSTEMD_UNITS_GENERATED := $(wildcard *.in)
-SYSTEMD_UNITS = $(SYSTEMD_UNITS_GENERATED:.in=) $(wildcard *.timer) $(wildcard *.socket)
+# NOTE: sort removes duplicates so this gives us all the units, generated or otherwise
+SYSTEMD_UNITS = $(sort $(SYSTEMD_UNITS_GENERATED:.in=) $(wildcard *.service) $(wildcard *.timer) $(wildcard *.socket))
 
 .PHONY: all
 all: $(SYSTEMD_UNITS)

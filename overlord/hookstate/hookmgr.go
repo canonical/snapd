@@ -316,7 +316,7 @@ func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapsta
 
 	if hookExists || mustHijack {
 		// we will run something, not a noop
-		if task.State().Restarting() {
+		if ok, _ := task.State().Restarting(); ok {
 			// don't start running a hook if we are restarting
 			return &state.Retry{}
 		}

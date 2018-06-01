@@ -119,6 +119,7 @@ func (s *imageSuite) SetUpTest(c *C) {
 		"authority-id":   "my-brand",
 		"brand-id":       "my-brand",
 		"model":          "my-model",
+		"display-name":   "my display name",
 		"architecture":   "amd64",
 		"gadget":         "pc",
 		"kernel":         "pc-kernel",
@@ -445,10 +446,11 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	}
 
 	// check the bootloader config
-	m, err := s.bootloader.GetBootVars("snap_kernel", "snap_core")
+	m, err := s.bootloader.GetBootVars("snap_kernel", "snap_core", "snap_menuentry")
 	c.Assert(err, IsNil)
 	c.Check(m["snap_kernel"], Equals, "pc-kernel_2.snap")
 	c.Check(m["snap_core"], Equals, "core_3.snap")
+	c.Check(m["snap_menuentry"], Equals, "my display name")
 
 	c.Check(s.stderr.String(), Equals, "")
 }

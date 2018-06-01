@@ -43,10 +43,11 @@ import (
 type snapOpTestServer struct {
 	c *check.C
 
-	checker func(r *http.Request)
-	n       int
-	total   int
-	channel string
+	checker   func(r *http.Request)
+	n         int
+	total     int
+	channel   string
+	rebooting bool
 }
 
 var _ = check.Suite(&SnapOpSuite{})
@@ -65,7 +66,11 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	case 1:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
-		fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		if !t.rebooting {
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		} else {
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}, "maintenance": {"kind": "system-restart", "message": "system is restarting"}}}`)
+		}
 	case 2:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
@@ -150,6 +155,31 @@ func (s *SnapOpSuite) TestWaitRecovers(c *check.C) {
 
 	// but only after recovering
 	c.Check(meter.Labels, testutil.Contains, "Waiting for server to restart")
+}
+
+func (s *SnapOpSuite) TestWaitRebooting(c *check.C) {
+	meter := &progresstest.Meter{}
+	defer progress.MockMeter(meter)()
+	restore := snap.MockMaxGoneTime(time.Millisecond)
+	defer restore()
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "sync",
+"result": {
+"ready": false,
+"status": "Doing",
+"tasks": [{"kind": "bar", "summary": "...", "status": "Doing", "progress": {"done": 1, "total": 1}, "log": ["INFO: info"]}]
+},
+"maintenance": {"kind": "system-restart", "message": "system is restarting"}}`)
+	})
+
+	cli := snap.Client()
+	chg, err := snap.Wait(cli, "x")
+	c.Assert(chg, check.IsNil)
+	c.Assert(err, check.DeepEquals, &client.Error{Kind: client.ErrorKindSystemRestart, Message: "system is restarting"})
+
+	// last available info is still displayed
+	c.Check(meter.Notices, testutil.Contains, "INFO: info")
 }
 
 func (s *SnapOpSuite) TestInstall(c *check.C) {
@@ -726,6 +756,26 @@ func (s *SnapOpSuite) TestRefreshOneIgnoreValidation(c *check.C) {
 	}
 	_, err := snap.Parser().ParseArgs([]string{"refresh", "--ignore-validation", "one"})
 	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapOpSuite) TestRefreshOneRebooting(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/core")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action": "refresh",
+		})
+	}
+	s.srv.rebooting = true
+
+	restore := mockArgs("snap", "refresh", "core")
+	defer restore()
+
+	err := snap.RunMain()
+	c.Check(err, check.IsNil)
+	c.Check(s.Stderr(), check.Equals, "snapd is about to reboot the system\n")
+
 }
 
 func (s *SnapOpSuite) TestRefreshOneModeErr(c *check.C) {
