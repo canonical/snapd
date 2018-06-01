@@ -30,12 +30,14 @@ NO_FAIL = os.getenv('NO_FAIL', None)
 D = os.getenv('D', None)
 # set to non-empty to enable verbose logging
 V = os.getenv('V', None)
-# file with list of test file that must successfully validate, one file per line
+# file with list of test file that must successfully validate, one file per
+# line
 MUST_PASS = os.getenv('MUST_PASS', None)
 
 # names of sections
 SECTIONS = ['prepare', 'prepare-each', 'restore', 'restore-each',
             'debug', 'debug-each', 'execute', 'repack']
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='spread shellcheck helper')
@@ -46,7 +48,8 @@ def parse_arguments():
     parser.add_argument('-v', '--verbose', action='store_true',
                         default=False, help='verbose logging')
     parser.add_argument('--must-pass', default=None,
-                        help='file with list of files that are required to be valid (regardless of --no-errors flag)')
+                        help=('file with list of files that are required '
+                              'to be valid (regardless of --no-errors flag)'))
     parser.add_argument('paths', nargs='+', help='paths to check')
     return parser.parse_args()
 
@@ -112,7 +115,8 @@ def checkfile(path):
             logging.debug("checking section %s", section)
             checksection(data[section])
         except ShellcheckRunError as serr:
-            logging.debug("%s: shellcheck failed in section '%s'", path, section)
+            logging.debug("%s: shellcheck failed in section '%s'",
+                          path, section)
             errors.addfailure(section, serr.stderr.decode('utf-8'))
 
     if path.endswith('spread.yaml') and 'suites' in data:
@@ -152,7 +156,8 @@ def checkpath(loc):
         try:
             checkfile(entry)
         except ShellcheckError as serr:
-            logging.error("shellcheck failed for file %s in sections: %s; error log follows",
+            logging.error(('shellcheck failed for file %s in sections: '
+                           '%s; error log follows'),
                           entry, ', '.join(serr.sectionerrors.keys()))
             for section, error in serr.sectionerrors.items():
                 logging.error("%s: section '%s':\n%s", entry, section, error)
