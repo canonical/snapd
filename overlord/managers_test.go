@@ -2242,15 +2242,22 @@ version: @VERSION@`
 		chg.AddAll(ts)
 	}
 
+	// force hold state to hit ignore status of findSymmetricAutoconnect
+	tts[2].Tasks()[0].SetStatus(state.HoldStatus)
+
 	st.Unlock()
+	err = ms.o.Settle(3 * time.Second)
+	st.Lock()
+	c.Assert(err, IsNil)
 
+	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
-
 	st.Lock()
 	c.Assert(err, IsNil)
 
 	// simulate successful restart happened
 	state.MockRestarting(st, state.RestartUnset)
+	tts[2].Tasks()[0].SetStatus(state.DefaultStatus)
 	st.Unlock()
 
 	err = ms.o.Settle(settleTimeout)
@@ -2272,4 +2279,112 @@ version: @VERSION@`
 	connections, err := repo.Connections("some-snap")
 	c.Assert(err, IsNil)
 	c.Assert(connections, HasLen, 3)
+}
+
+func (ms *mgrsSuite) TestUpdateWithAutoconnectRetry(c *C) {
+	const someSnapYaml = `name: some-snap
+version: 1.0
+apps:
+   foo:
+        command: bin/bar
+        plugs: [network,home]
+        slots: [media-hub]
+`
+	const otherSnapYaml = `name: other-snap
+version: 1.0
+apps:
+   baz:
+        command: bin/bar
+        plugs: [media-hub]
+`
+	snapPath, _ := ms.makeStoreTestSnap(c, someSnapYaml, "40")
+	ms.serveSnap(snapPath, "40")
+
+	snapPath, _ = ms.makeStoreTestSnap(c, otherSnapYaml, "50")
+	ms.serveSnap(snapPath, "50")
+
+	mockServer := ms.mockStore(c)
+	defer mockServer.Close()
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("conns", map[string]interface{}{})
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnap(c, someSnapYaml, si)
+	c.Assert(snapInfo.Plugs, HasLen, 2)
+
+	oi := &snap.SideInfo{RealName: "other-snap", SnapID: fakeSnapID("other-snap"), Revision: snap.R(1)}
+	otherInfo := snaptest.MockSnap(c, otherSnapYaml, oi)
+	c.Assert(otherInfo.Plugs, HasLen, 1)
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(st, "other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{oi},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	repo := ms.o.InterfaceManager().Repository()
+
+	// add snaps to the repo to have plugs/slots
+	c.Assert(repo.AddSnap(snapInfo), IsNil)
+	c.Assert(repo.AddSnap(otherInfo), IsNil)
+
+	// refresh all
+	err := assertstate.RefreshSnapDeclarations(st, 0)
+	c.Assert(err, IsNil)
+
+	ts, err := snapstate.Update(st, "some-snap", "stable", snap.R(0), 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// to make TaskSnapSetup work
+	chg := st.NewChange("refresh", "...")
+	chg.AddAll(ts)
+
+	// remove other-snap
+	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0))
+	c.Assert(err, IsNil)
+	chg2 := st.NewChange("remove-snap", "...")
+	chg2.AddAll(ts2)
+
+	// force hold state on first removal task to hit Retry error
+	ts2.Tasks()[0].SetStatus(state.HoldStatus)
+
+	st.Unlock()
+	err = ms.o.Settle(3 * time.Second)
+	st.Lock()
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `Settle is not converging`)
+
+	var retryCheck bool
+	for _, t := range st.Tasks() {
+		if t.Kind() == "auto-connect" {
+			c.Assert(strings.Join(t.Log(), ""), Matches, `.*auto-connect of snap "some-snap" will be retried because of "other-snap" - "some-snap" conflict`)
+			retryCheck = true
+		}
+	}
+	c.Assert(retryCheck, Equals, true)
+
+	// back to default state, that will unblock autoconnect
+	ts2.Tasks()[0].SetStatus(state.DefaultStatus)
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// check connections
+	var conns map[string]interface{}
+	st.Get("conns", &conns)
+	c.Assert(conns, HasLen, 0)
 }
