@@ -98,8 +98,6 @@ func (s *utilsSuite) TestSecureMkdirAllLevel1(c *C) {
 		`close 4`,
 		`close 3`,
 	})
-	c.Assert(s.log.String(), testutil.Contains, `secure-mk-dir 3 ["path"] 0 -rwxr-xr-x 123 456 -> ...`)
-	c.Assert(s.log.String(), testutil.Contains, `secure-mk-dir 3 ["path"] 0 -rwxr-xr-x 123 456 -> 4`)
 }
 
 // Ensure that we can create a directory two levels from the top-level directory.
@@ -179,7 +177,7 @@ func (s *utilsSuite) TestSecureMkdirAllExistingDirsDontChown(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllMkdiratError(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, errTesting)
 	err := s.sec.MkdirAll("/abs", 0755, 123, 456)
-	c.Assert(err, ErrorMatches, `cannot mkdir path segment "abs": testing`)
+	c.Assert(err, ErrorMatches, `cannot create directory "abs": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
 		`mkdirat 3 "abs" 0755`,
@@ -191,7 +189,7 @@ func (s *utilsSuite) TestSecureMkdirAllMkdiratError(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllFchownError(c *C) {
 	s.sys.InsertFault(`fchown 4 123 456`, errTesting)
 	err := s.sec.MkdirAll("/path", 0755, 123, 456)
-	c.Assert(err, ErrorMatches, `cannot chown path segment "path" to 123.456 \(got up to "/"\): testing`)
+	c.Assert(err, ErrorMatches, `cannot chown directory "path" to 123.456: testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
 		`mkdirat 3 "path" 0755`,
@@ -216,7 +214,7 @@ func (s *utilsSuite) TestSecureMkdirAllOpenRootError(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllOpenError(c *C) {
 	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
 	err := s.sec.MkdirAll("/abs/path", 0755, 123, 456)
-	c.Assert(err, ErrorMatches, `cannot open path segment "abs" \(got up to "/"\): testing`)
+	c.Assert(err, ErrorMatches, `cannot open directory "abs": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
 		`mkdirat 3 "abs" 0755`,
@@ -626,7 +624,7 @@ func (s *utilsSuite) TestSecureMkfileAllOpenRootError(c *C) {
 func (s *utilsSuite) TestSecureMkfileAllOpenError(c *C) {
 	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
 	err := s.sec.MkfileAll("/abs/path", 0755, 123, 456)
-	c.Assert(err, ErrorMatches, `cannot open path segment "abs" \(got up to "/"\): testing`)
+	c.Assert(err, ErrorMatches, `cannot open directory "abs": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
 		`mkdirat 3 "abs" 0755`,
@@ -709,16 +707,6 @@ func (s *utilsSuite) TestCleanTrailingSlash(c *C) {
 	c.Assert(filepath.Clean("path/."), Equals, "path")
 	c.Assert(filepath.Clean("path/.."), Equals, ".")
 	c.Assert(filepath.Clean("other/path/.."), Equals, "other")
-}
-
-func (s *utilsSuite) TestSplitIntoSegments(c *C) {
-	sg, err := update.SplitIntoSegments("/foo/bar/froz")
-	c.Assert(err, IsNil)
-	c.Assert(sg, DeepEquals, []string{"foo", "bar", "froz"})
-
-	sg, err = update.SplitIntoSegments("/foo//fii/../.")
-	c.Assert(err, ErrorMatches, `cannot split unclean path ".+"`)
-	c.Assert(sg, HasLen, 0)
 }
 
 // secure-open-path
