@@ -427,7 +427,7 @@ func (iface *dbusInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return err
 }
 
-func (iface *dbusInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *dbusInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }
