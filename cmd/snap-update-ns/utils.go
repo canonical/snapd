@@ -667,3 +667,92 @@ func createWritableMimic(dir, neededBy string, sec *Secure) ([]*Change, error) {
 	}
 	return changes, nil
 }
+
+// PathIterator traverses through segments (directories and files) of some
+// path. The filesystem is never consulted, traversal is done purely in memory.
+//
+// The iterator is useful in implementing secure traversal of absolute paths
+// using the common idiom of opening the root directory followed by a chain of
+// openat calls.
+//
+// A simple example on how to use the iterator:
+// ```
+// pi := NewPathIterator(path)
+// for pi.Next() {
+//    // pi.PathSoFar() or pi.Segment()
+// }
+// ```
+type PathIterator struct {
+	path        string
+	left, right int
+}
+
+// NewPathIterator returns an iterator for traversing the given path.
+// The path is passed through filepath.Clean automatically.
+func NewPathIterator(path string) *PathIterator {
+	return &PathIterator{path: filepath.Clean(path)}
+}
+
+// Path returns the path being traversed.
+func (pi *PathIterator) Path() string {
+	return pi.path
+}
+
+// Segment returns the name of the current path segment.
+//
+// Segment may return the empty string to denote the root directory.
+// Segment may contain '/' at the end
+func (pi *PathIterator) Segment() string {
+	return pi.path[pi.left:pi.right]
+}
+
+// CleanSegment returns the same value as Segment with right slash trimmed.
+func (pi *PathIterator) CleanSegment() string {
+	if pi.right > 0 && pi.path[pi.right-1:pi.right] == "/" {
+		return pi.path[pi.left : pi.right-1]
+	}
+	return pi.path[pi.left:pi.right]
+}
+
+// PathSoFar returns the prefix of path that was traversed so far.
+//
+// PathSoFar always contains the path leading up to the current segment.
+func (pi *PathIterator) PathSoFar() string {
+	return pi.path[:pi.right]
+}
+
+// Next advances the iterator to the next segment, returning true if one is found.
+//
+// If this method returns false then no change is made and segment and path so
+// far retain their previous values.
+func (pi *PathIterator) Next() bool {
+	// Initial state
+	// P: "foo/bar"
+	// L:  ^
+	// R:  ^
+	//
+	// Next is called
+	// P: "foo/bar"
+	// L:  ^  |
+	// R:     ^
+	//
+	// Next is called
+	// P: "foo/bar"
+	// L:     ^   |
+	// R:         ^
+
+	// Next is called but returns false
+	// P: "foo/bar"
+	// L:     ^   |
+	// R:         ^
+	if pi.right >= len(pi.path) {
+		return false
+	}
+	pi.left = pi.right
+	if idx := strings.IndexRune(pi.path[pi.right:], '/'); idx != -1 {
+		pi.right += idx + 1
+	} else {
+		pi.right = len(pi.path)
+	}
+	return true
+}
