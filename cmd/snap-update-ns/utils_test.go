@@ -863,3 +863,104 @@ func (s *realSystemSuite) TestSecureOpenPathSymlinkedParent(c *C) {
 	c.Check(fd, Equals, -1)
 	c.Check(err, ErrorMatches, "not a directory")
 }
+
+func (s *realSystemSuite) TestPathIteratorEmpty(c *C) {
+	pi := update.NewPathIterator("")
+	c.Assert(pi.Path(), Equals, ".")
+
+	c.Assert(pi.Next(), Equals, true)
+	c.Assert(pi.PathSoFar(), Equals, ".")
+	c.Assert(pi.Segment(), Equals, ".")
+	c.Assert(pi.CleanSegment(), Equals, ".")
+
+	c.Assert(pi.Next(), Equals, false)
+}
+
+func (s *realSystemSuite) TestPathIteratorFilename(c *C) {
+	pi := update.NewPathIterator("foo")
+	c.Assert(pi.Path(), Equals, "foo")
+
+	c.Assert(pi.Next(), Equals, true)
+	c.Assert(pi.PathSoFar(), Equals, "foo")
+	c.Assert(pi.Segment(), Equals, "foo")
+	c.Assert(pi.CleanSegment(), Equals, "foo")
+
+	c.Assert(pi.Next(), Equals, false)
+}
+
+func (s *realSystemSuite) TestPathIteratorRelative(c *C) {
+	pi := update.NewPathIterator("foo/bar")
+	c.Assert(pi.Path(), Equals, "foo/bar")
+
+	c.Assert(pi.Next(), Equals, true)
+	c.Assert(pi.PathSoFar(), Equals, "foo/")
+	c.Assert(pi.Segment(), Equals, "foo/")
+	c.Assert(pi.CleanSegment(), Equals, "foo")
+
+	c.Assert(pi.Next(), Equals, true)
+	c.Assert(pi.PathSoFar(), Equals, "foo/bar")
+	c.Assert(pi.Segment(), Equals, "bar")
+	c.Assert(pi.CleanSegment(), Equals, "bar")
+
+	c.Assert(pi.Next(), Equals, false)
+}
+
+func (s *realSystemSuite) TestPathIteratorAbsolute(c *C) {
+	pi := update.NewPathIterator("/foo/bar")
+	c.Assert(pi.Path(), Equals, "/foo/bar")
+
+	c.Assert(pi.Next(), Equals, true)
+	c.Assert(pi.PathSoFar(), Equals, "/")
+	c.Assert(pi.Segment(), Equals, "/")
+	c.Assert(pi.CleanSegment(), Equals, "")
+
+	c.Assert(pi.Next(), Equals, true)
+	c.Assert(pi.PathSoFar(), Equals, "/foo/")
+	c.Assert(pi.Segment(), Equals, "foo/")
+	c.Assert(pi.CleanSegment(), Equals, "foo")
+
+	c.Assert(pi.Next(), Equals, true)
+	c.Assert(pi.PathSoFar(), Equals, "/foo/bar")
+	c.Assert(pi.Segment(), Equals, "bar")
+	c.Assert(pi.CleanSegment(), Equals, "bar")
+
+	c.Assert(pi.Next(), Equals, false)
+}
+
+func (s *realSystemSuite) TestPathIteratorRootDir(c *C) {
+	pi := update.NewPathIterator("/")
+	c.Assert(pi.Path(), Equals, "/")
+
+	c.Assert(pi.Next(), Equals, true)
+	c.Assert(pi.PathSoFar(), Equals, "/")
+	c.Assert(pi.Segment(), Equals, "/")
+	c.Assert(pi.CleanSegment(), Equals, "")
+
+	c.Assert(pi.Next(), Equals, false)
+}
+
+func (s *realSystemSuite) TestPathIteratorUncleanPath(c *C) {
+	pi := update.NewPathIterator("///some/../junk")
+	c.Assert(pi.Path(), Equals, "/junk")
+
+	c.Assert(pi.Next(), Equals, true)
+	c.Assert(pi.PathSoFar(), Equals, "/")
+	c.Assert(pi.Segment(), Equals, "/")
+	c.Assert(pi.CleanSegment(), Equals, "")
+
+	c.Assert(pi.Next(), Equals, true)
+	c.Assert(pi.PathSoFar(), Equals, "/junk")
+	c.Assert(pi.Segment(), Equals, "junk")
+	c.Assert(pi.CleanSegment(), Equals, "junk")
+
+	c.Assert(pi.Next(), Equals, false)
+}
+
+func (s *realSystemSuite) TestPathIteratorExample(c *C) {
+	pi := update.NewPathIterator("/some/path/there")
+	for pi.Next() {
+		_ = pi.PathSoFar()
+		_ = pi.Segment()
+		_ = pi.CleanSegment()
+	}
+}
