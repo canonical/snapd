@@ -188,7 +188,6 @@ def main(opts):
                 logging.error('validation failed for required files')
                 raise SystemExit(1)
 
-        logging.debug('must validate: %s', musts)
         if NO_FAIL or opts.no_errors:
             logging.warning("ignoring errors")
         else:
