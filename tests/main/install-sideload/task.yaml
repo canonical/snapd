@@ -3,7 +3,7 @@ summary: Checks for snap sideload install
 prepare: |
     for snap in basic test-snapd-tools basic-desktop test-snapd-devmode
     do
-        snap pack $TESTSLIB/snaps/$snap
+        snap pack "$TESTSLIB"/snaps/$snap
     done
 
 environment:
@@ -20,8 +20,8 @@ restore: |
 
 execute: |
     echo "Sideloaded snap shows status"
-    expected="(?s)basic 1.0 installed\n\
-    .*"
+    expected='(?s)basic 1.0 installed\n
+    .*'
     snap install --dangerous ./basic_1.0_all.snap | grep -Pzq "$expected"
 
     echo "Sideloaded snap with (deprecated) --force-dangerous option"
@@ -33,15 +33,16 @@ execute: |
     test-snapd-tools.success
     [ "$(test-snapd-tools.echo Hello World)" = "Hello World" ]
 
+    #shellcheck source=tests/lib/dirs.sh
     . $TESTSLIB/dirs.sh
 
     echo "Sideload desktop snap"
     snap install --dangerous ./basic-desktop_1.0_all.snap
-    expected="\[Desktop Entry\]\n\
-    Name=Echo\n\
-    Comment=It echos stuff\n\
-    Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop.echo\n"
-    cat /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop | grep -Pzq "$expected"
+    expected="\\[Desktop Entry\\]\\n\
+    Name=Echo\\n\
+    Comment=It echos stuff\\n\
+    Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_echo.desktop $SNAP_MOUNT_DIR/bin/basic-desktop.echo\\n"
+    grep -Pzq "$expected" < /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop
 
     echo "Sideload devmode snap fails without flags"
     expected="requires devmode or confinement override"
