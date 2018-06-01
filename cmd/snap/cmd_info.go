@@ -108,6 +108,12 @@ func maybePrintID(w io.Writer, snap *client.Snap) {
 	}
 }
 
+func maybePrintBase(w io.Writer, base string, verbose bool) {
+	if verbose && base != "" {
+		fmt.Fprintf(w, "base:\t%s\n", base)
+	}
+}
+
 func tryDirect(w io.Writer, path string, verbose bool) bool {
 	path = norm(path)
 
@@ -148,6 +154,7 @@ func tryDirect(w io.Writer, path string, verbose bool) bool {
 	}
 	fmt.Fprintf(w, "version:\t%s %s\n", info.Version, notes)
 	maybePrintType(w, string(info.Type))
+	maybePrintBase(w, info.Base, verbose)
 	if sha3_384 != "" {
 		fmt.Fprintf(w, "sha3-384:\t%s\n", sha3_384)
 	}
@@ -439,6 +446,7 @@ func (x *infoCmd) Execute([]string) error {
 		// stops the notes etc trying to be aligned with channels
 		w.Flush()
 		maybePrintType(w, both.Type)
+		maybePrintBase(w, both.Base, x.Verbose)
 		maybePrintID(w, both)
 		if local != nil {
 			if local.TrackingChannel != "" {
