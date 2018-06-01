@@ -60,6 +60,7 @@ func findSymmetricAutoconnect(st *state.State, plugSnap, slotSnap string, autoCo
 				return false, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
 			}
 			otherSnap := snapsup.Name()
+
 			if (otherSnap == plugSnap && installedSnap == slotSnap) || (otherSnap == slotSnap && installedSnap == plugSnap) {
 				return true, nil
 			}

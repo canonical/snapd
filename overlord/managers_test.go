@@ -223,6 +223,19 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	c.Assert(assertstate.Add(st, a4), IsNil)
 	c.Assert(ms.storeSigning.Add(a4), IsNil)
 
+	// add "other-snap" snap declaration
+	headers = map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "other-snap",
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	headers["snap-id"] = fakeSnapID(headers["snap-name"].(string))
+	a5, err := ms.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, a5), IsNil)
+	c.Assert(ms.storeSigning.Add(a5), IsNil)
+
 	// add core itself
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		Active: true,
@@ -2140,14 +2153,24 @@ apps:
    foo:
         command: bin/bar
         plugs: [network,home]
+        slots: [media-hub]
 `
-
+	const otherSnapYaml = `name: other-snap
+version: 1.0
+apps:
+   baz:
+        command: bin/bar
+        plugs: [media-hub]
+`
 	const coreSnapYaml = `name: core
 type: os
 version: @VERSION@`
 
 	snapPath, _ := ms.makeStoreTestSnap(c, someSnapYaml, "40")
 	ms.serveSnap(snapPath, "40")
+
+	snapPath, _ = ms.makeStoreTestSnap(c, otherSnapYaml, "50")
+	ms.serveSnap(snapPath, "50")
 
 	corePath, _ := ms.makeStoreTestSnap(c, strings.Replace(coreSnapYaml, "@VERSION@", "30", -1), "30")
 	ms.serveSnap(corePath, "30")
@@ -2164,6 +2187,10 @@ version: @VERSION@`
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
 	snapInfo := snaptest.MockSnap(c, someSnapYaml, si)
 	c.Assert(snapInfo.Plugs, HasLen, 2)
+
+	oi := &snap.SideInfo{RealName: "other-snap", SnapID: fakeSnapID("other-snap"), Revision: snap.R(1)}
+	otherInfo := snaptest.MockSnap(c, otherSnapYaml, oi)
+	c.Assert(otherInfo.Plugs, HasLen, 1)
 
 	csi := &snap.SideInfo{RealName: "core", SnapID: fakeSnapID("core"), Revision: snap.R(1)}
 	coreInfo := snaptest.MockSnap(c, strings.Replace(coreSnapYaml, "@VERSION@", "1", -1), csi)
@@ -2186,21 +2213,28 @@ version: @VERSION@`
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
+	snapstate.Set(st, "other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{oi},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
 
 	repo := ms.o.InterfaceManager().Repository()
 
 	// add snaps to the repo to have plugs/slots
 	c.Assert(repo.AddSnap(snapInfo), IsNil)
+	c.Assert(repo.AddSnap(otherInfo), IsNil)
 	c.Assert(repo.AddSnap(coreInfo), IsNil)
 
 	// refresh all
 	err := assertstate.RefreshSnapDeclarations(st, 0)
 	c.Assert(err, IsNil)
 
-	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"core", "some-snap"}, 0)
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"core", "some-snap", "other-snap"}, 0)
 	c.Assert(err, IsNil)
-	c.Check(updates, HasLen, 2)
-	c.Assert(tts, HasLen, 2)
+	c.Check(updates, HasLen, 3)
+	c.Assert(tts, HasLen, 3)
 
 	// to make TaskSnapSetup work
 	chg := st.NewChange("refresh", "...")
@@ -2230,11 +2264,12 @@ version: @VERSION@`
 	var conns map[string]interface{}
 	st.Get("conns", &conns)
 	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"some-snap:home core:home":       map[string]interface{}{"interface": "home", "auto": true},
-		"some-snap:network core:network": map[string]interface{}{"interface": "network", "auto": true},
+		"some-snap:home core:home":                 map[string]interface{}{"interface": "home", "auto": true},
+		"some-snap:network core:network":           map[string]interface{}{"interface": "network", "auto": true},
+		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": true},
 	})
 
 	connections, err := repo.Connections("some-snap")
 	c.Assert(err, IsNil)
-	c.Assert(connections, HasLen, 2)
+	c.Assert(connections, HasLen, 3)
 }
