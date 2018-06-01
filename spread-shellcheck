@@ -85,7 +85,7 @@ class ShellcheckFailures(Exception):
     def __len__(self):
         return len(self.failures)
 
-    def contains(self, other):
+    def intersection(self, other):
         return self.failures.intersection(other)
 
     def __iter__(self):
@@ -192,7 +192,7 @@ def main(opts):
         if opts.must_pass:
             musts = loadmusts(opts.must_pass)
 
-            failed = failures.contains(musts)
+            failed = failures.intersection(musts)
             if failed:
                 logging.error(('validation failed for the following '
                                'required files:\n%s'),
