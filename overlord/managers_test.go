@@ -2250,11 +2250,6 @@ version: @VERSION@`
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	st.Unlock()
-	err = ms.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil)
-
 	// simulate successful restart happened
 	state.MockRestarting(st, state.RestartUnset)
 	tts[2].Tasks()[0].SetStatus(state.DefaultStatus)
@@ -2281,13 +2276,12 @@ version: @VERSION@`
 	c.Assert(connections, HasLen, 3)
 }
 
-func (ms *mgrsSuite) TestUpdateWithAutoconnectRetry(c *C) {
+func (ms *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, removeSnapName string) {
 	const someSnapYaml = `name: some-snap
 version: 1.0
 apps:
    foo:
         command: bin/bar
-        plugs: [network,home]
         slots: [media-hub]
 `
 	const otherSnapYaml = `name: other-snap
@@ -2314,7 +2308,7 @@ apps:
 
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
 	snapInfo := snaptest.MockSnap(c, someSnapYaml, si)
-	c.Assert(snapInfo.Plugs, HasLen, 2)
+	c.Assert(snapInfo.Slots, HasLen, 1)
 
 	oi := &snap.SideInfo{RealName: "other-snap", SnapID: fakeSnapID("other-snap"), Revision: snap.R(1)}
 	otherInfo := snaptest.MockSnap(c, otherSnapYaml, oi)
@@ -2343,7 +2337,7 @@ apps:
 	err := assertstate.RefreshSnapDeclarations(st, 0)
 	c.Assert(err, IsNil)
 
-	ts, err := snapstate.Update(st, "some-snap", "stable", snap.R(0), 0, snapstate.Flags{})
+	ts, err := snapstate.Update(st, updateSnapName, "stable", snap.R(0), 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	// to make TaskSnapSetup work
@@ -2351,7 +2345,7 @@ apps:
 	chg.AddAll(ts)
 
 	// remove other-snap
-	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0))
+	ts2, err := snapstate.Remove(st, removeSnapName, snap.R(0))
 	c.Assert(err, IsNil)
 	chg2 := st.NewChange("remove-snap", "...")
 	chg2.AddAll(ts2)
@@ -2368,7 +2362,7 @@ apps:
 	var retryCheck bool
 	for _, t := range st.Tasks() {
 		if t.Kind() == "auto-connect" {
-			c.Assert(strings.Join(t.Log(), ""), Matches, `.*auto-connect of snap "some-snap" will be retried because of "other-snap" - "some-snap" conflict`)
+			c.Assert(strings.Join(t.Log(), ""), Matches, `.*auto-connect of snap .* will be retried because of "other-snap" - "some-snap" conflict`)
 			retryCheck = true
 		}
 	}
@@ -2387,4 +2381,12 @@ apps:
 	var conns map[string]interface{}
 	st.Get("conns", &conns)
 	c.Assert(conns, HasLen, 0)
+}
+
+func (ms *mgrsSuite) TestUpdateWithAutoconnectRetrySlotSide(c *C) {
+	ms.testUpdateWithAutoconnectRetry(c, "some-snap", "other-snap")
+}
+
+func (ms *mgrsSuite) TestUpdateWithAutoconnectRetryPlugSide(c *C) {
+	ms.testUpdateWithAutoconnectRetry(c, "other-snap", "some-snap")
 }
