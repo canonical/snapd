@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -56,6 +56,8 @@ func snapRulesFilePath(snapName string) string {
 	return filepath.Join(dirs.SnapUdevRulesDir, rulesFileName)
 }
 
+var subsystemTrigger string
+
 // Setup creates udev rules specific to a given snap.
 // If any of the rules are changed or removed then udev database is reloaded.
 //
@@ -69,6 +71,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain udev specification for snap %q: %s", snapName, err)
 	}
 	content := b.deriveContent(spec.(*Specification), snapInfo)
+	subsystemTrigger = spec.(*Specification).GetTriggeredSubsystem()
 
 	dir := dirs.SnapUdevRulesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -84,7 +87,10 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		} else if err == nil {
-			return ReloadRules()
+			// FIXME: somehow detect the interfaces that were
+			// disconnected and set subsystemTrigger appropriately.
+			// ATM, it is always going to be empty on disconnect.
+			return ReloadRules(subsystemTrigger)
 		}
 		return nil
 	}
@@ -118,7 +124,10 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return err
 	}
 
-	return ReloadRules()
+	// FIXME: somehow detect the interfaces that were disconnected and set
+	// subsystemTrigger appropriately. ATM, it is always going to be empty
+	// on disconnect.
+	return ReloadRules(subsystemTrigger)
 }
 
 // Remove removes udev rules specific to a given snap.
@@ -136,7 +145,11 @@ func (b *Backend) Remove(snapName string) error {
 	} else if err != nil {
 		return err
 	}
-	return ReloadRules()
+
+	// FIXME: somehow detect the interfaces that were disconnected and set
+	// subsystemTrigger appropriately. ATM, it is always going to be empty
+	// on disconnect.
+	return ReloadRules(subsystemTrigger)
 }
 
 func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (content []string) {

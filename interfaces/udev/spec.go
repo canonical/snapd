@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -41,7 +41,8 @@ type Specification struct {
 	entries  []entry
 	iface    string
 
-	securityTags []string
+	securityTags            []string
+	udevadmSubsystemTrigger string
 }
 
 func (spec *Specification) addEntry(snippet, tag string) {
@@ -162,4 +163,16 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		return iface.UDevPermanentSlot(spec, slot)
 	}
 	return nil
+}
+
+// Informs ReloadRules() to also do 'udevadm trigger <subsystem specific>'.
+// IMPORTANT: because there is currently no way to call TriggerSubsystem during
+// interface disconnect, TriggerSubsystem() should typically only by used in
+// UDevPermanentSlot since the rules are permanent until the snap is removed.
+func (spec *Specification) TriggerSubsystem(subsystem string) {
+	spec.udevadmSubsystemTrigger = subsystem
+}
+
+func (spec *Specification) GetTriggeredSubsystem() string {
+	return spec.udevadmSubsystemTrigger
 }
