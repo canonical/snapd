@@ -32,17 +32,17 @@ import (
 )
 
 var (
-	NewSnapshotSetID            = newSnapshotSetID
-	AllActiveSnapNames          = allActiveSnapNames
-	SnapNamesInSnapshotSet      = snapNamesInSnapshotSet
-	CheckSnapshotChangeConflict = checkSnapshotChangeConflict
-	Filename                    = filename
-	DoSave                      = doSave
-	DoRestore                   = doRestore
-	UndoRestore                 = undoRestore
-	CleanupRestore              = cleanupRestore
-	DoCheck                     = doCheck
-	DoForget                    = doForget
+	NewSnapshotSetID          = newSnapshotSetID
+	AllActiveSnapNames        = allActiveSnapNames
+	SnapNamesInSnapshotSet    = snapNamesInSnapshotSet
+	CheckSnapshotTaskConflict = checkSnapshotTaskConflict
+	Filename                  = filename
+	DoSave                    = doSave
+	DoRestore                 = doRestore
+	UndoRestore               = undoRestore
+	CleanupRestore            = cleanupRestore
+	DoCheck                   = doCheck
+	DoForget                  = doForget
 )
 
 func MockOsRemove(f func(string) error) func() {

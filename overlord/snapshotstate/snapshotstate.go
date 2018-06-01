@@ -102,27 +102,26 @@ func snapNamesInSnapshotSet(setID uint64, requested []string) (snapsFound []stri
 	return snapsFound, filenames, nil
 }
 
-// checkSnapshotChangeConflict checks whether there's an in-progress change for snapshots with the given set id.
-func checkSnapshotChangeConflict(st *state.State, setID uint64, conflictingKinds ...string) error {
+// checkSnapshotTaskConflict checks whether there's an in-progress task for snapshots with the given set id.
+func checkSnapshotTaskConflict(st *state.State, setID uint64, conflictingKinds ...string) error {
 	for _, task := range st.Tasks() {
-		chg := task.Change()
-		if chg.Status().Ready() {
+		if task.Change().Status().Ready() {
 			continue
 		}
-		if !strutil.ListContains(conflictingKinds, chg.Kind()) {
+		if !strutil.ListContains(conflictingKinds, task.Kind()) {
 			continue
 		}
 
 		var snapshot snapshotState
 		if err := task.Get("snapshot", &snapshot); err != nil {
 			if err == state.ErrNoState {
-				return fmt.Errorf("internal error: task %q of change %s is missing snapshot information", task.Kind(), chg.ID())
+				return fmt.Errorf("internal error: task %s (%s) is missing snapshot information", task.ID(), task.Kind())
 			}
 			return err
 		}
 
 		if snapshot.SetID == setID {
-			return fmt.Errorf("snapshot set #%d has a %q change in progress", setID, chg.Kind())
+			return fmt.Errorf("snapshot set #%d has a %q task in progress", setID, task.Kind())
 		}
 	}
 
@@ -186,7 +185,7 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 	}
 
 	// restore needs to conflict with forget of itself
-	if err := checkSnapshotChangeConflict(st, setID, "forget-snapshot"); err != nil {
+	if err := checkSnapshotTaskConflict(st, setID, "forget-snapshot"); err != nil {
 		return nil, nil, err
 	}
 
@@ -214,7 +213,7 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 // Note that the state must be locked by the caller.
 func Check(st *state.State, setID uint64, snapNames []string, users []string) (snapsFound []string, ts *state.TaskSet, err error) {
 	// check needs to conflict with forget of itself
-	if err := checkSnapshotChangeConflict(st, setID, "forget-snapshot"); err != nil {
+	if err := checkSnapshotTaskConflict(st, setID, "forget-snapshot"); err != nil {
 		return nil, nil, err
 	}
 
@@ -245,7 +244,7 @@ func Check(st *state.State, setID uint64, snapNames []string, users []string) (s
 // Note that the state must be locked by the caller.
 func Forget(st *state.State, setID uint64, snapNames []string) (snapsFound []string, ts *state.TaskSet, err error) {
 	// forget needs to conflict with check and restore
-	if err := checkSnapshotChangeConflict(st, setID, "check-snapshot", "restore-snapshot"); err != nil {
+	if err := checkSnapshotTaskConflict(st, setID, "check-snapshot", "restore-snapshot"); err != nil {
 		return nil, nil, err
 	}
 
