@@ -38,7 +38,7 @@ type TestInterface struct {
 	InterfaceName       string
 	InterfaceStaticInfo interfaces.StaticInfo
 	// AutoConnectCallback is the callback invoked inside AutoConnect
-	AutoConnectCallback func(*interfaces.Plug, *interfaces.Slot) bool
+	AutoConnectCallback func(*snap.PlugInfo, *snap.SlotInfo) bool
 	// BeforePreparePlugCallback is the callback invoked inside BeforePreparePlug()
 	BeforePreparePlugCallback func(plug *snap.PlugInfo) error
 	// BeforePrepareSlotCallback is the callback invoked inside BeforePrepareSlot()
@@ -151,7 +151,7 @@ func (t *TestInterface) BeforeConnectSlot(slot *interfaces.ConnectedSlot) error 
 // AutoConnect returns whether plug and slot should be implicitly
 // auto-connected assuming they will be an unambiguous connection
 // candidate.
-func (t *TestInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (t *TestInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
 	if t.AutoConnectCallback != nil {
 		return t.AutoConnectCallback(plug, slot)
 	}

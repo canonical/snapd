@@ -62,6 +62,9 @@ func (s *mountunitSuite) TearDownTest(c *C) {
 }
 
 func (s *mountunitSuite) TestAddMountUnit(c *C) {
+	restore := systemd.MockUseFuse(false)
+	defer restore()
+
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			RealName: "foo",

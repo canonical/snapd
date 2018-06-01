@@ -122,6 +122,9 @@ apps:
   joystick:
     command: bin/run
     plugs: [ joystick ]
+  juju-client-observe:
+    command: bin/run
+    plugs: [ juju-client-observe ]
   kernel-module-control:
     command: bin/run
     plugs: [ kernel-module-control ]
@@ -253,7 +256,7 @@ apps:
     plugs: [ snapd-control ]
   service-watchdog:
     command: bin/run
-    plugs: [ service-watchdog ]
+    plugs: [ daemon-notify ]
   ssh-keys:
     command: bin/run
     plugs: [ ssh-keys ]

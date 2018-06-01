@@ -335,7 +335,7 @@ func (iface *browserSupportInterface) SecCompConnectedPlug(spec *seccomp.Specifi
 	return nil
 }
 
-func (iface *browserSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *browserSupportInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 
