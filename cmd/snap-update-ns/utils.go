@@ -79,7 +79,7 @@ type Secure struct{}
 // control of snap applications. We are perfectly comfortable with creating
 // things in $SNAP_DATA or in /tmp but we don't want to do so in /etc or in
 // other sensitive places.
-func (sec *Secure) CheckTrespassing(fd int, segments []string, segNum int) error {
+func (sec *Secure) CheckTrespassing(dirFd int, dir string, name string) error {
 	return nil
 }
 
@@ -89,12 +89,14 @@ func (sec *Secure) CheckTrespassing(fd int, segments []string, segNum int) error
 // The file descriptor is opened using the O_PATH, O_NOFOLLOW,
 // and O_CLOEXEC flags.
 func (sec *Secure) OpenPath(path string) (int, error) {
-	if !filepath.IsAbs(path) {
-		return -1, fmt.Errorf("path %v is not absolute", path)
-	}
-	segments, err := splitIntoSegments(path)
+	iter, err := NewPathIterator(path)
 	if err != nil {
-		return -1, err
+		// TODO: remove this and adjust tests
+		return -1, fmt.Errorf("cannot split unclean path %q", path)
+	}
+	iter.Next()
+	if iter.CurrentName() != "/" {
+		return -1, fmt.Errorf("path %v is not absolute", path)
 	}
 	// We use the following flags to open:
 	//  O_PATH: we don't intend to use the fd for IO
@@ -102,18 +104,17 @@ func (sec *Secure) OpenPath(path string) (int, error) {
 	//  O_DIRECTORY: we expect to find directories (except for the leaf)
 	//  O_CLOEXEC: don't leak file descriptors over exec() boundaries
 	openFlags := sys.O_PATH | syscall.O_NOFOLLOW | syscall.O_DIRECTORY | syscall.O_CLOEXEC
-	var fd int
-	fd, err = sysOpen("/", openFlags, 0)
+	fd, err := sysOpen("/", openFlags, 0)
 	if err != nil {
 		return -1, err
 	}
-	for i, segment := range segments {
+	for iter.Next() {
 		// Ensure the parent file descriptor is closed
 		defer sysClose(fd)
-		if i == len(segments)-1 {
+		if !strings.HasSuffix(iter.CurrentName(), "/") {
 			openFlags &^= syscall.O_DIRECTORY
 		}
-		fd, err = sysOpenat(fd, segment, openFlags, 0)
+		fd, err = sysOpenat(fd, iter.CurrentCleanName(), openFlags, 0)
 		if err != nil {
 			return -1, err
 		}
@@ -132,62 +133,53 @@ func (sec *Secure) OpenPath(path string) (int, error) {
 	return fd, nil
 }
 
-// MkPrefix creates directories for all but the last segment and returns the
-// file descriptor to the leaf directory. This function is a base for secure
-// variants of mkdir, touch and symlink. None of the traversed directories
-// can be symbolic links.
-func (sec *Secure) MkPrefix(segments []string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
-	logger.Debugf("secure-mk-prefix %q %v %d %d -> ...", segments, perm, uid, gid)
-
-	// Declare var and don't assign-declare below to ensure we don't swallow
-	// any errors by mistake.
-	var err error
-	var fd int
+// MkPrefix creates all the missing directories in a given base path and
+//
+// returns the file descriptor to the leaf directory. This function is a base
+// for secure variants of mkdir, touch and symlink. None of the traversed
+// directories can be symbolic links.
+func (sec *Secure) MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
+	iter, err := NewPathIterator(base)
+	if err != nil {
+		// TODO: remove this and adjust tests
+		return -1, fmt.Errorf("cannot split unclean path %q", base)
+	}
+	iter.Next()
+	if iter.CurrentName() != "/" {
+		return -1, fmt.Errorf("path %v is not absolute", base)
+	}
 
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
-
 	// Open the root directory and start there.
-	fd, err = sysOpen("/", openFlags, 0)
+	fd, err := sysOpen("/", openFlags, 0)
 	if err != nil {
 		return -1, fmt.Errorf("cannot open root directory: %v", err)
 	}
-	if len(segments) > 1 {
+	for iter.Next() {
+		// Keep closing the previous descriptor as we go, so that we have the
+		// last one handy from the MkDir below.
 		defer sysClose(fd)
-	}
-
-	if len(segments) > 0 {
-		// Process all but the last segment.
-		for i := range segments[:len(segments)-1] {
-			fd, err = sec.MkDir(fd, segments, i, perm, uid, gid)
-			if err != nil {
-				return -1, err
-			}
-			// Keep the final FD open (caller needs to close it).
-			if i < len(segments)-2 {
-				defer sysClose(fd)
-			}
+		fd, err = sec.MkDir(fd, iter.CurrentBase(), iter.CurrentCleanName(), perm, uid, gid)
+		if err != nil {
+			return -1, err
 		}
 	}
 
-	logger.Debugf("secure-mk-prefix %q %v %d %d -> %d", segments, perm, uid, gid, fd)
 	return fd, nil
 }
 
-// MkDir creates a directory at segNum-th entry of absolute path represented
-// by segments. This function can be used to construct subsequent elements of
-// the constructed path. The return value contains the newly created file
+// MkDir creates a directory with a given name.
+//
+// The directory is represented with a file descriptor and a name (for
+// convenience). This function is meant to be used to construct subsequent
+// elements of some path. The return value contains the newly created file
 // descriptor or -1 on error.
-func (sec *Secure) MkDir(fd int, segments []string, segNum int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
-	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> ...", fd, segments, segNum, perm, uid, gid)
-
-	segment := segments[segNum]
+func (sec *Secure) MkDir(dirFd int, dir string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
 	made := true
-	var err error
-	var newFd int
 
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 
-	if err = sysMkdirat(fd, segment, uint32(perm.Perm())); err != nil {
+	if err := sysMkdirat(dirFd, name, uint32(perm.Perm())); err != nil {
 		switch err {
 		case syscall.EEXIST:
 			made = false
@@ -195,16 +187,14 @@ func (sec *Secure) MkDir(fd int, segments []string, segNum int, perm os.FileMode
 			// Treat EROFS specially: this is a hint that we have to poke a
 			// hole using tmpfs. The path below is the location where we
 			// need to poke the hole.
-			p := "/" + strings.Join(segments[:segNum], "/")
-			return -1, &ReadOnlyFsError{Path: p}
+			return -1, &ReadOnlyFsError{Path: dir}
 		default:
-			return -1, fmt.Errorf("cannot mkdir path segment %q: %v", segment, err)
+			return -1, fmt.Errorf("cannot create directory %q: %v", name, err)
 		}
 	}
-	newFd, err = sysOpenat(fd, segment, openFlags, 0)
+	newFd, err := sysOpenat(dirFd, name, openFlags, 0)
 	if err != nil {
-		return -1, fmt.Errorf("cannot open path segment %q (got up to %q): %v", segment,
-			"/"+strings.Join(segments[:segNum], "/"), err)
+		return -1, fmt.Errorf("cannot open directory %q: %v", name, err)
 	}
 	if made {
 		// Chown each segment that we made.
@@ -212,25 +202,20 @@ func (sec *Secure) MkDir(fd int, segments []string, segNum int, perm os.FileMode
 			// Close the FD we opened if we fail here since the caller will get
 			// an error and won't assume responsibility for the FD.
 			sysClose(newFd)
-			return -1, fmt.Errorf("cannot chown path segment %q to %d.%d (got up to %q): %v", segment, uid, gid,
-				"/"+strings.Join(segments[:segNum], "/"), err)
+			return -1, fmt.Errorf("cannot chown directory %q to %d.%d: %v", name, uid, gid, err)
 		}
 	}
-	logger.Debugf("secure-mk-dir %d %q %d %v %d %d -> %d", fd, segments, segNum, perm, uid, gid, newFd)
 	return newFd, err
 }
 
-// MkFile creates a file at segNum-th entry of absolute path represented by
-// segments. This function is meant to be used to create the leaf file as a
+// MkFile creates a file with a given name.
+//
+// The directory is represented with a file descriptor and a name (for
+// convenience). This function is meant to be used to create the leaf file as a
 // preparation for a mount point. Existing files are reused without errors.
 // Newly created files have the specified mode and ownership.
-func (sec *Secure) MkFile(fd int, segments []string, segNum int, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
-	logger.Debugf("secure-mk-file %d %q %d %v %d %d", fd, segments, segNum, perm, uid, gid)
-
-	segment := segments[segNum]
+func (sec *Secure) MkFile(dirFd int, dir string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	made := true
-	var newFd int
-	var err error
 
 	// NOTE: Tests don't show O_RDONLY as has a value of 0 and is not
 	// translated to textual form. It is added here for explicitness.
@@ -240,24 +225,23 @@ func (sec *Secure) MkFile(fd int, segments []string, segNum int, perm os.FileMod
 	// we know if we need to chown it) but fall back to just opening an
 	// existing one.
 
-	newFd, err = sysOpenat(fd, segment, openFlags|syscall.O_CREAT|syscall.O_EXCL, uint32(perm.Perm()))
+	newFd, err := sysOpenat(dirFd, name, openFlags|syscall.O_CREAT|syscall.O_EXCL, uint32(perm.Perm()))
 	if err != nil {
 		switch err {
 		case syscall.EEXIST:
 			// If the file exists then just open it without O_CREAT and O_EXCL
-			newFd, err = sysOpenat(fd, segment, openFlags, 0)
+			newFd, err = sysOpenat(dirFd, name, openFlags, 0)
 			if err != nil {
-				return fmt.Errorf("cannot open file %q: %v", segment, err)
+				return fmt.Errorf("cannot open file %q: %v", name, err)
 			}
 			made = false
 		case syscall.EROFS:
 			// Treat EROFS specially: this is a hint that we have to poke a
 			// hole using tmpfs. The path below is the location where we
 			// need to poke the hole.
-			p := "/" + strings.Join(segments[:segNum], "/")
-			return &ReadOnlyFsError{Path: p}
+			return &ReadOnlyFsError{Path: dir}
 		default:
-			return fmt.Errorf("cannot open file %q: %v", segment, err)
+			return fmt.Errorf("cannot open file %q: %v", name, err)
 		}
 	}
 	defer sysClose(newFd)
@@ -265,73 +249,61 @@ func (sec *Secure) MkFile(fd int, segments []string, segNum int, perm os.FileMod
 	if made {
 		// Chown the file if we made it.
 		if err := sysFchown(newFd, uid, gid); err != nil {
-			return fmt.Errorf("cannot chown file %q to %d.%d: %v", segment, uid, gid, err)
+			return fmt.Errorf("cannot chown file %q to %d.%d: %v", name, uid, gid, err)
 		}
 	}
 
 	return nil
 }
 
-// MkSymlink creates a symlink at segNum-th entry of absolute path represented by
-// segments. This function is meant to be used to create the leaf symlink.
-// Existing and identical symlinks are reused without errors.
-func (sec *Secure) MkSymlink(fd int, segments []string, segNum int, oldname string) error {
-	logger.Debugf("secure-mk-symlink %d %q %d %q", fd, segments, segNum, oldname)
-
-	segment := segments[segNum]
-	var err error
-
+// MkSymlink creates a symlink with a given name.
+//
+// The directory is represented with a file descriptor. For convenience the
+// full path of the symlink is also provided. This function is meant to be used
+// to create the leaf symlink. Existing and identical symlinks are reused
+// without errors.
+func (sec *Secure) MkSymlink(dirFd int, dir string, name string, oldname string) error {
 	// Create the final path segment as a symlink.
 	// TODO: don't write links outside of tmpfs or $SNAP_{,USER_}{DATA,COMMON}
-	err = sysSymlinkat(oldname, fd, segment)
-	if err != nil {
+	if err := sysSymlinkat(oldname, dirFd, name); err != nil {
 		switch err {
 		case syscall.EEXIST:
 			var objFd int
 			// If the file exists then just open it for examination.
 			// Maybe it's the symlink we were hoping to create.
-			objFd, err = sysOpenat(fd, segment, syscall.O_CLOEXEC|sys.O_PATH|syscall.O_NOFOLLOW, 0)
+			objFd, err = sysOpenat(dirFd, name, syscall.O_CLOEXEC|sys.O_PATH|syscall.O_NOFOLLOW, 0)
 			if err != nil {
-				return fmt.Errorf("cannot open existing file %q: %v", segment, err)
+				return fmt.Errorf("cannot open existing file %q: %v", name, err)
 			}
 			var statBuf syscall.Stat_t
 			err = sysFstat(objFd, &statBuf)
 			if err != nil {
-				return fmt.Errorf("cannot inspect existing file %q: %v", segment, err)
+				return fmt.Errorf("cannot inspect existing file %q: %v", name, err)
 			}
 			if statBuf.Mode&syscall.S_IFMT != syscall.S_IFLNK {
-				return fmt.Errorf("cannot create symbolic link %q: existing file in the way", segment)
+				return fmt.Errorf("cannot create symbolic link %q: existing file in the way", name)
 			}
 			var n int
 			buf := make([]byte, len(oldname)+2)
 			n, err = sysReadlinkat(objFd, "", buf)
 			if err != nil {
-				return fmt.Errorf("cannot read symbolic link %q: %v", segment, err)
+				return fmt.Errorf("cannot read symbolic link %q: %v", name, err)
 			}
 			if string(buf[:n]) != oldname {
-				return fmt.Errorf("cannot create symbolic link %q: existing symbolic link in the way", segment)
+				return fmt.Errorf("cannot create symbolic link %q: existing symbolic link in the way", name)
 			}
 			return nil
 		case syscall.EROFS:
 			// Treat EROFS specially: this is a hint that we have to poke a
 			// hole using tmpfs. The path below is the location where we
 			// need to poke the hole.
-			p := "/" + strings.Join(segments[:segNum], "/")
-			return &ReadOnlyFsError{Path: p}
+			return &ReadOnlyFsError{Path: dir}
 		default:
-			return fmt.Errorf("cannot create symlink %q: %v", segment, err)
+			return fmt.Errorf("cannot create symlink %q: %v", name, err)
 		}
 	}
 
 	return nil
-}
-
-func splitIntoSegments(name string) ([]string, error) {
-	if name != filepath.Clean(name) {
-		return nil, fmt.Errorf("cannot split unclean path %q", name)
-	}
-	segments := strings.FieldsFunc(filepath.Clean(name), func(c rune) bool { return c == '/' })
-	return segments, nil
 }
 
 // MkdirAll is the secure variant of os.MkdirAll.
@@ -346,35 +318,33 @@ func splitIntoSegments(name string) ([]string, error) {
 // The uid and gid are used for the fchown(2) system call which is performed
 // after each segment is created and opened. The special value -1 may be used
 // to request that ownership is not changed.
-func (sec *Secure) MkdirAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
-	logger.Debugf("secure-mkdir-all %q %v %d %d", name, perm, uid, gid)
-
+func (sec *Secure) MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+	if path != filepath.Clean(path) {
+		// TODO: Remove this, it is only to make tests happy
+		return fmt.Errorf("cannot split unclean path %q", path)
+	}
 	// Only support absolute paths to avoid bugs in snap-confine when
 	// called from anywhere.
-	if !filepath.IsAbs(name) {
-		return fmt.Errorf("cannot create directory with relative path: %q", name)
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("cannot create directory with relative path: %q", path)
 	}
-
-	// Split the path into segments.
-	segments, err := splitIntoSegments(name)
-	if err != nil {
-		return err
-	}
+	base, name := filepath.Split(path)
+	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	fd, err := sec.MkPrefix(segments, perm, uid, gid)
+	dirFd, err := sec.MkPrefix(base, perm, uid, gid)
 	if err != nil {
 		return err
 	}
-	defer sysClose(fd)
+	defer sysClose(dirFd)
 
-	if len(segments) > 0 {
-		// Create the final segment as a directory.
-		fd, err = sec.MkDir(fd, segments, len(segments)-1, perm, uid, gid)
+	if name != "" {
+		// Create the leaf as a directory.
+		leafFd, err := sec.MkDir(dirFd, base, name, perm, uid, gid)
 		if err != nil {
 			return err
 		}
-		defer sysClose(fd)
+		defer sysClose(leafFd)
 	}
 
 	return nil
@@ -382,72 +352,69 @@ func (sec *Secure) MkdirAll(name string, perm os.FileMode, uid sys.UserID, gid s
 
 // MkfileAll is a secure implementation of "mkdir -p $(dirname $1) && touch $1".
 //
-// This function is like secureMkdirAll but it creates an empty file instead of
+// This function is like MkdirAll but it creates an empty file instead of
 // a directory for the final path component. Each created directory component
 // is chowned to the desired user and group.
-func (sec *Secure) MkfileAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
-	logger.Debugf("secure-mkfile-all %q %q %d %d", name, perm, uid, gid)
-
+func (sec *Secure) MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+	if path != filepath.Clean(path) {
+		// TODO: Remove this, it is only to make tests happy
+		return fmt.Errorf("cannot split unclean path %q", path)
+	}
 	// Only support absolute paths to avoid bugs in snap-confine when
 	// called from anywhere.
-	if !filepath.IsAbs(name) {
-		return fmt.Errorf("cannot create file with relative path: %q", name)
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("cannot create file with relative path: %q", path)
 	}
 	// Only support file names, not directory names.
-	if strings.HasSuffix(name, "/") {
-		return fmt.Errorf("cannot create non-file path: %q", name)
+	if strings.HasSuffix(path, "/") {
+		return fmt.Errorf("cannot create non-file path: %q", path)
 	}
-
-	// Split the path into segments.
-	segments, err := splitIntoSegments(name)
-	if err != nil {
-		return err
-	}
+	base, name := filepath.Split(path)
+	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	fd, err := sec.MkPrefix(segments, perm, uid, gid)
+	dirFd, err := sec.MkPrefix(base, perm, uid, gid)
 	if err != nil {
 		return err
 	}
-	defer sysClose(fd)
+	defer sysClose(dirFd)
 
-	if len(segments) > 0 {
-		// Create the final segment as a file.
-		err = sec.MkFile(fd, segments, len(segments)-1, perm, uid, gid)
+	if name != "" {
+		// Create the leaf as a file.
+		err = sec.MkFile(dirFd, base, name, perm, uid, gid)
 	}
 	return err
 }
 
 // MksymlinkAll is a secure implementation of "ln -s".
-func (sec *Secure) MksymlinkAll(name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
-	logger.Debugf("secure-mksymlink-all %q %q %d %d %q", name, perm, uid, gid, oldname)
-
+func (sec *Secure) MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
+	if path != filepath.Clean(path) {
+		// TODO: Remove this, it is only to make tests happy
+		return fmt.Errorf("cannot split unclean path %q", path)
+	}
 	// Only support absolute paths to avoid bugs in snap-confine when
 	// called from anywhere.
-	if !filepath.IsAbs(name) {
-		return fmt.Errorf("cannot create symlink with relative path: %q", name)
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("cannot create symlink with relative path: %q", path)
 	}
 	// Only support file names, not directory names.
-	if strings.HasSuffix(name, "/") {
-		return fmt.Errorf("cannot create non-file path: %q", name)
+	if strings.HasSuffix(path, "/") {
+		return fmt.Errorf("cannot create non-file path: %q", path)
 	}
 
-	// Split the path into segments.
-	segments, err := splitIntoSegments(name)
-	if err != nil {
-		return err
-	}
+	base, name := filepath.Split(path)
+	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	fd, err := sec.MkPrefix(segments, perm, uid, gid)
+	dirFd, err := sec.MkPrefix(base, perm, uid, gid)
 	if err != nil {
 		return err
 	}
-	defer sysClose(fd)
+	defer sysClose(dirFd)
 
-	if len(segments) > 0 {
-		// Create the final segment as a symlink.
-		err = sec.MkSymlink(fd, segments, len(segments)-1, oldname)
+	if name != "" {
+		// Create the leaf as a symlink.
+		err = sec.MkSymlink(dirFd, base, name, oldname)
 	}
 	return err
 }
