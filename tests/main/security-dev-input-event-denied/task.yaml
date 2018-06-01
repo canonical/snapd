@@ -14,6 +14,7 @@ details: |
 
 prepare: |
     echo "Given the test-snapd-event snap is installed"
+    #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_local test-snapd-event
 
@@ -22,7 +23,7 @@ restore: |
 
 execute: |
     echo "The joystick plug is not connected by default"
-    snap interfaces -i joystick | MATCH "\- +test-snapd-event:joystick"
+    snap interfaces -i joystick | MATCH '\- +test-snapd-event:joystick'
 
     if [ "$(snap debug confinement)" != "strict" ]; then
         exit 0
