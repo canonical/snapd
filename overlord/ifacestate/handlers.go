@@ -732,13 +732,13 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		autots.AddAll(ts)
 	}
 
-	task.SetStatus(state.DoneStatus)
-
 	if len(autots.Tasks()) > 0 {
 		snapstate.InjectTasks(task, autots)
 
 		st.EnsureBefore(0)
 	}
+
+	task.SetStatus(state.DoneStatus)
 	return nil
 }
 
