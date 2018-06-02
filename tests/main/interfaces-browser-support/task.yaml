@@ -44,9 +44,9 @@ restore: |
         rm -f "$file"
     done
 
-    while read -r dir < created_dirs; do
+    while read -r dir; do
         rm -rf "$dir"
-    done
+    done < created_dirs
     rm -f created_dirs
 
 execute: |
