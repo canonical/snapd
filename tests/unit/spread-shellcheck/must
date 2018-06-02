@@ -65,3 +65,4 @@ tests/main/interfaces-cli/task.yaml
 tests/main/interfaces-content-empty-content-attr/task.yaml
 tests/main/interfaces-content-mimic/task.yaml
 tests/main/interfaces-content-mkdir-writable/task.yaml
+tests/main/security-dev-input-event-denied/task.yaml
