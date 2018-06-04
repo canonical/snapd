@@ -169,10 +169,10 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 	sc_error_forward(errorp, err);
 }
 
-void sc_snap_name_base(const char *snap_name, char *base, size_t base_len)
+void sc_snap_drop_instance_name(const char *snap_name, char *base, size_t base_len)
 {
 	if (snap_name == NULL || base == NULL) {
-		die("base unset");
+		die("base or snap name unset");
 	}
 
 	const char *pos = strchr(snap_name, '_');
@@ -184,7 +184,7 @@ void sc_snap_name_base(const char *snap_name, char *base, size_t base_len)
 	}
 
 	if (blen > base_len) {
-		die("base or local key buffers too small");
+		die("base buffer too small");
 	}
 
 	memcpy(base, snap_name, blen);
