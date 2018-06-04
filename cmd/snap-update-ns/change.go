@@ -100,6 +100,7 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 	case "symlink":
 		target := c.Entry.XSnapdSymlink()
 		if target == "" {
+			// TODO: fold this into the function below.
 			err = fmt.Errorf("cannot create symlink with empty target")
 		} else {
 			err = sec.MksymlinkAll(path, mode, uid, gid, target)
@@ -116,9 +117,6 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 			// performed the hole poking and thus additional changes must be nil.
 			_, err = c.createPath(path, false, sec)
 		}
-	} else if err != nil {
-		// TODO: remove this line and teach Mk* functions to return error containing the full path.
-		err = fmt.Errorf("cannot create path %q: %s", path, err)
 	}
 	return changes, err
 }
