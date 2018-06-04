@@ -82,7 +82,7 @@ func trySquashfsMount() error {
 	}
 
 	// the fstype can be squashfs or fuse.{snap,squash}fuse
-	fstype, _, err := squashfs.Fstype()
+	fstype, _, err := squashfs.FsType()
 	if err != nil {
 		return err
 	}
