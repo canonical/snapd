@@ -668,7 +668,7 @@ func createWritableMimic(dir, neededBy string, sec *Secure) ([]*Change, error) {
 	return changes, nil
 }
 
-// PathIterator traverses through segments (directories and files) of some
+// PathIterator traverses through parts (directories and files) of some
 // path. The filesystem is never consulted, traversal is done purely in memory.
 //
 // The iterator is useful in implementing secure traversal of absolute paths
@@ -677,9 +677,10 @@ func createWritableMimic(dir, neededBy string, sec *Secure) ([]*Change, error) {
 //
 // A simple example on how to use the iterator:
 // ```
-// pi := NewPathIterator(path)
-// for pi.Next() {
-//    // pi.PathSoFar() or pi.Segment()
+// iter:= NewPathIterator(path)
+// for iter.Next() {
+//    // Use iter.CurrentName() with openat(2) family of functions.
+//    // Use iter.CurrentPath() or iter.CurrentBase() for context.
 // }
 // ```
 type PathIterator struct {
@@ -694,38 +695,39 @@ func NewPathIterator(path string) *PathIterator {
 }
 
 // Path returns the path being traversed.
-func (pi *PathIterator) Path() string {
-	return pi.path
+func (iter *PathIterator) Path() string {
+	return iter.path
 }
 
-// Segment returns the name of the current path segment.
-//
-// Segment may return the empty string to denote the root directory.
-// Segment may contain '/' at the end
-func (pi *PathIterator) Segment() string {
-	return pi.path[pi.left:pi.right]
+// CurrentName returns the name of the current path element.
+// The return value may end with '/'. Use CleanName to avoid that.
+func (iter *PathIterator) CurrentName() string {
+	return iter.path[iter.left:iter.right]
 }
 
-// CleanSegment returns the same value as Segment with right slash trimmed.
-func (pi *PathIterator) CleanSegment() string {
-	if pi.right > 0 && pi.path[pi.right-1:pi.right] == "/" {
-		return pi.path[pi.left : pi.right-1]
+// CurrentCleanName returns the same value as Name with right slash trimmed.
+func (iter *PathIterator) CurrentCleanName() string {
+	if iter.right > 0 && iter.path[iter.right-1:iter.right] == "/" {
+		return iter.path[iter.left : iter.right-1]
 	}
-	return pi.path[pi.left:pi.right]
+	return iter.path[iter.left:iter.right]
 }
 
-// PathSoFar returns the prefix of path that was traversed so far.
-//
-// PathSoFar always contains the path leading up to the current segment.
-func (pi *PathIterator) PathSoFar() string {
-	return pi.path[:pi.right]
+// CurrentPath returns the prefix of path that was traversed, including the current name.
+func (iter *PathIterator) CurrentPath() string {
+	return iter.path[:iter.right]
 }
 
-// Next advances the iterator to the next segment, returning true if one is found.
+// CurrentBase returns the prefix of the path that was traversed, excluding the current name.
+func (iter *PathIterator) CurrentBase() string {
+	return iter.path[:iter.left]
+}
+
+// Next advances the iterator to the next name, returning true if one is found.
 //
-// If this method returns false then no change is made and segment and path so
-// far retain their previous values.
-func (pi *PathIterator) Next() bool {
+// If this method returns false then no change is made and all helper methods
+// retain their previous return values.
+func (iter *PathIterator) Next() bool {
 	// Initial state
 	// P: "foo/bar"
 	// L:  ^
@@ -745,14 +747,14 @@ func (pi *PathIterator) Next() bool {
 	// P: "foo/bar"
 	// L:     ^   |
 	// R:         ^
-	if pi.right >= len(pi.path) {
+	if iter.right >= len(iter.path) {
 		return false
 	}
-	pi.left = pi.right
-	if idx := strings.IndexRune(pi.path[pi.right:], '/'); idx != -1 {
-		pi.right += idx + 1
+	iter.left = iter.right
+	if idx := strings.IndexRune(iter.path[iter.right:], '/'); idx != -1 {
+		iter.right += idx + 1
 	} else {
-		pi.right = len(pi.path)
+		iter.right = len(iter.path)
 	}
 	return true
 }

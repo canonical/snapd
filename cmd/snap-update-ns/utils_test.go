@@ -865,102 +865,169 @@ func (s *realSystemSuite) TestSecureOpenPathSymlinkedParent(c *C) {
 }
 
 func (s *realSystemSuite) TestPathIteratorEmpty(c *C) {
-	pi := update.NewPathIterator("")
-	c.Assert(pi.Path(), Equals, ".")
+	iter := update.NewPathIterator("")
+	c.Assert(iter.Path(), Equals, ".")
 
-	c.Assert(pi.Next(), Equals, true)
-	c.Assert(pi.PathSoFar(), Equals, ".")
-	c.Assert(pi.Segment(), Equals, ".")
-	c.Assert(pi.CleanSegment(), Equals, ".")
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentPath(), Equals, ".")
+	c.Assert(iter.CurrentName(), Equals, ".")
+	c.Assert(iter.CurrentCleanName(), Equals, ".")
 
-	c.Assert(pi.Next(), Equals, false)
+	c.Assert(iter.Next(), Equals, false)
 }
 
 func (s *realSystemSuite) TestPathIteratorFilename(c *C) {
-	pi := update.NewPathIterator("foo")
-	c.Assert(pi.Path(), Equals, "foo")
+	iter := update.NewPathIterator("foo")
+	c.Assert(iter.Path(), Equals, "foo")
 
-	c.Assert(pi.Next(), Equals, true)
-	c.Assert(pi.PathSoFar(), Equals, "foo")
-	c.Assert(pi.Segment(), Equals, "foo")
-	c.Assert(pi.CleanSegment(), Equals, "foo")
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentPath(), Equals, "foo")
+	c.Assert(iter.CurrentName(), Equals, "foo")
+	c.Assert(iter.CurrentCleanName(), Equals, "foo")
 
-	c.Assert(pi.Next(), Equals, false)
+	c.Assert(iter.Next(), Equals, false)
 }
 
 func (s *realSystemSuite) TestPathIteratorRelative(c *C) {
-	pi := update.NewPathIterator("foo/bar")
-	c.Assert(pi.Path(), Equals, "foo/bar")
+	iter := update.NewPathIterator("foo/bar")
+	c.Assert(iter.Path(), Equals, "foo/bar")
 
-	c.Assert(pi.Next(), Equals, true)
-	c.Assert(pi.PathSoFar(), Equals, "foo/")
-	c.Assert(pi.Segment(), Equals, "foo/")
-	c.Assert(pi.CleanSegment(), Equals, "foo")
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentPath(), Equals, "foo/")
+	c.Assert(iter.CurrentName(), Equals, "foo/")
+	c.Assert(iter.CurrentCleanName(), Equals, "foo")
 
-	c.Assert(pi.Next(), Equals, true)
-	c.Assert(pi.PathSoFar(), Equals, "foo/bar")
-	c.Assert(pi.Segment(), Equals, "bar")
-	c.Assert(pi.CleanSegment(), Equals, "bar")
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "foo/")
+	c.Assert(iter.CurrentPath(), Equals, "foo/bar")
+	c.Assert(iter.CurrentName(), Equals, "bar")
+	c.Assert(iter.CurrentCleanName(), Equals, "bar")
 
-	c.Assert(pi.Next(), Equals, false)
+	c.Assert(iter.Next(), Equals, false)
 }
 
-func (s *realSystemSuite) TestPathIteratorAbsolute(c *C) {
-	pi := update.NewPathIterator("/foo/bar")
-	c.Assert(pi.Path(), Equals, "/foo/bar")
+func (s *realSystemSuite) TestPathIteratorAbsoluteClean(c *C) {
+	iter := update.NewPathIterator("/foo/bar")
+	c.Assert(iter.Path(), Equals, "/foo/bar")
 
-	c.Assert(pi.Next(), Equals, true)
-	c.Assert(pi.PathSoFar(), Equals, "/")
-	c.Assert(pi.Segment(), Equals, "/")
-	c.Assert(pi.CleanSegment(), Equals, "")
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentPath(), Equals, "/")
+	c.Assert(iter.CurrentName(), Equals, "/")
+	c.Assert(iter.CurrentCleanName(), Equals, "")
 
-	c.Assert(pi.Next(), Equals, true)
-	c.Assert(pi.PathSoFar(), Equals, "/foo/")
-	c.Assert(pi.Segment(), Equals, "foo/")
-	c.Assert(pi.CleanSegment(), Equals, "foo")
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "/")
+	c.Assert(iter.CurrentPath(), Equals, "/foo/")
+	c.Assert(iter.CurrentName(), Equals, "foo/")
+	c.Assert(iter.CurrentCleanName(), Equals, "foo")
 
-	c.Assert(pi.Next(), Equals, true)
-	c.Assert(pi.PathSoFar(), Equals, "/foo/bar")
-	c.Assert(pi.Segment(), Equals, "bar")
-	c.Assert(pi.CleanSegment(), Equals, "bar")
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "/foo/")
+	c.Assert(iter.CurrentPath(), Equals, "/foo/bar")
+	c.Assert(iter.CurrentName(), Equals, "bar")
+	c.Assert(iter.CurrentCleanName(), Equals, "bar")
 
-	c.Assert(pi.Next(), Equals, false)
+	c.Assert(iter.Next(), Equals, false)
+}
+
+func (s *realSystemSuite) TestPathIteratorAbsoluteUnclean(c *C) {
+	iter := update.NewPathIterator("/foo/bar/")
+	c.Assert(iter.Path(), Equals, "/foo/bar")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentPath(), Equals, "/")
+	c.Assert(iter.CurrentName(), Equals, "/")
+	c.Assert(iter.CurrentCleanName(), Equals, "")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "/")
+	c.Assert(iter.CurrentPath(), Equals, "/foo/")
+	c.Assert(iter.CurrentName(), Equals, "foo/")
+	c.Assert(iter.CurrentCleanName(), Equals, "foo")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "/foo/")
+	c.Assert(iter.CurrentPath(), Equals, "/foo/bar")
+	c.Assert(iter.CurrentName(), Equals, "bar")
+	c.Assert(iter.CurrentCleanName(), Equals, "bar")
+
+	c.Assert(iter.Next(), Equals, false)
 }
 
 func (s *realSystemSuite) TestPathIteratorRootDir(c *C) {
-	pi := update.NewPathIterator("/")
-	c.Assert(pi.Path(), Equals, "/")
+	iter := update.NewPathIterator("/")
+	c.Assert(iter.Path(), Equals, "/")
 
-	c.Assert(pi.Next(), Equals, true)
-	c.Assert(pi.PathSoFar(), Equals, "/")
-	c.Assert(pi.Segment(), Equals, "/")
-	c.Assert(pi.CleanSegment(), Equals, "")
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentPath(), Equals, "/")
+	c.Assert(iter.CurrentName(), Equals, "/")
+	c.Assert(iter.CurrentCleanName(), Equals, "")
 
-	c.Assert(pi.Next(), Equals, false)
+	c.Assert(iter.Next(), Equals, false)
 }
 
 func (s *realSystemSuite) TestPathIteratorUncleanPath(c *C) {
-	pi := update.NewPathIterator("///some/../junk")
-	c.Assert(pi.Path(), Equals, "/junk")
+	iter := update.NewPathIterator("///some/../junk")
+	c.Assert(iter.Path(), Equals, "/junk")
 
-	c.Assert(pi.Next(), Equals, true)
-	c.Assert(pi.PathSoFar(), Equals, "/")
-	c.Assert(pi.Segment(), Equals, "/")
-	c.Assert(pi.CleanSegment(), Equals, "")
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentPath(), Equals, "/")
+	c.Assert(iter.CurrentName(), Equals, "/")
+	c.Assert(iter.CurrentCleanName(), Equals, "")
 
-	c.Assert(pi.Next(), Equals, true)
-	c.Assert(pi.PathSoFar(), Equals, "/junk")
-	c.Assert(pi.Segment(), Equals, "junk")
-	c.Assert(pi.CleanSegment(), Equals, "junk")
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "/")
+	c.Assert(iter.CurrentPath(), Equals, "/junk")
+	c.Assert(iter.CurrentName(), Equals, "junk")
+	c.Assert(iter.CurrentCleanName(), Equals, "junk")
 
-	c.Assert(pi.Next(), Equals, false)
+	c.Assert(iter.Next(), Equals, false)
+}
+
+func (s *realSystemSuite) TestPathIteratorUnicode(c *C) {
+	iter := update.NewPathIterator("/zażółć/gęślą/jaźń")
+	c.Assert(iter.Path(), Equals, "/zażółć/gęślą/jaźń")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentPath(), Equals, "/")
+	c.Assert(iter.CurrentName(), Equals, "/")
+	c.Assert(iter.CurrentCleanName(), Equals, "")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "/")
+	c.Assert(iter.CurrentPath(), Equals, "/zażółć/")
+	c.Assert(iter.CurrentName(), Equals, "zażółć/")
+	c.Assert(iter.CurrentCleanName(), Equals, "zażółć")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "/zażółć/")
+	c.Assert(iter.CurrentPath(), Equals, "/zażółć/gęślą/")
+	c.Assert(iter.CurrentName(), Equals, "gęślą/")
+	c.Assert(iter.CurrentCleanName(), Equals, "gęślą")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "/zażółć/gęślą/")
+	c.Assert(iter.CurrentPath(), Equals, "/zażółć/gęślą/jaźń")
+	c.Assert(iter.CurrentName(), Equals, "jaźń")
+	c.Assert(iter.CurrentCleanName(), Equals, "jaźń")
+
+	c.Assert(iter.Next(), Equals, false)
 }
 
 func (s *realSystemSuite) TestPathIteratorExample(c *C) {
-	pi := update.NewPathIterator("/some/path/there")
-	for pi.Next() {
-		_ = pi.PathSoFar()
-		_ = pi.Segment()
-		_ = pi.CleanSegment()
+	iter := update.NewPathIterator("/some/path/there")
+	for iter.Next() {
+		_ = iter.CurrentBase()
+		_ = iter.CurrentPath()
+		_ = iter.CurrentName()
+		_ = iter.CurrentCleanName()
 	}
 }
