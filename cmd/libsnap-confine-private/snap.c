@@ -169,7 +169,8 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 	sc_error_forward(errorp, err);
 }
 
-void sc_snap_drop_instance_name(const char *snap_name, char *base, size_t base_len)
+void sc_snap_drop_instance_name(const char *snap_name, char *base,
+				size_t base_len)
 {
 	if (snap_name == NULL || base == NULL) {
 		die("base or snap name unset");
@@ -188,5 +189,5 @@ void sc_snap_drop_instance_name(const char *snap_name, char *base, size_t base_l
 	}
 
 	memcpy(base, snap_name, blen);
-  base[blen] = '\0';
+	base[blen] = '\0';
 }

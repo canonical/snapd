@@ -230,7 +230,20 @@ static void test_sc_snap_drop_instance_name_short_dest(void)
 {
 	if (g_test_subprocess()) {
 		char base[10] = { 0 };
-		sc_snap_drop_instance_name("foo-foo-foo-foo-foo_bar", base, sizeof base);
+		sc_snap_drop_instance_name("foo-foo-foo-foo-foo_bar", base,
+					   sizeof base);
+		g_test_fail();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+}
+
+static void test_sc_snap_drop_instance_name_short_dest2(void)
+{
+	if (g_test_subprocess()) {
+		char base[3] = { 0 };	// "foo" sans the nil byte
+		sc_snap_drop_instance_name("foo", base, sizeof base);
 		g_test_fail();
 		return;
 	}
@@ -252,7 +265,7 @@ static void test_sc_snap_drop_instance_name_no_name(void)
 
 static void test_sc_snap_drop_instance_name_basic(void)
 {
-	char name[41] = {0xff};
+	char name[41] = { 0xff };
 
 	sc_snap_drop_instance_name("foo_bar", name, sizeof name);
 	g_assert_cmpstr(name, ==, "foo");
@@ -289,4 +302,6 @@ static void __attribute__ ((constructor)) init(void)
 			test_sc_snap_drop_instance_name_no_name);
 	g_test_add_func("/snap/sc_snap_drop_instance_name/short_dest",
 			test_sc_snap_drop_instance_name_short_dest);
+	g_test_add_func("/snap/sc_snap_drop_instance_name/short_dest2",
+			test_sc_snap_drop_instance_name_short_dest2);
 }
