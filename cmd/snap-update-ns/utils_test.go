@@ -865,20 +865,14 @@ func (s *realSystemSuite) TestSecureOpenPathSymlinkedParent(c *C) {
 }
 
 func (s *realSystemSuite) TestPathIteratorEmpty(c *C) {
-	iter := update.NewPathIterator("")
-	c.Assert(iter.Path(), Equals, ".")
-
-	c.Assert(iter.Next(), Equals, true)
-	c.Assert(iter.CurrentBase(), Equals, "")
-	c.Assert(iter.CurrentPath(), Equals, ".")
-	c.Assert(iter.CurrentName(), Equals, ".")
-	c.Assert(iter.CurrentCleanName(), Equals, ".")
-
-	c.Assert(iter.Next(), Equals, false)
+	iter, err := update.NewPathIterator("")
+	c.Assert(err, ErrorMatches, `cannot iterate over unclean path ""`)
+	c.Assert(iter, IsNil)
 }
 
 func (s *realSystemSuite) TestPathIteratorFilename(c *C) {
-	iter := update.NewPathIterator("foo")
+	iter, err := update.NewPathIterator("foo")
+	c.Assert(err, IsNil)
 	c.Assert(iter.Path(), Equals, "foo")
 
 	c.Assert(iter.Next(), Equals, true)
@@ -891,7 +885,8 @@ func (s *realSystemSuite) TestPathIteratorFilename(c *C) {
 }
 
 func (s *realSystemSuite) TestPathIteratorRelative(c *C) {
-	iter := update.NewPathIterator("foo/bar")
+	iter, err := update.NewPathIterator("foo/bar")
+	c.Assert(err, IsNil)
 	c.Assert(iter.Path(), Equals, "foo/bar")
 
 	c.Assert(iter.Next(), Equals, true)
@@ -910,7 +905,8 @@ func (s *realSystemSuite) TestPathIteratorRelative(c *C) {
 }
 
 func (s *realSystemSuite) TestPathIteratorAbsoluteClean(c *C) {
-	iter := update.NewPathIterator("/foo/bar")
+	iter, err := update.NewPathIterator("/foo/bar")
+	c.Assert(err, IsNil)
 	c.Assert(iter.Path(), Equals, "/foo/bar")
 
 	c.Assert(iter.Next(), Equals, true)
@@ -935,32 +931,14 @@ func (s *realSystemSuite) TestPathIteratorAbsoluteClean(c *C) {
 }
 
 func (s *realSystemSuite) TestPathIteratorAbsoluteUnclean(c *C) {
-	iter := update.NewPathIterator("/foo/bar/")
-	c.Assert(iter.Path(), Equals, "/foo/bar")
-
-	c.Assert(iter.Next(), Equals, true)
-	c.Assert(iter.CurrentBase(), Equals, "")
-	c.Assert(iter.CurrentPath(), Equals, "/")
-	c.Assert(iter.CurrentName(), Equals, "/")
-	c.Assert(iter.CurrentCleanName(), Equals, "")
-
-	c.Assert(iter.Next(), Equals, true)
-	c.Assert(iter.CurrentBase(), Equals, "/")
-	c.Assert(iter.CurrentPath(), Equals, "/foo/")
-	c.Assert(iter.CurrentName(), Equals, "foo/")
-	c.Assert(iter.CurrentCleanName(), Equals, "foo")
-
-	c.Assert(iter.Next(), Equals, true)
-	c.Assert(iter.CurrentBase(), Equals, "/foo/")
-	c.Assert(iter.CurrentPath(), Equals, "/foo/bar")
-	c.Assert(iter.CurrentName(), Equals, "bar")
-	c.Assert(iter.CurrentCleanName(), Equals, "bar")
-
-	c.Assert(iter.Next(), Equals, false)
+	iter, err := update.NewPathIterator("/foo/bar/")
+	c.Assert(err, ErrorMatches, `cannot iterate over unclean path "/foo/bar/"`)
+	c.Assert(iter, IsNil)
 }
 
 func (s *realSystemSuite) TestPathIteratorRootDir(c *C) {
-	iter := update.NewPathIterator("/")
+	iter, err := update.NewPathIterator("/")
+	c.Assert(err, IsNil)
 	c.Assert(iter.Path(), Equals, "/")
 
 	c.Assert(iter.Next(), Equals, true)
@@ -973,26 +951,14 @@ func (s *realSystemSuite) TestPathIteratorRootDir(c *C) {
 }
 
 func (s *realSystemSuite) TestPathIteratorUncleanPath(c *C) {
-	iter := update.NewPathIterator("///some/../junk")
-	c.Assert(iter.Path(), Equals, "/junk")
-
-	c.Assert(iter.Next(), Equals, true)
-	c.Assert(iter.CurrentBase(), Equals, "")
-	c.Assert(iter.CurrentPath(), Equals, "/")
-	c.Assert(iter.CurrentName(), Equals, "/")
-	c.Assert(iter.CurrentCleanName(), Equals, "")
-
-	c.Assert(iter.Next(), Equals, true)
-	c.Assert(iter.CurrentBase(), Equals, "/")
-	c.Assert(iter.CurrentPath(), Equals, "/junk")
-	c.Assert(iter.CurrentName(), Equals, "junk")
-	c.Assert(iter.CurrentCleanName(), Equals, "junk")
-
-	c.Assert(iter.Next(), Equals, false)
+	iter, err := update.NewPathIterator("///some/../junk")
+	c.Assert(err, ErrorMatches, `cannot iterate over unclean path ".*"`)
+	c.Assert(iter, IsNil)
 }
 
 func (s *realSystemSuite) TestPathIteratorUnicode(c *C) {
-	iter := update.NewPathIterator("/zażółć/gęślą/jaźń")
+	iter, err := update.NewPathIterator("/zażółć/gęślą/jaźń")
+	c.Assert(err, IsNil)
 	c.Assert(iter.Path(), Equals, "/zażółć/gęślą/jaźń")
 
 	c.Assert(iter.Next(), Equals, true)
@@ -1023,7 +989,8 @@ func (s *realSystemSuite) TestPathIteratorUnicode(c *C) {
 }
 
 func (s *realSystemSuite) TestPathIteratorExample(c *C) {
-	iter := update.NewPathIterator("/some/path/there")
+	iter, err := update.NewPathIterator("/some/path/there")
+	c.Assert(err, IsNil)
 	for iter.Next() {
 		_ = iter.CurrentBase()
 		_ = iter.CurrentPath()
