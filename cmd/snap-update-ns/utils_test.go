@@ -791,15 +791,15 @@ func (s *realSystemSuite) TestSecureOpenPathUncleanPath(c *C) {
 
 	fd, err := s.sec.OpenPath(base + "//test")
 	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "cannot split unclean path .*")
+	c.Check(err, ErrorMatches, `cannot open path: cannot iterate over unclean path ".*//test"`)
 
 	fd, err = s.sec.OpenPath(base + "/./test")
 	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "cannot split unclean path .*")
+	c.Check(err, ErrorMatches, `cannot open path: cannot iterate over unclean path ".*/./test"`)
 
 	fd, err = s.sec.OpenPath(base + "/test/../test")
 	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "cannot split unclean path .*")
+	c.Check(err, ErrorMatches, `cannot open path: cannot iterate over unclean path ".*/test/../test"`)
 }
 
 func (s *realSystemSuite) TestSecureOpenPathFile(c *C) {
