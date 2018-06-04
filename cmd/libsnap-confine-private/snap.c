@@ -183,9 +183,10 @@ void sc_snap_drop_instance_name(const char *snap_name, char *base, size_t base_l
 		blen = (pos - snap_name);
 	}
 
-	if (blen > base_len) {
+	if (blen >= base_len) {
 		die("base buffer too small");
 	}
 
 	memcpy(base, snap_name, blen);
+  base[blen] = '\0';
 }
