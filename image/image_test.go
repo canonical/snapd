@@ -732,7 +732,7 @@ func (s *imageSuite) TestBootstrapWithBase(c *C) {
 	c.Check(seed.Snaps, HasLen, 5)
 
 	// check the files are in place
-	for i, name := range []string{"core18_18.snap", "pc-kernel", "pc", "snapd", "other-base"} {
+	for i, name := range []string{"snapd", "core18_18.snap", "pc-kernel", "pc", "other-base"} {
 		unasserted := false
 		info := s.storeSnapInfo[name]
 		if info == nil {

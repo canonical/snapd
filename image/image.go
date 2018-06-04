@@ -317,14 +317,14 @@ func bootstrapToRootDir(tsto *ToolingStore, model *asserts.Model, opts *Options,
 	}
 
 	snaps := []string{}
+	// always add an implicit snapd first when a base is used
+	if model.Base() != "" {
+		snaps = append(snaps, "snapd")
+	}
 	// core/base,kernel,gadget first
 	snaps = append(snaps, local.PreferLocal(baseName))
 	snaps = append(snaps, local.PreferLocal(model.Kernel()))
 	snaps = append(snaps, local.PreferLocal(model.Gadget()))
-	// always add an implicit snapd when a base is used
-	if model.Base() != "" {
-		snaps = append(snaps, "snapd")
-	}
 	// then required and the user requested stuff
 	for _, snapName := range model.RequiredSnaps() {
 		snaps = append(snaps, local.PreferLocal(snapName))
