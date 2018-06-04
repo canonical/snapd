@@ -690,8 +690,12 @@ type PathIterator struct {
 
 // NewPathIterator returns an iterator for traversing the given path.
 // The path is passed through filepath.Clean automatically.
-func NewPathIterator(path string) *PathIterator {
-	return &PathIterator{path: filepath.Clean(path)}
+func NewPathIterator(path string) (*PathIterator, error) {
+	cleanPath := filepath.Clean(path)
+	if path != cleanPath {
+		return nil, fmt.Errorf("cannot iterate over unclean path %q", path)
+	}
+	return &PathIterator{path: cleanPath}, nil
 }
 
 // Path returns the path being traversed.
