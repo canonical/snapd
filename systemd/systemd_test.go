@@ -33,7 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/testutil"
 
 	. "github.com/snapcore/snapd/systemd"
