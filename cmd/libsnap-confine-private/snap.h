@@ -62,6 +62,7 @@ bool sc_is_hook_security_tag(const char *security_tag);
 /**
  * Extract the base of snap name, discarding any assigned local key.
  **/
-void sc_snap_drop_instance_name(const char *snap_name, char *base, size_t base_len);
+void sc_snap_drop_instance_name(const char *snap_name, char *base,
+				size_t base_len);
 
 #endif
