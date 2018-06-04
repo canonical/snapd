@@ -135,19 +135,24 @@ func listSnaps(names []string, format string, all bool) error {
 	case "":
 		return outputSnapsDefault(w, snaps)
 	default:
-		return outputSnapsWithFormat(Stdout, snaps, format)
+		return outputSnapsWithFormat(w, snaps, format)
 	}
 }
 
-func clientSnapFields() []string {
-	v := reflect.ValueOf(client.Snap{})
-	n := v.Type().NumField()
-	fields := make([]string, n)
+type fieldDesc struct {
+	name string
+	help string
+}
+
+func clientSnapFields() []fieldDesc {
+	v := reflect.TypeOf(client.Snap{})
+	n := v.NumField()
+	fields := make([]fieldDesc, n)
 	for i := 0; i < n; i++ {
-		fields[i] = v.Type().Field(i).Name
+		fields[i].name = v.Field(i).Name
+		fields[i].help = v.Field(i).Tag.Get("help")
 	}
 
-	sort.Strings(fields)
 	return fields
 }
 
@@ -159,7 +164,11 @@ Use --format="{{.Name}} {{.Version}}" to get started.
 All elements available for snaps are:
 `)
 	for _, fld := range clientSnapFields() {
-		fmt.Fprintf(w, " - %s\n", fld)
+		if fld.help != "" {
+			fmt.Fprintf(w, " - %s:\t%s\n", fld.name, fld.help)
+		} else {
+			fmt.Fprintf(w, " - %s\n", fld.name)
+		}
 	}
 
 	return nil
@@ -172,14 +181,14 @@ func outputSnapsWithFormat(w io.Writer, snaps []*client.Snap, format string) err
 
 	t, err := template.New("list-output").Parse(format)
 	if err != nil {
-		return fmt.Errorf("cannot use given template: %q", err)
+		return fmt.Errorf("cannot use given template: %s", err)
 	}
 
 	for _, snap := range snaps {
 		if err := t.Execute(w, snap); err != nil {
 			return err
 		}
-		fmt.Fprintf(w, "\n")
+		fmt.Fprint(w, "\n")
 	}
 	return nil
 }
