@@ -22,8 +22,8 @@ package selftest_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/selftest"
-	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
 )
 
