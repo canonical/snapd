@@ -252,22 +252,26 @@ static void test_sc_snap_drop_instance_name_no_name(void)
 
 static void test_sc_snap_drop_instance_name_basic(void)
 {
-	char name[41] = { 0 };
+	char name[41] = {0xff};
 
 	sc_snap_drop_instance_name("foo_bar", name, sizeof name);
 	g_assert_cmpstr(name, ==, "foo");
 
-	memset(name, 0, sizeof name);
+	memset(name, 0xff, sizeof name);
 	sc_snap_drop_instance_name("foo-bar_bar", name, sizeof name);
 	g_assert_cmpstr(name, ==, "foo-bar");
 
-	memset(name, 0, sizeof name);
+	memset(name, 0xff, sizeof name);
 	sc_snap_drop_instance_name("foo-bar", name, sizeof name);
 	g_assert_cmpstr(name, ==, "foo-bar");
 
-	memset(name, 0, sizeof name);
+	memset(name, 0xff, sizeof name);
 	sc_snap_drop_instance_name("_baz", name, sizeof name);
 	g_assert_cmpstr(name, ==, "");
+
+	memset(name, 0xff, sizeof name);
+	sc_snap_drop_instance_name("foo", name, sizeof name);
+	g_assert_cmpstr(name, ==, "foo");
 }
 
 static void __attribute__ ((constructor)) init(void)
