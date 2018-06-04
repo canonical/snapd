@@ -4,6 +4,9 @@ summary: Check that interfaces are listed after reboot the machine
 # not support our reboot logic
 backends: [-autopkgtest]
 
+# Start early as it takes a long time.
+priority: 100
+
 details: |
     This test checks if the interfaces are listed after the machine
     is rebooted. The test is also checking the interfaces after a 
