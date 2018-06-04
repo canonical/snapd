@@ -9,4 +9,4 @@ restore: |
     userdel hightest
 
 execute: |
-    sudo -E -u hightest "$(which go)" run test.go
+    sudo -E -u hightest "$(command -v go)" run test.go
