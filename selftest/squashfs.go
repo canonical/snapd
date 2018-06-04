@@ -32,7 +32,7 @@ import (
 	"encoding/base64"
 
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/osutil/squashfs"
 )
 
 /* This image was created using:
