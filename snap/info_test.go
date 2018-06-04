@@ -1055,3 +1055,35 @@ func (s *infoSuite) TestNickname(c *C) {
 	c.Check(snap.DropNick("system"), Equals, "core")
 	c.Check(snap.DropNick("foo"), Equals, "foo")
 }
+
+func (s *infoSuite) TestLocalName(c *C) {
+	c.Check(snap.StoreName("foo_bar"), Equals, "foo")
+	c.Check(snap.StoreName("foo"), Equals, "foo")
+
+	store, local := snap.SplitName("foo_bar")
+	c.Check(store, Equals, "foo")
+	c.Check(local, Equals, "bar")
+
+	store, local = snap.SplitName("foo")
+	c.Check(store, Equals, "foo")
+	c.Check(local, Equals, "")
+
+	c.Check(snap.LocalName("foo", "bar"), Equals, "foo_bar")
+	c.Check(snap.LocalName("foo", ""), Equals, "foo")
+}
+
+func (s *infoSuite) TestLocalNameWithSideInfo(c *C) {
+	info := &snap.Info{}
+
+	info.SideInfo = snap.SideInfo{
+		RealName: "snap-name",
+		LocalKey: "foo",
+	}
+
+	c.Check(info.Name(), Equals, "snap-name_foo")
+	c.Check(info.StoreName(), Equals, "snap-name")
+
+	info.LocalKey = ""
+	c.Check(info.Name(), Equals, "snap-name")
+	c.Check(info.StoreName(), Equals, "snap-name")
+}
