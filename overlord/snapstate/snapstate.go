@@ -299,6 +299,9 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 // ConfigureSnap returns a set of tasks to configure snapName as done during installation/refresh.
 func ConfigureSnap(st *state.State, snapName string, confFlags int) *state.TaskSet {
+	// FIXME: once https://github.com/snapcore/snapd/pull/5217 is
+	//        in we can check the model.Base() here
+	//
 	// This is slightly ugly, ideally we would check the type instead
 	// of hardcoding the name here. Unfortunately we do not have the
 	// type until we actually run the change.
@@ -622,6 +625,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		SnapPath: path,
 		Channel:  channel,
 		Flags:    flags.ForSnapSetup(),
+		Type:     info.Type,
 	}
 
 	return doInstall(st, &snapst, snapsup, instFlags)
@@ -671,6 +675,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		Flags:        flags.ForSnapSetup(),
 		DownloadInfo: &info.DownloadInfo,
 		SideInfo:     &info.SideInfo,
+		Type:         info.Type,
 	}
 
 	return doInstall(st, &snapst, snapsup, needsMaybeCore(info.Type))
@@ -828,6 +833,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			Flags:        flags.ForSnapSetup(),
 			DownloadInfo: &update.DownloadInfo,
 			SideInfo:     &update.SideInfo,
+			Type:         update.Type,
 		}
 
 		ts, err := doInstall(st, snapst, snapsup, needsMaybeCore(update.Type))
@@ -1625,6 +1631,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			Channel:      oldSnapst.Channel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
+			Type:         newInfo.Type,
 		}, maybeCore)
 		if err != nil {
 			return nil, err
