@@ -139,7 +139,7 @@ func listSnaps(names []string, format string, all bool) error {
 	}
 }
 
-func clientSnapFields() string {
+func clientSnapFields() []string {
 	v := reflect.ValueOf(client.Snap{})
 	n := v.Type().NumField()
 	fields := make([]string, n)
@@ -147,7 +147,8 @@ func clientSnapFields() string {
 		fields[i] = v.Type().Field(i).Name
 	}
 
-	return strings.Join(fields, ",")
+	sort.Strings(fields)
+	return fields
 }
 
 func describeListFormat(w io.Writer) error {
@@ -156,8 +157,10 @@ func describeListFormat(w io.Writer) error {
 Use --format="{{.Name}} {{.Version}}" to get started.
 
 All elements available for snaps are:
-%s
-`, clientSnapFields())
+`)
+	for _, fld := range clientSnapFields() {
+		fmt.Fprintf(w, " - %s\n", fld)
+	}
 
 	return nil
 }
