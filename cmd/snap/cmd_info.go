@@ -65,7 +65,7 @@ func init() {
 		func() flags.Commander {
 			return &infoCmd{}
 		}, timeDescs.also(map[string]string{
-			"verbose": i18n.G("Include a verbose list of a snap's notes (otherwise, summarise notes)"),
+			"verbose": i18n.G("Include more details on the snap (expanded notes, base, etc.)"),
 		}), nil)
 }
 
