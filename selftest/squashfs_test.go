@@ -31,6 +31,7 @@ func (s *selftestSuite) TestTrySquasfsMountHappy(c *C) {
 	restore := squashfs.MockUseFuse(false)
 	defer restore()
 
+	// we create a canary.txt with the same prefix as the real one
 	mockMount := testutil.MockCommand(c, "mount", "echo 'This file is used to check that snapd can read a squashfs image.' > $4/canary.txt")
 	defer mockMount.Restore()
 
