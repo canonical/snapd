@@ -91,8 +91,7 @@ func (sec *Secure) CheckTrespassing(dirFd int, dirName string, name string) erro
 func (sec *Secure) OpenPath(path string) (int, error) {
 	iter, err := NewPathIterator(path)
 	if err != nil {
-		// TODO: Reword the error and adjust the tests.
-		return -1, fmt.Errorf("cannot split unclean path %q", path)
+		return -1, fmt.Errorf("cannot open path: %s", err)
 	}
 	if !filepath.IsAbs(iter.Path()) {
 		return -1, fmt.Errorf("path %v is not absolute", iter.Path())
