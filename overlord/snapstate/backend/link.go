@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/wrappers"
 )
@@ -68,7 +69,7 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 	}
 
 	// XXX/TODO: this needs to be a task with proper undo and tests!
-	if model != nil {
+	if model != nil && !release.OnClassic {
 		bootBase := "core"
 		if model.Base() != "" {
 			bootBase = model.Base()

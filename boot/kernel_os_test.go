@@ -156,7 +156,7 @@ func (s *kernelOSSuite) TestSetNextBootOnClassic(c *C) {
 	// Create a fake OS snap that we try to update
 	snapInfo := snaptest.MockSnap(c, "name: os\ntype: os", &snap.SideInfo{Revision: snap.R(42)})
 	err := boot.SetNextBoot(snapInfo)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, "cannot set next boot on classic systems")
 
 	c.Assert(s.bootloader.BootVars, HasLen, 0)
 }

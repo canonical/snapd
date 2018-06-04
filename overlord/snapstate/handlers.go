@@ -584,8 +584,12 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	model, err := Model(st)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
 	snapst.Active = true
-	model, _ := Model(st)
 	err = m.backend.LinkSnap(oldInfo, model)
 	if err != nil {
 		return err
