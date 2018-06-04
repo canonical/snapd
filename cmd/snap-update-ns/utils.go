@@ -399,6 +399,9 @@ func (sec *Secure) MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, g
 	if strings.HasSuffix(path, "/") {
 		return fmt.Errorf("cannot create non-file path: %q", path)
 	}
+	if oldname == "" {
+		return fmt.Errorf("cannot create symlink with empty target: %q", path)
+	}
 
 	base, name := filepath.Split(path)
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
