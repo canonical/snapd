@@ -31,7 +31,7 @@ func (s *selftestSuite) TestTrySquasfsMountHappy(c *C) {
 	restore := squashfs.MockUseFuse(false)
 	defer restore()
 
-	mockMount := testutil.MockCommand(c, "mount", "touch $4/canary.txt")
+	mockMount := testutil.MockCommand(c, "mount", "echo 'This file is used to check that snapd can read a squashfs image.' > $4/canary.txt")
 	defer mockMount.Restore()
 
 	mockUmount := testutil.MockCommand(c, "umount", "")
@@ -74,4 +74,21 @@ func (s *selftestSuite) TestTrySquasfsMountNotHappy(c *C) {
 	c.Check(mockMount.Calls(), DeepEquals, [][]string{
 		{"mount", "-t", "squashfs", squashfsFile, mountPoint},
 	})
+}
+
+func (s *selftestSuite) TestTrySquasfsMountWrongContent(c *C) {
+	restore := squashfs.MockUseFuse(false)
+	defer restore()
+
+	mockMount := testutil.MockCommand(c, "mount", "echo 'wrong content' > $4/canary.txt")
+	defer mockMount.Restore()
+
+	mockUmount := testutil.MockCommand(c, "umount", "")
+	defer mockUmount.Restore()
+
+	err := selftest.TrySquashfsMount()
+	c.Check(err, ErrorMatches, `unexpected squashfs canary content: "wrong content\\n"`)
+
+	c.Check(mockMount.Calls(), HasLen, 1)
+	c.Check(mockUmount.Calls(), HasLen, 1)
 }
