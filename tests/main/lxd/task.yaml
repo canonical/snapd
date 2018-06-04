@@ -14,6 +14,9 @@ backends: [-autopkgtest]
 # lxd downloads can be quite slow
 kill-timeout: 25m
 
+# Start before anything else as it can take a really long time.
+priority: 1000
+
 restore: |
     if  [[ $(ls -1 "$GOHOME"/snapd_*.deb | wc -l || echo 0) -eq 0 ]]; then
         exit
@@ -58,11 +61,6 @@ execute: |
 
     echo "Ensure we can run things inside"
     lxd.lxc exec my-ubuntu echo hello | MATCH hello
-
-    echo "Ensure we can get network"
-    lxd.lxc network create testbr0
-    lxd.lxc network attach testbr0 my-ubuntu eth0
-    lxd.lxc exec my-ubuntu dhclient eth0
 
     echo "Cleanup container"
     lxd.lxc exec my-ubuntu -- apt autoremove --purge -y snapd ubuntu-core-launcher
