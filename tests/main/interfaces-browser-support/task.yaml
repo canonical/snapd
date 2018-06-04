@@ -39,24 +39,25 @@ prepare: |
     rm -rf browser-support-consumer
 
 restore: |
-    rm -f *.error /var/tmp/test
+    rm -f ./*.error /var/tmp/test
     for file in $OWNED_FILES $READABLE_FILES $READABLE_WITH_SANDBOX_FILES; do
-        rm -f $file
+        rm -f "$file"
     done
 
-    for dir in $(cat created_dirs); do
-        rm -rf $dir
-    done
+    while read -r dir; do
+        rm -rf "$dir"
+    done < created_dirs
     rm -f created_dirs
 
 execute: |
+    #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
 
     if [ "$ALLOW_SANDBOX" = "false" ]; then
        echo "If allow-sandbox is false then the plug is connected by default"
     else
        echo "If allow-sandbox is true then the plug is not connected by default"
-       snap interfaces -i browser-support | MATCH "\- +browser-support-consumer:browser-support"
+       snap interfaces -i browser-support | MATCH '\- +browser-support-consumer:browser-support'
 
        echo "Do connect it manually"
        snap connect browser-support-consumer:browser-support
@@ -76,9 +77,9 @@ execute: |
 
     echo "And the snap is able to access readable files"
     for readable_file in $READABLE_FILES; do
-        parent_dir=$(dirname $readable_file)
-        if [ ! -d $parent_dir ]; then
-            if mkdir -p $parent_dir; then
+        parent_dir=$(dirname "$readable_file")
+        if [ ! -d "$parent_dir" ]; then
+            if mkdir -p "$parent_dir"; then
                 echo "$parent_dir" >> created_dirs
             else
                 echo "$parent_dir couldn't be created, write-only partition?"
@@ -90,9 +91,9 @@ execute: |
     done
 
     for readable_file in $READABLE_WITH_SANDBOX_FILES; do
-        parent_dir=$(dirname $readable_file)
-        if [ ! -d $parent_dir ]; then
-            mkdir -p $parent_dir
+        parent_dir=$(dirname "$readable_file")
+        if [ ! -d "$parent_dir" ]; then
+            mkdir -p "$parent_dir"
             echo "$parent_dir" >> created_dirs
         fi
         echo "test" > "$readable_file"
