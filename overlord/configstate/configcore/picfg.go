@@ -54,6 +54,14 @@ var piConfigKeys = map[string]bool{
 	"hdmi_force_hotplug":       true,
 }
 
+func init() {
+	// add supported config keys
+	for k := range piConfigKeys {
+		s := fmt.Sprintf("core.pi-config.%s", strings.Replace(k, "_", "-", -1))
+		supportedConfigurations[s] = true
+	}
+}
+
 func updatePiConfig(path string, config map[string]string) error {
 	f, err := os.Open(path)
 	if err != nil {

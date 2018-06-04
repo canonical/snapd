@@ -1,8 +1,9 @@
 summary: Check error handling in symlinks to /usr/bin/snap
+
 restore: |
-    . $TESTSLIB/dirs.sh
+    . "$TESTSLIB/dirs.sh"
     rm -f $SNAP_MOUNT_DIR/bin/xxx
-    rmdir $SNAP_MOUNT_DIR/bin
+
 execute: |
     . $TESTSLIB/dirs.sh
     echo Setting up incorrect symlink for snap run

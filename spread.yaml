@@ -42,7 +42,8 @@ environment:
     NEW_CORE_CHANNEL: "$(HOST: echo $SPREAD_NEW_CORE_CHANNEL)"
     SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
     PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools
-    SKIP_REMOVE_SNAPS: "$(HOST: echo ${SKIP_REMOVE_SNAPS:-})"
+    # always skip removing the rsync snap
+    SKIP_REMOVE_SNAPS: "$(HOST: echo ${SPREAD_SKIP_REMOVE_SNAPS:-}) test-snapd-rsync"
 
 backends:
     google:
@@ -74,11 +75,12 @@ backends:
             - fedora-27-64:
                 image: fedora-27-64-selinux-permissive
                 workers: 4
-
-            - opensuse-42.2-64:
-                image: opensuse-leap-42-2
+                manual: true
+            - fedora-28-64:
+                image: fedora-28-64-selinux-permissive
                 workers: 4
                 manual: true
+
             - opensuse-42.3-64:
                 image: opensuse-cloud/opensuse-leap-42-3-v20180116
                 workers: 4
@@ -530,7 +532,9 @@ suites:
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
-            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+            #shellcheck source=tests/lib/systems.sh
+            . "$TESTSLIB"/systems.sh
+            if is_core_system; then
                 prepare_all_snap
             else
                 prepare_classic
@@ -541,7 +545,9 @@ suites:
         restore: |
             #shellcheck source=tests/lib/reset.sh
             "$TESTSLIB"/reset.sh
-            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
+            #shellcheck source=tests/lib/systems.sh
+            . "$TESTSLIB"/systems.sh
+            if is_classic_system; then
                 #shellcheck source=tests/lib/pkgdb.sh
                 . "$TESTSLIB"/pkgdb.sh
                 distro_purge_package snapd
@@ -561,13 +567,13 @@ suites:
         manual: true
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
-            . $TESTSLIB/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu genisoimage sshpass
             snap install --classic --beta ubuntu-image
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
-            . $TESTSLIB/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass
             snap remove ubuntu-image
 

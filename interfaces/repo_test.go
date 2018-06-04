@@ -1776,7 +1776,7 @@ func contentPolicyCheck(plug *ConnectedPlug, slot *ConnectedSlot) (bool, error) 
 	return plug.Snap().PublisherID == slot.Snap().PublisherID, nil
 }
 
-func contentAutoConnect(plug *Plug, slot *Slot) bool {
+func contentAutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
 	return plug.Attrs["content"] == slot.Attrs["content"]
 }
 

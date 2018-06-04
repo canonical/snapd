@@ -70,6 +70,7 @@ type snapmgrTestSuite struct {
 
 	user  *auth.UserState
 	user2 *auth.UserState
+	user3 *auth.UserState
 }
 
 func (s *snapmgrTestSuite) settle(c *C) {
@@ -142,6 +143,9 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.user, err = auth.NewUser(s.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	c.Assert(err, IsNil)
 	s.user2, err = auth.NewUser(s.state, "username2", "email2@test.com", "macaroon2", []string{"discharge2"})
+	c.Assert(err, IsNil)
+	// 3 has no store auth
+	s.user3, err = auth.NewUser(s.state, "username3", "email2@test.com", "", nil)
 	c.Assert(err, IsNil)
 
 	s.state.Set("seed-time", time.Now())
@@ -358,7 +362,6 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
-		"reconnect",
 		"run-hook[post-refresh]",
 		"start-snap-services")
 
@@ -551,7 +554,6 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
-		"reconnect",
 		"start-snap-services",
 		"run-hook[configure]",
 	})
@@ -1015,7 +1017,6 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
-		"reconnect",
 		"start-snap-services",
 		"run-hook[configure]",
 	})
@@ -2168,7 +2169,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[15]
+	task = ts.Tasks()[14]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap" snap if present`)
 
@@ -2495,11 +2496,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 		"services-snap": "macaroon2",
 	}
 
-	type snapIDuserID struct {
-		snapID string
-		userID int
-	}
-	seen := make(map[snapIDuserID]bool)
+	seen := make(map[string]int)
 	ir := 0
 	di := 0
 	for _, op := range s.fakeBackend.ops {
@@ -2513,7 +2510,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 			})
 		case "storesvc-snap-action:action":
 			snapID := op.action.SnapID
-			seen[snapIDuserID{snapID: snapID, userID: op.userID}] = true
+			seen[snapID] = op.userID
 		case "storesvc-download":
 			snapName := op.name
 			c.Check(s.fakeStore.downloads[di], DeepEquals, fakeDownload{
@@ -2523,13 +2520,12 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 			di++
 		}
 	}
-	c.Check(ir, Equals, 3)
+	c.Check(ir, Equals, 2)
 	// we check all snaps with each user
-	c.Check(seen, DeepEquals, map[snapIDuserID]bool{
-		{snapID: "core-snap-id", userID: 0}:     true,
-		{snapID: "some-snap-id", userID: 1}:     true,
-		{snapID: "services-snap-id", userID: 2}: true,
-	})
+	c.Check(seen["some-snap-id"], Equals, 1)
+	c.Check(seen["services-snap-id"], Equals, 2)
+	// coalesced with one of the others
+	c.Check(seen["core-snap-id"] > 0, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
@@ -2635,6 +2631,92 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 	c.Check(coreState.UserID, Equals, 2)
 	c.Check(coreState.Current, DeepEquals, snap.R(11))
 
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThrough(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
+		},
+		Current:  snap.R(5),
+		SnapType: "app",
+		UserID:   1,
+	})
+	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "services-snap", Revision: snap.R(2), SnapID: "services-snap-id"},
+		},
+		Current:  snap.R(2),
+		SnapType: "app",
+		UserID:   3,
+	})
+
+	chg := s.state.NewChange("refresh", "refresh all snaps")
+	// no user is passed to use for UpdateMany
+	updated, tts, err := snapstate.UpdateMany(context.TODO(), s.state, nil, 0)
+	c.Assert(err, IsNil)
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+	c.Check(updated, HasLen, 3)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Err(), IsNil)
+
+	macaroonMap := map[string]string{
+		"core":          "",
+		"some-snap":     "macaroon",
+		"services-snap": "",
+	}
+
+	seen := make(map[string]int)
+	ir := 0
+	di := 0
+	for _, op := range s.fakeBackend.ops {
+		switch op.op {
+		case "storesvc-snap-action":
+			ir++
+			c.Check(op.curSnaps, DeepEquals, []store.CurrentSnap{
+				{Name: "core", SnapID: "core-snap-id", Revision: snap.R(1), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1)},
+				{Name: "services-snap", SnapID: "services-snap-id", Revision: snap.R(2), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 2)},
+				{Name: "some-snap", SnapID: "some-snap-id", Revision: snap.R(5), RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 5)},
+			})
+		case "storesvc-snap-action:action":
+			snapID := op.action.SnapID
+			seen[snapID] = op.userID
+		case "storesvc-download":
+			snapName := op.name
+			c.Check(s.fakeStore.downloads[di], DeepEquals, fakeDownload{
+				macaroon: macaroonMap[snapName],
+				name:     snapName,
+			}, Commentf(snapName))
+			di++
+		}
+	}
+	c.Check(ir, Equals, 1)
+	// we check all snaps with each user
+	c.Check(seen["some-snap-id"], Equals, 1)
+	// coalesced with request for 1
+	c.Check(seen["services-snap-id"], Equals, 1)
+	c.Check(seen["core-snap-id"], Equals, 1)
 }
 
 func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
@@ -3982,7 +4064,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 19
+			j += 18
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -6055,7 +6137,6 @@ link-snap: Error
 auto-connect: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
-reconnect: Hold
 run-hook: Hold
 start-snap-services: Hold
 cleanup: Hold
@@ -6072,7 +6153,6 @@ link-snap: Error
 auto-connect: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
-reconnect: Hold
 run-hook: Hold
 start-snap-services: Hold
 cleanup: Hold
@@ -6600,6 +6680,33 @@ func (s *snapmgrTestSuite) TestDefaultRefreshScheduleParsing(c *C) {
 	l, err := timeutil.ParseSchedule(snapstate.DefaultRefreshSchedule)
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
+}
+
+func (s *snapmgrTestSuite) TestGuardCoreSetupProfilesPhase2Basics(c *C) {
+	r := release.MockOnClassic(true)
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("setup-profiles", "...")
+
+	// not core snap
+	proceed, err := snapstate.GuardCoreSetupProfilesPhase2(task, nil, &snap.Info{Type: snap.TypeApp})
+	c.Check(err, IsNil)
+	c.Check(proceed, Equals, false)
+
+	// core snap, not restarting
+	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, nil, &snap.Info{Type: snap.TypeOS})
+	c.Check(err, IsNil)
+	c.Check(proceed, Equals, true)
+
+	// core snap, restarting ... wait
+	state.MockRestarting(st, state.RestartDaemon)
+	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, nil, &snap.Info{Type: snap.TypeOS})
+	c.Check(err, FitsTypeOf, &state.Retry{})
+	c.Check(proceed, Equals, false)
 }
 
 type snapmgrQuerySuite struct {
@@ -7495,6 +7602,23 @@ func (s *snapmgrTestSuite) TestSeqTotalABAFailure(c *C) {
 	// and the end result is not nice, and we want to move cleanup to a
 	// separate handler & status that will cope with this better (so trash
 	// gets nuked after all tasks succeeded).
+}
+
+func (s *snapmgrTestSuite) TestSeqRetainConf(c *C) {
+	revseq := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+
+	for i := 2; i <= 10; i++ {
+		// wot, me, hacky?
+		s.TearDownTest(c)
+		s.SetUpTest(c)
+		s.state.Lock()
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", "refresh.retain", i)
+		tr.Commit()
+		s.state.Unlock()
+
+		s.testUpdateSequence(c, &opSeqOpts{before: revseq[:9], current: 9, via: 10, after: revseq[10-i:]})
+	}
 }
 
 func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
