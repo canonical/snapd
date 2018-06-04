@@ -160,7 +160,7 @@ func (iface *waylandInterface) UDevPermanentSlot(spec *udev.Specification, slot 
 	return nil
 }
 
-func (iface *waylandInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *waylandInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

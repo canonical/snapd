@@ -30,12 +30,14 @@ NO_FAIL = os.getenv('NO_FAIL', None)
 D = os.getenv('D', None)
 # set to non-empty to enable verbose logging
 V = os.getenv('V', None)
-# file with list of test file that must successfully validate, one file per line
+# file with list of test file that must successfully validate, one file per
+# line
 MUST_PASS = os.getenv('MUST_PASS', None)
 
 # names of sections
 SECTIONS = ['prepare', 'prepare-each', 'restore', 'restore-each',
             'debug', 'debug-each', 'execute', 'repack']
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='spread shellcheck helper')
@@ -46,7 +48,8 @@ def parse_arguments():
     parser.add_argument('-v', '--verbose', action='store_true',
                         default=False, help='verbose logging')
     parser.add_argument('--must-pass', default=None,
-                        help='file with list of files that are required to be valid (regardless of --no-errors flag)')
+                        help=('file with list of files that are required '
+                              'to be valid (regardless of --no-errors flag)'))
     parser.add_argument('paths', nargs='+', help='paths to check')
     return parser.parse_args()
 
@@ -82,8 +85,11 @@ class ShellcheckFailures(Exception):
     def __len__(self):
         return len(self.failures)
 
-    def contains(self, other):
-        return len(self.failures.intersection(other)) > 0
+    def intersection(self, other):
+        return self.failures.intersection(other)
+
+    def __iter__(self):
+        return iter(self.failures)
 
 
 def checksection(data):
@@ -112,7 +118,8 @@ def checkfile(path):
             logging.debug("checking section %s", section)
             checksection(data[section])
         except ShellcheckRunError as serr:
-            logging.debug("%s: shellcheck failed in section '%s'", path, section)
+            logging.debug("%s: shellcheck failed in section '%s'",
+                          path, section)
             errors.addfailure(section, serr.stderr.decode('utf-8'))
 
     if path.endswith('spread.yaml') and 'suites' in data:
@@ -152,7 +159,8 @@ def checkpath(loc):
         try:
             checkfile(entry)
         except ShellcheckError as serr:
-            logging.error("shellcheck failed for file %s in sections: %s; error log follows",
+            logging.error(('shellcheck failed for file %s in sections: '
+                           '%s; error log follows'),
                           entry, ', '.join(serr.sectionerrors.keys()))
             for section, error in serr.sectionerrors.items():
                 logging.error("%s: section '%s':\n%s", entry, section, error)
@@ -184,11 +192,16 @@ def main(opts):
         if opts.must_pass:
             musts = loadmusts(opts.must_pass)
 
-            if failures.contains(musts):
-                logging.error('validation failed for required files')
+            failed = failures.intersection(musts)
+            if failed:
+                logging.error(('validation failed for the following '
+                               'required files:\n%s'),
+                              '\n'.join([' - ' + f for f in sorted(failed)]))
                 raise SystemExit(1)
 
-        logging.debug('must validate: %s', musts)
+        logging.error('validation failed for the following files:\n%s',
+                      '\n'.join([' - ' + f for f in sorted(failures)]))
+
         if NO_FAIL or opts.no_errors:
             logging.warning("ignoring errors")
         else:
