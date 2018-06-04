@@ -27,9 +27,9 @@ import (
 )
 
 // useFuse detects if we should be using squashfuse instead
-var useFuse = realUseFuse
+var useFuse = useFuseImpl
 
-func realUseFuse() bool {
+func useFuseImpl() bool {
 	if !osutil.FileExists("/dev/fuse") {
 		return false
 	}

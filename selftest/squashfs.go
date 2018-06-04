@@ -38,24 +38,30 @@ import (
 
 /* This image was created using:
 
-$ cat > canary.txt<<'EOF'
+#!/bin/sh
+
+cd $(mktemp -d)
+cat > canary.txt<<'EOF'
 This file is used to check that snapd can read a squashfs image.
 
 The squashfs was generated with:
-$ mksquashfs . /tmp/canary.squashfs -noappend -comp xz -no-xattrs -no-fragments
 EOF
+cat $0 >> canary.txt
 
-$ mksquashfs . /tmp/canary.squashfs -noappend -comp xz -no-xattrs -no-fragments
-$ cat /tmp/canary.squashfs | gzip - | base64
+mksquashfs . /tmp/canary.squashfs -noappend -comp xz -no-xattrs -no-fragments >/dev/nul
+cat /tmp/canary.squashfs | gzip - | base64
 
 */
 var b64SquashfsImage = []byte(`
-H4sIABNhDVsAA+2QsU7DMBCGL6ELQUggMaND6pp0Z+YROsHCKXHiqNhJY1cNnbLDyMSIeALEg/AY
-LDwDOI0THqDrfdLpP/93PtknzdqEAPBxcnoH0GcAMziHrzBwCjCHgbdg0Fevv54Lf771uvP67HUp
-S4N5+SDQ6caIDG2FqRTpCq0ki0ZTnWFKGhtBGRKa9YaMzA2WigqRRNFSin9zSwYLoUVD1o3allZe
-R3NUq6khwYVV9cINpOYxmexYV1TXQmcYp5Wqsd31VtyStc2+GucNFUpoa6Lopgvhff/+J7eVPrn3
-P+69zyGCAH6mntBvqdcrF0cuLjtvQjBVj8E/zLb2bKqPOx53N+u+3YCX8RrDMAzDMAzDMAzDHMwf
-BbTZHgAQAAA=
+H4sIAGxdFVsAA8soLixmYmBgyIkVjWZgALEYGFgYBBkuMDECaQYGFQYI4INIMbBB6f9Q0MAI4R+D
+0s+g9A8o/de8KiKKgYExU+meGfOB54wzmBUZuYDiVhPYbR4wTme4H8ugJcWpniK5waL4VLewwsUC
+PgdVnS/pCycWn34g1rpj6bIywdLqaQdZFYQcYr7/vR1w9dTbDivRH3GahXc578hdW3Ri7mu9+KeF
+PqYCrkk/5zepyFw0EjL+XxH/3ubc9E+/J0t0PxE+zv9J96pa0rt9CWyvX6aIvb3H65qo9mbikvjU
+LZxrOupvcr32+2yYFzt1wTe2HdFfrOSmKXFFPf1i5ep7Wv+q+U+nBNWs/nu+UosO6PFvfl991nVG
+R9XSJUxv/7/y2f2zid0+OnGi1+ey1/vatzDPvfbq+0LLwIu1Wx/u+m6/c8IN21vNCQwMX2dtWsHA
++BvodwaGpcmXftsZ8HaDg5ExMsqlgYlhCTisQDEAYiRAQxckNgMooADEjAwH4GqgEQCOK0UgBhrK
+INcAFWRghMtyMiQn5iUWVeqVVJQIwOVh8QmLJ5aGF8wMsIgfBaNgFIyCUTAKRsEoGAWjYBSMglEw
+bAEA+f+YuAAQAAA=
 `)
 
 func trySquashfsMount() error {
@@ -91,9 +97,10 @@ func trySquashfsMount() error {
 	if err != nil {
 		return fmt.Errorf("cannot mount squashfs image using %q: %v", fstype, osutil.OutputErr(output, err))
 	}
+
 	defer func() {
 		if output, err := exec.Command("umount", tmpMountDir).CombinedOutput(); err != nil {
-			// os.RemoveAll(tmpMountDir) will fail too
+			// os.RemoveAll(tmpMountDir) will fail here if umount fails
 			logger.Noticef("cannot unmount selftest squashfs image: %v", osutil.OutputErr(output, err))
 		}
 	}()
@@ -103,7 +110,7 @@ func trySquashfsMount() error {
 	if err != nil {
 		return fmt.Errorf("squashfs mount returned no err but canary file cannot be read")
 	}
-	if !bytes.Equal(content, []byte("This file is used to check that snapd can read a squashfs image.\n")) {
+	if !bytes.HasPrefix(content, []byte("This file is used to check that snapd can read a squashfs image.")) {
 		return fmt.Errorf("unexpected squashfs canary content: %q", content)
 	}
 
