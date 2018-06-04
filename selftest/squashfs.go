@@ -31,6 +31,7 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 )
@@ -90,11 +91,20 @@ func trySquashfsMount() error {
 	if err != nil {
 		return fmt.Errorf("cannot mount squashfs image using %q: %v", fstype, osutil.OutputErr(output, err))
 	}
-	defer exec.Command("umount", tmpMountDir).Run()
+	defer func() {
+		if output, err := exec.Command("umount", tmpMountDir).CombinedOutput(); err != nil {
+			// os.RemoveAll(tmpMountDir) will fail too
+			logger.Noticef("cannot unmount selftest squashfs image: %v", osutil.OutputErr(output, err))
+		}
+	}()
 
 	// sanity check the
-	if !osutil.FileExists(filepath.Join(tmpMountDir, "canary.txt")) {
-		return fmt.Errorf("squashfs mount returned no err but canary file not available")
+	content, err := ioutil.ReadFile(filepath.Join(tmpMountDir, "canary.txt"))
+	if err != nil {
+		return fmt.Errorf("squashfs mount returned no err but canary file cannot be read")
+	}
+	if !bytes.Equal(content, []byte("This file is used to check that snapd can read a squashfs image.\n")) {
+		return fmt.Errorf("unexpected squashfs canary content: %q", content)
 	}
 
 	return nil
