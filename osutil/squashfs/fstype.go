@@ -60,9 +60,9 @@ func MockUseFuse(r bool) func() {
 	return func() { useFuse = oldUseFuse }
 }
 
-// Fstype returns what fstype to use for squashfs mounts and what
+// FsType returns what fstype to use for squashfs mounts and what
 // mount options
-func Fstype() (fstype string, options []string, err error) {
+func FsType() (fstype string, options []string, err error) {
 	fstype = "squashfs"
 	options = []string{"ro", "x-gdu.hide"}
 
