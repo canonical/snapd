@@ -21,6 +21,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/jessevdk/go-flags"
@@ -32,13 +34,13 @@ import (
 type cmdWait struct {
 	Positional struct {
 		Snap installedSnapName `required:"yes"`
-		Key  string
+		Key  string            `required:"yes"`
 	} `positional-args:"yes"`
 }
 
 func init() {
 	addCommand("wait",
-		"Wait for configuration.",
+		"Wait for configuration",
 		"The wait command waits until a configration becomes true.",
 		func() flags.Commander {
 			return &cmdWait{}
@@ -65,49 +67,44 @@ func isNoOption(err error) bool {
 	return false
 }
 
-func trueish(vi interface{}) bool {
+// trueishJSON takes an interface{} and returns true if the interface value
+// looks "true". For strings thats if len(string) > 0 for numbers that
+// they are != 0 and for maps/slices/arrays that they have elements.
+//
+// Note that *only* types that the json package decode with the
+// "UseNumber()" options turned on are handled here. If this ever
+// needs to becomes a generic "trueish" helper we need to resurrect
+// the code in 306ba60edfba8d6501060c6f773235d8c994a319 (and add nil
+// to it).
+func trueishJSON(vi interface{}) (bool, error) {
 	switch v := vi.(type) {
+	// limited to the types that json unmarhal can produce
+	case nil:
+		return false, nil
 	case bool:
-		if v == true {
-			return true
-		}
-	case int:
-		if v > 0 {
-			return true
-		}
-	case int64:
-		if v > 0 {
-			return true
-		}
-	case float32:
-		if v > 0 {
-			return true
-		}
-	case float64:
-		if v > 0 {
-			return true
-		}
+		return v, nil
 	case json.Number:
-		if i, err := v.Int64(); err == nil && i > 0 {
-			return true
+		if i, err := v.Int64(); err == nil {
+			return i != 0, nil
 		}
-		if f, err := v.Float64(); err == nil && f != 0.0 {
-			return true
+		if f, err := v.Float64(); err == nil {
+			return f != 0.0, nil
 		}
 	case string:
-		if v != "" {
-			return true
-		}
-	case []interface{}:
-		if len(v) > 0 {
-			return true
-		}
-	case map[string]interface{}:
-		if len(v) > 0 {
-			return true
+		return v != "", nil
+	}
+	// arrays/slices/maps
+	typ := reflect.TypeOf(vi)
+	switch typ.Kind() {
+	case reflect.Array, reflect.Slice, reflect.Map:
+		s := reflect.ValueOf(vi)
+		switch s.Kind() {
+		case reflect.Array, reflect.Slice, reflect.Map:
+			return s.Len() > 0, nil
 		}
 	}
-	return false
+
+	return false, fmt.Errorf("cannot test type %T for truth", vi)
 }
 
 func (x *cmdWait) Execute(args []string) error {
@@ -124,7 +121,11 @@ func (x *cmdWait) Execute(args []string) error {
 		if err != nil && !isNoOption(err) {
 			return err
 		}
-		if trueish(conf[confKey]) {
+		res, err := trueishJSON(conf[confKey])
+		if err != nil {
+			return err
+		}
+		if res {
 			break
 		}
 		time.Sleep(waitConfTimeout)

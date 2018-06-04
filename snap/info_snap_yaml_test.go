@@ -1616,6 +1616,20 @@ apps:
 	})
 }
 
+func (s *YamlSuite) TestSnapYamlWatchdog(c *C) {
+	y := []byte(`
+name: foo
+version: 1.0
+apps:
+  foo:
+    watchdog-timeout: 12s
+`)
+	info, err := snap.InfoFromSnapYaml(y)
+	c.Assert(err, IsNil)
+
+	c.Check(info.Apps["foo"].WatchdogTimeout, Equals, timeout.Timeout(12*time.Second))
+}
+
 func (s *YamlSuite) TestLayout(c *C) {
 	y := []byte(`
 name: foo
@@ -1696,4 +1710,30 @@ apps:
 	c.Assert(err, IsNil)
 	app = info.Apps["foo"]
 	c.Check(app.Autostart, Equals, "")
+}
+
+func (s *YamlSuite) TestSnapYamlAppCommonID(c *C) {
+	yAutostart := []byte(`name: wat
+version: 42
+apps:
+ foo:
+   command: bin/foo
+   common-id: org.foo
+ bar:
+   command: bin/foo
+   common-id: org.bar
+ baz:
+   command: bin/foo
+
+`)
+	info, err := snap.InfoFromSnapYaml(yAutostart)
+	c.Assert(err, IsNil)
+	c.Check(info.Apps["foo"].CommonID, Equals, "org.foo")
+	c.Check(info.Apps["bar"].CommonID, Equals, "org.bar")
+	c.Check(info.Apps["baz"].CommonID, Equals, "")
+	c.Assert(info.CommonIDs, HasLen, 2)
+	c.Assert((info.CommonIDs[0] == "org.foo" && info.CommonIDs[1] == "org.bar") ||
+		(info.CommonIDs[1] == "org.foo" && info.CommonIDs[0] == "org.bar"),
+		Equals,
+		true)
 }

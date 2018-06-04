@@ -463,3 +463,15 @@ libexec_PROGRAMS += snapd-generator/snapd-generator
 
 snapd_generator_snapd_generator_SOURCES = snapd-generator/main.c
 snapd_generator_snapd_generator_LDADD = libsnap-confine-private.a
+
+##
+## snapd-apparmor
+##
+
+EXTRA_DIST += snapd-apparmor/snapd-apparmor
+
+install-exec-local::
+	install -d -m 755 $(DESTDIR)$(libexecdir)
+if APPARMOR
+	install -m 755 $(srcdir)/snapd-apparmor/snapd-apparmor $(DESTDIR)$(libexecdir)
+endif

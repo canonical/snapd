@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 JOURNALCTL_CURSOR_FILE="${SPREAD_PATH}"/journalctl_cursor
 
