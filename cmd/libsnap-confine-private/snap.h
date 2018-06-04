@@ -19,6 +19,7 @@
 #define SNAP_CONFINE_SNAP_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "error.h"
 
@@ -57,5 +58,10 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp);
 bool verify_security_tag(const char *security_tag, const char *snap_name);
 
 bool sc_is_hook_security_tag(const char *security_tag);
+
+/**
+ * Extract the base of snap name, discarding any assigned local key.
+ **/
+void sc_snap_name_base(const char *snap_name, char *base, size_t base_len);
 
 #endif
