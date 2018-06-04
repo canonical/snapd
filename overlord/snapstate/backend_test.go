@@ -161,7 +161,7 @@ func (f *fakeStore) snapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	confinement := snap.StrictConfinement
 
 	typ := snap.TypeApp
-	if spec.Name == "some-core" {
+	if spec.Name == "core" || spec.Name == "some-core" {
 		typ = snap.TypeOS
 	}
 
