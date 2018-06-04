@@ -105,7 +105,7 @@ func ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
 // the right bootable base (from the model assertion).
 func SetNextBoot(s *snap.Info) error {
 	if release.OnClassic {
-		return nil
+		return fmt.Errorf("cannot set next boot on classic systems")
 	}
 
 	if s.Type != snap.TypeOS && s.Type != snap.TypeKernel && s.Type != snap.TypeBase {
