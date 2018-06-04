@@ -71,6 +71,8 @@ type snapDetails struct {
 	Confinement string `json:"confinement"`
 
 	ChannelMapList []channelMap `json:"channel_maps_list,omitempty"`
+
+	CommonIDs []string `json:"common_ids,omitempty"`
 }
 
 // channelMap contains
@@ -136,6 +138,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.Contact = d.Contact
 	info.License = d.License
 	info.Base = d.Base
+	info.CommonIDs = d.CommonIDs
 
 	deltas := make([]snap.DeltaInfo, len(d.Deltas))
 	for i, d := range d.Deltas {

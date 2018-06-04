@@ -118,7 +118,7 @@ func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, pl
 	return spec.AddService(serviceName, service)
 }
 
-func (iface *gpioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *gpioInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }
