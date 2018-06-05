@@ -28,12 +28,13 @@ import (
 type cmdGetBaseDeclaration struct{}
 
 func init() {
-	addDebugCommand("get-base-declaration",
+	cmd := addDebugCommand("get-base-declaration",
 		"(internal) obtain the base declaration for all interfaces",
 		"(internal) obtain the base declaration for all interfaces",
 		func() flags.Commander {
 			return &cmdGetBaseDeclaration{}
 		}, nil, nil)
+	cmd.hidden = true
 }
 
 func (x *cmdGetBaseDeclaration) Execute(args []string) error {

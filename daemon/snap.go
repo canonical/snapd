@@ -22,6 +22,7 @@ package daemon
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -271,8 +272,9 @@ func clientAppInfosFromSnapAppInfos(apps []*snap.AppInfo) []client.AppInfo {
 	out := make([]client.AppInfo, len(apps))
 	for i, app := range apps {
 		out[i] = client.AppInfo{
-			Snap: app.Snap.Name(),
-			Name: app.Name,
+			Snap:     app.Snap.Name(),
+			Name:     app.Name,
+			CommonID: app.CommonID,
 		}
 		if fn := app.DesktopFile(); osutil.FileExists(fn) {
 			out[i].DesktopFile = fn
@@ -324,6 +326,7 @@ func mapLocal(about aboutSnap) *client.Snap {
 		Status:           status,
 		Summary:          localSnap.Summary(),
 		Type:             string(localSnap.Type),
+		Base:             localSnap.Base,
 		Version:          localSnap.Version,
 		Channel:          localSnap.Channel,
 		TrackingChannel:  snapst.Channel,
@@ -338,6 +341,16 @@ func mapLocal(about aboutSnap) *client.Snap {
 		Contact:          localSnap.Contact,
 		Title:            localSnap.Title(),
 		License:          localSnap.License,
+		CommonIDs:        localSnap.CommonIDs,
+		MountedFrom:      localSnap.MountFile(),
+	}
+
+	if result.TryMode {
+		// Readlink instead of EvalSymlinks because it's only expected
+		// to be one level, and should still resolve if the target does
+		// not exist (this might help e.g. snapcraft clean up after a
+		// prime dir)
+		result.MountedFrom, _ = os.Readlink(result.MountedFrom)
 	}
 
 	return result
@@ -374,6 +387,7 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		Status:       status,
 		Summary:      remoteSnap.Summary(),
 		Type:         string(remoteSnap.Type),
+		Base:         remoteSnap.Base,
 		Version:      remoteSnap.Version,
 		Channel:      remoteSnap.Channel,
 		Private:      remoteSnap.Private,
@@ -385,6 +399,7 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 		Prices:       remoteSnap.Prices,
 		Channels:     remoteSnap.Channels,
 		Tracks:       remoteSnap.Tracks,
+		CommonIDs:    remoteSnap.CommonIDs,
 	}
 
 	return result

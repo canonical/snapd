@@ -35,6 +35,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -160,6 +161,9 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.state.Unlock()
 
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
+	snapstate.Model = func(*state.State) (*asserts.Model, error) {
 		return nil, nil
 	}
 }
@@ -359,7 +363,6 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		expected = append(expected, "setup-profiles")
 	}
 	expected = append(expected,
-		"reconnect",
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
@@ -551,7 +554,6 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
-		"reconnect",
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
@@ -1015,7 +1017,6 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"unlink-current-snap",
 		"setup-profiles",
 		"link-snap",
-		"reconnect",
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
@@ -2171,7 +2172,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[15]
+	task = ts.Tasks()[14]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap" snap if present`)
 
@@ -4066,7 +4067,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 19
+			j += 18
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -6136,7 +6137,6 @@ validate-snap: Done
 link-snap: Error
  INFO unlink
  ERROR fail
-reconnect: Hold
 auto-connect: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
@@ -6153,7 +6153,6 @@ validate-snap: Done
 link-snap: Error
  INFO unlink
  ERROR fail
-reconnect: Hold
 auto-connect: Hold
 set-auto-aliases: Hold
 setup-aliases: Hold
@@ -7608,6 +7607,23 @@ func (s *snapmgrTestSuite) TestSeqTotalABAFailure(c *C) {
 	// gets nuked after all tasks succeeded).
 }
 
+func (s *snapmgrTestSuite) TestSeqRetainConf(c *C) {
+	revseq := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+
+	for i := 2; i <= 10; i++ {
+		// wot, me, hacky?
+		s.TearDownTest(c)
+		s.SetUpTest(c)
+		s.state.Lock()
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", "refresh.retain", i)
+		tr.Commit()
+		s.state.Unlock()
+
+		s.testUpdateSequence(c, &opSeqOpts{before: revseq[:9], current: 9, via: 10, after: revseq[10-i:]})
+	}
+}
+
 func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -8938,6 +8954,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "core/11"),
 		},
 		{
+			op:    "setup-profiles:Doing",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "core",
 			revno: snap.R(11),
@@ -9007,7 +9028,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		{
 			op:    "cleanup-trash",
 			name:  "core",
-			revno: snap.R(11),
+			revno: snap.R(42),
 		},
 		{
 			op:    "cleanup-trash",
@@ -9074,11 +9095,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	len1 := len(chg1.Tasks())
 	len2 := len(chg2.Tasks())
 	if len1 > len2 {
-		c.Assert(chg1.Tasks(), HasLen, 26)
+		c.Assert(chg1.Tasks(), HasLen, 27)
 		c.Assert(chg2.Tasks(), HasLen, 13)
 	} else {
 		c.Assert(chg1.Tasks(), HasLen, 13)
-		c.Assert(chg2.Tasks(), HasLen, 26)
+		c.Assert(chg2.Tasks(), HasLen, 27)
 	}
 
 	// FIXME: add helpers and do a DeepEquals here for the operations

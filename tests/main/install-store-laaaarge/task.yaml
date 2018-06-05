@@ -1,6 +1,7 @@
 summary: snap install a large snap from the store (bigger than tmpfs)
 
 prepare: |
+    #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
 
     systemd_stop_units snapd.service snapd.socket
@@ -8,6 +9,7 @@ prepare: |
     systemctl start snapd.{socket,service}
 
 restore: |
+    #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
 
     systemd_stop_units snapd.service snapd.socket

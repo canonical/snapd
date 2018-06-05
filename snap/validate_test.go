@@ -1274,3 +1274,45 @@ base: bar
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `cannot have "base" field on "base" snap "foo"`)
 }
+
+func (s *ValidateSuite) TestValidateCommonIDs(c *C) {
+	meta := `
+name: foo
+version: 1.0
+`
+	good := meta + `
+apps:
+  foo:
+    common-id: org.foo.foo
+  bar:
+    common-id: org.foo.bar
+  baz:
+`
+	bad := meta + `
+apps:
+  foo:
+    common-id: org.foo.foo
+  bar:
+    common-id: org.foo.foo
+  baz:
+`
+	for i, tc := range []struct {
+		meta string
+		err  string
+	}{
+		{good, ""},
+		{bad, `application ("bar" common-id "org.foo.foo" must be unique, already used by application "foo"|"foo" common-id "org.foo.foo" must be unique, already used by application "bar")`},
+	} {
+		c.Logf("tc #%v", i)
+		info, err := InfoFromSnapYaml([]byte(tc.meta))
+		c.Assert(err, IsNil)
+
+		err = Validate(info)
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, NotNil)
+			c.Check(err, ErrorMatches, tc.err)
+		}
+	}
+}

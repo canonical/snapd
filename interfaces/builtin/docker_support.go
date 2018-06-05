@@ -583,7 +583,7 @@ func (iface *dockerSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) erro
 	return nil
 }
 
-func (iface *dockerSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *dockerSupportInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }

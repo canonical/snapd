@@ -203,7 +203,7 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}==
 	return nil
 }
 
-func (iface *serialPortInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *serialPortInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
 }
