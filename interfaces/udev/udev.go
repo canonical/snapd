@@ -46,6 +46,11 @@ func ReloadRules(subsystemTriggers []string) error {
 		return fmt.Errorf("cannot run udev triggers: %s\nudev output:\n%s", err, string(output))
 	}
 
+	// FIXME: track if also should trigger the joystick property if it
+	// wasn't already since we are not able to detect interfaces that are
+	// removed and set subsystemTriggers correctly. When we can, remove
+	// this. Allows joysticks to be removed from the device cgroup on
+	// interface disconnect.
 	inputJoystickTriggered := false
 
 	for _, subsystem := range subsystemTriggers {
@@ -73,11 +78,11 @@ func ReloadRules(subsystemTriggers []string) error {
 		}
 	}
 
-	// FIXME: also trigger the joystick property if it wasn't already
-	// since we are not able to detect interfaces that are removed
-	// and set subsystemTriggers correctly. When we can, remove the
-	// '|| subsystemTriggers == ""' check. This allows joysticks to be
-	// removed from the device cgroup on interface disconnect.
+	// FIXME: if not already triggered, trigger the joystick property if it
+	// wasn't already since we are not able to detect interfaces that are
+	// removed and set subsystemTriggers correctly. When we can, remove
+	// this. Allows joysticks to be removed from the device cgroup on
+	// interface disconnect.
 	if !inputJoystickTriggered {
 		output, err = exec.Command("udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1").CombinedOutput()
 		if err != nil {
