@@ -8954,6 +8954,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			name: filepath.Join(dirs.SnapMountDir, "core/11"),
 		},
 		{
+			op:    "setup-profiles:Doing",
+			name:  "core",
+			revno: snap.R(11),
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "core",
 			revno: snap.R(11),
@@ -9023,7 +9028,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		{
 			op:    "cleanup-trash",
 			name:  "core",
-			revno: snap.R(11),
+			revno: snap.R(42),
 		},
 		{
 			op:    "cleanup-trash",
@@ -9090,11 +9095,11 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	len1 := len(chg1.Tasks())
 	len2 := len(chg2.Tasks())
 	if len1 > len2 {
-		c.Assert(chg1.Tasks(), HasLen, 26)
+		c.Assert(chg1.Tasks(), HasLen, 27)
 		c.Assert(chg2.Tasks(), HasLen, 13)
 	} else {
 		c.Assert(chg1.Tasks(), HasLen, 13)
-		c.Assert(chg2.Tasks(), HasLen, 26)
+		c.Assert(chg2.Tasks(), HasLen, 27)
 	}
 
 	// FIXME: add helpers and do a DeepEquals here for the operations
