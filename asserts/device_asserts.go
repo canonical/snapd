@@ -81,6 +81,11 @@ func (mod *Model) Kernel() string {
 	return mod.HeaderString("kernel")
 }
 
+// Base returns the base snap the model uses.
+func (mod *Model) Base() string {
+	return mod.HeaderString("base")
+}
+
 // Store returns the snap store the model uses.
 func (mod *Model) Store() string {
 	return mod.HeaderString("store")
@@ -179,6 +184,9 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	if classic {
 		if _, ok := assert.headers["kernel"]; ok {
 			return nil, fmt.Errorf("cannot specify a kernel with a classic model")
+		}
+		if _, ok := assert.headers["base"]; ok {
+			return nil, fmt.Errorf("cannot specify a base with a classic model")
 		}
 	}
 
