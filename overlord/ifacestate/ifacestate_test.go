@@ -369,7 +369,7 @@ func (s *interfaceManagerSuite) TestAutoconnectDoesntConflictOnInstallingDiffere
 	t.Set("snap-setup", sup1)
 	chg.AddTask(t)
 
-	ignore, err := ifacestate.FindSymmetricAutoconnect(s.state, "consumer", "producer", t)
+	ignore, err := ifacestate.FindSymmetricInstallTask(s.state, "consumer", "producer", t)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
 	c.Assert(ifacestate.CheckConnectConflicts(s.state, chg, "consumer", "producer", t), IsNil)
@@ -407,7 +407,7 @@ func (s *interfaceManagerSuite) createAutoconnectChange(c *C, conflictingTask *s
 
 	chg.AddTask(t2)
 
-	ignore, err := ifacestate.FindSymmetricAutoconnect(s.state, "consumer", "producer", t2)
+	ignore, err := ifacestate.FindSymmetricInstallTask(s.state, "consumer", "producer", t2)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, false)
 
@@ -464,11 +464,11 @@ func (s *interfaceManagerSuite) TestSymmetricAutoconnectIgnore(c *C) {
 	t2.Set("snap-setup", sup2)
 	chg2.AddTask(t2)
 
-	ignore, err := ifacestate.FindSymmetricAutoconnect(s.state, "consumer", "producer", t1)
+	ignore, err := ifacestate.FindSymmetricInstallTask(s.state, "consumer", "producer", t1)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, true)
 
-	ignore, err = ifacestate.FindSymmetricAutoconnect(s.state, "consumer", "producer", t2)
+	ignore, err = ifacestate.FindSymmetricInstallTask(s.state, "consumer", "producer", t2)
 	c.Assert(err, IsNil)
 	c.Assert(ignore, Equals, true)
 }

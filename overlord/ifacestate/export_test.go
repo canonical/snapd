@@ -30,7 +30,7 @@ var (
 	AddImplicitSlots          = addImplicitSlots
 	SnapsWithSecurityProfiles = snapsWithSecurityProfiles
 	CheckConnectConflicts     = checkConnectConflicts
-	FindSymmetricAutoconnect  = findSymmetricAutoconnect
+	FindSymmetricInstallTask  = findSymmetricInstallTask
 	ConnectPriv               = connect
 )
 

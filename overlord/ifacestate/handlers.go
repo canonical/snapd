@@ -657,7 +657,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 			continue
 		}
 
-		ignore, err := findSymmetricAutoconnect(st, plug.Snap.Name(), slot.Snap.Name(), task)
+		ignore, err := findSymmetricInstallTask(st, plug.Snap.Name(), slot.Snap.Name(), task)
 		if err != nil {
 			return err
 		}
@@ -705,7 +705,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				continue
 			}
 
-			ignore, err := findSymmetricAutoconnect(st, plug.Snap.Name(), slot.Snap.Name(), task)
+			ignore, err := findSymmetricInstallTask(st, plug.Snap.Name(), slot.Snap.Name(), task)
 			if err != nil {
 				return err
 			}
@@ -763,6 +763,15 @@ func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb
 
 	// check for conflicts on all connections first before creating disconnect hooks
 	for _, connRef := range connections {
+		ignore, err := findSymmetricInstallTask(st, connRef.PlugRef.Snap, connRef.SlotRef.Snap, task)
+		if err != nil {
+			return err
+		}
+
+		if ignore {
+			continue
+		}
+
 		if err := checkConnectConflicts(st, task.Change(), connRef.PlugRef.Snap, connRef.SlotRef.Snap, task); err != nil {
 			if _, retry := err.(*state.Retry); retry {
 				task.Logf("disconnect-interfaces task for snap %q will be retried because of %q - %q conflict", snapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap)
