@@ -6950,7 +6950,7 @@ func (s *storeTestSuite) TestConnectivityCheck(c *C) {
 	c.Check(seenPaths, DeepEquals, map[string]int{
 		"/api/v1/snaps/details/core": 1,
 		"/download/core":             1,
-		"/u1api":                     1,
-		"/acl/":                      1,
 	})
+
+	// FIXME: add test for net.Dial
 }

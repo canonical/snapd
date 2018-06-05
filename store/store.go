@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -2361,40 +2362,25 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 var errUnexpectedConnCheckResponse = errors.New("unexpected response during connection check")
 
+var netDial = net.Dial
+
 func (s *Store) authConnCheck() ([]string, error) {
-	macaroonURL, err := url.ParseRequestURI(MacaroonACLAPI)
+	url, err := url.ParseRequestURI(MacaroonACLAPI)
 	if err != nil {
 		return nil, err
 	}
-	hosts := []string{macaroonURL.Host}
-	var expectedError storeErrors
-	resp, err := httputil.RetryRequest(MacaroonACLAPI, func() (*http.Response, error) {
-		return s.doRequest(context.TODO(), s.client, &requestOptions{Method: "GET", URL: macaroonURL}, nil)
-	}, func(resp *http.Response) error {
-		return decodeJSONBody(resp, nil, &expectedError)
-	}, connCheckStrategy)
+
+	// We only do a very basic connectivity check for this endpoint
+	hosts := []string{url.Host}
+	port := ""
+	if url.Port() == "" {
+		port = ":" + url.Port()
+	}
+	conn, err := netDial("tcp", fmt.Sprintf("%s%s", url.Host, port))
 	if err != nil {
 		return hosts, err
 	}
-	resp.Body.Close()
-
-	if resp.StatusCode != 401 || len(expectedError.Errors) != 1 || expectedError.Errors[0].Code != "macaroon-permission-required" {
-		return hosts, errUnexpectedConnCheckResponse
-	}
-
-	u1URL, err := url.ParseRequestURI(ubuntuoneAPIBase)
-	if err != nil {
-		return hosts, err
-	}
-	hosts = append(hosts, u1URL.Host)
-
-	resp, err = httputil.RetryRequest(ubuntuoneAPIBase, func() (*http.Response, error) {
-		return s.doRequest(context.TODO(), s.client, &requestOptions{Method: "HEAD", URL: u1URL}, nil)
-	}, func(resp *http.Response) error { return nil }, connCheckStrategy)
-	if err != nil {
-		return hosts, err
-	}
-	resp.Body.Close()
+	conn.Close()
 
 	return hosts, nil
 }
