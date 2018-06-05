@@ -21,10 +21,8 @@ UNITS="snapd.service snapd.autoimport.service snapd.core-fixup.service \
 ENABLE_UNITS="snapd.system-shutdown.service"
 
 # TODO: discuss ID_LIKE=ubuntu-core or ID_LIKE=snap-core ?
-if ! grep -q "ID=ubuntu-core" /etc/os-release && \
-        ! grep -q "ID_LIKE=ubuntu-core" /etc/os-release && \
-        ! grep -q "ID=ubuntu-core" /usr/lib/os-release && \
-        ! grep -q "ID_LIKE=ubuntu-core" /usr/lib/os-release; \
+if ! grep -q -E "ID(_LIKE)?=ubuntu-core" /etc/os-release && \
+        ! grep -q -E "ID(_LIKE)?=ubuntu-core" /usr/lib/os-release;
     then
         echo "cannot run this helper on a non ubuntu-core system"
     exit 1
