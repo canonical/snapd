@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -242,13 +241,11 @@ func assertsURL() (*url.URL, error) {
 	return nil, nil
 }
 
-var defaultAuthLocation = "login.ubuntu.com"
-
 func authLocation() string {
 	if useStaging() {
 		return "login.staging.ubuntu.com"
 	}
-	return defaultAuthLocation
+	return "login.ubuntu.com"
 }
 
 func authURL() string {
@@ -2343,30 +2340,6 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 var errUnexpectedConnCheckResponse = errors.New("unexpected response during connection check")
 
-var netDial = net.Dial
-
-func (s *Store) authConnCheck() ([]string, error) {
-	url, err := url.ParseRequestURI(MacaroonACLAPI)
-	if err != nil {
-		return nil, err
-	}
-
-	// We only do a very basic connectivity check for this endpoint
-	hosts := []string{url.Host}
-	port := ""
-	// go1.6 has no url.Port()
-	if !strings.Contains(url.Host, ":") {
-		port = ":" + url.Scheme
-	}
-	conn, err := netDial("tcp", fmt.Sprintf("%s%s", url.Host, port))
-	if err != nil {
-		return hosts, err
-	}
-	conn.Close()
-
-	return hosts, nil
-}
-
 func (s *Store) snapConnCheck() ([]string, error) {
 	var hosts []string
 	// TODO: move this to SnapAction:download when that's done (and maybe
@@ -2426,7 +2399,6 @@ func (s *Store) ConnectivityCheck() (map[string]bool, error) {
 
 	checkers := []func() ([]string, error){
 		s.snapConnCheck,
-		s.authConnCheck,
 	}
 	for _, checker := range checkers {
 		hosts, err := checker()
