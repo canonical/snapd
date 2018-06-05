@@ -698,6 +698,9 @@ func (s *realSystemSuite) TestSecureMksymlinkAllForReal(c *C) {
 	c.Assert(err, IsNil)
 	err = s.sec.MksymlinkAll(f3, 0755, sys.FlagID, sys.FlagID, "oldname")
 	c.Assert(err, ErrorMatches, `cannot create symbolic link "dir": existing file in the way`)
+
+	err = s.sec.MksymlinkAll("/", 0755, sys.FlagID, sys.FlagID, "oldname")
+	c.Assert(err, ErrorMatches, `cannot create non-file path: "/"`)
 }
 
 func (s *utilsSuite) TestCleanTrailingSlash(c *C) {
