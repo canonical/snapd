@@ -69,8 +69,8 @@ func findSymmetricAutoconnect(st *state.State, plugSnap, slotSnap string, autoCo
 	return false, nil
 }
 
-func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slotSnap string, autoConnectTask *state.Task) error {
-	if autoConnectTask == nil {
+func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slotSnap string, installedSnapTask *state.Task) error {
+	if installedSnapTask == nil {
 		for _, chg := range st.Changes() {
 			if chg.Kind() == "transition-ubuntu-core" {
 				return fmt.Errorf("ubuntu-core to core transition in progress, no other changes allowed until this is done")
@@ -79,16 +79,16 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 	}
 
 	var installedSnap string
-	if autoConnectTask != nil {
-		snapsup, err := snapstate.TaskSnapSetup(autoConnectTask)
+	if installedSnapTask != nil {
+		snapsup, err := snapstate.TaskSnapSetup(installedSnapTask)
 		if err != nil {
-			return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", autoConnectTask.Summary())
+			return fmt.Errorf("internal error: cannot obtain snap setup from task: %s", installedSnapTask.Summary())
 		}
 		installedSnap = snapsup.Name()
 	}
 
 	for _, task := range st.Tasks() {
-		if task.Status().Ready() || autoConnectTask == task {
+		if task.Status().Ready() || installedSnapTask == task {
 			continue
 		}
 
@@ -122,36 +122,28 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 			continue
 		}
 
-		snapName := snapsup.Name()
+		otherSnapName := snapsup.Name()
 
 		// don't conflict with own installation tasks
-		if autoConnectTask != nil && installedSnap == snapName {
+		if installedSnapTask != nil && installedSnap == otherSnapName {
 			continue
 		}
 
 		// different snaps - no conflict
-		if snapName != plugSnap && snapName != slotSnap {
+		if otherSnapName != plugSnap && otherSnapName != slotSnap {
 			continue
 		}
 
-		if k == "unlink-snap" || k == "link-snap" || k == "setup-profiles" {
-			if autoConnectTask != nil {
-				if installedSnapTask.Kind() == "disconnect-interfaces" {
-					// we're disconnecting as part of snap removal, retry if snap on the opposite end of
-					// the connection is getting removed.
-					if (installedSnap == plugSnap && snapName == slotSnap) ||
-						(installedSnap == slotSnap && snapName == plugSnap) {
-						return &state.Retry{After: connectRetryTimeout}
-					}
-					continue // no conflict
-				}
+		// at this point we know the snap on the other end is affecting us either because of plug or slot
 
+		if k == "unlink-snap" || k == "link-snap" || k == "setup-profiles" {
+			if installedSnapTask != nil {
 				// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op
 				// if snap is getting installed/refreshed - temporary conflict, retry later
 				return &state.Retry{After: connectRetryTimeout}
 			}
 			// for connect it's a conflict
-			return snapstate.ChangeConflictError(snapName, task.Change().Kind())
+			return snapstate.ChangeConflictError(otherSnapName, task.Change().Kind())
 		}
 	}
 	return nil
@@ -298,6 +290,9 @@ func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 	if err := snapstate.CheckChangeConflict(st, slotSnap, noConflictOnConnectTasks, nil); err != nil {
 		return nil, err
 	}
+	if err := checkConnectConflicts(st, nil, plugSnap, slotSnap, nil); err != nil {
+		return nil, err
+	}
 
 	summary := fmt.Sprintf(i18n.G("Disconnect %s:%s from %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
@@ -323,10 +318,6 @@ func DisconnectHooks(st *state.State, conn *interfaces.Connection, installedSnap
 	plugName := conn.Plug.Name()
 	slotName := conn.Slot.Name()
 
-	if err := checkConnectConflicts(st, nil, plugSnap, slotSnap, installedSnapTask); err != nil {
-		return nil, err
-	}
-
 	ts := state.NewTaskSet()
 
 	var snapst snapstate.SnapState
@@ -335,38 +326,35 @@ func DisconnectHooks(st *state.State, conn *interfaces.Connection, installedSnap
 	}
 
 	// do not run slot hooks if slotSnap is not active
-	if !snapst.Active {
-		return nil, &state.Retry{After: connectRetryTimeout}
-	}
-	disconnectSlotHookSetup := &hookstate.HookSetup{
-		Snap:     slotSnap,
-		Hook:     "disconnect-slot-" + slotName,
-		Optional: true,
-	}
-	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectSlotHookSetup.Hook, disconnectSlotHookSetup.Snap)
-	disconnectSlot := hookstate.HookTask(st, summary, disconnectSlotHookSetup, nil)
+	if snapst.Active {
+		disconnectSlotHookSetup := &hookstate.HookSetup{
+			Snap:     slotSnap,
+			Hook:     "disconnect-slot-" + slotName,
+			Optional: true,
+		}
+		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectSlotHookSetup.Hook, disconnectSlotHookSetup.Snap)
+		disconnectSlot := hookstate.HookTask(st, summary, disconnectSlotHookSetup, nil)
 
-	ts.AddTask(disconnectSlot)
+		ts.AddTask(disconnectSlot)
+	}
 
 	if err := snapstate.Get(st, plugSnap, &snapst); err != nil {
 		return nil, err
 	}
 
-	// do not run plug hooks if plugSnap is not active
-	if !snapst.Active {
-		return nil, &state.Retry{After: connectRetryTimeout}
-	}
+	// do not run plug hooks if slotSnap is not active
+	if snapst.Active {
+		disconnectPlugHookSetup := &hookstate.HookSetup{
+			Snap:     plugSnap,
+			Hook:     "disconnect-plug-" + plugName,
+			Optional: true,
+		}
+		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectPlugHookSetup.Hook, disconnectPlugHookSetup.Snap)
+		disconnectPlug := hookstate.HookTask(st, summary, disconnectPlugHookSetup, nil)
+		disconnectPlug.WaitAll(ts)
 
-	disconnectPlugHookSetup := &hookstate.HookSetup{
-		Snap:     plugSnap,
-		Hook:     "disconnect-plug-" + plugName,
-		Optional: true,
+		ts.AddTask(disconnectPlug)
 	}
-	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), disconnectPlugHookSetup.Hook, disconnectPlugHookSetup.Snap)
-	disconnectPlug := hookstate.HookTask(st, summary, disconnectPlugHookSetup, nil)
-	disconnectPlug.WaitAll(ts)
-
-	ts.AddTask(disconnectPlug)
 
 	// expose plug/slot attributes to the hooks
 	for _, task := range ts.Tasks() {

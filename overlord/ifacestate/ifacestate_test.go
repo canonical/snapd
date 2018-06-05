@@ -2106,10 +2106,15 @@ func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
 	})
 	s.state.Unlock()
 
-	mgr := s.manager(c)
+	_ = s.manager(c)
 
 	s.state.Lock()
-	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	conn := &interfaces.Connection{
+		Plug: interfaces.NewConnectedPlug(&snap.PlugInfo{Snap: &snap.Info{SuggestedName: "consumer"}, Name: "plug"}, nil),
+		Slot: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SuggestedName: "producer"}, Name: "slot"}, nil),
+	}
+
+	ts, err := ifacestate.Disconnect(s.state, conn)
 	c.Assert(err, IsNil)
 	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -2121,9 +2126,7 @@ func (s *interfaceManagerSuite) TestDisconnectDisablesAutoConnect(c *C) {
 	change.AddAll(ts)
 	s.state.Unlock()
 
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
+	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
