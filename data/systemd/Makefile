@@ -28,7 +28,7 @@ all: $(SYSTEMD_UNITS) check
 
 .PHONY: check
 check: snapd.manage snapd.core-fixup.sh
-	if command -v shellcheck >/dev/null; then shellcheck $?; fi
+	if command -v shellcheck >/dev/null; then shellcheck $^; fi
 
 .PHONY: install
 install: $(SYSTEMD_UNITS)

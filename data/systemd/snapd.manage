@@ -56,8 +56,8 @@ case $CMD in
         ;;
     stop)
         echo "Running stop action"
-        for unit in  $UNITS; do
-            systemctl stop "$unit"
+        for unit in $UNITS; do
+            systemctl stop "$unit" || true
             rm -f /run/systemd/system/"$unit"
         done
         systemctl daemon-reload
