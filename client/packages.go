@@ -43,7 +43,7 @@ type Snap struct {
 	Name             string        `json:"name" help:"The human readable name of the snap"`
 	Developer        string        `json:"developer" help:"The name of the publisher"`
 	Status           string        `json:"status" help:"The active status"`
-	Type             string        `json:"type" help:"The type (e.g. "app")`
+	Type             string        `json:"type" help:"The type (e.g. app)"`
 	Base             string        `json:"base,omitempty" help:"The base the snap uses (if any)"`
 	Version          string        `json:"version" help:"The human readable version"`
 	Channel          string        `json:"channel" help:"The current channel"`
