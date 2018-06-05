@@ -2422,3 +2422,81 @@ func (ms *mgrsSuite) TestUpdateWithAutoconnectRetrySlotSide(c *C) {
 func (ms *mgrsSuite) TestUpdateWithAutoconnectRetryPlugSide(c *C) {
 	ms.testUpdateWithAutoconnectRetry(c, "other-snap", "some-snap")
 }
+
+func (ms *mgrsSuite) TestRemoveWithDisconnectIgnore(c *C) {
+	const someSnapYaml = `name: some-snap
+version: 1.0
+apps:
+   foo:
+        command: bin/bar
+        slots: [media-hub]
+`
+	const otherSnapYaml = `name: other-snap
+version: 1.0
+apps:
+   baz:
+        command: bin/bar
+        plugs: [media-hub]
+`
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("conns", map[string]interface{}{
+		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": true},
+	})
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnap(c, someSnapYaml, si)
+	c.Assert(snapInfo.Slots, HasLen, 1)
+
+	oi := &snap.SideInfo{RealName: "other-snap", SnapID: fakeSnapID("other-snap"), Revision: snap.R(1)}
+	otherInfo := snaptest.MockSnap(c, otherSnapYaml, oi)
+	c.Assert(otherInfo.Plugs, HasLen, 1)
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(st, "other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{oi},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	repo := ms.o.InterfaceManager().Repository()
+
+	// add snaps to the repo to have plugs/slots
+	c.Assert(repo.AddSnap(snapInfo), IsNil)
+	c.Assert(repo.AddSnap(otherInfo), IsNil)
+	repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "media-hub"},
+		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
+	}, nil, nil, nil)
+
+	ts, err := snapstate.Remove(st, "some-snap", snap.R(0))
+	c.Assert(err, IsNil)
+	chg := st.NewChange("uninstall", "...")
+	chg.AddAll(ts)
+
+	// remove other-snap
+	ts2, err := snapstate.Remove(st, "other-snap", snap.R(0))
+	c.Assert(err, IsNil)
+	chg2 := st.NewChange("uninstall", "...")
+	chg2.AddAll(ts2)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// check connections
+	var conns map[string]interface{}
+	st.Get("conns", &conns)
+	c.Assert(conns, HasLen, 0)
+}

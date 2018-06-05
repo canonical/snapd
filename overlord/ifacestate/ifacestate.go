@@ -43,18 +43,18 @@ var noConflictOnConnectTasks = func(task *state.Task) bool {
 
 var connectRetryTimeout = time.Second * 5
 
-// findSymmetricAutoconnect checks if there is another auto-connect task affecting same snap.
-func findSymmetricAutoconnect(st *state.State, plugSnap, slotSnap string, autoConnectTask *state.Task) (bool, error) {
-	snapsup, err := snapstate.TaskSnapSetup(autoConnectTask)
+// findSymmetricInstallTask checks if there is another install-related task such as auto-connect or disconnect-interfaces task affecting same snap.
+func findSymmetricInstallTask(st *state.State, plugSnap, slotSnap string, installTask *state.Task) (bool, error) {
+	snapsup, err := snapstate.TaskSnapSetup(installTask)
 	if err != nil {
-		return false, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", autoConnectTask.Summary())
+		return false, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", installTask.Summary())
 	}
 	installedSnap := snapsup.Name()
 
-	// if we find any auto-connect task that's not ready and is affecting our snap, return true to indicate that
+	// if we find any auto-connect (or disconnect-interfaces) task that's not ready and is affecting our snap, return true to indicate that
 	// it should be ignored (we shouldn't create connect tasks for it)
 	for _, task := range st.Tasks() {
-		if !task.Status().Ready() && task != autoConnectTask && task.Kind() == "auto-connect" {
+		if !task.Status().Ready() && task != installTask && task.Kind() == installTask.Kind() {
 			snapsup, err := snapstate.TaskSnapSetup(task)
 			if err != nil {
 				return false, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", task.Summary())
@@ -111,8 +111,17 @@ func checkConnectConflicts(st *state.State, change *state.Change, plugSnap, slot
 			}
 		}
 
-		// FIXME: revisit this check for normal connects
 		if k == "connect" || k == "disconnect" {
+			// retry if we found another connect/disconnect affecting same snap
+			if installedSnapTask == nil {
+				plugRef, slotRef, err := getPlugAndSlotRefs(task)
+				if err != nil {
+					return err
+				}
+				if plugRef.Snap == installedSnap || slotRef.Snap == installedSnap {
+					return &state.Retry{After: connectRetryTimeout}
+				}
+			}
 			continue
 		}
 
