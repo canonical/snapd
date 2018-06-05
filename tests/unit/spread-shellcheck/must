@@ -45,6 +45,7 @@ tests/main/install-errors/task.yaml
 tests/main/install-refresh-private/task.yaml
 tests/main/install-refresh-remove-hooks/task.yaml
 tests/main/appstream-id/task.yaml
+tests/main/prepare-image-grub-core18/task.yaml
 tests/main/disable-autoconnect/task.yaml
 tests/main/high-user-handling/task.yaml
 tests/main/install-sideload/task.yaml

@@ -974,6 +974,26 @@ func (ms *mgrsSuite) TestInstallCoreSnapUpdatesBootloaderAndSplitsAcrossRestart(
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	brandAcct := assertstest.NewAccount(ms.storeSigning, "my-brand", map[string]interface{}{
+		"account-id":   "my-brand",
+		"verification": "certified",
+	}, "")
+	brandAccKey := assertstest.NewAccountKey(ms.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
+
+	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
+	model, err := brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"store":        "my-brand-store-id",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
 	const packageOS = `
 name: core
 version: 16.04-1
@@ -984,6 +1004,18 @@ type: os
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	// setup model assertion
+	err = assertstate.Add(st, brandAcct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, brandAccKey)
+	c.Assert(err, IsNil)
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
+	})
+	err = assertstate.Add(st, model)
+	c.Assert(err, IsNil)
 
 	ts, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "core"}, snapPath, "", snapstate.Flags{})
 	c.Assert(err, IsNil)
