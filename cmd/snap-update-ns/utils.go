@@ -97,7 +97,7 @@ func (sec *Secure) OpenPath(path string) (int, error) {
 	if !filepath.IsAbs(iter.Path()) {
 		return -1, fmt.Errorf("path %v is not absolute", iter.Path())
 	}
-	iter.Next()
+	iter.Next() // Advance iterator to '/'
 	// We use the following flags to open:
 	//  O_PATH: we don't intend to use the fd for IO
 	//  O_NOFOLLOW: don't follow symlinks
@@ -146,7 +146,7 @@ func (sec *Secure) MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid s
 	if !filepath.IsAbs(iter.Path()) {
 		return -1, fmt.Errorf("path %v is not absolute", iter.Path())
 	}
-	iter.Next()
+	iter.Next() // Advance iterator to '/'
 
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 	// Open the root directory and start there.
