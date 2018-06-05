@@ -202,18 +202,30 @@ func connect(st *state.State, mainTask *state.Task, plugSnap, plugName, slotSnap
 		Hook:     "prepare-plug-" + plugName,
 		Optional: true,
 	}
+	undoPrepPlugHookSetup := &hookstate.HookSetup{
+		Snap:        plugSnap,
+		Hook:        "unprepare-plug-" + plugName,
+		Optional:    true,
+		IgnoreError: true,
+	}
 
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), plugHookSetup.Hook, plugHookSetup.Snap)
-	preparePlugConnection := hookstate.HookTask(st, summary, plugHookSetup, initialContext)
+	preparePlugConnection := hookstate.HookTaskWithUndo(st, summary, plugHookSetup, undoPrepPlugHookSetup, initialContext)
 
 	slotHookSetup := &hookstate.HookSetup{
 		Snap:     slotSnap,
 		Hook:     "prepare-slot-" + slotName,
 		Optional: true,
 	}
+	undoPrepSlotHookSetup := &hookstate.HookSetup{
+		Snap:        slotSnap,
+		Hook:        "unprepare-slot-" + slotName,
+		Optional:    true,
+		IgnoreError: true,
+	}
 
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), slotHookSetup.Hook, slotHookSetup.Snap)
-	prepareSlotConnection := hookstate.HookTask(st, summary, slotHookSetup, initialContext)
+	prepareSlotConnection := hookstate.HookTaskWithUndo(st, summary, slotHookSetup, undoPrepSlotHookSetup, initialContext)
 	prepareSlotConnection.WaitFor(preparePlugConnection)
 
 	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
@@ -235,9 +247,15 @@ func connect(st *state.State, mainTask *state.Task, plugSnap, plugName, slotSnap
 		Hook:     "connect-slot-" + slotName,
 		Optional: true,
 	}
+	undoConnectSlotHookSetup := &hookstate.HookSetup{
+		Snap:        slotSnap,
+		Hook:        "disconnect-slot-" + slotName,
+		Optional:    true,
+		IgnoreError: true,
+	}
 
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectSlotHookSetup.Hook, connectSlotHookSetup.Snap)
-	connectSlotConnection := hookstate.HookTask(st, summary, connectSlotHookSetup, initialContext)
+	connectSlotConnection := hookstate.HookTaskWithUndo(st, summary, connectSlotHookSetup, undoConnectSlotHookSetup, initialContext)
 	connectSlotConnection.WaitFor(connectInterface)
 
 	connectPlugHookSetup := &hookstate.HookSetup{
@@ -245,9 +263,15 @@ func connect(st *state.State, mainTask *state.Task, plugSnap, plugName, slotSnap
 		Hook:     "connect-plug-" + plugName,
 		Optional: true,
 	}
+	undoConnectPlugHookSetup := &hookstate.HookSetup{
+		Snap:        plugSnap,
+		Hook:        "disconnect-plug-" + plugName,
+		Optional:    true,
+		IgnoreError: true,
+	}
 
 	summary = fmt.Sprintf(i18n.G("Run hook %s of snap %q"), connectPlugHookSetup.Hook, connectPlugHookSetup.Snap)
-	connectPlugConnection := hookstate.HookTask(st, summary, connectPlugHookSetup, initialContext)
+	connectPlugConnection := hookstate.HookTaskWithUndo(st, summary, connectPlugHookSetup, undoConnectPlugHookSetup, initialContext)
 	connectPlugConnection.WaitFor(connectSlotConnection)
 
 	return state.NewTaskSet(preparePlugConnection, prepareSlotConnection, connectInterface, connectSlotConnection, connectPlugConnection), nil

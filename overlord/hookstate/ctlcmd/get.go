@@ -194,6 +194,8 @@ type ifaceHookType int
 const (
 	preparePlugHook ifaceHookType = iota
 	prepareSlotHook
+	unpreparePlugHook
+	unprepareSlotHook
 	connectPlugHook
 	connectSlotHook
 	disconnectPlugHook
@@ -214,7 +216,12 @@ func interfaceHookType(hookName string) (ifaceHookType, error) {
 		return disconnectPlugHook, nil
 	} else if strings.HasPrefix(hookName, "disconnect-slot-") {
 		return disconnectSlotHook, nil
+	} else if strings.HasPrefix(hookName, "unprepare-slot-") {
+		return unprepareSlotHook, nil
+	} else if strings.HasPrefix(hookName, "unprepare-plug-") {
+		return unpreparePlugHook, nil
 	}
+
 	return unknownHook, fmt.Errorf("unknown hook type")
 }
 
@@ -284,7 +291,7 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		return fmt.Errorf("cannot use --plug and --slot together")
 	}
 
-	isPlugSide := (hookType == preparePlugHook || hookType == connectPlugHook || hookType == disconnectPlugHook)
+	isPlugSide := (hookType == preparePlugHook || hookType == unpreparePlugHook || hookType == connectPlugHook || hookType == disconnectPlugHook)
 	if err = validatePlugOrSlot(attrsTask, isPlugSide, plugOrSlot); err != nil {
 		return err
 	}
