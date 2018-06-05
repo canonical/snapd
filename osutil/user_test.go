@@ -205,3 +205,33 @@ func (s *createUserSuite) TestUidGid(c *check.C) {
 		}
 	}
 }
+
+func (s *createUserSuite) TestUserConfig(c *check.C) {
+	// clean up the environ
+	if v, isSet := os.LookupEnv("XDG_CONFIG_HOME"); isSet {
+		os.Unsetenv("XDG_CONFIG_HOME")
+		defer os.Setenv("XDG_CONFIG_HOME", v)
+	}
+
+	usr, err := user.Current()
+	c.Assert(err, check.IsNil)
+
+	usr.HomeDir = c.MkDir()
+
+	// with no environ set, and no ~/.config/snap, default to ~/.snap
+	c.Check(osutil.UserConfig(usr, "foo"), check.Equals, filepath.Join(usr.HomeDir, ".snap", "foo"))
+
+	// with no environ set, and an existing ~/.config/snap, use that
+	c.Assert(os.MkdirAll(filepath.Join(usr.HomeDir, ".config", "snap"), 0755), check.IsNil)
+	c.Check(osutil.UserConfig(usr, "foo"), check.Equals, filepath.Join(usr.HomeDir, ".config", "snap", "foo"))
+
+	c.Assert(os.Setenv("XDG_CONFIG_HOME", filepath.Join(usr.HomeDir, "xyzzy")), check.IsNil)
+	defer os.Unsetenv("XDG_CONFIG_HOME")
+
+	// environ set but does not exist, use ~/.snap
+	c.Check(osutil.UserConfig(usr, "foo"), check.Equals, filepath.Join(usr.HomeDir, ".snap", "foo"))
+
+	// environ set and exists, uses that
+	c.Assert(os.Rename(filepath.Join(usr.HomeDir, ".config"), filepath.Join(usr.HomeDir, "xyzzy")), check.IsNil)
+	c.Check(osutil.UserConfig(usr, "foo"), check.Equals, filepath.Join(usr.HomeDir, "xyzzy", "snap", "foo"))
+}

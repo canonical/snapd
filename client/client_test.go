@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -192,7 +193,9 @@ func (cs *clientSuite) TestClientWhoAmINobody(c *C) {
 }
 
 func (cs *clientSuite) TestClientWhoAmIRubbish(c *C) {
-	c.Assert(ioutil.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644), IsNil)
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	c.Assert(ioutil.WriteFile(client.TestStoreAuthFilename(usr), []byte("rubbish"), 0644), IsNil)
 
 	email, err := cs.cli.WhoAmI()
 	c.Check(err, NotNil)

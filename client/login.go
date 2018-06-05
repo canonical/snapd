@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/osutil"
@@ -88,20 +89,20 @@ func (client *Client) LoggedInUser() *User {
 
 const authFileEnvKey = "SNAPD_AUTH_DATA_FILENAME"
 
-func storeAuthDataFilename(homeDir string) string {
+func storeAuthDataFilename(real *user.User) string {
 	if fn := os.Getenv(authFileEnvKey); fn != "" {
 		return fn
 	}
 
-	if homeDir == "" {
-		real, err := osutil.RealUser()
+	if real == nil {
+		var err error
+		real, err = osutil.RealUser()
 		if err != nil {
 			panic(err)
 		}
-		homeDir = real.HomeDir
 	}
 
-	return filepath.Join(homeDir, ".snap", "auth.json")
+	return osutil.UserConfig(real, "auth.json")
 }
 
 // writeAuthData saves authentication details for later reuse through ReadAuthData
@@ -116,7 +117,7 @@ func writeAuthData(user User) error {
 		return err
 	}
 
-	targetFile := storeAuthDataFilename(real.HomeDir)
+	targetFile := storeAuthDataFilename(real)
 
 	if err := osutil.MkdirAllChown(filepath.Dir(targetFile), 0700, uid, gid); err != nil {
 		return err
@@ -132,7 +133,7 @@ func writeAuthData(user User) error {
 
 // readAuthData reads previously written authentication details
 func readAuthData() (*User, error) {
-	sourceFile := storeAuthDataFilename("")
+	sourceFile := storeAuthDataFilename(nil)
 	f, err := os.Open(sourceFile)
 	if err != nil {
 		return nil, err
@@ -150,6 +151,6 @@ func readAuthData() (*User, error) {
 
 // removeAuthData removes any previously written authentication details.
 func removeAuthData() error {
-	filename := storeAuthDataFilename("")
+	filename := storeAuthDataFilename(nil)
 	return os.Remove(filename)
 }
