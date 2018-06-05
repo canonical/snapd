@@ -64,6 +64,6 @@ void sc_ensure_shared_snap_mount(void);
  * - perform all user mounts
  */
 void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
-                          const char *snap_name);
+			  const char *snap_name);
 
 #endif

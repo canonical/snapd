@@ -49,6 +49,7 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdm(c *C) {
 		// FIXME: temporary until spec.TriggerSubsystem() can be
 		// called during disconnect
 		{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+		{"udevadm", "settle", "--timeout=10"},
 	})
 }
 
@@ -98,6 +99,7 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithSubsystem(c *C) {
 		{"udevadm", "control", "--reload-rules"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
 		{"udevadm", "trigger", "--subsystem-match=input"},
+		{"udevadm", "settle", "--timeout=10"},
 	})
 }
 
@@ -130,6 +132,7 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithJoystick(c *C) {
 		{"udevadm", "control", "--reload-rules"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
 		{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+		{"udevadm", "settle", "--timeout=10"},
 	})
 }
 
@@ -163,5 +166,6 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithTwoSubsystems(c *C) {
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
 		{"udevadm", "trigger", "--subsystem-match=input"},
 		{"udevadm", "trigger", "--subsystem-match=tty"},
+		{"udevadm", "settle", "--timeout=10"},
 	})
 }

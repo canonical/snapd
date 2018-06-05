@@ -14,12 +14,15 @@ backends: [-autopkgtest]
 # lxd downloads can be quite slow
 kill-timeout: 25m
 
+# Start before anything else as it can take a really long time.
+priority: 1000
+
 restore: |
     if  [[ $(ls -1 "$GOHOME"/snapd_*.deb | wc -l || echo 0) -eq 0 ]]; then
         exit
     fi
 
-    lxd.lxc stop my-ubuntu
+    lxd.lxc stop my-ubuntu --force
     lxd.lxc delete my-ubuntu
 
 debug: |

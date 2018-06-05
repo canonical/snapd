@@ -201,6 +201,7 @@ func delayedCrossMgrInit() {
 	snapstate.CanAutoRefresh = canAutoRefresh
 	snapstate.CanManageRefreshes = CanManageRefreshes
 	snapstate.IsOnMeteredConnection = netutil.IsOnMeteredConnection
+	snapstate.Model = Model
 }
 
 // ProxyStore returns the store assertion for the proxy store if one is set.

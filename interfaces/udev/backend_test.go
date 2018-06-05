@@ -102,6 +102,7 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 			// FIXME: temporary until spec.TriggerSubsystem() can
 			// be called during disconnect
 			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -133,6 +134,7 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 			// FIXME: temporary until spec.TriggerSubsystem() can
 			// be called during disconnect
 			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -176,6 +178,7 @@ func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 			// FIXME: temporary until spec.TriggerSubsystem() can
 			// be called during disconnect
 			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 	}
 }
@@ -201,6 +204,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 			// FIXME: temporary until spec.TriggerSubsystem() can
 			// be called during disconnect
 			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -233,6 +237,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 			// FIXME: temporary until spec.TriggerSubsystem() can
 			// be called during disconnect
 			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -259,6 +264,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 			// FIXME: temporary until spec.TriggerSubsystem() can
 			// be called during disconnect
 			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -289,6 +295,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 			// FIXME: temporary until spec.TriggerSubsystem() can
 			// be called during disconnect
 			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -409,6 +416,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithoutSlots(c *C) {
 			// FIXME: temporary until spec.TriggerSubsystem() can
 			// be called during disconnect
 			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -457,6 +465,7 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRulesWithInputSubsystem(c
 			{"udevadm", "control", "--reload-rules"},
 			{"udevadm", "trigger", "--subsystem-nomatch=input"},
 			{"udevadm", "trigger", "--subsystem-match=input"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}
@@ -481,6 +490,7 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRulesWithInputJoystickSub
 			{"udevadm", "control", "--reload-rules"},
 			{"udevadm", "trigger", "--subsystem-nomatch=input"},
 			{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+			{"udevadm", "settle", "--timeout=10"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}

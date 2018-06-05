@@ -29,6 +29,7 @@ import (
 // The commands are: udevadm control --reload-rules
 //                   udevadm trigger --subsystem-nomatch=input
 //                   udevadm trigger --property-match=ID_INPUT_JOYSTICK=1
+//                   udevadm settle --timeout=3
 // and optionally a fourth:
 //                   udevadm trigger --subsystem-match=input
 func ReloadRules(subsystemTriggers []string) error {
@@ -83,5 +84,10 @@ func ReloadRules(subsystemTriggers []string) error {
 			return fmt.Errorf("cannot run udev triggers for joysticks: %s\nudev output:\n%s", err, string(output))
 		}
 	}
+
+	// give our triggered events a chance to be handled before exiting.
+	// Ignore errors since we don't want to error on still pending events.
+	_ = exec.Command("udevadm", "settle", "--timeout=10").Run()
+
 	return nil
 }
