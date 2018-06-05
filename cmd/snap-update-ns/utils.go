@@ -134,7 +134,6 @@ func (sec *Secure) OpenPath(path string) (int, error) {
 }
 
 // MkPrefix creates all the missing directories in a given base path and
-//
 // returns the file descriptor to the leaf directory. This function is a base
 // for secure variants of mkdir, touch and symlink. None of the traversed
 // directories can be symbolic links.
