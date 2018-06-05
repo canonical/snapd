@@ -22,7 +22,7 @@ restore: |
         exit
     fi
 
-    lxd.lxc stop my-ubuntu
+    lxd.lxc stop my-ubuntu --force
     lxd.lxc delete my-ubuntu
 
 debug: |
