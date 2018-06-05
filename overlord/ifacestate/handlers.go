@@ -761,6 +761,17 @@ func (m *InterfaceManager) doDisconnectInterfaces(task *state.Task, _ *tomb.Tomb
 		return err
 	}
 
+	// check for conflicts on all connections first before creating disconnect hooks
+	for _, connRef := range connections {
+		if err := checkConnectConflicts(st, task.Change(), connRef.PlugRef.Snap, connRef.SlotRef.Snap, task); err != nil {
+			if _, retry := err.(*state.Retry); retry {
+				task.Logf("disconnect-interfaces task for snap %q will be retried because of %q - %q conflict", snapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap)
+				return err // will retry
+			}
+			return fmt.Errorf("disconnect-interfaces conflict check failed: %s", err)
+		}
+	}
+
 	connectts := state.NewTaskSet()
 	for _, connRef := range connections {
 		conn, err := m.repo.Connection(connRef)
