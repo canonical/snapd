@@ -91,7 +91,7 @@ func (sec *Secure) CheckTrespassing(dirFd int, dir string, name string) error {
 func (sec *Secure) OpenPath(path string) (int, error) {
 	iter, err := NewPathIterator(path)
 	if err != nil {
-		// TODO: remove this and adjust tests
+		// TODO: Reword the error and adjust the tests.
 		return -1, fmt.Errorf("cannot split unclean path %q", path)
 	}
 	if !filepath.IsAbs(iter.Path()) {
@@ -140,7 +140,7 @@ func (sec *Secure) OpenPath(path string) (int, error) {
 func (sec *Secure) MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
 	iter, err := NewPathIterator(base)
 	if err != nil {
-		// TODO: remove this and adjust tests
+		// TODO: Reword the error and adjust the tests.
 		return -1, fmt.Errorf("cannot split unclean path %q", base)
 	}
 	if !filepath.IsAbs(iter.Path()) {
@@ -319,7 +319,7 @@ func (sec *Secure) MkSymlink(dirFd int, dir string, name string, oldname string)
 // to request that ownership is not changed.
 func (sec *Secure) MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	if path != filepath.Clean(path) {
-		// TODO: Remove this, it is only to make tests happy
+		// TODO: Reword the error and adjust the tests.
 		return fmt.Errorf("cannot split unclean path %q", path)
 	}
 	// Only support absolute paths to avoid bugs in snap-confine when
@@ -356,7 +356,7 @@ func (sec *Secure) MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid s
 // is chowned to the desired user and group.
 func (sec *Secure) MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	if path != filepath.Clean(path) {
-		// TODO: Remove this, it is only to make tests happy
+		// TODO: Reword the error and adjust the tests.
 		return fmt.Errorf("cannot split unclean path %q", path)
 	}
 	// Only support absolute paths to avoid bugs in snap-confine when
@@ -388,7 +388,7 @@ func (sec *Secure) MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid 
 // MksymlinkAll is a secure implementation of "ln -s".
 func (sec *Secure) MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string) error {
 	if path != filepath.Clean(path) {
-		// TODO: Remove this, it is only to make tests happy
+		// TODO: Reword the error and adjust the tests.
 		return fmt.Errorf("cannot split unclean path %q", path)
 	}
 	// Only support absolute paths to avoid bugs in snap-confine when
