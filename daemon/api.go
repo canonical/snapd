@@ -2336,7 +2336,7 @@ func setupLocalUser(st *state.State, username, email string) error {
 	if err != nil {
 		return err
 	}
-	authDataFn := filepath.Join(user.HomeDir, ".snap", "auth.json")
+	authDataFn := osutil.UserConfig(user, "auth.json")
 	if err := osutil.MkdirAllChown(filepath.Dir(authDataFn), 0700, uid, gid); err != nil {
 		return err
 	}

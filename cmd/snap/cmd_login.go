@@ -22,12 +22,15 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"os/user"
+	"path/filepath"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type cmdLogin struct {
@@ -38,10 +41,13 @@ type cmdLogin struct {
 
 var shortLoginHelp = i18n.G("Authenticate to snapd and the store")
 
+// TRANSLATORS: the %q is a path to auth.json
 var longLoginHelp = i18n.G(`
 The login command authenticates the user to snapd and the snap store, and saves
-credentials into the ~/.snap/auth.json file. Further communication with snapd
-will then be made using those credentials.
+credentials into a local file. Further communication with snapd will then be
+made using those credentials.
+
+Given the current user and environ, that file is %q.
 
 It's not necessary to log in to interact with snapd. Doing so, however, enables
 purchasing of snaps using 'snap buy', as well as some some developer-oriented
@@ -51,9 +57,17 @@ An account can be set up at https://login.ubuntu.com
 `)
 
 func init() {
+	confFile := "UNKNOWN (bad environ?)"
+	if usr, err := user.Current(); err == nil {
+		confFile = osutil.UserConfig(usr, "auth.json")
+		shorter, err := filepath.Rel(usr.HomeDir, confFile)
+		if err == nil && !strings.HasPrefix(shorter, "..") {
+			confFile = filepath.Join("~", shorter)
+		}
+	}
 	addCommand("login",
 		shortLoginHelp,
-		longLoginHelp,
+		fmt.Sprintf(longLoginHelp, confFile),
 		func() flags.Commander {
 			return &cmdLogin{}
 		}, nil, []argDesc{{

@@ -170,3 +170,28 @@ func UidGid(u *user.User) (sys.UserID, sys.GroupID, error) {
 
 	return sys.UserID(uid), sys.GroupID(gid), nil
 }
+
+func UserConfig(usr *user.User, filename string) string {
+	//  phase 0: pretend XDG_CONFIG_HOME is not a thing
+	//  phase 1: check for XDG_CONFIG_HOME/snap, only use it if it exists
+	//  phase 2: check for ~/.snap, only use it if it exists
+	//  phase 3: forget we ever thought of ~/.snap
+
+	var confHome string
+
+	if strconv.Itoa(os.Getuid()) == usr.Uid {
+		// the current environ is the user's
+		// TODO: figure out how to find out a user's environ from root (probably involves runuser)
+		confHome = os.Getenv("XDG_CONFIG_HOME")
+	}
+	if confHome == "" {
+		confHome = filepath.Join(usr.HomeDir, ".config")
+	}
+
+	base := filepath.Join(confHome, "snap")
+	if !IsDirectory(base) {
+		base = filepath.Join(usr.HomeDir, ".snap")
+	}
+
+	return filepath.Join(base, filename)
+}

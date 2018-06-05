@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
@@ -44,7 +43,7 @@ func ensureGPGHomeDirectory() (string, error) {
 
 	homedir := os.Getenv("SNAP_GNUPG_HOME")
 	if homedir == "" {
-		homedir = filepath.Join(real.HomeDir, ".snap", "gnupg")
+		homedir = osutil.UserConfig(real, "gnupg")
 	}
 
 	if err := osutil.MkdirAllChown(homedir, 0700, uid, gid); err != nil {
