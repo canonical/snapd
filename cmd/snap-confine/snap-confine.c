@@ -279,7 +279,7 @@ int main(int argc, char **argv)
 			sc_unlock(snap_lock_fd);
 
 			sc_setup_user_mounts(&apparmor, snap_update_ns_fd,
-                                             snap_name);
+					     snap_name);
 
 			// Reset path as we cannot rely on the path from the host OS to
 			// make sense. The classic distribution may use any PATH that makes
