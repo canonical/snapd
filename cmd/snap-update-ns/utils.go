@@ -169,10 +169,10 @@ func (sec *Secure) MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid s
 
 // MkDir creates a directory with a given name.
 //
-// The directory is represented with a file descriptor and a name (for
+// The directory is represented with a file descriptor and its name (for
 // convenience). This function is meant to be used to construct subsequent
 // elements of some path. The return value contains the newly created file
-// descriptor or -1 on error.
+// descriptor for the new directory or -1 on error.
 func (sec *Secure) MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
 	made := true
 
@@ -209,7 +209,7 @@ func (sec *Secure) MkDir(dirFd int, dirName string, name string, perm os.FileMod
 
 // MkFile creates a file with a given name.
 //
-// The directory is represented with a file descriptor and a name (for
+// The directory is represented with a file descriptor and its name (for
 // convenience). This function is meant to be used to create the leaf file as a
 // preparation for a mount point. Existing files are reused without errors.
 // Newly created files have the specified mode and ownership.
@@ -257,10 +257,9 @@ func (sec *Secure) MkFile(dirFd int, dirName string, name string, perm os.FileMo
 
 // MkSymlink creates a symlink with a given name.
 //
-// The directory is represented with a file descriptor. For convenience the
-// full path of the symlink is also provided. This function is meant to be used
-// to create the leaf symlink. Existing and identical symlinks are reused
-// without errors.
+// The directory is represented with a file descriptor and its name (for
+// convenience). This function is meant to be used to create the leaf symlink.
+// Existing and identical symlinks are reused without errors.
 func (sec *Secure) MkSymlink(dirFd int, dirName string, name string, oldname string) error {
 	// Create the final path segment as a symlink.
 	// TODO: don't write links outside of tmpfs or $SNAP_{,USER_}{DATA,COMMON}
