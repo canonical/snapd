@@ -29,6 +29,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -161,7 +162,7 @@ func (f *fakeStore) snapInfo(spec store.SnapSpec, user *auth.UserState) (*snap.I
 	confinement := snap.StrictConfinement
 
 	typ := snap.TypeApp
-	if spec.Name == "some-core" {
+	if spec.Name == "core" || spec.Name == "some-core" {
 		typ = snap.TypeOS
 	}
 
@@ -632,7 +633,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	return nil
 }
 
-func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
+func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 	if info.MountDir() == f.linkSnapFailTrigger {
 		f.ops = append(f.ops, fakeOp{
 			op:   "link-snap.failed",
