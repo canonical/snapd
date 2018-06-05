@@ -12,7 +12,7 @@ execute: |
     snap interfaces -i content | MATCH "test-snapd-content-slot-no-content-attr:shared-content +test-snapd-content-plug-no-content-attr"
 
     echo "And fstab files are created"
-    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
+    [ "$(find /var/lib/snapd/mount -type f -name '*.fstab' | wc -l)" -gt 0 ]
 
     echo "And we can use the shared content"
     test-snapd-content-plug-no-content-attr.content-plug | grep "Some shared content"
@@ -25,10 +25,10 @@ execute: |
     snap disconnect test-snapd-content-plug-no-content-attr:shared-content test-snapd-content-slot-no-content-attr:shared-content
 
     echo "Then the fstab files are removed"
-    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -eq 0 ]
+    [ "$(find /var/lib/snapd/mount -type f -name '*.fstab' | wc -l)" -eq 0 ]
 
     echo "When the plug is reconnected"
     snap connect test-snapd-content-plug-no-content-attr:shared-content test-snapd-content-slot-no-content-attr:shared-content
 
     echo "Then the fstab files are recreated"
-    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
+    [ "$(find /var/lib/snapd/mount -type f -name '*.fstab' | wc -l)" -gt 0 ]
