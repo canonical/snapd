@@ -79,7 +79,7 @@ type Secure struct{}
 // control of snap applications. We are perfectly comfortable with creating
 // things in $SNAP_DATA or in /tmp but we don't want to do so in /etc or in
 // other sensitive places.
-func (sec *Secure) CheckTrespassing(dirFd int, dir string, name string) error {
+func (sec *Secure) CheckTrespassing(dirFd int, dirName string, name string) error {
 	return nil
 }
 
@@ -173,7 +173,7 @@ func (sec *Secure) MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid s
 // convenience). This function is meant to be used to construct subsequent
 // elements of some path. The return value contains the newly created file
 // descriptor or -1 on error.
-func (sec *Secure) MkDir(dirFd int, dir string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
+func (sec *Secure) MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) (int, error) {
 	made := true
 
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
@@ -186,7 +186,7 @@ func (sec *Secure) MkDir(dirFd int, dir string, name string, perm os.FileMode, u
 			// Treat EROFS specially: this is a hint that we have to poke a
 			// hole using tmpfs. The path below is the location where we
 			// need to poke the hole.
-			return -1, &ReadOnlyFsError{Path: dir}
+			return -1, &ReadOnlyFsError{Path: dirName}
 		default:
 			return -1, fmt.Errorf("cannot create directory %q: %v", name, err)
 		}
@@ -213,7 +213,7 @@ func (sec *Secure) MkDir(dirFd int, dir string, name string, perm os.FileMode, u
 // convenience). This function is meant to be used to create the leaf file as a
 // preparation for a mount point. Existing files are reused without errors.
 // Newly created files have the specified mode and ownership.
-func (sec *Secure) MkFile(dirFd int, dir string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
+func (sec *Secure) MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.UserID, gid sys.GroupID) error {
 	made := true
 
 	// NOTE: Tests don't show O_RDONLY as has a value of 0 and is not
@@ -238,7 +238,7 @@ func (sec *Secure) MkFile(dirFd int, dir string, name string, perm os.FileMode, 
 			// Treat EROFS specially: this is a hint that we have to poke a
 			// hole using tmpfs. The path below is the location where we
 			// need to poke the hole.
-			return &ReadOnlyFsError{Path: dir}
+			return &ReadOnlyFsError{Path: dirName}
 		default:
 			return fmt.Errorf("cannot open file %q: %v", name, err)
 		}
@@ -261,7 +261,7 @@ func (sec *Secure) MkFile(dirFd int, dir string, name string, perm os.FileMode, 
 // full path of the symlink is also provided. This function is meant to be used
 // to create the leaf symlink. Existing and identical symlinks are reused
 // without errors.
-func (sec *Secure) MkSymlink(dirFd int, dir string, name string, oldname string) error {
+func (sec *Secure) MkSymlink(dirFd int, dirName string, name string, oldname string) error {
 	// Create the final path segment as a symlink.
 	// TODO: don't write links outside of tmpfs or $SNAP_{,USER_}{DATA,COMMON}
 	if err := sysSymlinkat(oldname, dirFd, name); err != nil {
@@ -296,7 +296,7 @@ func (sec *Secure) MkSymlink(dirFd int, dir string, name string, oldname string)
 			// Treat EROFS specially: this is a hint that we have to poke a
 			// hole using tmpfs. The path below is the location where we
 			// need to poke the hole.
-			return &ReadOnlyFsError{Path: dir}
+			return &ReadOnlyFsError{Path: dirName}
 		default:
 			return fmt.Errorf("cannot create symlink %q: %v", name, err)
 		}
