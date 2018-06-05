@@ -2,4 +2,4 @@ summary: Check that "snap connectivity-check" works
 
 execute: |
     echo "Ensure the snap connectivity-check command works"
-    snap connectivity-check | MATCH ": true"
+    snap debug connectivity | MATCH " * PASS"

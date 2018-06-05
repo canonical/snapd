@@ -2519,7 +2519,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	case "can-manage-refreshes":
 		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
-	case "connectivity-check":
+	case "connectivity":
 		// FIXME: add to snapstate.StoreService? feels not ideal :/
 		//        other options?
 		s := snapstate.Store(st).(*store.Store)

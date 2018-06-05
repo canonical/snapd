@@ -605,22 +605,6 @@ func (client *Client) Users() ([]*User, error) {
 	return result, nil
 }
 
-// ConnectivityCheck returns a map of hosts and if they are reachable
-// by snapd.
-func (client *Client) ConnectivityCheck() (map[string]bool, error) {
-	var result map[string]bool
-
-	body, err := json.Marshal(debugAction{
-		Action: "connectivity-check",
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = client.doSync("POST", "/v2/debug", nil, nil, bytes.NewReader(body), &result)
-	return result, err
-}
-
 type debugAction struct {
 	Action string      `json:"action"`
 	Params interface{} `json:"params,omitempty"`

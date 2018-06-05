@@ -28,13 +28,12 @@ import (
 type cmdConnectivityCheck struct{}
 
 func init() {
-	cmd := addCommand("connectivity-check",
+	addDebugCommand("connectivity",
 		"Check network connectivity status",
 		"The connectivity-check command checks the network connectivity of snapd .",
 		func() flags.Commander {
 			return &cmdConnectivityCheck{}
 		}, nil, nil)
-	cmd.hidden = true
 }
 
 func (x *cmdConnectivityCheck) Execute(args []string) error {
@@ -43,22 +42,24 @@ func (x *cmdConnectivityCheck) Execute(args []string) error {
 	}
 
 	cli := Client()
-	connectivity, err := cli.ConnectivityCheck()
-	if err != nil {
+
+	var connectivity map[string]bool
+	if err := cli.Debug("connectivity", nil, &connectivity); err != nil {
 		return err
 	}
 
 	fmt.Fprintf(Stdout, "Connectivity status:\n")
 	unreachable := 0
 	for uri, reachable := range connectivity {
-		fmt.Fprintf(Stdout, " * %s: %v\n", uri, reachable)
 		if !reachable {
+			fmt.Fprintf(Stdout, " * %s: unreachable\n", uri)
 			unreachable++
 		}
 	}
-	fmt.Fprintf(Stdout, "\n")
 	if unreachable > 0 {
 		return fmt.Errorf("cannot connect to %v of %v servers", unreachable, len(connectivity))
+	} else {
+		fmt.Fprintf(Stdout, " * PASS\n")
 	}
 
 	return nil
