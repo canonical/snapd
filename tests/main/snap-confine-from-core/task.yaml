@@ -25,13 +25,11 @@ execute: |
     echo "Ensure we re-exec by default"
     snap list
 
-    retry=10
-    while [ $retry -gt 0 ]; do
+    for _ in $(seq 10); do
       if get_journalctl_log | MATCH "DEBUG: restarting into" ; then
           break
       fi
       sleep 1
-      retry=$(( retry - 1 ))
     done
     get_journalctl_log | MATCH "DEBUG: restarting into"
 
