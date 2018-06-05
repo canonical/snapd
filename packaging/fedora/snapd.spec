@@ -662,7 +662,8 @@ popd
 %{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/system-shutdown
 %{_libexecdir}/snapd/snap-gdb-shim
-%{_libexecdir}/snapd/snapd-generator
+%{_systemdgeneratordir}/snapd/snapd-generator
+%{_systemd_system_env_generator_dir}/50-snapd.sh
 %{_mandir}/man1/snap-confine.1*
 %{_mandir}/man5/snap-discard-ns.5*
 %attr(0000,root,root) %{_sharedstatedir}/snapd/void
