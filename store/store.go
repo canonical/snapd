@@ -2354,8 +2354,9 @@ func (s *Store) authConnCheck() ([]string, error) {
 	// We only do a very basic connectivity check for this endpoint
 	hosts := []string{url.Host}
 	port := ""
-	if url.Port() == "" {
-		port = ":" + url.Port()
+	// go1.6 has no url.Port()
+	if !strings.Contains(url.Host, ":") {
+		port = ":" + url.Scheme
 	}
 	conn, err := netDial("tcp", fmt.Sprintf("%s%s", url.Host, port))
 	if err != nil {
