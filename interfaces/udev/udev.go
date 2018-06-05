@@ -30,7 +30,7 @@ import (
 //                   udevadm trigger --subsystem-nomatch=input
 //                   udevadm trigger --property-match=ID_INPUT_JOYSTICK=1
 //                   udevadm settle --timeout=3
-// and optionally a fourth:
+// and optionally another (before settle):
 //                   udevadm trigger --subsystem-match=input
 func ReloadRules(subsystemTriggers []string) error {
 	output, err := exec.Command("udevadm", "control", "--reload-rules").CombinedOutput()
