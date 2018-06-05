@@ -94,10 +94,10 @@ func (sec *Secure) OpenPath(path string) (int, error) {
 		// TODO: remove this and adjust tests
 		return -1, fmt.Errorf("cannot split unclean path %q", path)
 	}
-	iter.Next()
-	if iter.CurrentName() != "/" {
-		return -1, fmt.Errorf("path %v is not absolute", path)
+	if !filepath.IsAbs(iter.Path()) {
+		return -1, fmt.Errorf("path %v is not absolute", iter.Path())
 	}
+	iter.Next()
 	// We use the following flags to open:
 	//  O_PATH: we don't intend to use the fd for IO
 	//  O_NOFOLLOW: don't follow symlinks
@@ -144,10 +144,10 @@ func (sec *Secure) MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid s
 		// TODO: remove this and adjust tests
 		return -1, fmt.Errorf("cannot split unclean path %q", base)
 	}
-	iter.Next()
-	if iter.CurrentName() != "/" {
-		return -1, fmt.Errorf("path %v is not absolute", base)
+	if !filepath.IsAbs(iter.Path()) {
+		return -1, fmt.Errorf("path %v is not absolute", iter.Path())
 	}
+	iter.Next()
 
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 	// Open the root directory and start there.
