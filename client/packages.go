@@ -38,28 +38,28 @@ type Snap struct {
 	Description      string        `json:"description" help:"The multi-line description"`
 	DownloadSize     int64         `json:"download-size,omitempty" help:"The download size"`
 	Icon             string        `json:"icon,omitempty"`
-	InstalledSize    int64         `json:"installed-size,omitempty"`
-	InstallDate      time.Time     `json:"install-date,omitempty"`
-	Name             string        `json:"name"`
-	Developer        string        `json:"developer"`
-	Status           string        `json:"status"`
-	Type             string        `json:"type"`
-	Version          string        `json:"version"`
-	Channel          string        `json:"channel"`
-	TrackingChannel  string        `json:"tracking-channel,omitempty"`
+	InstalledSize    int64         `json:"installed-size,omitempty" help:"The installed size in byte"`
+	InstallDate      time.Time     `json:"install-date,omitempty" help:"The date of installation (or empty)"`
+	Name             string        `json:"name" help:"The human readable name of the snap"`
+	Developer        string        `json:"developer" help:"The name of the publisher"`
+	Status           string        `json:"status" help:"The active status"`
+	Type             string        `json:"type" help:"The type (e.g. "app")`
+	Version          string        `json:"version" help:"The human readable version"`
+	Channel          string        `json:"channel" help:"The current channel"`
+	TrackingChannel  string        `json:"tracking-channel,omitempty" help:"The channel this snap follows"`
 	IgnoreValidation bool          `json:"ignore-validation"`
-	Revision         snap.Revision `json:"revision"`
-	Confinement      string        `json:"confinement"`
-	Private          bool          `json:"private"`
-	DevMode          bool          `json:"devmode"`
-	JailMode         bool          `json:"jailmode"`
-	TryMode          bool          `json:"trymode,omitempty"`
+	Revision         snap.Revision `json:"revision" help:"The snap revision"`
+	Confinement      string        `json:"confinement" help:"The confinement used"`
+	Private          bool          `json:"private" help:"True if this is a private snap"`
+	DevMode          bool          `json:"devmode" help:"True if this snap is in devmode"`
+	JailMode         bool          `json:"jailmode" help:"True if this snap is in jailmode"`
+	TryMode          bool          `json:"trymode,omitempty" help:"True if this snap is in try-mode"`
 	Apps             []AppInfo     `json:"apps,omitempty"`
-	Broken           string        `json:"broken,omitempty"`
-	Contact          string        `json:"contact"`
-	License          string        `json:"license,omitempty"`
+	Broken           string        `json:"broken,omitempty" help:"True if this snap is currently broken"`
+	Contact          string        `json:"contact"  help:"The contact for this snap"`
+	License          string        `json:"license,omitempty" help:"The license as a SPDX expression"`
 
-	Prices      map[string]float64 `json:"prices,omitempty"`
+	Prices      map[string]float64 `json:"prices,omitempty" help:"The price of the snap"`
 	Screenshots []Screenshot       `json:"screenshots,omitempty"`
 
 	// The flattended channel map with $track/$risk

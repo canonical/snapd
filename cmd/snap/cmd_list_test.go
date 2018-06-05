@@ -26,6 +26,7 @@ import (
 	"gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func (s *SnapSuite) TestListHelp(c *check.C) {
@@ -242,4 +243,65 @@ func (s *SnapSuite) TestFormatChannel(c *check.C) {
 	} {
 		c.Check(snap.FormatChannel(ch), check.Not(check.Equals), "", check.Commentf(ch))
 	}
+}
+
+func (s *SnapSuite) TestListFormat(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2", "developer": "bar", "revision":17, "tracking-channel": "stable"}]}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"list", "--format={{.Name}} {{.Revision}}"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `foo +17
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestListFormatHelp(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatalf("unexpected call to test server")
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"list", "--format=help"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), testutil.Contains, `Format uses a simple template system.
+
+Use --format="{{.Name}} {{.Version}}" to get started.
+
+All elements available for snaps are:
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestListFormatHelpAll(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatalf("unexpected call to test server")
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"list", "--format=help-all"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), testutil.Contains, `Format uses a simple template system.
+
+Use --format="{{.Name}} {{.Version}}" to get started.
+
+All elements available for snaps are:
+`)
+	// screenshots has no "help" tag (and likely never will be) so
+	// check that it is still shows with --format=help-all
+	c.Check(s.Stdout(), testutil.Contains, `
+ - Screenshots
+`)
+
+	c.Check(s.Stderr(), check.Equals, "")
 }

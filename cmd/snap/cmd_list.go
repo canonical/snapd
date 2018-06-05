@@ -111,6 +111,13 @@ func fmtChannel(ch string) string {
 }
 
 func listSnaps(names []string, format string, all bool) error {
+	w := tabWriter()
+	defer w.Flush()
+
+	if format == "help" || format == "help-all" {
+		return describeListFormat(w, format)
+	}
+
 	cli := Client()
 	snaps, err := cli.List(names, &client.ListOptions{All: all})
 	if err != nil {
@@ -127,9 +134,6 @@ func listSnaps(names []string, format string, all bool) error {
 		return ErrNoMatchingSnaps
 	}
 	sort.Sort(snapsByName(snaps))
-
-	w := tabWriter()
-	defer w.Flush()
 
 	switch format {
 	case "":
@@ -149,14 +153,15 @@ func clientSnapFields() []fieldDesc {
 	n := v.NumField()
 	fields := make([]fieldDesc, n)
 	for i := 0; i < n; i++ {
-		fields[i].name = v.Field(i).Name
-		fields[i].help = v.Field(i).Tag.Get("help")
+		field := v.Field(i)
+		fields[i].name = field.Name
+		fields[i].help = field.Tag.Get("help")
 	}
 
 	return fields
 }
 
-func describeListFormat(w io.Writer) error {
+func describeListFormat(w io.Writer, format string) error {
 	fmt.Fprintf(w, `Format uses a simple template system.
 
 Use --format="{{.Name}} {{.Version}}" to get started.
@@ -167,7 +172,9 @@ All elements available for snaps are:
 		if fld.help != "" {
 			fmt.Fprintf(w, " - %s:\t%s\n", fld.name, fld.help)
 		} else {
-			fmt.Fprintf(w, " - %s\n", fld.name)
+			if format == "help-all" {
+				fmt.Fprintf(w, " - %s\n", fld.name)
+			}
 		}
 	}
 
@@ -175,13 +182,9 @@ All elements available for snaps are:
 }
 
 func outputSnapsWithFormat(w io.Writer, snaps []*client.Snap, format string) error {
-	if format == "help" {
-		return describeListFormat(w)
-	}
-
 	t, err := template.New("list-output").Parse(format)
 	if err != nil {
-		return fmt.Errorf("cannot use given template: %s", err)
+		return fmt.Errorf("cannot use given template (try --format=help): %s", err)
 	}
 
 	for _, snap := range snaps {
