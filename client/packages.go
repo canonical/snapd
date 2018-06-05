@@ -44,6 +44,7 @@ type Snap struct {
 	Developer        string        `json:"developer" help:"The name of the publisher"`
 	Status           string        `json:"status" help:"The active status"`
 	Type             string        `json:"type" help:"The type (e.g. "app")`
+	Base             string        `json:"base,omitempty" help:"The base the snap uses (if any)"`
 	Version          string        `json:"version" help:"The human readable version"`
 	Channel          string        `json:"channel" help:"The current channel"`
 	TrackingChannel  string        `json:"tracking-channel,omitempty" help:"The channel this snap follows"`
@@ -58,6 +59,8 @@ type Snap struct {
 	Broken           string        `json:"broken,omitempty" help:"True if this snap is currently broken"`
 	Contact          string        `json:"contact"  help:"The contact for this snap"`
 	License          string        `json:"license,omitempty" help:"The license as a SPDX expression"`
+	CommonIDs        []string      `json:"common-ids,omitempty"`
+	MountedFrom      string        `json:"mounted-from,omitempty"`
 
 	Prices      map[string]float64 `json:"prices,omitempty" help:"The price of the snap"`
 	Screenshots []Screenshot       `json:"screenshots,omitempty"`
