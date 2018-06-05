@@ -41,7 +41,7 @@ var _ = Suite(&uDevSuite{})
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdm(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", "")
 	defer cmd.Restore()
-	err := udev.ReloadRules("")
+	err := udev.ReloadRules([]string{})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
@@ -60,7 +60,7 @@ if [ "$1" = "control" ]; then
 fi
 	`)
 	defer cmd.Restore()
-	err := udev.ReloadRules("")
+	err := udev.ReloadRules([]string{})
 	c.Assert(err.Error(), Equals, ""+
 		"cannot reload udev rules: exit status 1\n"+
 		"udev output:\n"+
@@ -78,7 +78,7 @@ if [ "$1" = "trigger" ]; then
 fi
 	`)
 	defer cmd.Restore()
-	err := udev.ReloadRules("")
+	err := udev.ReloadRules([]string{})
 	c.Assert(err.Error(), Equals, ""+
 		"cannot run udev triggers: exit status 2\n"+
 		"udev output:\n"+
@@ -92,7 +92,7 @@ fi
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithSubsystem(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", "")
 	defer cmd.Restore()
-	err := udev.ReloadRules("input")
+	err := udev.ReloadRules([]string{"input"})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
@@ -109,7 +109,7 @@ if [ "$2" = "--subsystem-match=input" ]; then
 fi
 	`)
 	defer cmd.Restore()
-	err := udev.ReloadRules("input")
+	err := udev.ReloadRules([]string{"input"})
 	c.Assert(err.Error(), Equals, ""+
 		"cannot run udev triggers for input subsystem: exit status 2\n"+
 		"udev output:\n"+
@@ -124,7 +124,7 @@ fi
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithJoystick(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", "")
 	defer cmd.Restore()
-	err := udev.ReloadRules("input/joystick")
+	err := udev.ReloadRules([]string{"input/joystick"})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
@@ -141,7 +141,7 @@ if [ "$2" = "--property-match=ID_INPUT_JOYSTICK=1" ]; then
 fi
 	`)
 	defer cmd.Restore()
-	err := udev.ReloadRules("input/joystick")
+	err := udev.ReloadRules([]string{"input/joystick"})
 	c.Assert(err.Error(), Equals, ""+
 		"cannot run udev triggers for joysticks: exit status 2\n"+
 		"udev output:\n"+
@@ -150,5 +150,18 @@ fi
 		{"udevadm", "control", "--reload-rules"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
 		{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+	})
+}
+
+func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithTwoSubsystems(c *C) {
+	cmd := testutil.MockCommand(c, "udevadm", "")
+	defer cmd.Restore()
+	err := udev.ReloadRules([]string{"input", "tty"})
+	c.Assert(err, IsNil)
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "trigger", "--subsystem-nomatch=input"},
+		{"udevadm", "trigger", "--subsystem-match=input"},
+		{"udevadm", "trigger", "--subsystem-match=tty"},
 	})
 }

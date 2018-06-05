@@ -41,8 +41,8 @@ type Specification struct {
 	entries  []entry
 	iface    string
 
-	securityTags            []string
-	udevadmSubsystemTrigger string
+	securityTags             []string
+	udevadmSubsystemTriggers []string
 }
 
 func (spec *Specification) addEntry(snippet, tag string) {
@@ -170,9 +170,18 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 // interface disconnect, TriggerSubsystem() should typically only by used in
 // UDevPermanentSlot since the rules are permanent until the snap is removed.
 func (spec *Specification) TriggerSubsystem(subsystem string) {
-	spec.udevadmSubsystemTrigger = subsystem
+	if subsystem == "" {
+		return
+	}
+
+	for _, elem := range spec.udevadmSubsystemTriggers {
+		if subsystem == elem {
+			return
+		}
+	}
+	spec.udevadmSubsystemTriggers = append(spec.udevadmSubsystemTriggers, subsystem)
 }
 
-func (spec *Specification) GetTriggeredSubsystem() string {
-	return spec.udevadmSubsystemTrigger
+func (spec *Specification) GetTriggeredSubsystems() []string {
+	return spec.udevadmSubsystemTriggers
 }

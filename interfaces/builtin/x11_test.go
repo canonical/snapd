@@ -187,7 +187,7 @@ KERNEL=="ts[0-9]*", TAG+="snap_x11_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# x11
 KERNEL=="tty[0-9]*", TAG+="snap_x11_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_x11_app1", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_x11_app1 $devpath $major:$minor"`)
-	c.Assert(spec.GetTriggeredSubsystem(), Equals, `input`)
+	c.Assert(spec.GetTriggeredSubsystems(), DeepEquals, []string{"input"})
 
 	// on a classic system with x11 slot coming from the core snap.
 	restore = release.MockOnClassic(true)
@@ -196,7 +196,7 @@ KERNEL=="tty[0-9]*", TAG+="snap_x11_app1"`)
 	spec = &udev.Specification{}
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
-	c.Assert(spec.GetTriggeredSubsystem(), Equals, "")
+	c.Assert(spec.GetTriggeredSubsystems(), IsNil)
 }
 
 func (s *X11InterfaceSuite) TestStaticInfo(c *C) {
