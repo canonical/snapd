@@ -1,4 +1,4 @@
-summary: Check that the snapd.manage helper works
+summary: Check that the snapd.run-from-snap helper works
 
 systems: [ubuntu-core-*]
 
@@ -24,7 +24,7 @@ execute: |
 
     echo "Run the manage script (from the snap)"
     ls /run/systemd/system > before
-    /snap/snapd/current/usr/lib/snapd/snapd.manage start /snap/snapd/current
+    /snap/snapd/current/usr/lib/snapd/snapd.run-from-snap start /snap/snapd/current
     echo "Check that the snapd from the snap is running"
     systemctl status snapd|MATCH "Active: active"
     systemctl status snapd|MATCH "/snap/snapd/current/usr/lib/snapd/snapd"
@@ -32,8 +32,8 @@ execute: |
     echo "And ensure snapd from the snap is working on a basic level"
     snap list
 
-    echo "Ensure stop (and cleaning) via snapd.manage works"
-    /snap/snapd/current/usr/lib/snapd/snapd.manage stop
+    echo "Ensure stop (and cleaning) via snapd.run-from-snap works"
+    /snap/snapd/current/usr/lib/snapd/snapd.run-from-snap stop
     if ! diff -u $(ls /run/systemd/system) $(cat before); then
         echo "The /run/sytemd/system dir is not properly cleaned up"
         echo "Before: $(cat before)"
