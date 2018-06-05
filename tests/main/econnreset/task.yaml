@@ -20,7 +20,7 @@ execute: |
                 break
             fi
         fi
-        sleep .5
+        sleep 1
     done
 
     if [ ! -f "$partial" ] || [ "$(stat -c%s "$partial")" -eq 0 ]; then
