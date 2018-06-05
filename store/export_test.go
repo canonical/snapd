@@ -20,6 +20,8 @@
 package store
 
 import (
+	"net"
+
 	"github.com/snapcore/snapd/testutil"
 
 	"gopkg.in/retry.v1"
@@ -32,6 +34,14 @@ func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	t.AddCleanup(func() {
 		defaultRetryStrategy = originalDefaultRetryStrategy
 	})
+}
+
+func MockNetDial(f func(n, a string) (net.Conn, error)) func() {
+	oldNetDial := netDial
+	netDial = f
+	return func() {
+		netDial = oldNetDial
+	}
 }
 
 func (cm *CacheManager) CacheDir() string {

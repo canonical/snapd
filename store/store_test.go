@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -6898,7 +6899,7 @@ func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {
 }
 
 func (s *storeTestSuite) TestConnectivityCheck(c *C) {
-	seenPaths := make(map[string]int, 4)
+	seenPaths := make(map[string]int, 2)
 	var mockServerURL *url.URL
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -6934,11 +6935,13 @@ func (s *storeTestSuite) TestConnectivityCheck(c *C) {
 	defer func() {
 		MacaroonACLAPI = oldMacaroonACLAPI
 	}()
-	oldUbuntuoneAPIBase := ubuntuoneAPIBase
-	ubuntuoneAPIBase = mockServerURL.String() + "/u1api"
-	defer func() {
-		ubuntuoneAPIBase = oldUbuntuoneAPIBase
-	}()
+
+	seenDials := make(map[string]int, 1)
+	restore := MockNetDial(func(n, a string) (net.Conn, error) {
+		seenDials[a] += 1
+		return net.Dial(n, a)
+	})
+	defer restore()
 
 	sto := New(&Config{
 		StoreBaseURL: mockServerURL,
@@ -6952,5 +6955,10 @@ func (s *storeTestSuite) TestConnectivityCheck(c *C) {
 		"/download/core":             1,
 	})
 
-	// FIXME: add test for net.Dial
+	// the mockMacaroonACLAPI url is only checked via net.Dial
+	mockMacaroonACLAPIURL, err := url.Parse(MacaroonACLAPI)
+	c.Assert(err, IsNil)
+	c.Check(seenDials, DeepEquals, map[string]int{
+		mockMacaroonACLAPIURL.Host: 1,
+	})
 }

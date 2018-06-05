@@ -76,7 +76,7 @@ func (s *SnapSuite) TestConnectivityUnhappy(c *check.C) {
 	})
 	_, err := snap.Parser().ParseArgs([]string{"debug", "connectivity"})
 	c.Assert(err, check.ErrorMatches, "cannot connect to 1 of 2 servers")
-        // note that only the unreachable hosts are displayed
+	// note that only the unreachable hosts are displayed
 	c.Check(s.Stdout(), check.Equals, `Connectivity status:
  * foo.bar.com: unreachable
 `)
