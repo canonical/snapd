@@ -23,6 +23,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
+	"strings"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 // DecodeWithNumber decodes input data using json.Decoder, ensuring numbers are preserved
@@ -37,4 +41,26 @@ func DecodeWithNumber(r io.Reader, value interface{}) error {
 		return fmt.Errorf("cannot parse json value")
 	}
 	return nil
+}
+
+// StructFields takes a pointer to a struct and a list of exceptions,
+// and returns a list of the fields in the struct that are JSON-tagged
+// and whose tag is not in the list of exceptions.
+// The struct can be nil.
+func StructFields(s interface{}, exceptions ...string) []string {
+	st := reflect.TypeOf(s).Elem()
+	num := st.NumField()
+	fields := make([]string, 0, num)
+	for i := 0; i < num; i++ {
+		tag := st.Field(i).Tag.Get("json")
+		idx := strings.IndexByte(tag, ',')
+		if idx > -1 {
+			tag = tag[:idx]
+		}
+		if tag != "" && !strutil.ListContains(exceptions, tag) {
+			fields = append(fields, tag)
+		}
+	}
+
+	return fields
 }

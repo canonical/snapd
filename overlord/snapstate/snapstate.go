@@ -204,13 +204,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(setupAliases)
 	prev = setupAliases
 
-	// on refresh re-connect existing connections and run their interface hooks (if applicable)
-	if snapst.IsInstalled() {
-		reconnectTask := st.NewTask("reconnect", fmt.Sprintf(i18n.G("Reconnect interfaces for snap %q"), snapsup.Name()))
-		addTask(reconnectTask)
-		prev = reconnectTask
-	}
-
 	if runRefreshHooks {
 		postRefreshHook := SetupPostRefreshHook(st, snapsup.Name())
 		addTask(postRefreshHook)
@@ -231,6 +224,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// Do not do that if we are reverting to a local revision
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
+		var retain int
+		if err := config.NewTransaction(st).Get("core", "refresh.retain", &retain); err != nil {
+			retain = 3
+		}
+		retain-- //  we're adding one
+
 		seq := snapst.Sequence
 		currentIndex := snapst.LastIndex(snapst.Current)
 
@@ -262,7 +261,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 
 		// normal garbage collect
-		for i := 0; i <= currentIndex-2; i++ {
+		for i := 0; i <= currentIndex-retain; i++ {
 			si := seq[i]
 			if boot.InUse(snapsup.Name(), si.Revision) {
 				continue

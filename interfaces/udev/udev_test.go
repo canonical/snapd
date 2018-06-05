@@ -46,6 +46,7 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdm(c *C) {
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
 		{"udevadm", "trigger"},
+		{"udevadm", "settle", "--timeout=10"},
 	})
 }
 

@@ -47,5 +47,3 @@ func MockNetDial(f func(n, a string) (net.Conn, error)) func() {
 func (cm *CacheManager) CacheDir() string {
 	return cm.cacheDir
 }
-
-var GetStructFields = getStructFields
