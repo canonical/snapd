@@ -38,7 +38,7 @@ case $CMD in
         # use existing snapd.service as a template and modify so that the
         # right prefix is used
         for u in $UNITS $ENABLE_UNITS; do
-            sed "s#ExecStart=#ExecStart=$PREFIX#" "$PREFIX/lib/systemd/system/$u > /run/systemd/system/$u"
+            sed "s#ExecStart=#ExecStart=$PREFIX#" "$PREFIX/lib/systemd/system/$u" > "/run/systemd/system/$u"
         done
         # and now use systemd to start it
         systemctl daemon-reload
