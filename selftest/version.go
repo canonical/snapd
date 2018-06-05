@@ -19,15 +19,20 @@
 
 package selftest
 
-var (
-	TrySquashfsMount   = trySquashfsMount
-	CheckKernelVersion = checkKernelVersion
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/strutil"
 )
 
-func MockChecks(mockChecks []func() error) (restore func()) {
-	oldChecks := checks
-	checks = mockChecks
-	return func() {
-		checks = oldChecks
+// checkKernelVersion looks for some unsupported configurations that users may
+// encounter and provides advice on how to resolve them.
+func checkKernelVersion() error {
+	if release.OnClassic && release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04" {
+		if cmp, _ := strutil.VersionCompare(release.KernelVersion(), "3.13"); cmp <= 0 {
+			return fmt.Errorf("you need to reboot into a 4.4 kernel to start using snapd")
+		}
 	}
+	return nil
 }
