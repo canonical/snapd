@@ -23,7 +23,9 @@ import (
 	"bytes"
 	"crypto/md5"
 	"crypto/sha512"
+	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -66,6 +68,80 @@ var (
 	osGetenv = os.Getenv
 	timeNow  = time.Now
 )
+
+type reportsDB struct {
+	fname string
+
+	// map of hash(dupsig) -> time-of-report
+	reported map[string]time.Time
+
+	cleanupTime time.Duration
+}
+
+func dupSigHash(s string) string {
+	h := sha512.New()
+	io.WriteString(h, s)
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func newReportsDB(fname string) (*reportsDB, error) {
+	db := &reportsDB{
+		fname:       fname,
+		reported:    make(map[string]time.Time),
+		cleanupTime: time.Duration(7 * 24 * time.Hour),
+	}
+
+	f, err := os.Open(fname)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return db, nil
+		}
+		return nil, err
+	}
+	defer f.Close()
+
+	dec := json.NewDecoder(f)
+	if err := dec.Decode(&db.reported); err != nil {
+		// be robust here, if the data is corrupted for whatever
+		// reason we just create a fresh DB
+		return db, nil
+	}
+
+	return db, nil
+}
+
+func (db *reportsDB) AlreadyReported(dupSig string) bool {
+	_, reported := db.reported[dupSigHash(dupSig)]
+	return reported
+}
+
+func (db *reportsDB) cleanupOldRecords() {
+	now := time.Now()
+	for dupSigHash, reportTime := range db.reported {
+		if now.After(reportTime.Add(db.cleanupTime)) {
+			delete(db.reported, dupSigHash)
+		}
+	}
+}
+
+func (db *reportsDB) MarkReported(dupSig string) error {
+	db.cleanupOldRecords()
+
+	db.reported[dupSigHash(dupSig)] = time.Now()
+	if err := os.MkdirAll(filepath.Dir(db.fname), 0755); err != nil {
+		return err
+	}
+	// optimistic (i.e. no) locking - worst case is that we send a
+	// duplicated report
+	f, err := osutil.NewAtomicFile(db.fname, 0644, 0, osutil.NoChown, osutil.NoChown)
+	if err != nil {
+		return err
+	}
+	enc := json.NewEncoder(f)
+	enc.Encode(db.reported)
+
+	return f.Commit()
+}
 
 func whoopsieEnabled() bool {
 	cmd := exec.Command("systemctl", "is-enabled", "whoopsie.service")
@@ -133,7 +209,25 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 	extra["ProblemType"] = "Snap"
 	extra["Snap"] = snap
 
-	return report(errMsg, dupSig, extra)
+	// check if we haven't already reported this error
+	db, err := newReportsDB(dirs.ErrtrackerDbDir)
+	if err != nil {
+		return "", err
+	}
+	if db.AlreadyReported(dupSig) {
+		return "already-reported", nil
+	}
+
+	// do the actual report
+	oopsID, err := report(errMsg, dupSig, extra)
+	if err != nil {
+		return "", err
+	}
+	if err := db.MarkReported(dupSig); err != nil {
+		logger.Noticef("cannot mark %s as reported", oopsID)
+	}
+
+	return oopsID, nil
 }
 
 // ReportRepair reports an error with the given repair assertion script
