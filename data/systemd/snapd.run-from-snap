@@ -20,7 +20,6 @@ UNITS="snapd.service snapd.autoimport.service snapd.core-fixup.service \
        snapd.snap-repair.timer snapd.socket"
 ENABLE_UNITS="snapd.system-shutdown.service"
 
-# TODO: discuss ID_LIKE=ubuntu-core or ID_LIKE=snap-core ?
 if ! grep -q -E "ID(_LIKE)?=ubuntu-core" /etc/os-release && \
         ! grep -q -E "ID(_LIKE)?=ubuntu-core" /usr/lib/os-release;
     then
