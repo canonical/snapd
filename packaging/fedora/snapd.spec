@@ -617,6 +617,7 @@ popd
 %{_datadir}/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
+%{_libexecdir}/snapd/snapd.run-from-snap
 %{_sysconfdir}/profile.d/snapd.sh
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.service

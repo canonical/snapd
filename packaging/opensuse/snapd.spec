@@ -352,6 +352,7 @@ fi
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
+%{_libexecdir}/snapd/snapd.run-from-snap
 
 %changelog
 
