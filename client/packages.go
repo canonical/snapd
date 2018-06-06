@@ -33,23 +33,23 @@ import (
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
 	ID               string        `json:"id" help:"The unique snap-id"`
-	Title            string        `json:"title,omitempty" help:"The human-readable name"`
+	Name             string        `json:"name" help:"The name of the snap"`
 	Summary          string        `json:"summary" help:"The short summary"`
 	Description      string        `json:"description" help:"The multi-line description"`
+	Title            string        `json:"title,omitempty" help:"A human-readable name that may contain spaces"`
 	DownloadSize     int64         `json:"download-size,omitempty" help:"The download size"`
 	Icon             string        `json:"icon,omitempty"`
-	InstalledSize    int64         `json:"installed-size,omitempty" help:"The installed size in byte"`
+	InstalledSize    int64         `json:"installed-size,omitempty" help:"The installed size in bytes"`
 	InstallDate      time.Time     `json:"install-date,omitempty" help:"The date of installation (or empty)"`
-	Name             string        `json:"name" help:"The human readable name of the snap"`
-	Developer        string        `json:"developer" help:"The name of the publisher"`
+	Developer        string        `json:"developer"`
 	Status           string        `json:"status" help:"The active status"`
 	Type             string        `json:"type" help:"The type (e.g. app)"`
-	Base             string        `json:"base,omitempty" help:"The base the snap uses (if any)"`
+	Base             string        `json:"base,omitempty" help:"The base snap used (if any)"`
 	Version          string        `json:"version" help:"The human readable version"`
-	Channel          string        `json:"channel" help:"The current channel"`
-	TrackingChannel  string        `json:"tracking-channel,omitempty" help:"The channel this snap follows"`
+	Channel          string        `json:"channel" help:"The currently used channel"`
+	TrackingChannel  string        `json:"tracking-channel,omitempty" help:"The currently tracked channel"`
 	IgnoreValidation bool          `json:"ignore-validation"`
-	Revision         snap.Revision `json:"revision" help:"The snap revision"`
+	Revision         snap.Revision `json:"revision" help:"The revision of the snap ("`
 	Confinement      string        `json:"confinement" help:"The confinement used"`
 	Private          bool          `json:"private" help:"True if this is a private snap"`
 	DevMode          bool          `json:"devmode" help:"True if this snap is in devmode"`

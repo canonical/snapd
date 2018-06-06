@@ -166,7 +166,7 @@ func describeListFormat(w io.Writer, format string) error {
 
 Use --format="{{.Name}} {{.Version}}" to get started.
 
-All elements available for snaps are:
+All the elements available for snaps are:
 `)
 	for _, fld := range clientSnapFields() {
 		if fld.help != "" {
