@@ -196,16 +196,22 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	i := 0
 	task := ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
-	var hookSetup hookstate.HookSetup
+	var hookSetup, undoHookSetup hookstate.HookSetup
 	err = task.Get("hook-setup", &hookSetup)
 	c.Assert(err, IsNil)
 	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "prepare-plug-plug", Optional: true})
+	err = task.Get("undo-hook-setup", &undoHookSetup)
+	c.Assert(err, IsNil)
+	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "unprepare-plug-plug", Optional: true, IgnoreError: true})
 	i++
 	task = ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
 	err = task.Get("hook-setup", &hookSetup)
 	c.Assert(err, IsNil)
 	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "prepare-slot-slot", Optional: true})
+	err = task.Get("undo-hook-setup", &undoHookSetup)
+	c.Assert(err, IsNil)
+	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "unprepare-slot-slot", Optional: true, IgnoreError: true})
 	i++
 	task = ts.Tasks()[i]
 	c.Assert(task.Kind(), Equals, "connect")
@@ -250,12 +256,18 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	err = task.Get("hook-setup", &hs)
 	c.Assert(err, IsNil)
 	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "producer", Hook: "connect-slot-slot", Optional: true})
+	err = task.Get("undo-hook-setup", &undoHookSetup)
+	c.Assert(err, IsNil)
+	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "disconnect-slot-slot", Optional: true, IgnoreError: true})
 	i++
 	task = ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
 	err = task.Get("hook-setup", &hs)
 	c.Assert(err, IsNil)
 	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true})
+	err = task.Get("undo-hook-setup", &undoHookSetup)
+	c.Assert(err, IsNil)
+	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "disconnect-plug-plug", Optional: true, IgnoreError: true})
 }
 
 func (s *interfaceManagerSuite) testConnectDisconnectConflicts(c *C, f func(*state.State, string, string, string, string) (*state.TaskSet, error), snapName string, otherTaskKind string, expectedErr string) {
