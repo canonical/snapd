@@ -229,9 +229,9 @@ static void test_sc_snap_drop_instance_name_no_dest(void)
 static void test_sc_snap_drop_instance_name_short_dest(void)
 {
 	if (g_test_subprocess()) {
-		char base[10] = { 0 };
-		sc_snap_drop_instance_name("foo-foo-foo-foo-foo_bar", base,
-					   sizeof base);
+		char dest[10] = { 0 };
+		sc_snap_drop_instance_name("foo-foo-foo-foo-foo_bar", dest,
+					   sizeof dest);
 		g_test_fail();
 		return;
 	}
@@ -242,8 +242,8 @@ static void test_sc_snap_drop_instance_name_short_dest(void)
 static void test_sc_snap_drop_instance_name_short_dest2(void)
 {
 	if (g_test_subprocess()) {
-		char base[3] = { 0 };	// "foo" sans the nil byte
-		sc_snap_drop_instance_name("foo", base, sizeof base);
+		char dest[3] = { 0 };	// "foo" sans the nil byte
+		sc_snap_drop_instance_name("foo", dest, sizeof dest);
 		g_test_fail();
 		return;
 	}
@@ -254,8 +254,8 @@ static void test_sc_snap_drop_instance_name_short_dest2(void)
 static void test_sc_snap_drop_instance_name_no_name(void)
 {
 	if (g_test_subprocess()) {
-		char base[10] = { 0 };
-		sc_snap_drop_instance_name(NULL, base, sizeof base);
+		char dest[10] = { 0 };
+		sc_snap_drop_instance_name(NULL, dest, sizeof dest);
 		g_test_fail();
 		return;
 	}
