@@ -24,7 +24,11 @@ SYSTEMD_UNITS_GENERATED := $(wildcard *.in)
 SYSTEMD_UNITS = $(sort $(SYSTEMD_UNITS_GENERATED:.in=) $(wildcard *.service) $(wildcard *.timer) $(wildcard *.socket))
 
 .PHONY: all
-all: $(SYSTEMD_UNITS)
+all: $(SYSTEMD_UNITS) check
+
+.PHONY: check
+check: snapd.run-from-snap snapd.core-fixup.sh
+	if command -v shellcheck >/dev/null; then shellcheck $^; fi
 
 .PHONY: install
 install: $(SYSTEMD_UNITS)
@@ -33,6 +37,7 @@ install: $(SYSTEMD_UNITS)
 	install -m 0644 -t $(DESTDIR)/$(SYSTEMDSYSTEMUNITDIR) $^
 	install -d -m 0755 $(DESTDIR)/$(LIBEXECDIR)/snapd
 	install -m 0755 -t $(DESTDIR)/$(LIBEXECDIR)/snapd snapd.core-fixup.sh
+	install -m 0755 -t $(DESTDIR)/$(LIBEXECDIR)/snapd snapd.run-from-snap
 
 .PHONY: clean
 clean:
