@@ -43,7 +43,7 @@ environment:
     SRU_VALIDATION: "$(HOST: echo ${SPREAD_SRU_VALIDATION:-0})"
     PRE_CACHE_SNAPS: core ubuntu-core test-snapd-tools
     # always skip removing the rsync snap
-    SKIP_REMOVE_SNAPS: "$(HOST: echo ${SPREAD_SKIP_REMOVE_SNAPS:-}) test-snapd-rsync"
+    SKIP_REMOVE_SNAPS: "$(HOST: echo ${SPREAD_SKIP_REMOVE_SNAPS:-}) test-snapd-rsync test-snapd-rsync-core18"
 
 backends:
     google:
@@ -60,6 +60,9 @@ backends:
                 workers: 6
 
             - ubuntu-core-16-64:
+                image: ubuntu-16.04-64
+                workers: 6
+            - ubuntu-core-18-64:
                 image: ubuntu-16.04-64
                 workers: 6
 
@@ -130,6 +133,10 @@ backends:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-core-16-64:
+                image: ubuntu-16.04-64
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-core-18-64:
                 image: ubuntu-16.04-64
                 username: ubuntu
                 password: ubuntu
@@ -407,6 +414,19 @@ restore-each: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
+        # TODO: cleanup tests and enable ubuntu-core-18 everywhere
+        systems: [-ubuntu-core-18-*]
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+    tests/core18/:
+        summary: Subset of core18 specific tests
+        systems: [ubuntu-core-18-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -444,6 +464,8 @@ suites:
 
     tests/regression/:
         summary: Regression tests for snapd
+        # TODO: cleanup tests and enable ubuntu-core-18 everywhere
+        systems: [-ubuntu-core-18-*]
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -458,7 +480,7 @@ suites:
         # Test cases are not yet ported to openSUSE that is why we keep
         # it disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-16-*, -opensuse-*]
+        systems: [-ubuntu-core-*, -opensuse-*]
         # autopkgtest runs against localhost which causes problems with
         # this test prepare
         backends: [-autopkgtest]
@@ -482,7 +504,7 @@ suites:
         # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
         # drop this blacklist.
-        systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*]
+        systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*]
         # unittests are run as part of the autopkgtest build already
         backends: [-autopkgtest]
         environment:

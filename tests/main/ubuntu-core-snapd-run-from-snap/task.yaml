@@ -1,6 +1,6 @@
 summary: Check that the snapd.run-from-snap helper works
 
-systems: [ubuntu-core-*]
+systems: [ubuntu-core-16-*]
 
 prepare: |
     echo "Install the snapd snap"
