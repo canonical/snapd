@@ -117,6 +117,7 @@ func (c *Change) createPath(path string, pokeHoles bool, sec *Secure) ([]*Change
 			_, err = c.createPath(path, false, sec)
 		}
 	} else if err != nil {
+		// TODO: remove this line and teach Mk* functions to return error containing the full path.
 		err = fmt.Errorf("cannot create path %q: %s", path, err)
 	}
 	return changes, err

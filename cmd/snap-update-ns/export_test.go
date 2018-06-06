@@ -38,7 +38,6 @@ var (
 	// utils
 	PlanWritableMimic = planWritableMimic
 	ExecWritableMimic = execWritableMimic
-	SplitIntoSegments = splitIntoSegments
 
 	// main
 	ComputeAndSaveChanges = computeAndSaveChanges
