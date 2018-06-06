@@ -190,6 +190,71 @@ func (r *Repository) Info(opts *InfoOptions) []*Info {
 	return infos
 }
 
+func (r *Repository) ConnectionsInfo(snapNames []string, includeDisconnected bool) []*ConnectionInfo {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	snaps := make(map[string]bool)
+	for _, n := range snapNames {
+		snaps[n] = true
+	}
+
+	var conns []*ConnectionInfo
+	for _, snapPlugs := range r.plugs {
+		// iterate over all known plugs (connected or disconnected)
+		for _, plugInfo := range snapPlugs {
+			// check if plug is connected to any slot
+			if slots, ok := r.plugSlots[plugInfo]; ok {
+				for slotInfo := range slots {
+					if len(snaps) > 0 && !(snaps[plugInfo.Snap.Name()] || snaps[slotInfo.Snap.Name()]) {
+						break
+					}
+					conn := &ConnectionInfo{
+						Plug:      plugInfo,
+						Slot:      slotInfo,
+						Interface: plugInfo.Interface,
+						Notes:     nil, // TODO
+					}
+					conns = append(conns, conn)
+				}
+			} else {
+				if includeDisconnected {
+					conn := &ConnectionInfo{
+						Plug:      plugInfo,
+						Slot:      nil,
+						Interface: plugInfo.Interface,
+						Notes:     nil, // TODO
+					}
+					conns = append(conns, conn)
+				}
+			}
+		}
+	}
+	// connected slots would already be included because of plugs above,
+	// so only consider disconnected ones here
+	if includeDisconnected {
+		for snapName, snapSlots := range r.slots {
+			if len(snaps) > 0 && !snaps[snapName] {
+				continue
+			}
+			for _, slotInfo := range snapSlots {
+				if _, ok := r.slotPlugs[slotInfo]; !ok {
+					conn := &ConnectionInfo{
+						Plug:      nil,
+						Slot:      slotInfo,
+						Interface: slotInfo.Interface,
+						Notes:     nil, // TODO
+					}
+					conns = append(conns, conn)
+				}
+			}
+		}
+	}
+
+	sort.Sort(connectionOrder(conns))
+	return conns
+}
+
 // AddBackend adds the provided security backend to the repository.
 func (r *Repository) AddBackend(backend SecurityBackend) error {
 	r.m.Lock()

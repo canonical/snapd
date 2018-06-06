@@ -1939,6 +1939,112 @@ slots:
 	})
 }
 
+func (s *RepositorySuite) TestConnectionsInfo(c *C) {
+	r := s.emptyRepo
+	for _, iface := range []string{"i1", "i2", "i3"} {
+		c.Assert(r.AddInterface(&ifacetest.TestInterface{InterfaceName: iface}), IsNil)
+	}
+
+	// Add some test snaps.
+	snapsYamls := []string{
+		`
+name: s1
+version: 0
+apps:
+  s1:
+    plugs: [i1, i2]
+`,
+		`
+name: s2
+version: 0
+apps:
+  s2:
+    slots: [i1, i3]
+`,
+		`
+name: s3
+version: 0
+type: os
+slots:
+  i2:
+`,
+		`
+name: s4
+version: 0
+apps:
+  s4:
+    plugs: [i2]
+`,
+		`
+name: s5
+version: 0
+plugs:
+    s5plug:
+     interface: i1
+`}
+
+	for _, sy := range snapsYamls {
+		si := snaptest.MockInfo(c, sy, nil)
+		c.Assert(r.AddSnap(si), IsNil)
+	}
+
+	checkConn := func(conn *ConnectionInfo, plugSnap, plugName, slotSnap, slotName, ifaceName string) {
+		if plugSnap != "" {
+			c.Assert(conn.Plug, NotNil)
+			c.Assert(conn.Plug.Snap.Name(), Equals, plugSnap)
+			c.Assert(conn.Plug.Name, Equals, plugName)
+		} else {
+			c.Assert(conn.Plug, IsNil)
+		}
+		if slotSnap != "" {
+			c.Assert(conn.Slot, NotNil)
+			c.Assert(conn.Slot.Snap.Name(), Equals, slotSnap)
+			c.Assert(conn.Slot.Name, Equals, slotName)
+		} else {
+			c.Assert(conn.Slot, IsNil)
+		}
+		c.Assert(conn.Interface, Equals, ifaceName)
+	}
+
+	// Connect a few things for the tests below.
+	_, err := r.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i1"}, SlotRef: SlotRef{Snap: "s2", Name: "i1"}}, nil, nil, nil)
+	c.Assert(err, IsNil)
+	_, err = r.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "i2"}, SlotRef: SlotRef{Snap: "s3", Name: "i2"}}, nil, nil, nil)
+	c.Assert(err, IsNil)
+	_, err = r.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s4", Name: "i2"}, SlotRef: SlotRef{Snap: "s3", Name: "i2"}}, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	// Check that we get all connected interfaces
+	conns := r.ConnectionsInfo(nil, false)
+	c.Assert(conns, HasLen, 3)
+
+	checkConn(conns[0], "s1", "i1", "s2", "i1", "i1")
+	checkConn(conns[1], "s1", "i2", "s3", "i2", "i2")
+	checkConn(conns[2], "s4", "i2", "s3", "i2", "i2")
+
+	// Check that we get disconnected interfaces too
+	conns = r.ConnectionsInfo(nil, true)
+	c.Assert(conns, HasLen, 5)
+
+	checkConn(conns[0], "", "", "s2", "i3", "i3")
+	checkConn(conns[1], "s1", "i1", "s2", "i1", "i1")
+	checkConn(conns[2], "s1", "i2", "s3", "i2", "i2")
+	checkConn(conns[3], "s4", "i2", "s3", "i2", "i2")
+	checkConn(conns[4], "s5", "s5plug", "", "", "i1")
+
+	// Check that the we can filter by snap name
+	conns = r.ConnectionsInfo([]string{"s1"}, false)
+	c.Assert(conns, HasLen, 2)
+	checkConn(conns[0], "s1", "i1", "s2", "i1", "i1")
+	checkConn(conns[1], "s1", "i2", "s3", "i2", "i2")
+
+	// Check that we can get non-connected plugs of specific snap
+	conns = r.ConnectionsInfo([]string{"s5"}, true)
+	c.Assert(conns, HasLen, 1)
+
+	checkConn(conns[0], "s5", "s5plug", "", "", "i1")
+}
+
 const ifacehooksSnap1 = `
 name: s1
 version: 0

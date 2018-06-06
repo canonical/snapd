@@ -159,3 +159,50 @@ func (c bySlotInfo) Less(i, j int) bool {
 	}
 	return c[i].Name < c[j].Name
 }
+
+type connectionOrder []*ConnectionInfo
+
+func (c connectionOrder) Len() int {
+	return len(c)
+}
+
+func (c connectionOrder) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
+}
+
+func (c connectionOrder) Less(i, j int) bool {
+	var plugSnapA, plugNameA, slotSnapA, slotNameA string
+	var plugSnapB, plugNameB, slotSnapB, slotNameB string
+	if c[i].Plug != nil {
+		plugSnapA = c[i].Plug.Snap.Name()
+		plugNameA = c[i].Plug.Name
+	}
+	if c[i].Slot != nil {
+		slotSnapA = c[i].Slot.Snap.Name()
+		slotNameA = c[i].Slot.Name
+	}
+	if c[j].Plug != nil {
+		plugSnapB = c[j].Plug.Snap.Name()
+		plugNameB = c[j].Plug.Name
+	}
+	if c[j].Slot != nil {
+		slotSnapB = c[j].Slot.Snap.Name()
+		slotNameB = c[j].Slot.Name
+	}
+	interfaceA := c[i].Interface
+	interfaceB := c[j].Interface
+
+	if plugSnapA != plugSnapB {
+		return plugSnapA < plugSnapB
+	}
+	if slotSnapA != slotSnapB {
+		return slotSnapA < slotSnapB
+	}
+	if interfaceA != interfaceB {
+		return interfaceA < interfaceB
+	}
+	if plugNameA != plugNameB {
+		return plugNameA < plugNameB
+	}
+	return slotNameA < slotNameB
+}
