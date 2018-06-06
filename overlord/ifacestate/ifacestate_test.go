@@ -197,76 +197,61 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	task := ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
 	var hookSetup, undoHookSetup hookstate.HookSetup
-	err = task.Get("hook-setup", &hookSetup)
-	c.Assert(err, IsNil)
+	c.Assert(task.Get("hook-setup", &hookSetup), IsNil)
 	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "prepare-plug-plug", Optional: true})
-	err = task.Get("undo-hook-setup", &undoHookSetup)
-	c.Assert(err, IsNil)
+	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
 	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "unprepare-plug-plug", Optional: true, IgnoreError: true})
 	i++
 	task = ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
-	err = task.Get("hook-setup", &hookSetup)
-	c.Assert(err, IsNil)
+	c.Assert(task.Get("hook-setup", &hookSetup), IsNil)
 	c.Assert(hookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "prepare-slot-slot", Optional: true})
-	err = task.Get("undo-hook-setup", &undoHookSetup)
-	c.Assert(err, IsNil)
+	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
 	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "unprepare-slot-slot", Optional: true, IgnoreError: true})
 	i++
 	task = ts.Tasks()[i]
 	c.Assert(task.Kind(), Equals, "connect")
 	var plug interfaces.PlugRef
-	err = task.Get("plug", &plug)
-	c.Assert(err, IsNil)
+	c.Assert(task.Get("plug", &plug), IsNil)
 	c.Assert(plug.Snap, Equals, "consumer")
 	c.Assert(plug.Name, Equals, "plug")
 	var slot interfaces.SlotRef
-	err = task.Get("slot", &slot)
-	c.Assert(err, IsNil)
+	c.Assert(task.Get("slot", &slot), IsNil)
 	c.Assert(slot.Snap, Equals, "producer")
 	c.Assert(slot.Name, Equals, "slot")
 
 	var autoconnect bool
-	err = task.Get("auto", &autoconnect)
-	c.Assert(err, IsNil)
+	c.Assert(task.Get("auto", &autoconnect), IsNil)
 	c.Assert(autoconnect, Equals, false)
 
 	// verify initial attributes are present in connect task
 	var plugStaticAttrs map[string]interface{}
 	var plugDynamicAttrs map[string]interface{}
-	err = task.Get("plug-static", &plugStaticAttrs)
-	c.Assert(err, IsNil)
+	c.Assert(task.Get("plug-static", &plugStaticAttrs), IsNil)
 	c.Assert(plugStaticAttrs, DeepEquals, map[string]interface{}{"attr1": "value1"})
-	err = task.Get("plug-dynamic", &plugDynamicAttrs)
-	c.Assert(err, IsNil)
+	c.Assert(task.Get("plug-dynamic", &plugDynamicAttrs), IsNil)
 	c.Assert(plugDynamicAttrs, DeepEquals, map[string]interface{}{})
 
 	var slotStaticAttrs map[string]interface{}
 	var slotDynamicAttrs map[string]interface{}
-	err = task.Get("slot-static", &slotStaticAttrs)
-	c.Assert(err, IsNil)
+	c.Assert(task.Get("slot-static", &slotStaticAttrs), IsNil)
 	c.Assert(slotStaticAttrs, DeepEquals, map[string]interface{}{"attr2": "value2"})
-	err = task.Get("slot-dynamic", &slotDynamicAttrs)
-	c.Assert(err, IsNil)
+	c.Assert(task.Get("slot-dynamic", &slotDynamicAttrs), IsNil)
 	c.Assert(slotDynamicAttrs, DeepEquals, map[string]interface{}{})
 
 	i++
 	task = ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
-	err = task.Get("hook-setup", &hs)
-	c.Assert(err, IsNil)
+	c.Assert(task.Get("hook-setup", &hs), IsNil)
 	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "producer", Hook: "connect-slot-slot", Optional: true})
-	err = task.Get("undo-hook-setup", &undoHookSetup)
-	c.Assert(err, IsNil)
+	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
 	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "producer", Hook: "disconnect-slot-slot", Optional: true, IgnoreError: true})
 	i++
 	task = ts.Tasks()[i]
 	c.Check(task.Kind(), Equals, "run-hook")
-	err = task.Get("hook-setup", &hs)
-	c.Assert(err, IsNil)
+	c.Assert(task.Get("hook-setup", &hs), IsNil)
 	c.Assert(hs, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "connect-plug-plug", Optional: true})
-	err = task.Get("undo-hook-setup", &undoHookSetup)
-	c.Assert(err, IsNil)
+	c.Assert(task.Get("undo-hook-setup", &undoHookSetup), IsNil)
 	c.Assert(undoHookSetup, Equals, hookstate.HookSetup{Snap: "consumer", Hook: "disconnect-plug-plug", Optional: true, IgnoreError: true})
 }
 
