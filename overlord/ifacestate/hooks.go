@@ -25,53 +25,33 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
-type prepareHandler struct {
+type interfaceHookHandler struct {
 	context *hookstate.Context
 }
 
-type connectHandler struct {
-	context *hookstate.Context
-}
-
-func (h *prepareHandler) Before() error {
+func (h *interfaceHookHandler) Before() error {
 	return nil
 }
 
-func (h *prepareHandler) Done() error {
+func (h *interfaceHookHandler) Done() error {
 	return nil
 }
 
-func (h *prepareHandler) Error(err error) error {
-	return nil
-}
-
-func (h *connectHandler) Before() error {
-	return nil
-}
-
-func (h *connectHandler) Done() error {
-	return nil
-}
-
-func (h *connectHandler) Error(err error) error {
+func (h *interfaceHookHandler) Error(err error) error {
 	return nil
 }
 
 // setupHooks sets hooks of InterfaceManager up
 func setupHooks(hookMgr *hookstate.HookManager) {
-	prepareGenerator := func(context *hookstate.Context) hookstate.Handler {
-		return &prepareHandler{context: context}
+	gen := func(context *hookstate.Context) hookstate.Handler {
+		return &interfaceHookHandler{context: context}
 	}
 
-	connectGenerator := func(context *hookstate.Context) hookstate.Handler {
-		return &connectHandler{context: context}
-	}
-
-	hookMgr.Register(regexp.MustCompile("^prepare-plug-[-a-z0-9]+$"), prepareGenerator)
-	hookMgr.Register(regexp.MustCompile("^prepare-slot-[-a-z0-9]+$"), prepareGenerator)
-	hookMgr.Register(regexp.MustCompile("^unprepare-plug-[-a-z0-9]+$"), prepareGenerator)
-	hookMgr.Register(regexp.MustCompile("^unprepare-slot-[-a-z0-9]+$"), prepareGenerator)
-	hookMgr.Register(regexp.MustCompile("^connect-plug-[-a-z0-9]+$"), connectGenerator)
-	hookMgr.Register(regexp.MustCompile("^connect-slot-[-a-z0-9]+$"), connectGenerator)
-	hookMgr.Register(regexp.MustCompile("^disconnect-(?:plug|slot)-[-a-z0-9]+$"), connectGenerator)
+	hookMgr.Register(regexp.MustCompile("^prepare-plug-[-a-z0-9]+$"), gen)
+	hookMgr.Register(regexp.MustCompile("^prepare-slot-[-a-z0-9]+$"), gen)
+	hookMgr.Register(regexp.MustCompile("^unprepare-plug-[-a-z0-9]+$"), gen)
+	hookMgr.Register(regexp.MustCompile("^unprepare-slot-[-a-z0-9]+$"), gen)
+	hookMgr.Register(regexp.MustCompile("^connect-plug-[-a-z0-9]+$"), gen)
+	hookMgr.Register(regexp.MustCompile("^connect-slot-[-a-z0-9]+$"), gen)
+	hookMgr.Register(regexp.MustCompile("^disconnect-(?:plug|slot)-[-a-z0-9]+$"), gen)
 }
