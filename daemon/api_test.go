@@ -592,6 +592,7 @@ UnitFileState=potatoes
 			Summary:          "summary",
 			Description:      "description",
 			Developer:        "bar",
+			Publisher:        "bar",
 			Status:           "active",
 			Icon:             "/v2/icons/foo/icon",
 			Type:             string(snap.TypeApp),
