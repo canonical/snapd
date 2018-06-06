@@ -54,7 +54,7 @@ func init() {
 	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} },
 		map[string]string{
 			"all":    i18n.G("Show all revisions"),
-			"format": i18n.G("Use format string for output (try --format=help)"),
+			"format": i18n.G("Use format string for output (try --format=help or help-all)"),
 		}, nil)
 }
 

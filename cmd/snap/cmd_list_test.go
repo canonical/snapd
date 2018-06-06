@@ -37,7 +37,7 @@ The list command displays a summary of snaps installed in the current system.
 
 [list command options]
           --all     Show all revisions
-          --format= Use format string for output (try --format=help)
+          --format= Use format string for output (try --format=help or help-all)
 `
 	rest, err := snap.Parser().ParseArgs([]string{"list", "--help"})
 	c.Assert(err.Error(), check.Equals, msg)
