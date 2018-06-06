@@ -60,7 +60,13 @@ bool verify_security_tag(const char *security_tag, const char *snap_name);
 bool sc_is_hook_security_tag(const char *security_tag);
 
 /**
- * Extract the base of snap name, discarding any assigned local key.
+ * Extract snap name out of a snap with optional instance name string.
+ *
+ * A snap may be installed multiple times in parallel under distinct instance names.
+ * This function extracts the snap name out of a name that possibly contains a snap
+ * instance name.
+ *
+ * For example: snap_instance => snap, just-snap => just-snap
  **/
 void sc_snap_drop_instance_name(const char *snap_name, char *base,
 				size_t base_size);
