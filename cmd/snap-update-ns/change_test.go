@@ -368,7 +368,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointWithErrors(c *C
 	s.sys.InsertFault(`mkdirat 3 "target" 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/target", Type: "type"}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create path "/target": cannot mkdir path segment "target": testing`)
+	c.Assert(err, ErrorMatches, `cannot create path "/target": cannot create directory "target": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -517,7 +517,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "device", Dir: "/rofs/target", Type: "type"}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create writable mimic over "/rofs": cannot create path "/tmp/.snap/rofs": cannot mkdir path segment ".snap": testing`)
+	c.Assert(err, ErrorMatches, `cannot create writable mimic over "/rofs": cannot create path "/tmp/.snap/rofs": cannot create directory ".snap": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		// sniff mount target
@@ -780,7 +780,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointWithErrors(c
 	s.sys.InsertFault(`mkdirat 3 "target" 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create path "/target": cannot mkdir path segment "target": testing`)
+	c.Assert(err, ErrorMatches, `cannot create path "/target": cannot create directory "target": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -797,7 +797,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceWithErrors(
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoDir)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind"}}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create path "/source": cannot mkdir path segment "source": testing`)
+	c.Assert(err, ErrorMatches, `cannot create path "/source": cannot create directory "source": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/target"`,
@@ -1582,7 +1582,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirWithErrors(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "base" 0755`, errTesting)
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "unused", Dir: "/base/name", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/oldname"}}}
 	synth, err := chg.Perform(s.sec)
-	c.Assert(err, ErrorMatches, `cannot create path "/base/name": cannot mkdir path segment "base": testing`)
+	c.Assert(err, ErrorMatches, `cannot create path "/base/name": cannot create directory "base": testing`)
 	c.Assert(synth, HasLen, 0)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`lstat "/base/name"`,
