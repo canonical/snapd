@@ -679,8 +679,9 @@ func (s *hookManagerSuite) TestHookUndoRunsOnError(c *C) {
 	failtask := hookstate.HookTask(s.state, "test summary", failinghooksup, initialContext)
 	failtask.WaitFor(task)
 
-	s.change.AddTask(task)
-	s.change.AddTask(failtask)
+	change := s.state.NewChange("kind", "summary")
+	change.AddTask(task)
+	change.AddTask(failtask)
 	s.state.Unlock()
 
 	s.settle(c)
@@ -696,8 +697,8 @@ func (s *hookManagerSuite) TestHookUndoRunsOnError(c *C) {
 	c.Check(undoHandler.DoneCalled, Equals, true)
 	c.Check(undoHandler.ErrorCalled, Equals, false)
 
-	c.Check(s.task.Status(), Equals, state.UndoneStatus)
-	c.Check(s.change.Status(), Equals, state.ErrorStatus)
+	c.Check(task.Status(), Equals, state.UndoneStatus)
+	c.Check(change.Status(), Equals, state.ErrorStatus)
 
 	c.Check(s.manager.NumRunningHooks(), Equals, 0)
 }
