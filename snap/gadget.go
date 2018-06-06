@@ -35,7 +35,7 @@ type GadgetInfo struct {
 	// Default configuration for snaps (snap-id => key => value).
 	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
 
-	Connects []GadgetConnect `yaml:"connect"`
+	Connections []GadgetConnection `yaml:"connections"`
 }
 
 type GadgetVolume struct {
@@ -73,18 +73,63 @@ type VolumeContent struct {
 }
 
 // GadgetConnect describes an interface connection requested by the gadget
-// between seeded snaps. The syntax looks like this:
+// between seeded snaps. The syntax is of a mapping like:
 //
-// [<plug-snap-id1>|system]:plug [[<slot-snap-id>|system]:slot]
+//  plug: (<plug-snap-id>|system):plug
+//  [slot: (<slot-snap-id>|system):slot]
 //
-// "system" or omitting the snap-id indicates a system plug or slot.
+// "system" indicates a system plug or slot.
 // Fully omitting the slot part indicates a system slot with the same name
 // as the plug.
-type GadgetConnect struct {
-	PlugSnapID string
-	Plug       string
-	SlotSnapID string
-	Slot       string
+type GadgetConnection struct {
+	Plug GadgetConnectionPlug `yaml:"plug"`
+	Slot GadgetConnectionSlot `yaml:"slot"`
+}
+
+type GadgetConnectionPlug struct {
+	SnapID string
+	Plug   string
+}
+
+func (gcplug *GadgetConnectionPlug) Empty() bool {
+	return gcplug.SnapID == "" && gcplug.Plug == ""
+}
+
+func (gcplug *GadgetConnectionPlug) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+	snapID, name, err := parseSnapIDColonName(s)
+	if err != nil {
+		return fmt.Errorf("in gadget connection plug: %v", err)
+	}
+	gcplug.SnapID = snapID
+	gcplug.Plug = name
+	return nil
+}
+
+type GadgetConnectionSlot struct {
+	SnapID string
+	Slot   string
+}
+
+func (gcslot *GadgetConnectionSlot) Empty() bool {
+	return gcslot.SnapID == "" && gcslot.Slot == ""
+}
+
+func (gcslot *GadgetConnectionSlot) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+	snapID, name, err := parseSnapIDColonName(s)
+	if err != nil {
+		return fmt.Errorf("in gadget connection slot: %v", err)
+	}
+	gcslot.SnapID = snapID
+	gcslot.Slot = name
+	return nil
 }
 
 func parseSnapIDColonName(s string) (snapID, name string, err error) {
@@ -93,48 +138,17 @@ func parseSnapIDColonName(s string) (snapID, name string, err error) {
 		snapID = parts[0]
 		name = parts[1]
 	}
-	if name == "" {
-		return "", "", fmt.Errorf("in gadget connect expected [snap-id]:name not %q", s)
-	}
-	if snapID == "system" {
-		snapID = ""
+	if snapID == "" || name == "" {
+		return "", "", fmt.Errorf(`expected "(<snap-id>|system):name" not %q`, s)
 	}
 	return snapID, name, nil
 }
 
-func (gconn *GadgetConnect) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var s string
-	if err := unmarshal(&s); err != nil {
-		return err
+func systemOrSnapID(s string) bool {
+	if s != "system" && len(s) != 32 {
+		return false
 	}
-	flds := strings.Fields(s)
-	switch len(flds) {
-	case 2:
-		plugSnapID, plug, err := parseSnapIDColonName(flds[0])
-		if err != nil {
-			return err
-		}
-		slotSnapID, slot, err := parseSnapIDColonName(flds[1])
-		if err != nil {
-			return err
-		}
-		gconn.PlugSnapID = plugSnapID
-		gconn.Plug = plug
-		gconn.SlotSnapID = slotSnapID
-		gconn.Slot = slot
-	case 1:
-		plugSnapID, plug, err := parseSnapIDColonName(flds[0])
-		if err != nil {
-			return err
-		}
-		gconn.PlugSnapID = plugSnapID
-		gconn.Plug = plug
-		gconn.SlotSnapID = ""
-		gconn.Slot = plug
-	default:
-		return fmt.Errorf("gadget connect %q should have a plug and optionally slot part", s)
-	}
-	return nil
+	return true
 }
 
 // ReadGadgetInfo reads the gadget specific metadata from gadget.yaml
@@ -164,6 +178,9 @@ func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 	}
 
 	for k, v := range gi.Defaults {
+		if !systemOrSnapID(k) {
+			return nil, fmt.Errorf(`default stanza not keyed by "system" or snap-id: %s`, k)
+		}
 		dflt, err := normalizeYamlValue(v)
 		if err != nil {
 			return nil, fmt.Errorf("default value %q of %q: %v", v, k, err)
@@ -171,9 +188,13 @@ func ReadGadgetInfo(info *Info, classic bool) (*GadgetInfo, error) {
 		gi.Defaults[k] = dflt.(map[string]interface{})
 	}
 
-	for _, gconn := range gi.Connects {
-		if (gconn == GadgetConnect{}) {
-			return nil, fmt.Errorf("cannot have an empty gadget connect instruction")
+	for i, gconn := range gi.Connections {
+		if gconn.Plug.Empty() {
+			return nil, fmt.Errorf("gadget connection plug cannot be empty")
+		}
+		if gconn.Slot.Empty() {
+			gi.Connections[i].Slot.SnapID = "system"
+			gi.Connections[i].Slot.Slot = gconn.Plug.Plug
 		}
 	}
 
