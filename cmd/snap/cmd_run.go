@@ -33,6 +33,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/godbus/dbus"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -548,6 +549,54 @@ func migrateXauthority(info *snap.Info) (string, error) {
 	return targetPath, nil
 }
 
+func activateXdgDocumentPortal(info *snap.Info) error {
+	// Don't do anything for snaps that don't plug the desktop interface
+	plugsDesktop := false
+	for _, plug := range info.Plugs {
+		if plug.Interface == "desktop" {
+			plugsDesktop = true
+			break
+		}
+	}
+	if !plugsDesktop {
+		return nil
+	}
+
+	// If there is no session bus, our job is done.  We check this
+	// manually to avoid dbus.SessionBus() auto-launching a new
+	// bus.
+	busAddress := osGetenv("DBUS_SESSION_BUS_ADDRESS")
+	if len(busAddress) == 0 {
+		return nil
+	}
+
+	conn, err := dbus.SessionBus()
+	if err != nil {
+		return err
+	}
+
+	portal := conn.Object("org.freedesktop.portal.Documents",
+		"/org/freedesktop/portal/documents")
+	var mountPoint []byte
+	if err := portal.Call("org.freedesktop.portal.Documents.GetMountPoint", 0).Store(&mountPoint); err != nil {
+		// It is not considered an error if
+		// xdg-document-portal is not available on the system.
+		if dbusErr, ok := err.(dbus.Error); ok && dbusErr.Name == "org.freedesktop.DBus.Error.ServiceUnknown" {
+			return nil
+		}
+		return err
+	}
+
+	// Sanity check to make sure the document portal is exposed
+	// where we think it is.
+	actualMountPoint := strings.TrimRight(string(mountPoint), "\x00")
+	expectedMountPoint := fmt.Sprintf("%s/%d/doc", dirs.XdgRuntimeDirBase, os.Getuid())
+	if actualMountPoint != expectedMountPoint {
+		return fmt.Errorf("Expected portal at %#v, got %#v", expectedMountPoint, actualMountPoint)
+	}
+	return nil
+}
+
 func straceCmd() ([]string, error) {
 	current, err := user.Current()
 	if err != nil {
@@ -729,6 +778,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	xauthPath, err := migrateXauthority(info)
 	if err != nil {
 		logger.Noticef("WARNING: cannot copy user Xauthority file: %s", err)
+	}
+
+	if err := activateXdgDocumentPortal(info); err != nil {
+		logger.Noticef("WARNING: cannot start document portal: %s", err)
 	}
 
 	cmd := []string{snapConfine}
