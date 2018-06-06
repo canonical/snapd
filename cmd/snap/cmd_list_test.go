@@ -279,7 +279,7 @@ func (s *SnapSuite) TestListFormatHelp(c *check.C) {
 
 Use --format="{{.Name}} {{.Version}}" to get started.
 
-All elements available for snaps are:
+All the elements available for snaps are:
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -295,7 +295,7 @@ func (s *SnapSuite) TestListFormatHelpAll(c *check.C) {
 
 Use --format="{{.Name}} {{.Version}}" to get started.
 
-All elements available for snaps are:
+All the elements available for snaps are:
 `)
 	// screenshots has no "help" tag (and likely never will be) so
 	// check that it is still shows with --format=help-all
