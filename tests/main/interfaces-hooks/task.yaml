@@ -87,6 +87,8 @@ execute: |
     [ -f "$PRODUCER_DATA/connect-slot-producer-done" ]
     [ -f "$PRODUCER_DATA/disconnect-slot-producer-done" ]
 
+    cat "$CONSUMER_DATA/unprepare-plug-consumer-done" | MATCH "plug-changed.consumer-value"
+
     remove_markers
 
     # disconnect hooks should be executed on snap removal

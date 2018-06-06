@@ -1,3 +1,5 @@
 #!/bin/sh
 
-touch "$SNAP_COMMON/unprepare-plug-consumer-done"
+# Read own 'before-connect' attribute
+output=$(snapctl get :consumer before-connect)
+echo "$output" > $SNAP_COMMON/unprepare-plug-consumer-done
