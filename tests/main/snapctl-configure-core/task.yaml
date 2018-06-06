@@ -1,7 +1,7 @@
 summary: Ensure "snapctl core-configure" works
 
 # the test is only meaningful on core devices
-systems: [ubuntu-core-*]
+systems: [ubuntu-core-16-*]
 
 prepare: |
     cat > new-configure-core  <<EOF

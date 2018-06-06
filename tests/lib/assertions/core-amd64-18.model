@@ -1,0 +1,22 @@
+type: model
+authority-id: developer1
+series: 16
+brand-id: developer1
+model: core-amd64-18
+architecture: amd64
+base: core18
+gadget: pc
+kernel: pc-kernel
+timestamp: 2018-05-28T19:40:00+00:00
+sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+
+AcLBUgQAAQoABgUCWyeEBgAA8tEQAF0xRRBNXXo0BZDN5GaOjNUVot7hQJN4VIQldL315YKZ1Pxj
+FNVIrR2qBFUEE33yyhPFOR0DJnaMd54lN/ciz4A02nuUKcoZCrV5QZg5QKug+uaGxuPuA53MwT2U
+27O6c6KwdJNHNts3v7dm734x2TexpyNfTNU4G3P2Y3jCbmzfS6P0gQD2Nl5sOpTVSCh1hSG/v983
+e6RNvOG4I+fWu+g9NcIRzr3L2mCHjls4sfRkfKH+xCrfhPbIbqyTXc3TUx12VIQyCEm0EzeA+1i5
+gz622ocD2u4NBWq96fGi4vnTnnkb5R3kxXpt/Qc35bKH2XsmfioZuY1IFVc3KoJRnlRSOmC8pC0K
+mFAe0bE/fhWRWGMv9RZrsi2GNWSDzL6AHjFHpeO+Ss9cnPx1B5UUB4w2+2R1HlMY+VhYGa2u36MS
+ua/5cDOtfBqMN4PlQNi3/twllHL9FZxgtH0pkaT+V/e0xsdAzl6BDfpahVj5Le0xp7zHsum66URn
+sEotzLTxcTORfMSVpB8sq/ycmrqe7mO0bDdXJi58aiWNWMMZD64pCiwDBB7qFxmqxRfgQXGVHfHR
+P+N765XsTl+xSAEAyXhsOKqGgs7LSq5CH7xoRpyL2hz93uPaDmB1H7T3hNpPIjxc+NbUjcCG5TSf
+qDKy2m8nU0j3pGEQD63P8USM8qEw

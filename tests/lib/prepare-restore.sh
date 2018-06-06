@@ -394,7 +394,9 @@ prepare_project_each() {
 prepare_suite() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]; then
+        prepare_core18
+    elif [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
         prepare_all_snap
     else
         prepare_classic
