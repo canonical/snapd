@@ -170,24 +170,24 @@ void sc_snap_name_validate(const char *snap_name, struct sc_error **errorp)
 }
 
 void sc_snap_drop_instance_name(const char *snap_name, char *base,
-				size_t base_len)
+				size_t base_size)
 {
 	if (snap_name == NULL || base == NULL) {
 		die("base or snap name unset");
 	}
 
 	const char *pos = strchr(snap_name, '_');
-	size_t blen = 0;
+	size_t base_len = 0;
 	if (pos == NULL) {
-		blen = strlen(snap_name);
+		base_len = strlen(snap_name);
 	} else {
-		blen = (pos - snap_name);
+		base_len = pos - snap_name;
 	}
 
-	if (blen >= base_len) {
+	if (base_len >= base_size) {
 		die("base buffer too small");
 	}
 
-	memcpy(base, snap_name, blen);
-	base[blen] = '\0';
+	memcpy(base, snap_name, base_len);
+	base[base_len] = '\0';
 }
