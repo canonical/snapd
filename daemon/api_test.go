@@ -406,8 +406,8 @@ version: %s
 	// Mock the snap on disk
 	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
 
-	c.Assert(os.MkdirAll(snapInfo.DataDir(), 0755), check.IsNil)
-	metadir := filepath.Join(snapInfo.MountDir(), "meta")
+	c.Assert(os.MkdirAll(snapInfo.InstanceDataDir(), 0755), check.IsNil)
+	metadir := filepath.Join(snapInfo.InstanceMountDir(), "meta")
 	guidir := filepath.Join(metadir, "gui")
 	c.Assert(os.MkdirAll(guidir, 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(guidir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
@@ -443,7 +443,7 @@ version: %s
 			c.Assert(err, check.IsNil)
 		}
 
-		content, err := ioutil.ReadFile(snapInfo.MountFile())
+		content, err := ioutil.ReadFile(snapInfo.InstanceMountFile())
 		c.Assert(err, check.IsNil)
 		h := sha3.Sum384(content)
 		dgst, err := asserts.EncodeDigest(crypto.SHA3_384, h[:])
@@ -697,7 +697,7 @@ func (s *apiSuite) TestMapLocalOfTryResolvesSymlink(c *check.C) {
 
 	info := snap.Info{SideInfo: snap.SideInfo{RealName: "hello", Revision: snap.R(1)}}
 	snapst := snapstate.SnapState{}
-	mountFile := info.MountFile()
+	mountFile := info.InstanceMountFile()
 	about := aboutSnap{info: &info, snapst: &snapst}
 
 	// if not a 'try', then MountedFrom is just MountFile()
@@ -2888,7 +2888,7 @@ func (s *apiSuite) TestAppIconGet(c *check.C) {
 	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "")
 
 	// have an icon for it in the package itself
-	iconfile := filepath.Join(info.MountDir(), "meta", "gui", "icon.ick")
+	iconfile := filepath.Join(info.InstanceMountDir(), "meta", "gui", "icon.ick")
 	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
@@ -2910,7 +2910,7 @@ func (s *apiSuite) TestAppIconGetInactive(c *check.C) {
 	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), false, "")
 
 	// have an icon for it in the package itself
-	iconfile := filepath.Join(info.MountDir(), "meta", "gui", "icon.ick")
+	iconfile := filepath.Join(info.InstanceMountDir(), "meta", "gui", "icon.ick")
 	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
@@ -2932,7 +2932,7 @@ func (s *apiSuite) TestAppIconGetNoIcon(c *check.C) {
 	info := s.mkInstalledInState(c, d, "foo", "bar", "v1", snap.R(10), true, "")
 
 	// NO ICON!
-	err := os.RemoveAll(filepath.Join(info.MountDir(), "meta", "gui", "icon.svg"))
+	err := os.RemoveAll(filepath.Join(info.InstanceMountDir(), "meta", "gui", "icon.svg"))
 	c.Assert(err, check.IsNil)
 
 	s.vars = map[string]string{"name": "foo"}

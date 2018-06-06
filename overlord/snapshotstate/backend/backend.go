@@ -161,7 +161,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 
 	snapshot := &client.Snapshot{
 		SetID:    id,
-		Snap:     si.Name(),
+		Snap:     si.InstanceName(),
 		Revision: si.Revision,
 		Version:  si.Version,
 		Time:     time.Now(),
@@ -179,7 +179,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 
 	w := zip.NewWriter(aw)
 	defer w.Close() // note this does not close the file descriptor (that's done by hand on the atomic writer, above)
-	if err := addDirToZip(ctx, snapshot, w, "root", archiveName, si.DataDir()); err != nil {
+	if err := addDirToZip(ctx, snapshot, w, "root", archiveName, si.InstanceDataDir()); err != nil {
 		return nil, err
 	}
 
@@ -189,7 +189,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	}
 
 	for _, usr := range users {
-		if err := addDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), si.UserDataDir(usr.HomeDir)); err != nil {
+		if err := addDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), si.InstanceUserDataDir(usr.HomeDir)); err != nil {
 			return nil, err
 		}
 	}

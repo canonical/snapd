@@ -210,7 +210,8 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 }
 
 func validateSocketAddrAbstract(socket *SocketInfo, fieldName string, path string) error {
-	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.Name())
+	// FIXME: discuss how this will work with multiple instances
+	prefix := fmt.Sprintf("@snap.%s.", socket.App.Snap.StoreName())
 	if !strings.HasPrefix(path, prefix) {
 		return fmt.Errorf("socket %q path for %q must be prefixed with %q", socket.Name, fieldName, prefix)
 	}
@@ -255,11 +256,12 @@ func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string
 
 // Validate verifies the content in the info.
 func Validate(info *Info) error {
-	name := info.Name()
+	name := info.StoreName()
 	if name == "" {
 		return fmt.Errorf("snap name cannot be empty")
 	}
 
+	// TODO enable validation of instance names
 	if err := ValidateName(name); err != nil {
 		return err
 	}
@@ -312,7 +314,7 @@ func Validate(info *Info) error {
 	// validate that bases do not have base fields
 	if info.Type == TypeOS || info.Type == TypeBase {
 		if info.Base != "" {
-			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.Name())
+			return fmt.Errorf(`cannot have "base" field on %q snap %q`, info.Type, info.InstanceName())
 		}
 	}
 

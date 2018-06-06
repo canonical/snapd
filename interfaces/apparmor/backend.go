@@ -182,10 +182,10 @@ func snapConfineFromCoreProfile(coreInfo *snap.Info) (dir, glob string, content 
 
 	// We must test the ".real" suffix first, this is a workaround for
 	// https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=858004
-	vanillaProfilePath := filepath.Join(coreInfo.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
+	vanillaProfilePath := filepath.Join(coreInfo.InstanceMountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
 	vanillaProfileText, err := ioutil.ReadFile(vanillaProfilePath)
 	if os.IsNotExist(err) {
-		vanillaProfilePath = filepath.Join(coreInfo.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine")
+		vanillaProfilePath = filepath.Join(coreInfo.InstanceMountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine")
 		vanillaProfileText, err = ioutil.ReadFile(vanillaProfilePath)
 	}
 	if err != nil {
@@ -193,7 +193,7 @@ func snapConfineFromCoreProfile(coreInfo *snap.Info) (dir, glob string, content 
 	}
 
 	// Replace the path to vanilla snap-confine with the path to the mounted snap-confine from core.
-	snapConfineInCore := filepath.Join(coreInfo.MountDir(), "usr/lib/snapd/snap-confine")
+	snapConfineInCore := filepath.Join(coreInfo.InstanceMountDir(), "usr/lib/snapd/snap-confine")
 	patchedProfileText := bytes.Replace(
 		vanillaProfileText, []byte("/usr/lib/snapd/snap-confine"), []byte(snapConfineInCore), -1)
 	// /snap/core/111/usr/lib/snapd/snap-confine -> snap.core.111.usr.lib.snapd.snap-confine
@@ -277,7 +277,7 @@ func profileGlobs(snapName string) []string {
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
-	snapName := snapInfo.Name()
+	snapName := snapInfo.InstanceName()
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
 		return fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
@@ -314,7 +314,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
 	dir := dirs.SnapAppArmorDir
-	globs := profileGlobs(snapInfo.Name())
+	globs := profileGlobs(snapInfo.InstanceName())
 	cache := dirs.AppArmorCacheDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
@@ -393,7 +393,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	policy := templatePattern.ReplaceAllStringFunc(updateNSTemplate, func(placeholder string) string {
 		switch placeholder {
 		case "###SNAP_NAME###":
-			return snapInfo.Name()
+			return snapInfo.StoreName()
 		case "###SNIPPETS###":
 			return snippets
 		}
@@ -401,7 +401,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	})
 
 	// Ensure that the snap-update-ns profile is on disk.
-	profileName := nsProfile(snapInfo.Name())
+	profileName := nsProfile(snapInfo.InstanceName())
 	content[profileName] = &osutil.FileState{
 		Content: []byte(policy),
 		Mode:    0644,

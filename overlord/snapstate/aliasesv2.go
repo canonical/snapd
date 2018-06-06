@@ -568,7 +568,7 @@ func manualAlias(info *snap.Info, curAliases map[string]*AliasTarget, target, al
 		} else {
 			reason = fmt.Sprintf("target application %q is a daemon", target)
 		}
-		return nil, fmt.Errorf("cannot enable alias %q for %q, %s", alias, info.Name(), reason)
+		return nil, fmt.Errorf("cannot enable alias %q for %q, %s", alias, info.InstanceName(), reason)
 	}
 	newAliases = make(map[string]*AliasTarget, len(curAliases))
 	for alias, aliasTarget := range curAliases {

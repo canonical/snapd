@@ -3845,7 +3845,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 	})
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		switch info.Name() {
+		switch info.InstanceName() {
 		case "some-snap":
 			return map[string]string{"aliasA": "cmdA"}, nil
 		case "other-snap":
@@ -3988,7 +3988,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 	})
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		switch info.Name() {
+		switch info.InstanceName() {
 		case "some-snap":
 			return map[string]string{"aliasA": "cmdA"}, nil
 		case "other-snap":
@@ -6774,7 +6774,7 @@ func (s *snapmgrQuerySuite) TestInfo(c *C) {
 	info, err := snapstate.Info(st, "name1", snap.R(11))
 	c.Assert(err, IsNil)
 
-	c.Check(info.Name(), Equals, "name1")
+	c.Check(info.InstanceName(), Equals, "name1")
 	c.Check(info.Revision, Equals, snap.R(11))
 	c.Check(info.Summary(), Equals, "s11")
 	c.Check(info.Version, Equals, "1.1")
@@ -6793,7 +6793,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 	info, err := snapst.CurrentInfo()
 	c.Assert(err, IsNil)
 
-	c.Check(info.Name(), Equals, "name1")
+	c.Check(info.InstanceName(), Equals, "name1")
 	c.Check(info.Revision, Equals, snap.R(12))
 	c.Check(info.Summary(), Equals, "s12")
 	c.Check(info.Version, Equals, "1.2")
@@ -6815,7 +6815,7 @@ func (s *snapmgrQuerySuite) TestCurrentInfo(c *C) {
 	info, err := snapstate.CurrentInfo(st, "name1")
 	c.Assert(err, IsNil)
 
-	c.Check(info.Name(), Equals, "name1")
+	c.Check(info.InstanceName(), Equals, "name1")
 	c.Check(info.Revision, Equals, snap.R(12))
 }
 
@@ -6838,7 +6838,7 @@ func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
 
 	c.Check(infos, HasLen, 1)
 
-	c.Check(infos[0].Name(), Equals, "name1")
+	c.Check(infos[0].InstanceName(), Equals, "name1")
 	c.Check(infos[0].Revision, Equals, snap.R(12))
 	c.Check(infos[0].Summary(), Equals, "s12")
 	c.Check(infos[0].Version, Equals, "1.2")
@@ -6889,7 +6889,7 @@ func (s *snapmgrQuerySuite) TestTypeInfo(c *C) {
 		info, err := x.getInfo(st)
 		c.Assert(err, IsNil)
 
-		c.Check(info.Name(), Equals, x.snapName)
+		c.Check(info.InstanceName(), Equals, x.snapName)
 		c.Check(info.Revision, Equals, snap.R(2))
 		c.Check(info.Version, Equals, x.snapName)
 		c.Check(info.Type, Equals, x.snapType)
@@ -6949,7 +6949,7 @@ func (s *snapmgrQuerySuite) TestTypeInfoCore(c *C) {
 			c.Assert(err, ErrorMatches, t.errMatcher)
 		} else {
 			c.Assert(info, NotNil)
-			c.Check(info.Name(), Equals, t.expectedSnap, Commentf("(%d) test %q %v", testNr, t.expectedSnap, t.snapNames))
+			c.Check(info.InstanceName(), Equals, t.expectedSnap, Commentf("(%d) test %q %v", testNr, t.expectedSnap, t.snapNames))
 			c.Check(info.Type, Equals, snap.TypeOS)
 		}
 	}
@@ -7000,7 +7000,7 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	info12, err := snap.ReadInfo("name1", snapst.CurrentSideInfo())
 	c.Assert(err, IsNil)
 
-	c.Check(info12.Name(), Equals, "name1")
+	c.Check(info12.InstanceName(), Equals, "name1")
 	c.Check(info12.Revision, Equals, snap.R(12))
 	c.Check(info12.Summary(), Equals, "s12")
 	c.Check(info12.Version, Equals, "1.2")
@@ -7009,7 +7009,7 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	info11, err := snap.ReadInfo("name1", snapst.Sequence[0])
 	c.Assert(err, IsNil)
 
-	c.Check(info11.Name(), Equals, "name1")
+	c.Check(info11.InstanceName(), Equals, "name1")
 	c.Check(info11.Revision, Equals, snap.R(11))
 	c.Check(info11.Version, Equals, "1.1")
 }
@@ -7872,7 +7872,7 @@ version: 1.0
 `, gadgetSideInfo)
 
 	gadgetYamlWhole := strings.Join(append([]string{gadgetYaml}, extraGadgetYaml...), "")
-	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYamlWhole), 0600)
+	err := ioutil.WriteFile(filepath.Join(gadgetInfo.InstanceMountDir(), "meta/gadget.yaml"), []byte(gadgetYamlWhole), 0600)
 	c.Assert(err, IsNil)
 
 	snapstate.Set(s.state, "the-gadget", &snapstate.SnapState{
@@ -7998,7 +7998,7 @@ volumes:
 `)
 
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(2)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
+	err := ioutil.WriteFile(filepath.Join(info.InstanceMountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	gi, err := snap.ReadGadgetInfo(info, false)
@@ -8652,7 +8652,7 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		switch info.Name() {
+		switch info.InstanceName() {
 		case "alias-snap":
 			return map[string]string{
 				"alias1": "cmd1",
@@ -8720,7 +8720,7 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2SnapDisabled(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		switch info.Name() {
+		switch info.InstanceName() {
 		case "alias-snap":
 			return map[string]string{
 				"alias1": "cmd1",
@@ -9323,7 +9323,7 @@ func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.Curr
 		panic("expected to be queried for install of only one snap at a time")
 	}
 	info := snaps[0]
-	switch info.Name() {
+	switch info.InstanceName() {
 	case "snap-content-plug":
 		info.Plugs = map[string]*snap.PlugInfo{
 			"some-plug": {

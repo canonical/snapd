@@ -33,7 +33,7 @@ import (
 func addImplicitHooks(snapInfo *Info) error {
 	// First of all, check to ensure the hooks directory exists. If it doesn't,
 	// it's not an error-- there's just nothing to do.
-	hooksDir := snapInfo.HooksDir()
+	hooksDir := snapInfo.InstanceHooksDir()
 	if !osutil.IsDirectory(hooksDir) {
 		return nil
 	}

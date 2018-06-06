@@ -47,21 +47,21 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
 	c.Assert(err, check.IsNil)
 
-	// Set SideInfo so that we can use MountDir below
+	// Set SideInfo so that we can use InstanceMountDir below
 	snapInfo.SideInfo = *sideInfo
 
 	// Put the YAML on disk, in the right spot.
-	metaDir := filepath.Join(snapInfo.MountDir(), "meta")
+	metaDir := filepath.Join(snapInfo.InstanceMountDir(), "meta")
 	err = os.MkdirAll(metaDir, 0755)
 	c.Assert(err, check.IsNil)
 	err = ioutil.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(yamlText), 0644)
 	c.Assert(err, check.IsNil)
 
 	// Write the .snap to disk
-	err = os.MkdirAll(filepath.Dir(snapInfo.MountFile()), 0755)
+	err = os.MkdirAll(filepath.Dir(snapInfo.InstanceMountFile()), 0755)
 	c.Assert(err, check.IsNil)
 	snapContents := fmt.Sprintf("%s-%s-%s", sideInfo.RealName, sideInfo.SnapID, sideInfo.Revision)
-	err = ioutil.WriteFile(snapInfo.MountFile(), []byte(snapContents), 0644)
+	err = ioutil.WriteFile(snapInfo.InstanceMountFile(), []byte(snapContents), 0644)
 	c.Assert(err, check.IsNil)
 	snapInfo.Size = int64(len(snapContents))
 
@@ -75,7 +75,7 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 // and for altering the overlord state if required.
 func MockSnapCurrent(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	si := MockSnap(c, yamlText, sideInfo)
-	err := os.Symlink(si.MountDir(), filepath.Join(si.MountDir(), "../current"))
+	err := os.Symlink(si.InstanceMountDir(), filepath.Join(si.InstanceMountDir(), "../current"))
 	c.Assert(err, check.IsNil)
 	return si
 }

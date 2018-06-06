@@ -210,7 +210,7 @@ func (r *Reader) Restore(ctx context.Context, usernames []string, logf Logf) (rs
 				logf("Skipping restore of unknown entry %q.", entry)
 				continue
 			}
-			dest = si.DataDir()
+			dest = si.InstanceDataDir()
 		} else {
 			username = entryUsername(entry)
 			if len(usernames) > 0 && !strutil.SortedListContains(usernames, username) {
@@ -223,7 +223,7 @@ func (r *Reader) Restore(ctx context.Context, usernames []string, logf Logf) (rs
 				continue
 			}
 
-			dest = si.UserDataDir(usr.HomeDir)
+			dest = si.InstanceUserDataDir(usr.HomeDir)
 			fi, err := os.Stat(usr.HomeDir)
 			if err != nil {
 				if osutil.IsDirNotExist(err) {

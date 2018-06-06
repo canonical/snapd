@@ -40,7 +40,7 @@ func RemoveKernelAssets(s snap.PlaceInfo) error {
 	}
 
 	// remove the kernel blob
-	blobName := filepath.Base(s.MountFile())
+	blobName := filepath.Base(s.InstanceMountFile())
 	dstDir := filepath.Join(bootloader.Dir(), blobName)
 	if err := os.RemoveAll(dstDir); err != nil {
 		return err
@@ -74,7 +74,7 @@ func ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
 	}
 
 	// now do the kernel specific bits
-	blobName := filepath.Base(s.MountFile())
+	blobName := filepath.Base(s.InstanceMountFile())
 	dstDir := filepath.Join(bootloader.Dir(), blobName)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err
@@ -109,7 +109,7 @@ func SetNextBoot(s *snap.Info) error {
 	}
 
 	if s.Type != snap.TypeOS && s.Type != snap.TypeKernel && s.Type != snap.TypeBase {
-		return fmt.Errorf("cannot set next boot to snap %q with type %q", s.Name(), s.Type)
+		return fmt.Errorf("cannot set next boot to snap %q with type %q", s.InstanceName(), s.Type)
 	}
 
 	bootloader, err := partition.FindBootloader()
@@ -126,7 +126,7 @@ func SetNextBoot(s *snap.Info) error {
 		nextBoot = "snap_try_kernel"
 		goodBoot = "snap_kernel"
 	}
-	blobName := filepath.Base(s.MountFile())
+	blobName := filepath.Base(s.InstanceMountFile())
 
 	// check if we actually need to do anything, i.e. the exact same
 	// kernel/core revision got installed again (e.g. firstboot)
@@ -183,7 +183,7 @@ func KernelOsBaseRebootRequired(s *snap.Info) bool {
 		return false
 	}
 
-	squashfsName := filepath.Base(s.MountFile())
+	squashfsName := filepath.Base(s.InstanceMountFile())
 	if m[nextBoot] == squashfsName && m[goodBoot] != m[nextBoot] {
 		return true
 	}

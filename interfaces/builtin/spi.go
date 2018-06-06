@@ -73,7 +73,7 @@ func (iface *spiInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if err := sanitizeSlotReservedForOSOrGadget(iface, slot); err != nil {
 		return err
 	}
-	_, err := iface.path(&interfaces.SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}, slot)
+	_, err := iface.path(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot)
 	return err
 }
 

@@ -80,10 +80,10 @@ func (s *copydataSuite) TestCopyData(c *C) {
 	err = s.be.CopySnapData(v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 
-	canaryDataFile := filepath.Join(v1.DataDir(), "canary.txt")
+	canaryDataFile := filepath.Join(v1.InstanceDataDir(), "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
 	c.Assert(err, IsNil)
-	canaryDataFile = filepath.Join(v1.CommonDataDir(), "canary.common")
+	canaryDataFile = filepath.Join(v1.InstanceCommonDataDir(), "canary.common")
 	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), canaryData, 0644)
@@ -116,7 +116,7 @@ func (s *copydataSuite) TestCopyDataBails(c *C) {
 
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	c.Assert(s.be.CopySnapData(v1, nil, progress.Null), IsNil)
-	c.Assert(os.Chmod(v1.DataDir(), 0), IsNil)
+	c.Assert(os.Chmod(v1.InstanceDataDir(), 0), IsNil)
 
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 	err := s.be.CopySnapData(v2, v1, progress.Null)
@@ -135,10 +135,10 @@ func (s *copydataSuite) TestCopyDataNoUserHomes(c *C) {
 	err := s.be.CopySnapData(v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 
-	canaryDataFile := filepath.Join(v1.DataDir(), "canary.txt")
+	canaryDataFile := filepath.Join(v1.InstanceDataDir(), "canary.txt")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
-	canaryDataFile = filepath.Join(v1.CommonDataDir(), "canary.common")
+	canaryDataFile = filepath.Join(v1.InstanceCommonDataDir(), "canary.common")
 	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
@@ -146,14 +146,14 @@ func (s *copydataSuite) TestCopyDataNoUserHomes(c *C) {
 	err = s.be.CopySnapData(v2, v1, progress.Null)
 	c.Assert(err, IsNil)
 
-	_, err = os.Stat(filepath.Join(v2.DataDir(), "canary.txt"))
+	_, err = os.Stat(filepath.Join(v2.InstanceDataDir(), "canary.txt"))
 	c.Assert(err, IsNil)
-	_, err = os.Stat(filepath.Join(v2.CommonDataDir(), "canary.common"))
+	_, err = os.Stat(filepath.Join(v2.InstanceCommonDataDir(), "canary.common"))
 	c.Assert(err, IsNil)
 
 	// sanity atm
-	c.Check(v1.DataDir(), Not(Equals), v2.DataDir())
-	c.Check(v1.CommonDataDir(), Equals, v2.CommonDataDir())
+	c.Check(v1.InstanceDataDir(), Not(Equals), v2.InstanceDataDir())
+	c.Check(v1.InstanceCommonDataDir(), Equals, v2.InstanceCommonDataDir())
 }
 
 func (s *copydataSuite) populateData(c *C, revision snap.Revision) {
@@ -251,16 +251,16 @@ func (s *copydataSuite) TestCopyDataDoUndoFirstInstall(c *C) {
 	// first install
 	err := s.be.CopySnapData(v1, nil, progress.Null)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(v1.DataDir())
+	_, err = os.Stat(v1.InstanceDataDir())
 	c.Assert(err, IsNil)
-	_, err = os.Stat(v1.CommonDataDir())
+	_, err = os.Stat(v1.InstanceCommonDataDir())
 	c.Assert(err, IsNil)
 
 	err = s.be.UndoCopySnapData(v1, nil, progress.Null)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(v1.DataDir())
+	_, err = os.Stat(v1.InstanceDataDir())
 	c.Check(os.IsNotExist(err), Equals, true)
-	_, err = os.Stat(v1.CommonDataDir())
+	_, err = os.Stat(v1.InstanceCommonDataDir())
 	c.Check(os.IsNotExist(err), Equals, true)
 }
 
@@ -384,16 +384,16 @@ func (s *copydataSuite) TestCopyDataDoFirstInstallIdempotent(c *C) {
 	err = s.be.CopySnapData(v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 
-	_, err = os.Stat(v1.DataDir())
+	_, err = os.Stat(v1.InstanceDataDir())
 	c.Assert(err, IsNil)
-	_, err = os.Stat(v1.CommonDataDir())
+	_, err = os.Stat(v1.InstanceCommonDataDir())
 	c.Assert(err, IsNil)
 
 	err = s.be.UndoCopySnapData(v1, nil, progress.Null)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(v1.DataDir())
+	_, err = os.Stat(v1.InstanceDataDir())
 	c.Check(os.IsNotExist(err), Equals, true)
-	_, err = os.Stat(v1.CommonDataDir())
+	_, err = os.Stat(v1.InstanceCommonDataDir())
 	c.Check(os.IsNotExist(err), Equals, true)
 }
 
@@ -403,20 +403,20 @@ func (s *copydataSuite) TestCopyDataUndoFirstInstallIdempotent(c *C) {
 	// first install
 	err := s.be.CopySnapData(v1, nil, progress.Null)
 	c.Assert(err, IsNil)
-	_, err = os.Stat(v1.DataDir())
+	_, err = os.Stat(v1.InstanceDataDir())
 	c.Assert(err, IsNil)
-	_, err = os.Stat(v1.CommonDataDir())
-	c.Assert(err, IsNil)
-
-	err = s.be.UndoCopySnapData(v1, nil, progress.Null)
+	_, err = os.Stat(v1.InstanceCommonDataDir())
 	c.Assert(err, IsNil)
 
 	err = s.be.UndoCopySnapData(v1, nil, progress.Null)
 	c.Assert(err, IsNil)
 
-	_, err = os.Stat(v1.DataDir())
+	err = s.be.UndoCopySnapData(v1, nil, progress.Null)
+	c.Assert(err, IsNil)
+
+	_, err = os.Stat(v1.InstanceDataDir())
 	c.Check(os.IsNotExist(err), Equals, true)
-	_, err = os.Stat(v1.CommonDataDir())
+	_, err = os.Stat(v1.InstanceCommonDataDir())
 	c.Check(os.IsNotExist(err), Equals, true)
 }
 
@@ -435,7 +435,7 @@ func (s *copydataSuite) TestCopyDataCopyFailure(c *C) {
 
 	// copy data will fail
 	err := s.be.CopySnapData(v2, v1, progress.Null)
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot copy %s to %s: .*: "cp: boom" \(3\)`, q(v1.DataDir()), q(v2.DataDir())))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot copy %s to %s: .*: "cp: boom" \(3\)`, q(v1.InstanceDataDir()), q(v2.InstanceDataDir())))
 }
 
 func (s *copydataSuite) TestCopyDataPartialFailure(c *C) {
@@ -472,15 +472,15 @@ func (s *copydataSuite) TestCopyDataSameRevision(c *C) {
 
 	homedir1 := s.populateHomeData(c, "user1", snap.R(10))
 	homedir2 := s.populateHomeData(c, "user2", snap.R(10))
-	c.Assert(os.MkdirAll(v1.DataDir(), 0755), IsNil)
-	c.Assert(os.MkdirAll(v1.CommonDataDir(), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(v1.DataDir(), "canary.txt"), nil, 0644), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(v1.CommonDataDir(), "canary.common"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(v1.InstanceDataDir(), 0755), IsNil)
+	c.Assert(os.MkdirAll(v1.InstanceCommonDataDir(), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(v1.InstanceDataDir(), "canary.txt"), nil, 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(v1.InstanceCommonDataDir(), "canary.common"), nil, 0644), IsNil)
 
 	// the data is there
 	for _, fn := range []string{
-		filepath.Join(v1.DataDir(), "canary.txt"),
-		filepath.Join(v1.CommonDataDir(), "canary.common"),
+		filepath.Join(v1.InstanceDataDir(), "canary.txt"),
+		filepath.Join(v1.InstanceCommonDataDir(), "canary.common"),
 		filepath.Join(homedir1, "hello", "10", "canary.home"),
 		filepath.Join(homedir2, "hello", "10", "canary.home"),
 	} {
@@ -493,8 +493,8 @@ func (s *copydataSuite) TestCopyDataSameRevision(c *C) {
 
 	// the data is still there :-)
 	for _, fn := range []string{
-		filepath.Join(v1.DataDir(), "canary.txt"),
-		filepath.Join(v1.CommonDataDir(), "canary.common"),
+		filepath.Join(v1.InstanceDataDir(), "canary.txt"),
+		filepath.Join(v1.InstanceCommonDataDir(), "canary.common"),
 		filepath.Join(homedir1, "hello", "10", "canary.home"),
 		filepath.Join(homedir2, "hello", "10", "canary.home"),
 	} {
@@ -508,15 +508,15 @@ func (s *copydataSuite) TestUndoCopyDataSameRevision(c *C) {
 
 	homedir1 := s.populateHomeData(c, "user1", snap.R(10))
 	homedir2 := s.populateHomeData(c, "user2", snap.R(10))
-	c.Assert(os.MkdirAll(v1.DataDir(), 0755), IsNil)
-	c.Assert(os.MkdirAll(v1.CommonDataDir(), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(v1.DataDir(), "canary.txt"), nil, 0644), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(v1.CommonDataDir(), "canary.common"), nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(v1.InstanceDataDir(), 0755), IsNil)
+	c.Assert(os.MkdirAll(v1.InstanceCommonDataDir(), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(v1.InstanceDataDir(), "canary.txt"), nil, 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(v1.InstanceCommonDataDir(), "canary.common"), nil, 0644), IsNil)
 
 	// the data is there
 	for _, fn := range []string{
-		filepath.Join(v1.DataDir(), "canary.txt"),
-		filepath.Join(v1.CommonDataDir(), "canary.common"),
+		filepath.Join(v1.InstanceDataDir(), "canary.txt"),
+		filepath.Join(v1.InstanceCommonDataDir(), "canary.common"),
 		filepath.Join(homedir1, "hello", "10", "canary.home"),
 		filepath.Join(homedir2, "hello", "10", "canary.home"),
 	} {
@@ -529,8 +529,8 @@ func (s *copydataSuite) TestUndoCopyDataSameRevision(c *C) {
 
 	// the data is still there :-)
 	for _, fn := range []string{
-		filepath.Join(v1.DataDir(), "canary.txt"),
-		filepath.Join(v1.CommonDataDir(), "canary.common"),
+		filepath.Join(v1.InstanceDataDir(), "canary.txt"),
+		filepath.Join(v1.InstanceCommonDataDir(), "canary.common"),
 		filepath.Join(homedir1, "hello", "10", "canary.home"),
 		filepath.Join(homedir2, "hello", "10", "canary.home"),
 	} {

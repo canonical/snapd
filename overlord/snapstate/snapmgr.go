@@ -245,7 +245,7 @@ var revisionDate = revisionDateImpl
 
 // revisionDate returns a good approximation of when a revision reached the system.
 func revisionDateImpl(info *snap.Info) time.Time {
-	fi, err := os.Lstat(info.MountFile())
+	fi, err := os.Lstat(info.InstanceMountFile())
 	if err != nil {
 		return time.Time{}
 	}

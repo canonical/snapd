@@ -34,20 +34,20 @@ import (
 )
 
 func updateCurrentSymlinks(info *snap.Info) error {
-	mountDir := info.MountDir()
+	mountDir := info.InstanceMountDir()
 
 	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
 	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Cannot remove %q: %v", currentActiveSymlink, err)
 	}
 
-	dataDir := info.DataDir()
+	dataDir := info.InstanceDataDir()
 	currentDataSymlink := filepath.Join(dataDir, "..", "current")
 	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
 		logger.Noticef("Cannot remove %q: %v", currentDataSymlink, err)
 	}
 
-	if err := os.MkdirAll(info.DataDir(), 0755); err != nil {
+	if err := os.MkdirAll(info.InstanceDataDir(), 0755); err != nil {
 		return err
 	}
 
@@ -61,7 +61,7 @@ func updateCurrentSymlinks(info *snap.Info) error {
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
 func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 	if info.Revision.Unset() {
-		return fmt.Errorf("cannot link snap %q with unset revision", info.Name())
+		return fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
 
 	if err := generateWrappers(info); err != nil {
@@ -74,7 +74,7 @@ func (b Backend) LinkSnap(info *snap.Info, model *asserts.Model) error {
 		if model.Base() != "" {
 			bootBase = model.Base()
 		}
-		switch info.Name() {
+		switch info.InstanceName() {
 		case model.Kernel(), bootBase:
 			if err := boot.SetNextBoot(info); err != nil {
 				return err
@@ -116,17 +116,17 @@ func generateWrappers(s *snap.Info) error {
 func removeGeneratedWrappers(s *snap.Info, meter progress.Meter) error {
 	err1 := wrappers.RemoveSnapBinaries(s)
 	if err1 != nil {
-		logger.Noticef("Cannot remove binaries for %q: %v", s.Name(), err1)
+		logger.Noticef("Cannot remove binaries for %q: %v", s.InstanceName(), err1)
 	}
 
 	err2 := wrappers.RemoveSnapServices(s, meter)
 	if err2 != nil {
-		logger.Noticef("Cannot remove services for %q: %v", s.Name(), err2)
+		logger.Noticef("Cannot remove services for %q: %v", s.InstanceName(), err2)
 	}
 
 	err3 := wrappers.RemoveSnapDesktopFiles(s)
 	if err3 != nil {
-		logger.Noticef("Cannot remove desktop files for %q: %v", s.Name(), err3)
+		logger.Noticef("Cannot remove desktop files for %q: %v", s.InstanceName(), err3)
 	}
 
 	return firstErr(err1, err2, err3)
@@ -148,7 +148,7 @@ func removeCurrentSymlinks(info snap.PlaceInfo) error {
 	var err1, err2 error
 
 	// the snap "current" symlink
-	currentActiveSymlink := filepath.Join(info.MountDir(), "..", "current")
+	currentActiveSymlink := filepath.Join(info.InstanceMountDir(), "..", "current")
 	err1 = os.Remove(currentActiveSymlink)
 	if err1 != nil && !os.IsNotExist(err1) {
 		logger.Noticef("Cannot remove %q: %v", currentActiveSymlink, err1)
@@ -157,7 +157,7 @@ func removeCurrentSymlinks(info snap.PlaceInfo) error {
 	}
 
 	// the data "current" symlink
-	currentDataSymlink := filepath.Join(info.DataDir(), "..", "current")
+	currentDataSymlink := filepath.Join(info.InstanceDataDir(), "..", "current")
 	err2 = os.Remove(currentDataSymlink)
 	if err2 != nil && !os.IsNotExist(err2) {
 		logger.Noticef("Cannot remove %q: %v", currentDataSymlink, err2)

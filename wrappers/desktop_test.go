@@ -77,7 +77,7 @@ func (s *desktopSuite) TestAddPackageDesktopFiles(c *C) {
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	// generate .desktop file in the package baseDir
-	baseDir := info.MountDir()
+	baseDir := info.InstanceMountDir()
 	err := os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
 	c.Assert(err, IsNil)
 
@@ -120,7 +120,7 @@ func (s *desktopSuite) TestAddPackageDesktopFilesCleanup(c *C) {
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	// generate .desktop file in the package baseDir
-	baseDir := info.MountDir()
+	baseDir := info.InstanceMountDir()
 	err = os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
 	c.Assert(err, IsNil)
 

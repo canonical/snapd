@@ -607,7 +607,7 @@ version: 1
 `
 
 func (s *backendSuite) writeVanillaSnapConfineProfile(c *C, coreInfo *snap.Info) {
-	vanillaProfilePath := filepath.Join(coreInfo.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
+	vanillaProfilePath := filepath.Join(coreInfo.InstanceMountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
 	vanillaProfileText := []byte(`#include <tunables/global>
 /usr/lib/snapd/snap-confine (attach_disconnected) {
     # We run privileged, so be fanatical about what we include and don't use
@@ -626,7 +626,7 @@ func (s *backendSuite) TestSnapConfineProfile(c *C) {
 	s.writeVanillaSnapConfineProfile(c, coreInfo)
 	// We expect to see the same profile, just anchored at a different directory.
 	expectedProfileDir := filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d")
-	expectedProfileName := strings.Replace(filepath.Join(coreInfo.MountDir(), "usr/lib/snapd/snap-confine")[1:], "/", ".", -1)
+	expectedProfileName := strings.Replace(filepath.Join(coreInfo.InstanceMountDir(), "usr/lib/snapd/snap-confine")[1:], "/", ".", -1)
 	expectedProfileGlob := strings.Replace(expectedProfileName, "."+coreInfo.Revision.String()+".", ".*.", -1)
 	expectedProfileText := fmt.Sprintf(`#include <tunables/global>
 %s/usr/lib/snapd/snap-confine (attach_disconnected) {
@@ -634,7 +634,7 @@ func (s *backendSuite) TestSnapConfineProfile(c *C) {
     # any abstractions
     /etc/ld.so.cache r,
 }
-`, coreInfo.MountDir())
+`, coreInfo.InstanceMountDir())
 
 	c.Assert(expectedProfileName, testutil.Contains, coreInfo.Revision.String())
 

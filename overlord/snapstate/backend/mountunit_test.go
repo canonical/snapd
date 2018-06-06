@@ -114,7 +114,7 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = backend.RemoveMountUnit(info.MountDir(), progress.Null)
+	err = backend.RemoveMountUnit(info.InstanceMountDir(), progress.Null)
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, un)
 	c.Assert(osutil.FileExists(p), Equals, false)

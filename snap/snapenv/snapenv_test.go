@@ -151,6 +151,44 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 	}
 }
 
+func (s *HTestSuite) TestSnapParallelInstanceRunSnapExecEnv(c *C) {
+	info, err := snap.InfoFromSnapYaml(mockYaml)
+	c.Assert(err, IsNil)
+	info.SideInfo.Revision = snap.R(42)
+	info.SideInfo.InstanceKey = "foo"
+
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+
+	homeEnv := os.Getenv("HOME")
+	defer os.Setenv("HOME", homeEnv)
+
+	for _, withHomeEnv := range []bool{true, false} {
+		if !withHomeEnv {
+			os.Setenv("HOME", "")
+		}
+
+		env := snapEnv(info)
+		// Environment variables do not refer to the particular snap
+		// instance but rather the snap itself
+		c.Check(env, DeepEquals, map[string]string{
+			"HOME":              fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
+			"SNAP":              fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
+			"SNAP_ARCH":         arch.UbuntuArchitecture(),
+			"SNAP_COMMON":       "/var/snap/snapname/common",
+			"SNAP_DATA":         "/var/snap/snapname/42",
+			"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/void",
+			"SNAP_NAME":         "snapname",
+			"SNAP_REEXEC":       "",
+			"SNAP_REVISION":     "42",
+			"SNAP_USER_COMMON":  fmt.Sprintf("%s/snap/snapname/common", usr.HomeDir),
+			"SNAP_USER_DATA":    fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
+			"SNAP_VERSION":      "1.0",
+			"XDG_RUNTIME_DIR":   fmt.Sprintf("/run/user/%d/snap.snapname", sys.Geteuid()),
+		})
+	}
+}
+
 func envValue(env []string, key string) (bool, string) {
 	for _, item := range env {
 		if strings.HasPrefix(item, key+"=") {

@@ -88,9 +88,28 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 		SnapID:            "snapidsnapidsnapidsnapidsnapidsn",
 	}
 
-	c.Check(info.Name(), Equals, "newname")
+	c.Check(info.InstanceName(), Equals, "newname")
+	c.Check(info.StoreName(), Equals, "newname")
 	c.Check(info.Summary(), Equals, "fixed summary")
 	c.Check(info.Description(), Equals, "fixed desc")
+	c.Check(info.Revision, Equals, snap.R(1))
+	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
+}
+
+func (s *infoSuite) TestSideInfoInstanceOverrides(c *C) {
+	info := &snap.Info{
+		SuggestedName: "name",
+	}
+
+	info.SideInfo = snap.SideInfo{
+		RealName:    "newname",
+		Revision:    snap.R(1),
+		SnapID:      "snapidsnapidsnapidsnapidsnapidsn",
+		InstanceKey: "foo",
+	}
+
+	c.Check(info.InstanceName(), Equals, "newname_foo")
+	c.Check(info.StoreName(), Equals, "newname")
 	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
 }
@@ -186,7 +205,7 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	snapInfo2, err := snap.ReadInfo("sample", si)
 	c.Assert(err, IsNil)
 
-	c.Check(snapInfo2.Name(), Equals, "sample")
+	c.Check(snapInfo2.InstanceName(), Equals, "sample")
 	c.Check(snapInfo2.Revision, Equals, snap.R(42))
 	c.Check(snapInfo2.Summary(), Equals, "esummary")
 
@@ -203,7 +222,7 @@ func (s *infoSuite) TestReadCurrentInfo(c *C) {
 	snapInfo2, err := snap.ReadCurrentInfo("sample")
 	c.Assert(err, IsNil)
 
-	c.Check(snapInfo2.Name(), Equals, "sample")
+	c.Check(snapInfo2.InstanceName(), Equals, "sample")
 	c.Check(snapInfo2.Revision, Equals, snap.R(42))
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 
@@ -212,14 +231,31 @@ func (s *infoSuite) TestReadCurrentInfo(c *C) {
 	c.Assert(err, ErrorMatches, `cannot find current revision for snap not-sample:.*`)
 }
 
+func (s *infoSuite) TestReadCurrentInfoInstance(c *C) {
+	si := &snap.SideInfo{
+		Revision:    snap.R(42),
+		InstanceKey: "foo",
+	}
+
+	snapInfo1 := snaptest.MockSnapCurrent(c, sampleYaml, si)
+
+	snapInfo2, err := snap.ReadCurrentInfo("sample_foo")
+	c.Assert(err, IsNil)
+
+	c.Check(snapInfo2.InstanceName(), Equals, "sample_foo")
+	c.Check(snapInfo2.StoreName(), Equals, "sample")
+	c.Check(snapInfo2.Revision, Equals, snap.R(42))
+	c.Check(snapInfo2, DeepEquals, snapInfo1)
+}
+
 func (s *infoSuite) TestInstallDate(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(1)}
 	info := snaptest.MockSnap(c, sampleYaml, si)
 	// not current -> Zero
 	c.Check(info.InstallDate().IsZero(), Equals, true)
-	c.Check(snap.InstallDate(info.Name()).IsZero(), Equals, true)
+	c.Check(snap.InstallDate(info.InstanceName()).IsZero(), Equals, true)
 
-	mountdir := info.MountDir()
+	mountdir := info.InstanceMountDir()
 	dir, rev := filepath.Split(mountdir)
 	c.Assert(os.MkdirAll(dir, 0755), IsNil)
 	cur := filepath.Join(dir, "current")
@@ -231,7 +267,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	c.Check(instTime.IsZero(), Equals, false)
 
 	c.Check(info.InstallDate().Equal(instTime), Equals, true)
-	c.Check(snap.InstallDate(info.Name()).Equal(instTime), Equals, true)
+	c.Check(snap.InstallDate(info.InstanceName()).Equal(instTime), Equals, true)
 }
 
 func (s *infoSuite) TestReadInfoNotFound(c *C) {
@@ -246,7 +282,7 @@ func (s *infoSuite) TestReadInfoNotFound(c *C) {
 
 func (s *infoSuite) TestReadInfoUnreadable(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
-	c.Assert(os.MkdirAll(filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).InstanceMountDir(), "meta", "snap.yaml"), 0755), IsNil)
 
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(info, IsNil)
@@ -256,7 +292,7 @@ func (s *infoSuite) TestReadInfoUnreadable(c *C) {
 
 func (s *infoSuite) TestReadInfoUnparsable(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
-	p := filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml")
+	p := filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).InstanceMountDir(), "meta", "snap.yaml")
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(p, []byte(`- :`), 0644), IsNil)
 
@@ -271,7 +307,7 @@ func (s *infoSuite) TestReadInfoUnparsable(c *C) {
 
 func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
-	p := filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml")
+	p := filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).InstanceMountDir(), "meta", "snap.yaml")
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(p, []byte(``), 0644), IsNil)
 
@@ -321,7 +357,7 @@ confinement: devmode`
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
-	c.Check(info.Name(), Equals, "foo")
+	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
@@ -343,7 +379,7 @@ confinement: classic`
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
-	c.Check(info.Name(), Equals, "foo")
+	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
@@ -363,7 +399,7 @@ type: app`
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
-	c.Check(info.Name(), Equals, "foo")
+	c.Check(info.InstanceName(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
@@ -386,7 +422,7 @@ type: app`
 		Revision: snap.R(42),
 	})
 	c.Assert(err, IsNil)
-	c.Check(info.Name(), Equals, "baz")
+	c.Check(info.InstanceName(), Equals, "baz")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(42))
@@ -550,8 +586,8 @@ func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, yaml string, contents st
 	// First check installed snap
 	sideInfo := &snap.SideInfo{Revision: snap.R(42)}
 	info0 := snaptest.MockSnap(c, yaml, sideInfo)
-	snaptest.PopulateDir(info0.MountDir(), emptyHooks(hooks...))
-	info, err := snap.ReadInfo(info0.Name(), sideInfo)
+	snaptest.PopulateDir(info0.InstanceMountDir(), emptyHooks(hooks...))
+	info, err := snap.ReadInfo(info0.InstanceName(), sideInfo)
 	c.Check(err, IsNil)
 	checker(c, info)
 
@@ -684,18 +720,18 @@ func (s *infoSuite) TestDirAndFileMethods(c *C) {
 }
 
 func (s *infoSuite) testDirAndFileMethods(c *C, info snap.PlaceInfo) {
-	c.Check(info.MountDir(), Equals, fmt.Sprintf("%s/name/1", dirs.SnapMountDir))
-	c.Check(info.MountFile(), Equals, "/var/lib/snapd/snaps/name_1.snap")
-	c.Check(info.HooksDir(), Equals, fmt.Sprintf("%s/name/1/meta/hooks", dirs.SnapMountDir))
-	c.Check(info.DataDir(), Equals, "/var/snap/name/1")
-	c.Check(info.UserDataDir("/home/bob"), Equals, "/home/bob/snap/name/1")
-	c.Check(info.UserCommonDataDir("/home/bob"), Equals, "/home/bob/snap/name/common")
-	c.Check(info.CommonDataDir(), Equals, "/var/snap/name/common")
-	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name")
+	c.Check(info.InstanceMountDir(), Equals, fmt.Sprintf("%s/name/1", dirs.SnapMountDir))
+	c.Check(info.InstanceMountFile(), Equals, "/var/lib/snapd/snaps/name_1.snap")
+	c.Check(info.InstanceHooksDir(), Equals, fmt.Sprintf("%s/name/1/meta/hooks", dirs.SnapMountDir))
+	c.Check(info.InstanceDataDir(), Equals, "/var/snap/name/1")
+	c.Check(info.InstanceUserDataDir("/home/bob"), Equals, "/home/bob/snap/name/1")
+	c.Check(info.InstanceUserCommonDataDir("/home/bob"), Equals, "/home/bob/snap/name/common")
+	c.Check(info.InstanceCommonDataDir(), Equals, "/var/snap/name/common")
+	c.Check(info.InstanceUserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name")
 	// XXX: Those are actually a globs, not directories
-	c.Check(info.DataHomeDir(), Equals, "/home/*/snap/name/1")
-	c.Check(info.CommonDataHomeDir(), Equals, "/home/*/snap/name/common")
-	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name")
+	c.Check(info.InstanceDataHomeDir(), Equals, "/home/*/snap/name/1")
+	c.Check(info.InstanceCommonDataHomeDir(), Equals, "/home/*/snap/name/common")
+	c.Check(info.InstanceXdgRuntimeDirs(), Equals, "/run/user/*/snap.name")
 }
 
 func makeFakeDesktopFile(c *C, name, content string) string {
@@ -712,7 +748,7 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 	snapInfo, err := snap.ReadInfo("sample", &snap.SideInfo{})
 	c.Assert(err, IsNil)
 
-	c.Check(snapInfo.Name(), Equals, "sample")
+	c.Check(snapInfo.InstanceName(), Equals, "sample")
 	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_app.desktop`)
 	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_sample.desktop`)
 }
@@ -1060,30 +1096,37 @@ func (s *infoSuite) TestLocalName(c *C) {
 	c.Check(snap.StoreName("foo_bar"), Equals, "foo")
 	c.Check(snap.StoreName("foo"), Equals, "foo")
 
-	store, local := snap.SplitName("foo_bar")
+	store, local := snap.SplitInstanceName("foo_bar")
 	c.Check(store, Equals, "foo")
 	c.Check(local, Equals, "bar")
 
-	store, local = snap.SplitName("foo")
+	store, local = snap.SplitInstanceName("foo")
 	c.Check(store, Equals, "foo")
 	c.Check(local, Equals, "")
 
-	c.Check(snap.LocalName("foo", "bar"), Equals, "foo_bar")
-	c.Check(snap.LocalName("foo", ""), Equals, "foo")
+	c.Check(snap.InstanceName("foo", "bar"), Equals, "foo_bar")
+	c.Check(snap.InstanceName("foo", ""), Equals, "foo")
 }
 
 func (s *infoSuite) TestLocalNameWithSideInfo(c *C) {
 	info := &snap.Info{}
 
 	info.SideInfo = snap.SideInfo{
-		RealName: "snap-name",
-		LocalKey: "foo",
+		RealName:    "snap-name",
+		InstanceKey: "foo",
 	}
 
-	c.Check(info.Name(), Equals, "snap-name_foo")
+	c.Check(info.InstanceName(), Equals, "snap-name_foo")
 	c.Check(info.StoreName(), Equals, "snap-name")
 
-	info.LocalKey = ""
-	c.Check(info.Name(), Equals, "snap-name")
+	info.InstanceKey = ""
+	c.Check(info.InstanceName(), Equals, "snap-name")
 	c.Check(info.StoreName(), Equals, "snap-name")
+}
+
+func (s *infoSuite) TestReadInfoOnlyForApp(c *C) {
+	si := &snap.SideInfo{Revision: snap.R(42), InstanceKey: "foo"}
+	snaptest.MockSnap(c, coreSnapYaml, si)
+	_, err := snap.ReadInfo("core_foo", si)
+	c.Assert(err, ErrorMatches, `cannot use installed snap "core_foo" at revision 42: instance key not allowed for non-app snaps`)
 }

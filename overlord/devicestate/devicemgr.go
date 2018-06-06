@@ -281,7 +281,7 @@ func (m *DeviceManager) ensureOperational() error {
 	if gadgetInfo != nil && gadgetInfo.Hooks["prepare-device"] != nil {
 		summary := i18n.G("Run prepare-device hook")
 		hooksup := &hookstate.HookSetup{
-			Snap: gadgetInfo.Name(),
+			Snap: gadgetInfo.InstanceName(),
 			Hook: "prepare-device",
 		}
 		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
