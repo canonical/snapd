@@ -2,16 +2,7 @@ summary: Check that the snapd.run-from-snap helper works
 
 systems: [ubuntu-core-*]
 
-restore: |
-    # cleanup generated units (just in case stop does not do its job)
-    rm -f /run/systemd/system/snapd.*
-    # cleanup mount
-    umount /snap/snapd/current/usr/lib/snapd || true
-    # and ensure snapd is working (needed in restore)
-    systemctl daemon-reload
-    systemctl start snapd.service snapd.socket
-
-execute: |
+prepare: |
     echo "Install the snapd snap"
     snap install --edge snapd
 
@@ -22,6 +13,16 @@ execute: |
     echo "Ensure our local changes are in the snap"
     mount -o bind /usr/lib/snapd /snap/snapd/current/usr/lib/snapd/
 
+restore: |
+    # cleanup generated units (just in case stop does not do its job)
+    rm -f /run/systemd/system/snapd.*
+    # cleanup mount
+    umount /snap/snapd/current/usr/lib/snapd || true
+    # and ensure snapd is working (needed in restore)
+    systemctl daemon-reload
+    systemctl start snapd.service snapd.socket
+
+execute: |
     echo "Run the manage script (from the snap)"
     ls /run/systemd/system > before
     /snap/snapd/current/usr/lib/snapd/snapd.run-from-snap start /snap/snapd/current
