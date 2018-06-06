@@ -50,7 +50,7 @@ execute: |
     # AppArmor is 'Permission denied' which is expected with default policy
     MATCH "Permission denied" < call.error
 
-    echo "When the time-control plug is connected"
+    echo "When the time-control plug is disconnected"
     snap interfaces -i time-control | MATCH ":time-control +\-"
 
     echo "The snap's time-control plug cannot access an evdev keyboard when disconnected"
@@ -70,5 +70,8 @@ execute: |
         echo "Expected permission error with disconnected time-control plug"
         exit 1
     fi
-    # AppArmor is 'Permission denied' which is expected with default policy
-    MATCH "Permission denied" < call.error
+    # device cgroup is 'Operation not permitted' which is expected since the
+    # device cgroup is in effect (because of rtc) and the device isn't in the
+    # cgroup. DAC is evaluated before AppArmor so since the device wasn't added
+    # to the cgroup, we see a DAC denial.
+    MATCH "Operation not permitted" < call.error
