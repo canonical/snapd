@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+cd "$SNAP"
+
 device_type="-event-kbd"
 if [ -n "$1" ]; then
     device_type="$1"

@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+cd "$SNAP"
+
 # Detect a keyboard by looking in /dev/input/by-path to find the first
 # '-event-kbd'
 evdev_kbd=$(find /dev/input/by-path/ -name '*-event-kbd' -ls | head -1 | sed 's#.* -> ../##')
