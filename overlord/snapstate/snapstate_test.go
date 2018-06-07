@@ -9926,8 +9926,8 @@ func (s *snapmgrTestSuite) TestInjectTasksWithNullChange(c *C) {
 }
 
 func hasConfigureTask(ts *state.TaskSet) bool {
-	for _, t := range ts.Tasks() {
-		if t.Kind() == "run-hook" && strings.HasPrefix(t.Summary(), "Run configure hook of") {
+	for _, tk := range taskKinds(ts.Tasks()) {
+		if tk == "run-hook[configure]" {
 			return true
 		}
 	}
