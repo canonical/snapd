@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"crypto/md5"
 	"crypto/sha512"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -34,6 +33,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/bolt"
 	"gopkg.in/mgo.v2/bson"
 
 	"github.com/snapcore/snapd/arch"
@@ -70,10 +70,10 @@ var (
 )
 
 type reportsDB struct {
-	fname string
+	db *bolt.DB
 
 	// map of hash(dupsig) -> time-of-report
-	reported map[string]time.Time
+	reportedBucket *bolt.Bucket
 
 	// time until an error report is cleaned from the database,
 	// usually 7 days
@@ -87,29 +87,33 @@ func hashString(s string) string {
 }
 
 func newReportsDB(fname string) (*reportsDB, error) {
+	if err := os.MkdirAll(filepath.Dir(fname), 0755); err != nil {
+		return nil, err
+	}
+	bdb, err := bolt.Open(fname, 0600, &bolt.Options{
+		Timeout: 10 * time.Second,
+	})
+	if err != nil {
+		return nil, err
+	}
+	bdb.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte("reported"))
+		if err != nil {
+			return fmt.Errorf("create bucket: %s", err)
+		}
+		return nil
+	})
+
 	db := &reportsDB{
-		fname:       fname,
-		reported:    make(map[string]time.Time),
+		db:          bdb,
 		cleanupTime: time.Duration(7 * 24 * time.Hour),
 	}
 
-	f, err := os.Open(fname)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return db, nil
-		}
-		return nil, err
-	}
-	defer f.Close()
-
-	dec := json.NewDecoder(f)
-	if err := dec.Decode(&db.reported); err != nil {
-		// Be robust here, if the data is corrupted for whatever
-		// reason we just create a fresh DB.
-		return db, nil
-	}
-
 	return db, nil
+}
+
+func (db *reportsDB) Close() error {
+	return db.db.Close()
 }
 
 // AlreadyReported returns true if an identical report has been sent recently
@@ -118,17 +122,33 @@ func (db *reportsDB) AlreadyReported(dupSig string) bool {
 	if db == nil {
 		return false
 	}
-	_, reported := db.reported[hashString(dupSig)]
-	return reported
+	var reported []byte
+	db.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("reported"))
+		reported = b.Get([]byte(hashString(dupSig)))
+		return nil
+	})
+	return len(reported) > 0
 }
 
 func (db *reportsDB) cleanupOldRecords() {
-	now := time.Now()
-	for dupSigHash, reportTime := range db.reported {
-		if now.After(reportTime.Add(db.cleanupTime)) {
-			delete(db.reported, dupSigHash)
-		}
-	}
+	db.db.Update(func(tx *bolt.Tx) error {
+		now := time.Now()
+
+		b := tx.Bucket([]byte("reported"))
+		b.ForEach(func(dupSigHash, reportTime []byte) error {
+			var t time.Time
+			t.UnmarshalBinary(reportTime)
+
+			if now.After(t.Add(db.cleanupTime)) {
+				if err := b.Delete(dupSigHash); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		return nil
+	})
 }
 
 // MarkReported marks an error report as reported to the error tracker
@@ -137,27 +157,16 @@ func (db *reportsDB) MarkReported(dupSig string) error {
 	if db == nil {
 		return fmt.Errorf("cannot mark error report as reported with an uninitialized reports database")
 	}
-
 	db.cleanupOldRecords()
 
-	db.reported[hashString(dupSig)] = time.Now()
-	if err := os.MkdirAll(filepath.Dir(db.fname), 0755); err != nil {
-		return err
-	}
-	// optimistic (i.e. no) locking - worst case is that we send a
-	// duplicated report
-	f, err := osutil.NewAtomicFile(db.fname, 0644, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return err
-	}
-	defer f.Cancel()
-
-	enc := json.NewEncoder(f)
-	if err := enc.Encode(db.reported); err != nil {
-		return err
-	}
-
-	return f.Commit()
+	return db.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("reported"))
+		tb, err := time.Now().MarshalBinary()
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(hashString(dupSig)), tb)
+	})
 }
 
 func whoopsieEnabled() bool {
@@ -231,6 +240,8 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 	if err != nil {
 		logger.Noticef("cannot open error reports database: %v", err)
 	}
+	defer db.Close()
+
 	if db.AlreadyReported(dupSig) {
 		return "already-reported", nil
 	}
