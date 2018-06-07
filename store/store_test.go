@@ -6940,18 +6940,11 @@ func (s *storeTestSuite) TestSnapActionRefreshesBothAuths(c *C) {
 	c.Check(n, Equals, 2)
 }
 
-func (s *storeTestSuite) TestConnectivityCheck(c *C) {
+func (s *storeTestSuite) TestConnectivityCheckHappy(c *C) {
 	seenPaths := make(map[string]int, 2)
 	var mockServerURL *url.URL
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/acl/":
-			c.Check(r.Method, Equals, "GET")
-			w.WriteHeader(401)
-			io.WriteString(w, `{"error_list": [{"code": "macaroon-permission-required"}]}`)
-		case "/u1api":
-			c.Check(r.Method, Equals, "HEAD")
-			w.WriteHeader(200)
 		case "/api/v1/snaps/details/core":
 			c.Check(r.Method, Equals, "GET")
 			c.Check(r.URL.Query().Encode(), DeepEquals, "fields=anon_download_url")
@@ -6978,9 +6971,46 @@ func (s *storeTestSuite) TestConnectivityCheck(c *C) {
 	connectivity, err := sto.ConnectivityCheck()
 	c.Assert(err, IsNil)
 	// everything is the test server, here
-	c.Check(connectivity, DeepEquals, map[string]bool{mockServerURL.Host: true})
+	c.Check(connectivity, DeepEquals, ConnectivityStatus{
+		Connectivity: true,
+		Unreachable:  nil,
+	})
 	c.Check(seenPaths, DeepEquals, map[string]int{
 		"/api/v1/snaps/details/core": 1,
 		"/download/core":             1,
+	})
+}
+
+func (s *storeTestSuite) TestConnectivityCheckUnhappy(c *C) {
+	seenPaths := make(map[string]int, 2)
+	var mockServerURL *url.URL
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/snaps/details/core":
+			w.WriteHeader(500)
+		default:
+			c.Fatalf("unexpected request: %s", r.URL.String())
+			return
+		}
+		seenPaths[r.URL.Path]++
+		return
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+	mockServerURL, _ = url.Parse(mockServer.URL)
+
+	sto := New(&Config{
+		StoreBaseURL: mockServerURL,
+	}, nil)
+	connectivity, err := sto.ConnectivityCheck()
+	c.Assert(err, IsNil)
+	// everything is the test server, here
+	c.Check(connectivity, DeepEquals, ConnectivityStatus{
+		Connectivity: false,
+		Unreachable:  []string{mockServerURL.Host},
+	})
+	// three because retries
+	c.Check(seenPaths, DeepEquals, map[string]int{
+		"/api/v1/snaps/details/core": 3,
 	})
 }

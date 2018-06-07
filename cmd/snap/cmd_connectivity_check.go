@@ -43,19 +43,22 @@ func (x *cmdConnectivityCheck) Execute(args []string) error {
 
 	cli := Client()
 
-	var unreachable map[string]bool
-	if err := cli.Debug("connectivity", nil, &unreachable); err != nil {
+	var status struct {
+		Connectivity bool
+		Unreachable  []string
+	}
+	if err := cli.Debug("connectivity", nil, &status); err != nil {
 		return err
 	}
 
 	fmt.Fprintf(Stdout, "Connectivity status:\n")
-	if len(unreachable) == 0 {
+	if len(status.Unreachable) == 0 {
 		fmt.Fprintf(Stdout, " * PASS\n")
 		return nil
 	}
 
-	for uri := range unreachable {
+	for _, uri := range status.Unreachable {
 		fmt.Fprintf(Stdout, " * %s: unreachable\n", uri)
 	}
-	return fmt.Errorf("%v servers unreachable", len(unreachable))
+	return fmt.Errorf("%v servers unreachable", len(status.Unreachable))
 }

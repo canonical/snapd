@@ -67,7 +67,7 @@ func (s *SnapSuite) TestConnectivityUnhappy(c *check.C) {
 			data, err := ioutil.ReadAll(r.Body)
 			c.Check(err, check.IsNil)
 			c.Check(data, check.DeepEquals, []byte(`{"action":"connectivity"}`))
-			fmt.Fprintln(w, `{"type": "sync", "result": {"foo.bar.com":true}}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"connectivity":false,"unreachable":["foo.bar.com"]}}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}

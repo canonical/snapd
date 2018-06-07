@@ -2524,12 +2524,12 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		//        other options?
 		s := snapstate.Store(st).(*store.Store)
 		st.Unlock()
-		failed, err := s.ConnectivityCheck()
+		status, err := s.ConnectivityCheck()
 		st.Lock()
 		if err != nil {
 			return InternalError("cannot run connectivity check: %v", err)
 		}
-		return SyncResponse(failed, nil)
+		return SyncResponse(status, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
