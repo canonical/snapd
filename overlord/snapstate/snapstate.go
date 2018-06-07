@@ -290,8 +290,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		confFlags |= UseConfigDefaults
 	}
 
-	// we do not support configuration for bases yet
-	if snapsup.Type != snap.TypeBase {
+	// we do not support configuration for bases or the "snapd" snap yet
+	if snapsup.Type != snap.TypeBase && snapsup.Name() != "snapd" {
 		configSet := ConfigureSnap(st, snapsup.Name(), confFlags)
 		configSet.WaitAll(ts)
 		ts.AddAll(configSet)
