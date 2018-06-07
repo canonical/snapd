@@ -51,6 +51,7 @@ var (
 	sysUnmount    = syscall.Unmount
 	sysFchown     = sys.Fchown
 	sysFstat      = syscall.Fstat
+	sysFstatfs    = syscall.Fstatfs
 	sysSymlinkat  = osutil.Symlinkat
 	sysReadlinkat = osutil.Readlinkat
 	sysFchdir     = syscall.Fchdir
