@@ -24,6 +24,13 @@ execute: |
 
     echo "Ensure we re-exec by default"
     snap list
+
+    for _ in $(seq 10); do
+      if get_journalctl_log | MATCH "DEBUG: restarting into" ; then
+          break
+      fi
+      sleep 1
+    done
     get_journalctl_log | MATCH "DEBUG: restarting into"
 
     echo "Ensure snap-confine from the core snap is run"

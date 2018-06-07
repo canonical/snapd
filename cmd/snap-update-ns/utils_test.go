@@ -98,8 +98,6 @@ func (s *utilsSuite) TestSecureMkdirAllLevel1(c *C) {
 		`close 4`,
 		`close 3`,
 	})
-	c.Assert(s.log.String(), testutil.Contains, `secure-mk-dir 3 ["path"] 0 -rwxr-xr-x 123 456 -> ...`)
-	c.Assert(s.log.String(), testutil.Contains, `secure-mk-dir 3 ["path"] 0 -rwxr-xr-x 123 456 -> 4`)
 }
 
 // Ensure that we can create a directory two levels from the top-level directory.
@@ -179,7 +177,7 @@ func (s *utilsSuite) TestSecureMkdirAllExistingDirsDontChown(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllMkdiratError(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, errTesting)
 	err := s.sec.MkdirAll("/abs", 0755, 123, 456)
-	c.Assert(err, ErrorMatches, `cannot mkdir path segment "abs": testing`)
+	c.Assert(err, ErrorMatches, `cannot create directory "abs": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
 		`mkdirat 3 "abs" 0755`,
@@ -191,7 +189,7 @@ func (s *utilsSuite) TestSecureMkdirAllMkdiratError(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllFchownError(c *C) {
 	s.sys.InsertFault(`fchown 4 123 456`, errTesting)
 	err := s.sec.MkdirAll("/path", 0755, 123, 456)
-	c.Assert(err, ErrorMatches, `cannot chown path segment "path" to 123.456 \(got up to "/"\): testing`)
+	c.Assert(err, ErrorMatches, `cannot chown directory "path" to 123.456: testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
 		`mkdirat 3 "path" 0755`,
@@ -216,7 +214,7 @@ func (s *utilsSuite) TestSecureMkdirAllOpenRootError(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllOpenError(c *C) {
 	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
 	err := s.sec.MkdirAll("/abs/path", 0755, 123, 456)
-	c.Assert(err, ErrorMatches, `cannot open path segment "abs" \(got up to "/"\): testing`)
+	c.Assert(err, ErrorMatches, `cannot open directory "abs": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
 		`mkdirat 3 "abs" 0755`,
@@ -626,7 +624,7 @@ func (s *utilsSuite) TestSecureMkfileAllOpenRootError(c *C) {
 func (s *utilsSuite) TestSecureMkfileAllOpenError(c *C) {
 	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
 	err := s.sec.MkfileAll("/abs/path", 0755, 123, 456)
-	c.Assert(err, ErrorMatches, `cannot open path segment "abs" \(got up to "/"\): testing`)
+	c.Assert(err, ErrorMatches, `cannot open directory "abs": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
 		`mkdirat 3 "abs" 0755`,
@@ -700,6 +698,9 @@ func (s *realSystemSuite) TestSecureMksymlinkAllForReal(c *C) {
 	c.Assert(err, IsNil)
 	err = s.sec.MksymlinkAll(f3, 0755, sys.FlagID, sys.FlagID, "oldname")
 	c.Assert(err, ErrorMatches, `cannot create symbolic link "dir": existing file in the way`)
+
+	err = s.sec.MksymlinkAll("/", 0755, sys.FlagID, sys.FlagID, "oldname")
+	c.Assert(err, ErrorMatches, `cannot create non-file path: "/"`)
 }
 
 func (s *utilsSuite) TestCleanTrailingSlash(c *C) {
@@ -709,16 +710,6 @@ func (s *utilsSuite) TestCleanTrailingSlash(c *C) {
 	c.Assert(filepath.Clean("path/."), Equals, "path")
 	c.Assert(filepath.Clean("path/.."), Equals, ".")
 	c.Assert(filepath.Clean("other/path/.."), Equals, "other")
-}
-
-func (s *utilsSuite) TestSplitIntoSegments(c *C) {
-	sg, err := update.SplitIntoSegments("/foo/bar/froz")
-	c.Assert(err, IsNil)
-	c.Assert(sg, DeepEquals, []string{"foo", "bar", "froz"})
-
-	sg, err = update.SplitIntoSegments("/foo//fii/../.")
-	c.Assert(err, ErrorMatches, `cannot split unclean path ".+"`)
-	c.Assert(sg, HasLen, 0)
 }
 
 // secure-open-path
@@ -766,6 +757,53 @@ func (s *utilsSuite) TestSecureOpenPathRoot(c *C) {
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 3
 		`fstat 3 <ptr>`,
 	})
+}
+
+func (s *utilsSuite) TestIsReadOnlyFstatfsError(c *C) {
+	path := "/some/path"
+	s.sys.InsertFault("fstatfs 3 <ptr>", errTesting)
+	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	result, err := update.IsReadOnly(fd, path)
+	c.Assert(err, ErrorMatches, `cannot fstatfs "/some/path": testing`)
+	c.Assert(result, Equals, false)
+}
+
+func (s *utilsSuite) TestIsReadOnlySquashfsMountedRo(c *C) {
+	statfs := syscall.Statfs_t{Type: update.SquashfsMagic, Flags: update.StReadOnly}
+	path := "/some/path"
+	s.sys.InsertFstatfsResult("fstatfs 3 <ptr>", statfs)
+	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	result, err := update.IsReadOnly(fd, path)
+	c.Assert(err, IsNil)
+	c.Assert(result, Equals, true)
+}
+
+func (s *utilsSuite) TestIsReadOnlySquashfsMountedRw(c *C) {
+	statfs := syscall.Statfs_t{Type: update.SquashfsMagic}
+	path := "/some/path"
+	s.sys.InsertFstatfsResult("fstatfs 3 <ptr>", statfs)
+	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	result, err := update.IsReadOnly(fd, path)
+	c.Assert(err, IsNil)
+	c.Assert(result, Equals, true)
+}
+
+func (s *utilsSuite) TestIsReadOnlyExt4MountedRw(c *C) {
+	statfs := syscall.Statfs_t{Type: update.Ext4Magic}
+	path := "/some/path"
+	s.sys.InsertFstatfsResult("fstatfs 3 <ptr>", statfs)
+	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	result, err := update.IsReadOnly(fd, path)
+	c.Assert(err, IsNil)
+	c.Assert(result, Equals, false)
 }
 
 func (s *realSystemSuite) TestSecureOpenPathDirectory(c *C) {
