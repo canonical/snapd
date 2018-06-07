@@ -533,3 +533,12 @@ func (s *ErrtrackerTestSuite) TestReportsDBCleanup(c *C) {
 	// this one is still fresh
 	c.Check(db.AlreadyReported("other-dup-sig"), Equals, true)
 }
+
+func (s *ErrtrackerTestSuite) TestReportsDBnilDoesNotCrash(c *C) {
+	db, err := errtracker.NewReportsDB("/proc/1/environ")
+	c.Assert(err, NotNil)
+	c.Check(db, IsNil)
+
+	c.Check(db.AlreadyReported("dupSig"), Equals, false)
+	c.Check(db.MarkReported("dupSig"), ErrorMatches, "cannot mark error report as reported with an uninitialized reports database")
+}

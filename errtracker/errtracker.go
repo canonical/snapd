@@ -75,10 +75,12 @@ type reportsDB struct {
 	// map of hash(dupsig) -> time-of-report
 	reported map[string]time.Time
 
+	// time until an error report is cleaned from the database,
+	// usually 7 days
 	cleanupTime time.Duration
 }
 
-func dupSigHash(s string) string {
+func hashString(s string) string {
 	h := sha512.New()
 	io.WriteString(h, s)
 	return fmt.Sprintf("%x", h.Sum(nil))
@@ -102,16 +104,21 @@ func newReportsDB(fname string) (*reportsDB, error) {
 
 	dec := json.NewDecoder(f)
 	if err := dec.Decode(&db.reported); err != nil {
-		// be robust here, if the data is corrupted for whatever
-		// reason we just create a fresh DB
+		// Be robust here, if the data is corrupted for whatever
+		// reason we just create a fresh DB.
 		return db, nil
 	}
 
 	return db, nil
 }
 
+// AlreadyReported returns true if an identical report has been sent recently
 func (db *reportsDB) AlreadyReported(dupSig string) bool {
-	_, reported := db.reported[dupSigHash(dupSig)]
+	// robustness
+	if db == nil {
+		return false
+	}
+	_, reported := db.reported[hashString(dupSig)]
 	return reported
 }
 
@@ -124,10 +131,16 @@ func (db *reportsDB) cleanupOldRecords() {
 	}
 }
 
+// MarkReported marks an error report as reported to the error tracker
 func (db *reportsDB) MarkReported(dupSig string) error {
+	// robustness
+	if db == nil {
+		return fmt.Errorf("cannot mark error report as reported with an uninitialized reports database")
+	}
+
 	db.cleanupOldRecords()
 
-	db.reported[dupSigHash(dupSig)] = time.Now()
+	db.reported[hashString(dupSig)] = time.Now()
 	if err := os.MkdirAll(filepath.Dir(db.fname), 0755); err != nil {
 		return err
 	}
@@ -137,8 +150,12 @@ func (db *reportsDB) MarkReported(dupSig string) error {
 	if err != nil {
 		return err
 	}
+	defer f.Cancel()
+
 	enc := json.NewEncoder(f)
-	enc.Encode(db.reported)
+	if err := enc.Encode(db.reported); err != nil {
+		return err
+	}
 
 	return f.Commit()
 }
@@ -212,7 +229,7 @@ func Report(snap, errMsg, dupSig string, extra map[string]string) (string, error
 	// check if we haven't already reported this error
 	db, err := newReportsDB(dirs.ErrtrackerDbDir)
 	if err != nil {
-		return "", err
+		logger.Noticef("cannot open error reports database: %v", err)
 	}
 	if db.AlreadyReported(dupSig) {
 		return "already-reported", nil
