@@ -1799,6 +1799,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		SideInfo: snapsup.SideInfo,
+		Type:     snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -1954,6 +1955,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		SideInfo: snapsup.SideInfo,
+		Type:     snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -2160,6 +2162,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		SideInfo: snapsup.SideInfo,
+		Type:     snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "services-snap",
@@ -4234,6 +4237,7 @@ version: 1.0`)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		SnapPath: mockSnap,
 		SideInfo: snapsup.SideInfo,
+		Type:     snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "mock",
@@ -4326,6 +4330,7 @@ version: 1.0`)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		SnapPath: mockSnap,
 		SideInfo: snapsup.SideInfo,
+		Type:     snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "mock",
@@ -4503,6 +4508,7 @@ version: 1.0`)
 		Flags: snapstate.Flags{
 			Required: true,
 		},
+		Type: snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, si)
 
