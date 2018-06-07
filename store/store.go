@@ -2394,18 +2394,21 @@ func (s *Store) snapConnCheck() ([]string, error) {
 	return hosts, nil
 }
 
-func (s *Store) ConnectivityCheck() (map[string]bool, error) {
-	connectivity := make(map[string]bool)
+func (s *Store) ConnectivityCheck() (unreachable map[string]bool, err error) {
+	unreachable = make(map[string]bool)
 
 	checkers := []func() ([]string, error){
 		s.snapConnCheck,
 	}
+
 	for _, checker := range checkers {
 		hosts, err := checker()
 		for _, host := range hosts {
-			connectivity[host] = (err == nil)
+			if err != nil {
+				unreachable[host] = false
+			}
 		}
 	}
 
-	return connectivity, nil
+	return unreachable, nil
 }

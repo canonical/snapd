@@ -40,7 +40,7 @@ func (s *SnapSuite) TestConnectivityHappy(c *check.C) {
 			data, err := ioutil.ReadAll(r.Body)
 			c.Check(err, check.IsNil)
 			c.Check(data, check.DeepEquals, []byte(`{"action":"connectivity"}`))
-			fmt.Fprintln(w, `{"type": "sync", "result": {"api.snapcraft.io":true}}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": {}}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -67,7 +67,7 @@ func (s *SnapSuite) TestConnectivityUnhappy(c *check.C) {
 			data, err := ioutil.ReadAll(r.Body)
 			c.Check(err, check.IsNil)
 			c.Check(data, check.DeepEquals, []byte(`{"action":"connectivity"}`))
-			fmt.Fprintln(w, `{"type": "sync", "result": {"api.snapcraft.io":true, "foo.bar.com":false}}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"foo.bar.com":true}}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -75,7 +75,7 @@ func (s *SnapSuite) TestConnectivityUnhappy(c *check.C) {
 		n++
 	})
 	_, err := snap.Parser().ParseArgs([]string{"debug", "connectivity"})
-	c.Assert(err, check.ErrorMatches, "cannot connect to 1 of 2 servers")
+	c.Assert(err, check.ErrorMatches, "1 servers unreachable")
 	// note that only the unreachable hosts are displayed
 	c.Check(s.Stdout(), check.Equals, `Connectivity status:
  * foo.bar.com: unreachable
