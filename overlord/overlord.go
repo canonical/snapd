@@ -85,7 +85,7 @@ type Overlord struct {
 
 var storeNew = store.New
 
-var CreateUDevMonitor = NewUDevMonitor
+var createUDevMonitor = NewUDevMonitor
 
 // New creates a new Overlord with all its state managers.
 func New() (*Overlord, error) {
@@ -142,7 +142,7 @@ func New() (*Overlord, error) {
 
 	configstateInit(hookMgr)
 
-	o.udevMon = CreateUDevMonitor()
+	o.udevMon = createUDevMonitor()
 
 	s.Lock()
 	defer s.Unlock()
@@ -259,9 +259,15 @@ func (o *Overlord) SetRestartHandler(handleRestart func(t state.RestartType)) {
 func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
-		if err := o.udevMon.Run(); err != nil {
-			logger.Noticef("Failed to start udev monitor: %s", err)
-			return err
+		if o.udevMon != nil {
+			if err := o.udevMon.Connect(); err != nil {
+				logger.Noticef("Failed to connect udev monitor: %s", err)
+				return err
+			}
+			if err := o.udevMon.Run(); err != nil {
+				logger.Noticef("Failed to start udev monitor: %s", err)
+				return err
+			}
 		}
 
 		for {
@@ -286,7 +292,9 @@ func (o *Overlord) Loop() {
 
 // Stop stops the ensure loop and the managers under the StateEngine.
 func (o *Overlord) Stop() error {
-	o.udevMon.Stop()
+	if o.udevMon != nil {
+		o.udevMon.Stop()
+	}
 	o.loopTomb.Kill(nil)
 	err1 := o.loopTomb.Wait()
 	o.stateEng.Stop()
@@ -437,7 +445,6 @@ func Mock() *Overlord {
 	o.stateEng = NewStateEngine(state.New(mockBackend{o: o}))
 	o.unknownMgr = NewUnknownTaskManager(o.stateEng.State())
 	o.stateEng.AddManager(o.unknownMgr)
-	o.udevMon = &UDevMonitorMock{}
 
 	return o
 }

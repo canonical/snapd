@@ -31,9 +31,9 @@ import (
 )
 
 type UDevMon interface {
+	Connect() error
 	Run() error
 	Stop() error
-	// TODO: add method(s) to register device filters
 }
 
 // UDevMonitor monitors kernel uevents making it possible to find USB devices.
@@ -41,8 +41,13 @@ type UDevMon interface {
 type UDevMonitor struct {
 	tmb         *tomb.Tomb
 	netlinkConn *netlink.UEventConn
-	monitorStop chan struct{}
-	crawlerStop chan struct{}
+	// channels used by netlink connection and monitor
+	monitorStop    chan struct{}
+	crawlerStop    chan struct{}
+	crawlerDevices chan crawler.Device
+	crawlerErrors  chan error
+	netlinkErrors  chan error
+	netlinkEvents  chan netlink.UEvent
 }
 
 func NewUDevMonitor() UDevMon {
@@ -53,44 +58,49 @@ func NewUDevMonitor() UDevMon {
 	return m
 }
 
-// Run enumerates existing USB devices and starts a new goroutine that
-// handles hotplug events (devices added or removed). It returns immediately.
-// The goroutine must be stopped by calling Stop() method.
-func (m *UDevMonitor) Run() error {
+func (m *UDevMonitor) Connect() error {
 	if m.netlinkConn == nil || m.netlinkConn.Fd != 0 {
 		// this cannot happen in real code but may happen in tests
 		panic("cannot run UDevMonitor more than once")
 	}
-	cerrors := make(chan error)
-	devs := make(chan crawler.Device)
+
+	m.crawlerErrors = make(chan error)
+	m.crawlerDevices = make(chan crawler.Device)
 
 	if err := m.netlinkConn.Connect(); err != nil {
 		return fmt.Errorf("failed to start uevent monitor: %s", err)
 	}
 
-	events := make(chan netlink.UEvent)
-	errors := make(chan error)
+	m.netlinkEvents = make(chan netlink.UEvent)
+	m.netlinkErrors = make(chan error)
 
-	// TODO: pass filters set by interfaces once filter type is defined
-	m.monitorStop = m.netlinkConn.Monitor(events, errors, nil)
+	// TODO: pass filters
+	m.monitorStop = m.netlinkConn.Monitor(m.netlinkEvents, m.netlinkErrors, nil)
 
-	// TODO: pass filters set by interfaces once filter type is defined
-	m.crawlerStop = crawler.ExistingDevices(devs, cerrors, nil)
+	// TODO: pass filters
+	m.crawlerStop = crawler.ExistingDevices(m.crawlerDevices, m.crawlerErrors, nil)
 
+	return nil
+}
+
+// Run enumerates existing USB devices and starts a new goroutine that
+// handles hotplug events (devices added or removed). It returns immediately.
+// The goroutine must be stopped by calling Stop() method.
+func (m *UDevMonitor) Run() error {
 	m.tmb.Go(func() error {
 		for {
 			select {
-			case dv := <-devs:
+			case dv := <-m.crawlerDevices:
 				m.addDevice(dv.KObj, dv.Env)
-			case err := <-cerrors:
+			case err := <-m.crawlerErrors:
 				logger.Noticef("error enumerating devices: %q\n", err)
-			case err := <-errors:
+			case err := <-m.netlinkErrors:
 				logger.Noticef("netlink error: %q\n", err)
-			case ev := <-events:
+			case ev := <-m.netlinkEvents:
 				m.udevEvent(&ev)
 			case <-m.tmb.Dying():
-				m.monitorStop <- struct{}{}
-				m.crawlerStop <- struct{}{}
+				close(m.monitorStop)
+				close(m.crawlerStop)
 				m.netlinkConn.Close()
 				return nil
 			}
@@ -108,7 +118,6 @@ func (m *UDevMonitor) Stop() error {
 }
 
 func (m *UDevMonitor) udevEvent(ev *netlink.UEvent) {
-	// TODO: handle the event, e.g. call addDevice, removeDevice
 	switch ev.Action {
 	case netlink.ADD:
 		m.addDevice(ev.KObj, ev.Env)
@@ -124,16 +133,4 @@ func (m *UDevMonitor) addDevice(kobj string, env map[string]string) {
 
 func (m *UDevMonitor) removeDevice(kobj string, env map[string]string) {
 	// TODO: handle device removal by creating "hotplug-remove" task
-}
-
-type UDevMonitorMock struct{}
-
-func (u *UDevMonitorMock) Run() error  { return nil }
-func (u *UDevMonitorMock) Stop() error { return nil }
-
-func MockCreateUDevMonitor(new func() UDevMon) (restore func()) {
-	CreateUDevMonitor = new
-	return func() {
-		CreateUDevMonitor = NewUDevMonitor
-	}
 }
