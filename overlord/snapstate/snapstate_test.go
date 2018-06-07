@@ -9925,6 +9925,43 @@ func (s *snapmgrTestSuite) TestInjectTasksWithNullChange(c *C) {
 	c.Assert(t1.HaltTasks()[0].Kind(), Equals, "task1-1")
 }
 
+func hasConfigureTask(ts *state.TaskSet) bool {
+	for _, t := range ts.Tasks() {
+		if t.Kind() == "run-hook" && strings.HasPrefix(t.Summary(), "Run configure hook of") {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *snapmgrTestSuite) TestNoConfigureForBasesTask(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// normal snaps get a configure task
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(hasConfigureTask(ts), Equals, true)
+
+	// but bases do not for install
+	ts, err = snapstate.Install(s.state, "some-base", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(hasConfigureTask(ts), Equals, false)
+
+	// or for refresh
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{{RealName: "some-base", SnapID: "some-base-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+	ts, err = snapstate.Update(s.state, "some-base", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(hasConfigureTask(ts), Equals, false)
+
+}
+
 type canDisableSuite struct{}
 
 var _ = Suite(&canDisableSuite{})
