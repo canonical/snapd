@@ -47,8 +47,7 @@ import (
 
 // control flags for doInstall
 const (
-	maybeCore = 1 << iota
-	skipConfigure
+	skipConfigure = 1 << iota
 )
 
 // control flags for "Configure()"
@@ -57,13 +56,6 @@ const (
 	TrackHookError
 	UseConfigDefaults
 )
-
-func needsMaybeCore(typ snap.Type) int {
-	if typ == snap.TypeOS {
-		return maybeCore
-	}
-	return 0
-}
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int) (*state.TaskSet, error) {
 	if snapsup.Name() == "system" {
@@ -183,7 +175,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	prev = linkSnap
 
 	// security: phase 2, no-op unless core
-	if flags&maybeCore != 0 {
+	if snapsup.Type == snap.TypeOS {
 		setupSecurityPhase2 := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q%s security profiles (phase 2)"), snapsup.Name(), revisionStr))
 		setupSecurityPhase2.Set("core-phase-2", true)
 		addTask(setupSecurityPhase2)
@@ -291,8 +283,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	// we do not support configuration for bases or the "snapd" snap yet
-	// TODO: we don't need maybeCore anymore we can look at
-	//      snapsup.Type now
 	if snapsup.Type != snap.TypeBase && snapsup.Name() != "snapd" {
 		configSet := ConfigureSnap(st, snapsup.Name(), confFlags)
 		configSet.WaitAll(ts)
@@ -599,7 +589,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, channel string, flags
 		}
 	}
 
-	instFlags := maybeCore
+	var instFlags int
 	if flags.SkipConfigure {
 		// extract it as a doInstall flag, this is not passed
 		// into SnapSetup
@@ -680,7 +670,7 @@ func Install(st *state.State, name, channel string, revision snap.Revision, user
 		Type:         info.Type,
 	}
 
-	return doInstall(st, &snapst, snapsup, needsMaybeCore(info.Type))
+	return doInstall(st, &snapst, snapsup, 0)
 }
 
 // InstallMany installs everything from the given list of names.
@@ -838,7 +828,7 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 			Type:         update.Type,
 		}
 
-		ts, err := doInstall(st, snapst, snapsup, needsMaybeCore(update.Type))
+		ts, err := doInstall(st, snapst, snapsup, 0)
 		if err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
@@ -1592,8 +1582,9 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	snapsup := &SnapSetup{
 		SideInfo: snapst.Sequence[i],
 		Flags:    flags.ForSnapSetup(),
+		Type:     typ,
 	}
-	return doInstall(st, &snapst, snapsup, needsMaybeCore(typ))
+	return doInstall(st, &snapst, snapsup, 0)
 }
 
 // TransitionCore transitions from an old core snap name to a new core
@@ -1633,7 +1624,8 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			Channel:      oldSnapst.Channel,
 			DownloadInfo: &newInfo.DownloadInfo,
 			SideInfo:     &newInfo.SideInfo,
-		}, maybeCore)
+			Type:         newInfo.Type,
+		}, 0)
 		if err != nil {
 			return nil, err
 		}
