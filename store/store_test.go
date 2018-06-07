@@ -6971,9 +6971,8 @@ func (s *storeTestSuite) TestConnectivityCheckHappy(c *C) {
 	connectivity, err := sto.ConnectivityCheck()
 	c.Assert(err, IsNil)
 	// everything is the test server, here
-	c.Check(connectivity, DeepEquals, ConnectivityStatus{
-		Connectivity: true,
-		Unreachable:  nil,
+	c.Check(connectivity, DeepEquals, map[string]bool{
+		mockServerURL.Host: true,
 	})
 	c.Check(seenPaths, DeepEquals, map[string]int{
 		"/api/v1/snaps/details/core": 1,
@@ -7005,9 +7004,8 @@ func (s *storeTestSuite) TestConnectivityCheckUnhappy(c *C) {
 	connectivity, err := sto.ConnectivityCheck()
 	c.Assert(err, IsNil)
 	// everything is the test server, here
-	c.Check(connectivity, DeepEquals, ConnectivityStatus{
-		Connectivity: false,
-		Unreachable:  []string{mockServerURL.Host},
+	c.Check(connectivity, DeepEquals, map[string]bool{
+		mockServerURL.Host: false,
 	})
 	// three because retries
 	c.Check(seenPaths, DeepEquals, map[string]int{

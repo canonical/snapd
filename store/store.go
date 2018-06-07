@@ -2394,25 +2394,17 @@ func (s *Store) snapConnCheck() ([]string, error) {
 	return hosts, nil
 }
 
-type ConnectivityStatus struct {
-	Connectivity bool     `json:"connectivity"`
-	Unreachable  []string `json:"unreachable"`
-}
+func (s *Store) ConnectivityCheck() (status map[string]bool, err error) {
+	status = make(map[string]bool)
 
-func (s *Store) ConnectivityCheck() (status ConnectivityStatus, err error) {
 	checkers := []func() ([]string, error){
 		s.snapConnCheck,
 	}
 
-	status.Connectivity = true
 	for _, checker := range checkers {
 		hosts, err := checker()
 		for _, host := range hosts {
-			fmt.Println(host)
-			if err != nil {
-				status.Unreachable = append(status.Unreachable, host)
-				status.Connectivity = false
-			}
+			status[host] = (err == nil)
 		}
 	}
 

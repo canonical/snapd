@@ -2494,6 +2494,11 @@ type debugAction struct {
 	Action string `json:"action"`
 }
 
+type ConnectivityStatus struct {
+	Connectivity bool     `json:"connectivity"`
+	Unreachable  []string `json:"unreachable"`
+}
+
 func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	var a debugAction
 	decoder := json.NewDecoder(r.Body)
@@ -2520,15 +2525,21 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "can-manage-refreshes":
 		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
 	case "connectivity":
-		// FIXME: add to snapstate.StoreService? feels not ideal :/
-		//        other options?
-		s := snapstate.Store(st).(*store.Store)
+		s := snapstate.Store(st)
 		st.Unlock()
-		status, err := s.ConnectivityCheck()
+		check, err := s.ConnectivityCheck()
 		st.Lock()
 		if err != nil {
 			return InternalError("cannot run connectivity check: %v", err)
 		}
+		status := ConnectivityStatus{Connectivity: true}
+		for host, reachable := range check {
+			if !reachable {
+				status.Connectivity = false
+				status.Unreachable = append(status.Unreachable, host)
+			}
+		}
+
 		return SyncResponse(status, nil)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
