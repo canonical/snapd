@@ -9959,6 +9959,28 @@ func (s *snapmgrTestSuite) TestNoConfigureForBasesTask(c *C) {
 	ts, err = snapstate.Update(s.state, "some-base", "", snap.R(0), s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	c.Check(hasConfigureTask(ts), Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// but snapd do not for install
+	ts, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(hasConfigureTask(ts), Equals, false)
+
+	// or for refresh
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{{RealName: "snapd", SnapID: "snapd-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	ts, err = snapstate.Update(s.state, "snapd", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(hasConfigureTask(ts), Equals, false)
 
 }
 

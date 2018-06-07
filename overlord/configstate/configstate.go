@@ -64,6 +64,11 @@ func canConfigure(st *state.State, snapName string) error {
 		return &snap.NotInstalledError{Snap: snapName}
 	}
 
+	// the "snapd" snap cannot be configured yet
+	if snapName == "snapd" {
+		return fmt.Errorf(`cannot configure the "snapd" snap, please use "system" instead`)
+	}
+
 	// bases cannot be configured for now
 	typ, err := snapst.Type()
 	if err != nil {
