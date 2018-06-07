@@ -20,7 +20,6 @@
 package devicestate
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -28,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
@@ -38,8 +38,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
-
-var errNothingToDo = errors.New("nothing to do")
 
 func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) (*state.TaskSet, error) {
 	if sn.Classic {
@@ -71,7 +69,8 @@ func installSeedSnap(st *state.State, sn *snap.SeedSnap, flags snapstate.Flags) 
 }
 
 func trivialSeeding(st *state.State, markSeeded *state.Task) []*state.TaskSet {
-	// give the internal core config a chance to run
+	// give the internal core config a chance to run (even if core is
+	// not used at all we put system configuration there)
 	configTs := snapstate.ConfigureSnap(st, "core", 0)
 	markSeeded.WaitAll(configTs)
 	return []*state.TaskSet{configTs, state.NewTaskSet(markSeeded)}
@@ -92,15 +91,13 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 
 	// ack all initial assertions
 	model, err := importAssertionsFromSeed(st)
-	if err == errNothingToDo {
-		return trivialSeeding(st, markSeeded), nil
-	}
 	if err != nil {
 		return nil, err
 	}
 
+	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	seedYamlFile := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
-	if release.OnClassic && !osutil.FileExists(seedYamlFile) {
+	if release.OnClassic && (!osutil.FileExists(seedYamlFile) || !osutil.FileExists(assertSeedDir)) {
 		// on classic it is ok to not seed any snaps
 		return trivialSeeding(st, markSeeded), nil
 	}
@@ -128,18 +125,25 @@ func populateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
 
-	// if there are snaps to seed, core needs to be seeded too
+	baseSnap := "core"
+	if model.Base() != "" {
+		baseSnap = model.Base()
+	}
+	// if there are snaps to seed, core/base needs to be seeded too
 	if len(seed.Snaps) != 0 {
-		coreSeed := seeding["core"]
-		if coreSeed == nil {
-			return nil, fmt.Errorf("cannot proceed without seeding core")
+		baseSeed := seeding[baseSnap]
+		if baseSeed == nil {
+			return nil, fmt.Errorf("cannot proceed without seeding %q", baseSnap)
 		}
-		ts, err := installSeedSnap(st, coreSeed, snapstate.Flags{SkipConfigure: true})
+		ts, err := installSeedSnap(st, baseSeed, snapstate.Flags{SkipConfigure: true})
 		if err != nil {
 			return nil, err
 		}
 		tsAll = append(tsAll, ts)
-		alreadySeeded["core"] = true
+		alreadySeeded[baseSnap] = true
+
+		// we *always* configure "core" here even if bases are used
+		// for booting. "core" if where the system config lives.
 		configTss = append(configTss, snapstate.ConfigureSnap(st, "core", snapstate.UseConfigDefaults))
 	}
 
@@ -236,8 +240,9 @@ func importAssertionsFromSeed(st *state.State) (*asserts.Model, error) {
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	dc, err := ioutil.ReadDir(assertSeedDir)
 	if release.OnClassic && os.IsNotExist(err) {
-		// on classic seeding is optional
-		return nil, errNothingToDo
+		// on classic seeding is optional but we still use the
+		// fallback model
+		return sysdb.GenericClassicModel(), nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot read assert seed dir: %s", err)
