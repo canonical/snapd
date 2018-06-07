@@ -108,7 +108,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	restoreUdevMon := overlord.MockCreateUDevMonitor(func() overlord.UDevMon {
-		return &overlord.UDevMonitorMock{}
+		return nil
 	})
 
 	oldSetupInstallHook := snapstate.SetupInstallHook
@@ -1897,7 +1897,7 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.restoreUDevMon = overlord.MockCreateUDevMonitor(func() overlord.UDevMon {
-		return &overlord.UDevMonitorMock{}
+		return nil
 	})
 
 	captureAuthContext := func(_ *store.Config, ac auth.AuthContext) *store.Store {

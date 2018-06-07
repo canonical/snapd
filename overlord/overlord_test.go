@@ -56,9 +56,8 @@ func (ovs *overlordSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(tmpdir)
 	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
 	snapstate.CanAutoRefresh = nil
-
 	ovs.restoreUDevMon = overlord.MockCreateUDevMonitor(func() overlord.UDevMon {
-		return &overlord.UDevMonitorMock{}
+		return nil
 	})
 }
 

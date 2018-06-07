@@ -74,3 +74,10 @@ func MockConfigstateInit(new func(hookmgr *hookstate.HookManager)) (restore func
 		configstateInit = configstate.Init
 	}
 }
+
+func MockCreateUDevMonitor(new func() UDevMon) (restore func()) {
+	createUDevMonitor = new
+	return func() {
+		createUDevMonitor = NewUDevMonitor
+	}
+}
