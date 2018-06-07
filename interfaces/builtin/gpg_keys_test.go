@@ -90,13 +90,12 @@ func (s *GpgKeysInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows reading gpg user configuration and keys`)
+	c.Assert(si.Summary, Equals, `allows reading gpg user configuration and keys and updating gpg's random seed file`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "gpg-keys")
 }
 
 func (s *GpgKeysInterfaceSuite) TestAutoConnect(c *C) {
-	// FIXME: fix AutoConnect
-	c.Assert(s.iface.AutoConnect(&interfaces.Plug{PlugInfo: s.plugInfo}, &interfaces.Slot{SlotInfo: s.slotInfo}), Equals, true)
+	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
 func (s *GpgKeysInterfaceSuite) TestInterfaces(c *C) {

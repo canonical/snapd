@@ -226,6 +226,7 @@ if [ "$UNIT" = 1 ]; then
     # tests
     echo Running tests from "$PWD"
     if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
+        # shellcheck disable=SC2046
         $goctest -v -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
     else
         for pkg in $(go list ./... | grep -v '/vendor/' ); do

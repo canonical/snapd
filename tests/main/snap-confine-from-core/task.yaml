@@ -14,6 +14,9 @@ restore: |
     chmod 4755 /usr/lib/snapd/snap-confine
 
 execute: |
+    # shellcheck source=tests/lib/journalctl.sh
+    . "$TESTSLIB/journalctl.sh"
+
     if [ "${SNAP_REEXEC:-}" = "0" ]; then
         echo "skipping test when SNAP_REEXEC is disabled"
         exit 0
@@ -21,7 +24,14 @@ execute: |
 
     echo "Ensure we re-exec by default"
     snap list
-    journalctl | MATCH "DEBUG: restarting into"
+
+    for _ in $(seq 10); do
+      if get_journalctl_log | MATCH "DEBUG: restarting into" ; then
+          break
+      fi
+      sleep 1
+    done
+    get_journalctl_log | MATCH "DEBUG: restarting into"
 
     echo "Ensure snap-confine from the core snap is run"
     # do not use "strace -f" for unknown reasons that hangs

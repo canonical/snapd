@@ -23,36 +23,39 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
 )
 
 // storeSnap holds the information sent as JSON by the store for a snap.
 type storeSnap struct {
-	Architectures []string          `json:"architectures"`
-	Base          string            `json:"base"`
-	Confinement   string            `json:"confinement"`
-	Contact       string            `json:"contact"`
-	CreatedAt     string            `json:"created-at"` // revision timestamp
-	Description   string            `json:"description"`
-	Download      storeSnapDownload `json:"download"`
-	Epoch         snap.Epoch        `json:"epoch"`
-	License       string            `json:"license"`
-	Name          string            `json:"name"`
-	Prices        map[string]string `json:"prices"` // currency->price,  free: {"USD": "0"}
-	Private       bool              `json:"private"`
-	Publisher     storeAccount      `json:"publisher"`
-	Revision      int               `json:"revision"` // store revisions are ints starting at 1
-	SnapID        string            `json:"snap-id"`
-	SnapYAML      string            `json:"snap-yaml"` // optional
-	Summary       string            `json:"summary"`
-	Title         string            `json:"title"`
-	Type          snap.Type         `json:"type"`
-	Version       string            `json:"version"`
+	Architectures []string           `json:"architectures"`
+	Base          string             `json:"base"`
+	Confinement   string             `json:"confinement"`
+	Contact       string             `json:"contact"`
+	CreatedAt     string             `json:"created-at"` // revision timestamp
+	Description   safejson.Paragraph `json:"description"`
+	Download      storeSnapDownload  `json:"download"`
+	Epoch         snap.Epoch         `json:"epoch"`
+	License       string             `json:"license"`
+	Name          string             `json:"name"`
+	Prices        map[string]string  `json:"prices"` // currency->price,  free: {"USD": "0"}
+	Private       bool               `json:"private"`
+	Publisher     storeAccount       `json:"publisher"`
+	Revision      int                `json:"revision"` // store revisions are ints starting at 1
+	SnapID        string             `json:"snap-id"`
+	SnapYAML      string             `json:"snap-yaml"` // optional
+	Summary       safejson.String    `json:"summary"`
+	Title         safejson.String    `json:"title"`
+	Type          snap.Type          `json:"type"`
+	Version       string             `json:"version"`
 
 	// TODO: not yet defined: channel map
 
 	// media
 	Media []storeSnapMedia `json:"media"`
+
+	CommonIDs []string `json:"common-ids"`
 }
 
 type storeSnapDownload struct {
@@ -89,9 +92,9 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info.RealName = d.Name
 	info.Revision = snap.R(d.Revision)
 	info.SnapID = d.SnapID
-	info.EditedTitle = d.Title
-	info.EditedSummary = d.Summary
-	info.EditedDescription = d.Description
+	info.EditedTitle = d.Title.Clean()
+	info.EditedSummary = d.Summary.Clean()
+	info.EditedDescription = d.Description.Clean()
 	info.Private = d.Private
 	info.Contact = d.Contact
 	info.Architectures = d.Architectures
@@ -120,6 +123,7 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 		}
 		info.Deltas = deltas
 	}
+	info.CommonIDs = d.CommonIDs
 
 	// fill in the plug/slot data
 	if rawYamlInfo, err := snap.InfoFromSnapYaml([]byte(d.SnapYAML)); err == nil {

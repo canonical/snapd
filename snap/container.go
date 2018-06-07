@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs"
 )
 
-// Container is the interface to interact with the low-level snap files
+// Container is the interface to interact with the low-level snap files.
 type Container interface {
 	// Size returns the size of the snap in bytes.
 	Size() (int64, error)
@@ -66,7 +66,7 @@ var formatHandlers = []snapFormat{
 	}},
 }
 
-// Open opens a given snap file with the right backend
+// Open opens a given snap file with the right backend.
 func Open(path string) (Container, error) {
 
 	if osutil.IsDirectory(path) {

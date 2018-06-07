@@ -316,6 +316,11 @@ func Validate(info *Info) error {
 		}
 	}
 
+	// ensure that common-id(s) are unique
+	if err := ValidateCommonIDs(info); err != nil {
+		return err
+	}
+
 	return ValidateLayoutAll(info)
 }
 
@@ -476,6 +481,23 @@ func validateAppOrderNames(app *AppInfo, dependencies []string) error {
 	return nil
 }
 
+func validateAppWatchdog(app *AppInfo) error {
+	if app.WatchdogTimeout == 0 {
+		// no watchdog
+		return nil
+	}
+
+	if !app.IsService() {
+		return fmt.Errorf("cannot define watchdog-timeout in application %q as it's not a service", app.Name)
+	}
+
+	if app.WatchdogTimeout < 0 {
+		return fmt.Errorf("cannot use a negative watchdog-timeout in application %q", app.Name)
+	}
+
+	return nil
+}
+
 func validateAppTimer(app *AppInfo) error {
 	if app.Timer == nil {
 		return nil
@@ -551,6 +573,10 @@ func ValidateApp(app *AppInfo) error {
 		return err
 	}
 	if err := validateAppOrderNames(app, app.After); err != nil {
+		return err
+	}
+
+	if err := validateAppWatchdog(app); err != nil {
 		return err
 	}
 
@@ -757,6 +783,20 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 
 	if layout.Mode&01777 != layout.Mode {
 		return fmt.Errorf("layout %q uses invalid mode %#o", layout.Path, layout.Mode)
+	}
+	return nil
+}
+
+func ValidateCommonIDs(info *Info) error {
+	seen := make(map[string]string, len(info.Apps))
+	for _, app := range info.Apps {
+		if app.CommonID != "" {
+			if other, was := seen[app.CommonID]; was {
+				return fmt.Errorf("application %q common-id %q must be unique, already used by application %q",
+					app.Name, app.CommonID, other)
+			}
+			seen[app.CommonID] = app.Name
+		}
 	}
 	return nil
 }

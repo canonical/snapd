@@ -238,7 +238,10 @@ func (s *infoSuite) TestReadInfoNotFound(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(info, IsNil)
-	c.Check(err, ErrorMatches, `cannot find installed snap "sample" at revision 42 \(missing file: ".*/sample/42/meta/snap.yaml"\)`)
+	c.Check(err, ErrorMatches, `cannot find installed snap "sample" at revision 42: missing file .*sample/42/meta/snap.yaml`)
+	bse, ok := err.(snap.BrokenSnapError)
+	c.Assert(ok, Equals, true)
+	c.Check(bse.Broken(), Equals, bse.Error())
 }
 
 func (s *infoSuite) TestReadInfoUnreadable(c *C) {
@@ -260,7 +263,10 @@ func (s *infoSuite) TestReadInfoUnparsable(c *C) {
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(info, IsNil)
 	// TODO: maybe improve this error message
-	c.Check(err, ErrorMatches, ".* failed to parse.*")
+	c.Check(err, ErrorMatches, `cannot use installed snap "sample" at revision 42: cannot parse snap.yaml: yaml: .*`)
+	bse, ok := err.(snap.BrokenSnapError)
+	c.Assert(ok, Equals, true)
+	c.Check(bse.Broken(), Equals, bse.Error())
 }
 
 func (s *infoSuite) TestReadInfoUnfindable(c *C) {
@@ -270,7 +276,7 @@ func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 	c.Assert(ioutil.WriteFile(p, []byte(``), 0644), IsNil)
 
 	info, err := snap.ReadInfo("sample", si)
-	c.Assert(err, ErrorMatches, `cannot find installed snap "sample" at revision 42 \(missing file: ".*/var/lib/snapd/snaps/sample_42.snap"\)`)
+	c.Check(err, ErrorMatches, `cannot find installed snap "sample" at revision 42: missing file .*var/lib/snapd/snaps/sample_42.snap`)
 	c.Check(info, IsNil)
 }
 
@@ -808,7 +814,7 @@ apps:
    daemon: simple
 `))
 	c.Assert(err, IsNil)
-	c.Check(fmt.Sprintf("%q", info.Apps["one"]), Equals, `"asnap.one"`)
+	c.Check(fmt.Sprintf("%q", info.Apps["one"].String()), Equals, `"asnap.one"`)
 }
 
 func (s *infoSuite) TestSocketFile(c *C) {
@@ -928,6 +934,69 @@ func (s *infoSuite) TestSlotInfoAttr(c *C) {
 	c.Check(slot.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
 }
 
+func (s *infoSuite) TestDottedPathSlot(c *C) {
+	attrs := map[string]interface{}{
+		"nested": map[string]interface{}{
+			"foo": "bar",
+		},
+	}
+
+	slot := &snap.SlotInfo{Attrs: attrs}
+	c.Assert(slot, NotNil)
+
+	v, ok := slot.Lookup("nested.foo")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, Equals, "bar")
+
+	v, ok = slot.Lookup("nested")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, DeepEquals, map[string]interface{}{
+		"foo": "bar",
+	})
+
+	_, ok = slot.Lookup("x")
+	c.Assert(ok, Equals, false)
+
+	_, ok = slot.Lookup("..")
+	c.Assert(ok, Equals, false)
+
+	_, ok = slot.Lookup("nested.foo.x")
+	c.Assert(ok, Equals, false)
+
+	_, ok = slot.Lookup("nested.x")
+	c.Assert(ok, Equals, false)
+}
+
+func (s *infoSuite) TestDottedPathPlug(c *C) {
+	attrs := map[string]interface{}{
+		"nested": map[string]interface{}{
+			"foo": "bar",
+		},
+	}
+
+	plug := &snap.PlugInfo{Attrs: attrs}
+	c.Assert(plug, NotNil)
+
+	v, ok := plug.Lookup("nested")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, DeepEquals, map[string]interface{}{
+		"foo": "bar",
+	})
+
+	v, ok = plug.Lookup("nested.foo")
+	c.Assert(ok, Equals, true)
+	c.Assert(v, Equals, "bar")
+
+	_, ok = plug.Lookup("x")
+	c.Assert(ok, Equals, false)
+
+	_, ok = plug.Lookup("..")
+	c.Assert(ok, Equals, false)
+
+	_, ok = plug.Lookup("nested.foo.x")
+	c.Assert(ok, Equals, false)
+}
+
 func (s *infoSuite) TestExpandSnapVariables(c *C) {
 	dirs.SetRootDir("")
 	info, err := snap.InfoFromSnapYaml([]byte(`name: foo`))
@@ -975,4 +1044,14 @@ func (s *infoSuite) TestStopModeTypeKillSignal(c *C) {
 	} {
 		c.Check(snap.StopModeType(t.stopMode).KillSignal(), Equals, t.killSig)
 	}
+}
+
+func (s *infoSuite) TestNickname(c *C) {
+	c.Check(snap.UseNick("core"), Equals, "system")
+	c.Check(snap.UseNick("system"), Equals, "system")
+	c.Check(snap.UseNick("foo"), Equals, "foo")
+
+	c.Check(snap.DropNick("core"), Equals, "core")
+	c.Check(snap.DropNick("system"), Equals, "core")
+	c.Check(snap.DropNick("foo"), Equals, "foo")
 }
