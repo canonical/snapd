@@ -30,7 +30,7 @@ type cmdConnectivityCheck struct{}
 func init() {
 	addDebugCommand("connectivity",
 		"Check network connectivity status",
-		"The connectivity-check command checks the network connectivity of snapd .",
+		"The connectivity command checks the network connectivity of snapd.",
 		func() flags.Commander {
 			return &cmdConnectivityCheck{}
 		}, nil, nil)
