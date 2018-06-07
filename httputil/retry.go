@@ -94,6 +94,10 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 		return true
 	}
 
+	if osutil.GetenvBool("SNAPD_DEBUG") {
+		logger.Debugf("Not retrying: %#v", err)
+	}
+
 	return false
 }
 
