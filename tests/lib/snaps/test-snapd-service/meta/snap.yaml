@@ -52,3 +52,8 @@ apps:
         stop-command: bin/stop-stop-mode endure
         daemon: simple
         refresh-mode: endure
+    test-snapd-service-refuses-to-stop:
+        command: bin/start
+        daemon: simple
+        stop-command: bin/stop 60
+        stop-timeout: 10s

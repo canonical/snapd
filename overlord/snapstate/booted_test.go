@@ -19,7 +19,7 @@
 
 package snapstate_test
 
-// test the boot releated code
+// test the boot related code
 
 import (
 	"os"
@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
@@ -81,6 +82,9 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 
 	snapstate.SetSnapManagerBackend(bs.snapmgr, bs.fakeBackend)
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
+	snapstate.Model = func(*state.State) (*asserts.Model, error) {
 		return nil, nil
 	}
 }
@@ -285,4 +289,49 @@ func (bs *bootedSuite) TestCurrentBootNameAndRevision(c *C) {
 	delete(bs.bootloader.BootVars, "snap_kernel")
 	_, _, err = snapstate.CurrentBootNameAndRevision(snap.TypeKernel)
 	c.Check(err, ErrorMatches, "cannot retrieve boot revision for kernel: unset")
+}
+
+func (bs *bootedSuite) TestGuardCoreSetupProfilesPhase2OnCore(c *C) {
+	st := bs.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("setup-profiles", "...")
+
+	task.Set("core-phase-2", true)
+	// not core snap
+	proceed, err := snapstate.GuardCoreSetupProfilesPhase2(task, nil, &snap.Info{Type: snap.TypeApp})
+	c.Check(err, IsNil)
+	c.Check(proceed, Equals, false)
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "core",
+		},
+	}
+
+	// core snap, restarting ... wait
+	state.MockRestarting(st, state.RestartSystem)
+	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, snapsup, &snap.Info{Type: snap.TypeOS})
+	c.Check(err, FitsTypeOf, &state.Retry{})
+	c.Check(proceed, Equals, false)
+
+	state.MockRestarting(st, state.RestartUnset)
+	bs.bootloader.BootVars["snap_mode"] = "trying"
+	// core snap, restarted, waiting for current core revision
+	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, snapsup, &snap.Info{Type: snap.TypeOS})
+	c.Check(err, DeepEquals, &state.Retry{After: 5 * time.Second})
+	c.Check(proceed, Equals, false)
+
+	bs.bootloader.BootVars["snap_mode"] = ""
+	// core snap, restarted, right core revision, no rollback
+	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, snapsup, &snap.Info{Type: snap.TypeOS, SideInfo: snap.SideInfo{Revision: snap.R(2)}})
+	c.Check(err, IsNil)
+	c.Check(proceed, Equals, true)
+
+	bs.bootloader.BootVars["snap_core"] = "core_1.snap"
+	// core snap, restarted, wrong core revision, rollback!
+	proceed, err = snapstate.GuardCoreSetupProfilesPhase2(task, snapsup, &snap.Info{Type: snap.TypeOS, SideInfo: snap.SideInfo{Revision: snap.R(2)}})
+	c.Check(err, ErrorMatches, `cannot finish core installation, there was a rollback across reboot`)
+	c.Check(proceed, Equals, false)
 }

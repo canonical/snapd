@@ -26,6 +26,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"golang.org/x/net/context"
 
@@ -223,6 +224,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// Do not do that if we are reverting to a local revision
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
+		var retain int
+		if err := config.NewTransaction(st).Get("core", "refresh.retain", &retain); err != nil {
+			retain = 3
+		}
+		retain-- //  we're adding one
+
 		seq := snapst.Sequence
 		currentIndex := snapst.LastIndex(snapst.Current)
 
@@ -254,7 +261,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 
 		// normal garbage collect
-		for i := 0; i <= currentIndex-2; i++ {
+		for i := 0; i <= currentIndex-retain; i++ {
 			si := seq[i]
 			if boot.InUse(snapsup.Name(), si.Revision) {
 				continue
@@ -462,6 +469,39 @@ func CheckChangeConflict(st *state.State, snapName string, checkConflictPredicat
 	}
 
 	return nil
+}
+
+// GuardCoreSetupProfilesPhase2 decides for a setup-profiles task that
+// is a phase 2 security setup for core whether to proceed, wait
+// (via Retry) or there is nothing to do. Helper for ifacestate.
+func GuardCoreSetupProfilesPhase2(task *state.Task, snapsup *SnapSetup, snapInfo *snap.Info) (proceed bool, err error) {
+	// phase 2 setup-profiles
+	if snapInfo.Type != snap.TypeOS {
+		// not the core snap, nothing to do
+		return false, nil
+	}
+	if ok, _ := task.State().Restarting(); ok {
+		// don't continue until we are in the restarted snapd
+		task.Logf("Waiting for restart...")
+		return false, &state.Retry{}
+	}
+	// if not on classic check there was no rollback
+	if !release.OnClassic {
+		// TODO: double check that we really rebooted
+		// otherwise this could be just a spurious restart
+		// of snapd
+		name, rev, err := CurrentBootNameAndRevision(snap.TypeOS)
+		if err == ErrBootNameAndRevisionAgain {
+			return false, &state.Retry{After: 5 * time.Second}
+		}
+		if err != nil {
+			return false, err
+		}
+		if snapsup.Name() != name || snapInfo.Revision != rev {
+			return false, fmt.Errorf("cannot finish core installation, there was a rollback across reboot")
+		}
+	}
+	return true, nil
 }
 
 func contentAttr(attrer interfaces.Attrer) string {
@@ -781,6 +821,8 @@ func doUpdate(st *state.State, names []string, updates []*snap.Info, params func
 		}
 
 		snapsup := &SnapSetup{
+			Base:         update.Base,
+			Prereq:       defaultContentPlugProviders(st, update),
 			Channel:      channel,
 			UserID:       snapUserID,
 			Flags:        flags.ForSnapSetup(),
@@ -1837,7 +1879,9 @@ func CoreInfo(st *state.State) (*snap.Info, error) {
 	return nil, fmt.Errorf("unexpected number of cores, got %d", len(res))
 }
 
-// ConfigDefaults returns the configuration defaults for the snap specified in the gadget. If gadget is absent or the snap has no snap-id it returns ErrNoState.
+// ConfigDefaults returns the configuration defaults for the snap specified in
+// the gadget. If gadget is absent or the snap has no snap-id it returns
+// ErrNoState.
 func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, error) {
 	gadget, err := GadgetInfo(st)
 	if err != nil {
@@ -1849,14 +1893,34 @@ func ConfigDefaults(st *state.State, snapName string) (map[string]interface{}, e
 		return nil, err
 	}
 
+	core, err := CoreInfo(st)
+	if err != nil {
+		return nil, err
+	}
+	isCoreDefaults := core.Name() == snapName
+
 	si := snapst.CurrentSideInfo()
-	if si.SnapID == "" {
+	// core snaps can be addressed even without a snap-id via the special
+	// "system" value in the config; first-boot always configures the core
+	// snap with UseConfigDefaults
+	if si.SnapID == "" && !isCoreDefaults {
 		return nil, state.ErrNoState
 	}
 
 	gadgetInfo, err := snap.ReadGadgetInfo(gadget, release.OnClassic)
 	if err != nil {
 		return nil, err
+	}
+
+	// we support setting core defaults via "system"
+	if isCoreDefaults {
+		if defaults, ok := gadgetInfo.Defaults["system"]; ok {
+			if _, ok := gadgetInfo.Defaults[si.SnapID]; ok && si.SnapID != "" {
+				logger.Noticef("core snap configuration defaults found under both 'system' key and core-snap-id, preferring 'system'")
+			}
+
+			return defaults, nil
+		}
 	}
 
 	defaults, ok := gadgetInfo.Defaults[si.SnapID]

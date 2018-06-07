@@ -33,7 +33,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,13 +47,13 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -156,24 +155,6 @@ func respToError(resp *http.Response, msg string) error {
 	}
 
 	return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL)
-}
-
-func getStructFields(s interface{}, exceptions ...string) []string {
-	st := reflect.TypeOf(s)
-	num := st.NumField()
-	fields := make([]string, 0, num)
-	for i := 0; i < num; i++ {
-		tag := st.Field(i).Tag.Get("json")
-		idx := strings.IndexRune(tag, ',')
-		if idx > -1 {
-			tag = tag[:idx]
-		}
-		if tag != "" && !strutil.ListContains(exceptions, tag) {
-			fields = append(fields, tag)
-		}
-	}
-
-	return fields
 }
 
 // Deltas enabled by default on classic, but allow opting in or out on both classic and core.
@@ -309,7 +290,7 @@ type sectionResults struct {
 }
 
 // The fields we are interested in (not you, snap_yaml_raw)
-var detailFields = getStructFields(snapDetails{}, "snap_yaml_raw")
+var detailFields = jsonutil.StructFields((*snapDetails)(nil), "snap_yaml_raw")
 
 // The default delta format if not configured.
 var defaultSupportedDeltaFormat = "xdelta3"
@@ -456,14 +437,9 @@ func LoginUser(username, password, otp string) (string, string, error) {
 	return macaroon, discharge, nil
 }
 
-// hasStoreAuth returns true if given user has store macaroons setup
-func hasStoreAuth(user *auth.UserState) bool {
-	return user != nil && user.StoreMacaroon != ""
-}
-
 // authAvailable returns true if there is a user and/or device session setup
 func (s *Store) authAvailable(user *auth.UserState) (bool, error) {
-	if hasStoreAuth(user) {
+	if user.HasStoreAuth() {
 		return true, nil
 	} else {
 		var device *auth.DeviceState
@@ -874,7 +850,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	}
 
 	// only set user authentication if user logged in to the store
-	if hasStoreAuth(user) {
+	if user.HasStoreAuth() {
 		authenticateUser(req, user)
 	}
 
@@ -2130,7 +2106,7 @@ type snapActionResultList struct {
 	} `json:"error-list"`
 }
 
-var snapActionFields = getStructFields(storeSnap{})
+var snapActionFields = jsonutil.StructFields((*storeSnap)(nil))
 
 // SnapAction queries the store for snap information for the given
 // install/refresh actions, given the context information about

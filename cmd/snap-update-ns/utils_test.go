@@ -98,8 +98,6 @@ func (s *utilsSuite) TestSecureMkdirAllLevel1(c *C) {
 		`close 4`,
 		`close 3`,
 	})
-	c.Assert(s.log.String(), testutil.Contains, `secure-mk-dir 3 ["path"] 0 -rwxr-xr-x 123 456 -> ...`)
-	c.Assert(s.log.String(), testutil.Contains, `secure-mk-dir 3 ["path"] 0 -rwxr-xr-x 123 456 -> 4`)
 }
 
 // Ensure that we can create a directory two levels from the top-level directory.
@@ -179,7 +177,7 @@ func (s *utilsSuite) TestSecureMkdirAllExistingDirsDontChown(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllMkdiratError(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "abs" 0755`, errTesting)
 	err := s.sec.MkdirAll("/abs", 0755, 123, 456)
-	c.Assert(err, ErrorMatches, `cannot mkdir path segment "abs": testing`)
+	c.Assert(err, ErrorMatches, `cannot create directory "abs": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
 		`mkdirat 3 "abs" 0755`,
@@ -191,7 +189,7 @@ func (s *utilsSuite) TestSecureMkdirAllMkdiratError(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllFchownError(c *C) {
 	s.sys.InsertFault(`fchown 4 123 456`, errTesting)
 	err := s.sec.MkdirAll("/path", 0755, 123, 456)
-	c.Assert(err, ErrorMatches, `cannot chown path segment "path" to 123.456 \(got up to "/"\): testing`)
+	c.Assert(err, ErrorMatches, `cannot chown directory "path" to 123.456: testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
 		`mkdirat 3 "path" 0755`,
@@ -216,7 +214,7 @@ func (s *utilsSuite) TestSecureMkdirAllOpenRootError(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllOpenError(c *C) {
 	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
 	err := s.sec.MkdirAll("/abs/path", 0755, 123, 456)
-	c.Assert(err, ErrorMatches, `cannot open path segment "abs" \(got up to "/"\): testing`)
+	c.Assert(err, ErrorMatches, `cannot open directory "abs": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
 		`mkdirat 3 "abs" 0755`,
@@ -226,6 +224,7 @@ func (s *utilsSuite) TestSecureMkdirAllOpenError(c *C) {
 }
 
 func (s *utilsSuite) TestPlanWritableMimic(c *C) {
+	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
 	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
 		c.Assert(dir, Equals, "/foo")
 		return []os.FileInfo{
@@ -262,7 +261,7 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 		// Store /foo in /tmp/.snap/foo while we set things up
 		{Entry: osutil.MountEntry{Name: "/foo", Dir: "/tmp/.snap/foo", Options: []string{"rbind"}}, Action: update.Mount},
 		// Put a tmpfs over /foo
-		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/foo/bar"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/foo", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/foo/bar", "mode=0755", "uid=0", "gid=0"}}, Action: update.Mount},
 		// Bind mount files and directories over. Note that files are identified by x-snapd.kind=file option.
 		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/file", Dir: "/foo/file", Options: []string{"bind", "x-snapd.kind=file", "x-snapd.synthetic", "x-snapd.needed-by=/foo/bar"}}, Action: update.Mount},
 		{Entry: osutil.MountEntry{Name: "/tmp/.snap/foo/dir", Dir: "/foo/dir", Options: []string{"rbind", "x-snapd.synthetic", "x-snapd.needed-by=/foo/bar"}}, Action: update.Mount},
@@ -276,6 +275,7 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 }
 
 func (s *utilsSuite) TestPlanWritableMimicErrors(c *C) {
+	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
 	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
 		c.Assert(dir, Equals, "/foo")
 		return nil, errTesting
@@ -624,7 +624,7 @@ func (s *utilsSuite) TestSecureMkfileAllOpenRootError(c *C) {
 func (s *utilsSuite) TestSecureMkfileAllOpenError(c *C) {
 	s.sys.InsertFault(`openat 3 "abs" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
 	err := s.sec.MkfileAll("/abs/path", 0755, 123, 456)
-	c.Assert(err, ErrorMatches, `cannot open path segment "abs" \(got up to "/"\): testing`)
+	c.Assert(err, ErrorMatches, `cannot open directory "abs": testing`)
 	c.Assert(s.sys.Calls(), DeepEquals, []string{
 		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, // -> 3
 		`mkdirat 3 "abs" 0755`,
@@ -698,6 +698,9 @@ func (s *realSystemSuite) TestSecureMksymlinkAllForReal(c *C) {
 	c.Assert(err, IsNil)
 	err = s.sec.MksymlinkAll(f3, 0755, sys.FlagID, sys.FlagID, "oldname")
 	c.Assert(err, ErrorMatches, `cannot create symbolic link "dir": existing file in the way`)
+
+	err = s.sec.MksymlinkAll("/", 0755, sys.FlagID, sys.FlagID, "oldname")
+	c.Assert(err, ErrorMatches, `cannot create non-file path: "/"`)
 }
 
 func (s *utilsSuite) TestCleanTrailingSlash(c *C) {
@@ -709,17 +712,99 @@ func (s *utilsSuite) TestCleanTrailingSlash(c *C) {
 	c.Assert(filepath.Clean("other/path/.."), Equals, "other")
 }
 
-func (s *utilsSuite) TestSplitIntoSegments(c *C) {
-	sg, err := update.SplitIntoSegments("/foo/bar/froz")
-	c.Assert(err, IsNil)
-	c.Assert(sg, DeepEquals, []string{"foo", "bar", "froz"})
+// secure-open-path
 
-	sg, err = update.SplitIntoSegments("/foo//fii/../.")
-	c.Assert(err, ErrorMatches, `cannot split unclean path ".+"`)
-	c.Assert(sg, HasLen, 0)
+func (s *utilsSuite) TestSecureOpenPath(c *C) {
+	stat := syscall.Stat_t{Mode: syscall.S_IFDIR}
+	s.sys.InsertFstatResult("fstat 5 <ptr>", stat)
+	fd, err := s.sec.OpenPath("/foo/bar")
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	c.Assert(fd, Equals, 5)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`,       // -> 3
+		`openat 3 "foo" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 4
+		`openat 4 "bar" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,             // -> 5
+		`fstat 5 <ptr>`,
+		`close 4`,
+		`close 3`,
+	})
 }
 
-// secure-open-path
+func (s *utilsSuite) TestSecureOpenPathSingleSegment(c *C) {
+	stat := syscall.Stat_t{Mode: syscall.S_IFDIR}
+	s.sys.InsertFstatResult("fstat 4 <ptr>", stat)
+	fd, err := s.sec.OpenPath("/foo")
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	c.Assert(fd, Equals, 4)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 3
+		`openat 3 "foo" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`,       // -> 4
+		`fstat 4 <ptr>`,
+		`close 3`,
+	})
+}
+
+func (s *utilsSuite) TestSecureOpenPathRoot(c *C) {
+	stat := syscall.Stat_t{Mode: syscall.S_IFDIR}
+	s.sys.InsertFstatResult("fstat 3 <ptr>", stat)
+	fd, err := s.sec.OpenPath("/")
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	c.Assert(fd, Equals, 3)
+	c.Assert(s.sys.Calls(), DeepEquals, []string{
+		`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, // -> 3
+		`fstat 3 <ptr>`,
+	})
+}
+
+func (s *utilsSuite) TestIsReadOnlyFstatfsError(c *C) {
+	path := "/some/path"
+	s.sys.InsertFault("fstatfs 3 <ptr>", errTesting)
+	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	result, err := update.IsReadOnly(fd, path)
+	c.Assert(err, ErrorMatches, `cannot fstatfs "/some/path": testing`)
+	c.Assert(result, Equals, false)
+}
+
+func (s *utilsSuite) TestIsReadOnlySquashfsMountedRo(c *C) {
+	statfs := syscall.Statfs_t{Type: update.SquashfsMagic, Flags: update.StReadOnly}
+	path := "/some/path"
+	s.sys.InsertFstatfsResult("fstatfs 3 <ptr>", statfs)
+	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	result, err := update.IsReadOnly(fd, path)
+	c.Assert(err, IsNil)
+	c.Assert(result, Equals, true)
+}
+
+func (s *utilsSuite) TestIsReadOnlySquashfsMountedRw(c *C) {
+	statfs := syscall.Statfs_t{Type: update.SquashfsMagic}
+	path := "/some/path"
+	s.sys.InsertFstatfsResult("fstatfs 3 <ptr>", statfs)
+	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	result, err := update.IsReadOnly(fd, path)
+	c.Assert(err, IsNil)
+	c.Assert(result, Equals, true)
+}
+
+func (s *utilsSuite) TestIsReadOnlyExt4MountedRw(c *C) {
+	statfs := syscall.Statfs_t{Type: update.Ext4Magic}
+	path := "/some/path"
+	s.sys.InsertFstatfsResult("fstatfs 3 <ptr>", statfs)
+	fd, err := s.sys.Open(path, syscall.O_DIRECTORY, 0)
+	c.Assert(err, IsNil)
+	defer s.sys.Close(fd)
+	result, err := update.IsReadOnly(fd, path)
+	c.Assert(err, IsNil)
+	c.Assert(result, Equals, false)
+}
 
 func (s *realSystemSuite) TestSecureOpenPathDirectory(c *C) {
 	path := filepath.Join(c.MkDir(), "test")
@@ -769,8 +854,14 @@ func (s *realSystemSuite) TestSecureOpenPathFile(c *C) {
 	c.Assert(ioutil.WriteFile(path, []byte("hello"), 0644), IsNil)
 
 	fd, err := s.sec.OpenPath(path)
-	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "not a directory")
+	c.Assert(err, IsNil)
+	defer syscall.Close(fd)
+
+	// Check that the file descriptor matches the file.
+	var pathStat, fdStat syscall.Stat_t
+	c.Assert(syscall.Stat(path, &pathStat), IsNil)
+	c.Assert(syscall.Fstat(fd, &fdStat), IsNil)
+	c.Check(pathStat, Equals, fdStat)
 }
 
 func (s *realSystemSuite) TestSecureOpenPathNotFound(c *C) {
@@ -791,7 +882,7 @@ func (s *realSystemSuite) TestSecureOpenPathSymlink(c *C) {
 
 	fd, err := s.sec.OpenPath(symlink)
 	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "not a directory")
+	c.Check(err, ErrorMatches, `".*" is a symbolic link`)
 }
 
 func (s *realSystemSuite) TestSecureOpenPathSymlinkedParent(c *C) {
@@ -809,4 +900,139 @@ func (s *realSystemSuite) TestSecureOpenPathSymlinkedParent(c *C) {
 	fd, err := s.sec.OpenPath(symlinkedPath)
 	c.Check(fd, Equals, -1)
 	c.Check(err, ErrorMatches, "not a directory")
+}
+
+func (s *realSystemSuite) TestPathIteratorEmpty(c *C) {
+	iter, err := update.NewPathIterator("")
+	c.Assert(err, ErrorMatches, `cannot iterate over unclean path ""`)
+	c.Assert(iter, IsNil)
+}
+
+func (s *realSystemSuite) TestPathIteratorFilename(c *C) {
+	iter, err := update.NewPathIterator("foo")
+	c.Assert(err, IsNil)
+	c.Assert(iter.Path(), Equals, "foo")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentPath(), Equals, "foo")
+	c.Assert(iter.CurrentName(), Equals, "foo")
+	c.Assert(iter.CurrentCleanName(), Equals, "foo")
+
+	c.Assert(iter.Next(), Equals, false)
+}
+
+func (s *realSystemSuite) TestPathIteratorRelative(c *C) {
+	iter, err := update.NewPathIterator("foo/bar")
+	c.Assert(err, IsNil)
+	c.Assert(iter.Path(), Equals, "foo/bar")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentPath(), Equals, "foo/")
+	c.Assert(iter.CurrentName(), Equals, "foo/")
+	c.Assert(iter.CurrentCleanName(), Equals, "foo")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "foo/")
+	c.Assert(iter.CurrentPath(), Equals, "foo/bar")
+	c.Assert(iter.CurrentName(), Equals, "bar")
+	c.Assert(iter.CurrentCleanName(), Equals, "bar")
+
+	c.Assert(iter.Next(), Equals, false)
+}
+
+func (s *realSystemSuite) TestPathIteratorAbsoluteClean(c *C) {
+	iter, err := update.NewPathIterator("/foo/bar")
+	c.Assert(err, IsNil)
+	c.Assert(iter.Path(), Equals, "/foo/bar")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentPath(), Equals, "/")
+	c.Assert(iter.CurrentName(), Equals, "/")
+	c.Assert(iter.CurrentCleanName(), Equals, "")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "/")
+	c.Assert(iter.CurrentPath(), Equals, "/foo/")
+	c.Assert(iter.CurrentName(), Equals, "foo/")
+	c.Assert(iter.CurrentCleanName(), Equals, "foo")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "/foo/")
+	c.Assert(iter.CurrentPath(), Equals, "/foo/bar")
+	c.Assert(iter.CurrentName(), Equals, "bar")
+	c.Assert(iter.CurrentCleanName(), Equals, "bar")
+
+	c.Assert(iter.Next(), Equals, false)
+}
+
+func (s *realSystemSuite) TestPathIteratorAbsoluteUnclean(c *C) {
+	iter, err := update.NewPathIterator("/foo/bar/")
+	c.Assert(err, ErrorMatches, `cannot iterate over unclean path "/foo/bar/"`)
+	c.Assert(iter, IsNil)
+}
+
+func (s *realSystemSuite) TestPathIteratorRootDir(c *C) {
+	iter, err := update.NewPathIterator("/")
+	c.Assert(err, IsNil)
+	c.Assert(iter.Path(), Equals, "/")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentPath(), Equals, "/")
+	c.Assert(iter.CurrentName(), Equals, "/")
+	c.Assert(iter.CurrentCleanName(), Equals, "")
+
+	c.Assert(iter.Next(), Equals, false)
+}
+
+func (s *realSystemSuite) TestPathIteratorUncleanPath(c *C) {
+	iter, err := update.NewPathIterator("///some/../junk")
+	c.Assert(err, ErrorMatches, `cannot iterate over unclean path ".*"`)
+	c.Assert(iter, IsNil)
+}
+
+func (s *realSystemSuite) TestPathIteratorUnicode(c *C) {
+	iter, err := update.NewPathIterator("/zażółć/gęślą/jaźń")
+	c.Assert(err, IsNil)
+	c.Assert(iter.Path(), Equals, "/zażółć/gęślą/jaźń")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "")
+	c.Assert(iter.CurrentPath(), Equals, "/")
+	c.Assert(iter.CurrentName(), Equals, "/")
+	c.Assert(iter.CurrentCleanName(), Equals, "")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "/")
+	c.Assert(iter.CurrentPath(), Equals, "/zażółć/")
+	c.Assert(iter.CurrentName(), Equals, "zażółć/")
+	c.Assert(iter.CurrentCleanName(), Equals, "zażółć")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "/zażółć/")
+	c.Assert(iter.CurrentPath(), Equals, "/zażółć/gęślą/")
+	c.Assert(iter.CurrentName(), Equals, "gęślą/")
+	c.Assert(iter.CurrentCleanName(), Equals, "gęślą")
+
+	c.Assert(iter.Next(), Equals, true)
+	c.Assert(iter.CurrentBase(), Equals, "/zażółć/gęślą/")
+	c.Assert(iter.CurrentPath(), Equals, "/zażółć/gęślą/jaźń")
+	c.Assert(iter.CurrentName(), Equals, "jaźń")
+	c.Assert(iter.CurrentCleanName(), Equals, "jaźń")
+
+	c.Assert(iter.Next(), Equals, false)
+}
+
+func (s *realSystemSuite) TestPathIteratorExample(c *C) {
+	iter, err := update.NewPathIterator("/some/path/there")
+	c.Assert(err, IsNil)
+	for iter.Next() {
+		_ = iter.CurrentBase()
+		_ = iter.CurrentPath()
+		_ = iter.CurrentName()
+		_ = iter.CurrentCleanName()
+	}
 }

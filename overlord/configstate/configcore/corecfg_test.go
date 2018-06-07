@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -33,9 +34,10 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type mockConf struct {
-	state *state.State
-	conf  map[string]interface{}
-	err   error
+	state   *state.State
+	conf    map[string]interface{}
+	changes map[string]interface{}
+	err     error
 }
 
 func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
@@ -59,6 +61,14 @@ func (cfg *mockConf) Set(snapName, key string, v interface{}) error {
 	}
 	cfg.conf[key] = v
 	return nil
+}
+
+func (cfg *mockConf) Changes() []string {
+	out := make([]string, 0, len(cfg.changes))
+	for k := range cfg.changes {
+		out = append(out, k)
+	}
+	return out
 }
 
 func (cfg *mockConf) State() *state.State {
@@ -94,4 +104,44 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 // runCfgSuite tests configcore.Run()
 type runCfgSuite struct {
 	configcoreSuite
+}
+
+var _ = Suite(&runCfgSuite{})
+
+func (r *runCfgSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
+	conf := &mockConf{
+		state: r.state,
+		conf: map[string]interface{}{
+			"experimental.layouts": "foo",
+		},
+	}
+
+	err := configcore.Run(conf)
+	c.Check(err, ErrorMatches, `experimental.layouts can only be set to 'true' or 'false'`)
+}
+
+func (r *runCfgSuite) TestConfigureExperimentalSettingsHappy(c *C) {
+	for _, t := range []string{"true", "false"} {
+		conf := &mockConf{
+			state: r.state,
+			conf: map[string]interface{}{
+				"experimental.layouts": t,
+			},
+		}
+
+		err := configcore.Run(conf)
+		c.Check(err, IsNil)
+	}
+}
+
+func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
+	conf := &mockConf{
+		state: r.state,
+		changes: map[string]interface{}{
+			"unknown.option": "1",
+		},
+	}
+
+	err := configcore.Run(conf)
+	c.Check(err, ErrorMatches, `cannot set "unknown.option": unsupported system option`)
 }

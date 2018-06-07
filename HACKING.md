@@ -1,6 +1,6 @@
 # Hacking on snapd
 
-Hacking on snapd is fun and straightfoward. The code is extensively
+Hacking on snapd is fun and straightforward. The code is extensively
 unit tested and we use the [spread](https://github.com/snapcore/spread)
 integration test framework for the integration/system level tests.
 
@@ -105,7 +105,7 @@ Similarly, to build the `snapd` REST API daemon, you can run
 ### Contributing
 
 Contributions are always welcome! Please make sure that you sign the
-Canonical contributor licence agreement at
+Canonical contributor license agreement at
 http://www.ubuntu.com/legal/contributors
 
 Snapd can be found on Github, so in order to fork the source and contribute,

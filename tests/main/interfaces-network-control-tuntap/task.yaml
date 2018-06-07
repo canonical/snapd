@@ -27,7 +27,7 @@ execute: |
     . "$TESTSLIB/network.sh"
 
     echo "The interface is disconnected by default"
-    snap interfaces | MATCH "^- +test-snapd-tuntap:network-control$"
+    snap interfaces -i network-control | MATCH "^- +test-snapd-tuntap:network-control$"
 
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "And cannot allocate the $DEV device"
