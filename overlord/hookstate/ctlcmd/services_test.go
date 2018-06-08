@@ -51,7 +51,7 @@ func (f *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentS
 	if len(actions) == 1 && actions[0].Action == "install" {
 		return []*snap.Info{{
 			SideInfo: snap.SideInfo{
-				RealName: actions[0].Name,
+				RealName: actions[0].InstanceName,
 				Revision: snap.R(2),
 			},
 			Architectures: []string{"all"},
