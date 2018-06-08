@@ -291,6 +291,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	// we do not support configuration for bases or the "snapd" snap yet
+	// TODO: we don't need maybeCore anymore we can look at
+	//      snapsup.Type now
 	if snapsup.Type != snap.TypeBase && snapsup.Name() != "snapd" {
 		configSet := ConfigureSnap(st, snapsup.Name(), confFlags)
 		configSet.WaitAll(ts)
