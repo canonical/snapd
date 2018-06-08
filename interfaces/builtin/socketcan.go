@@ -30,20 +30,22 @@ const socketCanBaseDeclarationSlots = `
 `
 
 const socketCanConnectedPlugAppArmor = `
-# Description: Can access SocketCAN networks.
+# Description: Can configure and use SocketCAN networks
 network can,
-network netlink raw,
 
-capability net_admin,
-
-# Allow configuration of the interface using ip
+# Allow configuration of the interface using the ip command for SocketCAN
 /{,usr/}{,s}bin/ip ixr,
+
+# required by ip to configure SocketCAN networks
+capability net_admin,
+network netlink raw,
 `
 
 const socketCanConnectedPlugSecComp = `
 # Description: Can access SocketCAN networks.
 bind
 
+# required by ip to configure SocketCAN networks
 socket AF_NETLINK - NETLINK_ROUTE
 socket AF_NETLINK - NETLINK_GENERIC
 `
