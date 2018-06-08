@@ -1059,7 +1059,8 @@ func DropNick(nick string) string {
 
 // StoreName splits the maybe-local name and returns the store name of the snap.
 func StoreName(name string) string {
-	return strings.SplitN(name, "_", 2)[0]
+	store, _ := SplitInstanceName(name)
+	return store
 }
 
 // SplitName splits the maybe-local name and returns the store name and the
