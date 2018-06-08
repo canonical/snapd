@@ -83,7 +83,7 @@ func ShouldRetryError(attempt *retry.Attempt, err error) bool {
 				return true
 			}
 			if opErr.Op == "dial" {
-				logger.Debugf("Retrying because of: %s", opErr)
+				logger.Debugf("Retrying because of: %#v", opErr)
 				return true
 			}
 			logger.Debugf("Encountered syscall error: %#v", syscallErr)
