@@ -50,6 +50,11 @@ func (s *changeSuite) SetUpTest(c *C) {
 	s.sec = &update.Secure{}
 }
 
+func (s *changeSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+	s.sys.CheckForStrayDescriptors(c)
+}
+
 func (s *changeSuite) TestFakeFileInfo(c *C) {
 	c.Assert(testutil.FileInfoDir.IsDir(), Equals, true)
 	c.Assert(testutil.FileInfoFile.IsDir(), Equals, false)
@@ -1706,6 +1711,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithGoodSymlinkPresent(c *C) {
 		`openat 3 "name" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, // -> 4
 		`fstat 4 <ptr>`,
 		`readlinkat 4 "" <ptr>`,
+		`close 4`,
 		`close 3`,
 	})
 }
@@ -1727,6 +1733,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithBadSymlinkPresent(c *C) {
 		`openat 3 "name" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, // -> 4
 		`fstat 4 <ptr>`,
 		`readlinkat 4 "" <ptr>`,
+		`close 4`,
 		`close 3`,
 	})
 }

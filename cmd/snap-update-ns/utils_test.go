@@ -56,8 +56,8 @@ func (s *utilsSuite) SetUpTest(c *C) {
 }
 
 func (s *utilsSuite) TearDownTest(c *C) {
-	s.sys.CheckForStrayDescriptors(c)
 	s.BaseTest.TearDownTest(c)
+	s.sys.CheckForStrayDescriptors(c)
 }
 
 // secure-mkdir-all
