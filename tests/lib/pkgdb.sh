@@ -38,6 +38,9 @@ fedora_name_package() {
             printer-driver-cups-pdf)
                 echo "cups-pdf"
                 ;;
+            python3-gi)
+                echo "python3-gobject"
+                ;;
             *)
                 echo "$i"
                 ;;
@@ -70,6 +73,12 @@ opensuse_name_package() {
             printer-driver-cups-pdf)
                 echo "cups-pdf"
                 ;;
+            python3-dbus)
+                echo "python3-dbus-python"
+                ;;
+            python3-gi)
+                echo "python3-gobject"
+                ;;
             *)
                 echo "$i"
                 ;;
@@ -94,6 +103,12 @@ arch_name_package() {
             ;;
         man)
             echo "man-db"
+            ;;
+        python3-dbus)
+            echo "python-dbus"
+            ;;
+        python3-gi)
+            echo "python-gobject"
             ;;
         *)
             echo "$1"
