@@ -17,5 +17,7 @@ execute: |
     done
 
 debug: |
-      systemctl list-timers --all
-      ls /usr/lib/systemd/system/snapd*
+    date
+    systemctl list-timers --all
+    ls -l /lib/systemd/system/snapd* || true
+    systemctl show snapd.snap-repair.timer

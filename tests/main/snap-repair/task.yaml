@@ -20,5 +20,7 @@ execute: |
     "${LIBEXECDIR}"/snapd/snap-repair run
 
 debug: |
+    date
     systemctl list-timers --all
-    ls /usr/lib/systemd/system/snapd*
+    ls -l /lib/systemd/system/snapd* || true
+    systemctl show snapd.snap-repair.timer
