@@ -19,17 +19,17 @@
 
 package builtin
 
-const socketCanSummary = `allows configuration and use of SocketCAN network interfaces`
+const socketCanControlSummary = `allows configuration and use of SocketCAN network interfaces`
 
-const socketCanBaseDeclarationSlots = `
-  socketcan:
+const socketCanControlBaseDeclarationSlots = `
+  socketcan-control:
     allow-installation:
       slot-snap-type:
 		- core
 	deny-auto-connection: true
 `
 
-const socketCanConnectedPlugAppArmor = `
+const socketCanControlConnectedPlugAppArmor = `
 # Description: Can configure and use SocketCAN networks
 network can,
 
@@ -41,7 +41,7 @@ capability net_admin,
 network netlink raw,
 `
 
-const socketCanConnectedPlugSecComp = `
+const socketCanControlConnectedPlugSecComp = `
 # Description: Can access SocketCAN networks.
 bind
 
@@ -52,13 +52,13 @@ socket AF_NETLINK - NETLINK_GENERIC
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "socketcan",
-		summary:               socketCanSummary,
+		name:                  "socketcan-control",
+		summary:               socketCanControlSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
-		baseDeclarationSlots:  socketCanBaseDeclarationSlots,
-		connectedPlugAppArmor: socketCanConnectedPlugAppArmor,
-		connectedPlugSecComp:  socketCanConnectedPlugSecComp,
+		baseDeclarationSlots:  socketCanControlBaseDeclarationSlots,
+		connectedPlugAppArmor: socketCanControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  socketCanControlConnectedPlugSecComp,
 		reservedForOS:         true,
 	})
 }
