@@ -74,7 +74,8 @@ opensuse_name_package() {
                 echo "cups-pdf"
                 ;;
             python3-dbus)
-                echo "python3-dbus-python"
+                # In OpenSUSE Leap 15, this is renamed to python3-dbus-python
+                echo "dbus-1-python3"
                 ;;
             python3-gi)
                 echo "python3-gobject"
