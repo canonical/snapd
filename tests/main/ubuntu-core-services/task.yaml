@@ -15,3 +15,7 @@ execute: |
     for timer in snapd.snap-repair.timer; do
         systemctl is-active $timer
     done
+
+debug: |
+      systemctl list-timers --all
+      ls /usr/lib/systemd/system/snapd*
