@@ -35,6 +35,12 @@ import (
 // not available through syscall
 const (
 	umountNoFollow = 8
+	// StReadOnly is the equivalent of ST_RDONLY
+	StReadOnly = 1
+	// SquashfsMagic is the equivalent of SQUASHFS_MAGIC
+	SquashfsMagic = 0x73717368
+	// Ext4Magic is the equivalent of EXT4_SUPER_MAGIC
+	Ext4Magic = 0xef53
 )
 
 // For mocking everything during testing.
@@ -51,6 +57,7 @@ var (
 	sysUnmount    = syscall.Unmount
 	sysFchown     = sys.Fchown
 	sysFstat      = syscall.Fstat
+	sysFstatfs    = syscall.Fstatfs
 	sysSymlinkat  = osutil.Symlinkat
 	sysReadlinkat = osutil.Readlinkat
 	sysFchdir     = syscall.Fchdir
@@ -58,6 +65,27 @@ var (
 
 	ioutilReadDir = ioutil.ReadDir
 )
+
+// IsReadOnly returns true if a directory is ready only.
+//
+// Directories are read only when they reside on file systems mounted in read
+// only mode or when the underlying file system itself is inherently read only.
+func IsReadOnly(dirFd int, dirName string) (bool, error) {
+	var fsData syscall.Statfs_t
+	if err := sysFstatfs(dirFd, &fsData); err != nil {
+		return false, fmt.Errorf("cannot fstatfs %q: %s", dirName, err)
+	}
+	// If something is mounted with f_flags & ST_RDONLY then is read-only.
+	if fsData.Flags&StReadOnly == StReadOnly {
+		return true, nil
+	}
+	// If something is a known read-only file-system then it is safe.
+	// Older copies of snapd were not mounting squashfs as read only.
+	if fsData.Type == SquashfsMagic {
+		return true, nil
+	}
+	return false, nil
+}
 
 // ReadOnlyFsError is an error encapsulating encountered EROFS.
 type ReadOnlyFsError struct {
@@ -91,8 +119,7 @@ func (sec *Secure) CheckTrespassing(dirFd int, dirName string, name string) erro
 func (sec *Secure) OpenPath(path string) (int, error) {
 	iter, err := NewPathIterator(path)
 	if err != nil {
-		// TODO: Reword the error and adjust the tests.
-		return -1, fmt.Errorf("cannot split unclean path %q", path)
+		return -1, fmt.Errorf("cannot open path: %s", err)
 	}
 	if !filepath.IsAbs(iter.Path()) {
 		return -1, fmt.Errorf("path %v is not absolute", iter.Path())
@@ -188,12 +215,12 @@ func (sec *Secure) MkDir(dirFd int, dirName string, name string, perm os.FileMod
 			// need to poke the hole.
 			return -1, &ReadOnlyFsError{Path: dirName}
 		default:
-			return -1, fmt.Errorf("cannot create directory %q: %v", name, err)
+			return -1, fmt.Errorf("cannot create directory %q: %v", filepath.Join(dirName, name), err)
 		}
 	}
 	newFd, err := sysOpenat(dirFd, name, openFlags, 0)
 	if err != nil {
-		return -1, fmt.Errorf("cannot open directory %q: %v", name, err)
+		return -1, fmt.Errorf("cannot open directory %q: %v", filepath.Join(dirName, name), err)
 	}
 	if made {
 		// Chown each segment that we made.
@@ -201,7 +228,7 @@ func (sec *Secure) MkDir(dirFd int, dirName string, name string, perm os.FileMod
 			// Close the FD we opened if we fail here since the caller will get
 			// an error and won't assume responsibility for the FD.
 			sysClose(newFd)
-			return -1, fmt.Errorf("cannot chown directory %q to %d.%d: %v", name, uid, gid, err)
+			return -1, fmt.Errorf("cannot chown directory %q to %d.%d: %v", filepath.Join(dirName, name), uid, gid, err)
 		}
 	}
 	return newFd, err
@@ -231,7 +258,7 @@ func (sec *Secure) MkFile(dirFd int, dirName string, name string, perm os.FileMo
 			// If the file exists then just open it without O_CREAT and O_EXCL
 			newFd, err = sysOpenat(dirFd, name, openFlags, 0)
 			if err != nil {
-				return fmt.Errorf("cannot open file %q: %v", name, err)
+				return fmt.Errorf("cannot open file %q: %v", filepath.Join(dirName, name), err)
 			}
 			made = false
 		case syscall.EROFS:
@@ -240,7 +267,7 @@ func (sec *Secure) MkFile(dirFd int, dirName string, name string, perm os.FileMo
 			// need to poke the hole.
 			return &ReadOnlyFsError{Path: dirName}
 		default:
-			return fmt.Errorf("cannot open file %q: %v", name, err)
+			return fmt.Errorf("cannot open file %q: %v", filepath.Join(dirName, name), err)
 		}
 	}
 	defer sysClose(newFd)
@@ -248,7 +275,7 @@ func (sec *Secure) MkFile(dirFd int, dirName string, name string, perm os.FileMo
 	if made {
 		// Chown the file if we made it.
 		if err := sysFchown(newFd, uid, gid); err != nil {
-			return fmt.Errorf("cannot chown file %q to %d.%d: %v", name, uid, gid, err)
+			return fmt.Errorf("cannot chown file %q to %d.%d: %v", filepath.Join(dirName, name), uid, gid, err)
 		}
 	}
 
@@ -271,24 +298,24 @@ func (sec *Secure) MkSymlink(dirFd int, dirName string, name string, oldname str
 			// Maybe it's the symlink we were hoping to create.
 			objFd, err = sysOpenat(dirFd, name, syscall.O_CLOEXEC|sys.O_PATH|syscall.O_NOFOLLOW, 0)
 			if err != nil {
-				return fmt.Errorf("cannot open existing file %q: %v", name, err)
+				return fmt.Errorf("cannot open existing file %q: %v", filepath.Join(dirName, name), err)
 			}
 			var statBuf syscall.Stat_t
 			err = sysFstat(objFd, &statBuf)
 			if err != nil {
-				return fmt.Errorf("cannot inspect existing file %q: %v", name, err)
+				return fmt.Errorf("cannot inspect existing file %q: %v", filepath.Join(dirName, name), err)
 			}
 			if statBuf.Mode&syscall.S_IFMT != syscall.S_IFLNK {
-				return fmt.Errorf("cannot create symbolic link %q: existing file in the way", name)
+				return fmt.Errorf("cannot create symbolic link %q: existing file in the way", filepath.Join(dirName, name))
 			}
 			var n int
 			buf := make([]byte, len(oldname)+2)
 			n, err = sysReadlinkat(objFd, "", buf)
 			if err != nil {
-				return fmt.Errorf("cannot read symbolic link %q: %v", name, err)
+				return fmt.Errorf("cannot read symbolic link %q: %v", filepath.Join(dirName, name), err)
 			}
 			if string(buf[:n]) != oldname {
-				return fmt.Errorf("cannot create symbolic link %q: existing symbolic link in the way", name)
+				return fmt.Errorf("cannot create symbolic link %q: existing symbolic link in the way", filepath.Join(dirName, name))
 			}
 			return nil
 		case syscall.EROFS:
@@ -297,7 +324,7 @@ func (sec *Secure) MkSymlink(dirFd int, dirName string, name string, oldname str
 			// need to poke the hole.
 			return &ReadOnlyFsError{Path: dirName}
 		default:
-			return fmt.Errorf("cannot create symlink %q: %v", name, err)
+			return fmt.Errorf("cannot create symlink %q: %v", filepath.Join(dirName, name), err)
 		}
 	}
 
@@ -398,6 +425,9 @@ func (sec *Secure) MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, g
 	// Only support file names, not directory names.
 	if strings.HasSuffix(path, "/") {
 		return fmt.Errorf("cannot create non-file path: %q", path)
+	}
+	if oldname == "" {
+		return fmt.Errorf("cannot create symlink with empty target: %q", path)
 	}
 
 	base, name := filepath.Split(path)

@@ -1799,6 +1799,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		SideInfo: snapsup.SideInfo,
+		Type:     snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -1954,6 +1955,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		SideInfo: snapsup.SideInfo,
+		Type:     snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -2160,6 +2162,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		SideInfo: snapsup.SideInfo,
+		Type:     snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "services-snap",
@@ -4234,6 +4237,7 @@ version: 1.0`)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		SnapPath: mockSnap,
 		SideInfo: snapsup.SideInfo,
+		Type:     snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "mock",
@@ -4326,6 +4330,7 @@ version: 1.0`)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		SnapPath: mockSnap,
 		SideInfo: snapsup.SideInfo,
+		Type:     snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "mock",
@@ -4503,6 +4508,7 @@ version: 1.0`)
 		Flags: snapstate.Flags{
 			Required: true,
 		},
+		Type: snap.TypeApp,
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, si)
 
@@ -9917,6 +9923,90 @@ func (s *snapmgrTestSuite) TestInjectTasksWithNullChange(c *C) {
 	// verify that halt tasks of the main task now wait for extra tasks
 	c.Assert(t1.HaltTasks(), HasLen, 1)
 	c.Assert(t1.HaltTasks()[0].Kind(), Equals, "task1-1")
+}
+
+func hasConfigureTask(ts *state.TaskSet) bool {
+	for _, tk := range taskKinds(ts.Tasks()) {
+		if tk == "run-hook[configure]" {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *snapmgrTestSuite) TestNoConfigureForBasesTask(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// normal snaps get a configure task
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(hasConfigureTask(ts), Equals, true)
+
+	// but bases do not for install
+	ts, err = snapstate.Install(s.state, "some-base", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(hasConfigureTask(ts), Equals, false)
+
+	// or for refresh
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{{RealName: "some-base", SnapID: "some-base-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+	ts, err = snapstate.Update(s.state, "some-base", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(hasConfigureTask(ts), Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// but snapd do not for install
+	ts, err := snapstate.Install(s.state, "snapd", "some-channel", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(hasConfigureTask(ts), Equals, false)
+
+	// or for refresh
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{{RealName: "snapd", SnapID: "snapd-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	ts, err = snapstate.Update(s.state, "snapd", "", snap.R(0), s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(hasConfigureTask(ts), Equals, false)
+
+}
+
+func (s snapmgrTestSuite) TestCanLoadOldSnapSetupWithoutType(c *C) {
+	// ensure we don't crash when loading a SnapSetup json without
+	// a type set
+	oldSnapSetup := []byte(`{
+ "snap-path":"/some/path",
+ "side-info": {
+    "channel": "edge",
+    "name": "some-snap",
+    "revision": "1",
+    "snap-id": "some-snap-id"
+ }
+}`)
+	var snapsup snapstate.SnapSetup
+	err := json.Unmarshal(oldSnapSetup, &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.SnapPath, Equals, "/some/path")
+	c.Check(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
+		Channel:  "edge",
+		RealName: "some-snap",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	})
+	c.Check(snapsup.Type, Equals, snap.Type(""))
 }
 
 type canDisableSuite struct{}
