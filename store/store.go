@@ -85,6 +85,13 @@ var defaultRetryStrategy = retry.LimitCount(5, retry.LimitTime(38*time.Second,
 	},
 ))
 
+var connCheckStrategy = retry.LimitCount(3, retry.LimitTime(38*time.Second,
+	retry.Exponential{
+		Initial: 900 * time.Millisecond,
+		Factor:  1.3,
+	},
+))
+
 // Config represents the configuration to access the snap store
 type Config struct {
 	// Store API base URLs. The assertions url is only separate because it can
@@ -267,11 +274,13 @@ func authURL() string {
 	return "https://" + authLocation() + "/api/v2"
 }
 
+var defaultStoreDeveloperURL = "https://dashboard.snapcraft.io/"
+
 func storeDeveloperURL() string {
 	if useStaging() {
 		return "https://dashboard.staging.snapcraft.io/"
 	}
-	return "https://dashboard.snapcraft.io/"
+	return defaultStoreDeveloperURL
 }
 
 var defaultConfig = Config{}
@@ -1564,6 +1573,19 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	return s.cacher.Put(downloadInfo.Sha3_384, targetPath)
 }
 
+func downloadOptions(storeURL *url.URL, cdnHeader string) *requestOptions {
+	reqOptions := requestOptions{
+		Method:       "GET",
+		URL:          storeURL,
+		ExtraHeaders: map[string]string{},
+	}
+	if cdnHeader != "" {
+		reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader
+	}
+
+	return &reqOptions
+}
+
 // download writes an http.Request showing a progress.Meter
 var download = func(ctx context.Context, name, sha3_384, downloadURL string, user *auth.UserState, s *Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
@@ -1579,14 +1601,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 	var finalErr error
 	startTime := time.Now()
 	for attempt := retry.Start(defaultRetryStrategy, nil); attempt.Next(); {
-		reqOptions := &requestOptions{
-			Method:       "GET",
-			URL:          storeURL,
-			ExtraHeaders: make(map[string]string),
-		}
-		if cdnHeader != "" {
-			reqOptions.ExtraHeaders["Snap-CDN"] = cdnHeader
-		}
+		reqOptions := downloadOptions(storeURL, cdnHeader)
 
 		httputil.MaybeLogRetryAttempt(reqOptions.URL.String(), attempt, startTime)
 
@@ -2340,4 +2355,81 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	return snaps, nil
+}
+
+var errUnexpectedConnCheckResponse = errors.New("unexpected response during connection check")
+
+func (s *Store) snapConnCheck() ([]string, error) {
+	var hosts []string
+	// TODO: move this to SnapAction:download when that's done (and maybe
+	//       avoid doRequest with its compulsory macaroon refresh dance)
+	// NOTE: "core" is possibly the only snap that's sure to be in all stores
+	//       when we drop "core" in the move to snapd/core18/etc, change this
+	deetsURL := s.endpointURL(path.Join(detailsEndpPath, "core"), url.Values{"fields": {"anon_download_url"}})
+	hosts = append(hosts, deetsURL.Host)
+
+	var remote snapDetails
+	resp, err := httputil.RetryRequest(deetsURL.String(), func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, &requestOptions{Method: "GET", URL: deetsURL}, nil)
+	}, func(resp *http.Response) error {
+		return decodeJSONBody(resp, &remote, nil)
+	}, connCheckStrategy)
+
+	if err != nil {
+		return hosts, err
+	}
+	resp.Body.Close()
+
+	dlURL, err := url.ParseRequestURI(remote.AnonDownloadURL)
+	if err != nil {
+		return hosts, err
+	}
+	hosts = append(hosts, dlURL.Host)
+
+	cdnHeader, err := s.cdnHeader()
+	if err != nil {
+		return hosts, err
+	}
+
+	reqOptions := downloadOptions(dlURL, cdnHeader)
+	reqOptions.Method = "HEAD" // not actually a download
+
+	// TODO: We need the HEAD here so that we get redirected to the
+	//       right CDN machine. Consider just doing a "net.Dial"
+	//       after the redirect here. Suggested in
+	// https://github.com/snapcore/snapd/pull/5176#discussion_r193437230
+	resp, err = httputil.RetryRequest(remote.AnonDownloadURL, func() (*http.Response, error) {
+		return s.doRequest(context.TODO(), s.client, reqOptions, nil)
+	}, func(resp *http.Response) error {
+		// account for redirect
+		hosts[len(hosts)-1] = resp.Request.URL.Host
+		return nil
+	}, connCheckStrategy)
+	if err != nil {
+		return hosts, err
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return hosts, errUnexpectedConnCheckResponse
+	}
+
+	return hosts, nil
+}
+
+func (s *Store) ConnectivityCheck() (status map[string]bool, err error) {
+	status = make(map[string]bool)
+
+	checkers := []func() ([]string, error){
+		s.snapConnCheck,
+	}
+
+	for _, checker := range checkers {
+		hosts, err := checker()
+		for _, host := range hosts {
+			status[host] = (err == nil)
+		}
+	}
+
+	return status, nil
 }

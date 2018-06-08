@@ -51,6 +51,7 @@ type StoreService interface {
 	SuggestedCurrency() string
 	Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error)
 	ReadyToBuy(*auth.UserState) error
+	ConnectivityCheck() (map[string]bool, error)
 }
 
 type managerBackend interface {
