@@ -28,7 +28,8 @@ restore: |
         fi
         sleep 1
     done
-    echo "Could not be deleted: $XDG"
+
+    echo "Directory $XDG could not be deleted"
     exit 1
 
 execute: |
